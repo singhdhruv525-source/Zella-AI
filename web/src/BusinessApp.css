@@ -1261,3 +1261,5 @@
 .ba-social-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .ba-social-btn { justify-content: center; text-align: center; min-height: 42px; }
 @media (max-width: 420px) { .ba-social-grid { grid-template-columns: 1fr; } }
+.ba-social-btn { display: inline-flex; align-items: center; gap: 10px; }
+.ba-social-logo { flex: 0 0 auto; display: block; width: 18px; height: 18px; object-fit: contain; }

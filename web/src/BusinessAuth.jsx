@@ -35,6 +35,14 @@ const SOCIAL = [
   { id: "okta", label: "Okta (company sign-in)", sso: true },
 ];
 
+// Each logo is an official file you add to web/public/auth/ (google.svg, microsoft.svg,
+// apple.svg, okta.svg). Until a file exists, the button simply shows its text.
+function ProviderLogo({ id }) {
+  const [missing, setMissing] = useState(false);
+  if (missing) return null;
+  return <img className="ba-social-logo" src={`/auth/${id}.svg`} alt="" width="18" height="18" onError={() => setMissing(true)} />;
+}
+
 function SocialSignIn({ email, setError, disabled }) {
   const [working, setWorking] = useState("");
 
@@ -75,7 +83,8 @@ function SocialSignIn({ email, setError, disabled }) {
       <div className="ba-social-grid">
         {SOCIAL.map((option) => (
           <button key={option.id} type="button" className="ba-btn ba-social-btn" disabled={disabled || Boolean(working)} onClick={() => go(option)}>
-            {working === option.id ? "Opening..." : option.label}
+            <ProviderLogo id={option.id} />
+            <span>{working === option.id ? "Opening..." : option.label}</span>
           </button>
         ))}
       </div>
