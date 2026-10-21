@@ -30,6 +30,7 @@ function AdminApp() {
   const [messageType, setMessageType] = useState("error");
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
+  const [mode, setMode] = useState("signin"); // "signin" or "reset"
 
   // Keep an existing owner session after a page refresh,
   // but only if the platform-admin check still passes.
@@ -74,6 +75,39 @@ function AdminApp() {
     setIsAuthorized(false);
     setPassword("");
     setMessage("");
+  }
+
+  async function handleReset(event) {
+    event.preventDefault();
+    setMessage("");
+    setEmailTouched(true);
+    const problem = checkEmail(email, { required: true });
+    if (problem) {
+      setMessageType("error");
+      setMessage(problem);
+      return;
+    }
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: `${window.location.origin}/welcome`,
+      });
+      if (error) throw error;
+      // Same message whether or not the email exists, so accounts can't be discovered.
+      setMessageType("success");
+      setMessage("If that email has a Zella account, a password reset link is on its way. Check your inbox.");
+    } catch (error) {
+      setMessageType("error");
+      setMessage(error.message || "Couldn't send the reset link. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function switchMode(next) {
+    setMode(next);
+    setMessage("");
+    setEmailTouched(false);
   }
 
   async function handleLogin(event) {
@@ -203,12 +237,14 @@ function AdminApp() {
           <div className="form-content">
             <div className="form-symbol">↗</div>
             <div className="form-eyebrow">OWNER ACCESS</div>
-            <h2>Welcome back</h2>
+            <h2>{mode === "reset" ? "Reset your password" : "Welcome back"}</h2>
             <p className="form-description">
-              Sign in to your Zella platform workspace.
+              {mode === "reset"
+                ? "Enter your email and we'll send you a link to set a new password."
+                : "Sign in to your Zella platform workspace."}
             </p>
 
-            <form onSubmit={handleLogin}>
+            <form onSubmit={mode === "reset" ? handleReset : handleLogin}>
               <label htmlFor="email">Email address</label>
               <div className="input-wrap">
                 <span className="input-icon">✉</span>
@@ -229,6 +265,8 @@ function AdminApp() {
                 <p id="email-error" className="field-error" role="alert">{checkEmail(email)}</p>
               )}
 
+              {mode === "signin" && (
+                <>
               <div className="password-heading">
                 <label htmlFor="password">Password</label>
               </div>
@@ -253,10 +291,23 @@ function AdminApp() {
                 </button>
               </div>
 
+                </>
+              )}
               <button className="login-button" type="submit" disabled={loading}>
-                {loading ? "Verifying access..." : "Sign in to Zella"}
-                {!loading && <span>→</span>}
+                {mode === "reset"
+                  ? loading ? "Sending..." : "Send reset link"
+                  : loading ? "Verifying access..." : "Sign in to Zella"}
+                {!loading && mode === "signin" && <span>→</span>}
               </button>
+              {mode === "signin" ? (
+                <button type="button" className="forgot-link" onClick={() => switchMode("reset")}>
+                  Forgot your password?
+                </button>
+              ) : (
+                <button type="button" className="forgot-link" onClick={() => switchMode("signin")}>
+                  ← Back to sign in
+                </button>
+              )}
             </form>
 
             {message && (

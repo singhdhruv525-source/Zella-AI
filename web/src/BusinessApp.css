@@ -1253,3 +1253,11 @@
 }
 .ba-edit-list input:focus, .ba-edit-list select:focus, .ba-inline-form input:focus { outline: 2px solid var(--ba-primary); outline-offset: 1px; }
 .ba-edit-list select { flex: 0 0 auto; }
+
+/* Social sign-in */
+.ba-social { margin-top: 6px; }
+.ba-social-divider { display: flex; align-items: center; gap: 12px; margin: 8px 0 14px; color: var(--ba-muted); font-size: 13px; }
+.ba-social-divider::before, .ba-social-divider::after { content: ""; flex: 1; height: 1px; background: var(--ba-border); }
+.ba-social-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ba-social-btn { justify-content: center; text-align: center; min-height: 42px; }
+@media (max-width: 420px) { .ba-social-grid { grid-template-columns: 1fr; } }
