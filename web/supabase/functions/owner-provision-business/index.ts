@@ -165,6 +165,8 @@ const AUTOMATIONS = {
     settings: (s: Json) => ({
       minutes_after: numberIn(s.minutes_after, [0, 5, 15, 60], 5),
       max_attempts: numberIn(s.max_attempts, [1, 2, 3], 2),
+      contact_within_minutes: numberIn(s.contact_within_minutes, [5, 15, 30, 60], 15),
+      escalate_after_minutes: numberIn(s.escalate_after_minutes, [30, 60, 120, 240], 60),
       retry_after_hours: numberIn(s.retry_after_hours, [1, 4, 24], 24),
       fallback_sms: bool(s.fallback_sms, true),
     }),
@@ -178,10 +180,53 @@ const AUTOMATIONS = {
       channel: oneOf(s.channel, ["sms", "email"] as const, "sms"),
     }),
   },
+  quote_follow_up: {
+    name: "Quote follow-up",
+    description: "Follows up on open quotes until they are accepted, declined or expire.",
+    actions: [{ type: "quote_outreach" }],
+    settings: (s: Json) => ({
+      hours_after: numberIn(s.hours_after, [24, 48, 72], 48),
+      max_attempts: numberIn(s.max_attempts, [1, 2, 3], 2),
+      channel: oneOf(s.channel, ["sms", "email"] as const, "sms"),
+    }),
+  },
+  lead_reactivation: {
+    name: "Lead reactivation",
+    description: "Reaches out to leads that have gone quiet.",
+    actions: [{ type: "reactivation_outreach" }],
+    settings: (s: Json) => ({
+      days_inactive: numberIn(s.days_inactive, [14, 30, 60, 90], 30),
+      channel: oneOf(s.channel, ["sms", "email"] as const, "sms"),
+    }),
+  },
+  waitlist_offer: {
+    name: "Waitlist offers",
+    description: "Offers a freed-up time to people on the waitlist.",
+    actions: [{ type: "waitlist_offer" }],
+    settings: (s: Json) => ({
+      offers: numberIn(s.offers, [1, 2, 3, 5], 3),
+      offer_minutes: numberIn(s.offer_minutes, [15, 30, 60], 30),
+      channel: oneOf(s.channel, ["sms", "call"] as const, "sms"),
+    }),
+  },
+  staff_unavailable: {
+    name: "Staff unavailable",
+    description: "Helps customers rebook when their staff member becomes unavailable.",
+    actions: [{ type: "staff_unavailable_outreach" }],
+    settings: (s: Json) => ({
+      channel: oneOf(s.channel, ["sms", "call"] as const, "sms"),
+    }),
+  },
 } as const;
 
 type AutomationType = keyof typeof AUTOMATIONS;
 const AUTOMATION_TYPES = Object.keys(AUTOMATIONS) as AutomationType[];
+
+// Business owners land on the owner app's welcome page to set their password.
+// (Platform admins are still sent to the admin sign-in.)
+function ownerWelcomeUrl(appUrl: string) {
+  return `${appUrl.replace(/\/+$/, "")}/welcome`;
+}
 
 // ---------------------------------------------------------------------------
 // Setup actions
@@ -817,7 +862,7 @@ async function finishSetup(admin: SupabaseClient, fields: Json) {
   const { data: invited, error: inviteError } =
     await admin.auth.admin.inviteUserByEmail(invitation.email, {
       data: { full_name: invitation.owner_name, business_id: businessId },
-      ...(appUrl ? { redirectTo: appUrl } : {}),
+      ...(appUrl ? { redirectTo: ownerWelcomeUrl(appUrl) } : {}),
     });
 
   if (inviteError || !invited?.user) {
@@ -2495,7 +2540,7 @@ async function invitationResend(admin: SupabaseClient, fields: Json) {
   const appUrl = Deno.env.get("ZELLA_APP_URL");
   const { data: invited, error } = await admin.auth.admin.inviteUserByEmail(invitation.email, {
     data: { full_name: invitation.owner_name, business_id: businessId },
-    ...(appUrl ? { redirectTo: appUrl } : {}),
+    ...(appUrl ? { redirectTo: ownerWelcomeUrl(appUrl) } : {}),
   });
 
   if (error || !invited?.user) {

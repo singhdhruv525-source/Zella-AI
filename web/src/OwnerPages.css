@@ -39,7 +39,7 @@
 }
 
 .op-link {
-  color: var(--color-accent-strong, #6B7F68);
+  color: var(--color-primary);
   font-size: 12px;
   font-weight: 650;
   white-space: nowrap;
@@ -84,7 +84,7 @@
 }
 
 .op-pill-success { background: var(--status-success-bg); color: var(--status-success); }
-.op-pill-info { background: var(--color-primary-subtle); color: var(--color-accent-strong, #6B7F68); }
+.op-pill-info { background: var(--color-primary-subtle); color: var(--color-primary); }
 .op-pill-warning { background: var(--status-warning-bg); color: var(--status-warning); }
 .op-pill-danger { background: var(--status-danger-bg); color: var(--status-danger); }
 
@@ -171,7 +171,7 @@
   height: 100%;
   min-width: 2px;
   border-radius: var(--radius-full);
-  background: var(--color-accent-strong, #6B7F68);
+  background: var(--color-primary);
 }
 
 /* Tabs */
@@ -296,7 +296,7 @@
 }
 
 .op-tag-list li.on {
-  border-color: #CFD8CB;
+  border-color: var(--color-primary-border);
   background: var(--color-primary-subtle);
   color: var(--text-primary);
 }
@@ -404,7 +404,7 @@
 .ic-notice {
   margin-bottom: 20px;
   padding: 12px 15px;
-  border: 1px solid #DCE2D6;
+  border: 1px solid var(--color-primary-border);
   border-radius: var(--radius-md);
   background: var(--status-success-bg);
   color: var(--status-success);
@@ -450,7 +450,7 @@
 .ag-search:focus,
 .ic-module input:focus {
   border-color: var(--border-focus);
-  box-shadow: 0 0 0 3px var(--focus-ring, rgba(140, 158, 137, 0.28));
+  box-shadow: 0 0 0 3px var(--focus-ring, rgba(37, 99, 235, 0.15));
   outline: none;
 }
 
@@ -608,7 +608,7 @@
 }
 
 .ag-checks span.ok {
-  border: 1px solid #CFD8CB;
+  border: 1px solid var(--color-primary-border);
   background: var(--status-success-bg);
   color: var(--status-success);
 }
@@ -735,7 +735,7 @@
 .in-need em { color: var(--status-warning); font-style: normal; font-weight: 600; }
 
 .in-need.ok {
-  border: 1px solid #CFD8CB;
+  border: 1px solid var(--color-primary-border);
   background: var(--status-success-bg);
   color: var(--status-success);
 }
@@ -829,7 +829,7 @@
   font-size: 13px;
 }
 
-.po-banner.ok { border: 1px solid #CFD8CB; background: var(--status-success-bg); color: var(--status-success); }
+.po-banner.ok { border: 1px solid var(--color-primary-border); background: var(--status-success-bg); color: var(--status-success); }
 .po-banner.warn { border: 1px solid var(--status-warning); background: var(--status-warning-bg); color: var(--text-primary); }
 .po-banner span { color: var(--text-muted); font-size: 12px; }
 .po-count { display: flex; align-items: center; gap: 10px; }
@@ -870,7 +870,7 @@
   font-weight: 750;
 }
 
-.cp-ai { color: var(--color-accent-strong, #6B7F68); }
+.cp-ai { color: var(--color-primary); }
 
 .cp-card h1 {
   margin: 0 0 10px;

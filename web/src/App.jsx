@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "./supabase";
 import OwnerDashboard from "./OwnerDashboard";
 import ContinuePlan from "./ContinuePlan";
+import BusinessApp from "./BusinessApp";
 import "./App.css";
 
 
@@ -10,6 +11,10 @@ import "./App.css";
 export default function App() {
   if (window.location.pathname.startsWith("/continue-plan")) {
     return <ContinuePlan />;
+  }
+  // The client businesses' own CRM.
+  if (/^\/(app|welcome)(\/|$)/.test(window.location.pathname)) {
+    return <BusinessApp />;
   }
   return <AdminApp />;
 }

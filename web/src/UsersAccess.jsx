@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import "./OwnerPages.css";
 import { callOwnerFunction } from "./CreateBusinessWizard";
+import { EmailField } from "./formFields";
+import { checkEmail } from "./formValidation";
 import { Pill } from "./OwnerOverview";
 import { formatDate, timeAgo } from "./ownerFormat";
 
@@ -54,6 +56,7 @@ export default function UsersAccess() {
 
   async function submitInvite(event) {
     event.preventDefault();
+    if (checkEmail(invite.email, { required: true })) return;
     const ok = await run("admin_invite", invite, (r) =>
       r.invited
         ? `Invitation emailed to ${r.email}.`
@@ -96,10 +99,10 @@ export default function UsersAccess() {
             </div>
           </div>
           <div className="owner-form-grid">
-            <label className="owner-field">
+            <div className="owner-field">
               <span>Email *</span>
-              <input type="email" required value={invite.email} onChange={(e) => setInvite({ ...invite, email: e.target.value })} />
-            </label>
+              <EmailField value={invite.email} onChange={(email) => setInvite({ ...invite, email })} required />
+            </div>
             <label className="owner-field">
               <span>Role</span>
               <select value={invite.role} onChange={(e) => setInvite({ ...invite, role: e.target.value })}>
