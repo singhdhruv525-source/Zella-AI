@@ -1,3 +1,6 @@
+import { automationDefaultsFor, emptyAutomations } from "./industryAutomations";
+import { EmailField, PhoneField, TimeZoneSelect } from "./formFields";
+import { checkEmail, countryList, validatePhone } from "./formValidation";
 import { useEffect, useMemo, useState } from "react";
 import "./CreateBusinessWizard.css";
 import { supabase } from "./supabase";
@@ -56,25 +59,7 @@ const RESUME_STEP = {
   active: 7,
 };
 
-const TIMEZONES = [
-  ["America/New_York", "Eastern Time"],
-  ["America/Chicago", "Central Time"],
-  ["America/Denver", "Mountain Time"],
-  ["America/Phoenix", "Arizona Time"],
-  ["America/Los_Angeles", "Pacific Time"],
-  ["America/Anchorage", "Alaska Time"],
-  ["Pacific/Honolulu", "Hawaii Time"],
-  ["Asia/Kolkata", "India Standard Time"],
-  ["UTC", "UTC"],
-];
-
-const COUNTRIES = [
-  ["US", "United States"],
-  ["CA", "Canada"],
-  ["GB", "United Kingdom"],
-  ["AU", "Australia"],
-  ["IN", "India"],
-];
+const COUNTRIES = countryList().map((c) => [c.iso, c.name]);
 
 const TERM_ROWS = [
   { singular: "customer", plural: "customers", label: "Customers", hint: "People the business serves" },
@@ -161,14 +146,7 @@ const DAYS = [
 const emptyHours = () =>
   Object.fromEntries(DAYS.map(([day]) => [day, { closed: false, open: "", close: "" }]));
 
-const DEFAULT_AUTOMATIONS = {
-  appointment_reminder: { enabled: true, settings: { hours_before: [24, 2], channel: "sms" } },
-  appointment_confirmation: { enabled: true, settings: { hours_before: 24, channel: "sms" } },
-  no_show_follow_up: { enabled: true, settings: { minutes_after: 15, channel: "call" } },
-  missed_call_follow_up: { enabled: true, settings: { minutes_after: 5, max_attempts: 2, fallback_sms: true } },
-  new_lead_callback: { enabled: true, settings: { minutes_after: 5, max_attempts: 2, retry_after_hours: 24, fallback_sms: true } },
-  post_appointment_follow_up: { enabled: false, settings: { hours_after: 24, channel: "sms" } },
-};
+const DEFAULT_AUTOMATIONS = emptyAutomations();
 
 function emptySetup() {
   return {
@@ -215,7 +193,7 @@ function emptySetup() {
 }
 
 // Converts the server's saved data into the wizard's form state.
-function fromServer(data) {
+function fromServer(data, industries = []) {
   const setup = emptySetup();
   const b = data.business;
   const setupData = b.setup_data || {};
@@ -294,6 +272,11 @@ function fromServer(data) {
     };
   }
 
+  // The industry decides which automations start switched on. Anything the admin
+  // already saved for this business wins over those defaults.
+  const industryName = industries.find((i) => i.id === setup.business.industryId)?.name;
+  setup.automations = automationDefaultsFor(industryName);
+  setup.automationsFromIndustry = industryName || "";
   for (const row of data.automations || []) {
     if (setup.automations[row.trigger_type]) {
       setup.automations[row.trigger_type] = {
@@ -320,13 +303,14 @@ function termFor(terminology, key) {
 // Small building blocks
 // ---------------------------------------------------------------------------
 
-function Field({ label, required, hint, children, full }) {
+function Field({ label, required, hint, children, full, bare }) {
+  const Tag = bare ? "div" : "label";
   return (
-    <label className={`owner-field ${full ? "wiz-field-full" : ""}`}>
+    <Tag className={`owner-field ${full ? "wiz-field-full" : ""}`}>
       <span>{label}{required ? " *" : ""}</span>
       {children}
       {hint && <small className="wiz-hint">{hint}</small>}
-    </label>
+    </Tag>
   );
 }
 
@@ -419,7 +403,7 @@ function ConnectionRow({ name, detail, children }) {
 // Steps
 // ---------------------------------------------------------------------------
 
-function BusinessStep({ value, onChange, industries, isExisting, locked }) {
+function BusinessStep({ value, onChange, industries, isExisting, locked, showErrors }) {
   const set = (key) => (event) => onChange({ ...value, [key]: event.target.value });
 
   return (
@@ -444,16 +428,14 @@ function BusinessStep({ value, onChange, industries, isExisting, locked }) {
               ))}
             </select>
           </Field>
-          <Field label="Timezone" required>
-            <select value={value.timezone} onChange={set("timezone")}>
-              {TIMEZONES.map(([zone, label]) => <option key={zone} value={zone}>{label}</option>)}
-            </select>
+          <Field label="Timezone" required bare>
+            <TimeZoneSelect value={value.timezone} onChange={(timezone) => onChange({ ...value, timezone })} />
           </Field>
-          <Field label="Business email">
-            <input type="email" value={value.email} onChange={set("email")} placeholder="hello@business.com" />
+          <Field label="Business email" bare>
+            <EmailField value={value.email} onChange={(email) => onChange({ ...value, email })} placeholder="hello@business.com" showErrors={showErrors} />
           </Field>
-          <Field label="Business phone" hint="The number customers know today">
-            <input type="tel" value={value.phone} onChange={set("phone")} placeholder="+1 (555) 000-0000" />
+          <Field label="Business phone" hint="The number customers know today" bare>
+            <PhoneField value={value.phone} onChange={(phone) => onChange({ ...value, phone })} showErrors={showErrors} label="Business phone" />
           </Field>
           <Field label="Website" full>
             <input value={value.website} onChange={set("website")} placeholder="https://" />
@@ -483,7 +465,7 @@ function BusinessStep({ value, onChange, industries, isExisting, locked }) {
   );
 }
 
-function OwnerStep({ value, onChange, invitation }) {
+function OwnerStep({ value, onChange, invitation, showErrors }) {
   const set = (key) => (event) => onChange({ ...value, [key]: event.target.value });
   const sent = invitation && ["sent", "accepted"].includes(invitation.status);
 
@@ -497,11 +479,11 @@ function OwnerStep({ value, onChange, invitation }) {
         <Field label="Owner full name" required>
           <input value={value.name} onChange={set("name")} placeholder="Full name" />
         </Field>
-        <Field label="Owner email / login" required hint={sent ? "Already invited, so the email can't be changed here." : undefined}>
-          <input type="email" value={value.email} onChange={set("email")} placeholder="owner@business.com" disabled={sent} />
+        <Field label="Owner email / login" required bare hint={sent ? "Already invited, so the email can't be changed here." : undefined}>
+          <EmailField value={value.email} onChange={(email) => onChange({ ...value, email })} placeholder="owner@business.com" disabled={sent} required showErrors={showErrors} />
         </Field>
-        <Field label="Owner phone">
-          <input type="tel" value={value.phone} onChange={set("phone")} placeholder="+1 (555) 000-0000" />
+        <Field label="Owner phone" bare>
+          <PhoneField value={value.phone} onChange={(phone) => onChange({ ...value, phone })} showErrors={showErrors} label="Owner phone" />
         </Field>
       </div>
       <div className="wiz-note">
@@ -684,7 +666,7 @@ function ListEditor({ items, onChange, fields, addLabel, emptyText }) {
   );
 }
 
-function ReceptionistStep({ value, onChange, terminology }) {
+function ReceptionistStep({ value, onChange, terminology, showErrors }) {
   const set = (key) => (event) => onChange({ ...value, [key]: event.target.value });
   const services = termFor(terminology, "services");
 
@@ -823,12 +805,12 @@ function ReceptionistStep({ value, onChange, terminology }) {
               onChange={(e) => onChange({ ...value, escalation: { ...value.escalation, transferTo: { ...value.escalation.transferTo, name: e.target.value } } })}
             />
           </Field>
-          <Field label="Transfer phone number" full>
-            <input
-              type="tel"
+          <Field label="Transfer phone number" full bare>
+            <PhoneField
               value={value.escalation.transferTo.phone}
-              placeholder="+1 (555) 000-0000"
-              onChange={(e) => onChange({ ...value, escalation: { ...value.escalation, transferTo: { ...value.escalation.transferTo, phone: e.target.value } } })}
+              showErrors={showErrors}
+              label="Transfer phone number"
+              onChange={(phone) => onChange({ ...value, escalation: { ...value.escalation, transferTo: { ...value.escalation.transferTo, phone } } })}
             />
           </Field>
         </div>
@@ -846,7 +828,7 @@ function ReceptionistStep({ value, onChange, terminology }) {
   );
 }
 
-function IntegrationsStep({ value, onChange }) {
+function IntegrationsStep({ value, onChange, showErrors }) {
   const setPhone = (patch) => onChange({ ...value, phone: { ...value.phone, ...patch } });
   const setLead = (key, on) => onChange({ ...value, leadSources: { ...value.leadSources, [key]: on } });
 
@@ -878,8 +860,8 @@ function IntegrationsStep({ value, onChange }) {
         <div className="owner-form-grid">
           {value.phone.mode === "call_forwarding" && (
             <>
-              <Field label="Business number to forward" required hint="The number customers already call">
-                <input type="tel" value={value.phone.existingNumber} onChange={(e) => setPhone({ existingNumber: e.target.value })} placeholder="+1 (555) 000-0000" />
+              <Field label="Business number to forward" required bare hint="The number customers already call">
+                <PhoneField value={value.phone.existingNumber} onChange={(existingNumber) => setPhone({ existingNumber })} required showErrors={showErrors} label="Business number to forward" />
               </Field>
               <Field label="Forward calls" required>
                 <select value={value.phone.forwardWhen} onChange={(e) => setPhone({ forwardWhen: e.target.value })}>
@@ -947,7 +929,7 @@ function IntegrationsStep({ value, onChange }) {
   );
 }
 
-function AutomationsStep({ value, onChange, terminology }) {
+function AutomationsStep({ value, onChange, terminology, industryName }) {
   const appt = termFor(terminology, "appointment").toLowerCase();
   const appts = termFor(terminology, "appointments").toLowerCase();
 
@@ -1040,6 +1022,9 @@ function AutomationsStep({ value, onChange, terminology }) {
             <input type="checkbox" disabled={!value.new_lead_callback.enabled} checked={value.new_lead_callback.settings.fallback_sms} onChange={(e) => setSetting("new_lead_callback", "fallback_sms", e.target.checked)} />
             Send a text if they don't answer
           </label>
+          <label className="wiz-inline">
+            Contact within <AutoSelect item={value.new_lead_callback} onSet={(k, v) => setSetting("new_lead_callback", k, v)} setting="contact_within_minutes" options={[[5, "5 min"], [15, "15 min"], [30, "30 min"], [60, "1 hour"]]} />, tell the team after <AutoSelect item={value.new_lead_callback} onSet={(k, v) => setSetting("new_lead_callback", k, v)} setting="escalate_after_minutes" options={[[30, "30 min"], [60, "1 hour"], [120, "2 hours"], [240, "4 hours"]]} />
+          </label>
         </>
       ),
     },
@@ -1054,10 +1039,55 @@ function AutomationsStep({ value, onChange, terminology }) {
         </label>
       ),
     },
+    {
+      type: "quote_follow_up",
+      title: "Quote follow-up",
+      description: "Check in with people who were sent a quote and haven't replied.",
+      body: (
+        <label className="wiz-inline">
+          After <AutoSelect item={value.quote_follow_up} onSet={(k, v) => setSetting("quote_follow_up", k, v)} setting="hours_after" options={[[24, "1 day"], [48, "2 days"], [72, "3 days"]]} />, up to <AutoSelect item={value.quote_follow_up} onSet={(k, v) => setSetting("quote_follow_up", k, v)} setting="max_attempts" options={[[1, "1 try"], [2, "2 tries"], [3, "3 tries"]]} />, by <AutoSelect item={value.quote_follow_up} onSet={(k, v) => setSetting("quote_follow_up", k, v)} setting="channel" numeric={false} options={[["sms", "text"], ["email", "email"]]} />
+        </label>
+      ),
+    },
+    {
+      type: "lead_reactivation",
+      title: "Win back quiet customers",
+      description: "Reach out to people you haven't heard from in a while.",
+      body: (
+        <label className="wiz-inline">
+          After <AutoSelect item={value.lead_reactivation} onSet={(k, v) => setSetting("lead_reactivation", k, v)} setting="days_inactive" options={[[14, "2 weeks"], [30, "30 days"], [60, "60 days"], [90, "90 days"]]} /> without contact, by <AutoSelect item={value.lead_reactivation} onSet={(k, v) => setSetting("lead_reactivation", k, v)} setting="channel" numeric={false} options={[["sms", "text"], ["email", "email"]]} />
+        </label>
+      ),
+    },
+    {
+      type: "waitlist_offer",
+      title: "Waitlist offers",
+      description: `When ${/^[aeiou]/i.test(appt) ? "an" : "a"} ${appt} opens up, offer it to people waiting.`,
+      body: (
+        <label className="wiz-inline">
+          Offer to <AutoSelect item={value.waitlist_offer} onSet={(k, v) => setSetting("waitlist_offer", k, v)} setting="offers" options={[[1, "1"], [3, "3"], [5, "5"]]} /> people, each gets <AutoSelect item={value.waitlist_offer} onSet={(k, v) => setSetting("waitlist_offer", k, v)} setting="offer_minutes" options={[[15, "15 min"], [30, "30 min"], [60, "1 hour"]]} />, by <AutoSelect item={value.waitlist_offer} onSet={(k, v) => setSetting("waitlist_offer", k, v)} setting="channel" numeric={false} options={[["sms", "text"], ["email", "email"]]} />
+        </label>
+      ),
+    },
+    {
+      type: "staff_unavailable",
+      title: "Team member unavailable",
+      description: `Tell customers and offer another time when their ${appt} can't go ahead.`,
+      body: (
+        <label className="wiz-inline">
+          Notify by <AutoSelect item={value.staff_unavailable} onSet={(k, v) => setSetting("staff_unavailable", k, v)} setting="channel" numeric={false} options={[["sms", "text"], ["email", "email"]]} />
+        </label>
+      ),
+    },
   ];
 
   return (
     <>
+      {industryName && (
+        <div className="wiz-note">
+          These starting choices are the usual ones for <strong>{industryName}</strong>. Change anything you like.
+        </div>
+      )}
       <div className="wiz-note">
         Automations are saved as <strong>paused</strong> and start running through n8n only when this business
         goes live. Wording uses this business's terms ({appts}).
@@ -1090,7 +1120,7 @@ function ReviewStep({ setup, industries, goTo }) {
 
   const rows = [
     { step: 0, title: "Business", ok: Boolean(setup.business.name && industry), required: true,
-      detail: [setup.business.name, industry?.name, setup.business.timezone].filter(Boolean).join(" · ") },
+      detail: [setup.business.name, industry?.name && `${industry.name} CRM`, setup.business.timezone].filter(Boolean).join(" · ") },
     { step: 1, title: "Owner", ok: Boolean(setup.owner.name && setup.owner.email), required: true,
       detail: setup.owner.email ? `${setup.owner.name} · ${setup.owner.email}` : "Not added" },
     { step: 2, title: "Terminology", ok: true,
@@ -1141,13 +1171,14 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
   const [loading, setLoading] = useState(Boolean(initialBusinessId));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [showErrors, setShowErrors] = useState(false);
   const [result, setResult] = useState(null);
 
   const locked = ["testing", "ready", "active"].includes(setup.onboardingStatus);
 
   async function reload(id, jump) {
     const data = await callOwnerFunction("setup_load", { businessId: id });
-    const next = fromServer(data);
+    const next = fromServer(data, industries);
     setSetup(next);
     if (jump) setStep(RESUME_STEP[next.onboardingStatus] ?? 0);
     return next;
@@ -1165,16 +1196,34 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
 
   const update = (key) => (value) => setSetup((current) => ({ ...current, [key]: value }));
 
+  // Picking an industry also picks that industry's usual automations. The wording
+  // (terminology) follows from the industry on the next save.
+  const changeBusiness = (business) =>
+    setSetup((current) => {
+      if (business.industryId === current.business.industryId) return { ...current, business };
+      const name = industries.find((i) => i.id === business.industryId)?.name;
+      return { ...current, business, automations: automationDefaultsFor(name), automationsFromIndustry: name || "" };
+    });
+
   function validate() {
     if (step === 0) {
       if (!setup.business.name.trim()) return "Enter the business name.";
       if (!setup.business.industryId) return "Select an industry.";
+      if (checkEmail(setup.business.email)) return `Business email: ${checkEmail(setup.business.email)}`;
+      if (validatePhone(setup.business.phone)) return `Business phone: ${validatePhone(setup.business.phone)}`;
     }
     if (step === 1) {
       if (!setup.owner.name.trim() || !setup.owner.email.trim()) return "Enter the owner's name and email.";
+      if (checkEmail(setup.owner.email, { required: true })) return `Owner email: ${checkEmail(setup.owner.email, { required: true })}`;
+      if (validatePhone(setup.owner.phone)) return `Owner phone: ${validatePhone(setup.owner.phone)}`;
     }
-    if (step === 5 && setup.integrations.phone.mode === "call_forwarding" && !setup.integrations.phone.existingNumber.trim()) {
-      return "Enter the business number that will be forwarded to Zella.";
+    if (step === 4 && validatePhone(setup.receptionist.escalation.transferTo.phone)) {
+      return `Transfer phone number: ${validatePhone(setup.receptionist.escalation.transferTo.phone)}`;
+    }
+    if (step === 5 && setup.integrations.phone.mode === "call_forwarding") {
+      if (!setup.integrations.phone.existingNumber.trim()) return "Enter the business number that will be forwarded to Zella.";
+      const bad = validatePhone(setup.integrations.phone.existingNumber, { required: true });
+      if (bad) return `Business number to forward: ${bad}`;
     }
     return "";
   }
@@ -1234,8 +1283,10 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
     const problem = validate();
     if (problem) {
       setError(problem);
+      setShowErrors(true);
       return;
     }
+    setShowErrors(false);
 
     setSaving(true);
     setError("");
@@ -1266,6 +1317,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
     if (index > 0 && !businessId) return;
     setError("");
     setStep(index);
+    setShowErrors(false);
   };
 
   if (loading) {
@@ -1341,14 +1393,14 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
 
       <div className="wiz-body">
         {step === 0 && (
-          <BusinessStep value={setup.business} onChange={update("business")} industries={industries} isExisting={Boolean(businessId)} locked={locked} />
+          <BusinessStep value={setup.business} onChange={changeBusiness} industries={industries} isExisting={Boolean(businessId)} locked={locked} showErrors={showErrors} />
         )}
-        {step === 1 && <OwnerStep value={setup.owner} onChange={update("owner")} invitation={setup.invitation} />}
+        {step === 1 && <OwnerStep value={setup.owner} onChange={update("owner")} invitation={setup.invitation} showErrors={showErrors} />}
         {step === 2 && <TerminologyStep value={terminology} onChange={update("terminology")} />}
         {step === 3 && <ModulesStep modules={setup.modules} onChange={update("modules")} />}
-        {step === 4 && <ReceptionistStep value={setup.receptionist} onChange={update("receptionist")} terminology={terminology} />}
-        {step === 5 && <IntegrationsStep value={setup.integrations} onChange={update("integrations")} />}
-        {step === 6 && <AutomationsStep value={setup.automations} onChange={update("automations")} terminology={terminology} />}
+        {step === 4 && <ReceptionistStep value={setup.receptionist} onChange={update("receptionist")} terminology={terminology} showErrors={showErrors} />}
+        {step === 5 && <IntegrationsStep value={setup.integrations} onChange={update("integrations")} showErrors={showErrors} />}
+        {step === 6 && <AutomationsStep value={setup.automations} onChange={update("automations")} terminology={terminology} industryName={industries.find((i) => i.id === setup.business.industryId)?.name} />}
         {step === 7 && <ReviewStep setup={setup} industries={industries} goTo={goTo} />}
       </div>
 

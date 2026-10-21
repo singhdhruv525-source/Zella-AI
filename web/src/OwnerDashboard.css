@@ -125,7 +125,7 @@
 }
 
 .owner-nav-item.active {
-  border-color: #DCE8FF;
+  border-color: var(--color-primary-border);
   background: var(--color-primary-subtle);
   color: var(--color-primary);
   font-weight: 650;
@@ -1169,7 +1169,7 @@
   gap: 12px;
   margin-bottom: 22px;
   padding: 14px 16px;
-  border: 1px solid #DCE8FF;
+  border: 1px solid var(--color-primary-border);
   border-radius: var(--radius-lg);
   background: var(--color-primary-subtle);
 }
@@ -1475,55 +1475,30 @@
 }
 
 /* =========================================================
-   Zella Oat & Slate theme
-   Paste at the VERY END of src/OwnerDashboard.css
-   (after the additions block). Only colors change; layout stays.
+   Zella theme: Oat & Slate SaaS Beige
+   One theme for the admin dashboard, the client CRM and every
+   Zella page. Base tokens are in :root at the top of this file;
+   these map the shared accent names onto them.
    ========================================================= */
 
 :root {
-  --bg-canvas: #F7F6F2;
-  --bg-surface: #FFFFFF;
-  --bg-surface-subdued: #F0EEE8;
-  --bg-surface-alt: #FAF9F6;
-
-  --border-subtle: #E4E1DA;
-  --border-strong: #D6D2C8;
-  --border-focus: #8C9E89;
-
-  --text-primary: #303730;
-  --text-secondary: #5F655E;
-  --text-muted: #747A73;
-  --text-inverse: #FFFFFF;
-
-  /* Primary actions: deep slate. Accent: muted sage. */
-  --color-primary: #303730;
-  --color-primary-hover: #232923;
-  --color-primary-subtle: #EEF0EA;
-  --color-accent: #A6B5A3;
-  --color-accent-strong: #6B7F68;
-  --focus-ring: rgba(140, 158, 137, 0.28);
-
-  --status-success: #4F6B4B;
-  --status-success-bg: #E7EDE4;
-  --status-info: #556A6F;
-  --status-info-bg: #EEF0EA;
+  --color-accent: var(--color-primary);
+  --color-accent-strong: var(--color-primary);
+  --color-primary-border: #BFDBFE;
+  --focus-ring: rgba(37, 99, 235, 0.15);
 }
 
-/* Replace the old hardcoded blue values */
 .owner-nav-item.active {
-  border-color: #DCE2D6;
+  border-color: var(--color-primary-border);
   background: var(--color-primary-subtle);
-  color: var(--text-primary);
+  color: var(--color-primary);
 }
 
 .owner-nav-item.active .owner-nav-icon,
-.owner-nav-arrow {
-  color: var(--color-accent-strong);
-}
-
+.owner-nav-arrow,
 .owner-brand-name span,
 .owner-eyebrow {
-  color: var(--color-accent-strong);
+  color: var(--color-primary);
 }
 
 .owner-search:focus-within,
@@ -1536,23 +1511,12 @@
 }
 
 .owner-info-banner {
-  border-color: #DCE2D6;
+  border-color: var(--color-primary-border);
   background: var(--color-primary-subtle);
 }
 
 .owner-info-symbol {
-  background: var(--color-accent-strong);
-}
-
-.owner-provisioning-note,
-.owner-notice {
-  border-color: #DCE2D6;
-  background: var(--color-primary-subtle);
-  color: var(--text-secondary);
-}
-
-.owner-provisioning-note strong {
-  color: var(--text-primary);
+  background: var(--color-primary);
 }
 
 .owner-table tbody tr:hover {
@@ -1560,6 +1524,6 @@
 }
 
 .owner-status-dot {
-  background: var(--color-accent-strong);
+  background: var(--status-success);
   box-shadow: 0 0 0 3px var(--status-success-bg);
 }

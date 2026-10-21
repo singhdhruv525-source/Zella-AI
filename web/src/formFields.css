@@ -1,0 +1,123 @@
+/* Shared form fields: country-code phone, email, time zone, password.
+   Colours follow whichever theme the page uses (CRM --ba-*, admin --status-*). */
+.ff {
+  --ff-border: var(--ba-border-strong, var(--border-strong, #c9c4b8));
+  --ff-surface: var(--ba-surface, var(--bg-surface, #fff));
+  --ff-text: var(--ba-text, var(--text-primary, #1f2328));
+  --ff-muted: var(--ba-muted, var(--text-muted, #6b6f76));
+  --ff-focus: var(--ba-primary, var(--color-primary, #2f5d50));
+  --ff-ring: var(--ba-primary-ring, rgba(47, 93, 80, 0.18));
+  --ff-danger: var(--ba-danger, var(--status-danger, #b3261e));
+  --ff-danger-bg: var(--ba-danger-bg, #fdf0ee);
+  --ff-ok: var(--ba-success, var(--status-success, #2e7d4f));
+  --ff-radius: var(--ba-radius-md, var(--radius-md, 8px));
+  min-width: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ff input, .ff select {
+  width: 100%;
+  min-height: 42px;
+  padding: 10px 12px;
+  border: 1px solid var(--ff-border);
+  border-radius: var(--ff-radius);
+  background: var(--ff-surface);
+  color: var(--ff-text);
+  font: inherit;
+  box-sizing: border-box;
+}
+.ff input:focus, .ff select:focus {
+  outline: none;
+  border-color: var(--ff-focus);
+  box-shadow: 0 0 0 3px var(--ff-ring);
+}
+.ff.has-error input, .ff.has-error select, .ff.has-error .ff-country {
+  border-color: var(--ff-danger);
+}
+.ff.has-error input:focus { box-shadow: 0 0 0 3px color-mix(in srgb, var(--ff-danger) 22%, transparent); }
+.ff input:disabled, .ff select:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.ff-error {
+  margin: 0;
+  color: var(--ff-danger);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+.ff-ok {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ff-ok);
+  font-size: 12.5px;
+}
+
+/* Phone */
+.ff-phone-row { display: flex; gap: 8px; }
+.ff-phone-row input { flex: 1 1 auto; min-width: 0; }
+.ff-country {
+  position: relative;
+  flex: 0 0 auto;
+  min-width: 104px;
+  border: 1px solid var(--ff-border);
+  border-radius: var(--ff-radius);
+  background: var(--ff-surface);
+  display: flex;
+  align-items: center;
+}
+.ff-country:focus-within { border-color: var(--ff-focus); box-shadow: 0 0 0 3px var(--ff-ring); }
+.ff-country-shown {
+  display: flex; align-items: center; gap: 6px;
+  padding: 0 28px 0 12px;
+  pointer-events: none;
+  color: var(--ff-text);
+  white-space: nowrap;
+}
+.ff-country-shown::after {
+  content: "";
+  position: absolute; right: 11px; top: 50%;
+  width: 6px; height: 6px;
+  border-right: 1.6px solid var(--ff-muted);
+  border-bottom: 1.6px solid var(--ff-muted);
+  transform: translateY(-70%) rotate(45deg);
+}
+.ff-flag { font-size: 18px; line-height: 1; }
+.ff-dial { font-variant-numeric: tabular-nums; }
+.ff-country select {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  opacity: 0;
+  border: 0;
+  cursor: pointer;
+}
+.ff-country select:focus { box-shadow: none; }
+
+/* Time zone */
+.ff-tz-search { min-height: 36px; font-size: 13px; }
+
+/* Password */
+.ff-password-row { position: relative; display: flex; }
+.ff-password-row input { padding-right: 64px; }
+.ff-reveal {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  border: 0; background: transparent; color: var(--ff-focus);
+  font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+  padding: 6px 8px; border-radius: 6px;
+}
+.ff-reveal:focus-visible { outline: 2px solid var(--ff-focus); }
+.ff-rules { margin-top: 2px; }
+.ff-rules ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.ff-rules li {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--ff-muted);
+  transition: color 0.15s ease;
+}
+.ff-rules li.met { color: var(--ff-ok); }
+.ff-tick { flex: 0 0 auto; }
+.ff-rules-summary { margin: 8px 0 0; font-size: 12.5px; color: var(--ff-muted); }
+.ff-rules-summary.met { color: var(--ff-ok); font-weight: 600; }
+
+@media (prefers-reduced-motion: reduce) { .ff-rules li { transition: none; } }
+@media (max-width: 480px) { .ff-country { min-width: 96px; } }
