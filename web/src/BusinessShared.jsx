@@ -229,6 +229,8 @@ const CODE_MESSAGES = {
   NOT_VALID: "This version needs to pass the checks before it can go live.",
   NOT_A_MEMBER: "That person isn't on your team.",
   NOT_RESCHEDULABLE: "This appointment can't be moved.",
+  BUSINESS_NOT_AVAILABLE: "This workspace is paused, so this can't be changed right now.",
+  NOT_FOUND: "That item is no longer there. Refresh the page and try again.",
 };
 export function explain(error) {
   const text = error?.message ?? String(error ?? "");
