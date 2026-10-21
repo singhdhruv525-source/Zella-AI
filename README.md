@@ -1,1 +1,1 @@
-# Zellaa-AI
+# Zella-AI
