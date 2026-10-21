@@ -371,3 +371,10 @@
   .form-panel { padding: 28px 22px; }
   .form-footer { margin-top: 24px; }
 }
+
+.field-error {
+  margin: -4px 0 12px;
+  color: #b3261e;
+  font-size: 12.5px;
+  line-height: 1.4;
+}

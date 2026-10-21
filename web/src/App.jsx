@@ -4,6 +4,7 @@ import { supabase } from "./supabase";
 import OwnerDashboard from "./OwnerDashboard";
 import ContinuePlan from "./ContinuePlan";
 import BusinessApp from "./BusinessApp";
+import { checkEmail } from "./formValidation";
 import "./App.css";
 
 
@@ -21,6 +22,7 @@ export default function App() {
 
 function AdminApp() {
   const [email, setEmail] = useState("");
+  const [emailTouched, setEmailTouched] = useState(false);
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -78,8 +80,13 @@ function AdminApp() {
     event.preventDefault();
     setMessage("");
 
+    setEmailTouched(true);
     if (!email.trim() || !password) {
       setMessage("Enter your email and password.");
+      return;
+    }
+    if (checkEmail(email)) {
+      setMessage(checkEmail(email));
       return;
     }
 
@@ -211,10 +218,16 @@ function AdminApp() {
                   placeholder="you@company.com"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
+                  onBlur={() => setEmailTouched(true)}
                   autoComplete="username"
+                  aria-invalid={Boolean(emailTouched && checkEmail(email))}
+                  aria-describedby={emailTouched && checkEmail(email) ? "email-error" : undefined}
                   required
                 />
               </div>
+              {emailTouched && checkEmail(email) && (
+                <p id="email-error" className="field-error" role="alert">{checkEmail(email)}</p>
+              )}
 
               <div className="password-heading">
                 <label htmlFor="password">Password</label>
