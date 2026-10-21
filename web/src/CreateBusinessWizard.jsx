@@ -37,26 +37,27 @@ export async function callOwnerFunction(action, payload = {}) {
 
 const STEPS = [
   { key: "business", label: "Business" },
+  { key: "switches", label: "Automations" },
   { key: "owner", label: "Owner" },
   { key: "terminology", label: "Terminology" },
   { key: "modules", label: "Modules" },
   { key: "receptionist", label: "AI receptionist" },
   { key: "integrations", label: "Phone & integrations" },
-  { key: "automations", label: "Automations" },
+  { key: "automations", label: "Automation options" },
   { key: "review", label: "Review" },
 ];
 
 const RESUME_STEP = {
   started: 0,
   business_info: 1,
-  owner_setup: 2,
-  industry_setup: 3,
-  ai_setup: 5,
-  communications_setup: 6,
-  automation_setup: 7,
-  testing: 7,
-  ready: 7,
-  active: 7,
+  owner_setup: 3,
+  industry_setup: 4,
+  ai_setup: 6,
+  communications_setup: 7,
+  automation_setup: 8,
+  testing: 8,
+  ready: 8,
+  active: 8,
 };
 
 const COUNTRIES = countryList().map((c) => [c.iso, c.name]);
@@ -929,6 +930,58 @@ function IntegrationsStep({ value, onChange, showErrors }) {
   );
 }
 
+const SWITCHES = [
+  ["appointment_reminder", (a) => `${a} reminders`, (a) => `Remind customers before their ${a}.`],
+  ["appointment_confirmation", () => "Confirmation & check-in", (a) => `Ask customers to confirm their ${a}.`],
+  ["no_show_follow_up", () => "No-show follow-up", (a) => `Reach out when someone misses their ${a} and offer to rebook.`],
+  ["missed_call_follow_up", () => "Missed-call recovery", () => "Call back anyone whose call was missed."],
+  ["new_lead_callback", () => "New lead callback", () => "Call new leads from Meta, the website and other sources."],
+  ["post_appointment_follow_up", (a) => `After-${a.toLowerCase()} follow-up`, () => "Thank customers and ask for feedback."],
+  ["quote_follow_up", () => "Quote follow-up", () => "Check in with people who were sent a quote and haven't replied."],
+  ["lead_reactivation", () => "Win back quiet customers", () => "Reach out to people you haven't heard from in a while."],
+  ["waitlist_offer", () => "Waitlist offers", (a) => `When ${/^[aeiou]/i.test(a) ? "an" : "a"} ${a} opens up, offer it to people waiting.`],
+  ["staff_unavailable", () => "Team member unavailable", (a) => `Offer another time when a ${a} can't go ahead.`],
+];
+
+// Step 2: switch each automation on or off. The choices start from what's usual for the industry.
+function AutomationSwitchesStep({ value, onChange, terminology, industryName }) {
+  const appt = termFor(terminology, "appointment").toLowerCase();
+  const setAll = (enabled) => onChange(Object.fromEntries(Object.entries(value).map(([type, item]) => [type, { ...item, enabled }])));
+  const setOne = (type, enabled) => onChange({ ...value, [type]: { ...value[type], enabled } });
+  const onCount = SWITCHES.filter(([type]) => value[type]?.enabled).length;
+  return (
+    <>
+      <Section
+        title="Automations"
+        description={industryName
+          ? `Switched on for you, the usual ones for ${industryName}. Turn any on or off. You can fine-tune each one later.`
+          : "Turn each automation on or off. You can fine-tune each one later."}
+        aside={
+          <div className="wiz-switch-all">
+            <button type="button" className="wiz-link" onClick={() => setAll(true)}>Turn all on</button>
+            <button type="button" className="wiz-link" onClick={() => setAll(false)}>Turn all off</button>
+          </div>
+        }
+      >
+        <p className="wiz-hint">{onCount} of {SWITCHES.length} on. They start running when the business goes live.</p>
+        <div className="wiz-automation-list">
+          {SWITCHES.map(([type, title, text]) => (
+            <div key={type} className={`wiz-automation ${value[type]?.enabled ? "on" : ""}`}>
+              <div className="wiz-module-top">
+                <div>
+                  <strong>{title(termFor(terminology, "appointment"))}</strong>
+                  <p>{text(appt)}</p>
+                </div>
+                <Toggle checked={Boolean(value[type]?.enabled)} label={title(termFor(terminology, "appointment"))} onChange={(enabled) => setOne(type, enabled)} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </Section>
+    </>
+  );
+}
+
 function AutomationsStep({ value, onChange, terminology, industryName }) {
   const appt = termFor(terminology, "appointment").toLowerCase();
   const appts = termFor(terminology, "appointments").toLowerCase();
@@ -1121,17 +1174,17 @@ function ReviewStep({ setup, industries, goTo }) {
   const rows = [
     { step: 0, title: "Business", ok: Boolean(setup.business.name && industry), required: true,
       detail: [setup.business.name, industry?.name && `${industry.name} CRM`, setup.business.timezone].filter(Boolean).join(" · ") },
-    { step: 1, title: "Owner", ok: Boolean(setup.owner.name && setup.owner.email), required: true,
+    { step: 2, title: "Owner", ok: Boolean(setup.owner.name && setup.owner.email), required: true,
       detail: setup.owner.email ? `${setup.owner.name} · ${setup.owner.email}` : "Not added" },
-    { step: 2, title: "Terminology", ok: true,
+    { step: 3, title: "Terminology", ok: true,
       detail: `${termFor(setup.terminology, "customers")}, ${termFor(setup.terminology, "staff_plural")}, ${termFor(setup.terminology, "appointments")}` },
-    { step: 3, title: "Modules", ok: enabledModules.length > 0,
+    { step: 4, title: "Modules", ok: enabledModules.length > 0,
       detail: enabledModules.length ? enabledModules.map((m) => m.name).join(", ") : "None enabled" },
-    { step: 4, title: "AI receptionist", ok: r.services.length > 0 || r.faqs.length > 0,
+    { step: 5, title: "AI receptionist", ok: r.services.length > 0 || r.faqs.length > 0,
       detail: `${r.services.length} ${termFor(setup.terminology, "services").toLowerCase()} · ${r.faqs.length} FAQs · hours ${hoursSet ? "set" : "not set"}` },
-    { step: 5, title: "Phone & integrations", ok: true,
+    { step: 6, title: "Phone & integrations", ok: true,
       detail: `${setup.integrations.phone.mode === "new_number" ? "New Zella number" : `Call forwarding from ${setup.integrations.phone.existingNumber || "number not set"}`} · calendar ${setup.integrations.calendar} · leads ${leads.length ? leads.join(", ") : "none"}` },
-    { step: 6, title: "Automations", ok: true, detail: `${enabledAutomations} turned on (paused until go-live)` },
+    { step: 7, title: "Automations", ok: true, detail: `${enabledAutomations} turned on (paused until go-live)` },
   ];
 
   return (
@@ -1212,15 +1265,15 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
       if (checkEmail(setup.business.email)) return `Business email: ${checkEmail(setup.business.email)}`;
       if (validatePhone(setup.business.phone)) return `Business phone: ${validatePhone(setup.business.phone)}`;
     }
-    if (step === 1) {
+    if (step === 2) {
       if (!setup.owner.name.trim() || !setup.owner.email.trim()) return "Enter the owner's name and email.";
       if (checkEmail(setup.owner.email, { required: true })) return `Owner email: ${checkEmail(setup.owner.email, { required: true })}`;
       if (validatePhone(setup.owner.phone)) return `Owner phone: ${validatePhone(setup.owner.phone)}`;
     }
-    if (step === 4 && validatePhone(setup.receptionist.escalation.transferTo.phone)) {
+    if (step === 5 && validatePhone(setup.receptionist.escalation.transferTo.phone)) {
       return `Transfer phone number: ${validatePhone(setup.receptionist.escalation.transferTo.phone)}`;
     }
-    if (step === 5 && setup.integrations.phone.mode === "call_forwarding") {
+    if (step === 6 && setup.integrations.phone.mode === "call_forwarding") {
       if (!setup.integrations.phone.existingNumber.trim()) return "Enter the business number that will be forwarded to Zella.";
       const bad = validatePhone(setup.integrations.phone.existingNumber, { required: true });
       if (bad) return `Business number to forward: ${bad}`;
@@ -1271,6 +1324,12 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
 
     if (key === "integrations") {
       await callOwnerFunction("setup_save_integrations", { businessId, integrations: setup.integrations });
+      return;
+    }
+
+    if (key === "switches") {
+      // Saved quietly: it doesn't move the setup progress forward, so a draft reopens where it was left.
+      await callOwnerFunction("setup_save_automations", { businessId, automations: setup.automations, early: true });
       return;
     }
 
@@ -1395,13 +1454,14 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
         {step === 0 && (
           <BusinessStep value={setup.business} onChange={changeBusiness} industries={industries} isExisting={Boolean(businessId)} locked={locked} showErrors={showErrors} />
         )}
-        {step === 1 && <OwnerStep value={setup.owner} onChange={update("owner")} invitation={setup.invitation} showErrors={showErrors} />}
-        {step === 2 && <TerminologyStep value={terminology} onChange={update("terminology")} />}
-        {step === 3 && <ModulesStep modules={setup.modules} onChange={update("modules")} />}
-        {step === 4 && <ReceptionistStep value={setup.receptionist} onChange={update("receptionist")} terminology={terminology} showErrors={showErrors} />}
-        {step === 5 && <IntegrationsStep value={setup.integrations} onChange={update("integrations")} showErrors={showErrors} />}
-        {step === 6 && <AutomationsStep value={setup.automations} onChange={update("automations")} terminology={terminology} industryName={industries.find((i) => i.id === setup.business.industryId)?.name} />}
-        {step === 7 && <ReviewStep setup={setup} industries={industries} goTo={goTo} />}
+        {step === 1 && <AutomationSwitchesStep value={setup.automations} onChange={update("automations")} terminology={terminology} industryName={industries.find((i) => i.id === setup.business.industryId)?.name} />}
+        {step === 2 && <OwnerStep value={setup.owner} onChange={update("owner")} invitation={setup.invitation} showErrors={showErrors} />}
+        {step === 3 && <TerminologyStep value={terminology} onChange={update("terminology")} />}
+        {step === 4 && <ModulesStep modules={setup.modules} onChange={update("modules")} />}
+        {step === 5 && <ReceptionistStep value={setup.receptionist} onChange={update("receptionist")} terminology={terminology} showErrors={showErrors} />}
+        {step === 6 && <IntegrationsStep value={setup.integrations} onChange={update("integrations")} showErrors={showErrors} />}
+        {step === 7 && <AutomationsStep value={setup.automations} onChange={update("automations")} terminology={terminology} industryName={industries.find((i) => i.id === setup.business.industryId)?.name} />}
+        {step === 8 && <ReviewStep setup={setup} industries={industries} goTo={goTo} />}
       </div>
 
       {error && <div className="owner-form-error wiz-error" role="alert">{error}</div>}
