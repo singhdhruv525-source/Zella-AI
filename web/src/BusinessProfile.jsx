@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { supabase } from "./supabase";
 import { Field, Icon, Modal, Pill, initials, personName } from "./BusinessUI";
 import { makeTerm } from "./businessWorkspace";
-import { LeadTab } from "./BusinessWork";
+import { CB_CLOSED, CB_REASON, LeadTab, when } from "./BusinessWork";
+import { useRoster } from "./BusinessLeads";
 import { EmailField, PhoneField } from "./formFields";
 import { checkEmail, validatePhone } from "./formValidation";
 import { formatDay, formatTime, timeAgo } from "./businessTime";
@@ -134,18 +135,20 @@ function followLabel(f) {
   return o[f.outcome] ?? "Follow-up finished";
 }
 
-function buildTimeline(person, calls, appts, convos, follows = []) {
+function buildTimeline(person, calls, appts, convos, follows = [], cbs = [], tasks = []) {
   const events = [
     ...calls.map((c) => ({ key: `c${c.id}`, at: c.created_at, kind: "call", call: c })),
     ...appts.map((a) => ({ key: `a${a.id}`, at: a.start_time, kind: "appt", appt: a })),
     ...follows.map((f) => ({ key: `f${f.id}`, at: f.status === "pending" ? f.due_at : (f.completed_at ?? f.updated_at ?? f.due_at), kind: "follow", follow: f })),
     ...convos.map((c) => ({ key: `v${c.id}`, at: c.last_message_at ?? c.created_at, kind: "convo", convo: c })),
+    ...cbs.map((c) => ({ key: `b${c.id}`, at: c.completed_at ?? c.due_at ?? c.created_at, kind: "cb", cb: c })),
+    ...tasks.map((k) => ({ key: `k${k.id}`, at: k.completed_at ?? k.due_at ?? k.created_at, kind: "task", task: k })),
     { key: "added", at: person.created_at, kind: "added" },
   ].filter((e) => e.at);
   return events.sort((a, b) => new Date(b.at) - new Date(a.at));
 }
 
-const TABS = [["overview", "Overview"], ["lead", "Lead & quotes"], ["timeline", "Timeline"], ["calls", "Calls & transcripts"], ["appointments", "Appointments"]];
+const TABS = [["overview", "Overview"], ["appointments", "Appointments"], ["timeline", "Timeline"], ["calls", "Calls"], ["messages", "Messages"], ["followups", "Follow-ups"], ["lead", "Lead & quotes"]];
 
 export default function PersonProfile({ personId, workspace, onClose, onChanged, onNotice }) {
   const tz = workspace.timezone;
@@ -166,7 +169,13 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
     if (!row) throw new Error("This person could not be found.");
     // Follow-up calls are optional: workspaces without the latest update just show none.
     const followRes = await supabase.from("followup_tasks").select("*").eq("customer_id", personId).order("created_at", { ascending: false }).limit(20);
-    return { person: row, calls: orThrow(calls), appts: orThrow(appts), convos: orThrow(convos), follows: followRes.error ? [] : (followRes.data ?? []) };
+    const cbRes = await supabase.from("callbacks").select("*").eq("customer_id", personId).order("created_at", { ascending: false }).limit(30);
+    const taskRes = await supabase.from("crm_tasks").select("*").eq("customer_id", personId).order("created_at", { ascending: false }).limit(30);
+    const staffRes = await supabase.from("staff_members").select("id, name").eq("business_id", workspace.id);
+    return {
+      person: row, calls: orThrow(calls), appts: orThrow(appts), convos: orThrow(convos), follows: followRes.error ? [] : (followRes.data ?? []),
+      cbs: cbRes.error ? [] : cbRes.data ?? [], tasks: taskRes.error ? [] : taskRes.data ?? [], staff: staffRes.error ? [] : staffRes.data ?? [],
+    };
   }, [personId]);
 
   useEffect(() => {
@@ -176,6 +185,7 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
       first_name: p.first_name ?? "", last_name: p.last_name ?? "", phone: p.phone ?? "", email: p.email ?? "",
       date_of_birth: p.date_of_birth ?? "", address: p.address ?? "", preferred_contact: p.preferred_contact ?? "",
       tags: (p.tags ?? []).join(", "), notes: p.notes ?? "", do_not_contact: Boolean(p.do_not_contact),
+      do_not_call: Boolean(p.do_not_call), do_not_sms: Boolean(p.do_not_sms), do_not_email: Boolean(p.do_not_email),
     });
   }, [data?.person]);
 
@@ -199,6 +209,7 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
       tags: form.tags.split(",").map((t) => t.trim()).filter(Boolean),
       notes: form.notes.trim() || null,
       do_not_contact: form.do_not_contact,
+      do_not_call: form.do_not_call, do_not_sms: form.do_not_sms, do_not_email: form.do_not_email,
       updated_at: new Date().toISOString(),
     };
     const { error: updateError } = await supabase.from("customers").update(values).eq("id", personId);
@@ -222,7 +233,24 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
   const openCalls = (data?.calls ?? []).filter(isOpenEscalation);
   const [showErrors, setShowErrors] = useState(false);
   const set = (key) => (e) => setForm({ ...form, [key]: e.target.type === "checkbox" ? e.target.checked : e.target.value });
-  const timeline = person ? buildTimeline(person, data.calls, data.appts, data.convos, data.follows) : [];
+  const timeline = person ? buildTimeline(person, data.calls, data.appts, data.convos, data.follows, data.cbs, data.tasks) : [];
+  const roster = useRoster(workspace);
+  const staffName = Object.fromEntries((data?.staff ?? []).map((m) => [m.id, m.name]));
+  const usualProvider = (() => {
+    const counts = {};
+    (data?.appts ?? []).forEach((a) => { if (a.staff_id && a.status !== "cancelled") counts[a.staff_id] = (counts[a.staff_id] ?? 0) + 1; });
+    const top = Object.entries(counts).sort((x, y) => y[1] - x[1])[0];
+    return top ? staffName[top[0]] : null;
+  })();
+  const assignTo = async (userId) => {
+    setBusy(true);
+    setError("");
+    const { error: failure } = await supabase.rpc("zella_assign_lead", { p_customer_id: personId, p_user_id: userId || null });
+    setBusy(false);
+    if (failure) return setError(friendly(failure));
+    onNotice?.(userId ? "Assigned." : "Unassigned.");
+    refresh();
+  };
 
   return (
     <Modal
@@ -259,11 +287,22 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
               </div>
               <div className="ba-tags">{(person.tags ?? []).map((t) => <Pill key={t} tone="indigo">{t}</Pill>)}</div>
             </div>
+            <div className="ba-inbox-controls">
+              {roster.list.length > 0 && (
+                <label className="ba-select"><span>Assigned to</span>
+                  <select value={person.assigned_to ?? ""} disabled={busy} onChange={(e) => assignTo(e.target.value)}>
+                    <option value="">Unassigned</option>
+                    {roster.list.map((m) => <option key={m.user_id} value={m.user_id}>{m.name}</option>)}
+                  </select>
+                </label>
+              )}
+              {usualProvider && <span className="ba-muted">Usually sees {usualProvider}</span>}
+            </div>
 
             <div className="ba-segment" role="tablist" aria-label="Profile sections">
               {TABS.map(([key, label]) => (
                 <button key={key} type="button" role="tab" aria-selected={tab === key} className={tab === key ? "active" : ""} onClick={() => setTab(key)}>
-                  {label}{key === "calls" ? ` (${data.calls.length})` : key === "appointments" ? ` (${data.appts.length})` : ""}
+                  {label}{key === "calls" ? ` (${data.calls.length})` : key === "appointments" ? ` (${data.appts.length})` : key === "messages" ? ` (${data.convos.length})` : key === "followups" ? ` (${data.cbs.length + data.tasks.length + data.follows.length})` : ""}
                 </button>
               ))}
             </div>
@@ -282,11 +321,14 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
                 </Field>
                 <Field label="Address" full><input value={form.address} onChange={set("address")} /></Field>
                 <Field label="Tags" hint="Separate with commas, for example: new patient, insurance" full><input value={form.tags} onChange={set("tags")} /></Field>
-                <Field label="Notes" full><textarea value={form.notes} onChange={set("notes")} placeholder="Anything the team should know" /></Field>
-                <label className="ba-check full">
-                  <input type="checkbox" checked={form.do_not_contact} onChange={set("do_not_contact")} />
-                  <span>Do not contact (no calls, texts or reminders)</span>
-                </label>
+                <Field label="Administrative notes" hint="For the front desk only, such as preferences or how to reach them. Don't record medical or treatment details here." full><textarea value={form.notes} onChange={set("notes")} placeholder="Anything the team should know" /></Field>
+                <fieldset className="ba-prefs full">
+                  <legend>How we may contact them</legend>
+                  <label className="ba-check"><input type="checkbox" checked={form.do_not_call} onChange={set("do_not_call")} /><span>No phone calls</span></label>
+                  <label className="ba-check"><input type="checkbox" checked={form.do_not_sms} onChange={set("do_not_sms")} /><span>No text messages</span></label>
+                  <label className="ba-check"><input type="checkbox" checked={form.do_not_email} onChange={set("do_not_email")} /><span>No emails</span></label>
+                  <label className="ba-check"><input type="checkbox" checked={form.do_not_contact} onChange={set("do_not_contact")} /><span>Do not contact at all (no calls, texts, emails or reminders)</span></label>
+                </fieldset>
                 <div className="full ba-form-actions"><button type="submit" className="ba-btn primary" disabled={busy}>{busy ? "Saving…" : "Save details"}</button></div>
               </form>
             )}
@@ -298,13 +340,15 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
                 <ol className="ba-timeline">
                   {timeline.map((e) => (
                     <li key={e.key} className={e.kind}>
-                      <span className="ba-tl-dot"><Icon size="sm" name={e.kind === "call" ? "call" : e.kind === "appt" ? "event" : e.kind === "convo" ? "chat" : e.kind === "follow" ? "phone_callback" : "person_add"} /></span>
+                      <span className="ba-tl-dot"><Icon size="sm" name={e.kind === "call" ? "call" : e.kind === "appt" ? "event" : e.kind === "convo" ? "chat" : e.kind === "follow" || e.kind === "cb" ? "phone_callback" : e.kind === "task" ? "task_alt" : "person_add"} /></span>
                       <div>
                         <strong>
                           {e.kind === "call" && `${e.call.status === "missed" ? "Missed call" : e.call.ai_handled ? "Call answered by the AI receptionist" : "Call answered by the team"}`}
-                          {e.kind === "appt" && `${e.appt.title} · ${APPT_LABEL[e.appt.status] ?? e.appt.status}`}
+                          {e.kind === "appt" && `${e.appt.title} · ${APPT_LABEL[e.appt.status] ?? e.appt.status}${e.appt.attendance_note || e.appt.cancel_reason ? ` (${e.appt.attendance_note || e.appt.cancel_reason})` : ""}`}
                           {e.kind === "convo" && `${e.convo.channel ?? "Message"} conversation${e.convo.subject ? `: ${e.convo.subject}` : ""}`}
                           {e.kind === "follow" && followLabel(e.follow)}
+                          {e.kind === "cb" && `${CB_REASON[e.cb.reason] ?? "Callback"}${CB_CLOSED.includes(e.cb.status) ? " · done" : ` · due ${formatDay(e.cb.due_at, tz)}`}`}
+                          {e.kind === "task" && `${e.task.title}${e.task.status === "open" ? "" : " · done"}`}
                           {e.kind === "added" && `Added to your ${term("customers").toLowerCase()}`}
                         </strong>
                         <small>
@@ -327,17 +371,52 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
               )) : <p className="ba-muted">No calls from this {term("customer").toLowerCase()} yet.</p>
             )}
 
-            {tab === "appointments" && (
-              data.appts.length ? data.appts.map((a) => (
+            {tab === "appointments" && (() => {
+              const nowMs = Date.now();
+              const upcoming = data.appts.filter((a) => ["scheduled", "confirmed"].includes(a.status) && new Date(a.end_time ?? a.start_time).getTime() >= nowMs).sort((x, y) => new Date(x.start_time) - new Date(y.start_time));
+              const previous = data.appts.filter((a) => !upcoming.includes(a));
+              const row = (a) => (
                 <div key={a.id} className="ba-mini">
                   <span>
                     {a.title}
-                    <small>{formatDay(a.start_time, tz)} · {formatTime(a.start_time, tz)}{a.location ? ` · ${a.location}` : ""}{a.checked_in_at ? ` · checked in ${formatTime(a.checked_in_at, tz)}` : ""}</small>
+                    <small>{formatDay(a.start_time, tz)} · {formatTime(a.start_time, tz)}{staffName[a.staff_id] ? ` · ${staffName[a.staff_id]}` : ""}{a.location ? ` · ${a.location}` : ""}{a.checked_in_at ? ` · checked in ${formatTime(a.checked_in_at, tz)}` : ""}</small>
+                    {(a.attendance_note || a.cancel_reason) && <small>{a.attendance_note || a.cancel_reason}</small>}
                   </span>
                   <Pill tone={APPT_TONE[a.status]}>{APPT_LABEL[a.status] ?? a.status}</Pill>
                 </div>
-              )) : <p className="ba-muted">No {term("appointments").toLowerCase()} yet.</p>
+              );
+              return data.appts.length ? (
+                <>
+                  <h3 className="ba-sub">Upcoming</h3>
+                  {upcoming.length ? upcoming.map(row) : <p className="ba-muted">Nothing booked.</p>}
+                  <h3 className="ba-sub">Previous</h3>
+                  {previous.length ? previous.map(row) : <p className="ba-muted">No past {term("appointments").toLowerCase()}.</p>}
+                </>
+              ) : <p className="ba-muted">No {term("appointments").toLowerCase()} yet.</p>;
+            })()}
+
+            {tab === "messages" && (
+              data.convos.length ? data.convos.map((c) => (
+                <div key={c.id} className="ba-mini">
+                  <span>{c.subject || `${c.channel ?? "Message"} conversation`}<small>{c.channel ?? "Message"} · last message {c.last_message_at ? timeAgo(c.last_message_at) : "never"}{c.ai_handled ? " · AI handling" : ""}</small></span>
+                  <Pill tone={c.status === "open" ? "warning" : ""}>{c.status}</Pill>
+                </div>
+              )) : <p className="ba-muted">No messages yet.</p>
             )}
+
+            {tab === "followups" && (() => {
+              const items = [
+                ...data.cbs.map((c) => ({ key: `cb${c.id}`, at: c.due_at ?? c.created_at, title: CB_REASON[c.reason] ?? "Callback", icon: "phone_callback", done: CB_CLOSED.includes(c.status), detail: `${c.attempts} of ${c.max_attempts} tries${c.summary ? ` · ${c.summary}` : ""}`, status: c.status })),
+                ...data.tasks.map((k) => ({ key: `t${k.id}`, at: k.due_at ?? k.created_at, title: k.title, icon: "task_alt", done: k.status !== "open", detail: k.body ?? "", status: k.status })),
+                ...data.follows.map((f) => ({ key: `f${f.id}`, at: f.status === "pending" ? f.due_at : (f.completed_at ?? f.due_at), title: followLabel(f), icon: "forward_to_inbox", done: !["pending", "in_progress"].includes(f.status), detail: "", status: f.status })),
+              ].sort((a, b) => new Date(b.at) - new Date(a.at));
+              return items.length ? items.map((i) => (
+                <div key={i.key} className="ba-mini">
+                  <span><Icon name={i.icon} size="sm" /> {i.title}<small>{when(i.at, tz)}{i.detail ? ` · ${i.detail}` : ""}</small></span>
+                  <Pill tone={i.done ? "success" : "warning"}>{i.done ? "Done" : "Open"}</Pill>
+                </div>
+              )) : <p className="ba-muted">No follow-ups yet.</p>;
+            })()}
           </>
         )}
       </div>

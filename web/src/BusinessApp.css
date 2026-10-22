@@ -1436,3 +1436,7 @@
 .ba-search input { min-width: 240px; }
 .ba-item-staff { margin: 6px 0 2px; }
 .ba-reason { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; padding: 10px; border: 1px solid var(--ba-border); border-radius: var(--ba-radius-md); background: var(--ba-alt); }
+
+/* Profile: contact preferences */
+.ba-prefs { display: grid; gap: 4px; margin: 0; padding: 10px 12px; border: 1px solid var(--ba-border); border-radius: var(--ba-radius-md); }
+.ba-prefs legend { padding: 0 6px; color: var(--ba-muted); font-size: 12px; font-weight: 600; }
