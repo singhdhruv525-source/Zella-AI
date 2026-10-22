@@ -135,7 +135,7 @@ function PeoplePage({ mode, workspace, query, refreshKey, onOpenPerson }) {
   );
 }
 
-export const LeadsPage = (props) => <PeoplePage mode="leads" {...props} />;
+export { LeadsPage } from "./BusinessLeads";
 export const CustomersPage = (props) => <PeoplePage mode="customers" {...props} />;
 
 /* ------------------------------------------------------------------ */

@@ -294,7 +294,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, onSignOut, onReload
               onOpenPerson={openPerson}
             />
           )}
-          {current.key === "leads" && <LeadsPage workspace={workspace} query={search} refreshKey={refreshKey} onOpenPerson={openPerson} />}
+          {current.key === "leads" && <LeadsPage workspace={workspace} query={search} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} />}
           {current.key === "customers" && <CustomersPage workspace={workspace} query={search} refreshKey={refreshKey} onOpenPerson={openPerson} />}
           {current.key === "calendar" && <CalendarPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} />}
           {current.key === "calls" && <CallsPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} />}
