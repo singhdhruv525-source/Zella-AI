@@ -102,19 +102,19 @@ export function AddLeadModal({ workspace, term, onClose, onSaved }) {
   );
 }
 
-export function BookAppointmentModal({ workspace, term, onClose, onSaved }) {
+export function BookAppointmentModal({ workspace, term, onClose, onSaved, initial }) {
   const tz = workspace.timezone;
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [customer, setCustomer] = useState(null);
   const [form, setForm] = useState({
     title: "",
-    date: todayInput(tz),
-    time: "09:00",
+    date: initial?.date || todayInput(tz),
+    time: initial?.time || "09:00",
     duration: "30",
     location: "",
     description: "",
-    staffId: "",
+    staffId: initial?.staffId || "",
     partySize: "",
   });
   const [staff, setStaff] = useState([]);
