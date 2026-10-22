@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "./supabase";
 import { Icon, Pill } from "./BusinessUI";
-import { Empty, Notice, PageHead, explain, orThrow, useLoad } from "./BusinessShared";
+import { Empty, Notice, PageHead, Segment, explain, loadPeople, orThrow, useLoad } from "./BusinessShared";
+import { RUN_LABEL, RUN_TONE, RunsPanel, describe } from "./BusinessAutomationRuns";
+import { formatDay, formatTime, timeAgo } from "./businessTime";
+import { useRoster } from "./BusinessLeads";
 import { AUTOMATION_OPTIONS } from "./automationOptions";
 
 const MANAGERS = ["owner", "admin", "manager"];
@@ -18,10 +21,11 @@ function Switch({ on, onChange, label, disabled }) {
 
 const sameConfig = (a, b) => JSON.stringify(a ?? {}) === JSON.stringify(b ?? {});
 
-function AutomationCard({ row, live, canManage, onNotice, onChanged }) {
+function AutomationCard({ row, live, canManage, recommended, runs, audits, people, nameOf, tz, onNotice, onChanged }) {
   const fields = AUTOMATION_OPTIONS[row.trigger_type] ?? [];
   const [draft, setDraft] = useState(row.trigger_config ?? {});
   const [open, setOpen] = useState(false);
+  const [history, setHistory] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   useEffect(() => setDraft(row.trigger_config ?? {}), [row.trigger_config]);
@@ -42,14 +46,18 @@ function AutomationCard({ row, live, canManage, onNotice, onChanged }) {
   }
 
   const set = (key, value) => setDraft((d) => ({ ...d, [key]: value }));
-  const stateText = row.status === "active" ? "On" : row.status === "paused" ? (live ? "Paused" : "On, starts when you go live") : "Off";
+  const stateText = row.status === "active" ? "On" : row.status === "paused" ? (live ? "Paused" : "On, starts when you go live") : "Paused (off)";
+  const info = describe(row.trigger_type, row.trigger_config ?? {});
+  const lastRun = runs[0];
+  const nextRun = runs.filter((r) => ["queued", "waiting"].includes(r.status) && r.next_run_at).map((r) => r.next_run_at).sort()[0];
+  const failedRecently = runs.filter((r) => r.status === "failed").length;
 
   return (
     <li className={`ba-auto ${on ? "" : "off"}`}>
       <div className="ba-auto-top">
         <span className="ba-thread-icon"><Icon name="bolt" size="sm" /></span>
         <div className="ba-auto-text">
-          <strong>{row.name}</strong>
+          <strong>{row.name}{recommended && <Pill tone="info">Start here</Pill>}</strong>
           <small>{row.description}</small>
         </div>
         <div className="ba-auto-side">
@@ -57,6 +65,24 @@ function AutomationCard({ row, live, canManage, onNotice, onChanged }) {
           {canManage && <Switch on={on} disabled={busy} label={`${row.name} on or off`} onChange={(next) => call(next, null, `${row.name} is ${next ? "on" : "off"}.`)} />}
         </div>
       </div>
+      <dl className="ba-auto-facts">
+        <div><dt>When</dt><dd>{info.trigger}</dd></div>
+        <div><dt>Only if</dt><dd>{info.conditions}</dd></div>
+        <div><dt>Then</dt><dd>{info.actions}</dd></div>
+        <div><dt>Next run</dt><dd>{row.status !== "active" ? "Not scheduled" : nextRun ? `${formatDay(nextRun, tz)} · ${formatTime(nextRun, tz)}` : "Runs when something triggers it"}</dd></div>
+        <div><dt>Last run</dt><dd>{lastRun ? <><Pill tone={RUN_TONE[lastRun.status]}>{RUN_LABEL[lastRun.status] ?? lastRun.status}</Pill> {timeAgo(lastRun.started_at ?? lastRun.created_at)}</> : "Hasn't run yet"}</dd></div>
+      </dl>
+      <div className="ba-auto-links">
+        <button type="button" className="ba-link ba-auto-toggle" aria-expanded={history} onClick={() => setHistory(!history)}>
+          {history ? "Hide history" : `History${failedRecently ? ` (${failedRecently} failed)` : ""}`}
+        </button>
+        {canManage && (row.status === "active" || row.status === "disabled" || row.status === "paused") && (
+          <button type="button" className="ba-link ba-auto-toggle" disabled={busy} onClick={() => call(row.status === "disabled", null, `${row.name} is ${row.status === "disabled" ? "on" : "paused"}.`)}>
+            {row.status === "disabled" ? "Resume" : "Pause"}
+          </button>
+        )}
+      </div>
+      {history && <RunsPanel runs={runs} audits={audits} nameOf={nameOf} people={people} canManage={canManage} tz={tz} onNotice={onNotice} onChanged={onChanged} />}
       {canManage && fields.length > 0 && (
         <>
           <button type="button" className="ba-link ba-auto-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
@@ -103,13 +129,25 @@ function AutomationCard({ row, live, canManage, onNotice, onChanged }) {
   );
 }
 
+const DENTAL = /dental|dentist|orthodont|clinic|health|medical|physio|chiropract|veterin/i;
+// What a clinic should switch on first: reminders, cancellation recovery, missed calls, overdue follow-ups, no-shows.
+const START_HERE = ["appointment_reminder", "waitlist_offer", "missed_call_follow_up", "new_lead_callback", "no_show_follow_up"];
+const WEEK = 7 * 86400000;
+
 export function AutomationsPage({ workspace, refreshKey, onNotice }) {
   const canManage = canControl(workspace);
+  const tz = workspace.timezone;
+  const [tab, setTab] = useState("all");
+  const roster = useRoster(workspace);
   const { data, error, loading, reload } = useLoad(async () => {
     const list = orThrow(await supabase.from("automations").select("*").eq("business_id", workspace.id).order("name"));
     const f = await supabase.from("followup_tasks").select("id, status, outcome")
       .eq("business_id", workspace.id).order("created_at", { ascending: false }).limit(200);
-    return { list, follows: f.error ? [] : (f.data ?? []) };
+    // Run history and the audit trail are optional until the latest update is applied.
+    const runsRes = await supabase.from("automation_runs").select("*").eq("business_id", workspace.id).order("created_at", { ascending: false }).limit(300);
+    const auditRes = await supabase.from("audit_logs").select("*").eq("business_id", workspace.id).eq("entity_type", "automation").order("created_at", { ascending: false }).limit(200);
+    const runs = runsRes.error ? [] : runsRes.data ?? [];
+    return { list, follows: f.error ? [] : (f.data ?? []), runs, audits: auditRes.error ? [] : auditRes.data ?? [], people: await loadPeople(runs.slice(0, 60).map((r) => r.customer_id)) };
   }, [workspace.id, refreshKey]);
 
   const follows = data?.follows ?? [];
@@ -117,23 +155,55 @@ export function AutomationsPage({ workspace, refreshKey, onNotice }) {
   const rebooked = follows.filter((f) => f.outcome === "rescheduled").length;
   const unanswered = follows.filter((f) => f.outcome === "no_answer" || f.outcome === "voicemail").length;
   const live = workspace.onboarding_status === "active" || workspace.receptionist?.status === "active";
-  const onCount = (data?.list ?? []).filter((a) => a.status === "active" || a.status === "paused").length;
+  const clinic = DENTAL.test(workspace.industry ?? "");
+
+  const runsFor = (id) => (data?.runs ?? []).filter((r) => r.automation_id === id);
+  const auditsFor = (id) => (data?.audits ?? []).filter((a) => a.entity_id === id);
+  const failedFor = (id) => runsFor(id).some((r) => r.status === "failed" && Date.now() - new Date(r.created_at).getTime() < WEEK);
+  const groups = useMemo(() => {
+    const list = [...(data?.list ?? [])];
+    if (clinic) list.sort((a, b) => (START_HERE.includes(b.trigger_type) ? 1 : 0) - (START_HERE.includes(a.trigger_type) ? 1 : 0));
+    return {
+      all: list,
+      active: list.filter((a) => a.status === "active"),
+      paused: list.filter((a) => a.status !== "active"),
+      failed: list.filter((a) => failedFor(a.id)),
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, clinic]);
+  const shown = groups[tab];
+  const failedRuns = (data?.runs ?? []).filter((r) => r.status === "failed" && Date.now() - new Date(r.created_at).getTime() < WEEK).length;
+  const doneRuns = (data?.runs ?? []).filter((r) => r.status === "completed" && Date.now() - new Date(r.created_at).getTime() < WEEK).length;
 
   return (
     <>
       <PageHead crumb="AI & Intelligence / Automations" title="Automations"
-        sub={canManage ? "Switch each one on or off and change how it works. Changes apply straight away." : "Follow-ups, reminders and check-ins that run for you."} />
+        sub={canManage ? "See what's running, what happened, and fix what failed. Changes apply straight away." : "Follow-ups, reminders and check-ins that run for you."} />
       <Notice error={error} onRetry={reload} />
       {data?.list.length > 0 && (
-        <p className="ba-muted ba-auto-summary">{onCount} of {data.list.length} on{follows.length > 0 ? ` · Follow-up calls: ${waiting} waiting, ${rebooked} rebooked, ${unanswered} unanswered` : ""}</p>
+        <>
+          <div className="ba-toolbar ba-lead-tools">
+            <Segment label="Automation status" value={tab} onChange={setTab}
+              options={[["all", `All (${groups.all.length})`], ["active", `Active (${groups.active.length})`], ["paused", `Paused (${groups.paused.length})`], ["failed", `Failed (${groups.failed.length})`]]} />
+          </div>
+          <p className="ba-muted ba-auto-summary">
+            Last 7 days: {doneRuns} {doneRuns === 1 ? "run" : "runs"} finished, {failedRuns} failed
+            {follows.length > 0 ? ` · Follow-up calls: ${waiting} waiting, ${rebooked} rebooked, ${unanswered} unanswered` : ""}
+            {clinic ? " · Marked “Start here”: the ones most clinics switch on first." : ""}
+          </p>
+        </>
       )}
       <section className="ba-panel">
         {loading && !data ? <div className="ba-panel-body"><p className="ba-muted">Loading…</p></div> : !data?.list.length ? (
           <div className="ba-panel-body"><Empty title="No automations yet">Zella sets up reminders, missed-call callbacks and no-show follow-ups for you.</Empty></div>
+        ) : !shown.length ? (
+          <div className="ba-panel-body"><Empty title={tab === "failed" ? "Nothing has failed" : "Nothing here"}>{tab === "failed" ? "Failed runs from the last 7 days would show up here." : "No automations match this view."}</Empty></div>
         ) : (
           <ul className="ba-autos">
-            {data.list.map((row) => (
-              <AutomationCard key={row.id} row={row} live={live} canManage={canManage} onNotice={onNotice} onChanged={reload} />
+            {shown.map((row) => (
+              <AutomationCard key={row.id} row={row} live={live} canManage={canManage} recommended={clinic && START_HERE.includes(row.trigger_type)}
+                runs={runsFor(row.id)} audits={auditsFor(row.id)} people={data.people} nameOf={roster.nameOf} tz={tz}
+                onNotice={onNotice} onChanged={reload} />
             ))}
           </ul>
         )}
