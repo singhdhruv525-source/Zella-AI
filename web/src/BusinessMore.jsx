@@ -82,7 +82,7 @@ export function AttentionPage({ workspace, refreshKey, onNotice, onOpenPerson, o
 /* Check-ins                                                         */
 /* ---------------------------------------------------------------- */
 
-function WalkInModal({ workspace, staff, hospitality, onClose, onSaved }) {
+export function WalkInModal({ workspace, staff, hospitality, onClose, onSaved }) {
   const term = makeTerm(workspace);
   const [form, setForm] = useState({ name: "", phone: "", partySize: "", staffId: "", note: "" });
   const [busy, setBusy] = useState(false);
@@ -142,128 +142,6 @@ function WalkInModal({ workspace, staff, hospitality, onClose, onSaved }) {
         </div>
       </form>
     </Modal>
-  );
-}
-
-export function CheckInsPage({ workspace, refreshKey, onNotice, onOpenPerson, onChanged }) {
-  const tz = workspace.timezone;
-  const term = makeTerm(workspace);
-  const hospitality = /restaurant|cafe|café|bar\b|food|dining|hotel|catering/i.test(`${workspace.industry ?? ""} ${term("appointment")}`);
-  const [walkIn, setWalkIn] = useState(false);
-  const [working, setWorking] = useState(null);
-  const [moving, setMoving] = useState(null);
-  const { data, error, loading, reload } = useLoad(async () => {
-    const today = dayRange(tz, 0);
-    const appts = orThrow(await supabase.from("appointments").select("*").eq("business_id", workspace.id)
-      .gte("start_time", today.start.toISOString()).lt("start_time", today.end.toISOString()).order("start_time"));
-    const staffResult = await supabase.from("staff_members").select("id, name, color").eq("business_id", workspace.id);
-    return { appts, staff: staffResult.error ? [] : staffResult.data ?? [], people: await loadPeople(appts.map((a) => a.customer_id)) };
-  }, [workspace.id, refreshKey]);
-
-  const staffName = Object.fromEntries((data?.staff ?? []).map((m) => [m.id, m.name]));
-  const live = (data?.appts ?? []).filter((a) => ["scheduled", "confirmed"].includes(a.status));
-  const waiting = live.filter((a) => a.checked_in_at);
-  const expected = live.filter((a) => !a.checked_in_at);
-  const done = (data?.appts ?? []).filter((a) => ["completed", "no_show", "cancelled"].includes(a.status));
-  const nowMs = Date.now();
-
-  async function run(id, task, message) {
-    setWorking(id);
-    const { error: updateError } = await task();
-    setWorking(null);
-    if (updateError) return onNotice(friendly(updateError));
-    if (message) onNotice(message);
-    reload();
-    onChanged?.();
-  }
-  const setStatus = async (a, status, message) => {
-    if (status !== "no_show") return run(a.id, () => supabase.from("appointments").update({ status, updated_at: new Date().toISOString() }).eq("id", a.id), message);
-    setWorking(a.id);
-    const { error: updateError } = await supabase.from("appointments").update({ status, updated_at: new Date().toISOString() }).eq("id", a.id);
-    if (updateError) { setWorking(null); return onNotice(friendly(updateError)); }
-    const text = await noShowNotice(a.id, personName(data.people[a.customer_id]) ?? a.title, tz);
-    setWorking(null);
-    onNotice(text);
-    reload();
-    onChanged?.();
-  };
-
-  const Card = ({ a, column }) => {
-    const person = data.people[a.customer_id];
-    const late = column === "expected" && new Date(a.start_time).getTime() < nowMs - 10 * 60000;
-    const busy = working === a.id;
-    return (
-      <article className={`ba-item ${late ? "alert" : ""}`}>
-        <div className="ba-item-top">
-          <div className="ba-item-name"><NameButton person={person} fallback={a.title} onOpenPerson={onOpenPerson} /></div>
-          <span className="ba-item-time">{formatTime(a.start_time, tz)}</span>
-        </div>
-        <div className="ba-item-meta">
-          <span>{a.title}</span>
-          {staffName[a.staff_id] && <span>· {staffName[a.staff_id]}</span>}
-          {a.party_size && <span>· party of {a.party_size}</span>}
-          {column === "waiting" && <Pill tone="success">Waiting {Math.max(0, Math.round((nowMs - new Date(a.checked_in_at).getTime()) / 60000))} min</Pill>}
-          {late && <Pill tone="danger">Late</Pill>}
-          {column === "done" && <Pill tone={APPT_TONE[a.status]}>{APPT_LABEL[a.status]}</Pill>}
-        </div>
-        {column === "expected" && (
-          <div className="ba-item-actions">
-            <button type="button" className="ba-btn sm primary" disabled={busy} onClick={() => run(a.id, () => setCheckIn(a.id, true), `${personName(person) ?? "Guest"} checked in.`)}><Icon name="how_to_reg" size="sm" />Check in</button>
-            {person?.phone && <a className="ba-btn sm" href={`tel:${person.phone}`}><Icon name="call" size="sm" />Call</a>}
-            <button type="button" className="ba-btn sm" disabled={busy} onClick={() => setMoving(a)}><Icon name="event_repeat" size="sm" />Reschedule</button>
-            {late && <button type="button" className="ba-btn sm danger-outline" disabled={busy} onClick={() => setStatus(a, "no_show", `${a.title} marked no-show.`)}>No-show</button>}
-          </div>
-        )}
-        {column === "waiting" && (
-          <div className="ba-item-actions">
-            <button type="button" className="ba-btn sm primary" disabled={busy} onClick={() => setStatus(a, "completed", `${a.title} marked done.`)}>Mark done</button>
-            <button type="button" className="ba-btn sm" disabled={busy} onClick={() => run(a.id, () => setCheckIn(a.id, false), "Check-in undone.")}>Undo</button>
-          </div>
-        )}
-      </article>
-    );
-  };
-
-  const Column = ({ title, icon, items, column, emptyText }) => (
-    <section className="ba-panel">
-      <div className="ba-panel-head"><div className="ba-panel-title"><span className="ba-kpi-icon indigo"><Icon name={icon} size="sm" /></span><div><h2>{title}</h2><p>{plural(items.length, "person", "people")}</p></div></div></div>
-      <div className="ba-panel-body">{items.length ? items.map((a) => <Card key={a.id} a={a} column={column} />) : <Empty>{emptyText}</Empty>}</div>
-    </section>
-  );
-
-  return (
-    <>
-      <PageHead crumb="Core / Check-ins" title="Check-ins" sub={`Who has arrived, who is still expected, and who is done today (${tz.replace("_", " ")}).`}>
-        <button type="button" className="ba-btn primary" onClick={() => setWalkIn(true)}><Icon name="directions_walk" size="sm" /><span>Add walk-in</span></button>
-      </PageHead>
-      <Notice error={error} onRetry={reload} />
-      {loading && !data ? <p className="ba-muted">Loading…</p> : (
-        <div className="ba-columns">
-          <Column title="Waiting now" icon="hourglass_top" items={waiting} column="waiting" emptyText="Nobody has checked in yet." />
-          <Column title="Expected" icon="schedule" items={expected} column="expected" emptyText={`No more ${term("appointments").toLowerCase()} expected today.`} />
-          <Column title="Done today" icon="task_alt" items={done} column="done" emptyText="Nothing finished yet." />
-        </div>
-      )}
-      {moving && (
-        <RescheduleModal
-          workspace={workspace}
-          term={term}
-          appt={moving}
-          person={data?.people?.[moving.customer_id]}
-          onClose={() => setMoving(null)}
-          onSaved={(message) => { setMoving(null); onNotice(message); reload(); onChanged?.(); }}
-        />
-      )}
-      {walkIn && (
-        <WalkInModal
-          workspace={workspace}
-          staff={data?.staff ?? []}
-          hospitality={hospitality}
-          onClose={() => setWalkIn(false)}
-          onSaved={(message) => { setWalkIn(false); onNotice(message); reload(); onChanged?.(); }}
-        />
-      )}
-    </>
   );
 }
 

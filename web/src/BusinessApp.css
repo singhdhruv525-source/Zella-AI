@@ -1428,3 +1428,11 @@
   .ba-inbox:not(.has-open) .ba-inbox-detail { display: none; }
   .ba-inbox-back { display: inline-flex; }
 }
+
+/* Check-ins */
+.ba-columns.four { grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: start; }
+@media (max-width: 1280px) { .ba-columns.four { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 720px) { .ba-columns.four { grid-template-columns: 1fr; } }
+.ba-search input { min-width: 240px; }
+.ba-item-staff { margin: 6px 0 2px; }
+.ba-reason { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; padding: 10px; border: 1px solid var(--ba-border); border-radius: var(--ba-radius-md); background: var(--ba-alt); }

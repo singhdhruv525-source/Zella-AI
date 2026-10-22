@@ -10,8 +10,9 @@ import { RecordSettingsPage, RecordsPage, useRecordTypes } from "./BusinessRecor
 import { NotificationsBell, TasksPage, WaitlistPage } from "./BusinessWork";
 import { CallbacksPage } from "./BusinessCallbacks";
 import { InboxPage } from "./BusinessInbox";
+import { CheckInsPage } from "./BusinessCheckIns";
 import {
-  AttentionPage, CheckInsPage, IntegrationsPage, LeadSourcesPage, ReportsPage,
+  AttentionPage, IntegrationsPage, LeadSourcesPage, ReportsPage,
 } from "./BusinessMore";
 import "./BusinessApp.css";
 import { supabase } from "./supabase";
