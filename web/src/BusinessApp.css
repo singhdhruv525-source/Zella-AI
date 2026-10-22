@@ -1379,3 +1379,10 @@
 .ba-avatar.xs { width: 18px; height: 18px; flex-shrink: 0; font-size: 9px; }
 .ba-notes { white-space: pre-wrap; }
 @media (max-width: 720px) { .ba-board { grid-template-columns: repeat(5, 240px); } }
+
+/* Callbacks: work queue */
+.ba-queue td { vertical-align: top; }
+.ba-queue .ba-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.ba-queue-reason { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.ba-clip { display: block; max-width: 280px; overflow: hidden; color: var(--ba-muted); font-size: 11.5px; text-overflow: ellipsis; white-space: nowrap; }
+.ba-finish { padding: 12px; border: 1px solid var(--ba-border); border-radius: var(--ba-radius-md); background: var(--ba-alt); }
