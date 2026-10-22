@@ -90,7 +90,7 @@ create table if not exists public.contact_consents (
   keyword text,
   evidence jsonb not null default '{}'::jsonb,
   recorded_by uuid,
-  recorded_at timestamptz not null default now(),
+  recorded_at timestamptz not null default clock_timestamp(),
   constraint contact_consents_identity check (customer_id is not null or phone_digits is not null or email_lower is not null)
 );
 create index if not exists contact_consents_customer on public.contact_consents (business_id, customer_id, channel, recorded_at desc);
@@ -380,7 +380,7 @@ begin
      and (customer_id = c.id or (v_digits is not null and phone_digits = v_digits) or (v_mail is not null and email_lower = v_mail))
    order by recorded_at desc limit 1;
   if v_latest = 'opted_out' then return false; end if;
-  if p_purpose = 'marketing' then return v_latest = 'opted_in'; end if;
+  if p_purpose = 'marketing' then return coalesce(v_latest = 'opted_in', false); end if;
   return true;
 end $$;
 
