@@ -5,10 +5,11 @@ import { makeTerm, receptionistState } from "./businessWorkspace";
 import { dayRange, formatDay, formatLongDate, formatTime, timeAgo, todayInput, zonedDateTime } from "./businessTime";
 import {
   APPT_LABEL, APPT_TONE, Empty, Notice, PAGE_SIZE, PageHead, Pager, Segment, clock, friendly, loadPeople,
-  availabilityAt, explain, noShowNotice, orThrow, plural, setCheckIn, sourceLabel, useLoad,
+  availabilityAt, explain, findConflict, noShowNotice, orThrow, plural, setCheckIn, sourceLabel, useLoad,
 } from "./BusinessShared";
 import { EscalationControls, Transcript, isOpenEscalation } from "./BusinessProfile";
-import { RescheduleModal } from "./BusinessForms";
+import { BookAppointmentModal, RescheduleModal } from "./BusinessForms";
+import { MonthGrid, TimeGrid, clockText, dayInfo, minutesInto } from "./BusinessCalendar";
 import { ActivationCard } from "./BusinessWork";
 
 // The rest of the business app: Leads, People (Patients / Customers / Clients…),
@@ -365,61 +366,168 @@ function BlockDetail({ block, who, tz, onClose, onChanged, onNotice }) {
   );
 }
 
+const VIEWS = [["day", "Day"], ["week", "Week"], ["month", "Month"]];
+
 export function CalendarPage({ workspace, refreshKey, onNotice, onOpenPerson }) {
   const tz = workspace.timezone;
   const term = makeTerm(workspace);
-  const [offset, setOffset] = useState(0);
+  const [view, setView] = useState("week");
+  const [anchor, setAnchor] = useState(0); // whole days from today
   const [open, setOpen] = useState(null);
   const [openBlock, setOpenBlock] = useState(null);
   const [blocking, setBlocking] = useState(false);
+  const [booking, setBooking] = useState(null);
+  const [pending, setPending] = useState(null); // a drag that needs "Move anyway?"
+  const [moving, setMoving] = useState(false);
   const [who, setWho] = useState("all");
-  const days = useMemo(() => Array.from({ length: 7 }, (_, i) => dayRange(tz, offset * 7 + i)), [tz, offset]);
+
+  const a = useMemo(() => dayInfo(dayRange, tz, anchor), [tz, anchor]);
+  const { first, count, month } = useMemo(() => {
+    if (view === "day") return { first: anchor, count: 1, month: a.m };
+    if (view === "week") return { first: anchor - a.dow, count: 7, month: a.m };
+    const monthStart = anchor - (a.d - 1);
+    const dow = dayInfo(dayRange, tz, monthStart).dow;
+    return { first: monthStart - dow, count: 42, month: a.m };
+  }, [view, anchor, a, tz]);
+  const days = useMemo(() => Array.from({ length: count }, (_, i) => dayInfo(dayRange, tz, first + i)), [tz, first, count]);
+  const rangeStart = days[0].start;
+  const rangeEnd = days[count - 1].end;
 
   const { data, error, loading, reload } = useLoad(async () => {
-    const appts = orThrow(await supabase
-      .from("appointments")
-      .select("*")
-      .eq("business_id", workspace.id)
-      .gte("start_time", days[0].start.toISOString())
-      .lt("start_time", days[6].end.toISOString())
-      .order("start_time"));
-    // Blocked time is optional until the latest Zella update is applied.
-    const blockResult = await supabase
-      .from("blocked_times")
-      .select("*")
-      .eq("business_id", workspace.id)
-      .lt("start_time", days[6].end.toISOString())
-      .gt("end_time", days[0].start.toISOString())
-      .order("start_time");
-    const staffResult = await supabase
-      .from("staff_members")
-      .select("*")
-      .eq("business_id", workspace.id)
-      .eq("is_active", true)
-      .order("sort_order")
-      .order("name");
+    const appts = orThrow(await supabase.from("appointments").select("*").eq("business_id", workspace.id)
+      .gte("start_time", rangeStart.toISOString()).lt("start_time", rangeEnd.toISOString()).order("start_time"));
+    // Blocked time and team are optional until the latest Zella update is applied.
+    const blockResult = await supabase.from("blocked_times").select("*").eq("business_id", workspace.id)
+      .lt("start_time", rangeEnd.toISOString()).gt("end_time", rangeStart.toISOString()).order("start_time");
+    const staffResult = await supabase.from("staff_members").select("*").eq("business_id", workspace.id)
+      .eq("is_active", true).order("sort_order").order("name");
     return {
       appts,
       staff: staffResult.error ? [] : staffResult.data ?? [],
       blocks: blockResult.error ? [] : blockResult.data ?? [],
-      people: await loadPeople(appts.map((a) => a.customer_id)),
+      people: await loadPeople(appts.map((x) => x.customer_id)),
     };
-  }, [workspace.id, days, refreshKey]);
+  }, [workspace.id, rangeStart.getTime(), rangeEnd.getTime(), refreshKey]);
 
-  const todayStart = dayRange(tz, 0).start.getTime();
   const staff = data?.staff ?? [];
   const staffName = Object.fromEntries(staff.map((m) => [m.id, m.name]));
-  const appts = (data?.appts ?? []).filter((a) => who === "all" || a.staff_id === who);
-  const allBlocks = (data?.blocks ?? []).filter((b) => who === "all" || !b.staff_id || b.staff_id === who);
-  const total = appts.filter((a) => a.status !== "cancelled").length;
+  const people = data?.people ?? {};
+  const appts = (data?.appts ?? []).filter((x) => who === "all" || x.staff_id === who);
+  const blocks = (data?.blocks ?? []).filter((b) => who === "all" || !b.staff_id || b.staff_id === who);
+  const inDay = (list, d) => list.filter((x) => {
+    const t = new Date(x.start_time).getTime();
+    return t >= d.start.getTime() && t < d.end.getTime();
+  });
+  const blocksIn = (d, staffId) => blocks.filter((b) =>
+    new Date(b.start_time) < d.end && new Date(b.end_time) > d.start && (staffId === undefined || !b.staff_id || b.staff_id === (staffId || null)));
+
+  // Columns of the hour grid.
+  const columns = (() => {
+    if (view === "month") return [];
+    const todayStart = dayRange(tz, 0).start.getTime();
+    if (view === "week") {
+      return days.map((d) => ({
+        key: d.dateStr, title: formatDay(d.start, tz), dayStart: d.start, today: d.start.getTime() === todayStart,
+        staffId: undefined, appts: inDay(appts, d), blocks: blocksIn(d),
+      }));
+    }
+    const d = days[0];
+    const today = d.start.getTime() === todayStart;
+    const dayAppts = inDay(appts, d);
+    const shown = who === "all" ? staff : staff.filter((m) => m.id === who);
+    if (!shown.length) return [{ key: "all", title: "Everyone", dayStart: d.start, today, staffId: undefined, appts: dayAppts, blocks: blocksIn(d) }];
+    const cols = shown.map((m) => ({
+      key: m.id, title: m.name, color: m.color, dayStart: d.start, today, staffId: m.id,
+      appts: dayAppts.filter((x) => x.staff_id === m.id), blocks: blocksIn(d, m.id),
+    }));
+    const loose = dayAppts.filter((x) => !x.staff_id || !shown.some((m) => m.id === x.staff_id));
+    if (loose.length || who === "all") cols.push({ key: "none", title: "Unassigned", dayStart: d.start, today, staffId: "", appts: loose, blocks: blocksIn(d, "") });
+    return cols;
+  })();
+
+  // Show the usual working day, and stretch it to fit anything outside it.
+  let lo = 7 * 60;
+  let hi = 20 * 60;
+  columns.forEach((c) => c.appts.forEach((x) => {
+    lo = Math.min(lo, minutesInto(x.start_time, c.dayStart));
+    hi = Math.max(hi, minutesInto(x.end_time, c.dayStart));
+  }));
+  const startMin = Math.max(0, Math.floor(lo / 60) * 60);
+  const endMin = Math.min(24 * 60, Math.ceil(hi / 60) * 60);
+
+  const shift = (dir) => setAnchor((cur) => {
+    if (view === "day") return cur + dir;
+    if (view === "week") return cur + dir * 7;
+    const info = dayInfo(dayRange, tz, cur);
+    const target = new Date(Date.UTC(info.y, info.m - 1 + dir, 1));
+    const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
+    const day = Math.min(info.d, lastDay);
+    return cur + (Date.UTC(target.getUTCFullYear(), target.getUTCMonth(), day) - Date.UTC(info.y, info.m - 1, info.d)) / 86400000;
+  });
+
+  const title = view === "day"
+    ? formatLongDate(days[0].start, tz)
+    : view === "week"
+      ? `${formatDay(days[0].start, tz)} to ${formatDay(days[6].start, tz)}`
+      : new Date(Date.UTC(a.y, a.m - 1, 1)).toLocaleDateString("en-US", { timeZone: "UTC", month: "long", year: "numeric" });
+  const total = appts.filter((x) => x.status !== "cancelled").length;
   const now = new Date();
+  const dateOfColumn = (c) => days.find((d) => d.start.getTime() === c.dayStart.getTime())?.dateStr;
+
+  function bookAt(colIndex, minute) {
+    const c = columns[colIndex];
+    setBooking({ date: dateOfColumn(c), time: clockText(minute), staffId: c.staffId ?? (who === "all" ? "" : who) });
+  }
+
+  async function applyMove(move) {
+    setMoving(true);
+    const { appt, start, end, staffId } = move;
+    const was = `${new Date(appt.start_time).toLocaleDateString("en-US", { timeZone: tz, month: "short", day: "numeric" })}, ${formatTime(appt.start_time, tz)}`;
+    const note = `Rescheduled from ${was}.`;
+    const { error: updateError } = await supabase.from("appointments").update({
+      start_time: start.toISOString(),
+      end_time: end.toISOString(),
+      status: "scheduled",
+      checked_in_at: null,
+      ...(staffId !== (appt.staff_id ?? "") ? { staff_id: staffId || null } : {}),
+      description: appt.description ? `${appt.description}\n${note}` : note,
+      updated_at: new Date().toISOString(),
+    }).eq("id", appt.id);
+    setMoving(false);
+    setPending(null);
+    if (updateError) { onNotice(friendly(updateError)); return; }
+    const p = personName(people[appt.customer_id]);
+    onNotice(`${appt.title} moved to ${formatDay(start, tz)}, ${formatTime(start, tz)}${p ? ` for ${p}` : ""}.`);
+    reload();
+  }
+
+  async function dropAppt(appt, colIndex, top) {
+    const c = columns[colIndex];
+    const start = zonedDateTime(dateOfColumn(c), clockText(top), tz);
+    const end = new Date(start.getTime() + (new Date(appt.end_time) - new Date(appt.start_time)));
+    const staffId = view === "day" ? c.staffId ?? "" : appt.staff_id ?? "";
+    const blockResult = await supabase.from("blocked_times").select("*").eq("business_id", workspace.id)
+      .lt("start_time", end.toISOString()).gt("end_time", start.toISOString());
+    const message = findConflict({ staff, blocks: blockResult.error ? [] : blockResult.data ?? [], start, end, staffId, timeZone: tz });
+    const move = { appt, start, end, staffId, message };
+    if (message) setPending(move); else applyMove(move);
+  }
+
+  const showWhosIn = view !== "month" && staff.length > 0 && data
+    && days.some((d) => d.start.getTime() === dayRange(tz, 0).start.getTime());
+
   return (
     <>
-      <PageHead crumb="Core / Calendar" title="Calendar" sub={`${term("appointments")} for ${formatDay(days[0].start, tz)} to ${formatDay(days[6].start, tz)} (${tz.replace("_", " ")})`}>
+      <PageHead crumb="Core / Calendar" title="Calendar" sub={`${term("appointments")} · ${title} (${tz.replace("_", " ")})`}>
+        <div className="ba-segment" role="group" aria-label="Calendar view">
+          {VIEWS.map(([id, label]) => (
+            <button key={id} type="button" className={view === id ? "active" : ""} onClick={() => setView(id)}>{label}</button>
+          ))}
+        </div>
         <div className="ba-segment">
-          <button type="button" onClick={() => setOffset(offset - 1)} aria-label="Previous 7 days"><Icon name="chevron_left" size="sm" /></button>
-          <button type="button" className={offset === 0 ? "active" : ""} onClick={() => setOffset(0)}>Today</button>
-          <button type="button" onClick={() => setOffset(offset + 1)} aria-label="Next 7 days"><Icon name="chevron_right" size="sm" /></button>
+          <button type="button" onClick={() => shift(-1)} aria-label={`Previous ${view}`}><Icon name="chevron_left" size="sm" /></button>
+          <button type="button" className={anchor === 0 ? "active" : ""} onClick={() => setAnchor(0)}>Today</button>
+          <button type="button" onClick={() => shift(1)} aria-label={`Next ${view}`}><Icon name="chevron_right" size="sm" /></button>
         </div>
         {staff.length > 0 && (
           <label className="ba-select">
@@ -431,65 +539,50 @@ export function CalendarPage({ workspace, refreshKey, onNotice, onOpenPerson }) 
           </label>
         )}
         <button type="button" className="ba-btn" onClick={() => setBlocking(true)}><Icon name="block" size="sm" /><span>Block time</span></button>
+        <button type="button" className="ba-btn primary" onClick={() => setBooking({ date: days[0].dateStr, time: "09:00", staffId: who === "all" ? "" : who })}><Icon name="add" size="sm" /><span>Book</span></button>
       </PageHead>
 
       <Notice error={error} onRetry={reload} />
-      {offset === 0 && staff.length > 0 && (
+      {showWhosIn && (
         <div className="ba-whos-in" aria-label="Who is available right now">
           {staff.map((m) => {
-            const a = availabilityAt(m, data.blocks, now, tz);
+            const st = availabilityAt(m, data.blocks, now, tz);
             return (
-              <span key={m.id} className={`ba-who ${a.state}`} title={a.label}>
+              <span key={m.id} className={`ba-who ${st.state}`} title={st.label}>
                 <i style={{ background: m.color }} />
                 <strong>{m.name}</strong>
-                <small>{a.label}</small>
+                <small>{st.label}</small>
               </span>
             );
           })}
         </div>
       )}
-      <div className="ba-week">
-        {days.map((d) => {
-          const items = appts.filter((a) => {
-            const t = new Date(a.start_time).getTime();
-            return t >= d.start.getTime() && t < d.end.getTime();
-          });
-          const blocks = allBlocks.filter((b) =>
-            new Date(b.start_time) < d.end && new Date(b.end_time) > d.start);
-          return (
-            <section key={d.start.toISOString()} className={`ba-day ${d.start.getTime() === todayStart ? "today" : ""}`}>
-              <header>
-                <strong>{formatDay(d.start, tz)}</strong>
-                <span>{items.length ? plural(items.length, "booking") : blocks.length ? "Blocked" : "Free"}</span>
-              </header>
-              {blocks.map((b) => (
-                <button key={b.id} type="button" className="ba-block" onClick={() => setOpenBlock(b)}>
-                  <span className="ba-slot-time"><Icon name="block" size="sm" />{b.all_day ? "All day" : `${formatTime(b.start_time, tz)} to ${formatTime(b.end_time, tz)}`}</span>
-                  <span className="ba-slot-title">{b.title}{b.staff_id && staffName[b.staff_id] ? `: ${staffName[b.staff_id]}` : ""}</span>
-                </button>
-              ))}
-              {items.map((a) => (
-                <button key={a.id} type="button" className={`ba-slot ${a.status} ${a.booking_state === "requested" || a.booking_state === "tentative" ? "pending-state" : ""} ${a.conflict_note ? "conflict" : ""}`} onClick={() => setOpen(a)}>
-                  <span className="ba-slot-time">{formatTime(a.start_time, tz)}{a.checked_in_at && <Icon name="how_to_reg" size="sm" />}{a.conflict_note && <Icon name="warning" size="sm" />}</span>
-                  <span className="ba-slot-title">{a.booking_state === "requested" ? "Requested: " : a.booking_state === "tentative" ? "Held: " : ""}{a.title}</span>
-                  <span className="ba-slot-who">{[personName(data.people[a.customer_id]), staffName[a.staff_id], a.party_size ? `party of ${a.party_size}` : null].filter(Boolean).join(" · ")}</span>
-                </button>
-              ))}
-            </section>
-          );
-        })}
-      </div>
-      {!loading && data && total === 0 && !allBlocks.length && (
-        <Empty title={`No ${term("appointments").toLowerCase()} in these 7 days`}>Book one yourself, or let your AI receptionist fill the calendar.</Empty>
+
+      {view === "month" ? (
+        <MonthGrid
+          tz={tz}
+          people={people}
+          cells={days.map((d) => ({
+            key: d.dateStr, offset: d.offset, d: d.d, inMonth: d.m === month,
+            today: d.offset === 0, appts: inDay(appts, d), blocks: blocksIn(d),
+          }))}
+          onPickDay={(offset) => { setAnchor(offset); setView("day"); }}
+          onOpen={setOpen}
+        />
+      ) : (
+        <TimeGrid
+          columns={columns} tz={tz} startMin={startMin} endMin={endMin} people={people} staffName={staffName}
+          now={now} term={term("appointment")}
+          onOpen={setOpen} onOpenBlock={setOpenBlock} onBook={bookAt} onMove={dropAppt}
+        />
+      )}
+      {!loading && data && total === 0 && !blocks.length && (
+        <Empty title={`No ${term("appointments").toLowerCase()} here`}>Click an empty time to book one, or let your AI receptionist fill the calendar.</Empty>
       )}
 
       {open && (
         <AppointmentDetail
-          workspace={workspace}
-          appt={open}
-          person={data.people[open.customer_id]}
-          tz={tz}
-          term={term}
+          workspace={workspace} appt={open} person={people[open.customer_id]} tz={tz} term={term}
           onClose={() => setOpen(null)}
           onChanged={() => { setOpen(null); reload(); }}
           onNotice={onNotice}
@@ -501,13 +594,33 @@ export function CalendarPage({ workspace, refreshKey, onNotice, onOpenPerson }) 
       )}
       {blocking && (
         <BlockTimeModal
-          workspace={workspace}
-          staff={staff}
-          defaultStaffId={who === "all" ? "" : who}
-          defaultDate={todayInput(tz)}
+          workspace={workspace} staff={staff} defaultStaffId={who === "all" ? "" : who} defaultDate={days[0].dateStr}
           onClose={() => setBlocking(false)}
           onSaved={(message) => { setBlocking(false); onNotice(message); reload(); }}
         />
+      )}
+      {booking && (
+        <BookAppointmentModal
+          workspace={workspace} term={term} initial={booking}
+          onClose={() => setBooking(null)}
+          onSaved={(message) => { setBooking(null); onNotice(message); reload(); }}
+        />
+      )}
+      {pending && (
+        <Modal
+          title="Move anyway?"
+          description={pending.message}
+          onClose={() => setPending(null)}
+          busy={moving}
+          footer={
+            <>
+              <button type="button" className="ba-btn" onClick={() => setPending(null)} disabled={moving}>Keep it where it was</button>
+              <button type="button" className="ba-btn primary" onClick={() => applyMove(pending)} disabled={moving}>{moving ? "Moving..." : "Move anyway"}</button>
+            </>
+          }
+        >
+          <p className="ba-note">{pending.appt.title} would move to {formatDay(pending.start, tz)}, {formatTime(pending.start, tz)}.</p>
+        </Modal>
       )}
     </>
   );
