@@ -50,7 +50,7 @@ export function isOverdue(p, now = Date.now()) {
 export function useRoster(workspace) {
   const { data } = useLoad(async () => {
     const res = await supabase.rpc("zella_team_roster", { p_business_id: workspace.id });
-    return res.error ? [] : res.data ?? [];
+    return res.error || !Array.isArray(res.data) ? [] : res.data;
   }, [workspace.id]);
   const list = data ?? [];
   return { list, nameOf: Object.fromEntries(list.map((m) => [m.user_id, m.name])) };
