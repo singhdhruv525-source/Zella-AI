@@ -9,8 +9,9 @@ import { KnowledgePage } from "./BusinessKnowledge";
 import { RecordSettingsPage, RecordsPage, useRecordTypes } from "./BusinessRecords";
 import { NotificationsBell, TasksPage, WaitlistPage } from "./BusinessWork";
 import { CallbacksPage } from "./BusinessCallbacks";
+import { InboxPage } from "./BusinessInbox";
 import {
-  AttentionPage, CheckInsPage, InboxPage, IntegrationsPage, LeadSourcesPage, ReportsPage,
+  AttentionPage, CheckInsPage, IntegrationsPage, LeadSourcesPage, ReportsPage,
 } from "./BusinessMore";
 import "./BusinessApp.css";
 import { supabase } from "./supabase";
@@ -52,7 +53,6 @@ function navigation(workspace, recordTypes = []) {
         { key: "callbacks", label: "Callbacks", icon: "phone_callback", ready: true },
         { key: "inbox", label: "Unified Inbox", icon: "forum", ready: true },
         has("calls") && { key: "calls", label: "Calls", icon: "call", ready: true },
-        (has("sms") || has("email")) && { key: "messages", label: "Messages", icon: "chat", ready: true },
         { key: "lead-sources", label: "Lead sources", icon: "hub", ready: true },
       ],
     },
@@ -317,7 +317,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, onSignOut, onReload
           {current.key === "team" && <TeamPage workspace={workspace} email={email} refreshKey={refreshKey} onNotice={setNotice} />}
           {current.key === "checkins" && <CheckInsPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} onChanged={countAttention} />}
           {current.key === "attention" && <AttentionPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} onChanged={countAttention} />}
-          {current.key === "inbox" && <InboxPage workspace={workspace} refreshKey={refreshKey} onOpenPerson={openPerson} />}
+          {current.key === "inbox" && <InboxPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} />}
           {current.key === "lead-sources" && <LeadSourcesPage workspace={workspace} refreshKey={refreshKey} />}
           {current.key === "reports" && <ReportsPage workspace={workspace} refreshKey={refreshKey} />}
           {current.key === "integrations" && <IntegrationsPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
