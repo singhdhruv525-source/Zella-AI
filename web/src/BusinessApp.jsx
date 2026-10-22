@@ -7,7 +7,8 @@ import { TeamPage } from "./BusinessTeam";
 import PersonProfile from "./BusinessProfile";
 import { KnowledgePage } from "./BusinessKnowledge";
 import { RecordSettingsPage, RecordsPage, useRecordTypes } from "./BusinessRecords";
-import { CallbacksPage, NotificationsBell, TasksPage, WaitlistPage } from "./BusinessWork";
+import { NotificationsBell, TasksPage, WaitlistPage } from "./BusinessWork";
+import { CallbacksPage } from "./BusinessCallbacks";
 import {
   AttentionPage, CheckInsPage, InboxPage, IntegrationsPage, LeadSourcesPage, ReportsPage,
 } from "./BusinessMore";

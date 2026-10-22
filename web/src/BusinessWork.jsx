@@ -10,8 +10,8 @@ import { Empty, Notice, PageHead, Segment, explain, loadPeople, orThrow, plural,
 /* Shared bits                                                         */
 /* ------------------------------------------------------------------ */
 
-const PRIORITY_TONE = { urgent: "danger", high: "warning", normal: "" };
-const when = (value, tz) => (value ? `${formatDay(value, tz)} · ${formatTime(value, tz)}` : "—");
+export const PRIORITY_TONE = { urgent: "danger", high: "warning", normal: "" };
+export const when = (value, tz) => (value ? `${formatDay(value, tz)} · ${formatTime(value, tz)}` : "—");
 
 export function PersonPicker({ label = "Person", value, onChange, hint }) {
   const [query, setQuery] = useState("");
@@ -74,19 +74,19 @@ function useAction(onNotice, reload, onChanged) {
 /* Callbacks                                                           */
 /* ------------------------------------------------------------------ */
 
-const CB_REASON = {
+export const CB_REASON = {
   missed_call: "Missed call", new_lead: "New lead", requested: "Asked for a call back", needs_human: "Needs a person",
   transfer_failed: "Transfer didn't connect", appointment_request: "Appointment request", booking_failed: "Booking failed", after_hours: "After hours", other: "Call back",
 };
-const CB_STATUS = {
+export const CB_STATUS = {
   new: ["New", ""], scheduled: ["Scheduled", "warning"], due: ["Due", "warning"], in_progress: ["In progress", "info"], contacted: ["Reached", "success"],
   reschedule_requested: ["Reschedule requested", "warning"], retry_scheduled: ["Will retry", "warning"], waiting_on_customer: ["Waiting on them", ""],
   completed: ["Done", "success"], cancelled: ["Cancelled", ""], escalated: ["Escalated", "danger"], needs_review: ["Needs a person", "danger"],
 };
-const CB_CLOSED = ["completed", "cancelled"];
-const ATTEMPT_LABEL = { connected: "Reached them", no_answer: "No answer", busy: "Busy", voicemail: "Voicemail", invalid_number: "Number not working", failed_connection: "Call failed", declined: "Declined" };
+export const CB_CLOSED = ["completed", "cancelled"];
+export const ATTEMPT_LABEL = { connected: "Reached them", no_answer: "No answer", busy: "Busy", voicemail: "Voicemail", invalid_number: "Number not working", failed_connection: "Call failed", declined: "Declined" };
 
-function NewCallbackModal({ workspace, onClose, onSaved }) {
+export function NewCallbackModal({ workspace, onClose, onSaved }) {
   const [person, setPerson] = useState(null);
   const [form, setForm] = useState({ phone: "", note: "", date: "", time: "", priority: "normal" });
   const [busy, setBusy] = useState(false);
@@ -127,154 +127,6 @@ function NewCallbackModal({ workspace, onClose, onSaved }) {
         </div>
       </form>
     </Modal>
-  );
-}
-
-function CallbackDetail({ cb, person, workspace, onClose, onChanged, onNotice, onOpenPerson }) {
-  const tz = workspace.timezone;
-  const closed = CB_CLOSED.includes(cb.status);
-  const { data, error: loadError } = useLoad(async () =>
-    orThrow(await supabase.from("callback_attempts").select("*").eq("callback_id", cb.id).order("attempt_no")), [cb.id]);
-  const [note, setNote] = useState("");
-  const [date, setDate] = useState("");
-  const [time, setTime] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-
-  async function call(work, message) {
-    setBusy(true);
-    setError("");
-    const { error: failure } = await work();
-    setBusy(false);
-    if (failure) return setError(explain(failure));
-    onNotice(message);
-    onChanged();
-    onClose();
-  }
-  const update = (status, message) => call(() => supabase.rpc("zella_update_callback", { p_callback_id: cb.id, p_status: status, p_note: note.trim() || null }), message);
-  const attempt = (outcome, message) => call(() => supabase.rpc("zella_record_callback_attempt", { p_callback_id: cb.id, p_outcome: outcome, p_notes: note.trim() || null }), message);
-  const reschedule = () => {
-    if (!date || !time) return setError("Pick a day and time.");
-    return call(() => supabase.rpc("zella_update_callback", { p_callback_id: cb.id, p_preferred_at: zonedDateTime(date, time, tz).toISOString(), p_note: note.trim() || null }), "Callback moved to the new time.");
-  };
-  const [label, tone] = CB_STATUS[cb.status] ?? [cb.status, ""];
-
-  return (
-    <Modal wide title={personName(person) ?? cb.contact_number ?? "Callback"} onClose={onClose} busy={busy}
-      description={`${CB_REASON[cb.reason] ?? "Call back"} · due ${when(cb.due_at, tz)}`}>
-      <div className="ba-modal-body">
-        {(error || loadError) && <p className="ba-error" role="alert">{error || loadError}</p>}
-        <div className="ba-kn-head">
-          <Pill tone={tone}>{label}</Pill>
-          {cb.priority !== "normal" && <Pill tone={PRIORITY_TONE[cb.priority]}>{cb.priority === "urgent" ? "Urgent" : "High priority"}</Pill>}
-          <Pill>{cb.attempts} of {cb.max_attempts} tries</Pill>
-          {cb.auto_call && !closed && <Pill tone="info">Zella will call</Pill>}
-          {cb.contact_number && <a className="ba-btn sm" href={`tel:${cb.contact_number}`}><Icon name="call" size="sm" />{cb.contact_number}</a>}
-          {person && <button type="button" className="ba-btn sm" onClick={() => { onClose(); onOpenPerson(person.id); }}>Open profile</button>}
-        </div>
-        {cb.summary && <p className="ba-item-text">{cb.summary}</p>}
-        {cb.note && <p className="ba-muted">{cb.note}</p>}
-
-        <h3 className="ba-sub">Tries</h3>
-        {!data?.length ? <p className="ba-muted">No tries yet.</p> : (
-          <ul className="ba-threads">
-            {data.map((a) => (
-              <li key={a.id}>
-                <span className="ba-thread-icon"><Icon name={a.outcome === "connected" ? "call" : "phone_missed"} size="sm" /></span>
-                <div><strong>{ATTEMPT_LABEL[a.outcome] ?? a.outcome}</strong><small>Try {a.attempt_no} · {when(a.attempted_at, tz)}{a.initiated_by === "system" ? " · Zella" : ""}{a.notes ? ` · ${a.notes}` : ""}</small></div>
-              </li>
-            ))}
-          </ul>
-        )}
-
-        {!closed && (
-          <>
-            <Field label="Note" full><textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="What happened? Optional." /></Field>
-            <div className="ba-form-actions wrap">
-              <button type="button" className="ba-btn primary sm" disabled={busy} onClick={() => attempt("connected", "Marked as reached.")}>Reached them</button>
-              <button type="button" className="ba-btn sm" disabled={busy} onClick={() => attempt("no_answer", "No answer noted.")}>No answer</button>
-              <button type="button" className="ba-btn sm" disabled={busy} onClick={() => attempt("voicemail", "Voicemail noted.")}>Left voicemail</button>
-              <button type="button" className="ba-btn sm" disabled={busy} onClick={() => attempt("invalid_number", "Number marked as not working.")}>Number not working</button>
-              <button type="button" className="ba-btn sm" disabled={busy || cb.status === "in_progress"} onClick={() => update("in_progress", "Marked as in progress.")}>I'm calling now</button>
-              <button type="button" className="ba-btn sm" disabled={busy} onClick={() => update("waiting_on_customer", "Waiting on the customer.")}>Waiting on them</button>
-              <button type="button" className="ba-btn sm" disabled={busy} onClick={() => update("escalated", "Escalated.")}>Escalate</button>
-              <button type="button" className="ba-btn sm" disabled={busy} onClick={() => update("completed", "Callback done.")}>Mark done</button>
-              <button type="button" className="ba-btn sm danger-outline" disabled={busy} onClick={() => update("cancelled", "Callback cancelled.")}>Cancel</button>
-            </div>
-            <h3 className="ba-sub">Move to another time</h3>
-            <div className="ba-form-grid">
-              <Field label="Day"><input type="date" min={todayInput(tz)} value={date} onChange={(e) => setDate(e.target.value)} /></Field>
-              <Field label="Time"><input type="time" value={time} onChange={(e) => setTime(e.target.value)} /></Field>
-            </div>
-            <div className="ba-form-actions"><button type="button" className="ba-btn sm" disabled={busy} onClick={reschedule}>Move callback</button></div>
-            <p className="ba-muted">Times outside your calling hours move to the next available time.</p>
-          </>
-        )}
-      </div>
-    </Modal>
-  );
-}
-
-export function CallbacksPage({ workspace, refreshKey, onNotice, onOpenPerson, onChanged }) {
-  const tz = workspace.timezone;
-  const [filter, setFilter] = useState("open");
-  const [open, setOpen] = useState(null);
-  const [adding, setAdding] = useState(false);
-  const { data, error, loading, reload } = useLoad(async () => {
-    const rows = orThrow(await supabase.from("callbacks").select("*").eq("business_id", workspace.id).order("due_at", { ascending: true, nullsFirst: false }).limit(300));
-    return { rows, people: await loadPeople(rows.map((r) => r.customer_id)) };
-  }, [workspace.id, refreshKey]);
-
-  const rows = data?.rows ?? [];
-  const groups = useMemo(() => ({
-    open: rows.filter((r) => !CB_CLOSED.includes(r.status) && r.status !== "needs_review" && r.status !== "escalated"),
-    review: rows.filter((r) => r.status === "needs_review" || r.status === "escalated"),
-    closed: rows.filter((r) => CB_CLOSED.includes(r.status)).sort((a, b) => new Date(b.completed_at ?? b.updated_at) - new Date(a.completed_at ?? a.updated_at)),
-  }), [rows]);
-  const shown = groups[filter];
-  const changed = () => { reload(); onChanged?.(); };
-
-  return (
-    <>
-      <PageHead crumb="Communications / Callbacks" title="Callbacks"
-        sub={groups.review.length ? `${groups.review.length === 1 ? "1 callback needs" : `${groups.review.length} callbacks need`} a person. Zella has stopped calling.` : "People waiting for a call back, and what happened on each try."}>
-        <button type="button" className="ba-btn primary" onClick={() => setAdding(true)}><Icon name="add_call" size="sm" />Add callback</button>
-        <Segment label="Callback filter" value={filter} onChange={setFilter}
-          options={[["open", `Coming up (${groups.open.length})`], ["review", `Needs a person (${groups.review.length})`], ["closed", "Done"]]} />
-      </PageHead>
-      <Notice error={error} onRetry={reload} />
-      {loading && !data ? <p className="ba-muted">Loading…</p> : !shown.length ? (
-        <Empty title={filter === "closed" ? "Nothing finished yet" : "No callbacks here"}>
-          {filter === "open" ? "Missed calls, requests for a call back and failed transfers appear here with a time to call." : filter === "review" ? "When Zella can't reach someone after its tries, they show up here." : "Finished callbacks are kept here."}
-        </Empty>
-      ) : (
-        <div className="ba-stack">
-          {shown.map((c) => {
-            const person = data.people[c.customer_id];
-            const [label, tone] = CB_STATUS[c.status] ?? [c.status, ""];
-            return (
-              <article key={c.id} className="ba-panel clickable" onClick={() => setOpen(c)}>
-                <div className="ba-panel-body">
-                  <div className="ba-kn-head">
-                    <div className="ba-avatar sm">{initials(personName(person) ?? c.contact_number ?? "?")}</div>
-                    <strong>{personName(person) ?? c.contact_number ?? "Unknown caller"}</strong>
-                    <Pill tone={tone}>{label}</Pill>
-                    {c.priority !== "normal" && <Pill tone={PRIORITY_TONE[c.priority]}>{c.priority === "urgent" ? "Urgent" : "High"}</Pill>}
-                    <Pill>{CB_REASON[c.reason] ?? "Call back"}</Pill>
-                  </div>
-                  {c.summary && <p className="ba-item-text">{c.summary}</p>}
-                  <p className="ba-muted">
-                    {CB_CLOSED.includes(c.status) ? `Closed ${timeAgo(c.completed_at ?? c.updated_at)}` : `Due ${when(c.due_at, tz)}`} · {c.attempts} of {c.max_attempts} tries{c.auto_call && !CB_CLOSED.includes(c.status) ? " · Zella will call" : ""}
-                  </p>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      )}
-      {open && <CallbackDetail cb={open} person={data?.people[open.customer_id]} workspace={workspace} onClose={() => setOpen(null)} onChanged={changed} onNotice={onNotice} onOpenPerson={onOpenPerson} />}
-      {adding && <NewCallbackModal workspace={workspace} onClose={() => setAdding(false)} onSaved={(m) => { setAdding(false); onNotice(m); changed(); }} />}
-    </>
   );
 }
 

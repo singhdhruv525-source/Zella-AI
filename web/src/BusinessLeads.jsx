@@ -47,7 +47,7 @@ export function isOverdue(p, now = Date.now()) {
   return stage === "new" && p.contact_deadline_at && new Date(p.contact_deadline_at).getTime() < now;
 }
 
-function useRoster(workspace) {
+export function useRoster(workspace) {
   const { data } = useLoad(async () => {
     const res = await supabase.rpc("zella_team_roster", { p_business_id: workspace.id });
     return res.error ? [] : res.data ?? [];
@@ -56,7 +56,7 @@ function useRoster(workspace) {
   return { list, nameOf: Object.fromEntries(list.map((m) => [m.user_id, m.name])) };
 }
 
-function Assignee({ id, nameOf }) {
+export function Assignee({ id, nameOf }) {
   if (!id) return <span className="ba-muted">Unassigned</span>;
   const name = nameOf[id] ?? "Team member";
   return <span className="ba-assignee"><span className="ba-avatar xs">{initials(name)}</span>{name}</span>;
