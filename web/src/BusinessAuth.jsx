@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import "./BusinessApp.css";
 import { supabase } from "./supabase";
 import { ConfirmPasswordField, EmailField, PasswordField } from "./formFields";
-import { passwordProblems } from "./formValidation";
+import { checkEmail, passwordProblems } from "./formValidation";
 
 // Sign-in, forgotten password and the welcome (set password) page for
 // business owners and staff. Platform admins use the admin sign-in at "/".
@@ -23,6 +23,72 @@ function AuthCard({ eyebrow, title, description, children }) {
           {children}
         </section>
     </main>
+  );
+}
+
+// Sign in with an existing Google, Microsoft or Apple account, or the company's
+// Okta. Each provider must be switched on in Supabase (Authentication, Providers).
+const SOCIAL = [
+  { id: "google", label: "Google (Gmail)", provider: "google" },
+  { id: "microsoft", label: "Microsoft (Outlook)", provider: "azure", scopes: "email" },
+  { id: "apple", label: "Apple", provider: "apple" },
+  { id: "okta", label: "Okta (company sign-in)", sso: true },
+];
+
+// Each logo is an official file you add to web/public/auth/ (google.svg, microsoft.svg,
+// apple.svg, okta.svg). Until a file exists, the button simply shows its text.
+function ProviderLogo({ id }) {
+  const [missing, setMissing] = useState(false);
+  if (missing) return null;
+  return <img className="ba-social-logo" src={`/auth/${id}.svg`} alt="" width="18" height="18" onError={() => setMissing(true)} />;
+}
+
+function SocialSignIn({ email, setError, disabled }) {
+  const [working, setWorking] = useState("");
+
+  async function go(option) {
+    setError("");
+    setWorking(option.id);
+    try {
+      const redirectTo = `${window.location.origin}/app`;
+      if (option.sso) {
+        const problem = checkEmail(email, { required: true });
+        if (problem) throw new Error(`Enter your work email above first, then choose Okta. ${problem}`);
+        const { data, error } = await supabase.auth.signInWithSSO({ domain: email.trim().split("@")[1].toLowerCase(), options: { redirectTo } });
+        if (error) throw error;
+        if (data?.url) window.location.assign(data.url);
+        return;
+      }
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: option.provider,
+        options: { redirectTo, ...(option.scopes ? { scopes: option.scopes } : {}) },
+      });
+      if (error) throw error;
+      // The browser is on its way to the provider. If it doesn't leave, unlock the buttons.
+      setTimeout(() => setWorking(""), 8000);
+    } catch (err) {
+      const name = option.label.split(" (")[0];
+      setError(
+        /not enabled|unsupported provider|provider is not|no sso provider/i.test(err.message)
+          ? `${name} sign-in isn't switched on for this workspace yet. Use your email and password, or ask the Zella team.`
+          : err.message
+      );
+      setWorking("");
+    }
+  }
+
+  return (
+    <div className="ba-social">
+      <div className="ba-social-divider"><span>or continue with</span></div>
+      <div className="ba-social-grid">
+        {SOCIAL.map((option) => (
+          <button key={option.id} type="button" className="ba-btn ba-social-btn" disabled={disabled || Boolean(working)} onClick={() => go(option)}>
+            <ProviderLogo id={option.id} />
+            <span>{working === option.id ? "Opening..." : option.label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -116,6 +182,7 @@ export function BusinessSignIn() {
         <button type="button" className="ba-link ba-center" onClick={() => { setMode("reset"); setError(""); }}>
           Forgot your password?
         </button>
+        <SocialSignIn email={email} setError={setError} disabled={busy} />
       </form>
     </AuthCard>
   );
@@ -177,7 +244,10 @@ export function Welcome() {
       // Activates the owner's membership so their business's data becomes visible.
       const { error: acceptError } = await supabase.rpc("zella_accept_my_invitations");
       if (acceptError) console.error("Accepting invitation failed", acceptError);
-      window.location.replace("/app");
+      // A platform admin who reset their password goes back to the admin dashboard.
+      let isAdmin = false;
+      try { isAdmin = (await supabase.rpc("is_platform_admin"))?.data === true; } catch { /* go to the CRM */ }
+      window.location.replace(isAdmin ? "/" : "/app");
     } catch (err) {
       setError(err.message);
       setBusy(false);

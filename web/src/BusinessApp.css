@@ -1253,3 +1253,50 @@
 }
 .ba-edit-list input:focus, .ba-edit-list select:focus, .ba-inline-form input:focus { outline: 2px solid var(--ba-primary); outline-offset: 1px; }
 .ba-edit-list select { flex: 0 0 auto; }
+
+/* Social sign-in */
+.ba-social { margin-top: 6px; }
+.ba-social-divider { display: flex; align-items: center; gap: 12px; margin: 8px 0 14px; color: var(--ba-muted); font-size: 13px; }
+.ba-social-divider::before, .ba-social-divider::after { content: ""; flex: 1; height: 1px; background: var(--ba-border); }
+.ba-social-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ba-social-btn { justify-content: center; text-align: center; min-height: 42px; }
+@media (max-width: 420px) { .ba-social-grid { grid-template-columns: 1fr; } }
+.ba-social-btn { display: inline-flex; align-items: center; gap: 10px; }
+.ba-social-logo { flex: 0 0 auto; display: block; width: 18px; height: 18px; object-fit: contain; }
+
+/* Owner controls: automations and integrations */
+.ba-switch { position: relative; flex: 0 0 auto; width: 44px; height: 26px; padding: 0; border: 0; border-radius: 999px; background: var(--ba-border-strong); cursor: pointer; transition: background .15s ease; }
+.ba-switch span { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: transform .15s ease; }
+.ba-switch.on { background: var(--ba-primary); }
+.ba-switch.on span { transform: translateX(18px); }
+.ba-switch:disabled { opacity: .55; cursor: progress; }
+.ba-switch:focus-visible { outline: 2px solid var(--ba-primary); outline-offset: 2px; }
+.ba-autos { list-style: none; margin: 0; padding: 0; }
+.ba-auto { padding: 16px 18px; border-bottom: 1px solid var(--ba-border); }
+.ba-auto:last-child { border-bottom: 0; }
+.ba-auto.off .ba-auto-text strong { color: var(--ba-muted); }
+.ba-auto-top { display: flex; align-items: center; gap: 12px; }
+.ba-auto-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ba-auto-text small { color: var(--ba-muted); }
+.ba-auto-side { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; }
+.ba-auto-toggle { margin: 8px 0 0 44px; }
+.ba-auto-options { margin: 12px 0 0 44px; padding: 14px; border: 1px solid var(--ba-border); border-radius: var(--ba-radius-md); background: var(--ba-alt); display: grid; gap: 14px; }
+.ba-auto-field { display: grid; gap: 6px; }
+.ba-auto-field > span { font-size: 13px; font-weight: 600; color: var(--ba-text-2); }
+.ba-auto-field select { max-width: 280px; min-height: 40px; padding: 8px 10px; border: 1px solid var(--ba-border-strong); border-radius: var(--ba-radius-md); background: var(--ba-surface); color: var(--ba-text); font: inherit; }
+.ba-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.ba-chip { padding: 7px 12px; border: 1px solid var(--ba-border-strong); border-radius: 999px; background: var(--ba-surface); color: var(--ba-text); font: inherit; font-size: 13px; cursor: pointer; }
+.ba-chip.on { background: var(--ba-primary-soft); border-color: var(--ba-primary-border); color: var(--ba-primary); font-weight: 600; }
+.ba-auto-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.ba-auto-summary { margin: 0 0 10px; }
+.ba-integration-controls { display: flex; flex-direction: column; align-items: stretch; gap: 10px; }
+.ba-integration-row { display: flex; align-items: center; gap: 12px; }
+.ba-integration-row > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ba-integration-row small, .ba-integration-account { color: var(--ba-muted); }
+.ba-integration-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.ba-confirm { width: 100%; padding: 12px; border: 1px solid var(--ba-danger-border); border-radius: var(--ba-radius-md); background: var(--ba-danger-bg); display: grid; gap: 10px; }
+.ba-confirm p { margin: 0; color: var(--ba-text); }
+.ba-btn.danger { background: var(--ba-danger); border-color: var(--ba-danger); color: #fff; }
+.ba-btn.danger-text { color: var(--ba-danger); }
+@media (max-width: 640px) { .ba-auto-options, .ba-auto-toggle { margin-left: 0; } .ba-auto-top { flex-wrap: wrap; } }
+@media (prefers-reduced-motion: reduce) { .ba-switch, .ba-switch span { transition: none; } }

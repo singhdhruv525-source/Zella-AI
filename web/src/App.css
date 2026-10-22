@@ -371,3 +371,24 @@
   .form-panel { padding: 28px 22px; }
   .form-footer { margin-top: 24px; }
 }
+
+.field-error {
+  margin: -4px 0 12px;
+  color: #b3261e;
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+.forgot-link {
+  display: block;
+  margin: 14px auto 0;
+  padding: 6px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--primary);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.forgot-link:hover { text-decoration: underline; }

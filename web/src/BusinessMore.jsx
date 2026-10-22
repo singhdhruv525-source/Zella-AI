@@ -5,7 +5,7 @@ import { makeTerm } from "./businessWorkspace";
 import { dayRange, formatDay, formatTime, timeAgo } from "./businessTime";
 import {
   APPT_LABEL, APPT_TONE, Empty, Notice, PageHead, Segment, SOURCE_LABELS, clock, friendly, loadPeople, noShowNotice,
-  orThrow, plural, setCheckIn, sourceLabel, useLoad,
+  explain, orThrow, plural, setCheckIn, sourceLabel, useLoad,
 } from "./BusinessShared";
 import { CallCard, isOpenEscalation } from "./BusinessProfile";
 import { RescheduleModal } from "./BusinessForms";
@@ -523,30 +523,83 @@ const CATALOG = [
   { match: ["website", "form", "web"], icon: "language", name: "Website forms", text: "Sends website enquiries straight into your leads." },
 ];
 
-export function IntegrationsPage({ workspace, refreshKey }) {
+const STATUS_TEXT = { active: "Connected", inactive: "Turned off", error: "Needs attention", disconnected: "Removed" };
+const STATUS_TONE = { active: "success", inactive: "", error: "warning", disconnected: "" };
+
+function IntegrationCard({ item, row, canManage, loading, onNotice, onChanged, workspace }) {
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const core = item.match.some((m) => ["telnyx", "vapi"].includes(m));
+
+  async function act(action) {
+    setBusy(true);
+    setError("");
+    const { error: failure } = await supabase.rpc("zella_set_integration", { p_business_id: workspace.id, p_integration_id: row.id, p_action: action });
+    setBusy(false);
+    if (failure) return setError(/NEEDS_RECONNECT/.test(failure.message) ? "This was removed, so it needs the Zella team to connect it again." : explain(failure));
+    setConfirming(false);
+    onNotice?.(action === "remove" ? `${item.name} was removed.` : `${item.name} is ${action === "on" ? "on" : "off"}.`);
+    onChanged();
+  }
+
+  return (
+    <section className="ba-panel ba-integration ba-integration-controls">
+      <div className="ba-integration-row">
+        <span className="ba-thread-icon"><Icon name={item.icon} size="sm" /></span>
+        <div><strong>{item.name}</strong><small>{item.text}</small></div>
+        <Pill tone={row ? STATUS_TONE[row.status] : ""} dot={row?.status === "active"}>
+          {loading ? "…" : row ? STATUS_TEXT[row.status] ?? row.status.replace(/_/g, " ") : "Not connected"}
+        </Pill>
+      </div>
+      {row?.account_email && <small className="ba-integration-account">{row.account_email}</small>}
+      {canManage && row && (
+        <div className="ba-integration-actions">
+          {row.status === "disconnected" ? (
+            <small>Removed. Ask the Zella team to connect it again.</small>
+          ) : confirming ? (
+            <div className="ba-confirm" role="alertdialog" aria-label={`Remove ${item.name}`}>
+              <p>
+                Remove {item.name}? Its saved sign-in details are deleted.
+                {core && " Your AI receptionist can't take calls without it."} The Zella team has to connect it again.
+              </p>
+              <div className="ba-auto-actions">
+                <button type="button" className="ba-btn" disabled={busy} onClick={() => setConfirming(false)}>Keep it</button>
+                <button type="button" className="ba-btn danger" disabled={busy} onClick={() => act("remove")}>{busy ? "Removing…" : "Yes, remove"}</button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {row.status === "inactive"
+                ? <button type="button" className="ba-btn" disabled={busy} onClick={() => act("on")}>Turn on</button>
+                : <button type="button" className="ba-btn" disabled={busy} onClick={() => act("off")}>Turn off</button>}
+              <button type="button" className="ba-btn danger-text" disabled={busy} onClick={() => setConfirming(true)}>Remove</button>
+            </>
+          )}
+        </div>
+      )}
+      {error && <p className="ba-error" role="alert">{error}</p>}
+    </section>
+  );
+}
+
+export function IntegrationsPage({ workspace, refreshKey, onNotice }) {
+  const canManage = ["owner", "admin", "manager"].includes(workspace.role);
   const { data, error, loading, reload } = useLoad(async () =>
-    orThrow(await supabase.from("integrations").select("*").eq("business_id", workspace.id)), [workspace.id, refreshKey]);
+    orThrow(await supabase.from("integrations").select("id, provider, status, account_email").eq("business_id", workspace.id)), [workspace.id, refreshKey]);
   const rowFor = (item) => (data ?? []).find((r) => item.match.some((m) => (r.provider ?? "").toLowerCase().includes(m)));
   return (
     <>
-      <PageHead crumb="Management / Integrations" title="Integrations" sub="The services connected to your workspace. Zella connects these for you." />
+      <PageHead crumb="Management / Integrations" title="Integrations"
+        sub={canManage ? "Turn any connected service off, back on, or remove it." : "The services connected to your workspace."} />
       <Notice error={error} onRetry={reload} />
       <div className="ba-grid-2">
-        {CATALOG.map((item) => {
-          const row = rowFor(item);
-          const connected = row?.status === "active";
-          return (
-            <section key={item.name} className="ba-panel ba-integration">
-              <span className="ba-thread-icon"><Icon name={item.icon} size="sm" /></span>
-              <div><strong>{item.name}</strong><small>{item.text}</small></div>
-              <Pill tone={connected ? "success" : row ? "warning" : ""} dot={connected}>
-                {loading && !data ? "…" : connected ? "Connected" : row ? row.status.replace(/_/g, " ") : "Not connected"}
-              </Pill>
-            </section>
-          );
-        })}
+        {CATALOG.map((item) => (
+          <IntegrationCard key={item.name} item={item} row={rowFor(item)} canManage={canManage} loading={loading && !data}
+            onNotice={onNotice} onChanged={reload} workspace={workspace} />
+        ))}
       </div>
-      <p className="ba-muted ba-gap">Want one connected? Ask the Zella team and it will be set up for you.</p>
+      <p className="ba-muted ba-gap">Want one connected or connected again? Ask the Zella team and it will be set up for you.</p>
     </>
   );
 }

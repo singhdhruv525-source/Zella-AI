@@ -796,50 +796,7 @@ export function ReceptionistPage({ workspace, onNotice, onReload }) {
   );
 }
 
-export function AutomationsPage({ workspace }) {
-  const { data, error, loading, reload } = useLoad(async () => {
-    const list = orThrow(await supabase.from("automations").select("*").eq("business_id", workspace.id).order("name"));
-    // Recent follow-up calls, so the team can see what Zella has done. Optional.
-    const f = await supabase.from("followup_tasks").select("id, status, outcome, attempts, max_attempts, due_at, customer_id")
-      .eq("business_id", workspace.id).order("created_at", { ascending: false }).limit(200);
-    return { list, follows: f.error ? [] : (f.data ?? []) };
-  }, [workspace.id]);
-  const follows = data?.follows ?? [];
-  const waiting = follows.filter((f) => f.status === "pending" || f.status === "in_progress").length;
-  const rebooked = follows.filter((f) => f.outcome === "rescheduled").length;
-  const noAnswer = follows.filter((f) => f.outcome === "no_answer" || f.outcome === "voicemail").length;
-  return (
-    <>
-      <PageHead crumb="AI & Intelligence / Automations" title="Automations" sub="Follow-ups, reminders and check-ins that run for you." />
-      <Notice error={error} onRetry={reload} />
-      <section className="ba-panel">
-        {loading && !data ? <div className="ba-panel-body"><p className="ba-muted">Loading…</p></div> : !data?.list.length ? (
-          <div className="ba-panel-body"><Empty title="No automations yet">Zella sets up reminders, missed-call callbacks and no-show follow-ups for you.</Empty></div>
-        ) : (
-          <ul className="ba-threads">
-            {data.list.map((a) => (
-              <li key={a.id}>
-                <span className="ba-thread-icon"><Icon name="bolt" size="sm" /></span>
-                <div>
-                  <strong>{a.name}</strong>
-                  <small>{a.description || (a.trigger_type ? `Starts on: ${a.trigger_type.replace(/_/g, " ")}` : "")}</small>
-                  {a.trigger_type === "no_show_follow_up" && (
-                    <small>
-                      Zella calls {a.trigger_config?.minutes_after ?? 15} minutes after a no-show to offer a new time, and tries once more if there is no answer.
-                      {a.status !== "active" && " This starts once your phone line is live."}
-                      {follows.length > 0 && ` ${waiting} waiting · ${rebooked} rebooked · ${noAnswer} unanswered.`}
-                    </small>
-                  )}
-                </div>
-                <div className="ba-thread-meta"><Pill tone={a.status === "active" ? "success" : a.status === "disabled" ? "" : "warning"}>{a.status}</Pill></div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-    </>
-  );
-}
+export { AutomationsPage } from "./BusinessControls";
 
 /* ------------------------------------------------------------------ */
 /* Team and settings                                                   */

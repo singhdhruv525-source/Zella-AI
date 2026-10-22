@@ -301,7 +301,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, onSignOut, onReload
           {current.key === "transcripts" && <CallsPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} transcriptsOnly />}
           {current.key === "messages" && <MessagesPage workspace={workspace} refreshKey={refreshKey} onOpenPerson={openPerson} />}
           {current.key === "receptionist" && <ReceptionistPage workspace={workspace} onNotice={setNotice} onReload={onReload} />}
-          {current.key === "automations" && <AutomationsPage workspace={workspace} />}
+          {current.key === "automations" && <AutomationsPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
           {current.key === "callbacks" && <CallbacksPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} onChanged={countAttention} />}
           {current.key === "tasks" && <TasksPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} />}
           {current.key === "waitlist" && <WaitlistPage workspace={workspace} term={term} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} />}
@@ -319,7 +319,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, onSignOut, onReload
           {current.key === "inbox" && <InboxPage workspace={workspace} refreshKey={refreshKey} onOpenPerson={openPerson} />}
           {current.key === "lead-sources" && <LeadSourcesPage workspace={workspace} refreshKey={refreshKey} />}
           {current.key === "reports" && <ReportsPage workspace={workspace} refreshKey={refreshKey} />}
-          {current.key === "integrations" && <IntegrationsPage workspace={workspace} refreshKey={refreshKey} />}
+          {current.key === "integrations" && <IntegrationsPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
           {current.key === "settings" && <SettingsPage workspace={workspace} email={email} onSignOut={onSignOut} />}
         </main>
       </div>

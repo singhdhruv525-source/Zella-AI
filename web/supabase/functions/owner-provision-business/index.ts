@@ -821,7 +821,8 @@ async function saveAutomations(
     if (error) throw error;
   }
 
-  await advance(admin, businessId, "automation_setup");
+  // The early on/off step passes early: true, so it doesn't move setup progress forward.
+  if (fields.early !== true) await advance(admin, businessId, "automation_setup");
   return { businessId };
 }
 
