@@ -435,7 +435,9 @@ function BusinessHome() {
 // while running locally (npm run dev) and is removed from production builds.
 // It has no data and cannot save anything, because there is no signed-in user.
 const PREVIEW_WORKSPACE = {
-  id: "preview",
+  // A real-shaped UUID that matches no business. Queries return nothing instead
+  // of failing with: invalid input syntax for type uuid: "preview".
+  id: "00000000-0000-0000-0000-000000000000",
   name: "Bright Smile Dental",
   timezone: "America/New_York",
   industry: "Dental clinic",
