@@ -9,7 +9,7 @@ Item numbers and names come from the Zella AI Complete Automation Guide. Status 
 
 Items are served by a small set of shared workflows (see `n8n/README.md`), not one workflow per item. Many industry items (196 to 254) are configurations of the shared appointment, message, assignment and reminder engines; the 98 starter automation rows per industry are seeded in the database.
 
-**Totals:** Built 70, Partly 29, Rules ready 36, Not built 203.
+**Totals:** Built 78, Partly 30, Rules ready 35, Not built 195.
 
 
 ## 1. Calls and AI receptionist (16) — Built 3, Partly 4, Rules ready 3, Not built 6
@@ -117,7 +117,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 79 | SMS templates | Built |
 | 80 | Channel preferences | Partly |
 
-## 6. Leads and sales CRM (20) — Built 2, Partly 2, Rules ready 3, Not built 13
+## 6. Leads and sales CRM (20) — Built 6, Partly 2, Rules ready 2, Not built 10
 
 | # | Automation | Status |
 |---|---|---|
@@ -127,9 +127,9 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 84 | Duplicate lead detection | Not built |
 | 85 | Lead qualification | Not built |
 | 86 | Lead prioritization | Not built |
-| 87 | Lead assignment | Not built |
-| 88 | Round-robin assignment | Not built |
-| 89 | New-lead notifications | Rules ready |
+| 87 | Lead assignment | Built |
+| 88 | Round-robin assignment | Built |
+| 89 | New-lead notifications | Built |
 | 90 | Response-time monitoring | Rules ready |
 | 91 | Lead follow-up sequences | Partly |
 | 92 | Overdue lead escalation | Built |
@@ -138,7 +138,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 95 | Lead-stage updates | Rules ready |
 | 96 | Conversion tracking | Not built |
 | 97 | Lost-lead tracking | Not built |
-| 98 | Lead reassignment | Not built |
+| 98 | Lead reassignment | Built |
 | 99 | Follow-up suppression after conversion | Not built |
 | 100 | Campaign reporting | Not built |
 
@@ -248,19 +248,19 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 180 | Retrieval failure handling | Not built |
 | 181 | FAQ maintenance | Built |
 
-## 12. Staff and team operations (14) — Built 0, Partly 2, Rules ready 2, Not built 10
+## 12. Staff and team operations (14) — Built 4, Partly 3, Rules ready 2, Not built 5
 
 | # | Automation | Status |
 |---|---|---|
-| 182 | Work assignment | Not built |
-| 183 | Workload-aware routing | Not built |
+| 182 | Work assignment | Built |
+| 183 | Workload-aware routing | Built |
 | 184 | Staff invitations | Rules ready |
-| 185 | Staff availability | Not built |
-| 186 | Unassigned-work alerts | Not built |
+| 185 | Staff availability | Partly |
+| 186 | Unassigned-work alerts | Built |
 | 187 | Overdue-task alerts | Partly |
 | 188 | Appointment notifications | Rules ready |
 | 189 | Shift handover | Not built |
-| 190 | Absence reassignment | Not built |
+| 190 | Absence reassignment | Built |
 | 191 | Manager escalation | Partly |
 | 192 | Human takeover controls | Not built |
 | 193 | Escalation acknowledgment | Not built |

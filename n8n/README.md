@@ -240,3 +240,10 @@ Table `business_phone_numbers` (number in +1... form, optional Vapi phone number
 - A paused number, or one belonging to a stopped business, never falls back (the tool then refuses to act).
 - An unregistered number uses the business id from the call settings only if that business is active.
 Businesses can read their own numbers; nobody can write from the browser.
+
+## Work assignment (leads and callbacks)
+All in the database; no n8n runs. `assignment_rules` (per business): `off`, `round_robin` (default; whoever was given work longest ago) or `least_busy` (fewest open leads, callbacks and tasks), the roles that can receive work, and how long unowned work may wait before an alert (default 10 minutes). Members can be marked away (`zella_set_member_away`) or not accept work.
+- A trigger gives every new lead (`lead_stage` set) and new callback an owner and notifies that person.
+- Every 5 minutes `zella_rebalance_assignments` moves work from people who are away, not accepting work or no longer active, and gives owners to any leftover unowned work.
+- Every 5 minutes `zella_check_unassigned_work` sends owners and admins one alert (at most every 6 hours per business) when work has waited with nobody available.
+There is no screen for these settings yet.

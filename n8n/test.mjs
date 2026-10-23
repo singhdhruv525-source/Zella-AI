@@ -130,8 +130,8 @@ test('the dispatcher only checks the follow-up kinds the workflows really handle
   const list = (name) => dispatcherSql.match(new RegExp(name + ' text\\[\\] := array\\[([^\\]]*)\\]'))[1].split(',').map((x) => x.trim().replace(/'/g, ''));
   assert.deepEqual(list('v_text_kinds'), FOLLOWUP_KINDS); assert.deepEqual(list('v_email_kinds'), FOLLOWUP_EMAIL_KINDS);
 });
-test('all 15 timed jobs run inside the database, on the same rhythm as before', () => {
-  const jobs = { every5: ['zella_flag_overdue_leads', 'zella_expire_holds', 'zella_expire_waitlist_offers', 'zella_detect_transfer_failures', 'zella_flag_overdue_callbacks', 'zella_sweep_stuck_calls', 'zella_check_engine_health'], every15: ['zella_queue_quote_followups'], hourly: ['zella_post_daily_summaries', 'zella_schedule_calendar_pulls'], daily: ['zella_queue_lead_reactivation', 'zella_check_setup_incomplete', 'zella_check_trials', 'zella_apply_payment_policy'], weekly: ['zella_post_weekly_reviews'] };
+test('all 17 timed jobs run inside the database, on the same rhythm as before', () => {
+  const jobs = { every5: ['zella_flag_overdue_leads', 'zella_expire_holds', 'zella_expire_waitlist_offers', 'zella_detect_transfer_failures', 'zella_flag_overdue_callbacks', 'zella_sweep_stuck_calls', 'zella_check_engine_health', 'zella_rebalance_assignments', 'zella_check_unassigned_work'], every15: ['zella_queue_quote_followups'], hourly: ['zella_post_daily_summaries', 'zella_schedule_calendar_pulls'], daily: ['zella_queue_lead_reactivation', 'zella_check_setup_incomplete', 'zella_check_trials', 'zella_apply_payment_policy'], weekly: ['zella_post_weekly_reviews'] };
   for (const [g, fns] of Object.entries(jobs)) for (const fn of fns) { assert.ok(dispatcherSql.includes("'" + fn + "'"), fn); assert.ok(new RegExp("when '" + g + "'\\s+then array\\[[^\\]]*'" + fn + "'").test(dispatcherSql), g + ' ' + fn); }
   for (const cron of ["'* * * * *'", "'*/5 * * * *'", "'*/15 * * * *'", "'0 * * * *'", "'0 4 * * *'", "'0 8 * * 1'"]) assert.ok(dispatcherSql.includes(cron), cron);
 });
@@ -744,6 +744,19 @@ test('phone link sql: registered numbers win, paused numbers never fall back, se
   assert.ok(phoneSql.includes('order by (n.vapi_phone_number_id = p_vapi_phone_number_id) desc') && phoneSql.includes('must not fall back'));
   assert.ok(phoneSql.includes("raise exception 'NUMBER_IN_USE'") && phoneSql.includes('revoke all on public.business_phone_numbers from anon, authenticated'));
   assert.ok(!/grant select \([^)]*vapi_phone_number_id/.test(phoneSql));
+});
+
+// ---------------- assignment (leads, callbacks, unassigned alerts) - all in the database
+const asgSql = readFileSync(new URL('../sql/zella_assignment.sql', import.meta.url), 'utf8');
+test('assignment: only active, willing, present people of an allowed role get work, and nothing is assigned when the business turned it off', () => {
+  assert.ok(asgSql.includes("m.status = 'active'") && asgSql.includes('m.accepts_work') && asgSql.includes('m.away_until is null or m.away_until <= now()') && asgSql.includes("if v_mode = 'off' then return null"));
+  assert.ok(asgSql.includes('m.last_assigned_at nulls first') && asgSql.includes("'least_busy'"));
+});
+test('assignment: new leads and callbacks are assigned by a trigger, rebalanced and alerted by timed jobs, never by browser calls', () => {
+  assert.ok(asgSql.includes('before insert on public.customers') && asgSql.includes('before insert on public.callbacks'));
+  for (const fn of ['zella_rebalance_assignments', 'zella_check_unassigned_work']) assert.ok(new RegExp("grant execute on function public.%s to service_role|'" + fn + "\\(\\)'").test(asgSql), fn);
+  assert.ok(!/grant execute on function public\.zella_pick_assignee[^;]*authenticated/.test(asgSql));
+  assert.ok(asgSql.includes("interval '6 hours'"), 'one alert per business at most every 6 hours');
 });
 
 console.log(`${passed} passed, ${failures.length} failed`);
