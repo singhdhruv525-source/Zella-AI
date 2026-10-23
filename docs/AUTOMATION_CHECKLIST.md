@@ -9,7 +9,7 @@ Item numbers and names come from the Zella AI Complete Automation Guide. Status 
 
 Items are served by a small set of shared workflows (see `n8n/README.md`), not one workflow per item. Many industry items (196 to 254) are configurations of the shared appointment, message, assignment and reminder engines; the 98 starter automation rows per industry are seeded in the database.
 
-**Totals:** Built 147, Partly 34, Rules ready 32, Not built 125.
+**Totals:** Built 154, Partly 37, Rules ready 32, Not built 115.
 
 
 ## 1. Calls and AI receptionist (16) — Built 3, Partly 4, Rules ready 4, Not built 5
@@ -33,7 +33,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 15 | Repeat caller recognition | Partly |
 | 16 | Unanswered question tracking | Built |
 
-## 2. Callbacks and follow-ups (14) — Built 7, Partly 1, Rules ready 2, Not built 4
+## 2. Callbacks and follow-ups (14) — Built 11, Partly 1, Rules ready 2, Not built 0
 
 | # | Automation | Status |
 |---|---|---|
@@ -43,12 +43,12 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 20 | Callback retries | Built |
 | 21 | No-answer and busy handling | Built |
 | 22 | Configurable retry limits | Built |
-| 23 | Callback reassignment | Not built |
+| 23 | Callback reassignment | Built |
 | 24 | Overdue callback escalation | Built |
-| 25 | Callback rescheduling | Not built |
+| 25 | Callback rescheduling | Built |
 | 26 | Outcome logging | Built |
-| 27 | Callback cancellation | Not built |
-| 28 | Daily callback summary | Not built |
+| 27 | Callback cancellation | Built |
+| 28 | Daily callback summary | Built |
 | 29 | Duplicate callback prevention | Built |
 | 30 | Callback recovery | Built |
 
@@ -142,7 +142,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 99 | Follow-up suppression after conversion | Built |
 | 100 | Campaign reporting | Partly |
 
-## 7. Customer lifecycle automation (15) — Built 7, Partly 1, Rules ready 4, Not built 3
+## 7. Customer lifecycle automation (15) — Built 9, Partly 1, Rules ready 4, Not built 1
 
 | # | Automation | Status |
 |---|---|---|
@@ -153,9 +153,9 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 105 | Welcome messages | Built |
 | 106 | Service reminders | Built |
 | 107 | Repeat-service workflows | Built |
-| 108 | Inactivity reactivation | Not built |
+| 108 | Inactivity reactivation | Built |
 | 109 | Complaint routing | Built |
-| 110 | Preference management | Not built |
+| 110 | Preference management | Built |
 | 111 | Correction requests | Built |
 | 112 | Retention workflows | Not built |
 | 113 | Interaction timeline | Rules ready |
@@ -408,7 +408,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 310 | Administrative audit | Built |
 | 311 | Plan entitlement checks | Built |
 
-## 18. Security, consent and governance (15) — Built 7, Partly 0, Rules ready 3, Not built 5
+## 18. Security, consent and governance (15) — Built 8, Partly 3, Rules ready 3, Not built 1
 
 | # | Automation | Status |
 |---|---|---|
@@ -418,14 +418,14 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 315 | Consent validation | Built |
 | 316 | Opt-out enforcement | Built |
 | 317 | Quiet-hour enforcement | Built |
-| 318 | Sensitive-action approval | Not built |
+| 318 | Sensitive-action approval | Partly |
 | 319 | Replay protection | Built |
 | 320 | Rate limiting | Built |
 | 321 | Sensitive-data redaction | Built |
 | 322 | SSRF protection | Not built |
-| 323 | Data-rights workflow | Not built |
-| 324 | Recording and transcript access control | Not built |
-| 325 | Tenant-leak testing | Not built |
+| 323 | Data-rights workflow | Built |
+| 324 | Recording and transcript access control | Partly |
+| 325 | Tenant-leak testing | Partly |
 | 326 | Privileged-action audit | Rules ready |
 
 ## 19. Analytics and optimization (12) — Built 11, Partly 1, Rules ready 0, Not built 0
