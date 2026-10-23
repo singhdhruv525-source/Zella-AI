@@ -342,6 +342,27 @@ const assistantTools = wf('Zella - Assistant Tools', [
   'Build reply': { main: [[link('Reply')]] },
 });
 
+// Appointment booking by the phone assistant: Vapi calls this during a call with two tools, check_availability and
+// book_appointment. All decisions are made in the database (zella_ai_booking); this only passes them through.
+const aiBooking = wf('Zella - Appointment Booking', [
+  node('Vapi booking tool', 'n8n-nodes-base.webhook', 2, [0, 200], {
+    httpMethod: 'POST', path: 'zella/vapi-booking', authentication: 'headerAuth', responseMode: 'responseNode', options: {},
+  }, { webhookId: id('webhook:zella-vapi-booking'), credentials: GATEWAY_CRED }),
+  code('Plan', [240, 200], 'booking-tool-plan.js'),
+  ifBool('Is a booking tool', [480, 200], '={{ !!$json.record }}'),
+  rpcNode('Run booking', [720, 100], 'zella_ai_booking', '={{ JSON.stringify($json.record) }}', { full: true }),
+  code('Build reply', [960, 200], 'booking-tool-reply.js'),
+  node('Reply', 'n8n-nodes-base.respondToWebhook', 1.1, [1200, 200], {
+    respondWith: 'json', responseBody: '={{ JSON.stringify($json) }}', options: { responseCode: 200 },
+  }),
+], {
+  'Vapi booking tool': { main: [[link('Plan')]] },
+  'Plan': { main: [[link('Is a booking tool')]] },
+  'Is a booking tool': { main: [[link('Run booking')], [link('Build reply')]] },
+  'Run booking': { main: [[link('Build reply')]] },
+  'Build reply': { main: [[link('Reply')]] },
+});
+
 writeFileSync(join(out, 'zella-event-gateway.json'), JSON.stringify(gateway, null, 2) + '\n');
 writeFileSync(join(out, 'zella-event-router.json'), JSON.stringify(router, null, 2) + '\n');
 writeFileSync(join(out, 'zella-sms-sender.json'), JSON.stringify(smsSender, null, 2) + '\n');
@@ -352,5 +373,6 @@ writeFileSync(join(out, 'zella-followup-texts.json'), JSON.stringify(followupSen
 writeFileSync(join(out, 'zella-outbound-calls.json'), JSON.stringify(outboundCalls, null, 2) + '\n');
 writeFileSync(join(out, 'zella-knowledge.json'), JSON.stringify(knowledge, null, 2) + '\n');
 writeFileSync(join(out, 'zella-assistant-tools.json'), JSON.stringify(assistantTools, null, 2) + '\n');
+writeFileSync(join(out, 'zella-appointment-booking.json'), JSON.stringify(aiBooking, null, 2) + '\n');
 writeFileSync(join(out, 'zella-call-results.json'), JSON.stringify(callResults, null, 2) + '\n');
-console.log('Built', [gateway, router, smsSender, followupSender, emailSender, followupEmails, ownerEmails, outboundCalls, callResults, knowledge, assistantTools].map((w) => w.name + ' (' + w.nodes.length + ')').join(', '));
+console.log('Built', [gateway, router, smsSender, followupSender, emailSender, followupEmails, ownerEmails, outboundCalls, callResults, knowledge, assistantTools, aiBooking].map((w) => w.name + ' (' + w.nodes.length + ')').join(', '));

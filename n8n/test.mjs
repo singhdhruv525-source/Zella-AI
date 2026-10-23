@@ -567,6 +567,35 @@ test('assistant tools: protected webhook that answers Vapi itself, and the SQL s
   assert.ok(knSql.includes('zella_report_unanswered') && knSql.includes("raise exception 'UNKNOWN_BUSINESS'") && knSql.includes('>= 5'));
 });
 
+// ---------------- appointment booking by the phone assistant
+const bkSql = readFileSync(new URL('../sql/zella_ai_booking.sql', import.meta.url), 'utf8');
+const bt = (message) => runCode('booking-tool-plan.js', { json: { body: { message } } }).json;
+const btm = (name, args, over = {}) => ({ type: 'tool-calls', toolCallList: [{ id: 'tc2', name, arguments: args }], call: { id: 'call_8', metadata: { business_id: BIZ2 } }, ...over });
+test('booking tools: each tool maps to one database action and passes only known fields', () => {
+  const a = bt(btm('check_availability', { date: '2026-11-02', days: 3, evil: 'x' })).record;
+  assert.equal(a.p_action, 'availability'); assert.deepEqual(a.p_args, { date: '2026-11-02', days: 3 }); assert.equal(a.p_business_id, BIZ2); assert.equal(a.p_provider_call_id, 'call_8');
+  const k = bt(btm('book_appointment', '{"first_name":" Ana ","phone":"4155550123","start":"2026-11-02T10:00:00-05:00","drop":1}')).record;
+  assert.equal(k.p_action, 'book'); assert.deepEqual(k.p_args, { first_name: 'Ana', phone: '4155550123', start: '2026-11-02T10:00:00-05:00' });
+});
+test('booking tools: anything else is ignored and answered with an empty result', () => {
+  assert.equal(bt({ type: 'status-update' }).record, null); assert.equal(bt(btm('something_else', {})).record, null);
+  assert.equal(bt(btm('book_appointment', {}, { call: { id: 'c', metadata: { business_id: 'nope' } } })).record.p_business_id, null);
+});
+const bReply = (planJson, res) => runCode('booking-tool-reply.js', { json: res, nodes: { Plan: planJson } }).json;
+test('booking tools: Vapi gets a short instruction, and a failure never says the booking happened', () => {
+  const plan = { tool_call_id: 'tc2', record: {} };
+  const ok = bReply(plan, { statusCode: 200, body: { status: 'slots', say: 'Offer times.', slots: [{ say: 'Monday at 9', start: '2026-11-02T14:00:00+00:00' }] } });
+  const p = JSON.parse(ok.results[0].result); assert.equal(ok.results[0].toolCallId, 'tc2'); assert.equal(p.times[0].say, 'Monday at 9'); assert.equal(p.status, 'slots');
+  const bad = JSON.parse(bReply(plan, { statusCode: 500, body: { message: 'secret detail' } }).results[0].result);
+  assert.equal(bad.status, 'error'); assert.match(bad.instruction, /Do not say it is booked/); assert.ok(!JSON.stringify(bad).includes('secret'));
+  assert.deepEqual(bReply({ reply: { results: [] }, record: null }, {}), { results: [] });
+});
+test('booking tools: the workflow is a protected webhook that answers Vapi, and the SQL never double-books', () => {
+  const w = wfJson('zella-appointment-booking.json'); const t = w.nodes.find((n) => n.name === 'Vapi booking tool');
+  assert.equal(t.parameters.path, 'zella/vapi-booking'); assert.equal(t.parameters.authentication, 'headerAuth'); assert.equal(t.parameters.responseMode, 'responseNode');
+  assert.ok(bkSql.includes('zella_book_appointment') && bkSql.includes('zella_request_appointment') && bkSql.includes("'SLOT_TAKEN'") && !/api\.vapi\.ai|net\.http_post/.test(bkSql));
+});
+
 console.log(`${passed} passed, ${failures.length} failed`);
 for (const f of failures) console.log('  FAIL ' + f);
 process.exit(failures.length ? 1 : 0);

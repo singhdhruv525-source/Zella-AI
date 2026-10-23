@@ -198,3 +198,14 @@ Run the third section of `sql/zella_knowledge_automation.sql` (it is in the same
 - It always answers Vapi with the same short line, so the assistant keeps talking naturally whether or not the question could be saved.
 - The Knowledge workflow then drafts an answer (when `knowledge_ai_live` is on), and the owner approves it on the Knowledge page.
 - **Still needed for inbound calls:** Zella must know which business a call is for (the phone number to business link is not built yet). Until then, set `business_id` as an assistant variable per business.
+
+## Appointment booking by the phone assistant
+
+Run `sql/zella_ai_booking.sql` (needs `zella_run_all.sql`). Import `workflows/zella-appointment-booking.json` (webhook `/webhook/zella/vapi-booking`, same `X-Zella-Secret`). It runs only when the assistant uses one of its two tools during a call.
+
+- In Vapi add two **server tools** pointing at that webhook: `check_availability` (optional: `date` as YYYY-MM-DD, `days`, `duration_minutes`) and `book_appointment` (`start` exactly as returned by check_availability, `first_name`, `last_name`, `phone`, optional `email`, `title`, `notes`, `duration_minutes`).
+- **The database decides everything** (`zella_ai_booking`): the calendar's working hours, breaks, time off and existing bookings are respected. Times are up to 5 openings, in the business's own time zone.
+- If the time was just taken, the caller is offered other times. A booking is only confirmed after the calendar accepts it. If Zella cannot tell who the caller is for sure, or anything unexpected happens, a **request** is saved for staff and the assistant is told not to say it is booked.
+- The same caller asking twice for the same time is booked once. Reminders and the confirmation message come from the normal booking rules.
+- The business comes from the call (when Zella knows it) or from `business_id` in the call metadata or assistant variables, the same as the "couldn't answer" tool.
+- Not built: rescheduling or cancelling by phone, choosing a specific staff member, and services with different lengths per service.

@@ -1,0 +1,213 @@
+{
+  "name": "Zella - Appointment Booking",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "zella/vapi-booking",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "6200ee4f-0df7-40a4-88eb-1933be9bd3e1",
+      "name": "Vapi booking tool",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "webhookId": "5c29cce4-ac39-49b3-8a94-c808b5c1046a",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Zella gateway secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Appointment Booking: Vapi calls this DURING a call with the tools check_availability and book_appointment.\n// Output: { reply, record }. record = the one database call that decides everything (zella_ai_booking), or null.\n// Only known fields are passed on; the caller's words are data and are never run as instructions.\nconst body = $json.body && typeof $json.body === 'object' ? $json.body : {};\nconst m = body.message && typeof body.message === 'object' ? body.message : {};\nconst list = Array.isArray(m.toolCallList) ? m.toolCallList : Array.isArray(m.toolCalls) ? m.toolCalls : [];\nconst actions = { check_availability: 'availability', book_appointment: 'book' };\nconst nameOf = (t) => (t && (t.name || (t.function && t.function.name))) || '';\nconst tc = list.find((t) => t && typeof t.id === 'string' && actions[nameOf(t)]);\nif (m.type !== 'tool-calls' || !tc) return { json: { reply: { results: [] }, record: null } };\n\nlet args = tc.arguments !== undefined ? tc.arguments : tc.function && tc.function.arguments;\nif (typeof args === 'string') { try { args = JSON.parse(args); } catch (e) { args = {}; } }\nargs = args && typeof args === 'object' ? args : {};\n\nconst allowed = ['date', 'days', 'duration_minutes', 'start', 'first_name', 'last_name', 'phone', 'email', 'title', 'notes'];\nconst clean = {};\nfor (const k of allowed) {\n  const v = args[k];\n  if (typeof v === 'string') clean[k] = v.replace(/\\s+/g, ' ').trim().slice(0, 500);\n  else if (typeof v === 'number' && isFinite(v)) clean[k] = v;\n}\n\nconst call = m.call && typeof m.call === 'object' ? m.call : {};\nconst meta = call.metadata && typeof call.metadata === 'object' ? call.metadata : {};\nconst vars = call.assistantOverrides && call.assistantOverrides.variableValues && typeof call.assistantOverrides.variableValues === 'object' ? call.assistantOverrides.variableValues : {};\nconst uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;\nconst bid = [meta.business_id, vars.business_id].find((v) => typeof v === 'string' && uuid.test(v)) || null;\n\nreturn {\n  json: {\n    tool_call_id: tc.id,\n    reply: null,\n    record: { p_provider_call_id: typeof call.id === 'string' ? call.id.slice(0, 200) : null, p_business_id: bid, p_action: actions[nameOf(tc)], p_args: clean },\n  },\n};\n"
+      },
+      "id": "ae2f98a0-99fe-4855-8311-26233e9c1364",
+      "name": "Plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "0215cc46-d344-4fba-85bf-9f0d352b19f1",
+              "leftValue": "={{ !!$json.record }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "5d1cd093-234b-4841-8fb9-74715628c198",
+      "name": "Is a booking tool",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        480,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_ai_booking",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.record) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "f141e23c-2e3b-4f93-8874-46b59e10d531",
+      "name": "Run booking",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        100
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Appointment Booking: the answer sent back to Vapi. Short, no database details.\nconst plan = $('Plan').item.json;\nif (!plan.record) return { json: plan.reply };\nconst r = $json;\nconst status = Number(r.statusCode);\nconst b = r.body && typeof r.body === 'object' ? r.body : null;\nlet result;\nif (status >= 200 && status < 300 && b && typeof b.say === 'string') {\n  const out = { status: b.status, instruction: b.say };\n  if (Array.isArray(b.slots)) out.times = b.slots.slice(0, 5).map((s) => ({ say: s.say, start: s.start }));\n  result = JSON.stringify(out);\n} else {\n  result = JSON.stringify({ status: 'error', instruction: 'This could not be completed right now. Tell the caller the team will call them back to finish the booking. Do not say it is booked.' });\n}\nreturn { json: { results: [{ toolCallId: plan.tool_call_id, result }] } };\n"
+      },
+      "id": "bd492bcf-1208-4f71-88a9-a990a5615d47",
+      "name": "Build reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "6c2bb735-a46a-4ff3-87fe-2e638d581295",
+      "name": "Reply",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1200,
+        200
+      ]
+    }
+  ],
+  "connections": {
+    "Vapi booking tool": {
+      "main": [
+        [
+          {
+            "node": "Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan": {
+      "main": [
+        [
+          {
+            "node": "Is a booking tool",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is a booking tool": {
+      "main": [
+        [
+          {
+            "node": "Run booking",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run booking": {
+      "main": [
+        [
+          {
+            "node": "Build reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build reply": {
+      "main": [
+        [
+          {
+            "node": "Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}
