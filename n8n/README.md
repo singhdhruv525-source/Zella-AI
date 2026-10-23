@@ -83,6 +83,14 @@ Run `sql/zella_inbound_replies.sql` after `zella_followup_emails.sql`. The route
 - Replies to a customer's own message go out straight away (no calling-hours delay) and are never moved to email.
 - **Not covered yet:** letting the customer pick a new time by text, a staff reply screen, and replies to emails.
 
+## Overdue callback alerts
+
+Run `sql/zella_callback_alerts.sql` (and re-run `zella_dispatcher.sql` at go-live so the timer picks it up). No new n8n workflow: it is a timed database job (every 5 minutes) and the Owner Emails workflow emails the alerts.
+
+- A callback that is due but still open raises **one warning** after a short wait: 10 minutes for urgent callbacks, 30 for others, 60 when Zella is meant to place the call itself (it gets time to try first). If the callback is assigned, the warning goes to that person; otherwise to the owners and admins.
+- If it is still open **3 hours** after it was due, owners get **one urgent alert**.
+- Warnings and urgent alerts are emailed (see "Who is emailed" below). A callback moved to a later time can warn again when it is late again. Closed, cancelled and completed callbacks never alert.
+
 ## Outbound calls (dry-run)
 
 Run `sql/zella_outbound_calls.sql` (needs `zella_followups.sql` and the callbacks file). Import `workflows/zella-outbound-calls.json`.

@@ -130,8 +130,8 @@ test('the dispatcher only checks the follow-up kinds the workflows really handle
   const list = (name) => dispatcherSql.match(new RegExp(name + ' text\\[\\] := array\\[([^\\]]*)\\]'))[1].split(',').map((x) => x.trim().replace(/'/g, ''));
   assert.deepEqual(list('v_text_kinds'), FOLLOWUP_KINDS); assert.deepEqual(list('v_email_kinds'), FOLLOWUP_EMAIL_KINDS);
 });
-test('all 11 timed jobs run inside the database, on the same rhythm as before', () => {
-  const jobs = { every5: ['zella_flag_overdue_leads', 'zella_expire_holds', 'zella_expire_waitlist_offers', 'zella_detect_transfer_failures'], every15: ['zella_queue_quote_followups'], hourly: ['zella_post_daily_summaries'], daily: ['zella_queue_lead_reactivation', 'zella_check_setup_incomplete', 'zella_check_trials', 'zella_apply_payment_policy'], weekly: ['zella_post_weekly_reviews'] };
+test('all 12 timed jobs run inside the database, on the same rhythm as before', () => {
+  const jobs = { every5: ['zella_flag_overdue_leads', 'zella_expire_holds', 'zella_expire_waitlist_offers', 'zella_detect_transfer_failures', 'zella_flag_overdue_callbacks'], every15: ['zella_queue_quote_followups'], hourly: ['zella_post_daily_summaries'], daily: ['zella_queue_lead_reactivation', 'zella_check_setup_incomplete', 'zella_check_trials', 'zella_apply_payment_policy'], weekly: ['zella_post_weekly_reviews'] };
   for (const [g, fns] of Object.entries(jobs)) for (const fn of fns) { assert.ok(dispatcherSql.includes("'" + fn + "'"), fn); assert.ok(new RegExp("when '" + g + "'\\s+then array\\[[^\\]]*'" + fn + "'").test(dispatcherSql), g + ' ' + fn); }
   for (const cron of ["'* * * * *'", "'*/5 * * * *'", "'*/15 * * * *'", "'0 * * * *'", "'0 4 * * *'", "'0 8 * * 1'"]) assert.ok(dispatcherSql.includes(cron), cron);
 });
