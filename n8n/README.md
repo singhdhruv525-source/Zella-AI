@@ -179,3 +179,12 @@ The database calls these workflows make were tested against the real database (r
 ## Changing the workflows
 
 Edit the Code files in `src/`, then run `node n8n/src/build.mjs` and `node n8n/test.mjs`. Do not hand-edit the JSON.
+
+## Knowledge (FAQs and unanswered questions)
+
+Run `sql/zella_knowledge_automation.sql` (needs `zella_knowledge.sql`). Import `workflows/zella-knowledge.json` (webhook `/webhook/zella/run/knowledge-sync`, started by the dispatcher only when something is waiting).
+
+- **Publish:** when an owner adds or changes an FAQ, service, policy or hours item it waits as "processing". The workflow checks it (title and answer present, answer under 4000 characters) and marks it **ready** or **failed** with a reason the owner can read. The assistant only uses ready items, read from the database at call time (`zella_ready_knowledge`), so nothing is uploaded anywhere. An item changed again meanwhile is ignored (version check).
+- **Suggest:** when the assistant could not answer a question, an AI drafts an answer using **only that business's own ready knowledge**. It is a draft: the owner still checks and submits it before it is used. If the knowledge does not cover the question, no draft is made. Three tries per question.
+- The drafting is **off** until setting `knowledge_ai_live` is true. The AI box ships with **no credential**; add the Anthropic key by hand (header `x-api-key`) when going live. Model is the `knowledge_ai_model` setting. While off, the database claims nothing and the dispatcher does not count questions, so no runs are used.
+- Not built: uploading documents or a website into knowledge, and pushing knowledge into a separate Vapi knowledge base (the assistant reads it from the database instead).

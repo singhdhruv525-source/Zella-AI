@@ -284,6 +284,40 @@ const callResults = wf('Zella - Call Results', [
   'Is a call result': { main: [[link('Record call result')], []] },
 });
 
+// Knowledge: (1) publish knowledge an owner added or changed, (2) draft answers for questions the assistant could not
+// answer (the owner must still approve them). Started by the dispatcher only when something is waiting. The AI box
+// ships with NO credential and is skipped unless knowledge_ai_live is true; add the Anthropic key by hand.
+const knowledge = wf('Zella - Knowledge', [
+  runTrigger('knowledge-sync'),
+  rpcNode('Claim knowledge updates', [240, 100], 'zella_claim_knowledge_updates', '={{ JSON.stringify({ p_limit: 20 }) }}'),
+  code('Check item', [480, 100], 'knowledge-check.js'),
+  ifBool('Has update', [720, 100], '={{ !!$json.record }}'),
+  rpcNode('Mark item', [960, 0], 'zella_complete_knowledge_update', '={{ JSON.stringify($json.record) }}', { full: true }),
+  rpcNode('Claim questions', [240, 400], 'zella_claim_gap_drafts', '={{ JSON.stringify({ p_limit: 5 }) }}'),
+  code('Draft plan', [480, 400], 'knowledge-draft-plan.js'),
+  ifBool('Has request', [720, 400], '={{ !!$json.request }}'),
+  node('Ask AI', 'n8n-nodes-base.httpRequest', 4.2, [960, 300], {
+    method: 'POST', url: 'https://api.anthropic.com/v1/messages', authentication: 'none',
+    sendHeaders: true, headerParameters: { parameters: [{ name: 'anthropic-version', value: '2023-06-01' }] },
+    sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify($json.request) }}',
+    options: { response: { response: { fullResponse: true, neverError: true, responseFormat: 'json' } } },
+  }),
+  code('Read draft', [1200, 300], 'knowledge-draft-after.js'),
+  ifBool('Has draft', [1440, 300], '={{ !!$json.record }}'),
+  rpcNode('Save draft', [1680, 200], 'zella_set_gap_suggestion', '={{ JSON.stringify($json.record) }}', { full: true }),
+], {
+  'Run now': { main: [[link('Claim knowledge updates'), link('Claim questions')]] },
+  'Claim knowledge updates': { main: [[link('Check item')]] },
+  'Check item': { main: [[link('Has update')]] },
+  'Has update': { main: [[link('Mark item')], []] },
+  'Claim questions': { main: [[link('Draft plan')]] },
+  'Draft plan': { main: [[link('Has request')]] },
+  'Has request': { main: [[link('Ask AI')], []] },
+  'Ask AI': { main: [[link('Read draft')]] },
+  'Read draft': { main: [[link('Has draft')]] },
+  'Has draft': { main: [[link('Save draft')], []] },
+});
+
 writeFileSync(join(out, 'zella-event-gateway.json'), JSON.stringify(gateway, null, 2) + '\n');
 writeFileSync(join(out, 'zella-event-router.json'), JSON.stringify(router, null, 2) + '\n');
 writeFileSync(join(out, 'zella-sms-sender.json'), JSON.stringify(smsSender, null, 2) + '\n');
@@ -292,5 +326,6 @@ writeFileSync(join(out, 'zella-owner-emails.json'), JSON.stringify(ownerEmails, 
 writeFileSync(join(out, 'zella-followup-emails.json'), JSON.stringify(followupEmails, null, 2) + '\n');
 writeFileSync(join(out, 'zella-followup-texts.json'), JSON.stringify(followupSender, null, 2) + '\n');
 writeFileSync(join(out, 'zella-outbound-calls.json'), JSON.stringify(outboundCalls, null, 2) + '\n');
+writeFileSync(join(out, 'zella-knowledge.json'), JSON.stringify(knowledge, null, 2) + '\n');
 writeFileSync(join(out, 'zella-call-results.json'), JSON.stringify(callResults, null, 2) + '\n');
-console.log('Built', [gateway, router, smsSender, followupSender, emailSender, followupEmails, ownerEmails, outboundCalls, callResults].map((w) => w.name + ' (' + w.nodes.length + ')').join(', '));
+console.log('Built', [gateway, router, smsSender, followupSender, emailSender, followupEmails, ownerEmails, outboundCalls, callResults, knowledge].map((w) => w.name + ' (' + w.nodes.length + ')').join(', '));
