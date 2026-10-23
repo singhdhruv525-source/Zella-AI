@@ -188,3 +188,13 @@ Run `sql/zella_knowledge_automation.sql` (needs `zella_knowledge.sql`). Import `
 - **Suggest:** when the assistant could not answer a question, an AI drafts an answer using **only that business's own ready knowledge**. It is a draft: the owner still checks and submits it before it is used. If the knowledge does not cover the question, no draft is made. Three tries per question.
 - The drafting is **off** until setting `knowledge_ai_live` is true. The AI box ships with **no credential**; add the Anthropic key by hand (header `x-api-key`) when going live. Model is the `knowledge_ai_model` setting. While off, the database claims nothing and the dispatcher does not count questions, so no runs are used.
 - Not built: uploading documents or a website into knowledge, and pushing knowledge into a separate Vapi knowledge base (the assistant reads it from the database instead).
+
+## Assistant tools (the "couldn't answer" report)
+
+Run the third section of `sql/zella_knowledge_automation.sql` (it is in the same file). Import `workflows/zella-assistant-tools.json` (webhook `/webhook/zella/vapi-tools`, same `X-Zella-Secret`). It runs only when the phone assistant calls it during a call.
+
+- In Vapi, add a **server tool** named `report_unanswered_question` with one text parameter `question`, pointing at that webhook. Tell the assistant to use it when it does not know an answer, and then to say the team will get back to the caller.
+- The workflow logs the question for the owner (`zella_report_unanswered`). The business comes from the call when Zella already knows the call, otherwise from `business_id` in the call's metadata or assistant variables. A call with no business is rejected. At most 5 questions per call; the same question is one review item that counts up.
+- It always answers Vapi with the same short line, so the assistant keeps talking naturally whether or not the question could be saved.
+- The Knowledge workflow then drafts an answer (when `knowledge_ai_live` is on), and the owner approves it on the Knowledge page.
+- **Still needed for inbound calls:** Zella must know which business a call is for (the phone number to business link is not built yet). Until then, set `business_id` as an assistant variable per business.

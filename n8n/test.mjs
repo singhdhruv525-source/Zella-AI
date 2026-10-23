@@ -544,6 +544,29 @@ test('knowledge: the AI box has no credential, the SQL claims nothing unless liv
   assert.ok(!/api\.anthropic\.com|net\.http_post/.test(knSql));
 });
 
+// ---------------- assistant tools (Vapi asks Zella to log a question it could not answer)
+const BIZ2 = '0ed3b097-8dee-4fa8-98c2-3888be3e79b2';
+const vt = (message) => runCode('vapi-tool-plan.js', { json: { body: { message } } }).json;
+const tcm = (args, over = {}) => ({ type: 'tool-calls', toolCallList: [{ id: 'tc1', name: 'report_unanswered_question', arguments: args }], call: { id: 'call_7', metadata: { business_id: BIZ2 } }, ...over });
+test('assistant tools: a question is logged against the call and its business', () => {
+  const r = vt(tcm({ question: '  Do you do   bridal hair? ' }));
+  assert.deepEqual(r.record, { p_provider_call_id: 'call_7', p_business_id: BIZ2, p_question: 'Do you do bridal hair?' });
+  assert.equal(r.reply.results[0].toolCallId, 'tc1'); assert.match(r.reply.results[0].result, /pass the question to the team/);
+});
+test('assistant tools: arguments as text, the business id from assistant variables, and bad input all behave', () => {
+  assert.equal(vt(tcm('{"question":"Is parking free?"}')).record.p_question, 'Is parking free?');
+  assert.equal(vt(tcm({ question: 'Is parking free?' }, { call: { id: 'c', assistantOverrides: { variableValues: { business_id: BIZ2 } } } })).record.p_business_id, BIZ2);
+  assert.equal(vt(tcm({ question: 'Is parking free?' }, { call: { id: 'c', metadata: { business_id: 'not-a-uuid' } } })).record.p_business_id, null);
+  assert.equal(vt(tcm({ question: 'x' })).record, null); assert.equal(vt(tcm({})).reply.results[0].toolCallId, 'tc1');
+  assert.equal(vt({ type: 'status-update' }).record, null); assert.deepEqual(vt({ type: 'status-update' }).reply, { results: [] });
+  assert.equal(vt(tcm({ question: 'q'.repeat(900) })).record.p_question.length, 500);
+});
+test('assistant tools: protected webhook that answers Vapi itself, and the SQL stays inside the database', () => {
+  const w = wfJson('zella-assistant-tools.json'); const t = w.nodes.find((n) => n.name === 'Vapi tool call');
+  assert.equal(t.parameters.path, 'zella/vapi-tools'); assert.equal(t.parameters.authentication, 'headerAuth'); assert.equal(t.parameters.responseMode, 'responseNode');
+  assert.ok(knSql.includes('zella_report_unanswered') && knSql.includes("raise exception 'UNKNOWN_BUSINESS'") && knSql.includes('>= 5'));
+});
+
 console.log(`${passed} passed, ${failures.length} failed`);
 for (const f of failures) console.log('  FAIL ' + f);
 process.exit(failures.length ? 1 : 0);

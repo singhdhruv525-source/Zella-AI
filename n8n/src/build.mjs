@@ -318,6 +318,30 @@ const knowledge = wf('Zella - Knowledge', [
   'Has draft': { main: [[link('Save draft')], []] },
 });
 
+// Assistant tools: Vapi calls this DURING a call (a server tool) when the assistant cannot answer a question. It logs the
+// question for the owner to review (the Knowledge workflow then drafts an answer). It answers Vapi straight away.
+// In Vapi: add a server tool "report_unanswered_question" (parameter: question, text) pointing at
+// <n8n>/webhook/zella/vapi-tools with the X-Zella-Secret header. The call must carry the business id (call metadata
+// or the assistant variable business_id) unless the call is already known to Zella.
+const assistantTools = wf('Zella - Assistant Tools', [
+  node('Vapi tool call', 'n8n-nodes-base.webhook', 2, [0, 200], {
+    httpMethod: 'POST', path: 'zella/vapi-tools', authentication: 'headerAuth', responseMode: 'responseNode', options: {},
+  }, { webhookId: id('webhook:zella-vapi-tools'), credentials: GATEWAY_CRED }),
+  code('Plan', [240, 200], 'vapi-tool-plan.js'),
+  ifBool('Has question', [480, 200], '={{ !!$json.record }}'),
+  rpcNode('Log question', [720, 100], 'zella_report_unanswered', '={{ JSON.stringify($json.record) }}', { full: true }),
+  code('Build reply', [960, 200], 'vapi-tool-reply.js'),
+  node('Reply', 'n8n-nodes-base.respondToWebhook', 1.1, [1200, 200], {
+    respondWith: 'json', responseBody: '={{ JSON.stringify($json) }}', options: { responseCode: 200 },
+  }),
+], {
+  'Vapi tool call': { main: [[link('Plan')]] },
+  'Plan': { main: [[link('Has question')]] },
+  'Has question': { main: [[link('Log question')], [link('Build reply')]] },
+  'Log question': { main: [[link('Build reply')]] },
+  'Build reply': { main: [[link('Reply')]] },
+});
+
 writeFileSync(join(out, 'zella-event-gateway.json'), JSON.stringify(gateway, null, 2) + '\n');
 writeFileSync(join(out, 'zella-event-router.json'), JSON.stringify(router, null, 2) + '\n');
 writeFileSync(join(out, 'zella-sms-sender.json'), JSON.stringify(smsSender, null, 2) + '\n');
@@ -327,5 +351,6 @@ writeFileSync(join(out, 'zella-followup-emails.json'), JSON.stringify(followupEm
 writeFileSync(join(out, 'zella-followup-texts.json'), JSON.stringify(followupSender, null, 2) + '\n');
 writeFileSync(join(out, 'zella-outbound-calls.json'), JSON.stringify(outboundCalls, null, 2) + '\n');
 writeFileSync(join(out, 'zella-knowledge.json'), JSON.stringify(knowledge, null, 2) + '\n');
+writeFileSync(join(out, 'zella-assistant-tools.json'), JSON.stringify(assistantTools, null, 2) + '\n');
 writeFileSync(join(out, 'zella-call-results.json'), JSON.stringify(callResults, null, 2) + '\n');
-console.log('Built', [gateway, router, smsSender, followupSender, emailSender, followupEmails, ownerEmails, outboundCalls, callResults, knowledge].map((w) => w.name + ' (' + w.nodes.length + ')').join(', '));
+console.log('Built', [gateway, router, smsSender, followupSender, emailSender, followupEmails, ownerEmails, outboundCalls, callResults, knowledge, assistantTools].map((w) => w.name + ' (' + w.nodes.length + ')').join(', '));

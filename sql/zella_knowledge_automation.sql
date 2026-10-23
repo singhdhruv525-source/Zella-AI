@@ -42,3 +42,24 @@ begin
     execute format('grant execute on function public.%s to service_role', f);
   end loop;
 end $$;
+
+-- 3. The phone assistant reports a question it could not answer (called through the Vapi tool workflow, during a call).
+--    The business comes from the call itself when we know it, otherwise from the business id the call was started with.
+--    At most 5 questions per call are kept, and the same question is only ever one review item (it just counts up).
+create or replace function public.zella_report_unanswered(p_provider_call_id text, p_business_id uuid, p_question text)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare v_call_id uuid; v_call_biz uuid; v_cust uuid; v_biz uuid; v_q text := left(regexp_replace(trim(coalesce(p_question, '')), '\s+', ' ', 'g'), 500);
+begin
+  if length(v_q) < 3 then raise exception 'EMPTY_QUESTION'; end if;
+  if nullif(p_provider_call_id, '') is not null then
+    select c.id, c.business_id, c.customer_id into v_call_id, v_call_biz, v_cust from public.calls c where c.external_call_id = p_provider_call_id limit 1;
+  end if;
+  v_biz := coalesce(v_call_biz, p_business_id);
+  if v_biz is null or not exists (select 1 from public.businesses b where b.id = v_biz and b.suspended_at is null and b.cancelled_at is null and coalesce(b.is_active, true)) then
+    raise exception 'UNKNOWN_BUSINESS';
+  end if;
+  if v_call_id is not null and (select count(*) from public.knowledge_gaps g where g.call_id = v_call_id) >= 5 then return null; end if;
+  return public.zella_log_knowledge_gap(v_biz, v_q, v_call_id, v_cust);
+end $$;
+revoke execute on function public.zella_report_unanswered(text, uuid, text) from public, anon, authenticated;
+grant execute on function public.zella_report_unanswered(text, uuid, text) to service_role;
