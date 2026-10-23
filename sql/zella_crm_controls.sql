@@ -16,8 +16,8 @@ begin
     case
       when k = 'hours_before' and p_type = 'appointment_reminder' then
         if jsonb_typeof(v) <> 'array' or jsonb_array_length(v) = 0 then raise exception 'BAD_FIELD:hours_before'; end if;
-        if exists (select 1 from jsonb_array_elements_text(v) e where e not in ('1','2','4','24','48')) then raise exception 'BAD_FIELD:hours_before'; end if;
-        v_out := v_out || jsonb_build_object(k, (select jsonb_agg(distinct e::int order by e::int) from jsonb_array_elements_text(v) e));
+        if exists (select 1 from jsonb_array_elements_text(v) e where e not in ('0.25','0.5','1','2','4','24','48')) then raise exception 'BAD_FIELD:hours_before'; end if;
+        v_out := v_out || jsonb_build_object(k, (select jsonb_agg(distinct e::numeric order by e::numeric) from jsonb_array_elements_text(v) e));
         continue;
       when k = 'hours_before' and p_type = 'appointment_confirmation' then v_nums := array['24','48','72'];
       when k = 'minutes_after' and p_type = 'no_show_follow_up' then v_nums := array['10','15','30','60'];

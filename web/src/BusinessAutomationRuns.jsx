@@ -7,7 +7,7 @@ import { explain } from "./BusinessShared";
 /* What each automation does in plain words, and what has actually happened when it ran. */
 
 const CHANNEL = { sms: "text", call: "AI call", sms_and_call: "text and AI call", email: "email" };
-const hoursText = (h) => (h % 24 === 0 ? `${h / 24} day${h === 24 ? "" : "s"}` : `${h} hour${h === 1 ? "" : "s"}`);
+const hoursText = (h) => (h < 1 ? `${Math.round(h * 60)} minutes` : h % 24 === 0 ? `${h / 24} day${h === 24 ? "" : "s"}` : `${h} hour${h === 1 ? "" : "s"}`);
 const minsText = (m) => (m === 0 ? "straight away" : m >= 60 ? `${m / 60} hour${m === 60 ? "" : "s"}` : `${m} minutes`);
 
 export function describe(type, cfg = {}) {

@@ -1002,7 +1002,7 @@ function AutomationsStep({ value, onChange, terminology, industryName }) {
       body: (
         <>
           <div className="wiz-chip-row">
-            {[[48, "2 days"], [24, "1 day"], [4, "4 hours"], [2, "2 hours"], [1, "1 hour"]].map(([h, label]) => (
+            {[[48, "2 days"], [24, "1 day"], [4, "4 hours"], [2, "2 hours"], [1, "1 hour"], [0.5, "30 min"], [0.25, "15 min"]].map(([h, label]) => (
               <label key={h} className={`wiz-chip ${reminderHours.includes(h) ? "on" : ""}`}>
                 <input
                   type="checkbox"

@@ -124,9 +124,9 @@ const AUTOMATIONS = {
     description: "Reminds customers before their appointment.",
     actions: [{ type: "send_reminder" }],
     settings: (s: Json) => ({
-      hours_before: list(s.hours_before, 4)
+      hours_before: list(s.hours_before, 7)
         .map(Number)
-        .filter((n) => [1, 2, 4, 24, 48].includes(n)),
+        .filter((n) => [0.25, 0.5, 1, 2, 4, 24, 48].includes(n)),
       channel: oneOf(s.channel, ["sms", "call", "sms_and_call"] as const, "sms"),
     }),
   },
