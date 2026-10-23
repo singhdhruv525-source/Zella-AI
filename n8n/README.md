@@ -233,3 +233,10 @@ Workflow `Zella - Calendar Sync` (webhook `zella/run/calendar-sync`). Zella's da
 - **Google to Zella:** the workflow lists the next 60 days of events and replaces the imported `blocked_times` (cancelled, "free" and Zella-made events are ignored; all-day events block the day in UTC). Refreshed when a connection is made, and hourly by `zella_schedule_calendar_pulls`. A lost-access error pauses the link and alerts.
 - Nothing runs until `calendar_sync_live` is true. The refresh token is kept in Vault (`zella_gcal_<business id>`); it passes through the workflow run data when talking to Google. The Google client id/secret are pasted on the two token boxes by hand.
 - Known limits: first 250 events only; if an owner deletes a Zella event in Google, later edits to it fail (retry then alert); one calendar per business.
+
+## Phone number to business link
+Table `business_phone_numbers` (number in +1... form, optional Vapi phone number id, active or paused). `zella_register_phone_number(business, number, vapi_id, label)` adds one (service role only; a number cannot belong to two businesses). In the two Vapi tool workflows (Assistant Tools and Appointment Booking) a "Find business" step calls `zella_business_for_number` with the called number and Vapi number id before the database call:
+- A registered, active number always wins over anything in the call settings.
+- A paused number, or one belonging to a stopped business, never falls back (the tool then refuses to act).
+- An unregistered number uses the business id from the call settings only if that business is active.
+Businesses can read their own numbers; nobody can write from the browser.

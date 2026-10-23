@@ -329,15 +329,19 @@ const assistantTools = wf('Zella - Assistant Tools', [
   }, { webhookId: id('webhook:zella-vapi-tools'), credentials: GATEWAY_CRED }),
   code('Plan', [240, 200], 'vapi-tool-plan.js'),
   ifBool('Has question', [480, 200], '={{ !!$json.record }}'),
-  rpcNode('Log question', [720, 100], 'zella_report_unanswered', '={{ JSON.stringify($json.record) }}', { full: true }),
-  code('Build reply', [960, 200], 'vapi-tool-reply.js'),
-  node('Reply', 'n8n-nodes-base.respondToWebhook', 1.1, [1200, 200], {
+  rpcNode('Find business', [720, 100], 'zella_business_for_number', '={{ JSON.stringify($json.lookup) }}', { full: true }),
+  code('Use business', [960, 100], 'business-apply.js'),
+  rpcNode('Log question', [1200, 100], 'zella_report_unanswered', '={{ JSON.stringify($json.record) }}', { full: true }),
+  code('Build reply', [1440, 200], 'vapi-tool-reply.js'),
+  node('Reply', 'n8n-nodes-base.respondToWebhook', 1.1, [1680, 200], {
     respondWith: 'json', responseBody: '={{ JSON.stringify($json) }}', options: { responseCode: 200 },
   }),
 ], {
   'Vapi tool call': { main: [[link('Plan')]] },
   'Plan': { main: [[link('Has question')]] },
-  'Has question': { main: [[link('Log question')], [link('Build reply')]] },
+  'Has question': { main: [[link('Find business')], [link('Build reply')]] },
+  'Find business': { main: [[link('Use business')]] },
+  'Use business': { main: [[link('Log question')]] },
   'Log question': { main: [[link('Build reply')]] },
   'Build reply': { main: [[link('Reply')]] },
 });
@@ -350,15 +354,19 @@ const aiBooking = wf('Zella - Appointment Booking', [
   }, { webhookId: id('webhook:zella-vapi-booking'), credentials: GATEWAY_CRED }),
   code('Plan', [240, 200], 'booking-tool-plan.js'),
   ifBool('Is a booking tool', [480, 200], '={{ !!$json.record }}'),
-  rpcNode('Run booking', [720, 100], '', '={{ JSON.stringify($json.record) }}', { full: true, urlExpr: `={{ '${SUPABASE}/rest/v1/rpc/' + $json.rpc }}` }),
-  code('Build reply', [960, 200], 'booking-tool-reply.js'),
-  node('Reply', 'n8n-nodes-base.respondToWebhook', 1.1, [1200, 200], {
+  rpcNode('Find business', [720, 100], 'zella_business_for_number', '={{ JSON.stringify($json.lookup) }}', { full: true }),
+  code('Use business', [960, 100], 'business-apply.js'),
+  rpcNode('Run booking', [1200, 100], '', '={{ JSON.stringify($json.record) }}', { full: true, urlExpr: `={{ '${SUPABASE}/rest/v1/rpc/' + $json.rpc }}` }),
+  code('Build reply', [1440, 200], 'booking-tool-reply.js'),
+  node('Reply', 'n8n-nodes-base.respondToWebhook', 1.1, [1680, 200], {
     respondWith: 'json', responseBody: '={{ JSON.stringify($json) }}', options: { responseCode: 200 },
   }),
 ], {
   'Vapi booking tool': { main: [[link('Plan')]] },
   'Plan': { main: [[link('Is a booking tool')]] },
-  'Is a booking tool': { main: [[link('Run booking')], [link('Build reply')]] },
+  'Is a booking tool': { main: [[link('Find business')], [link('Build reply')]] },
+  'Find business': { main: [[link('Use business')]] },
+  'Use business': { main: [[link('Run booking')]] },
   'Run booking': { main: [[link('Build reply')]] },
   'Build reply': { main: [[link('Reply')]] },
 });

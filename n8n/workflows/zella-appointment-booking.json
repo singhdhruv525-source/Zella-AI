@@ -28,7 +28,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Zella - Appointment Booking: Vapi calls this DURING a call with the tools check_availability and book_appointment.\n// Output: { reply, record }. record = the one database call that decides everything (zella_ai_booking), or null.\n// Only known fields are passed on; the caller's words are data and are never run as instructions.\nconst body = $json.body && typeof $json.body === 'object' ? $json.body : {};\nconst m = body.message && typeof body.message === 'object' ? body.message : {};\nconst list = Array.isArray(m.toolCallList) ? m.toolCallList : Array.isArray(m.toolCalls) ? m.toolCalls : [];\nconst actions = { check_availability: 'availability', book_appointment: 'book' };\n// Changing an existing booking: the caller is recognised by the number they are calling from, never by what they say.\nconst manage = { find_my_appointments: 'find', reschedule_appointment: 'reschedule', cancel_appointment: 'cancel' };\nconst nameOf = (t) => (t && (t.name || (t.function && t.function.name))) || '';\nconst tc = list.find((t) => t && typeof t.id === 'string' && (actions[nameOf(t)] || manage[nameOf(t)]));\nif (m.type !== 'tool-calls' || !tc) return { json: { reply: { results: [] }, record: null } };\n\nlet args = tc.arguments !== undefined ? tc.arguments : tc.function && tc.function.arguments;\nif (typeof args === 'string') { try { args = JSON.parse(args); } catch (e) { args = {}; } }\nargs = args && typeof args === 'object' ? args : {};\n\nconst uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;\nconst allowed = ['appointment_id', 'date', 'days', 'duration_minutes', 'start', 'first_name', 'last_name', 'phone', 'email', 'title', 'notes'];\nconst clean = {};\nfor (const k of allowed) {\n  const v = args[k];\n  if (typeof v === 'string') clean[k] = v.replace(/\\s+/g, ' ').trim().slice(0, 500);\n  else if (typeof v === 'number' && isFinite(v)) clean[k] = v;\n}\n\nif (clean.appointment_id !== undefined && !uuidRe.test(String(clean.appointment_id))) delete clean.appointment_id;\nconst call = m.call && typeof m.call === 'object' ? m.call : {};\nconst meta = call.metadata && typeof call.metadata === 'object' ? call.metadata : {};\nconst vars = call.assistantOverrides && call.assistantOverrides.variableValues && typeof call.assistantOverrides.variableValues === 'object' ? call.assistantOverrides.variableValues : {};\nconst uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;\nconst bid = [meta.business_id, vars.business_id].find((v) => typeof v === 'string' && uuid.test(v)) || null;\n\nconst cn = call.customer && typeof call.customer === 'object' ? String(call.customer.number || '') : '';\nconst callerNumber = /^\\+?[0-9]{7,15}$/.test(cn) ? cn : null;\n\nreturn {\n  json: {\n    tool_call_id: tc.id,\n    reply: null,\n    rpc: manage[nameOf(tc)] ? 'zella_ai_manage_booking' : 'zella_ai_booking',\n    record: { p_provider_call_id: typeof call.id === 'string' ? call.id.slice(0, 200) : null, p_business_id: bid, p_action: actions[nameOf(tc)] || manage[nameOf(tc)], p_args: manage[nameOf(tc)] ? { ...clean, caller_number: callerNumber } : clean },\n  },\n};\n"
+        "jsCode": "// Zella - Appointment Booking: Vapi calls this DURING a call with the tools check_availability and book_appointment.\n// Output: { reply, record }. record = the one database call that decides everything (zella_ai_booking), or null.\n// Only known fields are passed on; the caller's words are data and are never run as instructions.\nconst body = $json.body && typeof $json.body === 'object' ? $json.body : {};\nconst m = body.message && typeof body.message === 'object' ? body.message : {};\nconst list = Array.isArray(m.toolCallList) ? m.toolCallList : Array.isArray(m.toolCalls) ? m.toolCalls : [];\nconst actions = { check_availability: 'availability', book_appointment: 'book' };\n// Changing an existing booking: the caller is recognised by the number they are calling from, never by what they say.\nconst manage = { find_my_appointments: 'find', reschedule_appointment: 'reschedule', cancel_appointment: 'cancel' };\nconst nameOf = (t) => (t && (t.name || (t.function && t.function.name))) || '';\nconst tc = list.find((t) => t && typeof t.id === 'string' && (actions[nameOf(t)] || manage[nameOf(t)]));\nif (m.type !== 'tool-calls' || !tc) return { json: { reply: { results: [] }, record: null } };\n\nlet args = tc.arguments !== undefined ? tc.arguments : tc.function && tc.function.arguments;\nif (typeof args === 'string') { try { args = JSON.parse(args); } catch (e) { args = {}; } }\nargs = args && typeof args === 'object' ? args : {};\n\nconst uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;\nconst allowed = ['appointment_id', 'date', 'days', 'duration_minutes', 'start', 'first_name', 'last_name', 'phone', 'email', 'title', 'notes'];\nconst clean = {};\nfor (const k of allowed) {\n  const v = args[k];\n  if (typeof v === 'string') clean[k] = v.replace(/\\s+/g, ' ').trim().slice(0, 500);\n  else if (typeof v === 'number' && isFinite(v)) clean[k] = v;\n}\n\nif (clean.appointment_id !== undefined && !uuidRe.test(String(clean.appointment_id))) delete clean.appointment_id;\nconst call = m.call && typeof m.call === 'object' ? m.call : {};\nconst meta = call.metadata && typeof call.metadata === 'object' ? call.metadata : {};\nconst vars = call.assistantOverrides && call.assistantOverrides.variableValues && typeof call.assistantOverrides.variableValues === 'object' ? call.assistantOverrides.variableValues : {};\nconst uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;\nconst bid = [meta.business_id, vars.business_id].find((v) => typeof v === 'string' && uuid.test(v)) || null;\n\n// Which number was called? Used to find the business (a registered number always wins over call settings).\nconst pn = call.phoneNumber && typeof call.phoneNumber === 'object' ? call.phoneNumber : m.phoneNumber && typeof m.phoneNumber === 'object' ? m.phoneNumber : {};\nconst calledNumber = typeof pn.number === 'string' && /^\\+?[0-9() .-]{7,20}$/.test(pn.number) ? pn.number : null;\nconst vapiNumberId = typeof call.phoneNumberId === 'string' ? call.phoneNumberId.slice(0, 100) : typeof pn.id === 'string' ? pn.id.slice(0, 100) : null;\nconst lookup = { p_called_number: calledNumber, p_vapi_phone_number_id: vapiNumberId, p_fallback: bid };\n\nconst cn = call.customer && typeof call.customer === 'object' ? String(call.customer.number || '') : '';\nconst callerNumber = /^\\+?[0-9]{7,15}$/.test(cn) ? cn : null;\n\nreturn {\n  json: {\n    tool_call_id: tc.id,\n    reply: null,\n    lookup,\n    rpc: manage[nameOf(tc)] ? 'zella_ai_manage_booking' : 'zella_ai_booking',\n    record: { p_provider_call_id: typeof call.id === 'string' ? call.id.slice(0, 200) : null, p_business_id: bid, p_action: actions[nameOf(tc)] || manage[nameOf(tc)], p_args: manage[nameOf(tc)] ? { ...clean, caller_number: callerNumber } : clean },\n  },\n};\n"
       },
       "id": "ae2f98a0-99fe-4855-8311-26233e9c1364",
       "name": "Plan",
@@ -75,6 +75,54 @@
     {
       "parameters": {
         "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_business_for_number",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.lookup) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "c973da8c-1d60-4ce4-849f-3728b62085c4",
+      "name": "Find business",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        100
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Vapi tools: put the business found from the called number into the database call.\n// The lookup answers with the business id (or null). A number that is not registered keeps the id from the call\n// settings only if the database accepted it as a fallback; with no business the database call refuses to act.\nconst plan = $('Plan').item.json;\nconst b = $json.body;\nconst found = typeof b === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(b) ? b : null;\nreturn { json: { ...plan, record: { ...plan.record, p_business_id: found } } };\n"
+      },
+      "id": "7f18e741-b5ba-4aff-8802-12c6f1fe9f2d",
+      "name": "Use business",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
         "url": "={{ 'https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/' + $json.rpc }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
@@ -96,7 +144,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        720,
+        1200,
         100
       ],
       "credentials": {
@@ -116,7 +164,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        960,
+        1440,
         200
       ]
     },
@@ -133,7 +181,7 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        1200,
+        1680,
         200
       ]
     }
@@ -165,7 +213,7 @@
       "main": [
         [
           {
-            "node": "Run booking",
+            "node": "Find business",
             "type": "main",
             "index": 0
           }
@@ -173,6 +221,28 @@
         [
           {
             "node": "Build reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find business": {
+      "main": [
+        [
+          {
+            "node": "Use business",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use business": {
+      "main": [
+        [
+          {
+            "node": "Run booking",
             "type": "main",
             "index": 0
           }

@@ -28,7 +28,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Zella - Assistant Tools: Vapi calls this during a call when the assistant could not answer a question.\n// Input is Vapi's tool-calls message. Output: { reply, record }. reply = what to send back to Vapi (always valid),\n// record = the database call to make (or null). Nothing from the caller is run as instructions.\nconst body = $json.body && typeof $json.body === 'object' ? $json.body : {};\nconst m = body.message && typeof body.message === 'object' ? body.message : {};\nconst list = Array.isArray(m.toolCallList) ? m.toolCallList : Array.isArray(m.toolCalls) ? m.toolCalls : [];\nconst reply = (id, text) => ({ results: [{ toolCallId: id, result: text }] });\nconst ok = 'Noted. Tell the caller you will pass the question to the team and they will get back to them.';\n\nconst tc = list.find((t) => t && (t.name === 'report_unanswered_question' || (t.function && t.function.name === 'report_unanswered_question')));\nif (m.type !== 'tool-calls' || !tc || typeof tc.id !== 'string') return { json: { reply: { results: [] }, record: null } };\n\nlet args = tc.arguments !== undefined ? tc.arguments : tc.function && tc.function.arguments;\nif (typeof args === 'string') { try { args = JSON.parse(args); } catch (e) { args = {}; } }\nargs = args && typeof args === 'object' ? args : {};\nconst question = String(args.question || '').replace(/\\s+/g, ' ').trim().slice(0, 500);\nif (question.length < 3) return { json: { reply: reply(tc.id, ok), record: null } };\n\nconst call = m.call && typeof m.call === 'object' ? m.call : {};\nconst meta = call.metadata && typeof call.metadata === 'object' ? call.metadata : {};\nconst vars = call.assistantOverrides && call.assistantOverrides.variableValues && typeof call.assistantOverrides.variableValues === 'object' ? call.assistantOverrides.variableValues : {};\nconst uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;\nconst bid = [meta.business_id, vars.business_id].find((v) => typeof v === 'string' && uuid.test(v)) || null;\n\nreturn {\n  json: {\n    reply: reply(tc.id, ok),\n    record: { p_provider_call_id: typeof call.id === 'string' ? call.id.slice(0, 200) : null, p_business_id: bid, p_question: question },\n  },\n};\n"
+        "jsCode": "// Zella - Assistant Tools: Vapi calls this during a call when the assistant could not answer a question.\n// Input is Vapi's tool-calls message. Output: { reply, record }. reply = what to send back to Vapi (always valid),\n// record = the database call to make (or null). Nothing from the caller is run as instructions.\nconst body = $json.body && typeof $json.body === 'object' ? $json.body : {};\nconst m = body.message && typeof body.message === 'object' ? body.message : {};\nconst list = Array.isArray(m.toolCallList) ? m.toolCallList : Array.isArray(m.toolCalls) ? m.toolCalls : [];\nconst reply = (id, text) => ({ results: [{ toolCallId: id, result: text }] });\nconst ok = 'Noted. Tell the caller you will pass the question to the team and they will get back to them.';\n\nconst tc = list.find((t) => t && (t.name === 'report_unanswered_question' || (t.function && t.function.name === 'report_unanswered_question')));\nif (m.type !== 'tool-calls' || !tc || typeof tc.id !== 'string') return { json: { reply: { results: [] }, record: null } };\n\nlet args = tc.arguments !== undefined ? tc.arguments : tc.function && tc.function.arguments;\nif (typeof args === 'string') { try { args = JSON.parse(args); } catch (e) { args = {}; } }\nargs = args && typeof args === 'object' ? args : {};\nconst question = String(args.question || '').replace(/\\s+/g, ' ').trim().slice(0, 500);\nif (question.length < 3) return { json: { reply: reply(tc.id, ok), record: null } };\n\nconst call = m.call && typeof m.call === 'object' ? m.call : {};\nconst meta = call.metadata && typeof call.metadata === 'object' ? call.metadata : {};\nconst vars = call.assistantOverrides && call.assistantOverrides.variableValues && typeof call.assistantOverrides.variableValues === 'object' ? call.assistantOverrides.variableValues : {};\nconst uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;\nconst bid = [meta.business_id, vars.business_id].find((v) => typeof v === 'string' && uuid.test(v)) || null;\n\n// Which number was called? Used to find the business (a registered number always wins over call settings).\nconst pn = call.phoneNumber && typeof call.phoneNumber === 'object' ? call.phoneNumber : m.phoneNumber && typeof m.phoneNumber === 'object' ? m.phoneNumber : {};\nconst calledNumber = typeof pn.number === 'string' && /^\\+?[0-9() .-]{7,20}$/.test(pn.number) ? pn.number : null;\nconst vapiNumberId = typeof call.phoneNumberId === 'string' ? call.phoneNumberId.slice(0, 100) : typeof pn.id === 'string' ? pn.id.slice(0, 100) : null;\nconst lookup = { p_called_number: calledNumber, p_vapi_phone_number_id: vapiNumberId, p_fallback: bid };\n\nreturn {\n  json: {\n    reply: reply(tc.id, ok),\n    lookup,\n    record: { p_provider_call_id: typeof call.id === 'string' ? call.id.slice(0, 200) : null, p_business_id: bid, p_question: question },\n  },\n};\n"
       },
       "id": "ae2f98a0-99fe-4855-8311-26233e9c1364",
       "name": "Plan",
@@ -75,6 +75,54 @@
     {
       "parameters": {
         "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_business_for_number",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.lookup) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "c973da8c-1d60-4ce4-849f-3728b62085c4",
+      "name": "Find business",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        100
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Vapi tools: put the business found from the called number into the database call.\n// The lookup answers with the business id (or null). A number that is not registered keeps the id from the call\n// settings only if the database accepted it as a fallback; with no business the database call refuses to act.\nconst plan = $('Plan').item.json;\nconst b = $json.body;\nconst found = typeof b === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(b) ? b : null;\nreturn { json: { ...plan, record: { ...plan.record, p_business_id: found } } };\n"
+      },
+      "id": "7f18e741-b5ba-4aff-8802-12c6f1fe9f2d",
+      "name": "Use business",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
         "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_report_unanswered",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
@@ -96,7 +144,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        720,
+        1200,
         100
       ],
       "credentials": {
@@ -116,7 +164,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        960,
+        1440,
         200
       ]
     },
@@ -133,7 +181,7 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        1200,
+        1680,
         200
       ]
     }
@@ -165,7 +213,7 @@
       "main": [
         [
           {
-            "node": "Log question",
+            "node": "Find business",
             "type": "main",
             "index": 0
           }
@@ -173,6 +221,28 @@
         [
           {
             "node": "Build reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find business": {
+      "main": [
+        [
+          {
+            "node": "Use business",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use business": {
+      "main": [
+        [
+          {
+            "node": "Log question",
             "type": "main",
             "index": 0
           }

@@ -714,6 +714,38 @@ test('calendar sql: the token lives only in the vault, nothing runs until calend
   assert.ok(calSql.includes('zella_calendar_mark_error'));
 });
 
+// ---------------- phone number to business link
+const phoneSql = readFileSync(new URL('../sql/zella_phone_numbers.sql', import.meta.url), 'utf8');
+const vapiMsg = (name, args, call) => ({ body: { message: { type: 'tool-calls', toolCallList: [{ id: 'tc1', name, arguments: args }], call: { id: 'call-1', ...call } } } });
+test('phone link: the called number and Vapi number id are passed on, with the call-settings id only as a fallback', () => {
+  const p = runCode('vapi-tool-plan.js', { json: vapiMsg('report_unanswered_question', { question: 'Do you do nails?' }, { phoneNumber: { number: '+14155550123' }, phoneNumberId: 'vp-1', metadata: { business_id: BIZ } }) }).json;
+  assert.deepEqual(p.lookup, { p_called_number: '+14155550123', p_vapi_phone_number_id: 'vp-1', p_fallback: BIZ });
+  const q = runCode('booking-tool-plan.js', { json: vapiMsg('check_availability', { date: '2026-11-02' }, { phoneNumber: { number: '(415) 555-0123' } }) }).json;
+  assert.equal(q.lookup.p_called_number, '(415) 555-0123'); assert.equal(q.lookup.p_fallback, null);
+});
+test('phone link: junk in the called number is dropped, never passed to the database', () => {
+  const p = runCode('vapi-tool-plan.js', { json: vapiMsg('report_unanswered_question', { question: 'Hello there' }, { phoneNumber: { number: "'; drop table x;--" } }) }).json;
+  assert.equal(p.lookup.p_called_number, null);
+});
+test('phone link: the business found from the number replaces the one in the record, and none found means none', () => {
+  const plan = { reply: {}, record: { p_business_id: BIZ, p_question: 'q' }, lookup: {} };
+  const ok = runCode('business-apply.js', { json: { body: '0ed3b097-8dee-4fa8-98c2-3888be3e79b2' }, nodes: { Plan: plan } }).json;
+  assert.equal(ok.record.p_business_id, '0ed3b097-8dee-4fa8-98c2-3888be3e79b2'); assert.equal(ok.record.p_question, 'q');
+  for (const body of [null, 'not-a-uuid', { x: 1 }, '']) assert.equal(runCode('business-apply.js', { json: { body }, nodes: { Plan: plan } }).json.record.p_business_id, null);
+});
+test('phone link workflows: both Vapi tool workflows look the business up before acting', () => {
+  for (const [f, last] of [['zella-assistant-tools.json', 'Log question'], ['zella-appointment-booking.json', 'Run booking']]) {
+    const w = wfJson(f); const c = w.connections;
+    assert.ok(w.nodes.some((n) => n.name === 'Find business' && n.parameters.url.endsWith('/zella_business_for_number')), f);
+    assert.equal(c['Find business'].main[0][0].node, 'Use business'); assert.equal(c['Use business'].main[0][0].node, last);
+  }
+});
+test('phone link sql: registered numbers win, paused numbers never fall back, service role only', () => {
+  assert.ok(phoneSql.includes('order by (n.vapi_phone_number_id = p_vapi_phone_number_id) desc') && phoneSql.includes('must not fall back'));
+  assert.ok(phoneSql.includes("raise exception 'NUMBER_IN_USE'") && phoneSql.includes('revoke all on public.business_phone_numbers from anon, authenticated'));
+  assert.ok(!/grant select \([^)]*vapi_phone_number_id/.test(phoneSql));
+});
+
 console.log(`${passed} passed, ${failures.length} failed`);
 for (const f of failures) console.log('  FAIL ' + f);
 process.exit(failures.length ? 1 : 0);

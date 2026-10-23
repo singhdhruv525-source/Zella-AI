@@ -31,6 +31,12 @@ const vars = call.assistantOverrides && call.assistantOverrides.variableValues &
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const bid = [meta.business_id, vars.business_id].find((v) => typeof v === 'string' && uuid.test(v)) || null;
 
+// Which number was called? Used to find the business (a registered number always wins over call settings).
+const pn = call.phoneNumber && typeof call.phoneNumber === 'object' ? call.phoneNumber : m.phoneNumber && typeof m.phoneNumber === 'object' ? m.phoneNumber : {};
+const calledNumber = typeof pn.number === 'string' && /^\+?[0-9() .-]{7,20}$/.test(pn.number) ? pn.number : null;
+const vapiNumberId = typeof call.phoneNumberId === 'string' ? call.phoneNumberId.slice(0, 100) : typeof pn.id === 'string' ? pn.id.slice(0, 100) : null;
+const lookup = { p_called_number: calledNumber, p_vapi_phone_number_id: vapiNumberId, p_fallback: bid };
+
 const cn = call.customer && typeof call.customer === 'object' ? String(call.customer.number || '') : '';
 const callerNumber = /^\+?[0-9]{7,15}$/.test(cn) ? cn : null;
 
@@ -38,6 +44,7 @@ return {
   json: {
     tool_call_id: tc.id,
     reply: null,
+    lookup,
     rpc: manage[nameOf(tc)] ? 'zella_ai_manage_booking' : 'zella_ai_booking',
     record: { p_provider_call_id: typeof call.id === 'string' ? call.id.slice(0, 200) : null, p_business_id: bid, p_action: actions[nameOf(tc)] || manage[nameOf(tc)], p_args: manage[nameOf(tc)] ? { ...clean, caller_number: callerNumber } : clean },
   },
