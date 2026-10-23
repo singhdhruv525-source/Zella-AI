@@ -465,6 +465,42 @@ const calendarSync = wf('Zella - Calendar Sync', [
   'Has error': { main: [[link('Mark error')], []] },
 });
 
+
+// ------------------------------------------------------------------ Connection Tests
+// Every few hours (when provider_checks_live is true) the dispatcher wakes this workflow. It makes one cheap read-only call to
+// each provider (Telnyx, Vapi, Resend) and records only whether it worked. The three boxes ship with NO credential, for
+// the same reason as the sender boxes: add each provider's key by hand when going live.
+const checkBox = (name, position, url) => node(name, 'n8n-nodes-base.httpRequest', 4.2, position, {
+  method: 'GET', url, authentication: 'none',
+  options: { timeout: 10000, response: { response: { fullResponse: true, neverError: true, responseFormat: 'json' } } },
+});
+const connectionTests = wf('Zella - Connection Tests', [
+  runTrigger('connection-tests'),
+  rpcNode('Claim checks', [240, 200], 'zella_claim_provider_checks', '={{ JSON.stringify({ p_limit: 5 }) }}'),
+  code('Plan', [480, 200], 'provider-check-plan.js'),
+  ifBool('Is Telnyx', [720, 200], "={{ $json.provider === 'telnyx' }}"),
+  checkBox('Check Telnyx', [960, 60], 'https://api.telnyx.com/v2/balance'),
+  ifBool('Is Vapi', [960, 300], "={{ $json.provider === 'vapi' }}"),
+  checkBox('Check Vapi', [1200, 200], 'https://api.vapi.ai/assistant?limit=1'),
+  ifBool('Is Resend', [1200, 420], "={{ $json.provider === 'resend' }}"),
+  checkBox('Check Resend', [1440, 340], 'https://api.resend.com/domains'),
+  code('Read result', [1680, 200], 'provider-check-after.js'),
+  ifBool('Has result', [1920, 200], '={{ !!$json.record }}'),
+  rpcNode('Record check', [2160, 200], 'zella_record_provider_check', '={{ JSON.stringify($json.record) }}', { full: true }),
+], {
+  'Run now': { main: [[link('Claim checks')]] },
+  'Claim checks': { main: [[link('Plan')]] },
+  'Plan': { main: [[link('Is Telnyx')]] },
+  'Is Telnyx': { main: [[link('Check Telnyx')], [link('Is Vapi')]] },
+  'Is Vapi': { main: [[link('Check Vapi')], [link('Is Resend')]] },
+  'Is Resend': { main: [[link('Check Resend')], []] },
+  'Check Telnyx': { main: [[link('Read result')]] },
+  'Check Vapi': { main: [[link('Read result')]] },
+  'Check Resend': { main: [[link('Read result')]] },
+  'Read result': { main: [[link('Has result')]] },
+  'Has result': { main: [[link('Record check')], []] },
+});
+
 writeFileSync(join(out, 'zella-event-gateway.json'), JSON.stringify(gateway, null, 2) + '\n');
 writeFileSync(join(out, 'zella-event-router.json'), JSON.stringify(router, null, 2) + '\n');
 writeFileSync(join(out, 'zella-sms-sender.json'), JSON.stringify(smsSender, null, 2) + '\n');
@@ -478,5 +514,6 @@ writeFileSync(join(out, 'zella-assistant-tools.json'), JSON.stringify(assistantT
 writeFileSync(join(out, 'zella-appointment-booking.json'), JSON.stringify(aiBooking, null, 2) + '\n');
 writeFileSync(join(out, 'zella-email-events.json'), JSON.stringify(emailEvents, null, 2) + '\n');
 writeFileSync(join(out, 'zella-calendar-sync.json'), JSON.stringify(calendarSync, null, 2) + '\n');
+writeFileSync(join(out, 'zella-connection-tests.json'), JSON.stringify(connectionTests, null, 2) + '\n');
 writeFileSync(join(out, 'zella-call-results.json'), JSON.stringify(callResults, null, 2) + '\n');
-console.log('Built', [gateway, router, smsSender, followupSender, emailSender, followupEmails, ownerEmails, outboundCalls, callResults, knowledge, assistantTools, aiBooking, emailEvents, calendarSync].map((w) => w.name + ' (' + w.nodes.length + ')').join(', '));
+console.log('Built', [gateway, router, smsSender, followupSender, emailSender, followupEmails, ownerEmails, outboundCalls, callResults, knowledge, assistantTools, aiBooking, emailEvents, calendarSync, connectionTests].map((w) => w.name + ' (' + w.nodes.length + ')').join(', '));

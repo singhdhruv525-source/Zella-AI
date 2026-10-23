@@ -31,3 +31,8 @@ Nothing below has been done yet on purpose: all n8n workflows are unpublished an
 - Unsubscribe link and page for marketing emails (reactivation emails stay skipped until then)
 - Choosing a specific staff member and per-service lengths in phone booking
 - 5-minute batching setting, document or website upload into knowledge
+
+## Connection tests
+- Run `sql/zella_connection_health.sql` before `sql/zella_dispatcher.sql`.
+- Add the Telnyx, Vapi and Resend keys on the three "Check ..." boxes in the Connection Tests workflow.
+- Turn on `provider_checks_live`, then publish the workflow.

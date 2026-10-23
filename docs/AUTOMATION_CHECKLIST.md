@@ -9,7 +9,7 @@ Item numbers and names come from the Zella AI Complete Automation Guide. Status 
 
 Items are served by a small set of shared workflows (see `n8n/README.md`), not one workflow per item. Many industry items (196 to 254) are configurations of the shared appointment, message, assignment and reminder engines; the 98 starter automation rows per industry are seeded in the database.
 
-**Totals:** Built 154, Partly 37, Rules ready 32, Not built 115.
+**Totals:** Built 156, Partly 39, Rules ready 32, Not built 111.
 
 
 ## 1. Calls and AI receptionist (16) — Built 3, Partly 4, Rules ready 4, Not built 5
@@ -331,14 +331,14 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 253 | Hospitality — checkout | Not built |
 | 254 | Hospitality — feedback | Not built |
 
-## 14. Integration monitoring and recovery (15) — Built 7, Partly 2, Rules ready 2, Not built 4
+## 14. Integration monitoring and recovery (15) — Built 9, Partly 3, Rules ready 2, Not built 1
 
 | # | Automation | Status |
 |---|---|---|
-| 255 | Connection testing | Not built |
-| 256 | Token-expiry monitoring | Not built |
+| 255 | Connection testing | Built |
+| 256 | Token-expiry monitoring | Built |
 | 257 | Disconnect alerts | Built |
-| 258 | OAuth reconnection | Not built |
+| 258 | OAuth reconnection | Partly |
 | 259 | Timeout and rate-limit handling | Partly |
 | 260 | Transient-error retry | Built |
 | 261 | Permanent-error escalation | Built |
@@ -391,13 +391,13 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 298 | KPI alerts | Built |
 | 299 | Notification grouping and deduplication | Built |
 
-## 17. Subscription and platform operations (12) — Built 7, Partly 0, Rules ready 4, Not built 1
+## 17. Subscription and platform operations (12) — Built 7, Partly 1, Rules ready 4, Not built 0
 
 | # | Automation | Status |
 |---|---|---|
 | 300 | Onboarding completion | Built |
 | 301 | Provisioning recovery | Rules ready |
-| 302 | Integration setup reminders | Not built |
+| 302 | Integration setup reminders | Partly |
 | 303 | Payment-failure handling | Built |
 | 304 | Renewal processing | Built |
 | 305 | Cancellation handling | Rules ready |

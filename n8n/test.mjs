@@ -108,7 +108,7 @@ test('execution id is optional when logging failed to start', () => assert.equal
 // ---------------- dispatcher (timed jobs run in Supabase; n8n is only called when work is waiting)
 const dispatcherSql = readFileSync(new URL('../sql/zella_dispatcher.sql', import.meta.url), 'utf8');
 const wfJson = (f) => JSON.parse(readFileSync(new URL('./workflows/' + f, import.meta.url), 'utf8'));
-const RUN_PATHS = { 'zella-event-router.json': 'event-router', 'zella-sms-sender.json': 'sms-sender', 'zella-email-sender.json': 'email-sender', 'zella-followup-texts.json': 'followup-texts', 'zella-followup-emails.json': 'followup-emails', 'zella-owner-emails.json': 'owner-emails', 'zella-outbound-calls.json': 'outbound-calls', 'zella-knowledge.json': 'knowledge-sync', 'zella-calendar-sync.json': 'calendar-sync' };
+const RUN_PATHS = { 'zella-event-router.json': 'event-router', 'zella-sms-sender.json': 'sms-sender', 'zella-email-sender.json': 'email-sender', 'zella-followup-texts.json': 'followup-texts', 'zella-followup-emails.json': 'followup-emails', 'zella-owner-emails.json': 'owner-emails', 'zella-outbound-calls.json': 'outbound-calls', 'zella-knowledge.json': 'knowledge-sync', 'zella-calendar-sync.json': 'calendar-sync', 'zella-connection-tests.json': 'connection-tests' };
 test('no workflow wakes itself on a timer (that would burn the monthly n8n run allowance)', () => {
   for (const f of [...Object.keys(RUN_PATHS), 'zella-event-gateway.json']) assert.ok(!JSON.stringify(wfJson(f)).includes('scheduleTrigger'), f);
 });
@@ -130,8 +130,8 @@ test('the dispatcher only checks the follow-up kinds the workflows really handle
   const list = (name) => dispatcherSql.match(new RegExp(name + ' text\\[\\] := array\\[([^\\]]*)\\]'))[1].split(',').map((x) => x.trim().replace(/'/g, ''));
   assert.deepEqual(list('v_text_kinds'), FOLLOWUP_KINDS); assert.deepEqual(list('v_email_kinds'), FOLLOWUP_EMAIL_KINDS);
 });
-test('all 24 timed jobs run inside the database, on the same rhythm as before', () => {
-  const jobs = { every5: ['zella_flag_overdue_leads', 'zella_expire_holds', 'zella_expire_waitlist_offers', 'zella_detect_transfer_failures', 'zella_flag_overdue_callbacks', 'zella_sweep_stuck_calls', 'zella_check_engine_health', 'zella_rebalance_assignments', 'zella_check_unassigned_work', 'zella_check_escalation_acks'], every15: ['zella_queue_quote_followups', 'zella_recover_orphaned_work'], hourly: ['zella_post_daily_summaries', 'zella_schedule_calendar_pulls', 'zella_check_customer_requests', 'zella_post_callback_digests'], daily: ['zella_queue_lead_reactivation', 'zella_check_setup_incomplete', 'zella_check_trials', 'zella_apply_payment_policy', 'zella_queue_customer_touches', 'zella_check_kpis', 'zella_check_renewals'], weekly: ['zella_post_weekly_reviews'] };
+test('all 25 timed jobs run inside the database, on the same rhythm as before', () => {
+  const jobs = { every5: ['zella_flag_overdue_leads', 'zella_expire_holds', 'zella_expire_waitlist_offers', 'zella_detect_transfer_failures', 'zella_flag_overdue_callbacks', 'zella_sweep_stuck_calls', 'zella_check_engine_health', 'zella_rebalance_assignments', 'zella_check_unassigned_work', 'zella_check_escalation_acks'], every15: ['zella_queue_quote_followups', 'zella_recover_orphaned_work'], hourly: ['zella_post_daily_summaries', 'zella_schedule_calendar_pulls', 'zella_check_customer_requests', 'zella_post_callback_digests'], daily: ['zella_queue_lead_reactivation', 'zella_check_setup_incomplete', 'zella_check_trials', 'zella_apply_payment_policy', 'zella_queue_customer_touches', 'zella_check_kpis', 'zella_check_renewals', 'zella_check_connections'], weekly: ['zella_post_weekly_reviews'] };
   for (const [g, fns] of Object.entries(jobs)) for (const fn of fns) { assert.ok(dispatcherSql.includes("'" + fn + "'"), fn); assert.ok(new RegExp("when '" + g + "'\\s+then array\\[[^\\]]*'" + fn + "'").test(dispatcherSql), g + ' ' + fn); }
   for (const cron of ["'* * * * *'", "'*/5 * * * *'", "'*/15 * * * *'", "'0 * * * *'", "'0 4 * * *'", "'0 8 * * 1'"]) assert.ok(dispatcherSql.includes(cron), cron);
 });
@@ -794,6 +794,27 @@ test('customer messages: every new kind maps to a template and passes only short
 });
 test('customer messages: the timed check is on the daily list', () => {
   assert.ok(readFileSync(new URL('../sql/zella_dispatcher.sql', import.meta.url), 'utf8').includes("'zella_queue_customer_touches'"));
+});
+
+
+// ---------------- connection tests
+test('connection tests: only the three known providers pass the plan step', () => {
+  for (const p of ['telnyx', 'vapi', 'resend']) assert.equal(runCode('provider-check-plan.js', { json: { provider: p } }).json.provider, p);
+  assert.equal(runCode('provider-check-plan.js', { json: { provider: 'evil.example.com' } }).json.provider, null);
+});
+test('connection tests: result keeps only a status, never the response text', () => {
+  const after = (status, body) => runCode('provider-check-after.js', { json: { statusCode: status, body }, nodes: { Plan: { provider: 'vapi' } } }).json.record;
+  assert.deepEqual(after(200, { secret: 'x' }), { p_provider: 'vapi', p_ok: true, p_detail: 'ok' });
+  assert.equal(after(401, { account: 'acme' }).p_detail, 'key rejected (401)');
+  assert.equal(after(500, {}).p_detail, 'HTTP 500');
+  assert.equal(after(undefined, {}).p_ok, false);
+  assert.ok(!JSON.stringify(after(403, { account: 'acme' })).includes('acme'));
+  assert.equal(runCode('provider-check-after.js', { json: {}, nodes: { Plan: { provider: null } } }).json.record, null);
+});
+test('connection tests: the three provider boxes ship with no credential, and the workflow runs only when called', () => {
+  const w = wfJson('zella-connection-tests.json');
+  for (const n of ['Check Telnyx', 'Check Vapi', 'Check Resend']) { const node = w.nodes.find((x) => x.name === n); assert.equal(node.parameters.authentication, 'none'); assert.equal(node.credentials, undefined); }
+  assert.ok(!JSON.stringify(w).includes('scheduleTrigger'));
 });
 
 console.log(`${passed} passed, ${failures.length} failed`);
