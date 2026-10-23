@@ -201,20 +201,21 @@ declare v jsonb := '[]'::jsonb; s record; p record; n integer := 0; v_lim intege
 begin
   if not public.zella_website_crawl_live() then return v; end if;
   perform public.zella_website_mark_stale();     -- stale-knowledge check rides along with every crawl
+  -- a claimed job that never reports back (n8n stopped) is simply offered again after an hour
   for s in select ws.* from public.website_sources ws join public.businesses b on b.id = ws.business_id
             where ws.status = 'active' and ws.next_discovery_at <= now() and b.suspended_at is null and b.cancelled_at is null
             order by ws.next_discovery_at limit 3 for update of ws skip locked loop
-    update public.website_sources set next_discovery_at = now() + (frequency_hours || ' hours')::interval where id = s.id;
+    update public.website_sources set next_discovery_at = now() + interval '1 hour' where id = s.id;
     v := v || jsonb_build_array(jsonb_build_object('kind', 'discover', 'source_id', s.id, 'host', s.host, 'root_url', s.root_url,
            'url', coalesce(s.sitemap_urls[1], regexp_replace(s.root_url, '^(https?://[^/?]+).*$', '\1') || '/sitemap.xml')));
     n := n + 1;
   end loop;
-  for p in select wp.*, ws.host, ws.frequency_hours as freq from public.website_pages wp
+  for p in select wp.*, ws.host from public.website_pages wp
              join public.website_sources ws on ws.id = wp.source_id and ws.status = 'active'
              join public.businesses b on b.id = wp.business_id and b.suspended_at is null and b.cancelled_at is null
             where wp.status in ('approved', 'broken', 'missing') and wp.next_fetch_at <= now() and (wp.claimed_at is null or wp.claimed_at < now() - interval '10 minutes')
             order by wp.next_fetch_at limit greatest(1, v_lim - n) for update of wp skip locked loop
-    update public.website_pages set claimed_at = now(), next_fetch_at = now() + (p.freq || ' hours')::interval where id = p.id;
+    update public.website_pages set claimed_at = now(), next_fetch_at = now() + interval '1 hour' where id = p.id;
     v := v || jsonb_build_array(jsonb_build_object('kind', 'page', 'page_id', p.id, 'host', p.host, 'url', p.url));
   end loop;
   return v;
@@ -231,7 +232,7 @@ begin
   if not found or s.status <> 'active' then return 0; end if;
   v_rest := array(select x from unnest(s.sitemap_urls) x where x is distinct from p_sitemap_url);
   if p_error is not null or p_status is null or p_status >= 400 or p_status = 0 then
-    update public.website_sources set sitemap_urls = v_rest, last_discovery_at = now(), last_error = case when coalesce(p_status, 0) = 404 then null else left(coalesce(p_error, 'sitemap HTTP ' || coalesce(p_status::text, 'none')), 200) end where id = s.id;
+    update public.website_sources set sitemap_urls = v_rest, last_discovery_at = now(), next_discovery_at = now() + (frequency_hours || ' hours')::interval, last_error = case when coalesce(p_status, 0) = 404 then null else left(coalesce(p_error, 'sitemap HTTP ' || coalesce(p_status::text, 'none')), 200) end where id = s.id;
     return 0;
   end if;
   select count(*) into v_count from public.website_pages where source_id = s.id and status <> 'ignored';
@@ -251,7 +252,7 @@ begin
   end loop;
   update public.website_sources set sitemap_urls = (select coalesce(array_agg(distinct x), '{}') from unnest(v_rest || v_children) x),
          last_discovery_at = now(), last_error = null,
-         next_discovery_at = case when array_length(v_rest || v_children, 1) > 0 then now() else next_discovery_at end where id = s.id;
+         next_discovery_at = case when array_length(v_rest || v_children, 1) > 0 then now() else now() + (frequency_hours || ' hours')::interval end where id = s.id;
   if v_new > 0 and not s.auto_approve_new then
     perform public.zella_notify_owners(s.business_id, 'website_new_pages', v_new || ' new page' || case when v_new = 1 then '' else 's' end || ' found on your website',
       'Choose which ones Zella may read. Nothing is read until you approve it.', 'info', 'knowledge');

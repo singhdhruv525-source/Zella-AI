@@ -59,3 +59,8 @@ Nothing below has been done yet on purpose: all n8n workflows are unpublished an
 - Connect flow (front-end screen still to build) must call `zella_meta_store_connection` with the page id and long-lived page token. Owner confirms lead-form consent through `zella_meta_settings` (`call_consent_confirmed`) before leads are auto-called.
 - WhatsApp: create and get approved message templates; WhatsApp may need a system-user token.
 - In n8n set the four Meta workflows to not save successful executions, put the Supabase credential on their boxes, then publish them.
+
+## Website knowledge crawler
+- Run `sql/zella_website_crawler.sql` (already applied to the live database) before re-running `sql/zella_dispatcher.sql`.
+- Turn on `website_crawl_live`, then publish the "Zella - Website Crawler" workflow. No keys are needed.
+- Front-end still to build: add website, approve it, page approval list, review of drafts (with "website changed" / "conflict" badges), version history.

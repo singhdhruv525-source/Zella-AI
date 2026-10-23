@@ -9,7 +9,7 @@ Item numbers and names come from the Zella AI Complete Automation Guide. Status 
 
 Items are served by a small set of shared workflows (see `n8n/README.md`), not one workflow per item. Many industry items (196 to 254) are configurations of the shared appointment, message, assignment and reminder engines; the 98 starter automation rows per industry are seeded in the database.
 
-**Totals:** Built 176, Partly 43, Rules ready 31, Not built 88.
+**Totals:** Built 190, Partly 47, Rules ready 31, Not built 70.
 
 
 ## 1. Calls and AI receptionist (16) — Built 8, Partly 4, Rules ready 4, Not built 0
@@ -203,42 +203,42 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 145 | Failure alerting | Built |
 | 146 | Conversion tracking | Built |
 
-## 10. Website knowledge automation (23) — Built 1, Partly 1, Rules ready 4, Not built 17
+## 10. Website knowledge automation (23) — Built 14, Partly 5, Rules ready 4, Not built 0
 
 | # | Automation | Status |
 |---|---|---|
-| 147 | Initial website import | Not built |
-| 148 | Approved-page crawling | Not built |
-| 149 | Sitemap discovery | Not built |
-| 150 | Service extraction | Not built |
-| 151 | Product extraction | Not built |
-| 152 | FAQ extraction | Not built |
-| 153 | Hours extraction | Not built |
-| 154 | Price extraction | Not built |
-| 155 | Policy extraction | Not built |
-| 156 | Scheduled synchronization | Not built |
-| 157 | Content change detection | Not built |
-| 158 | New-page detection | Not built |
-| 159 | Deleted-page detection | Not built |
-| 160 | Broken-link detection | Not built |
-| 161 | Conflicting-information detection | Not built |
+| 147 | Initial website import | Built |
+| 148 | Approved-page crawling | Built |
+| 149 | Sitemap discovery | Built |
+| 150 | Service extraction | Partly |
+| 151 | Product extraction | Partly |
+| 152 | FAQ extraction | Built |
+| 153 | Hours extraction | Built |
+| 154 | Price extraction | Partly |
+| 155 | Policy extraction | Built |
+| 156 | Scheduled synchronization | Built |
+| 157 | Content change detection | Built |
+| 158 | New-page detection | Built |
+| 159 | Deleted-page detection | Built |
+| 160 | Broken-link detection | Built |
+| 161 | Conflicting-information detection | Partly |
 | 162 | Approval queue | Rules ready |
-| 163 | Knowledge version history | Not built |
+| 163 | Knowledge version history | Built |
 | 164 | Controlled publishing and rollback | Partly |
-| 165 | Stale-knowledge alerts | Not built |
+| 165 | Stale-knowledge alerts | Built |
 | 166 | AI knowledge refresh | Built |
 | 167 | Unanswered-question analysis | Rules ready |
 | 168 | Knowledge-gap reporting | Rules ready |
 | 169 | Tenant-isolated knowledge | Rules ready |
 
-## 11. AI quality and knowledge maintenance (12) — Built 3, Partly 0, Rules ready 1, Not built 8
+## 11. AI quality and knowledge maintenance (12) — Built 4, Partly 0, Rules ready 1, Not built 7
 
 | # | Automation | Status |
 |---|---|---|
 | 170 | Low-confidence escalation | Not built |
 | 171 | Repeated unanswered-question detection | Rules ready |
 | 172 | Incorrect-answer reporting | Not built |
-| 173 | Source validation | Not built |
+| 173 | Source validation | Built |
 | 174 | Transfer-failure monitoring | Built |
 | 175 | Configuration versioning | Not built |
 | 176 | Configuration review | Not built |
