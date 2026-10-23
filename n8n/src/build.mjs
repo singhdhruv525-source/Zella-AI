@@ -48,6 +48,12 @@ const wf = (name, nodes, connections) => ({
   meta: { templateCredsSetupCompleted: false },
 });
 
+// Every workflow except the gateway is started by the database dispatcher (sql/zella_dispatcher.sql), which
+// calls it only when something is waiting. This keeps n8n Cloud's monthly run allowance for real work.
+const runTrigger = (workflowName) => node('Run now', 'n8n-nodes-base.webhook', 2, [0, 200], {
+  httpMethod: 'POST', path: 'zella/run/' + workflowName, authentication: 'headerAuth', responseMode: 'onReceived', options: {},
+}, { webhookId: id('webhook:zella-run-' + workflowName), credentials: GATEWAY_CRED });
+
 // ------------------------------------------------------------------ Event Gateway
 const gateway = wf('Zella - Event Gateway', [
   node('Receive event', 'n8n-nodes-base.webhook', 2, [0, 200], {
@@ -72,7 +78,7 @@ const gateway = wf('Zella - Event Gateway', [
 
 // ------------------------------------------------------------------ Event Router
 const router = wf('Zella - Event Router', [
-  node('Every minute', 'n8n-nodes-base.scheduleTrigger', 1.2, [0, 200], { rule: { interval: [{ field: 'minutes', minutesInterval: 1 }] } }),
+  runTrigger('event-router'),
   rpcNode('Claim events', [240, 200], 'zella_claim_events', '={{ JSON.stringify({ p_limit: 20 }) }}'),
   code('Route', [480, 200], 'router-route.js'),
   rpcNode('Start execution', [720, 200], 'zella_start_execution',
@@ -89,7 +95,7 @@ const router = wf('Zella - Event Router', [
   rpcNode('Complete event', [1920, 200], 'zella_complete_event',
     "={{ JSON.stringify({ p_event_id: $('Result').item.json.event_id, p_ok: $('Result').item.json.ok, p_error_category: $('Result').item.json.category, p_error: $('Result').item.json.error }) }}"),
 ], {
-  'Every minute': { main: [[link('Claim events')]] },
+  'Run now': { main: [[link('Claim events')]] },
   'Claim events': { main: [[link('Route')]] },
   'Route': { main: [[link('Start execution')]] },
   'Start execution': { main: [[link('Has handler')]] },
@@ -100,46 +106,9 @@ const router = wf('Zella - Event Router', [
 });
 
 
-// ------------------------------------------------------------------ Schedulers
-// Each job is one database call on a timer. A failed call raises a grouped platform alert.
-// Not here on purpose: zella_calls_to_callbacks and zella_queue_no_show_followup are database
-// triggers (they fire on their own); zella_check_invitations needs the email sender;
-// zella_retention_due only lists businesses and nothing deletes yet.
-export const SCHEDULE = {
-  every5: ['zella_flag_overdue_leads', 'zella_expire_holds', 'zella_expire_waitlist_offers', 'zella_detect_transfer_failures'],
-  every15: ['zella_queue_quote_followups'],
-  hourly: ['zella_post_daily_summaries'],
-  daily: ['zella_queue_lead_reactivation', 'zella_check_setup_incomplete', 'zella_check_trials', 'zella_apply_payment_policy'],
-  weekly: ['zella_post_weekly_reviews'],
-};
-const triggers = {
-  every5: ['Every 5 minutes', { rule: { interval: [{ field: 'minutes', minutesInterval: 5 }] } }],
-  every15: ['Every 15 minutes', { rule: { interval: [{ field: 'minutes', minutesInterval: 15 }] } }],
-  hourly: ['Every hour', { rule: { interval: [{ field: 'hours', hoursInterval: 1 }] } }],
-  daily: ['Every day', { rule: { interval: [{ field: 'days', daysInterval: 1, triggerAtHour: 4 }] } }],
-  weekly: ['Every Monday', { rule: { interval: [{ field: 'weeks', weeksInterval: 1, triggerAtDay: [1], triggerAtHour: 8 }] } }],
-};
-const schedNodes = [];
-const schedConns = {};
-let row = 0;
-for (const [key, fns] of Object.entries(SCHEDULE)) {
-  const [tname, tparams] = triggers[key];
-  schedNodes.push(node(tname, 'n8n-nodes-base.scheduleTrigger', 1.2, [0, row * 220 + 100], tparams));
-  schedConns[tname] = { main: [fns.map((f) => link('Run ' + f))] };
-  for (const f of fns) {
-    const y = row * 220;
-    const body = f === 'zella_queue_lead_reactivation' ? '={{ JSON.stringify({ p_limit: 200 }) }}' : '{}';
-    schedNodes.push(rpcNode('Run ' + f, [260, y], f, body, { full: true }));
-    schedNodes.push(code('Check ' + f, [520, y], 'scheduler-check.js', { JOB: f }));
-    schedNodes.push(ifBool('Failed ' + f, [780, y], '={{ !$json.ok }}'));
-    schedNodes.push(rpcNode('Alert ' + f, [1040, y - 60], 'zella_platform_alert', '={{ JSON.stringify($json.alert) }}'));
-    schedConns['Run ' + f] = { main: [[link('Check ' + f)]] };
-    schedConns['Check ' + f] = { main: [[link('Failed ' + f)]] };
-    schedConns['Failed ' + f] = { main: [[link('Alert ' + f)], []] };
-    row++;
-  }
-}
-const schedulers = wf('Zella - Schedulers', schedNodes, schedConns);
+// ------------------------------------------------------------------ Timed jobs
+// The 11 timed database jobs (overdue leads, daily summary, weekly review ...) no longer run in n8n. They run
+// inside Supabase with pg_cron (sql/zella_dispatcher.sql), which costs no n8n runs. See n8n/README.md.
 
 // ------------------------------------------------------------------ SMS Sender (reminders)
 // Claim reminders -> prepare (consent + template) -> log -> send (only when live) -> report back.
@@ -151,7 +120,7 @@ const finishNode = (name, pos) => rpcNode(name, pos, '', "={{ JSON.stringify($js
 
 // The same safe pipeline serves reminders and follow-up texts. Only the claim step and the small
 // Code files differ (which id, which template, how the result is reported back).
-function smsFlow(name, { claim, claimName, finishName, files, email = false }) {
+function smsFlow(name, { claim, claimName, finishName, files, runName, email = false }) {
   const C = claimName;
   // Text and email use the same pipeline; only the database functions and the final send box differ.
   const k = email
@@ -169,7 +138,7 @@ function smsFlow(name, { claim, claimName, finishName, files, email = false }) {
         options: { response: { response: { fullResponse: true, neverError: true, responseFormat: 'json' } } },
       });
   return wf(name, [
-    node('Every minute', 'n8n-nodes-base.scheduleTrigger', 1.2, [0, 200], { rule: { interval: [{ field: 'minutes', minutesInterval: 1 }] } }),
+    runTrigger(runName),
     claim(C, [240, 200]),
     code('Plan', [480, 200], files.plan),
     ifBool(k.is, [720, 200], '={{ !$json.finish }}'),
@@ -185,7 +154,7 @@ function smsFlow(name, { claim, claimName, finishName, files, email = false }) {
     code('Restore result', [3120, -100], 'sms-restore.js'),
     finishNode(finishName, [3360, 200]),
   ], {
-    'Every minute': { main: [[link(C)]] },
+    'Run now': { main: [[link(C)]] },
     [C]: { main: [[link('Plan')]] },
     'Plan': { main: [[link(k.is)]] },
     [k.is]: { main: [[link(k.prep)], [link(finishName)]] },
@@ -203,7 +172,7 @@ function smsFlow(name, { claim, claimName, finishName, files, email = false }) {
 }
 
 const smsSender = smsFlow('Zella - SMS Sender', {
-  claimName: 'Claim reminders', finishName: 'Finish reminder',
+  runName: 'sms-sender', claimName: 'Claim reminders', finishName: 'Finish reminder',
   claim: (n, pos) => rpcNode(n, pos, 'zella_claim_reminders', '={{ JSON.stringify({ p_limit: 20 }) }}'),
   files: { plan: 'sms-plan.js', decide: 'sms-decide.js', afterLog: 'sms-after-log.js', afterSend: 'sms-after-send.js' },
 });
@@ -212,7 +181,7 @@ const smsSender = smsFlow('Zella - SMS Sender', {
 // same dry-run default (platform setting email_live). The Resend box ships with NO credential, for the
 // same reason as the Telnyx box. It claims only email reminders, so it never touches text reminders.
 const emailSender = smsFlow('Zella - Email Sender', {
-  email: true, claimName: 'Claim email reminders', finishName: 'Finish reminder',
+  runName: 'email-sender', email: true, claimName: 'Claim email reminders', finishName: 'Finish reminder',
   claim: (n, pos) => rpcNode(n, pos, 'zella_claim_reminders', "={{ JSON.stringify({ p_limit: 20, p_channel: 'email' }) }}"),
   files: { plan: 'email-plan.js', decide: 'email-decide.js', afterLog: 'email-after-log.js', afterSend: 'email-after-send.js' },
 });
@@ -221,7 +190,7 @@ const emailSender = smsFlow('Zella - Email Sender', {
 // should get them (the database decides who, honouring each person's email preferences). Same dry-run
 // switch and Resend box as the email sender, same rule that the Resend box ships with no credential.
 const ownerEmails = wf('Zella - Owner Emails', [
-  node('Every 5 minutes', 'n8n-nodes-base.scheduleTrigger', 1.2, [0, 200], { rule: { interval: [{ field: 'minutes', minutesInterval: 5 }] } }),
+  runTrigger('owner-emails'),
   rpcNode('Claim owner emails', [240, 200], 'zella_claim_owner_emails', '={{ JSON.stringify({ p_limit: 20 }) }}'),
   code('Plan', [480, 200], 'owner-plan.js'),
   ifBool('Needs sending', [720, 200], '={{ !$json.finish }}'),
@@ -238,7 +207,7 @@ const ownerEmails = wf('Zella - Owner Emails', [
   code('Restore result', [2400, 0], 'sms-restore.js'),
   finishNode('Finish notification', [2640, 200]),
 ], {
-  'Every 5 minutes': { main: [[link('Claim owner emails')]] },
+  'Run now': { main: [[link('Claim owner emails')]] },
   'Claim owner emails': { main: [[link('Plan')]] },
   'Plan': { main: [[link('Needs sending')]] },
   'Needs sending': { main: [[link('Log message')], [link('Finish notification')]] },
@@ -258,7 +227,7 @@ export const FOLLOWUP_KINDS = [...FOLLOWUP_EMAIL_KINDS, 'reply_confirmed', 'repl
 // email when the customer cannot be texted but can be emailed). Same dry-run switch and Resend box as the
 // other email workflows. Reactivation is marketing and is skipped with a visible reason until unsubscribe exists.
 const followupEmails = smsFlow('Zella - Follow-up Emails', {
-  email: true, claimName: 'Claim follow-up emails', finishName: 'Finish follow-up',
+  runName: 'followup-emails', email: true, claimName: 'Claim follow-up emails', finishName: 'Finish follow-up',
   claim: (n, pos) => rpcNode(n, pos, 'zella_claim_followup_emails', `={{ JSON.stringify({ p_limit: 20, p_kinds: ${JSON.stringify(FOLLOWUP_EMAIL_KINDS)} }) }}`),
   files: { plan: 'email-task-plan.js', decide: 'email-task-decide.js', afterLog: 'email-task-after-log.js', afterSend: 'email-task-after-send.js' },
 });
@@ -266,17 +235,16 @@ const followupEmails = smsFlow('Zella - Follow-up Emails', {
 // Follow-up texts: no-show, post-visit, quote and reactivation. Text tasks only, so call tasks are
 // never picked up here. (Waitlist offers need reply handling and are not included yet.)
 const followupSender = smsFlow('Zella - Follow-up Texts', {
-  claimName: 'Claim follow-ups', finishName: 'Finish follow-up',
+  runName: 'followup-texts', claimName: 'Claim follow-ups', finishName: 'Finish follow-up',
   claim: (n, pos) => rpcNode(n, pos, 'zella_claim_followup_texts', `={{ JSON.stringify({ p_limit: 20, p_kinds: ${JSON.stringify(FOLLOWUP_KINDS)} }) }}`),
   files: { plan: 'sms-task-plan.js', decide: 'sms-task-decide.js', afterLog: 'sms-task-after-log.js', afterSend: 'sms-task-after-send.js' },
 });
 
 writeFileSync(join(out, 'zella-event-gateway.json'), JSON.stringify(gateway, null, 2) + '\n');
 writeFileSync(join(out, 'zella-event-router.json'), JSON.stringify(router, null, 2) + '\n');
-writeFileSync(join(out, 'zella-schedulers.json'), JSON.stringify(schedulers, null, 2) + '\n');
 writeFileSync(join(out, 'zella-sms-sender.json'), JSON.stringify(smsSender, null, 2) + '\n');
 writeFileSync(join(out, 'zella-email-sender.json'), JSON.stringify(emailSender, null, 2) + '\n');
 writeFileSync(join(out, 'zella-owner-emails.json'), JSON.stringify(ownerEmails, null, 2) + '\n');
 writeFileSync(join(out, 'zella-followup-emails.json'), JSON.stringify(followupEmails, null, 2) + '\n');
 writeFileSync(join(out, 'zella-followup-texts.json'), JSON.stringify(followupSender, null, 2) + '\n');
-console.log('Built', gateway.nodes.length, 'gateway nodes,', router.nodes.length, 'router nodes,', schedulers.nodes.length, 'scheduler nodes and', smsSender.nodes.length, 'sms sender nodes and', followupSender.nodes.length, 'follow-up text nodes.');
+console.log('Built', [gateway, router, smsSender, followupSender, emailSender, followupEmails, ownerEmails].map((w) => w.name + ' (' + w.nodes.length + ')').join(', '));

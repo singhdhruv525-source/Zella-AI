@@ -1,17 +1,18 @@
 # Zella n8n workflows
 
-Eight workflows so far. All are shared by every business and every industry. Nothing business-specific lives in n8n: the database holds the rules, n8n moves the work.
+Seven workflows. All are shared by every business and every industry. Nothing business-specific lives in n8n: the database holds the rules, n8n moves the work.
+
+**Nothing in n8n runs on a timer.** n8n Cloud's Starter plan allows 2,500 runs a month, and a workflow that wakes every minute uses about 43,000. So a Supabase job (`zella_dispatch_n8n`, see "The dispatcher" below) checks every minute whether anything is due and calls the matching workflow only then. The timed database jobs run inside Supabase too.
 
 | File | What it does |
 |---|---|
 | `workflows/zella-event-gateway.json` | Receives events at `POST /webhook/zella/events`, checks them, stores them once (`zella_ingest_event`), replies quickly. Repeats are recognised and stored only once. |
-| `workflows/zella-schedulers.json` | Runs 11 timed database checks (see below). A failed check raises one grouped alert in the platform alerts list. |
-| `workflows/zella-sms-sender.json` | Every minute: takes due appointment reminders and confirmations, checks consent and the template in the database, logs the message, and sends it through Telnyx **only when live**. In dry-run (the default) nothing is sent. |
-| `workflows/zella-followup-texts.json` | Every minute: takes due follow-up **text** tasks (no-show, post-visit thank-you, quote follow-up, reactivation, and the fallback text after a callback runs out of tries) and runs them through the same consent check, logging and dry-run switch as the reminders. Call tasks are never picked up. |
-| `workflows/zella-email-sender.json` | Every minute: takes due appointment confirmations and reminders whose channel is **email** and runs them through the same pipeline as the text sender: consent, template, safe HTML, logging, duplicate protection, dry-run switch. Sends through Resend **only when live**. |
-| `workflows/zella-followup-emails.json` | Every minute: takes due follow-up tasks whose channel is **email** (same kinds as the follow-up texts) through the same consent check, logging and dry-run switch. A task moves to email when the customer cannot be texted but can be emailed. |
-| `workflows/zella-owner-emails.json` | Every 5 minutes: emails owner notifications (daily summary, weekly review, any warning or urgent alert) to the right people, honouring each person's email preferences. Same dry-run switch and Resend box as the email sender. |
-| `workflows/zella-event-router.json` | Every minute: takes up to 20 stored events (`zella_claim_events`), runs the right handler, writes an execution record, and reports the result (`zella_complete_event`). Temporary failures are retried by the database with a growing delay. Permanent ones go to the dead-letter list. |
+| `workflows/zella-sms-sender.json` | Takes due appointment reminders and confirmations, checks consent and the template in the database, logs the message, and sends it through Telnyx **only when live**. In dry-run (the default) nothing is sent. |
+| `workflows/zella-followup-texts.json` | Takes due follow-up **text** tasks (no-show, post-visit thank-you, quote follow-up, reactivation, and the fallback text after a callback runs out of tries) and runs them through the same consent check, logging and dry-run switch as the reminders. Call tasks are never picked up. |
+| `workflows/zella-email-sender.json` | Takes due appointment confirmations and reminders whose channel is **email** and runs them through the same pipeline as the text sender: consent, template, safe HTML, logging, duplicate protection, dry-run switch. Sends through Resend **only when live**. |
+| `workflows/zella-followup-emails.json` | Takes due follow-up tasks whose channel is **email** (same kinds as the follow-up texts) through the same consent check, logging and dry-run switch. A task moves to email when the customer cannot be texted but can be emailed. |
+| `workflows/zella-owner-emails.json` | Emails owner notifications (daily summary, weekly review, any warning or urgent alert) to the right people, honouring each person's email preferences. Same dry-run switch and Resend box as the email sender. |
+| `workflows/zella-event-router.json` | Takes up to 20 stored events (`zella_claim_events`), runs the right handler, writes an execution record, and reports the result (`zella_complete_event`). Temporary failures are retried by the database with a growing delay. Permanent ones go to the dead-letter list. |
 
 ## What the router handles today
 
@@ -25,19 +26,19 @@ Eight workflows so far. All are shared by every business and every industry. Not
 
 Handlers for reminders, callbacks, SMS sending, email, Meta and the website are not built yet.
 
-## Timed jobs
+## The dispatcher and the timed jobs (Supabase, not n8n)
 
-| Every | Jobs |
-|---|---|
-| 5 minutes | overdue leads, expire held slots, expire waitlist offers, transfer failures |
-| 15 minutes | quote follow-ups |
-| hour | daily summaries (a business is posted once, when its own local time is 8am) |
-| day, 04:00 (n8n time zone) | lead reactivation (up to 200), setup incomplete, trials, payment policy |
-| Monday, 08:00 (n8n time zone) | weekly reviews |
+Run `sql/zella_dispatcher.sql` **last**, after every other Zella SQL file, then do its one-time secret step. It turns on `pg_cron` and `pg_net` and sets up:
 
-Not in this workflow, on purpose: `zella_calls_to_callbacks` and `zella_queue_no_show_followup` are database triggers and fire by themselves; `zella_check_invitations` needs the email sender; `zella_retention_due` only lists businesses and nothing deletes yet.
+- **Timed jobs inside Supabase** (UTC): every 5 minutes (overdue leads, expire held slots, expire waitlist offers, transfer failures), every 15 minutes (quote follow-ups), every hour (daily summaries: a business is posted once, at its own local 8am), daily 04:00 (lead reactivation up to 200, setup incomplete, trials, payment policy), Monday 08:00 (weekly reviews). A job that fails raises one grouped platform alert. These cost no n8n runs.
+- **The dispatcher, every minute.** It counts what is due for each worker workflow (events, text reminders, email reminders, follow-up texts, follow-up emails, owner emails) and calls that workflow's webhook (`/webhook/zella/run/<name>`) only if the count is above zero. It counts only the kinds the workflow really handles, so unhandled work can never make it call n8n forever.
+- **A stuck-item guard.** If the same amount is still waiting after 5 calls in a row, it slows to once every 15 minutes.
+- **A master switch:** set the platform setting `n8n_dispatch_enabled` to `false` to stop all calls.
+- **The secret.** The dispatcher sends the same secret as the n8n credential "Zella gateway secret". Store it once, yourself, in the Supabase SQL editor: `select vault.create_secret('<your secret>', 'zella_n8n_secret');`. Without it the dispatcher does nothing.
 
-Each job returns a count. With no businesses yet, every count is 0, so the behaviour with real data is untested. Alerts for a failing job stay open until someone resolves them.
+Not scheduled, on purpose: `zella_calls_to_callbacks` and `zella_queue_no_show_followup` are database triggers and fire by themselves; `zella_check_invitations` needs invitation reminder emails (not built); `zella_retention_due` only lists businesses and nothing deletes yet.
+
+Check it works: `select jobname, schedule, active from cron.job where jobname like 'zella%';` and `select * from public.n8n_dispatch_state;` (shows how often each workflow was called).
 
 ## Text sender: dry-run and going live
 
@@ -97,8 +98,9 @@ Run `sql/zella_owner_emails.sql` after `zella_email_sender.sql`.
 1. In n8n, create two credentials:
    - **Zella Supabase service role**: type *Custom Auth*. JSON: `{"headers": {"apikey": "<service role key>", "Authorization": "Bearer <service role key>"}}`. Use the service role key from Supabase, Settings, API. It stays in n8n only. Never put it in the website or in a workflow file.
    - **Zella gateway secret**: type *Header Auth*. Name `X-Zella-Secret`, value a long random string. Every system that posts events must send this header.
-2. Import all eight files (Workflows, Import from file). Open each node that shows a missing credential and select the credential above.
-3. Switch the gateway on first, then the router, then the schedulers, then the SMS sender, the follow-up texts, the email sender, the follow-up emails and the owner emails. All import as inactive.
+2. Import all seven files (Workflows, Import from file). Open each node that shows a missing credential and select the credential above. The six worker workflows each start from a protected webhook ("Run now") that uses the **Zella gateway secret** credential.
+3. Publish all seven (they import as inactive). Nothing runs until the dispatcher calls it.
+4. In Supabase, run `sql/zella_dispatcher.sql` and store the secret (see "The dispatcher").
 
 ## Sending an event
 
@@ -127,7 +129,7 @@ Replies: `200 {ok, id, duplicate}`, `400` bad request, `401/403` wrong secret, `
 
 ## Tests
 
-`node n8n/test.mjs` runs 231 checks: the exact Code-node logic that ships, plus structure checks on all eight files (connections, node references, no pasted keys).
+`node n8n/test.mjs` runs 220 checks: the exact Code-node logic that ships, plus structure checks on all seven files (connections, node references, no pasted keys).
 
 **Not verified:** the files have not been imported into a running n8n. The workspace could not install n8n. Import them into your n8n and report anything that does not open cleanly. Node versions used: Webhook 2, Code 2, HTTP Request 4.2, IF 2, Schedule Trigger 1.2, Respond to Webhook 1.1.
 

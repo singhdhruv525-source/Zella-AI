@@ -105,30 +105,39 @@ test('error text never includes the database response body', () => assert.equal(
 test('execution id is optional when logging failed to start', () => assert.equal(result(planned, { message: 'down' }, { statusCode: 200, body: {} }).execution_id, null));
 
 // ---------------- workflow files
-// ---------------- schedulers: check
-const sched = (statusCode, body) => runCode('scheduler-check.js', { json: { statusCode, body }, vars: { JOB: 'zella_expire_holds' } }).json;
-test('scheduler job success carries the count and no alert', () => { const r = sched(200, 3); assert.equal(r.ok, true); assert.equal(r.count, 3); assert.equal(r.alert, null); });
-test('scheduler job success with a non-number body has no count', () => assert.equal(sched(200, null).count, null));
-test('scheduler job failure raises a grouped alert', () => {
-  const r = sched(500, { message: 'secret detail' });
-  assert.equal(r.ok, false); assert.equal(r.alert.p_kind, 'scheduler_failed'); assert.equal(r.alert.p_dedupe_key, 'zella_expire_holds'); assert.equal(r.alert.p_business_id, null);
-  assert.equal(JSON.stringify(r).includes('secret detail'), false);
+// ---------------- dispatcher (timed jobs run in Supabase; n8n is only called when work is waiting)
+const dispatcherSql = readFileSync(new URL('../sql/zella_dispatcher.sql', import.meta.url), 'utf8');
+const wfJson = (f) => JSON.parse(readFileSync(new URL('./workflows/' + f, import.meta.url), 'utf8'));
+const RUN_PATHS = { 'zella-event-router.json': 'event-router', 'zella-sms-sender.json': 'sms-sender', 'zella-email-sender.json': 'email-sender', 'zella-followup-texts.json': 'followup-texts', 'zella-followup-emails.json': 'followup-emails', 'zella-owner-emails.json': 'owner-emails' };
+test('no workflow wakes itself on a timer (that would burn the monthly n8n run allowance)', () => {
+  for (const f of [...Object.keys(RUN_PATHS), 'zella-event-gateway.json']) assert.ok(!JSON.stringify(wfJson(f)).includes('scheduleTrigger'), f);
 });
-test('scheduler 404 (function missing) also alerts', () => assert.equal(sched(404, {}).ok, false));
-
-// ---------------- scheduler workflow: every job is wired and none is a trigger-only function
-const schedFile = JSON.parse(readFileSync(new URL('./workflows/zella-schedulers.json', import.meta.url), 'utf8'));
-test('scheduler workflow runs 11 jobs', () => assert.equal(schedFile.nodes.filter((n) => n.name.startsWith('Run ')).length, 11));
-test('daily summaries are checked every hour (each business is posted at its own 8am)', () => assert.ok(schedFile.nodes.some((n) => n.name === 'Every hour') && schedFile.connections['Every hour'].main[0][0].node === 'Run zella_post_daily_summaries'));
-test('trigger-only functions are not scheduled', () => {
-  const t = JSON.stringify(schedFile);
-  assert.ok(!t.includes('zella_calls_to_callbacks') && !t.includes('zella_queue_no_show_followup'));
+test('each worker workflow starts from its own protected webhook that answers at once', () => {
+  for (const [f, path] of Object.entries(RUN_PATHS)) {
+    const t = wfJson(f).nodes.find((n) => n.name === 'Run now');
+    assert.equal(t.type, 'n8n-nodes-base.webhook', f); assert.equal(t.parameters.path, 'zella/run/' + path, f);
+    assert.equal(t.parameters.authentication, 'headerAuth', f); assert.equal(t.parameters.responseMode, 'onReceived', f);
+    assert.ok(t.credentials && t.credentials.httpHeaderAuth, f);
+  }
 });
-test('each job node calls its own function', () => {
-  for (const n of schedFile.nodes.filter((x) => x.name.startsWith('Run '))) assert.ok(n.parameters.url.endsWith('/rpc/' + n.name.slice(4)), n.name);
+test('the dispatcher calls exactly those webhook names', () => {
+  for (const path of Object.values(RUN_PATHS)) assert.ok(dispatcherSql.includes("('" + path + "')"), path);
+  assert.equal([...dispatcherSql.matchAll(/\('([a-z-]+)'\)/g)].map((m) => m[1]).filter((x) => x.includes('-')).length, Object.keys(RUN_PATHS).length);
+  assert.ok(dispatcherSql.includes("'/webhook/zella/run/'"));
 });
-test('each job check names its own job', () => {
-  for (const n of schedFile.nodes.filter((x) => x.name.startsWith('Check '))) assert.ok(n.parameters.jsCode.includes("'" + n.name.slice(6) + "'"), n.name);
+test('the dispatcher only checks the follow-up kinds the workflows really handle', async () => {
+  const { FOLLOWUP_KINDS, FOLLOWUP_EMAIL_KINDS } = await import('./src/build.mjs');
+  const list = (name) => dispatcherSql.match(new RegExp(name + ' text\\[\\] := array\\[([^\\]]*)\\]'))[1].split(',').map((x) => x.trim().replace(/'/g, ''));
+  assert.deepEqual(list('v_text_kinds'), FOLLOWUP_KINDS); assert.deepEqual(list('v_email_kinds'), FOLLOWUP_EMAIL_KINDS);
+});
+test('all 11 timed jobs run inside the database, on the same rhythm as before', () => {
+  const jobs = { every5: ['zella_flag_overdue_leads', 'zella_expire_holds', 'zella_expire_waitlist_offers', 'zella_detect_transfer_failures'], every15: ['zella_queue_quote_followups'], hourly: ['zella_post_daily_summaries'], daily: ['zella_queue_lead_reactivation', 'zella_check_setup_incomplete', 'zella_check_trials', 'zella_apply_payment_policy'], weekly: ['zella_post_weekly_reviews'] };
+  for (const [g, fns] of Object.entries(jobs)) for (const fn of fns) { assert.ok(dispatcherSql.includes("'" + fn + "'"), fn); assert.ok(new RegExp("when '" + g + "'\\s+then array\\[[^\\]]*'" + fn + "'").test(dispatcherSql), g + ' ' + fn); }
+  for (const cron of ["'* * * * *'", "'*/5 * * * *'", "'*/15 * * * *'", "'0 * * * *'", "'0 4 * * *'", "'0 8 * * 1'"]) assert.ok(dispatcherSql.includes(cron), cron);
+});
+test('trigger-only functions are never scheduled', () => assert.ok(!dispatcherSql.includes("'zella_calls_to_callbacks'") && !dispatcherSql.includes("'zella_queue_no_show_followup'")));
+test('the dispatcher secret is read from the vault and never written in the file', () => {
+  assert.ok(dispatcherSql.includes('vault.decrypted_secrets')); assert.ok(!/create_secret\('(?!PASTE_YOUR_SECRET)/.test(dispatcherSql));
 });
 
 // ---------------- sms sender
@@ -385,7 +394,7 @@ test('follow-up email workflow only uses task and email functions', () => {
   for (const bad of ['zella_complete_reminder', 'zella_skip_reminder', 'zella_claim_reminders', 'zella_prepare_sms', 'outbound_sms', 'telnyx']) assert.ok(!t.includes(bad), bad);
 });
 
-for (const file of ['zella-event-gateway.json', 'zella-event-router.json', 'zella-schedulers.json', 'zella-sms-sender.json', 'zella-followup-texts.json', 'zella-email-sender.json', 'zella-owner-emails.json', 'zella-followup-emails.json']) {
+for (const file of ['zella-event-gateway.json', 'zella-event-router.json', 'zella-sms-sender.json', 'zella-followup-texts.json', 'zella-email-sender.json', 'zella-owner-emails.json', 'zella-followup-emails.json']) {
   const w = JSON.parse(readFileSync(new URL('./workflows/' + file, import.meta.url), 'utf8'));
   const names = w.nodes.map((n) => n.name);
   test(file + ': node names are unique', () => assert.equal(new Set(names).size, names.length));

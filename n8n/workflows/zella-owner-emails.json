@@ -3,23 +3,27 @@
   "nodes": [
     {
       "parameters": {
-        "rule": {
-          "interval": [
-            {
-              "field": "minutes",
-              "minutesInterval": 5
-            }
-          ]
-        }
+        "httpMethod": "POST",
+        "path": "zella/run/owner-emails",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
       },
-      "id": "d4f3e0d1-1d65-40c9-8c40-2c19b3c7c027",
-      "name": "Every 5 minutes",
-      "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1.2,
+      "id": "2af00e23-c480-4a77-8fdd-da60673b2836",
+      "name": "Run now",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
       "position": [
         0,
         200
-      ]
+      ],
+      "webhookId": "6a3d923b-693d-437f-89f0-137d81c06c3d",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Zella gateway secret"
+        }
+      }
     },
     {
       "parameters": {
@@ -300,7 +304,7 @@
     }
   ],
   "connections": {
-    "Every 5 minutes": {
+    "Run now": {
       "main": [
         [
           {

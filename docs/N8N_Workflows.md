@@ -21,6 +21,8 @@ Rules for every worker: claim first (rows are locked with SKIP LOCKED and the at
 
 ## B. Schedulers (each is one function call)
 
+> **These now run inside Supabase with pg_cron, not as n8n timers** (`sql/zella_dispatcher.sql`). n8n Cloud's Starter plan allows 2,500 runs a month, so n8n workflows are only called when something is waiting. The table below still lists what each job is.
+
 | Flow | Function | Every |
 |------|----------|-------|
 | Missed calls → callbacks | `zella_calls_to_callbacks` is a database trigger on `calls`; no timer needed | — |
