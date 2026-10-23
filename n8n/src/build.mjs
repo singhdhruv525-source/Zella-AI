@@ -363,6 +363,28 @@ const aiBooking = wf('Zella - Appointment Booking', [
   'Build reply': { main: [[link('Reply')]] },
 });
 
+// Email events: Resend posts here when an email is delivered, bounces or is marked as spam. Event-driven (runs only then).
+// Resend cannot send a custom header, so the webhook address carries a secret key (?key=...) and the DATABASE checks it
+// against a Vault secret; a wrong key changes nothing. Bad addresses and spam complaints are never emailed again.
+const emailEvents = wf('Zella - Email Events', [
+  node('Resend event', 'n8n-nodes-base.webhook', 2, [0, 200], {
+    httpMethod: 'POST', path: 'zella/resend', authentication: 'none', responseMode: 'responseNode', options: {},
+  }, { webhookId: id('webhook:zella-resend') }),
+  code('Plan', [240, 200], 'email-event-plan.js'),
+  ifBool('Has event', [480, 200], '={{ !!$json.record }}'),
+  rpcNode('Record event', [720, 100], 'zella_record_email_event', '={{ JSON.stringify($json.record) }}', { full: true }),
+  code('Build reply', [960, 200], 'email-event-reply.js'),
+  node('Reply', 'n8n-nodes-base.respondToWebhook', 1.1, [1200, 200], {
+    respondWith: 'json', responseBody: '={{ JSON.stringify($json.body) }}', options: { responseCode: '={{ $json.status }}' },
+  }),
+], {
+  'Resend event': { main: [[link('Plan')]] },
+  'Plan': { main: [[link('Has event')]] },
+  'Has event': { main: [[link('Record event')], [link('Build reply')]] },
+  'Record event': { main: [[link('Build reply')]] },
+  'Build reply': { main: [[link('Reply')]] },
+});
+
 writeFileSync(join(out, 'zella-event-gateway.json'), JSON.stringify(gateway, null, 2) + '\n');
 writeFileSync(join(out, 'zella-event-router.json'), JSON.stringify(router, null, 2) + '\n');
 writeFileSync(join(out, 'zella-sms-sender.json'), JSON.stringify(smsSender, null, 2) + '\n');
@@ -374,5 +396,6 @@ writeFileSync(join(out, 'zella-outbound-calls.json'), JSON.stringify(outboundCal
 writeFileSync(join(out, 'zella-knowledge.json'), JSON.stringify(knowledge, null, 2) + '\n');
 writeFileSync(join(out, 'zella-assistant-tools.json'), JSON.stringify(assistantTools, null, 2) + '\n');
 writeFileSync(join(out, 'zella-appointment-booking.json'), JSON.stringify(aiBooking, null, 2) + '\n');
+writeFileSync(join(out, 'zella-email-events.json'), JSON.stringify(emailEvents, null, 2) + '\n');
 writeFileSync(join(out, 'zella-call-results.json'), JSON.stringify(callResults, null, 2) + '\n');
-console.log('Built', [gateway, router, smsSender, followupSender, emailSender, followupEmails, ownerEmails, outboundCalls, callResults, knowledge, assistantTools, aiBooking].map((w) => w.name + ' (' + w.nodes.length + ')').join(', '));
+console.log('Built', [gateway, router, smsSender, followupSender, emailSender, followupEmails, ownerEmails, outboundCalls, callResults, knowledge, assistantTools, aiBooking, emailEvents].map((w) => w.name + ' (' + w.nodes.length + ')').join(', '));

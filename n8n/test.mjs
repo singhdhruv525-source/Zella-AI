@@ -609,6 +609,30 @@ test('booking tools: changing a booking uses the caller\'s own number, never one
   assert.ok(bkSql.includes('zella_ai_manage_booking') && bkSql.includes("certainty = 'exact'") && bkSql.includes('handoff'));
 });
 
+// ---------------- email events (bounces and spam complaints)
+const evSql = readFileSync(new URL('../sql/zella_email_events.sql', import.meta.url), 'utf8');
+const evp = (j) => runCode('email-event-plan.js', { json: j }).json;
+test('email events: the key, the event and a stable event id go to the database', () => {
+  const r = evp({ query: { key: 'k1' }, headers: { 'svix-id': 'msg_1' }, body: { type: 'email.bounced', data: { email_id: 'e1' } } }).record;
+  assert.deepEqual(r, { p_key: 'k1', p_event: { type: 'email.bounced', data: { email_id: 'e1' } }, p_event_id: 'msg_1' });
+  assert.equal(evp({ query: {}, headers: {}, body: { type: 'email.delivered', data: { email_id: 'e2' }, created_at: 'T' } }).record.p_event_id, 'email.delivered:e2:T');
+  assert.equal(evp({ query: {}, headers: {}, body: 'text' }).record, null); assert.equal(evp({}).record, null);
+  assert.equal(evp({ query: { key: 5 }, headers: { 'svix-id': 'x' }, body: { type: 't' } }).record.p_key, '');
+});
+const evReply = (planJson, res) => runCode('email-event-reply.js', { json: res, nodes: { Plan: planJson } }).json;
+test('email events: Resend gets 200 when handled, 401 for a wrong key, 500 so it retries, and never any details', () => {
+  const p = { record: {} };
+  assert.equal(evReply(p, { statusCode: 200, body: 'bounced' }).status, 200); assert.equal(evReply(p, { statusCode: 200, body: 'duplicate' }).status, 200);
+  assert.equal(evReply(p, { statusCode: 200, body: 'unauthorized' }).status, 401); assert.equal(evReply(p, { statusCode: 200, body: 'not_configured' }).status, 503);
+  assert.equal(evReply(p, { statusCode: 500, body: { message: 'secret' } }).status, 500); assert.deepEqual(evReply(p, { statusCode: 500, body: { message: 'secret' } }).body, { ok: false });
+  assert.equal(evReply({ record: null }, {}).status, 400);
+});
+test('email events: the webhook is open by design, so the database checks the key and the SQL never stores it', () => {
+  const t = wfJson('zella-email-events.json').nodes.find((n) => n.name === 'Resend event'); assert.equal(t.parameters.path, 'zella/resend'); assert.equal(t.parameters.responseMode, 'responseNode');
+  assert.ok(evSql.includes('vault.decrypted_secrets') && evSql.includes("return 'unauthorized'") && !/create_secret\('(?!PASTE_A_LONG)/.test(evSql.replace(/^--.*$/gm, (l) => l)));
+  assert.ok(evSql.includes("v_bounce in ('permanent', 'hard')") && evSql.includes('do_not_email = true') && evSql.includes('on conflict (provider_event_id)'));
+});
+
 console.log(`${passed} passed, ${failures.length} failed`);
 for (const f of failures) console.log('  FAIL ' + f);
 process.exit(failures.length ? 1 : 0);

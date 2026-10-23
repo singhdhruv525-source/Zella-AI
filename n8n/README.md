@@ -210,3 +210,12 @@ Run `sql/zella_ai_booking.sql` (needs `zella_run_all.sql`). Import `workflows/ze
 - The business comes from the call (when Zella knows it) or from `business_id` in the call metadata or assistant variables, the same as the "couldn't answer" tool.
 - **Changing an existing booking by phone** (same workflow, three more Vapi server tools): `find_my_appointments`, `reschedule_appointment` (`appointment_id` from find, `start` from check_availability) and `cancel_appointment` (`appointment_id`). The caller is recognised **only by the number they are calling from** (taken from Vapi's call, never from what is said). Only an exact match to one customer can see or change that customer's own upcoming bookings. If the caller cannot be matched, nothing is shown or changed and a callback is created for staff. A move that fails leaves the original booking unchanged and offers other times. Cancelling frees the time (waitlist offers and staff notices follow the normal rules).
 - Not built: choosing a specific staff member, and services with different lengths per service.
+
+## Email bounces and spam complaints
+
+Run `sql/zella_email_events.sql` (needs `zella_email_sender.sql`). Import `workflows/zella-email-events.json` (webhook `/webhook/zella/resend`). It runs only when Resend reports something.
+
+- **Permanent bounce** (the address does not work): that address is never emailed again, for every business; the message is marked failed; the business gets a notice to check the address with the customer. **Temporary bounce:** recorded only. **Spam complaint:** that person is never emailed again by that business, and the business is warned. **Delivered:** the message is marked delivered. Texts and calls are not affected. Repeated events are ignored.
+- **Setup at go-live:** run once in the SQL editor `select vault.create_secret('<a long random value>', 'zella_resend_webhook_key');`. In Resend add a webhook to `https://<n8n>/webhook/zella/resend?key=<the same value>` for the events delivered, bounced and complained. Resend cannot send a custom header, so the key is in the address; the database checks it, and a wrong key changes nothing (answered 401). Do not paste the value anywhere else.
+- Staff who clear "do not email" on a customer are trusted to know the address is fixed.
+- Not built: the unsubscribe link and page for marketing emails (reactivation emails stay skipped until it exists), and complaint handling for texts.
