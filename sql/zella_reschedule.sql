@@ -1,5 +1,5 @@
 -- Zella - the Reschedule button. Safe to run more than once.
--- Needs zella_email_sender.sql first (and zella_inbound_replies.sql if you use it).
+-- Needs zella_followup_emails.sql first (it moves a reminder to the other channel when needed).
 -- What changes for customers:
 --   * Appointment texts and emails (booking confirmation and reminders) go out on their own. Nobody has to
 --     reply to anything. The only thing a customer can do is tap "Reschedule" and pick a new time.
@@ -139,10 +139,13 @@ end $$;
 revoke all on function public.zella_replace_reminders(uuid, boolean, text) from public, anon, authenticated;
 
 -- 8. The claim now hands the workflow the Reschedule line for each message.
+--    (Same as the version in zella_followup_emails.sql, which moves a reminder to the other channel when the
+--    customer cannot be reached on this one, plus the Reschedule line.)
 create or replace function public.zella_claim_reminders(p_limit integer default 25, p_channel text default 'sms')
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare v_res jsonb := '[]'::jsonb; r record; a record; c record; b record; v_staff text;
         v_channel text := case when p_channel = 'email' then 'email' else 'sms' end;
+        v_phone_ok boolean; v_email_ok boolean;
 begin
   for r in select * from public.appointment_reminders where status = 'pending' and due_at <= now() and channel = v_channel order by due_at
            limit greatest(1, least(coalesce(p_limit, 25), 100)) for update skip locked loop
@@ -154,6 +157,13 @@ begin
     end if;
     if b.suspended_at is not null or b.cancelled_at is not null or c.id is null or coalesce(c.do_not_contact, false) or (public.zella_digits(c.phone) is null and nullif(trim(coalesce(c.email, '')), '') is null) then
       update public.appointment_reminders set status = 'skipped', error = 'cannot_contact' where id = r.id; continue;
+    end if;
+    v_phone_ok := public.zella_digits(c.phone) is not null and not coalesce(c.do_not_sms, false);
+    v_email_ok := public.zella_valid_email(c.email) and not coalesce(c.do_not_email, false);
+    if v_channel = 'sms' and not v_phone_ok and v_email_ok then
+      update public.appointment_reminders set channel = 'email' where id = r.id; continue;
+    elsif v_channel = 'email' and not v_email_ok and v_phone_ok then
+      update public.appointment_reminders set channel = 'sms' where id = r.id; continue;
     end if;
     select s.name into v_staff from public.staff_members s where s.id = a.staff_id;
     update public.appointment_reminders set status = 'sending', attempts = attempts + 1 where id = r.id;
