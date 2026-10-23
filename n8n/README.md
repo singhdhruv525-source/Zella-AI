@@ -41,7 +41,7 @@ Run `sql/zella_sms_sender.sql` in the Supabase SQL editor first. It adds four fu
 - **Dry-run (default).** `sms_live` is `false`. The workflow checks consent, fills the template, logs the message as `dry_run` and marks the reminder skipped ("dry_run: no text was sent"). No text leaves.
 - **Safety checks in the database:** no consent or do-not-text, no valid phone number, unfilled template placeholders, a suspended or cancelled business. Each skips the reminder with that reason and does not retry.
 - **No double texts.** Each reminder has one message record. A repeat is suppressed. A failed try may be retried; the database retries twice, then tells staff.
-- **To go live (later, all of these):** a Telnyx number and approved 10DLC registration, a Header Auth credential named `Zella Telnyx` (name `Authorization`, value `Bearer <Telnyx key>`), `sms_from_number` set, then `sms_live` set to `true`. Test with one number you own first.
+- **To go live (later, all of these):** a Telnyx number and approved 10DLC registration, a Header Auth credential named `Zella Telnyx` (name `Authorization`, value `Bearer <Telnyx key>`) selected by hand on the "Send via Telnyx" box (it ships with no credential on purpose; on import n8n may offer another Header Auth credential, such as the gateway secret, so check which one is chosen), `sms_from_number` set, then `sms_live` set to `true`. Test with one number you own first.
 - **Reminders only so far.** Other channels (email, call) are skipped with `channel_not_supported_yet:<channel>`. Follow-up tasks, callbacks and missed-call texts are not wired yet.
 - **Not covered:** inbound delivery receipts (Telnyx status webhooks) and per-business sender numbers.
 

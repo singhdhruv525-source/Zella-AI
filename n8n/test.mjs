@@ -185,7 +185,7 @@ test('Telnyx node can only be reached after the live check', () => {
   assert.deepEqual(into, ['Send for real']);
   assert.equal(c['Send for real'].main[0][0].node, 'Send via Telnyx');
 });
-test('Telnyx key is a credential, never in the file', () => assert.equal(smsFile.nodes.find((n) => n.name === 'Send via Telnyx').credentials.httpHeaderAuth.name, 'Zella Telnyx'));
+test('Telnyx box ships with no credential, so no other secret can be attached by accident', () => { const n = smsFile.nodes.find((x) => x.name === 'Send via Telnyx'); assert.equal(n.parameters.authentication, 'none'); assert.equal(n.credentials, undefined); });
 
 for (const file of ['zella-event-gateway.json', 'zella-event-router.json', 'zella-schedulers.json', 'zella-sms-sender.json']) {
   const w = JSON.parse(readFileSync(new URL('./workflows/' + file, import.meta.url), 'utf8'));
@@ -218,7 +218,7 @@ for (const file of ['zella-event-gateway.json', 'zella-event-router.json', 'zell
     for (const n of w.nodes.filter((x) => x.type === 'n8n-nodes-base.code')) new Function('$json', '$', n.parameters.jsCode);
   });
   test(file + ': HTTP nodes use a credential, not pasted keys', () => {
-    for (const n of w.nodes.filter((x) => x.type === 'n8n-nodes-base.httpRequest')) {
+    for (const n of w.nodes.filter((x) => x.type === 'n8n-nodes-base.httpRequest' && x.name !== 'Send via Telnyx')) {
       assert.equal(n.parameters.authentication, 'genericCredentialType'); assert.ok(n.credentials?.httpCustomAuth || n.credentials?.httpHeaderAuth);
     }
   });

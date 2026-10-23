@@ -142,7 +142,8 @@ const schedulers = wf('Zella - Schedulers', schedNodes, schedConns);
 // ------------------------------------------------------------------ SMS Sender (reminders)
 // Claim reminders -> prepare (consent + template) -> log -> send (only when live) -> report back.
 // Dry-run is the default: until the database setting sms_live is true, nothing is sent.
-const TELNYX_CRED = { httpHeaderAuth: { id: '', name: 'Zella Telnyx' } };
+// The Telnyx box ships with NO credential on purpose: n8n would otherwise attach any Header Auth
+// credential it finds (including the gateway secret). Add the Telnyx key by hand when going live.
 const finishNode = (pos) => rpcNode('Finish reminder', pos, '', "={{ JSON.stringify($json.finish.body) }}",
   { full: true, urlExpr: `={{ '${SUPABASE}/rest/v1/rpc/' + $json.finish.rpc }}` });
 const smsSender = wf('Zella - SMS Sender', [
@@ -157,10 +158,10 @@ const smsSender = wf('Zella - SMS Sender', [
   code('After log', [1920, 0], 'sms-after-log.js'),
   ifBool('Send for real', [2160, 0], '={{ !$json.finish }}'),
   node('Send via Telnyx', 'n8n-nodes-base.httpRequest', 4.2, [2400, -100], {
-    method: 'POST', url: 'https://api.telnyx.com/v2/messages', authentication: 'genericCredentialType', genericAuthType: 'httpHeaderAuth',
+    method: 'POST', url: 'https://api.telnyx.com/v2/messages', authentication: 'none',
     sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify($json.telnyx) }}',
     options: { response: { response: { fullResponse: true, neverError: true, responseFormat: 'json' } } },
-  }, { credentials: TELNYX_CRED }),
+  }),
   code('After send', [2640, -100], 'sms-after-send.js'),
   rpcNode('Update message', [2880, -100], 'zella_update_outbound_sms', '={{ JSON.stringify($json.update) }}', { full: true }),
   code('Restore result', [3120, -100], 'sms-restore.js'),

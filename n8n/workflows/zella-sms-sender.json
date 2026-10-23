@@ -260,8 +260,7 @@
       "parameters": {
         "method": "POST",
         "url": "https://api.telnyx.com/v2/messages",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "authentication": "none",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json.telnyx) }}",
@@ -282,13 +281,7 @@
       "position": [
         2400,
         -100
-      ],
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "",
-          "name": "Zella Telnyx"
-        }
-      }
+      ]
     },
     {
       "parameters": {
