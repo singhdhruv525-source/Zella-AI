@@ -187,7 +187,53 @@ test('Telnyx node can only be reached after the live check', () => {
 });
 test('Telnyx box ships with no credential, so no other secret can be attached by accident', () => { const n = smsFile.nodes.find((x) => x.name === 'Send via Telnyx'); assert.equal(n.parameters.authentication, 'none'); assert.equal(n.credentials, undefined); });
 
-for (const file of ['zella-event-gateway.json', 'zella-event-router.json', 'zella-schedulers.json', 'zella-sms-sender.json']) {
+// ---------------- follow-up texts
+const T = { task_id: '22222222-2222-4222-8222-222222222222', kind: 'no_show_follow_up', channel: 'sms', business: { id: BIZ, name: 'Test Salon' }, customer: { id: 'cust-1', first_name: 'Ana' } };
+const tplan = (t) => runCode('sms-task-plan.js', { json: t }).json;
+test('no-show follow-up uses its template, transactional', () => { const p = tplan(T); assert.equal(p.finish, null); assert.equal(p.prepare.p_template_key, 'no_show_follow_up'); assert.equal(p.prepare.p_purpose, 'transactional'); });
+test('quote and post-visit follow-ups are transactional', () => { for (const k of ['quote_follow_up', 'post_appointment_follow_up']) { const p = tplan({ ...T, kind: k }); assert.equal(p.prepare.p_template_key, k); assert.equal(p.prepare.p_purpose, 'transactional'); } });
+test('reactivation is marketing, so it needs opt-in', () => assert.equal(tplan({ ...T, kind: 'lead_reactivation' }).prepare.p_purpose, 'marketing'));
+test('a call task is skipped, never texted', () => { const p = tplan({ ...T, channel: 'call' }); assert.equal(p.finish.rpc, 'zella_skip_followup_task'); assert.match(p.finish.body.p_reason, /channel_not_supported_yet:call/); assert.equal(p.prepare, undefined); });
+test('unknown task kind is skipped with a reason', () => assert.match(tplan({ ...T, kind: 'waitlist_offer' }).finish.body.p_reason, /unknown_followup_kind:waitlist_offer/));
+
+const tPlanned = { task_id: T.task_id, business_id: BIZ, customer_id: 'cust-1' };
+const tdecide = (statusCode, body) => runCode('sms-task-decide.js', { json: { statusCode, body }, nodes: { Plan: tPlanned } }).json;
+test('task dry run is logged as dry_run with a task key', () => { const d = tdecide(200, okPrep); assert.equal(d.log.p_status, 'dry_run'); assert.equal(d.log.p_dedupe_key, 'task:' + T.task_id); assert.equal(d.live, false); });
+test('task live without a sender number fails and retries later', () => { const d = tdecide(200, { ...okPrep, live: true }); assert.equal(d.finish.body.p_outcome, 'failed'); assert.equal(d.finish.body.p_notes, 'sender_number_not_set'); assert.equal(d.finish.body.p_retry_in_minutes, 15); });
+test('task without consent is skipped, not retried', () => { const d = tdecide(200, { allowed: false, reason: 'no_consent', live: true }); assert.equal(d.finish.rpc, 'zella_skip_followup_task'); assert.equal(d.finish.body.p_reason, 'no_consent'); });
+test('task prepare failure fails the task for retry without leaking the response', () => { const d = tdecide(500, { message: 'SECRETDETAIL' }); assert.equal(d.finish.body.p_outcome, 'failed'); assert.equal(JSON.stringify(d).includes('SECRETDETAIL'), false); });
+
+const tAfterLog = (statusCode, body, d) => runCode('sms-task-after-log.js', { json: { statusCode, body }, nodes: { Decide: { task_id: T.task_id, live: true, from: '+15550001111', to: '+14155550123', text: 'Hi', ...d } } }).json;
+test('task live new message goes to Telnyx', () => { const a = tAfterLog(200, { id: 'm1', duplicate: false, status: 'queued' }); assert.equal(a.finish, null); assert.deepEqual(a.telnyx, { from: '+15550001111', to: '+14155550123', text: 'Hi', type: 'SMS' }); });
+test('task dry run never builds a Telnyx payload', () => { const a = tAfterLog(200, { id: 'm1', duplicate: false, status: 'dry_run' }, { live: false }); assert.equal(a.telnyx, undefined); assert.match(a.finish.body.p_reason, /dry_run/); });
+test('task already sent is not sent again and completes', () => { const a = tAfterLog(200, { id: 'm1', duplicate: true, status: 'sent' }); assert.equal(a.telnyx, undefined); assert.equal(a.finish.body.p_outcome, 'sms_sent'); });
+test('task in-flight duplicate is suppressed', () => { const a = tAfterLog(200, { id: 'm1', duplicate: true, status: 'queued' }); assert.equal(a.telnyx, undefined); assert.equal(a.finish.body.p_reason, 'duplicate_suppressed'); });
+test('task log failure sends nothing', () => { const a = tAfterLog(500, {}); assert.equal(a.telnyx, undefined); assert.equal(a.finish.body.p_outcome, 'failed'); });
+
+const tAfterSend = (statusCode, body) => runCode('sms-task-after-send.js', { json: { statusCode, body }, nodes: { 'After log': { task_id: T.task_id, message_id: 'm1' } } }).json;
+test('task Telnyx success records the id and completes as sms_sent', () => { const a = tAfterSend(200, { data: { id: 'tx-1' } }); assert.deepEqual(a.update, { p_id: 'm1', p_status: 'sent', p_external_id: 'tx-1', p_error: null }); assert.equal(a.finish.body.p_outcome, 'sms_sent'); });
+test('task Telnyx rejection fails the message and the task retries', () => { const a = tAfterSend(422, { errors: [{ code: '40310', detail: 'PRIVATE' }] }); assert.equal(a.update.p_status, 'failed'); assert.equal(a.finish.body.p_outcome, 'failed'); assert.equal(a.finish.body.p_retry_in_minutes, 15); assert.equal(JSON.stringify(a).includes('PRIVATE'), false); });
+test('task Telnyx 200 without an id is not trusted', () => assert.equal(tAfterSend(200, {}).finish.body.p_outcome, 'failed'));
+
+// ---------------- follow-up workflow shape
+const fuFile = JSON.parse(readFileSync(new URL('./workflows/zella-followup-texts.json', import.meta.url), 'utf8'));
+test('follow-up workflow claims text tasks only, for the listed kinds', () => {
+  const n = fuFile.nodes.find((x) => x.name === 'Claim follow-ups');
+  assert.ok(n.parameters.url.endsWith('/rpc/zella_claim_followup_texts'));
+  for (const k of ['no_show_follow_up', 'post_appointment_follow_up', 'quote_follow_up', 'lead_reactivation']) assert.ok(n.parameters.jsonBody.includes(k), k);
+  assert.ok(!n.parameters.jsonBody.includes('waitlist_offer'));
+});
+test('follow-up Telnyx box is reachable only after the live check and ships with no credential', () => {
+  const into = Object.entries(fuFile.connections).filter(([, v]) => v.main.flat().some((l) => l.node === 'Send via Telnyx')).map(([k]) => k);
+  assert.deepEqual(into, ['Send for real']);
+  const n = fuFile.nodes.find((x) => x.name === 'Send via Telnyx'); assert.equal(n.parameters.authentication, 'none'); assert.equal(n.credentials, undefined);
+});
+test('follow-up workflow only reports results through task functions', () => {
+  const t = JSON.stringify(fuFile);
+  assert.ok(!t.includes('zella_complete_reminder') && !t.includes('zella_skip_reminder') && !t.includes('zella_claim_reminders'));
+});
+
+for (const file of ['zella-event-gateway.json', 'zella-event-router.json', 'zella-schedulers.json', 'zella-sms-sender.json', 'zella-followup-texts.json']) {
   const w = JSON.parse(readFileSync(new URL('./workflows/' + file, import.meta.url), 'utf8'));
   const names = w.nodes.map((n) => n.name);
   test(file + ': node names are unique', () => assert.equal(new Set(names).size, names.length));
