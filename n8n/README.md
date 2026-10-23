@@ -83,6 +83,17 @@ Run `sql/zella_inbound_replies.sql` after `zella_followup_emails.sql`. The route
 - Replies to a customer's own message go out straight away (no calling-hours delay) and are never moved to email.
 - **Not covered yet:** letting the customer pick a new time by text, a staff reply screen, and replies to emails.
 
+## Outbound calls (dry-run)
+
+Run `sql/zella_outbound_calls.sql` (needs `zella_followups.sql` and the callbacks file). Import `workflows/zella-outbound-calls.json`.
+
+- Two things are called: **callbacks Zella may place itself** (missed call, new lead; the business switched auto-call on) and **follow-up tasks set to "call"** (no-show, after a visit, a quote).
+- The workflow claims what is due, and only when `calls_live` is true **and** `vapi_assistant_id` and `vapi_phone_number_id` are set does it ask Vapi to place the call. Otherwise nothing is dialled: the item is put back (no attempt used) and comes up again in 12 hours.
+- Calling hours, do-not-contact and attempt limits apply as before. A person who cannot be called (opted out, no number) moves to a text, then an email.
+- A bad phone number is recorded as a failed attempt. A refused Vapi request counts as a failed attempt, so the normal retry rules apply.
+- The Vapi box ships with **no credential**; add the Vapi key by hand when going live.
+- **Not built yet:** the result of a call (answered, no answer, voicemail, wants a callback) arrives later from Vapi's end-of-call report. The router needs a handler that maps it to `zella_record_callback_attempt` / `zella_complete_followup_task` using the `zella_source` and `zella_id` that each call carries in its metadata. A call that was placed but whose report never arrives also needs a sweep. Both need a real Vapi account to test.
+
 ## The Reschedule button
 
 Run `sql/zella_reschedule.sql` after `zella_email_sender.sql`.

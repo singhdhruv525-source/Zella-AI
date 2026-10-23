@@ -108,7 +108,7 @@ test('execution id is optional when logging failed to start', () => assert.equal
 // ---------------- dispatcher (timed jobs run in Supabase; n8n is only called when work is waiting)
 const dispatcherSql = readFileSync(new URL('../sql/zella_dispatcher.sql', import.meta.url), 'utf8');
 const wfJson = (f) => JSON.parse(readFileSync(new URL('./workflows/' + f, import.meta.url), 'utf8'));
-const RUN_PATHS = { 'zella-event-router.json': 'event-router', 'zella-sms-sender.json': 'sms-sender', 'zella-email-sender.json': 'email-sender', 'zella-followup-texts.json': 'followup-texts', 'zella-followup-emails.json': 'followup-emails', 'zella-owner-emails.json': 'owner-emails' };
+const RUN_PATHS = { 'zella-event-router.json': 'event-router', 'zella-sms-sender.json': 'sms-sender', 'zella-email-sender.json': 'email-sender', 'zella-followup-texts.json': 'followup-texts', 'zella-followup-emails.json': 'followup-emails', 'zella-owner-emails.json': 'owner-emails', 'zella-outbound-calls.json': 'outbound-calls' };
 test('no workflow wakes itself on a timer (that would burn the monthly n8n run allowance)', () => {
   for (const f of [...Object.keys(RUN_PATHS), 'zella-event-gateway.json']) assert.ok(!JSON.stringify(wfJson(f)).includes('scheduleTrigger'), f);
 });
@@ -432,6 +432,41 @@ for (const file of ['zella-event-gateway.json', 'zella-event-router.json', 'zell
   });
 }
 
+// ---------------- outbound calls (dry-run by default)
+const callSql = readFileSync(new URL('../sql/zella_outbound_calls.sql', import.meta.url), 'utf8');
+const cplan = (c) => runCode('call-plan.js', { json: c }).json;
+const CT = { source: 'task', id: 't-1', kind: 'no_show_follow_up', live: true, assistant_id: 'a1', phone_number_id: 'p1', business: { id: 'b1', name: 'Salon', timezone: 'America/New_York' }, customer: { id: 'c1', first_name: 'Sam', last_name: 'Lee', phone: '(555) 123-4567' }, appointment: { id: 'ap', title: 'Haircut', start_time: '2026-11-02T15:00:00Z' } };
+const CB = { source: 'callback', id: 'cb-1', callback_id: 'cb-1', reason: 'new_lead', live: true, assistant_id: 'a1', phone_number_id: 'p1', contact_number: '+15551234567', business: { id: 'b1', name: 'Salon', timezone: 'America/New_York' }, customer: { id: null, first_name: null } };
+test('in dry-run (not live) nothing is dialled; the item is put back for later', () => {
+  for (const c of [CT, CB]) { const p = cplan({ ...c, live: false }); assert.equal(p.call, null); assert.equal(p.record.rpc, 'zella_release_call'); assert.equal(p.record.body.p_reason, 'dry_run'); assert.equal(p.record.body.p_source, c.source); }
+});
+test('live: a follow-up task becomes a Vapi request with an E.164 number and the call context', () => {
+  const p = cplan(CT); assert.equal(p.record, null); assert.equal(p.call.customer.number, '+15551234567'); assert.equal(p.call.assistantId, 'a1'); assert.equal(p.call.phoneNumberId, 'p1');
+  assert.equal(p.call.assistantOverrides.variableValues.first_name, 'Sam'); assert.match(p.call.assistantOverrides.variableValues.appointment_time, /Monday, November 2 at/);
+  assert.deepEqual(p.call.metadata, { zella_source: 'task', zella_id: 't-1', business_id: 'b1' });
+});
+test('live: a callback is dialled at its contact number', () => { const p = cplan(CB); assert.equal(p.call.customer.number, '+15551234567'); assert.equal(p.call.metadata.zella_source, 'callback'); });
+test('a bad number is reported as a failed attempt, never dialled', () => {
+  const a = cplan({ ...CT, customer: { ...CT.customer, phone: '12' } }); assert.equal(a.call, null); assert.equal(a.record.rpc, 'zella_complete_followup_task'); assert.equal(a.record.body.p_outcome, 'failed');
+  const b = cplan({ ...CB, contact_number: 'x' }); assert.equal(b.record.rpc, 'zella_record_callback_attempt'); assert.equal(b.record.body.p_outcome, 'invalid_number');
+});
+const cafter = (r, plan) => runCode('call-after.js', { json: r, nodes: { Plan: plan } }).json;
+test('Vapi accepted the call: the provider call id is remembered', () => {
+  const r = cafter({ statusCode: 201, body: { id: 'call_123' } }, { source: 'task', id: 't-1', call: {} }); assert.equal(r.record.rpc, 'zella_mark_call_placed'); assert.equal(r.record.body.p_provider_call_id, 'call_123');
+});
+test('Vapi refused the call: it counts as a failed attempt so the retry rules apply', () => {
+  const t = cafter({ statusCode: 400, body: {} }, { source: 'task', id: 't-1' }); assert.equal(t.record.rpc, 'zella_complete_followup_task'); assert.equal(t.record.body.p_outcome, 'failed');
+  const c = cafter({ statusCode: 500, body: {} }, { source: 'callback', id: 'cb-1' }); assert.equal(c.record.rpc, 'zella_record_callback_attempt'); assert.equal(c.record.body.p_outcome, 'failed_connection');
+});
+test('the Vapi box ships with no credential and the dispatcher counts calls that are due', () => {
+  const w = wfJson('zella-outbound-calls.json'); const v = w.nodes.find((n) => n.name === 'Start Vapi call'); assert.equal(v.parameters.authentication, 'none'); assert.ok(!v.credentials);
+  assert.ok(dispatcherSql.includes("when 'outbound-calls'"));
+});
+test('the call SQL never dials anything itself and leaves nothing open to customers', () => {
+  assert.ok(!/api\.vapi\.ai|net\.http_post/.test(callSql)); assert.ok(callSql.includes("revoke execute on function public.%s from public, anon, authenticated"));
+});
+
 console.log(`${passed} passed, ${failures.length} failed`);
 for (const f of failures) console.log('  FAIL ' + f);
 process.exit(failures.length ? 1 : 0);
+

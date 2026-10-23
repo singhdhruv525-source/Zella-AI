@@ -240,6 +240,34 @@ const followupSender = smsFlow('Zella - Follow-up Texts', {
   files: { plan: 'sms-task-plan.js', decide: 'sms-task-decide.js', afterLog: 'sms-task-after-log.js', afterSend: 'sms-task-after-send.js' },
 });
 
+// Outbound calls: callbacks Zella may place itself (missed call, new lead) and follow-up tasks set to "call".
+// Dry-run by default: until calls_live is true and Vapi is set up, nothing is dialled and the item is put back
+// for later. The Vapi box ships with NO credential, for the same reason as Telnyx and Resend. The result of a
+// call (answered, no answer, voicemail) arrives afterwards from Vapi's end-of-call report.
+const outboundCalls = wf('Zella - Outbound Calls', [
+  runTrigger('outbound-calls'),
+  rpcNode('Claim callback calls', [240, 100], 'zella_claim_callback_calls', '={{ JSON.stringify({ p_limit: 10 }) }}'),
+  rpcNode('Claim follow-up calls', [240, 300], 'zella_claim_followup_calls', '={{ JSON.stringify({ p_limit: 10 }) }}'),
+  code('Plan', [480, 200], 'call-plan.js'),
+  ifBool('Place call', [720, 200], '={{ !!$json.call }}'),
+  node('Start Vapi call', 'n8n-nodes-base.httpRequest', 4.2, [960, 100], {
+    method: 'POST', url: 'https://api.vapi.ai/call', authentication: 'none',
+    sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify($json.call) }}',
+    options: { response: { response: { fullResponse: true, neverError: true, responseFormat: 'json' } } },
+  }),
+  code('After call', [1200, 100], 'call-after.js'),
+  rpcNode('Record call', [1440, 200], '', '={{ JSON.stringify($json.record.body) }}',
+    { full: true, urlExpr: `={{ '${SUPABASE}/rest/v1/rpc/' + $json.record.rpc }}` }),
+], {
+  'Run now': { main: [[link('Claim callback calls'), link('Claim follow-up calls')]] },
+  'Claim callback calls': { main: [[link('Plan')]] },
+  'Claim follow-up calls': { main: [[link('Plan')]] },
+  'Plan': { main: [[link('Place call')]] },
+  'Place call': { main: [[link('Start Vapi call')], [link('Record call')]] },
+  'Start Vapi call': { main: [[link('After call')]] },
+  'After call': { main: [[link('Record call')]] },
+});
+
 writeFileSync(join(out, 'zella-event-gateway.json'), JSON.stringify(gateway, null, 2) + '\n');
 writeFileSync(join(out, 'zella-event-router.json'), JSON.stringify(router, null, 2) + '\n');
 writeFileSync(join(out, 'zella-sms-sender.json'), JSON.stringify(smsSender, null, 2) + '\n');
@@ -247,4 +275,5 @@ writeFileSync(join(out, 'zella-email-sender.json'), JSON.stringify(emailSender, 
 writeFileSync(join(out, 'zella-owner-emails.json'), JSON.stringify(ownerEmails, null, 2) + '\n');
 writeFileSync(join(out, 'zella-followup-emails.json'), JSON.stringify(followupEmails, null, 2) + '\n');
 writeFileSync(join(out, 'zella-followup-texts.json'), JSON.stringify(followupSender, null, 2) + '\n');
-console.log('Built', [gateway, router, smsSender, followupSender, emailSender, followupEmails, ownerEmails].map((w) => w.name + ' (' + w.nodes.length + ')').join(', '));
+writeFileSync(join(out, 'zella-outbound-calls.json'), JSON.stringify(outboundCalls, null, 2) + '\n');
+console.log('Built', [gateway, router, smsSender, followupSender, emailSender, followupEmails, ownerEmails, outboundCalls].map((w) => w.name + ' (' + w.nodes.length + ')').join(', '));
