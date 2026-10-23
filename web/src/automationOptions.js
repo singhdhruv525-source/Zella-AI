@@ -6,7 +6,7 @@ const TRIES = [[1, "1 try"], [2, "2 tries"], [3, "3 tries"]];
 
 export const AUTOMATION_OPTIONS = {
   appointment_reminder: [
-    { key: "hours_before", label: "Remind them", kind: "chips", options: [[48, "2 days before"], [24, "1 day before"], [4, "4 hours before"], [2, "2 hours before"], [1, "1 hour before"]] },
+    { key: "hours_before", label: "Remind them", kind: "chips", options: [[48, "2 days before"], [24, "1 day before"], [4, "4 hours before"], [2, "2 hours before"], [1, "1 hour before"], [0.5, "30 minutes before"], [0.25, "15 minutes before"]] },
     { key: "channel", label: "Send by", options: [["sms", "Text"], ["call", "AI call"], ["sms_and_call", "Text and AI call"]] },
   ],
   appointment_confirmation: [

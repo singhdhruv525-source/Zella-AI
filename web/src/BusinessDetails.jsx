@@ -49,11 +49,13 @@ const POLICY_LABELS = {
   emergency: "Emergency", appointment: "Appointment", other: "Other information",
 };
 
+const beforeText = (h) => (h < 1 ? `${Math.round(h * 60)} min` : `${h} h`);
+
 function describeSettings(settings = {}) {
   const parts = [];
   if (Array.isArray(settings.hours_before)) {
-    parts.push(settings.hours_before.length ? `${settings.hours_before.join(" h, ")} h before` : "no reminder times");
-  } else if (settings.hours_before) parts.push(`${settings.hours_before} h before`);
+    parts.push(settings.hours_before.length ? `${settings.hours_before.map(beforeText).join(", ")} before` : "no reminder times");
+  } else if (settings.hours_before) parts.push(`${beforeText(settings.hours_before)} before`);
   if (settings.hours_after) parts.push(`${settings.hours_after} h after`);
   if (settings.minutes_after != null) parts.push(settings.minutes_after === 0 ? "immediately" : `after ${settings.minutes_after} min`);
   if (settings.max_attempts) parts.push(`up to ${settings.max_attempts} tries`);
