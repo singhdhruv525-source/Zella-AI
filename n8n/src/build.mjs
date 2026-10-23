@@ -197,7 +197,7 @@ const smsSender = smsFlow('Zella - SMS Sender', {
 
 // Follow-up texts: no-show, post-visit, quote and reactivation. Text tasks only, so call tasks are
 // never picked up here. (Waitlist offers need reply handling and are not included yet.)
-export const FOLLOWUP_KINDS = ['no_show_follow_up', 'post_appointment_follow_up', 'quote_follow_up', 'lead_reactivation'];
+export const FOLLOWUP_KINDS = ['no_show_follow_up', 'post_appointment_follow_up', 'quote_follow_up', 'lead_reactivation', 'callback_sms'];
 const followupSender = smsFlow('Zella - Follow-up Texts', {
   claimName: 'Claim follow-ups', finishName: 'Finish follow-up',
   claim: (n, pos) => rpcNode(n, pos, 'zella_claim_followup_texts', `={{ JSON.stringify({ p_limit: 20, p_kinds: ${JSON.stringify(FOLLOWUP_KINDS)} }) }}`),

@@ -10,7 +10,14 @@ const kinds = {
   quote_follow_up: { key: 'quote_follow_up', purpose: 'transactional' },
   lead_reactivation: { key: 'lead_reactivation', purpose: 'marketing' },
 };
-const k = kinds[t.kind];
+// A callback that ran out of tries leaves a text task behind. The message depends on why the callback existed.
+const byReason = { missed_call: 'missed_call_follow_up', new_lead: 'lead_acknowledgement' };
+let k = kinds[t.kind];
+if (t.kind === 'callback_sms') {
+  const key = byReason[t.callback_reason];
+  if (!key) return skip('unknown_callback_reason:' + String(t.callback_reason).slice(0, 30));
+  k = { key, purpose: 'transactional' };
+}
 if (t.channel !== 'sms') return skip('channel_not_supported_yet:' + t.channel);
 if (!k) return skip('unknown_followup_kind:' + t.kind);
 

@@ -194,6 +194,9 @@ test('no-show follow-up uses its template, transactional', () => { const p = tpl
 test('quote and post-visit follow-ups are transactional', () => { for (const k of ['quote_follow_up', 'post_appointment_follow_up']) { const p = tplan({ ...T, kind: k }); assert.equal(p.prepare.p_template_key, k); assert.equal(p.prepare.p_purpose, 'transactional'); } });
 test('reactivation is marketing, so it needs opt-in', () => assert.equal(tplan({ ...T, kind: 'lead_reactivation' }).prepare.p_purpose, 'marketing'));
 test('a call task is skipped, never texted', () => { const p = tplan({ ...T, channel: 'call' }); assert.equal(p.finish.rpc, 'zella_skip_followup_task'); assert.match(p.finish.body.p_reason, /channel_not_supported_yet:call/); assert.equal(p.prepare, undefined); });
+test('callback fallback for a missed call uses the missed-call text', () => { const p = tplan({ ...T, kind: 'callback_sms', callback_reason: 'missed_call' }); assert.equal(p.finish, null); assert.equal(p.prepare.p_template_key, 'missed_call_follow_up'); assert.equal(p.prepare.p_purpose, 'transactional'); });
+test('callback fallback for a new lead uses the lead acknowledgement', () => assert.equal(tplan({ ...T, kind: 'callback_sms', callback_reason: 'new_lead' }).prepare.p_template_key, 'lead_acknowledgement'));
+test('callback fallback with an unknown or missing reason is skipped', () => { for (const r of ['requested', undefined, null]) assert.match(tplan({ ...T, kind: 'callback_sms', callback_reason: r }).finish.body.p_reason, /unknown_callback_reason/); });
 test('unknown task kind is skipped with a reason', () => assert.match(tplan({ ...T, kind: 'waitlist_offer' }).finish.body.p_reason, /unknown_followup_kind:waitlist_offer/));
 
 const tPlanned = { task_id: T.task_id, business_id: BIZ, customer_id: 'cust-1' };
@@ -220,7 +223,7 @@ const fuFile = JSON.parse(readFileSync(new URL('./workflows/zella-followup-texts
 test('follow-up workflow claims text tasks only, for the listed kinds', () => {
   const n = fuFile.nodes.find((x) => x.name === 'Claim follow-ups');
   assert.ok(n.parameters.url.endsWith('/rpc/zella_claim_followup_texts'));
-  for (const k of ['no_show_follow_up', 'post_appointment_follow_up', 'quote_follow_up', 'lead_reactivation']) assert.ok(n.parameters.jsonBody.includes(k), k);
+  for (const k of ['no_show_follow_up', 'post_appointment_follow_up', 'quote_follow_up', 'lead_reactivation', 'callback_sms']) assert.ok(n.parameters.jsonBody.includes(k), k);
   assert.ok(!n.parameters.jsonBody.includes('waitlist_offer'));
 });
 test('follow-up Telnyx box is reachable only after the live check and ships with no credential', () => {

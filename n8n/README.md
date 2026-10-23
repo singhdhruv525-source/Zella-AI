@@ -7,7 +7,7 @@ Five workflows so far. Both are shared by every business and every industry. Not
 | `workflows/zella-event-gateway.json` | Receives events at `POST /webhook/zella/events`, checks them, stores them once (`zella_ingest_event`), replies quickly. Repeats are recognised and stored only once. |
 | `workflows/zella-schedulers.json` | Runs 10 timed database checks (see below). A failed check raises one grouped alert in the platform alerts list. |
 | `workflows/zella-sms-sender.json` | Every minute: takes due appointment reminders and confirmations, checks consent and the template in the database, logs the message, and sends it through Telnyx **only when live**. In dry-run (the default) nothing is sent. |
-| `workflows/zella-followup-texts.json` | Every minute: takes due follow-up **text** tasks (no-show, post-visit thank-you, quote follow-up, reactivation) and runs them through the same consent check, logging and dry-run switch as the reminders. Call tasks are never picked up. |
+| `workflows/zella-followup-texts.json` | Every minute: takes due follow-up **text** tasks (no-show, post-visit thank-you, quote follow-up, reactivation, and the fallback text after a callback runs out of tries) and runs them through the same consent check, logging and dry-run switch as the reminders. Call tasks are never picked up. |
 | `workflows/zella-event-router.json` | Every minute: takes up to 20 stored events (`zella_claim_events`), runs the right handler, writes an execution record, and reports the result (`zella_complete_event`). Temporary failures are retried by the database with a growing delay. Permanent ones go to the dead-letter list. |
 
 ## What the router handles today
@@ -44,7 +44,7 @@ Run `sql/zella_sms_sender.sql` in the Supabase SQL editor first. It adds four fu
 - **No double texts.** Each reminder has one message record. A repeat is suppressed. A failed try may be retried; the database retries twice, then tells staff.
 - **To go live (later, all of these):** a Telnyx number and approved 10DLC registration, a Header Auth credential named `Zella Telnyx` (name `Authorization`, value `Bearer <Telnyx key>`) selected by hand on the "Send via Telnyx" box (it ships with no credential on purpose; on import n8n may offer another Header Auth credential, such as the gateway secret, so check which one is chosen), `sms_from_number` set, then `sms_live` set to `true`. Test with one number you own first.
 - **Two flows use this pipeline:** reminders and confirmations (SMS Sender), and follow-up texts (Follow-up Texts). Other channels (email, call) are skipped with `channel_not_supported_yet:<channel>`.
-- **Follow-up texts:** run `sql/zella_followup_texts.sql` first (3 templates, a text-only claim, a skip function). Reactivation is marketing, so it is only sent to people who opted in. Waitlist offers are not included yet (they need reply handling). Callbacks and missed-call texts are not wired yet.
+- **Follow-up texts:** run `sql/zella_followup_texts.sql` first (3 templates, a text-only claim, a skip function), then `sql/zella_callback_sms.sql` (adds the callback reason to the claim). A callback that runs out of tries leaves a `callback_sms` task: a missed call gets the missed-call text, a new lead gets the lead acknowledgement. Reactivation is marketing, so it is only sent to people who opted in. Waitlist offers are not included yet (they need reply handling). Callbacks and missed-call texts are not wired yet.
 - **Not covered:** inbound delivery receipts (Telnyx status webhooks) and per-business sender numbers.
 
 ## Setup (once)
