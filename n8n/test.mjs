@@ -130,8 +130,8 @@ test('the dispatcher only checks the follow-up kinds the workflows really handle
   const list = (name) => dispatcherSql.match(new RegExp(name + ' text\\[\\] := array\\[([^\\]]*)\\]'))[1].split(',').map((x) => x.trim().replace(/'/g, ''));
   assert.deepEqual(list('v_text_kinds'), FOLLOWUP_KINDS); assert.deepEqual(list('v_email_kinds'), FOLLOWUP_EMAIL_KINDS);
 });
-test('all 18 timed jobs run inside the database, on the same rhythm as before', () => {
-  const jobs = { every5: ['zella_flag_overdue_leads', 'zella_expire_holds', 'zella_expire_waitlist_offers', 'zella_detect_transfer_failures', 'zella_flag_overdue_callbacks', 'zella_sweep_stuck_calls', 'zella_check_engine_health', 'zella_rebalance_assignments', 'zella_check_unassigned_work'], every15: ['zella_queue_quote_followups'], hourly: ['zella_post_daily_summaries', 'zella_schedule_calendar_pulls', 'zella_check_customer_requests'], daily: ['zella_queue_lead_reactivation', 'zella_check_setup_incomplete', 'zella_check_trials', 'zella_apply_payment_policy'], weekly: ['zella_post_weekly_reviews'] };
+test('all 19 timed jobs run inside the database, on the same rhythm as before', () => {
+  const jobs = { every5: ['zella_flag_overdue_leads', 'zella_expire_holds', 'zella_expire_waitlist_offers', 'zella_detect_transfer_failures', 'zella_flag_overdue_callbacks', 'zella_sweep_stuck_calls', 'zella_check_engine_health', 'zella_rebalance_assignments', 'zella_check_unassigned_work'], every15: ['zella_queue_quote_followups'], hourly: ['zella_post_daily_summaries', 'zella_schedule_calendar_pulls', 'zella_check_customer_requests'], daily: ['zella_queue_lead_reactivation', 'zella_check_setup_incomplete', 'zella_check_trials', 'zella_apply_payment_policy', 'zella_queue_customer_touches'], weekly: ['zella_post_weekly_reviews'] };
   for (const [g, fns] of Object.entries(jobs)) for (const fn of fns) { assert.ok(dispatcherSql.includes("'" + fn + "'"), fn); assert.ok(new RegExp("when '" + g + "'\\s+then array\\[[^\\]]*'" + fn + "'").test(dispatcherSql), g + ' ' + fn); }
   for (const cron of ["'* * * * *'", "'*/5 * * * *'", "'*/15 * * * *'", "'0 * * * *'", "'0 4 * * *'", "'0 8 * * 1'"]) assert.ok(dispatcherSql.includes(cron), cron);
 });
@@ -779,6 +779,21 @@ test('customer requests: duplicates within a day are not repeated, closing needs
   assert.ok(reqSql.includes("interval '24 hours' limit 1") && reqSql.includes("raise exception 'NOTE_REQUIRED'"));
   assert.ok(/revoke execute on function public\.zella_log_customer_request[^;]*from public, anon, authenticated;\s*grant execute on function public\.zella_log_customer_request[^;]*to service_role;/.test(reqSql));
   assert.ok(!/delete from public\.customers|update public\.customers/.test(reqSql), 'Zella never changes or deletes customer data by itself');
+});
+
+
+// ---------------- customer messages (welcome, feedback, cancellation, status, service due, no reply)
+test('customer messages: every new kind maps to a template and passes only short text details on', () => {
+  for (const k of ['welcome_new_customer', 'feedback_request', 'cancellation_confirmation', 'record_status_update', 'service_due', 'no_response_follow_up']) {
+    const p = tplan({ ...T, kind: k, vars: { status_line: 'x'.repeat(500), service: 'cleaning', evil: { a: 1 } } });
+    assert.equal(p.finish, null); assert.equal(p.prepare.p_template_key, k); assert.equal(p.prepare.p_purpose, 'transactional');
+    assert.equal(p.prepare.p_vars.status_line.length, 300); assert.equal(p.prepare.p_vars.service, 'cleaning'); assert.equal(p.prepare.p_vars.evil, undefined);
+    const e = teplan({ ...TE, kind: k, vars: { service: 'cleaning' } });
+    assert.equal(e.prepare.p_template_key, k); assert.equal(e.prepare.p_vars.service, 'cleaning');
+  }
+});
+test('customer messages: the timed check is on the daily list', () => {
+  assert.ok(readFileSync(new URL('../sql/zella_dispatcher.sql', import.meta.url), 'utf8').includes("'zella_queue_customer_touches'"));
 });
 
 console.log(`${passed} passed, ${failures.length} failed`);

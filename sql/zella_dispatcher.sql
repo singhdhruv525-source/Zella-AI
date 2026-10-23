@@ -33,7 +33,7 @@ begin
                    'zella_queue_quote_followups', 'zella_post_daily_summaries', 'zella_queue_lead_reactivation',
                    'zella_check_setup_incomplete', 'zella_check_trials', 'zella_apply_payment_policy', 'zella_post_weekly_reviews',
                    'zella_flag_overdue_callbacks', 'zella_sweep_stuck_calls', 'zella_check_engine_health', 'zella_schedule_calendar_pulls',
-                   'zella_rebalance_assignments', 'zella_check_unassigned_work', 'zella_check_customer_requests') then
+                   'zella_rebalance_assignments', 'zella_check_unassigned_work', 'zella_check_customer_requests', 'zella_queue_customer_touches') then
     return 'not_allowed';
   end if;
   begin
@@ -54,7 +54,7 @@ begin
       when 'every5'  then array['zella_flag_overdue_leads', 'zella_expire_holds', 'zella_expire_waitlist_offers', 'zella_detect_transfer_failures', 'zella_flag_overdue_callbacks', 'zella_sweep_stuck_calls', 'zella_check_engine_health', 'zella_rebalance_assignments', 'zella_check_unassigned_work']
       when 'every15' then array['zella_queue_quote_followups']
       when 'hourly'  then array['zella_post_daily_summaries', 'zella_schedule_calendar_pulls', 'zella_check_customer_requests']
-      when 'daily'   then array['zella_queue_lead_reactivation', 'zella_check_setup_incomplete', 'zella_check_trials', 'zella_apply_payment_policy']
+      when 'daily'   then array['zella_queue_lead_reactivation', 'zella_check_setup_incomplete', 'zella_check_trials', 'zella_apply_payment_policy', 'zella_queue_customer_touches']
       when 'weekly'  then array['zella_post_weekly_reviews']
       else array[]::text[] end) loop
     r := r || jsonb_build_object(j, public.zella_run_scheduled_job(j));
@@ -70,8 +70,8 @@ declare
   v_base text := nullif(trim(public.zella_setting('n8n_base_url', '""'::jsonb) #>> '{}'), '');
   v_on boolean := coalesce(public.zella_setting('n8n_dispatch_enabled', 'true'::jsonb) = 'true'::jsonb, true);
   v_secret text; w record; n integer; st public.n8n_dispatch_state; v_same integer; v_res jsonb := '{}'::jsonb;
-  v_text_kinds text[] := array['no_show_follow_up', 'post_appointment_follow_up', 'quote_follow_up', 'lead_reactivation', 'callback_sms', 'reply_confirmed', 'reply_reschedule', 'reply_help', 'waitlist_offer'];
-  v_email_kinds text[] := array['no_show_follow_up', 'post_appointment_follow_up', 'quote_follow_up', 'lead_reactivation', 'callback_sms'];
+  v_text_kinds text[] := array['no_show_follow_up', 'post_appointment_follow_up', 'quote_follow_up', 'lead_reactivation', 'callback_sms', 'welcome_new_customer', 'feedback_request', 'cancellation_confirmation', 'record_status_update', 'service_due', 'no_response_follow_up', 'reply_confirmed', 'reply_reschedule', 'reply_help', 'waitlist_offer'];
+  v_email_kinds text[] := array['no_show_follow_up', 'post_appointment_follow_up', 'quote_follow_up', 'lead_reactivation', 'callback_sms', 'welcome_new_customer', 'feedback_request', 'cancellation_confirmation', 'record_status_update', 'service_due', 'no_response_follow_up'];
 begin
   if not v_on then return jsonb_build_object('skipped', 'switched_off'); end if;
   if v_base is null then return jsonb_build_object('skipped', 'no_base_url'); end if;

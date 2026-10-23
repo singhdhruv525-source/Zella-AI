@@ -9,10 +9,10 @@ Item numbers and names come from the Zella AI Complete Automation Guide. Status 
 
 Items are served by a small set of shared workflows (see `n8n/README.md`), not one workflow per item. Many industry items (196 to 254) are configurations of the shared appointment, message, assignment and reminder engines; the 98 starter automation rows per industry are seeded in the database.
 
-**Totals:** Built 80, Partly 31, Rules ready 35, Not built 192.
+**Totals:** Built 101, Partly 32, Rules ready 35, Not built 170.
 
 
-## 1. Calls and AI receptionist (16) — Built 3, Partly 4, Rules ready 3, Not built 6
+## 1. Calls and AI receptionist (16) — Built 3, Partly 4, Rules ready 4, Not built 5
 
 | # | Automation | Status |
 |---|---|---|
@@ -28,7 +28,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 10 | Callback request capture | Partly |
 | 11 | Voicemail and message taking | Not built |
 | 12 | Emergency escalation | Not built |
-| 13 | AI failure recovery | Not built |
+| 13 | AI failure recovery | Rules ready |
 | 14 | Call summary and CRM logging | Partly |
 | 15 | Repeat caller recognition | Partly |
 | 16 | Unanswered question tracking | Built |
@@ -52,17 +52,17 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 29 | Duplicate callback prevention | Built |
 | 30 | Callback recovery | Built |
 
-## 3. Appointments and calendars (20) — Built 9, Partly 3, Rules ready 5, Not built 3
+## 3. Appointments and calendars (20) — Built 14, Partly 2, Rules ready 4, Not built 0
 
 | # | Automation | Status |
 |---|---|---|
 | 31 | Booking acknowledgment | Rules ready |
 | 32 | Availability checking | Built |
 | 33 | Appointment booking | Built |
-| 34 | Confirmation delivery | Partly |
+| 34 | Confirmation delivery | Built |
 | 35 | Appointment reminders | Built |
-| 36 | Customer confirmation | Rules ready |
-| 37 | No-response follow-up | Not built |
+| 36 | Customer confirmation | Built |
+| 37 | No-response follow-up | Built |
 | 38 | Rescheduling | Built |
 | 39 | Cancellation handling | Built |
 | 40 | Old reminder invalidation | Built |
@@ -73,23 +73,23 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 45 | No-show follow-up | Built |
 | 46 | Appointment completion | Rules ready |
 | 47 | Thank-you message | Built |
-| 48 | Feedback and review request | Not built |
-| 49 | Repeat booking and recall | Not built |
+| 48 | Feedback and review request | Built |
+| 49 | Repeat booking and recall | Built |
 | 50 | Booking failure and conflict recovery | Partly |
 
-## 4. Email automation (15) — Built 3, Partly 3, Rules ready 1, Not built 8
+## 4. Email automation (15) — Built 5, Partly 5, Rules ready 1, Not built 4
 
 | # | Automation | Status |
 |---|---|---|
-| 51 | Transactional email | Partly |
-| 52 | Booking follow-up email | Not built |
+| 51 | Transactional email | Built |
+| 52 | Booking follow-up email | Partly |
 | 53 | Lead follow-up email | Partly |
 | 54 | Callback email | Built |
 | 55 | Quote follow-up email | Built |
-| 56 | Change notification email | Not built |
+| 56 | Change notification email | Partly |
 | 57 | Business onboarding email | Not built |
-| 58 | Service completion email | Not built |
-| 59 | Feedback and renewal email | Not built |
+| 58 | Service completion email | Partly |
+| 59 | Feedback and renewal email | Built |
 | 60 | Inbound email processing | Not built |
 | 61 | Reply classification | Not built |
 | 62 | CRM email linking | Not built |
@@ -97,7 +97,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 64 | Unsubscribe processing | Rules ready |
 | 65 | Email templates and summaries | Partly |
 
-## 5. SMS and messaging automation (15) — Built 9, Partly 4, Rules ready 0, Not built 2
+## 5. SMS and messaging automation (15) — Built 10, Partly 4, Rules ready 0, Not built 1
 
 | # | Automation | Status |
 |---|---|---|
@@ -112,21 +112,21 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 74 | Consent and opt-out management | Built |
 | 75 | STOP and HELP handling | Built |
 | 76 | Quiet hours and contact limits | Built |
-| 77 | Human handover | Not built |
+| 77 | Human handover | Built |
 | 78 | Duplicate message prevention | Built |
 | 79 | SMS templates | Built |
 | 80 | Channel preferences | Partly |
 
-## 6. Leads and sales CRM (20) — Built 6, Partly 2, Rules ready 2, Not built 10
+## 6. Leads and sales CRM (20) — Built 13, Partly 2, Rules ready 1, Not built 4
 
 | # | Automation | Status |
 |---|---|---|
 | 81 | Website lead capture | Not built |
 | 82 | Social lead capture | Not built |
 | 83 | Lead attribution | Not built |
-| 84 | Duplicate lead detection | Not built |
-| 85 | Lead qualification | Not built |
-| 86 | Lead prioritization | Not built |
+| 84 | Duplicate lead detection | Built |
+| 85 | Lead qualification | Built |
+| 86 | Lead prioritization | Built |
 | 87 | Lead assignment | Built |
 | 88 | Round-robin assignment | Built |
 | 89 | New-lead notifications | Built |
@@ -135,14 +135,14 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 92 | Overdue lead escalation | Built |
 | 93 | Quote and proposal follow-up | Built |
 | 94 | Stale-lead reactivation | Partly |
-| 95 | Lead-stage updates | Rules ready |
-| 96 | Conversion tracking | Not built |
-| 97 | Lost-lead tracking | Not built |
+| 95 | Lead-stage updates | Built |
+| 96 | Conversion tracking | Built |
+| 97 | Lost-lead tracking | Built |
 | 98 | Lead reassignment | Built |
-| 99 | Follow-up suppression after conversion | Not built |
+| 99 | Follow-up suppression after conversion | Built |
 | 100 | Campaign reporting | Not built |
 
-## 7. Customer lifecycle automation (15) — Built 4, Partly 1, Rules ready 4, Not built 6
+## 7. Customer lifecycle automation (15) — Built 7, Partly 1, Rules ready 4, Not built 3
 
 | # | Automation | Status |
 |---|---|---|
@@ -150,9 +150,9 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 102 | Customer updates | Rules ready |
 | 103 | Identity matching | Built |
 | 104 | Duplicate review | Rules ready |
-| 105 | Welcome messages | Not built |
-| 106 | Service reminders | Not built |
-| 107 | Repeat-service workflows | Not built |
+| 105 | Welcome messages | Built |
+| 106 | Service reminders | Built |
+| 107 | Repeat-service workflows | Built |
 | 108 | Inactivity reactivation | Not built |
 | 109 | Complaint routing | Built |
 | 110 | Preference management | Not built |
@@ -231,7 +231,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 168 | Knowledge-gap reporting | Rules ready |
 | 169 | Tenant-isolated knowledge | Rules ready |
 
-## 11. AI quality and knowledge maintenance (12) — Built 2, Partly 0, Rules ready 1, Not built 9
+## 11. AI quality and knowledge maintenance (12) — Built 3, Partly 0, Rules ready 1, Not built 8
 
 | # | Automation | Status |
 |---|---|---|
@@ -244,11 +244,11 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 176 | Configuration review | Not built |
 | 177 | Rollback | Not built |
 | 178 | Response sampling | Not built |
-| 179 | AI performance summaries | Not built |
+| 179 | AI performance summaries | Built |
 | 180 | Retrieval failure handling | Not built |
 | 181 | FAQ maintenance | Built |
 
-## 12. Staff and team operations (14) — Built 4, Partly 3, Rules ready 2, Not built 5
+## 12. Staff and team operations (14) — Built 5, Partly 3, Rules ready 2, Not built 4
 
 | # | Automation | Status |
 |---|---|---|
@@ -262,7 +262,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 189 | Shift handover | Not built |
 | 190 | Absence reassignment | Built |
 | 191 | Manager escalation | Partly |
-| 192 | Human takeover controls | Not built |
+| 192 | Human takeover controls | Built |
 | 193 | Escalation acknowledgment | Not built |
 | 194 | Daily team summary | Not built |
 | 195 | Offboarding and access revocation | Not built |
@@ -391,12 +391,12 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 298 | KPI alerts | Not built |
 | 299 | Notification grouping and deduplication | Built |
 
-## 17. Subscription and platform operations (12) — Built 2, Partly 0, Rules ready 4, Not built 6
+## 17. Subscription and platform operations (12) — Built 3, Partly 0, Rules ready 4, Not built 5
 
 | # | Automation | Status |
 |---|---|---|
 | 300 | Onboarding completion | Built |
-| 301 | Provisioning recovery | Not built |
+| 301 | Provisioning recovery | Rules ready |
 | 302 | Integration setup reminders | Not built |
 | 303 | Payment-failure handling | Built |
 | 304 | Renewal processing | Not built |
@@ -405,7 +405,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 307 | Plan entitlement updates | Not built |
 | 308 | Suspension and reactivation | Rules ready |
 | 309 | Incident notifications | Rules ready |
-| 310 | Administrative audit | Rules ready |
+| 310 | Administrative audit | Built |
 | 311 | Plan entitlement checks | Not built |
 
 ## 18. Security, consent and governance (15) — Built 6, Partly 0, Rules ready 3, Not built 6
@@ -428,7 +428,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 325 | Tenant-leak testing | Not built |
 | 326 | Privileged-action audit | Rules ready |
 
-## 19. Analytics and optimization (12) — Built 0, Partly 0, Rules ready 1, Not built 11
+## 19. Analytics and optimization (12) — Built 0, Partly 0, Rules ready 2, Not built 10
 
 | # | Automation | Status |
 |---|---|---|
@@ -440,7 +440,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 332 | Follow-up completion metrics | Not built |
 | 333 | Integration uptime metrics | Not built |
 | 334 | Knowledge-sync metrics | Not built |
-| 335 | Usage and cost metrics | Not built |
+| 335 | Usage and cost metrics | Rules ready |
 | 336 | Dashboard filtering | Not built |
 | 337 | Anomaly detection | Not built |
 | 338 | Workflow effectiveness analysis | Not built |

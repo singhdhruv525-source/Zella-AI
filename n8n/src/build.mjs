@@ -220,7 +220,7 @@ const ownerEmails = wf('Zella - Owner Emails', [
   'Restore result': { main: [[link('Finish notification')]] },
 });
 
-export const FOLLOWUP_EMAIL_KINDS = ['no_show_follow_up', 'post_appointment_follow_up', 'quote_follow_up', 'lead_reactivation', 'callback_sms'];
+export const FOLLOWUP_EMAIL_KINDS = ['no_show_follow_up', 'post_appointment_follow_up', 'quote_follow_up', 'lead_reactivation', 'callback_sms', 'welcome_new_customer', 'feedback_request', 'cancellation_confirmation', 'record_status_update', 'service_due', 'no_response_follow_up'];
 // Texts also send the quick replies to HELP and waitlist offers (the database queues them).
 export const FOLLOWUP_KINDS = [...FOLLOWUP_EMAIL_KINDS, 'reply_confirmed', 'reply_reschedule', 'reply_help', 'waitlist_offer'];
 // Follow-up emails: the same kinds as the follow-up texts, for tasks whose channel is email (a task moves to

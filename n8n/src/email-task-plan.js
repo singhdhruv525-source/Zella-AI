@@ -9,6 +9,12 @@ const kinds = {
   post_appointment_follow_up: { key: 'post_appointment_follow_up', purpose: 'transactional' },
   quote_follow_up: { key: 'quote_follow_up', purpose: 'transactional' },
   lead_reactivation: { key: 'lead_reactivation', purpose: 'marketing' },
+  welcome_new_customer: { key: 'welcome_new_customer', purpose: 'transactional' },
+  feedback_request: { key: 'feedback_request', purpose: 'transactional' },
+  cancellation_confirmation: { key: 'cancellation_confirmation', purpose: 'transactional' },
+  record_status_update: { key: 'record_status_update', purpose: 'transactional' },
+  service_due: { key: 'service_due', purpose: 'transactional' },
+  no_response_follow_up: { key: 'no_response_follow_up', purpose: 'transactional' },
 };
 // A callback that ran out of tries leaves a task behind. The message depends on why the callback existed.
 const byReason = { missed_call: 'missed_call_follow_up', new_lead: 'lead_acknowledgement' };
@@ -21,13 +27,18 @@ if (t.kind === 'callback_sms') {
 if (t.channel !== 'email') return skip('channel_not_email:' + t.channel);
 if (!k) return skip('unknown_followup_kind:' + t.kind);
 
+const vars = {};
+if (t.vars && typeof t.vars === 'object') {
+  for (const [key, val] of Object.entries(t.vars)) if (typeof val === 'string') vars[key] = val.slice(0, 300);
+}
+
 return {
   json: {
     task_id: t.task_id,
     business_id: t.business.id,
     customer_id: t.customer.id,
     template_key: k.key,
-    prepare: { p_business_id: t.business.id, p_customer_id: t.customer.id, p_template_key: k.key, p_vars: {}, p_purpose: k.purpose },
+    prepare: { p_business_id: t.business.id, p_customer_id: t.customer.id, p_template_key: k.key, p_vars: vars, p_purpose: k.purpose },
     finish: null,
   },
 };
