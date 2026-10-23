@@ -9,7 +9,7 @@ Item numbers and names come from the Zella AI Complete Automation Guide. Status 
 
 Items are served by a small set of shared workflows (see `n8n/README.md`), not one workflow per item. Many industry items (196 to 254) are configurations of the shared appointment, message, assignment and reminder engines; the 98 starter automation rows per industry are seeded in the database.
 
-**Totals:** Built 143, Partly 34, Rules ready 32, Not built 129.
+**Totals:** Built 147, Partly 34, Rules ready 32, Not built 125.
 
 
 ## 1. Calls and AI receptionist (16) — Built 3, Partly 4, Rules ready 4, Not built 5
@@ -391,7 +391,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 298 | KPI alerts | Built |
 | 299 | Notification grouping and deduplication | Built |
 
-## 17. Subscription and platform operations (12) — Built 3, Partly 0, Rules ready 4, Not built 5
+## 17. Subscription and platform operations (12) — Built 7, Partly 0, Rules ready 4, Not built 1
 
 | # | Automation | Status |
 |---|---|---|
@@ -399,14 +399,14 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 301 | Provisioning recovery | Rules ready |
 | 302 | Integration setup reminders | Not built |
 | 303 | Payment-failure handling | Built |
-| 304 | Renewal processing | Not built |
+| 304 | Renewal processing | Built |
 | 305 | Cancellation handling | Rules ready |
-| 306 | Payment reversal handling | Not built |
-| 307 | Plan entitlement updates | Not built |
+| 306 | Payment reversal handling | Built |
+| 307 | Plan entitlement updates | Built |
 | 308 | Suspension and reactivation | Rules ready |
 | 309 | Incident notifications | Rules ready |
 | 310 | Administrative audit | Built |
-| 311 | Plan entitlement checks | Not built |
+| 311 | Plan entitlement checks | Built |
 
 ## 18. Security, consent and governance (15) — Built 7, Partly 0, Rules ready 3, Not built 5
 
