@@ -9,7 +9,7 @@ Item numbers and names come from the Zella AI Complete Automation Guide. Status 
 
 Items are served by a small set of shared workflows (see `n8n/README.md`), not one workflow per item. Many industry items (196 to 254) are configurations of the shared appointment, message, assignment and reminder engines; the 98 starter automation rows per industry are seeded in the database.
 
-**Totals:** Built 78, Partly 33, Rules ready 35, Not built 192.
+**Totals:** Built 80, Partly 31, Rules ready 35, Not built 192.
 
 
 ## 1. Calls and AI receptionist (16) — Built 3, Partly 4, Rules ready 3, Not built 6
@@ -142,7 +142,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 99 | Follow-up suppression after conversion | Not built |
 | 100 | Campaign reporting | Not built |
 
-## 7. Customer lifecycle automation (15) — Built 2, Partly 3, Rules ready 4, Not built 6
+## 7. Customer lifecycle automation (15) — Built 4, Partly 1, Rules ready 4, Not built 6
 
 | # | Automation | Status |
 |---|---|---|
@@ -154,9 +154,9 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 106 | Service reminders | Not built |
 | 107 | Repeat-service workflows | Not built |
 | 108 | Inactivity reactivation | Not built |
-| 109 | Complaint routing | Partly |
+| 109 | Complaint routing | Built |
 | 110 | Preference management | Not built |
-| 111 | Correction requests | Partly |
+| 111 | Correction requests | Built |
 | 112 | Retention workflows | Not built |
 | 113 | Interaction timeline | Rules ready |
 | 114 | Data-rights requests | Partly |

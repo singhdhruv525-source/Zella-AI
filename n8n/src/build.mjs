@@ -331,7 +331,7 @@ const assistantTools = wf('Zella - Assistant Tools', [
   ifBool('Has question', [480, 200], '={{ !!$json.record }}'),
   rpcNode('Find business', [720, 100], 'zella_business_for_number', '={{ JSON.stringify($json.lookup) }}', { full: true }),
   code('Use business', [960, 100], 'business-apply.js'),
-  rpcNode('Log question', [1200, 100], 'zella_report_unanswered', '={{ JSON.stringify($json.record) }}', { full: true }),
+  rpcNode('Log question', [1200, 100], '', '={{ JSON.stringify($json.record) }}', { full: true, urlExpr: `={{ '${SUPABASE}/rest/v1/rpc/' + $json.rpc }}` }),
   code('Build reply', [1440, 200], 'vapi-tool-reply.js'),
   node('Reply', 'n8n-nodes-base.respondToWebhook', 1.1, [1680, 200], {
     respondWith: 'json', responseBody: '={{ JSON.stringify($json) }}', options: { responseCode: 200 },

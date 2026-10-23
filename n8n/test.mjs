@@ -553,6 +553,16 @@ test('assistant tools: a question is logged against the call and its business', 
   assert.deepEqual(r.record, { p_provider_call_id: 'call_7', p_business_id: BIZ2, p_question: 'Do you do bridal hair?' });
   assert.equal(r.reply.results[0].toolCallId, 'tc1'); assert.match(r.reply.results[0].result, /pass the question to the team/);
 });
+const reqMsg = (args, over = {}) => tcm(args, { toolCallList: [{ id: 'tc2', name: 'log_customer_request', arguments: args }], ...over });
+test('assistant tools: a complaint or data request is logged with its kind, and the assistant is told not to promise any change', () => {
+  const r = vt(reqMsg({ kind: 'Complaint', summary: ' The stylist was   rude ' }));
+  assert.equal(r.rpc, 'zella_ai_log_request'); assert.deepEqual(r.record, { p_provider_call_id: 'call_7', p_business_id: BIZ2, p_kind: 'complaint', p_summary: 'The stylist was rude' });
+  assert.match(r.reply.results[0].result, /Do not say anything has been changed/);
+  assert.equal(vt(tcm({ question: 'Open late?' })).rpc, 'zella_report_unanswered');
+});
+test('assistant tools: unknown kinds and empty summaries log nothing, but the assistant still gets a valid answer', () => {
+  for (const a of [{ kind: 'hack', summary: 'abc def' }, { kind: 'complaint', summary: 'a' }, { kind: 'complaint' }, {}]) { const r = vt(reqMsg(a)); assert.equal(r.record, null); assert.equal(r.reply.results[0].toolCallId, 'tc2'); }
+});
 test('assistant tools: arguments as text, the business id from assistant variables, and bad input all behave', () => {
   assert.equal(vt(tcm('{"question":"Is parking free?"}')).record.p_question, 'Is parking free?');
   assert.equal(vt(tcm({ question: 'Is parking free?' }, { call: { id: 'c', assistantOverrides: { variableValues: { business_id: BIZ2 } } } })).record.p_business_id, BIZ2);

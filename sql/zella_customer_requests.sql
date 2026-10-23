@@ -108,3 +108,25 @@ revoke execute on function public.zella_check_customer_requests() from public, a
 grant execute on function public.zella_check_customer_requests() to service_role;
 revoke execute on function public.zella_update_customer_request(uuid, text, text) from public, anon;
 grant execute on function public.zella_update_customer_request(uuid, text, text) to authenticated, service_role;
+
+-- Phone assistant tool: the caller wants to complain, correct their details, or ask for their data to be shown or removed.
+-- The call decides the business and customer when it is known; otherwise the (already looked-up) business is used.
+-- The answer to the assistant says only that the team will follow up, never that anything was changed or released.
+create or replace function public.zella_ai_log_request(p_provider_call_id text, p_business_id uuid, p_kind text, p_summary text)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare v_call_id uuid; v_call_biz uuid; v_cust uuid; v_biz uuid; v_id uuid;
+begin
+  if nullif(p_provider_call_id, '') is not null then
+    select c.id, c.business_id, c.customer_id into v_call_id, v_call_biz, v_cust from public.calls c where c.external_call_id = p_provider_call_id limit 1;
+  end if;
+  v_biz := coalesce(v_call_biz, p_business_id);
+  if v_biz is null then return jsonb_build_object('ok', false, 'reason', 'unknown_business'); end if;
+  begin
+    v_id := public.zella_log_customer_request(v_biz, v_cust, p_kind, p_summary, 'phone', v_call_id, 'normal');
+  exception when others then
+    return jsonb_build_object('ok', false, 'reason', left(sqlerrm, 40));
+  end;
+  return jsonb_build_object('ok', true, 'kind', p_kind);
+end $$;
+revoke execute on function public.zella_ai_log_request(text, uuid, text, text) from public, anon, authenticated;
+grant execute on function public.zella_ai_log_request(text, uuid, text, text) to service_role;
