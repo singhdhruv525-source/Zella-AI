@@ -292,3 +292,13 @@ Run `sql/zella_ops_extras.sql`. All database. Callbacks can be reassigned, resch
 - Each business gets its own inbound address `<token>@<inbound_email_domain>` (platform setting `inbound_email_domain`). Outgoing Zella emails use it as Reply-To once the domain is set; until then the business email is used as before.
 - Text delivery receipts: the router now handles `message.delivered` and `message.delivery_failed` (`zella_record_sms_receipt`). Failed texts tell the business.
 - Welcome email: when a business first goes live its owners get a welcome message through the normal owner email lane.
+
+## Facebook, Instagram and WhatsApp (Meta)
+
+All of it lives in `sql/zella_meta.sql` (already applied to the live database) and four workflows:
+- `zella-meta-webhook` (`zella/meta`, id rSjRKz9IRNI85UmA): Meta cannot send our secret header, so this webhook is open and every event is checked by its signature. The raw bytes go to `zella_meta_receive`, which verifies `X-Hub-Signature-256` with the app secret in Vault (`zella_meta_app_secret`), saves each event once, and answers 403 on a wrong signature. The GET side answers Meta's set-up check using Vault `zella_meta_verify_token`.
+- `zella-meta-leads` (lane `meta-leads`, id XVM1vpSwQ7ASEHS5): fetches each lead form entry from Meta, then `zella_meta_capture_lead` saves it as a website-style lead (customer matched by phone/email, so a person coming from several channels is one customer), records the campaign, and starts the normal new-lead callback chain. A call is only made with consent (form consent or the owner's confirmed lead-form consent), inside calling hours, and stops on booking, reply or opt-out; retries follow the business's settings.
+- `zella-meta-sender` (lane `meta-sender`, id I92yWMNMrRSFpHsj): sends queued replies. Messenger/Instagram free text only within 24 hours of the customer's last message; WhatsApp needs a template outside that window. Failures retry with back-off; a rejected token marks the page "needs reconnect" and alerts the owners.
+- `zella-meta-health` (lane `meta-health`, id ydBUMg7eXr9kc8hJ): every 6 hours checks each connection and syncs WhatsApp templates.
+- Messages and comments: stored in the inbox as conversations (channels messenger, instagram, whatsapp). First contact gets an acknowledgement (if the business leaves it on); staff reply with `zella_meta_staff_reply`, which also takes the conversation over from the AI. Comments containing a business keyword get a private reply. No AI auto-replies on social.
+- Page tokens are kept in Vault (`meta_token_<page_id>`), written only by `zella_meta_store_connection` (service role). Set these workflows to not save successful executions because the token passes through them.

@@ -9,7 +9,7 @@ Item numbers and names come from the Zella AI Complete Automation Guide. Status 
 
 Items are served by a small set of shared workflows (see `n8n/README.md`), not one workflow per item. Many industry items (196 to 254) are configurations of the shared appointment, message, assignment and reminder engines; the 98 starter automation rows per industry are seeded in the database.
 
-**Totals:** Built 166, Partly 40, Rules ready 31, Not built 101.
+**Totals:** Built 176, Partly 43, Rules ready 31, Not built 88.
 
 
 ## 1. Calls and AI receptionist (16) — Built 8, Partly 4, Rules ready 4, Not built 0
@@ -117,12 +117,12 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 79 | SMS templates | Built |
 | 80 | Channel preferences | Partly |
 
-## 6. Leads and sales CRM (20) — Built 15, Partly 3, Rules ready 1, Not built 1
+## 6. Leads and sales CRM (20) — Built 16, Partly 3, Rules ready 1, Not built 0
 
 | # | Automation | Status |
 |---|---|---|
 | 81 | Website lead capture | Built |
-| 82 | Social lead capture | Not built |
+| 82 | Social lead capture | Built |
 | 83 | Lead attribution | Built |
 | 84 | Duplicate lead detection | Built |
 | 85 | Lead qualification | Built |
@@ -162,26 +162,26 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 114 | Data-rights requests | Partly |
 | 115 | Opt-out enforcement | Built |
 
-## 8. Meta automation (16) — Built 0, Partly 1, Rules ready 0, Not built 15
+## 8. Meta automation (16) — Built 9, Partly 4, Rules ready 0, Not built 3
 
 | # | Automation | Status |
 |---|---|---|
-| 116 | Facebook Lead Ads integration | Not built |
-| 117 | Lead import and CRM sync | Partly |
-| 118 | Instagram DM handling | Not built |
-| 119 | Messenger handling | Not built |
-| 120 | WhatsApp Business handling | Not built |
+| 116 | Facebook Lead Ads integration | Built |
+| 117 | Lead import and CRM sync | Built |
+| 118 | Instagram DM handling | Partly |
+| 119 | Messenger handling | Partly |
+| 120 | WhatsApp Business handling | Partly |
 | 121 | Social lead qualification | Not built |
 | 122 | Social conversation assignment | Not built |
 | 123 | Social appointment flow | Not built |
-| 124 | Eligible comment-to-private-reply workflow | Not built |
-| 125 | WhatsApp template management | Not built |
-| 126 | Human takeover | Not built |
-| 127 | Social attribution | Not built |
-| 128 | Cross-channel duplicate prevention | Not built |
-| 129 | Permission and token monitoring | Not built |
-| 130 | API failure recovery | Not built |
-| 131 | Meta connection health | Not built |
+| 124 | Eligible comment-to-private-reply workflow | Built |
+| 125 | WhatsApp template management | Partly |
+| 126 | Human takeover | Built |
+| 127 | Social attribution | Built |
+| 128 | Cross-channel duplicate prevention | Built |
+| 129 | Permission and token monitoring | Built |
+| 130 | API failure recovery | Built |
+| 131 | Meta connection health | Built |
 
 ## 9. Website leads and chat (15) — Built 15, Partly 0, Rules ready 0, Not built 0
 

@@ -50,3 +50,12 @@ Nothing below has been done yet on purpose: all n8n workflows are unpublished an
 - In Resend add a webhook for `email.received` pointing at `https://dhruvsingh.app.n8n.cloud/webhook/zella/inbound-email?key=<the zella_resend_webhook_key value>`.
 - Put the Resend key on the "Fetch email" box of the Inbound Email workflow, then publish it.
 - Telnyx delivery receipts: send them to the gateway as `message.delivered` / `message.delivery_failed` with `external_id`.
+
+## Facebook, Instagram and WhatsApp
+- Run `sql/zella_meta.sql` (already applied to the live database), then re-run `sql/zella_dispatcher.sql` (adds the meta lanes and triggers).
+- Create a Meta app (Business type). Request App Review for: `pages_messaging`, `pages_show_list`, `leads_retrieval`, `pages_manage_metadata`, `pages_read_engagement` (plus Instagram and WhatsApp permissions if used). Without review only app admins/testers work.
+- Vault secrets: `zella_meta_app_secret` (the app secret) and `zella_meta_verify_token` (any long random word).
+- In the Meta app, webhook callback URL `https://dhruvsingh.app.n8n.cloud/webhook/zella/meta` with that verify token; subscribe to `leadgen`, `feed`, `messages` (and Instagram/WhatsApp equivalents). Check Meta's webhook test succeeds, since the signature depends on n8n handing over the raw bytes.
+- Connect flow (front-end screen still to build) must call `zella_meta_store_connection` with the page id and long-lived page token. Owner confirms lead-form consent through `zella_meta_settings` (`call_consent_confirmed`) before leads are auto-called.
+- WhatsApp: create and get approved message templates; WhatsApp may need a system-user token.
+- In n8n set the four Meta workflows to not save successful executions, put the Supabase credential on their boxes, then publish them.
