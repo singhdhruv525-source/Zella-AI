@@ -258,3 +258,7 @@ Run `sql/zella_customer_touches.sql` (after `zella_followup_emails.sql` and `zel
 ## Reports, metrics and KPI alerts
 
 Run `sql/zella_metrics.sql`. `zella_business_metrics(business, from, to, assigned_to)` returns calls, callbacks, appointments, leads, messages, follow-ups, knowledge gaps, requests and integrations for any dates (and optionally one team member); members can call it, so report screens can use it directly. `zella_platform_metrics` is for the operator. The daily job `zella_check_kpis` warns a business when missed calls, failed messages or no-shows jump against its usual week, and raises a platform alert when many automation runs fail. Report screens in the web app are not built yet.
+
+## Staff operations and reliability
+
+Run `sql/zella_staff_ops.sql`. Adds `zella_rate_limit` (for public forms and webhooks), escalation acknowledgement (`zella_acknowledge_escalation`, plus a 5-minute check that warns the team about a call nobody picked up), shift handover (`zella_create_handover`), offboarding (`zella_offboard_member`, never removes the last owner, writes an audit entry), recovery of stuck follow-ups and work held by inactive people (every 15 minutes), and `zella_validate_business_config` (what is missing for a business to work). All database; nothing here needs n8n.

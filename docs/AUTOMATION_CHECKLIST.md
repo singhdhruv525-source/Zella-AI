@@ -9,7 +9,7 @@ Item numbers and names come from the Zella AI Complete Automation Guide. Status 
 
 Items are served by a small set of shared workflows (see `n8n/README.md`), not one workflow per item. Many industry items (196 to 254) are configurations of the shared appointment, message, assignment and reminder engines; the 98 starter automation rows per industry are seeded in the database.
 
-**Totals:** Built 120, Partly 33, Rules ready 33, Not built 152.
+**Totals:** Built 126, Partly 32, Rules ready 32, Not built 148.
 
 
 ## 1. Calls and AI receptionist (16) — Built 3, Partly 4, Rules ready 4, Not built 5
@@ -248,7 +248,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 180 | Retrieval failure handling | Not built |
 | 181 | FAQ maintenance | Built |
 
-## 12. Staff and team operations (14) — Built 5, Partly 3, Rules ready 2, Not built 4
+## 12. Staff and team operations (14) — Built 8, Partly 3, Rules ready 2, Not built 1
 
 | # | Automation | Status |
 |---|---|---|
@@ -259,13 +259,13 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 186 | Unassigned-work alerts | Built |
 | 187 | Overdue-task alerts | Partly |
 | 188 | Appointment notifications | Rules ready |
-| 189 | Shift handover | Not built |
+| 189 | Shift handover | Built |
 | 190 | Absence reassignment | Built |
 | 191 | Manager escalation | Partly |
 | 192 | Human takeover controls | Built |
-| 193 | Escalation acknowledgment | Not built |
+| 193 | Escalation acknowledgment | Built |
 | 194 | Daily team summary | Not built |
-| 195 | Offboarding and access revocation | Not built |
+| 195 | Offboarding and access revocation | Built |
 
 ## 13. Industry-specific workflows (59) — Built 0, Partly 4, Rules ready 0, Not built 55
 
@@ -351,7 +351,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 268 | Manual retry | Rules ready |
 | 269 | Integration health summaries | Rules ready |
 
-## 15. Automation engine reliability (16) — Built 12, Partly 3, Rules ready 1, Not built 0
+## 15. Automation engine reliability (16) — Built 14, Partly 2, Rules ready 0, Not built 0
 
 | # | Automation | Status |
 |---|---|---|
@@ -365,12 +365,12 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 277 | Execution locks | Built |
 | 278 | Cancelled-job invalidation | Built |
 | 279 | Failure notifications | Partly |
-| 280 | Orphaned-task detection | Partly |
+| 280 | Orphaned-task detection | Built |
 | 281 | Queue-backlog monitoring | Built |
 | 282 | Restart recovery | Built |
-| 283 | Configuration validation | Partly |
+| 283 | Configuration validation | Built |
 | 284 | Test mode | Built |
-| 285 | Manual recovery controls | Rules ready |
+| 285 | Manual recovery controls | Partly |
 
 ## 16. Notifications and reporting (14) — Built 13, Partly 0, Rules ready 0, Not built 1
 
@@ -408,7 +408,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 310 | Administrative audit | Built |
 | 311 | Plan entitlement checks | Not built |
 
-## 18. Security, consent and governance (15) — Built 6, Partly 0, Rules ready 3, Not built 6
+## 18. Security, consent and governance (15) — Built 7, Partly 0, Rules ready 3, Not built 5
 
 | # | Automation | Status |
 |---|---|---|
@@ -420,7 +420,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 317 | Quiet-hour enforcement | Built |
 | 318 | Sensitive-action approval | Not built |
 | 319 | Replay protection | Built |
-| 320 | Rate limiting | Not built |
+| 320 | Rate limiting | Built |
 | 321 | Sensitive-data redaction | Built |
 | 322 | SSRF protection | Not built |
 | 323 | Data-rights workflow | Not built |

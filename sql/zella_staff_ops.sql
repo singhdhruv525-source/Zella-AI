@@ -42,7 +42,7 @@ begin
               and escalated_at < now() - interval '10 minutes' and escalated_at > now() - interval '2 days'
               and escalation_reminded_at is null limit 100 loop
     perform public.zella_notify(c.business_id, 'escalation_unacknowledged', 'A call needing a person has not been picked up',
-      'This call was passed to the team more than 10 minutes ago and nobody has acknowledged it.', 'critical', 'calls', c.id);
+      'This call was passed to the team more than 10 minutes ago and nobody has acknowledged it.', 'urgent', 'calls', c.id);
     update public.calls set escalation_reminded_at = now() where id = c.id;
     n := n + 1;
   end loop;
