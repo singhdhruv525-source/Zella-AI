@@ -1,0 +1,385 @@
+{
+  "name": "Zella - Meta Sender",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "zella/run/meta-sender",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "2af00e23-c480-4a77-8fdd-da60673b2836",
+      "name": "Run now",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "webhookId": "b8495a4b-2ab1-4256-8b29-15d2a41e6131",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Zella gateway secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_meta_claim_outbox",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_limit: 10 }) }}",
+        "options": {}
+      },
+      "id": "8b02a769-a866-444d-8577-a5735e166bd0",
+      "name": "Claim replies",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        200
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Meta Sender: one claimed reply in. The destination is built here from known ids only; the text is sent as plain text.\nconst id = (v, re) => (typeof v === 'string' && re.test(v) ? v : null);\nconst uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;\nconst outId = id($json.id, uuid);\nif (!outId) return { json: { skip: true } };\nconst page = id($json.page_id, /^[0-9]{5,30}$/);\nconst ch = $json.channel;\nconst kind = $json.kind;\nconst to = typeof $json.recipient === 'string' ? $json.recipient.slice(0, 200) : '';\nconst text = typeof $json.text === 'string' ? $json.text.slice(0, 1000) : '';\nconst base = 'https://graph.facebook.com/v21.0/';\nlet url = null; let body = null;\nif (page && text && to) {\n  if (ch === 'whatsapp') {\n    const phone = id($json.whatsapp_phone_id, /^[0-9]{5,30}$/);\n    if (phone && /^[0-9]{7,15}$/.test(to) && kind === 'message') { url = base + phone + '/messages'; body = { messaging_product: 'whatsapp', to, type: 'text', text: { body: text } }; }\n  } else if ((ch === 'messenger' || ch === 'instagram') && kind === 'message' && /^[0-9A-Za-z_-]{3,100}$/.test(to)) {\n    url = base + page + '/messages'; body = { recipient: { id: to }, messaging_type: 'RESPONSE', message: { text } };\n  } else if ((ch === 'messenger' || ch === 'instagram') && kind === 'private_reply' && /^[0-9A-Za-z_-]{3,100}$/.test(to)) {\n    const igId = id($json.instagram_id, /^[0-9]{5,30}$/);\n    url = base + (ch === 'instagram' && igId ? igId : page) + '/messages'; body = { recipient: { comment_id: to }, message: { text } };\n  }\n}\nreturn { json: { skip: false, id: outId, page_id: page, valid: !!url, url, body } };\n"
+      },
+      "id": "ae2f98a0-99fe-4855-8311-26233e9c1364",
+      "name": "Plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "1004a0a3-05a4-4fa4-8a61-d4ef78c1c3d0",
+              "leftValue": "={{ !$json.skip }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "91a405e4-77ad-422c-8ade-b586a623574c",
+      "name": "Is a reply",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        720,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_meta_token",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_page_id: $json.page_id }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "66eb5c88-306c-453a-84a9-bda435108b6e",
+      "name": "Get token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        100
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Meta Sender: add the token from the database. Without a token (or a valid destination) the reply fails and says why.\nconst plan = $('Plan').item.json;\nconst t = $json.body;\nconst token = typeof t === 'string' && t.length >= 20 && t.length < 1000 ? t : null;\nif (!plan.valid) return { json: { ...plan, fail: { p_id: plan.id, p_ok: false, p_error: 'cannot_build_request', p_auth_failed: false, p_retry: false } } };\nif (!token) return { json: { ...plan, fail: { p_id: plan.id, p_ok: false, p_error: 'no_token_reconnect_needed', p_auth_failed: false, p_retry: true } } };\nreturn { json: { ...plan, fail: null, auth: 'Bearer ' + token } };\n"
+      },
+      "id": "a298f184-f485-4bc7-8f13-b457d0d29f95",
+      "name": "Build request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "1784d700-061f-423a-8697-754d8873347d",
+              "leftValue": "={{ !$json.fail }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "3e5974a3-cb76-418e-83e2-68419af6ddbb",
+      "name": "Can send",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.url }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $json.auth }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "7f7e603a-f50d-4612-8102-c027edd384ea",
+      "name": "Send reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1680,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Meta Sender: what happened. Success keeps only Meta's message id; failures keep a short code, never the response text.\nconst plan = $('Build request').item.json;\nif (plan.fail) return { json: { record: plan.fail } };\nconst r = $json;\nconst status = Number(r.statusCode);\nconst b = r.body && typeof r.body === 'object' ? r.body : {};\nif (status >= 200 && status < 300) {\n  const ext = typeof b.message_id === 'string' ? b.message_id : Array.isArray(b.messages) && b.messages[0] && typeof b.messages[0].id === 'string' ? b.messages[0].id : null;\n  return { json: { record: { p_id: plan.id, p_ok: true, p_external_id: ext ? ext.slice(0, 200) : null } } };\n}\nconst code = b.error && typeof b.error === 'object' ? Number(b.error.code) : 0;\nconst auth = status === 401 || code === 190;\nconst retry = !auth && (status >= 500 || status === 429 || [1, 2, 4, 17, 32, 613].includes(code));\nreturn { json: { record: { p_id: plan.id, p_ok: false, p_error: ('HTTP ' + (status || 'none') + (code ? ' code ' + code : '')).slice(0, 100), p_auth_failed: auth, p_retry: retry } } };\n"
+      },
+      "id": "4c6d268d-614a-4f2c-88a7-3ba8dafbadc2",
+      "name": "Read result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_meta_record_send",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.record) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "943a01c7-8381-4aa4-800b-f6c06e21cf5e",
+      "name": "Record send",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2160,
+        200
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Run now": {
+      "main": [
+        [
+          {
+            "node": "Claim replies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim replies": {
+      "main": [
+        [
+          {
+            "node": "Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan": {
+      "main": [
+        [
+          {
+            "node": "Is a reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is a reply": {
+      "main": [
+        [
+          {
+            "node": "Get token",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Get token": {
+      "main": [
+        [
+          {
+            "node": "Build request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build request": {
+      "main": [
+        [
+          {
+            "node": "Can send",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Can send": {
+      "main": [
+        [
+          {
+            "node": "Send reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Read result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send reply": {
+      "main": [
+        [
+          {
+            "node": "Read result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read result": {
+      "main": [
+        [
+          {
+            "node": "Record send",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

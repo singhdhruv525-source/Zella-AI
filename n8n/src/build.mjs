@@ -555,6 +555,139 @@ const connectionTests = wf('Zella - Connection Tests', [
   'Has result': { main: [[link('Record check')], []] },
 });
 
+
+// ------------------------------------------------------------------ Meta (Facebook, Instagram, WhatsApp)
+// Supabase decides everything (signature check, leads, messages, comments, retries, connection health: sql/zella_meta.sql).
+// n8n only (1) answers Meta's webhook, (2) fetches a lead's details from Meta, (3) sends replies, (4) checks the connection.
+// The page token is read from the database for each call and is never stored in a workflow. Set these workflows to
+// "do not save successful executions" so the token does not stay in the execution history.
+const graphGet = (name, position, urlExpr, authExpr) => node(name, 'n8n-nodes-base.httpRequest', 4.2, position, {
+  method: 'GET', url: urlExpr, authentication: 'none', sendHeaders: true,
+  headerParameters: { parameters: [{ name: 'Authorization', value: authExpr }] },
+  options: { timeout: 15000, response: { response: { fullResponse: true, neverError: true, responseFormat: 'json' } } },
+});
+const tokenRpc = (position) => rpcNode('Get token', position, 'zella_meta_token', '={{ JSON.stringify({ p_page_id: $json.page_id }) }}', { full: true });
+
+const metaWebhook = wf('Zella - Meta Webhook', [
+  node('Meta set-up check', 'n8n-nodes-base.webhook', 2, [0, 80], {
+    httpMethod: 'GET', path: 'zella/meta', authentication: 'none', responseMode: 'responseNode', options: {},
+  }, { webhookId: id('webhook:zella-meta-get') }),
+  code('Check', [240, 80], 'meta-verify-plan.js'),
+  rpcNode('Verify word', [480, 80], 'zella_meta_verify_token', '={{ JSON.stringify($json.record) }}', { full: true }),
+  code('Answer check', [720, 80], 'meta-verify-after.js'),
+  ifBool('Word is right', [960, 80], '={{ $json.ok }}'),
+  node('Send challenge', 'n8n-nodes-base.respondToWebhook', 1.1, [1200, 0], { respondWith: 'text', responseBody: '={{ $json.challenge }}', options: { responseCode: 200 } }),
+  node('Refuse check', 'n8n-nodes-base.respondToWebhook', 1.1, [1200, 160], { respondWith: 'text', responseBody: 'forbidden', options: { responseCode: 403 } }),
+  node('Meta events', 'n8n-nodes-base.webhook', 2, [0, 400], {
+    httpMethod: 'POST', path: 'zella/meta', authentication: 'none', responseMode: 'responseNode', options: { rawBody: true },
+  }, { webhookId: id('webhook:zella-meta-post') }),
+  node('Prepare', 'n8n-nodes-base.code', 2, [240, 400], { mode: 'runOnceForAllItems', jsCode: loadCode('meta-receive-plan.js') }),
+  rpcNode('Save events', [480, 400], 'zella_meta_receive', '={{ JSON.stringify($json.record) }}', { full: true }),
+  code('Answer', [720, 400], 'meta-receive-after.js'),
+  node('Reply', 'n8n-nodes-base.respondToWebhook', 1.1, [960, 400], { respondWith: 'json', responseBody: '={{ JSON.stringify($json.body) }}', options: { responseCode: '={{ $json.code }}' } }),
+], {
+  'Meta set-up check': { main: [[link('Check')]] },
+  'Check': { main: [[link('Verify word')]] },
+  'Verify word': { main: [[link('Answer check')]] },
+  'Answer check': { main: [[link('Word is right')]] },
+  'Word is right': { main: [[link('Send challenge')], [link('Refuse check')]] },
+  'Meta events': { main: [[link('Prepare')]] },
+  'Prepare': { main: [[link('Save events')]] },
+  'Save events': { main: [[link('Answer')]] },
+  'Answer': { main: [[link('Reply')]] },
+});
+
+const metaLeads = wf('Zella - Meta Leads', [
+  runTrigger('meta-leads'),
+  rpcNode('Claim leads', [240, 200], 'zella_meta_claim_leads', '={{ JSON.stringify({ p_limit: 10 }) }}'),
+  code('Plan', [480, 200], 'meta-lead-plan.js'),
+  ifBool('Is a lead', [720, 200], '={{ !$json.skip }}'),
+  tokenRpc([960, 100]),
+  code('Build request', [1200, 100], 'meta-lead-request.js'),
+  ifBool('Can fetch', [1440, 100], '={{ !$json.fail }}'),
+  graphGet('Fetch lead', [1680, 0], '={{ $json.url }}', '={{ $json.auth }}'),
+  code('Read result', [1920, 200], 'meta-lead-after.js'),
+  ifBool('Can save', [2160, 200], '={{ !!$json.save }}'),
+  rpcNode('Save lead', [2400, 100], 'zella_meta_capture_lead', '={{ JSON.stringify($json.save) }}', { full: true }),
+  rpcNode('Record failure', [2400, 320], 'zella_meta_fail_event', '={{ JSON.stringify($json.fail) }}', { full: true }),
+], {
+  'Run now': { main: [[link('Claim leads')]] },
+  'Claim leads': { main: [[link('Plan')]] },
+  'Plan': { main: [[link('Is a lead')]] },
+  'Is a lead': { main: [[link('Get token')], []] },
+  'Get token': { main: [[link('Build request')]] },
+  'Build request': { main: [[link('Can fetch')]] },
+  'Can fetch': { main: [[link('Fetch lead')], [link('Read result')]] },
+  'Fetch lead': { main: [[link('Read result')]] },
+  'Read result': { main: [[link('Can save')]] },
+  'Can save': { main: [[link('Save lead')], [link('Record failure')]] },
+});
+
+const metaSender = wf('Zella - Meta Sender', [
+  runTrigger('meta-sender'),
+  rpcNode('Claim replies', [240, 200], 'zella_meta_claim_outbox', '={{ JSON.stringify({ p_limit: 10 }) }}'),
+  code('Plan', [480, 200], 'meta-send-plan.js'),
+  ifBool('Is a reply', [720, 200], '={{ !$json.skip }}'),
+  node('Get token', 'n8n-nodes-base.httpRequest', 4.2, [960, 100], {
+    method: 'POST', url: `${SUPABASE}/rest/v1/rpc/zella_meta_token`, authentication: 'genericCredentialType', genericAuthType: 'httpCustomAuth',
+    sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify({ p_page_id: $json.page_id }) }}',
+    options: { response: { response: { fullResponse: true, neverError: true, responseFormat: 'json' } } },
+  }, { credentials: SUPABASE_CRED }),
+  code('Build request', [1200, 100], 'meta-send-request.js'),
+  ifBool('Can send', [1440, 100], '={{ !$json.fail }}'),
+  node('Send reply', 'n8n-nodes-base.httpRequest', 4.2, [1680, 0], {
+    method: 'POST', url: '={{ $json.url }}', authentication: 'none', sendHeaders: true,
+    headerParameters: { parameters: [{ name: 'Authorization', value: '={{ $json.auth }}' }] },
+    sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify($json.body) }}',
+    options: { timeout: 15000, response: { response: { fullResponse: true, neverError: true, responseFormat: 'json' } } },
+  }),
+  code('Read result', [1920, 200], 'meta-send-after.js'),
+  rpcNode('Record send', [2160, 200], 'zella_meta_record_send', '={{ JSON.stringify($json.record) }}', { full: true }),
+], {
+  'Run now': { main: [[link('Claim replies')]] },
+  'Claim replies': { main: [[link('Plan')]] },
+  'Plan': { main: [[link('Is a reply')]] },
+  'Is a reply': { main: [[link('Get token')], []] },
+  'Get token': { main: [[link('Build request')]] },
+  'Build request': { main: [[link('Can send')]] },
+  'Can send': { main: [[link('Send reply')], [link('Read result')]] },
+  'Send reply': { main: [[link('Read result')]] },
+  'Read result': { main: [[link('Record send')]] },
+});
+
+const metaHealth = wf('Zella - Meta Health', [
+  runTrigger('meta-health'),
+  rpcNode('Claim checks', [240, 200], 'zella_meta_claim_checks', '={{ JSON.stringify({ p_limit: 10 }) }}'),
+  code('Plan', [480, 200], 'meta-health-plan.js'),
+  ifBool('Is a check', [720, 200], '={{ !$json.skip }}'),
+  tokenRpc([960, 100]),
+  code('Build request', [1200, 100], 'meta-health-request.js'),
+  ifBool('Can check', [1440, 100], '={{ !$json.fail }}'),
+  graphGet('Check connection', [1680, 0], '={{ $json.url }}', '={{ $json.auth }}'),
+  code('Read result', [1920, 200], 'meta-health-after.js'),
+  rpcNode('Record check', [2160, 200], 'zella_meta_record_check', '={{ JSON.stringify($json.record) }}', { full: true }),
+  ifBool('Has WhatsApp', [2400, 200], "={{ $('Read result').item.json.templates }}"),
+  graphGet('Get templates', [2640, 100], "={{ 'https://graph.facebook.com/v21.0/' + $('Build request').item.json.waba_id + '/message_templates?fields=name,language,status,category,components&limit=100' }}", "={{ $('Build request').item.json.auth }}"),
+  code('Map templates', [2880, 100], 'meta-templates-map.js'),
+  ifBool('Has templates', [3120, 100], '={{ !!$json.record }}'),
+  rpcNode('Record templates', [3360, 100], 'zella_meta_record_templates', '={{ JSON.stringify($json.record) }}', { full: true }),
+], {
+  'Run now': { main: [[link('Claim checks')]] },
+  'Claim checks': { main: [[link('Plan')]] },
+  'Plan': { main: [[link('Is a check')]] },
+  'Is a check': { main: [[link('Get token')], []] },
+  'Get token': { main: [[link('Build request')]] },
+  'Build request': { main: [[link('Can check')]] },
+  'Can check': { main: [[link('Check connection')], [link('Read result')]] },
+  'Check connection': { main: [[link('Read result')]] },
+  'Read result': { main: [[link('Record check')]] },
+  'Record check': { main: [[link('Has WhatsApp')]] },
+  'Has WhatsApp': { main: [[link('Get templates')], []] },
+  'Get templates': { main: [[link('Map templates')]] },
+  'Map templates': { main: [[link('Has templates')]] },
+  'Has templates': { main: [[link('Record templates')], []] },
+});
+
 writeFileSync(join(out, 'zella-event-gateway.json'), JSON.stringify(gateway, null, 2) + '\n');
 writeFileSync(join(out, 'zella-event-router.json'), JSON.stringify(router, null, 2) + '\n');
 writeFileSync(join(out, 'zella-sms-sender.json'), JSON.stringify(smsSender, null, 2) + '\n');
@@ -565,6 +698,10 @@ writeFileSync(join(out, 'zella-followup-texts.json'), JSON.stringify(followupSen
 writeFileSync(join(out, 'zella-outbound-calls.json'), JSON.stringify(outboundCalls, null, 2) + '\n');
 writeFileSync(join(out, 'zella-knowledge.json'), JSON.stringify(knowledge, null, 2) + '\n');
 writeFileSync(join(out, 'zella-assistant-tools.json'), JSON.stringify(assistantTools, null, 2) + '\n');
+writeFileSync(join(out, 'zella-meta-webhook.json'), JSON.stringify(metaWebhook, null, 2) + '\n');
+writeFileSync(join(out, 'zella-meta-leads.json'), JSON.stringify(metaLeads, null, 2) + '\n');
+writeFileSync(join(out, 'zella-meta-sender.json'), JSON.stringify(metaSender, null, 2) + '\n');
+writeFileSync(join(out, 'zella-meta-health.json'), JSON.stringify(metaHealth, null, 2) + '\n');
 writeFileSync(join(out, 'zella-inbound-email.json'), JSON.stringify(inboundEmail, null, 2) + '\n');
 writeFileSync(join(out, 'zella-voice-rules.json'), JSON.stringify(voiceRules, null, 2) + '\n');
 writeFileSync(join(out, 'zella-appointment-booking.json'), JSON.stringify(aiBooking, null, 2) + '\n');
@@ -572,4 +709,4 @@ writeFileSync(join(out, 'zella-email-events.json'), JSON.stringify(emailEvents, 
 writeFileSync(join(out, 'zella-calendar-sync.json'), JSON.stringify(calendarSync, null, 2) + '\n');
 writeFileSync(join(out, 'zella-connection-tests.json'), JSON.stringify(connectionTests, null, 2) + '\n');
 writeFileSync(join(out, 'zella-call-results.json'), JSON.stringify(callResults, null, 2) + '\n');
-console.log('Built', [gateway, router, smsSender, followupSender, emailSender, followupEmails, ownerEmails, outboundCalls, callResults, knowledge, assistantTools, voiceRules, inboundEmail, aiBooking, emailEvents, calendarSync, connectionTests].map((w) => w.name + ' (' + w.nodes.length + ')').join(', '));
+console.log('Built', [gateway, router, smsSender, followupSender, emailSender, followupEmails, ownerEmails, outboundCalls, callResults, knowledge, assistantTools, voiceRules, inboundEmail, metaWebhook, metaLeads, metaSender, metaHealth, aiBooking, emailEvents, calendarSync, connectionTests].map((w) => w.name + ' (' + w.nodes.length + ')').join(', '));

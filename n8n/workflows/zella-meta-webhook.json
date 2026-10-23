@@ -1,0 +1,367 @@
+{
+  "name": "Zella - Meta Webhook",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "zella/meta",
+        "authentication": "none",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "591ab833-d2aa-4e35-83af-cbe41735932f",
+      "name": "Meta set-up check",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        80
+      ],
+      "webhookId": "95c4800b-7966-4003-8ffb-f89e5d7fa99f"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Meta Webhook (set-up check): when the webhook is first connected, Meta sends a word and a challenge.\n// We hand the word to the database, which compares it with the secret in Vault, and echo the challenge only if it matches.\nconst q = $json.query && typeof $json.query === 'object' ? $json.query : {};\nconst mode = typeof q['hub.mode'] === 'string' ? q['hub.mode'] : '';\nconst token = typeof q['hub.verify_token'] === 'string' ? q['hub.verify_token'].slice(0, 200) : '';\nconst challenge = typeof q['hub.challenge'] === 'string' && /^[A-Za-z0-9_-]{1,100}$/.test(q['hub.challenge']) ? q['hub.challenge'] : '';\nreturn { json: { check: mode === 'subscribe' && !!token && !!challenge, challenge, record: { p_token: token } } };\n"
+      },
+      "id": "4b5e84be-0e45-41f4-8c38-276a4ec0e7fd",
+      "name": "Check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_meta_verify_token",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.record) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "8c925420-6d89-4529-89f9-f08639410a2a",
+      "name": "Verify word",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        80
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Meta Webhook (set-up check): the challenge is echoed only when the database said the word was right.\nconst plan = $('Check').item.json;\nconst r = $json;\nconst ok = plan.check && Number(r.statusCode) >= 200 && Number(r.statusCode) < 300 && r.body === true;\nreturn { json: { ok, challenge: ok ? plan.challenge : '' } };\n"
+      },
+      "id": "59ad3c89-8ca6-44a6-88af-1cc9b05fb3aa",
+      "name": "Answer check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "96848fd5-64a4-497b-8501-8d448cd74f8e",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "5de7f824-ac0e-45a8-80dc-885bc61cf666",
+      "name": "Word is right",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        960,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.challenge }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "8078e4cc-94d0-4693-8c92-0c68f31f2212",
+      "name": "Send challenge",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "forbidden",
+        "options": {
+          "responseCode": 403
+        }
+      },
+      "id": "08b72042-34ee-421d-8ead-7358b6b9f6a8",
+      "name": "Refuse check",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1200,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "zella/meta",
+        "authentication": "none",
+        "responseMode": "responseNode",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "id": "2cc277b8-97b9-41da-862c-d4477b324bf7",
+      "name": "Meta events",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        400
+      ],
+      "webhookId": "45067d7b-7597-4df2-89cf-608fd0b9bb8a"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Zella - Meta Webhook: Meta posts events here (leads, messages, comments). The exact bytes it sent are kept, because the\n// signature is made over those bytes. The database checks the signature with the app secret in Vault; this step never sees it.\nconst first = $input.first();\nconst headers = first.json.headers && typeof first.json.headers === 'object' ? first.json.headers : {};\nconst sig = typeof headers['x-hub-signature-256'] === 'string' ? headers['x-hub-signature-256'].slice(0, 100) : '';\nlet raw = '';\ntry {\n  const buf = await this.helpers.getBinaryDataBuffer(0, 'data');\n  raw = buf.toString('utf8');\n} catch (e) { raw = ''; }\nif (raw.length > 500000) raw = '';\nreturn [{ json: { ok: !!raw && !!sig, record: { p_raw: raw, p_signature: sig } } }];\n"
+      },
+      "id": "2f4240de-4d36-4b52-8ada-e13b4bbc3277",
+      "name": "Prepare",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_meta_receive",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.record) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "37b03cc8-ef98-4009-8191-da40ad5628ce",
+      "name": "Save events",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        400
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Meta Webhook: answer Meta. A wrong signature gets 403; everything else gets 200 so Meta does not keep retrying.\nconst plan = $('Prepare').item.json;\nconst r = $json;\nconst b = r.body && typeof r.body === 'object' ? r.body : {};\nconst bad = !plan.ok || b.result === 'unauthorized';\nreturn { json: { code: bad ? 403 : 200, body: { ok: !bad } } };\n"
+      },
+      "id": "a16a4eda-7cb2-48e9-8d7e-dd25e809ae9d",
+      "name": "Answer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "responseCode": "={{ $json.code }}"
+        }
+      },
+      "id": "6c2bb735-a46a-4ff3-87fe-2e638d581295",
+      "name": "Reply",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        960,
+        400
+      ]
+    }
+  ],
+  "connections": {
+    "Meta set-up check": {
+      "main": [
+        [
+          {
+            "node": "Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check": {
+      "main": [
+        [
+          {
+            "node": "Verify word",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify word": {
+      "main": [
+        [
+          {
+            "node": "Answer check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Answer check": {
+      "main": [
+        [
+          {
+            "node": "Word is right",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Word is right": {
+      "main": [
+        [
+          {
+            "node": "Send challenge",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Refuse check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta events": {
+      "main": [
+        [
+          {
+            "node": "Prepare",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare": {
+      "main": [
+        [
+          {
+            "node": "Save events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save events": {
+      "main": [
+        [
+          {
+            "node": "Answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Answer": {
+      "main": [
+        [
+          {
+            "node": "Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

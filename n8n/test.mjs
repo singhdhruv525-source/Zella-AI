@@ -3,7 +3,7 @@
 // It does NOT import into n8n (the installed n8n version has not been checked).
 import { readFileSync } from 'node:fs';
 import { strict as assert } from 'node:assert';
-import { runCode, eventTypes } from './src/load.mjs';
+import { runCode, eventTypes, loadCode } from './src/load.mjs';
 
 let passed = 0;
 const failures = [];
@@ -108,7 +108,7 @@ test('execution id is optional when logging failed to start', () => assert.equal
 // ---------------- dispatcher (timed jobs run in Supabase; n8n is only called when work is waiting)
 const dispatcherSql = readFileSync(new URL('../sql/zella_dispatcher.sql', import.meta.url), 'utf8');
 const wfJson = (f) => JSON.parse(readFileSync(new URL('./workflows/' + f, import.meta.url), 'utf8'));
-const RUN_PATHS = { 'zella-event-router.json': 'event-router', 'zella-sms-sender.json': 'sms-sender', 'zella-email-sender.json': 'email-sender', 'zella-followup-texts.json': 'followup-texts', 'zella-followup-emails.json': 'followup-emails', 'zella-owner-emails.json': 'owner-emails', 'zella-outbound-calls.json': 'outbound-calls', 'zella-knowledge.json': 'knowledge-sync', 'zella-calendar-sync.json': 'calendar-sync', 'zella-connection-tests.json': 'connection-tests' };
+const RUN_PATHS = { 'zella-event-router.json': 'event-router', 'zella-sms-sender.json': 'sms-sender', 'zella-email-sender.json': 'email-sender', 'zella-followup-texts.json': 'followup-texts', 'zella-followup-emails.json': 'followup-emails', 'zella-owner-emails.json': 'owner-emails', 'zella-outbound-calls.json': 'outbound-calls', 'zella-knowledge.json': 'knowledge-sync', 'zella-calendar-sync.json': 'calendar-sync', 'zella-connection-tests.json': 'connection-tests', 'zella-meta-leads.json': 'meta-leads', 'zella-meta-sender.json': 'meta-sender', 'zella-meta-health.json': 'meta-health' };
 test('no workflow wakes itself on a timer (that would burn the monthly n8n run allowance)', () => {
   for (const f of [...Object.keys(RUN_PATHS), 'zella-event-gateway.json']) assert.ok(!JSON.stringify(wfJson(f)).includes('scheduleTrigger'), f);
 });
@@ -805,6 +805,82 @@ test('delivery receipts: the router sends delivered and failed texts to the data
   assert.equal(f.body.p_status, 'failed'); assert.equal(f.body.p_error, 'bad number');
   assert.equal(route({ id: 'e3', business_id: BIZ, event_type: 'message.delivered', payload: {} }).problem.category, 'invalid_input');
   assert.ok(JSON.parse(readFileSync(new URL('../n8n/src/events.json', import.meta.url), 'utf8')).includes('message.delivered'));
+});
+
+// ---------------- Meta (Facebook, Instagram, WhatsApp)
+const metaSql = readFileSync(new URL('../sql/zella_meta.sql', import.meta.url), 'utf8');
+test('meta webhook: the set-up check echoes the challenge only for a well formed request, and only if the database approves', () => {
+  const p = runCode('meta-verify-plan.js', { json: { query: { 'hub.mode': 'subscribe', 'hub.verify_token': 'secretword', 'hub.challenge': '12345' } } }).json;
+  assert.equal(p.check, true); assert.equal(p.record.p_token, 'secretword'); assert.equal(p.challenge, '12345');
+  assert.equal(runCode('meta-verify-plan.js', { json: { query: { 'hub.mode': 'subscribe', 'hub.verify_token': 'x', 'hub.challenge': '<script>' } } }).json.check, false);
+  assert.equal(runCode('meta-verify-plan.js', { json: { query: {} } }).json.check, false);
+  const after = (body, plan) => runCode('meta-verify-after.js', { json: { statusCode: 200, body }, nodes: { Check: plan } }).json;
+  assert.equal(after(true, p).challenge, '12345'); assert.equal(after(false, p).ok, false); assert.equal(after(true, { ...p, check: false }).ok, false);
+});
+const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+const metaRun = (headers, text) => new AsyncFunction('$input', loadCode('meta-receive-plan.js')).call({ helpers: { getBinaryDataBuffer: async () => Buffer.from(text) } }, { first: () => ({ json: { headers } }) });
+const metaOk = await metaRun({ 'x-hub-signature-256': 'sha256=abc' }, '{"object":"page"}');
+const metaNoSig = await metaRun({}, '{"a":1}');
+test('meta webhook: the raw bytes and the signature go to the database, and a wrong signature is answered 403', () => {
+  assert.equal(metaOk[0].json.record.p_raw, '{"object":"page"}'); assert.equal(metaOk[0].json.record.p_signature, 'sha256=abc'); assert.equal(metaOk[0].json.ok, true);
+  assert.equal(metaNoSig[0].json.ok, false);
+  const ans = (plan, body) => runCode('meta-receive-after.js', { json: { statusCode: 200, body }, nodes: { Prepare: plan } }).json;
+  assert.equal(ans({ ok: true }, { result: 'unauthorized' }).code, 403); assert.equal(ans({ ok: false }, { result: 'ok' }).code, 403); assert.equal(ans({ ok: true }, { result: 'ok' }).code, 200);
+});
+test('meta leads: only plain ids reach Meta, a missing token is retried, and a deleted lead is not', () => {
+  const plan = runCode('meta-lead-plan.js', { json: { event_id: '3f1c2b4e-5a6d-4e7f-8a9b-0c1d2e3f4a5b', page_id: '1234567890123', leadgen_id: '444455556666' } }).json;
+  assert.equal(plan.valid, true);
+  assert.equal(runCode('meta-lead-plan.js', { json: { event_id: 'x', page_id: '1', leadgen_id: '../' } }).json.skip, true);
+  assert.equal(runCode('meta-lead-plan.js', { json: { event_id: '3f1c2b4e-5a6d-4e7f-8a9b-0c1d2e3f4a5b', page_id: '12', leadgen_id: '../x' } }).json.valid, false);
+  const req = (body, p = plan) => runCode('meta-lead-request.js', { json: { body }, nodes: { Plan: p } }).json;
+  const ok = req('tok_' + 'a'.repeat(30)); assert.equal(ok.fail, null); assert.ok(ok.url.startsWith('https://graph.facebook.com/v21.0/444455556666?')); assert.ok(ok.auth.startsWith('Bearer '));
+  assert.equal(req(null).fail.p_permanent, false); assert.equal(req('short').fail.p_error, 'no_token_reconnect_needed');
+  const after = (res, p) => runCode('meta-lead-after.js', { json: res, nodes: { 'Build request': p } }).json;
+  const good = after({ statusCode: 200, body: { field_data: [{ name: 'email', values: ['a@b.com'] }, { name: 'x', values: ['y'] }], campaign_name: 'Autumn' } }, ok);
+  assert.equal(good.save.p_fields.length, 2); assert.equal(good.save.p_campaign, 'Autumn'); assert.equal(good.fail, null);
+  assert.equal(after({ statusCode: 400, body: { error: { code: 100, message: 'secret detail' } } }, ok).fail.p_permanent, true);
+  const temp = after({ statusCode: 500, body: { error: { message: 'secret detail' } } }, ok); assert.equal(temp.fail.p_permanent, false); assert.ok(!JSON.stringify(temp).includes('secret'));
+});
+test('meta sender: the destination depends on the channel, the 24 hour rules are honoured, and failures say what to do', () => {
+  const planOf = (o) => runCode('meta-send-plan.js', { json: { id: '3f1c2b4e-5a6d-4e7f-8a9b-0c1d2e3f4a5b', page_id: '1234567890123', text: 'Hello', whatsapp_phone_id: '109999999', instagram_id: '17841400000000', ...o } }).json;
+  const m = planOf({ channel: 'messenger', kind: 'message', recipient: '999111' }); assert.equal(m.url, 'https://graph.facebook.com/v21.0/1234567890123/messages'); assert.equal(m.body.messaging_type, 'RESPONSE');
+  const w = planOf({ channel: 'whatsapp', kind: 'message', recipient: '14155550777' }); assert.equal(w.url, 'https://graph.facebook.com/v21.0/109999999/messages'); assert.equal(w.body.messaging_product, 'whatsapp');
+  const pr = planOf({ channel: 'instagram', kind: 'private_reply', recipient: 'c_9' }); assert.equal(pr.url, 'https://graph.facebook.com/v21.0/17841400000000/messages'); assert.equal(pr.body.recipient.comment_id, 'c_9');
+  assert.equal(planOf({ channel: 'whatsapp', kind: 'message', recipient: 'not a number' }).valid, false);
+  assert.equal(planOf({ channel: 'messenger', kind: 'message', recipient: '../../x' }).valid, false);
+  assert.equal(runCode('meta-send-plan.js', { json: { id: 'nope' } }).json.skip, true);
+  const after = (res, p) => runCode('meta-send-after.js', { json: res, nodes: { 'Build request': p } }).json.record;
+  const p = { id: 'o1', fail: null };
+  assert.equal(after({ statusCode: 200, body: { message_id: 'mid.1' } }, p).p_external_id, 'mid.1'); assert.equal(after({ statusCode: 200, body: { messages: [{ id: 'wamid.1' }] } }, p).p_external_id, 'wamid.1');
+  const a = after({ statusCode: 400, body: { error: { code: 190, message: 'secret' } } }, p); assert.equal(a.p_auth_failed, true); assert.equal(a.p_retry, false); assert.ok(!JSON.stringify(a).includes('secret'));
+  assert.equal(after({ statusCode: 429, body: {} }, p).p_retry, true); assert.equal(after({ statusCode: 400, body: { error: { code: 551 } } }, p).p_retry, false);
+});
+test('meta health: a dead token means reconnect, a working one checks templates only when WhatsApp is set up', () => {
+  const plan = runCode('meta-health-plan.js', { json: { page_id: '1234567890123', waba_id: '555000111' } }).json;
+  assert.equal(plan.waba_id, '555000111'); assert.equal(runCode('meta-health-plan.js', { json: { page_id: 'x' } }).json.skip, true);
+  const req = runCode('meta-health-request.js', { json: { body: 'tok_' + 'b'.repeat(30) }, nodes: { Plan: plan } }).json; assert.equal(req.fail, null);
+  const after = (res) => runCode('meta-health-after.js', { json: res, nodes: { 'Build request': req } }).json;
+  assert.equal(after({ statusCode: 200, body: { id: '1' } }).templates, true); assert.equal(after({ statusCode: 200, body: {} }).record.p_ok, true);
+  assert.equal(after({ statusCode: 400, body: { error: { code: 190 } } }).record.p_auth_failed, true); assert.equal(after({ statusCode: 500, body: {} }).record.p_auth_failed, false);
+  const t = runCode('meta-templates-map.js', { json: { statusCode: 200, body: { data: [{ name: 'hello', language: 'en_US', status: 'APPROVED', category: 'UTILITY', components: [{ type: 'BODY', text: 'Hi {{1}}' }] }] } }, nodes: { 'Build request': req } }).json;
+  assert.equal(t.record.p_templates[0].body, 'Hi {{1}}'); assert.equal(t.record.p_page_id, '1234567890123');
+});
+test('meta workflows: the webhook is open (Meta cannot send our header) but every event is checked by signature in the database', () => {
+  const w = wfJson('zella-meta-webhook.json');
+  const post = w.nodes.find((n) => n.name === 'Meta events'); const get = w.nodes.find((n) => n.name === 'Meta set-up check');
+  assert.equal(post.parameters.httpMethod, 'POST'); assert.equal(post.parameters.options.rawBody, true); assert.equal(get.parameters.httpMethod, 'GET');
+  assert.equal(post.parameters.path, 'zella/meta'); assert.equal(get.parameters.path, 'zella/meta');
+  assert.ok(metaSql.includes("'unauthorized'") && metaSql.includes("'sha256='") && metaSql.includes('zella_meta_app_secret') && metaSql.includes("hmac("));
+  for (const [f, lane] of [['zella-meta-leads.json', 'meta-leads'], ['zella-meta-sender.json', 'meta-sender'], ['zella-meta-health.json', 'meta-health']]) {
+    const x = wfJson(f); const t = x.nodes[0]; assert.equal(t.parameters.path, 'zella/run/' + lane); assert.equal(t.parameters.authentication, 'headerAuth');
+    for (const n of x.nodes.filter((q) => q.type === 'n8n-nodes-base.httpRequest' && q.parameters.authentication === 'none')) assert.ok(!JSON.stringify(n).includes('EAA'), n.name);
+  }
+});
+test('meta sql: leads need consent before they are called, replies respect the 24 hour window, tokens never leave the vault', () => {
+  assert.ok(metaSql.includes('call_consent_confirmed') && metaSql.includes('not called: the form has no consent'));
+  assert.ok(metaSql.includes("interval '24 hours'") && metaSql.includes("'template_required'") && metaSql.includes('TEMPLATE_REQUIRED'));
+  assert.ok(metaSql.includes('vault.create_secret') && !/^\s+token text/m.test(metaSql)); assert.ok(metaSql.includes('revoke execute on function public.zella_meta_token'));
+  assert.ok(metaSql.includes("from_page") && metaSql.includes('comment_keywords'));
 });
 
 test('phone link: the business found from the number replaces the one in the record, and none found means none', () => {
