@@ -83,6 +83,15 @@ Run `sql/zella_inbound_replies.sql` after `zella_followup_emails.sql`. The route
 - Replies to a customer's own message go out straight away (no calling-hours delay) and are never moved to email.
 - **Not covered yet:** letting the customer pick a new time by text, a staff reply screen, and replies to emails.
 
+## Waitlist offers
+
+Run `sql/zella_waitlist_offers.sql` (after `zella_reschedule.sql`). The Follow-up Texts workflow handles the new `waitlist_offer` kind (its Plan step and claim list changed, so re-import it or update those two nodes). Deploy the `reschedule-appointment` function again (it has three new actions) and the web app (new `/w/<code>` page).
+
+- When an appointment is cancelled and the business has the waitlist automation on, the database already offers the freed time to the next person who fits and queues a text. Nothing is reserved.
+- The text now carries a private **Book it here** link (or "Contact us to take it" until `app_base_url` is set). The page shows the time and two buttons: **Book this time** and **No thanks**.
+- Yes books it (the calendar re-checks the time, so a taken time is never double-booked). No passes the time to the next person. An offer nobody answers expires and moves on (existing 5-minute job).
+- The text goes out straight away, is never moved to email, and is never sent if the offer is no longer open.
+
 ## Overdue callback alerts
 
 Run `sql/zella_callback_alerts.sql` (and re-run `zella_dispatcher.sql` at go-live so the timer picks it up). No new n8n workflow: it is a timed database job (every 5 minutes) and the Owner Emails workflow emails the alerts.
