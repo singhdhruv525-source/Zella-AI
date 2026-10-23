@@ -4,8 +4,7 @@
 -- function do more, so the router workflow does NOT need to be re-imported:
 --   * every incoming text is saved (matched to the customer when the number is known)
 --   * STOP / START / HELP work as before, and HELP now gets a reply
---   * C, CONFIRM, YES, Y  -> the customer's next appointment becomes confirmed, and they get a thank-you text
---   * R, RESCHEDULE       -> staff get an alert and a callback task, and the customer gets an acknowledgement
+--   * C / R are NOT special any more: customers change a time with the Reschedule link (zella_reschedule.sql)
 --   * anything else       -> staff see a "new text" notice in the app
 -- Replies to customers are queued as follow-up text tasks and sent by the "Zella - Follow-up Texts" workflow.
 
@@ -26,7 +25,7 @@ create or replace function public.zella_handle_inbound_sms_keyword(p_business_id
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare
   k text := upper(regexp_replace(trim(coalesce(p_body, '')), '[^A-Za-z]', '', 'g'));
-  v_cust uuid; v_name text; v_appt record; v_cb uuid; v_when text; v_tz text;
+  v_cust uuid; v_name text; v_tz text;
 begin
   select m.customer_id into v_cust from public.zella_match_customer(p_business_id, p_from, null) m where m.certainty = 'exact' limit 1;
   select coalesce(nullif(trim(coalesce(c.first_name, '') || ' ' || coalesce(c.last_name, '')), ''), p_from) into v_name from public.customers c where c.id = v_cust;
@@ -53,36 +52,6 @@ begin
       insert into public.followup_tasks (business_id, customer_id, kind, channel, due_at, max_attempts) values (p_business_id, v_cust, 'reply_help', 'sms', now(), 2);
     end if;
     return jsonb_build_object('action', 'help', 'reply_queued', v_cust is not null);
-  end if;
-
-  if v_cust is not null and k in ('C','CONFIRM','CONFIRMED','YES','Y','R','RESCHEDULE') then
-    select a.id, a.title, a.start_time, a.status into v_appt from public.appointments a
-     where a.customer_id = v_cust and a.business_id = p_business_id and a.status in ('scheduled', 'confirmed')
-       and coalesce(a.booking_state, 'confirmed') = 'confirmed' and a.start_time > now()
-     order by a.start_time limit 1;
-
-    if v_appt.id is not null and k in ('C','CONFIRM','CONFIRMED','YES','Y') then
-      if v_appt.status = 'scheduled' then update public.appointments set status = 'confirmed', updated_at = now() where id = v_appt.id; end if;
-      update public.appointment_reminders set status = 'cancelled', error = 'customer_confirmed'
-       where appointment_id = v_appt.id and kind = 'confirmation_request' and status = 'pending';
-      insert into public.followup_tasks (business_id, customer_id, appointment_id, kind, channel, due_at, max_attempts)
-      values (p_business_id, v_cust, v_appt.id, 'reply_confirmed', 'sms', now(), 2) on conflict do nothing;
-      return jsonb_build_object('action', 'confirmed', 'keyword', k, 'appointment_id', v_appt.id);
-
-    elsif v_appt.id is not null then
-      v_when := to_char(v_appt.start_time at time zone v_tz, 'Dy Mon FMDD "at" FMHH12:MI AM');
-      update public.appointments set metadata = coalesce(metadata, '{}'::jsonb) || jsonb_build_object('reschedule_requested_at', now(), 'reschedule_requested_by', 'customer_text'),
-             reschedule_requested_by = 'customer', updated_at = now() where id = v_appt.id;
-      v_cb := public.zella_create_callback(p_business_id, p_from, 'appointment_request', 'normal',
-                v_name || ' asked by text to reschedule their ' || coalesce(v_appt.title, 'appointment') || ' on ' || v_when || '.',
-                null, v_cust, null, v_appt.id, 'system', 'reschedule_request');
-      update public.callbacks set auto_call = false, status = 'reschedule_requested', updated_at = now() where id = v_cb;
-      perform public.zella_notify_owners(p_business_id, 'reschedule_requested', 'Reschedule request',
-        v_name || ' asked by text to reschedule their ' || coalesce(v_appt.title, 'appointment') || ' on ' || v_when || '. Please contact them to find a new time.', 'warning', 'callbacks');
-      insert into public.followup_tasks (business_id, customer_id, appointment_id, kind, channel, due_at, max_attempts)
-      values (p_business_id, v_cust, v_appt.id, 'reply_reschedule', 'sms', now(), 2) on conflict do nothing;
-      return jsonb_build_object('action', 'reschedule_requested', 'keyword', k, 'appointment_id', v_appt.id, 'callback_id', v_cb);
-    end if;
   end if;
 
   -- Anything else: let staff know there is a new text to read.

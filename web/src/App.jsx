@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "./supabase";
 import OwnerDashboard from "./OwnerDashboard";
 import ContinuePlan from "./ContinuePlan";
+import Reschedule from "./Reschedule";
 import BusinessApp from "./BusinessApp";
 import { checkEmail } from "./formValidation";
 import "./App.css";
@@ -12,6 +13,10 @@ import "./App.css";
 export default function App() {
   if (window.location.pathname.startsWith("/continue-plan")) {
     return <ContinuePlan />;
+  }
+  // Reschedule button from appointment texts and emails (customers, not signed in).
+  if (/^\/r\/[0-9a-fA-F]{64}\/?$/.test(window.location.pathname)) {
+    return <Reschedule />;
   }
   // The client businesses' own CRM.
   if (/^\/(app|welcome)(\/|$)/.test(window.location.pathname)) {

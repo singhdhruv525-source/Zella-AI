@@ -78,11 +78,21 @@ Run `sql/zella_inbound_replies.sql` after `zella_followup_emails.sql`. The route
 
 - **Every incoming text is saved** and matched to the customer when the number is known.
 - **STOP / START / HELP** work as before. HELP now queues a reply (`reply_help`).
-- **C, CONFIRM, CONFIRMED, YES, Y** confirm the customer's next upcoming appointment, cancel the pending "please confirm" reminder, and queue a thank-you text. (YES still means START for someone who opted out.)
-- **R, RESCHEDULE** mark the appointment as needing a new time, create a callback task in "reschedule requested" (it never auto-calls), alert the business owners (a warning, so it is also emailed), and queue an acknowledgement text.
+- **C and R are not special.** Customers never have to reply to anything: they change a time with the Reschedule link (next section). (YES still means START for someone who opted out.)
 - **Anything else** shows a "New text from ..." notice in the app.
 - Replies to a customer's own message go out straight away (no calling-hours delay) and are never moved to email.
 - **Not covered yet:** letting the customer pick a new time by text, a staff reply screen, and replies to emails.
+
+## The Reschedule button
+
+Run `sql/zella_reschedule.sql` after `zella_email_sender.sql`.
+
+- Booking confirmations and reminders (text and email) go out on their own. Nobody has to reply. The only thing a customer can do is tap **Reschedule** and pick a new time.
+- The "please confirm" reminder is no longer created (any still waiting is cancelled). STOP still works.
+- Each message carries a private link `<app_base_url>/r/<code>`. The code is for one appointment, only its hash is stored, and it stops working once the appointment has passed or been cancelled.
+- The public page (`web/src/Reschedule.jsx`) calls the `reschedule-appointment` function, which offers the free times for the same length of visit and the same staff member, and moves the **same** appointment. The calendar rules decide whether a time is free, the reminders are rebuilt, and the business is told.
+- Until `app_base_url` is set (in `platform_settings`, for example `"https://app.yourdomain.com"`), messages go out with no link.
+- **Re-import the SMS Sender and Email Sender** (their Plan step now passes the link). The claim function was changed in the database.
 
 ## Owner summaries and owner emails
 

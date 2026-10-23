@@ -25,7 +25,7 @@ return {
       p_business_id: r.business.id,
       p_customer_id: r.customer.id,
       p_template_key: key,
-      p_vars: { appointment: label, date, time },
+      p_vars: { appointment: label, date, time, reschedule_line: typeof r.reschedule_line === 'string' ? r.reschedule_line : '' },
       p_purpose: 'transactional',
     },
     finish: null,

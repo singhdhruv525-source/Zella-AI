@@ -912,3 +912,18 @@
   align-items: center;
   flex-shrink: 0;
 }
+
+/* Reschedule page (customer-facing) */
+.rs-days, .rs-times { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; }
+.rs-chip {
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid var(--line, #d9d4c8);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.rs-chip.on { background: var(--ink, #23272b); border-color: var(--ink, #23272b); color: #fff; }
+.rs-chip:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }

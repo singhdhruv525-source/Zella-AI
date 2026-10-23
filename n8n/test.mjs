@@ -151,6 +151,7 @@ test('plan builds the prepare request with business-time date and time', () => {
   assert.equal(p.prepare.p_vars.appointment, 'haircut'); assert.equal(p.prepare.p_purpose, 'transactional');
 });
 test('confirmation uses the confirmation template', () => assert.equal(plan({ ...R, kind: 'confirmation' }).prepare.p_template_key, 'appointment_confirmation'));
+test('the Reschedule line is passed to the template (empty when there is no link)', () => { assert.equal(plan({ ...R, reschedule_line: ' Need a new time? https://x.test/r/abc' }).prepare.p_vars.reschedule_line, ' Need a new time? https://x.test/r/abc'); assert.equal(plan({ ...R }).prepare.p_vars.reschedule_line, ''); });
 test('confirmation request uses the reminder template', () => assert.equal(plan({ ...R, kind: 'confirmation_request' }).prepare.p_template_key, 'appointment_reminder'));
 test('non-text channel is skipped with a reason', () => { const p = plan({ ...R, channel: 'email' }); assert.equal(p.finish.rpc, 'zella_skip_reminder'); assert.match(p.finish.body.p_reason, /channel_not_supported_yet:email/); });
 test('unknown kind is skipped', () => assert.equal(plan({ ...R, kind: 'weird' }).finish.rpc, 'zella_skip_reminder'));
