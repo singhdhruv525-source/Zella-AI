@@ -5,15 +5,18 @@ const body = $json.body && typeof $json.body === 'object' ? $json.body : {};
 const m = body.message && typeof body.message === 'object' ? body.message : {};
 const list = Array.isArray(m.toolCallList) ? m.toolCallList : Array.isArray(m.toolCalls) ? m.toolCalls : [];
 const actions = { check_availability: 'availability', book_appointment: 'book' };
+// Changing an existing booking: the caller is recognised by the number they are calling from, never by what they say.
+const manage = { find_my_appointments: 'find', reschedule_appointment: 'reschedule', cancel_appointment: 'cancel' };
 const nameOf = (t) => (t && (t.name || (t.function && t.function.name))) || '';
-const tc = list.find((t) => t && typeof t.id === 'string' && actions[nameOf(t)]);
+const tc = list.find((t) => t && typeof t.id === 'string' && (actions[nameOf(t)] || manage[nameOf(t)]));
 if (m.type !== 'tool-calls' || !tc) return { json: { reply: { results: [] }, record: null } };
 
 let args = tc.arguments !== undefined ? tc.arguments : tc.function && tc.function.arguments;
 if (typeof args === 'string') { try { args = JSON.parse(args); } catch (e) { args = {}; } }
 args = args && typeof args === 'object' ? args : {};
 
-const allowed = ['date', 'days', 'duration_minutes', 'start', 'first_name', 'last_name', 'phone', 'email', 'title', 'notes'];
+const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const allowed = ['appointment_id', 'date', 'days', 'duration_minutes', 'start', 'first_name', 'last_name', 'phone', 'email', 'title', 'notes'];
 const clean = {};
 for (const k of allowed) {
   const v = args[k];
@@ -21,16 +24,21 @@ for (const k of allowed) {
   else if (typeof v === 'number' && isFinite(v)) clean[k] = v;
 }
 
+if (clean.appointment_id !== undefined && !uuidRe.test(String(clean.appointment_id))) delete clean.appointment_id;
 const call = m.call && typeof m.call === 'object' ? m.call : {};
 const meta = call.metadata && typeof call.metadata === 'object' ? call.metadata : {};
 const vars = call.assistantOverrides && call.assistantOverrides.variableValues && typeof call.assistantOverrides.variableValues === 'object' ? call.assistantOverrides.variableValues : {};
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const bid = [meta.business_id, vars.business_id].find((v) => typeof v === 'string' && uuid.test(v)) || null;
 
+const cn = call.customer && typeof call.customer === 'object' ? String(call.customer.number || '') : '';
+const callerNumber = /^\+?[0-9]{7,15}$/.test(cn) ? cn : null;
+
 return {
   json: {
     tool_call_id: tc.id,
     reply: null,
-    record: { p_provider_call_id: typeof call.id === 'string' ? call.id.slice(0, 200) : null, p_business_id: bid, p_action: actions[nameOf(tc)], p_args: clean },
+    rpc: manage[nameOf(tc)] ? 'zella_ai_manage_booking' : 'zella_ai_booking',
+    record: { p_provider_call_id: typeof call.id === 'string' ? call.id.slice(0, 200) : null, p_business_id: bid, p_action: actions[nameOf(tc)] || manage[nameOf(tc)], p_args: manage[nameOf(tc)] ? { ...clean, caller_number: callerNumber } : clean },
   },
 };

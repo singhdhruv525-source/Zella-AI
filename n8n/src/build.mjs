@@ -343,14 +343,14 @@ const assistantTools = wf('Zella - Assistant Tools', [
 });
 
 // Appointment booking by the phone assistant: Vapi calls this during a call with two tools, check_availability and
-// book_appointment. All decisions are made in the database (zella_ai_booking); this only passes them through.
+// book_appointment (and, for existing bookings, find_my_appointments / reschedule_appointment / cancel_appointment). All decisions are made in the database (zella_ai_booking); this only passes them through.
 const aiBooking = wf('Zella - Appointment Booking', [
   node('Vapi booking tool', 'n8n-nodes-base.webhook', 2, [0, 200], {
     httpMethod: 'POST', path: 'zella/vapi-booking', authentication: 'headerAuth', responseMode: 'responseNode', options: {},
   }, { webhookId: id('webhook:zella-vapi-booking'), credentials: GATEWAY_CRED }),
   code('Plan', [240, 200], 'booking-tool-plan.js'),
   ifBool('Is a booking tool', [480, 200], '={{ !!$json.record }}'),
-  rpcNode('Run booking', [720, 100], 'zella_ai_booking', '={{ JSON.stringify($json.record) }}', { full: true }),
+  rpcNode('Run booking', [720, 100], '', '={{ JSON.stringify($json.record) }}', { full: true, urlExpr: `={{ '${SUPABASE}/rest/v1/rpc/' + $json.rpc }}` }),
   code('Build reply', [960, 200], 'booking-tool-reply.js'),
   node('Reply', 'n8n-nodes-base.respondToWebhook', 1.1, [1200, 200], {
     respondWith: 'json', responseBody: '={{ JSON.stringify($json) }}', options: { responseCode: 200 },

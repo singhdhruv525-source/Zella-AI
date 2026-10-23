@@ -590,10 +590,23 @@ test('booking tools: Vapi gets a short instruction, and a failure never says the
   assert.equal(bad.status, 'error'); assert.match(bad.instruction, /Do not say it is booked/); assert.ok(!JSON.stringify(bad).includes('secret'));
   assert.deepEqual(bReply({ reply: { results: [] }, record: null }, {}), { results: [] });
 });
+test('booking tools: found appointments are passed on with their ids so the next tool can use them', () => {
+  const r = JSON.parse(bReply({ tool_call_id: 't', record: {} }, { statusCode: 200, body: { status: 'appointments', say: 'Confirm which.', appointments: [{ appointment_id: 'a1', title: 'Cut', say: 'Monday at 9', start: 'x' }] } }).results[0].result);
+  assert.deepEqual(r.appointments, [{ appointment_id: 'a1', title: 'Cut', say: 'Monday at 9' }]);
+});
 test('booking tools: the workflow is a protected webhook that answers Vapi, and the SQL never double-books', () => {
   const w = wfJson('zella-appointment-booking.json'); const t = w.nodes.find((n) => n.name === 'Vapi booking tool');
   assert.equal(t.parameters.path, 'zella/vapi-booking'); assert.equal(t.parameters.authentication, 'headerAuth'); assert.equal(t.parameters.responseMode, 'responseNode');
   assert.ok(bkSql.includes('zella_book_appointment') && bkSql.includes('zella_request_appointment') && bkSql.includes("'SLOT_TAKEN'") && !/api\.vapi\.ai|net\.http_post/.test(bkSql));
+});
+
+test('booking tools: changing a booking uses the caller\'s own number, never one the model supplies', () => {
+  const r = bt(btm('cancel_appointment', { appointment_id: '33333333-3333-4333-8333-333333333333', caller_number: '+19999999999' }, { call: { id: 'c9', metadata: { business_id: BIZ2 }, customer: { number: '+14155550177' } } }));
+  assert.equal(r.rpc, 'zella_ai_manage_booking'); assert.equal(r.record.p_action, 'cancel'); assert.equal(r.record.p_args.caller_number, '+14155550177'); assert.equal(r.record.p_args.appointment_id, '33333333-3333-4333-8333-333333333333');
+  const none = bt(btm('find_my_appointments', {})); assert.equal(none.record.p_args.caller_number, null); assert.equal(none.record.p_action, 'find');
+  assert.equal(bt(btm('reschedule_appointment', { appointment_id: 'bad' })).record.p_args.appointment_id, undefined);
+  assert.equal(bt(btm('check_availability', {})).rpc, 'zella_ai_booking');
+  assert.ok(bkSql.includes('zella_ai_manage_booking') && bkSql.includes("certainty = 'exact'") && bkSql.includes('handoff'));
 });
 
 console.log(`${passed} passed, ${failures.length} failed`);

@@ -100,3 +100,83 @@ begin
 end $$;
 revoke execute on function public.zella_ai_booking(text, uuid, text, jsonb) from public, anon, authenticated;
 grant execute on function public.zella_ai_booking(text, uuid, text, jsonb) to service_role;
+
+-- ---------------------------------------------------------------------------------------------------------
+-- Changing a booking by phone: find my appointments, move one, or cancel one.
+-- The caller is recognised ONLY by the number they are calling from (p_args.caller_number, set by n8n from the
+-- phone network, never by anything the caller says). Only an exact match to one customer may see or change
+-- bookings, and only that customer's own upcoming bookings. Otherwise a callback is created for staff.
+-- ---------------------------------------------------------------------------------------------------------
+create or replace function public.zella_ai_manage_booking(p_provider_call_id text, p_business_id uuid, p_action text, p_args jsonb default '{}'::jsonb)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  v_args jsonb := case when jsonb_typeof(p_args) = 'object' then p_args else '{}'::jsonb end;
+  v_call_id uuid; v_call_biz uuid; v_biz uuid; v_tz text; v_caller text; v_m record; v_cust uuid;
+  v_appt record; v_id uuid; v_start timestamptz; v_dur integer; v_slots jsonb; v_list jsonb; v_when text; v_err text;
+begin
+  if nullif(p_provider_call_id, '') is not null then
+    select c.id, c.business_id into v_call_id, v_call_biz from public.calls c where c.external_call_id = p_provider_call_id limit 1;
+  end if;
+  v_biz := coalesce(v_call_biz, p_business_id);
+  select b.id, coalesce(b.timezone, 'America/New_York') into v_biz, v_tz from public.businesses b
+   where b.id = v_biz and b.suspended_at is null and b.cancelled_at is null and coalesce(b.is_active, true);
+  if v_biz is null then raise exception 'UNKNOWN_BUSINESS'; end if;
+  if p_action not in ('find', 'reschedule', 'cancel') then raise exception 'BAD_ACTION'; end if;
+
+  v_caller := nullif(left(coalesce(v_args ->> 'caller_number', ''), 30), '');
+  if public.zella_digits(v_caller) is not null then
+    select m.customer_id, m.certainty into v_m from public.zella_match_customer(v_biz, v_caller, null) m;
+    if v_m.certainty = 'exact' then v_cust := v_m.customer_id; end if;
+  end if;
+
+  if v_cust is null then
+    -- cannot be sure who is calling: staff will help; nothing is shown or changed
+    perform public.zella_create_callback(v_biz, v_caller, 'appointment_request', 'normal',
+      'The caller asked to ' || case p_action when 'cancel' then 'cancel' when 'reschedule' then 'move' else 'check' end || ' an appointment, but could not be matched to a customer from their number.',
+      null, null, v_call_id, null, 'ai');
+    return jsonb_build_object('ok', true, 'status', 'handoff', 'say', 'You cannot look up or change bookings for this caller. Say the team will call them back to help. Do not read out any booking details.');
+  end if;
+
+  if p_action = 'find' then
+    select coalesce(jsonb_agg(jsonb_build_object('appointment_id', x.id, 'title', x.title,
+             'say', to_char(x.start_time at time zone v_tz, 'FMDay, FMMonth FMDD "at" FMHH12:MI AM'), 'start', x.start_time) order by x.start_time), '[]'::jsonb)
+      into v_list from (select a.id, a.title, a.start_time from public.appointments a
+                         where a.business_id = v_biz and a.customer_id = v_cust and a.status in ('scheduled', 'confirmed')
+                           and coalesce(a.booking_state, 'confirmed') = 'confirmed' and a.start_time > now() order by a.start_time limit 3) x;
+    return jsonb_build_object('ok', true, 'status', 'appointments', 'appointments', v_list,
+      'say', case when jsonb_array_length(v_list) = 0 then 'The caller has no upcoming appointments. Offer to book one.' else 'Confirm which appointment the caller means.' end);
+  end if;
+
+  begin v_id := nullif(v_args ->> 'appointment_id', '')::uuid; exception when others then v_id := null; end;
+  select a.* into v_appt from public.appointments a
+   where a.id = v_id and a.business_id = v_biz and a.customer_id = v_cust and a.status in ('scheduled', 'confirmed') and a.start_time > now();
+  if v_appt.id is null then
+    return jsonb_build_object('ok', false, 'status', 'need_info', 'say', 'That appointment was not found for this caller. Ask them which appointment they mean.');
+  end if;
+
+  if p_action = 'cancel' then
+    update public.appointments set status = 'cancelled', cancel_reason = 'Cancelled by the customer on a call', updated_at = now() where id = v_appt.id;
+    return jsonb_build_object('ok', true, 'status', 'cancelled', 'say', 'The appointment on ' || to_char(v_appt.start_time at time zone v_tz, 'FMDay, FMMonth FMDD "at" FMHH12:MI AM') || ' is cancelled. Offer to book a new time.');
+  end if;
+
+  begin v_start := nullif(v_args ->> 'start', '')::timestamptz; exception when others then v_start := null; end;
+  if v_start is null or v_start <= now() or v_start > now() + interval '1 year' then
+    return jsonb_build_object('ok', false, 'status', 'need_info', 'say', 'The new time was not clear. Use check_availability and ask the caller to choose one of the offered times.');
+  end if;
+  v_when := to_char(v_start at time zone v_tz, 'FMDay, FMMonth FMDD "at" FMHH12:MI AM');
+  begin
+    perform public.zella_reschedule_appointment(v_appt.id, v_start, null, 'ai');
+    return jsonb_build_object('ok', true, 'status', 'rescheduled', 'say', 'Moved to ' || v_when || '. Tell the caller they are all set and will get a new confirmation message.');
+  exception when others then
+    v_err := sqlerrm;
+    if v_err in ('SLOT_TAKEN', 'BAD_TIME') then
+      v_dur := greatest(5, (extract(epoch from (v_appt.end_time - v_appt.start_time)) / 60)::int);
+      select coalesce(jsonb_agg(jsonb_build_object('start', s.slot_start, 'say', to_char(s.slot_start at time zone v_tz, 'FMDay, FMMonth FMDD "at" FMHH12:MI AM'))), '[]'::jsonb)
+        into v_slots from public.zella_available_slots(v_biz, greatest(now(), v_start - interval '1 day'), v_start + interval '3 days', v_dur, null, 30, 5, v_appt.id) s;
+      return jsonb_build_object('ok', false, 'status', 'unavailable', 'slots', v_slots, 'say', 'That time is not available. The original booking is unchanged. Offer these other times.');
+    end if;
+    return jsonb_build_object('ok', false, 'status', 'error', 'say', 'The appointment could not be moved right now and is unchanged. Say the team will call them back.');
+  end;
+end $$;
+revoke execute on function public.zella_ai_manage_booking(text, uuid, text, jsonb) from public, anon, authenticated;
+grant execute on function public.zella_ai_manage_booking(text, uuid, text, jsonb) to service_role;
