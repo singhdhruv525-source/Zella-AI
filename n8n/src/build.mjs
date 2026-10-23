@@ -371,6 +371,31 @@ const aiBooking = wf('Zella - Appointment Booking', [
   'Build reply': { main: [[link('Reply')]] },
 });
 
+// Voice rules: the phone assistant asks "call_rules" during a call (open or closed, take a message, emergency, reach a person).
+// Every decision is made by the database (zella_ai_voice); this workflow only passes the question on and the answer back.
+const voiceRules = wf('Zella - Voice Rules', [
+  node('Vapi voice tool', 'n8n-nodes-base.webhook', 2, [0, 200], {
+    httpMethod: 'POST', path: 'zella/vapi-voice', authentication: 'headerAuth', responseMode: 'responseNode', options: {},
+  }, { webhookId: id('webhook:zella-vapi-voice'), credentials: GATEWAY_CRED }),
+  code('Plan', [240, 200], 'voice-tool-plan.js'),
+  ifBool('Is a voice tool', [480, 200], '={{ !!$json.record }}'),
+  rpcNode('Find business', [720, 100], 'zella_business_for_number', '={{ JSON.stringify($json.lookup) }}', { full: true }),
+  code('Use business', [960, 100], 'business-apply.js'),
+  rpcNode('Run voice rule', [1200, 100], '', '={{ JSON.stringify($json.record) }}', { full: true, urlExpr: `={{ '${SUPABASE}/rest/v1/rpc/' + $json.rpc }}` }),
+  code('Build reply', [1440, 200], 'voice-tool-reply.js'),
+  node('Reply', 'n8n-nodes-base.respondToWebhook', 1.1, [1680, 200], {
+    respondWith: 'json', responseBody: '={{ JSON.stringify($json) }}', options: { responseCode: 200 },
+  }),
+], {
+  'Vapi voice tool': { main: [[link('Plan')]] },
+  'Plan': { main: [[link('Is a voice tool')]] },
+  'Is a voice tool': { main: [[link('Find business')], [link('Build reply')]] },
+  'Find business': { main: [[link('Use business')]] },
+  'Use business': { main: [[link('Run voice rule')]] },
+  'Run voice rule': { main: [[link('Build reply')]] },
+  'Build reply': { main: [[link('Reply')]] },
+});
+
 // Email events: Resend posts here when an email is delivered, bounces or is marked as spam. Event-driven (runs only then).
 // Resend cannot send a custom header, so the webhook address carries a secret key (?key=...) and the DATABASE checks it
 // against a Vault secret; a wrong key changes nothing. Bad addresses and spam complaints are never emailed again.
@@ -511,9 +536,10 @@ writeFileSync(join(out, 'zella-followup-texts.json'), JSON.stringify(followupSen
 writeFileSync(join(out, 'zella-outbound-calls.json'), JSON.stringify(outboundCalls, null, 2) + '\n');
 writeFileSync(join(out, 'zella-knowledge.json'), JSON.stringify(knowledge, null, 2) + '\n');
 writeFileSync(join(out, 'zella-assistant-tools.json'), JSON.stringify(assistantTools, null, 2) + '\n');
+writeFileSync(join(out, 'zella-voice-rules.json'), JSON.stringify(voiceRules, null, 2) + '\n');
 writeFileSync(join(out, 'zella-appointment-booking.json'), JSON.stringify(aiBooking, null, 2) + '\n');
 writeFileSync(join(out, 'zella-email-events.json'), JSON.stringify(emailEvents, null, 2) + '\n');
 writeFileSync(join(out, 'zella-calendar-sync.json'), JSON.stringify(calendarSync, null, 2) + '\n');
 writeFileSync(join(out, 'zella-connection-tests.json'), JSON.stringify(connectionTests, null, 2) + '\n');
 writeFileSync(join(out, 'zella-call-results.json'), JSON.stringify(callResults, null, 2) + '\n');
-console.log('Built', [gateway, router, smsSender, followupSender, emailSender, followupEmails, ownerEmails, outboundCalls, callResults, knowledge, assistantTools, aiBooking, emailEvents, calendarSync, connectionTests].map((w) => w.name + ' (' + w.nodes.length + ')').join(', '));
+console.log('Built', [gateway, router, smsSender, followupSender, emailSender, followupEmails, ownerEmails, outboundCalls, callResults, knowledge, assistantTools, voiceRules, aiBooking, emailEvents, calendarSync, connectionTests].map((w) => w.name + ' (' + w.nodes.length + ')').join(', '));

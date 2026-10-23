@@ -9,25 +9,25 @@ Item numbers and names come from the Zella AI Complete Automation Guide. Status 
 
 Items are served by a small set of shared workflows (see `n8n/README.md`), not one workflow per item. Many industry items (196 to 254) are configurations of the shared appointment, message, assignment and reminder engines; the 98 starter automation rows per industry are seeded in the database.
 
-**Totals:** Built 156, Partly 39, Rules ready 32, Not built 111.
+**Totals:** Built 161, Partly 39, Rules ready 32, Not built 106.
 
 
-## 1. Calls and AI receptionist (16) — Built 3, Partly 4, Rules ready 4, Not built 5
+## 1. Calls and AI receptionist (16) — Built 8, Partly 4, Rules ready 4, Not built 0
 
 | # | Automation | Status |
 |---|---|---|
-| 1 | Trigger | Not built |
+| 1 | Trigger | Built |
 | 2 | Logic | Rules ready |
 | 3 | Action | Built |
 | 4 | Verification and recovery | Rules ready |
 | 5 | Call outcome detection | Partly |
 | 6 | Missed-call detection | Rules ready |
-| 7 | After-hours and holiday handling | Not built |
-| 8 | Human transfer | Not built |
+| 7 | After-hours and holiday handling | Built |
+| 8 | Human transfer | Built |
 | 9 | Transfer failure recovery | Built |
 | 10 | Callback request capture | Partly |
-| 11 | Voicemail and message taking | Not built |
-| 12 | Emergency escalation | Not built |
+| 11 | Voicemail and message taking | Built |
+| 12 | Emergency escalation | Built |
 | 13 | AI failure recovery | Rules ready |
 | 14 | Call summary and CRM logging | Partly |
 | 15 | Repeat caller recognition | Partly |

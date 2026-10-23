@@ -278,3 +278,10 @@ Run `sql/zella_ops_extras.sql`. All database. Callbacks can be reassigned, resch
 ## Connection tests
 
 `zella-connection-tests` (webhook `zella/run/connection-tests`) checks that Telnyx, Vapi and Resend keys still work. Supabase (`sql/zella_connection_health.sql`) decides which provider is due (`zella_claim_provider_checks`) and records the result (`zella_record_provider_check`); a failure raises a platform alert. Only the status number is kept, never the response body. It stays idle until the setting `provider_checks_live` is on. At go-live, put each provider key on its own "Check ..." box. Calendar token expiry is watched inside Supabase by `zella_check_connections`.
+
+## Voice rules
+
+`zella-voice-rules` (webhook `zella/vapi-voice`, workflow id GtH5oIq3xSHoKj8B) is the one tool the phone assistant uses during a call: `call_rules` with `action` = `rules` (open or closed, holiday), `message` (take a message), `emergency`, or `transfer`. Supabase decides everything (`sql/zella_voice_rules.sql`, function `zella_ai_voice`):
+- Hours live in `business_hours` (several rows per day allowed) and holidays in `business_closures`. A business with no hours set is never treated as closed.
+- Messages go to `call_messages` and create a callback; emergencies flag the call, alert the owners (urgent) and create an urgent callback; a transfer with nobody available becomes a callback.
+- Settings come from the agent's `escalation_rules`: `transfer_number` (or the older `transfer_to.phone`), `fallback_number`, `transfer_enabled`, `transfer_open_hours_only`, `emergency_enabled` (or an `emergency` trigger), `emergency_keywords`, `after_hours_mode` (`take_message`, `book_only`, `info_only`).

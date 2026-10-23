@@ -36,3 +36,10 @@ Nothing below has been done yet on purpose: all n8n workflows are unpublished an
 - Run `sql/zella_connection_health.sql` before `sql/zella_dispatcher.sql`.
 - Add the Telnyx, Vapi and Resend keys on the three "Check ..." boxes in the Connection Tests workflow.
 - Turn on `provider_checks_live`, then publish the workflow.
+
+## Voice rules
+- Run `sql/zella_voice_rules.sql` (already applied to the live database).
+- In Vapi add the tool `call_rules` (arguments: action, message, name, phone, summary, reason) pointing at `https://dhruvsingh.app.n8n.cloud/webhook/zella/vapi-voice` with the header `X-Zella-Secret`.
+- Add a transfer tool in Vapi that uses the `transfer_number` the tool returns, and tell the assistant to call `call_rules` with action `rules` at the start of every call.
+- Each business sets its opening hours, holidays and transfer number (front-end screen still to build).
+- Publish the workflow.
