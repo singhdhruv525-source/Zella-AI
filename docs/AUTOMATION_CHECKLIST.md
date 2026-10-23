@@ -9,7 +9,7 @@ Item numbers and names come from the Zella AI Complete Automation Guide. Status 
 
 Items are served by a small set of shared workflows (see `n8n/README.md`), not one workflow per item. Many industry items (196 to 254) are configurations of the shared appointment, message, assignment and reminder engines; the 98 starter automation rows per industry are seeded in the database.
 
-**Totals:** Built 126, Partly 32, Rules ready 32, Not built 148.
+**Totals:** Built 143, Partly 34, Rules ready 32, Not built 129.
 
 
 ## 1. Calls and AI receptionist (16) — Built 3, Partly 4, Rules ready 4, Not built 5
@@ -117,13 +117,13 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 79 | SMS templates | Built |
 | 80 | Channel preferences | Partly |
 
-## 6. Leads and sales CRM (20) — Built 13, Partly 2, Rules ready 1, Not built 4
+## 6. Leads and sales CRM (20) — Built 15, Partly 3, Rules ready 1, Not built 1
 
 | # | Automation | Status |
 |---|---|---|
-| 81 | Website lead capture | Not built |
+| 81 | Website lead capture | Built |
 | 82 | Social lead capture | Not built |
-| 83 | Lead attribution | Not built |
+| 83 | Lead attribution | Built |
 | 84 | Duplicate lead detection | Built |
 | 85 | Lead qualification | Built |
 | 86 | Lead prioritization | Built |
@@ -140,7 +140,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 97 | Lost-lead tracking | Built |
 | 98 | Lead reassignment | Built |
 | 99 | Follow-up suppression after conversion | Built |
-| 100 | Campaign reporting | Not built |
+| 100 | Campaign reporting | Partly |
 
 ## 7. Customer lifecycle automation (15) — Built 7, Partly 1, Rules ready 4, Not built 3
 
@@ -162,12 +162,12 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 114 | Data-rights requests | Partly |
 | 115 | Opt-out enforcement | Built |
 
-## 8. Meta automation (16) — Built 0, Partly 0, Rules ready 0, Not built 16
+## 8. Meta automation (16) — Built 0, Partly 1, Rules ready 0, Not built 15
 
 | # | Automation | Status |
 |---|---|---|
 | 116 | Facebook Lead Ads integration | Not built |
-| 117 | Lead import and CRM sync | Not built |
+| 117 | Lead import and CRM sync | Partly |
 | 118 | Instagram DM handling | Not built |
 | 119 | Messenger handling | Not built |
 | 120 | WhatsApp Business handling | Not built |
@@ -183,25 +183,25 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 130 | API failure recovery | Not built |
 | 131 | Meta connection health | Not built |
 
-## 9. Website leads and chat (15) — Built 0, Partly 0, Rules ready 0, Not built 15
+## 9. Website leads and chat (15) — Built 15, Partly 0, Rules ready 0, Not built 0
 
 | # | Automation | Status |
 |---|---|---|
-| 132 | Contact-form capture | Not built |
-| 133 | Quote-request capture | Not built |
-| 134 | Appointment-request capture | Not built |
-| 135 | Callback-request capture | Not built |
-| 136 | Website-chat lead capture | Not built |
-| 137 | Consent-based newsletter signup | Not built |
-| 138 | Spam and validation checks | Not built |
-| 139 | Lead matching and deduplication | Not built |
-| 140 | Source tracking | Not built |
-| 141 | Submission acknowledgment | Not built |
-| 142 | Lead qualification | Not built |
-| 143 | Assignment and notification | Not built |
-| 144 | Callback or booking initiation | Not built |
-| 145 | Failure alerting | Not built |
-| 146 | Conversion tracking | Not built |
+| 132 | Contact-form capture | Built |
+| 133 | Quote-request capture | Built |
+| 134 | Appointment-request capture | Built |
+| 135 | Callback-request capture | Built |
+| 136 | Website-chat lead capture | Built |
+| 137 | Consent-based newsletter signup | Built |
+| 138 | Spam and validation checks | Built |
+| 139 | Lead matching and deduplication | Built |
+| 140 | Source tracking | Built |
+| 141 | Submission acknowledgment | Built |
+| 142 | Lead qualification | Built |
+| 143 | Assignment and notification | Built |
+| 144 | Callback or booking initiation | Built |
+| 145 | Failure alerting | Built |
+| 146 | Conversion tracking | Built |
 
 ## 10. Website knowledge automation (23) — Built 1, Partly 1, Rules ready 4, Not built 17
 
