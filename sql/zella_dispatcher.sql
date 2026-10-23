@@ -32,7 +32,7 @@ begin
   if p_job not in ('zella_flag_overdue_leads', 'zella_expire_holds', 'zella_expire_waitlist_offers', 'zella_detect_transfer_failures',
                    'zella_queue_quote_followups', 'zella_post_daily_summaries', 'zella_queue_lead_reactivation',
                    'zella_check_setup_incomplete', 'zella_check_trials', 'zella_apply_payment_policy', 'zella_post_weekly_reviews',
-                   'zella_flag_overdue_callbacks', 'zella_sweep_stuck_calls') then
+                   'zella_flag_overdue_callbacks', 'zella_sweep_stuck_calls', 'zella_check_engine_health') then
     return 'not_allowed';
   end if;
   begin
@@ -50,7 +50,7 @@ returns jsonb language plpgsql security definer set search_path = public as $$
 declare j text; r jsonb := '{}'::jsonb;
 begin
   for j in select unnest(case p_group
-      when 'every5'  then array['zella_flag_overdue_leads', 'zella_expire_holds', 'zella_expire_waitlist_offers', 'zella_detect_transfer_failures', 'zella_flag_overdue_callbacks', 'zella_sweep_stuck_calls']
+      when 'every5'  then array['zella_flag_overdue_leads', 'zella_expire_holds', 'zella_expire_waitlist_offers', 'zella_detect_transfer_failures', 'zella_flag_overdue_callbacks', 'zella_sweep_stuck_calls', 'zella_check_engine_health']
       when 'every15' then array['zella_queue_quote_followups']
       when 'hourly'  then array['zella_post_daily_summaries']
       when 'daily'   then array['zella_queue_lead_reactivation', 'zella_check_setup_incomplete', 'zella_check_trials', 'zella_apply_payment_policy']

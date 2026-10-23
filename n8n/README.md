@@ -219,3 +219,10 @@ Run `sql/zella_email_events.sql` (needs `zella_email_sender.sql`). Import `workf
 - **Setup at go-live:** run once in the SQL editor `select vault.create_secret('<a long random value>', 'zella_resend_webhook_key');`. In Resend add a webhook to `https://<n8n>/webhook/zella/resend?key=<the same value>` for the events delivered, bounced and complained. Resend cannot send a custom header, so the key is in the address; the database checks it, and a wrong key changes nothing (answered 401). Do not paste the value anywhere else.
 - Staff who clear "do not email" on a customer are trusted to know the address is fixed.
 - Not built: the unsubscribe link and page for marketing emails (reactivation emails stay skipped until it exists), and complaint handling for texts.
+
+## Engine health watch
+
+Run `sql/zella_engine_health.sql`, then `sql/zella_dispatcher.sql` (it adds the check to the 5-minute group). It runs entirely in Supabase, so it uses **no n8n runs** and needs no workflow.
+
+- **Stuck work is freed:** a follow-up text or email, a reminder or an owner notification that was picked up but never finished for 30 to 60 minutes goes back to the queue. Repeating a send is safe because every message has a duplicate guard. A notice is raised when this happens. Calls are handled by the stuck-call sweep.
+- **Pile-ups raise one alert per queue** (reminders waiting over 30 minutes, follow-ups over 60, events over 15, owner notifications over 60) and clear themselves when the queue is empty. A pile-up usually means the engine is switched off or a provider is down. The alerts reach you through the normal platform alert delivery.

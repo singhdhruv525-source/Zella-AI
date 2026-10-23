@@ -130,8 +130,8 @@ test('the dispatcher only checks the follow-up kinds the workflows really handle
   const list = (name) => dispatcherSql.match(new RegExp(name + ' text\\[\\] := array\\[([^\\]]*)\\]'))[1].split(',').map((x) => x.trim().replace(/'/g, ''));
   assert.deepEqual(list('v_text_kinds'), FOLLOWUP_KINDS); assert.deepEqual(list('v_email_kinds'), FOLLOWUP_EMAIL_KINDS);
 });
-test('all 13 timed jobs run inside the database, on the same rhythm as before', () => {
-  const jobs = { every5: ['zella_flag_overdue_leads', 'zella_expire_holds', 'zella_expire_waitlist_offers', 'zella_detect_transfer_failures', 'zella_flag_overdue_callbacks', 'zella_sweep_stuck_calls'], every15: ['zella_queue_quote_followups'], hourly: ['zella_post_daily_summaries'], daily: ['zella_queue_lead_reactivation', 'zella_check_setup_incomplete', 'zella_check_trials', 'zella_apply_payment_policy'], weekly: ['zella_post_weekly_reviews'] };
+test('all 14 timed jobs run inside the database, on the same rhythm as before', () => {
+  const jobs = { every5: ['zella_flag_overdue_leads', 'zella_expire_holds', 'zella_expire_waitlist_offers', 'zella_detect_transfer_failures', 'zella_flag_overdue_callbacks', 'zella_sweep_stuck_calls', 'zella_check_engine_health'], every15: ['zella_queue_quote_followups'], hourly: ['zella_post_daily_summaries'], daily: ['zella_queue_lead_reactivation', 'zella_check_setup_incomplete', 'zella_check_trials', 'zella_apply_payment_policy'], weekly: ['zella_post_weekly_reviews'] };
   for (const [g, fns] of Object.entries(jobs)) for (const fn of fns) { assert.ok(dispatcherSql.includes("'" + fn + "'"), fn); assert.ok(new RegExp("when '" + g + "'\\s+then array\\[[^\\]]*'" + fn + "'").test(dispatcherSql), g + ' ' + fn); }
   for (const cron of ["'* * * * *'", "'*/5 * * * *'", "'*/15 * * * *'", "'0 * * * *'", "'0 4 * * *'", "'0 8 * * 1'"]) assert.ok(dispatcherSql.includes(cron), cron);
 });
@@ -631,6 +631,15 @@ test('email events: the webhook is open by design, so the database checks the ke
   const t = wfJson('zella-email-events.json').nodes.find((n) => n.name === 'Resend event'); assert.equal(t.parameters.path, 'zella/resend'); assert.equal(t.parameters.responseMode, 'responseNode');
   assert.ok(evSql.includes('vault.decrypted_secrets') && evSql.includes("return 'unauthorized'") && !/create_secret\('(?!PASTE_A_LONG)/.test(evSql.replace(/^--.*$/gm, (l) => l)));
   assert.ok(evSql.includes("v_bounce in ('permanent', 'hard')") && evSql.includes('do_not_email = true') && evSql.includes('on conflict (provider_event_id)'));
+});
+
+// ---------------- engine health watch (runs in the database, costs no n8n runs)
+const healthSql = readFileSync(new URL('../sql/zella_engine_health.sql', import.meta.url), 'utf8');
+test('engine health: stuck work is freed safely, backlog raises one alert per queue and clears itself', () => {
+  assert.ok(/followup_tasks set status = 'pending'/.test(healthSql) && healthSql.includes("channel in ('sms', 'email')"), 'calls are left to the call sweep');
+  for (const q of ['reminders', 'followups', 'events', 'notifications']) assert.ok(healthSql.includes("('" + q + "'"), q);
+  assert.ok(healthSql.includes('zella_platform_alert') && healthSql.includes('zella_resolve_platform_alerts') && healthSql.includes("'queue_backlog'"));
+  assert.ok(!/net\.http_post|api\./.test(healthSql));
 });
 
 console.log(`${passed} passed, ${failures.length} failed`);
