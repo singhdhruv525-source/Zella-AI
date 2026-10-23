@@ -65,7 +65,7 @@ create or replace function public.zella_claim_followup_texts(p_limit integer def
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare
   v_result jsonb := '[]'::jsonb;
-  v_task record; v_biz record; v_cust record; v_appt record; v_next timestamptz; v_reply boolean;
+  v_task record; v_biz record; v_cust record; v_appt record; v_next timestamptz; v_reply boolean; v_offer record;
 begin
   for v_task in
     select t.* from public.followup_tasks t
@@ -73,7 +73,7 @@ begin
        and (p_kinds is null or t.kind = any (p_kinds))
      order by t.due_at limit greatest(1, least(coalesce(p_limit, 10), 50)) for update skip locked
   loop
-    v_reply := v_task.kind like 'reply\_%';
+    v_reply := v_task.kind like 'reply\_%' or v_task.kind = 'waitlist_offer';
     select b.id, b.name, coalesce(b.timezone, 'America/New_York') as timezone, b.is_active, b.suspended_at, b.cancelled_at
       into v_biz from public.businesses b where b.id = v_task.business_id;
     select c.id, c.first_name, c.last_name, c.phone, c.email, coalesce(c.do_not_contact, false) as do_not_contact,
@@ -104,6 +104,15 @@ begin
       end if;
     end if;
 
+    -- A waitlist offer that is no longer open (taken, declined, expired) is never sent.
+    if v_task.kind = 'waitlist_offer' then
+      select e.id, e.title, e.status, e.offered_start, e.offered_end, e.offer_expires_at into v_offer from public.waitlist_entries e where e.id = v_task.entity_ref;
+      if v_offer.id is null or v_offer.status <> 'offered' or v_offer.offer_expires_at < now() then
+        update public.followup_tasks set status = 'skipped', outcome = 'offer_no_longer_open', completed_at = now(), updated_at = now() where id = v_task.id;
+        continue;
+      end if;
+    end if;
+
     select a.id, a.title, a.start_time, a.end_time, a.staff_id into v_appt from public.appointments a where a.id = v_task.appointment_id;
     update public.followup_tasks set status = 'in_progress', attempts = attempts + 1, claimed_at = now(), updated_at = now() where id = v_task.id;
 
@@ -111,6 +120,8 @@ begin
       'task_id', v_task.id, 'kind', v_task.kind, 'channel', v_task.channel, 'entity_ref', v_task.entity_ref,
       'callback_reason', (select cb.reason from public.callbacks cb where cb.id = v_task.entity_ref and cb.business_id = v_task.business_id),
       'attempt', v_task.attempts + 1, 'max_attempts', v_task.max_attempts,
+      'offer', case when v_task.kind = 'waitlist_offer' then jsonb_build_object('title', v_offer.title, 'start', v_offer.offered_start, 'end', v_offer.offered_end,
+                      'expires_at', v_offer.offer_expires_at, 'line', public.zella_waitlist_offer_line(v_task.entity_ref)) end,
       'business', jsonb_build_object('id', v_biz.id, 'name', v_biz.name, 'timezone', v_biz.timezone),
       'customer', jsonb_build_object('id', v_cust.id, 'first_name', v_cust.first_name, 'last_name', v_cust.last_name, 'phone', v_cust.phone, 'email', v_cust.email),
       'appointment', case when v_appt.id is null then null else jsonb_build_object(

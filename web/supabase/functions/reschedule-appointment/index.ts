@@ -7,6 +7,10 @@
 //   POST { token, action: "lookup" }                 -> appointment and business
 //   POST { token, action: "slots" }                  -> free times
 //   POST { token, action: "confirm", start: ISO }    -> moves the appointment
+//   Waitlist offers (the /w/<code> page), same kind of private code:
+//   POST { token, action: "offer_lookup" }           -> the offered time
+//   POST { token, action: "offer_accept" }           -> books it (the calendar re-checks the time)
+//   POST { token, action: "offer_decline" }          -> passes it to the next person
 
 import { createClient } from "@supabase/supabase-js";
 
@@ -46,7 +50,11 @@ Deno.serve(async (req: Request) => {
   });
 
   let result;
-  if (body.action === "slots") {
+  if (body.action === "offer_lookup") {
+    result = await admin.rpc("zella_waitlist_offer_lookup", { p_token: token });
+  } else if (body.action === "offer_accept" || body.action === "offer_decline") {
+    result = await admin.rpc("zella_waitlist_offer_answer", { p_token: token, p_accept: body.action === "offer_accept" });
+  } else if (body.action === "slots") {
     result = await admin.rpc("zella_reschedule_slots", { p_token: token, p_days: 14 });
   } else if (body.action === "confirm") {
     const start = typeof body.start === "string" ? new Date(body.start) : null;

@@ -221,8 +221,8 @@ const ownerEmails = wf('Zella - Owner Emails', [
 });
 
 export const FOLLOWUP_EMAIL_KINDS = ['no_show_follow_up', 'post_appointment_follow_up', 'quote_follow_up', 'lead_reactivation', 'callback_sms'];
-// Texts also send the quick replies to C, R and HELP (the database queues them).
-export const FOLLOWUP_KINDS = [...FOLLOWUP_EMAIL_KINDS, 'reply_confirmed', 'reply_reschedule', 'reply_help'];
+// Texts also send the quick replies to HELP and waitlist offers (the database queues them).
+export const FOLLOWUP_KINDS = [...FOLLOWUP_EMAIL_KINDS, 'reply_confirmed', 'reply_reschedule', 'reply_help', 'waitlist_offer'];
 // Follow-up emails: the same kinds as the follow-up texts, for tasks whose channel is email (a task moves to
 // email when the customer cannot be texted but can be emailed). Same dry-run switch and Resend box as the
 // other email workflows. Reactivation is marketing and is skipped with a visible reason until unsubscribe exists.

@@ -4,6 +4,7 @@ import { supabase } from "./supabase";
 import OwnerDashboard from "./OwnerDashboard";
 import ContinuePlan from "./ContinuePlan";
 import Reschedule from "./Reschedule";
+import WaitlistOffer from "./WaitlistOffer";
 import BusinessApp from "./BusinessApp";
 import { checkEmail } from "./formValidation";
 import "./App.css";
@@ -17,6 +18,10 @@ export default function App() {
   // Reschedule button from appointment texts and emails (customers, not signed in).
   if (/^\/r\/[0-9a-fA-F]{64}\/?$/.test(window.location.pathname)) {
     return <Reschedule />;
+  }
+  // Waitlist offer button from a text (customers, not signed in).
+  if (/^\/w\/[0-9a-fA-F]{64}\/?$/.test(window.location.pathname)) {
+    return <WaitlistOffer />;
   }
   // The client businesses' own CRM.
   if (/^\/(app|welcome)(\/|$)/.test(window.location.pathname)) {

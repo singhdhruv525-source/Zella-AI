@@ -209,7 +209,7 @@ test('callback fallback for a missed call uses the missed-call text', () => { co
 test('callback fallback for a new lead uses the lead acknowledgement', () => assert.equal(tplan({ ...T, kind: 'callback_sms', callback_reason: 'new_lead' }).prepare.p_template_key, 'lead_acknowledgement'));
 test('callback fallback with an unknown or missing reason is skipped', () => { for (const r of ['requested', undefined, null]) assert.match(tplan({ ...T, kind: 'callback_sms', callback_reason: r }).finish.body.p_reason, /unknown_callback_reason/); });
 test('quick replies to C, R and HELP use their own templates and are transactional', () => { for (const k of ['reply_confirmed', 'reply_reschedule', 'reply_help']) { const p = tplan({ ...T, kind: k }); assert.equal(p.finish, null); assert.equal(p.prepare.p_template_key, k); assert.equal(p.prepare.p_purpose, 'transactional'); } });
-test('unknown task kind is skipped with a reason', () => assert.match(tplan({ ...T, kind: 'waitlist_offer' }).finish.body.p_reason, /unknown_followup_kind:waitlist_offer/));
+test('unknown task kind is skipped with a reason', () => assert.match(tplan({ ...T, kind: 'weird_kind' }).finish.body.p_reason, /unknown_followup_kind:weird_kind/));
 
 const tPlanned = { task_id: T.task_id, business_id: BIZ, customer_id: 'cust-1' };
 const tdecide = (statusCode, body) => runCode('sms-task-decide.js', { json: { statusCode, body }, nodes: { Plan: tPlanned } }).json;
@@ -235,8 +235,7 @@ const fuFile = JSON.parse(readFileSync(new URL('./workflows/zella-followup-texts
 test('follow-up workflow claims text tasks only, for the listed kinds', () => {
   const n = fuFile.nodes.find((x) => x.name === 'Claim follow-ups');
   assert.ok(n.parameters.url.endsWith('/rpc/zella_claim_followup_texts'));
-  for (const k of ['no_show_follow_up', 'post_appointment_follow_up', 'quote_follow_up', 'lead_reactivation', 'callback_sms', 'reply_confirmed', 'reply_reschedule', 'reply_help']) assert.ok(n.parameters.jsonBody.includes(k), k);
-  assert.ok(!n.parameters.jsonBody.includes('waitlist_offer'));
+  for (const k of ['no_show_follow_up', 'post_appointment_follow_up', 'quote_follow_up', 'lead_reactivation', 'callback_sms', 'reply_confirmed', 'reply_reschedule', 'reply_help', 'waitlist_offer']) assert.ok(n.parameters.jsonBody.includes(k), k);
 });
 test('follow-up Telnyx box is reachable only after the live check and ships with no credential', () => {
   const into = Object.entries(fuFile.connections).filter(([, v]) => v.main.flat().some((l) => l.node === 'Send via Telnyx')).map(([k]) => k);
@@ -431,6 +430,17 @@ for (const file of ['zella-event-gateway.json', 'zella-event-router.json', 'zell
     }
   });
 }
+
+// ---------------- waitlist offers
+const WO = { ...T, kind: 'waitlist_offer', business: { id: 'b1', name: 'Salon', timezone: 'America/New_York' }, offer: { title: 'Cut', start: '2026-11-02T15:00:00Z', end: '2026-11-02T15:30:00Z', line: ' Book it here: https://x.test/w/abc' } };
+test('a waitlist offer fills in the time and the private link, and is transactional', () => {
+  const p = tplan(WO); assert.equal(p.finish, null); assert.equal(p.prepare.p_template_key, 'waitlist_offer'); assert.equal(p.prepare.p_purpose, 'transactional');
+  assert.match(p.prepare.p_vars.date, /Mon, Nov 2/); assert.match(p.prepare.p_vars.time, /10:00 AM/); assert.equal(p.prepare.p_vars.offer_line, ' Book it here: https://x.test/w/abc');
+});
+test('a waitlist offer with no time is skipped with a reason, and other kinds still send no extra values', () => {
+  assert.equal(tplan({ ...WO, offer: {} }).finish.body.p_reason, 'offer_has_no_time');
+  assert.deepEqual(tplan({ ...T, kind: 'no_show_follow_up' }).prepare.p_vars, {});
+});
 
 // ---------------- outbound calls (dry-run by default)
 const callSql = readFileSync(new URL('../sql/zella_outbound_calls.sql', import.meta.url), 'utf8');
