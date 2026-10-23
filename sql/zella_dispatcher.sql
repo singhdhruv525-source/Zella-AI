@@ -33,7 +33,7 @@ begin
                    'zella_queue_quote_followups', 'zella_post_daily_summaries', 'zella_queue_lead_reactivation',
                    'zella_check_setup_incomplete', 'zella_check_trials', 'zella_apply_payment_policy', 'zella_post_weekly_reviews',
                    'zella_flag_overdue_callbacks', 'zella_sweep_stuck_calls', 'zella_check_engine_health', 'zella_schedule_calendar_pulls',
-                   'zella_rebalance_assignments', 'zella_check_unassigned_work', 'zella_check_customer_requests', 'zella_queue_customer_touches', 'zella_check_kpis') then
+                   'zella_rebalance_assignments', 'zella_check_unassigned_work', 'zella_check_customer_requests', 'zella_queue_customer_touches', 'zella_check_kpis', 'zella_check_escalation_acks', 'zella_recover_orphaned_work') then
     return 'not_allowed';
   end if;
   begin
@@ -51,8 +51,8 @@ returns jsonb language plpgsql security definer set search_path = public as $$
 declare j text; r jsonb := '{}'::jsonb;
 begin
   for j in select unnest(case p_group
-      when 'every5'  then array['zella_flag_overdue_leads', 'zella_expire_holds', 'zella_expire_waitlist_offers', 'zella_detect_transfer_failures', 'zella_flag_overdue_callbacks', 'zella_sweep_stuck_calls', 'zella_check_engine_health', 'zella_rebalance_assignments', 'zella_check_unassigned_work']
-      when 'every15' then array['zella_queue_quote_followups']
+      when 'every5'  then array['zella_flag_overdue_leads', 'zella_expire_holds', 'zella_expire_waitlist_offers', 'zella_detect_transfer_failures', 'zella_flag_overdue_callbacks', 'zella_sweep_stuck_calls', 'zella_check_engine_health', 'zella_rebalance_assignments', 'zella_check_unassigned_work', 'zella_check_escalation_acks']
+      when 'every15' then array['zella_queue_quote_followups', 'zella_recover_orphaned_work']
       when 'hourly'  then array['zella_post_daily_summaries', 'zella_schedule_calendar_pulls', 'zella_check_customer_requests']
       when 'daily'   then array['zella_queue_lead_reactivation', 'zella_check_setup_incomplete', 'zella_check_trials', 'zella_apply_payment_policy', 'zella_queue_customer_touches', 'zella_check_kpis']
       when 'weekly'  then array['zella_post_weekly_reviews']
@@ -106,9 +106,11 @@ begin
 
     insert into public.n8n_dispatch_state (workflow) values (w.name) on conflict do nothing;
     select * into st from public.n8n_dispatch_state where workflow = w.name;
-    -- Same amount waiting after several calls in a row means n8n is not clearing it: slow down to once per 15 minutes.
+    -- n8n was only just called: give it a few seconds to pick the work up before calling again.
+    if st.last_triggered_at > now() - interval '8 seconds' then continue; end if;
+    -- Same amount waiting after many calls in a row (about two minutes) means n8n is not clearing it: slow down to once per 15 minutes.
     v_same := case when n >= st.last_count and st.last_triggered_at > now() - interval '10 minutes' then st.consecutive_same + 1 else 0 end;
-    if v_same >= 5 and st.last_triggered_at > now() - interval '15 minutes' then
+    if v_same >= 12 and st.last_triggered_at > now() - interval '15 minutes' then
       update public.n8n_dispatch_state set last_count = n, consecutive_same = v_same where workflow = w.name;
       v_res := v_res || jsonb_build_object(w.name, 'backed_off');
       continue;
@@ -134,7 +136,8 @@ begin
 end $$;
 
 -- 5. The timers (UTC). Re-running this file replaces them, it does not duplicate them.
-select cron.schedule('zella_dispatch',        '* * * * *',    $$select public.zella_dispatch_n8n()$$);
+-- Every 10 seconds, so nothing waits long. The check is a handful of cheap counts; n8n is only called when work is due.
+select cron.schedule('zella_dispatch',        '10 seconds',   $$select public.zella_dispatch_n8n()$$);
 select cron.schedule('zella_jobs_every5',     '*/5 * * * *',  $$select public.zella_run_schedule_group('every5')$$);
 select cron.schedule('zella_jobs_every15',    '*/15 * * * *', $$select public.zella_run_schedule_group('every15')$$);
 select cron.schedule('zella_jobs_hourly',     '0 * * * *',    $$select public.zella_run_schedule_group('hourly')$$);
@@ -147,3 +150,28 @@ select cron.schedule('zella_cron_cleanup',    '30 3 * * *',   $$delete from cron
 --   select vault.create_secret('PASTE_YOUR_SECRET', 'zella_n8n_secret');
 -- To change it later:
 --   select vault.update_secret((select id from vault.secrets where name = 'zella_n8n_secret'), 'NEW_SECRET');
+
+
+-- 5. Act at once: when something urgent is saved, call the dispatcher right away instead of waiting for the next
+--    10-second tick. At most one kick every 2 seconds.
+create or replace function public.zella_kick_dispatch()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare st public.n8n_dispatch_state;
+begin
+  if tg_table_name = 'followup_tasks' and new.due_at > now() + interval '5 seconds' then return new; end if;
+  insert into public.n8n_dispatch_state (workflow) values ('_kick') on conflict do nothing;
+  update public.n8n_dispatch_state set last_triggered_at = now()
+   where workflow = '_kick' and (last_triggered_at is null or last_triggered_at < now() - interval '2 seconds');
+  if found then perform public.zella_dispatch_n8n(); end if;
+  return new;
+exception when others then
+  return new;   -- a dispatch problem must never block saving the row
+end $$;
+do $$
+declare t text;
+begin
+  foreach t in array array['automation_events', 'followup_tasks', 'staff_notifications', 'appointment_reminders'] loop
+    execute format('drop trigger if exists zella_kick_dispatch on public.%I', t);
+    execute format('create trigger zella_kick_dispatch after insert on public.%I for each row execute function public.zella_kick_dispatch()', t);
+  end loop;
+end $$;
