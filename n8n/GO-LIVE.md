@@ -43,3 +43,10 @@ Nothing below has been done yet on purpose: all n8n workflows are unpublished an
 - Add a transfer tool in Vapi that uses the `transfer_number` the tool returns, and tell the assistant to call `call_rules` with action `rules` at the start of every call.
 - Each business sets its opening hours, holidays and transfer number (front-end screen still to build).
 - Publish the workflow.
+
+## Inbound email and receipts
+- Run `sql/zella_email_inbound.sql` (already applied to the live database).
+- Choose a receiving domain, set the platform setting `inbound_email_domain` (for example `"mail.yourdomain.com"`), and add Resend inbound for it.
+- In Resend add a webhook for `email.received` pointing at `https://dhruvsingh.app.n8n.cloud/webhook/zella/inbound-email?key=<the zella_resend_webhook_key value>`.
+- Put the Resend key on the "Fetch email" box of the Inbound Email workflow, then publish it.
+- Telnyx delivery receipts: send them to the gateway as `message.delivered` / `message.delivery_failed` with `external_id`.

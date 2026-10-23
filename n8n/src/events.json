@@ -4,7 +4,7 @@
   "callback.created", "callback.due", "callback.completed", "callback.failed",
   "appointment.requested", "appointment.booked", "appointment.confirmed", "appointment.rescheduled",
   "appointment.cancelled", "appointment.completed", "appointment.no_show",
-  "message.received", "message.sent", "message.delivery_failed",
+  "message.received", "message.sent", "message.delivered", "message.delivery_failed",
   "customer.created", "customer.updated", "customer.opted_out",
   "website.lead_received", "website.content_changed",
   "knowledge.review_required", "knowledge.approved",

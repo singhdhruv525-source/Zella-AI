@@ -285,3 +285,10 @@ Run `sql/zella_ops_extras.sql`. All database. Callbacks can be reassigned, resch
 - Hours live in `business_hours` (several rows per day allowed) and holidays in `business_closures`. A business with no hours set is never treated as closed.
 - Messages go to `call_messages` and create a callback; emergencies flag the call, alert the owners (urgent) and create an urgent callback; a transfer with nobody available becomes a callback.
 - Settings come from the agent's `escalation_rules`: `transfer_number` (or the older `transfer_to.phone`), `fallback_number`, `transfer_enabled`, `transfer_open_hours_only`, `emergency_enabled` (or an `emergency` trigger), `emergency_keywords`, `after_hours_mode` (`take_message`, `book_only`, `info_only`).
+
+## Inbound email, reply sorting and delivery receipts
+
+- `zella-inbound-email` (webhook `zella/inbound-email?key=...`, workflow id aQhmKPDKYGDsfgGu): Resend posts an `email.received` event; the workflow fetches the email from Resend and hands it to Supabase (`zella_receive_inbound_email`, in `sql/zella_email_inbound.sql`). The database checks the secret key (same Vault secret as the email-events webhook), finds the business from the address, links the customer by exact email match, threads it into the inbox, sorts it (auto-reply, unsubscribe, complaint, cancel, reschedule, confirm, question, other) and tells the team. An unsubscribe reply stops marketing email at once.
+- Each business gets its own inbound address `<token>@<inbound_email_domain>` (platform setting `inbound_email_domain`). Outgoing Zella emails use it as Reply-To once the domain is set; until then the business email is used as before.
+- Text delivery receipts: the router now handles `message.delivered` and `message.delivery_failed` (`zella_record_sms_receipt`). Failed texts tell the business.
+- Welcome email: when a business first goes live its owners get a welcome message through the normal owner email lane.

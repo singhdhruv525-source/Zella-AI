@@ -773,6 +773,40 @@ test('voice rules sql: missing hours never mean closed, holidays win, and the fu
   assert.ok(vrSql.includes('revoke execute on function public.zella_ai_voice(text, uuid, text, jsonb) from public, anon, authenticated'));
 });
 
+// ---------------- inbound email and delivery receipts
+const ieSql = readFileSync(new URL('../sql/zella_email_inbound.sql', import.meta.url), 'utf8');
+const iePlan = (body, query = { key: 'k1' }) => runCode('inbound-email-plan.js', { json: { body, query } }).json;
+test('inbound email: only a received-email event with a safe id is fetched, and the key is carried along', () => {
+  const ok = iePlan({ type: 'email.received', data: { email_id: 'abc12345-def', to: ['x@y.com'] } });
+  assert.equal(ok.fetch.url, 'https://api.resend.com/emails/receiving/abc12345-def'); assert.equal(ok.key, 'k1');
+  assert.equal(iePlan({ type: 'email.delivered', data: { email_id: 'abc12345-def' } }).fetch, null);
+  assert.equal(iePlan({ type: 'email.received', data: { email_id: '../../admin' } }).fetch, null);
+  assert.equal(iePlan({ type: 'email.received', data: { email_id: 'abc12345-def' } }, {}).fetch, null);
+});
+const ieMap = (res, plan = { key: 'k1', hint: {} }) => runCode('inbound-email-map.js', { json: res, nodes: { Plan: plan } }).json;
+test('inbound email: the fetched email becomes a small plain message, with auto-replies marked', () => {
+  const r = ieMap({ statusCode: 200, body: { from: 'Ana <ana@x.com>', to: ['abc@mail.x.com'], subject: 'Hi', text: 'Hello', headers: { 'Message-ID': '<m1@x.com>', 'In-Reply-To': '<o1@x.com>', 'Auto-Submitted': 'auto-replied' } } }).record;
+  assert.equal(r.p_key, 'k1'); assert.equal(r.p_message.message_id, 'm1@x.com'); assert.equal(r.p_message.in_reply_to, 'o1@x.com'); assert.equal(r.p_message.auto_submitted, true); assert.equal(r.p_message.text, 'Hello');
+  const h = ieMap({ statusCode: 200, body: { from: 'a@b.com', to: 'c@d.com', html: '<style>x{}</style><p>Hi&nbsp;there</p><script>bad()</script>', headers: { 'message-id': 'm2' } } }).record;
+  assert.equal(h.p_message.text, 'Hi there'); assert.equal(h.p_message.auto_submitted, false); assert.deepEqual(h.p_message.to, ['c@d.com']);
+  assert.equal(ieMap({ statusCode: 404, body: {} }).record, null);
+});
+test('inbound email: the workflow is open only through a secret key, answers 200, and the SQL protects customers', () => {
+  const w = wfJson('zella-inbound-email.json'); const t = w.nodes.find((n) => n.name === 'Resend inbound');
+  assert.equal(t.parameters.path, 'zella/inbound-email'); assert.equal(t.parameters.responseMode, 'responseNode');
+  assert.equal(w.nodes.find((n) => n.name === 'Fetch email').parameters.authentication, 'none');
+  assert.ok(ieSql.includes("'unauthorized'") && ieSql.includes("'duplicate'") && ieSql.includes("m2.certainty = 'exact'") && ieSql.includes('zella_rate_limit'));
+  assert.ok(ieSql.includes("do_not_email = true") && ieSql.includes('grant execute on function public.zella_receive_inbound_email(text, jsonb) to service_role'));
+});
+test('delivery receipts: the router sends delivered and failed texts to the database', () => {
+  const d = route({ id: 'e1', business_id: BIZ, event_type: 'message.delivered', payload: { external_id: 'ext-1' } }).plan;
+  assert.equal(d.rpc, 'zella_record_sms_receipt'); assert.equal(d.body.p_status, 'delivered'); assert.equal(d.body.p_external_id, 'ext-1');
+  const f = route({ id: 'e2', business_id: BIZ, event_type: 'message.delivery_failed', payload: { external_id: 'ext-2', error: 'bad number' } }).plan;
+  assert.equal(f.body.p_status, 'failed'); assert.equal(f.body.p_error, 'bad number');
+  assert.equal(route({ id: 'e3', business_id: BIZ, event_type: 'message.delivered', payload: {} }).problem.category, 'invalid_input');
+  assert.ok(JSON.parse(readFileSync(new URL('../n8n/src/events.json', import.meta.url), 'utf8')).includes('message.delivered'));
+});
+
 test('phone link: the business found from the number replaces the one in the record, and none found means none', () => {
   const plan = { reply: {}, record: { p_business_id: BIZ, p_question: 'q' }, lookup: {} };
   const ok = runCode('business-apply.js', { json: { body: '0ed3b097-8dee-4fa8-98c2-3888be3e79b2' }, nodes: { Plan: plan } }).json;

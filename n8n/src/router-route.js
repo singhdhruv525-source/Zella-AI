@@ -17,6 +17,14 @@ switch (e.event_type) {
     if (!text(p.from, 40) || !text(p.body, 1600)) return none('invalid_input', 'An inbound text needs "from" and "body".');
     return run('zella_handle_inbound_sms_keyword', { p_business_id: e.business_id, p_from: text(p.from, 40), p_body: text(p.body, 1600) }, 'inbound_sms_keywords');
   }
+  case 'message.delivered':
+  case 'message.delivery_failed': {
+    if (!text(p.external_id, 200)) return none('invalid_input', 'A delivery receipt needs "external_id" (the provider message id).');
+    return run('zella_record_sms_receipt', {
+      p_business_id: e.business_id, p_external_id: text(p.external_id, 200),
+      p_status: e.event_type === 'message.delivered' ? 'delivered' : 'failed', p_error: text(p.error, 200) || null,
+    }, 'sms_delivery_receipt');
+  }
   case 'customer.opted_out': {
     const channel = text(p.channel, 20);
     if (!['sms', 'call', 'email', 'whatsapp'].includes(channel)) return none('invalid_input', 'channel must be sms, call, email or whatsapp.');

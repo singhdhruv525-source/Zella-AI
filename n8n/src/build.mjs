@@ -396,6 +396,35 @@ const voiceRules = wf('Zella - Voice Rules', [
   'Build reply': { main: [[link('Reply')]] },
 });
 
+// Inbound email: Resend posts here when a customer replies to an email. The event only names the email, so it is fetched
+// from Resend (key added by hand at go-live) and handed to the database, which checks the secret key in the address,
+// finds the business and customer, sorts the reply and tells the team. Always answers 200 so Resend does not keep retrying.
+const inboundEmail = wf('Zella - Inbound Email', [
+  node('Resend inbound', 'n8n-nodes-base.webhook', 2, [0, 200], {
+    httpMethod: 'POST', path: 'zella/inbound-email', authentication: 'none', responseMode: 'responseNode', options: {},
+  }, { webhookId: id('webhook:zella-inbound-email') }),
+  code('Plan', [240, 200], 'inbound-email-plan.js'),
+  ifBool('Is an email', [480, 200], '={{ !!$json.fetch }}'),
+  node('Fetch email', 'n8n-nodes-base.httpRequest', 4.2, [720, 100], {
+    method: 'GET', url: '={{ $json.fetch.url }}', authentication: 'none',
+    options: { timeout: 15000, response: { response: { fullResponse: true, neverError: true, responseFormat: 'json' } } },
+  }),
+  code('Map email', [960, 100], 'inbound-email-map.js'),
+  ifBool('Has email', [1200, 100], '={{ !!$json.record }}'),
+  rpcNode('Save email', [1440, 0], 'zella_receive_inbound_email', '={{ JSON.stringify($json.record) }}', { full: true }),
+  node('Reply', 'n8n-nodes-base.respondToWebhook', 1.1, [1680, 200], {
+    respondWith: 'json', responseBody: '={{ JSON.stringify({ ok: true }) }}', options: { responseCode: 200 },
+  }),
+], {
+  'Resend inbound': { main: [[link('Plan')]] },
+  'Plan': { main: [[link('Is an email')]] },
+  'Is an email': { main: [[link('Fetch email')], [link('Reply')]] },
+  'Fetch email': { main: [[link('Map email')]] },
+  'Map email': { main: [[link('Has email')]] },
+  'Has email': { main: [[link('Save email')], [link('Reply')]] },
+  'Save email': { main: [[link('Reply')]] },
+});
+
 // Email events: Resend posts here when an email is delivered, bounces or is marked as spam. Event-driven (runs only then).
 // Resend cannot send a custom header, so the webhook address carries a secret key (?key=...) and the DATABASE checks it
 // against a Vault secret; a wrong key changes nothing. Bad addresses and spam complaints are never emailed again.
@@ -536,10 +565,11 @@ writeFileSync(join(out, 'zella-followup-texts.json'), JSON.stringify(followupSen
 writeFileSync(join(out, 'zella-outbound-calls.json'), JSON.stringify(outboundCalls, null, 2) + '\n');
 writeFileSync(join(out, 'zella-knowledge.json'), JSON.stringify(knowledge, null, 2) + '\n');
 writeFileSync(join(out, 'zella-assistant-tools.json'), JSON.stringify(assistantTools, null, 2) + '\n');
+writeFileSync(join(out, 'zella-inbound-email.json'), JSON.stringify(inboundEmail, null, 2) + '\n');
 writeFileSync(join(out, 'zella-voice-rules.json'), JSON.stringify(voiceRules, null, 2) + '\n');
 writeFileSync(join(out, 'zella-appointment-booking.json'), JSON.stringify(aiBooking, null, 2) + '\n');
 writeFileSync(join(out, 'zella-email-events.json'), JSON.stringify(emailEvents, null, 2) + '\n');
 writeFileSync(join(out, 'zella-calendar-sync.json'), JSON.stringify(calendarSync, null, 2) + '\n');
 writeFileSync(join(out, 'zella-connection-tests.json'), JSON.stringify(connectionTests, null, 2) + '\n');
 writeFileSync(join(out, 'zella-call-results.json'), JSON.stringify(callResults, null, 2) + '\n');
-console.log('Built', [gateway, router, smsSender, followupSender, emailSender, followupEmails, ownerEmails, outboundCalls, callResults, knowledge, assistantTools, voiceRules, aiBooking, emailEvents, calendarSync, connectionTests].map((w) => w.name + ' (' + w.nodes.length + ')').join(', '));
+console.log('Built', [gateway, router, smsSender, followupSender, emailSender, followupEmails, ownerEmails, outboundCalls, callResults, knowledge, assistantTools, voiceRules, inboundEmail, aiBooking, emailEvents, calendarSync, connectionTests].map((w) => w.name + ' (' + w.nodes.length + ')').join(', '));
