@@ -6,13 +6,15 @@ import { fileURLToPath } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 export const eventTypes = JSON.parse(readFileSync(join(here, 'events.json'), 'utf8'));
 
-export function loadCode(file) {
-  return readFileSync(join(here, file), 'utf8').replace('__EVENT_TYPES__', JSON.stringify(eventTypes));
+export function loadCode(file, vars = {}) {
+  let text = readFileSync(join(here, file), 'utf8').replace('__EVENT_TYPES__', JSON.stringify(eventTypes));
+  for (const [k, v] of Object.entries(vars)) text = text.replaceAll('__' + k + '__', v);
+  return text;
 }
 
 // Run a Code-node body the way n8n does for "run once for each item".
-export function runCode(file, { json = {}, nodes = {} } = {}) {
-  const fn = new Function('$json', '$', loadCode(file));
+export function runCode(file, { json = {}, nodes = {}, vars = {} } = {}) {
+  const fn = new Function('$json', '$', loadCode(file, vars));
   const lookup = (name) => {
     if (!(name in nodes)) throw new Error('Test did not provide node: ' + name);
     return { item: { json: nodes[name] } };

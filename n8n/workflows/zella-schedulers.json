@@ -1,0 +1,1584 @@
+{
+  "name": "Zella - Schedulers",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "d4f3e0d1-1d65-40c9-8c40-2c19b3c7c027",
+      "name": "Every 5 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_flag_overdue_leads",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "4ef42787-4b2b-456b-880d-16ab6f145fde",
+      "name": "Run zella_flag_overdue_leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        0
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Schedulers: read the result of one timed database job.\n// A failed job produces an alert (grouped by job name, so repeats do not pile up).\nconst job = 'zella_flag_overdue_leads';\nconst status = Number($json.statusCode);\nconst ok = status >= 200 && status < 300;\nconst count = ok && typeof $json.body === 'number' ? $json.body : null;\nreturn {\n  json: {\n    job,\n    ok,\n    status,\n    count,\n    alert: ok ? null : {\n      p_kind: 'scheduler_failed',\n      p_title: 'Scheduled job failed: ' + job,\n      p_detail: 'The database call ' + job + ' returned ' + status + '.',\n      p_severity: 'warning',\n      p_business_id: null,\n      p_dedupe_key: job,\n      p_meta: { job, status },\n    },\n  },\n};\n"
+      },
+      "id": "c41e9baf-c7a1-4fca-8109-8d3428ba43c9",
+      "name": "Check zella_flag_overdue_leads",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "449ddf88-9d12-4416-8def-97cd5cd4f885",
+              "leftValue": "={{ !$json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "3c241bfd-3d36-42fa-8f52-252f3bcdf26c",
+      "name": "Failed zella_flag_overdue_leads",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        780,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_platform_alert",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.alert) }}",
+        "options": {}
+      },
+      "id": "12c8d897-4835-4f4f-8132-477e42577ead",
+      "name": "Alert zella_flag_overdue_leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1040,
+        -60
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_expire_holds",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "b3b5a917-ac8d-47a7-8122-ba84e7b99334",
+      "name": "Run zella_expire_holds",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        220
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Schedulers: read the result of one timed database job.\n// A failed job produces an alert (grouped by job name, so repeats do not pile up).\nconst job = 'zella_expire_holds';\nconst status = Number($json.statusCode);\nconst ok = status >= 200 && status < 300;\nconst count = ok && typeof $json.body === 'number' ? $json.body : null;\nreturn {\n  json: {\n    job,\n    ok,\n    status,\n    count,\n    alert: ok ? null : {\n      p_kind: 'scheduler_failed',\n      p_title: 'Scheduled job failed: ' + job,\n      p_detail: 'The database call ' + job + ' returned ' + status + '.',\n      p_severity: 'warning',\n      p_business_id: null,\n      p_dedupe_key: job,\n      p_meta: { job, status },\n    },\n  },\n};\n"
+      },
+      "id": "e2c695f6-6ef4-4155-8e97-a7c415190869",
+      "name": "Check zella_expire_holds",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "fcd248c3-05d5-4905-89d3-90992a6ba722",
+              "leftValue": "={{ !$json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c66c6e29-4b7f-41c1-8365-40f45e6e8641",
+      "name": "Failed zella_expire_holds",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        780,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_platform_alert",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.alert) }}",
+        "options": {}
+      },
+      "id": "7314fbf0-d3be-4157-8c71-028024cf56c7",
+      "name": "Alert zella_expire_holds",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1040,
+        160
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_expire_waitlist_offers",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "800ed687-04c5-4d3d-8554-73b46cccb409",
+      "name": "Run zella_expire_waitlist_offers",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        440
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Schedulers: read the result of one timed database job.\n// A failed job produces an alert (grouped by job name, so repeats do not pile up).\nconst job = 'zella_expire_waitlist_offers';\nconst status = Number($json.statusCode);\nconst ok = status >= 200 && status < 300;\nconst count = ok && typeof $json.body === 'number' ? $json.body : null;\nreturn {\n  json: {\n    job,\n    ok,\n    status,\n    count,\n    alert: ok ? null : {\n      p_kind: 'scheduler_failed',\n      p_title: 'Scheduled job failed: ' + job,\n      p_detail: 'The database call ' + job + ' returned ' + status + '.',\n      p_severity: 'warning',\n      p_business_id: null,\n      p_dedupe_key: job,\n      p_meta: { job, status },\n    },\n  },\n};\n"
+      },
+      "id": "d303e105-ea93-4620-8457-7ee6b39264e5",
+      "name": "Check zella_expire_waitlist_offers",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        440
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "0aaa0a16-f8b5-4dd7-8226-b8ee159379c4",
+              "leftValue": "={{ !$json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "e43a2687-d938-4422-8f9e-2c2bb6c84166",
+      "name": "Failed zella_expire_waitlist_offers",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        780,
+        440
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_platform_alert",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.alert) }}",
+        "options": {}
+      },
+      "id": "8ddcc71d-33f3-4473-8a5d-912a4d22caab",
+      "name": "Alert zella_expire_waitlist_offers",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1040,
+        380
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_detect_transfer_failures",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "91924a7d-0d78-432f-80a6-30db47a56bf0",
+      "name": "Run zella_detect_transfer_failures",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        660
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Schedulers: read the result of one timed database job.\n// A failed job produces an alert (grouped by job name, so repeats do not pile up).\nconst job = 'zella_detect_transfer_failures';\nconst status = Number($json.statusCode);\nconst ok = status >= 200 && status < 300;\nconst count = ok && typeof $json.body === 'number' ? $json.body : null;\nreturn {\n  json: {\n    job,\n    ok,\n    status,\n    count,\n    alert: ok ? null : {\n      p_kind: 'scheduler_failed',\n      p_title: 'Scheduled job failed: ' + job,\n      p_detail: 'The database call ' + job + ' returned ' + status + '.',\n      p_severity: 'warning',\n      p_business_id: null,\n      p_dedupe_key: job,\n      p_meta: { job, status },\n    },\n  },\n};\n"
+      },
+      "id": "a32a15bb-6bd8-430c-8cac-db824a4811ab",
+      "name": "Check zella_detect_transfer_failures",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        660
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "f6de5392-2993-4e31-887b-c7966679d99f",
+              "leftValue": "={{ !$json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "2cd72fdf-d089-4cbc-881b-1f32016e3746",
+      "name": "Failed zella_detect_transfer_failures",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        780,
+        660
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_platform_alert",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.alert) }}",
+        "options": {}
+      },
+      "id": "b9f5bc40-5ed7-4a43-8997-8db2513c1795",
+      "name": "Alert zella_detect_transfer_failures",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1040,
+        600
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "c7bafbc9-7b09-420d-8881-ae18e98f437e",
+      "name": "Every 15 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        980
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_queue_quote_followups",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "8e753882-5950-4ac8-8178-438aeb5517da",
+      "name": "Run zella_queue_quote_followups",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        880
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Schedulers: read the result of one timed database job.\n// A failed job produces an alert (grouped by job name, so repeats do not pile up).\nconst job = 'zella_queue_quote_followups';\nconst status = Number($json.statusCode);\nconst ok = status >= 200 && status < 300;\nconst count = ok && typeof $json.body === 'number' ? $json.body : null;\nreturn {\n  json: {\n    job,\n    ok,\n    status,\n    count,\n    alert: ok ? null : {\n      p_kind: 'scheduler_failed',\n      p_title: 'Scheduled job failed: ' + job,\n      p_detail: 'The database call ' + job + ' returned ' + status + '.',\n      p_severity: 'warning',\n      p_business_id: null,\n      p_dedupe_key: job,\n      p_meta: { job, status },\n    },\n  },\n};\n"
+      },
+      "id": "0f116cde-279c-461d-8036-49bb632b95a5",
+      "name": "Check zella_queue_quote_followups",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        880
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "fa0706de-71e4-447c-8b31-36604e4d8584",
+              "leftValue": "={{ !$json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a9a29df0-7b5c-4dea-837e-bd1f5a873729",
+      "name": "Failed zella_queue_quote_followups",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        780,
+        880
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_platform_alert",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.alert) }}",
+        "options": {}
+      },
+      "id": "a1a2ff6f-e99d-49c9-8e41-02f87b774df7",
+      "name": "Alert zella_queue_quote_followups",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1040,
+        820
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 4
+            }
+          ]
+        }
+      },
+      "id": "3b2eb513-1055-4d07-8c1d-08de2f11f900",
+      "name": "Every day",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        1200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_queue_lead_reactivation",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_limit: 200 }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "32456421-ef18-4de1-8293-7d1da5f713c2",
+      "name": "Run zella_queue_lead_reactivation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        1100
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Schedulers: read the result of one timed database job.\n// A failed job produces an alert (grouped by job name, so repeats do not pile up).\nconst job = 'zella_queue_lead_reactivation';\nconst status = Number($json.statusCode);\nconst ok = status >= 200 && status < 300;\nconst count = ok && typeof $json.body === 'number' ? $json.body : null;\nreturn {\n  json: {\n    job,\n    ok,\n    status,\n    count,\n    alert: ok ? null : {\n      p_kind: 'scheduler_failed',\n      p_title: 'Scheduled job failed: ' + job,\n      p_detail: 'The database call ' + job + ' returned ' + status + '.',\n      p_severity: 'warning',\n      p_business_id: null,\n      p_dedupe_key: job,\n      p_meta: { job, status },\n    },\n  },\n};\n"
+      },
+      "id": "cde8d047-15ea-456e-81c6-a1e64c28c1c1",
+      "name": "Check zella_queue_lead_reactivation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        1100
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "76dd5609-17d8-4aa9-87fd-26f9531e5a0d",
+              "leftValue": "={{ !$json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c3647035-5e08-4865-8b97-f64af12e1551",
+      "name": "Failed zella_queue_lead_reactivation",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        780,
+        1100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_platform_alert",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.alert) }}",
+        "options": {}
+      },
+      "id": "3b5edbc3-22c7-48f7-8d06-0d0fb087dc54",
+      "name": "Alert zella_queue_lead_reactivation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1040,
+        1040
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_check_setup_incomplete",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "5ad43a3b-eec5-4168-82ca-ec5a16d4f552",
+      "name": "Run zella_check_setup_incomplete",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        1320
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Schedulers: read the result of one timed database job.\n// A failed job produces an alert (grouped by job name, so repeats do not pile up).\nconst job = 'zella_check_setup_incomplete';\nconst status = Number($json.statusCode);\nconst ok = status >= 200 && status < 300;\nconst count = ok && typeof $json.body === 'number' ? $json.body : null;\nreturn {\n  json: {\n    job,\n    ok,\n    status,\n    count,\n    alert: ok ? null : {\n      p_kind: 'scheduler_failed',\n      p_title: 'Scheduled job failed: ' + job,\n      p_detail: 'The database call ' + job + ' returned ' + status + '.',\n      p_severity: 'warning',\n      p_business_id: null,\n      p_dedupe_key: job,\n      p_meta: { job, status },\n    },\n  },\n};\n"
+      },
+      "id": "02fc8352-f9b0-416d-8985-2ddf72859e9a",
+      "name": "Check zella_check_setup_incomplete",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        1320
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "221a9b63-acbb-47d5-86e8-e34c22ad5309",
+              "leftValue": "={{ !$json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "e82ca28b-cab5-47ff-868a-a41270bd34df",
+      "name": "Failed zella_check_setup_incomplete",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        780,
+        1320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_platform_alert",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.alert) }}",
+        "options": {}
+      },
+      "id": "75b6e20b-f9e3-46a8-8e5f-681d7f8f36de",
+      "name": "Alert zella_check_setup_incomplete",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1040,
+        1260
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_check_trials",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "cfd9c054-870d-47a1-8210-53549ffc11b0",
+      "name": "Run zella_check_trials",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        1540
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Schedulers: read the result of one timed database job.\n// A failed job produces an alert (grouped by job name, so repeats do not pile up).\nconst job = 'zella_check_trials';\nconst status = Number($json.statusCode);\nconst ok = status >= 200 && status < 300;\nconst count = ok && typeof $json.body === 'number' ? $json.body : null;\nreturn {\n  json: {\n    job,\n    ok,\n    status,\n    count,\n    alert: ok ? null : {\n      p_kind: 'scheduler_failed',\n      p_title: 'Scheduled job failed: ' + job,\n      p_detail: 'The database call ' + job + ' returned ' + status + '.',\n      p_severity: 'warning',\n      p_business_id: null,\n      p_dedupe_key: job,\n      p_meta: { job, status },\n    },\n  },\n};\n"
+      },
+      "id": "c0168c54-874a-4744-8333-a27e0f768788",
+      "name": "Check zella_check_trials",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        1540
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "ab5ce1f4-53c8-4c17-8b41-3c8bf8ac0487",
+              "leftValue": "={{ !$json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f48ada7f-07d0-4e76-87cd-93fb283d85d7",
+      "name": "Failed zella_check_trials",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        780,
+        1540
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_platform_alert",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.alert) }}",
+        "options": {}
+      },
+      "id": "5e0a06ba-d3d5-4c8b-846c-249fde14ca31",
+      "name": "Alert zella_check_trials",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1040,
+        1480
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_apply_payment_policy",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "6cdaab18-422b-45ea-8897-f93f74f0dc57",
+      "name": "Run zella_apply_payment_policy",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        1760
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Schedulers: read the result of one timed database job.\n// A failed job produces an alert (grouped by job name, so repeats do not pile up).\nconst job = 'zella_apply_payment_policy';\nconst status = Number($json.statusCode);\nconst ok = status >= 200 && status < 300;\nconst count = ok && typeof $json.body === 'number' ? $json.body : null;\nreturn {\n  json: {\n    job,\n    ok,\n    status,\n    count,\n    alert: ok ? null : {\n      p_kind: 'scheduler_failed',\n      p_title: 'Scheduled job failed: ' + job,\n      p_detail: 'The database call ' + job + ' returned ' + status + '.',\n      p_severity: 'warning',\n      p_business_id: null,\n      p_dedupe_key: job,\n      p_meta: { job, status },\n    },\n  },\n};\n"
+      },
+      "id": "6645d638-2727-4433-83f2-c4f36947c9a8",
+      "name": "Check zella_apply_payment_policy",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        1760
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "7a4bb8f8-4fd3-4dad-8ee9-00de57be6dac",
+              "leftValue": "={{ !$json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "021a1cd2-7ce4-4851-8c5b-009d60c89530",
+      "name": "Failed zella_apply_payment_policy",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        780,
+        1760
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_platform_alert",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.alert) }}",
+        "options": {}
+      },
+      "id": "3f3b7c92-c94d-4543-8031-d21c798d7bf3",
+      "name": "Alert zella_apply_payment_policy",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1040,
+        1700
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "weeksInterval": 1,
+              "triggerAtDay": [
+                1
+              ],
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "id": "1e86d096-cf4f-4482-8231-ce4b04578cd9",
+      "name": "Every Monday",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        2080
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_post_weekly_reviews",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "e9693a33-4fc5-4db0-8b29-8f0c70895f60",
+      "name": "Run zella_post_weekly_reviews",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        1980
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Schedulers: read the result of one timed database job.\n// A failed job produces an alert (grouped by job name, so repeats do not pile up).\nconst job = 'zella_post_weekly_reviews';\nconst status = Number($json.statusCode);\nconst ok = status >= 200 && status < 300;\nconst count = ok && typeof $json.body === 'number' ? $json.body : null;\nreturn {\n  json: {\n    job,\n    ok,\n    status,\n    count,\n    alert: ok ? null : {\n      p_kind: 'scheduler_failed',\n      p_title: 'Scheduled job failed: ' + job,\n      p_detail: 'The database call ' + job + ' returned ' + status + '.',\n      p_severity: 'warning',\n      p_business_id: null,\n      p_dedupe_key: job,\n      p_meta: { job, status },\n    },\n  },\n};\n"
+      },
+      "id": "85dd1c18-ada1-46b3-8d5c-dc3ba97a1a9e",
+      "name": "Check zella_post_weekly_reviews",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        1980
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "f9cee753-c675-4496-8180-7edf597be7ca",
+              "leftValue": "={{ !$json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "25d770e1-6a39-4053-86e0-1fa771285af9",
+      "name": "Failed zella_post_weekly_reviews",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        780,
+        1980
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_platform_alert",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.alert) }}",
+        "options": {}
+      },
+      "id": "20d69228-84d8-4c3d-8935-14c681235911",
+      "name": "Alert zella_post_weekly_reviews",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1040,
+        1920
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every 5 minutes": {
+      "main": [
+        [
+          {
+            "node": "Run zella_flag_overdue_leads",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Run zella_expire_holds",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Run zella_expire_waitlist_offers",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Run zella_detect_transfer_failures",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run zella_flag_overdue_leads": {
+      "main": [
+        [
+          {
+            "node": "Check zella_flag_overdue_leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check zella_flag_overdue_leads": {
+      "main": [
+        [
+          {
+            "node": "Failed zella_flag_overdue_leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Failed zella_flag_overdue_leads": {
+      "main": [
+        [
+          {
+            "node": "Alert zella_flag_overdue_leads",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Run zella_expire_holds": {
+      "main": [
+        [
+          {
+            "node": "Check zella_expire_holds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check zella_expire_holds": {
+      "main": [
+        [
+          {
+            "node": "Failed zella_expire_holds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Failed zella_expire_holds": {
+      "main": [
+        [
+          {
+            "node": "Alert zella_expire_holds",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Run zella_expire_waitlist_offers": {
+      "main": [
+        [
+          {
+            "node": "Check zella_expire_waitlist_offers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check zella_expire_waitlist_offers": {
+      "main": [
+        [
+          {
+            "node": "Failed zella_expire_waitlist_offers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Failed zella_expire_waitlist_offers": {
+      "main": [
+        [
+          {
+            "node": "Alert zella_expire_waitlist_offers",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Run zella_detect_transfer_failures": {
+      "main": [
+        [
+          {
+            "node": "Check zella_detect_transfer_failures",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check zella_detect_transfer_failures": {
+      "main": [
+        [
+          {
+            "node": "Failed zella_detect_transfer_failures",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Failed zella_detect_transfer_failures": {
+      "main": [
+        [
+          {
+            "node": "Alert zella_detect_transfer_failures",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Every 15 minutes": {
+      "main": [
+        [
+          {
+            "node": "Run zella_queue_quote_followups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run zella_queue_quote_followups": {
+      "main": [
+        [
+          {
+            "node": "Check zella_queue_quote_followups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check zella_queue_quote_followups": {
+      "main": [
+        [
+          {
+            "node": "Failed zella_queue_quote_followups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Failed zella_queue_quote_followups": {
+      "main": [
+        [
+          {
+            "node": "Alert zella_queue_quote_followups",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Every day": {
+      "main": [
+        [
+          {
+            "node": "Run zella_queue_lead_reactivation",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Run zella_check_setup_incomplete",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Run zella_check_trials",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Run zella_apply_payment_policy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run zella_queue_lead_reactivation": {
+      "main": [
+        [
+          {
+            "node": "Check zella_queue_lead_reactivation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check zella_queue_lead_reactivation": {
+      "main": [
+        [
+          {
+            "node": "Failed zella_queue_lead_reactivation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Failed zella_queue_lead_reactivation": {
+      "main": [
+        [
+          {
+            "node": "Alert zella_queue_lead_reactivation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Run zella_check_setup_incomplete": {
+      "main": [
+        [
+          {
+            "node": "Check zella_check_setup_incomplete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check zella_check_setup_incomplete": {
+      "main": [
+        [
+          {
+            "node": "Failed zella_check_setup_incomplete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Failed zella_check_setup_incomplete": {
+      "main": [
+        [
+          {
+            "node": "Alert zella_check_setup_incomplete",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Run zella_check_trials": {
+      "main": [
+        [
+          {
+            "node": "Check zella_check_trials",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check zella_check_trials": {
+      "main": [
+        [
+          {
+            "node": "Failed zella_check_trials",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Failed zella_check_trials": {
+      "main": [
+        [
+          {
+            "node": "Alert zella_check_trials",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Run zella_apply_payment_policy": {
+      "main": [
+        [
+          {
+            "node": "Check zella_apply_payment_policy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check zella_apply_payment_policy": {
+      "main": [
+        [
+          {
+            "node": "Failed zella_apply_payment_policy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Failed zella_apply_payment_policy": {
+      "main": [
+        [
+          {
+            "node": "Alert zella_apply_payment_policy",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Every Monday": {
+      "main": [
+        [
+          {
+            "node": "Run zella_post_weekly_reviews",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run zella_post_weekly_reviews": {
+      "main": [
+        [
+          {
+            "node": "Check zella_post_weekly_reviews",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check zella_post_weekly_reviews": {
+      "main": [
+        [
+          {
+            "node": "Failed zella_post_weekly_reviews",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Failed zella_post_weekly_reviews": {
+      "main": [
+        [
+          {
+            "node": "Alert zella_post_weekly_reviews",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

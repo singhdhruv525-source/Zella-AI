@@ -105,7 +105,32 @@ test('error text never includes the database response body', () => assert.equal(
 test('execution id is optional when logging failed to start', () => assert.equal(result(planned, { message: 'down' }, { statusCode: 200, body: {} }).execution_id, null));
 
 // ---------------- workflow files
-for (const file of ['zella-event-gateway.json', 'zella-event-router.json']) {
+// ---------------- schedulers: check
+const sched = (statusCode, body) => runCode('scheduler-check.js', { json: { statusCode, body }, vars: { JOB: 'zella_expire_holds' } }).json;
+test('scheduler job success carries the count and no alert', () => { const r = sched(200, 3); assert.equal(r.ok, true); assert.equal(r.count, 3); assert.equal(r.alert, null); });
+test('scheduler job success with a non-number body has no count', () => assert.equal(sched(200, null).count, null));
+test('scheduler job failure raises a grouped alert', () => {
+  const r = sched(500, { message: 'secret detail' });
+  assert.equal(r.ok, false); assert.equal(r.alert.p_kind, 'scheduler_failed'); assert.equal(r.alert.p_dedupe_key, 'zella_expire_holds'); assert.equal(r.alert.p_business_id, null);
+  assert.equal(JSON.stringify(r).includes('secret detail'), false);
+});
+test('scheduler 404 (function missing) also alerts', () => assert.equal(sched(404, {}).ok, false));
+
+// ---------------- scheduler workflow: every job is wired and none is a trigger-only function
+const schedFile = JSON.parse(readFileSync(new URL('./workflows/zella-schedulers.json', import.meta.url), 'utf8'));
+test('scheduler workflow runs 10 jobs', () => assert.equal(schedFile.nodes.filter((n) => n.name.startsWith('Run ')).length, 10));
+test('trigger-only functions are not scheduled', () => {
+  const t = JSON.stringify(schedFile);
+  assert.ok(!t.includes('zella_calls_to_callbacks') && !t.includes('zella_queue_no_show_followup'));
+});
+test('each job node calls its own function', () => {
+  for (const n of schedFile.nodes.filter((x) => x.name.startsWith('Run '))) assert.ok(n.parameters.url.endsWith('/rpc/' + n.name.slice(4)), n.name);
+});
+test('each job check names its own job', () => {
+  for (const n of schedFile.nodes.filter((x) => x.name.startsWith('Check '))) assert.ok(n.parameters.jsCode.includes("'" + n.name.slice(6) + "'"), n.name);
+});
+
+for (const file of ['zella-event-gateway.json', 'zella-event-router.json', 'zella-schedulers.json']) {
   const w = JSON.parse(readFileSync(new URL('./workflows/' + file, import.meta.url), 'utf8'));
   const names = w.nodes.map((n) => n.name);
   test(file + ': node names are unique', () => assert.equal(new Set(names).size, names.length));
@@ -117,8 +142,8 @@ for (const file of ['zella-event-gateway.json', 'zella-event-router.json']) {
     }
   });
   test(file + ': every node is reachable from the trigger', () => {
-    const trigger = w.nodes.find((n) => /webhook|scheduleTrigger/.test(n.type)).name;
-    const seen = new Set([trigger]); const queue = [trigger];
+    const triggers = w.nodes.filter((n) => /webhook|scheduleTrigger/.test(n.type)).map((n) => n.name);
+    const seen = new Set(triggers); const queue = [...triggers];
     while (queue.length) for (const b of w.connections[queue.shift()]?.main ?? []) for (const l of b) if (!seen.has(l.node)) { seen.add(l.node); queue.push(l.node); }
     assert.deepEqual(names.filter((n) => !seen.has(n)), []);
   });

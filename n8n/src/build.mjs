@@ -31,8 +31,8 @@ const rpcNode = (name, position, fn, bodyExpr, opts = {}) =>
     jsonBody: bodyExpr,
     options: opts.full ? { response: { response: { fullResponse: true, neverError: true, responseFormat: 'json' } } } : {},
   }, { credentials: SUPABASE_CRED, ...(opts.timeout ? {} : {}) });
-const code = (name, position, file) =>
-  node(name, 'n8n-nodes-base.code', 2, position, { mode: 'runOnceForEachItem', jsCode: loadCode(file) });
+const code = (name, position, file, vars = {}) =>
+  node(name, 'n8n-nodes-base.code', 2, position, { mode: 'runOnceForEachItem', jsCode: loadCode(file, vars) });
 const ifBool = (name, position, expr) =>
   node(name, 'n8n-nodes-base.if', 2, position, {
     conditions: {
@@ -99,6 +99,47 @@ const router = wf('Zella - Event Router', [
   'Finish execution': { main: [[link('Complete event')]] },
 });
 
+
+// ------------------------------------------------------------------ Schedulers
+// Each job is one database call on a timer. A failed call raises a grouped platform alert.
+// Not here on purpose: zella_calls_to_callbacks and zella_queue_no_show_followup are database
+// triggers (they fire on their own); zella_check_invitations needs the email sender;
+// zella_retention_due only lists businesses and nothing deletes yet.
+export const SCHEDULE = {
+  every5: ['zella_flag_overdue_leads', 'zella_expire_holds', 'zella_expire_waitlist_offers', 'zella_detect_transfer_failures'],
+  every15: ['zella_queue_quote_followups'],
+  daily: ['zella_queue_lead_reactivation', 'zella_check_setup_incomplete', 'zella_check_trials', 'zella_apply_payment_policy'],
+  weekly: ['zella_post_weekly_reviews'],
+};
+const triggers = {
+  every5: ['Every 5 minutes', { rule: { interval: [{ field: 'minutes', minutesInterval: 5 }] } }],
+  every15: ['Every 15 minutes', { rule: { interval: [{ field: 'minutes', minutesInterval: 15 }] } }],
+  daily: ['Every day', { rule: { interval: [{ field: 'days', daysInterval: 1, triggerAtHour: 4 }] } }],
+  weekly: ['Every Monday', { rule: { interval: [{ field: 'weeks', weeksInterval: 1, triggerAtDay: [1], triggerAtHour: 8 }] } }],
+};
+const schedNodes = [];
+const schedConns = {};
+let row = 0;
+for (const [key, fns] of Object.entries(SCHEDULE)) {
+  const [tname, tparams] = triggers[key];
+  schedNodes.push(node(tname, 'n8n-nodes-base.scheduleTrigger', 1.2, [0, row * 220 + 100], tparams));
+  schedConns[tname] = { main: [fns.map((f) => link('Run ' + f))] };
+  for (const f of fns) {
+    const y = row * 220;
+    const body = f === 'zella_queue_lead_reactivation' ? '={{ JSON.stringify({ p_limit: 200 }) }}' : '{}';
+    schedNodes.push(rpcNode('Run ' + f, [260, y], f, body, { full: true }));
+    schedNodes.push(code('Check ' + f, [520, y], 'scheduler-check.js', { JOB: f }));
+    schedNodes.push(ifBool('Failed ' + f, [780, y], '={{ !$json.ok }}'));
+    schedNodes.push(rpcNode('Alert ' + f, [1040, y - 60], 'zella_platform_alert', '={{ JSON.stringify($json.alert) }}'));
+    schedConns['Run ' + f] = { main: [[link('Check ' + f)]] };
+    schedConns['Check ' + f] = { main: [[link('Failed ' + f)]] };
+    schedConns['Failed ' + f] = { main: [[link('Alert ' + f)], []] };
+    row++;
+  }
+}
+const schedulers = wf('Zella - Schedulers', schedNodes, schedConns);
+
 writeFileSync(join(out, 'zella-event-gateway.json'), JSON.stringify(gateway, null, 2) + '\n');
 writeFileSync(join(out, 'zella-event-router.json'), JSON.stringify(router, null, 2) + '\n');
-console.log('Built', gateway.nodes.length, 'gateway nodes and', router.nodes.length, 'router nodes.');
+writeFileSync(join(out, 'zella-schedulers.json'), JSON.stringify(schedulers, null, 2) + '\n');
+console.log('Built', gateway.nodes.length, 'gateway nodes,', router.nodes.length, 'router nodes and', schedulers.nodes.length, 'scheduler nodes.');
