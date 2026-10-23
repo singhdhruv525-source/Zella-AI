@@ -236,7 +236,68 @@ test('follow-up workflow only reports results through task functions', () => {
   assert.ok(!t.includes('zella_complete_reminder') && !t.includes('zella_skip_reminder') && !t.includes('zella_claim_reminders'));
 });
 
-for (const file of ['zella-event-gateway.json', 'zella-event-router.json', 'zella-schedulers.json', 'zella-sms-sender.json', 'zella-followup-texts.json']) {
+// ---------------- email sender
+const ER = { ...R, channel: 'email', customer: { id: 'cust-1', first_name: 'Ana', email: 'ana@example.com' } };
+const eplan = (r) => runCode('email-plan.js', { json: r }).json;
+test('email plan builds the prepare request with business-time date and time', () => {
+  const p = eplan(ER);
+  assert.equal(p.finish, null); assert.equal(p.prepare.p_template_key, 'appointment_reminder'); assert.equal(p.prepare.p_vars.date, 'Tue, Nov 3'); assert.equal(p.prepare.p_vars.time, '10:00 AM'); assert.equal(p.prepare.p_purpose, 'transactional');
+});
+test('email confirmation uses the confirmation template', () => assert.equal(eplan({ ...ER, kind: 'confirmation' }).prepare.p_template_key, 'appointment_confirmation'));
+test('a text reminder is never emailed', () => { const p = eplan({ ...ER, channel: 'sms' }); assert.equal(p.finish.rpc, 'zella_skip_reminder'); assert.match(p.finish.body.p_reason, /channel_not_email:sms/); assert.equal(p.prepare, undefined); });
+test('email unknown kind and bad time are skipped', () => { assert.equal(eplan({ ...ER, kind: 'weird' }).finish.rpc, 'zella_skip_reminder'); assert.equal(eplan({ ...ER, appointment: { title: 'x', start_time: 'nope' } }).finish.rpc, 'zella_skip_reminder'); });
+
+const ePlanned = { reminder_id: R.reminder_id, business_id: BIZ, customer_id: 'cust-1' };
+const edecide = (statusCode, body) => runCode('email-decide.js', { json: { statusCode, body }, nodes: { Plan: ePlanned } }).json;
+const okEmail = { allowed: true, live: false, to: 'ana@example.com', from: null, from_name: 'Test Salon', reply_to: null, subject: 'Reminder', body_text: 'Hi Ana', body_html: '<p>Hi Ana</p>', template_id: 't1', template_version: 1 };
+test('email dry run is logged as dry_run', () => { const d = edecide(200, okEmail); assert.equal(d.finish, null); assert.equal(d.log.p_status, 'dry_run'); assert.equal(d.live, false); assert.equal(d.log.p_dedupe_key, 'reminder:' + R.reminder_id); assert.equal(d.log.p_subject, 'Reminder'); });
+test('email live is logged as queued', () => { const d = edecide(200, { ...okEmail, live: true, from: 'hello@zella.example' }); assert.equal(d.log.p_status, 'queued'); assert.equal(d.live, true); });
+test('email live without a sender address fails loudly', () => { const d = edecide(200, { ...okEmail, live: true }); assert.equal(d.finish.body.p_error, 'sender_address_not_set'); assert.equal(d.finish.body.p_ok, false); });
+test('email without consent or address is skipped, not retried', () => { for (const reason of ['no_consent', 'no_valid_email', 'marketing_email_not_ready']) { const d = edecide(200, { allowed: false, reason, live: true }); assert.equal(d.finish.rpc, 'zella_skip_reminder'); assert.equal(d.finish.body.p_reason, reason); assert.equal(d.log, undefined); } });
+test('email prepare failure is a retryable failure and leaks nothing', () => { const d = edecide(500, { message: 'SECRETDETAIL' }); assert.equal(d.finish.rpc, 'zella_complete_reminder'); assert.equal(d.finish.body.p_ok, false); assert.equal(JSON.stringify(d).includes('SECRETDETAIL'), false); });
+
+const eAfterLog = (statusCode, body, d) => runCode('email-after-log.js', { json: { statusCode, body }, nodes: { Decide: { reminder_id: R.reminder_id, live: true, from: 'hello@zella.example', from_name: 'Test Salon', reply_to: null, to: 'ana@example.com', subject: 'Reminder', text: 'Hi', html: '<p>Hi</p>', ...d } } }).json;
+test('live new email builds the provider payload', () => {
+  const a = eAfterLog(200, { id: 'm1', duplicate: false, status: 'queued' });
+  assert.equal(a.finish, null); assert.equal(a.message_id, 'm1');
+  assert.deepEqual(a.resend, { from: 'Test Salon <hello@zella.example>', to: ['ana@example.com'], subject: 'Reminder', text: 'Hi', html: '<p>Hi</p>' });
+});
+test('reply-to is added only when the business has an address', () => assert.equal(eAfterLog(200, { id: 'm1', duplicate: false }, { reply_to: 'front@salon.example' }).resend.reply_to, 'front@salon.example'));
+test('a business name cannot break the From header', () => assert.equal(eAfterLog(200, { id: 'm1', duplicate: false }, { from_name: 'Bad"<x>\r\nBcc: y' }).resend.from.includes('\n'), false));
+test('email dry run never builds a provider payload', () => { const a = eAfterLog(200, { id: 'm1', duplicate: false, status: 'dry_run' }, { live: false }); assert.equal(a.resend, undefined); assert.match(a.finish.body.p_reason, /dry_run/); });
+test('already-sent email is not sent again and completes ok', () => { const a = eAfterLog(200, { id: 'm1', duplicate: true, status: 'sent' }); assert.equal(a.resend, undefined); assert.equal(a.finish.body.p_ok, true); });
+test('in-flight duplicate email is suppressed', () => { const a = eAfterLog(200, { id: 'm1', duplicate: true, status: 'queued' }); assert.equal(a.resend, undefined); assert.equal(a.finish.body.p_reason, 'duplicate_suppressed'); });
+test('email log failure sends nothing', () => { const a = eAfterLog(500, {}); assert.equal(a.resend, undefined); assert.equal(a.finish.body.p_ok, false); });
+
+const eAfterSend = (statusCode, body) => runCode('email-after-send.js', { json: { statusCode, body }, nodes: { 'After log': { reminder_id: R.reminder_id, message_id: 'm1' } } }).json;
+test('provider success records the external id and completes ok', () => { const a = eAfterSend(200, { id: 're-1' }); assert.deepEqual(a.update, { p_id: 'm1', p_status: 'sent', p_external_id: 're-1', p_error: null }); assert.equal(a.finish.body.p_ok, true); });
+test('provider 200 without an id is not trusted', () => assert.equal(eAfterSend(200, {}).update.p_status, 'failed'));
+test('provider rejection fails the message, keeps only a short error name', () => { const a = eAfterSend(422, { name: 'validation_error', message: 'PRIVATE DETAIL' }); assert.equal(a.update.p_status, 'failed'); assert.equal(a.finish.body.p_ok, false); assert.match(a.update.p_error, /422 \(validation_error\)/); assert.equal(JSON.stringify(a).includes('PRIVATE DETAIL'), false); });
+test('provider error names with odd characters are dropped', () => assert.equal(eAfterSend(500, { name: 'x"; drop' }).update.p_error, 'The email provider returned 500.'));
+
+// ---------------- email workflow shape
+const emFile = JSON.parse(readFileSync(new URL('./workflows/zella-email-sender.json', import.meta.url), 'utf8'));
+test('email workflow claims email reminders only', () => {
+  const n = emFile.nodes.find((x) => x.name === 'Claim email reminders');
+  assert.ok(n.parameters.url.endsWith('/rpc/zella_claim_reminders')); assert.ok(n.parameters.jsonBody.includes("p_channel: 'email'"));
+});
+test('only the Resend node talks to the email provider', () => {
+  const t = emFile.nodes.filter((n) => JSON.stringify(n.parameters).includes('api.resend.com'));
+  assert.deepEqual(t.map((n) => n.name), ['Send via Resend']);
+});
+test('Resend node can only be reached after the live check and ships with no credential', () => {
+  const into = Object.entries(emFile.connections).filter(([, v]) => v.main.flat().some((l) => l.node === 'Send via Resend')).map(([k]) => k);
+  assert.deepEqual(into, ['Send for real']);
+  const n = emFile.nodes.find((x) => x.name === 'Send via Resend'); assert.equal(n.parameters.authentication, 'none'); assert.equal(n.credentials, undefined);
+});
+test('email workflow uses the email database functions and no text ones', () => {
+  const t = JSON.stringify(emFile);
+  for (const f of ['zella_prepare_email', 'zella_log_outbound_email', 'zella_update_outbound_email']) assert.ok(t.includes(f), f);
+  assert.ok(!t.includes('_sms') && !t.includes('telnyx'));
+});
+test('text workflows never contact the email provider', () => { assert.ok(!JSON.stringify(smsFile).includes('resend')); assert.ok(!JSON.stringify(fuFile).includes('resend')); });
+
+for (const file of ['zella-event-gateway.json', 'zella-event-router.json', 'zella-schedulers.json', 'zella-sms-sender.json', 'zella-followup-texts.json', 'zella-email-sender.json']) {
   const w = JSON.parse(readFileSync(new URL('./workflows/' + file, import.meta.url), 'utf8'));
   const names = w.nodes.map((n) => n.name);
   test(file + ': node names are unique', () => assert.equal(new Set(names).size, names.length));
@@ -267,7 +328,7 @@ for (const file of ['zella-event-gateway.json', 'zella-event-router.json', 'zell
     for (const n of w.nodes.filter((x) => x.type === 'n8n-nodes-base.code')) new Function('$json', '$', n.parameters.jsCode);
   });
   test(file + ': HTTP nodes use a credential, not pasted keys', () => {
-    for (const n of w.nodes.filter((x) => x.type === 'n8n-nodes-base.httpRequest' && x.name !== 'Send via Telnyx')) {
+    for (const n of w.nodes.filter((x) => x.type === 'n8n-nodes-base.httpRequest' && !['Send via Telnyx', 'Send via Resend'].includes(x.name))) {
       assert.equal(n.parameters.authentication, 'genericCredentialType'); assert.ok(n.credentials?.httpCustomAuth || n.credentials?.httpHeaderAuth);
     }
   });

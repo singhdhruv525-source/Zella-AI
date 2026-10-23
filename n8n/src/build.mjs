@@ -149,40 +149,51 @@ const finishNode = (name, pos) => rpcNode(name, pos, '', "={{ JSON.stringify($js
 
 // The same safe pipeline serves reminders and follow-up texts. Only the claim step and the small
 // Code files differ (which id, which template, how the result is reported back).
-function smsFlow(name, { claim, claimName, finishName, files }) {
+function smsFlow(name, { claim, claimName, finishName, files, email = false }) {
   const C = claimName;
+  // Text and email use the same pipeline; only the database functions and the final send box differ.
+  const k = email
+    ? { is: 'Is an email', prep: 'Prepare email', send: 'Send via Resend', prepFn: 'zella_prepare_email', logFn: 'zella_log_outbound_email', updFn: 'zella_update_outbound_email', field: 'resend' }
+    : { is: 'Is a text', prep: 'Prepare text', send: 'Send via Telnyx', prepFn: 'zella_prepare_sms', logFn: 'zella_log_outbound_sms', updFn: 'zella_update_outbound_sms', field: 'telnyx' };
+  const sendNode = email
+    ? node(k.send, 'n8n-nodes-base.httpRequest', 4.2, [2400, -100], {
+        method: 'POST', url: 'https://api.resend.com/emails', authentication: 'none',
+        sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify($json.resend) }}',
+        options: { response: { response: { fullResponse: true, neverError: true, responseFormat: 'json' } } },
+      })
+    : node(k.send, 'n8n-nodes-base.httpRequest', 4.2, [2400, -100], {
+        method: 'POST', url: 'https://api.telnyx.com/v2/messages', authentication: 'none',
+        sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify($json.telnyx) }}',
+        options: { response: { response: { fullResponse: true, neverError: true, responseFormat: 'json' } } },
+      });
   return wf(name, [
     node('Every minute', 'n8n-nodes-base.scheduleTrigger', 1.2, [0, 200], { rule: { interval: [{ field: 'minutes', minutesInterval: 1 }] } }),
     claim(C, [240, 200]),
     code('Plan', [480, 200], files.plan),
-    ifBool('Is a text', [720, 200], '={{ !$json.finish }}'),
-    rpcNode('Prepare text', [960, 100], 'zella_prepare_sms', '={{ JSON.stringify($json.prepare) }}', { full: true }),
+    ifBool(k.is, [720, 200], '={{ !$json.finish }}'),
+    rpcNode(k.prep, [960, 100], k.prepFn, '={{ JSON.stringify($json.prepare) }}', { full: true }),
     code('Decide', [1200, 100], files.decide),
     ifBool('Needs sending', [1440, 100], '={{ !$json.finish }}'),
-    rpcNode('Log message', [1680, 0], 'zella_log_outbound_sms', '={{ JSON.stringify($json.log) }}', { full: true }),
+    rpcNode('Log message', [1680, 0], k.logFn, '={{ JSON.stringify($json.log) }}', { full: true }),
     code('After log', [1920, 0], files.afterLog),
     ifBool('Send for real', [2160, 0], '={{ !$json.finish }}'),
-    node('Send via Telnyx', 'n8n-nodes-base.httpRequest', 4.2, [2400, -100], {
-      method: 'POST', url: 'https://api.telnyx.com/v2/messages', authentication: 'none',
-      sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify($json.telnyx) }}',
-      options: { response: { response: { fullResponse: true, neverError: true, responseFormat: 'json' } } },
-    }),
+    sendNode,
     code('After send', [2640, -100], files.afterSend),
-    rpcNode('Update message', [2880, -100], 'zella_update_outbound_sms', '={{ JSON.stringify($json.update) }}', { full: true }),
+    rpcNode('Update message', [2880, -100], k.updFn, '={{ JSON.stringify($json.update) }}', { full: true }),
     code('Restore result', [3120, -100], 'sms-restore.js'),
     finishNode(finishName, [3360, 200]),
   ], {
     'Every minute': { main: [[link(C)]] },
     [C]: { main: [[link('Plan')]] },
-    'Plan': { main: [[link('Is a text')]] },
-    'Is a text': { main: [[link('Prepare text')], [link(finishName)]] },
-    'Prepare text': { main: [[link('Decide')]] },
+    'Plan': { main: [[link(k.is)]] },
+    [k.is]: { main: [[link(k.prep)], [link(finishName)]] },
+    [k.prep]: { main: [[link('Decide')]] },
     'Decide': { main: [[link('Needs sending')]] },
     'Needs sending': { main: [[link('Log message')], [link(finishName)]] },
     'Log message': { main: [[link('After log')]] },
     'After log': { main: [[link('Send for real')]] },
-    'Send for real': { main: [[link('Send via Telnyx')], [link(finishName)]] },
-    'Send via Telnyx': { main: [[link('After send')]] },
+    'Send for real': { main: [[link(k.send)], [link(finishName)]] },
+    [k.send]: { main: [[link('After send')]] },
     'After send': { main: [[link('Update message')]] },
     'Update message': { main: [[link('Restore result')]] },
     'Restore result': { main: [[link(finishName)]] },
@@ -193,6 +204,15 @@ const smsSender = smsFlow('Zella - SMS Sender', {
   claimName: 'Claim reminders', finishName: 'Finish reminder',
   claim: (n, pos) => rpcNode(n, pos, 'zella_claim_reminders', '={{ JSON.stringify({ p_limit: 20 }) }}'),
   files: { plan: 'sms-plan.js', decide: 'sms-decide.js', afterLog: 'sms-after-log.js', afterSend: 'sms-after-send.js' },
+});
+
+// Email sender: appointment confirmations and reminders whose channel is email. Same pipeline and the
+// same dry-run default (platform setting email_live). The Resend box ships with NO credential, for the
+// same reason as the Telnyx box. It claims only email reminders, so it never touches text reminders.
+const emailSender = smsFlow('Zella - Email Sender', {
+  email: true, claimName: 'Claim email reminders', finishName: 'Finish reminder',
+  claim: (n, pos) => rpcNode(n, pos, 'zella_claim_reminders', "={{ JSON.stringify({ p_limit: 20, p_channel: 'email' }) }}"),
+  files: { plan: 'email-plan.js', decide: 'email-decide.js', afterLog: 'email-after-log.js', afterSend: 'email-after-send.js' },
 });
 
 // Follow-up texts: no-show, post-visit, quote and reactivation. Text tasks only, so call tasks are
@@ -208,5 +228,6 @@ writeFileSync(join(out, 'zella-event-gateway.json'), JSON.stringify(gateway, nul
 writeFileSync(join(out, 'zella-event-router.json'), JSON.stringify(router, null, 2) + '\n');
 writeFileSync(join(out, 'zella-schedulers.json'), JSON.stringify(schedulers, null, 2) + '\n');
 writeFileSync(join(out, 'zella-sms-sender.json'), JSON.stringify(smsSender, null, 2) + '\n');
+writeFileSync(join(out, 'zella-email-sender.json'), JSON.stringify(emailSender, null, 2) + '\n');
 writeFileSync(join(out, 'zella-followup-texts.json'), JSON.stringify(followupSender, null, 2) + '\n');
 console.log('Built', gateway.nodes.length, 'gateway nodes,', router.nodes.length, 'router nodes,', schedulers.nodes.length, 'scheduler nodes and', smsSender.nodes.length, 'sms sender nodes and', followupSender.nodes.length, 'follow-up text nodes.');
