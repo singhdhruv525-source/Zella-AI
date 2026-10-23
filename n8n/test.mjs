@@ -118,7 +118,8 @@ test('scheduler 404 (function missing) also alerts', () => assert.equal(sched(40
 
 // ---------------- scheduler workflow: every job is wired and none is a trigger-only function
 const schedFile = JSON.parse(readFileSync(new URL('./workflows/zella-schedulers.json', import.meta.url), 'utf8'));
-test('scheduler workflow runs 10 jobs', () => assert.equal(schedFile.nodes.filter((n) => n.name.startsWith('Run ')).length, 10));
+test('scheduler workflow runs 11 jobs', () => assert.equal(schedFile.nodes.filter((n) => n.name.startsWith('Run ')).length, 11));
+test('daily summaries are checked every hour (each business is posted at its own 8am)', () => assert.ok(schedFile.nodes.some((n) => n.name === 'Every hour') && schedFile.connections['Every hour'].main[0][0].node === 'Run zella_post_daily_summaries'));
 test('trigger-only functions are not scheduled', () => {
   const t = JSON.stringify(schedFile);
   assert.ok(!t.includes('zella_calls_to_callbacks') && !t.includes('zella_queue_no_show_followup'));
@@ -297,7 +298,42 @@ test('email workflow uses the email database functions and no text ones', () => 
 });
 test('text workflows never contact the email provider', () => { assert.ok(!JSON.stringify(smsFile).includes('resend')); assert.ok(!JSON.stringify(fuFile).includes('resend')); });
 
-for (const file of ['zella-event-gateway.json', 'zella-event-router.json', 'zella-schedulers.json', 'zella-sms-sender.json', 'zella-followup-texts.json', 'zella-email-sender.json']) {
+// ---------------- owner emails
+const O = { notification_id: '33333333-3333-4333-8333-333333333333', business_id: BIZ, to: 'owner@example.com', subject: 'Your day with Zella - Test Salon', body_text: 'Hello', body_html: '<p>Hello</p>', live: false, from: null, from_name: 'Zella', kind: 'daily_summary' };
+const oplan = (r) => runCode('owner-plan.js', { json: r }).json;
+test('owner email dry run is logged as dry_run, not tied to a customer, with a per-address key', () => {
+  const p = oplan(O); assert.equal(p.finish, null); assert.equal(p.log.p_status, 'dry_run'); assert.equal(p.log.p_customer_id, null);
+  assert.equal(p.log.p_dedupe_key, 'notif:' + O.notification_id + ':owner@example.com'); assert.equal(p.live, false);
+});
+test('owner email live is queued', () => { const p = oplan({ ...O, live: true, from: 'hello@zella.example' }); assert.equal(p.log.p_status, 'queued'); assert.equal(p.live, true); });
+test('owner email live without a sender address fails loudly', () => { const p = oplan({ ...O, live: true }); assert.equal(p.finish.body.p_result, 'failed'); assert.equal(p.finish.body.p_note, 'sender_address_not_set'); });
+test('an incomplete owner notification is failed, not sent', () => { for (const k of ['to', 'subject', 'body_text', 'notification_id']) assert.equal(oplan({ ...O, [k]: undefined }).finish.body.p_result, 'failed', k); });
+
+const oAfterLog = (statusCode, body, d) => runCode('owner-after-log.js', { json: { statusCode, body }, nodes: { Plan: { notification_id: O.notification_id, live: true, from: 'hello@zella.example', from_name: 'Zella', to: 'owner@example.com', subject: 'S', text: 'T', html: '<p>T</p>', ...d } } }).json;
+test('owner email live new message builds the provider payload', () => { const a = oAfterLog(200, { id: 'm1', duplicate: false, status: 'queued' }); assert.equal(a.finish, null); assert.deepEqual(a.resend, { from: 'Zella <hello@zella.example>', to: ['owner@example.com'], subject: 'S', text: 'T', html: '<p>T</p>' }); assert.equal(a.message_id, 'm1'); });
+test('owner email dry run never builds a provider payload', () => { const a = oAfterLog(200, { id: 'm1', duplicate: false, status: 'dry_run' }, { live: false }); assert.equal(a.resend, undefined); assert.equal(a.finish.body.p_result, 'skipped'); assert.match(a.finish.body.p_note, /dry_run/); });
+test('owner email already sent is not sent again', () => { const a = oAfterLog(200, { id: 'm1', duplicate: true, status: 'sent' }); assert.equal(a.resend, undefined); assert.equal(a.finish.body.p_result, 'sent'); });
+test('owner email in-flight duplicate is suppressed', () => { const a = oAfterLog(200, { id: 'm1', duplicate: true, status: 'queued' }); assert.equal(a.resend, undefined); assert.equal(a.finish.body.p_note, 'duplicate_suppressed'); });
+test('owner email log failure sends nothing', () => { const a = oAfterLog(500, {}); assert.equal(a.resend, undefined); assert.equal(a.finish.body.p_result, 'failed'); });
+
+const oAfterSend = (statusCode, body) => runCode('owner-after-send.js', { json: { statusCode, body }, nodes: { 'After log': { notification_id: O.notification_id, message_id: 'm1' } } }).json;
+test('owner email provider success records the id and reports sent', () => { const a = oAfterSend(200, { id: 're-1' }); assert.deepEqual(a.update, { p_id: 'm1', p_status: 'sent', p_external_id: 're-1', p_error: null }); assert.equal(a.finish.body.p_result, 'sent'); });
+test('owner email provider rejection reports failed without leaking details', () => { const a = oAfterSend(422, { name: 'validation_error', message: 'PRIVATE' }); assert.equal(a.update.p_status, 'failed'); assert.equal(a.finish.body.p_result, 'failed'); assert.equal(JSON.stringify(a).includes('PRIVATE'), false); });
+test('owner email provider 200 without an id is not trusted', () => assert.equal(oAfterSend(200, {}).finish.body.p_result, 'failed'));
+
+const owFile = JSON.parse(readFileSync(new URL('./workflows/zella-owner-emails.json', import.meta.url), 'utf8'));
+test('owner workflow claims through the owner function and reports only through its finish function', () => {
+  assert.ok(owFile.nodes.find((x) => x.name === 'Claim owner emails').parameters.url.endsWith('/rpc/zella_claim_owner_emails'));
+  const t = JSON.stringify(owFile);
+  for (const bad of ['zella_complete_reminder', 'zella_skip_reminder', 'zella_claim_reminders', 'zella_prepare_sms', 'telnyx']) assert.ok(!t.includes(bad), bad);
+});
+test('owner Resend box is reachable only after the live check and ships with no credential', () => {
+  const into = Object.entries(owFile.connections).filter(([, v]) => v.main.flat().some((l) => l.node === 'Send via Resend')).map(([k]) => k);
+  assert.deepEqual(into, ['Send for real']);
+  const n = owFile.nodes.find((x) => x.name === 'Send via Resend'); assert.equal(n.parameters.authentication, 'none'); assert.equal(n.credentials, undefined);
+});
+
+for (const file of ['zella-event-gateway.json', 'zella-event-router.json', 'zella-schedulers.json', 'zella-sms-sender.json', 'zella-followup-texts.json', 'zella-email-sender.json', 'zella-owner-emails.json']) {
   const w = JSON.parse(readFileSync(new URL('./workflows/' + file, import.meta.url), 'utf8'));
   const names = w.nodes.map((n) => n.name);
   test(file + ': node names are unique', () => assert.equal(new Set(names).size, names.length));

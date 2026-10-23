@@ -1,14 +1,15 @@
 # Zella n8n workflows
 
-Six workflows so far. All are shared by every business and every industry. Nothing business-specific lives in n8n: the database holds the rules, n8n moves the work.
+Seven workflows so far. All are shared by every business and every industry. Nothing business-specific lives in n8n: the database holds the rules, n8n moves the work.
 
 | File | What it does |
 |---|---|
 | `workflows/zella-event-gateway.json` | Receives events at `POST /webhook/zella/events`, checks them, stores them once (`zella_ingest_event`), replies quickly. Repeats are recognised and stored only once. |
-| `workflows/zella-schedulers.json` | Runs 10 timed database checks (see below). A failed check raises one grouped alert in the platform alerts list. |
+| `workflows/zella-schedulers.json` | Runs 11 timed database checks (see below). A failed check raises one grouped alert in the platform alerts list. |
 | `workflows/zella-sms-sender.json` | Every minute: takes due appointment reminders and confirmations, checks consent and the template in the database, logs the message, and sends it through Telnyx **only when live**. In dry-run (the default) nothing is sent. |
 | `workflows/zella-followup-texts.json` | Every minute: takes due follow-up **text** tasks (no-show, post-visit thank-you, quote follow-up, reactivation, and the fallback text after a callback runs out of tries) and runs them through the same consent check, logging and dry-run switch as the reminders. Call tasks are never picked up. |
 | `workflows/zella-email-sender.json` | Every minute: takes due appointment confirmations and reminders whose channel is **email** and runs them through the same pipeline as the text sender: consent, template, safe HTML, logging, duplicate protection, dry-run switch. Sends through Resend **only when live**. |
+| `workflows/zella-owner-emails.json` | Every 5 minutes: emails owner notifications (daily summary, weekly review, any warning or urgent alert) to the right people, honouring each person's email preferences. Same dry-run switch and Resend box as the email sender. |
 | `workflows/zella-event-router.json` | Every minute: takes up to 20 stored events (`zella_claim_events`), runs the right handler, writes an execution record, and reports the result (`zella_complete_event`). Temporary failures are retried by the database with a growing delay. Permanent ones go to the dead-letter list. |
 
 ## What the router handles today
@@ -29,6 +30,7 @@ Handlers for reminders, callbacks, SMS sending, email, Meta and the website are 
 |---|---|
 | 5 minutes | overdue leads, expire held slots, expire waitlist offers, transfer failures |
 | 15 minutes | quote follow-ups |
+| hour | daily summaries (a business is posted once, when its own local time is 8am) |
 | day, 04:00 (n8n time zone) | lead reactivation (up to 200), setup incomplete, trials, payment policy |
 | Monday, 08:00 (n8n time zone) | weekly reviews |
 
@@ -58,13 +60,22 @@ Run `sql/zella_email_sender.sql` in the Supabase SQL editor (after `zella_sms_se
 - **To go live (later, all of these):** a Resend account with a verified sending domain, a Header Auth credential (name `Authorization`, value `Bearer <Resend key>`) selected by hand on the "Send via Resend" box (it ships with no credential on purpose), `email_from_address` set to an address on that domain, then `email_live` set to `true`. Test with one address you own first.
 - **Not covered yet:** follow-up emails (only appointment emails so far), inbound email, bounce and complaint handling, unsubscribe.
 
+## Owner summaries and owner emails
+
+Run `sql/zella_owner_emails.sql` after `zella_email_sender.sql`.
+
+- **Daily summary:** every hour the scheduler checks each business; at 8am its local time it posts "Your day with Zella" (calls, missed, bookings, new customers, today's appointments, what needs attention). Once a day, and only when there is something to say. It appears in the app's notifications either way.
+- **Who is emailed:** a daily summary, a weekly review, or any warning or urgent alert. Notifications for the whole business go to active owners and admins; notifications for one person go to that person. A person can switch email off (or on) for any kind in `notification_preferences`. Anything else is marked `skipped / not_emailed` and stays in-app only.
+- **Same safety as the other senders:** dry-run until `email_live` is true, one email per notification and address, a sent email is never downgraded by a later failure, and a notification stuck in `sending` for 30 minutes is picked up again.
+- **Not covered yet:** a settings screen for the preferences, staff invitation emails (`zella_check_invitations`), SMS alerts for staff.
+
 ## Setup (once)
 
 1. In n8n, create two credentials:
    - **Zella Supabase service role**: type *Custom Auth*. JSON: `{"headers": {"apikey": "<service role key>", "Authorization": "Bearer <service role key>"}}`. Use the service role key from Supabase, Settings, API. It stays in n8n only. Never put it in the website or in a workflow file.
    - **Zella gateway secret**: type *Header Auth*. Name `X-Zella-Secret`, value a long random string. Every system that posts events must send this header.
-2. Import all six files (Workflows, Import from file). Open each node that shows a missing credential and select the credential above.
-3. Switch the gateway on first, then the router, then the schedulers, then the SMS sender, the follow-up texts and the email sender. All import as inactive.
+2. Import all seven files (Workflows, Import from file). Open each node that shows a missing credential and select the credential above.
+3. Switch the gateway on first, then the router, then the schedulers, then the SMS sender, the follow-up texts, the email sender and the owner emails. All import as inactive.
 
 ## Sending an event
 
@@ -93,7 +104,7 @@ Replies: `200 {ok, id, duplicate}`, `400` bad request, `401/403` wrong secret, `
 
 ## Tests
 
-`node n8n/test.mjs` runs 178 checks: the exact Code-node logic that ships, plus structure checks on all six files (connections, node references, no pasted keys).
+`node n8n/test.mjs` runs 202 checks: the exact Code-node logic that ships, plus structure checks on all seven files (connections, node references, no pasted keys).
 
 **Not verified:** the files have not been imported into a running n8n. The workspace could not install n8n. Import them into your n8n and report anything that does not open cleanly. Node versions used: Webhook 2, Code 2, HTTP Request 4.2, IF 2, Schedule Trigger 1.2, Respond to Webhook 1.1.
 

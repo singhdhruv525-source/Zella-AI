@@ -108,12 +108,14 @@ const router = wf('Zella - Event Router', [
 export const SCHEDULE = {
   every5: ['zella_flag_overdue_leads', 'zella_expire_holds', 'zella_expire_waitlist_offers', 'zella_detect_transfer_failures'],
   every15: ['zella_queue_quote_followups'],
+  hourly: ['zella_post_daily_summaries'],
   daily: ['zella_queue_lead_reactivation', 'zella_check_setup_incomplete', 'zella_check_trials', 'zella_apply_payment_policy'],
   weekly: ['zella_post_weekly_reviews'],
 };
 const triggers = {
   every5: ['Every 5 minutes', { rule: { interval: [{ field: 'minutes', minutesInterval: 5 }] } }],
   every15: ['Every 15 minutes', { rule: { interval: [{ field: 'minutes', minutesInterval: 15 }] } }],
+  hourly: ['Every hour', { rule: { interval: [{ field: 'hours', hoursInterval: 1 }] } }],
   daily: ['Every day', { rule: { interval: [{ field: 'days', daysInterval: 1, triggerAtHour: 4 }] } }],
   weekly: ['Every Monday', { rule: { interval: [{ field: 'weeks', weeksInterval: 1, triggerAtDay: [1], triggerAtHour: 8 }] } }],
 };
@@ -215,6 +217,40 @@ const emailSender = smsFlow('Zella - Email Sender', {
   files: { plan: 'email-plan.js', decide: 'email-decide.js', afterLog: 'email-after-log.js', afterSend: 'email-after-send.js' },
 });
 
+// Owner emails: daily summaries, weekly reviews and warning or urgent alerts, emailed to the people who
+// should get them (the database decides who, honouring each person's email preferences). Same dry-run
+// switch and Resend box as the email sender, same rule that the Resend box ships with no credential.
+const ownerEmails = wf('Zella - Owner Emails', [
+  node('Every 5 minutes', 'n8n-nodes-base.scheduleTrigger', 1.2, [0, 200], { rule: { interval: [{ field: 'minutes', minutesInterval: 5 }] } }),
+  rpcNode('Claim owner emails', [240, 200], 'zella_claim_owner_emails', '={{ JSON.stringify({ p_limit: 20 }) }}'),
+  code('Plan', [480, 200], 'owner-plan.js'),
+  ifBool('Needs sending', [720, 200], '={{ !$json.finish }}'),
+  rpcNode('Log message', [960, 100], 'zella_log_outbound_email', '={{ JSON.stringify($json.log) }}', { full: true }),
+  code('After log', [1200, 100], 'owner-after-log.js'),
+  ifBool('Send for real', [1440, 100], '={{ !$json.finish }}'),
+  node('Send via Resend', 'n8n-nodes-base.httpRequest', 4.2, [1680, 0], {
+    method: 'POST', url: 'https://api.resend.com/emails', authentication: 'none',
+    sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify($json.resend) }}',
+    options: { response: { response: { fullResponse: true, neverError: true, responseFormat: 'json' } } },
+  }),
+  code('After send', [1920, 0], 'owner-after-send.js'),
+  rpcNode('Update message', [2160, 0], 'zella_update_outbound_email', '={{ JSON.stringify($json.update) }}', { full: true }),
+  code('Restore result', [2400, 0], 'sms-restore.js'),
+  finishNode('Finish notification', [2640, 200]),
+], {
+  'Every 5 minutes': { main: [[link('Claim owner emails')]] },
+  'Claim owner emails': { main: [[link('Plan')]] },
+  'Plan': { main: [[link('Needs sending')]] },
+  'Needs sending': { main: [[link('Log message')], [link('Finish notification')]] },
+  'Log message': { main: [[link('After log')]] },
+  'After log': { main: [[link('Send for real')]] },
+  'Send for real': { main: [[link('Send via Resend')], [link('Finish notification')]] },
+  'Send via Resend': { main: [[link('After send')]] },
+  'After send': { main: [[link('Update message')]] },
+  'Update message': { main: [[link('Restore result')]] },
+  'Restore result': { main: [[link('Finish notification')]] },
+});
+
 // Follow-up texts: no-show, post-visit, quote and reactivation. Text tasks only, so call tasks are
 // never picked up here. (Waitlist offers need reply handling and are not included yet.)
 export const FOLLOWUP_KINDS = ['no_show_follow_up', 'post_appointment_follow_up', 'quote_follow_up', 'lead_reactivation', 'callback_sms'];
@@ -229,5 +265,6 @@ writeFileSync(join(out, 'zella-event-router.json'), JSON.stringify(router, null,
 writeFileSync(join(out, 'zella-schedulers.json'), JSON.stringify(schedulers, null, 2) + '\n');
 writeFileSync(join(out, 'zella-sms-sender.json'), JSON.stringify(smsSender, null, 2) + '\n');
 writeFileSync(join(out, 'zella-email-sender.json'), JSON.stringify(emailSender, null, 2) + '\n');
+writeFileSync(join(out, 'zella-owner-emails.json'), JSON.stringify(ownerEmails, null, 2) + '\n');
 writeFileSync(join(out, 'zella-followup-texts.json'), JSON.stringify(followupSender, null, 2) + '\n');
 console.log('Built', gateway.nodes.length, 'gateway nodes,', router.nodes.length, 'router nodes,', schedulers.nodes.length, 'scheduler nodes and', smsSender.nodes.length, 'sms sender nodes and', followupSender.nodes.length, 'follow-up text nodes.');
