@@ -9,7 +9,7 @@ Item numbers and names come from the Zella AI Complete Automation Guide. Status 
 
 Items are served by a small set of shared workflows (see `n8n/README.md`), not one workflow per item. Many industry items (196 to 254) are configurations of the shared appointment, message, assignment and reminder engines; the 98 starter automation rows per industry are seeded in the database.
 
-**Totals:** Built 101, Partly 32, Rules ready 35, Not built 170.
+**Totals:** Built 120, Partly 33, Rules ready 33, Not built 152.
 
 
 ## 1. Calls and AI receptionist (16) — Built 3, Partly 4, Rules ready 4, Not built 5
@@ -372,7 +372,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 284 | Test mode | Built |
 | 285 | Manual recovery controls | Rules ready |
 
-## 16. Notifications and reporting (14) — Built 5, Partly 0, Rules ready 0, Not built 9
+## 16. Notifications and reporting (14) — Built 13, Partly 0, Rules ready 0, Not built 1
 
 | # | Automation | Status |
 |---|---|---|
@@ -381,14 +381,14 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 288 | Staff SMS alerts | Not built |
 | 289 | Daily summaries | Built |
 | 290 | Weekly summaries | Built |
-| 291 | Missed-call reports | Not built |
-| 292 | Callback reports | Not built |
-| 293 | Appointment reports | Not built |
-| 294 | Lead reports | Not built |
-| 295 | Failure and connection reports | Not built |
-| 296 | Knowledge-gap reports | Not built |
-| 297 | Unassigned-work reports | Not built |
-| 298 | KPI alerts | Not built |
+| 291 | Missed-call reports | Built |
+| 292 | Callback reports | Built |
+| 293 | Appointment reports | Built |
+| 294 | Lead reports | Built |
+| 295 | Failure and connection reports | Built |
+| 296 | Knowledge-gap reports | Built |
+| 297 | Unassigned-work reports | Built |
+| 298 | KPI alerts | Built |
 | 299 | Notification grouping and deduplication | Built |
 
 ## 17. Subscription and platform operations (12) — Built 3, Partly 0, Rules ready 4, Not built 5
@@ -428,19 +428,19 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 325 | Tenant-leak testing | Not built |
 | 326 | Privileged-action audit | Rules ready |
 
-## 19. Analytics and optimization (12) — Built 0, Partly 0, Rules ready 2, Not built 10
+## 19. Analytics and optimization (12) — Built 11, Partly 1, Rules ready 0, Not built 0
 
 | # | Automation | Status |
 |---|---|---|
-| 327 | Success and failure metrics | Rules ready |
-| 328 | Message-delivery metrics | Not built |
-| 329 | Callback completion metrics | Not built |
-| 330 | Appointment outcome metrics | Not built |
-| 331 | Lead response and conversion metrics | Not built |
-| 332 | Follow-up completion metrics | Not built |
-| 333 | Integration uptime metrics | Not built |
-| 334 | Knowledge-sync metrics | Not built |
-| 335 | Usage and cost metrics | Rules ready |
-| 336 | Dashboard filtering | Not built |
-| 337 | Anomaly detection | Not built |
-| 338 | Workflow effectiveness analysis | Not built |
+| 327 | Success and failure metrics | Built |
+| 328 | Message-delivery metrics | Built |
+| 329 | Callback completion metrics | Built |
+| 330 | Appointment outcome metrics | Built |
+| 331 | Lead response and conversion metrics | Built |
+| 332 | Follow-up completion metrics | Built |
+| 333 | Integration uptime metrics | Built |
+| 334 | Knowledge-sync metrics | Built |
+| 335 | Usage and cost metrics | Built |
+| 336 | Dashboard filtering | Built |
+| 337 | Anomaly detection | Built |
+| 338 | Workflow effectiveness analysis | Partly |
