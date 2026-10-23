@@ -9,6 +9,10 @@ const kinds = {
   post_appointment_follow_up: { key: 'post_appointment_follow_up', purpose: 'transactional' },
   quote_follow_up: { key: 'quote_follow_up', purpose: 'transactional' },
   lead_reactivation: { key: 'lead_reactivation', purpose: 'marketing' },
+  // Replies to a customer's own text (C, R, HELP). The database queues these when the text arrives.
+  reply_confirmed: { key: 'reply_confirmed', purpose: 'transactional' },
+  reply_reschedule: { key: 'reply_reschedule', purpose: 'transactional' },
+  reply_help: { key: 'reply_help', purpose: 'transactional' },
 };
 // A callback that ran out of tries leaves a text task behind. The message depends on why the callback existed.
 const byReason = { missed_call: 'missed_call_follow_up', new_lead: 'lead_acknowledgement' };

@@ -71,6 +71,18 @@ Run `sql/zella_followup_emails.sql` after `zella_email_sender.sql`, `zella_follo
 - **Reactivation is marketing:** it is skipped for email (`marketing_email_not_ready`) until unsubscribe links exist.
 - **Reported as** `email_sent` on the follow-up task.
 
+## Customer text replies
+
+Run `sql/zella_inbound_replies.sql` after `zella_followup_emails.sql`. The router workflow does **not** need re-importing (the change is inside the database function it already calls). The Follow-up Texts workflow **does** (it now also sends the quick replies).
+
+- **Every incoming text is saved** and matched to the customer when the number is known.
+- **STOP / START / HELP** work as before. HELP now queues a reply (`reply_help`).
+- **C, CONFIRM, CONFIRMED, YES, Y** confirm the customer's next upcoming appointment, cancel the pending "please confirm" reminder, and queue a thank-you text. (YES still means START for someone who opted out.)
+- **R, RESCHEDULE** mark the appointment as needing a new time, create a callback task in "reschedule requested" (it never auto-calls), alert the business owners (a warning, so it is also emailed), and queue an acknowledgement text.
+- **Anything else** shows a "New text from ..." notice in the app.
+- Replies to a customer's own message go out straight away (no calling-hours delay) and are never moved to email.
+- **Not covered yet:** letting the customer pick a new time by text, a staff reply screen, and replies to emails.
+
 ## Owner summaries and owner emails
 
 Run `sql/zella_owner_emails.sql` after `zella_email_sender.sql`.
@@ -115,7 +127,7 @@ Replies: `200 {ok, id, duplicate}`, `400` bad request, `401/403` wrong secret, `
 
 ## Tests
 
-`node n8n/test.mjs` runs 229 checks: the exact Code-node logic that ships, plus structure checks on all eight files (connections, node references, no pasted keys).
+`node n8n/test.mjs` runs 231 checks: the exact Code-node logic that ships, plus structure checks on all eight files (connections, node references, no pasted keys).
 
 **Not verified:** the files have not been imported into a running n8n. The workspace could not install n8n. Import them into your n8n and report anything that does not open cleanly. Node versions used: Webhook 2, Code 2, HTTP Request 4.2, IF 2, Schedule Trigger 1.2, Respond to Webhook 1.1.
 

@@ -251,13 +251,15 @@ const ownerEmails = wf('Zella - Owner Emails', [
   'Restore result': { main: [[link('Finish notification')]] },
 });
 
-export const FOLLOWUP_KINDS = ['no_show_follow_up', 'post_appointment_follow_up', 'quote_follow_up', 'lead_reactivation', 'callback_sms'];
+export const FOLLOWUP_EMAIL_KINDS = ['no_show_follow_up', 'post_appointment_follow_up', 'quote_follow_up', 'lead_reactivation', 'callback_sms'];
+// Texts also send the quick replies to C, R and HELP (the database queues them).
+export const FOLLOWUP_KINDS = [...FOLLOWUP_EMAIL_KINDS, 'reply_confirmed', 'reply_reschedule', 'reply_help'];
 // Follow-up emails: the same kinds as the follow-up texts, for tasks whose channel is email (a task moves to
 // email when the customer cannot be texted but can be emailed). Same dry-run switch and Resend box as the
 // other email workflows. Reactivation is marketing and is skipped with a visible reason until unsubscribe exists.
 const followupEmails = smsFlow('Zella - Follow-up Emails', {
   email: true, claimName: 'Claim follow-up emails', finishName: 'Finish follow-up',
-  claim: (n, pos) => rpcNode(n, pos, 'zella_claim_followup_emails', `={{ JSON.stringify({ p_limit: 20, p_kinds: ${JSON.stringify(FOLLOWUP_KINDS)} }) }}`),
+  claim: (n, pos) => rpcNode(n, pos, 'zella_claim_followup_emails', `={{ JSON.stringify({ p_limit: 20, p_kinds: ${JSON.stringify(FOLLOWUP_EMAIL_KINDS)} }) }}`),
   files: { plan: 'email-task-plan.js', decide: 'email-task-decide.js', afterLog: 'email-task-after-log.js', afterSend: 'email-task-after-send.js' },
 });
 
