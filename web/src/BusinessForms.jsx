@@ -91,12 +91,6 @@ export function AddLeadModal({ workspace, term, onClose, onSaved }) {
           </Field>
         </div>
         {error && <div className="ba-error">{error}</div>}
-        {conflict && (
-          <label className="ba-check">
-            <input type="checkbox" checked={force} onChange={(e) => setForce(e.target.checked)} />
-            <span>Book anyway</span>
-          </label>
-        )}
       </form>
     </Modal>
   );
