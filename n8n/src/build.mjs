@@ -268,6 +268,22 @@ const outboundCalls = wf('Zella - Outbound Calls', [
   'After call': { main: [[link('Record call')]] },
 });
 
+// Call results: Vapi posts an end-of-call report when a call Zella placed ends. Event-driven (runs only then).
+// Point the Vapi assistant's server URL at <n8n>/webhook/zella/vapi with the header X-Zella-Secret, and set its
+// server messages to end-of-call-report only, so no other message wakes the workflow.
+const callResults = wf('Zella - Call Results', [
+  node('Vapi report', 'n8n-nodes-base.webhook', 2, [0, 200], {
+    httpMethod: 'POST', path: 'zella/vapi', authentication: 'headerAuth', responseMode: 'onReceived', options: {},
+  }, { webhookId: id('webhook:zella-vapi'), credentials: GATEWAY_CRED }),
+  code('Plan', [240, 200], 'call-result-plan.js'),
+  ifBool('Is a call result', [480, 200], '={{ !!$json.record }}'),
+  rpcNode('Record call result', [720, 100], 'zella_record_call_result', '={{ JSON.stringify($json.record) }}', { full: true }),
+], {
+  'Vapi report': { main: [[link('Plan')]] },
+  'Plan': { main: [[link('Is a call result')]] },
+  'Is a call result': { main: [[link('Record call result')], []] },
+});
+
 writeFileSync(join(out, 'zella-event-gateway.json'), JSON.stringify(gateway, null, 2) + '\n');
 writeFileSync(join(out, 'zella-event-router.json'), JSON.stringify(router, null, 2) + '\n');
 writeFileSync(join(out, 'zella-sms-sender.json'), JSON.stringify(smsSender, null, 2) + '\n');
@@ -276,4 +292,5 @@ writeFileSync(join(out, 'zella-owner-emails.json'), JSON.stringify(ownerEmails, 
 writeFileSync(join(out, 'zella-followup-emails.json'), JSON.stringify(followupEmails, null, 2) + '\n');
 writeFileSync(join(out, 'zella-followup-texts.json'), JSON.stringify(followupSender, null, 2) + '\n');
 writeFileSync(join(out, 'zella-outbound-calls.json'), JSON.stringify(outboundCalls, null, 2) + '\n');
-console.log('Built', [gateway, router, smsSender, followupSender, emailSender, followupEmails, ownerEmails, outboundCalls].map((w) => w.name + ' (' + w.nodes.length + ')').join(', '));
+writeFileSync(join(out, 'zella-call-results.json'), JSON.stringify(callResults, null, 2) + '\n');
+console.log('Built', [gateway, router, smsSender, followupSender, emailSender, followupEmails, ownerEmails, outboundCalls, callResults].map((w) => w.name + ' (' + w.nodes.length + ')').join(', '));

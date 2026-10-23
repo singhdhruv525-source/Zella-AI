@@ -112,11 +112,51 @@ begin
   return 'placed';
 end $$;
 
+-- 6. The result of a call, from Vapi's end-of-call report. Safe to receive twice: only a call still waiting for
+--    its result is changed; anything else is ignored.
+create or replace function public.zella_record_call_result(p_source text, p_id uuid, p_outcome text, p_provider_call_id text default null, p_notes text default null)
+returns text language plpgsql security definer set search_path = public as $$
+declare v_status text;
+begin
+  if p_source = 'callback' then
+    select status into v_status from public.callbacks where id = p_id for update;
+    if v_status is null then return 'not_found'; end if;
+    if v_status <> 'in_progress' then return 'ignored'; end if;
+    perform public.zella_record_callback_attempt(p_id, p_outcome, left(p_provider_call_id, 200), null, left(p_notes, 300));
+    return 'recorded';
+  elsif p_source = 'task' then
+    select status into v_status from public.followup_tasks where id = p_id for update;
+    if v_status is null then return 'not_found'; end if;
+    if v_status <> 'in_progress' then return 'ignored'; end if;
+    perform public.zella_complete_followup_task(p_id, p_outcome, left(p_notes, 300), left(p_provider_call_id, 200));
+    return 'recorded';
+  end if;
+  raise exception 'BAD_SOURCE';
+end $$;
+
+-- 7. A call that was placed but whose report never arrived (Vapi down, webhook lost) is freed after 45 minutes
+--    and counted as a failed attempt, so the normal retry rules apply. Runs every 5 minutes inside Supabase.
+create or replace function public.zella_sweep_stuck_calls()
+returns integer language plpgsql security definer set search_path = public as $$
+declare r record; n integer := 0;
+begin
+  for r in select id from public.followup_tasks
+            where status = 'in_progress' and channel = 'call' and claimed_at < now() - interval '45 minutes' for update skip locked loop
+    perform public.zella_complete_followup_task(r.id, 'failed', 'no_result_from_provider'); n := n + 1;
+  end loop;
+  for r in select id from public.callbacks
+            where status = 'in_progress' and auto_call and locked_at is not null and locked_at < now() - interval '45 minutes' for update skip locked loop
+    perform public.zella_record_callback_attempt(r.id, 'failed_connection', null, 'no_result_from_provider'); n := n + 1;
+  end loop;
+  return n;
+end $$;
+
 do $$
 declare f text;
 begin
   foreach f in array array['zella_call_config()', 'zella_claim_callback_calls(integer)', 'zella_claim_followup_calls(integer,text[])',
-                           'zella_release_call(text,uuid,text,integer)', 'zella_mark_call_placed(text,uuid,text)'] loop
+                           'zella_release_call(text,uuid,text,integer)', 'zella_mark_call_placed(text,uuid,text)',
+                           'zella_record_call_result(text,uuid,text,text,text)', 'zella_sweep_stuck_calls()'] loop
     execute format('revoke execute on function public.%s from public, anon, authenticated', f);
     execute format('grant execute on function public.%s to service_role', f);
   end loop;

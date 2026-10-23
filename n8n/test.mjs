@@ -130,8 +130,8 @@ test('the dispatcher only checks the follow-up kinds the workflows really handle
   const list = (name) => dispatcherSql.match(new RegExp(name + ' text\\[\\] := array\\[([^\\]]*)\\]'))[1].split(',').map((x) => x.trim().replace(/'/g, ''));
   assert.deepEqual(list('v_text_kinds'), FOLLOWUP_KINDS); assert.deepEqual(list('v_email_kinds'), FOLLOWUP_EMAIL_KINDS);
 });
-test('all 12 timed jobs run inside the database, on the same rhythm as before', () => {
-  const jobs = { every5: ['zella_flag_overdue_leads', 'zella_expire_holds', 'zella_expire_waitlist_offers', 'zella_detect_transfer_failures', 'zella_flag_overdue_callbacks'], every15: ['zella_queue_quote_followups'], hourly: ['zella_post_daily_summaries'], daily: ['zella_queue_lead_reactivation', 'zella_check_setup_incomplete', 'zella_check_trials', 'zella_apply_payment_policy'], weekly: ['zella_post_weekly_reviews'] };
+test('all 13 timed jobs run inside the database, on the same rhythm as before', () => {
+  const jobs = { every5: ['zella_flag_overdue_leads', 'zella_expire_holds', 'zella_expire_waitlist_offers', 'zella_detect_transfer_failures', 'zella_flag_overdue_callbacks', 'zella_sweep_stuck_calls'], every15: ['zella_queue_quote_followups'], hourly: ['zella_post_daily_summaries'], daily: ['zella_queue_lead_reactivation', 'zella_check_setup_incomplete', 'zella_check_trials', 'zella_apply_payment_policy'], weekly: ['zella_post_weekly_reviews'] };
   for (const [g, fns] of Object.entries(jobs)) for (const fn of fns) { assert.ok(dispatcherSql.includes("'" + fn + "'"), fn); assert.ok(new RegExp("when '" + g + "'\\s+then array\\[[^\\]]*'" + fn + "'").test(dispatcherSql), g + ' ' + fn); }
   for (const cron of ["'* * * * *'", "'*/5 * * * *'", "'*/15 * * * *'", "'0 * * * *'", "'0 4 * * *'", "'0 8 * * 1'"]) assert.ok(dispatcherSql.includes(cron), cron);
 });
@@ -474,6 +474,39 @@ test('the Vapi box ships with no credential and the dispatcher counts calls that
 });
 test('the call SQL never dials anything itself and leaves nothing open to customers', () => {
   assert.ok(!/api\.vapi\.ai|net\.http_post/.test(callSql)); assert.ok(callSql.includes("revoke execute on function public.%s from public, anon, authenticated"));
+});
+
+// ---------------- call results (Vapi end-of-call report)
+const rplan = (message) => runCode('call-result-plan.js', { json: { body: { message } } }).json;
+const CBID = '22222222-2222-4222-8222-222222222222';
+const rep = (over, meta = { zella_source: 'callback', zella_id: CBID }) => ({ type: 'end-of-call-report', endedReason: 'customer-ended-call', durationSeconds: 60, summary: 'Booked for Friday.', call: { id: 'call_9', metadata: meta }, ...over });
+test('call results: anything that is not an end-of-call report for a Zella call is ignored', () => {
+  assert.equal(rplan({ type: 'status-update' }).record, null);
+  assert.equal(rplan(rep({}, {})).record, null);
+  assert.equal(rplan(rep({}, { zella_source: 'callback', zella_id: 'nope' })).record, null);
+  assert.equal(rplan(rep({}, { zella_source: 'other', zella_id: CBID })).record, null);
+  assert.equal(runCode('call-result-plan.js', { json: {} }).json.record, null);
+});
+test('call results: a callback maps the ending to the outcomes the database knows', () => {
+  const o = (reason, d = 60) => rplan(rep({ endedReason: reason, durationSeconds: d })).record.p_outcome;
+  assert.equal(o('customer-ended-call'), 'connected'); assert.equal(o('assistant-ended-call'), 'connected');
+  assert.equal(o('customer-did-not-answer', 0), 'no_answer'); assert.equal(o('customer-busy', 0), 'busy'); assert.equal(o('voicemail', 20), 'voicemail');
+  assert.equal(o('customer-ended-call', 3), 'no_answer'); assert.equal(o('twilio-failed-to-connect-call', 0), 'failed_connection'); assert.equal(o('something-new', 0), 'failed_connection');
+  const r = rplan(rep({})).record; assert.equal(r.p_source, 'callback'); assert.equal(r.p_id, CBID); assert.equal(r.p_provider_call_id, 'call_9'); assert.equal(r.p_notes, 'Booked for Friday.');
+});
+test('call results: a follow-up task only gets outcomes tasks accept', () => {
+  const t = (over) => rplan(rep(over, { zella_source: 'task', zella_id: CBID })).record;
+  assert.equal(t({}).p_outcome, 'wants_callback');
+  assert.equal(t({ analysis: { structuredData: { outcome: 'declined' } } }).p_outcome, 'declined');
+  assert.equal(t({ analysis: { structuredData: { outcome: 'drop table' } } }).p_outcome, 'wants_callback');
+  assert.equal(t({ endedReason: 'customer-busy', durationSeconds: 0 }).p_outcome, 'no_answer');
+  assert.equal(t({ endedReason: 'voicemail' }).p_outcome, 'voicemail');
+  assert.equal(t({ endedReason: 'pipeline-error-x', durationSeconds: 0 }).p_outcome, 'failed');
+});
+test('call results: the workflow is a protected webhook with no timer, and the sweep runs in the database', () => {
+  const w = wfJson('zella-call-results.json'); const t = w.nodes.find((n) => n.name === 'Vapi report');
+  assert.equal(t.parameters.path, 'zella/vapi'); assert.equal(t.parameters.authentication, 'headerAuth'); assert.ok(!JSON.stringify(w).includes('scheduleTrigger'));
+  assert.ok(callSql.includes('zella_record_call_result') && callSql.includes('zella_sweep_stuck_calls') && !/api\.vapi\.ai/.test(callSql));
 });
 
 console.log(`${passed} passed, ${failures.length} failed`);

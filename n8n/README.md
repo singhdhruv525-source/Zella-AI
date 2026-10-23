@@ -109,7 +109,10 @@ Run `sql/zella_outbound_calls.sql` (needs `zella_followups.sql` and the callback
 - Calling hours, do-not-contact and attempt limits apply as before. A person who cannot be called (opted out, no number) moves to a text, then an email.
 - A bad phone number is recorded as a failed attempt. A refused Vapi request counts as a failed attempt, so the normal retry rules apply.
 - The Vapi box ships with **no credential**; add the Vapi key by hand when going live.
-- **Not built yet:** the result of a call (answered, no answer, voicemail, wants a callback) arrives later from Vapi's end-of-call report. The router needs a handler that maps it to `zella_record_callback_attempt` / `zella_complete_followup_task` using the `zella_source` and `zella_id` that each call carries in its metadata. A call that was placed but whose report never arrives also needs a sweep. Both need a real Vapi account to test.
+- The result of a call is handled by **Call Results** (`workflows/zella-call-results.json`, webhook `/webhook/zella/vapi`, protected by the same `X-Zella-Secret`). It runs only when a call ends. In Vapi, point the assistant's server URL there and set its server messages to **end-of-call-report** only, so nothing else wakes it.
+- It reads `zella_source` and `zella_id` from the call's metadata and records the outcome (answered, no answer, busy, voicemail, bad number, failed). A callback that connects is marked contacted. A follow-up task where the customer spoke goes to "wants a callback" for staff unless the assistant returns a clear outcome (rescheduled, declined). A report received twice is ignored.
+- **Stuck-call sweep:** a call placed but with no report after 45 minutes is freed and counted as a failed attempt (`zella_sweep_stuck_calls`, runs every 5 minutes in Supabase, no n8n runs). The 13 timed jobs now include it.
+- Needs a real Vapi account to test end to end.
 
 ## The Reschedule button
 

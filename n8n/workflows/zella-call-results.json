@@ -1,0 +1,154 @@
+{
+  "name": "Zella - Call Results",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "zella/vapi",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "f4a7376a-afc7-4c90-8de8-08fb88978e81",
+      "name": "Vapi report",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "webhookId": "b6d121f4-36e6-4cfd-8cdd-430d2edae8a5",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Zella gateway secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Call Results: turn Vapi's end-of-call report into one database call.\n// Anything that is not an end-of-call report for a call Zella placed is ignored (record: null).\n// The call carries zella_source and zella_id in its metadata (set by Outbound Calls).\nconst body = $json.body && typeof $json.body === 'object' ? $json.body : {};\nconst m = body.message && typeof body.message === 'object' ? body.message : {};\nconst none = { json: { record: null } };\nif (m.type !== 'end-of-call-report') return none;\n\nconst call = m.call && typeof m.call === 'object' ? m.call : {};\nconst meta = call.metadata && typeof call.metadata === 'object' ? call.metadata : {};\nconst source = meta.zella_source === 'callback' ? 'callback' : meta.zella_source === 'task' ? 'task' : null;\nconst uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;\nif (!source || typeof meta.zella_id !== 'string' || !uuid.test(meta.zella_id)) return none;\n\nconst reason = String(m.endedReason || call.endedReason || '').toLowerCase();\nconst seconds = Number(m.durationSeconds);\nconst talked = !isNaN(seconds) && seconds >= 8;\n\nlet outcome;\nif (/voicemail/.test(reason)) outcome = 'voicemail';\nelse if (/did-not-answer|no-answer/.test(reason)) outcome = 'no_answer';\nelse if (/busy/.test(reason)) outcome = 'busy';\nelse if (/invalid|misdial|unallocated|number-not|not-a-valid/.test(reason)) outcome = 'invalid_number';\nelse if (/customer-ended-call|assistant-ended-call|silence-timed-out|exceeded-max-duration|assistant-forwarded-call|assistant-said-end-call/.test(reason)) outcome = talked ? 'connected' : 'no_answer';\nelse outcome = 'failed_connection';\n\nconst summary = String(m.summary || (m.analysis && m.analysis.summary) || '').replace(/\\s+/g, ' ').trim().slice(0, 250);\nconst providerId = typeof call.id === 'string' ? call.id.slice(0, 200) : null;\n\nlet finalOutcome = outcome;\nlet notes = summary || ('vapi_' + reason.replace(/[^a-z0-9-]/g, '').slice(0, 60));\nif (source === 'task') {\n  if (outcome === 'connected') {\n    const said = m.analysis && m.analysis.structuredData && m.analysis.structuredData.outcome;\n    finalOutcome = ['rescheduled', 'wants_callback', 'declined'].includes(said) ? said : 'wants_callback';\n    if (!summary) notes = 'Spoke with the customer; no summary was returned.';\n  } else if (outcome === 'busy') finalOutcome = 'no_answer';\n  else if (outcome === 'invalid_number' || outcome === 'failed_connection') finalOutcome = 'failed';\n}\n\nreturn { json: { record: { p_source: source, p_id: meta.zella_id, p_outcome: finalOutcome, p_provider_call_id: providerId, p_notes: notes } } };\n"
+      },
+      "id": "ae2f98a0-99fe-4855-8311-26233e9c1364",
+      "name": "Plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "d39f06b3-ba2f-401b-8e82-3960e0a423ad",
+              "leftValue": "={{ !!$json.record }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "72860aaf-0fb8-4ad1-8155-46cb9c00fda2",
+      "name": "Is a call result",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        480,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_record_call_result",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.record) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "27536a66-b78c-42f4-8e9d-bf6cca486892",
+      "name": "Record call result",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        100
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Vapi report": {
+      "main": [
+        [
+          {
+            "node": "Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan": {
+      "main": [
+        [
+          {
+            "node": "Is a call result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is a call result": {
+      "main": [
+        [
+          {
+            "node": "Record call result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}
