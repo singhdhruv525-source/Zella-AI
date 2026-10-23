@@ -2,7 +2,7 @@
 
 Seven workflows. All are shared by every business and every industry. Nothing business-specific lives in n8n: the database holds the rules, n8n moves the work.
 
-**Nothing in n8n runs on a timer.** n8n Cloud's Starter plan allows 2,500 runs a month, and a workflow that wakes every minute uses about 43,000. So a Supabase job (`zella_dispatch_n8n`, see "The dispatcher" below) checks every 10 seconds (and straight away when something urgent is saved) whether anything is due and calls the matching workflow only then. The timed database jobs run inside Supabase too.
+**Nothing in n8n runs on a timer.** n8n Cloud's Starter plan allows 2,500 runs a month, and a workflow that wakes every minute uses about 43,000. So a Supabase job (`zella_dispatch_n8n`, see "The dispatcher" below) is called straight away whenever something urgent is saved (a new event, follow-up, alert or reminder), and once a minute as a safety net for work that becomes due later and calls the matching workflow only then. The timed database jobs run inside Supabase too.
 
 | File | What it does |
 |---|---|
@@ -31,7 +31,7 @@ Handlers for reminders, callbacks, SMS sending, email, Meta and the website are 
 Run `sql/zella_dispatcher.sql` **last**, after every other Zella SQL file, then do its one-time secret step. It turns on `pg_cron` and `pg_net` and sets up:
 
 - **Timed jobs inside Supabase** (UTC): every 5 minutes (overdue leads, expire held slots, expire waitlist offers, transfer failures), every 15 minutes (quote follow-ups), every hour (daily summaries: a business is posted once, at its own local 8am), daily 04:00 (lead reactivation up to 200, setup incomplete, trials, payment policy), Monday 08:00 (weekly reviews). A job that fails raises one grouped platform alert. These cost no n8n runs.
-- **The dispatcher, every 10 seconds and on urgent saves.** It counts what is due for each worker workflow (events, text reminders, email reminders, follow-up texts, follow-up emails, owner emails) and calls that workflow's webhook (`/webhook/zella/run/<name>`) only if the count is above zero. It counts only the kinds the workflow really handles, so unhandled work can never make it call n8n forever.
+- **The dispatcher, on urgent saves plus a once-a-minute safety net.** It counts what is due for each worker workflow (events, text reminders, email reminders, follow-up texts, follow-up emails, owner emails) and calls that workflow's webhook (`/webhook/zella/run/<name>`) only if the count is above zero. It counts only the kinds the workflow really handles, so unhandled work can never make it call n8n forever.
 - **A stuck-item guard.** If the same amount is still waiting after 5 calls in a row, it slows to once every 15 minutes.
 - **A master switch:** set the platform setting `n8n_dispatch_enabled` to `false` to stop all calls.
 - **The secret.** The dispatcher sends the same secret as the n8n credential "Zella gateway secret". Store it once, yourself, in the Supabase SQL editor: `select vault.create_secret('<your secret>', 'zella_n8n_secret');`. Without it the dispatcher does nothing.

@@ -136,8 +136,9 @@ begin
 end $$;
 
 -- 5. The timers (UTC). Re-running this file replaces them, it does not duplicate them.
--- Every 10 seconds, so nothing waits long. The check is a handful of cheap counts; n8n is only called when work is due.
-select cron.schedule('zella_dispatch',        '10 seconds',   $$select public.zella_dispatch_n8n()$$);
+-- Event-driven first: saving anything urgent calls the dispatcher at once (section 5). This once-a-minute run is only a
+-- safety net for work that becomes due later (a reminder at 3 pm) and for retries.
+select cron.schedule('zella_dispatch',        '* * * * *',    $$select public.zella_dispatch_n8n()$$);
 select cron.schedule('zella_jobs_every5',     '*/5 * * * *',  $$select public.zella_run_schedule_group('every5')$$);
 select cron.schedule('zella_jobs_every15',    '*/15 * * * *', $$select public.zella_run_schedule_group('every15')$$);
 select cron.schedule('zella_jobs_hourly',     '0 * * * *',    $$select public.zella_run_schedule_group('hourly')$$);
