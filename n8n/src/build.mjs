@@ -251,9 +251,18 @@ const ownerEmails = wf('Zella - Owner Emails', [
   'Restore result': { main: [[link('Finish notification')]] },
 });
 
+export const FOLLOWUP_KINDS = ['no_show_follow_up', 'post_appointment_follow_up', 'quote_follow_up', 'lead_reactivation', 'callback_sms'];
+// Follow-up emails: the same kinds as the follow-up texts, for tasks whose channel is email (a task moves to
+// email when the customer cannot be texted but can be emailed). Same dry-run switch and Resend box as the
+// other email workflows. Reactivation is marketing and is skipped with a visible reason until unsubscribe exists.
+const followupEmails = smsFlow('Zella - Follow-up Emails', {
+  email: true, claimName: 'Claim follow-up emails', finishName: 'Finish follow-up',
+  claim: (n, pos) => rpcNode(n, pos, 'zella_claim_followup_emails', `={{ JSON.stringify({ p_limit: 20, p_kinds: ${JSON.stringify(FOLLOWUP_KINDS)} }) }}`),
+  files: { plan: 'email-task-plan.js', decide: 'email-task-decide.js', afterLog: 'email-task-after-log.js', afterSend: 'email-task-after-send.js' },
+});
+
 // Follow-up texts: no-show, post-visit, quote and reactivation. Text tasks only, so call tasks are
 // never picked up here. (Waitlist offers need reply handling and are not included yet.)
-export const FOLLOWUP_KINDS = ['no_show_follow_up', 'post_appointment_follow_up', 'quote_follow_up', 'lead_reactivation', 'callback_sms'];
 const followupSender = smsFlow('Zella - Follow-up Texts', {
   claimName: 'Claim follow-ups', finishName: 'Finish follow-up',
   claim: (n, pos) => rpcNode(n, pos, 'zella_claim_followup_texts', `={{ JSON.stringify({ p_limit: 20, p_kinds: ${JSON.stringify(FOLLOWUP_KINDS)} }) }}`),
@@ -266,5 +275,6 @@ writeFileSync(join(out, 'zella-schedulers.json'), JSON.stringify(schedulers, nul
 writeFileSync(join(out, 'zella-sms-sender.json'), JSON.stringify(smsSender, null, 2) + '\n');
 writeFileSync(join(out, 'zella-email-sender.json'), JSON.stringify(emailSender, null, 2) + '\n');
 writeFileSync(join(out, 'zella-owner-emails.json'), JSON.stringify(ownerEmails, null, 2) + '\n');
+writeFileSync(join(out, 'zella-followup-emails.json'), JSON.stringify(followupEmails, null, 2) + '\n');
 writeFileSync(join(out, 'zella-followup-texts.json'), JSON.stringify(followupSender, null, 2) + '\n');
 console.log('Built', gateway.nodes.length, 'gateway nodes,', router.nodes.length, 'router nodes,', schedulers.nodes.length, 'scheduler nodes and', smsSender.nodes.length, 'sms sender nodes and', followupSender.nodes.length, 'follow-up text nodes.');

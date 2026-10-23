@@ -333,7 +333,57 @@ test('owner Resend box is reachable only after the live check and ships with no 
   const n = owFile.nodes.find((x) => x.name === 'Send via Resend'); assert.equal(n.parameters.authentication, 'none'); assert.equal(n.credentials, undefined);
 });
 
-for (const file of ['zella-event-gateway.json', 'zella-event-router.json', 'zella-schedulers.json', 'zella-sms-sender.json', 'zella-followup-texts.json', 'zella-email-sender.json', 'zella-owner-emails.json']) {
+// ---------------- follow-up emails
+const TE = { ...T, channel: 'email', customer: { id: 'cust-1', first_name: 'Ana', email: 'ana@example.com' } };
+const teplan = (t) => runCode('email-task-plan.js', { json: t }).json;
+test('email follow-ups use the same templates and purposes as texts', () => {
+  for (const [k, key] of [['no_show_follow_up', 'no_show_follow_up'], ['post_appointment_follow_up', 'post_appointment_follow_up'], ['quote_follow_up', 'quote_follow_up']]) { const p = teplan({ ...TE, kind: k }); assert.equal(p.finish, null); assert.equal(p.prepare.p_template_key, key); assert.equal(p.prepare.p_purpose, 'transactional'); }
+  assert.equal(teplan({ ...TE, kind: 'lead_reactivation' }).prepare.p_purpose, 'marketing');
+});
+test('email callback fallback picks the template from the callback reason', () => {
+  assert.equal(teplan({ ...TE, kind: 'callback_sms', callback_reason: 'missed_call' }).prepare.p_template_key, 'missed_call_follow_up');
+  assert.equal(teplan({ ...TE, kind: 'callback_sms', callback_reason: 'new_lead' }).prepare.p_template_key, 'lead_acknowledgement');
+  assert.match(teplan({ ...TE, kind: 'callback_sms', callback_reason: 'requested' }).finish.body.p_reason, /unknown_callback_reason/);
+});
+test('a text or call task is never emailed', () => { for (const ch of ['sms', 'call']) { const p = teplan({ ...TE, channel: ch }); assert.equal(p.finish.rpc, 'zella_skip_followup_task'); assert.match(p.finish.body.p_reason, /channel_not_email/); assert.equal(p.prepare, undefined); } });
+test('unknown email task kind is skipped with a reason', () => assert.match(teplan({ ...TE, kind: 'waitlist_offer' }).finish.body.p_reason, /unknown_followup_kind/));
+
+const tePlanned = { task_id: T.task_id, business_id: BIZ, customer_id: 'cust-1' };
+const tedecide = (statusCode, body) => runCode('email-task-decide.js', { json: { statusCode, body }, nodes: { Plan: tePlanned } }).json;
+test('email task dry run is logged as dry_run with a task key', () => { const d = tedecide(200, okEmail); assert.equal(d.log.p_status, 'dry_run'); assert.equal(d.log.p_dedupe_key, 'task:' + T.task_id); assert.equal(d.log.p_subject, 'Reminder'); assert.equal(d.live, false); });
+test('email task live without a sender address fails and retries later', () => { const d = tedecide(200, { ...okEmail, live: true }); assert.equal(d.finish.body.p_outcome, 'failed'); assert.equal(d.finish.body.p_notes, 'sender_address_not_set'); assert.equal(d.finish.body.p_retry_in_minutes, 15); });
+test('email task without consent or marketing readiness is skipped, not retried', () => { for (const reason of ['no_consent', 'no_valid_email', 'marketing_email_not_ready']) { const d = tedecide(200, { allowed: false, reason, live: true }); assert.equal(d.finish.rpc, 'zella_skip_followup_task'); assert.equal(d.finish.body.p_reason, reason); } });
+test('email task prepare failure fails for retry without leaking the response', () => { const d = tedecide(500, { message: 'SECRETDETAIL' }); assert.equal(d.finish.body.p_outcome, 'failed'); assert.equal(JSON.stringify(d).includes('SECRETDETAIL'), false); });
+
+const teAfterLog = (statusCode, body, d) => runCode('email-task-after-log.js', { json: { statusCode, body }, nodes: { Decide: { task_id: T.task_id, live: true, from: 'hello@zella.example', from_name: 'Test Salon', to: 'ana@example.com', subject: 'S', text: 'T', html: '<p>T</p>', ...d } } }).json;
+test('email task live new message builds the provider payload', () => { const a = teAfterLog(200, { id: 'm1', duplicate: false, status: 'queued' }); assert.equal(a.finish, null); assert.deepEqual(a.resend, { from: 'Test Salon <hello@zella.example>', to: ['ana@example.com'], subject: 'S', text: 'T', html: '<p>T</p>' }); });
+test('email task dry run never builds a provider payload', () => { const a = teAfterLog(200, { id: 'm1', duplicate: false, status: 'dry_run' }, { live: false }); assert.equal(a.resend, undefined); assert.match(a.finish.body.p_reason, /dry_run: no email/); });
+test('email task already sent completes as email_sent, not sent twice', () => { const a = teAfterLog(200, { id: 'm1', duplicate: true, status: 'sent' }); assert.equal(a.resend, undefined); assert.equal(a.finish.body.p_outcome, 'email_sent'); });
+test('email task in-flight duplicate is suppressed and log failure sends nothing', () => { assert.equal(teAfterLog(200, { id: 'm1', duplicate: true, status: 'queued' }).finish.body.p_reason, 'duplicate_suppressed'); const a = teAfterLog(500, {}); assert.equal(a.resend, undefined); assert.equal(a.finish.body.p_outcome, 'failed'); });
+
+const teAfterSend = (statusCode, body) => runCode('email-task-after-send.js', { json: { statusCode, body }, nodes: { 'After log': { task_id: T.task_id, message_id: 'm1' } } }).json;
+test('email task provider success completes as email_sent', () => { const a = teAfterSend(200, { id: 're-1' }); assert.deepEqual(a.update, { p_id: 'm1', p_status: 'sent', p_external_id: 're-1', p_error: null }); assert.equal(a.finish.body.p_outcome, 'email_sent'); });
+test('email task provider rejection fails and retries, keeping only a short error name', () => { const a = teAfterSend(422, { name: 'validation_error', message: 'PRIVATE' }); assert.equal(a.update.p_status, 'failed'); assert.equal(a.finish.body.p_outcome, 'failed'); assert.equal(a.finish.body.p_retry_in_minutes, 15); assert.equal(JSON.stringify(a).includes('PRIVATE'), false); });
+test('email task provider 200 without an id is not trusted', () => assert.equal(teAfterSend(200, {}).finish.body.p_outcome, 'failed'));
+
+const feFile = JSON.parse(readFileSync(new URL('./workflows/zella-followup-emails.json', import.meta.url), 'utf8'));
+test('follow-up email workflow claims email tasks only, for the listed kinds', () => {
+  const n = feFile.nodes.find((x) => x.name === 'Claim follow-up emails');
+  assert.ok(n.parameters.url.endsWith('/rpc/zella_claim_followup_emails'));
+  for (const k of ['no_show_follow_up', 'post_appointment_follow_up', 'quote_follow_up', 'lead_reactivation', 'callback_sms']) assert.ok(n.parameters.jsonBody.includes(k), k);
+});
+test('follow-up email Resend box is reachable only after the live check and ships with no credential', () => {
+  const into = Object.entries(feFile.connections).filter(([, v]) => v.main.flat().some((l) => l.node === 'Send via Resend')).map(([k]) => k);
+  assert.deepEqual(into, ['Send for real']);
+  const n = feFile.nodes.find((x) => x.name === 'Send via Resend'); assert.equal(n.parameters.authentication, 'none'); assert.equal(n.credentials, undefined);
+});
+test('follow-up email workflow only uses task and email functions', () => {
+  const t = JSON.stringify(feFile);
+  for (const f of ['zella_prepare_email', 'zella_log_outbound_email', 'zella_update_outbound_email']) assert.ok(t.includes(f), f);
+  for (const bad of ['zella_complete_reminder', 'zella_skip_reminder', 'zella_claim_reminders', 'zella_prepare_sms', 'outbound_sms', 'telnyx']) assert.ok(!t.includes(bad), bad);
+});
+
+for (const file of ['zella-event-gateway.json', 'zella-event-router.json', 'zella-schedulers.json', 'zella-sms-sender.json', 'zella-followup-texts.json', 'zella-email-sender.json', 'zella-owner-emails.json', 'zella-followup-emails.json']) {
   const w = JSON.parse(readFileSync(new URL('./workflows/' + file, import.meta.url), 'utf8'));
   const names = w.nodes.map((n) => n.name);
   test(file + ': node names are unique', () => assert.equal(new Set(names).size, names.length));
