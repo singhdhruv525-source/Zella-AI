@@ -3,7 +3,7 @@
 Nothing below has been done yet on purpose: all n8n workflows are unpublished and the timers are paused until testing.
 
 ## Database (Supabase)
-1. Run `sql/zella_engine_health.sql` and `sql/zella_calendar_sync.sql`, `sql/zella_phone_numbers.sql` and `sql/zella_assignment.sql` (already applied), then re-run `sql/zella_dispatcher.sql` once (adds the outbound-calls and knowledge lanes, the stuck-call sweep and the engine health check, and restarts the timers).
+1. Run `sql/zella_engine_health.sql` and `sql/zella_calendar_sync.sql`, `sql/zella_phone_numbers.sql` and `sql/zella_assignment.sql` and `sql/zella_customer_requests.sql` (already applied), then re-run `sql/zella_dispatcher.sql` once (adds the outbound-calls and knowledge lanes, the stuck-call sweep and the engine health check, and restarts the timers).
 2. Store the n8n secret in Vault (`zella_n8n_secret`), as described at the end of the dispatcher file.
 3. Store the Resend webhook key: `select vault.create_secret('<long random value>', 'zella_resend_webhook_key');`
 4. Set `app_base_url` (your web address) so reschedule and waitlist links appear in messages.

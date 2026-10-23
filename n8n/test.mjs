@@ -130,8 +130,8 @@ test('the dispatcher only checks the follow-up kinds the workflows really handle
   const list = (name) => dispatcherSql.match(new RegExp(name + ' text\\[\\] := array\\[([^\\]]*)\\]'))[1].split(',').map((x) => x.trim().replace(/'/g, ''));
   assert.deepEqual(list('v_text_kinds'), FOLLOWUP_KINDS); assert.deepEqual(list('v_email_kinds'), FOLLOWUP_EMAIL_KINDS);
 });
-test('all 17 timed jobs run inside the database, on the same rhythm as before', () => {
-  const jobs = { every5: ['zella_flag_overdue_leads', 'zella_expire_holds', 'zella_expire_waitlist_offers', 'zella_detect_transfer_failures', 'zella_flag_overdue_callbacks', 'zella_sweep_stuck_calls', 'zella_check_engine_health', 'zella_rebalance_assignments', 'zella_check_unassigned_work'], every15: ['zella_queue_quote_followups'], hourly: ['zella_post_daily_summaries', 'zella_schedule_calendar_pulls'], daily: ['zella_queue_lead_reactivation', 'zella_check_setup_incomplete', 'zella_check_trials', 'zella_apply_payment_policy'], weekly: ['zella_post_weekly_reviews'] };
+test('all 18 timed jobs run inside the database, on the same rhythm as before', () => {
+  const jobs = { every5: ['zella_flag_overdue_leads', 'zella_expire_holds', 'zella_expire_waitlist_offers', 'zella_detect_transfer_failures', 'zella_flag_overdue_callbacks', 'zella_sweep_stuck_calls', 'zella_check_engine_health', 'zella_rebalance_assignments', 'zella_check_unassigned_work'], every15: ['zella_queue_quote_followups'], hourly: ['zella_post_daily_summaries', 'zella_schedule_calendar_pulls', 'zella_check_customer_requests'], daily: ['zella_queue_lead_reactivation', 'zella_check_setup_incomplete', 'zella_check_trials', 'zella_apply_payment_policy'], weekly: ['zella_post_weekly_reviews'] };
   for (const [g, fns] of Object.entries(jobs)) for (const fn of fns) { assert.ok(dispatcherSql.includes("'" + fn + "'"), fn); assert.ok(new RegExp("when '" + g + "'\\s+then array\\[[^\\]]*'" + fn + "'").test(dispatcherSql), g + ' ' + fn); }
   for (const cron of ["'* * * * *'", "'*/5 * * * *'", "'*/15 * * * *'", "'0 * * * *'", "'0 4 * * *'", "'0 8 * * 1'"]) assert.ok(dispatcherSql.includes(cron), cron);
 });
@@ -757,6 +757,18 @@ test('assignment: new leads and callbacks are assigned by a trigger, rebalanced 
   for (const fn of ['zella_rebalance_assignments', 'zella_check_unassigned_work']) assert.ok(new RegExp("grant execute on function public.%s to service_role|'" + fn + "\\(\\)'").test(asgSql), fn);
   assert.ok(!/grant execute on function public\.zella_pick_assignee[^;]*authenticated/.test(asgSql));
   assert.ok(asgSql.includes("interval '6 hours'"), 'one alert per business at most every 6 hours');
+});
+
+// ---------------- customer requests (complaints, corrections, privacy requests) - database only
+const reqSql = readFileSync(new URL('../sql/zella_customer_requests.sql', import.meta.url), 'utf8');
+test('customer requests: privacy requests wait for identity checks, go to owners/admins, and only they can close them', () => {
+  assert.ok(reqSql.includes("'waiting_verification' else 'open'") && reqSql.includes("role in ('owner', 'admin') order by created_at limit 1"));
+  assert.ok(reqSql.includes("r.kind in ('data_access', 'data_deletion') and p_status = 'resolved'"));
+});
+test('customer requests: duplicates within a day are not repeated, closing needs a note, and logging is service-role only', () => {
+  assert.ok(reqSql.includes("interval '24 hours' limit 1") && reqSql.includes("raise exception 'NOTE_REQUIRED'"));
+  assert.ok(/revoke execute on function public\.zella_log_customer_request[^;]*from public, anon, authenticated;\s*grant execute on function public\.zella_log_customer_request[^;]*to service_role;/.test(reqSql));
+  assert.ok(!/delete from public\.customers|update public\.customers/.test(reqSql), 'Zella never changes or deletes customer data by itself');
 });
 
 console.log(`${passed} passed, ${failures.length} failed`);
