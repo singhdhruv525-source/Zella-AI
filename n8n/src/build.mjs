@@ -690,6 +690,34 @@ const metaHealth = wf('Zella - Meta Health', [
 
 writeFileSync(join(out, 'zella-event-gateway.json'), JSON.stringify(gateway, null, 2) + '\n');
 writeFileSync(join(out, 'zella-event-router.json'), JSON.stringify(router, null, 2) + '\n');
+
+// Website crawler: reads only the pages the owner approved (and the sitemap of an approved site), then hands what it
+// found to the database, which keeps it as DRAFT knowledge for the owner to review. Started by the dispatcher only
+// when a page or sitemap is due. Off until the platform setting website_crawl_live is true.
+const websiteCrawler = wf('Zella - Website Crawler', [
+  runTrigger('website-crawl'),
+  rpcNode('Claim work', [240, 200], 'zella_website_claim', '={{ JSON.stringify({ p_limit: 6 }) }}'),
+  code('Plan', [480, 200], 'website-plan.js'),
+  ifBool('Safe to read', [720, 200], '={{ !$json.skip }}'),
+  node('Fetch page', 'n8n-nodes-base.httpRequest', 4.2, [960, 100], {
+    method: 'GET', url: '={{ $json.url }}', authentication: 'none',
+    sendHeaders: true, headerParameters: { parameters: [{ name: 'User-Agent', value: 'ZellaBot/1.0 (reads pages its owner approved)' }, { name: 'Accept', value: 'text/html,application/xhtml+xml,application/xml;q=0.9' }] },
+    options: { timeout: 15000, redirect: { redirect: { followRedirects: false } }, response: { response: { fullResponse: true, neverError: true, responseFormat: 'text' } } },
+  }, { onError: 'continueRegularOutput' }),
+  code('Parse', [1200, 100], 'website-parse.js'),
+  ifBool('Is sitemap', [1440, 100], "={{ $json.mode === 'discover' }}"),
+  rpcNode('Record sitemap', [1680, 0], 'zella_website_record_discovery', '={{ JSON.stringify($json.rpc) }}', { full: true }),
+  rpcNode('Record page', [1680, 220], 'zella_website_record_page', '={{ JSON.stringify($json.rpc) }}', { full: true }),
+], {
+  'Run now': { main: [[link('Claim work')]] },
+  'Claim work': { main: [[link('Plan')]] },
+  'Plan': { main: [[link('Safe to read')]] },
+  'Safe to read': { main: [[link('Fetch page')], []] },
+  'Fetch page': { main: [[link('Parse')]] },
+  'Parse': { main: [[link('Is sitemap')]] },
+  'Is sitemap': { main: [[link('Record sitemap')], [link('Record page')]] },
+});
+
 writeFileSync(join(out, 'zella-sms-sender.json'), JSON.stringify(smsSender, null, 2) + '\n');
 writeFileSync(join(out, 'zella-email-sender.json'), JSON.stringify(emailSender, null, 2) + '\n');
 writeFileSync(join(out, 'zella-owner-emails.json'), JSON.stringify(ownerEmails, null, 2) + '\n');
@@ -702,6 +730,7 @@ writeFileSync(join(out, 'zella-meta-webhook.json'), JSON.stringify(metaWebhook, 
 writeFileSync(join(out, 'zella-meta-leads.json'), JSON.stringify(metaLeads, null, 2) + '\n');
 writeFileSync(join(out, 'zella-meta-sender.json'), JSON.stringify(metaSender, null, 2) + '\n');
 writeFileSync(join(out, 'zella-meta-health.json'), JSON.stringify(metaHealth, null, 2) + '\n');
+writeFileSync(join(out, 'zella-website-crawler.json'), JSON.stringify(websiteCrawler, null, 2) + '\n');
 writeFileSync(join(out, 'zella-inbound-email.json'), JSON.stringify(inboundEmail, null, 2) + '\n');
 writeFileSync(join(out, 'zella-voice-rules.json'), JSON.stringify(voiceRules, null, 2) + '\n');
 writeFileSync(join(out, 'zella-appointment-booking.json'), JSON.stringify(aiBooking, null, 2) + '\n');
@@ -709,4 +738,4 @@ writeFileSync(join(out, 'zella-email-events.json'), JSON.stringify(emailEvents, 
 writeFileSync(join(out, 'zella-calendar-sync.json'), JSON.stringify(calendarSync, null, 2) + '\n');
 writeFileSync(join(out, 'zella-connection-tests.json'), JSON.stringify(connectionTests, null, 2) + '\n');
 writeFileSync(join(out, 'zella-call-results.json'), JSON.stringify(callResults, null, 2) + '\n');
-console.log('Built', [gateway, router, smsSender, followupSender, emailSender, followupEmails, ownerEmails, outboundCalls, callResults, knowledge, assistantTools, voiceRules, inboundEmail, metaWebhook, metaLeads, metaSender, metaHealth, aiBooking, emailEvents, calendarSync, connectionTests].map((w) => w.name + ' (' + w.nodes.length + ')').join(', '));
+console.log('Built', [gateway, router, smsSender, followupSender, emailSender, followupEmails, ownerEmails, outboundCalls, callResults, knowledge, assistantTools, voiceRules, inboundEmail, metaWebhook, metaLeads, metaSender, metaHealth, aiBooking, emailEvents, calendarSync, connectionTests, websiteCrawler].map((w) => w.name + ' (' + w.nodes.length + ')').join(', '));

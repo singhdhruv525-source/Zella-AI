@@ -108,7 +108,7 @@ test('execution id is optional when logging failed to start', () => assert.equal
 // ---------------- dispatcher (timed jobs run in Supabase; n8n is only called when work is waiting)
 const dispatcherSql = readFileSync(new URL('../sql/zella_dispatcher.sql', import.meta.url), 'utf8');
 const wfJson = (f) => JSON.parse(readFileSync(new URL('./workflows/' + f, import.meta.url), 'utf8'));
-const RUN_PATHS = { 'zella-event-router.json': 'event-router', 'zella-sms-sender.json': 'sms-sender', 'zella-email-sender.json': 'email-sender', 'zella-followup-texts.json': 'followup-texts', 'zella-followup-emails.json': 'followup-emails', 'zella-owner-emails.json': 'owner-emails', 'zella-outbound-calls.json': 'outbound-calls', 'zella-knowledge.json': 'knowledge-sync', 'zella-calendar-sync.json': 'calendar-sync', 'zella-connection-tests.json': 'connection-tests', 'zella-meta-leads.json': 'meta-leads', 'zella-meta-sender.json': 'meta-sender', 'zella-meta-health.json': 'meta-health' };
+const RUN_PATHS = { 'zella-event-router.json': 'event-router', 'zella-sms-sender.json': 'sms-sender', 'zella-email-sender.json': 'email-sender', 'zella-followup-texts.json': 'followup-texts', 'zella-followup-emails.json': 'followup-emails', 'zella-owner-emails.json': 'owner-emails', 'zella-outbound-calls.json': 'outbound-calls', 'zella-knowledge.json': 'knowledge-sync', 'zella-calendar-sync.json': 'calendar-sync', 'zella-connection-tests.json': 'connection-tests', 'zella-meta-leads.json': 'meta-leads', 'zella-meta-sender.json': 'meta-sender', 'zella-meta-health.json': 'meta-health', 'zella-website-crawler.json': 'website-crawl' };
 test('no workflow wakes itself on a timer (that would burn the monthly n8n run allowance)', () => {
   for (const f of [...Object.keys(RUN_PATHS), 'zella-event-gateway.json']) assert.ok(!JSON.stringify(wfJson(f)).includes('scheduleTrigger'), f);
 });
@@ -864,6 +864,59 @@ test('meta health: a dead token means reconnect, a working one checks templates 
   assert.equal(after({ statusCode: 400, body: { error: { code: 190 } } }).record.p_auth_failed, true); assert.equal(after({ statusCode: 500, body: {} }).record.p_auth_failed, false);
   const t = runCode('meta-templates-map.js', { json: { statusCode: 200, body: { data: [{ name: 'hello', language: 'en_US', status: 'APPROVED', category: 'UTILITY', components: [{ type: 'BODY', text: 'Hi {{1}}' }] }] } }, nodes: { 'Build request': req } }).json;
   assert.equal(t.record.p_templates[0].body, 'Hi {{1}}'); assert.equal(t.record.p_page_id, '1234567890123');
+});
+// ---------------- website crawler
+const wcSql = readFileSync(new URL('../sql/zella_website_crawler.sql', import.meta.url), 'utf8');
+const WPLAN = { kind: 'page', page_id: '3f1c2b4e-5a6d-4e7f-8a9b-0c1d2e3f4a5b', url: 'https://www.sunnysalon.com/services', host: 'sunnysalon.com' };
+const wp = (j) => runCode('website-plan.js', { json: j }).json;
+test('website plan: only plain web addresses of the owner\'s own site are read', () => {
+  assert.equal(wp(WPLAN).skip, false); assert.equal(wp(WPLAN).host, 'sunnysalon.com');
+  for (const u of ['http://localhost/a', 'http://127.0.0.1/', 'http://169.254.169.254/latest', 'https://user@sunnysalon.com/', 'https://sunnysalon.com:8080/', 'ftp://sunnysalon.com/', 'https://intranet.internal/x', 'https://sunnysalon.com/a b', 'https://other-site.com/x']) assert.equal(wp({ ...WPLAN, url: u }).skip, true, u);
+  assert.equal(wp({ kind: 'page', page_id: 'nope', url: WPLAN.url, host: WPLAN.host }).skip, true);
+  assert.equal(wp({ kind: 'delete-everything' }).skip, true);
+  assert.equal(wp({ kind: 'discover', source_id: WPLAN.page_id, url: 'https://sunnysalon.com/sitemap.xml', host: 'sunnysalon.com' }).kind, 'discover');
+});
+const parse = (plan, res) => runCode('website-parse.js', { json: res, nodes: { Plan: plan } }).json;
+const HTML = `<html><head><title>Sunny Salon &amp; Spa</title><script>var x="Mon 9am";</script></head><body>
+<nav><a href="/hidden">nav</a></nav><h1>Welcome</h1><a href="/faq#top">FAQ</a><a href="https://evil.com/x">out</a><a href="javascript:alert(1)">js</a><a href="/about">About</a>
+<h2>Do you take walk-ins?</h2><p>Yes, walk-ins are welcome when we have space.</p>
+<h2>Cancellation policy</h2><p>Please cancel at least 24 hours before your appointment.</p>
+<h2>Haircut</h2><p>A classic cut and style, $45.</p>
+<ul><li>Monday - Friday 9:00 am to 6:00 pm</li><li>Saturday 10am - 4pm</li><li>Sunday closed</li></ul></body></html>`;
+test('website parse: a page becomes a title, links on the same site, and suggestions (never the script text)', () => {
+  const r = parse(WPLAN, { statusCode: 200, headers: { 'content-type': 'text/html' }, body: HTML }).rpc;
+  assert.equal(r.p_title, 'Sunny Salon & Spa');
+  assert.ok(r.p_links.includes('https://www.sunnysalon.com/faq') && r.p_links.includes('https://www.sunnysalon.com/about'));
+  assert.ok(!r.p_links.some((l) => /evil|javascript/.test(l)));
+  assert.ok(!r.p_text.includes('var x') && !r.p_text.includes('nav'));
+  const by = (k) => r.p_items.find((i) => i.kind === k);
+  assert.ok(by('faq').answer.includes('walk-ins are welcome')); assert.ok(by('policy').answer.includes('24 hours'));
+  assert.ok(r.p_items.find((i) => i.kind === 'service' && i.title === 'Haircut').answer.includes('$45'));
+  assert.ok(by('hours').answer.includes('Saturday') && by('hours').answer.includes('closed'));
+  const again = parse(WPLAN, { statusCode: 200, headers: {}, body: HTML }).rpc;
+  assert.equal(again.p_hash, r.p_hash); assert.notEqual(parse(WPLAN, { statusCode: 200, headers: {}, body: HTML.replace('$45', '$50') }).rpc.p_hash, r.p_hash);
+});
+test('website parse: redirects, errors, odd files and sitemaps', () => {
+  assert.equal(parse(WPLAN, { statusCode: 301, headers: { location: '/new-services' }, body: '' }).rpc.p_final_url, 'https://www.sunnysalon.com/new-services');
+  assert.equal(parse(WPLAN, { statusCode: 404, headers: {}, body: 'x' }).rpc.p_http_status, 404);
+  assert.equal(parse(WPLAN, { error: { message: 'ENOTFOUND' } }).rpc.p_error, 'network');
+  assert.equal(parse(WPLAN, { statusCode: 200, headers: { 'content-type': 'application/pdf' }, body: '%PDF' }).rpc.p_error, 'not_a_web_page');
+  const SM = { kind: 'discover', id: WPLAN.page_id, url: 'https://sunnysalon.com/sitemap.xml', host: 'sunnysalon.com' };
+  const d = parse(SM, { statusCode: 200, headers: {}, body: '<urlset><url><loc>https://sunnysalon.com/a</loc></url><url><loc>https://sunnysalon.com/b?x=1&amp;y=2</loc></url></urlset>' });
+  assert.equal(d.mode, 'discover'); assert.deepEqual(d.rpc.p_urls, ['https://sunnysalon.com/a', 'https://sunnysalon.com/b?x=1&y=2']);
+  const idx = parse(SM, { statusCode: 200, headers: {}, body: '<sitemapindex><sitemap><loc>https://sunnysalon.com/s2.xml</loc></sitemap></sitemapindex>' });
+  assert.deepEqual(idx.rpc.p_child_sitemaps, ['https://sunnysalon.com/s2.xml']); assert.deepEqual(idx.rpc.p_urls, []);
+});
+test('website sql: owner approval, safe addresses, drafts only, and nothing is deleted', () => {
+  assert.ok(wcSql.includes('zella_website_url_ok') && wcSql.includes("'pending_approval'") && wcSql.includes('zella_has_role(s.business_id'));
+  assert.ok(wcSql.includes("'draft'") && !/insert into public\.knowledge_items[^;]*'ready'/.test(wcSql));
+  assert.ok(!/\bdelete from\b/i.test(wcSql)); assert.ok(wcSql.includes('zella_website_crawl_live'));
+  assert.ok(wcSql.includes('revoke execute on function public.zella_website_claim(integer) from public, anon, authenticated'));
+  assert.ok(dispatcherSql.includes("('website-crawl')") && dispatcherSql.includes("'website_pages', 'website_sources'"));
+  const w = wfJson('zella-website-crawler.json');
+  const fetchNode = w.nodes.find((n) => n.name === 'Fetch page');
+  assert.equal(fetchNode.parameters.options.redirect.redirect.followRedirects, false); assert.equal(fetchNode.parameters.authentication, 'none');
+  assert.equal(fetchNode.onError, 'continueRegularOutput');
 });
 test('meta workflows: the webhook is open (Meta cannot send our header) but every event is checked by signature in the database', () => {
   const w = wfJson('zella-meta-webhook.json');

@@ -1,4 +1,5 @@
 -- Zella - the dispatcher. Safe to run more than once.
+-- Needs zella_website_crawler.sql (website lane) and zella_meta.sql (meta lanes) run first.
 -- WHY: n8n Cloud's Starter plan allows 2,500 workflow runs a month, and a workflow that wakes up every
 -- minute uses ~43,000. So the timer now lives in Supabase (free), and n8n is only called when there is
 -- something waiting. Two parts:
@@ -78,7 +79,7 @@ begin
   select decrypted_secret into v_secret from vault.decrypted_secrets where name = 'zella_n8n_secret' limit 1;
   if v_secret is null or v_secret = '' then return jsonb_build_object('skipped', 'no_secret'); end if;
 
-  for w in select * from (values ('event-router'), ('sms-sender'), ('email-sender'), ('followup-texts'), ('followup-emails'), ('owner-emails'), ('outbound-calls'), ('knowledge-sync'), ('calendar-sync'), ('connection-tests'), ('meta-leads'), ('meta-sender'), ('meta-health')) as t(name) loop
+  for w in select * from (values ('event-router'), ('sms-sender'), ('email-sender'), ('followup-texts'), ('followup-emails'), ('owner-emails'), ('outbound-calls'), ('knowledge-sync'), ('calendar-sync'), ('connection-tests'), ('meta-leads'), ('meta-sender'), ('meta-health'), ('website-crawl')) as t(name) loop
     n := case w.name
       when 'event-router' then (select count(*) from public.automation_events
          where (status = 'received' and coalesce(next_attempt_at, now()) <= now()) or (status = 'processing' and claimed_at < now() - interval '10 minutes'))
@@ -102,6 +103,10 @@ begin
          and ((status = 'pending' and next_try_at <= now()) or (status = 'processing' and claimed_at < now() - interval '10 minutes')))
       when 'meta-sender' then (select count(*) from public.meta_outbox where (status = 'queued' and next_try_at <= now()) or (status = 'sending' and claimed_at < now() - interval '10 minutes'))
       when 'meta-health' then (select count(*) from public.meta_connections where status in ('connected', 'error') and next_check_at <= now())
+      when 'website-crawl' then case when public.zella_website_crawl_live()
+         then (select count(*) from public.website_pages wp join public.website_sources ws on ws.id = wp.source_id and ws.status = 'active'
+                where wp.status in ('approved', 'broken', 'missing') and wp.next_fetch_at <= now() and (wp.claimed_at is null or wp.claimed_at < now() - interval '10 minutes'))
+            + (select count(*) from public.website_sources where status = 'active' and next_discovery_at <= now()) else 0 end
       when 'owner-emails' then (select count(*) from public.staff_notifications s join public.businesses b on b.id = s.business_id
          where b.suspended_at is null and b.cancelled_at is null
            and (s.delivery_status = 'pending' or (s.delivery_status = 'sending' and s.claimed_at < now() - interval '30 minutes')))
@@ -178,7 +183,7 @@ end $$;
 do $$
 declare t text;
 begin
-  foreach t in array array['automation_events', 'followup_tasks', 'staff_notifications', 'appointment_reminders', 'meta_events', 'meta_outbox'] loop
+  foreach t in array array['automation_events', 'followup_tasks', 'staff_notifications', 'appointment_reminders', 'meta_events', 'meta_outbox', 'website_pages', 'website_sources'] loop
     execute format('drop trigger if exists zella_kick_dispatch on public.%I', t);
     execute format('create trigger zella_kick_dispatch after insert on public.%I for each row execute function public.zella_kick_dispatch()', t);
   end loop;

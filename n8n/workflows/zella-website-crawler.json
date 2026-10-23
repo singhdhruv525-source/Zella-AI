@@ -1,0 +1,356 @@
+{
+  "name": "Zella - Website Crawler",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "zella/run/website-crawl",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "2af00e23-c480-4a77-8fdd-da60673b2836",
+      "name": "Run now",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "webhookId": "3068e661-3a38-4d0e-8f89-78a50bc6bc8b",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Zella gateway secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_website_claim",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_limit: 6 }) }}",
+        "options": {}
+      },
+      "id": "3499d72b-34fa-4f4c-8718-a16c6325352c",
+      "name": "Claim work",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        200
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Website Crawler: one claimed job in (read the sitemap, or read one approved page). Before anything is\n// fetched the address is checked again here: http/https only, no login in the address, no numeric or internal\n// hostnames, only ports 80 and 443, and it must belong to the owner's own site.\nconst j = $json;\nconst bad = (why) => ({ json: { skip: true, why } });\nif (!j || (j.kind !== 'discover' && j.kind !== 'page')) return bad('no_job');\nconst uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;\nconst id = j.kind === 'discover' ? j.source_id : j.page_id;\nif (typeof id !== 'string' || !uuid.test(id)) return bad('bad_id');\nconst url = typeof j.url === 'string' ? j.url : '';\nconst m = /^https?:\\/\\/([a-z0-9.-]+)(?::([0-9]{1,5}))?(?:[\\/?]|$)/i.exec(url);\nif (!m || url.length > 2000 || /[\\s<>\"'\\\\]/.test(url)) return bad('bad_url');\nconst host = m[1].toLowerCase();\nconst port = m[2];\nconst strip = (h) => h.replace(/^www\\./, '');\nif (port && port !== '80' && port !== '443') return bad('bad_port');\nif (!/\\./.test(host) || /^\\.|\\.$|\\.\\./.test(host) || /^[0-9.]+$/.test(host)) return bad('bad_host');\nif (/(^|\\.)(localhost|local|internal|lan|home|corp|intranet|localdomain|test|invalid|example)$/.test(host)) return bad('internal_host');\nif (typeof j.host !== 'string' || strip(host) !== strip(j.host.toLowerCase())) return bad('other_site');\nreturn { json: { skip: false, kind: j.kind, id, url, host: strip(host) } };\n"
+      },
+      "id": "ae2f98a0-99fe-4855-8311-26233e9c1364",
+      "name": "Plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "9d1924ba-eed8-40ac-8c6a-c35db4ff365b",
+              "leftValue": "={{ !$json.skip }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "35c6f6ab-a9f7-43cd-8034-722a65c56ec1",
+      "name": "Safe to read",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        720,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.url }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "ZellaBot/1.0 (reads pages its owner approved)"
+            },
+            {
+              "name": "Accept",
+              "value": "text/html,application/xhtml+xml,application/xml;q=0.9"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000,
+          "redirect": {
+            "redirect": {
+              "followRedirects": false
+            }
+          },
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "c9821824-dd23-4340-85b7-e4052e2d9bcf",
+      "name": "Fetch page",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        100
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Website Crawler: turn what the website answered into a short, safe record for the database.\n// Nothing here runs the page: it is only read as text. What is found are SUGGESTIONS (drafts) for the owner.\nconst plan = $('Plan').item.json;\nconst r = $json || {};\nconst status = Number(r.statusCode) || 0;\nconst failed = !!r.error && !status;\nconst raw = typeof r.body === 'string' ? r.body : '';\nconst body = raw.length > 600000 ? raw.slice(0, 600000) : raw;\nconst decode = (s) => String(s).replace(/&nbsp;|&#160;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '\"').replace(/&#0?39;|&apos;/g, \"'\").replace(/&#(\\d{2,5});/g, (_, n) => { const c = Number(n); return c > 31 && c < 65536 ? String.fromCharCode(c) : ' '; });\nconst clean = (s) => decode(s).replace(/[\\u0000-\\u001f\\u007f]/g, ' ').replace(/\\s+/g, ' ').trim();\n\nif (plan.kind === 'discover') {\n  let urls = []; let kids = [];\n  if (status >= 200 && status < 300) {\n    const isIndex = /<sitemapindex/i.test(body);\n    const locs = [...body.matchAll(/<loc>\\s*([^<\\s]{5,2000})\\s*<\\/loc>/gi)].map((x) => decode(x[1])).slice(0, 300);\n    if (isIndex) kids = locs.filter((u) => /^https?:\\/\\//i.test(u)).slice(0, 5); else urls = locs.filter((u) => /^https?:\\/\\//i.test(u));\n  }\n  return { json: { mode: 'discover', rpc: { p_source_id: plan.id, p_sitemap_url: plan.url, p_urls: urls, p_child_sitemaps: kids, p_status: status, p_error: failed ? 'network' : null } } };\n}\n\n// ---- a page\nconst base = { p_page_id: plan.id, p_http_status: status, p_final_url: null, p_title: null, p_text: null, p_hash: null, p_links: [], p_items: [], p_error: null };\nif (failed) return { json: { mode: 'page', rpc: { ...base, p_error: 'network' } } };\nif (status >= 300 && status < 400) {\n  const h = r.headers && typeof r.headers === 'object' ? r.headers : {};\n  let loc = typeof h.location === 'string' ? h.location : '';\n  try { loc = new URL(loc, plan.url).toString(); } catch (e) { loc = ''; }\n  return { json: { mode: 'page', rpc: { ...base, p_final_url: loc.slice(0, 2000) } } };\n}\nif (!(status >= 200 && status < 300)) return { json: { mode: 'page', rpc: base } };\nconst ct = r.headers && typeof r.headers === 'object' ? String(r.headers['content-type'] || '') : '';\nif (ct && !/html|xml|text/i.test(ct)) return { json: { mode: 'page', rpc: { ...base, p_http_status: 0, p_error: 'not_a_web_page' } } };\n\nconst titleM = /<title[^>]*>([\\s\\S]*?)<\\/title>/i.exec(body);\nconst title = titleM ? clean(titleM[1]).slice(0, 200) : '';\n// links to other pages of the same site\nconst links = [];\nfor (const m of body.matchAll(/<a\\s[^>]*href\\s*=\\s*[\"']([^\"']{1,1500})[\"']/gi)) {\n  let u; try { u = new URL(decode(m[1]), plan.url); } catch (e) { continue; }\n  if (u.protocol !== 'http:' && u.protocol !== 'https:') continue;\n  if (u.username || u.password) continue;\n  if (u.hostname.replace(/^www\\./, '').toLowerCase() !== plan.host) continue;\n  u.hash = '';\n  const s = u.toString();\n  if (!links.includes(s)) links.push(s);\n  if (links.length >= 60) break;\n}\n// readable text, one line per block; headings are marked so questions and sections can be found\nlet html = body.replace(/<!--[\\s\\S]*?-->/g, ' ').replace(/<(script|style|noscript|svg|nav|template|iframe)\\b[\\s\\S]*?<\\/\\1>/gi, ' ');\nhtml = html.replace(/<h[1-6][^>]*>/gi, '\\n#H# ').replace(/<(summary|dt)\\b[^>]*>/gi, '\\n#H# ')\n  .replace(/<\\/(h[1-6]|summary|dt|p|li|dd|tr|div|section|article|ul|ol|table|br)>|<br\\s*\\/?>/gi, '\\n');\nconst lines = html.replace(/<[^>]+>/g, ' ').split('\\n').map((l) => {\n  const h = l.trim().startsWith('#H#');\n  return { h, t: clean(l.replace('#H#', '')) };\n}).filter((l) => l.t.length > 1);\nconst text = lines.map((l) => l.t).join('\\n').slice(0, 20000);\n// a simple fingerprint (FNV-1a) so a change in the words is noticed\nlet a = 0x811c9dc5; let b = 0x01000193;\nfor (let i = 0; i < text.length; i++) { a = Math.imul(a ^ text.charCodeAt(i), 16777619) >>> 0; b = (Math.imul(b ^ text.charCodeAt(i), 2246822519) + i) >>> 0; }\nconst hash = a.toString(16) + b.toString(16) + '-' + text.length;\n\nconst items = []; const seen = new Set();\nconst add = (kind, t, ans, key) => {\n  const tt = t.slice(0, 100); const aa = ans.slice(0, 1200).trim();\n  if (tt.length < 3 || aa.length < 8) return;\n  const k = (key || kind + ':' + tt.toLowerCase().replace(/[^a-z0-9]+/g, '-')).slice(0, 120);\n  if (seen.has(k) || items.length >= 15) return;\n  seen.add(k); items.push({ kind, title: tt, answer: aa, key: k });\n};\nconst after = (i, max) => { const out = []; for (let k = i + 1; k < lines.length && out.join(' ').length < max; k++) { if (lines[k].h) break; out.push(lines[k].t); } return out.join(' ').slice(0, max); };\nconst where = (title + ' ' + plan.url).toLowerCase();\nconst servicePage = /service|treatment|menu|pricing|price|package|what-we-do|offer/.test(where);\nlines.forEach((l, i) => {\n  if (!l.h) return;\n  if (/\\?$/.test(l.t)) { add('faq', l.t, after(i, 700)); return; }\n  if (/cancel|refund|return|warranty|guarantee|deposit|no-show|late fee|payment|booking policy/i.test(l.t) && l.t.length < 80) { add('policy', l.t, after(i, 700)); return; }\n  const next = after(i, 500);\n  if (l.t.length < 80 && ((servicePage && next.length >= 20) || (/\\$\\s?\\d/.test(next) && next.length >= 8))) add('service', l.t, next);\n});\n// opening hours: lines that name days with times\nconst dayRe = /\\b(mon|tue|wed|thu|fri|sat|sun)[a-z]*\\b[^.]{0,60}?(\\d{1,2}(:\\d{2})?\\s?(am|pm)\\b|closed|24 ?hours)/i;\nconst hoursLines = lines.filter((l) => l.t.length < 160 && dayRe.test(l.t)).map((l) => l.t).slice(0, 8);\nif (hoursLines.length) add('hours', 'Opening hours', hoursLines.join('; '), 'hours');\n\nreturn { json: { mode: 'page', rpc: { ...base, p_title: title, p_text: text, p_hash: hash, p_links: links, p_items: items } } };\n"
+      },
+      "id": "b7e45a36-ff36-40e0-8a38-01fd14fa6c1e",
+      "name": "Parse",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "d8198cd0-3c48-41ee-88f3-cb1d59a4aa95",
+              "leftValue": "={{ $json.mode === 'discover' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "314d5afa-da70-4ade-8c9d-5421e5eeaa03",
+      "name": "Is sitemap",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_website_record_discovery",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.rpc) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "50b80dd1-c6ee-46f0-828d-b42c78a70bb6",
+      "name": "Record sitemap",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1680,
+        0
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_website_record_page",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.rpc) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "f583df5c-0648-460c-8953-bdbfc700fd37",
+      "name": "Record page",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1680,
+        220
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Run now": {
+      "main": [
+        [
+          {
+            "node": "Claim work",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim work": {
+      "main": [
+        [
+          {
+            "node": "Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan": {
+      "main": [
+        [
+          {
+            "node": "Safe to read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Safe to read": {
+      "main": [
+        [
+          {
+            "node": "Fetch page",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Fetch page": {
+      "main": [
+        [
+          {
+            "node": "Parse",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse": {
+      "main": [
+        [
+          {
+            "node": "Is sitemap",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is sitemap": {
+      "main": [
+        [
+          {
+            "node": "Record sitemap",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}
