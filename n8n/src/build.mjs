@@ -139,7 +139,51 @@ for (const [key, fns] of Object.entries(SCHEDULE)) {
 }
 const schedulers = wf('Zella - Schedulers', schedNodes, schedConns);
 
+// ------------------------------------------------------------------ SMS Sender (reminders)
+// Claim reminders -> prepare (consent + template) -> log -> send (only when live) -> report back.
+// Dry-run is the default: until the database setting sms_live is true, nothing is sent.
+const TELNYX_CRED = { httpHeaderAuth: { id: '', name: 'Zella Telnyx' } };
+const finishNode = (pos) => rpcNode('Finish reminder', pos, '', "={{ JSON.stringify($json.finish.body) }}",
+  { full: true, urlExpr: `={{ '${SUPABASE}/rest/v1/rpc/' + $json.finish.rpc }}` });
+const smsSender = wf('Zella - SMS Sender', [
+  node('Every minute', 'n8n-nodes-base.scheduleTrigger', 1.2, [0, 200], { rule: { interval: [{ field: 'minutes', minutesInterval: 1 }] } }),
+  rpcNode('Claim reminders', [240, 200], 'zella_claim_reminders', '={{ JSON.stringify({ p_limit: 20 }) }}'),
+  code('Plan', [480, 200], 'sms-plan.js'),
+  ifBool('Is a text', [720, 200], '={{ !$json.finish }}'),
+  rpcNode('Prepare text', [960, 100], 'zella_prepare_sms', '={{ JSON.stringify($json.prepare) }}', { full: true }),
+  code('Decide', [1200, 100], 'sms-decide.js'),
+  ifBool('Needs sending', [1440, 100], '={{ !$json.finish }}'),
+  rpcNode('Log message', [1680, 0], 'zella_log_outbound_sms', '={{ JSON.stringify($json.log) }}', { full: true }),
+  code('After log', [1920, 0], 'sms-after-log.js'),
+  ifBool('Send for real', [2160, 0], '={{ !$json.finish }}'),
+  node('Send via Telnyx', 'n8n-nodes-base.httpRequest', 4.2, [2400, -100], {
+    method: 'POST', url: 'https://api.telnyx.com/v2/messages', authentication: 'genericCredentialType', genericAuthType: 'httpHeaderAuth',
+    sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify($json.telnyx) }}',
+    options: { response: { response: { fullResponse: true, neverError: true, responseFormat: 'json' } } },
+  }, { credentials: TELNYX_CRED }),
+  code('After send', [2640, -100], 'sms-after-send.js'),
+  rpcNode('Update message', [2880, -100], 'zella_update_outbound_sms', '={{ JSON.stringify($json.update) }}', { full: true }),
+  code('Restore result', [3120, -100], 'sms-restore.js'),
+  finishNode([3360, 200]),
+], {
+  'Every minute': { main: [[link('Claim reminders')]] },
+  'Claim reminders': { main: [[link('Plan')]] },
+  'Plan': { main: [[link('Is a text')]] },
+  'Is a text': { main: [[link('Prepare text')], [link('Finish reminder')]] },
+  'Prepare text': { main: [[link('Decide')]] },
+  'Decide': { main: [[link('Needs sending')]] },
+  'Needs sending': { main: [[link('Log message')], [link('Finish reminder')]] },
+  'Log message': { main: [[link('After log')]] },
+  'After log': { main: [[link('Send for real')]] },
+  'Send for real': { main: [[link('Send via Telnyx')], [link('Finish reminder')]] },
+  'Send via Telnyx': { main: [[link('After send')]] },
+  'After send': { main: [[link('Update message')]] },
+  'Update message': { main: [[link('Restore result')]] },
+  'Restore result': { main: [[link('Finish reminder')]] },
+});
+
 writeFileSync(join(out, 'zella-event-gateway.json'), JSON.stringify(gateway, null, 2) + '\n');
 writeFileSync(join(out, 'zella-event-router.json'), JSON.stringify(router, null, 2) + '\n');
 writeFileSync(join(out, 'zella-schedulers.json'), JSON.stringify(schedulers, null, 2) + '\n');
-console.log('Built', gateway.nodes.length, 'gateway nodes,', router.nodes.length, 'router nodes and', schedulers.nodes.length, 'scheduler nodes.');
+writeFileSync(join(out, 'zella-sms-sender.json'), JSON.stringify(smsSender, null, 2) + '\n');
+console.log('Built', gateway.nodes.length, 'gateway nodes,', router.nodes.length, 'router nodes,', schedulers.nodes.length, 'scheduler nodes and', smsSender.nodes.length, 'sms sender nodes.');

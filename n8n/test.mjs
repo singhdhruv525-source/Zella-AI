@@ -130,7 +130,64 @@ test('each job check names its own job', () => {
   for (const n of schedFile.nodes.filter((x) => x.name.startsWith('Check '))) assert.ok(n.parameters.jsCode.includes("'" + n.name.slice(6) + "'"), n.name);
 });
 
-for (const file of ['zella-event-gateway.json', 'zella-event-router.json', 'zella-schedulers.json']) {
+// ---------------- sms sender
+const R = { reminder_id: '11111111-1111-4111-8111-111111111111', kind: 'reminder', channel: 'sms',
+  business: { id: BIZ, name: 'Test Salon', timezone: 'America/New_York' }, customer: { id: 'cust-1', first_name: 'Ana', phone: '4155550123' },
+  appointment: { id: 'a1', title: 'haircut', start_time: '2026-11-03T15:00:00Z' } };
+const plan = (r) => runCode('sms-plan.js', { json: r }).json;
+test('plan builds the prepare request with business-time date and time', () => {
+  const p = plan(R);
+  assert.equal(p.finish, null); assert.equal(p.prepare.p_template_key, 'appointment_reminder'); assert.equal(p.prepare.p_vars.date, 'Tue, Nov 3'); assert.equal(p.prepare.p_vars.time, '10:00 AM');
+  assert.equal(p.prepare.p_vars.appointment, 'haircut'); assert.equal(p.prepare.p_purpose, 'transactional');
+});
+test('confirmation uses the confirmation template', () => assert.equal(plan({ ...R, kind: 'confirmation' }).prepare.p_template_key, 'appointment_confirmation'));
+test('confirmation request uses the reminder template', () => assert.equal(plan({ ...R, kind: 'confirmation_request' }).prepare.p_template_key, 'appointment_reminder'));
+test('non-text channel is skipped with a reason', () => { const p = plan({ ...R, channel: 'email' }); assert.equal(p.finish.rpc, 'zella_skip_reminder'); assert.match(p.finish.body.p_reason, /channel_not_supported_yet:email/); });
+test('unknown kind is skipped', () => assert.equal(plan({ ...R, kind: 'weird' }).finish.rpc, 'zella_skip_reminder'));
+test('bad appointment time is skipped, not sent', () => assert.equal(plan({ ...R, appointment: { title: 'x', start_time: 'nope' } }).finish.rpc, 'zella_skip_reminder'));
+test('missing title falls back to "appointment"', () => assert.equal(plan({ ...R, appointment: { start_time: R.appointment.start_time } }).prepare.p_vars.appointment, 'appointment'));
+
+const smsPlan = { reminder_id: R.reminder_id, business_id: BIZ, customer_id: 'cust-1' };
+const decide = (statusCode, body) => runCode('sms-decide.js', { json: { statusCode, body }, nodes: { Plan: smsPlan } }).json;
+const okPrep = { allowed: true, live: false, to: '+14155550123', from: null, body: 'Hi Ana', template_id: 't1', template_version: 1 };
+test('dry run is logged as dry_run', () => { const d = decide(200, okPrep); assert.equal(d.finish, null); assert.equal(d.log.p_status, 'dry_run'); assert.equal(d.live, false); assert.equal(d.log.p_dedupe_key, 'reminder:' + R.reminder_id); });
+test('live is logged as queued', () => { const d = decide(200, { ...okPrep, live: true, from: '+15550001111' }); assert.equal(d.log.p_status, 'queued'); assert.equal(d.live, true); });
+test('live without a sender number fails loudly', () => { const d = decide(200, { ...okPrep, live: true }); assert.equal(d.finish.body.p_ok, false); assert.equal(d.finish.body.p_error, 'sender_number_not_set'); });
+test('no consent skips the reminder, no retry', () => { const d = decide(200, { allowed: false, reason: 'no_consent', live: true }); assert.equal(d.finish.rpc, 'zella_skip_reminder'); assert.equal(d.finish.body.p_reason, 'no_consent'); assert.equal(d.log, undefined); });
+test('prepare failure is a retryable failure', () => { const d = decide(500, {}); assert.equal(d.finish.rpc, 'zella_complete_reminder'); assert.equal(d.finish.body.p_ok, false); });
+test('prepare error text is not copied into the result', () => assert.equal(JSON.stringify(decide(500, { message: 'SECRETDETAIL' })).includes('SECRETDETAIL'), false));
+
+const afterLog = (statusCode, body, d) => runCode('sms-after-log.js', { json: { statusCode, body }, nodes: { Decide: { reminder_id: R.reminder_id, live: true, from: '+15550001111', to: '+14155550123', text: 'Hi', ...d } } }).json;
+test('live new message goes to Telnyx with the right payload', () => {
+  const a = afterLog(200, { id: 'm1', duplicate: false, status: 'queued' });
+  assert.equal(a.finish, null); assert.deepEqual(a.telnyx, { from: '+15550001111', to: '+14155550123', text: 'Hi', type: 'SMS' }); assert.equal(a.message_id, 'm1');
+});
+test('dry run never builds a Telnyx payload', () => { const a = afterLog(200, { id: 'm1', duplicate: false, status: 'dry_run' }, { live: false }); assert.equal(a.telnyx, undefined); assert.equal(a.finish.rpc, 'zella_skip_reminder'); assert.match(a.finish.body.p_reason, /dry_run/); });
+test('already-sent duplicate is not sent again and completes ok', () => { const a = afterLog(200, { id: 'm1', duplicate: true, status: 'sent' }); assert.equal(a.telnyx, undefined); assert.equal(a.finish.body.p_ok, true); });
+test('in-flight duplicate is suppressed', () => { const a = afterLog(200, { id: 'm1', duplicate: true, status: 'queued' }); assert.equal(a.telnyx, undefined); assert.equal(a.finish.body.p_reason, 'duplicate_suppressed'); });
+test('log failure fails the reminder and sends nothing', () => { const a = afterLog(500, {}); assert.equal(a.telnyx, undefined); assert.equal(a.finish.body.p_ok, false); });
+
+const afterSend = (statusCode, body) => runCode('sms-after-send.js', { json: { statusCode, body }, nodes: { 'After log': { reminder_id: R.reminder_id, message_id: 'm1' } } }).json;
+test('Telnyx success records the external id and completes ok', () => { const a = afterSend(200, { data: { id: 'tx-1' } }); assert.deepEqual(a.update, { p_id: 'm1', p_status: 'sent', p_external_id: 'tx-1', p_error: null }); assert.equal(a.finish.body.p_ok, true); });
+test('Telnyx 200 without an id is not trusted', () => assert.equal(afterSend(200, {}).update.p_status, 'failed'));
+test('Telnyx rejection fails the message and lets the database retry', () => { const a = afterSend(422, { errors: [{ code: '40310', detail: 'PRIVATE DETAIL' }] }); assert.equal(a.update.p_status, 'failed'); assert.equal(a.finish.body.p_ok, false); assert.match(a.update.p_error, /422 \(code 40310\)/); assert.equal(JSON.stringify(a).includes('PRIVATE DETAIL'), false); });
+test('Telnyx rate limit is a failure the database retries', () => assert.equal(afterSend(429, {}).finish.body.p_ok, false));
+
+// ---------------- sms workflow shape
+const smsFile = JSON.parse(readFileSync(new URL('./workflows/zella-sms-sender.json', import.meta.url), 'utf8'));
+test('only the Telnyx node talks to Telnyx', () => {
+  const t = smsFile.nodes.filter((n) => JSON.stringify(n.parameters).includes('api.telnyx.com'));
+  assert.deepEqual(t.map((n) => n.name), ['Send via Telnyx']);
+});
+test('Telnyx node can only be reached after the live check', () => {
+  const c = smsFile.connections;
+  const into = Object.entries(c).filter(([, v]) => v.main.flat().some((l) => l.node === 'Send via Telnyx')).map(([k]) => k);
+  assert.deepEqual(into, ['Send for real']);
+  assert.equal(c['Send for real'].main[0][0].node, 'Send via Telnyx');
+});
+test('Telnyx key is a credential, never in the file', () => assert.equal(smsFile.nodes.find((n) => n.name === 'Send via Telnyx').credentials.httpHeaderAuth.name, 'Zella Telnyx'));
+
+for (const file of ['zella-event-gateway.json', 'zella-event-router.json', 'zella-schedulers.json', 'zella-sms-sender.json']) {
   const w = JSON.parse(readFileSync(new URL('./workflows/' + file, import.meta.url), 'utf8'));
   const names = w.nodes.map((n) => n.name);
   test(file + ': node names are unique', () => assert.equal(new Set(names).size, names.length));
@@ -162,7 +219,7 @@ for (const file of ['zella-event-gateway.json', 'zella-event-router.json', 'zell
   });
   test(file + ': HTTP nodes use a credential, not pasted keys', () => {
     for (const n of w.nodes.filter((x) => x.type === 'n8n-nodes-base.httpRequest')) {
-      assert.equal(n.parameters.authentication, 'genericCredentialType'); assert.ok(n.credentials?.httpCustomAuth);
+      assert.equal(n.parameters.authentication, 'genericCredentialType'); assert.ok(n.credentials?.httpCustomAuth || n.credentials?.httpHeaderAuth);
     }
   });
 }
