@@ -108,7 +108,7 @@ test('execution id is optional when logging failed to start', () => assert.equal
 // ---------------- dispatcher (timed jobs run in Supabase; n8n is only called when work is waiting)
 const dispatcherSql = readFileSync(new URL('../sql/zella_dispatcher.sql', import.meta.url), 'utf8');
 const wfJson = (f) => JSON.parse(readFileSync(new URL('./workflows/' + f, import.meta.url), 'utf8'));
-const RUN_PATHS = { 'zella-event-router.json': 'event-router', 'zella-sms-sender.json': 'sms-sender', 'zella-email-sender.json': 'email-sender', 'zella-followup-texts.json': 'followup-texts', 'zella-followup-emails.json': 'followup-emails', 'zella-owner-emails.json': 'owner-emails', 'zella-outbound-calls.json': 'outbound-calls', 'zella-knowledge.json': 'knowledge-sync' };
+const RUN_PATHS = { 'zella-event-router.json': 'event-router', 'zella-sms-sender.json': 'sms-sender', 'zella-email-sender.json': 'email-sender', 'zella-followup-texts.json': 'followup-texts', 'zella-followup-emails.json': 'followup-emails', 'zella-owner-emails.json': 'owner-emails', 'zella-outbound-calls.json': 'outbound-calls', 'zella-knowledge.json': 'knowledge-sync', 'zella-calendar-sync.json': 'calendar-sync' };
 test('no workflow wakes itself on a timer (that would burn the monthly n8n run allowance)', () => {
   for (const f of [...Object.keys(RUN_PATHS), 'zella-event-gateway.json']) assert.ok(!JSON.stringify(wfJson(f)).includes('scheduleTrigger'), f);
 });
@@ -130,8 +130,8 @@ test('the dispatcher only checks the follow-up kinds the workflows really handle
   const list = (name) => dispatcherSql.match(new RegExp(name + ' text\\[\\] := array\\[([^\\]]*)\\]'))[1].split(',').map((x) => x.trim().replace(/'/g, ''));
   assert.deepEqual(list('v_text_kinds'), FOLLOWUP_KINDS); assert.deepEqual(list('v_email_kinds'), FOLLOWUP_EMAIL_KINDS);
 });
-test('all 14 timed jobs run inside the database, on the same rhythm as before', () => {
-  const jobs = { every5: ['zella_flag_overdue_leads', 'zella_expire_holds', 'zella_expire_waitlist_offers', 'zella_detect_transfer_failures', 'zella_flag_overdue_callbacks', 'zella_sweep_stuck_calls', 'zella_check_engine_health'], every15: ['zella_queue_quote_followups'], hourly: ['zella_post_daily_summaries'], daily: ['zella_queue_lead_reactivation', 'zella_check_setup_incomplete', 'zella_check_trials', 'zella_apply_payment_policy'], weekly: ['zella_post_weekly_reviews'] };
+test('all 15 timed jobs run inside the database, on the same rhythm as before', () => {
+  const jobs = { every5: ['zella_flag_overdue_leads', 'zella_expire_holds', 'zella_expire_waitlist_offers', 'zella_detect_transfer_failures', 'zella_flag_overdue_callbacks', 'zella_sweep_stuck_calls', 'zella_check_engine_health'], every15: ['zella_queue_quote_followups'], hourly: ['zella_post_daily_summaries', 'zella_schedule_calendar_pulls'], daily: ['zella_queue_lead_reactivation', 'zella_check_setup_incomplete', 'zella_check_trials', 'zella_apply_payment_policy'], weekly: ['zella_post_weekly_reviews'] };
   for (const [g, fns] of Object.entries(jobs)) for (const fn of fns) { assert.ok(dispatcherSql.includes("'" + fn + "'"), fn); assert.ok(new RegExp("when '" + g + "'\\s+then array\\[[^\\]]*'" + fn + "'").test(dispatcherSql), g + ' ' + fn); }
   for (const cron of ["'* * * * *'", "'*/5 * * * *'", "'*/15 * * * *'", "'0 * * * *'", "'0 4 * * *'", "'0 8 * * 1'"]) assert.ok(dispatcherSql.includes(cron), cron);
 });
@@ -640,6 +640,78 @@ test('engine health: stuck work is freed safely, backlog raises one alert per qu
   for (const q of ['reminders', 'followups', 'events', 'notifications']) assert.ok(healthSql.includes("('" + q + "'"), q);
   assert.ok(healthSql.includes('zella_platform_alert') && healthSql.includes('zella_resolve_platform_alerts') && healthSql.includes("'queue_backlog'"));
   assert.ok(!/net\.http_post|api\./.test(healthSql));
+});
+
+// ---------------- calendar sync (Google Calendar copy + busy times)
+const calSql = readFileSync(new URL('../sql/zella_calendar_sync.sql', import.meta.url), 'utf8');
+const csPlan = (it) => runCode('calendar-sync-plan.js', { json: it }).json;
+const CSI = { queue_id: 'q1', appointment_id: 'ap1', action: 'upsert', event_id: null, calendar_id: 'primary', refresh_token: 'rt', event: { summary: 'Haircut - Ana', description: 'Booked with Zella.', start: '2026-11-02T15:00:00+00:00', end: '2026-11-02T16:00:00+00:00', timezone: 'America/New_York' } };
+test('calendar: a new booking is created, an existing one is patched, a cancelled one is deleted', () => {
+  const c = csPlan(CSI); assert.equal(c.google.method, 'POST'); assert.ok(c.google.url.endsWith('/calendars/primary/events')); assert.equal(c.google.body.start.timeZone, 'America/New_York'); assert.equal(c.google.body.extendedProperties.private.zella_appointment_id, 'ap1');
+  const u = csPlan({ ...CSI, event_id: 'g1' }); assert.equal(u.google.method, 'PATCH'); assert.ok(u.google.url.endsWith('/events/g1'));
+  const d = csPlan({ ...CSI, action: 'delete', event_id: 'g1' }); assert.equal(d.google.method, 'DELETE'); assert.equal(d.google.body, null);
+});
+test('calendar: deleting something never created is a success without calling Google; bad items call nothing', () => {
+  const d = csPlan({ ...CSI, action: 'delete' }); assert.equal(d.needs_google, false); assert.equal(d.skip_ok, true);
+  for (const bad of [{}, { ...CSI, refresh_token: null }, { ...CSI, event: null }, { ...CSI, action: 'weird' }]) assert.equal(csPlan(bad).needs_google, false);
+});
+test('calendar: calendar ids with special characters are escaped in the address', () => assert.ok(csPlan({ ...CSI, calendar_id: 'a b@group.calendar.google.com' }).google.url.includes('a%20b%40group')));
+const csAfter = (plan, google, token = { body: { access_token: 't' } }) => runCode('calendar-sync-after.js', { json: google, nodes: { 'Plan sync': plan, 'Get Google token': token } }).json.record;
+test('calendar: Google success saves the event id; failure keeps only a short code', () => {
+  const p = csPlan(CSI);
+  assert.deepEqual(csAfter(p, { statusCode: 200, body: { id: 'g9' } }), { p_queue_id: 'q1', p_ok: true, p_event_id: 'g9', p_error: null });
+  const f = csAfter(p, { statusCode: 403, body: { error: { message: 'PRIVATE' } } }); assert.equal(f.p_ok, false); assert.equal(f.p_error, 'google_403'); assert.equal(JSON.stringify(f).includes('PRIVATE'), false);
+  assert.equal(csAfter(p, { statusCode: 0, body: '' }).p_error, 'google_no_answer');
+});
+test('calendar: a delete that finds nothing (404/410) counts as done; other failures do not', () => {
+  const p = csPlan({ ...CSI, action: 'delete', event_id: 'g1' });
+  for (const s of [204, 404, 410]) assert.equal(csAfter(p, { statusCode: s, body: '' }).p_ok, true, String(s));
+  assert.equal(csAfter(p, { statusCode: 500, body: '' }).p_ok, false);
+});
+test('calendar: a refused token is reported by name only, and a skipped item still finishes', () => {
+  const p = csPlan(CSI); const r = csAfter(p, {}, { body: { error: 'invalid_grant', error_description: 'PRIVATE' } });
+  assert.equal(r.p_error, 'google_token_invalid_grant'); assert.equal(JSON.stringify(r).includes('PRIVATE'), false);
+  assert.equal(csAfter(csPlan({ ...CSI, action: 'delete' }), {}).p_ok, true);
+  assert.equal(runCode('calendar-sync-after.js', { json: {}, nodes: { 'Plan sync': { queue_id: null } } }).json.record, null);
+});
+const cpPlan = (c) => runCode('calendar-pull-plan.js', { json: c }).json;
+const cpMap = (plan, res, token = { body: { access_token: 't' } }) => runCode('calendar-pull-map.js', { json: res, nodes: { 'Plan pull': plan, 'Get pull token': token } }).json;
+const CPC = { connection_id: 'c1', calendar_id: 'primary', refresh_token: 'rt', from: '2026-10-23T00:00:00Z', to: '2026-12-23T00:00:00Z' };
+test('calendar: the refresh lists single (expanded) events for the next 60 days only', () => {
+  const p = cpPlan(CPC); assert.ok(p.url.includes('singleEvents=true') && p.url.includes('timeMin=2026-10-23') && p.url.includes('maxResults=250'));
+  assert.equal(cpPlan({}).url, null);
+});
+test('calendar: busy times skip cancelled, free, and Zella-made events; all-day events block the day', () => {
+  const p = cpPlan(CPC);
+  const items = [
+    { id: 'a', status: 'confirmed', start: { dateTime: '2026-11-03T14:00:00-05:00' }, end: { dateTime: '2026-11-03T15:00:00-05:00' } },
+    { id: 'b', status: 'cancelled', start: { dateTime: '2026-11-03T14:00:00-05:00' }, end: { dateTime: '2026-11-03T15:00:00-05:00' } },
+    { id: 'c', transparency: 'transparent', start: { dateTime: '2026-11-03T14:00:00-05:00' }, end: { dateTime: '2026-11-03T15:00:00-05:00' } },
+    { id: 'd', extendedProperties: { private: { zella_appointment_id: 'x' } }, start: { dateTime: '2026-11-03T14:00:00-05:00' }, end: { dateTime: '2026-11-03T15:00:00-05:00' } },
+    { id: 'e', start: { date: '2026-11-05' }, end: { date: '2026-11-06' } }, { id: 'f' }, null,
+  ];
+  const m = cpMap(p, { statusCode: 200, body: { items } }); assert.deepEqual(m.events.p_events.map((e) => [e.id, e.all_day]), [['a', false], ['e', true]]); assert.equal(m.error, null);
+});
+test('calendar: a failed refresh keeps the old busy times and reports a short reason; lost access is fatal', () => {
+  const p = cpPlan(CPC);
+  const a = cpMap(p, { statusCode: 500, body: {} }); assert.equal(a.events, null); assert.equal(a.error.p_error, 'google_500'); assert.equal(a.error.p_fatal, false);
+  const b = cpMap(p, {}, { body: { error: 'invalid_grant', error_description: 'PRIVATE' } }); assert.equal(b.error.p_fatal, true); assert.equal(JSON.stringify(b).includes('PRIVATE'), false);
+  assert.equal(cpMap({ connection_id: null }, {}).error, null);
+});
+test('calendar workflow: Google boxes ship without a credential and with client id/secret placeholders only', () => {
+  const w = wfJson('zella-calendar-sync.json'); const boxes = w.nodes.filter((n) => ['Get Google token', 'Google call', 'Google delete', 'Get pull token', 'List events'].includes(n.name));
+  assert.equal(boxes.length, 5);
+  for (const n of boxes) assert.ok(!n.credentials, n.name);
+  const t = w.nodes.find((n) => n.name === 'Get Google token'); const s = JSON.stringify(t.parameters);
+  assert.ok(s.includes('PASTE_GOOGLE_CLIENT_ID') && s.includes('PASTE_GOOGLE_CLIENT_SECRET'));
+  assert.ok(!JSON.stringify(w).match(/GOCSPX|\.apps\.googleusercontent/));
+});
+test('calendar sql: the token lives only in the vault, nothing runs until calendar_sync_live, access is service-role only', () => {
+  assert.ok(calSql.includes('vault.create_secret(p_refresh_token') && !/create_secret\('/.test(calSql));
+  assert.ok(calSql.includes("if not public.zella_calendar_live() then return v_res; end if;"));
+  assert.ok(calSql.includes("('calendar_sync_live', 'false'::jsonb)") || calSql.includes("'calendar_sync_live'"));
+  assert.ok(calSql.includes('revoke all on public.calendar_connections from anon, authenticated') && !/grant select \([^)]*vault_secret_name/.test(calSql));
+  assert.ok(calSql.includes('zella_calendar_mark_error'));
 });
 
 console.log(`${passed} passed, ${failures.length} failed`);

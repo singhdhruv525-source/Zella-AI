@@ -226,3 +226,10 @@ Run `sql/zella_engine_health.sql`, then `sql/zella_dispatcher.sql` (it adds the 
 
 - **Stuck work is freed:** a follow-up text or email, a reminder or an owner notification that was picked up but never finished for 30 to 60 minutes goes back to the queue. Repeating a send is safe because every message has a duplicate guard. A notice is raised when this happens. Calls are handled by the stuck-call sweep.
 - **Pile-ups raise one alert per queue** (reminders waiting over 30 minutes, follow-ups over 60, events over 15, owner notifications over 60) and clear themselves when the queue is empty. A pile-up usually means the engine is switched off or a provider is down. The alerts reach you through the normal platform alert delivery.
+
+## Google Calendar sync
+Workflow `Zella - Calendar Sync` (webhook `zella/run/calendar-sync`). Zella's database stays the source of truth for free times and bookings; Google is a copy plus a source of busy times.
+- **Booking to Google:** when a confirmed booking is created or changed (or cancelled), a trigger puts a row in `calendar_sync_queue` (only for businesses with an active connection). The workflow creates, updates or deletes the Google event and saves its id on the appointment. Failures retry up to 5 times (5, 10, 15 ... minutes), then raise a platform alert.
+- **Google to Zella:** the workflow lists the next 60 days of events and replaces the imported `blocked_times` (cancelled, "free" and Zella-made events are ignored; all-day events block the day in UTC). Refreshed when a connection is made, and hourly by `zella_schedule_calendar_pulls`. A lost-access error pauses the link and alerts.
+- Nothing runs until `calendar_sync_live` is true. The refresh token is kept in Vault (`zella_gcal_<business id>`); it passes through the workflow run data when talking to Google. The Google client id/secret are pasted on the two token boxes by hand.
+- Known limits: first 250 events only; if an owner deletes a Zella event in Google, later edits to it fail (retry then alert); one calendar per business.

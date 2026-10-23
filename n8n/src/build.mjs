@@ -385,6 +385,78 @@ const emailEvents = wf('Zella - Email Events', [
   'Build reply': { main: [[link('Reply')]] },
 });
 
+// Calendar Sync: copies bookings to the business's Google Calendar and reads its busy times back into Zella.
+// Started by the dispatcher only when a booking change or a refresh is waiting (and calendar_sync_live is true).
+// The two Google token boxes ship with NO credential; the Google client id and secret are pasted by hand at go-live.
+const googleToken = (name, pos, tokenExpr) => node(name, 'n8n-nodes-base.httpRequest', 4.2, pos, {
+  method: 'POST', url: 'https://oauth2.googleapis.com/token', authentication: 'none',
+  sendBody: true, contentType: 'form-urlencoded',
+  bodyParameters: { parameters: [
+    { name: 'grant_type', value: 'refresh_token' },
+    { name: 'refresh_token', value: tokenExpr },
+    { name: 'client_id', value: 'PASTE_GOOGLE_CLIENT_ID' },
+    { name: 'client_secret', value: 'PASTE_GOOGLE_CLIENT_SECRET' },
+  ] },
+  options: { response: { response: { fullResponse: true, neverError: true, responseFormat: 'json' } } },
+});
+const googleAuthHeader = { sendHeaders: true, headerParameters: { parameters: [{ name: 'Authorization', value: '=Bearer {{ $json.body.access_token }}' }] } };
+const calendarSync = wf('Zella - Calendar Sync', [
+  runTrigger('calendar-sync'),
+  rpcNode('Claim sync items', [240, 100], 'zella_claim_calendar_sync', '={{ JSON.stringify({ p_limit: 10 }) }}'),
+  code('Plan sync', [480, 100], 'calendar-sync-plan.js'),
+  ifBool('Needs Google', [720, 100], '={{ $json.needs_google }}'),
+  googleToken('Get Google token', [960, 0], "={{ $('Plan sync').item.json.token_form.refresh_token }}"),
+  ifBool('Token ok', [1200, 0], '={{ !!$json.body && !!$json.body.access_token }}'),
+  ifBool('Is delete', [1440, -60], "={{ $('Plan sync').item.json.google.method === 'DELETE' }}"),
+  node('Google call', 'n8n-nodes-base.httpRequest', 4.2, [1680, -140], {
+    method: "={{ $('Plan sync').item.json.google.method }}", url: "={{ $('Plan sync').item.json.google.url }}", authentication: 'none',
+    ...googleAuthHeader,
+    sendBody: true, specifyBody: 'json',
+    jsonBody: "={{ JSON.stringify($('Plan sync').item.json.google.body) }}",
+    options: { response: { response: { fullResponse: true, neverError: true, responseFormat: 'json' } } },
+  }),
+  node('Google delete', 'n8n-nodes-base.httpRequest', 4.2, [1680, 20], {
+    method: 'DELETE', url: "={{ $('Plan sync').item.json.google.url }}", authentication: 'none', ...googleAuthHeader,
+    options: { response: { response: { fullResponse: true, neverError: true, responseFormat: 'json' } } },
+  }),
+  code('Read result', [1680, 100], 'calendar-sync-after.js'),
+  ifBool('Has result', [1920, 100], '={{ !!$json.record }}'),
+  rpcNode('Finish sync', [2160, 0], 'zella_finish_calendar_sync', '={{ JSON.stringify($json.record) }}', { full: true }),
+  rpcNode('Claim refreshes', [240, 500], 'zella_claim_calendar_pulls', '={{ JSON.stringify({ p_limit: 10 }) }}'),
+  code('Plan pull', [480, 500], 'calendar-pull-plan.js'),
+  googleToken('Get pull token', [720, 500], "={{ $json.token_form ? $json.token_form.refresh_token : '' }}"),
+  ifBool('Pull token ok', [960, 500], '={{ !!$json.body && !!$json.body.access_token }}'),
+  node('List events', 'n8n-nodes-base.httpRequest', 4.2, [1200, 400], {
+    method: 'GET', url: "={{ $('Plan pull').item.json.url }}", authentication: 'none', ...googleAuthHeader,
+    options: { response: { response: { fullResponse: true, neverError: true, responseFormat: 'json' } } },
+  }),
+  code('Map busy', [1440, 500], 'calendar-pull-map.js'),
+  ifBool('Has events', [1680, 500], '={{ !!$json.events }}'),
+  rpcNode('Replace busy times', [1920, 400], 'zella_replace_calendar_busy', '={{ JSON.stringify($json.events) }}', { full: true }),
+  ifBool('Has error', [1920, 620], '={{ !!$json.error }}'),
+  rpcNode('Mark error', [2160, 620], 'zella_calendar_mark_error', '={{ JSON.stringify($json.error) }}', { full: true }),
+], {
+  'Run now': { main: [[link('Claim sync items'), link('Claim refreshes')]] },
+  'Claim sync items': { main: [[link('Plan sync')]] },
+  'Plan sync': { main: [[link('Needs Google')]] },
+  'Needs Google': { main: [[link('Get Google token')], [link('Read result')]] },
+  'Get Google token': { main: [[link('Token ok')]] },
+  'Token ok': { main: [[link('Is delete')], [link('Read result')]] },
+  'Is delete': { main: [[link('Google delete')], [link('Google call')]] },
+  'Google delete': { main: [[link('Read result')]] },
+  'Google call': { main: [[link('Read result')]] },
+  'Read result': { main: [[link('Has result')]] },
+  'Has result': { main: [[link('Finish sync')], []] },
+  'Claim refreshes': { main: [[link('Plan pull')]] },
+  'Plan pull': { main: [[link('Get pull token')]] },
+  'Get pull token': { main: [[link('Pull token ok')]] },
+  'Pull token ok': { main: [[link('List events')], [link('Map busy')]] },
+  'List events': { main: [[link('Map busy')]] },
+  'Map busy': { main: [[link('Has events')]] },
+  'Has events': { main: [[link('Replace busy times')], [link('Has error')]] },
+  'Has error': { main: [[link('Mark error')], []] },
+});
+
 writeFileSync(join(out, 'zella-event-gateway.json'), JSON.stringify(gateway, null, 2) + '\n');
 writeFileSync(join(out, 'zella-event-router.json'), JSON.stringify(router, null, 2) + '\n');
 writeFileSync(join(out, 'zella-sms-sender.json'), JSON.stringify(smsSender, null, 2) + '\n');
@@ -397,5 +469,6 @@ writeFileSync(join(out, 'zella-knowledge.json'), JSON.stringify(knowledge, null,
 writeFileSync(join(out, 'zella-assistant-tools.json'), JSON.stringify(assistantTools, null, 2) + '\n');
 writeFileSync(join(out, 'zella-appointment-booking.json'), JSON.stringify(aiBooking, null, 2) + '\n');
 writeFileSync(join(out, 'zella-email-events.json'), JSON.stringify(emailEvents, null, 2) + '\n');
+writeFileSync(join(out, 'zella-calendar-sync.json'), JSON.stringify(calendarSync, null, 2) + '\n');
 writeFileSync(join(out, 'zella-call-results.json'), JSON.stringify(callResults, null, 2) + '\n');
-console.log('Built', [gateway, router, smsSender, followupSender, emailSender, followupEmails, ownerEmails, outboundCalls, callResults, knowledge, assistantTools, aiBooking, emailEvents].map((w) => w.name + ' (' + w.nodes.length + ')').join(', '));
+console.log('Built', [gateway, router, smsSender, followupSender, emailSender, followupEmails, ownerEmails, outboundCalls, callResults, knowledge, assistantTools, aiBooking, emailEvents, calendarSync].map((w) => w.name + ' (' + w.nodes.length + ')').join(', '));

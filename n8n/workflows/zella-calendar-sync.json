@@ -1,0 +1,925 @@
+{
+  "name": "Zella - Calendar Sync",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "zella/run/calendar-sync",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "2af00e23-c480-4a77-8fdd-da60673b2836",
+      "name": "Run now",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "webhookId": "981afa14-149d-472f-8c28-72210e5e7d56",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Zella gateway secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_claim_calendar_sync",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_limit: 10 }) }}",
+        "options": {}
+      },
+      "id": "4f0424e1-80be-46ee-88e4-72638cde2ff8",
+      "name": "Claim sync items",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        100
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Calendar Sync: turn one queued booking change into a Google Calendar request. Nothing is sent from here.\n// The refresh token only lives in this run's data; it is never logged or stored.\nconst it = $json;\nconst none = { json: { queue_id: it && it.queue_id ? it.queue_id : null, needs_google: false, token_form: null, google: null, skip_ok: false } };\nif (!it || !it.queue_id || !it.refresh_token || !it.calendar_id) return none;\nconst cal = encodeURIComponent(String(it.calendar_id));\nconst base = 'https://www.googleapis.com/calendar/v3/calendars/' + cal + '/events';\nconst tokenForm = { refresh_token: String(it.refresh_token) };\nif (it.action === 'delete') {\n  if (!it.event_id) return { json: { queue_id: it.queue_id, needs_google: false, token_form: null, google: null, skip_ok: true } };\n  return { json: { queue_id: it.queue_id, needs_google: true, token_form: tokenForm, skip_ok: false,\n    google: { action: 'delete', method: 'DELETE', url: base + '/' + encodeURIComponent(String(it.event_id)), body: null } } };\n}\nif (it.action !== 'upsert' || !it.event || !it.event.start || !it.event.end) return none;\nconst e = it.event;\nconst body = {\n  summary: String(e.summary || 'Appointment').slice(0, 200),\n  description: String(e.description || '').slice(0, 1000),\n  start: { dateTime: e.start, timeZone: e.timezone || 'America/New_York' },\n  end: { dateTime: e.end, timeZone: e.timezone || 'America/New_York' },\n  extendedProperties: { private: { zella_appointment_id: String(it.appointment_id || '') } },\n};\nconst update = !!it.event_id;\nreturn { json: { queue_id: it.queue_id, needs_google: true, token_form: tokenForm, skip_ok: false,\n  google: { action: 'upsert', method: update ? 'PATCH' : 'POST', url: update ? base + '/' + encodeURIComponent(String(it.event_id)) : base, body } } };\n"
+      },
+      "id": "5c2780ea-75f8-4ada-8343-1c82543a0f17",
+      "name": "Plan sync",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "3a3e66c6-a64d-4f26-8977-186d45877eb0",
+              "leftValue": "={{ $json.needs_google }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "8dc24f71-93e1-4ee5-8252-de492dc84046",
+      "name": "Needs Google",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        720,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://oauth2.googleapis.com/token",
+        "authentication": "none",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "grant_type",
+              "value": "refresh_token"
+            },
+            {
+              "name": "refresh_token",
+              "value": "={{ $('Plan sync').item.json.token_form.refresh_token }}"
+            },
+            {
+              "name": "client_id",
+              "value": "PASTE_GOOGLE_CLIENT_ID"
+            },
+            {
+              "name": "client_secret",
+              "value": "PASTE_GOOGLE_CLIENT_SECRET"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "3ae80acb-f626-49c4-8dcc-2592f5c6f1a0",
+      "name": "Get Google token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "ef5204e4-88f1-4445-8b6c-34e1d470c987",
+              "leftValue": "={{ !!$json.body && !!$json.body.access_token }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b508749c-d6b2-4a1e-83d8-c82f38d1bc28",
+      "name": "Token ok",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "fb6173ef-c8bf-4024-8447-3e104482791d",
+              "leftValue": "={{ $('Plan sync').item.json.google.method === 'DELETE' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "63e85395-bdb6-4fcb-8feb-401538616f56",
+      "name": "Is delete",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "method": "={{ $('Plan sync').item.json.google.method }}",
+        "url": "={{ $('Plan sync').item.json.google.url }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.body.access_token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Plan sync').item.json.google.body) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "40eb0e20-077c-499d-8c28-422c05c9a44d",
+      "name": "Google call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1680,
+        -140
+      ]
+    },
+    {
+      "parameters": {
+        "method": "DELETE",
+        "url": "={{ $('Plan sync').item.json.google.url }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.body.access_token }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "a45b1024-0ce3-4f90-881c-2b08854c99bb",
+      "name": "Google delete",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1680,
+        20
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Calendar Sync: read Google's answer and report it back to the database (which retries or raises an alert).\n// Only a short error name is kept; Google's response text is never stored.\nconst plan = $('Plan sync').item.json;\nconst rec = (ok, eventId, error) => ({ json: { record: { p_queue_id: plan.queue_id, p_ok: ok, p_event_id: eventId || null, p_error: ok ? null : String(error).slice(0, 80) } } });\nif (!plan.queue_id) return { json: { record: null } };\nif (!plan.needs_google) return plan.skip_ok ? rec(true, null) : rec(false, null, 'bad_queue_item');\nlet tok = null;\ntry { tok = $('Get Google token').item.json; } catch (e) { tok = null; }\nconst tb = tok && tok.body && typeof tok.body === 'object' ? tok.body : {};\nif (!tb.access_token) return rec(false, null, 'google_token_' + (typeof tb.error === 'string' ? tb.error.replace(/[^a-z_]/gi, '').slice(0, 30) : 'failed'));\nconst status = Number($json.statusCode);\nconst b = $json.body && typeof $json.body === 'object' ? $json.body : {};\nif (plan.google.action === 'delete') return (status >= 200 && status < 300) || status === 404 || status === 410 ? rec(true, null) : rec(false, null, 'google_' + (status || 'no_answer'));\nif (status >= 200 && status < 300 && typeof b.id === 'string') return rec(true, b.id);\nreturn rec(false, null, 'google_' + (status || 'no_answer'));\n"
+      },
+      "id": "4c6d268d-614a-4f2c-88a7-3ba8dafbadc2",
+      "name": "Read result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "e0986873-ccbf-495c-8564-0523d4acc92c",
+              "leftValue": "={{ !!$json.record }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c841d97a-0eef-40f3-80a0-70b28b37bfcf",
+      "name": "Has result",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_finish_calendar_sync",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.record) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "170d505c-200c-4bea-8f71-7266462de401",
+      "name": "Finish sync",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2160,
+        0
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_claim_calendar_pulls",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_limit: 10 }) }}",
+        "options": {}
+      },
+      "id": "f96918bf-49e6-451a-833e-d10590c2f960",
+      "name": "Claim refreshes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        500
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Calendar Sync: build the request that lists one business calendar's upcoming events.\nconst c = $json;\nif (!c || !c.connection_id || !c.refresh_token || !c.calendar_id) return { json: { connection_id: c && c.connection_id ? c.connection_id : null, token_form: null, url: null } };\nconst q = new URLSearchParams({ timeMin: c.from, timeMax: c.to, singleEvents: 'true', orderBy: 'startTime', maxResults: '250',\n  fields: 'items(id,status,transparency,start,end,extendedProperties)' });\nreturn { json: { connection_id: c.connection_id, token_form: { refresh_token: String(c.refresh_token) },\n  url: 'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(String(c.calendar_id)) + '/events?' + q.toString() } };\n"
+      },
+      "id": "babecd1f-ff3f-49bd-8efc-df3bd4f85019",
+      "name": "Plan pull",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://oauth2.googleapis.com/token",
+        "authentication": "none",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "grant_type",
+              "value": "refresh_token"
+            },
+            {
+              "name": "refresh_token",
+              "value": "={{ $json.token_form ? $json.token_form.refresh_token : '' }}"
+            },
+            {
+              "name": "client_id",
+              "value": "PASTE_GOOGLE_CLIENT_ID"
+            },
+            {
+              "name": "client_secret",
+              "value": "PASTE_GOOGLE_CLIENT_SECRET"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "5aa36d01-c993-4a52-8c9b-da14281f2f16",
+      "name": "Get pull token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "734df74b-1411-4687-899e-0ad14cc0a5f8",
+              "leftValue": "={{ !!$json.body && !!$json.body.access_token }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c1217541-35f9-4d9b-8620-132f427bfcff",
+      "name": "Pull token ok",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        960,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Plan pull').item.json.url }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.body.access_token }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "f24627c3-7bb3-4fe2-876b-175885d32fc1",
+      "name": "List events",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Calendar Sync: turn the calendar's events into busy blocks. Cancelled, \"free\" and Zella-made events are left out.\nconst plan = $('Plan pull').item.json;\nconst fail = (error, fatal) => ({ json: { events: null, error: { p_connection_id: plan.connection_id, p_error: String(error).slice(0, 80), p_fatal: !!fatal } } });\nif (!plan.connection_id || !plan.url) return { json: { events: null, error: null } };\nlet tok = null;\ntry { tok = $('Get pull token').item.json; } catch (e) { tok = null; }\nconst tb = tok && tok.body && typeof tok.body === 'object' ? tok.body : {};\nif (!tb.access_token) { const err = typeof tb.error === 'string' ? tb.error.replace(/[^a-z_]/gi, '').slice(0, 30) : 'failed'; return fail('google_token_' + err, err === 'invalid_grant'); }\nconst status = Number($json.statusCode);\nconst b = $json.body && typeof $json.body === 'object' ? $json.body : {};\nif (!(status >= 200 && status < 300) || !Array.isArray(b.items)) return fail('google_' + (status || 'no_answer'), status === 404);\nconst events = [];\nfor (const e of b.items) {\n  if (!e || typeof e.id !== 'string' || e.status === 'cancelled' || e.transparency === 'transparent') continue;\n  if (e.extendedProperties && e.extendedProperties.private && e.extendedProperties.private.zella_appointment_id) continue;\n  if (e.start && e.start.dateTime && e.end && e.end.dateTime) events.push({ id: e.id, start: e.start.dateTime, end: e.end.dateTime, all_day: false });\n  else if (e.start && e.start.date && e.end && e.end.date) events.push({ id: e.id, start: e.start.date + 'T00:00:00Z', end: e.end.date + 'T00:00:00Z', all_day: true });\n}\nreturn { json: { events: { p_connection_id: plan.connection_id, p_events: events }, error: null } };\n"
+      },
+      "id": "1acc5142-4008-49f1-8cc5-dc8b9e246036",
+      "name": "Map busy",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "8fa29fbc-00b9-49de-8ea4-beacb92a70a3",
+              "leftValue": "={{ !!$json.events }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "9a2fb691-905d-4660-85f6-2968b6c4d2e4",
+      "name": "Has events",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_replace_calendar_busy",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.events) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "2057df9c-3ffc-47d3-80ac-24364a4ae23d",
+      "name": "Replace busy times",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1920,
+        400
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "86499646-ea3a-41fd-8b09-046dc0bcb44c",
+              "leftValue": "={{ !!$json.error }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "55546e5d-eebe-4c1c-8c92-33951d3ea62e",
+      "name": "Has error",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        620
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_calendar_mark_error",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.error) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "22597bf1-27f5-4c75-86f7-b558fd0aa456",
+      "name": "Mark error",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2160,
+        620
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Run now": {
+      "main": [
+        [
+          {
+            "node": "Claim sync items",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Claim refreshes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim sync items": {
+      "main": [
+        [
+          {
+            "node": "Plan sync",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan sync": {
+      "main": [
+        [
+          {
+            "node": "Needs Google",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs Google": {
+      "main": [
+        [
+          {
+            "node": "Get Google token",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Read result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Google token": {
+      "main": [
+        [
+          {
+            "node": "Token ok",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Token ok": {
+      "main": [
+        [
+          {
+            "node": "Is delete",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Read result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is delete": {
+      "main": [
+        [
+          {
+            "node": "Google delete",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Google call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google delete": {
+      "main": [
+        [
+          {
+            "node": "Read result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google call": {
+      "main": [
+        [
+          {
+            "node": "Read result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read result": {
+      "main": [
+        [
+          {
+            "node": "Has result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has result": {
+      "main": [
+        [
+          {
+            "node": "Finish sync",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Claim refreshes": {
+      "main": [
+        [
+          {
+            "node": "Plan pull",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan pull": {
+      "main": [
+        [
+          {
+            "node": "Get pull token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get pull token": {
+      "main": [
+        [
+          {
+            "node": "Pull token ok",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pull token ok": {
+      "main": [
+        [
+          {
+            "node": "List events",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Map busy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List events": {
+      "main": [
+        [
+          {
+            "node": "Map busy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Map busy": {
+      "main": [
+        [
+          {
+            "node": "Has events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has events": {
+      "main": [
+        [
+          {
+            "node": "Replace busy times",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Has error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has error": {
+      "main": [
+        [
+          {
+            "node": "Mark error",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

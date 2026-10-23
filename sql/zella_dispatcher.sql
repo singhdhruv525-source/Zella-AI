@@ -32,7 +32,7 @@ begin
   if p_job not in ('zella_flag_overdue_leads', 'zella_expire_holds', 'zella_expire_waitlist_offers', 'zella_detect_transfer_failures',
                    'zella_queue_quote_followups', 'zella_post_daily_summaries', 'zella_queue_lead_reactivation',
                    'zella_check_setup_incomplete', 'zella_check_trials', 'zella_apply_payment_policy', 'zella_post_weekly_reviews',
-                   'zella_flag_overdue_callbacks', 'zella_sweep_stuck_calls', 'zella_check_engine_health') then
+                   'zella_flag_overdue_callbacks', 'zella_sweep_stuck_calls', 'zella_check_engine_health', 'zella_schedule_calendar_pulls') then
     return 'not_allowed';
   end if;
   begin
@@ -52,7 +52,7 @@ begin
   for j in select unnest(case p_group
       when 'every5'  then array['zella_flag_overdue_leads', 'zella_expire_holds', 'zella_expire_waitlist_offers', 'zella_detect_transfer_failures', 'zella_flag_overdue_callbacks', 'zella_sweep_stuck_calls', 'zella_check_engine_health']
       when 'every15' then array['zella_queue_quote_followups']
-      when 'hourly'  then array['zella_post_daily_summaries']
+      when 'hourly'  then array['zella_post_daily_summaries', 'zella_schedule_calendar_pulls']
       when 'daily'   then array['zella_queue_lead_reactivation', 'zella_check_setup_incomplete', 'zella_check_trials', 'zella_apply_payment_policy']
       when 'weekly'  then array['zella_post_weekly_reviews']
       else array[]::text[] end) loop
@@ -77,7 +77,7 @@ begin
   select decrypted_secret into v_secret from vault.decrypted_secrets where name = 'zella_n8n_secret' limit 1;
   if v_secret is null or v_secret = '' then return jsonb_build_object('skipped', 'no_secret'); end if;
 
-  for w in select * from (values ('event-router'), ('sms-sender'), ('email-sender'), ('followup-texts'), ('followup-emails'), ('owner-emails'), ('outbound-calls'), ('knowledge-sync')) as t(name) loop
+  for w in select * from (values ('event-router'), ('sms-sender'), ('email-sender'), ('followup-texts'), ('followup-emails'), ('owner-emails'), ('outbound-calls'), ('knowledge-sync'), ('calendar-sync')) as t(name) loop
     n := case w.name
       when 'event-router' then (select count(*) from public.automation_events
          where (status = 'received' and coalesce(next_attempt_at, now()) <= now()) or (status = 'processing' and claimed_at < now() - interval '10 minutes'))
@@ -91,6 +91,9 @@ begin
       when 'knowledge-sync' then (select count(*) from public.knowledge_items where status = 'processing')
          + case when coalesce(public.zella_setting('knowledge_ai_live', 'false'::jsonb) = 'true'::jsonb, false)
                 then (select count(*) from public.knowledge_gaps where status = 'open' and suggested_at is null and suggestion_attempts < 3) else 0 end
+      when 'calendar-sync' then case when public.zella_calendar_live()
+         then (select count(*) from public.calendar_sync_queue where status = 'pending' and due_at <= now())
+            + (select count(*) from public.calendar_connections where status = 'active' and busy_refresh_due_at <= now()) else 0 end
       when 'owner-emails' then (select count(*) from public.staff_notifications s join public.businesses b on b.id = s.business_id
          where b.suspended_at is null and b.cancelled_at is null
            and (s.delivery_status = 'pending' or (s.delivery_status = 'sending' and s.claimed_at < now() - interval '30 minutes')))
