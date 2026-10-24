@@ -17,6 +17,7 @@ import {
 import "./BusinessApp.css";
 import { supabase } from "./supabase";
 import { BusinessSignIn, Welcome } from "./BusinessAuth";
+import "./CrmMotion.css";
 import BusinessToday from "./BusinessToday";
 import { AddLeadModal, BookAppointmentModal } from "./BusinessForms";
 import { Icon, Pill, initials, loadBusinessFonts } from "./BusinessUI";

@@ -4,6 +4,7 @@ import { Icon, Pill, personName } from "./BusinessUI";
 import { makeTerm, receptionistState } from "./businessWorkspace";
 import { useRoster } from "./BusinessLeads";
 import TodayWelcome from "./TodayWelcome";
+import { CountUp } from "./CrmMotion";
 import { todayNote, welcomeStyle } from "./todayGreeting";
 import { dayRange, formatLongDate, formatTime, greeting, timeAgo } from "./businessTime";
 import { friendly, noShowNotice, setCheckIn } from "./BusinessShared";
@@ -49,7 +50,7 @@ function Kpi({ label, icon, color, value, children }) {
         <span>{label}</span>
         <span className={`ba-kpi-icon ${color}`}><Icon name={icon} size="sm" /></span>
       </div>
-      <div className="ba-kpi-value">{value}</div>
+      <div className="ba-kpi-value"><CountUp value={value} /></div>
       {children}
     </div>
   );
