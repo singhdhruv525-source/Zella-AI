@@ -1,5 +1,5 @@
 -- Zella - the dispatcher. Safe to run more than once.
--- Needs zella_staff_extras.sql, zella_security_extras.sql, zella_data_rights.sql, zella_inbound_calls.sql, zella_knowledge_insights.sql, zella_customer_records.sql, zella_appointment_flow.sql, zella_monitoring.sql, zella_reconnect.sql, zella_lifecycle.sql, zella_audit_permissions.sql, zella_staff_invites_approvals.sql, zella_industry_engine.sql, zella_industry_presets.sql, zella_call_integrity.sql, zella_knowledge_extras.sql, zella_message_types.sql, zella_staff_sms.sql, zella_ops_automation.sql, zella_retention.sql (team summary, spot checks, reconcile), zella_website_crawler.sql (website lane) and zella_meta.sql (meta lanes) run first.
+-- Needs zella_staff_extras.sql, zella_security_extras.sql, zella_data_rights.sql, zella_inbound_calls.sql, zella_knowledge_insights.sql, zella_customer_records.sql, zella_appointment_flow.sql, zella_monitoring.sql, zella_reconnect.sql, zella_lifecycle.sql, zella_audit_permissions.sql, zella_staff_invites_approvals.sql, zella_industry_engine.sql, zella_industry_presets.sql, zella_call_integrity.sql, zella_knowledge_extras.sql, zella_brain.sql, zella_call_intelligence.sql, zella_message_types.sql, zella_staff_sms.sql, zella_ops_automation.sql, zella_retention.sql (team summary, spot checks, reconcile), zella_website_crawler.sql (website lane) and zella_meta.sql (meta lanes) run first.
 -- WHY: n8n Cloud's Starter plan allows 2,500 workflow runs a month, and a workflow that wakes up every
 -- minute uses ~43,000. So the timer now lives in Supabase (free), and n8n is only called when there is
 -- something waiting. Two parts:
@@ -79,7 +79,7 @@ begin
   select decrypted_secret into v_secret from vault.decrypted_secrets where name = 'zella_n8n_secret' limit 1;
   if v_secret is null or v_secret = '' then return jsonb_build_object('skipped', 'no_secret'); end if;
 
-  for w in select * from (values ('event-router'), ('sms-sender'), ('email-sender'), ('followup-texts'), ('followup-emails'), ('owner-emails'), ('outbound-calls'), ('knowledge-sync'), ('calendar-sync'), ('connection-tests'), ('meta-leads'), ('meta-sender'), ('meta-health'), ('website-crawl'), ('staff-sms')) as t(name) loop
+  for w in select * from (values ('event-router'), ('sms-sender'), ('email-sender'), ('followup-texts'), ('followup-emails'), ('owner-emails'), ('outbound-calls'), ('knowledge-sync'), ('calendar-sync'), ('connection-tests'), ('meta-leads'), ('meta-sender'), ('meta-health'), ('website-crawl'), ('staff-sms'), ('call-intel')) as t(name) loop
     n := case w.name
       when 'event-router' then (select count(*) from public.automation_events
          where (status = 'received' and coalesce(next_attempt_at, now()) <= now()) or (status = 'processing' and claimed_at < now() - interval '10 minutes'))
@@ -93,6 +93,8 @@ begin
       when 'knowledge-sync' then (select count(*) from public.knowledge_items where status = 'processing')
          + case when coalesce(public.zella_setting('knowledge_ai_live', 'false'::jsonb) = 'true'::jsonb, false)
                 then (select count(*) from public.knowledge_gaps where status = 'open' and suggested_at is null and suggestion_attempts < 3) else 0 end
+      when 'call-intel' then case when coalesce(public.zella_setting('call_intel_live', 'false'::jsonb) = 'true'::jsonb, false)
+         then (select count(*) from public.call_insights where (status = 'pending' and attempts < 3) or (status = 'processing' and claimed_at < now() - interval '15 minutes')) else 0 end
       when 'calendar-sync' then case when public.zella_calendar_live()
          then (select count(*) from public.calendar_sync_queue where status = 'pending' and due_at <= now())
             + (select count(*) from public.calendar_connections where status = 'active' and busy_refresh_due_at <= now()) else 0 end

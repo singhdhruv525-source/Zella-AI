@@ -41,3 +41,7 @@ Nothing below is published or running until you do it. Everything is built; thes
 - Set platform setting `brain_tools_url` to that webhook URL, check `voice_llm_provider` / `voice_llm_model` against what Vapi supports, then send `zella_assistant_config(business_id)` to Vapi for each business (not automated yet).
 - Add real knowledge (services, prices, policies) per business and a few `ai_eval_cases`; run `zella_brain_run_evals`. Without knowledge the assistant will correctly say it does not know.
 - Say-so rule: confirm what Vapi's model name is at go-live; the default is a placeholder setting.
+
+## Call intelligence
+- Run `sql/zella_call_intelligence.sql` (already applied live). Import `n8n/workflows/zella-call-intelligence.json`, assign the Supabase credential and the gateway secret, and add the Anthropic key by hand in "Ask AI".
+- Decide the privacy wording (transcripts go to the AI provider), then set `call_intel_live` to true. Check `call_intel_model` and `call_intel_monthly_limit`.

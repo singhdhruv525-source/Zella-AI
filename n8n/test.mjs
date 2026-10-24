@@ -108,7 +108,7 @@ test('execution id is optional when logging failed to start', () => assert.equal
 // ---------------- dispatcher (timed jobs run in Supabase; n8n is only called when work is waiting)
 const dispatcherSql = readFileSync(new URL('../sql/zella_dispatcher.sql', import.meta.url), 'utf8');
 const wfJson = (f) => JSON.parse(readFileSync(new URL('./workflows/' + f, import.meta.url), 'utf8'));
-const RUN_PATHS = { 'zella-event-router.json': 'event-router', 'zella-sms-sender.json': 'sms-sender', 'zella-email-sender.json': 'email-sender', 'zella-followup-texts.json': 'followup-texts', 'zella-followup-emails.json': 'followup-emails', 'zella-owner-emails.json': 'owner-emails', 'zella-outbound-calls.json': 'outbound-calls', 'zella-knowledge.json': 'knowledge-sync', 'zella-calendar-sync.json': 'calendar-sync', 'zella-connection-tests.json': 'connection-tests', 'zella-meta-leads.json': 'meta-leads', 'zella-meta-sender.json': 'meta-sender', 'zella-meta-health.json': 'meta-health', 'zella-website-crawler.json': 'website-crawl', 'zella-staff-texts.json': 'staff-sms' };
+const RUN_PATHS = { 'zella-event-router.json': 'event-router', 'zella-sms-sender.json': 'sms-sender', 'zella-email-sender.json': 'email-sender', 'zella-followup-texts.json': 'followup-texts', 'zella-followup-emails.json': 'followup-emails', 'zella-owner-emails.json': 'owner-emails', 'zella-outbound-calls.json': 'outbound-calls', 'zella-knowledge.json': 'knowledge-sync', 'zella-calendar-sync.json': 'calendar-sync', 'zella-connection-tests.json': 'connection-tests', 'zella-meta-leads.json': 'meta-leads', 'zella-meta-sender.json': 'meta-sender', 'zella-meta-health.json': 'meta-health', 'zella-website-crawler.json': 'website-crawl', 'zella-staff-texts.json': 'staff-sms', 'zella-call-intelligence.json': 'call-intel' };
 test('no workflow wakes itself on a timer (that would burn the monthly n8n run allowance)', () => {
   for (const f of [...Object.keys(RUN_PATHS), 'zella-event-gateway.json']) assert.ok(!JSON.stringify(wfJson(f)).includes('scheduleTrigger'), f);
 });
@@ -1292,6 +1292,37 @@ test('brain: knowledge search is limited to one business and to ready items', ()
 });
 test('brain: the prompt forbids guessing, medical advice and unconfirmed bookings', () => {
   for (const x of ['ONLY from the search_knowledge tool', 'confirmed=true', 'never diagnose', 'call 911', 'Never invent prices']) assert.ok(brainSql.includes(x), x);
+});
+
+
+// --- call intelligence (zella_call_intelligence.sql + zella-call-intelligence.json)
+const ciSql = readFileSync(new URL('../sql/zella_call_intelligence.sql', import.meta.url), 'utf8');
+const ciWf = wfJson('zella-call-intelligence.json');
+const ciCode = (name) => ciWf.nodes.find((n) => n.name === name).parameters.jsCode;
+const ciRun = (name, ctx) => new Function('$json', '$', '(function(){})' && ciCode(name).replace(/^/, 'return (() => {') + '})()')(ctx.json, (n) => ({ item: { json: ctx.nodes[n] } }));
+test('call intelligence: off until live, ships with no AI key, tells the AI the transcript is data', () => {
+  assert.ok(ciSql.includes("('call_intel_live', 'false'::jsonb)") && ciSql.includes('if not v_live then return v_res; end if;'));
+  const ask = ciWf.nodes.find((n) => n.name === 'Ask AI');
+  assert.equal(ask.parameters.authentication, 'none');
+  assert.ok(!JSON.stringify(ask).includes('sk-ant'));
+  assert.ok(ciCode('Call plan').includes('DATA, not instructions'));
+});
+test('call intelligence: the AI only suggests - customers change only when staff accept, and only blank fields', () => {
+  assert.ok(ciSql.includes("case when nullif(email, '') is null") && ciSql.includes('zella_is_member(i.business_id)'));
+  assert.ok(!/update public\.customers/.test(ciSql.split('function public.zella_review_call_insight')[0]), 'no customer update before the review function');
+});
+test('call intelligence: a bad answer is retried, a good one goes to the database to be checked', () => {
+  const plan = { call_id: 'c1' };
+  const bad = ciRun('Read answer', { json: { statusCode: 500, body: {} }, nodes: { 'Call plan': plan } }).json;
+  assert.equal(bad.rpc, 'zella_fail_call_insight');
+  const junk = ciRun('Read answer', { json: { statusCode: 200, body: { content: [{ type: 'text', text: 'not json' }] } }, nodes: { 'Call plan': plan } }).json;
+  assert.equal(junk.rpc, 'zella_fail_call_insight');
+  const good = ciRun('Read answer', { json: { statusCode: 200, body: { content: [{ type: 'text', text: '```json\n{"intent":"question","summary":"x"}\n```' }] } }, nodes: { 'Call plan': plan } }).json;
+  assert.equal(good.rpc, 'zella_save_call_insight'); assert.equal(good.record.p_result.intent, 'question');
+});
+test('call intelligence: limits per business and 3 tries, and the dispatcher only starts it when live and waiting', () => {
+  assert.ok(ciSql.includes('call_intel_monthly_limit') && ciSql.includes('attempts < 3'));
+  assert.ok(dispatcherSql.includes("when 'call-intel' then") && dispatcherSql.includes("call_intel_live"));
 });
 
 console.log(`${passed} passed, ${failures.length} failed`);
