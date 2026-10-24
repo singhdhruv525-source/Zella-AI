@@ -6,6 +6,7 @@ import { RUN_LABEL, RUN_TONE, RunsPanel, describe } from "./BusinessAutomationRu
 import { formatDay, formatTime, timeAgo } from "./businessTime";
 import { useRoster } from "./BusinessLeads";
 import { AUTOMATION_OPTIONS } from "./automationOptions";
+import { OwnRuleButton } from "./BusinessOwnRule";
 import { CATALOG, NOTIFY_OPTIONS, isPreferred, orderTypes } from "./automationCatalog";
 
 const MANAGERS = ["owner", "admin", "manager"];
@@ -177,7 +178,9 @@ export function AutomationsPage({ workspace, refreshKey, onNotice }) {
   return (
     <>
       <PageHead crumb="AI & Intelligence / Automations" title="Automations"
-        sub={canManage ? "See what's running, what happened, and fix what failed. Changes apply straight away." : "Follow-ups, reminders and check-ins that run for you."} />
+        sub={canManage ? "See what's running, what happened, and fix what failed. Changes apply straight away." : "Follow-ups, reminders and check-ins that run for you."}>
+        <OwnRuleButton workspace={workspace} onNotice={onNotice} onSaved={reload} />
+      </PageHead>
       <Notice error={error} onRetry={reload} />
       {data?.list.length > 0 && (
         <>

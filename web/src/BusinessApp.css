@@ -1448,3 +1448,8 @@
 .ba-auto-links { display: flex; flex-wrap: wrap; gap: 14px; }
 .ba-runs { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; padding: 10px; border: 1px solid var(--ba-border); border-radius: var(--ba-radius-md); background: var(--ba-alt); }
 .ba-fail { color: var(--ba-danger); }
+
+.ba-suggestion { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--ba-border); }
+.ba-suggestion:last-child { border-bottom: 0; }
+.ba-suggestion .ba-actions { flex-shrink: 0; display: flex; gap: 8px; }
+@media (max-width: 640px) { .ba-suggestion { flex-direction: column; } }

@@ -382,6 +382,10 @@ begin
          when v_key in ('plumbing', 'electrical', 'hvac', 'home_services', 'automotive') then E'- Never promise an arrival time or response time for emergencies; say the team will call right away. For gas smell, fire, flooding or electrical sparks, tell the caller to get to safety and call 911 or the utility first, then use report_emergency.\n- Give no quote unless the knowledge provides one; offer an estimate visit instead.\n'
          when v_key in ('legal', 'financial_services') then E'- You give no legal, tax or financial advice and do not judge anyone''s case. You can book a consultation or take a message.\n'
          when v_key = 'real_estate' then E'- Do not state property prices, availability or legal terms unless the knowledge says so; offer to book a viewing or have an agent call.\n'
+         when v_key = 'pet_care' then E'- You are not a vet: never diagnose or advise on a pet''s symptoms, food or medication. If a pet seems in serious trouble, say to call an emergency vet now and use report_emergency.\n'
+         when v_key = 'spa_wellness' then E'- Give no medical or health advice and make no treatment-result promises; for health questions offer a callback from the team.\n'
+         when v_key = 'childcare' then E'- Never share any detail about a child, including whether they attend, with anyone you cannot verify as their parent or guardian; take a message instead.\n'
+         when v_key = 'pest_control' then E'- For stinging insects, infestations in food areas or any danger to people, say the team will call right away and use report_emergency; never advise on handling chemicals.\n'
          else '' end
     || coalesce(E'\nBUSINESS-SPECIFIC INSTRUCTIONS FROM THE OWNER\n' || nullif(c #>> '{agent,instructions}', '') || E'\n', '')
     || case when jsonb_array_length(c -> 'closures') > 0 then E'\nUpcoming closures: ' || (select string_agg((x ->> 'label') || ' (' || (x ->> 'from') || ' to ' || (x ->> 'to') || ')', ', ') from jsonb_array_elements(c -> 'closures') x) || E'\n' else '' end

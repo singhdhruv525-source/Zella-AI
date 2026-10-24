@@ -1325,6 +1325,33 @@ test('call intelligence: limits per business and 3 tries, and the dispatcher onl
   assert.ok(dispatcherSql.includes("when 'call-intel' then") && dispatcherSql.includes("call_intel_live"));
 });
 
+// --- more industries, notify_via, own rules (zella_more_industries / zella_industry_presets_more / zella_notify_via)
+const moreInd = readFileSync(new URL('../sql/zella_more_industries.sql', import.meta.url), 'utf8');
+const morePre = readFileSync(new URL('../sql/zella_industry_presets_more.sql', import.meta.url), 'utf8');
+const viaSql = readFileSync(new URL('../sql/zella_notify_via.sql', import.meta.url), 'utf8');
+test('industries: every new industry has rules and the file re-applies rules to existing businesses', () => {
+  for (const k of ['pet_care', 'landscaping', 'pest_control', 'spa_wellness', 'photography_events', 'property_management', 'childcare']) {
+    assert.ok(moreInd.includes("'" + k + "'"), 'industry ' + k + ' defined');
+    assert.ok(morePre.includes("'" + k + "'"), 'rules for ' + k);
+  }
+  assert.ok(morePre.includes('zella_apply_industry_automations'));
+});
+test('industries: no rule sends marketing or prices to customers', () => {
+  const msgs = [...morePre.matchAll(/"message":"([^"]*)"/g)].map((m) => m[1]);
+  assert.ok(msgs.length > 40);
+  for (const m of msgs) { assert.ok(!/[$€£]|\b(sale|discount|promo|% off)\b/i.test(m), m); assert.ok(m.length <= 300, m); }
+});
+test('notify_via: sms-only skips email, email-only skips text, both keeps the urgent-only text rule', () => {
+  assert.ok(viaSql.includes("v_via = 'sms'") && viaSql.includes("delivery_status := 'skipped'"));
+  assert.ok(viaSql.includes("elsif v_via = 'email' then") && viaSql.includes('new.sms_status := null'));
+  assert.ok(viaSql.includes("new.severity = 'urgent' and v_ok"));
+  assert.ok(viaSql.includes("set_config('zella.notify_via', '', true)"));
+});
+const ownRule = readFileSync(new URL('../web/src/BusinessOwnRule.jsx', import.meta.url), 'utf8');
+test('own rules: only owners and admins see the screen and the database re-checks the message', () => {
+  assert.ok(ownRule.includes('["owner", "admin"].includes(workspace.role)') && ownRule.includes('zella_save_industry_rule'));
+});
+
 console.log(`${passed} passed, ${failures.length} failed`);
 for (const f of failures) console.log('  FAIL ' + f);
 process.exit(failures.length ? 1 : 0);

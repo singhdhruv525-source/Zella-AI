@@ -45,3 +45,9 @@ Nothing below is published or running until you do it. Everything is built; thes
 ## Call intelligence
 - Run `sql/zella_call_intelligence.sql` (already applied live). Import `n8n/workflows/zella-call-intelligence.json`, assign the Supabase credential and the gateway secret, and add the Anthropic key by hand in "Ask AI".
 - Decide the privacy wording (transcripts go to the AI provider), then set `call_intel_live` to true. Check `call_intel_model` and `call_intel_monthly_limit`.
+
+## Added with the industry and alert work
+- Run, in order: `zella_industry_rule_list.sql`, `zella_more_industries.sql`, `zella_industry_presets_more.sql`, `zella_notify_via.sql` (all already applied to the live database), then `zella_dispatcher.sql` last.
+- Deploy the `owner-provision-business` edge function so the wizard can list and save every rule.
+- Texts to staff need a working SMS provider; until then "text" alerts stay queued.
+- Check the new Calls suggestions panel and the "Write your own rule" screen in a real browser build (only compile-checked so far).
