@@ -9,7 +9,7 @@ Item numbers and names come from the Zella AI Complete Automation Guide. Status 
 
 Items are served by a small set of shared workflows (see `n8n/README.md`), not one workflow per item. Many industry items (196 to 254) are configurations of the shared appointment, message, assignment and reminder engines; the 98 starter automation rows per industry are seeded in the database.
 
-**Totals:** Built 223, Partly 27, Rules ready 31, Not built 57.
+**Totals:** Built 226, Partly 24, Rules ready 31, Not built 57.
 
 
 ## 1. Calls and AI receptionist (16) — Built 8, Partly 4, Rules ready 4, Not built 0
@@ -248,20 +248,20 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 180 | Retrieval failure handling | Not built |
 | 181 | FAQ maintenance | Built |
 
-## 12. Staff and team operations (14) — Built 9, Partly 3, Rules ready 2, Not built 0
+## 12. Staff and team operations (14) — Built 12, Partly 0, Rules ready 2, Not built 0
 
 | # | Automation | Status |
 |---|---|---|
 | 182 | Work assignment | Built |
 | 183 | Workload-aware routing | Built |
 | 184 | Staff invitations | Rules ready |
-| 185 | Staff availability | Partly |
+| 185 | Staff availability | Built |
 | 186 | Unassigned-work alerts | Built |
-| 187 | Overdue-task alerts | Partly |
+| 187 | Overdue-task alerts | Built |
 | 188 | Appointment notifications | Rules ready |
 | 189 | Shift handover | Built |
 | 190 | Absence reassignment | Built |
-| 191 | Manager escalation | Partly |
+| 191 | Manager escalation | Built |
 | 192 | Human takeover controls | Built |
 | 193 | Escalation acknowledgment | Built |
 | 194 | Daily team summary | Built |

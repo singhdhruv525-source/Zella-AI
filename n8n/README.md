@@ -342,3 +342,6 @@ Run `sql/zella_meta_window.sql` (safe to repeat; after `zella_meta.sql`). When a
 
 ## Knowledge extras
 Run `sql/zella_knowledge_extras.sql` (safe to repeat), then re-run `zella_dispatcher.sql`. The website reader now suggests `price` ("Haircut - $45") and `product` answers as drafts, like every other suggestion (Website Crawler workflow updated in n8n). A daily check finds two approved answers that disagree (same kind and title, or two sets of opening hours), flags the newer one and tells the owner once.
+
+## Staff extras
+Run `sql/zella_staff_extras.sql` (safe to repeat), then re-run `zella_dispatcher.sql`. Time off: `zella_request_time_off` (any member) and `zella_decide_time_off` (managers); approval blocks the calendar and flags existing appointments for rebooking. Hourly: an open task past its due time (grace `task_overdue_grace_minutes`, default 60) tells the person it belongs to, or the owners if unassigned, once; after `task_escalate_hours` (default 24) it becomes urgent and the owners are told.

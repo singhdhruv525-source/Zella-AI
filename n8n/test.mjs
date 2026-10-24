@@ -1004,6 +1004,12 @@ test('knowledge extras: conflict detection runs daily and only tells businesses 
   assert.ok(k.includes("'product', 'price'") && k.includes('business_id = any (v_biz)') && k.includes('c.conflicts_with is null'));
   assert.ok(dispatcherSql.includes("'zella_detect_knowledge_conflicts'"));
 });
+test('staff extras: time off blocks the calendar, overdue tasks are told once and escalate after a day', () => {
+  const x = readFileSync(new URL('../sql/zella_staff_extras.sql', import.meta.url), 'utf8');
+  assert.ok(x.includes('zella_can_manage(r.business_id)') && x.includes("insert into public.blocked_times") && x.includes("'time_off'"));
+  assert.ok(x.includes("k.kind <> 'overdue_contact'") && x.includes('overdue_notified_at is null') && x.includes("priority = 'urgent'"));
+  assert.equal(dispatcherSql.split("'zella_check_overdue_tasks'").length - 1, 2);
+});
 test('meta workflows: the webhook is open (Meta cannot send our header) but every event is checked by signature in the database', () => {
   const w = wfJson('zella-meta-webhook.json');
   const post = w.nodes.find((n) => n.name === 'Meta events'); const get = w.nodes.find((n) => n.name === 'Meta set-up check');
