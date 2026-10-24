@@ -1163,6 +1163,13 @@ test('text replies: confirm and reschedule replies act on the next appointment, 
   assert.ok(!x.includes("'C'") && !x.includes("'R'"));
 });
 
+test('industry templates: dental, fitness, healthcare and salon wording; healthcare names no service', () => {
+  const x = readFileSync(new URL('../sql/zella_industry_templates.sql', import.meta.url), 'utf8');
+  for (const s of ["'dental'", "'fitness'", "'healthcare'", "'beauty-salon'", "'waitlist_offer'"]) assert.ok(x.includes(s), s);
+  const health = x.split('\n').filter((l) => l.includes("('healthcare'"));
+  assert.ok(health.length === 2 && health.every((l) => !l.includes('{{appointment}}')));
+});
+
 console.log(`${passed} passed, ${failures.length} failed`);
 for (const f of failures) console.log('  FAIL ' + f);
 process.exit(failures.length ? 1 : 0);

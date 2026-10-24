@@ -9,7 +9,7 @@ Item numbers and names come from the Zella AI Complete Automation Guide. Status 
 
 Items are served by a small set of shared workflows (see `n8n/README.md`), not one workflow per item. Many industry items (196 to 254) are configurations of the shared appointment, message, assignment and reminder engines; the 98 starter automation rows per industry are seeded in the database.
 
-**Totals:** Built 241, Partly 9, Rules ready 31, Not built 57.
+**Totals:** Built 245, Partly 5, Rules ready 31, Not built 57.
 
 
 ## 1. Calls and AI receptionist (16) — Built 12, Partly 0, Rules ready 4, Not built 0
@@ -267,7 +267,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 194 | Daily team summary | Built |
 | 195 | Offboarding and access revocation | Built |
 
-## 13. Industry-specific workflows (59) — Built 0, Partly 4, Rules ready 0, Not built 55
+## 13. Industry-specific workflows (59) — Built 4, Partly 0, Rules ready 0, Not built 55
 
 | # | Automation | Status |
 |---|---|---|
@@ -276,11 +276,11 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 198 | Automotive — pickup | Not built |
 | 199 | Automotive — maintenance | Not built |
 | 200 | Beauty & Salon — stylist bookings | Not built |
-| 201 | Beauty & Salon — waitlist | Partly |
+| 201 | Beauty & Salon — waitlist | Built |
 | 202 | Beauty & Salon — rebooking | Not built |
 | 203 | Beauty & Salon — membership renewal | Not built |
 | 204 | Dental — patient recall | Not built |
-| 205 | Dental — reminders | Partly |
+| 205 | Dental — reminders | Built |
 | 206 | Dental — administrative follow-up | Not built |
 | 207 | E-commerce — order updates | Not built |
 | 208 | E-commerce — returns | Not built |
@@ -296,11 +296,11 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 218 | Financial Services — application | Not built |
 | 219 | Financial Services — renewal | Not built |
 | 220 | Fitness — trial booking | Not built |
-| 221 | Fitness — class reminders | Partly |
+| 221 | Fitness — class reminders | Built |
 | 222 | Fitness — membership | Not built |
 | 223 | Healthcare — administration | Not built |
 | 224 | Healthcare — referrals | Not built |
-| 225 | Healthcare — appointments | Partly |
+| 225 | Healthcare — appointments | Built |
 | 226 | Home Services — job scheduling | Not built |
 | 227 | Home Services — dispatch | Not built |
 | 228 | Home Services — repeat service | Not built |

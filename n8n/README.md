@@ -367,3 +367,6 @@ Every workflow stops a run after 300 seconds (already set on the live workflows)
 
 ## Text replies that act
 Run `sql/zella_reply_actions.sql` (after `zella_reschedule.sql` and `zella_inbound_replies.sql`). It replaces the incoming-text handler the router already calls, so no workflow changes. On top of STOP / START / HELP: a known customer replying CONFIRM / YES / Y / OK with an appointment in the next 7 days gets it marked confirmed and a thank-you text; RESCHEDULE / CHANGE / MOVE (or "need a new time", "can't make it") creates a high-priority callback, queues the "we have let the business know" text and warns staff; words like urgent / emergency / asap raise the staff notice to a warning. Single letters C and R are deliberately not special. Everything else is saved and shown to staff as before.
+
+## Industry wording
+Run `sql/zella_industry_templates.sql`. Reminder texts and emails for dental (arrive early), fitness (class spot), healthcare (administrative only: no service name, no health details, "do not reply with health details") and beauty salons, plus a salon waitlist-offer text. The reminder and waitlist machinery is shared by all industries; a business-level template still wins over these.
