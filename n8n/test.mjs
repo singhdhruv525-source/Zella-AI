@@ -1368,6 +1368,19 @@ test('voice: a restaurant hears about reservations, tables and guests', () => {
   assert.ok(/table|reservation/i.test(voice.voiceTitle({ id: 'a', kind: 'appointment_cancelled', title: 'Appointment cancelled' }, r)));
   assert.equal(voice.voiceTitle({ id: 'z', kind: 'x', title: 'A customer changed their appointment' }, r), 'A guest changed their reservation');
 });
+const fixSql = readFileSync(new URL('../sql/zella_industry_fixes.sql', import.meta.url), 'utf8');
+test('industry fixes: due reminders read a date field, closed statuses can still remind, emergencies match any capitals', () => {
+  assert.ok(fixSql.includes('zella_record_due') && fixSql.includes("'due_field'") && fixSql.includes('include_closed'));
+  assert.ok(fixSql.includes("lower(new.data ->> (r -> ''when_data'' ->> ''key''))"));
+  assert.ok(fixSql.includes("'hvac', 'Emergency intake'") && fixSql.includes('"key": "urgency"'));
+});
+test('industry fixes: every due reminder preset has a date field named in the fix file', () => {
+  const dueNames = [...morePre.matchAll(/\('[a-z_]+','([^']+)',\d+,'[^']*','record_due_reminder'/g)].map((m) => m[1]);
+  assert.ok(dueNames.length >= 9);
+  const presetsOld = readFileSync(new URL('../sql/zella_industry_presets.sql', import.meta.url), 'utf8');
+  const all = [...dueNames, ...[...presetsOld.matchAll(/\('[a-z_]+','([^']+)',\d+,'[^']*','record_due_reminder'/g)].map((m) => m[1])];
+  for (const name of all) assert.ok(fixSql.includes("'" + name + "'"), 'due field for ' + name);
+});
 
 console.log(`${passed} passed, ${failures.length} failed`);
 for (const f of failures) console.log('  FAIL ' + f);
