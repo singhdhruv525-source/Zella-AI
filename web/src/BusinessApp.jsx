@@ -18,6 +18,7 @@ import "./BusinessApp.css";
 import { supabase } from "./supabase";
 import { BusinessSignIn, Welcome } from "./BusinessAuth";
 import "./CrmMotion.css";
+import { warm } from "./zellaVoice";
 import BusinessToday from "./BusinessToday";
 import { AddLeadModal, BookAppointmentModal } from "./BusinessForms";
 import { Icon, Pill, initials, loadBusinessFonts } from "./BusinessUI";
@@ -115,7 +116,8 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
   const [modal, setModal] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState("");
+  const [notice, setNoticeRaw] = useState("");
+  const setNotice = (message) => setNoticeRaw(warm(message));
   const [search, setSearch] = useState("");
   const [profileId, setProfileId] = useState(null);
   const [attention, setAttention] = useState(0);

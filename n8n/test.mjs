@@ -1352,6 +1352,18 @@ test('own rules: only owners and admins see the screen and the database re-check
   assert.ok(ownRule.includes('["owner", "admin"].includes(workspace.role)') && ownRule.includes('zella_save_industry_rule'));
 });
 
+// --- Zella's voice for notifications and confirmations
+const voice = await import('../web/src/zellaVoice.js');
+test('voice: friendly wording keeps the facts and leaves unknown messages alone', () => {
+  assert.ok(voice.voiceTitle({ id: 'x', kind: 'customer_arrived', title: 'Jane Doe has arrived' }).includes('Jane Doe'));
+  assert.equal(voice.voiceTitle({ id: 'x', kind: 'something_new', title: 'Original' }), 'Original');
+  assert.ok(voice.warm('Cleaning moved to Mon').startsWith('Cleaning moved to Mon'));
+  assert.equal(voice.warm('Totally different message'), 'Totally different message');
+});
+test('voice: an emergency stays plain and clear', () => {
+  for (const id of ['a', 'b', 'c', 'd']) assert.ok(/emergency|can't wait/i.test(voice.voiceTitle({ id, kind: 'emergency_call', title: 'Emergency call' })));
+});
+
 console.log(`${passed} passed, ${failures.length} failed`);
 for (const f of failures) console.log('  FAIL ' + f);
 process.exit(failures.length ? 1 : 0);

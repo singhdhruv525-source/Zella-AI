@@ -52,3 +52,10 @@
 @keyframes ba-pop { from { transform: scale(0.96); } to { transform: none; } }
 @keyframes ba-fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 @keyframes ba-slide { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+
+/* Urgent notifications are easy to spot, without shouting. */
+.ba-bell-panel li.urgent button { box-shadow: inset 3px 0 0 var(--ba-danger); }
+@media (prefers-reduced-motion: no-preference) {
+  .ba-count.urgent { animation: ba-beat 1.8s ease-in-out infinite; }
+}
+@keyframes ba-beat { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.18); } }
