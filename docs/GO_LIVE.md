@@ -35,3 +35,9 @@ Nothing below is published or running until you do it. Everything is built; thes
 ## Industry rule list (setup wizard)
 - Run `sql/zella_industry_rule_list.sql` (already applied live). It adds three general rules anyone can switch on and the list/set functions.
 - Deploy the `owner-provision-business` edge function: the wizard's automation step now shows standard + industry-made + general rules with on/off and "tell the owner by".
+
+## Receptionist brain
+- Run `sql/zella_brain.sql` (already applied live). Import `n8n/workflows/zella-brain-tools.json` (webhook `/webhook/zella/vapi-brain`).
+- Set platform setting `brain_tools_url` to that webhook URL, check `voice_llm_provider` / `voice_llm_model` against what Vapi supports, then send `zella_assistant_config(business_id)` to Vapi for each business (not automated yet).
+- Add real knowledge (services, prices, policies) per business and a few `ai_eval_cases`; run `zella_brain_run_evals`. Without knowledge the assistant will correctly say it does not know.
+- Say-so rule: confirm what Vapi's model name is at go-live; the default is a placeholder setting.

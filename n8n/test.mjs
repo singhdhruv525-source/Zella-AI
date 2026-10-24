@@ -1257,6 +1257,43 @@ test('rule list: general rules are plain check-ins, no marketing', () => {
   assert.ok(!/discount|% off|promo/i.test(ruleListSql));
 });
 
+
+// --- receptionist brain (zella_brain.sql + zella-brain-tools.json)
+const brainSql = readFileSync(new URL('../sql/zella_brain.sql', import.meta.url), 'utf8');
+const brainWf = wfJson('zella-brain-tools.json');
+const planCode = brainWf.nodes.find((n) => n.name === 'Plan').parameters.jsCode;
+const runPlan = (message) => new Function('$json', planCode.replace(/^/, 'return (() => {') + '})()')({ body: { message } }).json;
+const toolMsg = (name, args, extra = {}) => ({ type: 'tool-calls', call: { id: 'call-1', customer: { number: '+15555550123' }, metadata: { business_id: BIZ }, ...extra }, toolCallList: [{ id: 'tc-1', name, arguments: args }] });
+test('brain: the webhook only allows the tools the database defines', () => {
+  const m = planCode.match(/const TOOLS = \[([\s\S]*?)\];/)[1].match(/'([a-z_]+)'/g).map((x) => x.slice(1, -1));
+  const sqlNames = [...brainSql.matchAll(/jsonb_build_object\('name', '([a-z_]+)', 'consequential'/g)].map((x) => x[1]);
+  assert.deepEqual([...m].sort(), [...sqlNames].sort());
+});
+test('brain: unknown tools do nothing, and a missing yes is never treated as a yes', () => {
+  assert.equal(runPlan(toolMsg('drop_database', {})).record, null);
+  assert.equal(runPlan(toolMsg('book_appointment', { start: 'x', confirmed: 'true' })).record.p_args.confirmed, false);
+  assert.equal(runPlan(toolMsg('book_appointment', { start: 'x', confirmed: true })).record.p_args.confirmed, true);
+});
+test('brain: the caller number comes from the phone network, not from what is said', () => {
+  const r = runPlan(toolMsg('find_my_appointments', { phone: '+19998887777', caller_number: '+19998887777' })).record;
+  assert.equal(r.p_args.caller_number, '+15555550123');
+  assert.equal(r.p_idempotency_key, 'call-1:tc-1');
+});
+test('brain: sql sends everything through one audited door, with confirm, verify and no repeats', () => {
+  assert.ok(brainSql.includes('function public.zella_ai_tool('));
+  assert.ok(brainSql.includes("'need_confirmation'") && brainSql.includes("'unverified'") && brainSql.includes('idempotency_key'));
+  assert.ok(brainSql.includes("v_def is null then return jsonb_build_object('ok', false, 'status', 'unknown_tool'"));
+  assert.ok(brainSql.includes('revoke execute on function public.zella_ai_tool(text, uuid, text, jsonb, text) from public, anon, authenticated;'));
+  assert.ok(!/execute\s+format|execute\s+'/.test(brainSql.replace(/revoke execute|grant execute/g, '')), 'no dynamic sql');
+});
+test('brain: knowledge search is limited to one business and to ready items', () => {
+  assert.ok(brainSql.includes("k.business_id = p_business_id and k.status = 'ready'"));
+  assert.ok(brainSql.includes('revoke execute on function public.zella_brain_search(uuid, text, integer) from public, anon, authenticated;'));
+});
+test('brain: the prompt forbids guessing, medical advice and unconfirmed bookings', () => {
+  for (const x of ['ONLY from the search_knowledge tool', 'confirmed=true', 'never diagnose', 'call 911', 'Never invent prices']) assert.ok(brainSql.includes(x), x);
+});
+
 console.log(`${passed} passed, ${failures.length} failed`);
 for (const f of failures) console.log('  FAIL ' + f);
 process.exit(failures.length ? 1 : 0);
