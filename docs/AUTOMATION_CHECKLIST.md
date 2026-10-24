@@ -9,7 +9,7 @@ Item numbers and names come from the Zella AI Complete Automation Guide. Status 
 
 Items are served by a small set of shared workflows (see `n8n/README.md`), not one workflow per item. Many industry items (196 to 254) are configurations of the shared appointment, message, assignment and reminder engines; the 98 starter automation rows per industry are seeded in the database.
 
-**Totals:** Built 254, Partly 5, Rules ready 23, Not built 56.
+**Totals:** Built 258, Partly 5, Rules ready 19, Not built 56.
 
 
 ## 1. Calls and AI receptionist (16) — Built 12, Partly 0, Rules ready 4, Not built 0
@@ -52,11 +52,11 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 29 | Duplicate callback prevention | Built |
 | 30 | Callback recovery | Built |
 
-## 3. Appointments and calendars (20) — Built 14, Partly 2, Rules ready 4, Not built 0
+## 3. Appointments and calendars (20) — Built 18, Partly 2, Rules ready 0, Not built 0
 
 | # | Automation | Status |
 |---|---|---|
-| 31 | Booking acknowledgment | Rules ready |
+| 31 | Booking acknowledgment | Built |
 | 32 | Availability checking | Built |
 | 33 | Appointment booking | Built |
 | 34 | Confirmation delivery | Built |
@@ -67,11 +67,11 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 39 | Cancellation handling | Built |
 | 40 | Old reminder invalidation | Built |
 | 41 | Calendar synchronization | Partly |
-| 42 | Staff appointment notifications | Rules ready |
+| 42 | Staff appointment notifications | Built |
 | 43 | Waitlist and open-slot recovery | Built |
-| 44 | Check-in and attendance | Rules ready |
+| 44 | Check-in and attendance | Built |
 | 45 | No-show follow-up | Built |
-| 46 | Appointment completion | Rules ready |
+| 46 | Appointment completion | Built |
 | 47 | Thank-you message | Built |
 | 48 | Feedback and review request | Built |
 | 49 | Repeat booking and recall | Built |

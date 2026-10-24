@@ -1,5 +1,5 @@
 -- Zella - the dispatcher. Safe to run more than once.
--- Needs zella_staff_extras.sql, zella_security_extras.sql, zella_data_rights.sql, zella_inbound_calls.sql, zella_knowledge_insights.sql, zella_customer_records.sql, zella_knowledge_extras.sql, zella_message_types.sql, zella_staff_sms.sql, zella_ops_automation.sql, zella_retention.sql (team summary, spot checks, reconcile), zella_website_crawler.sql (website lane) and zella_meta.sql (meta lanes) run first.
+-- Needs zella_staff_extras.sql, zella_security_extras.sql, zella_data_rights.sql, zella_inbound_calls.sql, zella_knowledge_insights.sql, zella_customer_records.sql, zella_appointment_flow.sql, zella_knowledge_extras.sql, zella_message_types.sql, zella_staff_sms.sql, zella_ops_automation.sql, zella_retention.sql (team summary, spot checks, reconcile), zella_website_crawler.sql (website lane) and zella_meta.sql (meta lanes) run first.
 -- WHY: n8n Cloud's Starter plan allows 2,500 workflow runs a month, and a workflow that wakes up every
 -- minute uses ~43,000. So the timer now lives in Supabase (free), and n8n is only called when there is
 -- something waiting. Two parts:
@@ -34,7 +34,7 @@ begin
                    'zella_queue_quote_followups', 'zella_post_daily_summaries', 'zella_queue_lead_reactivation',
                    'zella_check_setup_incomplete', 'zella_check_trials', 'zella_apply_payment_policy', 'zella_post_weekly_reviews',
                    'zella_flag_overdue_callbacks', 'zella_sweep_stuck_calls', 'zella_check_engine_health', 'zella_schedule_calendar_pulls',
-                   'zella_rebalance_assignments', 'zella_check_unassigned_work', 'zella_check_customer_requests', 'zella_queue_customer_touches', 'zella_check_kpis', 'zella_check_escalation_acks', 'zella_recover_orphaned_work', 'zella_check_renewals', 'zella_post_callback_digests', 'zella_check_connections', 'zella_post_team_summaries', 'zella_sample_ai_responses', 'zella_reconcile', 'zella_retention_scan', 'zella_recover_failed_texts', 'zella_detect_knowledge_conflicts', 'zella_check_overdue_tasks', 'zella_run_tenant_check', 'zella_notify_message_failures', 'zella_remind_integrations', 'zella_check_data_rights_due', 'zella_remind_upcoming_callbacks', 'zella_detect_repeated_questions', 'zella_send_gap_reports', 'zella_scan_duplicates') then
+                   'zella_rebalance_assignments', 'zella_check_unassigned_work', 'zella_check_customer_requests', 'zella_queue_customer_touches', 'zella_check_kpis', 'zella_check_escalation_acks', 'zella_recover_orphaned_work', 'zella_check_renewals', 'zella_post_callback_digests', 'zella_check_connections', 'zella_post_team_summaries', 'zella_sample_ai_responses', 'zella_reconcile', 'zella_retention_scan', 'zella_recover_failed_texts', 'zella_detect_knowledge_conflicts', 'zella_check_overdue_tasks', 'zella_run_tenant_check', 'zella_notify_message_failures', 'zella_remind_integrations', 'zella_check_data_rights_due', 'zella_remind_upcoming_callbacks', 'zella_detect_repeated_questions', 'zella_send_gap_reports', 'zella_scan_duplicates', 'zella_flag_unrecorded_appointments') then
     return 'not_allowed';
   end if;
   begin
@@ -54,7 +54,7 @@ begin
   for j in select unnest(case p_group
       when 'every5'  then array['zella_flag_overdue_leads', 'zella_expire_holds', 'zella_expire_waitlist_offers', 'zella_detect_transfer_failures', 'zella_flag_overdue_callbacks', 'zella_sweep_stuck_calls', 'zella_check_engine_health', 'zella_rebalance_assignments', 'zella_check_unassigned_work', 'zella_check_escalation_acks', 'zella_remind_upcoming_callbacks']
       when 'every15' then array['zella_queue_quote_followups', 'zella_recover_orphaned_work']
-      when 'hourly'  then array['zella_post_daily_summaries', 'zella_schedule_calendar_pulls', 'zella_check_customer_requests', 'zella_post_callback_digests', 'zella_post_team_summaries', 'zella_recover_failed_texts', 'zella_check_overdue_tasks', 'zella_detect_repeated_questions']
+      when 'hourly'  then array['zella_post_daily_summaries', 'zella_schedule_calendar_pulls', 'zella_check_customer_requests', 'zella_post_callback_digests', 'zella_post_team_summaries', 'zella_recover_failed_texts', 'zella_check_overdue_tasks', 'zella_detect_repeated_questions', 'zella_flag_unrecorded_appointments']
       when 'daily'   then array['zella_queue_lead_reactivation', 'zella_check_setup_incomplete', 'zella_check_trials', 'zella_apply_payment_policy', 'zella_queue_customer_touches', 'zella_check_kpis', 'zella_check_renewals', 'zella_check_connections', 'zella_sample_ai_responses', 'zella_reconcile', 'zella_retention_scan', 'zella_detect_knowledge_conflicts', 'zella_run_tenant_check', 'zella_notify_message_failures', 'zella_check_data_rights_due', 'zella_scan_duplicates']
       when 'weekly'  then array['zella_post_weekly_reviews', 'zella_remind_integrations', 'zella_send_gap_reports']
       else array[]::text[] end) loop

@@ -1188,6 +1188,14 @@ test('customer records: staff add, change history, merge, duplicate scan and tim
   assert.ok(dispatcherSql.includes("'zella_scan_duplicates'"));
 });
 
+test('appointment flow: staff notices, arrival by text, and unrecorded appointments become tasks', () => {
+  const x = readFileSync(new URL('../sql/zella_appointment_flow.sql', import.meta.url), 'utf8');
+  for (const s of ['zella_appointment_new_trg', 'zella_appointment_staff_trg', 'customer_arrived', 'zella_flag_unrecorded_appointments', "'record_attendance'"]) assert.ok(x.includes(s), s);
+  assert.ok(!x.includes("status = 'completed'") , 'nothing is marked completed from the clock');
+  assert.ok(readFileSync(new URL('../sql/zella_reply_actions.sql', import.meta.url), 'utf8').includes("'ARRIVED'"));
+  assert.ok(dispatcherSql.includes("'zella_flag_unrecorded_appointments'"));
+});
+
 console.log(`${passed} passed, ${failures.length} failed`);
 for (const f of failures) console.log('  FAIL ' + f);
 process.exit(failures.length ? 1 : 0);

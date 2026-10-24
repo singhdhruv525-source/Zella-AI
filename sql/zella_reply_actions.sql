@@ -2,6 +2,7 @@
 -- Needs zella_reschedule.sql and zella_inbound_replies.sql first. Replaces zella_handle_inbound_sms_keyword with a version that also:
 --   * CONFIRM / YES / Y / OK on a known customer with an appointment in the next 7 days -> the appointment is marked confirmed and a thank-you text is queued
 --   * RESCHEDULE / CHANGE / MOVE (or "need a new time") -> a callback is created for staff and the customer gets "we have let the business know"
+--   * HERE / ARRIVED within an hour of an appointment -> the customer is marked arrived and staff are told
 --   * words like urgent / emergency / asap raise the staff notice to a warning
 -- STOP, START and HELP are unchanged. The router workflow does not change.
 create or replace function public.zella_handle_inbound_sms_keyword(p_business_id uuid, p_from text, p_body text)
@@ -34,6 +35,16 @@ begin
       insert into public.followup_tasks (business_id, customer_id, kind, channel, due_at, max_attempts) values (p_business_id, v_cust, 'reply_help', 'sms', now(), 2);
     end if;
     return jsonb_build_object('action', 'help', 'reply_queued', v_cust is not null);
+  end if;
+
+  if v_cust is not null and k in ('HERE','ARRIVED','IMHERE','CHECKIN','CHECKEDIN') then
+    select a.id into v_appt from public.appointments a
+     where a.business_id = p_business_id and a.customer_id = v_cust and a.status in ('scheduled', 'confirmed')
+       and a.start_time between now() - interval '30 minutes' and now() + interval '60 minutes' order by a.start_time limit 1;
+    if v_appt.id is not null then
+      perform public.zella_set_attendance(v_appt.id, 'arrived');
+      return jsonb_build_object('action', 'arrived', 'appointment_id', v_appt.id);
+    end if;
   end if;
 
   if v_cust is not null then
