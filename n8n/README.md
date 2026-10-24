@@ -395,3 +395,6 @@ A calendar that loses access now tells the owners at once (run after `zella_cale
 
 ## Lifecycle (checklist 301, 305, 308) - `sql/zella_lifecycle.sql`
 Owners are told when the account is paused, switched back on or cancelled. A cancellation scheduled for a date (`cancel_at`) takes effect daily via `zella_apply_scheduled_cancellations()` (3-day reminder first); cancelling stops automations, callbacks, follow-ups and reminders but keeps every record until `retention_until`. Hourly `zella_recover_provisioning()` marks setup steps stuck for 30+ minutes as failed so an admin sees and retries them.
+
+## Audit and permission checks (checklist 313, 314, 326) - `sql/zella_audit_permissions.sql`
+Changes to team roles, the AI agent, automations, platform settings and suspension/cancellation are written to `audit_logs` as `privileged_*` (only which fields changed - never values - except roles/status). Daily `zella_run_permission_check()` raises an urgent platform alert if a signed-out visitor can call a function that is not on the short public list, or a table policy lets everyone in. Tenant isolation is checked daily by `zella_run_tenant_check` (already built).

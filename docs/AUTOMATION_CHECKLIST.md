@@ -9,7 +9,7 @@ Item numbers and names come from the Zella AI Complete Automation Guide. Status 
 
 Items are served by a small set of shared workflows (see `n8n/README.md`), not one workflow per item. Many industry items (196 to 254) are configurations of the shared appointment, message, assignment and reminder engines; the 98 starter automation rows per industry are seeded in the database.
 
-**Totals:** Built 266, Partly 4, Rules ready 12, Not built 56.
+**Totals:** Built 269, Partly 4, Rules ready 9, Not built 56.
 
 
 ## 1. Calls and AI receptionist (16) — Built 12, Partly 0, Rules ready 4, Not built 0
@@ -408,13 +408,13 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 310 | Administrative audit | Built |
 | 311 | Plan entitlement checks | Built |
 
-## 18. Security, consent and governance (15) — Built 12, Partly 0, Rules ready 3, Not built 0
+## 18. Security, consent and governance (15) — Built 15, Partly 0, Rules ready 0, Not built 0
 
 | # | Automation | Status |
 |---|---|---|
 | 312 | UUID and identifier validation | Built |
-| 313 | Tenant isolation | Rules ready |
-| 314 | Permission enforcement | Rules ready |
+| 313 | Tenant isolation | Built |
+| 314 | Permission enforcement | Built |
 | 315 | Consent validation | Built |
 | 316 | Opt-out enforcement | Built |
 | 317 | Quiet-hour enforcement | Built |
@@ -426,7 +426,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 323 | Data-rights workflow | Built |
 | 324 | Recording and transcript access control | Built |
 | 325 | Tenant-leak testing | Built |
-| 326 | Privileged-action audit | Rules ready |
+| 326 | Privileged-action audit | Built |
 
 ## 19. Analytics and optimization (12) — Built 12, Partly 0, Rules ready 0, Not built 0
 

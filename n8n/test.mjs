@@ -1161,6 +1161,12 @@ test('lifecycle: suspension/cancellation notices, scheduled cancellation and stu
   for (const f of ['zella_apply_scheduled_cancellations', 'zella_recover_provisioning']) assert.ok(dispatcherSql.includes("'" + f + "'"), f);
 });
 
+test('audit and permissions: privileged changes are logged and a daily check looks for open access', () => {
+  const x = readFileSync(new URL('../sql/zella_audit_permissions.sql', import.meta.url), 'utf8');
+  for (const f of ['zella_audit_privileged', 'zella_permission_check', 'zella_run_permission_check', 'business_members', 'changed_fields']) assert.ok(x.includes(f), f);
+  assert.ok(dispatcherSql.includes("'zella_run_permission_check'"));
+});
+
 test('timeouts: every workflow has a run time limit and every outside call has a time limit', () => {
   for (const f of readdirSync(new URL('./workflows/', import.meta.url))) {
     const w = wfJson(f);
