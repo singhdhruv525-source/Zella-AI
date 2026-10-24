@@ -976,6 +976,16 @@ test('messaging extras: unsubscribe link, preferred channel, failed-text fallbac
   const sent = runCode('email-task-after-log.js', { json: { statusCode: 200, body: { id: 'm1' } }, nodes: { Decide: { task_id: 't1', live: true, from: 'a@b.co', to: 'c@d.co', subject: 's', text: 't', html: 'h', unsubscribe_url: 'https://app.example.com/u/' + 'a'.repeat(32) } } }).json;
   assert.ok(sent.resend.headers['List-Unsubscribe'].includes('/u/'));
 });
+test('meta window: a closed window tells the team, and WhatsApp can send an approved template', () => {
+  const w = readFileSync(new URL('../sql/zella_meta_window.sql', import.meta.url), 'utf8');
+  assert.ok(w.includes("upper(status) = 'APPROVED'") && w.includes("'social_window_closed'") && w.includes('TEMPLATE_HAS_VALUES'));
+  const p = (j) => runCode('meta-send-plan.js', { json: j }).json;
+  const base = { id: '3f1c2b4e-5a6d-4e7f-8a9b-0c1d2e3f4a5b', page_id: '123456', channel: 'whatsapp', recipient: '15551230000', text: 'Hi', whatsapp_phone_id: '1234567890' };
+  const ok = p({ ...base, kind: 'template', template_name: 'hello_again', template_language: 'en_US' });
+  assert.equal(ok.valid, true); assert.equal(ok.body.type, 'template'); assert.equal(ok.body.template.language.code, 'en_US');
+  assert.equal(p({ ...base, kind: 'template', template_name: 'Bad Name;', template_language: 'en_US' }).valid, false);
+  assert.equal(p({ ...base, kind: 'template', template_name: 'hello_again', template_language: 'english' }).valid, false);
+});
 test('meta workflows: the webhook is open (Meta cannot send our header) but every event is checked by signature in the database', () => {
   const w = wfJson('zella-meta-webhook.json');
   const post = w.nodes.find((n) => n.name === 'Meta events'); const get = w.nodes.find((n) => n.name === 'Meta set-up check');

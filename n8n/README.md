@@ -336,3 +336,6 @@ Run `sql/zella_messaging_extras.sql` (safe to repeat; after `zella_message_types
 - **Failed texts:** a text that failed for good goes by email once (hourly job), and 5+ failed texts in an hour raise a platform alert.
 - **Reactivation by email:** set the lead-reactivation automation's channel to `email` (needs marketing opt-in).
 - **Reports:** `zella_preview_template`, `zella_message_summary`, `zella_campaign_report` (leads, qualified, booked, won by source and campaign).
+
+## Social reply window and WhatsApp templates
+Run `sql/zella_meta_window.sql` (safe to repeat; after `zella_meta.sql`). When an automatic reply is dropped because the 24-hour window closed, the team now gets a notification instead of silence. On WhatsApp a team member can send an approved template that has no fill-in values with `zella_meta_staff_template(conversation, template_name)`. The Meta Sender workflow (updated in n8n) sends it. Writing new templates is still done in Meta Business Manager; the Meta Health workflow syncs their approval status.

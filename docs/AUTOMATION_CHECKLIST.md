@@ -9,7 +9,7 @@ Item numbers and names come from the Zella AI Complete Automation Guide. Status 
 
 Items are served by a small set of shared workflows (see `n8n/README.md`), not one workflow per item. Many industry items (196 to 254) are configurations of the shared appointment, message, assignment and reminder engines; the 98 starter automation rows per industry are seeded in the database.
 
-**Totals:** Built 216, Partly 34, Rules ready 31, Not built 57.
+**Totals:** Built 219, Partly 31, Rules ready 31, Not built 57.
 
 
 ## 1. Calls and AI receptionist (16) — Built 8, Partly 4, Rules ready 4, Not built 0
@@ -162,15 +162,15 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 114 | Data-rights requests | Partly |
 | 115 | Opt-out enforcement | Built |
 
-## 8. Meta automation (16) — Built 12, Partly 4, Rules ready 0, Not built 0
+## 8. Meta automation (16) — Built 15, Partly 1, Rules ready 0, Not built 0
 
 | # | Automation | Status |
 |---|---|---|
 | 116 | Facebook Lead Ads integration | Built |
 | 117 | Lead import and CRM sync | Built |
-| 118 | Instagram DM handling | Partly |
-| 119 | Messenger handling | Partly |
-| 120 | WhatsApp Business handling | Partly |
+| 118 | Instagram DM handling | Built |
+| 119 | Messenger handling | Built |
+| 120 | WhatsApp Business handling | Built |
 | 121 | Social lead qualification | Built |
 | 122 | Social conversation assignment | Built |
 | 123 | Social appointment flow | Built |
