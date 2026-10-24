@@ -1182,6 +1182,12 @@ test('industry engine: rule types, presets for every industry and the hourly tim
   assert.ok(dispatcherSql.includes("'zella_run_industry_timers'"));
 });
 
+test('call integrity: missed-call detection, AI failure hand-off, stuck calls, knowledge recovery, moved appointments', () => {
+  const x = readFileSync(new URL('../sql/zella_call_integrity.sql', import.meta.url), 'utf8');
+  for (const f of ['zella_call_integrity_trg', 'zella_sweep_open_calls', 'zella_verify_calls', 'zella_recover_knowledge', 'zella_appointment_moved_trg', "new.status := 'missed'", 'needs_human := true']) assert.ok(x.includes(f), f);
+  for (const f of ['zella_sweep_open_calls', 'zella_verify_calls', 'zella_recover_knowledge']) assert.ok(dispatcherSql.includes("'" + f + "'"), f);
+});
+
 test('timeouts: every workflow has a run time limit and every outside call has a time limit', () => {
   for (const f of readdirSync(new URL('./workflows/', import.meta.url))) {
     const w = wfJson(f);

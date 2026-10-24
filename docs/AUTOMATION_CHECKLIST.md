@@ -9,36 +9,36 @@ Item numbers and names come from the Zella AI Complete Automation Guide. Status 
 
 Items are served by a small set of shared workflows (see `n8n/README.md`), not one workflow per item. Many industry items (196 to 254) are configurations of the shared appointment, message, assignment and reminder engines; the 98 starter automation rows per industry are seeded in the database.
 
-**Totals:** Built 326, Partly 4, Rules ready 7, Not built 1.
+**Totals:** Built 334, Partly 4, Rules ready 0, Not built 0.
 
 
-## 1. Calls and AI receptionist (16) — Built 12, Partly 0, Rules ready 4, Not built 0
+## 1. Calls and AI receptionist (16) — Built 16, Partly 0, Rules ready 0, Not built 0
 
 | # | Automation | Status |
 |---|---|---|
 | 1 | Trigger | Built |
-| 2 | Logic | Rules ready |
+| 2 | Logic | Built |
 | 3 | Action | Built |
-| 4 | Verification and recovery | Rules ready |
+| 4 | Verification and recovery | Built |
 | 5 | Call outcome detection | Built |
-| 6 | Missed-call detection | Rules ready |
+| 6 | Missed-call detection | Built |
 | 7 | After-hours and holiday handling | Built |
 | 8 | Human transfer | Built |
 | 9 | Transfer failure recovery | Built |
 | 10 | Callback request capture | Built |
 | 11 | Voicemail and message taking | Built |
 | 12 | Emergency escalation | Built |
-| 13 | AI failure recovery | Rules ready |
+| 13 | AI failure recovery | Built |
 | 14 | Call summary and CRM logging | Built |
 | 15 | Repeat caller recognition | Built |
 | 16 | Unanswered question tracking | Built |
 
-## 2. Callbacks and follow-ups (14) — Built 12, Partly 0, Rules ready 2, Not built 0
+## 2. Callbacks and follow-ups (14) — Built 14, Partly 0, Rules ready 0, Not built 0
 
 | # | Automation | Status |
 |---|---|---|
-| 17 | Callback task creation | Rules ready |
-| 18 | Callback scheduling | Rules ready |
+| 17 | Callback task creation | Built |
+| 18 | Callback scheduling | Built |
 | 19 | Callback reminders | Built |
 | 20 | Callback retries | Built |
 | 21 | No-answer and busy handling | Built |
@@ -231,7 +231,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 168 | Knowledge-gap reporting | Built |
 | 169 | Tenant-isolated knowledge | Built |
 
-## 11. AI quality and knowledge maintenance (12) — Built 11, Partly 0, Rules ready 0, Not built 1
+## 11. AI quality and knowledge maintenance (12) — Built 12, Partly 0, Rules ready 0, Not built 0
 
 | # | Automation | Status |
 |---|---|---|
@@ -245,10 +245,10 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 177 | Rollback | Built |
 | 178 | Response sampling | Built |
 | 179 | AI performance summaries | Built |
-| 180 | Retrieval failure handling | Not built |
+| 180 | Retrieval failure handling | Built |
 | 181 | FAQ maintenance | Built |
 
-## 12. Staff and team operations (14) — Built 13, Partly 0, Rules ready 1, Not built 0
+## 12. Staff and team operations (14) — Built 14, Partly 0, Rules ready 0, Not built 0
 
 | # | Automation | Status |
 |---|---|---|
@@ -258,7 +258,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 185 | Staff availability | Built |
 | 186 | Unassigned-work alerts | Built |
 | 187 | Overdue-task alerts | Built |
-| 188 | Appointment notifications | Rules ready |
+| 188 | Appointment notifications | Built |
 | 189 | Shift handover | Built |
 | 190 | Absence reassignment | Built |
 | 191 | Manager escalation | Built |
