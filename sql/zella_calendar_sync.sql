@@ -151,6 +151,9 @@ begin
   end if;
   update public.calendar_sync_queue set status = 'failed', error = left(p_error, 300), completed_at = now() where id = q.id;
   update public.calendar_connections set last_error = left(p_error, 300) where business_id = q.business_id and provider = 'google';
+  if not exists (select 1 from public.staff_notifications where business_id = q.business_id and kind = 'calendar_sync_owner' and created_at > now() - interval '12 hours') then
+    perform public.zella_notify_owners(q.business_id, 'calendar_sync_owner', 'A booking is not on your calendar', 'Zella could not copy a booking to Google Calendar. The booking itself is saved. Check the calendar connection in Settings.', 'warning', 'settings');
+  end if;
   perform public.zella_platform_alert('calendar_sync_failed', 'A booking could not be copied to Google Calendar', left(p_error, 300), 'warning', q.business_id, q.appointment_id::text);
   return 'failed';
 end $$;
