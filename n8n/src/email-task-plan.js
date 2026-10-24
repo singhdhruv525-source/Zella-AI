@@ -15,6 +15,11 @@ const kinds = {
   record_status_update: { key: 'record_status_update', purpose: 'transactional' },
   service_due: { key: 'service_due', purpose: 'transactional' },
   no_response_follow_up: { key: 'no_response_follow_up', purpose: 'transactional' },
+  reschedule_confirmation: { key: 'reschedule_confirmation', purpose: 'transactional' },
+  booking_follow_up: { key: 'booking_follow_up', purpose: 'transactional' },
+  service_completed: { key: 'service_completed', purpose: 'transactional' },
+  lead_follow_up: { key: 'lead_follow_up', purpose: 'transactional' },
+  lead_final_follow_up: { key: 'lead_final_follow_up', purpose: 'transactional' },
 };
 // A callback that ran out of tries leaves a task behind. The message depends on why the callback existed.
 const byReason = { missed_call: 'missed_call_follow_up', new_lead: 'lead_acknowledgement' };

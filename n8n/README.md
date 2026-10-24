@@ -325,3 +325,6 @@ When someone on Messenger, Instagram or WhatsApp asks to book or for a price, th
 
 ## Retention
 Run `sql/zella_retention.sql` (safe to repeat), then re-run `zella_dispatcher.sql`. Once a day, regular customers (3+ completed visits) who are overdue by half again their usual gap, and at least 30 days since the last visit, get a staff task ("Regular customer is overdue"), at most once per 90 days. It never messages the customer. `zella_retention_summary(business)` gives the dashboard numbers (regulars, drifting, returning).
+
+## More message types
+Run `sql/zella_message_types.sql` (safe to repeat; needs `zella_customer_touches.sql`), then re-run `zella_dispatcher.sql`. Email and text versions of: reschedule confirmation (a minute after an appointment moves), booking follow-up (an hour after a booking made 2+ days ahead), service completed (a job record marked completed, unless the owner wrote their own wording), and a lead sequence: day 1 `lead_follow_up`, day 3 `no_response_follow_up`, day 7 `lead_final_follow_up` (leads with no appointment only). The Follow-up Emails and Follow-up Texts workflows already know the new kinds (updated in n8n). Any kind can be turned off in `platform_settings` `customer_touches`.

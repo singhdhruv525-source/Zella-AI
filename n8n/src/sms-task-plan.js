@@ -15,6 +15,11 @@ const kinds = {
   record_status_update: { key: 'record_status_update', purpose: 'transactional' },
   service_due: { key: 'service_due', purpose: 'transactional' },
   no_response_follow_up: { key: 'no_response_follow_up', purpose: 'transactional' },
+  reschedule_confirmation: { key: 'reschedule_confirmation', purpose: 'transactional' },
+  booking_follow_up: { key: 'booking_follow_up', purpose: 'transactional' },
+  service_completed: { key: 'service_completed', purpose: 'transactional' },
+  lead_follow_up: { key: 'lead_follow_up', purpose: 'transactional' },
+  lead_final_follow_up: { key: 'lead_final_follow_up', purpose: 'transactional' },
   // Replies to a customer's own text (C, R, HELP). The database queues these when the text arrives.
   reply_confirmed: { key: 'reply_confirmed', purpose: 'transactional' },
   reply_reschedule: { key: 'reply_reschedule', purpose: 'transactional' },

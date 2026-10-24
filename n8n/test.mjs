@@ -952,6 +952,16 @@ test('retention: only regulars who are overdue get a staff task, never an automa
   assert.ok(!/sms_messages|followup_tasks|meta_outbox/.test(rsql));
   assert.ok(dispatcherSql.includes("'zella_retention_scan'"));
 });
+test('message types: every new kind has wording, is allowed, and is known to both follow-up workflows and the dispatcher', async () => {
+  const { FOLLOWUP_KINDS, FOLLOWUP_EMAIL_KINDS } = await import('./src/build.mjs');
+  const msql = readFileSync(new URL('../sql/zella_message_types.sql', import.meta.url), 'utf8');
+  for (const k of ['reschedule_confirmation', 'booking_follow_up', 'service_completed', 'lead_follow_up', 'lead_final_follow_up']) {
+    assert.ok(msql.includes("('" + k + "', 'email'") && msql.includes("('" + k + "', 'sms'"), k + ' wording');
+    assert.ok(FOLLOWUP_EMAIL_KINDS.includes(k) && FOLLOWUP_KINDS.includes(k), k + ' in workflow claim lists');
+    assert.ok(dispatcherSql.split(k).length >= 3, k + ' in dispatcher lists');
+  }
+  assert.ok(msql.includes('for update of start_time') === false && msql.includes('after insert or update of start_time'));
+});
 test('meta workflows: the webhook is open (Meta cannot send our header) but every event is checked by signature in the database', () => {
   const w = wfJson('zella-meta-webhook.json');
   const post = w.nodes.find((n) => n.name === 'Meta events'); const get = w.nodes.find((n) => n.name === 'Meta set-up check');
@@ -1017,7 +1027,7 @@ test('customer requests: duplicates within a day are not repeated, closing needs
 
 // ---------------- customer messages (welcome, feedback, cancellation, status, service due, no reply)
 test('customer messages: every new kind maps to a template and passes only short text details on', () => {
-  for (const k of ['welcome_new_customer', 'feedback_request', 'cancellation_confirmation', 'record_status_update', 'service_due', 'no_response_follow_up']) {
+  for (const k of ['welcome_new_customer', 'feedback_request', 'cancellation_confirmation', 'record_status_update', 'service_due', 'no_response_follow_up', 'reschedule_confirmation', 'booking_follow_up', 'service_completed', 'lead_follow_up', 'lead_final_follow_up']) {
     const p = tplan({ ...T, kind: k, vars: { status_line: 'x'.repeat(500), service: 'cleaning', evil: { a: 1 } } });
     assert.equal(p.finish, null); assert.equal(p.prepare.p_template_key, k); assert.equal(p.prepare.p_purpose, 'transactional');
     assert.equal(p.prepare.p_vars.status_line.length, 300); assert.equal(p.prepare.p_vars.service, 'cleaning'); assert.equal(p.prepare.p_vars.evil, undefined);
