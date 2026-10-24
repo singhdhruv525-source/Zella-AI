@@ -339,3 +339,6 @@ Run `sql/zella_messaging_extras.sql` (safe to repeat; after `zella_message_types
 
 ## Social reply window and WhatsApp templates
 Run `sql/zella_meta_window.sql` (safe to repeat; after `zella_meta.sql`). When an automatic reply is dropped because the 24-hour window closed, the team now gets a notification instead of silence. On WhatsApp a team member can send an approved template that has no fill-in values with `zella_meta_staff_template(conversation, template_name)`. The Meta Sender workflow (updated in n8n) sends it. Writing new templates is still done in Meta Business Manager; the Meta Health workflow syncs their approval status.
+
+## Knowledge extras
+Run `sql/zella_knowledge_extras.sql` (safe to repeat), then re-run `zella_dispatcher.sql`. The website reader now suggests `price` ("Haircut - $45") and `product` answers as drafts, like every other suggestion (Website Crawler workflow updated in n8n). A daily check finds two approved answers that disagree (same kind and title, or two sets of opening hours), flags the newer one and tells the owner once.

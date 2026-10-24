@@ -78,6 +78,22 @@ lines.forEach((l, i) => {
   const next = after(i, 500);
   if (l.t.length < 80 && ((servicePage && next.length >= 20) || (/\$\s?\d/.test(next) && next.length >= 8))) add('service', l.t, next);
 });
+// prices: "Haircut - $45" lines, and a heading followed by a price. Each price is its own small answer so it can be checked on its own.
+const priceLine = /^(.{3,60}?)\s*[-\u2013\u2014:|]\s*(?:from\s+|starting at\s+)?(\$\s?\d[\d,]*(?:\.\d{2})?(?:\s?[-\u2013]\s?\$?\s?\d[\d,]*(?:\.\d{2})?)?)/i;
+lines.forEach((l, i) => {
+  const m = !l.h ? l.t.match(priceLine) : null;
+  if (m && !/\$/.test(m[1])) { add('price', m[1].trim(), 'The price for ' + m[1].trim() + ' is ' + m[2].replace(/\s+/g, '') + ' (from the website).'); return; }
+  if (l.h && l.t.length < 80 && !/\$/.test(l.t)) {
+    const n = after(i, 200); const pm = n.match(/\$\s?\d[\d,]*(?:\.\d{2})?/);
+    if (pm && servicePage) add('price', l.t, 'The price for ' + l.t + ' is ' + pm[0].replace(/\s+/g, '') + ' (from the website).');
+  }
+});
+// products: a heading with a description on a shop or product page
+if (/shop|product|store|catalog|collection/.test(where)) {
+  lines.forEach((l, i) => {
+    if (l.h && l.t.length < 80 && !/\?$/.test(l.t)) { const n = after(i, 500); if (n.length >= 20) add('product', l.t, n); }
+  });
+}
 // opening hours: lines that name days with times
 const dayRe = /\b(mon|tue|wed|thu|fri|sat|sun)[a-z]*\b[^.]{0,60}?(\d{1,2}(:\d{2})?\s?(am|pm)\b|closed|24 ?hours)/i;
 const hoursLines = lines.filter((l) => l.t.length < 160 && dayRe.test(l.t)).map((l) => l.t).slice(0, 8);

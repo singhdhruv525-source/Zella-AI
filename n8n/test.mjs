@@ -986,6 +986,24 @@ test('meta window: a closed window tells the team, and WhatsApp can send an appr
   assert.equal(p({ ...base, kind: 'template', template_name: 'Bad Name;', template_language: 'en_US' }).valid, false);
   assert.equal(p({ ...base, kind: 'template', template_name: 'hello_again', template_language: 'english' }).valid, false);
 });
+test('website parse: prices and products become their own suggestions', () => {
+  const html = `<html><head><title>Price list</title></head><body><h1>Our prices</h1>
+<p>Haircut - $45</p><p>Colour: from $120</p><p>Call us - 555 1234</p>
+<h2>Deep conditioning</h2><p>Takes 30 minutes and costs $25 per session.</p></body></html>`;
+  const r = parse({ ...WPLAN, url: 'https://www.sunnysalon.com/pricing' }, { statusCode: 200, headers: {}, body: html }).rpc;
+  const prices = r.p_items.filter((i) => i.kind === 'price');
+  assert.ok(prices.find((i) => i.title === 'Haircut').answer.includes('$45'));
+  assert.ok(prices.find((i) => i.title === 'Colour').answer.includes('$120'));
+  assert.ok(prices.find((i) => i.title === 'Deep conditioning').answer.includes('$25'));
+  assert.ok(!prices.some((i) => /Call us/.test(i.title)));
+  const shop = parse({ ...WPLAN, url: 'https://www.sunnysalon.com/shop' }, { statusCode: 200, headers: {}, body: '<html><head><title>Shop</title></head><body><h2>Argan hair oil</h2><p>A light oil that adds shine without weight.</p></body></html>' }).rpc;
+  assert.ok(shop.p_items.find((i) => i.kind === 'product' && i.title === 'Argan hair oil'));
+});
+test('knowledge extras: conflict detection runs daily and only tells businesses about new disagreements', () => {
+  const k = readFileSync(new URL('../sql/zella_knowledge_extras.sql', import.meta.url), 'utf8');
+  assert.ok(k.includes("'product', 'price'") && k.includes('business_id = any (v_biz)') && k.includes('c.conflicts_with is null'));
+  assert.ok(dispatcherSql.includes("'zella_detect_knowledge_conflicts'"));
+});
 test('meta workflows: the webhook is open (Meta cannot send our header) but every event is checked by signature in the database', () => {
   const w = wfJson('zella-meta-webhook.json');
   const post = w.nodes.find((n) => n.name === 'Meta events'); const get = w.nodes.find((n) => n.name === 'Meta set-up check');

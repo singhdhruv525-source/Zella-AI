@@ -9,7 +9,7 @@ Item numbers and names come from the Zella AI Complete Automation Guide. Status 
 
 Items are served by a small set of shared workflows (see `n8n/README.md`), not one workflow per item. Many industry items (196 to 254) are configurations of the shared appointment, message, assignment and reminder engines; the 98 starter automation rows per industry are seeded in the database.
 
-**Totals:** Built 219, Partly 31, Rules ready 31, Not built 57.
+**Totals:** Built 223, Partly 27, Rules ready 31, Not built 57.
 
 
 ## 1. Calls and AI receptionist (16) — Built 8, Partly 4, Rules ready 4, Not built 0
@@ -203,25 +203,25 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 145 | Failure alerting | Built |
 | 146 | Conversion tracking | Built |
 
-## 10. Website knowledge automation (23) — Built 15, Partly 4, Rules ready 4, Not built 0
+## 10. Website knowledge automation (23) — Built 19, Partly 0, Rules ready 4, Not built 0
 
 | # | Automation | Status |
 |---|---|---|
 | 147 | Initial website import | Built |
 | 148 | Approved-page crawling | Built |
 | 149 | Sitemap discovery | Built |
-| 150 | Service extraction | Partly |
-| 151 | Product extraction | Partly |
+| 150 | Service extraction | Built |
+| 151 | Product extraction | Built |
 | 152 | FAQ extraction | Built |
 | 153 | Hours extraction | Built |
-| 154 | Price extraction | Partly |
+| 154 | Price extraction | Built |
 | 155 | Policy extraction | Built |
 | 156 | Scheduled synchronization | Built |
 | 157 | Content change detection | Built |
 | 158 | New-page detection | Built |
 | 159 | Deleted-page detection | Built |
 | 160 | Broken-link detection | Built |
-| 161 | Conflicting-information detection | Partly |
+| 161 | Conflicting-information detection | Built |
 | 162 | Approval queue | Rules ready |
 | 163 | Knowledge version history | Built |
 | 164 | Controlled publishing and rollback | Built |
