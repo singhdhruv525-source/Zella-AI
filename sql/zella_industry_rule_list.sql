@@ -28,12 +28,13 @@ begin
   return coalesce((
     select jsonb_agg(jsonb_build_object(
              'name', p.name, 'description', p.description, 'checklist_no', p.checklist_no, 'trigger_type', p.trigger_type,
-             'preferred', p.industry_key <> 'general', 'status', a.status, 'notify_via', coalesce(a.trigger_config ->> 'notify_via', 'both'),
+             'preferred', v_key <> 'other' and p.industry_key <> 'general', 'status', a.status, 'notify_via', coalesce(a.trigger_config ->> 'notify_via', 'both'),
              'enabled', coalesce(a.status = 'active', false))
            order by (p.industry_key = 'general'), p.checklist_no nulls last, p.name)
-      from public.industry_automation_presets p
+      from (select distinct on (name) * from public.industry_automation_presets
+             where industry_key in (v_key, 'general') or v_key = 'other' order by name, (industry_key = 'general')) p
       left join public.automations a on a.business_id = p_business_id and a.name = p.name
-     where p.industry_key in (v_key, 'general')), '[]'::jsonb);
+     ), '[]'::jsonb);
 end $$;
 revoke execute on function public.zella_industry_rule_list(uuid) from public, anon;
 grant execute on function public.zella_industry_rule_list(uuid) to authenticated, service_role;
@@ -41,23 +42,24 @@ grant execute on function public.zella_industry_rule_list(uuid) to authenticated
 -- p_rules: [{"name": "...", "enabled": true, "notify_via": "both"}]
 create or replace function public.zella_set_industry_rules(p_business_id uuid, p_rules jsonb) returns integer
 language plpgsql security definer set search_path = public as $$
-declare v_key text; r jsonb; p public.industry_automation_presets; a public.automations; n integer := 0; v_notify text;
+declare v_key text; r jsonb; p public.industry_automation_presets; a public.automations; n integer := 0; v_notify text; v_on boolean;
 begin
   if not (public.is_platform_admin() or public.zella_has_role(p_business_id, array['owner', 'admin'])) then raise exception 'NOT_ALLOWED'; end if;
   if p_rules is null or jsonb_typeof(p_rules) <> 'array' then raise exception 'BAD_RULES'; end if;
   v_key := public.zella_industry_key_for(p_business_id);
   for r in select * from jsonb_array_elements(p_rules) loop
-    select * into p from public.industry_automation_presets where name = r ->> 'name' and industry_key in (v_key, 'general') order by (industry_key = 'general') limit 1;
+    select * into p from public.industry_automation_presets where name = r ->> 'name' and (industry_key in (v_key, 'general') or v_key = 'other') order by (industry_key = 'general') limit 1;
     if not found then continue; end if;
     v_notify := case when r ->> 'notify_via' in ('sms', 'email', 'both') then r ->> 'notify_via' else null end;
+    v_on := coalesce((r ->> 'enabled')::boolean, true);
     select * into a from public.automations where business_id = p_business_id and name = p.name for update;
     if not found then
       insert into public.automations (business_id, name, description, trigger_type, status, trigger_config, actions, conditions, created_by)
-      values (p_business_id, p.name, p.description, p.trigger_type, case when coalesce((r ->> 'enabled')::boolean, true) then 'active' else 'disabled' end,
+      values (p_business_id, p.name, p.description, p.trigger_type, case when v_on then 'active' else 'disabled' end,
               p.trigger_config || coalesce(jsonb_build_object('notify_via', v_notify), '{}'::jsonb), '[]'::jsonb, '{}'::jsonb, auth.uid());
     else
       update public.automations set
-             status = case when coalesce((r ->> 'enabled')::boolean, a.status <> 'disabled') then (case when a.status = 'disabled' then 'active' else a.status end) else 'disabled' end,
+             status = case when v_on then 'active' else 'disabled' end,
              trigger_config = a.trigger_config || coalesce(jsonb_build_object('notify_via', v_notify), '{}'::jsonb), updated_at = now()
        where id = a.id;
     end if;
@@ -79,9 +81,10 @@ begin
   select k.key into v_key from public.industry_crm_presets k where v_name = any (k.match) order by k.key limit 1;
   v_key := coalesce(v_key, 'other');
   return coalesce((select jsonb_agg(jsonb_build_object('name', p.name, 'description', p.description, 'checklist_no', p.checklist_no,
-           'trigger_type', p.trigger_type, 'preferred', p.industry_key <> 'general', 'enabled', p.industry_key <> 'general', 'notify_via', 'both')
+           'trigger_type', p.trigger_type, 'preferred', v_key <> 'other' and p.industry_key <> 'general', 'enabled', v_key <> 'other' and p.industry_key <> 'general', 'notify_via', 'both')
            order by (p.industry_key = 'general'), p.checklist_no nulls last, p.name)
-      from public.industry_automation_presets p where p.industry_key in (v_key, 'general')), '[]'::jsonb);
+      from (select distinct on (name) * from public.industry_automation_presets
+             where industry_key in (v_key, 'general') or v_key = 'other' order by name, (industry_key = 'general')) p), '[]'::jsonb);
 end $$;
 revoke execute on function public.zella_industry_rules_for(uuid) from public, anon;
 grant execute on function public.zella_industry_rules_for(uuid) to authenticated, service_role;

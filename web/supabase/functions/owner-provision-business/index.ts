@@ -297,16 +297,20 @@ async function mergeSetupData(
 async function industryRuleList(admin: SupabaseClient, businessId: string) {
   const { data: key, error: keyError } = await admin.rpc("zella_industry_key_for", { p_business_id: businessId });
   if (keyError) throw keyError;
+  // An industry with no rules of its own ("Other") gets every rule to choose from.
+  const isOther = String(key ?? "other") === "other";
+  const presetQuery = admin.from("industry_automation_presets")
+    .select("name, description, checklist_no, trigger_type, industry_key");
   const [presets, mine] = await Promise.all([
-    admin.from("industry_automation_presets")
-      .select("name, description, checklist_no, trigger_type, industry_key")
-      .in("industry_key", [String(key ?? "other"), "general"]),
+    isOther ? presetQuery : presetQuery.in("industry_key", [String(key), "general"]),
     admin.from("automations").select("name, status, trigger_config").eq("business_id", businessId),
   ]);
   if (presets.error) throw presets.error;
   if (mine.error) throw mine.error;
   const have = new Map((mine.data ?? []).map((row) => [row.name, row]));
+  const seen = new Set<string>();
   return (presets.data ?? [])
+    .filter((p) => (seen.has(p.name) ? false : (seen.add(p.name), true)))
     .map((p) => {
       const row = have.get(p.name);
       return {
@@ -314,7 +318,7 @@ async function industryRuleList(admin: SupabaseClient, businessId: string) {
         description: p.description ?? "",
         checklistNo: p.checklist_no,
         triggerType: p.trigger_type,
-        preferred: p.industry_key !== "general",
+        preferred: !isOther && p.industry_key !== "general",
         enabled: row ? row.status !== "disabled" : false,
         notifyVia: oneOf(obj(row?.trigger_config).notify_via, ["sms", "email", "both"] as const, "both"),
       };
