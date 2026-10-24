@@ -738,7 +738,7 @@
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
   background: var(--bg-surface);
-  box-shadow: 0 -6px 20px rgba(34, 31, 30, 0.06);
+  box-shadow: 0 -6px 20px rgba(43, 33, 26, 0.06);
 }
 
 .wiz-footer-right {

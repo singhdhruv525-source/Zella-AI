@@ -450,7 +450,7 @@
 .ag-search:focus,
 .ic-module input:focus {
   border-color: var(--border-focus);
-  box-shadow: 0 0 0 3px var(--focus-ring, rgba(37, 99, 235, 0.15));
+  box-shadow: 0 0 0 3px var(--focus-ring, rgba(111, 78, 55, 0.15));
   outline: none;
 }
 
