@@ -1142,6 +1142,13 @@ test('inbound calls: wrap-up, repeat caller and callback reminders are on the da
   assert.ok(dispatcherSql.includes("'zella_remind_upcoming_callbacks'"));
 });
 
+test('monitoring: slow replies, connection summaries, admin retry and incident notices exist and the check runs every 15 minutes', () => {
+  const x = readFileSync(new URL('../sql/zella_monitoring.sql', import.meta.url), 'utf8');
+  for (const f of ['zella_check_response_times', 'zella_response_time_report', 'zella_integration_summary', 'zella_platform_health_summary', 'zella_retry_event', 'zella_open_incident', 'zella_resolve_incident']) assert.ok(x.includes(f), f);
+  assert.ok(x.includes('is_platform_admin()'));
+  assert.ok(dispatcherSql.includes("'zella_check_response_times'"));
+});
+
 test('timeouts: every workflow has a run time limit and every outside call has a time limit', () => {
   for (const f of readdirSync(new URL('./workflows/', import.meta.url))) {
     const w = wfJson(f);

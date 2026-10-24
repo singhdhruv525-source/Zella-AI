@@ -9,7 +9,7 @@ Item numbers and names come from the Zella AI Complete Automation Guide. Status 
 
 Items are served by a small set of shared workflows (see `n8n/README.md`), not one workflow per item. Many industry items (196 to 254) are configurations of the shared appointment, message, assignment and reminder engines; the 98 starter automation rows per industry are seeded in the database.
 
-**Totals:** Built 258, Partly 5, Rules ready 19, Not built 56.
+**Totals:** Built 262, Partly 5, Rules ready 15, Not built 56.
 
 
 ## 1. Calls and AI receptionist (16) — Built 12, Partly 0, Rules ready 4, Not built 0
@@ -117,7 +117,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 79 | SMS templates | Built |
 | 80 | Channel preferences | Built |
 
-## 6. Leads and sales CRM (20) — Built 19, Partly 0, Rules ready 1, Not built 0
+## 6. Leads and sales CRM (20) — Built 20, Partly 0, Rules ready 0, Not built 0
 
 | # | Automation | Status |
 |---|---|---|
@@ -130,7 +130,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 87 | Lead assignment | Built |
 | 88 | Round-robin assignment | Built |
 | 89 | New-lead notifications | Built |
-| 90 | Response-time monitoring | Rules ready |
+| 90 | Response-time monitoring | Built |
 | 91 | Lead follow-up sequences | Built |
 | 92 | Overdue lead escalation | Built |
 | 93 | Quote and proposal follow-up | Built |
@@ -331,7 +331,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 253 | Hospitality — checkout | Not built |
 | 254 | Hospitality — feedback | Not built |
 
-## 14. Integration monitoring and recovery (15) — Built 11, Partly 2, Rules ready 2, Not built 0
+## 14. Integration monitoring and recovery (15) — Built 13, Partly 2, Rules ready 0, Not built 0
 
 | # | Automation | Status |
 |---|---|---|
@@ -348,8 +348,8 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 265 | Scheduled reconciliation | Built |
 | 266 | Stuck-execution detection | Built |
 | 267 | Dead-letter handling | Built |
-| 268 | Manual retry | Rules ready |
-| 269 | Integration health summaries | Rules ready |
+| 268 | Manual retry | Built |
+| 269 | Integration health summaries | Built |
 
 ## 15. Automation engine reliability (16) — Built 16, Partly 0, Rules ready 0, Not built 0
 
@@ -391,7 +391,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 298 | KPI alerts | Built |
 | 299 | Notification grouping and deduplication | Built |
 
-## 17. Subscription and platform operations (12) — Built 8, Partly 0, Rules ready 4, Not built 0
+## 17. Subscription and platform operations (12) — Built 9, Partly 0, Rules ready 3, Not built 0
 
 | # | Automation | Status |
 |---|---|---|
@@ -404,7 +404,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 306 | Payment reversal handling | Built |
 | 307 | Plan entitlement updates | Built |
 | 308 | Suspension and reactivation | Rules ready |
-| 309 | Incident notifications | Rules ready |
+| 309 | Incident notifications | Built |
 | 310 | Administrative audit | Built |
 | 311 | Plan entitlement checks | Built |
 

@@ -382,3 +382,10 @@ Run `sql/zella_customer_records.sql`. All database. `zella_staff_add_customer` a
 
 ## Appointment flow
 Run `sql/zella_appointment_flow.sql` (and re-run `zella_reply_actions.sql`). All database. A new appointment (or an appointment request to confirm) notifies the assigned person, or the owners when nobody is assigned. A person who is not an owner or admin is also told when their appointment is moved or cancelled. A customer can text HERE or ARRIVED from 30 minutes before to an hour after the start; they are marked arrived and the assigned person is told. Hourly, an appointment that ended over 2 hours ago with nothing recorded gets one task ("Did X come in? Mark completed or no-show"); nothing is marked completed or no-show automatically. The booking confirmation to the customer already existed.
+
+## Monitoring (checklist 90, 268, 269, 309) - `sql/zella_monitoring.sql`
+- Every 15 minutes `zella_check_response_times()` tells owners once when texts (60+ min) or emails (4 hours) are waiting for a reply during open hours. Setting: `response_time_minutes`.
+- `zella_response_time_report(business, days)` gives median/average first reply time (owner/admin/manager).
+- `zella_integration_summary(business)` lists phone, calendar, social and message failures; `zella_platform_health_summary()` is the platform admin view.
+- `zella_retry_event(id)` (platform admin) sends a failed event back; businesses use `zella_retry_failed`.
+- `zella_open_incident(title, detail)` / `zella_resolve_incident(id, note)` notify every active business owner.
