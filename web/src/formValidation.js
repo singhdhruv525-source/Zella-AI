@@ -197,6 +197,21 @@ export function checkEmail(value, { required = false } = {}) {
   return "";
 }
 
+export function checkUrl(value, { required = false } = {}) {
+  const v = String(value ?? "").trim();
+  if (!v) return required ? "Enter the website address." : "";
+  if (/\s/.test(v)) return "A website address can't contain spaces.";
+  const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(v) ? v : `https://${v}`;
+  let u;
+  try { u = new URL(withScheme); } catch { return "That doesn't look like a website address, like https://business.com."; }
+  if (!["http:", "https:"].includes(u.protocol)) return "Start the address with https://.";
+  const host = u.hostname;
+  if (!host.includes(".") || host.split(".").some((l) => !l) || !/^[A-Za-z0-9.-]+$/.test(host)) return "The website name doesn't look right. It should end like .com.";
+  const tld = host.split(".").pop();
+  if (tld.length < 2 || /^\d+$/.test(tld)) return "The ending of the website name (like .com) doesn't look right.";
+  return "";
+}
+
 /* ------------------------------------------------------------------ */
 /* Password                                                              */
 /* ------------------------------------------------------------------ */

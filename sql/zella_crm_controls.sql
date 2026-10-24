@@ -37,6 +37,7 @@ begin
         if jsonb_typeof(v) <> 'boolean' then raise exception 'BAD_FIELD:fallback_sms'; end if;
         v_out := v_out || jsonb_build_object(k, v);
         continue;
+      when k = 'notify_via' then v_text := array['sms','email','both'];
       when k = 'channel' and p_type in ('appointment_reminder') then v_text := array['sms','call','sms_and_call'];
       when k = 'channel' and p_type in ('appointment_confirmation','no_show_follow_up','waitlist_offer','staff_unavailable') then v_text := array['sms','call'];
       when k = 'channel' and p_type in ('post_appointment_follow_up','quote_follow_up','lead_reactivation') then v_text := array['sms','email'];

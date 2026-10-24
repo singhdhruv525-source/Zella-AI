@@ -322,9 +322,9 @@ async function loadSetup(admin: SupabaseClient, businessId: string) {
         .maybeSingle(),
       admin
         .from("automations")
-        .select("trigger_type, name, status, trigger_config")
+        .select("id, trigger_type, name, description, status, trigger_config")
         .eq("business_id", businessId)
-        .in("trigger_type", AUTOMATION_TYPES),
+        .order("name"),
     ]);
 
   const queryError = configResult.error ?? modulesResult.error ??
@@ -805,7 +805,11 @@ async function saveAutomations(
       description: definition.description,
       trigger_type: type,
       status,
-      trigger_config: definition.settings(obj(item.settings)),
+      // How the owner hears about what this automation did: text, email or both.
+      trigger_config: {
+        ...definition.settings(obj(item.settings)),
+        notify_via: oneOf(obj(item.settings).notify_via, ["sms", "email", "both"] as const, "both"),
+      },
       actions: definition.actions,
       conditions: {},
       updated_at: now,
@@ -1948,6 +1952,11 @@ async function integrationsOverview(admin: SupabaseClient) {
         wanted: choices.calendar && choices.calendar !== "none" ? String(choices.calendar) : null,
         connected: hasActive(b.id, String(choices.calendar ?? "")) ||
           hasActive(b.id, choices.calendar === "google" ? "google_calendar" : "outlook_calendar"),
+      },
+      email: {
+        wanted: choices.email && choices.email !== "none" ? String(choices.email) : null,
+        connected: hasActive(b.id, String(choices.email ?? "")) ||
+          hasActive(b.id, choices.email === "gmail" ? "gmail_mail" : "outlook_mail"),
       },
       leads: {
         wanted: Object.entries(leads).filter(([, on]) => on === true).map(([k]) => k),
