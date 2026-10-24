@@ -718,6 +718,30 @@ const websiteCrawler = wf('Zella - Website Crawler', [
   'Is sitemap': { main: [[link('Record sitemap')], [link('Record page')]] },
 });
 
+
+// Staff texts: urgent notifications texted to team members who switched this on for themselves. The database decides who
+// and enforces a limit of 5 per business per hour; nothing is claimed until sms_live is true. Same Telnyx box rule: no credential.
+const staffTexts = wf('Zella - Staff Texts', [
+  runTrigger('staff-sms'),
+  rpcNode('Claim staff texts', [240, 200], 'zella_claim_staff_sms', '={{ JSON.stringify({ p_limit: 10 }) }}'),
+  code('Plan', [480, 200], 'staff-sms-plan.js'),
+  ifBool('Is a text', [720, 200], '={{ !$json.skip }}'),
+  node('Send via Telnyx', 'n8n-nodes-base.httpRequest', 4.2, [960, 100], {
+    method: 'POST', url: 'https://api.telnyx.com/v2/messages', authentication: 'none',
+    sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify($json.telnyx) }}',
+    options: { response: { response: { fullResponse: true, neverError: true, responseFormat: 'json' } } },
+  }),
+  code('After send', [1200, 100], 'staff-sms-after.js'),
+  rpcNode('Update message', [1440, 100], 'zella_update_outbound_sms', '={{ JSON.stringify($json.update) }}', { full: true }),
+], {
+  'Run now': { main: [[link('Claim staff texts')]] },
+  'Claim staff texts': { main: [[link('Plan')]] },
+  'Plan': { main: [[link('Is a text')]] },
+  'Is a text': { main: [[link('Send via Telnyx')], []] },
+  'Send via Telnyx': { main: [[link('After send')]] },
+  'After send': { main: [[link('Update message')]] },
+});
+
 writeFileSync(join(out, 'zella-sms-sender.json'), JSON.stringify(smsSender, null, 2) + '\n');
 writeFileSync(join(out, 'zella-email-sender.json'), JSON.stringify(emailSender, null, 2) + '\n');
 writeFileSync(join(out, 'zella-owner-emails.json'), JSON.stringify(ownerEmails, null, 2) + '\n');
@@ -730,6 +754,7 @@ writeFileSync(join(out, 'zella-meta-webhook.json'), JSON.stringify(metaWebhook, 
 writeFileSync(join(out, 'zella-meta-leads.json'), JSON.stringify(metaLeads, null, 2) + '\n');
 writeFileSync(join(out, 'zella-meta-sender.json'), JSON.stringify(metaSender, null, 2) + '\n');
 writeFileSync(join(out, 'zella-meta-health.json'), JSON.stringify(metaHealth, null, 2) + '\n');
+writeFileSync(join(out, 'zella-staff-texts.json'), JSON.stringify(staffTexts, null, 2) + '\n');
 writeFileSync(join(out, 'zella-website-crawler.json'), JSON.stringify(websiteCrawler, null, 2) + '\n');
 writeFileSync(join(out, 'zella-inbound-email.json'), JSON.stringify(inboundEmail, null, 2) + '\n');
 writeFileSync(join(out, 'zella-voice-rules.json'), JSON.stringify(voiceRules, null, 2) + '\n');
@@ -738,4 +763,4 @@ writeFileSync(join(out, 'zella-email-events.json'), JSON.stringify(emailEvents, 
 writeFileSync(join(out, 'zella-calendar-sync.json'), JSON.stringify(calendarSync, null, 2) + '\n');
 writeFileSync(join(out, 'zella-connection-tests.json'), JSON.stringify(connectionTests, null, 2) + '\n');
 writeFileSync(join(out, 'zella-call-results.json'), JSON.stringify(callResults, null, 2) + '\n');
-console.log('Built', [gateway, router, smsSender, followupSender, emailSender, followupEmails, ownerEmails, outboundCalls, callResults, knowledge, assistantTools, voiceRules, inboundEmail, metaWebhook, metaLeads, metaSender, metaHealth, aiBooking, emailEvents, calendarSync, connectionTests, websiteCrawler].map((w) => w.name + ' (' + w.nodes.length + ')').join(', '));
+console.log('Built', [gateway, router, smsSender, followupSender, emailSender, followupEmails, ownerEmails, outboundCalls, callResults, knowledge, assistantTools, voiceRules, inboundEmail, metaWebhook, metaLeads, metaSender, metaHealth, aiBooking, emailEvents, calendarSync, connectionTests, websiteCrawler, staffTexts].map((w) => w.name + ' (' + w.nodes.length + ')').join(', '));

@@ -1,5 +1,5 @@
 -- Zella - the dispatcher. Safe to run more than once.
--- Needs zella_website_crawler.sql (website lane) and zella_meta.sql (meta lanes) run first.
+-- Needs zella_staff_sms.sql, zella_ops_automation.sql (team summary, spot checks, reconcile), zella_website_crawler.sql (website lane) and zella_meta.sql (meta lanes) run first.
 -- WHY: n8n Cloud's Starter plan allows 2,500 workflow runs a month, and a workflow that wakes up every
 -- minute uses ~43,000. So the timer now lives in Supabase (free), and n8n is only called when there is
 -- something waiting. Two parts:
@@ -34,7 +34,7 @@ begin
                    'zella_queue_quote_followups', 'zella_post_daily_summaries', 'zella_queue_lead_reactivation',
                    'zella_check_setup_incomplete', 'zella_check_trials', 'zella_apply_payment_policy', 'zella_post_weekly_reviews',
                    'zella_flag_overdue_callbacks', 'zella_sweep_stuck_calls', 'zella_check_engine_health', 'zella_schedule_calendar_pulls',
-                   'zella_rebalance_assignments', 'zella_check_unassigned_work', 'zella_check_customer_requests', 'zella_queue_customer_touches', 'zella_check_kpis', 'zella_check_escalation_acks', 'zella_recover_orphaned_work', 'zella_check_renewals', 'zella_post_callback_digests', 'zella_check_connections') then
+                   'zella_rebalance_assignments', 'zella_check_unassigned_work', 'zella_check_customer_requests', 'zella_queue_customer_touches', 'zella_check_kpis', 'zella_check_escalation_acks', 'zella_recover_orphaned_work', 'zella_check_renewals', 'zella_post_callback_digests', 'zella_check_connections', 'zella_post_team_summaries', 'zella_sample_ai_responses', 'zella_reconcile') then
     return 'not_allowed';
   end if;
   begin
@@ -54,8 +54,8 @@ begin
   for j in select unnest(case p_group
       when 'every5'  then array['zella_flag_overdue_leads', 'zella_expire_holds', 'zella_expire_waitlist_offers', 'zella_detect_transfer_failures', 'zella_flag_overdue_callbacks', 'zella_sweep_stuck_calls', 'zella_check_engine_health', 'zella_rebalance_assignments', 'zella_check_unassigned_work', 'zella_check_escalation_acks']
       when 'every15' then array['zella_queue_quote_followups', 'zella_recover_orphaned_work']
-      when 'hourly'  then array['zella_post_daily_summaries', 'zella_schedule_calendar_pulls', 'zella_check_customer_requests', 'zella_post_callback_digests']
-      when 'daily'   then array['zella_queue_lead_reactivation', 'zella_check_setup_incomplete', 'zella_check_trials', 'zella_apply_payment_policy', 'zella_queue_customer_touches', 'zella_check_kpis', 'zella_check_renewals', 'zella_check_connections']
+      when 'hourly'  then array['zella_post_daily_summaries', 'zella_schedule_calendar_pulls', 'zella_check_customer_requests', 'zella_post_callback_digests', 'zella_post_team_summaries']
+      when 'daily'   then array['zella_queue_lead_reactivation', 'zella_check_setup_incomplete', 'zella_check_trials', 'zella_apply_payment_policy', 'zella_queue_customer_touches', 'zella_check_kpis', 'zella_check_renewals', 'zella_check_connections', 'zella_sample_ai_responses', 'zella_reconcile']
       when 'weekly'  then array['zella_post_weekly_reviews']
       else array[]::text[] end) loop
     r := r || jsonb_build_object(j, public.zella_run_scheduled_job(j));
@@ -79,7 +79,7 @@ begin
   select decrypted_secret into v_secret from vault.decrypted_secrets where name = 'zella_n8n_secret' limit 1;
   if v_secret is null or v_secret = '' then return jsonb_build_object('skipped', 'no_secret'); end if;
 
-  for w in select * from (values ('event-router'), ('sms-sender'), ('email-sender'), ('followup-texts'), ('followup-emails'), ('owner-emails'), ('outbound-calls'), ('knowledge-sync'), ('calendar-sync'), ('connection-tests'), ('meta-leads'), ('meta-sender'), ('meta-health'), ('website-crawl')) as t(name) loop
+  for w in select * from (values ('event-router'), ('sms-sender'), ('email-sender'), ('followup-texts'), ('followup-emails'), ('owner-emails'), ('outbound-calls'), ('knowledge-sync'), ('calendar-sync'), ('connection-tests'), ('meta-leads'), ('meta-sender'), ('meta-health'), ('website-crawl'), ('staff-sms')) as t(name) loop
     n := case w.name
       when 'event-router' then (select count(*) from public.automation_events
          where (status = 'received' and coalesce(next_attempt_at, now()) <= now()) or (status = 'processing' and claimed_at < now() - interval '10 minutes'))
@@ -107,6 +107,9 @@ begin
          then (select count(*) from public.website_pages wp join public.website_sources ws on ws.id = wp.source_id and ws.status = 'active'
                 where wp.status in ('approved', 'broken', 'missing') and wp.next_fetch_at <= now() and (wp.claimed_at is null or wp.claimed_at < now() - interval '10 minutes'))
             + (select count(*) from public.website_sources where status = 'active' and next_discovery_at <= now()) else 0 end
+      when 'staff-sms' then case when coalesce(public.zella_setting('sms_live', 'false'::jsonb) = 'true'::jsonb, false)
+         then (select count(*) from public.staff_notifications where created_at > now() - interval '6 hours'
+                 and (sms_status = 'pending' or (sms_status = 'sending' and sms_claimed_at < now() - interval '15 minutes'))) else 0 end
       when 'owner-emails' then (select count(*) from public.staff_notifications s join public.businesses b on b.id = s.business_id
          where b.suspended_at is null and b.cancelled_at is null
            and (s.delivery_status = 'pending' or (s.delivery_status = 'sending' and s.claimed_at < now() - interval '30 minutes')))

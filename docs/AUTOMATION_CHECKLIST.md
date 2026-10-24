@@ -9,7 +9,7 @@ Item numbers and names come from the Zella AI Complete Automation Guide. Status 
 
 Items are served by a small set of shared workflows (see `n8n/README.md`), not one workflow per item. Many industry items (196 to 254) are configurations of the shared appointment, message, assignment and reminder engines; the 98 starter automation rows per industry are seeded in the database.
 
-**Totals:** Built 190, Partly 47, Rules ready 31, Not built 70.
+**Totals:** Built 200, Partly 46, Rules ready 31, Not built 61.
 
 
 ## 1. Calls and AI receptionist (16) — Built 8, Partly 4, Rules ready 4, Not built 0
@@ -203,7 +203,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 145 | Failure alerting | Built |
 | 146 | Conversion tracking | Built |
 
-## 10. Website knowledge automation (23) — Built 14, Partly 5, Rules ready 4, Not built 0
+## 10. Website knowledge automation (23) — Built 15, Partly 4, Rules ready 4, Not built 0
 
 | # | Automation | Status |
 |---|---|---|
@@ -224,31 +224,31 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 161 | Conflicting-information detection | Partly |
 | 162 | Approval queue | Rules ready |
 | 163 | Knowledge version history | Built |
-| 164 | Controlled publishing and rollback | Partly |
+| 164 | Controlled publishing and rollback | Built |
 | 165 | Stale-knowledge alerts | Built |
 | 166 | AI knowledge refresh | Built |
 | 167 | Unanswered-question analysis | Rules ready |
 | 168 | Knowledge-gap reporting | Rules ready |
 | 169 | Tenant-isolated knowledge | Rules ready |
 
-## 11. AI quality and knowledge maintenance (12) — Built 4, Partly 0, Rules ready 1, Not built 7
+## 11. AI quality and knowledge maintenance (12) — Built 9, Partly 0, Rules ready 1, Not built 2
 
 | # | Automation | Status |
 |---|---|---|
 | 170 | Low-confidence escalation | Not built |
 | 171 | Repeated unanswered-question detection | Rules ready |
-| 172 | Incorrect-answer reporting | Not built |
+| 172 | Incorrect-answer reporting | Built |
 | 173 | Source validation | Built |
 | 174 | Transfer-failure monitoring | Built |
-| 175 | Configuration versioning | Not built |
-| 176 | Configuration review | Not built |
-| 177 | Rollback | Not built |
-| 178 | Response sampling | Not built |
+| 175 | Configuration versioning | Built |
+| 176 | Configuration review | Built |
+| 177 | Rollback | Built |
+| 178 | Response sampling | Built |
 | 179 | AI performance summaries | Built |
 | 180 | Retrieval failure handling | Not built |
 | 181 | FAQ maintenance | Built |
 
-## 12. Staff and team operations (14) — Built 8, Partly 3, Rules ready 2, Not built 1
+## 12. Staff and team operations (14) — Built 9, Partly 3, Rules ready 2, Not built 0
 
 | # | Automation | Status |
 |---|---|---|
@@ -264,7 +264,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 191 | Manager escalation | Partly |
 | 192 | Human takeover controls | Built |
 | 193 | Escalation acknowledgment | Built |
-| 194 | Daily team summary | Not built |
+| 194 | Daily team summary | Built |
 | 195 | Offboarding and access revocation | Built |
 
 ## 13. Industry-specific workflows (59) — Built 0, Partly 4, Rules ready 0, Not built 55
@@ -331,7 +331,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 253 | Hospitality — checkout | Not built |
 | 254 | Hospitality — feedback | Not built |
 
-## 14. Integration monitoring and recovery (15) — Built 9, Partly 3, Rules ready 2, Not built 1
+## 14. Integration monitoring and recovery (15) — Built 10, Partly 3, Rules ready 2, Not built 0
 
 | # | Automation | Status |
 |---|---|---|
@@ -345,7 +345,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 262 | Invalid-payload handling | Built |
 | 263 | Webhook signature verification | Partly |
 | 264 | Duplicate webhook protection | Built |
-| 265 | Scheduled reconciliation | Not built |
+| 265 | Scheduled reconciliation | Built |
 | 266 | Stuck-execution detection | Built |
 | 267 | Dead-letter handling | Built |
 | 268 | Manual retry | Rules ready |
@@ -372,13 +372,13 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 284 | Test mode | Built |
 | 285 | Manual recovery controls | Partly |
 
-## 16. Notifications and reporting (14) — Built 13, Partly 0, Rules ready 0, Not built 1
+## 16. Notifications and reporting (14) — Built 14, Partly 0, Rules ready 0, Not built 0
 
 | # | Automation | Status |
 |---|---|---|
 | 286 | In-app notifications | Built |
 | 287 | Owner email alerts | Built |
-| 288 | Staff SMS alerts | Not built |
+| 288 | Staff SMS alerts | Built |
 | 289 | Daily summaries | Built |
 | 290 | Weekly summaries | Built |
 | 291 | Missed-call reports | Built |
@@ -408,7 +408,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 310 | Administrative audit | Built |
 | 311 | Plan entitlement checks | Built |
 
-## 18. Security, consent and governance (15) — Built 8, Partly 3, Rules ready 3, Not built 1
+## 18. Security, consent and governance (15) — Built 9, Partly 3, Rules ready 3, Not built 0
 
 | # | Automation | Status |
 |---|---|---|
@@ -422,7 +422,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 319 | Replay protection | Built |
 | 320 | Rate limiting | Built |
 | 321 | Sensitive-data redaction | Built |
-| 322 | SSRF protection | Not built |
+| 322 | SSRF protection | Built |
 | 323 | Data-rights workflow | Built |
 | 324 | Recording and transcript access control | Partly |
 | 325 | Tenant-leak testing | Partly |

@@ -108,7 +108,7 @@ test('execution id is optional when logging failed to start', () => assert.equal
 // ---------------- dispatcher (timed jobs run in Supabase; n8n is only called when work is waiting)
 const dispatcherSql = readFileSync(new URL('../sql/zella_dispatcher.sql', import.meta.url), 'utf8');
 const wfJson = (f) => JSON.parse(readFileSync(new URL('./workflows/' + f, import.meta.url), 'utf8'));
-const RUN_PATHS = { 'zella-event-router.json': 'event-router', 'zella-sms-sender.json': 'sms-sender', 'zella-email-sender.json': 'email-sender', 'zella-followup-texts.json': 'followup-texts', 'zella-followup-emails.json': 'followup-emails', 'zella-owner-emails.json': 'owner-emails', 'zella-outbound-calls.json': 'outbound-calls', 'zella-knowledge.json': 'knowledge-sync', 'zella-calendar-sync.json': 'calendar-sync', 'zella-connection-tests.json': 'connection-tests', 'zella-meta-leads.json': 'meta-leads', 'zella-meta-sender.json': 'meta-sender', 'zella-meta-health.json': 'meta-health', 'zella-website-crawler.json': 'website-crawl' };
+const RUN_PATHS = { 'zella-event-router.json': 'event-router', 'zella-sms-sender.json': 'sms-sender', 'zella-email-sender.json': 'email-sender', 'zella-followup-texts.json': 'followup-texts', 'zella-followup-emails.json': 'followup-emails', 'zella-owner-emails.json': 'owner-emails', 'zella-outbound-calls.json': 'outbound-calls', 'zella-knowledge.json': 'knowledge-sync', 'zella-calendar-sync.json': 'calendar-sync', 'zella-connection-tests.json': 'connection-tests', 'zella-meta-leads.json': 'meta-leads', 'zella-meta-sender.json': 'meta-sender', 'zella-meta-health.json': 'meta-health', 'zella-website-crawler.json': 'website-crawl', 'zella-staff-texts.json': 'staff-sms' };
 test('no workflow wakes itself on a timer (that would burn the monthly n8n run allowance)', () => {
   for (const f of [...Object.keys(RUN_PATHS), 'zella-event-gateway.json']) assert.ok(!JSON.stringify(wfJson(f)).includes('scheduleTrigger'), f);
 });
@@ -917,6 +917,25 @@ test('website sql: owner approval, safe addresses, drafts only, and nothing is d
   const fetchNode = w.nodes.find((n) => n.name === 'Fetch page');
   assert.equal(fetchNode.parameters.options.redirect.redirect.followRedirects, false); assert.equal(fetchNode.parameters.authentication, 'none');
   assert.equal(fetchNode.onError, 'continueRegularOutput');
+});
+test('ops automation sql: settings rollback, spot checks, wrong-answer reports, team summary and reconcile are wired in', () => {
+  const opsSql = readFileSync(new URL('../sql/zella_ops_automation.sql', import.meta.url), 'utf8');
+  for (const f of ['zella_rollback_agent_config', 'zella_agent_config_changes', 'zella_knowledge_rollback', 'zella_sample_ai_responses', 'zella_report_incorrect_answer', 'zella_post_team_summaries', 'zella_reconcile']) assert.ok(opsSql.includes('function public.' + f), f);
+  assert.ok(opsSql.includes('zella_publish_agent_config') && !/\bdelete from\b/i.test(opsSql));
+  for (const j of ['zella_post_team_summaries', 'zella_sample_ai_responses', 'zella_reconcile']) assert.ok(dispatcherSql.split(j).length >= 3, j);
+  assert.ok(opsSql.includes("revoke execute on function public.%s from public, anon, authenticated"));
+});
+test('staff texts: only well formed numbers and short plain messages are sent, and only for opted-in people', () => {
+  const sp = (j) => runCode('staff-sms-plan.js', { json: j }).json;
+  const ok = { message_id: '3f1c2b4e-5a6d-4e7f-8a9b-0c1d2e3f4a5b', to: '+14155550123', from: '+14155550999', text: 'Zella: Emergency call. Burst pipe.' };
+  assert.equal(sp(ok).skip, false); assert.equal(sp(ok).telnyx.type, 'SMS');
+  for (const bad of [{ ...ok, to: '4155550123' }, { ...ok, to: '+1415; drop' }, { ...ok, message_id: 'x' }, { ...ok, text: '' }]) assert.equal(sp(bad).skip, true);
+  const af = runCode('staff-sms-after.js', { json: { statusCode: 200, body: { data: { id: 'm1' } } }, nodes: { Plan: { message_id: ok.message_id } } }).json.update;
+  assert.equal(af.p_status, 'sent'); assert.equal(runCode('staff-sms-after.js', { json: { statusCode: 400, body: { errors: [{ code: '40300' }] } }, nodes: { Plan: { message_id: ok.message_id } } }).json.update.p_status, 'failed');
+  const ssql = readFileSync(new URL('../sql/zella_staff_sms.sql', import.meta.url), 'utf8');
+  assert.ok(ssql.includes('bm.sms_alerts') && ssql.includes('v_sent >= 5') && ssql.includes("if not v_live or v_from is null then return v_out"));
+  assert.ok(dispatcherSql.includes("('staff-sms')") && dispatcherSql.includes("when 'staff-sms'"));
+  assert.equal(wfJson('zella-staff-texts.json').nodes.find((n) => n.name === 'Send via Telnyx').parameters.authentication, 'none');
 });
 test('meta workflows: the webhook is open (Meta cannot send our header) but every event is checked by signature in the database', () => {
   const w = wfJson('zella-meta-webhook.json');

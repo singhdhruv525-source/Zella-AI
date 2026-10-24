@@ -313,3 +313,8 @@ All of it lives in `sql/zella_meta.sql` (already applied to the live database) a
 - Changes: a page whose words changed flags the knowledge made from it ("needs a check") and creates a new draft beside the old answer (linked as a conflict). A removed page (404/410 twice) or an unreadable page (3 failures) tells the owner. Opening hours that differ from hours the owner wrote by hand are linked as a conflict. Website answers not confirmed for three crawl periods are flagged as stale.
 - Version history of every knowledge item is kept in `knowledge_versions`.
 - Stopping a site (`zella_website_remove_source`) pauses it and ignores its pages; nothing is deleted.
+
+## Ops automation and staff texts
+Run `sql/zella_staff_sms.sql` and `sql/zella_ops_automation.sql` (both safe to repeat), then re-run `sql/zella_dispatcher.sql`.
+- Settings rollback, a plain change list, knowledge rollback, 1-in-N spot checks of AI answers, wrong-answer reports, a daily team summary and a daily reconciliation run from Supabase. No n8n box is involved.
+- **Zella - Staff Texts** (`staff-sms` lane, workflow `1MWk3sY3c5d1oYEx`, unpublished) sends urgent alerts by text to team members who turned it on for themselves (`zella_set_my_sms_alerts`, needs a phone number on their profile). Max 5 per business per hour. Nothing is claimed until `sms_live` is true and `sms_from_number` is set. Put the Telnyx key on the "Send via Telnyx" box only.
