@@ -1454,3 +1454,4 @@
 .ba-suggestion .ba-actions { flex-shrink: 0; display: flex; gap: 8px; }
 @media (max-width: 640px) { .ba-suggestion { flex-direction: column; } }
 .ba-today-owner { font-weight: 600; margin: 2px 0 4px; }
+.ba-today-note { font-size: 1.05rem; margin: 0 0 4px; }

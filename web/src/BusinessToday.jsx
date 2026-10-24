@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "./supabase";
 import { Icon, Pill, personName } from "./BusinessUI";
 import { makeTerm, receptionistState } from "./businessWorkspace";
 import { useRoster } from "./BusinessLeads";
-import { liveNotes, pickLive, todayNote, welcomeStyle } from "./todayGreeting";
+import { todayNote, welcomeStyle } from "./todayGreeting";
 import { dayRange, formatLongDate, formatTime, greeting, timeAgo } from "./businessTime";
 import { friendly, noShowNotice, setCheckIn } from "./BusinessShared";
 import { RescheduleModal } from "./BusinessForms";
@@ -89,10 +89,7 @@ export default function BusinessToday({ workspace, userId, fallbackName, onAddLe
   const known = (n) => (n && n !== "Team member" ? n : "");
   const firstName = String(known(roster.nameOf[userId]) || fallbackName || "").trim().split(/\s+/)[0];
   const owner = known(roster.list.find((m) => m.role === "owner")?.name);
-  const [staticNote] = useState(() => todayNote(workspace.industry, workspace.name));
-  const [liveNote, setLiveNote] = useState("");
-  const decided = useRef(false);
-  const note = liveNote || staticNote;
+  const [note] = useState(() => todayNote(greeting(tz).replace("Good ", ""), workspace.id));
   const [style] = useState(() => welcomeStyle());
   const term = makeTerm(workspace);
   const agent = receptionistState(workspace);
@@ -103,22 +100,6 @@ export default function BusinessToday({ workspace, userId, fallbackName, onAddLe
   const [error, setError] = useState("");
   const [working, setWorking] = useState(null);
   const [moving, setMoving] = useState(null);
-
-  // Once the numbers arrive, half the time the note says something true about today.
-  useEffect(() => {
-    if (!data || liveNote || decided.current) return;
-    decided.current = true;
-    if (Math.random() < 0.4) return;
-    const upcoming = data.appointments.filter((a) => a.status !== "cancelled" && new Date(a.start_time) > new Date());
-    setLiveNote(pickLive(liveNotes({
-      appointmentsToday: data.appointments.filter((a) => a.status !== "cancelled").length,
-      nextTime: upcoming[0] ? formatTime(upcoming[0].start_time, tz) : "",
-      missedOpen: range === "today" ? data.missedOpen?.length ?? 0 : 0,
-      uncontacted: range === "today" ? data.uncontacted?.length ?? 0 : 0,
-      name: workspace.name,
-    })));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -304,9 +285,8 @@ export default function BusinessToday({ workspace, userId, fallbackName, onAddLe
           <div className="ba-crumb">Core / Today</div>
           <h1>{style ? `Welcome back${firstName ? `, ${firstName}` : ""}.` : `${greeting(tz)}${firstName ? `, ${firstName}` : ""}.`}</h1>
           <p className="ba-today-owner">{workspace.name}{owner ? ` · Owner: ${owner}` : ""}</p>
-          <p>
-            {note} · {formatLongDate(new Date(), tz)} ({tz.replace("_", " ")})
-          </p>
+          <p className="ba-today-note">{note}</p>
+          <p className="ba-muted">{formatLongDate(new Date(), tz)} ({tz.replace("_", " ")})</p>
         </div>
         <div className="ba-page-actions">
           <div className="ba-segment" role="tablist" aria-label="Time range">

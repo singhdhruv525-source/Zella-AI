@@ -1,47 +1,40 @@
-// The heading and the one-line note on the Today page. They change on each visit and differ by
-// industry, so the page doesn't feel the same every time. Lines make no claims about numbers.
-const GENERAL = [
-  "Here's {biz} at a glance.",
-  "Let's see how {biz} is doing.",
-  "Everything {biz} needs, in one place.",
-  "The latest from {biz}.",
-  "Your front desk has been busy. Here's the picture.",
-  "A quick look before the day gets going.",
-  "Calls, customers and bookings, all in one view.",
-  "Here's what's happening at {biz}.",
+// The heading and the soft line under it on the Today page. These are meant to feel calm and
+// kind, not like work. Each business gets its own order, and the line changes on every visit.
+const ANYTIME = [
+  "Take a breath. Everything is in good hands.",
+  "You don't have to do it all at once.",
+  "Small steps still count.",
+  "Be easy on yourself today.",
+  "The phone is covered. You can relax.",
+  "Good things take time. You're doing fine.",
+  "Take your time. Zella has the rest.",
+  "Nothing here needs to be rushed.",
+  "A little calm goes a long way.",
+  "You've got this, and you've got help.",
+  "Breathe in. Let the day come to you.",
+  "Steady wins. Keep going at your pace.",
+];
+const MORNING = [
+  "A fresh start. Take it slowly.",
+  "Coffee first, everything else after.",
+  "Let the morning be gentle.",
+  "A new day, plenty of time.",
+];
+const AFTERNOON = [
+  "Halfway there. A good moment for a pause.",
+  "Stretch, sip some water, carry on.",
+  "The day is going well. Keep your pace.",
+];
+const EVENING = [
+  "You've done enough for today.",
+  "Time to slow down. Zella is still here.",
+  "Rest well. The phone is handled.",
+  "Let the evening be quiet.",
 ];
 
-const BY_INDUSTRY = {
-  dental: ["Healthy smiles, healthy schedule.", "Chairs, check-ups and callbacks, all in one view.", "A clear schedule makes for calm appointments."],
-  healthcare: ["Patients first. Here's your day.", "A well-run front desk, ready for the day.", "Appointments and messages, all in one view."],
-  beautysalon: ["Chairs full, phones handled.", "Looking good starts at the front desk.", "Here's the book for the day."],
-  fitness: ["Members first. Here's the floor at a glance.", "Classes, trials and members, all in one view.", "Strong schedule, strong week."],
-  restaurant: ["Tables, bookings and calls, ready for service.", "Here's the front of house at a glance.", "Ready for the rush."],
-  plumbing: ["Jobs, quotes and callbacks, all in one view.", "Every call logged, so the work can start.", "Here's the job board."],
-  electrical: ["Jobs, quotes and callbacks, all in one view.", "Every call logged, so the work can start.", "Here's the job board."],
-  hvac: ["Jobs, quotes and callbacks, all in one view.", "Every call logged, so the work can start.", "Here's the job board."],
-  homeservices: ["Jobs, quotes and callbacks, all in one view.", "Here's the job board for today."],
-  legal: ["Enquiries and consultations, all in one view.", "Every enquiry handled with care.", "Here's the matter board."],
-  financialservices: ["Enquiries and reviews, all in one view.", "Here's your client pipeline at a glance."],
-  realestate: ["Viewings, enquiries and deals, all in one view.", "Here's the pipeline at a glance."],
-  education: ["Enquiries and applications, all in one view.", "Here's the intake at a glance."],
-  petcareveterinary: ["Happy pets, happy owners. Here's your day.", "Visits and reminders, all in one view."],
-  spawellness: ["A calm front desk, ready for the day.", "Bookings and rebookings, all in one view."],
-  childcare: ["Families first. Here's your day at a glance.", "Enquiries, tours and start dates, all in one view."],
-  automotive: ["Repairs, quotes and pickups, all in one view.", "Here's the workshop at a glance."],
-  landscapinglawncare: ["Jobs and plans, all in one view.", "Here's the job board for the week."],
-  pestcontrol: ["Jobs and follow-ups, all in one view.", "Here's the job board for today."],
-  photographyevents: ["Enquiries, shoots and deliveries, all in one view.", "Here's the booking calendar at a glance."],
-  propertymanagement: ["Requests and leases, all in one view.", "Here's the property desk at a glance."],
-};
-
-const key = (name) => String(name ?? "").toLowerCase().replace(/[^a-z]/g, "");
-const pick = (list, avoid) => {
-  const options = list.length > 1 ? list.filter((x) => x !== avoid) : list;
-  return options[Math.floor(Math.random() * options.length)];
-};
-const remember = (name, value) => { try { localStorage.setItem(name, value); } catch { /* optional */ } };
 const recall = (name) => { try { return localStorage.getItem(name) ?? ""; } catch { return ""; } };
+const remember = (name, value) => { try { localStorage.setItem(name, value); } catch { /* optional */ } };
+const hash = (text) => { let h = 0; for (const ch of String(text)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h; };
 
 // true = "Welcome back", false = "Good morning/afternoon/evening". Alternates, never the same twice in a row.
 export function welcomeStyle() {
@@ -51,28 +44,11 @@ export function welcomeStyle() {
   return next === "welcome";
 }
 
-export function todayNote(industry, businessName) {
-  const pool = [...GENERAL, ...(BY_INDUSTRY[key(industry)] ?? []), ...(BY_INDUSTRY[key(industry)] ?? [])];
-  const choice = pick(pool, recall("zella.today.note"));
-  remember("zella.today.note", choice);
-  return choice.replaceAll("{biz}", businessName || "your business");
-}
-
-// Lines built from today's real numbers. Only true facts; empty when there is nothing worth saying.
-const n = (count, one, many) => `${count} ${count === 1 ? one : many ?? one + "s"}`;
-export function liveNotes({ appointmentsToday = 0, nextTime = "", missedOpen = 0, uncontacted = 0, name = "" }) {
-  const lines = [];
-  if (appointmentsToday > 0) {
-    lines.push(`${n(appointmentsToday, "appointment")} on the calendar today.`);
-    if (nextTime) lines.push(`Next up at ${nextTime}. ${n(appointmentsToday, "appointment")} today.`);
-  } else lines.push("A clear calendar today. Good time to follow up.");
-  if (missedOpen > 0) lines.push(`${n(missedOpen, "missed call")} still waiting for a follow-up.`);
-  if (uncontacted > 0) lines.push(`${n(uncontacted, "new lead")} not contacted yet.`);
-  if (missedOpen === 0 && uncontacted === 0) lines.push(`Nothing waiting on you. ${name || "Your business"} is on top of it.`);
-  return lines;
-}
-export function pickLive(lines) {
-  const choice = pick(lines, recall("zella.today.live"));
-  remember("zella.today.live", choice);
-  return choice;
+// partOfDay: "morning" | "afternoon" | "evening". businessKey keeps each business on its own path through the list.
+export function todayNote(partOfDay, businessKey) {
+  const pool = [...ANYTIME, ...(partOfDay === "morning" ? MORNING : partOfDay === "evening" ? EVENING : AFTERNOON)];
+  const offset = hash(businessKey) % pool.length;
+  const visit = Number(recall("zella.today.visit") || 0) + 1;
+  remember("zella.today.visit", String(visit));
+  return pool[(offset + visit * 5) % pool.length];
 }
