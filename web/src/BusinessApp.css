@@ -247,7 +247,7 @@
   min-height: 60px;
   padding: 10px 28px;
   border-bottom: 1px solid var(--ba-border);
-  background: rgba(253, 246, 237, 0.92);
+  background: rgba(229, 228, 226, 0.92);
   backdrop-filter: blur(8px);
 }
 
@@ -632,7 +632,7 @@
 }
 
 .ba-item:hover { border-color: var(--ba-border-strong); box-shadow: var(--ba-shadow-2); }
-.ba-item.alert { border-color: var(--ba-danger-border); background: #FFFAF8; }
+.ba-item.alert { border-color: var(--ba-danger-border); background: #FBF7F5; }
 .ba-item.muted { background: var(--ba-canvas); }
 
 .ba-item-top {
@@ -1203,10 +1203,10 @@
 .ba-picklist { list-style: none; margin: 6px 0 0; padding: 0; border: 1px solid var(--ba-border); border-radius: 10px; background: var(--ba-surface); overflow: hidden; }
 .ba-picklist li + li { border-top: 1px solid var(--ba-border); }
 .ba-picklist button { width: 100%; display: flex; justify-content: space-between; gap: 12px; padding: 9px 12px; background: none; border: 0; text-align: left; font: inherit; color: var(--ba-text); cursor: pointer; }
-.ba-picklist button:hover, .ba-picklist button:focus-visible { background: var(--ba-subdued); outline: none; }
+.ba-picklist button:hover, .ba-picklist button:focus-visible { background: var(--ba-subtle); outline: none; }
 .ba-picklist small { color: var(--ba-muted); }
 
-.ba-dup { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 20px; padding: 12px 14px; border: 1px solid var(--ba-border); border-radius: 10px; background: var(--ba-subdued); }
+.ba-dup { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 20px; padding: 12px 14px; border: 1px solid var(--ba-border); border-radius: 10px; background: var(--ba-subtle); }
 .ba-dup > div:not(.ba-form-actions) { display: grid; gap: 2px; }
 .ba-dup small { color: var(--ba-muted); font-size: 12px; }
 .ba-dup .ba-form-actions { grid-column: 1 / -1; }
@@ -1226,8 +1226,8 @@
 .ba-bell-panel ul { list-style: none; margin: 0; padding: 0; }
 .ba-bell-panel li + li { border-top: 1px solid var(--ba-border); }
 .ba-bell-panel li button { width: 100%; display: grid; gap: 3px; text-align: left; padding: 11px 14px; background: none; border: 0; font: inherit; color: var(--ba-text); cursor: pointer; }
-.ba-bell-panel li button:hover, .ba-bell-panel li button:focus-visible { background: var(--ba-subdued); outline: none; }
-.ba-bell-panel li.unread button { background: #EEF4FF; }
+.ba-bell-panel li button:hover, .ba-bell-panel li button:focus-visible { background: var(--ba-subtle); outline: none; }
+.ba-bell-panel li.unread button { background: #E6E0F0; }
 .ba-bell-panel small { color: var(--ba-muted); }
 .ba-muted.pad { padding: 16px 14px; margin: 0; }
 .ba-kn-head .ba-pill, .ba-thread-meta .ba-pill, .ba-status-row .ba-pill { text-transform: none; }

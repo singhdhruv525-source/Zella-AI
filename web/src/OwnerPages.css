@@ -918,12 +918,12 @@
 .rs-chip {
   min-height: 40px;
   padding: 8px 14px;
-  border: 1px solid var(--line, #d9d4c8);
+  border: 1px solid var(--line, #d6d3cf);
   border-radius: 8px;
   background: transparent;
   color: inherit;
   font: inherit;
   cursor: pointer;
 }
-.rs-chip.on { background: var(--ink, #23272b); border-color: var(--ink, #23272b); color: #fff; }
+.rs-chip.on { background: var(--ink, #6f4e37); border-color: var(--ink, #6f4e37); color: #fff; }
 .rs-chip:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
