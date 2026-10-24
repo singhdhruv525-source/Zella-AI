@@ -1242,7 +1242,21 @@ test('appointment flow: staff notices, arrival by text, and unrecorded appointme
   assert.ok(dispatcherSql.includes("'zella_flag_unrecorded_appointments'"));
 });
 
+
+
+
+// --- industry rule list (zella_industry_rule_list.sql)
+const ruleListSql = readFileSync(new URL('../sql/zella_industry_rule_list.sql', import.meta.url), 'utf8');
+test('rule list: list, set and preview functions exist', () => {
+  for (const f of ['zella_industry_rule_list', 'zella_set_industry_rules', 'zella_industry_rules_for']) assert.ok(ruleListSql.includes('function public.' + f), f);
+});
+test('rule list: only admins and the business can use them', () => {
+  assert.ok(ruleListSql.includes('is_platform_admin()') && ruleListSql.includes('NOT_ALLOWED'));
+});
+test('rule list: general rules are plain check-ins, no marketing', () => {
+  assert.ok(!/discount|% off|promo/i.test(ruleListSql));
+});
+
 console.log(`${passed} passed, ${failures.length} failed`);
 for (const f of failures) console.log('  FAIL ' + f);
 process.exit(failures.length ? 1 : 0);
-

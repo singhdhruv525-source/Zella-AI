@@ -189,6 +189,7 @@ function emptySetup() {
       leadSources: { meta: false, website: false, google: false },
     },
     automations: structuredClone(DEFAULT_AUTOMATIONS),
+    industryRules: [],
     onboardingStatus: "started",
     savedSteps: {},
   };
@@ -279,6 +280,7 @@ function fromServer(data, industries = []) {
   const industryName = industries.find((i) => i.id === setup.business.industryId)?.name;
   setup.automations = automationDefaultsFor(industryName);
   setup.automationsFromIndustry = industryName || "";
+  setup.industryRules = data.industryRules || [];
   for (const row of data.automations || []) {
     if (setup.automations[row.trigger_type]) {
       setup.automations[row.trigger_type] = {
@@ -934,12 +936,38 @@ function IntegrationsStep({ value, onChange, showErrors }) {
 const SWITCHES = CATALOG;
 
 // Step 2: switch each automation on or off. The choices start from what's usual for the industry.
-function AutomationSwitchesStep({ value, onChange, terminology, industryName }) {
+function AutomationSwitchesStep({ value, onChange, terminology, industryName, rules = [], onRules }) {
   const appt = termFor(terminology, "appointment").toLowerCase();
-  const setAll = (enabled) => onChange(Object.fromEntries(Object.entries(value).map(([type, item]) => [type, { ...item, enabled }])));
+  const setAll = (enabled) => {
+    onChange(Object.fromEntries(Object.entries(value).map(([type, item]) => [type, { ...item, enabled }])));
+    onRules?.(rules.map((r) => ({ ...r, enabled })));
+  };
+  const setRule = (name, patch) => onRules?.(rules.map((r) => (r.name === name ? { ...r, ...patch } : r)));
+  const madeFor = rules.filter((r) => r.preferred);
+  const general = rules.filter((r) => !r.preferred);
   const setOne = (type, enabled) => onChange({ ...value, [type]: { ...value[type], enabled } });
   const setNotify = (type, notify_via) => onChange({ ...value, [type]: { ...value[type], settings: { ...value[type].settings, notify_via } } });
-  const onCount = SWITCHES.filter(([type]) => value[type]?.enabled).length;
+  const onCount = SWITCHES.filter(([type]) => value[type]?.enabled).length + rules.filter((r) => r.enabled).length;
+  const total = SWITCHES.length + rules.length;
+  const ruleCard = (r) => (
+    <div key={r.name} className={`wiz-automation ${r.enabled ? "on" : ""}`}>
+      <div className="wiz-module-top">
+        <div>
+          <strong>{r.name}{r.preferred && <> <Badge tone="success">Preferred for this business</Badge></>}</strong>
+          <p>{r.description}</p>
+        </div>
+        <Toggle checked={Boolean(r.enabled)} label={r.name} onChange={(enabled) => setRule(r.name, { enabled })} />
+      </div>
+      {r.enabled && (
+        <label className="wiz-notify">
+          <span>Tell the owner by</span>
+          <select value={r.notifyVia || "both"} onChange={(e) => setRule(r.name, { notifyVia: e.target.value })}>
+            {NOTIFY_OPTIONS.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+          </select>
+        </label>
+      )}
+    </div>
+  );
   return (
     <>
       <Section
@@ -954,7 +982,7 @@ function AutomationSwitchesStep({ value, onChange, terminology, industryName }) 
           </div>
         }
       >
-        <p className="wiz-hint">{onCount} of {SWITCHES.length} on. They start running when the business goes live.</p>
+        <p className="wiz-hint">{onCount} of {total} on. They start running when the business goes live.</p>
         <div className="wiz-automation-list">
           {orderTypes(SWITCHES.map(([type]) => type), industryName).map((type) => {
             const [, title, text] = SWITCHES.find(([k]) => k === type);
@@ -981,6 +1009,19 @@ function AutomationSwitchesStep({ value, onChange, terminology, industryName }) 
             );
           })}
         </div>
+        {madeFor.length > 0 && (
+          <>
+            <h4 className="wiz-group-title">Made for {industryName || "this business"}</h4>
+            <p className="wiz-hint">These follow your {industryName ? industryName.toLowerCase() : "industry"} records and customers, such as a status change or a service coming due.</p>
+            <div className="wiz-automation-list">{madeFor.map(ruleCard)}</div>
+          </>
+        )}
+        {general.length > 0 && (
+          <>
+            <h4 className="wiz-group-title">Also available</h4>
+            <div className="wiz-automation-list">{general.map(ruleCard)}</div>
+          </>
+        )}
       </Section>
     </>
   );
@@ -1335,12 +1376,12 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
 
     if (key === "switches") {
       // Saved quietly: it doesn't move the setup progress forward, so a draft reopens where it was left.
-      await callOwnerFunction("setup_save_automations", { businessId, automations: setup.automations, early: true });
+      await callOwnerFunction("setup_save_automations", { businessId, automations: setup.automations, industryRules: setup.industryRules, early: true });
       return;
     }
 
     if (key === "automations") {
-      await callOwnerFunction("setup_save_automations", { businessId, automations: setup.automations });
+      await callOwnerFunction("setup_save_automations", { businessId, automations: setup.automations, industryRules: setup.industryRules });
     }
   }
 
@@ -1460,7 +1501,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
         {step === 0 && (
           <BusinessStep value={setup.business} onChange={changeBusiness} industries={industries} isExisting={Boolean(businessId)} locked={locked} showErrors={showErrors} />
         )}
-        {step === 1 && <AutomationSwitchesStep value={setup.automations} onChange={update("automations")} terminology={terminology} industryName={industries.find((i) => i.id === setup.business.industryId)?.name} />}
+        {step === 1 && <AutomationSwitchesStep value={setup.automations} onChange={update("automations")} rules={setup.industryRules} onRules={update("industryRules")} terminology={terminology} industryName={industries.find((i) => i.id === setup.business.industryId)?.name} />}
         {step === 2 && <OwnerStep value={setup.owner} onChange={update("owner")} invitation={setup.invitation} showErrors={showErrors} />}
         {step === 3 && <TerminologyStep value={terminology} onChange={update("terminology")} />}
         {step === 4 && <ModulesStep modules={setup.modules} onChange={update("modules")} />}

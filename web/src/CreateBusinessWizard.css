@@ -908,3 +908,5 @@
 
 .wiz-notify { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 13px; color: var(--wiz-muted, #5b6470); }
 .wiz-notify select { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--wiz-line, #d6dbe1); background: #fff; font: inherit; }
+
+.wiz-group-title { margin: 22px 0 4px; font-size: 15px; font-weight: 600; }

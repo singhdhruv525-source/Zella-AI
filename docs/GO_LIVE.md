@@ -31,3 +31,7 @@ Nothing below is published or running until you do it. Everything is built; thes
 
 ## 5. Front end
 `docs/FRONTEND_TODO.md` lists every screen the automations expect.
+
+## Industry rule list (setup wizard)
+- Run `sql/zella_industry_rule_list.sql` (already applied live). It adds three general rules anyone can switch on and the list/set functions.
+- Deploy the `owner-provision-business` edge function: the wizard's automation step now shows standard + industry-made + general rules with on/off and "tell the owner by".
