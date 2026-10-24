@@ -1167,6 +1167,12 @@ test('audit and permissions: privileged changes are logged and a daily check loo
   assert.ok(dispatcherSql.includes("'zella_run_permission_check'"));
 });
 
+test('staff invitations and approvals exist and the approval sweep runs hourly', () => {
+  const x = readFileSync(new URL('../sql/zella_staff_invites_approvals.sql', import.meta.url), 'utf8');
+  for (const f of ['zella_invite_staff', 'zella_cancel_invitation', 'zella_resend_invitation', 'zella_accept_staff_invitations', 'zella_pending_approvals', 'zella_sweep_approvals']) assert.ok(x.includes(f), f);
+  assert.ok(dispatcherSql.includes("'zella_sweep_approvals'"));
+});
+
 test('timeouts: every workflow has a run time limit and every outside call has a time limit', () => {
   for (const f of readdirSync(new URL('./workflows/', import.meta.url))) {
     const w = wfJson(f);

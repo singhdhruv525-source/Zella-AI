@@ -34,3 +34,4 @@ Order agreed: finish automations -> industry automations -> front-end pass.
 - Reconnect: show `zella_connections_to_reconnect(business)` as banner/buttons on home and settings.
 - Lifecycle: home banner for paused/cancelled accounts (read-only mode), cancel-and-keep-plan button before cancel_at.
 - Audit: show `privileged_*` rows from audit_logs in a Security log screen for owners/admins.
+- Team: invite form (email, name, role), pending invitations list with Cancel/Resend; call zella_accept_staff_invitations() after every sign-in. Approvals screen from zella_pending_approvals + zella_decide_approval.

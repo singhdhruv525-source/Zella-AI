@@ -9,7 +9,7 @@ Item numbers and names come from the Zella AI Complete Automation Guide. Status 
 
 Items are served by a small set of shared workflows (see `n8n/README.md`), not one workflow per item. Many industry items (196 to 254) are configurations of the shared appointment, message, assignment and reminder engines; the 98 starter automation rows per industry are seeded in the database.
 
-**Totals:** Built 269, Partly 4, Rules ready 9, Not built 56.
+**Totals:** Built 271, Partly 4, Rules ready 7, Not built 56.
 
 
 ## 1. Calls and AI receptionist (16) — Built 12, Partly 0, Rules ready 4, Not built 0
@@ -203,7 +203,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 145 | Failure alerting | Built |
 | 146 | Conversion tracking | Built |
 
-## 10. Website knowledge automation (23) — Built 22, Partly 0, Rules ready 1, Not built 0
+## 10. Website knowledge automation (23) — Built 23, Partly 0, Rules ready 0, Not built 0
 
 | # | Automation | Status |
 |---|---|---|
@@ -222,7 +222,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 159 | Deleted-page detection | Built |
 | 160 | Broken-link detection | Built |
 | 161 | Conflicting-information detection | Built |
-| 162 | Approval queue | Rules ready |
+| 162 | Approval queue | Built |
 | 163 | Knowledge version history | Built |
 | 164 | Controlled publishing and rollback | Built |
 | 165 | Stale-knowledge alerts | Built |
@@ -248,13 +248,13 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 180 | Retrieval failure handling | Not built |
 | 181 | FAQ maintenance | Built |
 
-## 12. Staff and team operations (14) — Built 12, Partly 0, Rules ready 2, Not built 0
+## 12. Staff and team operations (14) — Built 13, Partly 0, Rules ready 1, Not built 0
 
 | # | Automation | Status |
 |---|---|---|
 | 182 | Work assignment | Built |
 | 183 | Workload-aware routing | Built |
-| 184 | Staff invitations | Rules ready |
+| 184 | Staff invitations | Built |
 | 185 | Staff availability | Built |
 | 186 | Unassigned-work alerts | Built |
 | 187 | Overdue-task alerts | Built |
