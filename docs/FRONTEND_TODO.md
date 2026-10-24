@@ -23,3 +23,7 @@ Order agreed: finish automations -> industry automations -> front-end pass.
 ## Small-business mode
 - Simple "today" screen
 - Phone-first app (PWA) with push; owner alerts by text or email
+
+- Calls: read through `calls_view` instead of `calls` (BusinessCalls, Inbox, More, Profile), then run `select zella_lock_call_columns()` so recordings and transcripts stay manager-only.
+- Erase customer: handle the `APPROVAL_REQUIRED` error by asking for a second owner/admin approval.
+- Failed work screen for managers using `zella_failed_work` and `zella_retry_failed`; message results screen using `zella_workflow_effectiveness`.

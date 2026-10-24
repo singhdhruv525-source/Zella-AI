@@ -1108,6 +1108,14 @@ test('connection tests: the three provider boxes ship with no credential, and th
   assert.ok(!JSON.stringify(w).includes('scheduleTrigger'));
 });
 
+test('security extras: erase needs approval, calls_view hides recordings, daily checks are on the dispatcher', () => {
+  const x = readFileSync(new URL('../sql/zella_security_extras.sql', import.meta.url), 'utf8');
+  assert.ok(x.includes("zella_approval_ok(p_business_id, ''erase_customer''") && x.includes('security_invoker = true'));
+  assert.ok(x.includes("array['owner','admin','manager']") && x.includes('zella_lock_call_columns'));
+  assert.ok(x.includes("'anon_can_read'") && x.includes('zella_retry_failed') && x.includes('booked_within_7_days'));
+  for (const j of ['zella_run_tenant_check', 'zella_notify_message_failures', 'zella_remind_integrations']) assert.ok(dispatcherSql.includes("'" + j + "'"), j);
+});
+
 console.log(`${passed} passed, ${failures.length} failed`);
 for (const f of failures) console.log('  FAIL ' + f);
 process.exit(failures.length ? 1 : 0);

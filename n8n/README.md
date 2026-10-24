@@ -345,3 +345,13 @@ Run `sql/zella_knowledge_extras.sql` (safe to repeat), then re-run `zella_dispat
 
 ## Staff extras
 Run `sql/zella_staff_extras.sql` (safe to repeat), then re-run `zella_dispatcher.sql`. Time off: `zella_request_time_off` (any member) and `zella_decide_time_off` (managers); approval blocks the calendar and flags existing appointments for rebooking. Hourly: an open task past its due time (grace `task_overdue_grace_minutes`, default 60) tells the person it belongs to, or the owners if unassigned, once; after `task_escalate_hours` (default 24) it becomes urgent and the owners are told.
+
+## Security and operations extras
+Run `sql/zella_security_extras.sql`. All database.
+- Erasing a customer now needs a second owner or admin to approve it (`zella_request_approval` / `zella_decide_approval`, action `erase_customer`, used once within two days). A business with only one owner/admin is not blocked; the erase is still logged.
+- `calls_view` returns calls with recording and transcript empty below manager. `zella_lock_call_columns()` then stops direct reads of those two columns; run it only after the web app reads calls through the view (see `docs/FRONTEND_TODO.md`).
+- `zella_tenant_leak_check` now also finds open policies and anonymous read access; `zella_run_tenant_check` (daily) raises a critical platform alert if anything shows.
+- `zella_notify_message_failures` (daily) tells owners how many messages failed in the last day.
+- `zella_failed_work` / `zella_retry_failed` (managers and above) list failed follow-ups, reminders and social replies and send one back to try again; each retry is logged.
+- `zella_remind_integrations` (weekly) reminds active businesses without a phone number or calendar.
+- `zella_workflow_effectiveness` shows, per kind of automatic message, how many were sent, failed, skipped and followed by a booking within 7 days.

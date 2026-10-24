@@ -9,7 +9,7 @@ Item numbers and names come from the Zella AI Complete Automation Guide. Status 
 
 Items are served by a small set of shared workflows (see `n8n/README.md`), not one workflow per item. Many industry items (196 to 254) are configurations of the shared appointment, message, assignment and reminder engines; the 98 starter automation rows per industry are seeded in the database.
 
-**Totals:** Built 226, Partly 24, Rules ready 31, Not built 57.
+**Totals:** Built 233, Partly 17, Rules ready 31, Not built 57.
 
 
 ## 1. Calls and AI receptionist (16) — Built 8, Partly 4, Rules ready 4, Not built 0
@@ -351,7 +351,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 268 | Manual retry | Rules ready |
 | 269 | Integration health summaries | Rules ready |
 
-## 15. Automation engine reliability (16) — Built 14, Partly 2, Rules ready 0, Not built 0
+## 15. Automation engine reliability (16) — Built 16, Partly 0, Rules ready 0, Not built 0
 
 | # | Automation | Status |
 |---|---|---|
@@ -364,13 +364,13 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 276 | Retry and backoff | Built |
 | 277 | Execution locks | Built |
 | 278 | Cancelled-job invalidation | Built |
-| 279 | Failure notifications | Partly |
+| 279 | Failure notifications | Built |
 | 280 | Orphaned-task detection | Built |
 | 281 | Queue-backlog monitoring | Built |
 | 282 | Restart recovery | Built |
 | 283 | Configuration validation | Built |
 | 284 | Test mode | Built |
-| 285 | Manual recovery controls | Partly |
+| 285 | Manual recovery controls | Built |
 
 ## 16. Notifications and reporting (14) — Built 14, Partly 0, Rules ready 0, Not built 0
 
@@ -391,13 +391,13 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 298 | KPI alerts | Built |
 | 299 | Notification grouping and deduplication | Built |
 
-## 17. Subscription and platform operations (12) — Built 7, Partly 1, Rules ready 4, Not built 0
+## 17. Subscription and platform operations (12) — Built 8, Partly 0, Rules ready 4, Not built 0
 
 | # | Automation | Status |
 |---|---|---|
 | 300 | Onboarding completion | Built |
 | 301 | Provisioning recovery | Rules ready |
-| 302 | Integration setup reminders | Partly |
+| 302 | Integration setup reminders | Built |
 | 303 | Payment-failure handling | Built |
 | 304 | Renewal processing | Built |
 | 305 | Cancellation handling | Rules ready |
@@ -408,7 +408,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 310 | Administrative audit | Built |
 | 311 | Plan entitlement checks | Built |
 
-## 18. Security, consent and governance (15) — Built 9, Partly 3, Rules ready 3, Not built 0
+## 18. Security, consent and governance (15) — Built 12, Partly 0, Rules ready 3, Not built 0
 
 | # | Automation | Status |
 |---|---|---|
@@ -418,17 +418,17 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 315 | Consent validation | Built |
 | 316 | Opt-out enforcement | Built |
 | 317 | Quiet-hour enforcement | Built |
-| 318 | Sensitive-action approval | Partly |
+| 318 | Sensitive-action approval | Built |
 | 319 | Replay protection | Built |
 | 320 | Rate limiting | Built |
 | 321 | Sensitive-data redaction | Built |
 | 322 | SSRF protection | Built |
 | 323 | Data-rights workflow | Built |
-| 324 | Recording and transcript access control | Partly |
-| 325 | Tenant-leak testing | Partly |
+| 324 | Recording and transcript access control | Built |
+| 325 | Tenant-leak testing | Built |
 | 326 | Privileged-action audit | Rules ready |
 
-## 19. Analytics and optimization (12) — Built 11, Partly 1, Rules ready 0, Not built 0
+## 19. Analytics and optimization (12) — Built 12, Partly 0, Rules ready 0, Not built 0
 
 | # | Automation | Status |
 |---|---|---|
@@ -443,4 +443,4 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 335 | Usage and cost metrics | Built |
 | 336 | Dashboard filtering | Built |
 | 337 | Anomaly detection | Built |
-| 338 | Workflow effectiveness analysis | Partly |
+| 338 | Workflow effectiveness analysis | Built |
