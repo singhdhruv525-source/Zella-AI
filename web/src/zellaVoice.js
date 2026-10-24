@@ -6,6 +6,45 @@ const hash = (text) => { let h = 0; for (const ch of String(text)) h = (h * 31 +
 const choose = (list, seed) => list[hash(seed) % list.length];
 const roll = (list) => list[Math.floor(Math.random() * list.length)];
 
+const key = (name) => String(name ?? "").toLowerCase().replace(/[^a-z]/g, "");
+
+// Industry flavour: a restaurant talks about tables and guests, not appointments and customers.
+const BY_INDUSTRY = {
+  restaurant: {
+    appointment_cancelled: ["A reservation was cancelled. A table just opened up.", "One cancellation. That table is free again."],
+    appointment_rescheduled: ["A guest picked a different time. Reservations are updated."],
+    customer_arrived: (n) => [`${n.title}. Time to show them to their table!`, `${n.title}. A warm welcome awaits.`],
+    new_lead: () => ["A new guest is asking about a table!", "Someone new wants to dine with you. Say hello!"],
+    callback: ["A guest is waiting for your call.", "A guest would love a call back."],
+    customer_reply: ["A guest wrote back!"],
+    customer_request: ["A guest has a special request. Let's make it happen."],
+  },
+  hospitality: {
+    appointment_cancelled: ["A reservation was cancelled. That space is free again."],
+    customer_arrived: (n) => [`${n.title}. Welcome them in!`],
+    new_lead: () => ["A new guest is asking about a stay!"],
+  },
+  childcare: {
+    new_lead: () => ["A new family is getting in touch. Say hello!"],
+    appointment_cancelled: ["A tour was cancelled. That time is free again."],
+  },
+  dental: {
+    new_lead: () => ["A new patient is getting in touch. Say hello!"],
+    customer_arrived: (n) => [`${n.title}. Time to welcome them in!`],
+  },
+};
+
+// Swap generic words for the business's own: appointment -> reservation, customer -> guest.
+export function localize(text, term) {
+  if (typeof text !== "string" || !term) return text;
+  const lower = (value) => String(value).toLowerCase();
+  return text
+    .replace(/\bappointments\b/gi, (m) => (m[0] === m[0].toUpperCase() ? term("appointments") : lower(term("appointments"))))
+    .replace(/\bappointment\b/gi, (m) => (m[0] === m[0].toUpperCase() ? term("appointment") : lower(term("appointment"))))
+    .replace(/\bcustomers\b/gi, (m) => (m[0] === m[0].toUpperCase() ? term("customers") : lower(term("customers"))))
+    .replace(/\bcustomer\b/gi, (m) => (m[0] === m[0].toUpperCase() ? term("customer") : lower(term("customer"))));
+}
+
 // Bell titles by kind. A function gets the original title (for kinds that carry a name).
 const TITLES = {
   new_lead: (n) => /priority/i.test(n.title)
@@ -71,11 +110,12 @@ const TITLES = {
 };
 
 // Notification shown in the bell: same facts, friendlier words.
-export function voiceTitle(n) {
-  const entry = TITLES[n.kind];
-  if (!entry) return n.title;
+export function voiceTitle(n, workspace) {
+  const term = workspace?.terminology ? (k) => workspace.terminology[k] || k : null;
+  const entry = BY_INDUSTRY[key(workspace?.industry)]?.[n.kind] ?? TITLES[n.kind];
+  if (!entry) return localize(n.title, term);
   const list = typeof entry === "function" ? entry(n) : entry;
-  return choose(list, n.id ?? n.title);
+  return localize(choose(list, n.id ?? n.title), term);
 }
 
 // Short confirmations ("Saved.") in Zella's voice. Unknown messages are left alone.
@@ -85,6 +125,7 @@ const RULES = [
   [/^Callback finished\.?$/, () => roll(["Callback done. One less thing on your plate.", "Callback complete. Nicely handled."])],
   [/^Marked as contacted\.?$/, () => roll(["Marked as contacted. Nice and quick.", "Contacted! They'll appreciate the hello."])],
   [/^Booking confirmed\. Reminders are set\.?$/, () => roll(["Booked! Reminders are set so nobody forgets.", "It's in the calendar, and reminders are set."])],
+  [/^Booking confirmed\.?$/, () => "Confirmed! It's in the calendar."],
   [/^Lead created\.?$/, () => roll(["Lead added. A promising start.", "New lead saved. Welcome them in!"])],
   [/^Removed\. The time is open again\.?$/, () => "Done. That time is open again."],
   [/^Block removed\. The time is open again\.?$/, () => "Done. That time is open again."],
@@ -100,13 +141,14 @@ const RULES = [
   [/^Saved to the customer\.?$/, () => "Saved to the customer. Thanks for checking!"],
 ];
 
-export function warm(message) {
+export function warm(message, workspace) {
   if (typeof message !== "string" || !message) return message;
+  const term = workspace?.terminology ? (k) => workspace.terminology[k] || k : null;
   for (const [pattern, make] of RULES) {
     const hit = message.match(pattern);
-    if (hit) return make(message, ...hit.slice(1));
+    if (hit) return localize(make(message, ...hit.slice(1)), term);
   }
-  return message;
+  return localize(message, term);
 }
 
 export const ALL_QUIET = [

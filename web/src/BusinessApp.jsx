@@ -117,7 +117,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
   const [refreshKey, setRefreshKey] = useState(0);
   const [busy, setBusy] = useState(false);
   const [notice, setNoticeRaw] = useState("");
-  const setNotice = (message) => setNoticeRaw(warm(message));
+  const setNotice = (message) => setNoticeRaw(warm(message, workspace));
   const [search, setSearch] = useState("");
   const [profileId, setProfileId] = useState(null);
   const [attention, setAttention] = useState(0);

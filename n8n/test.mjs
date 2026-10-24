@@ -1363,6 +1363,11 @@ test('voice: friendly wording keeps the facts and leaves unknown messages alone'
 test('voice: an emergency stays plain and clear', () => {
   for (const id of ['a', 'b', 'c', 'd']) assert.ok(/emergency|can't wait/i.test(voice.voiceTitle({ id, kind: 'emergency_call', title: 'Emergency call' })));
 });
+test('voice: a restaurant hears about reservations, tables and guests', () => {
+  const r = { industry: 'Restaurant', terminology: { appointment: 'Reservation', appointments: 'Reservations', customer: 'Guest', customers: 'Guests' } };
+  assert.ok(/table|reservation/i.test(voice.voiceTitle({ id: 'a', kind: 'appointment_cancelled', title: 'Appointment cancelled' }, r)));
+  assert.equal(voice.voiceTitle({ id: 'z', kind: 'x', title: 'A customer changed their appointment' }, r), 'A guest changed their reservation');
+});
 
 console.log(`${passed} passed, ${failures.length} failed`);
 for (const f of failures) console.log('  FAIL ' + f);

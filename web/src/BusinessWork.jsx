@@ -410,7 +410,7 @@ export function NotificationsBell({ workspace, onGo }) {
               {rows.map((n) => (
                 <li key={n.id} className={`${n.read_at ? "" : "unread"} ${n.severity === "urgent" ? "urgent" : ""}`}>
                   <button type="button" onClick={() => go(n)}>
-                    <span className="ba-kn-head"><strong>{voiceTitle(n)}</strong>{n.severity !== "info" && <Pill tone={NOTE_TONE[n.severity]}>{n.severity === "urgent" ? "Urgent" : "Heads up"}</Pill>}</span>
+                    <span className="ba-kn-head"><strong>{voiceTitle(n, workspace)}</strong>{n.severity !== "info" && <Pill tone={NOTE_TONE[n.severity]}>{n.severity === "urgent" ? "Urgent" : "Heads up"}</Pill>}</span>
                     {n.body && <small>{n.body}</small>}
                     <small>{timeAgo(n.created_at)}</small>
                   </button>
