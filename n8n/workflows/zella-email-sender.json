@@ -34,7 +34,9 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ p_limit: 20, p_channel: 'email' }) }}",
-        "options": {}
+        "options": {
+          "timeout": 30000
+        }
       },
       "id": "7df4b24e-c22c-49b6-8151-a5f265d80ad3",
       "name": "Claim email reminders",
@@ -114,7 +116,8 @@
               "neverError": true,
               "responseFormat": "json"
             }
-          }
+          },
+          "timeout": 30000
         }
       },
       "id": "ba95b387-4bdb-4fcc-813b-d8649a4fb75c",
@@ -195,7 +198,8 @@
               "neverError": true,
               "responseFormat": "json"
             }
-          }
+          },
+          "timeout": 30000
         }
       },
       "id": "6fda8955-183b-4ca5-89e2-65aca9827c55",
@@ -275,7 +279,8 @@
               "neverError": true,
               "responseFormat": "json"
             }
-          }
+          },
+          "timeout": 30000
         }
       },
       "id": "3dd92082-ffdb-42f3-82d9-3031edcce35b",
@@ -317,7 +322,8 @@
               "neverError": true,
               "responseFormat": "json"
             }
-          }
+          },
+          "timeout": 30000
         }
       },
       "id": "3bbdf561-2a4b-4aa5-8e17-45c3cba4a0e5",
@@ -365,7 +371,8 @@
               "neverError": true,
               "responseFormat": "json"
             }
-          }
+          },
+          "timeout": 30000
         }
       },
       "id": "36dc1ac2-015b-4179-8d14-91fdd8b7d45a",
@@ -563,7 +570,8 @@
   },
   "active": false,
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "executionTimeout": 300
   },
   "pinData": {},
   "meta": {

@@ -34,7 +34,9 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ p_limit: 10 }) }}",
-        "options": {}
+        "options": {
+          "timeout": 30000
+        }
       },
       "id": "b17846bb-3e90-4882-8c57-b4c1638e6a94",
       "name": "Claim staff texts",
@@ -113,7 +115,8 @@
               "neverError": true,
               "responseFormat": "json"
             }
-          }
+          },
+          "timeout": 30000
         }
       },
       "id": "b362e786-2557-4eb6-8f5e-a08d993c65f1",
@@ -155,7 +158,8 @@
               "neverError": true,
               "responseFormat": "json"
             }
-          }
+          },
+          "timeout": 30000
         }
       },
       "id": "3bbdf561-2a4b-4aa5-8e17-45c3cba4a0e5",
@@ -245,7 +249,8 @@
   },
   "active": false,
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "executionTimeout": 300
   },
   "pinData": {},
   "meta": {

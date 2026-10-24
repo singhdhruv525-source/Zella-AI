@@ -88,7 +88,8 @@
               "neverError": true,
               "responseFormat": "json"
             }
-          }
+          },
+          "timeout": 30000
         }
       },
       "id": "c973da8c-1d60-4ce4-849f-3728b62085c4",
@@ -136,7 +137,8 @@
               "neverError": true,
               "responseFormat": "json"
             }
-          }
+          },
+          "timeout": 30000
         }
       },
       "id": "f141e23c-2e3b-4f93-8874-46b59e10d531",
@@ -274,7 +276,8 @@
   },
   "active": false,
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "executionTimeout": 300
   },
   "pinData": {},
   "meta": {

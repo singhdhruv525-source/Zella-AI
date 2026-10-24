@@ -34,7 +34,9 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ p_limit: 20, p_kinds: [\"no_show_follow_up\",\"post_appointment_follow_up\",\"quote_follow_up\",\"lead_reactivation\",\"callback_sms\",\"welcome_new_customer\",\"feedback_request\",\"cancellation_confirmation\",\"record_status_update\",\"service_due\",\"no_response_follow_up\",\"reschedule_confirmation\",\"booking_follow_up\",\"service_completed\",\"lead_follow_up\",\"lead_final_follow_up\"] }) }}",
-        "options": {}
+        "options": {
+          "timeout": 30000
+        }
       },
       "id": "f9e082ed-e705-4553-836d-d391c73a6774",
       "name": "Claim follow-up emails",
@@ -114,7 +116,8 @@
               "neverError": true,
               "responseFormat": "json"
             }
-          }
+          },
+          "timeout": 30000
         }
       },
       "id": "ba95b387-4bdb-4fcc-813b-d8649a4fb75c",
@@ -195,7 +198,8 @@
               "neverError": true,
               "responseFormat": "json"
             }
-          }
+          },
+          "timeout": 30000
         }
       },
       "id": "6fda8955-183b-4ca5-89e2-65aca9827c55",
@@ -275,7 +279,8 @@
               "neverError": true,
               "responseFormat": "json"
             }
-          }
+          },
+          "timeout": 30000
         }
       },
       "id": "3dd92082-ffdb-42f3-82d9-3031edcce35b",
@@ -290,7 +295,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Zella - Follow-up Emails: turn the provider's answer into the message update and the task result.\n// The provider's response text is never stored, only its status and a short error name.\nconst prev = $('After log').item.json;\nconst status = Number($json.statusCode);\nconst b = $json.body && typeof $json.body === 'object' ? $json.body : {};\nconst externalId = b.id ? String(b.id) : null;\nconst ok = status >= 200 && status < 300 && !!externalId;\nconst name = typeof b.name === 'string' && /^[a-z_]{1,40}$/.test(b.name) ? ' (' + b.name + ')' : '';\nconst error = ok ? null : 'The email provider returned ' + status + name + '.';\n\nreturn {\n  json: {\n    task_id: prev.task_id,\n    update: { p_id: prev.message_id, p_status: ok ? 'sent' : 'failed', p_external_id: externalId, p_error: error },\n    finish: { rpc: 'zella_complete_followup_task', body: { p_task_id: prev.task_id, p_outcome: ok ? 'email_sent' : 'failed', p_notes: error, p_retry_in_minutes: 15 } },\n  },\n};\n"
+        "jsCode": "// Zella - Follow-up Emails: turn the provider's answer into the message update and the task result.\n// The provider's response text is never stored, only its status and a short error name.\nconst prev = $('After log').item.json;\nconst status = Number($json.statusCode);\nconst b = $json.body && typeof $json.body === 'object' ? $json.body : {};\nconst externalId = b.id ? String(b.id) : null;\nconst ok = status >= 200 && status < 300 && !!externalId;\nconst name = typeof b.name === 'string' && /^[a-z_]{1,40}$/.test(b.name) ? ' (' + b.name + ')' : '';\nconst limited = status === 429;\nconst error = ok ? null : limited ? 'Rate limited (429); trying again later.' : isNaN(status) ? 'No answer from the provider (timed out); trying again later.' : 'The email provider returned ' + status + name + '.';\n\nreturn {\n  json: {\n    task_id: prev.task_id,\n    update: { p_id: prev.message_id, p_status: ok ? 'sent' : 'failed', p_external_id: externalId, p_error: error },\n    finish: { rpc: 'zella_complete_followup_task', body: { p_task_id: prev.task_id, p_outcome: ok ? 'email_sent' : 'failed', p_notes: error, p_retry_in_minutes: status === 429 ? 30 : 15 } },\n  },\n};\n"
       },
       "id": "b7016995-6b2a-4faf-8e0b-8124952d1931",
       "name": "After send",
@@ -317,7 +322,8 @@
               "neverError": true,
               "responseFormat": "json"
             }
-          }
+          },
+          "timeout": 30000
         }
       },
       "id": "3bbdf561-2a4b-4aa5-8e17-45c3cba4a0e5",
@@ -365,7 +371,8 @@
               "neverError": true,
               "responseFormat": "json"
             }
-          }
+          },
+          "timeout": 30000
         }
       },
       "id": "d7b0e7d3-9162-4791-8fba-63675d5075ba",
@@ -563,7 +570,8 @@
   },
   "active": false,
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "executionTimeout": 300
   },
   "pinData": {},
   "meta": {

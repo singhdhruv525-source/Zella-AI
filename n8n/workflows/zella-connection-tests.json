@@ -34,7 +34,9 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ p_limit: 5 }) }}",
-        "options": {}
+        "options": {
+          "timeout": 30000
+        }
       },
       "id": "ed7e79a8-bdb9-4c30-8df6-a0d9dd2d32f7",
       "name": "Claim checks",
@@ -302,7 +304,8 @@
               "neverError": true,
               "responseFormat": "json"
             }
-          }
+          },
+          "timeout": 30000
         }
       },
       "id": "3a5a9228-6146-4011-8e50-1b69971fcc44",
@@ -462,7 +465,8 @@
   },
   "active": false,
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "executionTimeout": 300
   },
   "pinData": {},
   "meta": {

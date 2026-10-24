@@ -9,7 +9,7 @@ Item numbers and names come from the Zella AI Complete Automation Guide. Status 
 
 Items are served by a small set of shared workflows (see `n8n/README.md`), not one workflow per item. Many industry items (196 to 254) are configurations of the shared appointment, message, assignment and reminder engines; the 98 starter automation rows per industry are seeded in the database.
 
-**Totals:** Built 239, Partly 11, Rules ready 31, Not built 57.
+**Totals:** Built 240, Partly 10, Rules ready 31, Not built 57.
 
 
 ## 1. Calls and AI receptionist (16) — Built 12, Partly 0, Rules ready 4, Not built 0
@@ -331,7 +331,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 253 | Hospitality — checkout | Not built |
 | 254 | Hospitality — feedback | Not built |
 
-## 14. Integration monitoring and recovery (15) — Built 10, Partly 3, Rules ready 2, Not built 0
+## 14. Integration monitoring and recovery (15) — Built 11, Partly 2, Rules ready 2, Not built 0
 
 | # | Automation | Status |
 |---|---|---|
@@ -339,7 +339,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 256 | Token-expiry monitoring | Built |
 | 257 | Disconnect alerts | Built |
 | 258 | OAuth reconnection | Partly |
-| 259 | Timeout and rate-limit handling | Partly |
+| 259 | Timeout and rate-limit handling | Built |
 | 260 | Transient-error retry | Built |
 | 261 | Permanent-error escalation | Built |
 | 262 | Invalid-payload handling | Built |

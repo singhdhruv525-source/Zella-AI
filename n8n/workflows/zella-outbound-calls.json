@@ -34,7 +34,9 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ p_limit: 10 }) }}",
-        "options": {}
+        "options": {
+          "timeout": 30000
+        }
       },
       "id": "1e4a4006-fc86-4c15-8be6-6b5afec9cde5",
       "name": "Claim callback calls",
@@ -60,7 +62,9 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ p_limit: 10 }) }}",
-        "options": {}
+        "options": {
+          "timeout": 30000
+        }
       },
       "id": "8b9dc76d-79f3-4125-814b-5412cc0bc1bc",
       "name": "Claim follow-up calls",
@@ -139,7 +143,8 @@
               "neverError": true,
               "responseFormat": "json"
             }
-          }
+          },
+          "timeout": 30000
         }
       },
       "id": "632fc72d-8679-4e96-8cd3-02807b5109c4",
@@ -181,7 +186,8 @@
               "neverError": true,
               "responseFormat": "json"
             }
-          }
+          },
+          "timeout": 30000
         }
       },
       "id": "63316be9-9b76-45ef-84ea-da1e836b8ca2",
@@ -293,7 +299,8 @@
   },
   "active": false,
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "executionTimeout": 300
   },
   "pinData": {},
   "meta": {

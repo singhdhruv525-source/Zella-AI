@@ -34,7 +34,9 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ p_limit: 20 }) }}",
-        "options": {}
+        "options": {
+          "timeout": 30000
+        }
       },
       "id": "8bc35b30-6b1b-4b81-8356-f0cd50f6661f",
       "name": "Claim knowledge updates",
@@ -114,7 +116,8 @@
               "neverError": true,
               "responseFormat": "json"
             }
-          }
+          },
+          "timeout": 30000
         }
       },
       "id": "ec732959-ba4c-465f-866e-df877c5a451f",
@@ -141,7 +144,9 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ p_limit: 5 }) }}",
-        "options": {}
+        "options": {
+          "timeout": 30000
+        }
       },
       "id": "fac69804-1bb9-4ab6-8ef4-db06c2afe38d",
       "name": "Claim questions",
@@ -229,7 +234,8 @@
               "neverError": true,
               "responseFormat": "json"
             }
-          }
+          },
+          "timeout": 60000
         }
       },
       "id": "8dbaeb8e-db74-4292-8889-062eac8ffeac",
@@ -304,7 +310,8 @@
               "neverError": true,
               "responseFormat": "json"
             }
-          }
+          },
+          "timeout": 30000
         }
       },
       "id": "4f25637a-5b7e-49ef-8a1f-54479cae25a4",
@@ -445,7 +452,8 @@
   },
   "active": false,
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "executionTimeout": 300
   },
   "pinData": {},
   "meta": {

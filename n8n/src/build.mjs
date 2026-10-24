@@ -17,8 +17,15 @@ const id = (name) => {
   const h = createHash('sha1').update(name).digest('hex');
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-8${h.slice(17, 20)}-${h.slice(20, 32)}`;
 };
+// Every outside call gets a time limit, so a slow provider cannot hold a run open (60 s for the AI, 30 s for the rest).
+const withTimeout = (type, parameters) => {
+  if (type !== 'n8n-nodes-base.httpRequest' || !parameters || typeof parameters !== 'object') return parameters;
+  const options = parameters.options && typeof parameters.options === 'object' ? parameters.options : {};
+  if (options.timeout) return parameters;
+  return { ...parameters, options: { ...options, timeout: String(parameters.url || '').includes('api.anthropic.com') ? 60000 : 30000 } };
+};
 const node = (name, type, typeVersion, position, parameters, extra = {}) => ({
-  parameters, id: id(name), name, type, typeVersion, position, ...extra,
+  parameters: withTimeout(type, parameters), id: id(name), name, type, typeVersion, position, ...extra,
 });
 const rpcNode = (name, position, fn, bodyExpr, opts = {}) =>
   node(name, 'n8n-nodes-base.httpRequest', 4.2, position, {
@@ -44,7 +51,7 @@ const ifBool = (name, position, expr) =>
   });
 const link = (to, index = 0) => ({ node: to, type: 'main', index });
 const wf = (name, nodes, connections) => ({
-  name, nodes, connections, active: false, settings: { executionOrder: 'v1' }, pinData: {},
+  name, nodes, connections, active: false, settings: { executionOrder: 'v1', executionTimeout: 300 }, pinData: {},
   meta: { templateCredsSetupCompleted: false },
 });
 

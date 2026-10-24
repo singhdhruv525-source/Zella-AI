@@ -34,7 +34,9 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ p_limit: 10 }) }}",
-        "options": {}
+        "options": {
+          "timeout": 30000
+        }
       },
       "id": "4f0424e1-80be-46ee-88e4-72638cde2ff8",
       "name": "Claim sync items",
@@ -132,7 +134,8 @@
               "neverError": true,
               "responseFormat": "json"
             }
-          }
+          },
+          "timeout": 30000
         }
       },
       "id": "3ae80acb-f626-49c4-8dcc-2592f5c6f1a0",
@@ -234,7 +237,8 @@
               "neverError": true,
               "responseFormat": "json"
             }
-          }
+          },
+          "timeout": 30000
         }
       },
       "id": "40eb0e20-077c-499d-8c28-422c05c9a44d",
@@ -267,7 +271,8 @@
               "neverError": true,
               "responseFormat": "json"
             }
-          }
+          },
+          "timeout": 30000
         }
       },
       "id": "a45b1024-0ce3-4f90-881c-2b08854c99bb",
@@ -342,7 +347,8 @@
               "neverError": true,
               "responseFormat": "json"
             }
-          }
+          },
+          "timeout": 30000
         }
       },
       "id": "170d505c-200c-4bea-8f71-7266462de401",
@@ -369,7 +375,9 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ p_limit: 10 }) }}",
-        "options": {}
+        "options": {
+          "timeout": 30000
+        }
       },
       "id": "f96918bf-49e6-451a-833e-d10590c2f960",
       "name": "Claim refreshes",
@@ -434,7 +442,8 @@
               "neverError": true,
               "responseFormat": "json"
             }
-          }
+          },
+          "timeout": 30000
         }
       },
       "id": "5aa36d01-c993-4a52-8c9b-da14281f2f16",
@@ -500,7 +509,8 @@
               "neverError": true,
               "responseFormat": "json"
             }
-          }
+          },
+          "timeout": 30000
         }
       },
       "id": "f24627c3-7bb3-4fe2-876b-175885d32fc1",
@@ -575,7 +585,8 @@
               "neverError": true,
               "responseFormat": "json"
             }
-          }
+          },
+          "timeout": 30000
         }
       },
       "id": "2057df9c-3ffc-47d3-80ac-24364a4ae23d",
@@ -642,7 +653,8 @@
               "neverError": true,
               "responseFormat": "json"
             }
-          }
+          },
+          "timeout": 30000
         }
       },
       "id": "22597bf1-27f5-4c75-86f7-b558fd0aa456",
@@ -916,7 +928,8 @@
   },
   "active": false,
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "executionTimeout": 300
   },
   "pinData": {},
   "meta": {

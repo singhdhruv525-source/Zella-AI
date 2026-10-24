@@ -34,7 +34,9 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ p_limit: 20 }) }}",
-        "options": {}
+        "options": {
+          "timeout": 30000
+        }
       },
       "id": "4057c29d-9dcf-471e-81a9-a244fa79adb8",
       "name": "Claim reminders",
@@ -114,7 +116,8 @@
               "neverError": true,
               "responseFormat": "json"
             }
-          }
+          },
+          "timeout": 30000
         }
       },
       "id": "c8046694-e1d9-4b07-8deb-9cf063b50dcf",
@@ -195,7 +198,8 @@
               "neverError": true,
               "responseFormat": "json"
             }
-          }
+          },
+          "timeout": 30000
         }
       },
       "id": "6fda8955-183b-4ca5-89e2-65aca9827c55",
@@ -275,7 +279,8 @@
               "neverError": true,
               "responseFormat": "json"
             }
-          }
+          },
+          "timeout": 30000
         }
       },
       "id": "b362e786-2557-4eb6-8f5e-a08d993c65f1",
@@ -317,7 +322,8 @@
               "neverError": true,
               "responseFormat": "json"
             }
-          }
+          },
+          "timeout": 30000
         }
       },
       "id": "3bbdf561-2a4b-4aa5-8e17-45c3cba4a0e5",
@@ -365,7 +371,8 @@
               "neverError": true,
               "responseFormat": "json"
             }
-          }
+          },
+          "timeout": 30000
         }
       },
       "id": "36dc1ac2-015b-4179-8d14-91fdd8b7d45a",
@@ -563,7 +570,8 @@
   },
   "active": false,
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "executionTimeout": 300
   },
   "pinData": {},
   "meta": {

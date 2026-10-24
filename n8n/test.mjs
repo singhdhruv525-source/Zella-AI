@@ -1,7 +1,7 @@
 // Tests for the n8n workflows. Run: node n8n/test.mjs
 // 1) Runs the exact Code-node logic that ships. 2) Checks the workflow files are well formed.
 // It does NOT import into n8n (the installed n8n version has not been checked).
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { strict as assert } from 'node:assert';
 import { runCode, eventTypes, loadCode } from './src/load.mjs';
 
@@ -1140,6 +1140,21 @@ test('inbound calls: wrap-up, repeat caller and callback reminders are on the da
   const x = readFileSync(new URL('../sql/zella_inbound_calls.sql', import.meta.url), 'utf8');
   assert.ok(x.includes('zella_record_inbound_call') && x.includes('zella_caller_context') && x.includes('zella_remind_upcoming_callbacks') && x.includes("c.outcome is null"));
   assert.ok(dispatcherSql.includes("'zella_remind_upcoming_callbacks'"));
+});
+
+test('timeouts: every workflow has a run time limit and every outside call has a time limit', () => {
+  for (const f of readdirSync(new URL('./workflows/', import.meta.url))) {
+    const w = wfJson(f);
+    assert.equal(w.settings.executionTimeout, 300, f);
+    for (const n of w.nodes.filter((x) => x.type === 'n8n-nodes-base.httpRequest')) assert.ok(n.parameters.options && n.parameters.options.timeout >= 10000, f + ' ' + n.name);
+  }
+});
+test('rate limits: a 429 from the text or email provider is retried later, not treated as a final failure', () => {
+  for (const [f, nodes] of [['sms-task-after-send.js', { 'After log': { task_id: 't', message_id: 'm' } }], ['email-task-after-send.js', { 'After log': { task_id: 't', message_id: 'm' } }]]) {
+    const r = runCode(f, { json: { statusCode: 429, body: {} }, nodes }).json;
+    assert.equal(r.finish.body.p_retry_in_minutes, 30); assert.ok(/Rate limited/.test(r.update.p_error));
+    assert.equal(runCode(f, { json: { statusCode: 500, body: {} }, nodes }).json.finish.body.p_retry_in_minutes, 15);
+  }
 });
 
 console.log(`${passed} passed, ${failures.length} failed`);

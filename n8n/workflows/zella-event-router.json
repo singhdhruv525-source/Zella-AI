@@ -34,7 +34,9 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ p_limit: 20 }) }}",
-        "options": {}
+        "options": {
+          "timeout": 30000
+        }
       },
       "id": "f1ca2c62-1b6f-4532-8855-18495c2779a3",
       "name": "Claim events",
@@ -81,7 +83,8 @@
               "neverError": true,
               "responseFormat": "json"
             }
-          }
+          },
+          "timeout": 30000
         }
       },
       "id": "8baaecf8-813b-4995-8ac3-c5bd33dba359",
@@ -148,7 +151,8 @@
               "neverError": true,
               "responseFormat": "json"
             }
-          }
+          },
+          "timeout": 30000
         }
       },
       "id": "b46bcb43-2ef9-4e94-83c0-b6f48306349b",
@@ -196,7 +200,8 @@
               "neverError": true,
               "responseFormat": "json"
             }
-          }
+          },
+          "timeout": 30000
         }
       },
       "id": "3aa9936f-be7f-461b-8d1e-e858862c58d9",
@@ -223,7 +228,9 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ p_event_id: $('Result').item.json.event_id, p_ok: $('Result').item.json.ok, p_error_category: $('Result').item.json.category, p_error: $('Result').item.json.error }) }}",
-        "options": {}
+        "options": {
+          "timeout": 30000
+        }
       },
       "id": "51cfc2f1-0827-486e-82b1-7fe7b02f40a7",
       "name": "Complete event",
@@ -340,7 +347,8 @@
   },
   "active": false,
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "executionTimeout": 300
   },
   "pinData": {},
   "meta": {
