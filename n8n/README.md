@@ -322,3 +322,6 @@ Run `sql/zella_staff_sms.sql` and `sql/zella_ops_automation.sql` (both safe to r
 ## Social booking chat
 Run `sql/zella_social_flow.sql` after `zella_meta.sql` (safe to repeat). Off by default; an owner turns it on per page with `zella_meta_set_flow(business, page_id, true)`.
 When someone on Messenger, Instagram or WhatsApp asks to book or for a price, the chat asks for a phone or email (creating the lead), asks what they need (marks the lead qualified), offers up to 3 real open times, and books the one they reply with. It steps aside the moment a person replies, the customer asks for a person or complains, or the answer is anything it does not expect. Assignment to a team member is the existing round-robin. It uses the same Meta sender, so nothing sends until the Meta workflows are published.
+
+## Retention
+Run `sql/zella_retention.sql` (safe to repeat), then re-run `zella_dispatcher.sql`. Once a day, regular customers (3+ completed visits) who are overdue by half again their usual gap, and at least 30 days since the last visit, get a staff task ("Regular customer is overdue"), at most once per 90 days. It never messages the customer. `zella_retention_summary(business)` gives the dashboard numbers (regulars, drifting, returning).

@@ -946,6 +946,12 @@ test('social flow: opt-in per page, steps aside for a person, books only a slot 
   assert.ok(fsql.includes('f.offered ->> (v_pick - 1)') && fsql.includes('zella_book_appointment'));
   assert.ok(!/grant execute on function public\.zella_social_flow[^;]*authenticated/.test(fsql));
 });
+test('retention: only regulars who are overdue get a staff task, never an automatic message', () => {
+  const rsql = readFileSync(new URL('../sql/zella_retention.sql', import.meta.url), 'utf8');
+  assert.ok(rsql.includes('having count(*) >= 3') && rsql.includes('1.5 *') && rsql.includes("kind = 'retention_check'"));
+  assert.ok(!/sms_messages|followup_tasks|meta_outbox/.test(rsql));
+  assert.ok(dispatcherSql.includes("'zella_retention_scan'"));
+});
 test('meta workflows: the webhook is open (Meta cannot send our header) but every event is checked by signature in the database', () => {
   const w = wfJson('zella-meta-webhook.json');
   const post = w.nodes.find((n) => n.name === 'Meta events'); const get = w.nodes.find((n) => n.name === 'Meta set-up check');

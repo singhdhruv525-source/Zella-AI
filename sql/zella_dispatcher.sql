@@ -1,5 +1,5 @@
 -- Zella - the dispatcher. Safe to run more than once.
--- Needs zella_staff_sms.sql, zella_ops_automation.sql (team summary, spot checks, reconcile), zella_website_crawler.sql (website lane) and zella_meta.sql (meta lanes) run first.
+-- Needs zella_staff_sms.sql, zella_ops_automation.sql, zella_retention.sql (team summary, spot checks, reconcile), zella_website_crawler.sql (website lane) and zella_meta.sql (meta lanes) run first.
 -- WHY: n8n Cloud's Starter plan allows 2,500 workflow runs a month, and a workflow that wakes up every
 -- minute uses ~43,000. So the timer now lives in Supabase (free), and n8n is only called when there is
 -- something waiting. Two parts:
@@ -34,7 +34,7 @@ begin
                    'zella_queue_quote_followups', 'zella_post_daily_summaries', 'zella_queue_lead_reactivation',
                    'zella_check_setup_incomplete', 'zella_check_trials', 'zella_apply_payment_policy', 'zella_post_weekly_reviews',
                    'zella_flag_overdue_callbacks', 'zella_sweep_stuck_calls', 'zella_check_engine_health', 'zella_schedule_calendar_pulls',
-                   'zella_rebalance_assignments', 'zella_check_unassigned_work', 'zella_check_customer_requests', 'zella_queue_customer_touches', 'zella_check_kpis', 'zella_check_escalation_acks', 'zella_recover_orphaned_work', 'zella_check_renewals', 'zella_post_callback_digests', 'zella_check_connections', 'zella_post_team_summaries', 'zella_sample_ai_responses', 'zella_reconcile') then
+                   'zella_rebalance_assignments', 'zella_check_unassigned_work', 'zella_check_customer_requests', 'zella_queue_customer_touches', 'zella_check_kpis', 'zella_check_escalation_acks', 'zella_recover_orphaned_work', 'zella_check_renewals', 'zella_post_callback_digests', 'zella_check_connections', 'zella_post_team_summaries', 'zella_sample_ai_responses', 'zella_reconcile', 'zella_retention_scan') then
     return 'not_allowed';
   end if;
   begin
@@ -55,7 +55,7 @@ begin
       when 'every5'  then array['zella_flag_overdue_leads', 'zella_expire_holds', 'zella_expire_waitlist_offers', 'zella_detect_transfer_failures', 'zella_flag_overdue_callbacks', 'zella_sweep_stuck_calls', 'zella_check_engine_health', 'zella_rebalance_assignments', 'zella_check_unassigned_work', 'zella_check_escalation_acks']
       when 'every15' then array['zella_queue_quote_followups', 'zella_recover_orphaned_work']
       when 'hourly'  then array['zella_post_daily_summaries', 'zella_schedule_calendar_pulls', 'zella_check_customer_requests', 'zella_post_callback_digests', 'zella_post_team_summaries']
-      when 'daily'   then array['zella_queue_lead_reactivation', 'zella_check_setup_incomplete', 'zella_check_trials', 'zella_apply_payment_policy', 'zella_queue_customer_touches', 'zella_check_kpis', 'zella_check_renewals', 'zella_check_connections', 'zella_sample_ai_responses', 'zella_reconcile']
+      when 'daily'   then array['zella_queue_lead_reactivation', 'zella_check_setup_incomplete', 'zella_check_trials', 'zella_apply_payment_policy', 'zella_queue_customer_touches', 'zella_check_kpis', 'zella_check_renewals', 'zella_check_connections', 'zella_sample_ai_responses', 'zella_reconcile', 'zella_retention_scan']
       when 'weekly'  then array['zella_post_weekly_reviews']
       else array[]::text[] end) loop
     r := r || jsonb_build_object(j, public.zella_run_scheduled_job(j));
