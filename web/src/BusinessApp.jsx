@@ -109,7 +109,7 @@ function Blocked({ workspace, onSignOut }) {
   );
 }
 
-function Workspace({ workspace, workspaces, onSwitch, email, onSignOut, onReload }) {
+function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackName, onSignOut, onReload }) {
   const [page, setPage] = useState("today");
   const [modal, setModal] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -290,6 +290,8 @@ function Workspace({ workspace, workspaces, onSwitch, email, onSignOut, onReload
             <BusinessToday
               key={refreshKey}
               workspace={workspace}
+              userId={userId}
+              fallbackName={fallbackName}
               onAddLead={() => setModal("lead")}
               onBook={() => setModal("book")}
               onNotice={setNotice}
@@ -425,6 +427,8 @@ function BusinessHome() {
       workspaces={workspaces}
       onSwitch={setSelectedId}
       email={session.user.email}
+      userId={session.user.id}
+      fallbackName={session.user.user_metadata?.full_name ?? session.user.user_metadata?.name ?? ""}
       onSignOut={signOut}
       onReload={loadWorkspaces}
     />
