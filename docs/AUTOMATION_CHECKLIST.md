@@ -9,7 +9,7 @@ Item numbers and names come from the Zella AI Complete Automation Guide. Status 
 
 Items are served by a small set of shared workflows (see `n8n/README.md`), not one workflow per item. Many industry items (196 to 254) are configurations of the shared appointment, message, assignment and reminder engines; the 98 starter automation rows per industry are seeded in the database.
 
-**Totals:** Built 210, Partly 40, Rules ready 31, Not built 57.
+**Totals:** Built 216, Partly 34, Rules ready 31, Not built 57.
 
 
 ## 1. Calls and AI receptionist (16) — Built 8, Partly 4, Rules ready 4, Not built 0
@@ -77,7 +77,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 49 | Repeat booking and recall | Built |
 | 50 | Booking failure and conflict recovery | Partly |
 
-## 4. Email automation (15) — Built 13, Partly 2, Rules ready 0, Not built 0
+## 4. Email automation (15) — Built 15, Partly 0, Rules ready 0, Not built 0
 
 | # | Automation | Status |
 |---|---|---|
@@ -94,10 +94,10 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 61 | Reply classification | Built |
 | 62 | CRM email linking | Built |
 | 63 | Bounce and delivery failure handling | Built |
-| 64 | Unsubscribe processing | Partly |
-| 65 | Email templates and summaries | Partly |
+| 64 | Unsubscribe processing | Built |
+| 65 | Email templates and summaries | Built |
 
-## 5. SMS and messaging automation (15) — Built 12, Partly 3, Rules ready 0, Not built 0
+## 5. SMS and messaging automation (15) — Built 14, Partly 1, Rules ready 0, Not built 0
 
 | # | Automation | Status |
 |---|---|---|
@@ -108,16 +108,16 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 70 | Lead follow-up SMS | Built |
 | 71 | Inbound reply processing | Partly |
 | 72 | Delivery receipt handling | Built |
-| 73 | SMS failure recovery | Partly |
+| 73 | SMS failure recovery | Built |
 | 74 | Consent and opt-out management | Built |
 | 75 | STOP and HELP handling | Built |
 | 76 | Quiet hours and contact limits | Built |
 | 77 | Human handover | Built |
 | 78 | Duplicate message prevention | Built |
 | 79 | SMS templates | Built |
-| 80 | Channel preferences | Partly |
+| 80 | Channel preferences | Built |
 
-## 6. Leads and sales CRM (20) — Built 17, Partly 2, Rules ready 1, Not built 0
+## 6. Leads and sales CRM (20) — Built 19, Partly 0, Rules ready 1, Not built 0
 
 | # | Automation | Status |
 |---|---|---|
@@ -134,13 +134,13 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 91 | Lead follow-up sequences | Built |
 | 92 | Overdue lead escalation | Built |
 | 93 | Quote and proposal follow-up | Built |
-| 94 | Stale-lead reactivation | Partly |
+| 94 | Stale-lead reactivation | Built |
 | 95 | Lead-stage updates | Built |
 | 96 | Conversion tracking | Built |
 | 97 | Lost-lead tracking | Built |
 | 98 | Lead reassignment | Built |
 | 99 | Follow-up suppression after conversion | Built |
-| 100 | Campaign reporting | Partly |
+| 100 | Campaign reporting | Built |
 
 ## 7. Customer lifecycle automation (15) — Built 10, Partly 1, Rules ready 4, Not built 0
 

@@ -328,3 +328,11 @@ Run `sql/zella_retention.sql` (safe to repeat), then re-run `zella_dispatcher.sq
 
 ## More message types
 Run `sql/zella_message_types.sql` (safe to repeat; needs `zella_customer_touches.sql`), then re-run `zella_dispatcher.sql`. Email and text versions of: reschedule confirmation (a minute after an appointment moves), booking follow-up (an hour after a booking made 2+ days ahead), service completed (a job record marked completed, unless the owner wrote their own wording), and a lead sequence: day 1 `lead_follow_up`, day 3 `no_response_follow_up`, day 7 `lead_final_follow_up` (leads with no appointment only). The Follow-up Emails and Follow-up Texts workflows already know the new kinds (updated in n8n). Any kind can be turned off in `platform_settings` `customer_touches`.
+
+## Messaging extras
+Run `sql/zella_messaging_extras.sql` (safe to repeat; after `zella_message_types.sql`), then re-run `zella_dispatcher.sql`.
+- **Unsubscribe:** marketing email now sends when `app_base_url` is set and the person opted in. Every one ends with a link to `/u/<code>` (page: `web/src/Unsubscribe.jsx`) and carries a `List-Unsubscribe` header. Unsubscribing stops marketing email only; booking messages still reach them.
+- **Preferred channel:** `zella_set_customer_channel(business, customer, 'sms'|'email')`; all customer messages use it when that channel works.
+- **Failed texts:** a text that failed for good goes by email once (hourly job), and 5+ failed texts in an hour raise a platform alert.
+- **Reactivation by email:** set the lead-reactivation automation's channel to `email` (needs marketing opt-in).
+- **Reports:** `zella_preview_template`, `zella_message_summary`, `zella_campaign_report` (leads, qualified, booked, won by source and campaign).

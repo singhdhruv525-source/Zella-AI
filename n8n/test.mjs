@@ -962,6 +962,20 @@ test('message types: every new kind has wording, is allowed, and is known to bot
   }
   assert.ok(msql.includes('for update of start_time') === false && msql.includes('after insert or update of start_time'));
 });
+test('messaging extras: unsubscribe link, preferred channel, failed-text fallback, reports', () => {
+  const x = readFileSync(new URL('../sql/zella_messaging_extras.sql', import.meta.url), 'utf8');
+  assert.ok(x.includes("'/u/'") && x.includes("v_base := regexp_replace") && x.includes("purpose, status, source, evidence"));
+  assert.ok(x.includes("grant execute on function public.zella_unsubscribe_lookup(text), public.zella_unsubscribe_email(text) to anon"));
+  assert.ok(!/grant execute on function public\.zella_(unsubscribe_token|recover_failed_texts)[^;]*(anon|authenticated)/.test(x));
+  assert.ok(x.includes("c.pref = ''email''") && x.includes('zella_recover_failed_texts') && x.includes('zella_campaign_report'));
+  assert.ok(dispatcherSql.includes("'zella_recover_failed_texts'"));
+  const dec = runCode('email-task-decide.js', { json: { statusCode: 200, body: { allowed: true, live: true, from: 'a@b.co', to: 'c@d.co', subject: 's', body_text: 't', body_html: 'h', unsubscribe_url: 'https://app.example.com/u/' + 'a'.repeat(32) } }, nodes: { Plan: { task_id: 't1', business_id: 'b', customer_id: 'c' } } }).json;
+  assert.ok(dec.unsubscribe_url.startsWith('https://'));
+  const bad = runCode('email-task-decide.js', { json: { statusCode: 200, body: { allowed: true, live: false, to: 'c@d.co', subject: 's', body_text: 't', body_html: 'h', unsubscribe_url: 'javascript:alert(1)' } }, nodes: { Plan: { task_id: 't1', business_id: 'b', customer_id: 'c' } } }).json;
+  assert.equal(bad.unsubscribe_url, null);
+  const sent = runCode('email-task-after-log.js', { json: { statusCode: 200, body: { id: 'm1' } }, nodes: { Decide: { task_id: 't1', live: true, from: 'a@b.co', to: 'c@d.co', subject: 's', text: 't', html: 'h', unsubscribe_url: 'https://app.example.com/u/' + 'a'.repeat(32) } } }).json;
+  assert.ok(sent.resend.headers['List-Unsubscribe'].includes('/u/'));
+});
 test('meta workflows: the webhook is open (Meta cannot send our header) but every event is checked by signature in the database', () => {
   const w = wfJson('zella-meta-webhook.json');
   const post = w.nodes.find((n) => n.name === 'Meta events'); const get = w.nodes.find((n) => n.name === 'Meta set-up check');

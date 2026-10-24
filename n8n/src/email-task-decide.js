@@ -15,6 +15,7 @@ return {
     live: b.live === true,
     from: b.from || null,
     from_name: b.from_name || '',
+    unsubscribe_url: typeof b.unsubscribe_url === 'string' && /^https:\/\/[^\s]+$/.test(b.unsubscribe_url) ? b.unsubscribe_url : null,
     to: b.to,
     subject: b.subject,
     text: b.body_text,

@@ -34,7 +34,7 @@ begin
                    'zella_queue_quote_followups', 'zella_post_daily_summaries', 'zella_queue_lead_reactivation',
                    'zella_check_setup_incomplete', 'zella_check_trials', 'zella_apply_payment_policy', 'zella_post_weekly_reviews',
                    'zella_flag_overdue_callbacks', 'zella_sweep_stuck_calls', 'zella_check_engine_health', 'zella_schedule_calendar_pulls',
-                   'zella_rebalance_assignments', 'zella_check_unassigned_work', 'zella_check_customer_requests', 'zella_queue_customer_touches', 'zella_check_kpis', 'zella_check_escalation_acks', 'zella_recover_orphaned_work', 'zella_check_renewals', 'zella_post_callback_digests', 'zella_check_connections', 'zella_post_team_summaries', 'zella_sample_ai_responses', 'zella_reconcile', 'zella_retention_scan') then
+                   'zella_rebalance_assignments', 'zella_check_unassigned_work', 'zella_check_customer_requests', 'zella_queue_customer_touches', 'zella_check_kpis', 'zella_check_escalation_acks', 'zella_recover_orphaned_work', 'zella_check_renewals', 'zella_post_callback_digests', 'zella_check_connections', 'zella_post_team_summaries', 'zella_sample_ai_responses', 'zella_reconcile', 'zella_retention_scan', 'zella_recover_failed_texts') then
     return 'not_allowed';
   end if;
   begin
@@ -54,7 +54,7 @@ begin
   for j in select unnest(case p_group
       when 'every5'  then array['zella_flag_overdue_leads', 'zella_expire_holds', 'zella_expire_waitlist_offers', 'zella_detect_transfer_failures', 'zella_flag_overdue_callbacks', 'zella_sweep_stuck_calls', 'zella_check_engine_health', 'zella_rebalance_assignments', 'zella_check_unassigned_work', 'zella_check_escalation_acks']
       when 'every15' then array['zella_queue_quote_followups', 'zella_recover_orphaned_work']
-      when 'hourly'  then array['zella_post_daily_summaries', 'zella_schedule_calendar_pulls', 'zella_check_customer_requests', 'zella_post_callback_digests', 'zella_post_team_summaries']
+      when 'hourly'  then array['zella_post_daily_summaries', 'zella_schedule_calendar_pulls', 'zella_check_customer_requests', 'zella_post_callback_digests', 'zella_post_team_summaries', 'zella_recover_failed_texts']
       when 'daily'   then array['zella_queue_lead_reactivation', 'zella_check_setup_incomplete', 'zella_check_trials', 'zella_apply_payment_policy', 'zella_queue_customer_touches', 'zella_check_kpis', 'zella_check_renewals', 'zella_check_connections', 'zella_sample_ai_responses', 'zella_reconcile', 'zella_retention_scan']
       when 'weekly'  then array['zella_post_weekly_reviews']
       else array[]::text[] end) loop
