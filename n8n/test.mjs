@@ -1122,6 +1122,26 @@ test('data rights: requests have a 30 day deadline, a reminder, and export/erase
   assert.ok(dispatcherSql.includes("'zella_check_data_rights_due'"));
 });
 
+test('inbound calls: a customer call becomes a wrap-up record, an outbound or unknown call does not', () => {
+  const inb = (over = {}, callOver = {}) => rplan({ type: 'end-of-call-report', endedReason: 'customer-ended-call', durationSeconds: 61.4, summary: 'Caller asked for a call back tomorrow.', startedAt: '2026-10-24T10:00:00Z', endedAt: '2026-10-24T10:01:01Z', phoneNumber: { number: '+14155550100' }, recordingUrl: 'https://example.com/r.mp3', transcript: 'hi', call: { id: 'call_in_1', type: 'inboundPhoneCall', phoneNumberId: 'pn_1', customer: { number: '+14155550111' }, ...callOver }, ...over });
+  const r = inb();
+  assert.equal(r.record, null);
+  assert.equal(r.inbound.p_provider_call_id, 'call_in_1'); assert.equal(r.inbound.p_seconds, 61); assert.equal(r.inbound.p_from_number, '+14155550111');
+  assert.equal(r.inbound.p_wants_callback, true); assert.equal(r.inbound.p_called_number, '+14155550100');
+  assert.equal(inb({ summary: 'Asked about prices.' }).inbound.p_wants_callback, false);
+  assert.equal(inb({ recordingUrl: 'http://x' }).inbound.p_recording_url, null);
+  assert.equal(inb({}, { type: 'outboundPhoneCall' }).inbound, null);
+  assert.equal(inb({}, { id: undefined }).inbound, null);
+  assert.equal(rplan(rep({}, { zella_source: 'callback', zella_id: CBID })).inbound, null);
+  const w = wfJson('zella-call-results.json');
+  assert.ok(w.nodes.some((n) => n.name === 'Record inbound call'));
+});
+test('inbound calls: wrap-up, repeat caller and callback reminders are on the database side', () => {
+  const x = readFileSync(new URL('../sql/zella_inbound_calls.sql', import.meta.url), 'utf8');
+  assert.ok(x.includes('zella_record_inbound_call') && x.includes('zella_caller_context') && x.includes('zella_remind_upcoming_callbacks') && x.includes("c.outcome is null"));
+  assert.ok(dispatcherSql.includes("'zella_remind_upcoming_callbacks'"));
+});
+
 console.log(`${passed} passed, ${failures.length} failed`);
 for (const f of failures) console.log('  FAIL ' + f);
 process.exit(failures.length ? 1 : 0);

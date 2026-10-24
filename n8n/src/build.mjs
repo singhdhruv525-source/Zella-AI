@@ -278,10 +278,13 @@ const callResults = wf('Zella - Call Results', [
   code('Plan', [240, 200], 'call-result-plan.js'),
   ifBool('Is a call result', [480, 200], '={{ !!$json.record }}'),
   rpcNode('Record call result', [720, 100], 'zella_record_call_result', '={{ JSON.stringify($json.record) }}', { full: true }),
+  ifBool('Is an inbound call', [720, 320], '={{ !!$json.inbound }}'),
+  rpcNode('Record inbound call', [960, 320], 'zella_record_inbound_call', '={{ JSON.stringify($json.inbound) }}', { full: true }),
 ], {
   'Vapi report': { main: [[link('Plan')]] },
   'Plan': { main: [[link('Is a call result')]] },
-  'Is a call result': { main: [[link('Record call result')], []] },
+  'Is a call result': { main: [[link('Record call result')], [link('Is an inbound call')]] },
+  'Is an inbound call': { main: [[link('Record inbound call')], []] },
 });
 
 // Knowledge: (1) publish knowledge an owner added or changed, (2) draft answers for questions the assistant could not

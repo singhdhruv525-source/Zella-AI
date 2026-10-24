@@ -9,10 +9,10 @@ Item numbers and names come from the Zella AI Complete Automation Guide. Status 
 
 Items are served by a small set of shared workflows (see `n8n/README.md`), not one workflow per item. Many industry items (196 to 254) are configurations of the shared appointment, message, assignment and reminder engines; the 98 starter automation rows per industry are seeded in the database.
 
-**Totals:** Built 234, Partly 16, Rules ready 31, Not built 57.
+**Totals:** Built 239, Partly 11, Rules ready 31, Not built 57.
 
 
-## 1. Calls and AI receptionist (16) — Built 8, Partly 4, Rules ready 4, Not built 0
+## 1. Calls and AI receptionist (16) — Built 12, Partly 0, Rules ready 4, Not built 0
 
 | # | Automation | Status |
 |---|---|---|
@@ -20,26 +20,26 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 2 | Logic | Rules ready |
 | 3 | Action | Built |
 | 4 | Verification and recovery | Rules ready |
-| 5 | Call outcome detection | Partly |
+| 5 | Call outcome detection | Built |
 | 6 | Missed-call detection | Rules ready |
 | 7 | After-hours and holiday handling | Built |
 | 8 | Human transfer | Built |
 | 9 | Transfer failure recovery | Built |
-| 10 | Callback request capture | Partly |
+| 10 | Callback request capture | Built |
 | 11 | Voicemail and message taking | Built |
 | 12 | Emergency escalation | Built |
 | 13 | AI failure recovery | Rules ready |
-| 14 | Call summary and CRM logging | Partly |
-| 15 | Repeat caller recognition | Partly |
+| 14 | Call summary and CRM logging | Built |
+| 15 | Repeat caller recognition | Built |
 | 16 | Unanswered question tracking | Built |
 
-## 2. Callbacks and follow-ups (14) — Built 11, Partly 1, Rules ready 2, Not built 0
+## 2. Callbacks and follow-ups (14) — Built 12, Partly 0, Rules ready 2, Not built 0
 
 | # | Automation | Status |
 |---|---|---|
 | 17 | Callback task creation | Rules ready |
 | 18 | Callback scheduling | Rules ready |
-| 19 | Callback reminders | Partly |
+| 19 | Callback reminders | Built |
 | 20 | Callback retries | Built |
 | 21 | No-answer and busy handling | Built |
 | 22 | Configurable retry limits | Built |
