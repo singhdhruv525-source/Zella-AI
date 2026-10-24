@@ -937,6 +937,15 @@ test('staff texts: only well formed numbers and short plain messages are sent, a
   assert.ok(dispatcherSql.includes("('staff-sms')") && dispatcherSql.includes("when 'staff-sms'"));
   assert.equal(wfJson('zella-staff-texts.json').nodes.find((n) => n.name === 'Send via Telnyx').parameters.authentication, 'none');
 });
+test('social flow: opt-in per page, steps aside for a person, books only a slot it offered', () => {
+  const fsql = readFileSync(new URL('../sql/zella_social_flow.sql', import.meta.url), 'utf8');
+  const msql = readFileSync(new URL('../sql/zella_meta.sql', import.meta.url), 'utf8');
+  assert.ok(fsql.includes('qualify_flow boolean not null default false'));
+  assert.ok(msql.includes('if c.qualify_flow then') && msql.includes('v_flow is null and c.auto_acknowledge'));
+  assert.ok(fsql.includes("sender_type = 'agent'") && fsql.includes("p_intent in ('human', 'complaint')"));
+  assert.ok(fsql.includes('f.offered ->> (v_pick - 1)') && fsql.includes('zella_book_appointment'));
+  assert.ok(!/grant execute on function public\.zella_social_flow[^;]*authenticated/.test(fsql));
+});
 test('meta workflows: the webhook is open (Meta cannot send our header) but every event is checked by signature in the database', () => {
   const w = wfJson('zella-meta-webhook.json');
   const post = w.nodes.find((n) => n.name === 'Meta events'); const get = w.nodes.find((n) => n.name === 'Meta set-up check');

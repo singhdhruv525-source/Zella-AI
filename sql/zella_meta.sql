@@ -22,6 +22,7 @@ create table if not exists public.meta_connections (
   granted_permissions text[] not null default '{}',
   call_consent_confirmed boolean not null default false,
   auto_acknowledge boolean not null default true,
+  qualify_flow boolean not null default false,
   comment_keywords text[] not null default '{}',
   last_checked_at timestamptz,
   next_check_at timestamptz not null default now(),
@@ -186,7 +187,7 @@ language plpgsql security definer set search_path = public as $$
 declare
   e public.meta_events%rowtype; c public.meta_connections%rowtype; p jsonb; v_biz text;
   v_ch text; v_sender text; v_name text; v_text text; v_phone text; v_contact public.meta_contacts%rowtype;
-  v_cust uuid; v_conv uuid; v_assignee uuid; v_intent text; v_label text; v_email text; v_digits text; v_first text;
+  v_cust uuid; v_conv uuid; v_assignee uuid; v_intent text; v_label text; v_email text; v_digits text; v_first text; v_flow text;
 begin
   select * into e from public.meta_events where id = p_event_id;
   if not found then return 'missing'; end if;
@@ -287,8 +288,20 @@ begin
       else 'New ' || v_label || ' message' || coalesce(' from ' || v_name, '') end,
     left(v_text, 300), case when v_intent in ('human', 'complaint') then 'urgent' else 'info' end, 'inbox');
 
+  -- the optional booking chat (zella_social_flow.sql): when it has a reply, that is the reply
+  if c.qualify_flow then
+    begin
+      v_flow := public.zella_social_flow(v_conv, v_text, v_intent);
+    exception when others then v_flow := null; end;
+    if v_flow is not null then
+      insert into public.meta_outbox (business_id, page_id, channel, kind, recipient, text_body, conversation_id)
+      values (e.business_id, e.page_id, v_ch, 'message', v_sender, v_flow, v_conv);
+      update public.meta_contacts set last_ack_at = now() where id = v_contact.id;
+    end if;
+  end if;
+
   -- a polite first reply, once a day, only if no person has answered yet
-  if c.auto_acknowledge and (v_contact.last_ack_at is null or v_contact.last_ack_at < now() - interval '24 hours')
+  if v_flow is null and c.auto_acknowledge and (v_contact.last_ack_at is null or v_contact.last_ack_at < now() - interval '24 hours')
      and not exists (select 1 from public.conversation_messages m where m.conversation_id = v_conv and m.sender_type = 'agent') then
     insert into public.meta_outbox (business_id, page_id, channel, kind, recipient, text_body, conversation_id)
     values (e.business_id, e.page_id, v_ch, 'message', v_sender, 'Thanks for messaging ' || v_biz || '! We have your message and the team will reply soon.', v_conv);
