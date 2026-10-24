@@ -51,3 +51,9 @@ Nothing below is published or running until you do it. Everything is built; thes
 - Deploy the `owner-provision-business` edge function so the wizard can list and save every rule.
 - Texts to staff need a working SMS provider; until then "text" alerts stay queued.
 - Check the new Calls suggestions panel and the "Write your own rule" screen in a real browser build (only compile-checked so far).
+
+## n8n: alerts, signatures and keys (added 2026-10-25)
+1. **Failure alerts.** Publish "Zella - Failure Alert" first (it only raises a platform alert in the database, nothing else). Then, in each of the other 25 workflows, open Settings > Error workflow and pick "Zella - Failure Alert". n8n will not accept it until it is published, so this could not be done while everything is switched off.
+2. **Resend signature check.** `sql/zella_resend_signature.sql` is applied live and tested. After you create the Resend webhooks, run once: `select vault.create_secret('whsec_...', 'zella_resend_signing_secret');` (the signing secret shown by Resend). Until then only the key in the webhook address protects them. Then use Resend's "send test event" and confirm it is accepted; a wrong or old signature is answered 401. Meta webhooks already verify their signature.
+3. **Keys, by hand on n8n only:** Telnyx, Resend, Anthropic, Vapi. Never in chat.
+4. Publish the other workflows, then run `sql/zella_dispatcher.sql` last.

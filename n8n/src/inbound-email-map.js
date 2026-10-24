@@ -20,6 +20,7 @@ return {
   json: {
     record: {
       p_key: plan.key,
+      p_sig: plan.sig,
       p_message: {
         message_id: messageId, from: str(e.from || (plan.hint && plan.hint.from) || '', 300), to: list(e.to || (plan.hint && plan.hint.to)),
         subject: str(e.subject || (plan.hint && plan.hint.subject) || '', 300), text, in_reply_to: inReplyTo, auto_submitted: auto,

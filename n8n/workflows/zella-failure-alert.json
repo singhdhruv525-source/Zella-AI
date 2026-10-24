@@ -1,0 +1,98 @@
+{
+  "name": "Zella - Failure Alert",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "8768d858-e66e-4148-8936-26a58611cc76",
+      "name": "A workflow failed",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Failure Alert: turn an n8n failure into one platform alert. No customer data is copied; only the workflow, the step and a short error.\nconst j = $json || {};\nconst wf = String((j.workflow && j.workflow.name) || 'Unknown workflow').slice(0, 80);\nconst ex = j.execution && typeof j.execution === 'object' ? j.execution : {};\nconst err = ex.error && typeof ex.error === 'object' ? ex.error : (j.trigger && j.trigger.error) || {};\nconst step = String(ex.lastNodeExecuted || (j.trigger && 'trigger') || 'unknown step').slice(0, 80);\nconst msg = String(err.message || 'No message').replace(/[\\u0000-\\u001f\\u007f]/g, ' ').replace(/(key|token|secret|authorization|bearer)\\S*/gi, '[hidden]').slice(0, 200);\nconst runId = String(ex.id || '').slice(0, 40);\n// Anything that sends to a customer or takes a call matters more than a background check.\nconst urgent = /SMS|Email|Follow-up|Outbound|Brain|Booking|Event Router|Meta Sender/i.test(wf);\nreturn { json: { alert: {\n  p_kind: 'workflow_failed',\n  p_title: ('Automation failed: ' + wf).slice(0, 120),\n  p_detail: ('Step \"' + step + '\": ' + msg + (runId ? ' (run ' + runId + ')' : '')).slice(0, 400),\n  p_severity: urgent ? 'urgent' : 'warning',\n  p_dedupe_key: (wf + '|' + step).slice(0, 160),\n  p_meta: { workflow: wf, step, run_id: runId },\n} } };\n"
+      },
+      "id": "e28c710b-4ab9-4503-8765-f4b8af88f493",
+      "name": "Describe failure",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_platform_alert",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.alert) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "c75b7837-095f-46ed-888f-cd9d0d949f67",
+      "name": "Raise alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        200
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "A workflow failed": {
+      "main": [
+        [
+          {
+            "node": "Describe failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Describe failure": {
+      "main": [
+        [
+          {
+            "node": "Raise alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "executionTimeout": 300
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

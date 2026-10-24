@@ -7,7 +7,9 @@
         "path": "zella/resend",
         "authentication": "none",
         "responseMode": "responseNode",
-        "options": {}
+        "options": {
+          "rawBody": true
+        }
       },
       "id": "9521c37d-9ba0-4be5-807e-1f1738e1aabe",
       "name": "Resend event",
@@ -22,7 +24,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Zella - Email Events: Resend tells us what happened to an email (delivered, bounced, marked as spam).\n// The secret key in the webhook address and the event are handed to the database, which checks the key.\nconst key = typeof ($json.query && $json.query.key) === 'string' ? $json.query.key.slice(0, 200) : '';\nconst h = $json.headers && typeof $json.headers === 'object' ? $json.headers : {};\nconst event = $json.body && typeof $json.body === 'object' && !Array.isArray($json.body) ? $json.body : null;\nconst data = event && event.data && typeof event.data === 'object' ? event.data : {};\nconst eventId = String(h['svix-id'] || (event ? [event.type, data.email_id, event.created_at].filter(Boolean).join(':') : '')).slice(0, 200);\nif (!event || !eventId) return { json: { record: null } };\nreturn { json: { record: { p_key: key, p_event: event, p_event_id: eventId } } };\n"
+        "jsCode": "// Zella - Email Events: Resend tells us what happened to an email (delivered, bounced, marked as spam).\n// The secret key in the webhook address and the event are handed to the database, which checks the key.\nconst key = typeof ($json.query && $json.query.key) === 'string' ? $json.query.key.slice(0, 200) : '';\nconst h = $json.headers && typeof $json.headers === 'object' ? $json.headers : {};\nconst event = $json.body && typeof $json.body === 'object' && !Array.isArray($json.body) ? $json.body : null;\nconst data = event && event.data && typeof event.data === 'object' ? event.data : {};\nconst eventId = String(h['svix-id'] || (event ? [event.type, data.email_id, event.created_at].filter(Boolean).join(':') : '')).slice(0, 200);\nif (!event || !eventId) return { json: { record: null } };\n// The signature is made over the exact bytes Resend sent, so those are kept. The database checks it against the signing\n// secret in Vault (zella_resend_signing_secret); this step never sees that secret. Until the secret is set, only the key counts.\nlet raw = '';\ntry { raw = (await this.helpers.getBinaryDataBuffer(0, 'data')).toString('utf8'); } catch (e) { raw = ''; }\nif (raw.length > 500000) raw = '';\nconst sig = { id: String(h['svix-id'] || '').slice(0, 200), timestamp: String(h['svix-timestamp'] || '').slice(0, 20), signature: String(h['svix-signature'] || '').slice(0, 500), raw };\nreturn { json: { record: { p_key: key, p_event: event, p_event_id: eventId, p_sig: sig } } };\n"
       },
       "id": "ae2f98a0-99fe-4855-8311-26233e9c1364",
       "name": "Plan",
@@ -69,7 +71,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_record_email_event",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_record_email_event_signed",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendBody": true,

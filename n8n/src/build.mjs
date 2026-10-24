@@ -411,7 +411,7 @@ const voiceRules = wf('Zella - Voice Rules', [
 // finds the business and customer, sorts the reply and tells the team. Always answers 200 so Resend does not keep retrying.
 const inboundEmail = wf('Zella - Inbound Email', [
   node('Resend inbound', 'n8n-nodes-base.webhook', 2, [0, 200], {
-    httpMethod: 'POST', path: 'zella/inbound-email', authentication: 'none', responseMode: 'responseNode', options: {},
+    httpMethod: 'POST', path: 'zella/inbound-email', authentication: 'none', responseMode: 'responseNode', options: { rawBody: true },
   }, { webhookId: id('webhook:zella-inbound-email') }),
   code('Plan', [240, 200], 'inbound-email-plan.js'),
   ifBool('Is an email', [480, 200], '={{ !!$json.fetch }}'),
@@ -421,7 +421,7 @@ const inboundEmail = wf('Zella - Inbound Email', [
   }),
   code('Map email', [960, 100], 'inbound-email-map.js'),
   ifBool('Has email', [1200, 100], '={{ !!$json.record }}'),
-  rpcNode('Save email', [1440, 0], 'zella_receive_inbound_email', '={{ JSON.stringify($json.record) }}', { full: true }),
+  rpcNode('Save email', [1440, 0], 'zella_receive_inbound_email_signed', '={{ JSON.stringify($json.record) }}', { full: true }),
   node('Reply', 'n8n-nodes-base.respondToWebhook', 1.1, [1680, 200], {
     respondWith: 'json', responseBody: '={{ JSON.stringify({ ok: true }) }}', options: { responseCode: 200 },
   }),
@@ -440,11 +440,11 @@ const inboundEmail = wf('Zella - Inbound Email', [
 // against a Vault secret; a wrong key changes nothing. Bad addresses and spam complaints are never emailed again.
 const emailEvents = wf('Zella - Email Events', [
   node('Resend event', 'n8n-nodes-base.webhook', 2, [0, 200], {
-    httpMethod: 'POST', path: 'zella/resend', authentication: 'none', responseMode: 'responseNode', options: {},
+    httpMethod: 'POST', path: 'zella/resend', authentication: 'none', responseMode: 'responseNode', options: { rawBody: true },
   }, { webhookId: id('webhook:zella-resend') }),
   code('Plan', [240, 200], 'email-event-plan.js'),
   ifBool('Has event', [480, 200], '={{ !!$json.record }}'),
-  rpcNode('Record event', [720, 100], 'zella_record_email_event', '={{ JSON.stringify($json.record) }}', { full: true }),
+  rpcNode('Record event', [720, 100], 'zella_record_email_event_signed', '={{ JSON.stringify($json.record) }}', { full: true }),
   code('Build reply', [960, 200], 'email-event-reply.js'),
   node('Reply', 'n8n-nodes-base.respondToWebhook', 1.1, [1200, 200], {
     respondWith: 'json', responseBody: '={{ JSON.stringify($json.body) }}', options: { responseCode: '={{ $json.status }}' },
@@ -729,6 +729,17 @@ const websiteCrawler = wf('Zella - Website Crawler', [
 });
 
 
+// Failure alert: n8n runs this whenever another Zella workflow fails (set as that workflow's error workflow at go-live).
+// It raises one platform alert in the database (deduped per workflow and step). No customer data is copied.
+const failureAlert = wf('Zella - Failure Alert', [
+  node('A workflow failed', 'n8n-nodes-base.errorTrigger', 1, [0, 200], {}),
+  code('Describe failure', [240, 200], 'failure-alert.js'),
+  rpcNode('Raise alert', [480, 200], 'zella_platform_alert', '={{ JSON.stringify($json.alert) }}', { full: true }),
+], {
+  'A workflow failed': { main: [[link('Describe failure')]] },
+  'Describe failure': { main: [[link('Raise alert')]] },
+});
+
 // Staff texts: urgent notifications texted to team members who switched this on for themselves. The database decides who
 // and enforces a limit of 5 per business per hour; nothing is claimed until sms_live is true. Same Telnyx box rule: no credential.
 const staffTexts = wf('Zella - Staff Texts', [
@@ -764,6 +775,7 @@ writeFileSync(join(out, 'zella-meta-webhook.json'), JSON.stringify(metaWebhook, 
 writeFileSync(join(out, 'zella-meta-leads.json'), JSON.stringify(metaLeads, null, 2) + '\n');
 writeFileSync(join(out, 'zella-meta-sender.json'), JSON.stringify(metaSender, null, 2) + '\n');
 writeFileSync(join(out, 'zella-meta-health.json'), JSON.stringify(metaHealth, null, 2) + '\n');
+writeFileSync(join(out, 'zella-failure-alert.json'), JSON.stringify(failureAlert, null, 2) + '\n');
 writeFileSync(join(out, 'zella-staff-texts.json'), JSON.stringify(staffTexts, null, 2) + '\n');
 writeFileSync(join(out, 'zella-website-crawler.json'), JSON.stringify(websiteCrawler, null, 2) + '\n');
 writeFileSync(join(out, 'zella-inbound-email.json'), JSON.stringify(inboundEmail, null, 2) + '\n');

@@ -21,3 +21,10 @@ export function runCode(file, { json = {}, nodes = {}, vars = {} } = {}) {
   };
   return fn(json, lookup);
 }
+
+// Same, for Code nodes that read the raw request body (they use await).
+const AsyncFn = Object.getPrototypeOf(async function () {}).constructor;
+export async function runCodeAsync(file, { json = {}, raw = '', vars = {} } = {}) {
+  const fn = new AsyncFn('$json', '$', loadCode(file, vars));
+  return fn.call({ helpers: { getBinaryDataBuffer: async () => Buffer.from(raw) } }, json, () => ({ item: { json: {} } }));
+}

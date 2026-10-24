@@ -3,7 +3,7 @@
 // It does NOT import into n8n (the installed n8n version has not been checked).
 import { readFileSync, readdirSync } from 'node:fs';
 import { strict as assert } from 'node:assert';
-import { runCode, eventTypes, loadCode } from './src/load.mjs';
+import { runCode, runCodeAsync, eventTypes, loadCode } from './src/load.mjs';
 
 let passed = 0;
 const failures = [];
@@ -108,6 +108,7 @@ test('execution id is optional when logging failed to start', () => assert.equal
 // ---------------- dispatcher (timed jobs run in Supabase; n8n is only called when work is waiting)
 const dispatcherSql = readFileSync(new URL('../sql/zella_dispatcher.sql', import.meta.url), 'utf8');
 const wfJson = (f) => JSON.parse(readFileSync(new URL('./workflows/' + f, import.meta.url), 'utf8'));
+const sigSql = readFileSync(new URL('../sql/zella_resend_signature.sql', import.meta.url), 'utf8');
 const RUN_PATHS = { 'zella-event-router.json': 'event-router', 'zella-sms-sender.json': 'sms-sender', 'zella-email-sender.json': 'email-sender', 'zella-followup-texts.json': 'followup-texts', 'zella-followup-emails.json': 'followup-emails', 'zella-owner-emails.json': 'owner-emails', 'zella-outbound-calls.json': 'outbound-calls', 'zella-knowledge.json': 'knowledge-sync', 'zella-calendar-sync.json': 'calendar-sync', 'zella-connection-tests.json': 'connection-tests', 'zella-meta-leads.json': 'meta-leads', 'zella-meta-sender.json': 'meta-sender', 'zella-meta-health.json': 'meta-health', 'zella-website-crawler.json': 'website-crawl', 'zella-staff-texts.json': 'staff-sms', 'zella-call-intelligence.json': 'call-intel' };
 test('no workflow wakes itself on a timer (that would burn the monthly n8n run allowance)', () => {
   for (const f of [...Object.keys(RUN_PATHS), 'zella-event-gateway.json']) assert.ok(!JSON.stringify(wfJson(f)).includes('scheduleTrigger'), f);
@@ -621,13 +622,26 @@ test('booking tools: changing a booking uses the caller\'s own number, never one
 
 // ---------------- email events (bounces and spam complaints)
 const evSql = readFileSync(new URL('../sql/zella_email_events.sql', import.meta.url), 'utf8');
-const evp = (j) => runCode('email-event-plan.js', { json: j }).json;
-test('email events: the key, the event and a stable event id go to the database', () => {
-  const r = evp({ query: { key: 'k1' }, headers: { 'svix-id': 'msg_1' }, body: { type: 'email.bounced', data: { email_id: 'e1' } } }).record;
-  assert.deepEqual(r, { p_key: 'k1', p_event: { type: 'email.bounced', data: { email_id: 'e1' } }, p_event_id: 'msg_1' });
-  assert.equal(evp({ query: {}, headers: {}, body: { type: 'email.delivered', data: { email_id: 'e2' }, created_at: 'T' } }).record.p_event_id, 'email.delivered:e2:T');
-  assert.equal(evp({ query: {}, headers: {}, body: 'text' }).record, null); assert.equal(evp({}).record, null);
-  assert.equal(evp({ query: { key: 5 }, headers: { 'svix-id': 'x' }, body: { type: 't' } }).record.p_key, '');
+const evp = async (j, raw = '') => (await runCodeAsync('email-event-plan.js', { json: j, raw })).json;
+const evSigned = await evp({ query: { key: 'k1' }, headers: { 'svix-id': 'msg_1', 'svix-timestamp': '1792878608', 'svix-signature': 'v1,abc' }, body: { type: 'email.bounced', data: { email_id: 'e1' } } }, '{"type":"email.bounced"}');
+const evNoId = await evp({ query: {}, headers: {}, body: { type: 'email.delivered', data: { email_id: 'e2' }, created_at: 'T' } });
+const evText = await evp({ query: {}, headers: {}, body: 'text' });
+const evEmpty = await evp({});
+const evBadKey = await evp({ query: { key: 5 }, headers: { 'svix-id': 'x' }, body: { type: 't' } });
+test('email events: the key, the event, a stable event id and the signed bytes go to the database', () => {
+  assert.deepEqual(evSigned.record, { p_key: 'k1', p_event: { type: 'email.bounced', data: { email_id: 'e1' } }, p_event_id: 'msg_1',
+    p_sig: { id: 'msg_1', timestamp: '1792878608', signature: 'v1,abc', raw: '{"type":"email.bounced"}' } });
+  assert.equal(evNoId.record.p_event_id, 'email.delivered:e2:T');
+  assert.equal(evText.record, null); assert.equal(evEmpty.record, null);
+  assert.equal(evBadKey.record.p_key, '');
+});
+test('email events and inbound email: the webhooks keep the raw body and call the signed database functions', () => {
+  for (const [file, name, rpc] of [['zella-email-events.json', 'Resend event', 'zella_record_email_event_signed'], ['zella-inbound-email.json', 'Resend inbound', 'zella_receive_inbound_email_signed']]) {
+    const w = wfJson(file);
+    assert.equal(w.nodes.find((n) => n.name === name).parameters.options.rawBody, true);
+    assert.ok(w.nodes.some((n) => String(n.parameters.url || '').endsWith('/' + rpc)), rpc);
+  }
+  assert.ok(sigSql.includes('zella_resend_signing_secret') && sigSql.includes('> 300') && sigSql.includes("return 'off'"));
 });
 const evReply = (planJson, res) => runCode('email-event-reply.js', { json: res, nodes: { Plan: planJson } }).json;
 test('email events: Resend gets 200 when handled, 401 for a wrong key, 500 so it retries, and never any details', () => {
@@ -775,15 +789,17 @@ test('voice rules sql: missing hours never mean closed, holidays win, and the fu
 
 // ---------------- inbound email and delivery receipts
 const ieSql = readFileSync(new URL('../sql/zella_email_inbound.sql', import.meta.url), 'utf8');
-const iePlan = (body, query = { key: 'k1' }) => runCode('inbound-email-plan.js', { json: { body, query } }).json;
-test('inbound email: only a received-email event with a safe id is fetched, and the key is carried along', () => {
-  const ok = iePlan({ type: 'email.received', data: { email_id: 'abc12345-def', to: ['x@y.com'] } });
-  assert.equal(ok.fetch.url, 'https://api.resend.com/emails/receiving/abc12345-def'); assert.equal(ok.key, 'k1');
-  assert.equal(iePlan({ type: 'email.delivered', data: { email_id: 'abc12345-def' } }).fetch, null);
-  assert.equal(iePlan({ type: 'email.received', data: { email_id: '../../admin' } }).fetch, null);
-  assert.equal(iePlan({ type: 'email.received', data: { email_id: 'abc12345-def' } }, {}).fetch, null);
+const iePlan = (body, query = { key: 'k1' }, headers = {}, raw = '') => runCodeAsync('inbound-email-plan.js', { json: { body, query, headers }, raw }).then((r) => r.json);
+const ieOk = await iePlan({ type: 'email.received', data: { email_id: 'abc12345-def', to: ['x@y.com'] } }, { key: 'k1' }, { 'svix-id': 'm1', 'svix-timestamp': '1792878608', 'svix-signature': 'v1,zz' }, '{"raw":1}');
+const ieNotRecv = await iePlan({ type: 'email.delivered', data: { email_id: 'abc12345-def' } });
+const ieBadId = await iePlan({ type: 'email.received', data: { email_id: '../../admin' } });
+const ieNoKey = await iePlan({ type: 'email.received', data: { email_id: 'abc12345-def' } }, {});
+test('inbound email: only a received-email event with a safe id is fetched, and the key and signed bytes are carried along', () => {
+  assert.equal(ieOk.fetch.url, 'https://api.resend.com/emails/receiving/abc12345-def'); assert.equal(ieOk.key, 'k1');
+  assert.deepEqual(ieOk.sig, { id: 'm1', timestamp: '1792878608', signature: 'v1,zz', raw: '{"raw":1}' });
+  assert.equal(ieNotRecv.fetch, null); assert.equal(ieBadId.fetch, null); assert.equal(ieNoKey.fetch, null);
 });
-const ieMap = (res, plan = { key: 'k1', hint: {} }) => runCode('inbound-email-map.js', { json: res, nodes: { Plan: plan } }).json;
+const ieMap = (res, plan = { key: 'k1', sig: { id: 'm' }, hint: {} }) => runCode('inbound-email-map.js', { json: res, nodes: { Plan: plan } }).json;
 test('inbound email: the fetched email becomes a small plain message, with auto-replies marked', () => {
   const r = ieMap({ statusCode: 200, body: { from: 'Ana <ana@x.com>', to: ['abc@mail.x.com'], subject: 'Hi', text: 'Hello', headers: { 'Message-ID': '<m1@x.com>', 'In-Reply-To': '<o1@x.com>', 'Auto-Submitted': 'auto-replied' } } }).record;
   assert.equal(r.p_key, 'k1'); assert.equal(r.p_message.message_id, 'm1@x.com'); assert.equal(r.p_message.in_reply_to, 'o1@x.com'); assert.equal(r.p_message.auto_submitted, true); assert.equal(r.p_message.text, 'Hello');
