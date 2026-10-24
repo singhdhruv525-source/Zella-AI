@@ -1157,6 +1157,12 @@ test('rate limits: a 429 from the text or email provider is retried later, not t
   }
 });
 
+test('text replies: confirm and reschedule replies act on the next appointment, STOP/HELP are kept', () => {
+  const x = readFileSync(new URL('../sql/zella_reply_actions.sql', import.meta.url), 'utf8');
+  assert.ok(x.includes("status = 'confirmed'") && x.includes("'reply_reschedule'") && x.includes("'opted_out'") && x.includes("k = 'HELP'"));
+  assert.ok(!x.includes("'C'") && !x.includes("'R'"));
+});
+
 console.log(`${passed} passed, ${failures.length} failed`);
 for (const f of failures) console.log('  FAIL ' + f);
 process.exit(failures.length ? 1 : 0);

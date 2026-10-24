@@ -9,7 +9,7 @@ Item numbers and names come from the Zella AI Complete Automation Guide. Status 
 
 Items are served by a small set of shared workflows (see `n8n/README.md`), not one workflow per item. Many industry items (196 to 254) are configurations of the shared appointment, message, assignment and reminder engines; the 98 starter automation rows per industry are seeded in the database.
 
-**Totals:** Built 240, Partly 10, Rules ready 31, Not built 57.
+**Totals:** Built 241, Partly 9, Rules ready 31, Not built 57.
 
 
 ## 1. Calls and AI receptionist (16) — Built 12, Partly 0, Rules ready 4, Not built 0
@@ -97,7 +97,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 64 | Unsubscribe processing | Built |
 | 65 | Email templates and summaries | Built |
 
-## 5. SMS and messaging automation (15) — Built 14, Partly 1, Rules ready 0, Not built 0
+## 5. SMS and messaging automation (15) — Built 15, Partly 0, Rules ready 0, Not built 0
 
 | # | Automation | Status |
 |---|---|---|
@@ -106,7 +106,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 68 | Callback SMS | Built |
 | 69 | Missed-call SMS | Built |
 | 70 | Lead follow-up SMS | Built |
-| 71 | Inbound reply processing | Partly |
+| 71 | Inbound reply processing | Built |
 | 72 | Delivery receipt handling | Built |
 | 73 | SMS failure recovery | Built |
 | 74 | Consent and opt-out management | Built |
