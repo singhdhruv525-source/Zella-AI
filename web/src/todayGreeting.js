@@ -57,3 +57,22 @@ export function todayNote(industry, businessName) {
   remember("zella.today.note", choice);
   return choice.replaceAll("{biz}", businessName || "your business");
 }
+
+// Lines built from today's real numbers. Only true facts; empty when there is nothing worth saying.
+const n = (count, one, many) => `${count} ${count === 1 ? one : many ?? one + "s"}`;
+export function liveNotes({ appointmentsToday = 0, nextTime = "", missedOpen = 0, uncontacted = 0, name = "" }) {
+  const lines = [];
+  if (appointmentsToday > 0) {
+    lines.push(`${n(appointmentsToday, "appointment")} on the calendar today.`);
+    if (nextTime) lines.push(`Next up at ${nextTime}. ${n(appointmentsToday, "appointment")} today.`);
+  } else lines.push("A clear calendar today. Good time to follow up.");
+  if (missedOpen > 0) lines.push(`${n(missedOpen, "missed call")} still waiting for a follow-up.`);
+  if (uncontacted > 0) lines.push(`${n(uncontacted, "new lead")} not contacted yet.`);
+  if (missedOpen === 0 && uncontacted === 0) lines.push(`Nothing waiting on you. ${name || "Your business"} is on top of it.`);
+  return lines;
+}
+export function pickLive(lines) {
+  const choice = pick(lines, recall("zella.today.live"));
+  remember("zella.today.live", choice);
+  return choice;
+}
