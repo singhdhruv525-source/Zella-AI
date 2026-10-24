@@ -9,7 +9,7 @@ Item numbers and names come from the Zella AI Complete Automation Guide. Status 
 
 Items are served by a small set of shared workflows (see `n8n/README.md`), not one workflow per item. Many industry items (196 to 254) are configurations of the shared appointment, message, assignment and reminder engines; the 98 starter automation rows per industry are seeded in the database.
 
-**Totals:** Built 271, Partly 4, Rules ready 7, Not built 56.
+**Totals:** Built 326, Partly 4, Rules ready 7, Not built 1.
 
 
 ## 1. Calls and AI receptionist (16) — Built 12, Partly 0, Rules ready 4, Not built 0
@@ -267,69 +267,69 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 194 | Daily team summary | Built |
 | 195 | Offboarding and access revocation | Built |
 
-## 13. Industry-specific workflows (59) — Built 4, Partly 0, Rules ready 0, Not built 55
+## 13. Industry-specific workflows (59) — Built 59, Partly 0, Rules ready 0, Not built 0
 
 | # | Automation | Status |
 |---|---|---|
-| 196 | Automotive — repair status | Not built |
-| 197 | Automotive — estimate approval | Not built |
-| 198 | Automotive — pickup | Not built |
-| 199 | Automotive — maintenance | Not built |
-| 200 | Beauty & Salon — stylist bookings | Not built |
+| 196 | Automotive — repair status | Built |
+| 197 | Automotive — estimate approval | Built |
+| 198 | Automotive — pickup | Built |
+| 199 | Automotive — maintenance | Built |
+| 200 | Beauty & Salon — stylist bookings | Built |
 | 201 | Beauty & Salon — waitlist | Built |
-| 202 | Beauty & Salon — rebooking | Not built |
-| 203 | Beauty & Salon — membership renewal | Not built |
-| 204 | Dental — patient recall | Not built |
+| 202 | Beauty & Salon — rebooking | Built |
+| 203 | Beauty & Salon — membership renewal | Built |
+| 204 | Dental — patient recall | Built |
 | 205 | Dental — reminders | Built |
-| 206 | Dental — administrative follow-up | Not built |
-| 207 | E-commerce — order updates | Not built |
-| 208 | E-commerce — returns | Not built |
-| 209 | E-commerce — delivery | Not built |
-| 210 | E-commerce — post-purchase | Not built |
-| 211 | Education — admissions | Not built |
-| 212 | Education — counselling | Not built |
-| 213 | Education — document reminders | Not built |
-| 214 | Electrical — emergency intake | Not built |
-| 215 | Electrical — dispatch | Not built |
-| 216 | Electrical — estimates | Not built |
-| 217 | Financial Services — consultation | Not built |
-| 218 | Financial Services — application | Not built |
-| 219 | Financial Services — renewal | Not built |
-| 220 | Fitness — trial booking | Not built |
+| 206 | Dental — administrative follow-up | Built |
+| 207 | E-commerce — order updates | Built |
+| 208 | E-commerce — returns | Built |
+| 209 | E-commerce — delivery | Built |
+| 210 | E-commerce — post-purchase | Built |
+| 211 | Education — admissions | Built |
+| 212 | Education — counselling | Built |
+| 213 | Education — document reminders | Built |
+| 214 | Electrical — emergency intake | Built |
+| 215 | Electrical — dispatch | Built |
+| 216 | Electrical — estimates | Built |
+| 217 | Financial Services — consultation | Built |
+| 218 | Financial Services — application | Built |
+| 219 | Financial Services — renewal | Built |
+| 220 | Fitness — trial booking | Built |
 | 221 | Fitness — class reminders | Built |
-| 222 | Fitness — membership | Not built |
-| 223 | Healthcare — administration | Not built |
-| 224 | Healthcare — referrals | Not built |
+| 222 | Fitness — membership | Built |
+| 223 | Healthcare — administration | Built |
+| 224 | Healthcare — referrals | Built |
 | 225 | Healthcare — appointments | Built |
-| 226 | Home Services — job scheduling | Not built |
-| 227 | Home Services — dispatch | Not built |
-| 228 | Home Services — repeat service | Not built |
-| 229 | HVAC — maintenance | Not built |
-| 230 | HVAC — seasonal workflows | Not built |
-| 231 | HVAC — installation follow-up | Not built |
-| 232 | Legal — intake | Not built |
-| 233 | Legal — consultation | Not built |
-| 234 | Legal — deadline reminders | Not built |
-| 235 | Other — configurable workflows | Not built |
-| 236 | Plumbing — emergency routing | Not built |
-| 237 | Plumbing — dispatch | Not built |
-| 238 | Plumbing — job follow-up | Not built |
-| 239 | Professional Services — proposals | Not built |
-| 240 | Professional Services — onboarding | Not built |
-| 241 | Professional Services — project milestones | Not built |
-| 242 | Real Estate — callbacks | Not built |
-| 243 | Real Estate — viewings | Not built |
-| 244 | Real Estate — deal tracking | Not built |
-| 245 | Restaurant — reservations | Not built |
-| 246 | Restaurant — waitlists | Not built |
-| 247 | Restaurant — events | Not built |
-| 248 | Travel — itinerary | Not built |
-| 249 | Travel — booking updates | Not built |
-| 250 | Travel — pre-departure | Not built |
-| 251 | Hospitality — guest requests | Not built |
-| 252 | Hospitality — arrival | Not built |
-| 253 | Hospitality — checkout | Not built |
-| 254 | Hospitality — feedback | Not built |
+| 226 | Home Services — job scheduling | Built |
+| 227 | Home Services — dispatch | Built |
+| 228 | Home Services — repeat service | Built |
+| 229 | HVAC — maintenance | Built |
+| 230 | HVAC — seasonal workflows | Built |
+| 231 | HVAC — installation follow-up | Built |
+| 232 | Legal — intake | Built |
+| 233 | Legal — consultation | Built |
+| 234 | Legal — deadline reminders | Built |
+| 235 | Other — configurable workflows | Built |
+| 236 | Plumbing — emergency routing | Built |
+| 237 | Plumbing — dispatch | Built |
+| 238 | Plumbing — job follow-up | Built |
+| 239 | Professional Services — proposals | Built |
+| 240 | Professional Services — onboarding | Built |
+| 241 | Professional Services — project milestones | Built |
+| 242 | Real Estate — callbacks | Built |
+| 243 | Real Estate — viewings | Built |
+| 244 | Real Estate — deal tracking | Built |
+| 245 | Restaurant — reservations | Built |
+| 246 | Restaurant — waitlists | Built |
+| 247 | Restaurant — events | Built |
+| 248 | Travel — itinerary | Built |
+| 249 | Travel — booking updates | Built |
+| 250 | Travel — pre-departure | Built |
+| 251 | Hospitality — guest requests | Built |
+| 252 | Hospitality — arrival | Built |
+| 253 | Hospitality — checkout | Built |
+| 254 | Hospitality — feedback | Built |
 
 ## 14. Integration monitoring and recovery (15) — Built 14, Partly 1, Rules ready 0, Not built 0
 

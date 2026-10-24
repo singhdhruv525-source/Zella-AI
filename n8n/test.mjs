@@ -1173,6 +1173,15 @@ test('staff invitations and approvals exist and the approval sweep runs hourly',
   assert.ok(dispatcherSql.includes("'zella_sweep_approvals'"));
 });
 
+test('industry engine: rule types, presets for every industry and the hourly timer', () => {
+  const x = readFileSync(new URL('../sql/zella_industry_engine.sql', import.meta.url), 'utf8');
+  for (const f of ['record_status_action', 'record_due_reminder', 'record_stale', 'appointment_followup', 'seasonal_reminder', 'zella_run_industry_timers', 'zella_apply_industry_automations', 'zella_save_industry_rule', 'NO_MARKETING_OR_PRICES']) assert.ok(x.includes(f), f);
+  const p = readFileSync(new URL('../sql/zella_industry_presets.sql', import.meta.url), 'utf8');
+  for (const i of ['automotive', 'beauty_salon', 'dental', 'ecommerce', 'education', 'electrical', 'financial_services', 'fitness', 'healthcare', 'home_services', 'hvac', 'legal', 'plumbing', 'professional_services', 'real_estate', 'restaurant', 'travel', 'hospitality']) assert.ok(p.includes("('" + i + "'"), i);
+  assert.ok(!/[$€£]/.test(p.replace(/\$\$/g, '')), 'no prices in preset messages');
+  assert.ok(dispatcherSql.includes("'zella_run_industry_timers'"));
+});
+
 test('timeouts: every workflow has a run time limit and every outside call has a time limit', () => {
   for (const f of readdirSync(new URL('./workflows/', import.meta.url))) {
     const w = wfJson(f);

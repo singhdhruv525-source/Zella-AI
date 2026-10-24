@@ -35,3 +35,4 @@ Order agreed: finish automations -> industry automations -> front-end pass.
 - Lifecycle: home banner for paused/cancelled accounts (read-only mode), cancel-and-keep-plan button before cancel_at.
 - Audit: show `privileged_*` rows from audit_logs in a Security log screen for owners/admins.
 - Team: invite form (email, name, role), pending invitations list with Cancel/Resend; call zella_accept_staff_invitations() after every sign-in. Approvals screen from zella_pending_approvals + zella_decide_approval.
+- Industry rules: Automations screen lists rules per business (pause/edit), with an 'Add rule' form calling zella_save_industry_rule (pick type, record type, status, message, task, alert). Record forms should expose due_at, and for jobs a priority field with 'emergency'.
