@@ -3,6 +3,7 @@ import { supabase } from "./supabase";
 import { Icon, Pill, personName } from "./BusinessUI";
 import { makeTerm, receptionistState } from "./businessWorkspace";
 import { useRoster } from "./BusinessLeads";
+import { todayNote, welcomeStyle } from "./todayGreeting";
 import { dayRange, formatLongDate, formatTime, greeting, timeAgo } from "./businessTime";
 import { friendly, noShowNotice, setCheckIn } from "./BusinessShared";
 import { RescheduleModal } from "./BusinessForms";
@@ -85,7 +86,11 @@ function Empty({ title, children }) {
 export default function BusinessToday({ workspace, userId, fallbackName, onAddLead, onBook, onNotice, onOpenPerson }) {
   const tz = workspace.timezone;
   const roster = useRoster(workspace);
-  const firstName = String(roster.nameOf[userId] || fallbackName || "").trim().split(/\s+/)[0];
+  const known = (n) => (n && n !== "Team member" ? n : "");
+  const firstName = String(known(roster.nameOf[userId]) || fallbackName || "").trim().split(/\s+/)[0];
+  const owner = known(roster.list.find((m) => m.role === "owner")?.name);
+  const [note] = useState(() => todayNote(workspace.industry, workspace.name));
+  const [style] = useState(() => welcomeStyle());
   const term = makeTerm(workspace);
   const agent = receptionistState(workspace);
   const [range, setRange] = useState("today");
@@ -278,9 +283,10 @@ export default function BusinessToday({ workspace, userId, fallbackName, onAddLe
       <div className="ba-page-head">
         <div>
           <div className="ba-crumb">Core / Today</div>
-          <h1>Welcome back{firstName ? `, ${firstName}` : ""}.</h1>
+          <h1>{style ? `Welcome back${firstName ? `, ${firstName}` : ""}.` : `${greeting(tz)}${firstName ? `, ${firstName}` : ""}.`}</h1>
+          <p className="ba-today-owner">{workspace.name}{owner ? ` · Owner: ${owner}` : ""}</p>
           <p>
-            {greeting(tz)}. {workspace.name} at a glance · {formatLongDate(new Date(), tz)} ({tz.replace("_", " ")})
+            {note} · {formatLongDate(new Date(), tz)} ({tz.replace("_", " ")})
           </p>
         </div>
         <div className="ba-page-actions">
