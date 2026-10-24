@@ -27,3 +27,4 @@ Order agreed: finish automations -> industry automations -> front-end pass.
 - Calls: read through `calls_view` instead of `calls` (BusinessCalls, Inbox, More, Profile), then run `select zella_lock_call_columns()` so recordings and transcripts stay manager-only.
 - Erase customer: handle the `APPROVAL_REQUIRED` error by asking for a second owner/admin approval.
 - Failed work screen for managers using `zella_failed_work` and `zella_retry_failed`; message results screen using `zella_workflow_effectiveness`.
+- Customers: a data-rights requests list (zella_log_data_rights_request, zella_fulfil_data_rights_request, zella_reject_data_rights_request; table data_rights_requests is readable by managers and above).

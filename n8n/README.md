@@ -355,3 +355,6 @@ Run `sql/zella_security_extras.sql`. All database.
 - `zella_failed_work` / `zella_retry_failed` (managers and above) list failed follow-ups, reminders and social replies and send one back to try again; each retry is logged.
 - `zella_remind_integrations` (weekly) reminds active businesses without a phone number or calendar.
 - `zella_workflow_effectiveness` shows, per kind of automatic message, how many were sent, failed, skipped and followed by a booking within 7 days.
+
+## Data-rights requests
+Run `sql/zella_data_rights.sql`. All database. `zella_log_data_rights_request` records a customer asking to see, correct, stop the use of, or erase their information (30 day deadline, owners told). Owners/admins finish it with `zella_fulfil_data_rights_request` (export returns the data; erase runs the erase, which needs a second approval where there are two owners/admins) or `zella_reject_data_rights_request` (reason required). A daily job reminds owners when a request is due within a week or late. Correct and stop-use requests are handled by hand and then marked done.

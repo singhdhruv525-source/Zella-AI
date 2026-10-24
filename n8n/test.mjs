@@ -1116,6 +1116,12 @@ test('security extras: erase needs approval, calls_view hides recordings, daily 
   for (const j of ['zella_run_tenant_check', 'zella_notify_message_failures', 'zella_remind_integrations']) assert.ok(dispatcherSql.includes("'" + j + "'"), j);
 });
 
+test('data rights: requests have a 30 day deadline, a reminder, and export/erase run from the request', () => {
+  const x = readFileSync(new URL('../sql/zella_data_rights.sql', import.meta.url), 'utf8');
+  assert.ok(x.includes("interval '30 days'") && x.includes('zella_export_customer_data') && x.includes('zella_erase_customer') && x.includes('REASON_REQUIRED'));
+  assert.ok(dispatcherSql.includes("'zella_check_data_rights_due'"));
+});
+
 console.log(`${passed} passed, ${failures.length} failed`);
 for (const f of failures) console.log('  FAIL ' + f);
 process.exit(failures.length ? 1 : 0);
