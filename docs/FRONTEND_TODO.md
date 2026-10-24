@@ -31,3 +31,4 @@ Order agreed: finish automations -> industry automations -> front-end pass.
 - Customer page: timeline from zella_customer_timeline; add customer via zella_staff_add_customer; duplicate review list uses zella_resolve_duplicate (merge / keep_separate / dismiss).
 
 - Monitoring: show `zella_integration_summary` on the settings/health page; a reply-speed card from `zella_response_time_report`; platform admin screens for `zella_platform_health_summary`, failed events (`zella_retry_event`) and incidents (`zella_open_incident`/`zella_resolve_incident`, list from `platform_incidents`).
+- Reconnect: show `zella_connections_to_reconnect(business)` as banner/buttons on home and settings.

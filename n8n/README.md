@@ -389,3 +389,6 @@ Run `sql/zella_appointment_flow.sql` (and re-run `zella_reply_actions.sql`). All
 - `zella_integration_summary(business)` lists phone, calendar, social and message failures; `zella_platform_health_summary()` is the platform admin view.
 - `zella_retry_event(id)` (platform admin) sends a failed event back; businesses use `zella_retry_failed`.
 - `zella_open_incident(title, detail)` / `zella_resolve_incident(id, note)` notify every active business owner.
+
+## Reconnection (checklist 258) - `sql/zella_reconnect.sql`
+A calendar that loses access now tells the owners at once (run after `zella_calendar_sync.sql`). Daily `zella_remind_reconnects()` nags owners about a calendar or Facebook/Instagram connection broken for over a day. `zella_connections_to_reconnect(business)` feeds the Reconnect buttons. Doing the sign-in itself needs the Google and Meta apps.

@@ -1149,6 +1149,12 @@ test('monitoring: slow replies, connection summaries, admin retry and incident n
   assert.ok(dispatcherSql.includes("'zella_check_response_times'"));
 });
 
+test('reconnect: lost calendar tells owners, daily reminder, list for the app', () => {
+  const x = readFileSync(new URL('../sql/zella_reconnect.sql', import.meta.url), 'utf8');
+  assert.ok(x.includes('zella_remind_reconnects') && x.includes('zella_connections_to_reconnect') && x.includes("'calendar_disconnected'"));
+  assert.ok(dispatcherSql.includes("'zella_remind_reconnects'"));
+});
+
 test('timeouts: every workflow has a run time limit and every outside call has a time limit', () => {
   for (const f of readdirSync(new URL('./workflows/', import.meta.url))) {
     const w = wfJson(f);
