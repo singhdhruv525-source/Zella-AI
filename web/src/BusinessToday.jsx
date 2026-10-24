@@ -3,6 +3,7 @@ import { supabase } from "./supabase";
 import { Icon, Pill, personName } from "./BusinessUI";
 import { makeTerm, receptionistState } from "./businessWorkspace";
 import { useRoster } from "./BusinessLeads";
+import TodayWelcome from "./TodayWelcome";
 import { todayNote, welcomeStyle } from "./todayGreeting";
 import { dayRange, formatLongDate, formatTime, greeting, timeAgo } from "./businessTime";
 import { friendly, noShowNotice, setCheckIn } from "./BusinessShared";
@@ -280,13 +281,14 @@ export default function BusinessToday({ workspace, userId, fallbackName, onAddLe
 
   return (
     <>
+      <TodayWelcome
+        heading={style ? `Welcome back${firstName ? `, ${firstName}` : ""}.` : `${greeting(tz)}${firstName ? `, ${firstName}` : ""}.`}
+        business={workspace.name} owner={owner} note={note} partOfDay={greeting(tz).replace("Good ", "")}
+        date={`${formatLongDate(new Date(), tz)} (${tz.replace("_", " ")})`}
+      />
       <div className="ba-page-head">
         <div>
           <div className="ba-crumb">Core / Today</div>
-          <h1>{style ? `Welcome back${firstName ? `, ${firstName}` : ""}.` : `${greeting(tz)}${firstName ? `, ${firstName}` : ""}.`}</h1>
-          <p className="ba-today-owner">{workspace.name}{owner ? ` · Owner: ${owner}` : ""}</p>
-          <p className="ba-today-note">{note}</p>
-          <p className="ba-muted">{formatLongDate(new Date(), tz)} ({tz.replace("_", " ")})</p>
         </div>
         <div className="ba-page-actions">
           <div className="ba-segment" role="tablist" aria-label="Time range">
