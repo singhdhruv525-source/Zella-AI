@@ -1170,6 +1170,11 @@ test('industry templates: dental, fitness, healthcare and salon wording; healthc
   assert.ok(health.length === 2 && health.every((l) => !l.includes('{{appointment}}')));
 });
 
+test('no marketing texts: texts marked marketing are refused unless sms_marketing_allowed is true', () => {
+  const x = readFileSync(new URL('../sql/zella_sms_no_marketing.sql', import.meta.url), 'utf8');
+  assert.ok(x.includes("'sms_marketing_allowed', 'false'") && x.includes('sms_marketing_off'));
+});
+
 console.log(`${passed} passed, ${failures.length} failed`);
 for (const f of failures) console.log('  FAIL ' + f);
 process.exit(failures.length ? 1 : 0);

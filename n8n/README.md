@@ -370,3 +370,6 @@ Run `sql/zella_reply_actions.sql` (after `zella_reschedule.sql` and `zella_inbou
 
 ## Industry wording
 Run `sql/zella_industry_templates.sql`. Reminder texts and emails for dental (arrive early), fitness (class spot), healthcare (administrative only: no service name, no health details, "do not reply with health details") and beauty salons, plus a salon waitlist-offer text. The reminder and waitlist machinery is shared by all industries; a business-level template still wins over these.
+
+## No marketing texts
+Run `sql/zella_sms_no_marketing.sql`. Telnyx 10DLC is being registered as customer care, so any text marked marketing (such as lead reactivation) is refused with reason `sms_marketing_off` unless the platform setting `sms_marketing_allowed` is set to true. The same message can still go by email.
