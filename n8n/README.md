@@ -392,3 +392,6 @@ Run `sql/zella_appointment_flow.sql` (and re-run `zella_reply_actions.sql`). All
 
 ## Reconnection (checklist 258) - `sql/zella_reconnect.sql`
 A calendar that loses access now tells the owners at once (run after `zella_calendar_sync.sql`). Daily `zella_remind_reconnects()` nags owners about a calendar or Facebook/Instagram connection broken for over a day. `zella_connections_to_reconnect(business)` feeds the Reconnect buttons. Doing the sign-in itself needs the Google and Meta apps.
+
+## Lifecycle (checklist 301, 305, 308) - `sql/zella_lifecycle.sql`
+Owners are told when the account is paused, switched back on or cancelled. A cancellation scheduled for a date (`cancel_at`) takes effect daily via `zella_apply_scheduled_cancellations()` (3-day reminder first); cancelling stops automations, callbacks, follow-ups and reminders but keeps every record until `retention_until`. Hourly `zella_recover_provisioning()` marks setup steps stuck for 30+ minutes as failed so an admin sees and retries them.

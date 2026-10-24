@@ -32,3 +32,4 @@ Order agreed: finish automations -> industry automations -> front-end pass.
 
 - Monitoring: show `zella_integration_summary` on the settings/health page; a reply-speed card from `zella_response_time_report`; platform admin screens for `zella_platform_health_summary`, failed events (`zella_retry_event`) and incidents (`zella_open_incident`/`zella_resolve_incident`, list from `platform_incidents`).
 - Reconnect: show `zella_connections_to_reconnect(business)` as banner/buttons on home and settings.
+- Lifecycle: home banner for paused/cancelled accounts (read-only mode), cancel-and-keep-plan button before cancel_at.

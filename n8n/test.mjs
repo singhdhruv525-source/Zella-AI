@@ -1155,6 +1155,12 @@ test('reconnect: lost calendar tells owners, daily reminder, list for the app', 
   assert.ok(dispatcherSql.includes("'zella_remind_reconnects'"));
 });
 
+test('lifecycle: suspension/cancellation notices, scheduled cancellation and stuck setup recovery', () => {
+  const x = readFileSync(new URL('../sql/zella_lifecycle.sql', import.meta.url), 'utf8');
+  for (const f of ['zella_business_lifecycle_trigger', 'zella_apply_scheduled_cancellations', 'zella_recover_provisioning', "'account_suspended'", "'account_cancelled'"]) assert.ok(x.includes(f), f);
+  for (const f of ['zella_apply_scheduled_cancellations', 'zella_recover_provisioning']) assert.ok(dispatcherSql.includes("'" + f + "'"), f);
+});
+
 test('timeouts: every workflow has a run time limit and every outside call has a time limit', () => {
   for (const f of readdirSync(new URL('./workflows/', import.meta.url))) {
     const w = wfJson(f);
