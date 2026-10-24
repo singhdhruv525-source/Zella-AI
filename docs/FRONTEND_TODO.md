@@ -28,3 +28,4 @@ Order agreed: finish automations -> industry automations -> front-end pass.
 - Erase customer: handle the `APPROVAL_REQUIRED` error by asking for a second owner/admin approval.
 - Failed work screen for managers using `zella_failed_work` and `zella_retry_failed`; message results screen using `zella_workflow_effectiveness`.
 - Customers: a data-rights requests list (zella_log_data_rights_request, zella_fulfil_data_rights_request, zella_reject_data_rights_request; table data_rights_requests is readable by managers and above).
+- Customer page: timeline from zella_customer_timeline; add customer via zella_staff_add_customer; duplicate review list uses zella_resolve_duplicate (merge / keep_separate / dismiss).

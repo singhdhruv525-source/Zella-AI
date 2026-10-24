@@ -159,8 +159,8 @@ declare b record; v_missing text[]; n integer := 0;
 begin
   for b in select id from public.businesses where onboarding_status = 'active' and suspended_at is null and cancelled_at is null loop
     v_missing := '{}';
-    if not exists (select 1 from public.business_phone_numbers p where p.business_id = b.id and p.status = 'active') then v_missing := v_missing || 'a phone number for your assistant'; end if;
-    if not exists (select 1 from public.calendar_connections c where c.business_id = b.id and c.status = 'active') then v_missing := v_missing || 'your calendar'; end if;
+    if not exists (select 1 from public.business_phone_numbers p where p.business_id = b.id and p.status = 'active') then v_missing := array_append(v_missing, 'a phone number for your assistant'::text); end if;
+    if not exists (select 1 from public.calendar_connections c where c.business_id = b.id and c.status = 'active') then v_missing := array_append(v_missing, 'your calendar'::text); end if;
     continue when cardinality(v_missing) = 0;
     continue when exists (select 1 from public.staff_notifications where business_id = b.id and kind = 'integration_reminder' and created_at > now() - interval '7 days');
     perform public.zella_notify_owners(b.id, 'integration_reminder', 'Connect ' || array_to_string(v_missing, ' and '), 'Zella works best when these are connected. Open Settings to finish.', 'info', 'settings');

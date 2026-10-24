@@ -1181,6 +1181,13 @@ test('knowledge insights: repeated questions, weekly report and low-confidence h
   for (const j of ['zella_detect_repeated_questions', 'zella_send_gap_reports']) assert.ok(dispatcherSql.includes("'" + j + "'"), j);
 });
 
+test('customer records: staff add, change history, merge, duplicate scan and timeline', () => {
+  const x = readFileSync(new URL('../sql/zella_customer_records.sql', import.meta.url), 'utf8');
+  for (const s of ['zella_staff_add_customer', 'zella_customer_change_trg', 'zella_merge_customers', 'zella_scan_duplicates', 'zella_customer_timeline', "'archived'"]) assert.ok(x.includes(s), s);
+  assert.ok(!/\bf := f \|\|/.test(x), 'use array_append for text arrays');
+  assert.ok(dispatcherSql.includes("'zella_scan_duplicates'"));
+});
+
 console.log(`${passed} passed, ${failures.length} failed`);
 for (const f of failures) console.log('  FAIL ' + f);
 process.exit(failures.length ? 1 : 0);
