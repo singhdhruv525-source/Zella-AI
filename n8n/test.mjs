@@ -1175,6 +1175,12 @@ test('no marketing texts: texts marked marketing are refused unless sms_marketin
   assert.ok(x.includes("'sms_marketing_allowed', 'false'") && x.includes('sms_marketing_off'));
 });
 
+test('knowledge insights: repeated questions, weekly report and low-confidence hand-off are database jobs', () => {
+  const x = readFileSync(new URL('../sql/zella_knowledge_insights.sql', import.meta.url), 'utf8');
+  assert.ok(x.includes('zella_detect_repeated_questions') && x.includes('zella_knowledge_gap_report') && x.includes("'low_confidence'") && x.includes('ai_low_confidence_questions'));
+  for (const j of ['zella_detect_repeated_questions', 'zella_send_gap_reports']) assert.ok(dispatcherSql.includes("'" + j + "'"), j);
+});
+
 console.log(`${passed} passed, ${failures.length} failed`);
 for (const f of failures) console.log('  FAIL ' + f);
 process.exit(failures.length ? 1 : 0);

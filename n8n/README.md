@@ -373,3 +373,6 @@ Run `sql/zella_industry_templates.sql`. Reminder texts and emails for dental (ar
 
 ## No marketing texts
 Run `sql/zella_sms_no_marketing.sql`. Telnyx 10DLC is being registered as customer care, so any text marked marketing (such as lead reactivation) is refused with reason `sms_marketing_off` unless the platform setting `sms_marketing_allowed` is set to true. The same message can still go by email.
+
+## Unanswered-question insights
+Run `sql/zella_knowledge_insights.sql`. All database. A question asked 3 or more times (`knowledge_repeat_threshold`) is flagged to owners once (hourly job). `zella_knowledge_gap_report` returns the top open questions and counts, and a weekly job nudges owners who have open questions. When the assistant reports two or more unanswered questions on one call (`ai_low_confidence_questions`), the call is flagged for a person (`escalation_reason` low_confidence) and a callback is created. Knowledge tables are already isolated per business by row security; the daily tenant check watches that.

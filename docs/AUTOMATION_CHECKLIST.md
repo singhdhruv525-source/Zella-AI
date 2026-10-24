@@ -9,7 +9,7 @@ Item numbers and names come from the Zella AI Complete Automation Guide. Status 
 
 Items are served by a small set of shared workflows (see `n8n/README.md`), not one workflow per item. Many industry items (196 to 254) are configurations of the shared appointment, message, assignment and reminder engines; the 98 starter automation rows per industry are seeded in the database.
 
-**Totals:** Built 245, Partly 5, Rules ready 31, Not built 57.
+**Totals:** Built 250, Partly 5, Rules ready 27, Not built 56.
 
 
 ## 1. Calls and AI receptionist (16) — Built 12, Partly 0, Rules ready 4, Not built 0
@@ -203,7 +203,7 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 145 | Failure alerting | Built |
 | 146 | Conversion tracking | Built |
 
-## 10. Website knowledge automation (23) — Built 19, Partly 0, Rules ready 4, Not built 0
+## 10. Website knowledge automation (23) — Built 22, Partly 0, Rules ready 1, Not built 0
 
 | # | Automation | Status |
 |---|---|---|
@@ -227,16 +227,16 @@ Items are served by a small set of shared workflows (see `n8n/README.md`), not o
 | 164 | Controlled publishing and rollback | Built |
 | 165 | Stale-knowledge alerts | Built |
 | 166 | AI knowledge refresh | Built |
-| 167 | Unanswered-question analysis | Rules ready |
-| 168 | Knowledge-gap reporting | Rules ready |
-| 169 | Tenant-isolated knowledge | Rules ready |
+| 167 | Unanswered-question analysis | Built |
+| 168 | Knowledge-gap reporting | Built |
+| 169 | Tenant-isolated knowledge | Built |
 
-## 11. AI quality and knowledge maintenance (12) — Built 9, Partly 0, Rules ready 1, Not built 2
+## 11. AI quality and knowledge maintenance (12) — Built 11, Partly 0, Rules ready 0, Not built 1
 
 | # | Automation | Status |
 |---|---|---|
-| 170 | Low-confidence escalation | Not built |
-| 171 | Repeated unanswered-question detection | Rules ready |
+| 170 | Low-confidence escalation | Built |
+| 171 | Repeated unanswered-question detection | Built |
 | 172 | Incorrect-answer reporting | Built |
 | 173 | Source validation | Built |
 | 174 | Transfer-failure monitoring | Built |
