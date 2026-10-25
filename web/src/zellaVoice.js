@@ -11,6 +11,7 @@ const key = (name) => String(name ?? "").toLowerCase().replace(/[^a-z]/g, "");
 // Industry flavour: a restaurant talks about tables and guests, not appointments and customers.
 const BY_INDUSTRY = {
   restaurant: {
+    industry_alert: (n) => [`Kitchen-side heads up: ${n.title}`, `Front of house, take a look: ${n.title}`, `Zella spotted something: ${n.title}`],
     appointment_cancelled: ["A reservation was cancelled. A table just opened up.", "One cancellation. That table is free again."],
     appointment_rescheduled: ["A guest picked a different time. Reservations are updated."],
     customer_arrived: (n) => [`${n.title}. Time to show them to their table!`, `${n.title}. A warm welcome awaits.`],
@@ -106,12 +107,44 @@ const TITLES = {
   agent_config_published: ["Your AI receptionist has a fresh update. She's ready!"],
   knowledge_report: ["Your knowledge report is ready."],
   duplicate: ["Two records look like the same person. Want to tidy up?"],
-  industry_alert: null,
+  industry_alert: (n) => [`Zella spotted something: ${n.title}`, `Heads up! ${n.title}`, `Worth a look: ${n.title}`, `A little nudge from Zella: ${n.title}`],
+  draft_ready: ["Zella wrote a message for you. Give it a look and send it!", "A message is warmed up and waiting for your OK.", "Fresh draft on your desk. Edit it, send it, or skip it.", "We've done the writing. You make the call."],
+  shift_handover: ["Work was handed to you. Your team is counting on you!", "A handover just landed on your desk. Welcome to the next leg.", "Baton passed! Some work is yours now."],
 };
+
+// More ways to say the same thing, so the bell never feels like a template. Only the wording changes, never the facts.
+const EXTRA = {
+  website_lead: ["A visitor liked your website enough to say hi!", "Your website just did its job. A new enquiry is in."],
+  social_lead: ["Social media delivered! Someone wants to talk.", "A new face from social is knocking."],
+  callback: ["A caller is keeping a seat warm for your call.", "Somebody's hoping for a ring from you today."],
+  callback_assigned: ["A callback has your name on it.", "This callback was made for you."],
+  callback_soon: ["Callback o'clock is almost here.", "Get ready: a callback is due shortly."],
+  callback_overdue: ["A callback is sitting patiently. A quick ring would make their day.", "Someone's still hoping to hear from you."],
+  appointment_cancelled: ["A slot just came free. Breathing room!", "Cancellation! That gap is yours to fill or enjoy."],
+  appointment_rescheduled: ["Someone shuffled their plans. We kept your calendar tidy.", "A booking hopped to a new time, all updated."],
+  customer_reply: ["Ding! A customer wrote back.", "They answered! The conversation lives on."],
+  customer_email: ["A customer's email just arrived.", "Mail call! A customer wrote to you."],
+  customer_request: ["A customer has a little ask for you.", "A request came in. Let's make someone's day."],
+  emergency_call: ["This one is urgent. Please look first.", "An emergency call is in. Everything else can wait."],
+  lead_escalated: ["A conversation needs your human touch.", "Zella's passing this one to you. It's a good one."],
+  task_overdue: ["A task is feeling a bit forgotten. A small nudge will do.", "One task is running behind, and it'd love your attention."],
+  lead_overdue: ["A lead is still waiting for hello number one.", "Don't let this lead go cold. A quick hello will do it."],
+  call_insight: ["Zella was listening and noticed something worth a look.", "A recent call taught us something. Take a peek."],
+  staff_joined: ["Team news: someone new has joined. Wave hello!"],
+  went_live: ["We're live! The phone is ours now.", "Go time! Zella is answering calls for you."],
+  payment_received: ["Payment received. You're a star.", "Thank you! That payment arrived safely."],
+  daily_summary: ["Your day, wrapped up neatly.", "Today's recap is ready, with everything that mattered."],
+  weekly_review: ["Your week, all tied up with a bow. Take a look!", "Weekly review is ready. It was a good one."],
+  incident_resolved: ["Back to smooth sailing.", "All fixed. Thanks for your patience."],
+  agent_config_published: ["Your AI receptionist just learned something new.", "Fresh update live. She's sharper than before!"],
+  duplicate: ["These two look like the same person. Shall we tidy up?", "Double vision: two records may be one person."],
+};
+for (const [kind, extra] of Object.entries(EXTRA)) if (Array.isArray(TITLES[kind])) TITLES[kind] = [...TITLES[kind], ...extra];
 
 // Notification shown in the bell: same facts, friendlier words.
 export function voiceTitle(n, workspace) {
   const term = workspace?.terminology ? (k) => workspace.terminology[k] || k : null;
+  if (n.kind === "industry_alert" && n.severity === "urgent") return localize(n.title, term); // urgent stays plain and direct
   const entry = BY_INDUSTRY[key(workspace?.industry)]?.[n.kind] ?? TITLES[n.kind];
   if (!entry) return localize(n.title, term);
   const list = typeof entry === "function" ? entry(n) : entry;
