@@ -378,6 +378,7 @@ function BusinessHome() {
   const [workspaces, setWorkspaces] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
   const [error, setError] = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const loadWorkspaces = useCallback(async () => {
     setError("");
@@ -390,6 +391,11 @@ function BusinessHome() {
       setError(loadError.message);
       setWorkspaces([]);
       return;
+    }
+    if (!(data ?? []).length) {
+      // A Zella admin without a business of their own belongs in the admin dashboard.
+      const { data: admin } = await supabase.rpc("is_platform_admin");
+      setIsAdmin(admin === true);
     }
     setWorkspaces(data ?? []);
     setSelectedId((current) => ((data ?? []).some((w) => w.id === current) ? current : data?.[0]?.id ?? null));
@@ -427,12 +433,15 @@ function BusinessHome() {
             <div className="ba-logo">Z</div>
             <div className="ba-brand-name">Zella AI</div>
           </div>
-          <h1>No workspace yet</h1>
+          <h1>{isAdmin ? "You're a Zella admin" : "No workspace yet"}</h1>
           <p className="ba-auth-description">
             {error
               ? `Your workspace couldn't be loaded: ${error}`
-              : `${session.user.email} isn't linked to a Zella business yet. If you were invited, open the link in your invitation email first, or ask the Zella team to resend it.`}
+              : isAdmin
+                ? `${session.user.email} manages Zella from the admin dashboard and isn't linked to a business here.`
+                : `${session.user.email} isn't linked to a Zella business yet. If you were invited, open the link in your invitation email first, or ask the Zella team to resend it.`}
           </p>
+          {isAdmin && <a className="ba-btn primary block" href="/">Open the admin dashboard</a>}
           <button type="button" className="ba-btn block" onClick={signOut}>Sign out</button>
         </section>
       </main>

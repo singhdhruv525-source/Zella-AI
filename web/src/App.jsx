@@ -8,11 +8,17 @@ import Unsubscribe from "./Unsubscribe";
 import WaitlistOffer from "./WaitlistOffer";
 import BusinessApp from "./BusinessApp";
 import { checkEmail, passwordProblems } from "./formValidation";
+import { friendlyAuthError, readEmailLink } from "./authErrors";
 import "./App.css";
 
 
 // Public pages that don't need an admin sign-in.
 export default function App() {
+  // Every email link (invite or reset) is handled on one page: /welcome.
+  if (LINK.tokenHash && !window.location.pathname.startsWith("/welcome")) {
+    window.location.replace(`/welcome${window.location.search}`);
+    return null;
+  }
   if (window.location.pathname.startsWith("/continue-plan")) {
     return <ContinuePlan />;
   }
@@ -35,21 +41,16 @@ export default function App() {
   return <AdminApp />;
 }
 
-// What the email link brought us here with. Read once, at load, before the
-// sign-in library tidies the address bar.
-const LANDING = (() => {
-  const params = new URLSearchParams((window.location.hash || "").replace(/^#/, ""));
-  const code = params.get("error_code");
-  return {
-    // An invitation (or reset) link that worked: the person now picks a password.
-    setup: !code && ["invite", "recovery"].includes(params.get("type")),
-    error: code
-      ? code === "otp_expired"
-        ? "This invitation link has expired or was already used. Email links work once, and some mail apps open them early. Ask the person who invited you to send a new one, or choose Forgot your password."
-        : params.get("error_description")?.replace(/\+/g, " ") || "This link could not be used. Ask for a new one."
-      : "",
-  };
-})();
+// What the email link brought us here with (read before the sign-in library
+// tidies the address bar).
+const LINK = readEmailLink();
+const LANDING = {
+  // An invitation (or reset) link that worked: the person now picks a password.
+  setup: !LINK.error && !LINK.tokenHash && ["invite", "recovery"].includes(LINK.type),
+  error: LINK.error
+    ? `${LINK.error} Ask the person who invited you to send a new one, or choose Forgot your password.`
+    : "",
+};
 
 function AdminApp() {
   const [email, setEmail] = useState("");
@@ -90,7 +91,10 @@ function AdminApp() {
         if (!error && isOwner === true) {
           setIsAuthorized(true);
         } else {
-          await supabase.auth.signOut();
+          // Signed in to the business app in this browser. Don't sign them out of
+          // it just for opening the admin page; point them to the right place.
+          setMessageType("error");
+          setMessage(`You're signed in as ${data.session.user.email}, which isn't a Zella admin. Open your business workspace at /app, or sign in below with an admin account.`);
         }
       } catch (error) {
         console.error("Session check failed:", error);
@@ -136,10 +140,10 @@ function AdminApp() {
       if (error) throw error;
       // Same message whether or not the email exists, so accounts can't be discovered.
       setMessageType("success");
-      setMessage("If that email has a Zella account, a password reset link is on its way. Check your inbox.");
+      setMessage("If that email has a Zella account, a password reset link is on its way. Open the newest email only, once.");
     } catch (error) {
       setMessageType("error");
-      setMessage(error.message || "Couldn't send the reset link. Please try again.");
+      setMessage(friendlyAuthError(error));
     } finally {
       setLoading(false);
     }
@@ -175,7 +179,7 @@ function AdminApp() {
       setIsAuthorized(true);
     } catch (error) {
       setMessageType("error");
-      setMessage(error.message || "Couldn't save your password. Please try again.");
+      setMessage(friendlyAuthError(error));
     } finally {
       setLoading(false);
     }
@@ -227,7 +231,7 @@ function AdminApp() {
       setIsAuthorized(true);
     } catch (error) {
       setMessageType("error");
-      setMessage(error.message || "Sign-in failed. Please try again.");
+      setMessage(friendlyAuthError(error));
     } finally {
       setLoading(false);
     }
