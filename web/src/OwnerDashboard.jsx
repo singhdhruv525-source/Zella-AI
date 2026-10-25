@@ -13,6 +13,7 @@ import PlansPage from "./PlansPage";
 import PlatformOperations from "./PlatformOperations";
 import SettingsPage from "./SettingsPage";
 import ModulesPage from "./ModulesPage";
+import OffersPage from "./OffersPage";
 import { Pill } from "./OwnerOverview";
 import { businessState } from "./ownerFormat";
 
@@ -41,6 +42,7 @@ const NAVIGATION = [
   { label: "Modules & Features", icon: "▤" },
   { label: "AI Agents", icon: "✳" },
   { label: "Plans & Subscriptions", icon: "▱" },
+  { label: "Offers & Promotions", icon: "✦" },
   { label: "Integrations", icon: "↔" },
   { label: "Platform Operations", icon: "⌘" },
   { label: "Support", icon: "♡" },
@@ -257,6 +259,8 @@ useEffect(() => {
             <SupportTickets onOpenBusiness={setDetailId} />
           ) : activePage === "Plans & Subscriptions" ? (
             <PlansPage onOpenBusiness={setDetailId} />
+          ) : activePage === "Offers & Promotions" ? (
+            <OffersPage onOpenBusiness={setDetailId} />
           ) : activePage === "Platform Operations" ? (
             <PlatformOperations onNavigate={goTo} />
           ) : activePage === "Settings" ? (

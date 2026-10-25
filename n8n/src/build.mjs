@@ -740,6 +740,34 @@ const failureAlert = wf('Zella - Failure Alert', [
   'Describe failure': { main: [[link('Raise alert')]] },
 });
 
+// Admin alerts: one plain-text digest email to the active Zella admins with the platform alerts that are waiting
+// (offers ending soon, limits reached, unusual claims, offers that could not go live, failed jobs, provider problems).
+// The database hands out alerts only when email_live is on and a sender address is set. The Resend box ships with
+// NO credential, like the other email workflows: add the Resend key by hand at go-live. A failed send is put back
+// for the next run, up to 3 tries.
+const adminAlerts = wf('Zella - Admin Alerts', [
+  runTrigger('admin-alerts'),
+  rpcNode('Claim alerts', [240, 200], 'zella_claim_admin_alert_email', '={{ JSON.stringify({ p_limit: 25 }) }}'),
+  code('Plan', [480, 200], 'admin-alerts-plan.js'),
+  ifBool('Anything to send', [720, 200], '={{ !$json.skip }}'),
+  ifBool('Send for real', [960, 100], '={{ !$json.finish }}'),
+  node('Send via Resend', 'n8n-nodes-base.httpRequest', 4.2, [1200, 0], {
+    method: 'POST', url: 'https://api.resend.com/emails', authentication: 'none',
+    sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify($json.resend) }}',
+    options: { response: { response: { fullResponse: true, neverError: true, responseFormat: 'json' } } },
+  }),
+  code('After send', [1440, 0], 'admin-alerts-after-send.js'),
+  finishNode('Report back', [1680, 200]),
+], {
+  'Run now': { main: [[link('Claim alerts')]] },
+  'Claim alerts': { main: [[link('Plan')]] },
+  'Plan': { main: [[link('Anything to send')]] },
+  'Anything to send': { main: [[link('Send for real')], []] },
+  'Send for real': { main: [[link('Send via Resend')], [link('Report back')]] },
+  'Send via Resend': { main: [[link('After send')]] },
+  'After send': { main: [[link('Report back')]] },
+});
+
 // Staff texts: urgent notifications texted to team members who switched this on for themselves. The database decides who
 // and enforces a limit of 5 per business per hour; nothing is claimed until sms_live is true. Same Telnyx box rule: no credential.
 const staffTexts = wf('Zella - Staff Texts', [
@@ -776,6 +804,7 @@ writeFileSync(join(out, 'zella-meta-leads.json'), JSON.stringify(metaLeads, null
 writeFileSync(join(out, 'zella-meta-sender.json'), JSON.stringify(metaSender, null, 2) + '\n');
 writeFileSync(join(out, 'zella-meta-health.json'), JSON.stringify(metaHealth, null, 2) + '\n');
 writeFileSync(join(out, 'zella-failure-alert.json'), JSON.stringify(failureAlert, null, 2) + '\n');
+writeFileSync(join(out, 'zella-admin-alerts.json'), JSON.stringify(adminAlerts, null, 2) + '\n');
 writeFileSync(join(out, 'zella-staff-texts.json'), JSON.stringify(staffTexts, null, 2) + '\n');
 writeFileSync(join(out, 'zella-website-crawler.json'), JSON.stringify(websiteCrawler, null, 2) + '\n');
 writeFileSync(join(out, 'zella-inbound-email.json'), JSON.stringify(inboundEmail, null, 2) + '\n');
@@ -785,4 +814,4 @@ writeFileSync(join(out, 'zella-email-events.json'), JSON.stringify(emailEvents, 
 writeFileSync(join(out, 'zella-calendar-sync.json'), JSON.stringify(calendarSync, null, 2) + '\n');
 writeFileSync(join(out, 'zella-connection-tests.json'), JSON.stringify(connectionTests, null, 2) + '\n');
 writeFileSync(join(out, 'zella-call-results.json'), JSON.stringify(callResults, null, 2) + '\n');
-console.log('Built', [gateway, router, smsSender, followupSender, emailSender, followupEmails, ownerEmails, outboundCalls, callResults, knowledge, assistantTools, voiceRules, inboundEmail, metaWebhook, metaLeads, metaSender, metaHealth, aiBooking, emailEvents, calendarSync, connectionTests, websiteCrawler, staffTexts].map((w) => w.name + ' (' + w.nodes.length + ')').join(', '));
+console.log('Built', [gateway, router, smsSender, followupSender, emailSender, followupEmails, ownerEmails, outboundCalls, callResults, knowledge, assistantTools, voiceRules, inboundEmail, metaWebhook, metaLeads, metaSender, metaHealth, aiBooking, emailEvents, calendarSync, connectionTests, websiteCrawler, staffTexts, adminAlerts].map((w) => w.name + ' (' + w.nodes.length + ')').join(', '));
