@@ -143,7 +143,7 @@ const EXTRA = {
   customer_reply: ["Ding! A customer wrote back.", "They answered! The conversation lives on."],
   customer_email: ["A customer's email just arrived.", "Mail call! A customer wrote to you."],
   customer_request: ["A customer has a little ask for you.", "A request came in. Let's make someone's day."],
-  emergency_call: ["This one is urgent. Please look first.", "An emergency call is in. Everything else can wait."],
+  emergency_call: ["This is an emergency. Please look first.", "An emergency call is in. Everything else can wait."],
   lead_escalated: ["A conversation needs your human touch.", "Zella's passing this one to you. It's a good one."],
   task_overdue: ["A task is feeling a bit forgotten. A small nudge will do.", "One task is running behind, and it'd love your attention."],
   lead_overdue: ["A lead is still waiting for hello number one.", "Don't let this lead go cold. A quick hello will do it."],
