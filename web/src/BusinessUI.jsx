@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 
 // Shared building blocks for the business app (Stitch design).
 
@@ -42,7 +43,14 @@ export function Modal({ title, description, onClose, children, footer, busy, wid
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose, busy]);
 
-  return (
+  // Stop the page behind from scrolling while the box is open.
+  useEffect(() => {
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previous; };
+  }, []);
+
+  const box = (
     <div
       className="ba-modal-backdrop"
       onMouseDown={(event) => event.target === event.currentTarget && !busy && onClose()}
@@ -62,6 +70,13 @@ export function Modal({ title, description, onClose, children, footer, busy, wid
       </section>
     </div>
   );
+
+  // Drawn at the top of the app, not inside the page. The sticky header and the
+  // page animations create their own layers, and a box opened from inside one of
+  // them was trapped there (cut off, behind other cards, or stuck in the header).
+  // The app root still carries the colour tokens, so the look is unchanged.
+  const host = typeof document !== "undefined" ? document.querySelector(".ba-root, .ba-auth") : null;
+  return host ? createPortal(box, host) : box;
 }
 
 export function Field({ label, hint, full, bare, children }) {

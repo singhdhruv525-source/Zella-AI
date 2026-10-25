@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import "./OwnerPages.css";
 import { callOwnerFunction } from "./CreateBusinessWizard";
 import { Pill } from "./OwnerOverview";
@@ -135,6 +136,16 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup }) {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Escape closes the confirm box unless it is busy saving.
+  useEffect(() => {
+    if (!pending || busy) return undefined;
+    const onKey = (event) => {
+      if (event.key === "Escape") { setPending(null); setReason(""); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [pending, busy]);
 
   async function runAction(action, success) {
     setBusy(true);
@@ -298,25 +309,31 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup }) {
         </div>
       )}
 
-      {action && (
-        <div className={`bd-confirm op-gap ${action.danger ? "danger" : ""}`} role="dialog" aria-label={action.title}>
-          <h3>{action.title}</h3>
-          <p>{action.body}</p>
-          {action.reason && (
-            <label className="owner-field">
-              <span>Reason (optional, kept in the audit log)</span>
-              <input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} />
-            </label>
-          )}
-          <div className="ic-actions">
-            <button type="button" className="owner-secondary-button" onClick={() => { setPending(null); setReason(""); }} disabled={busy}>
-              Go back
-            </button>
-            <button type="button" className={action.danger ? "bd-danger-button" : "owner-primary-button"} onClick={action.run} disabled={busy}>
-              {busy ? "Working..." : action.button}
-            </button>
+      {action && createPortal(
+        <div
+          className="owner-modal-overlay"
+          onMouseDown={(event) => event.target === event.currentTarget && !busy && (setPending(null), setReason(""))}
+        >
+          <div className={`bd-confirm owner-modal ${action.danger ? "danger" : ""}`} role="dialog" aria-modal="true" aria-label={action.title}>
+            <h3>{action.title}</h3>
+            <p>{action.body}</p>
+            {action.reason && (
+              <label className="owner-field">
+                <span>Reason (optional, kept in the audit log)</span>
+                <input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} />
+              </label>
+            )}
+            <div className="ic-actions">
+              <button type="button" className="owner-secondary-button" onClick={() => { setPending(null); setReason(""); }} disabled={busy}>
+                Go back
+              </button>
+              <button type="button" className={action.danger ? "bd-danger-button" : "owner-primary-button"} onClick={action.run} disabled={busy}>
+                {busy ? "Working..." : action.button}
+              </button>
+            </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       <div className="op-tabs" role="tablist">
