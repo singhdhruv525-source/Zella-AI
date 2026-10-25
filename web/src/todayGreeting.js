@@ -12,15 +12,46 @@ export function welcomeStyle() {
   return next === "welcome";
 }
 
-// The line under the greeting says what is actually going on with the business and with Zella.
-// Facts come from the Today page's own data, so it is always true and useful, never a quote.
-const count = (n, one, many) => `${n} ${n === 1 ? one : many}`;
-export function zellaNote({ loaded, live, missedOpen = 0, uncontacted = 0, waiting = 0, appointments = 0, nextTime = "", aiCalls = 0, rangeLabel = "today" }) {
-  if (!loaded) return "Zella is checking on your business.";
-  if (missedOpen > 0) return `${count(missedOpen, "missed call still needs", "missed calls still need")} a call back.`;
-  if (uncontacted > 0) return `${count(uncontacted, "new lead hasn't", "new leads haven't")} been contacted yet.`;
-  if (waiting > 0) return `${count(waiting, "conversation is", "conversations are")} waiting on a reply.`;
-  if (appointments > 0) return `${count(appointments, "appointment", "appointments")} today${nextTime ? `, the next one at ${nextTime}` : ""}.`;
-  if (aiCalls > 0) return `Your AI receptionist handled ${count(aiCalls, "call", "calls")} ${rangeLabel}.`;
-  return live ? "Your AI receptionist is online and answering calls." : "Your AI receptionist isn't live yet. Zella connects your phone line before it goes live.";
+// The soft line under the greeting. It is Zella speaking: reassuring, about Zella handling things, never a quote
+// and never a to-do list. A different line each visit, never one of the last few shown.
+const LINES = [
+  "Hands full. Phone handled.",
+  "Sit back. The phone is ours today.",
+  "Your calls are in good hands. Ours.",
+  "Go do the work you love. We'll pick up.",
+  "Every ring answered, every caller looked after.",
+  "No call goes unanswered on our watch.",
+  "Breathe out. Zella's on the line.",
+  "We're minding the phones, so you can mind the business.",
+  "Missed calls aren't a thing around here.",
+  "Your front desk never sleeps. Neither do we.",
+  "Take your coffee slow. We've got the phones.",
+  "Customers get a warm hello, even when you're busy.",
+  "We answer, we listen, we pass on what matters.",
+  "Busy day? Perfect. We'll handle the ringing.",
+  "Leave the follow-ups to us.",
+  "Small business, big front desk. That's the deal.",
+  "We'll keep every caller feeling looked after.",
+  "Zella is on the line, so you don't have to be.",
+  "Quiet inbox, calm mind. We're on it.",
+  "You focus on your customers. We'll focus on their calls.",
+  "Nothing slips through while we're here.",
+  "Relax. Somebody friendly just picked up.",
+  "Your business, our best hello.",
+  "We take the calls. You take the credit.",
+];
+
+const MORNING = ["A fresh day, and the phones are already covered.", "Morning. The line is open and we're smiling at it."];
+const AFTERNOON = ["Afternoon rush? Send it our way.", "Halfway through the day, and we're still fresh on the phones."];
+const EVENING = ["Winding down? We'll keep the phones warm.", "Close up when you're ready. We'll catch the late calls."];
+
+export function todayNote(partOfDay) {
+  const pool = [...LINES, ...(partOfDay === "morning" ? MORNING : partOfDay === "evening" ? EVENING : AFTERNOON)];
+  let seen = [];
+  try { seen = JSON.parse(recall("zella.today.seen2") || "[]"); } catch { seen = []; }
+  const fresh = pool.map((line, i) => i).filter((i) => !seen.includes(i));
+  const options = fresh.length ? fresh : pool.map((l, i) => i);
+  const pick = options[Math.floor(Math.random() * options.length)];
+  remember("zella.today.seen2", JSON.stringify([...seen, pick].slice(-10)));
+  return pool[pick];
 }

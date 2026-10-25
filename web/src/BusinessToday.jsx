@@ -5,7 +5,7 @@ import { makeTerm, receptionistState } from "./businessWorkspace";
 import { useRoster } from "./BusinessLeads";
 import TodayWelcome from "./TodayWelcome";
 import { CountUp } from "./CrmMotion";
-import { welcomeStyle, zellaNote } from "./todayGreeting";
+import { todayNote, welcomeStyle } from "./todayGreeting";
 import { dayRange, formatLongDate, formatTime, greeting, timeAgo } from "./businessTime";
 import { friendly, noShowNotice, setCheckIn } from "./BusinessShared";
 import { RescheduleModal } from "./BusinessForms";
@@ -91,6 +91,7 @@ export default function BusinessToday({ workspace, userId, fallbackName, onAddLe
   const known = (n) => (n && n !== "Team member" ? n : "");
   const firstName = String(known(roster.nameOf[userId]) || fallbackName || "").trim().split(/\s+/)[0];
   const owner = known(roster.list.find((m) => m.role === "owner")?.name);
+  const [note] = useState(() => todayNote(greeting(tz).replace("Good ", "")));
   const [style] = useState(() => welcomeStyle());
   const term = makeTerm(workspace);
   const agent = receptionistState(workspace);
@@ -278,13 +279,6 @@ export default function BusinessToday({ workspace, userId, fallbackName, onAddLe
   const recovery = (data?.noShows ?? 0) + (data?.missedOpen?.length ?? 0) + (data?.uncontacted?.length ?? 0);
   const rangeLabel = RANGES.find(([k]) => k === range)[1].toLowerCase();
   const pct = (n) => (activeAppts.length ? `${(n / activeAppts.length) * 100}%` : "0%");
-
-  const nextAppt = activeAppts.find((a) => new Date(a.start_time).getTime() > now);
-  const note = zellaNote({
-    loaded: Boolean(data), live: agent.live, missedOpen: data?.missedOpen?.length ?? 0, uncontacted: data?.uncontacted?.length ?? 0,
-    waiting: data?.conversations?.length ?? 0, appointments: activeAppts.length, nextTime: nextAppt ? formatTime(nextAppt.start_time, tz) : "",
-    aiCalls: data?.aiCalls ?? 0, rangeLabel,
-  });
 
   return (
     <>
