@@ -4,6 +4,7 @@ import {
   MessagesPage, ReceptionistPage, SettingsPage,
 } from "./BusinessPages";
 import { TeamPage } from "./BusinessTeam";
+import { AccessPage, ApprovalsPage, FailedWorkPage, SecurityLogPage } from "./BusinessAccess";
 import PersonProfile from "./BusinessProfile";
 import { KnowledgePage } from "./BusinessKnowledge";
 import { RecordSettingsPage, RecordsPage, useRecordTypes } from "./BusinessRecords";
@@ -76,6 +77,10 @@ function navigation(workspace, recordTypes = []) {
       label: "Management",
       items: [
         { key: "team", label: "Team", icon: "badge", ready: true },
+        ["owner", "admin"].includes(workspace.role) && { key: "access", label: "Team access", icon: "admin_panel_settings", ready: true },
+        ["owner", "admin"].includes(workspace.role) && { key: "approvals", label: "Approvals", icon: "verified_user", ready: true },
+        ["owner", "admin", "manager"].includes(workspace.role) && { key: "failed", label: "Didn't send", icon: "error", ready: true },
+        ["owner", "admin"].includes(workspace.role) && { key: "security", label: "Security log", icon: "history", ready: true },
         { key: "reports", label: "Reports", icon: "monitoring", ready: true },
         ["owner", "admin", "manager"].includes(workspace.role) && { key: "record-settings", label: "Customise records", icon: "tune", ready: true },
         { key: "integrations", label: "Integrations", icon: "extension", ready: true },
@@ -321,6 +326,10 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
             <RecordSettingsPage workspace={workspace} types={records.types} canManage={["owner", "admin", "manager"].includes(workspace.role)} onNotice={setNotice} onChanged={records.reload} />
           )}
           {current.key === "team" && <TeamPage workspace={workspace} email={email} refreshKey={refreshKey} onNotice={setNotice} />}
+          {current.key === "access" && <AccessPage workspace={workspace} userId={userId} refreshKey={refreshKey} onNotice={setNotice} />}
+          {current.key === "approvals" && <ApprovalsPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
+          {current.key === "failed" && <FailedWorkPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
+          {current.key === "security" && <SecurityLogPage workspace={workspace} refreshKey={refreshKey} />}
           {current.key === "checkins" && <CheckInsPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} onChanged={countAttention} />}
           {current.key === "attention" && <AttentionPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} onChanged={countAttention} />}
           {current.key === "inbox" && <InboxPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} />}
