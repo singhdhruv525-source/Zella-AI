@@ -35,6 +35,24 @@ const BY_INDUSTRY = {
   },
 };
 
+
+// Every industry talks about its own people and bookings: patients and appointments, guests and tables, tenants and viewings.
+const NOUNS = {"automotive": {"p": "customer", "ps": "customers", "b": "service slot"}, "beautysalon": {"p": "client", "ps": "clients", "b": "chair"}, "childcare": {"p": "family", "ps": "families", "b": "tour"}, "cleaningservices": {"p": "client", "ps": "clients", "b": "clean"}, "dental": {"p": "patient", "ps": "patients", "b": "appointment"}, "ecommerce": {"p": "customer", "ps": "customers", "b": "order"}, "education": {"p": "student", "ps": "students", "b": "session"}, "electrical": {"p": "customer", "ps": "customers", "b": "job"}, "financialservices": {"p": "client", "ps": "clients", "b": "consultation"}, "fitness": {"p": "member", "ps": "members", "b": "class"}, "healthcare": {"p": "patient", "ps": "patients", "b": "appointment"}, "homeservices": {"p": "customer", "ps": "customers", "b": "visit"}, "hospitality": {"p": "guest", "ps": "guests", "b": "stay"}, "hvac": {"p": "customer", "ps": "customers", "b": "service call"}, "insurance": {"p": "client", "ps": "clients", "b": "review"}, "landscapinglawncare": {"p": "customer", "ps": "customers", "b": "visit"}, "legal": {"p": "client", "ps": "clients", "b": "consultation"}, "other": {"p": "customer", "ps": "customers", "b": "booking"}, "pestcontrol": {"p": "customer", "ps": "customers", "b": "visit"}, "petcareveterinary": {"p": "pet owner", "ps": "pet owners", "b": "visit"}, "photographyevents": {"p": "client", "ps": "clients", "b": "shoot"}, "plumbing": {"p": "customer", "ps": "customers", "b": "job"}, "professionalservices": {"p": "client", "ps": "clients", "b": "meeting"}, "propertymanagement": {"p": "tenant", "ps": "tenants", "b": "viewing"}, "realestate": {"p": "buyer", "ps": "buyers", "b": "viewing"}, "restaurant": {"p": "guest", "ps": "guests", "b": "table"}, "spawellness": {"p": "guest", "ps": "guests", "b": "treatment"}, "travel": {"p": "traveller", "ps": "travellers", "b": "trip"}};
+function industryVoice(k) {
+  const n = NOUNS[k];
+  if (!n || k === "other") return null;
+  const P = n.p, B = n.b;
+  const a = /^[aeiou]/i.test(P) ? "An" : "A";
+  return {
+    new_lead: () => [`${a} new ${P} is getting in touch. Say hello!`, `Someone new wants to become ${a.toLowerCase()} ${P}. Say hello!`, `A new ${P} enquiry just arrived.`],
+    callback: [`${a} ${P} is waiting for your call.`, `${a} ${P} would love a call back.`],
+    appointment_cancelled: [`A ${B} was cancelled. That time is free again.`, `One ${B} cancelled. Your calendar has room.`],
+    customer_arrived: (x) => [`${x.title}. Time to welcome them in!`, `${x.title}. Your ${P} is here!`],
+    customer_reply: [`${a} ${P} wrote back!`, `New reply from ${a.toLowerCase()} ${P}. The conversation is moving.`],
+    customer_request: [`${a} ${P} has a request. Let's make it happen.`],
+  };
+}
+
 // Swap generic words for the business's own: appointment -> reservation, customer -> guest.
 export function localize(text, term) {
   if (typeof text !== "string" || !term) return text;
@@ -145,7 +163,8 @@ for (const [kind, extra] of Object.entries(EXTRA)) if (Array.isArray(TITLES[kind
 export function voiceTitle(n, workspace) {
   const term = workspace?.terminology ? (k) => workspace.terminology[k] || k : null;
   if (n.kind === "industry_alert" && n.severity === "urgent") return localize(n.title, term); // urgent stays plain and direct
-  const entry = BY_INDUSTRY[key(workspace?.industry)]?.[n.kind] ?? TITLES[n.kind];
+  const ind = key(workspace?.industry);
+  const entry = BY_INDUSTRY[ind]?.[n.kind] ?? industryVoice(ind)?.[n.kind] ?? TITLES[n.kind];
   if (!entry) return localize(n.title, term);
   const list = typeof entry === "function" ? entry(n) : entry;
   return localize(choose(list, n.id ?? n.title), term);

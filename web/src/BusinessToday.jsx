@@ -91,7 +91,7 @@ export default function BusinessToday({ workspace, userId, fallbackName, onAddLe
   const known = (n) => (n && n !== "Team member" ? n : "");
   const firstName = String(known(roster.nameOf[userId]) || fallbackName || "").trim().split(/\s+/)[0];
   const owner = known(roster.list.find((m) => m.role === "owner")?.name);
-  const [note] = useState(() => todayNote(greeting(tz).replace("Good ", "")));
+  const [note] = useState(() => todayNote(greeting(tz).replace("Good ", ""), workspace.industry));
   const [style] = useState(() => welcomeStyle());
   const term = makeTerm(workspace);
   const agent = receptionistState(workspace);
