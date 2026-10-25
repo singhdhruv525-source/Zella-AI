@@ -116,8 +116,175 @@ const MORNING = ["A fresh day, and the phones are already covered.", "Morning. T
 const AFTERNOON = ["Afternoon rush? Send it our way.", "Halfway through the day, and we're still fresh on the phones."];
 const EVENING = ["Winding down? We'll keep the phones warm.", "Close up when you're ready. We'll catch the late calls."];
 
-export function todayNote(partOfDay) {
-  const pool = [...LINES, ...(partOfDay === "morning" ? MORNING : partOfDay === "evening" ? EVENING : AFTERNOON)];
+const BY_INDUSTRY_LINES = {
+ "automotive": [
+  "Cars in, calls handled. We've got the phones while you've got the wrenches.",
+  "Under the hood is your job. Under the phone is ours.",
+  "Every breakdown call gets a calm voice.",
+  "Booked-in jobs, steady calls, no pile-ups at the desk."
+ ],
+ "beautysalon": [
+  "Hands in hair? Hands off the phone. That's ours.",
+  "We'll keep the bookings flowing while you keep everyone looking great.",
+  "Your chairs stay full and your phone stays answered.",
+  "Make them gorgeous. We'll make the calls easy."
+ ],
+ "childcare": [
+  "Little ones first. The phone is ours.",
+  "Every parent who calls gets a kind, patient voice.",
+  "You look after the children. We'll look after the calls.",
+  "Families feel welcome from the very first hello."
+ ],
+ "cleaningservices": [
+  "Sparkle on the job, calm on the phone.",
+  "You make homes shine. We'll make bookings smooth.",
+  "Every enquiry answered while you're mid-scrub.",
+  "Clean spaces, clear calendar, quiet phone worries."
+ ],
+ "dental": [
+  "Mouths full of tools? Phones full of Zella.",
+  "Patients get a friendly voice before they get the chair.",
+  "You do the dentistry. We do the ringing.",
+  "Recalls, bookings and nervous callers, all gently handled."
+ ],
+ "ecommerce": [
+  "Orders ship, questions get answered. We're on the questions.",
+  "Your shop never closes, and neither does our hello.",
+  "Every customer query gets a warm reply.",
+  "Pack the parcels. We'll take the calls."
+ ],
+ "education": [
+  "Teach the class. We'll teach the phone some manners.",
+  "Every enquiry from a student or parent gets a clear, kind answer.",
+  "Learners first. Admin calls to us.",
+  "Open days, enquiries and questions, handled."
+ ],
+ "electrical": [
+  "Wires in your hands, phone in ours.",
+  "Every call-out request gets a steady voice.",
+  "Power up your day. We'll power the phones.",
+  "Safe work on site, smooth calls back at base."
+ ],
+ "financialservices": [
+  "Numbers are your thing. Answering is ours.",
+  "Every client call gets a calm, professional hello.",
+  "Focus on the figures. We'll handle the front desk.",
+  "Consultations booked, questions routed, nothing lost."
+ ],
+ "fitness": [
+  "Keep the energy up. We'll keep the phones covered.",
+  "Members and trials all get a high-five hello.",
+  "You train them. We'll talk to them.",
+  "Classes full, calls answered, nobody on hold."
+ ],
+ "healthcare": [
+  "Care is your focus. The phones are in calm hands.",
+  "Every patient gets a patient, kind voice.",
+  "You look after the patients. We'll look after the line.",
+  "Bookings and questions handled gently, always."
+ ],
+ "homeservices": [
+  "Doors to knock on, calls to leave with us.",
+  "Every homeowner who calls gets a friendly hello.",
+  "You fix the house. We'll fix the phone queue.",
+  "Jobs booked, callers reassured, you undisturbed."
+ ],
+ "hospitality": [
+  "Guests are welcomed, even over the phone.",
+  "Reservations answered at any hour. Concierge-level calm.",
+  "You host the stay. We host the call.",
+  "A warm welcome starts before they arrive."
+ ],
+ "hvac": [
+  "Cool heads on the phone, whatever the weather.",
+  "Heating, cooling, calling: we cover the last one.",
+  "Every no-heat call gets a calm, quick response.",
+  "You keep homes comfortable. We keep callers comfortable."
+ ],
+ "insurance": [
+  "Questions about cover? A friendly answer, every time.",
+  "Every client call gets a steady, caring voice.",
+  "You protect them. We'll pick up for them.",
+  "Quotes, renewals and queries, all caught."
+ ],
+ "landscapinglawncare": [
+  "Mow the lawns. We'll mow down the missed calls.",
+  "Fresh quotes, fresh calls, all handled.",
+  "Outdoors is your office. We're the front desk.",
+  "Gardens grow, calls get answered."
+ ],
+ "legal": [
+  "Your focus is the case. The phone is ours.",
+  "Every caller gets a discreet, steady hello.",
+  "Consultations booked, messages taken, confidence kept.",
+  "Calm, careful, and always on the line."
+ ],
+ "pestcontrol": [
+  "Pests get dealt with. Calls get answered.",
+  "Urgent call? A calm voice picks up first.",
+  "You handle the critters. We'll handle the callers.",
+  "Bug-free homes, worry-free phones."
+ ],
+ "petcareveterinary": [
+  "Paws, claws and calls. We've got the calls.",
+  "Every worried pet owner gets a kind, steady voice.",
+  "Cuddle the patients. We'll cuddle the phone.",
+  "Bookings for the furry, answers for their humans."
+ ],
+ "photographyevents": [
+  "You capture the moment. We capture the calls.",
+  "Every enquiry for a date gets a warm reply.",
+  "Behind the camera is your place. The phone is ours.",
+  "Bookings and questions, snapped up."
+ ],
+ "plumbing": [
+  "Leaks fixed on your side, calls fixed on ours.",
+  "A burst-pipe call gets a calm voice right away.",
+  "You stop the drips. We stop the missed calls.",
+  "Every call flows straight to a friendly hello."
+ ],
+ "professionalservices": [
+  "Deep work, uninterrupted. The phone is on us.",
+  "Every prospect gets a polished first hello.",
+  "You deliver the project. We'll deliver the pickup.",
+  "Enquiries answered, meetings booked, focus kept."
+ ],
+ "propertymanagement": [
+  "Keys and calls, both handled.",
+  "Every tenant gets a patient, helpful voice.",
+  "You manage the buildings. We'll manage the ringing.",
+  "Maintenance calls caught, tenants reassured."
+ ],
+ "realestate": [
+  "Viewings booked while you're out showing homes.",
+  "Every enquiry gets an eager, friendly reply.",
+  "Sell the dream. We'll answer the phone.",
+  "New listings, new callers, nobody left waiting."
+ ],
+ "restaurant": [
+  "Kitchen's hot, phones are covered.",
+  "Reservations answered before the oven pings.",
+  "Every guest gets a warm welcome, even down the line.",
+  "You plate the dishes. We'll take the bookings."
+ ],
+ "spawellness": [
+  "Calm in the spa, calm on the phone.",
+  "Every guest hears a soothing hello.",
+  "You relax them. We'll relax the diary.",
+  "Bookings flow as gently as your treatments."
+ ],
+ "travel": [
+  "Dream trips planned. Phone calls handled.",
+  "Every would-be traveller gets an excited hello.",
+  "You plan the adventure. We'll answer the questions.",
+  "Itineraries and enquiries, all booked."
+ ]
+};
+const industryKey = (name) => String(name ?? "").toLowerCase().replace(/[^a-z]/g, "");
+
+export function todayNote(partOfDay, industry) {
+  const own = BY_INDUSTRY_LINES[industryKey(industry)] ?? [];
+  const pool = [...own, ...own, ...LINES, ...(partOfDay === "morning" ? MORNING : partOfDay === "evening" ? EVENING : AFTERNOON)];
   let seen = [];
   try { seen = JSON.parse(recall("zella.today.seen2") || "[]"); } catch { seen = []; }
   const fresh = pool.map((line, i) => i).filter((i) => !seen.includes(i));
