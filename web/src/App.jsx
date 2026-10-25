@@ -7,7 +7,7 @@ import Reschedule from "./Reschedule";
 import Unsubscribe from "./Unsubscribe";
 import WaitlistOffer from "./WaitlistOffer";
 import BusinessApp from "./BusinessApp";
-import { checkEmail } from "./formValidation";
+import { checkEmail, passwordProblems } from "./formValidation";
 import "./App.css";
 
 
@@ -35,17 +35,34 @@ export default function App() {
   return <AdminApp />;
 }
 
+// What the email link brought us here with. Read once, at load, before the
+// sign-in library tidies the address bar.
+const LANDING = (() => {
+  const params = new URLSearchParams((window.location.hash || "").replace(/^#/, ""));
+  const code = params.get("error_code");
+  return {
+    // An invitation (or reset) link that worked: the person now picks a password.
+    setup: !code && ["invite", "recovery"].includes(params.get("type")),
+    error: code
+      ? code === "otp_expired"
+        ? "This invitation link has expired or was already used. Email links work once, and some mail apps open them early. Ask the person who invited you to send a new one, or choose Forgot your password."
+        : params.get("error_description")?.replace(/\+/g, " ") || "This link could not be used. Ask for a new one."
+      : "",
+  };
+})();
+
 function AdminApp() {
   const [email, setEmail] = useState("");
   const [emailTouched, setEmailTouched] = useState(false);
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState(LANDING.error);
   const [messageType, setMessageType] = useState("error");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
-  const [mode, setMode] = useState("signin"); // "signin" or "reset"
+  const [mode, setMode] = useState(LANDING.setup ? "setpassword" : "signin"); // "signin", "reset" or "setpassword"
 
   // Keep an existing owner session after a page refresh,
   // but only if the platform-admin check still passes.
@@ -55,6 +72,15 @@ function AdminApp() {
     async function restoreSession() {
       try {
         const { data } = await supabase.auth.getSession();
+        if (LANDING.setup) {
+          // From an invitation: stay on the "choose a password" step.
+          if (!data.session && active) {
+            setMode("signin");
+            setMessageType("error");
+            setMessage("This link has expired or was already used. Ask for a new invitation, or choose Forgot your password.");
+          }
+          return;
+        }
         if (!data.session) return;
 
         const { data: isOwner, error } = await supabase.rpc("is_platform_admin");
@@ -114,6 +140,42 @@ function AdminApp() {
     } catch (error) {
       setMessageType("error");
       setMessage(error.message || "Couldn't send the reset link. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSetPassword(event) {
+    event.preventDefault();
+    setMessage("");
+    const missing = passwordProblems(password);
+    if (missing.length) {
+      setMessageType("error");
+      setMessage(`Your password still needs: ${missing.join(", ")}.`);
+      return;
+    }
+    if (password !== confirmPassword) {
+      setMessageType("error");
+      setMessage("The two passwords don't match.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) throw error;
+      const { data: isOwner, error: roleError } = await supabase.rpc("is_platform_admin");
+      if (roleError || isOwner !== true) {
+        await supabase.auth.signOut();
+        setMode("signin");
+        throw new Error("Your password is saved, but this account is not an authorized Zella admin yet.");
+      }
+      window.history.replaceState(null, "", window.location.pathname);
+      setPassword("");
+      setConfirmPassword("");
+      setIsAuthorized(true);
+    } catch (error) {
+      setMessageType("error");
+      setMessage(error.message || "Couldn't save your password. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -252,14 +314,34 @@ function AdminApp() {
           <div className="form-content">
             <div className="form-symbol">↗</div>
             <div className="form-eyebrow">OWNER ACCESS</div>
-            <h2>{mode === "reset" ? "Reset your password" : "Welcome back"}</h2>
+            <h2>{mode === "reset" ? "Reset your password" : mode === "setpassword" ? "Choose your password" : "Welcome back"}</h2>
             <p className="form-description">
               {mode === "reset"
                 ? "Enter your email and we'll send you a link to set a new password."
-                : "Sign in to your Zella platform workspace."}
+                : mode === "setpassword"
+                  ? "You're invited as a Zella admin. Choose a password to finish."
+                  : "Sign in to your Zella platform workspace."}
             </p>
 
-            <form onSubmit={mode === "reset" ? handleReset : handleLogin}>
+            <form onSubmit={mode === "reset" ? handleReset : mode === "setpassword" ? handleSetPassword : handleLogin}>
+              {mode === "setpassword" ? (
+                <>
+                  <label htmlFor="new-password">New password</label>
+                  <div className="input-wrap">
+                    <span className="input-icon">♙</span>
+                    <input id="new-password" type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" required />
+                    <button type="button" className="show-password" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? "Hide password" : "Show password"}>
+                      {showPassword ? "Hide" : "Show"}
+                    </button>
+                  </div>
+                  <label htmlFor="confirm-password">Confirm password</label>
+                  <div className="input-wrap">
+                    <span className="input-icon">♙</span>
+                    <input id="confirm-password" type={showPassword ? "text" : "password"} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} autoComplete="new-password" required />
+                  </div>
+                </>
+              ) : (
+                <>
               <label htmlFor="email">Email address</label>
               <div className="input-wrap">
                 <span className="input-icon">✉</span>
@@ -278,6 +360,8 @@ function AdminApp() {
               </div>
               {emailTouched && checkEmail(email) && (
                 <p id="email-error" className="field-error" role="alert">{checkEmail(email)}</p>
+              )}
+                </>
               )}
 
               {mode === "signin" && (
@@ -309,12 +393,14 @@ function AdminApp() {
                 </>
               )}
               <button className="login-button" type="submit" disabled={loading}>
-                {mode === "reset"
+                {mode === "setpassword"
+                  ? loading ? "Saving..." : "Save password and continue"
+                  : mode === "reset"
                   ? loading ? "Sending..." : "Send reset link"
                   : loading ? "Verifying access..." : "Sign in to Zella"}
                 {!loading && mode === "signin" && <span>→</span>}
               </button>
-              {mode === "signin" ? (
+              {mode === "setpassword" ? null : mode === "signin" ? (
                 <button type="button" className="forgot-link" onClick={() => switchMode("reset")}>
                   Forgot your password?
                 </button>

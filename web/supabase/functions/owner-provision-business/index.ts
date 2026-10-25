@@ -1903,17 +1903,31 @@ async function adminInvite(admin: SupabaseClient, fields: Json, userId: string) 
   if (!EMAIL_RE.test(email)) throw new InputError("Enter a valid email address");
   const role = oneOf(fields.role, ADMIN_ROLES, "super_admin");
 
+  // Without the app's public address the email would point at the wrong place
+  // (Supabase falls back to its Site URL, often localhost) and be useless.
+  const appUrl = (Deno.env.get("ZELLA_APP_URL") ?? "").trim();
+  if (!appUrl) {
+    throw new InputError(
+      "The app address is not set, so the invitation link would not open for the invited person. Add the ZELLA_APP_URL secret (the public address of the Zella app) and try again.",
+      503,
+    );
+  }
+
   let target = await findUserByEmail(admin, email);
   let invited = false;
 
-  if (!target) {
-    const appUrl = Deno.env.get("ZELLA_APP_URL");
+  // Someone invited earlier who has not accepted yet: send a fresh link.
+  // (Email links work once and expire, so a resend is often needed.)
+  const neverAccepted = Boolean(target && !target.last_sign_in_at);
+
+  if (!target || neverAccepted) {
     const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
       data: { platform_admin: true },
-      ...(appUrl ? { redirectTo: appUrl } : {}),
+      redirectTo: appUrl.replace(/\/+$/, ""),
     });
     if (error || !data?.user) {
-      throw new InputError(error?.message ?? "The invitation email could not be sent", 502);
+      if (!target) throw new InputError(error?.message ?? "The invitation email could not be sent", 502);
+      throw new InputError(error?.message ?? "The invitation email could not be resent", 502);
     }
     target = data.user;
     invited = true;
@@ -1926,7 +1940,11 @@ async function adminInvite(admin: SupabaseClient, fields: Json, userId: string) 
     .maybeSingle();
   if (existingError) throw existingError;
 
-  if (existing?.is_active) throw new InputError("This person is already a platform admin", 409);
+  if (existing?.is_active) {
+    // Already an admin. If they never accepted, the resend above is the whole job.
+    if (invited) return { targetUserId: target.id, email, role: existing ? role : role, invited: true, reactivated: false, resent: true };
+    throw new InputError("This person is already a platform admin", 409);
+  }
 
   const { error } = existing
     ? await admin.from("platform_admins").update({ is_active: true, role }).eq("user_id", target.id)
