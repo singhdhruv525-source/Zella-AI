@@ -13,7 +13,7 @@ export function welcomeStyle() {
 }
 
 // The soft line under the greeting. It is Zella speaking: reassuring, about Zella handling things, never a quote
-// and never a to-do list. A different line each visit, never one of the last few shown.
+// and never a to-do list. A different line every visit; none repeats until every line has been shown.
 const LINES = [
   "Hands full. Phone handled.",
   "Sit back. The phone is ours today.",
@@ -39,6 +39,77 @@ const LINES = [
   "Relax. Somebody friendly just picked up.",
   "Your business, our best hello.",
   "We take the calls. You take the credit.",
+  "Every caller gets a hello that sounds like you.",
+  "We're the calm voice on the other end.",
+  "Your phone has a new best friend.",
+  "The ringing is our job now.",
+  "Not a single hello left hanging.",
+  "While you're busy, we're being brilliant on the phone.",
+  "Customers feel heard, even before you pick up.",
+  "We keep the door open and the welcome warm.",
+  "You do the doing. We do the answering.",
+  "Think of us as your never-late receptionist.",
+  "Messages taken, callers calmed, you undisturbed.",
+  "We'll tell you what matters and handle what doesn't.",
+  "No hold music. Just a friendly voice.",
+  "Your callers will never feel like they called the wrong place.",
+  "Lunch break? Take it. We're covering.",
+  "We've memorised your business so you can forget the phone.",
+  "A great first impression, every single call.",
+  "We're quietly making your business look good.",
+  "Late calls, early calls, odd-hour calls. All ours.",
+  "Rest your voice. Ours is warmed up.",
+  "You've got one less thing to remember.",
+  "Calls come in. Calm comes out.",
+  "We answer like we've worked here for years.",
+  "Your reputation is safe on our line.",
+  "If it rings, we're already on it.",
+  "You'll hear about it only when it matters.",
+  "Everyone who calls leaves feeling looked after.",
+  "Sit tight. The easy part is us.",
+  "No stress on the line today.",
+  "We're sorting the calls so you can sort the day.",
+  "A friendly pick-up, every single time.",
+  "Your customers won't wait. We won't let them.",
+  "Think of this as your phone's day off.",
+  "We carry the calls so you can carry on.",
+  "Nothing to chase. We're on the chase.",
+  "You go be the boss. We'll be the front desk.",
+  "The phone can't surprise you when we're on it.",
+  "A steady voice for a busy business.",
+  "We're good at this, and we love it.",
+  "Whatever the day throws, the phones are covered.",
+  "You're never off the hook alone. We're on it with you.",
+  "Peace of mind, one answered call at a time.",
+  "Customers say hello. We say welcome.",
+  "We turn missed calls into done deals.",
+  "Everything that rings finds a friendly answer.",
+  "You built the business. We'll mind the phone.",
+  "Leave it with Zella.",
+  "Your callers are in the nicest hands.",
+  "Call comes in, care goes out.",
+  "The phone is handled. Go enjoy your day.",
+  "Zella: the only thing on your phone that never goes to voicemail.",
+  "We're the reason nobody gets a busy signal.",
+  "Smooth calls, happy customers, quiet mind.",
+  "We've got today's calls. You've got today's wins.",
+  "Say less. We'll handle the talking.",
+  "One less ring to worry about.",
+  "Easy mornings start with an answered phone.",
+  "Take a deep breath. Everything's being answered.",
+  "We're on call so you don't have to be.",
+  "The best part of your day: we're already on it.",
+  "A little help goes a long way. We're a lot of help.",
+  "Smile. Your phone is in expert hands.",
+  "Every caller matters here. We make sure they feel it.",
+  "You can switch off now. The line stays on.",
+  "No call too small, no hour too late.",
+  "We give every caller the same warm welcome.",
+  "It's all under control, and we'd like to keep it that way.",
+  "Business as usual, minus the phone stress.",
+  "Behind every happy customer, a very friendly Zella.",
+  "We'll be the first to say hello, and the last to hang up.",
+  "Let the phone ring. We love that sound.",
 ];
 
 const MORNING = ["A fresh day, and the phones are already covered.", "Morning. The line is open and we're smiling at it."];
@@ -50,8 +121,8 @@ export function todayNote(partOfDay) {
   let seen = [];
   try { seen = JSON.parse(recall("zella.today.seen2") || "[]"); } catch { seen = []; }
   const fresh = pool.map((line, i) => i).filter((i) => !seen.includes(i));
-  const options = fresh.length ? fresh : pool.map((l, i) => i);
+  const options = fresh.length ? fresh : pool.map((l, i) => i).filter((i) => i !== seen[seen.length - 1]);
   const pick = options[Math.floor(Math.random() * options.length)];
-  remember("zella.today.seen2", JSON.stringify([...seen, pick].slice(-10)));
+  remember("zella.today.seen2", JSON.stringify(fresh.length ? [...seen, pick] : [pick]));
   return pool[pick];
 }
