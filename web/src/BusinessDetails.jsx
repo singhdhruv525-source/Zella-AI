@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import "./OwnerPages.css";
 import { callOwnerFunction } from "./CreateBusinessWizard";
+import { supabase } from "./supabase";
 import { Pill } from "./OwnerOverview";
 import AutomationOverview from "./AutomationOverview";
 import {
@@ -63,6 +64,39 @@ function describeSettings(settings = {}) {
   if (settings.channel) parts.push(`by ${settings.channel.replace("sms_and_call", "text and call").replace("sms", "text")}`);
   if (settings.fallback_sms) parts.push("text if unanswered");
   return parts.join(" · ") || "Default settings";
+}
+
+// Small, Medium or Large: set by a Zella admin, never guessed from the industry. Offers can target it.
+function BusinessSizeCard({ businessId, size, onSaved }) {
+  const [value, setValue] = useState(size ?? "");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  useEffect(() => setValue(size ?? ""), [size]);
+  async function save() {
+    setBusy(true);
+    setMsg("");
+    const { error } = await supabase.rpc("zella_set_business_size", { p_business_id: businessId, p_size: value || null });
+    setBusy(false);
+    if (error) { setMsg("Couldn't save the size. Please try again."); return; }
+    setMsg("Saved.");
+    onSaved();
+  }
+  return (
+    <Card title="Business size" description="Used to decide which offers this business can get.">
+      <div className="bd-inline">
+        <select value={value} onChange={(e) => setValue(e.target.value)} aria-label="Business size">
+          <option value="">Not set</option>
+          <option value="small">Small</option>
+          <option value="medium">Medium</option>
+          <option value="large">Large</option>
+        </select>
+        <button type="button" className="owner-secondary-button op-small" onClick={save} disabled={busy || value === (size ?? "")}>
+          {busy ? "Saving..." : "Save size"}
+        </button>
+        {msg && <span className="op-muted">{msg}</span>}
+      </div>
+    </Card>
+  );
 }
 
 function Facts({ items }) {
@@ -393,6 +427,8 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup }) {
               ["Support tickets", String(data.tickets.length)],
             ]} />
           </Card>
+
+          <BusinessSizeCard businessId={businessId} size={b.business_size} onSaved={load} />
 
           {!isCancelled && (
             <Card title="Manage business" description="Stop a business now, or end its membership when its month is over.">

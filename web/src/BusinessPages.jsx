@@ -12,6 +12,7 @@ import { BookAppointmentModal, RescheduleModal } from "./BusinessForms";
 import { MonthGrid, TimeGrid, clockText, dayInfo, minutesInto } from "./BusinessCalendar";
 import { ActivationCard } from "./BusinessWork";
 import { ReviewLinkPanel } from "./BusinessDrafts";
+import { OffersPanel } from "./BusinessOffers";
 
 // The rest of the business app: Leads, People (Patients / Customers / Clients…),
 // Calendar, Calls, Messages, AI Receptionist, Automations, Team and Settings.
@@ -788,6 +789,7 @@ export function SettingsPage({ workspace, email, onSignOut }) {
           </dl>
         </section>
         <ReviewLinkPanel workspace={workspace} />
+        <OffersPanel workspace={workspace} />
         <section className="ba-panel">
           <div className="ba-panel-head"><div className="ba-panel-title"><div><h2>Your account</h2></div></div></div>
           <dl className="ba-facts pad">

@@ -109,7 +109,7 @@ test('execution id is optional when logging failed to start', () => assert.equal
 const dispatcherSql = readFileSync(new URL('../sql/zella_dispatcher.sql', import.meta.url), 'utf8');
 const wfJson = (f) => JSON.parse(readFileSync(new URL('./workflows/' + f, import.meta.url), 'utf8'));
 const sigSql = readFileSync(new URL('../sql/zella_resend_signature.sql', import.meta.url), 'utf8');
-const RUN_PATHS = { 'zella-event-router.json': 'event-router', 'zella-sms-sender.json': 'sms-sender', 'zella-email-sender.json': 'email-sender', 'zella-followup-texts.json': 'followup-texts', 'zella-followup-emails.json': 'followup-emails', 'zella-owner-emails.json': 'owner-emails', 'zella-outbound-calls.json': 'outbound-calls', 'zella-knowledge.json': 'knowledge-sync', 'zella-calendar-sync.json': 'calendar-sync', 'zella-connection-tests.json': 'connection-tests', 'zella-meta-leads.json': 'meta-leads', 'zella-meta-sender.json': 'meta-sender', 'zella-meta-health.json': 'meta-health', 'zella-website-crawler.json': 'website-crawl', 'zella-staff-texts.json': 'staff-sms', 'zella-call-intelligence.json': 'call-intel' };
+const RUN_PATHS = { 'zella-event-router.json': 'event-router', 'zella-sms-sender.json': 'sms-sender', 'zella-email-sender.json': 'email-sender', 'zella-followup-texts.json': 'followup-texts', 'zella-followup-emails.json': 'followup-emails', 'zella-owner-emails.json': 'owner-emails', 'zella-outbound-calls.json': 'outbound-calls', 'zella-knowledge.json': 'knowledge-sync', 'zella-calendar-sync.json': 'calendar-sync', 'zella-connection-tests.json': 'connection-tests', 'zella-meta-leads.json': 'meta-leads', 'zella-meta-sender.json': 'meta-sender', 'zella-meta-health.json': 'meta-health', 'zella-website-crawler.json': 'website-crawl', 'zella-staff-texts.json': 'staff-sms', 'zella-call-intelligence.json': 'call-intel', 'zella-admin-alerts.json': 'admin-alerts' };
 test('no workflow wakes itself on a timer (that would burn the monthly n8n run allowance)', () => {
   for (const f of [...Object.keys(RUN_PATHS), 'zella-event-gateway.json']) assert.ok(!JSON.stringify(wfJson(f)).includes('scheduleTrigger'), f);
 });
@@ -1396,6 +1396,32 @@ test('industry fixes: every due reminder preset has a date field named in the fi
   const presetsOld = readFileSync(new URL('../sql/zella_industry_presets.sql', import.meta.url), 'utf8');
   const all = [...dueNames, ...[...presetsOld.matchAll(/\('[a-z_]+','([^']+)',\d+,'[^']*','record_due_reminder'/g)].map((m) => m[1])];
   for (const name of all) assert.ok(fixSql.includes("'" + name + "'"), 'due field for ' + name);
+});
+
+// ---------------- admin alerts (offer alerts and other platform alerts, emailed to Zella admins)
+const aplan = (r) => runCode('admin-alerts-plan.js', { json: r }).json;
+const al = (o) => ({ id: 'a1', kind: 'offer_ending_soon', severity: 'info', title: 'Offer ending soon: Spring', detail: 'Ends Nov 1', occurrences: 1, ...o });
+test('admin alerts: nothing waiting means nothing is sent', () => assert.equal(aplan({ alerts: [], to: ['a@b.co'], from: 'z@zella.ai' }).skip, true));
+test('admin alerts: one alert uses its title as the subject', () => {
+  const p = aplan({ alerts: [al()], to: ['a@b.co'], from: 'z@zella.ai', from_name: 'Zella' });
+  assert.equal(p.resend.subject, '[Zella] Offer ending soon: Spring'); assert.deepEqual(p.ids, ['a1']); assert.equal(p.resend.from, 'Zella <z@zella.ai>');
+});
+test('admin alerts: many alerts make one digest that counts urgent ones', () => {
+  const p = aplan({ alerts: [al(), al({ id: 'a2', severity: 'urgent', title: 'Job failed' })], to: ['a@b.co'], from: 'z@zella.ai' });
+  assert.equal(p.resend.subject, '[Zella] 2 alerts (1 urgent)'); assert.ok(p.resend.text.includes('URGENT: Job failed'));
+});
+test('admin alerts: no recipients puts the alerts back instead of sending', () => {
+  const p = aplan({ alerts: [al()], to: ['not-an-email'], from: 'z@zella.ai' });
+  assert.equal(p.finish.rpc, 'zella_finish_admin_alert_email'); assert.equal(p.finish.body.p_ok, false);
+});
+test('admin alerts: line breaks in alert text cannot break the email', () => {
+  const p = aplan({ alerts: [al({ title: 'A\r\nBcc: x@y.z' })], to: ['a@b.co'], from: 'z@zella.ai' });
+  assert.ok(!p.resend.subject.includes('\n'));
+});
+test('admin alerts: the workflow reports every send back and is in the dispatcher', () => {
+  const w = wfJson('zella-admin-alerts.json');
+  assert.ok(w.nodes.some((n) => n.name === 'Report back')); assert.ok(dispatcherSql.includes("when 'admin-alerts'"));
+  assert.ok(dispatcherSql.includes("'zella_offers_tick'"));
 });
 
 console.log(`${passed} passed, ${failures.length} failed`);
