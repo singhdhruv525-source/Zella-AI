@@ -10,6 +10,47 @@ const CHANNEL = { sms: "text", call: "AI call", sms_and_call: "text and AI call"
 const hoursText = (h) => (h % 24 === 0 ? `${h / 24} day${h === 24 ? "" : "s"}` : `${h} hour${h === 1 ? "" : "s"}`);
 const minsText = (m) => (m === 0 ? "straight away" : m >= 60 ? `${m / 60} hour${m === 60 ? "" : "s"}` : `${m} minutes`);
 
+
+// Industry automations (records, reminders, check-ins) carry their steps in the saved rule.
+const label = (v) => String(v ?? "").replace(/_/g, " ");
+function ruleActions(rule = {}) {
+  const parts = [];
+  if (rule.message) parts.push(rule.mode === "draft" ? "write a message for a person to check and send" : "send a message");
+  if (rule.task) parts.push("create a task for the team");
+  if (rule.notify) parts.push("alert the owners");
+  return parts.length ? `${parts.join(", ").replace(/^./, (c) => c.toUpperCase())}.` : "—";
+}
+function describeIndustry(type, cfg) {
+  const kind = label(cfg.type_key || "record");
+  const noOptOut = "Customers who opted out are never messaged.";
+  if (type === "record_status_action") {
+    const rules = cfg.rules ?? [];
+    return {
+      trigger: rules.length ? `A record in ${kind} changes to ${rules.map((r) => `“${label(r.status)}”`).join(" or ")}` : `A record in ${kind} changes status`,
+      conditions: noOptOut,
+      actions: rules.map((r) => ruleActions(r)).join(" ") || "—",
+    };
+  }
+  if (type === "record_stale") {
+    const wait = cfg.after_hours ? hoursText(cfg.after_hours) : hoursText((cfg.after_days ?? 3) * 24);
+    return { trigger: `A record in ${kind} stays “${label(cfg.status)}” for ${wait}`, conditions: `The record is still open. ${noOptOut}`, actions: ruleActions(cfg.rule) };
+  }
+  if (type === "record_due_reminder") {
+    const before = cfg.before_hours ? `${hoursText(cfg.before_hours)} before` : cfg.after_hours ? `${hoursText(cfg.after_hours)} after` : "on";
+    return { trigger: `${before} the ${label(cfg.due_field || "due date")} of a record in ${kind}`, conditions: `The record is open. ${noOptOut}`, actions: ruleActions(cfg.rule) };
+  }
+  if (type === "appointment_followup") {
+    return { trigger: `${hoursText((cfg.after_days ?? 1) * 24)} after a completed visit`, conditions: noOptOut, actions: ruleActions(cfg.rule) };
+  }
+  if (type === "service_due") {
+    return { trigger: `A customer has not visited for ${cfg.days ?? 180} days`, conditions: `They have no upcoming visit. ${noOptOut}`, actions: "Send a short check-in message." };
+  }
+  if (type === "seasonal_reminder") {
+    return { trigger: "The first week of the chosen months", conditions: `They visited in the last 2 years and have nothing booked. ${noOptOut}`, actions: "Send a short check-in message." };
+  }
+  return null;
+}
+
 export function describe(type, cfg = {}) {
   const ch = CHANNEL[cfg.channel] ?? "message";
   const tries = cfg.max_attempts ? `up to ${cfg.max_attempts} ${cfg.max_attempts === 1 ? "try" : "tries"}` : "a few tries";
@@ -66,7 +107,7 @@ export function describe(type, cfg = {}) {
       actions: `Contact affected customers by ${ch} to rebook.`,
     },
   };
-  return map[type] ?? { trigger: "Set by Zella", conditions: "—", actions: "—" };
+  return map[type] ?? describeIndustry(type, cfg) ?? { trigger: "Set by Zella", conditions: "—", actions: "—" };
 }
 
 export const RUN_TONE = { completed: "success", failed: "danger", running: "info", queued: "warning", waiting: "warning", cancelled: "" };

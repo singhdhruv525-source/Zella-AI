@@ -24,6 +24,7 @@ const kinds = {
   reply_confirmed: { key: 'reply_confirmed', purpose: 'transactional' },
   reply_reschedule: { key: 'reply_reschedule', purpose: 'transactional' },
   reply_help: { key: 'reply_help', purpose: 'transactional' },
+  reply_after_hours: { key: 'reply_after_hours', purpose: 'transactional' },
   // A time freed by a cancellation, offered to the next person on the waitlist (with a private Book this time button).
   waitlist_offer: { key: 'waitlist_offer', purpose: 'transactional' },
 };

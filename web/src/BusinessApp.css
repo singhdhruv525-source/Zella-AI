@@ -1455,3 +1455,14 @@
 @media (max-width: 640px) { .ba-suggestion { flex-direction: column; } }
 .ba-today-owner { font-weight: 600; margin: 2px 0 4px; }
 .ba-today-note { font-size: 1.05rem; margin: 0 0 4px; }
+
+/* Suggested messages */
+.ba-drafts { margin: 0; padding: 0; list-style: none; }
+.ba-draft { padding: 14px 16px; border-bottom: 1px solid var(--ba-border); display: grid; gap: 8px; }
+.ba-draft:last-child { border-bottom: 0; }
+.ba-draft-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+.ba-draft-head small { color: var(--ba-muted); }
+.ba-draft textarea { width: 100%; resize: vertical; font: inherit; padding: 10px 12px; border: 1px solid var(--ba-border); border-radius: 8px; background: var(--ba-surface, #fff); color: var(--ba-text); }
+.ba-draft textarea:focus-visible { outline: 2px solid var(--ba-primary); outline-offset: 1px; }
+.ba-draft-foot { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.ba-draft-foot small { margin-right: auto; color: var(--ba-muted); }

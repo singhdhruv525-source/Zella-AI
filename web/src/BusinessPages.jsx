@@ -11,6 +11,7 @@ import { EscalationControls, Transcript, isOpenEscalation } from "./BusinessProf
 import { BookAppointmentModal, RescheduleModal } from "./BusinessForms";
 import { MonthGrid, TimeGrid, clockText, dayInfo, minutesInto } from "./BusinessCalendar";
 import { ActivationCard } from "./BusinessWork";
+import { ReviewLinkPanel } from "./BusinessDrafts";
 
 // The rest of the business app: Leads, People (Patients / Customers / Clients…),
 // Calendar, Calls, Messages, AI Receptionist, Automations, Team and Settings.
@@ -786,6 +787,7 @@ export function SettingsPage({ workspace, email, onSignOut }) {
             {words.map(([label, key]) => <div key={key}><dt>{label}</dt><dd>{term(key)}</dd></div>)}
           </dl>
         </section>
+        <ReviewLinkPanel workspace={workspace} />
         <section className="ba-panel">
           <div className="ba-panel-head"><div className="ba-panel-title"><div><h2>Your account</h2></div></div></div>
           <dl className="ba-facts pad">

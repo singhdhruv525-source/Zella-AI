@@ -4,6 +4,7 @@ import {
   MessagesPage, ReceptionistPage, SettingsPage,
 } from "./BusinessPages";
 import { TeamPage } from "./BusinessTeam";
+import { DraftsPage, LiveNoticeBanner, LiveNoticeModal } from "./BusinessDrafts";
 import { AccessPage, ApprovalsPage, FailedWorkPage, SecurityLogPage } from "./BusinessAccess";
 import PersonProfile from "./BusinessProfile";
 import { KnowledgePage } from "./BusinessKnowledge";
@@ -48,6 +49,7 @@ function navigation(workspace, recordTypes = []) {
         { key: "checkins", label: "Check-ins", icon: "how_to_reg", ready: true },
         has("calendar") && { key: "waitlist", label: "Waitlist", icon: "hourglass_top", ready: true },
         { key: "tasks", label: "Tasks", icon: "task_alt", ready: true },
+        ["owner", "admin", "manager", "staff"].includes(workspace.role) && { key: "drafts", label: "Suggested messages", icon: "mark_email_unread", ready: true },
       ],
     },
     {
@@ -254,6 +256,11 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
           </label>
 
           <div className="ba-header-actions">
+            {["owner", "admin", "manager"].includes(workspace.role) && (
+              <button type="button" className="ba-btn" onClick={() => setModal("live-notice")} title="Tell callers about today">
+                <Icon name="campaign" /><span>Tell callers</span>
+              </button>
+            )}
             <NotificationsBell workspace={workspace} onGo={(key) => { if (groups.some((g) => g.items.some((i) => i.key === key))) setPage(key); }} />
             <button type="button" className="ba-btn primary" onClick={() => setModal("lead")}>
               <Icon name="person_add" /><span>Add lead</span>
@@ -278,6 +285,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
               )}
             </div>
           )}
+          <LiveNoticeBanner workspace={workspace} tick={refreshKey} canManage={["owner", "admin", "manager"].includes(workspace.role)} onNotice={setNotice} />
           {attention > 0 && current.key !== "attention" && (
             <div className="ba-banner alert" role="alert">
               <span><strong>{attention === 1 ? "1 caller needs" : `${attention} callers need`} a person.</strong> Your AI receptionist handed them over.</span>
@@ -326,6 +334,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
             <RecordSettingsPage workspace={workspace} types={records.types} canManage={["owner", "admin", "manager"].includes(workspace.role)} onNotice={setNotice} onChanged={records.reload} />
           )}
           {current.key === "team" && <TeamPage workspace={workspace} email={email} refreshKey={refreshKey} onNotice={setNotice} />}
+          {current.key === "drafts" && <DraftsPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
           {current.key === "access" && <AccessPage workspace={workspace} userId={userId} refreshKey={refreshKey} onNotice={setNotice} />}
           {current.key === "approvals" && <ApprovalsPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
           {current.key === "failed" && <FailedWorkPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
@@ -350,6 +359,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
         />
       )}
       {modal === "lead" && <AddLeadModal workspace={workspace} term={term} onClose={() => setModal(null)} onSaved={saved} />}
+      {modal === "live-notice" && <LiveNoticeModal workspace={workspace} onClose={() => setModal(null)} onSaved={(m) => { setModal(null); setNotice(m); setRefreshKey((k) => k + 1); }} />}
       {modal === "book" && <BookAppointmentModal workspace={workspace} term={term} onClose={() => setModal(null)} onSaved={saved} />}
     </div>
   );

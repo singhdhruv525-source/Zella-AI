@@ -60,3 +60,13 @@ Nothing below is published or running until you do it. Everything is built; thes
 
 ## Call recordings and transcripts
 The app now reads calls through `calls_view`. Once this version of the app is deployed, run `select zella_lock_call_columns();` in the Supabase SQL editor. After that, staff below manager cannot read recordings or transcripts at all. Do not run it before the new app is live, or the old app's call pages will fail.
+
+## New automations (industry completion)
+- SQL, already applied live and saved in `sql/`: `zella_automation_completion.sql`, `zella_industry_presets_final.sql`, `zella_after_hours_reply.sql`, `zella_team_screens.sql`. Run them in that order on any fresh database.
+- Shared automations (visit feedback, six-month check-in, review request) now reach every business except healthcare, dental, legal, financial services and childcare.
+- Review requests send nothing until the owner saves a review link in Settings.
+- Childcare, healthcare, legal and financial follow-ups are drafts: they wait in "Suggested messages" and nothing is sent until a person presses Send.
+- "Tell callers" (full tonight, closing early) works through the AI receptionist's prompt. It does not block the booking tools themselves.
+- After-hours text replies: the "Zella - Follow-up Texts" workflow was updated live (still unpublished) with the new `reply_after_hours` kind. Publish it with the others.
+- Not built: rating-based review routing (low ratings to the owner first). Replies to the review text go to the inbox like any other reply.
+- Not built: AI-written drafts. Drafts use the saved wording; an AI-written version needs the Anthropic key and a new n8n workflow.
