@@ -21,6 +21,12 @@ if (!supabasePublishableKey) {
   throw new Error('Supabase publishable key is missing.');
 }
 
+// The address an email link opened, saved before the sign-in library reads
+// and tidies it (it removes "#access_token=..." and "#error=..." from the bar).
+export const LANDING_URL = typeof window === 'undefined'
+  ? { hash: '', search: '' }
+  : { hash: window.location.hash || '', search: window.location.search || '' };
+
 export const supabase = createClient(
   supabaseUrl,
   supabasePublishableKey

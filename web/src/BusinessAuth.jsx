@@ -3,6 +3,7 @@ import "./BusinessApp.css";
 import { supabase } from "./supabase";
 import { ConfirmPasswordField, EmailField, PasswordField } from "./formFields";
 import { checkEmail, passwordProblems } from "./formValidation";
+import { EMAIL_LINK_TYPES, friendlyAuthError, readEmailLink } from "./authErrors";
 
 // Sign-in, forgotten password and the welcome (set password) page for
 // business owners and staff. Platform admins use the admin sign-in at "/".
@@ -111,11 +112,7 @@ export function BusinessSignIn() {
       });
       if (signInError) throw signInError;
     } catch (err) {
-      setError(
-        /invalid login/i.test(err.message)
-          ? "That email or password doesn't match. Try again or reset your password."
-          : err.message
-      );
+      setError(friendlyAuthError(err));
     } finally {
       setBusy(false);
     }
@@ -131,9 +128,9 @@ export function BusinessSignIn() {
       });
       if (resetError) throw resetError;
       // Same message whether or not the email exists, so accounts can't be discovered.
-      setNotice("Check your email. If an account exists for that address, the link is on its way.");
+      setNotice("Check your email. If an account exists for that address, the link is on its way. Open the newest email only, once.");
     } catch (err) {
-      setError(err.message);
+      setError(friendlyAuthError(err));
     } finally {
       setBusy(false);
     }
@@ -198,13 +195,18 @@ export function Welcome() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
+  const [link] = useState(() => readEmailLink());
+
   useEffect(() => {
     // Expired or already-used links come back with an error in the URL.
-    const params = new URLSearchParams(window.location.hash.replace(/^#/, "") || window.location.search);
-    const description = params.get("error_description");
-    if (description) {
-      setLinkError(description.replace(/\+/g, " "));
+    if (link.error) {
+      setLinkError(link.error);
       setState("invalid");
+      return;
+    }
+    // The safer link: nothing is used up until the person presses Continue.
+    if (link.tokenHash && EMAIL_LINK_TYPES.includes(link.type)) {
+      setState("confirm");
       return;
     }
 
@@ -221,7 +223,25 @@ export function Welcome() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [link]);
+
+  async function confirmLink() {
+    setBusy(true);
+    setError("");
+    try {
+      const { data, error: verifyError } = await supabase.auth.verifyOtp({ token_hash: link.tokenHash, type: link.type });
+      if (verifyError) throw verifyError;
+      // Keep the address bar clean so a refresh doesn't try the used link again.
+      window.history.replaceState(null, "", window.location.pathname);
+      setEmail(data?.user?.email ?? data?.session?.user?.email ?? "");
+      setState("ready");
+    } catch (err) {
+      setLinkError(friendlyAuthError(err));
+      setState("invalid");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function save(event) {
     event.preventDefault();
@@ -248,7 +268,7 @@ export function Welcome() {
       try { isAdmin = (await supabase.rpc("is_platform_admin"))?.data === true; } catch { /* go to the CRM */ }
       window.location.replace(isAdmin ? "/" : "/app");
     } catch (err) {
-      setError(err.message);
+      setError(friendlyAuthError(err));
       setBusy(false);
     }
   }
@@ -257,13 +277,29 @@ export function Welcome() {
     return <AuthCard title="One moment..." description="Checking your link." />;
   }
 
+  if (state === "confirm") {
+    const resetting = link.type === "recovery";
+    return (
+      <AuthCard
+        title={resetting ? "Reset your password" : "Welcome to Zella"}
+        description={resetting ? "Press continue to choose a new password." : "Press continue to accept your invitation and choose a password."}
+      >
+        {error && <div className="ba-error">{error}</div>}
+        <button type="button" className="ba-btn primary block" onClick={confirmLink} disabled={busy}>
+          {busy ? "Checking your link..." : "Continue"}
+        </button>
+      </AuthCard>
+    );
+  }
+
   if (state === "invalid") {
     return (
       <AuthCard
-        title="This link has expired"
-        description={`${linkError ? `${linkError}. ` : ""}Links can only be used once and expire after a while. Ask the Zella team to resend your invitation, or reset your password from the sign-in page.`}
+        title="This link can't be used"
+        description={`${linkError ? `${linkError.replace(/\.$/, "")}. ` : ""}Ask the person who invited you to send a new invitation, or reset your password from the sign-in page.`}
       >
-        <a className="ba-btn primary block" href="/app">Go to sign in</a>
+        <a className="ba-btn primary block" href="/app">Business sign in</a>
+        <a className="ba-link ba-center" href="/">Zella admin sign in</a>
       </AuthCard>
     );
   }

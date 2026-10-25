@@ -70,3 +70,17 @@ The app now reads calls through `calls_view`. Once this version of the app is de
 - After-hours text replies: the "Zella - Follow-up Texts" workflow was updated live (still unpublished) with the new `reply_after_hours` kind. Publish it with the others.
 - Not built: rating-based review routing (low ratings to the owner first). Replies to the review text go to the inbox like any other reply.
 - Not built: AI-written drafts. Drafts use the saved wording; an AI-written version needs the Anthropic key and a new n8n workflow.
+
+## Sign-in, invitations and password reset (added 2026-10-25)
+Set these in the Supabase dashboard. Do them now for localhost, and again with the real address once the app is hosted.
+1. **Authentication > URL Configuration**
+   - Site URL: the app address (`http://localhost:3000` while testing, later `https://<your domain>`).
+   - Redirect URLs: add `http://localhost:3000/**` and later `https://<your domain>/**`.
+2. **Edge Functions > Secrets**: `ZELLA_APP_URL` = the same app address. Admin invitations refuse to send without it.
+3. **Authentication > Emails > Templates.** Mail scanners (Gmail, Outlook) open links before people do, which uses up one-time links ("Email link is invalid or has expired"). Change the links so the app asks the person to press Continue first:
+   - Invite user: `<a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=invite">Accept your invitation</a>`
+   - Reset password: `<a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery">Choose a new password</a>`
+   The app handles both these links and the old ones, so this can be done at any time.
+4. **Custom email sender (SMTP)**: Supabase's built-in sender allows only a few emails an hour. Before real customers, set Authentication > Emails > SMTP to Resend once the domain is verified.
+5. Redeploy `owner-provision-business` after any change to it: `npx supabase functions deploy owner-provision-business --project-ref pffqxlumqhjdbzvvoszm --no-verify-jwt`.
+6. Test with two different browsers (or a private window) for two different people. Both apps share one sign-in per browser, so opening someone else's invite in your own browser signs you out of your account.

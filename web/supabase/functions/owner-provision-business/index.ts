@@ -1923,7 +1923,8 @@ async function adminInvite(admin: SupabaseClient, fields: Json, userId: string) 
   if (!target || neverAccepted) {
     const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
       data: { platform_admin: true },
-      redirectTo: appUrl.replace(/\/+$/, ""),
+      // Same page as business owners: it sets the password, then sends admins to the dashboard.
+      redirectTo: ownerWelcomeUrl(appUrl),
     });
     if (error || !data?.user) {
       if (!target) throw new InputError(error?.message ?? "The invitation email could not be sent", 502);
