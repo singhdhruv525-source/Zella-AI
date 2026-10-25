@@ -57,3 +57,6 @@ Nothing below is published or running until you do it. Everything is built; thes
 2. **Resend signature check.** `sql/zella_resend_signature.sql` is applied live and tested. After you create the Resend webhooks, run once: `select vault.create_secret('whsec_...', 'zella_resend_signing_secret');` (the signing secret shown by Resend). Until then only the key in the webhook address protects them. Then use Resend's "send test event" and confirm it is accepted; a wrong or old signature is answered 401. Meta webhooks already verify their signature.
 3. **Keys, by hand on n8n only:** Telnyx, Resend, Anthropic, Vapi. Never in chat.
 4. Publish the other workflows, then run `sql/zella_dispatcher.sql` last.
+
+## Call recordings and transcripts
+The app now reads calls through `calls_view`. Once this version of the app is deployed, run `select zella_lock_call_columns();` in the Supabase SQL editor. After that, staff below manager cannot read recordings or transcripts at all. Do not run it before the new app is live, or the old app's call pages will fail.

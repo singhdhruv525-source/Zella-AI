@@ -700,7 +700,7 @@ export function ReceptionistPage({ workspace, onNotice, onReload }) {
     const week = dayRange(tz, -6).start.toISOString();
     const [agents, calls] = await Promise.all([
       supabase.from("ai_agents").select("id, name, status, description, channels, is_default").eq("business_id", workspace.id).order("is_default", { ascending: false }),
-      supabase.from("calls").select("id, status, ai_handled, duration_seconds").eq("business_id", workspace.id).gte("created_at", week).limit(1000),
+      supabase.from("calls_view").select("id, status, ai_handled, duration_seconds").eq("business_id", workspace.id).gte("created_at", week).limit(1000),
     ]);
     return { agents: orThrow(agents), calls: orThrow(calls) };
   }, [workspace.id]);

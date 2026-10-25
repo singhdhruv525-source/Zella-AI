@@ -199,7 +199,7 @@ export function CallsPage({ workspace, refreshKey, onNotice, onOpenPerson, trans
   const [openId, setOpenId] = useState(null);
   const roster = useRoster(workspace);
   const { data, error, loading, reload } = useLoad(async () => {
-    const calls = orThrow(await supabase.from("calls").select("*").eq("business_id", workspace.id).order("created_at", { ascending: false }).limit(300));
+    const calls = orThrow(await supabase.from("calls_view").select("*").eq("business_id", workspace.id).order("created_at", { ascending: false }).limit(300));
     const ids = calls.map((c) => c.id);
     // Follow-ups linked to these calls (optional: older workspaces just show none).
     const [cbs, fus] = ids.length ? await Promise.all([

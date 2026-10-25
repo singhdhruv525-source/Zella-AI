@@ -127,7 +127,7 @@ export default function BusinessToday({ workspace, userId, fallbackName, onAddLe
           .lt("created_at", bounds.end.toISOString())
           .order("created_at", { ascending: false })
           .limit(500),
-        supabase.from("calls")
+        supabase.from("calls_view")
           .select("id, status, ai_handled, duration_seconds, from_number, customer_id, created_at, metadata")
           .eq("business_id", id)
           .gte("created_at", bounds.start.toISOString())
@@ -144,7 +144,7 @@ export default function BusinessToday({ workspace, userId, fallbackName, onAddLe
           .in("status", ["open", "pending"])
           .order("last_message_at", { ascending: false, nullsFirst: false })
           .limit(20),
-        supabase.from("calls")
+        supabase.from("calls_view")
           .select("id, direction, status, ai_handled, duration_seconds, from_number, customer_id, created_at, transcript, metadata")
           .eq("business_id", id)
           .order("created_at", { ascending: false })

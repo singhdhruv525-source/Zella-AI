@@ -28,7 +28,7 @@ export function AttentionPage({ workspace, refreshKey, onNotice, onOpenPerson, o
   const tz = workspace.timezone;
   const [filter, setFilter] = useState("open");
   const { data, error, loading, reload } = useLoad(async () => {
-    const calls = orThrow(await supabase.from("calls").select("*").eq("business_id", workspace.id).eq("needs_human", true)
+    const calls = orThrow(await supabase.from("calls_view").select("*").eq("business_id", workspace.id).eq("needs_human", true)
       .order("escalated_at", { ascending: false, nullsFirst: false }).limit(200));
     return { calls, people: await loadPeople(calls.map((c) => c.customer_id)) };
   }, [workspace.id, refreshKey]);
@@ -242,7 +242,7 @@ export function ReportsPage({ workspace, refreshKey }) {
     const since = dayRange(tz, -(days - 1)).start;
     const sinceIso = since.toISOString();
     const [calls, appts, people] = await Promise.all([
-      supabase.from("calls").select("*").eq("business_id", workspace.id).gte("created_at", sinceIso).limit(5000),
+      supabase.from("calls_view").select("*").eq("business_id", workspace.id).gte("created_at", sinceIso).limit(5000),
       supabase.from("appointments").select("*").eq("business_id", workspace.id).gte("start_time", sinceIso).lt("start_time", new Date().toISOString()).limit(5000),
       supabase.from("customers").select("id, created_at").eq("business_id", workspace.id).gte("created_at", sinceIso).limit(5000),
     ]);

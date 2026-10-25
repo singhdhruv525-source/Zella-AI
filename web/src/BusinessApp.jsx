@@ -151,7 +151,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
   // Callers waiting for a person. Quietly stays at 0 until the latest Zella update is applied.
   const countAttention = useCallback(async () => {
     const { count, error: countError } = await supabase
-      .from("calls").select("id", { count: "exact", head: true })
+      .from("calls_view").select("id", { count: "exact", head: true })
       .eq("business_id", workspace.id).eq("needs_human", true).is("escalation_resolved_at", null);
     setAttention(countError ? 0 : count ?? 0);
   }, [workspace.id]);
