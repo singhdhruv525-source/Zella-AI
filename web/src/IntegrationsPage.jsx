@@ -40,7 +40,7 @@ export default function IntegrationsPage({ onOpenBusiness }) {
 
   const requests = (data?.requests ?? []).filter((r) => r.setupDone);
   const waiting = requests.filter(
-    (r) => !r.phone.connected || !r.voice.connected || (r.calendar.wanted && !r.calendar.connected) ||
+    (r) => !r.phone.connected || !r.voice.connected || (r.calendar.wanted && !r.calendar.connected) || (r.email?.wanted && !r.email?.connected) ||
       r.leads.wanted.some((l) => !r.leads.connected.includes(l))
   ).length;
 
@@ -75,14 +75,15 @@ export default function IntegrationsPage({ onOpenBusiness }) {
         </div>
         <div className="owner-table-wrap">
           <table className="owner-table">
-            <thead><tr><th>Business</th><th>Phone (Telnyx)</th><th>Voice (Vapi)</th><th>Calendar</th><th>Lead sources</th></tr></thead>
+            <thead><tr><th>Business</th><th>Phone (Telnyx)</th><th>Voice (Vapi)</th><th>Calendar</th><th>Email</th><th>Lead sources</th></tr></thead>
             <tbody>
               {requests.map((r) => (
                 <tr key={r.businessId}>
                   <td><button type="button" className="op-name" onClick={() => onOpenBusiness(r.businessId)}>{r.businessName}</button></td>
                   <td><Need wanted={r.phone.wanted} connected={r.phone.connected} label={PHONE_LABELS[r.phone.wanted] ?? r.phone.wanted} /></td>
                   <td><Need wanted={r.voice.wanted} connected={r.voice.connected} label="Voice agent" /></td>
-                  <td><Need wanted={r.calendar.wanted} connected={r.calendar.connected} label={r.calendar.wanted === "google" ? "Google" : "Outlook"} /></td>
+                  <td><Need wanted={r.calendar.wanted} connected={r.calendar.connected} label={r.calendar.wanted === "google" ? "Google Calendar" : "Outlook / Microsoft Calendar"} /></td>
+                  <td><Need wanted={r.email?.wanted} connected={r.email?.connected} label={r.email?.wanted === "gmail" ? "Gmail" : "Outlook email"} /></td>
                   <td>
                     {r.leads.wanted.length ? (
                       <div className="in-needs">
@@ -95,7 +96,7 @@ export default function IntegrationsPage({ onOpenBusiness }) {
                 </tr>
               ))}
               {!requests.length && (
-                <tr><td colSpan={5}><div className="op-empty">{loading ? "Loading..." : "No business has completed the Phone & integrations step yet."}</div></td></tr>
+                <tr><td colSpan={6}><div className="op-empty">{loading ? "Loading..." : "No business has completed the Phone & integrations step yet."}</div></td></tr>
               )}
             </tbody>
           </table>

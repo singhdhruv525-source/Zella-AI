@@ -1,0 +1,473 @@
+{
+  "name": "Zella - Meta Leads",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "zella/run/meta-leads",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "2af00e23-c480-4a77-8fdd-da60673b2836",
+      "name": "Run now",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "webhookId": "8b7557a1-4872-4549-826c-dbd12ec834cb",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Zella gateway secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_meta_claim_leads",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_limit: 10 }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "20177138-8a1c-450e-80e1-653235aff574",
+      "name": "Claim leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        200
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Meta Leads: one claimed lead event in. Only plain ids are used to build the request.\nconst id = (v, re) => (typeof v === 'string' && re.test(v) ? v : null);\nconst uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;\nconst eventId = id($json.event_id, uuid);\nconst pageId = id($json.page_id, /^[0-9]{5,30}$/);\nconst leadId = id($json.leadgen_id, /^[0-9]{5,30}$/);\nif (!eventId) return { json: { skip: true } };\nreturn { json: { skip: false, event_id: eventId, page_id: pageId, leadgen_id: leadId, valid: !!(pageId && leadId) } };\n"
+      },
+      "id": "ae2f98a0-99fe-4855-8311-26233e9c1364",
+      "name": "Plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "7c859611-57fd-4c31-8bf3-a2917153253b",
+              "leftValue": "={{ !$json.skip }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "bebe6173-3e5c-4c2f-896e-d1db2e5a5efa",
+      "name": "Is a lead",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        720,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_meta_token",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_page_id: $json.page_id }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "66eb5c88-306c-453a-84a9-bda435108b6e",
+      "name": "Get token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        100
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Meta Leads: build the request for Meta. The token comes from the database; without one the event is retried later.\nconst plan = $('Plan').item.json;\nconst t = $json.body;\nconst token = typeof t === 'string' && t.length >= 20 && t.length < 1000 ? t : null;\nif (!plan.valid) return { json: { ...plan, fail: { p_event_id: plan.event_id, p_error: 'bad_event', p_permanent: true } } };\nif (!token) return { json: { ...plan, fail: { p_event_id: plan.event_id, p_error: 'no_token_reconnect_needed', p_permanent: false } } };\nreturn {\n  json: {\n    ...plan, fail: null,\n    url: 'https://graph.facebook.com/v21.0/' + plan.leadgen_id + '?fields=field_data,campaign_name,ad_name,form_id,created_time',\n    auth: 'Bearer ' + token,\n  },\n};\n"
+      },
+      "id": "a298f184-f485-4bc7-8f13-b457d0d29f95",
+      "name": "Build request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "86bd1bc2-f868-4b16-8790-57a7db94f02e",
+              "leftValue": "={{ !$json.fail }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c4e9836c-26d6-4ab3-87b0-5d24cbde29b0",
+      "name": "Can fetch",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.url }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $json.auth }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "1e1035d1-7482-4917-8b82-e818f6f21579",
+      "name": "Fetch lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1680,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Meta Leads: turn Meta's answer into either \"save this lead\" or \"mark this attempt failed\".\n// Nothing from the answer except the form answers and the campaign name is kept.\nconst plan = $('Build request').item.json;\nif (plan.fail) return { json: { save: null, fail: plan.fail } };\nconst r = $json;\nconst status = Number(r.statusCode);\nconst b = r.body && typeof r.body === 'object' ? r.body : {};\nif (status >= 200 && status < 300 && Array.isArray(b.field_data)) {\n  const fields = b.field_data.slice(0, 40).filter((f) => f && typeof f.name === 'string').map((f) => ({\n    name: f.name.slice(0, 80), values: Array.isArray(f.values) ? f.values.slice(0, 3).map((v) => String(v).slice(0, 300)) : [],\n  }));\n  const camp = typeof b.campaign_name === 'string' ? b.campaign_name : typeof b.ad_name === 'string' ? b.ad_name : null;\n  return { json: { save: { p_event_id: plan.event_id, p_fields: fields, p_campaign: camp ? camp.slice(0, 120) : null }, fail: null } };\n}\nconst code = b.error && typeof b.error === 'object' ? Number(b.error.code) : 0;\n// a lead that no longer exists or may not be read will never work; anything else is tried again\nconst permanent = status === 404 || (status === 400 && code === 100);\nreturn { json: { save: null, fail: { p_event_id: plan.event_id, p_error: ('HTTP ' + (status || 'none') + (code ? ' code ' + code : '')).slice(0, 100), p_permanent: permanent } } };\n"
+      },
+      "id": "4c6d268d-614a-4f2c-88a7-3ba8dafbadc2",
+      "name": "Read result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "5264ee11-f3ae-4d50-8e92-6ddf58ac5441",
+              "leftValue": "={{ !!$json.save }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "aff3448c-b5a1-4865-83e0-39214c7b1f0a",
+      "name": "Can save",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2160,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_meta_capture_lead",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.save) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "b99308c1-c515-408f-851b-06dde4e538c3",
+      "name": "Save lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2400,
+        100
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_meta_fail_event",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.fail) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "85636e13-e492-4a37-86e8-c963271158ba",
+      "name": "Record failure",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2400,
+        320
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Run now": {
+      "main": [
+        [
+          {
+            "node": "Claim leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim leads": {
+      "main": [
+        [
+          {
+            "node": "Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan": {
+      "main": [
+        [
+          {
+            "node": "Is a lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is a lead": {
+      "main": [
+        [
+          {
+            "node": "Get token",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Get token": {
+      "main": [
+        [
+          {
+            "node": "Build request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build request": {
+      "main": [
+        [
+          {
+            "node": "Can fetch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Can fetch": {
+      "main": [
+        [
+          {
+            "node": "Fetch lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Read result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch lead": {
+      "main": [
+        [
+          {
+            "node": "Read result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read result": {
+      "main": [
+        [
+          {
+            "node": "Can save",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Can save": {
+      "main": [
+        [
+          {
+            "node": "Save lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "executionTimeout": 300
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

@@ -1,0 +1,309 @@
+{
+  "name": "Zella - Outbound Calls",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "zella/run/outbound-calls",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "2af00e23-c480-4a77-8fdd-da60673b2836",
+      "name": "Run now",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "webhookId": "21aa7625-d5a6-4faf-832f-78055cc33ea3",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Zella gateway secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_claim_callback_calls",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_limit: 10 }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "1e4a4006-fc86-4c15-8be6-6b5afec9cde5",
+      "name": "Claim callback calls",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        100
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_claim_followup_calls",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_limit: 10 }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "8b9dc76d-79f3-4125-814b-5412cc0bc1bc",
+      "name": "Claim follow-up calls",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        300
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Outbound Calls: turn one claimed call (a callback, or a follow-up task) into either a Vapi request\n// or a database note. Nothing is dialled unless calls_live is true and Vapi is set up (c.live).\n// Output: { source, id, call, record }. call = what to send to Vapi (or null); record = the database call to make.\nconst c = $json;\nconst source = c.source === 'callback' ? 'callback' : 'task';\nconst id = c.id;\nconst record = (rpc, body) => ({ json: { source, id, call: null, record: { rpc, body } } });\n\nconst raw = String((source === 'callback' ? c.contact_number : c.customer && c.customer.phone) || '');\nconst digits = raw.replace(/\\D/g, '');\nlet to = null;\nif (raw.trim().startsWith('+') && digits.length >= 8 && digits.length <= 15) to = '+' + digits;\nelse if (digits.length === 10) to = '+1' + digits;\nelse if (digits.length === 11 && digits[0] === '1') to = '+' + digits;\n\nif (!to) {\n  return source === 'callback'\n    ? record('zella_record_callback_attempt', { p_callback_id: id, p_outcome: 'invalid_number', p_notes: 'no_valid_phone' })\n    : record('zella_complete_followup_task', { p_task_id: id, p_outcome: 'failed', p_notes: 'no_valid_phone' });\n}\nif (!c.live) return record('zella_release_call', { p_source: source, p_id: id, p_reason: 'dry_run', p_defer_minutes: 720 });\n\nconst tz = (c.business && c.business.timezone) || 'America/New_York';\nconst appt = c.appointment && c.appointment.start_time ? new Date(c.appointment.start_time) : null;\nconst when = appt && !isNaN(appt.getTime())\n  ? appt.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: tz }) + ' at ' + appt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: tz })\n  : '';\nconst first = String((c.customer && c.customer.first_name) || '').trim();\nconst last = String((c.customer && c.customer.last_name) || '').trim();\n\nreturn {\n  json: {\n    source, id, record: null,\n    call: {\n      assistantId: c.assistant_id,\n      phoneNumberId: c.phone_number_id,\n      customer: { number: to, name: (first + ' ' + last).trim() || undefined },\n      assistantOverrides: {\n        variableValues: {\n          business_name: (c.business && c.business.name) || '',\n          first_name: first,\n          call_reason: String(c.kind || c.reason || ''),\n          appointment_title: String((c.appointment && c.appointment.title) || ''),\n          appointment_time: when,\n        },\n      },\n      metadata: { zella_source: source, zella_id: id, business_id: c.business && c.business.id },\n    },\n  },\n};\n"
+      },
+      "id": "ae2f98a0-99fe-4855-8311-26233e9c1364",
+      "name": "Plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "b8262ca1-9727-4d71-857a-834e41a8168b",
+              "leftValue": "={{ !!$json.call }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "8a857d59-56e6-476f-8f8b-f4d6db33fea6",
+      "name": "Place call",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        720,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.vapi.ai/call",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.call) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "632fc72d-8679-4e96-8cd3-02807b5109c4",
+      "name": "Start Vapi call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Outbound Calls: what Vapi answered when asked to place the call.\n// Accepted -> remember the provider's call id (the result arrives later from Vapi's end-of-call report).\n// Refused or unreachable -> count it as a failed attempt so the normal retry rules apply.\nconst plan = $('Plan').item.json;\nconst r = $json;\nconst status = Number(r.statusCode);\nconst body = r.body && typeof r.body === 'object' ? r.body : {};\nconst note = ('vapi_' + (isNaN(status) ? 'error' : status)).slice(0, 60);\n\nif (status >= 200 && status < 300 && typeof body.id === 'string' && body.id) {\n  return { json: { ...plan, record: { rpc: 'zella_mark_call_placed', body: { p_source: plan.source, p_id: plan.id, p_provider_call_id: body.id } } } };\n}\nreturn {\n  json: {\n    ...plan,\n    record: plan.source === 'callback'\n      ? { rpc: 'zella_record_callback_attempt', body: { p_callback_id: plan.id, p_outcome: 'failed_connection', p_error: note } }\n      : { rpc: 'zella_complete_followup_task', body: { p_task_id: plan.id, p_outcome: 'failed', p_notes: note } },\n  },\n};\n"
+      },
+      "id": "351dd5c8-6763-4802-8b8a-ee579260e4e3",
+      "name": "After call",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/' + $json.record.rpc }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.record.body) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "63316be9-9b76-45ef-84ea-da1e836b8ca2",
+      "name": "Record call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1440,
+        200
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Run now": {
+      "main": [
+        [
+          {
+            "node": "Claim callback calls",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Claim follow-up calls",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim callback calls": {
+      "main": [
+        [
+          {
+            "node": "Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim follow-up calls": {
+      "main": [
+        [
+          {
+            "node": "Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan": {
+      "main": [
+        [
+          {
+            "node": "Place call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Place call": {
+      "main": [
+        [
+          {
+            "node": "Start Vapi call",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start Vapi call": {
+      "main": [
+        [
+          {
+            "node": "After call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "After call": {
+      "main": [
+        [
+          {
+            "node": "Record call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "executionTimeout": 300
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

@@ -1,0 +1,580 @@
+{
+  "name": "Zella - SMS Sender",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "zella/run/sms-sender",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "2af00e23-c480-4a77-8fdd-da60673b2836",
+      "name": "Run now",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "webhookId": "e5f461a0-cd82-4a74-8a18-2ee27aa34f9e",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Zella gateway secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_claim_reminders",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_limit: 20 }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "4057c29d-9dcf-471e-81a9-a244fa79adb8",
+      "name": "Claim reminders",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        200
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - SMS Sender: turn one claimed reminder into a \"prepare this text\" request.\n// Only texts are handled here. Other channels are skipped with a visible reason, never dropped silently.\nconst r = $json;\nconst skip = (reason) => ({ json: { reminder_id: r.reminder_id, finish: { rpc: 'zella_skip_reminder', body: { p_reminder_id: r.reminder_id, p_reason: reason } } } });\n\nconst templates = { reminder: 'appointment_reminder', confirmation_request: 'appointment_reminder', confirmation: 'appointment_confirmation' };\nconst key = templates[r.kind];\nif (r.channel !== 'sms') return skip('channel_not_supported_yet:' + r.channel);\nif (!key) return skip('unknown_reminder_kind:' + r.kind);\n\nconst tz = (r.business && r.business.timezone) || 'America/New_York';\nconst start = new Date(r.appointment && r.appointment.start_time);\nif (isNaN(start.getTime())) return skip('invalid_appointment_time');\nconst date = start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: tz });\nconst time = start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: tz });\nconst label = (r.appointment.title || 'appointment').toString().trim().slice(0, 80) || 'appointment';\n\nreturn {\n  json: {\n    reminder_id: r.reminder_id,\n    business_id: r.business.id,\n    customer_id: r.customer.id,\n    template_key: key,\n    prepare: {\n      p_business_id: r.business.id,\n      p_customer_id: r.customer.id,\n      p_template_key: key,\n      p_vars: { appointment: label, date, time, reschedule_line: typeof r.reschedule_line === 'string' ? r.reschedule_line : '' },\n      p_purpose: 'transactional',\n    },\n    finish: null,\n  },\n};\n"
+      },
+      "id": "ae2f98a0-99fe-4855-8311-26233e9c1364",
+      "name": "Plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "9f727a5b-979b-4d20-836d-f88c71842bc4",
+              "leftValue": "={{ !$json.finish }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "faedd73d-d2f2-44a3-8403-f8d31e49c5bf",
+      "name": "Is a text",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        720,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_prepare_sms",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.prepare) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "c8046694-e1d9-4b07-8deb-9cf063b50dcf",
+      "name": "Prepare text",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        100
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - SMS Sender: read the answer from \"prepare\" and decide what happens to this reminder.\n// Either it goes on to be logged (and maybe sent), or it is finished here: skipped with a reason, or failed.\nconst plan = $('Plan').item.json;\nconst status = Number($json.statusCode);\nconst b = $json.body && typeof $json.body === 'object' ? $json.body : {};\nconst finishSkip = (reason) => ({ json: { reminder_id: plan.reminder_id, finish: { rpc: 'zella_skip_reminder', body: { p_reminder_id: plan.reminder_id, p_reason: reason } } } });\nconst finishFail = (reason) => ({ json: { reminder_id: plan.reminder_id, finish: { rpc: 'zella_complete_reminder', body: { p_reminder_id: plan.reminder_id, p_ok: false, p_error: reason } } } });\n\nif (!(status >= 200 && status < 300)) return finishFail('The database call zella_prepare_sms returned ' + status + '.');\nif (b.allowed !== true) return finishSkip(String(b.reason || 'not_allowed').slice(0, 60));\nif (b.live === true && !b.from) return finishFail('sender_number_not_set');\n\nreturn {\n  json: {\n    reminder_id: plan.reminder_id,\n    live: b.live === true,\n    from: b.from || null,\n    to: b.to,\n    text: b.body,\n    finish: null,\n    log: {\n      p_business_id: plan.business_id,\n      p_customer_id: plan.customer_id,\n      p_to: b.to,\n      p_from: b.from || '',\n      p_body: b.body,\n      p_dedupe_key: 'reminder:' + plan.reminder_id,\n      p_status: b.live === true ? 'queued' : 'dry_run',\n      p_meta: { reminder_id: plan.reminder_id, template_id: b.template_id, template_version: b.template_version, dry_run: b.live !== true },\n    },\n  },\n};\n"
+      },
+      "id": "a26b9b74-779f-41b0-8b15-7fe84ca0f28e",
+      "name": "Decide",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "3901f87d-52bc-4f1c-873d-7953d82cff89",
+              "leftValue": "={{ !$json.finish }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "65dc3e27-968b-4a09-8727-9ae951c2fff1",
+      "name": "Needs sending",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_log_outbound_sms",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.log) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "6fda8955-183b-4ca5-89e2-65aca9827c55",
+      "name": "Log message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1680,
+        0
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - SMS Sender: after the message is logged, decide whether to really send.\n// A repeat of the same reminder is never sent twice. In dry-run nothing is sent.\nconst d = $('Decide').item.json;\nconst status = Number($json.statusCode);\nconst b = $json.body && typeof $json.body === 'object' ? $json.body : {};\nconst done = (rpc, body) => ({ json: { reminder_id: d.reminder_id, finish: { rpc, body } } });\n\nif (!(status >= 200 && status < 300)) {\n  return done('zella_complete_reminder', { p_reminder_id: d.reminder_id, p_ok: false, p_error: 'The database call zella_log_outbound_sms returned ' + status + '.' });\n}\nif (b.duplicate === true) {\n  if (b.status === 'sent' || b.status === 'delivered') return done('zella_complete_reminder', { p_reminder_id: d.reminder_id, p_ok: true });\n  return done('zella_skip_reminder', { p_reminder_id: d.reminder_id, p_reason: 'duplicate_suppressed' });\n}\nif (d.live !== true) return done('zella_skip_reminder', { p_reminder_id: d.reminder_id, p_reason: 'dry_run: no text was sent' });\n\nreturn { json: { reminder_id: d.reminder_id, message_id: b.id, finish: null, telnyx: { from: d.from, to: d.to, text: d.text, type: 'SMS' } } };\n"
+      },
+      "id": "3389b79f-e885-4824-82a9-7506f5e23600",
+      "name": "After log",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "9a6fb444-ad46-4d77-8bdf-59a4c941492a",
+              "leftValue": "={{ !$json.finish }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "8091680e-13a6-4652-8624-110992f2ce96",
+      "name": "Send for real",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2160,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.telnyx.com/v2/messages",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.telnyx) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "b362e786-2557-4eb6-8f5e-a08d993c65f1",
+      "name": "Send via Telnyx",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2400,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - SMS Sender: turn Telnyx's answer into the message update and the reminder result.\n// Telnyx's response text is never stored, only its status and its error code.\nconst prev = $('After log').item.json;\nconst status = Number($json.statusCode);\nconst b = $json.body && typeof $json.body === 'object' ? $json.body : {};\nconst externalId = b.data && b.data.id ? String(b.data.id) : null;\nconst ok = status >= 200 && status < 300 && !!externalId;\nconst code = Array.isArray(b.errors) && b.errors[0] && b.errors[0].code ? ' (code ' + String(b.errors[0].code).slice(0, 20) + ')' : '';\nconst error = ok ? null : 'Telnyx returned ' + status + code + '.';\n\nreturn {\n  json: {\n    reminder_id: prev.reminder_id,\n    update: { p_id: prev.message_id, p_status: ok ? 'sent' : 'failed', p_external_id: externalId, p_error: error },\n    finish: { rpc: 'zella_complete_reminder', body: ok ? { p_reminder_id: prev.reminder_id, p_ok: true } : { p_reminder_id: prev.reminder_id, p_ok: false, p_error: error } },\n  },\n};\n"
+      },
+      "id": "b7016995-6b2a-4faf-8e0b-8124952d1931",
+      "name": "After send",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_update_outbound_sms",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.update) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "3bbdf561-2a4b-4aa5-8e17-45c3cba4a0e5",
+      "name": "Update message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2880,
+        -100
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - SMS Sender: bring back the reminder result after the message update ran.\nreturn { json: $('After send').item.json };\n"
+      },
+      "id": "a8ec1f5e-ecfe-475f-87b6-6c4f75f38e23",
+      "name": "Restore result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3120,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/' + $json.finish.rpc }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.finish.body) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "36dc1ac2-015b-4179-8d14-91fdd8b7d45a",
+      "name": "Finish reminder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3360,
+        200
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Run now": {
+      "main": [
+        [
+          {
+            "node": "Claim reminders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim reminders": {
+      "main": [
+        [
+          {
+            "node": "Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan": {
+      "main": [
+        [
+          {
+            "node": "Is a text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is a text": {
+      "main": [
+        [
+          {
+            "node": "Prepare text",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Finish reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare text": {
+      "main": [
+        [
+          {
+            "node": "Decide",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decide": {
+      "main": [
+        [
+          {
+            "node": "Needs sending",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs sending": {
+      "main": [
+        [
+          {
+            "node": "Log message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Finish reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log message": {
+      "main": [
+        [
+          {
+            "node": "After log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "After log": {
+      "main": [
+        [
+          {
+            "node": "Send for real",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send for real": {
+      "main": [
+        [
+          {
+            "node": "Send via Telnyx",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Finish reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send via Telnyx": {
+      "main": [
+        [
+          {
+            "node": "After send",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "After send": {
+      "main": [
+        [
+          {
+            "node": "Update message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update message": {
+      "main": [
+        [
+          {
+            "node": "Restore result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore result": {
+      "main": [
+        [
+          {
+            "node": "Finish reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "executionTimeout": 300
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

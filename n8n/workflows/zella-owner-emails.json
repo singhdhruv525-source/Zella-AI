@@ -1,0 +1,458 @@
+{
+  "name": "Zella - Owner Emails",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "zella/run/owner-emails",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "2af00e23-c480-4a77-8fdd-da60673b2836",
+      "name": "Run now",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "webhookId": "6a3d923b-693d-437f-89f0-137d81c06c3d",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Zella gateway secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_claim_owner_emails",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_limit: 20 }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "0f3cc52a-552d-42a0-898c-313c00e494ba",
+      "name": "Claim owner emails",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        200
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Owner Emails: turn one claimed owner notification (one person) into a logged email.\n// The database already checked who should get it and wrote the subject and body.\nconst r = $json;\nconst finish = (result, note) => ({ json: { notification_id: r.notification_id, finish: { rpc: 'zella_finish_owner_email', body: { p_id: r.notification_id, p_result: result, p_note: note } } } });\n\nif (!r.notification_id || !r.business_id || !r.to || !r.subject || !r.body_text) return finish('failed', 'incomplete_notification');\nif (r.live === true && !r.from) return finish('failed', 'sender_address_not_set');\n\nreturn {\n  json: {\n    notification_id: r.notification_id,\n    live: r.live === true,\n    from: r.from || null,\n    from_name: r.from_name || 'Zella',\n    to: r.to,\n    subject: r.subject,\n    text: r.body_text,\n    html: r.body_html,\n    finish: null,\n    log: {\n      p_business_id: r.business_id,\n      p_customer_id: null,\n      p_to: r.to,\n      p_from: r.from || '',\n      p_subject: r.subject,\n      p_body_text: r.body_text,\n      p_body_html: r.body_html,\n      p_dedupe_key: 'notif:' + r.notification_id + ':' + r.to,\n      p_status: r.live === true ? 'queued' : 'dry_run',\n      p_meta: { notification_id: r.notification_id, kind: r.kind || null, to_owner: true, dry_run: r.live !== true },\n    },\n  },\n};\n"
+      },
+      "id": "ae2f98a0-99fe-4855-8311-26233e9c1364",
+      "name": "Plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "3901f87d-52bc-4f1c-873d-7953d82cff89",
+              "leftValue": "={{ !$json.finish }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "65dc3e27-968b-4a09-8727-9ae951c2fff1",
+      "name": "Needs sending",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        720,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_log_outbound_email",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.log) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "6fda8955-183b-4ca5-89e2-65aca9827c55",
+      "name": "Log message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        100
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Owner Emails: after the email is logged, decide whether to really send.\n// A repeat of the same notification and address is never sent twice. In dry-run nothing is sent.\nconst d = $('Plan').item.json;\nconst status = Number($json.statusCode);\nconst b = $json.body && typeof $json.body === 'object' ? $json.body : {};\nconst done = (result, note) => ({ json: { notification_id: d.notification_id, finish: { rpc: 'zella_finish_owner_email', body: { p_id: d.notification_id, p_result: result, p_note: note } } } });\n\nif (!(status >= 200 && status < 300)) return done('failed', 'The database call zella_log_outbound_email returned ' + status + '.');\nif (b.duplicate === true) {\n  if (b.status === 'sent' || b.status === 'delivered') return done('sent', null);\n  return done('skipped', 'duplicate_suppressed');\n}\nif (d.live !== true) return done('skipped', 'dry_run: no email was sent');\n\nconst name = String(d.from_name || '').replace(/[\\r\\n\"<>]+/g, ' ').trim();\nconst resend = { from: name ? name + ' <' + d.from + '>' : d.from, to: [d.to], subject: d.subject, text: d.text, html: d.html };\nreturn { json: { notification_id: d.notification_id, message_id: b.id, finish: null, resend } };\n"
+      },
+      "id": "3389b79f-e885-4824-82a9-7506f5e23600",
+      "name": "After log",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "9a6fb444-ad46-4d77-8bdf-59a4c941492a",
+              "leftValue": "={{ !$json.finish }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "8091680e-13a6-4652-8624-110992f2ce96",
+      "name": "Send for real",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.resend.com/emails",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.resend) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "3dd92082-ffdb-42f3-82d9-3031edcce35b",
+      "name": "Send via Resend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1680,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Owner Emails: turn the provider's answer into the message update and the notification result.\n// The provider's response text is never stored, only its status and a short error name.\nconst prev = $('After log').item.json;\nconst status = Number($json.statusCode);\nconst b = $json.body && typeof $json.body === 'object' ? $json.body : {};\nconst externalId = b.id ? String(b.id) : null;\nconst ok = status >= 200 && status < 300 && !!externalId;\nconst name = typeof b.name === 'string' && /^[a-z_]{1,40}$/.test(b.name) ? ' (' + b.name + ')' : '';\nconst error = ok ? null : 'The email provider returned ' + status + name + '.';\n\nreturn {\n  json: {\n    notification_id: prev.notification_id,\n    update: { p_id: prev.message_id, p_status: ok ? 'sent' : 'failed', p_external_id: externalId, p_error: error },\n    finish: { rpc: 'zella_finish_owner_email', body: { p_id: prev.notification_id, p_result: ok ? 'sent' : 'failed', p_note: error } },\n  },\n};\n"
+      },
+      "id": "b7016995-6b2a-4faf-8e0b-8124952d1931",
+      "name": "After send",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_update_outbound_email",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.update) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "3bbdf561-2a4b-4aa5-8e17-45c3cba4a0e5",
+      "name": "Update message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2160,
+        0
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - SMS Sender: bring back the reminder result after the message update ran.\nreturn { json: $('After send').item.json };\n"
+      },
+      "id": "a8ec1f5e-ecfe-475f-87b6-6c4f75f38e23",
+      "name": "Restore result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/' + $json.finish.rpc }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.finish.body) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "68856b79-e106-4f3a-8980-8096e3898158",
+      "name": "Finish notification",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2640,
+        200
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Run now": {
+      "main": [
+        [
+          {
+            "node": "Claim owner emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim owner emails": {
+      "main": [
+        [
+          {
+            "node": "Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan": {
+      "main": [
+        [
+          {
+            "node": "Needs sending",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs sending": {
+      "main": [
+        [
+          {
+            "node": "Log message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Finish notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log message": {
+      "main": [
+        [
+          {
+            "node": "After log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "After log": {
+      "main": [
+        [
+          {
+            "node": "Send for real",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send for real": {
+      "main": [
+        [
+          {
+            "node": "Send via Resend",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Finish notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send via Resend": {
+      "main": [
+        [
+          {
+            "node": "After send",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "After send": {
+      "main": [
+        [
+          {
+            "node": "Update message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update message": {
+      "main": [
+        [
+          {
+            "node": "Restore result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore result": {
+      "main": [
+        [
+          {
+            "node": "Finish notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "executionTimeout": 300
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

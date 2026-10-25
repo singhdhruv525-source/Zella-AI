@@ -252,7 +252,7 @@ export function InboxPage({ workspace, refreshKey, onNotice, onOpenPerson }) {
   const roster = useRoster(workspace);
   const { data, error, loading, reload } = useLoad(async () => {
     const [calls, convos, ints] = await Promise.all([
-      supabase.from("calls").select("*").eq("business_id", workspace.id).order("created_at", { ascending: false }).limit(150),
+      supabase.from("calls_view").select("*").eq("business_id", workspace.id).order("created_at", { ascending: false }).limit(150),
       supabase.from("conversations").select("*").eq("business_id", workspace.id).order("last_message_at", { ascending: false, nullsFirst: false }).limit(200),
       supabase.from("integrations").select("provider, status").eq("business_id", workspace.id),
     ]);

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  checkEmail, checkPhone, countryByIso, countryList, defaultCountryFromBrowser, flag,
+  checkEmail, checkPhone, checkUrl, countryByIso, countryList, defaultCountryFromBrowser, flag,
   passwordProblems, passwordRules, PASSWORD_MAX, splitPhone, timeZoneGroups,
 } from "./formValidation";
 import "./formFields.css";
@@ -104,6 +104,32 @@ export function EmailField({ value, onChange, required = false, disabled = false
         type="email"
         inputMode="email"
         autoComplete={autoComplete}
+        autoCapitalize="none"
+        spellCheck={false}
+        value={value}
+        disabled={disabled}
+        placeholder={placeholder}
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? errId : undefined}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={() => { setTouched(true); if (value !== value.trim()) onChange(value.trim()); }}
+      />
+      <FieldError id={errId} text={error} />
+    </div>
+  );
+}
+
+export function UrlField({ value, onChange, required = false, disabled = false, showErrors = false, placeholder = "https://", id }) {
+  const errId = useId("ff-url-err");
+  const [touched, setTouched] = useState(false);
+  const error = touched || showErrors ? checkUrl(value, { required }) : "";
+  return (
+    <div className={`ff ${error ? "has-error" : ""}`}>
+      <input
+        id={id}
+        type="url"
+        inputMode="url"
+        autoComplete="url"
         autoCapitalize="none"
         spellCheck={false}
         value={value}

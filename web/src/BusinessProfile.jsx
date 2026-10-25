@@ -161,7 +161,7 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
   const { data, error: loadError, loading, reload } = useLoad(async () => {
     const [person, calls, appts, convos] = await Promise.all([
       supabase.from("customers").select("*").eq("id", personId).limit(1),
-      supabase.from("calls").select("*").eq("customer_id", personId).order("created_at", { ascending: false }).limit(100),
+      supabase.from("calls_view").select("*").eq("customer_id", personId).order("created_at", { ascending: false }).limit(100),
       supabase.from("appointments").select("*").eq("customer_id", personId).order("start_time", { ascending: false }).limit(100),
       supabase.from("conversations").select("*").eq("customer_id", personId).order("last_message_at", { ascending: false, nullsFirst: false }).limit(50),
     ]);

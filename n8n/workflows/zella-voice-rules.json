@@ -1,0 +1,286 @@
+{
+  "name": "Zella - Voice Rules",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "zella/vapi-voice",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "bc9cfb00-2878-4f99-8fca-2260125df445",
+      "name": "Vapi voice tool",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "webhookId": "b2f74336-6357-4a90-8849-189649777493",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Zella gateway secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Voice Rules: Vapi calls the tool \"call_rules\" DURING a call. One tool, four actions:\n// rules (open or closed?), message (take a message), emergency, transfer (reach a person).\n// Output: { reply, record }. record = the one database call that decides everything (zella_ai_voice), or null.\n// Only known fields are passed on; the caller's words are data and are never run as instructions.\nconst body = $json.body && typeof $json.body === 'object' ? $json.body : {};\nconst m = body.message && typeof body.message === 'object' ? body.message : {};\nconst list = Array.isArray(m.toolCallList) ? m.toolCallList : Array.isArray(m.toolCalls) ? m.toolCalls : [];\nconst nameOf = (t) => (t && (t.name || (t.function && t.function.name))) || '';\nconst ACTIONS = ['rules', 'message', 'emergency', 'transfer'];\nconst tc = list.find((t) => t && typeof t.id === 'string' && nameOf(t) === 'call_rules');\nif (m.type !== 'tool-calls' || !tc) return { json: { reply: { results: [] }, record: null } };\n\nlet args = tc.arguments !== undefined ? tc.arguments : tc.function && tc.function.arguments;\nif (typeof args === 'string') { try { args = JSON.parse(args); } catch (e) { args = {}; } }\nargs = args && typeof args === 'object' ? args : {};\nconst action = typeof args.action === 'string' ? args.action.trim().toLowerCase() : 'rules';\nif (!ACTIONS.includes(action)) return { json: { reply: { results: [{ toolCallId: tc.id, result: JSON.stringify({ status: 'error', instruction: 'Use action rules, message, emergency or transfer.' }) }] }, record: null } };\n\nconst allowed = ['message', 'name', 'phone', 'summary', 'reason'];\nconst clean = {};\nfor (const k of allowed) {\n  const v = args[k];\n  if (typeof v === 'string') clean[k] = v.replace(/\\s+/g, ' ').trim().slice(0, 1500);\n}\n\nconst call = m.call && typeof m.call === 'object' ? m.call : {};\nconst meta = call.metadata && typeof call.metadata === 'object' ? call.metadata : {};\nconst vars = call.assistantOverrides && call.assistantOverrides.variableValues && typeof call.assistantOverrides.variableValues === 'object' ? call.assistantOverrides.variableValues : {};\nconst uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;\nconst bid = [meta.business_id, vars.business_id].find((v) => typeof v === 'string' && uuid.test(v)) || null;\n\n// Which number was called? Used to find the business (a registered number always wins over call settings).\nconst pn = call.phoneNumber && typeof call.phoneNumber === 'object' ? call.phoneNumber : m.phoneNumber && typeof m.phoneNumber === 'object' ? m.phoneNumber : {};\nconst calledNumber = typeof pn.number === 'string' && /^\\+?[0-9() .-]{7,20}$/.test(pn.number) ? pn.number : null;\nconst vapiNumberId = typeof call.phoneNumberId === 'string' ? call.phoneNumberId.slice(0, 100) : typeof pn.id === 'string' ? pn.id.slice(0, 100) : null;\nconst lookup = { p_called_number: calledNumber, p_vapi_phone_number_id: vapiNumberId, p_fallback: bid };\n\n// The caller's own number comes from the phone network, never from what they say.\nconst cn = call.customer && typeof call.customer === 'object' ? String(call.customer.number || '') : '';\nconst callerNumber = /^\\+?[0-9]{7,15}$/.test(cn) ? cn : null;\nif (callerNumber) clean.caller_number = callerNumber;\nif (callerNumber && !clean.phone) clean.phone = callerNumber;\n\nreturn {\n  json: {\n    tool_call_id: tc.id,\n    reply: null,\n    lookup,\n    rpc: 'zella_ai_voice',\n    record: { p_provider_call_id: typeof call.id === 'string' ? call.id.slice(0, 200) : null, p_business_id: bid, p_action: action, p_args: clean },\n  },\n};\n"
+      },
+      "id": "ae2f98a0-99fe-4855-8311-26233e9c1364",
+      "name": "Plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "5db1459e-ebf7-41bf-85ba-f31c9aa6a366",
+              "leftValue": "={{ !!$json.record }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "14970fa1-0fd3-4869-810b-8d7d43f8ef0e",
+      "name": "Is a voice tool",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        480,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_business_for_number",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.lookup) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "c973da8c-1d60-4ce4-849f-3728b62085c4",
+      "name": "Find business",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        100
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Vapi tools: put the business found from the called number into the database call.\n// The lookup answers with the business id (or null). A number that is not registered keeps the id from the call\n// settings only if the database accepted it as a fallback; with no business the database call refuses to act.\nconst plan = $('Plan').item.json;\nconst b = $json.body;\nconst found = typeof b === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(b) ? b : null;\nreturn { json: { ...plan, record: { ...plan.record, p_business_id: found } } };\n"
+      },
+      "id": "7f18e741-b5ba-4aff-8802-12c6f1fe9f2d",
+      "name": "Use business",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/' + $json.rpc }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.record) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "be486fc5-23b9-412e-8dc7-8d09397fbdfd",
+      "name": "Run voice rule",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        100
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Voice Rules: the answer sent back to Vapi. Short, no database details.\nconst plan = $('Plan').item.json;\nif (!plan.record) return { json: plan.reply };\nconst r = $json;\nconst status = Number(r.statusCode);\nconst b = r.body && typeof r.body === 'object' ? r.body : null;\nlet result;\nif (status >= 200 && status < 300 && b && typeof b.say === 'string') {\n  const out = { status: b.status, instruction: b.say };\n  if (typeof b.open === 'boolean') out.open = b.open;\n  if (typeof b.can_transfer === 'boolean') out.can_transfer = b.can_transfer;\n  if (b.status === 'transfer' && typeof b.transfer_number === 'string' && /^\\+?[0-9]{7,15}$/.test(b.transfer_number)) out.transfer_number = b.transfer_number;\n  if (Array.isArray(b.emergency_keywords)) out.emergency_words = b.emergency_keywords.slice(0, 20);\n  result = JSON.stringify(out);\n} else {\n  result = JSON.stringify({ status: 'error', instruction: 'This could not be done right now. Tell the caller the team will call them back. Do not promise anything else.' });\n}\nreturn { json: { results: [{ toolCallId: plan.tool_call_id, result }] } };\n"
+      },
+      "id": "bd492bcf-1208-4f71-88a9-a990a5615d47",
+      "name": "Build reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "6c2bb735-a46a-4ff3-87fe-2e638d581295",
+      "name": "Reply",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1680,
+        200
+      ]
+    }
+  ],
+  "connections": {
+    "Vapi voice tool": {
+      "main": [
+        [
+          {
+            "node": "Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan": {
+      "main": [
+        [
+          {
+            "node": "Is a voice tool",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is a voice tool": {
+      "main": [
+        [
+          {
+            "node": "Find business",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find business": {
+      "main": [
+        [
+          {
+            "node": "Use business",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use business": {
+      "main": [
+        [
+          {
+            "node": "Run voice rule",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run voice rule": {
+      "main": [
+        [
+          {
+            "node": "Build reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build reply": {
+      "main": [
+        [
+          {
+            "node": "Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "executionTimeout": 300
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

@@ -1,0 +1,240 @@
+{
+  "name": "Zella - Event Gateway",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "zella/events",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "3ae28ca3-a92d-471d-8280-f98713cc54f2",
+      "name": "Receive event",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "webhookId": "9de704c6-17a4-429c-88c2-c3831b223b49",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Zella gateway secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Event Gateway: check the incoming request before anything is stored.\n// Runs once for each item. Input: the webhook item ({ body }).\nconst EVENT_TYPES = [\"lead.created\",\"lead.updated\",\"lead.assigned\",\"lead.converted\",\"lead.lost\",\"call.incoming\",\"call.answered\",\"call.missed\",\"call.completed\",\"call.transfer_failed\",\"callback.created\",\"callback.due\",\"callback.completed\",\"callback.failed\",\"appointment.requested\",\"appointment.booked\",\"appointment.confirmed\",\"appointment.rescheduled\",\"appointment.cancelled\",\"appointment.completed\",\"appointment.no_show\",\"message.received\",\"message.sent\",\"message.delivered\",\"message.delivery_failed\",\"customer.created\",\"customer.updated\",\"customer.opted_out\",\"website.lead_received\",\"website.content_changed\",\"knowledge.review_required\",\"knowledge.approved\",\"meta.lead_received\",\"integration.disconnected\",\"integration.reconnected\",\"task.overdue\",\"subscription.payment_failed\",\"subscription.cancellation_scheduled\",\"automation.failed\"];\nconst SOURCES = ['database', 'vapi', 'telnyx', 'website', 'meta', 'email', 'calendar', 'staff', 'n8n', 'billing', 'system'];\nconst UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;\n\nconst b = $json.body;\nconst errors = [];\nconst isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);\n\nif (!isObject(b)) {\n  errors.push('The request body must be a JSON object.');\n} else {\n  if (typeof b.business_id !== 'string' || !UUID.test(b.business_id)) errors.push('business_id must be a valid UUID.');\n  if (!EVENT_TYPES.includes(b.event_type)) errors.push('event_type is not a recognised Zella event.');\n  if (!SOURCES.includes(b.source)) errors.push('source is not recognised.');\n  if (typeof b.idempotency_key !== 'string' || b.idempotency_key.length < 8 || b.idempotency_key.length > 200) {\n    errors.push('idempotency_key must be 8 to 200 characters.');\n  }\n  if (b.payload !== undefined && !isObject(b.payload)) errors.push('payload must be an object.');\n  if (isObject(b.payload) && JSON.stringify(b.payload).length > 60000) errors.push('payload is too large.');\n  if (b.provider_event_id !== undefined && (typeof b.provider_event_id !== 'string' || b.provider_event_id.length > 200)) {\n    errors.push('provider_event_id must be a string up to 200 characters.');\n  }\n  for (const key of ['correlation_id', 'causation_id']) {\n    if (b[key] !== undefined && b[key] !== null && (typeof b[key] !== 'string' || !UUID.test(b[key]))) errors.push(key + ' must be a valid UUID.');\n  }\n}\n\nconst valid = errors.length === 0;\nreturn {\n  json: {\n    valid,\n    errors,\n    rpc: valid\n      ? {\n          p_business_id: b.business_id,\n          p_event_type: b.event_type,\n          p_source: b.source,\n          p_idempotency_key: b.idempotency_key,\n          p_payload: b.payload ?? {},\n          p_provider_event_id: b.provider_event_id ?? null,\n          p_correlation_id: b.correlation_id ?? null,\n          p_causation_id: b.causation_id ?? null,\n        }\n      : null,\n  },\n};\n"
+      },
+      "id": "d8af92fd-9b67-43d7-89cc-386ff8c82b6c",
+      "name": "Check event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "92a4cd03-5370-46c3-8ee4-79e47e3885cf",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "bc1040bf-a905-4ff8-8fb1-c2df66ae268c",
+      "name": "Is valid",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        480,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_ingest_event",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.rpc) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "5818c2d3-7259-45c2-8190-89c076e201fd",
+      "name": "Store event",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        100
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Event Gateway: turn the database answer into a short, safe reply.\n// Input: the full HTTP response from zella_ingest_event ({ statusCode, body }).\nconst r = $json;\nif (r.statusCode >= 200 && r.statusCode < 300 && r.body && typeof r.body === 'object') {\n  return { json: { status: 200, body: { ok: true, id: r.body.id, duplicate: r.body.duplicate === true } } };\n}\nconst text = JSON.stringify(r.body ?? '');\nif (text.includes('INVALID_BUSINESS')) return { json: { status: 422, body: { ok: false, error: 'unknown_business' } } };\nif (text.includes('BUSINESS_NOT_AVAILABLE')) return { json: { status: 422, body: { ok: false, error: 'business_not_available' } } };\nif (r.statusCode === 400 || r.statusCode === 409 || r.statusCode === 422) return { json: { status: 422, body: { ok: false, error: 'event_rejected' } } };\n// Never pass database details back to the caller.\nreturn { json: { status: 502, body: { ok: false, error: 'storage_failed' } } };\n"
+      },
+      "id": "bd492bcf-1208-4f71-88a9-a990a5615d47",
+      "name": "Build reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Event Gateway: answer a request that failed the checks. Nothing was stored.\nreturn { json: { status: 400, body: { ok: false, error: 'invalid_event', details: $json.errors } } };\n"
+      },
+      "id": "7161760d-935d-42e7-8b11-4e1a58d9a8c3",
+      "name": "Build bad request reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json.body }}",
+        "options": {
+          "responseCode": "={{ $json.status }}"
+        }
+      },
+      "id": "6c2bb735-a46a-4ff3-87fe-2e638d581295",
+      "name": "Reply",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1200,
+        200
+      ]
+    }
+  ],
+  "connections": {
+    "Receive event": {
+      "main": [
+        [
+          {
+            "node": "Check event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check event": {
+      "main": [
+        [
+          {
+            "node": "Is valid",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is valid": {
+      "main": [
+        [
+          {
+            "node": "Store event",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build bad request reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store event": {
+      "main": [
+        [
+          {
+            "node": "Build reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build reply": {
+      "main": [
+        [
+          {
+            "node": "Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build bad request reply": {
+      "main": [
+        [
+          {
+            "node": "Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "executionTimeout": 300
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

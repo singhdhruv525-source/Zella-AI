@@ -1,0 +1,593 @@
+{
+  "name": "Zella - Meta Health",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "zella/run/meta-health",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "2af00e23-c480-4a77-8fdd-da60673b2836",
+      "name": "Run now",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "webhookId": "ca634cb0-3141-4c59-85db-5699c3b0d5f5",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Zella gateway secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_meta_claim_checks",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_limit: 10 }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "ed7e79a8-bdb9-4c30-8df6-a0d9dd2d32f7",
+      "name": "Claim checks",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        200
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Meta Health: one connection due for a check.\nconst pageId = typeof $json.page_id === 'string' && /^[0-9]{5,30}$/.test($json.page_id) ? $json.page_id : null;\nif (!pageId) return { json: { skip: true } };\nconst waba = typeof $json.waba_id === 'string' && /^[0-9]{5,30}$/.test($json.waba_id) ? $json.waba_id : null;\nreturn { json: { skip: false, page_id: pageId, waba_id: waba } };\n"
+      },
+      "id": "ae2f98a0-99fe-4855-8311-26233e9c1364",
+      "name": "Plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "045ab424-b6a8-4d5d-8b7f-c8cc7f7b30d2",
+              "leftValue": "={{ !$json.skip }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "19755283-f599-4101-85e8-8d2cba5fe8d0",
+      "name": "Is a check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        720,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_meta_token",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_page_id: $json.page_id }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "66eb5c88-306c-453a-84a9-bda435108b6e",
+      "name": "Get token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        100
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Meta Health: ask Meta who the token belongs to (a cheap call that fails if the token is dead) and which permissions it has.\nconst plan = $('Plan').item.json;\nconst t = $json.body;\nconst token = typeof t === 'string' && t.length >= 20 && t.length < 1000 ? t : null;\nif (!token) return { json: { ...plan, fail: { p_page_id: plan.page_id, p_ok: false, p_permissions: null, p_auth_failed: true, p_error: 'no_token' } } };\nreturn { json: { ...plan, fail: null, auth: 'Bearer ' + token, url: 'https://graph.facebook.com/v21.0/me?fields=id,name' } };\n"
+      },
+      "id": "a298f184-f485-4bc7-8f13-b457d0d29f95",
+      "name": "Build request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "c60b0189-1536-4ddd-8d43-ff86a2ba9fb2",
+              "leftValue": "={{ !$json.fail }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "4a034407-a6b5-41ab-8796-baa3d9b21496",
+      "name": "Can check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.url }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $json.auth }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "14caeff0-7376-4d20-87f1-d4836901eecc",
+      "name": "Check connection",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1680,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Meta Health: liveness result. A rejected token means the page must be reconnected; anything else is a temporary error.\nconst plan = $('Build request').item.json;\nif (plan.fail) return { json: { record: plan.fail, templates: false } };\nconst r = $json;\nconst status = Number(r.statusCode);\nconst b = r.body && typeof r.body === 'object' ? r.body : {};\nif (status >= 200 && status < 300) return { json: { record: { p_page_id: plan.page_id, p_ok: true, p_permissions: null, p_auth_failed: false, p_error: null }, templates: !!plan.waba_id } };\nconst code = b.error && typeof b.error === 'object' ? Number(b.error.code) : 0;\nconst auth = status === 401 || code === 190;\nreturn { json: { record: { p_page_id: plan.page_id, p_ok: false, p_permissions: null, p_auth_failed: auth, p_error: ('HTTP ' + (status || 'none') + (code ? ' code ' + code : '')).slice(0, 100) }, templates: false } };\n"
+      },
+      "id": "4c6d268d-614a-4f2c-88a7-3ba8dafbadc2",
+      "name": "Read result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_meta_record_check",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.record) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "3a5a9228-6146-4011-8e50-1b69971fcc44",
+      "name": "Record check",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2160,
+        200
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "c0c134cb-7f6e-4c3c-8a50-9b58079bdd4e",
+              "leftValue": "={{ $('Read result').item.json.templates }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "7850a426-8108-4cac-83f0-2401afac709b",
+      "name": "Has WhatsApp",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2400,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://graph.facebook.com/v21.0/' + $('Build request').item.json.waba_id + '/message_templates?fields=name,language,status,category,components&limit=100' }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $('Build request').item.json.auth }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "12e89cfa-f6d9-4d4c-8cf7-a7bdc9f19322",
+      "name": "Get templates",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2640,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Meta Health: WhatsApp message templates, reduced to name, language, category, status and the body text.\nconst plan = $('Build request').item.json;\nconst r = $json;\nconst b = r.body && typeof r.body === 'object' ? r.body : {};\nif (!(Number(r.statusCode) >= 200 && Number(r.statusCode) < 300) || !Array.isArray(b.data)) return { json: { record: null } };\nconst list = b.data.slice(0, 100).filter((t) => t && typeof t.name === 'string').map((t) => {\n  const body = Array.isArray(t.components) ? t.components.find((c) => c && c.type === 'BODY') : null;\n  return { name: t.name.slice(0, 100), language: typeof t.language === 'string' ? t.language.slice(0, 10) : 'en_US', category: typeof t.category === 'string' ? t.category.slice(0, 40) : null, status: typeof t.status === 'string' ? t.status.slice(0, 20) : 'unknown', body: body && typeof body.text === 'string' ? body.text.slice(0, 1000) : null };\n});\nreturn { json: { record: { p_page_id: plan.page_id, p_templates: list } } };\n"
+      },
+      "id": "b1afd845-d41a-4c4d-87cc-d0055d741a26",
+      "name": "Map templates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2880,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "9d16557f-5702-4e8a-88eb-10ba19530e30",
+              "leftValue": "={{ !!$json.record }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b4ab9392-6bd6-4ea3-8c08-f173e4ec507a",
+      "name": "Has templates",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3120,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_meta_record_templates",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.record) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "f6b35f24-0391-4730-8f80-72be17e64012",
+      "name": "Record templates",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3360,
+        100
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Run now": {
+      "main": [
+        [
+          {
+            "node": "Claim checks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim checks": {
+      "main": [
+        [
+          {
+            "node": "Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan": {
+      "main": [
+        [
+          {
+            "node": "Is a check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is a check": {
+      "main": [
+        [
+          {
+            "node": "Get token",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Get token": {
+      "main": [
+        [
+          {
+            "node": "Build request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build request": {
+      "main": [
+        [
+          {
+            "node": "Can check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Can check": {
+      "main": [
+        [
+          {
+            "node": "Check connection",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Read result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check connection": {
+      "main": [
+        [
+          {
+            "node": "Read result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read result": {
+      "main": [
+        [
+          {
+            "node": "Record check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record check": {
+      "main": [
+        [
+          {
+            "node": "Has WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Get templates",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Get templates": {
+      "main": [
+        [
+          {
+            "node": "Map templates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Map templates": {
+      "main": [
+        [
+          {
+            "node": "Has templates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has templates": {
+      "main": [
+        [
+          {
+            "node": "Record templates",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "executionTimeout": 300
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

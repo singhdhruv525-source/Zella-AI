@@ -14,7 +14,7 @@ import { checkEmail, validatePhone } from "./formValidation";
 // technicians... the words follow the industry), their weekly hours and
 // breaks, and who is away. Sign-in accounts are listed underneath.
 
-const COLORS = ["#2563EB", "#0284C7", "#15803D", "#D97706", "#DC2626", "#7C3AED", "#DB2777", "#0F766E"];
+const COLORS = ["#6F4E37", "#6B5B95", "#15803D", "#D97706", "#DC2626", "#7C3AED", "#DB2777", "#0F766E"];
 
 function StaffModal({ workspace, member, count, onClose, onSaved }) {
   const term = makeTerm(workspace);

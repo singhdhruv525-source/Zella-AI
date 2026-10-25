@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import "./OwnerPages.css";
 import { callOwnerFunction } from "./CreateBusinessWizard";
 import { Pill } from "./OwnerOverview";
+import AutomationOverview from "./AutomationOverview";
 import {
   actionLabel, businessState, formatDate, formatDateTime, timeAgo, formatDuration,
 } from "./ownerFormat";
@@ -649,22 +650,7 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup }) {
 
       {tab === "Automations" && (
         <Card title="Automations" description="Run by n8n. Paused automations start when the business goes live.">
-          {data.automations.length ? (
-            <div className="owner-table-wrap">
-              <table className="owner-table">
-                <thead><tr><th>Automation</th><th>Status</th><th>Settings</th></tr></thead>
-                <tbody>
-                  {data.automations.map((a) => (
-                    <tr key={a.trigger_type}>
-                      <td><strong className="op-strong">{a.name || a.trigger_type}</strong></td>
-                      <td><Pill tone={a.status === "active" ? "success" : a.status === "paused" ? "info" : "neutral"}>{a.status}</Pill></td>
-                      <td>{a.status === "disabled" ? "—" : describeSettings(a.trigger_config)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : <Empty>Automations step not completed yet.</Empty>}
+          <AutomationOverview rows={data.automations} industryName={data.industryName} appointmentWord={String(term("appointment")).toLowerCase()} describeSettings={describeSettings} />
           {enabledAutomations.length > 0 && <p className="op-muted op-gap-top">{enabledAutomations.length} turned on.</p>}
         </Card>
       )}

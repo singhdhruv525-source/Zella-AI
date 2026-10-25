@@ -14,7 +14,7 @@ function AuthCard({ eyebrow, title, description, children }) {
             <div className="ba-logo">Z</div>
             <div>
               <div className="ba-brand-name">Zella AI</div>
-              <div className="ba-brand-sub">Your business workspace</div>
+              <div className="ba-brand-sub">Hands full. Phone handled.</div>
             </div>
           </div>
           {eyebrow && <div className="ba-eyebrow">{eyebrow}</div>}
@@ -113,7 +113,7 @@ export function BusinessSignIn() {
     } catch (err) {
       setError(
         /invalid login/i.test(err.message)
-          ? "That email and password don't match. Try again or reset your password."
+          ? "That email or password doesn't match. Try again or reset your password."
           : err.message
       );
     } finally {
@@ -131,7 +131,7 @@ export function BusinessSignIn() {
       });
       if (resetError) throw resetError;
       // Same message whether or not the email exists, so accounts can't be discovered.
-      setNotice("If that email has a Zella account, a password reset link is on its way.");
+      setNotice("Check your email. If an account exists for that address, the link is on its way.");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -142,8 +142,7 @@ export function BusinessSignIn() {
   if (mode === "reset") {
     return (
       <AuthCard
-        eyebrow="RESET PASSWORD"
-        title="Forgot your password?"
+        title="Reset your password"
         description="Enter your email and we'll send you a link to set a new one."
       >
         <form className="ba-form" onSubmit={sendReset}>
@@ -165,7 +164,7 @@ export function BusinessSignIn() {
   }
 
   return (
-    <AuthCard eyebrow="YOUR BUSINESS" title="Sign in to Zella" description="Your calls, customers and AI receptionist in one place.">
+    <AuthCard title="Welcome back." description="See what Zella handled while you were busy.">
       <form className="ba-form" onSubmit={signIn}>
         <label className="ba-field">
           <span>Email</span>
@@ -261,8 +260,7 @@ export function Welcome() {
   if (state === "invalid") {
     return (
       <AuthCard
-        eyebrow="LINK EXPIRED"
-        title="This link no longer works"
+        title="This link has expired"
         description={`${linkError ? `${linkError}. ` : ""}Links can only be used once and expire after a while. Ask the Zella team to resend your invitation, or reset your password from the sign-in page.`}
       >
         <a className="ba-btn primary block" href="/app">Go to sign in</a>
@@ -272,9 +270,8 @@ export function Welcome() {
 
   return (
     <AuthCard
-      eyebrow="WELCOME TO ZELLA"
-      title="Set your password"
-      description={email ? `You'll use ${email} and this password to sign in.` : "Choose a password to finish setting up your account."}
+      title="Set up your front desk"
+      description={email ? `You'll use ${email} and this password to sign in.` : "Choose a password and you are ready to go."}
     >
       <form className="ba-form" onSubmit={save}>
         <div className="ba-field">

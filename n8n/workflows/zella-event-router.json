@@ -1,0 +1,357 @@
+{
+  "name": "Zella - Event Router",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "zella/run/event-router",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "2af00e23-c480-4a77-8fdd-da60673b2836",
+      "name": "Run now",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "webhookId": "58a3453b-8084-4df6-8ddd-76dca779f6a4",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Zella gateway secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_claim_events",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_limit: 20 }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "f1ca2c62-1b6f-4532-8855-18495c2779a3",
+      "name": "Claim events",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        200
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Event Router: decide what to do with one claimed event.\n// Output: { event, plan, problem }.\n//   plan    = the database function to call and its arguments, or null.\n//   problem = why there is no plan: 'missing_configuration' (no handler built yet)\n//             or 'invalid_input' (the event is missing something it needs).\n// An event with no handler is never marked as done. It goes to the dead-letter list so the gap is visible.\nconst e = $json;\nconst p = e.payload && typeof e.payload === 'object' ? e.payload : {};\nconst text = (v, max = 300) => (typeof v === 'string' ? v.trim().slice(0, max) : '');\n\nconst none = (problem, message) => ({ json: { event: e, plan: null, problem: { category: problem, message } } });\nconst run = (rpc, body, handler) => ({ json: { event: e, plan: { rpc, body, handler }, problem: null } });\n\nswitch (e.event_type) {\n  case 'message.received': {\n    if (text(p.channel) !== 'sms') return none('missing_configuration', 'No handler yet for ' + (text(p.channel) || 'this') + ' messages.');\n    if (!text(p.from, 40) || !text(p.body, 1600)) return none('invalid_input', 'An inbound text needs \"from\" and \"body\".');\n    return run('zella_handle_inbound_sms_keyword', { p_business_id: e.business_id, p_from: text(p.from, 40), p_body: text(p.body, 1600) }, 'inbound_sms_keywords');\n  }\n  case 'message.delivered':\n  case 'message.delivery_failed': {\n    if (!text(p.external_id, 200)) return none('invalid_input', 'A delivery receipt needs \"external_id\" (the provider message id).');\n    return run('zella_record_sms_receipt', {\n      p_business_id: e.business_id, p_external_id: text(p.external_id, 200),\n      p_status: e.event_type === 'message.delivered' ? 'delivered' : 'failed', p_error: text(p.error, 200) || null,\n    }, 'sms_delivery_receipt');\n  }\n  case 'customer.opted_out': {\n    const channel = text(p.channel, 20);\n    if (!['sms', 'call', 'email', 'whatsapp'].includes(channel)) return none('invalid_input', 'channel must be sms, call, email or whatsapp.');\n    if (!p.customer_id && !text(p.phone, 40) && !text(p.email, 200)) return none('invalid_input', 'An opt-out needs a customer_id, phone or email.');\n    return run('zella_record_consent', {\n      p_business_id: e.business_id, p_channel: channel, p_status: 'opted_out', p_source: 'system',\n      p_customer_id: p.customer_id || null, p_phone: text(p.phone, 40) || null, p_email: text(p.email, 200) || null,\n      p_purpose: p.purpose === 'transactional' ? 'transactional' : 'marketing',\n      p_evidence: { event_id: e.id },\n    }, 'record_opt_out');\n  }\n  case 'integration.disconnected': {\n    const provider = text(p.provider, 60);\n    if (!provider) return none('invalid_input', 'An integration event needs \"provider\".');\n    return run('zella_platform_alert', {\n      p_kind: 'integration_disconnected', p_title: provider + ' disconnected', p_detail: text(p.reason, 500) || null,\n      p_severity: 'urgent', p_business_id: e.business_id, p_dedupe_key: provider, p_meta: { event_id: e.id },\n    }, 'integration_alert');\n  }\n  case 'integration.reconnected': {\n    const provider = text(p.provider, 60);\n    if (!provider) return none('invalid_input', 'An integration event needs \"provider\".');\n    return run('zella_resolve_platform_alerts', {\n      p_kind: 'integration_disconnected', p_business_id: e.business_id, p_dedupe_key: provider, p_note: 'Reconnected',\n    }, 'integration_resolved');\n  }\n  default:\n    return none('missing_configuration', 'No handler has been built yet for ' + e.event_type + '.');\n}\n"
+      },
+      "id": "4999528e-fe0f-44f8-866b-1dc05aad8eba",
+      "name": "Route",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_start_execution",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_workflow_key: 'event_router', p_business_id: $json.event.business_id, p_event_id: $json.event.id, p_workflow_version: '1', p_correlation_id: $json.event.correlation_id }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "8baaecf8-813b-4995-8ac3-c5bd33dba359",
+      "name": "Start execution",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        200
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "026ac857-413b-4ae2-80bf-8ddce2229975",
+              "leftValue": "={{ $('Route').item.json.plan !== null }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "5d6f250d-875b-48cd-8a3f-a7e9a6d41877",
+      "name": "Has handler",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        960,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/' + $('Route').item.json.plan.rpc }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Route').item.json.plan.body) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "b46bcb43-2ef9-4e94-83c0-b6f48306349b",
+      "name": "Run handler",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        100
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Event Router: turn what happened into a result for the execution log and the event.\n// Temporary problems (rate limit, network, server error) are retried by the database.\n// Everything else is permanent and goes to the dead-letter list for a person to review.\nconst route = $('Route').item.json;\nconst start = $('Start execution').item.json;\nconst startBody = start && start.body;\nconst executionId = typeof startBody === 'string' ? startBody : (startBody && startBody.data) || null;\n\nlet ok = false;\nlet category = null;\nlet error = null;\nconst steps = [{ step: 'route', handler: route.plan ? route.plan.handler : null }];\n\nif (!route.plan) {\n  category = route.problem.category;\n  error = route.problem.message;\n} else {\n  const r = $json;\n  const status = Number(r.statusCode);\n  steps.push({ step: 'handler', rpc: route.plan.rpc, status });\n  if (status >= 200 && status < 300) {\n    ok = true;\n    if (r.body && typeof r.body === 'object' && r.body.action) steps[1].action = r.body.action;\n  } else {\n    const detail = JSON.stringify(r.body ?? '');\n    if (status === 429) category = 'rate_limited';\n    else if (status === 408 || status === 504) category = 'provider_timeout';\n    else if (status >= 500) category = 'temporary_network';\n    else if (status === 401 || status === 403) category = 'authentication_failure';\n    else if (/TENANT_MISMATCH|INVALID_BUSINESS/.test(detail)) category = 'tenant_mismatch';\n    else if (/NOT_ALLOWED/.test(detail)) category = 'permission_failure';\n    else category = 'invalid_input';\n    error = 'The database call ' + route.plan.rpc + ' returned ' + status + '.';\n  }\n}\n\nconst temporary = ['rate_limited', 'provider_timeout', 'temporary_network', 'unknown_error'].includes(category);\nreturn {\n  json: {\n    event_id: route.event.id,\n    execution_id: executionId,\n    ok,\n    category,\n    error,\n    steps,\n    needs_manual: !ok && !temporary,\n  },\n};\n"
+      },
+      "id": "5faa59d4-bc37-4604-8b8c-e9e673c09f92",
+      "name": "Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_finish_execution",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_execution_id: $json.execution_id, p_ok: $json.ok, p_step: $json.steps[$json.steps.length - 1].step, p_steps: $json.steps, p_error_category: $json.category, p_error: $json.error, p_needs_manual: $json.needs_manual }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "3aa9936f-be7f-461b-8d1e-e858862c58d9",
+      "name": "Finish execution",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1680,
+        200
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_complete_event",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_event_id: $('Result').item.json.event_id, p_ok: $('Result').item.json.ok, p_error_category: $('Result').item.json.category, p_error: $('Result').item.json.error }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "51cfc2f1-0827-486e-82b1-7fe7b02f40a7",
+      "name": "Complete event",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1920,
+        200
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Run now": {
+      "main": [
+        [
+          {
+            "node": "Claim events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim events": {
+      "main": [
+        [
+          {
+            "node": "Route",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route": {
+      "main": [
+        [
+          {
+            "node": "Start execution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start execution": {
+      "main": [
+        [
+          {
+            "node": "Has handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has handler": {
+      "main": [
+        [
+          {
+            "node": "Run handler",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run handler": {
+      "main": [
+        [
+          {
+            "node": "Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Result": {
+      "main": [
+        [
+          {
+            "node": "Finish execution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Finish execution": {
+      "main": [
+        [
+          {
+            "node": "Complete event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "executionTimeout": 300
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

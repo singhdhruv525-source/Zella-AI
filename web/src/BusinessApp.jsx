@@ -4,6 +4,8 @@ import {
   MessagesPage, ReceptionistPage, SettingsPage,
 } from "./BusinessPages";
 import { TeamPage } from "./BusinessTeam";
+import { DraftsPage, LiveNoticeBanner, LiveNoticeModal } from "./BusinessDrafts";
+import { AccessPage, ApprovalsPage, FailedWorkPage, SecurityLogPage } from "./BusinessAccess";
 import PersonProfile from "./BusinessProfile";
 import { KnowledgePage } from "./BusinessKnowledge";
 import { RecordSettingsPage, RecordsPage, useRecordTypes } from "./BusinessRecords";
@@ -17,6 +19,8 @@ import {
 import "./BusinessApp.css";
 import { supabase } from "./supabase";
 import { BusinessSignIn, Welcome } from "./BusinessAuth";
+import "./CrmMotion.css";
+import { warm } from "./zellaVoice";
 import BusinessToday from "./BusinessToday";
 import { AddLeadModal, BookAppointmentModal } from "./BusinessForms";
 import { Icon, Pill, initials, loadBusinessFonts } from "./BusinessUI";
@@ -45,6 +49,7 @@ function navigation(workspace, recordTypes = []) {
         { key: "checkins", label: "Check-ins", icon: "how_to_reg", ready: true },
         has("calendar") && { key: "waitlist", label: "Waitlist", icon: "hourglass_top", ready: true },
         { key: "tasks", label: "Tasks", icon: "task_alt", ready: true },
+        ["owner", "admin", "manager", "staff"].includes(workspace.role) && { key: "drafts", label: "Suggested messages", icon: "mark_email_unread", ready: true },
       ],
     },
     {
@@ -74,6 +79,10 @@ function navigation(workspace, recordTypes = []) {
       label: "Management",
       items: [
         { key: "team", label: "Team", icon: "badge", ready: true },
+        ["owner", "admin"].includes(workspace.role) && { key: "access", label: "Team access", icon: "admin_panel_settings", ready: true },
+        ["owner", "admin"].includes(workspace.role) && { key: "approvals", label: "Approvals", icon: "verified_user", ready: true },
+        ["owner", "admin", "manager"].includes(workspace.role) && { key: "failed", label: "Didn't send", icon: "error", ready: true },
+        ["owner", "admin"].includes(workspace.role) && { key: "security", label: "Security log", icon: "history", ready: true },
         { key: "reports", label: "Reports", icon: "monitoring", ready: true },
         ["owner", "admin", "manager"].includes(workspace.role) && { key: "record-settings", label: "Customise records", icon: "tune", ready: true },
         { key: "integrations", label: "Integrations", icon: "extension", ready: true },
@@ -109,12 +118,13 @@ function Blocked({ workspace, onSignOut }) {
   );
 }
 
-function Workspace({ workspace, workspaces, onSwitch, email, onSignOut, onReload }) {
+function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackName, onSignOut, onReload }) {
   const [page, setPage] = useState("today");
   const [modal, setModal] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState("");
+  const [notice, setNoticeRaw] = useState("");
+  const setNotice = (message) => setNoticeRaw(warm(message, workspace));
   const [search, setSearch] = useState("");
   const [profileId, setProfileId] = useState(null);
   const [attention, setAttention] = useState(0);
@@ -143,7 +153,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, onSignOut, onReload
   // Callers waiting for a person. Quietly stays at 0 until the latest Zella update is applied.
   const countAttention = useCallback(async () => {
     const { count, error: countError } = await supabase
-      .from("calls").select("id", { count: "exact", head: true })
+      .from("calls_view").select("id", { count: "exact", head: true })
       .eq("business_id", workspace.id).eq("needs_human", true).is("escalation_resolved_at", null);
     setAttention(countError ? 0 : count ?? 0);
   }, [workspace.id]);
@@ -246,6 +256,11 @@ function Workspace({ workspace, workspaces, onSwitch, email, onSignOut, onReload
           </label>
 
           <div className="ba-header-actions">
+            {["owner", "admin", "manager"].includes(workspace.role) && (
+              <button type="button" className="ba-btn" onClick={() => setModal("live-notice")} title="Tell callers about today">
+                <Icon name="campaign" /><span>Tell callers</span>
+              </button>
+            )}
             <NotificationsBell workspace={workspace} onGo={(key) => { if (groups.some((g) => g.items.some((i) => i.key === key))) setPage(key); }} />
             <button type="button" className="ba-btn primary" onClick={() => setModal("lead")}>
               <Icon name="person_add" /><span>Add lead</span>
@@ -270,6 +285,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, onSignOut, onReload
               )}
             </div>
           )}
+          <LiveNoticeBanner workspace={workspace} tick={refreshKey} canManage={["owner", "admin", "manager"].includes(workspace.role)} onNotice={setNotice} />
           {attention > 0 && current.key !== "attention" && (
             <div className="ba-banner alert" role="alert">
               <span><strong>{attention === 1 ? "1 caller needs" : `${attention} callers need`} a person.</strong> Your AI receptionist handed them over.</span>
@@ -290,6 +306,8 @@ function Workspace({ workspace, workspaces, onSwitch, email, onSignOut, onReload
             <BusinessToday
               key={refreshKey}
               workspace={workspace}
+              userId={userId}
+              fallbackName={fallbackName}
               onAddLead={() => setModal("lead")}
               onBook={() => setModal("book")}
               onNotice={setNotice}
@@ -316,6 +334,11 @@ function Workspace({ workspace, workspaces, onSwitch, email, onSignOut, onReload
             <RecordSettingsPage workspace={workspace} types={records.types} canManage={["owner", "admin", "manager"].includes(workspace.role)} onNotice={setNotice} onChanged={records.reload} />
           )}
           {current.key === "team" && <TeamPage workspace={workspace} email={email} refreshKey={refreshKey} onNotice={setNotice} />}
+          {current.key === "drafts" && <DraftsPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
+          {current.key === "access" && <AccessPage workspace={workspace} userId={userId} refreshKey={refreshKey} onNotice={setNotice} />}
+          {current.key === "approvals" && <ApprovalsPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
+          {current.key === "failed" && <FailedWorkPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
+          {current.key === "security" && <SecurityLogPage workspace={workspace} refreshKey={refreshKey} />}
           {current.key === "checkins" && <CheckInsPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} onChanged={countAttention} />}
           {current.key === "attention" && <AttentionPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} onChanged={countAttention} />}
           {current.key === "inbox" && <InboxPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} />}
@@ -336,6 +359,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, onSignOut, onReload
         />
       )}
       {modal === "lead" && <AddLeadModal workspace={workspace} term={term} onClose={() => setModal(null)} onSaved={saved} />}
+      {modal === "live-notice" && <LiveNoticeModal workspace={workspace} onClose={() => setModal(null)} onSaved={(m) => { setModal(null); setNotice(m); setRefreshKey((k) => k + 1); }} />}
       {modal === "book" && <BookAppointmentModal workspace={workspace} term={term} onClose={() => setModal(null)} onSaved={saved} />}
     </div>
   );
@@ -425,6 +449,8 @@ function BusinessHome() {
       workspaces={workspaces}
       onSwitch={setSelectedId}
       email={session.user.email}
+      userId={session.user.id}
+      fallbackName={session.user.user_metadata?.full_name ?? session.user.user_metadata?.name ?? ""}
       onSignOut={signOut}
       onReload={loadWorkspaces}
     />
@@ -435,7 +461,9 @@ function BusinessHome() {
 // while running locally (npm run dev) and is removed from production builds.
 // It has no data and cannot save anything, because there is no signed-in user.
 const PREVIEW_WORKSPACE = {
-  id: "preview",
+  // A real-shaped UUID that matches no business. Queries return nothing instead
+  // of failing with: invalid input syntax for type uuid: "preview".
+  id: "00000000-0000-0000-0000-000000000000",
   name: "Bright Smile Dental",
   timezone: "America/New_York",
   industry: "Dental clinic",

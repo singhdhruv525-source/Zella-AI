@@ -1,6 +1,7 @@
 import { automationDefaultsFor, emptyAutomations } from "./industryAutomations";
-import { EmailField, PhoneField, TimeZoneSelect } from "./formFields";
-import { checkEmail, countryList, validatePhone } from "./formValidation";
+import { CATALOG, NOTIFY_OPTIONS, isPreferred, orderTypes } from "./automationCatalog";
+import { EmailField, PhoneField, TimeZoneSelect, UrlField } from "./formFields";
+import { checkEmail, checkUrl, countryList, validatePhone } from "./formValidation";
 import { useEffect, useMemo, useState } from "react";
 import "./CreateBusinessWizard.css";
 import { supabase } from "./supabase";
@@ -188,6 +189,7 @@ function emptySetup() {
       leadSources: { meta: false, website: false, google: false },
     },
     automations: structuredClone(DEFAULT_AUTOMATIONS),
+    industryRules: [],
     onboardingStatus: "started",
     savedSteps: {},
   };
@@ -278,6 +280,7 @@ function fromServer(data, industries = []) {
   const industryName = industries.find((i) => i.id === setup.business.industryId)?.name;
   setup.automations = automationDefaultsFor(industryName);
   setup.automationsFromIndustry = industryName || "";
+  setup.industryRules = data.industryRules || [];
   for (const row of data.automations || []) {
     if (setup.automations[row.trigger_type]) {
       setup.automations[row.trigger_type] = {
@@ -438,8 +441,8 @@ function BusinessStep({ value, onChange, industries, isExisting, locked, showErr
           <Field label="Business phone" hint="The number customers know today" bare>
             <PhoneField value={value.phone} onChange={(phone) => onChange({ ...value, phone })} showErrors={showErrors} label="Business phone" />
           </Field>
-          <Field label="Website" full>
-            <input value={value.website} onChange={set("website")} placeholder="https://" />
+          <Field label="Website" full bare>
+            <UrlField value={value.website} onChange={(website) => onChange({ ...value, website })} showErrors={showErrors} />
           </Field>
         </div>
       </Section>
@@ -880,8 +883,8 @@ function IntegrationsStep({ value, onChange, showErrors }) {
           >
             <input inputMode="numeric" maxLength={3} value={value.phone.areaCode} onChange={(e) => setPhone({ areaCode: e.target.value.replace(/\D/g, "") })} />
           </Field>
-          <Field label="Call transfer number" hint="Where the AI sends calls it shouldn't handle">
-            <input type="tel" value={value.transferNumber} onChange={(e) => onChange({ ...value, transferNumber: e.target.value })} placeholder="+1 (555) 000-0000" />
+          <Field label="Call transfer number" hint="Where the AI sends calls it shouldn't handle" bare>
+            <PhoneField value={value.transferNumber} onChange={(transferNumber) => onChange({ ...value, transferNumber })} showErrors={showErrors} label="Call transfer number" />
           </Field>
         </div>
       </Section>
@@ -930,25 +933,41 @@ function IntegrationsStep({ value, onChange, showErrors }) {
   );
 }
 
-const SWITCHES = [
-  ["appointment_reminder", (a) => `${a} reminders`, (a) => `Remind customers before their ${a}.`],
-  ["appointment_confirmation", () => "Confirmation & check-in", (a) => `Ask customers to confirm their ${a}.`],
-  ["no_show_follow_up", () => "No-show follow-up", (a) => `Reach out when someone misses their ${a} and offer to rebook.`],
-  ["missed_call_follow_up", () => "Missed-call recovery", () => "Call back anyone whose call was missed."],
-  ["new_lead_callback", () => "New lead callback", () => "Call new leads from Meta, the website and other sources."],
-  ["post_appointment_follow_up", (a) => `After-${a.toLowerCase()} follow-up`, () => "Thank customers and ask for feedback."],
-  ["quote_follow_up", () => "Quote follow-up", () => "Check in with people who were sent a quote and haven't replied."],
-  ["lead_reactivation", () => "Win back quiet customers", () => "Reach out to people you haven't heard from in a while."],
-  ["waitlist_offer", () => "Waitlist offers", (a) => `When ${/^[aeiou]/i.test(a) ? "an" : "a"} ${a} opens up, offer it to people waiting.`],
-  ["staff_unavailable", () => "Team member unavailable", (a) => `Offer another time when a ${a} can't go ahead.`],
-];
+const SWITCHES = CATALOG;
 
 // Step 2: switch each automation on or off. The choices start from what's usual for the industry.
-function AutomationSwitchesStep({ value, onChange, terminology, industryName }) {
+function AutomationSwitchesStep({ value, onChange, terminology, industryName, rules = [], onRules }) {
   const appt = termFor(terminology, "appointment").toLowerCase();
-  const setAll = (enabled) => onChange(Object.fromEntries(Object.entries(value).map(([type, item]) => [type, { ...item, enabled }])));
+  const setAll = (enabled) => {
+    onChange(Object.fromEntries(Object.entries(value).map(([type, item]) => [type, { ...item, enabled }])));
+    onRules?.(rules.map((r) => ({ ...r, enabled })));
+  };
+  const setRule = (name, patch) => onRules?.(rules.map((r) => (r.name === name ? { ...r, ...patch } : r)));
+  const madeFor = rules.filter((r) => r.preferred);
+  const general = rules.filter((r) => !r.preferred);
   const setOne = (type, enabled) => onChange({ ...value, [type]: { ...value[type], enabled } });
-  const onCount = SWITCHES.filter(([type]) => value[type]?.enabled).length;
+  const setNotify = (type, notify_via) => onChange({ ...value, [type]: { ...value[type], settings: { ...value[type].settings, notify_via } } });
+  const onCount = SWITCHES.filter(([type]) => value[type]?.enabled).length + rules.filter((r) => r.enabled).length;
+  const total = SWITCHES.length + rules.length;
+  const ruleCard = (r) => (
+    <div key={r.name} className={`wiz-automation ${r.enabled ? "on" : ""}`}>
+      <div className="wiz-module-top">
+        <div>
+          <strong>{r.name}{r.preferred && <> <Badge tone="success">Preferred for this business</Badge></>}</strong>
+          <p>{r.description}</p>
+        </div>
+        <Toggle checked={Boolean(r.enabled)} label={r.name} onChange={(enabled) => setRule(r.name, { enabled })} />
+      </div>
+      {r.enabled && (
+        <label className="wiz-notify">
+          <span>Tell the owner by</span>
+          <select value={r.notifyVia || "both"} onChange={(e) => setRule(r.name, { notifyVia: e.target.value })}>
+            {NOTIFY_OPTIONS.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+          </select>
+        </label>
+      )}
+    </div>
+  );
   return (
     <>
       <Section
@@ -963,20 +982,46 @@ function AutomationSwitchesStep({ value, onChange, terminology, industryName }) 
           </div>
         }
       >
-        <p className="wiz-hint">{onCount} of {SWITCHES.length} on. They start running when the business goes live.</p>
+        <p className="wiz-hint">{onCount} of {total} on. They start running when the business goes live.</p>
         <div className="wiz-automation-list">
-          {SWITCHES.map(([type, title, text]) => (
-            <div key={type} className={`wiz-automation ${value[type]?.enabled ? "on" : ""}`}>
-              <div className="wiz-module-top">
-                <div>
-                  <strong>{title(termFor(terminology, "appointment"))}</strong>
-                  <p>{text(appt)}</p>
+          {orderTypes(SWITCHES.map(([type]) => type), industryName).map((type) => {
+            const [, title, text] = SWITCHES.find(([k]) => k === type);
+            const preferred = Boolean(industryName) && isPreferred(type, industryName);
+            const name = title(termFor(terminology, "appointment"));
+            return (
+              <div key={type} className={`wiz-automation ${value[type]?.enabled ? "on" : ""}`}>
+                <div className="wiz-module-top">
+                  <div>
+                    <strong>{name}{preferred && <> <Badge tone="success">Preferred for this business</Badge></>}</strong>
+                    <p>{text(appt)}</p>
+                  </div>
+                  <Toggle checked={Boolean(value[type]?.enabled)} label={name} onChange={(enabled) => setOne(type, enabled)} />
                 </div>
-                <Toggle checked={Boolean(value[type]?.enabled)} label={title(termFor(terminology, "appointment"))} onChange={(enabled) => setOne(type, enabled)} />
+                {value[type]?.enabled && (
+                  <label className="wiz-notify">
+                    <span>Tell the owner by</span>
+                    <select value={value[type]?.settings?.notify_via || "both"} onChange={(e) => setNotify(type, e.target.value)}>
+                      {NOTIFY_OPTIONS.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+                    </select>
+                  </label>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
+        {madeFor.length > 0 && (
+          <>
+            <h4 className="wiz-group-title">Made for {industryName || "this business"}</h4>
+            <p className="wiz-hint">These follow your {industryName ? industryName.toLowerCase() : "industry"} records and customers, such as a status change or a service coming due.</p>
+            <div className="wiz-automation-list">{madeFor.map(ruleCard)}</div>
+          </>
+        )}
+        {general.length > 0 && (
+          <>
+            <h4 className="wiz-group-title">Also available</h4>
+            <div className="wiz-automation-list">{general.map(ruleCard)}</div>
+          </>
+        )}
       </Section>
     </>
   );
@@ -1264,6 +1309,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
       if (!setup.business.industryId) return "Select an industry.";
       if (checkEmail(setup.business.email)) return `Business email: ${checkEmail(setup.business.email)}`;
       if (validatePhone(setup.business.phone)) return `Business phone: ${validatePhone(setup.business.phone)}`;
+      if (checkUrl(setup.business.website)) return `Website: ${checkUrl(setup.business.website)}`;
     }
     if (step === 2) {
       if (!setup.owner.name.trim() || !setup.owner.email.trim()) return "Enter the owner's name and email.";
@@ -1273,6 +1319,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
     if (step === 5 && validatePhone(setup.receptionist.escalation.transferTo.phone)) {
       return `Transfer phone number: ${validatePhone(setup.receptionist.escalation.transferTo.phone)}`;
     }
+    if (step === 6 && validatePhone(setup.integrations.transferNumber)) return `Call transfer number: ${validatePhone(setup.integrations.transferNumber)}`;
     if (step === 6 && setup.integrations.phone.mode === "call_forwarding") {
       if (!setup.integrations.phone.existingNumber.trim()) return "Enter the business number that will be forwarded to Zella.";
       const bad = validatePhone(setup.integrations.phone.existingNumber, { required: true });
@@ -1329,12 +1376,12 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
 
     if (key === "switches") {
       // Saved quietly: it doesn't move the setup progress forward, so a draft reopens where it was left.
-      await callOwnerFunction("setup_save_automations", { businessId, automations: setup.automations, early: true });
+      await callOwnerFunction("setup_save_automations", { businessId, automations: setup.automations, industryRules: setup.industryRules, early: true });
       return;
     }
 
     if (key === "automations") {
-      await callOwnerFunction("setup_save_automations", { businessId, automations: setup.automations });
+      await callOwnerFunction("setup_save_automations", { businessId, automations: setup.automations, industryRules: setup.industryRules });
     }
   }
 
@@ -1454,7 +1501,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
         {step === 0 && (
           <BusinessStep value={setup.business} onChange={changeBusiness} industries={industries} isExisting={Boolean(businessId)} locked={locked} showErrors={showErrors} />
         )}
-        {step === 1 && <AutomationSwitchesStep value={setup.automations} onChange={update("automations")} terminology={terminology} industryName={industries.find((i) => i.id === setup.business.industryId)?.name} />}
+        {step === 1 && <AutomationSwitchesStep value={setup.automations} onChange={update("automations")} rules={setup.industryRules} onRules={update("industryRules")} terminology={terminology} industryName={industries.find((i) => i.id === setup.business.industryId)?.name} />}
         {step === 2 && <OwnerStep value={setup.owner} onChange={update("owner")} invitation={setup.invitation} showErrors={showErrors} />}
         {step === 3 && <TerminologyStep value={terminology} onChange={update("terminology")} />}
         {step === 4 && <ModulesStep modules={setup.modules} onChange={update("modules")} />}

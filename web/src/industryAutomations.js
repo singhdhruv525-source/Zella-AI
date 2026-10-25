@@ -86,6 +86,12 @@ const BY_NAME = {
   financialservices: build({ post_appointment_follow_up: { enabled: true }, quote_follow_up: { enabled: true }, staff_unavailable: { enabled: true } }),
   professionalservices: build({ post_appointment_follow_up: { enabled: true }, quote_follow_up: { enabled: true, settings: { hours_after: 72 } }, lead_reactivation: { enabled: true, settings: { days_inactive: 60 } }, staff_unavailable: { enabled: true } }),
   plumbing: TRADES, electrical: TRADES, hvac: TRADES, homeservices: TRADES, automotive: TRADES,
+  petcareveterinary: build({ post_appointment_follow_up: { enabled: true }, lead_reactivation: { enabled: true, settings: { days_inactive: 90 } }, staff_unavailable: { enabled: true } }),
+  landscapinglawncare: TRADES, pestcontrol: TRADES, cleaningservices: TRADES, propertymanagement: TRADES,
+  spawellness: build({ post_appointment_follow_up: { enabled: true }, waitlist_offer: { enabled: true }, staff_unavailable: { enabled: true }, lead_reactivation: { enabled: true, settings: { days_inactive: 45 } } }),
+  photographyevents: build({ quote_follow_up: { enabled: true, settings: { hours_after: 72 } }, post_appointment_follow_up: { enabled: true }, staff_unavailable: { enabled: true } }),
+  childcare: build({ appointment_reminder: { settings: { hours_before: [24] } }, staff_unavailable: { enabled: true }, lead_reactivation: { enabled: false } }),
+  insurance: build({ post_appointment_follow_up: { enabled: true }, quote_follow_up: { enabled: true }, staff_unavailable: { enabled: true } }),
   realestate: REAL_ESTATE, restaurant: RESTAURANT, travel: TRAVEL_STAY, hospitality: TRAVEL_STAY, ecommerce: ECOMMERCE,
 };
 

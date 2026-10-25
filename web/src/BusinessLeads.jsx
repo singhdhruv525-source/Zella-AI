@@ -235,7 +235,7 @@ function LeadPanel({ person, workspace, roster, onClose, onChanged, onNotice, on
   const { data, loading, reload } = useLoad(async () => {
     if (!person) return null;
     const [calls, tasks, cbs] = await Promise.all([
-      supabase.from("calls").select("id, status, started_at, created_at, duration_seconds, ai_handled, summary, needs_human").eq("customer_id", person.id).order("created_at", { ascending: false }).limit(10),
+      supabase.from("calls_view").select("id, status, started_at, created_at, duration_seconds, ai_handled, summary, needs_human").eq("customer_id", person.id).order("created_at", { ascending: false }).limit(10),
       supabase.from("crm_tasks").select("*").eq("customer_id", person.id).eq("status", "open").order("due_at", { ascending: true, nullsFirst: false }).limit(20),
       supabase.from("callbacks").select("*").eq("customer_id", person.id).not("status", "in", "(completed,cancelled)").order("due_at").limit(10),
     ]);

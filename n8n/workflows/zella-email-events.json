@@ -1,0 +1,211 @@
+{
+  "name": "Zella - Email Events",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "zella/resend",
+        "authentication": "none",
+        "responseMode": "responseNode",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "id": "9521c37d-9ba0-4be5-807e-1f1738e1aabe",
+      "name": "Resend event",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "webhookId": "f33a7f5b-2e91-44b8-8e57-2a22bc440c5d"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Email Events: Resend tells us what happened to an email (delivered, bounced, marked as spam).\n// The secret key in the webhook address and the event are handed to the database, which checks the key.\nconst key = typeof ($json.query && $json.query.key) === 'string' ? $json.query.key.slice(0, 200) : '';\nconst h = $json.headers && typeof $json.headers === 'object' ? $json.headers : {};\nconst event = $json.body && typeof $json.body === 'object' && !Array.isArray($json.body) ? $json.body : null;\nconst data = event && event.data && typeof event.data === 'object' ? event.data : {};\nconst eventId = String(h['svix-id'] || (event ? [event.type, data.email_id, event.created_at].filter(Boolean).join(':') : '')).slice(0, 200);\nif (!event || !eventId) return { json: { record: null } };\n// The signature is made over the exact bytes Resend sent, so those are kept. The database checks it against the signing\n// secret in Vault (zella_resend_signing_secret); this step never sees that secret. Until the secret is set, only the key counts.\nlet raw = '';\ntry { raw = (await this.helpers.getBinaryDataBuffer(0, 'data')).toString('utf8'); } catch (e) { raw = ''; }\nif (raw.length > 500000) raw = '';\nconst sig = { id: String(h['svix-id'] || '').slice(0, 200), timestamp: String(h['svix-timestamp'] || '').slice(0, 20), signature: String(h['svix-signature'] || '').slice(0, 500), raw };\nreturn { json: { record: { p_key: key, p_event: event, p_event_id: eventId, p_sig: sig } } };\n"
+      },
+      "id": "ae2f98a0-99fe-4855-8311-26233e9c1364",
+      "name": "Plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "accd4543-6bcd-4fdb-8f33-0bf3c0930b41",
+              "leftValue": "={{ !!$json.record }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "19326a23-04bd-4c17-8d47-6346ef3c65d7",
+      "name": "Has event",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        480,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_record_email_event_signed",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.record) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "5ef0ffaf-bf8b-4a05-879b-b5a3f5ff5b8d",
+      "name": "Record event",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        100
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Email Events: answer Resend. 200 when handled (so it does not resend), 401 for a wrong key,\n// 500 when the database could not be reached (Resend then tries again later). No details are returned.\nconst plan = $('Plan').item.json;\nif (!plan.record) return { json: { status: 400, body: { ok: false } } };\nconst r = $json;\nconst code = Number(r.statusCode);\nconst result = typeof r.body === 'string' ? r.body : '';\nif (code >= 200 && code < 300) {\n  if (result === 'unauthorized') return { json: { status: 401, body: { ok: false } } };\n  if (result === 'not_configured') return { json: { status: 503, body: { ok: false } } };\n  return { json: { status: 200, body: { ok: true } } };\n}\nreturn { json: { status: 500, body: { ok: false } } };\n"
+      },
+      "id": "bd492bcf-1208-4f71-88a9-a990a5615d47",
+      "name": "Build reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "responseCode": "={{ $json.status }}"
+        }
+      },
+      "id": "6c2bb735-a46a-4ff3-87fe-2e638d581295",
+      "name": "Reply",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1200,
+        200
+      ]
+    }
+  ],
+  "connections": {
+    "Resend event": {
+      "main": [
+        [
+          {
+            "node": "Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan": {
+      "main": [
+        [
+          {
+            "node": "Has event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has event": {
+      "main": [
+        [
+          {
+            "node": "Record event",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record event": {
+      "main": [
+        [
+          {
+            "node": "Build reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build reply": {
+      "main": [
+        [
+          {
+            "node": "Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "executionTimeout": 300
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

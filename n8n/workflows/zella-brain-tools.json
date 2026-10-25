@@ -1,0 +1,286 @@
+{
+  "name": "Zella - Receptionist Brain Tools",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "zella/vapi-brain",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "6200ee4f-0df7-40a4-88eb-1933be9bd3e1",
+      "name": "Vapi brain tool",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "webhookId": "9439095a-ccca-43a3-bc4b-5a5c07862415",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Zella gateway secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Receptionist Brain: the ONE webhook for every tool the phone assistant (Vapi) uses during a call.\n// Output: { reply, record }. record = the single database call (zella_ai_tool) that checks, acts, verifies and logs.\n// Only known tool names and known fields pass; the caller's words are data and are never run as instructions.\nconst body = $json.body && typeof $json.body === 'object' ? $json.body : {};\nconst m = body.message && typeof body.message === 'object' ? body.message : {};\nconst list = Array.isArray(m.toolCallList) ? m.toolCallList : Array.isArray(m.toolCalls) ? m.toolCalls : [];\nconst TOOLS = ['search_knowledge', 'check_open_hours', 'lookup_caller', 'update_caller', 'check_availability', 'book_appointment', 'find_my_appointments',\n  'reschedule_appointment', 'cancel_appointment', 'take_message', 'report_emergency', 'transfer_to_human', 'request_follow_up', 'report_unanswered_question'];\nconst nameOf = (t) => (t && (t.name || (t.function && t.function.name))) || '';\nconst tc = list.find((t) => t && typeof t.id === 'string' && TOOLS.includes(nameOf(t)));\nif (m.type !== 'tool-calls' || !tc) return { json: { reply: { results: [] }, record: null } };\n\nlet args = tc.arguments !== undefined ? tc.arguments : tc.function && tc.function.arguments;\nif (typeof args === 'string') { try { args = JSON.parse(args); } catch (e) { args = {}; } }\nargs = args && typeof args === 'object' ? args : {};\n\nconst uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;\nconst allowed = ['query', 'appointment_id', 'date', 'days', 'duration_minutes', 'start', 'first_name', 'last_name', 'phone', 'email', 'title', 'notes', 'name', 'message',\n  'preferred_contact_method', 'reason', 'when', 'summary', 'question'];\nconst clean = {};\nfor (const k of allowed) {\n  const v = args[k];\n  if (typeof v === 'string') clean[k] = v.replace(/\\s+/g, ' ').trim().slice(0, 1500);\n  else if (typeof v === 'number' && isFinite(v)) clean[k] = v;\n}\n// the caller's yes must be a real boolean from the assistant; anything else counts as \"not confirmed\"\nclean.confirmed = args.confirmed === true;\nif (clean.appointment_id !== undefined && !uuidRe.test(String(clean.appointment_id))) delete clean.appointment_id;\n\nconst call = m.call && typeof m.call === 'object' ? m.call : {};\nconst meta = call.metadata && typeof call.metadata === 'object' ? call.metadata : {};\nconst vars = call.assistantOverrides && call.assistantOverrides.variableValues && typeof call.assistantOverrides.variableValues === 'object' ? call.assistantOverrides.variableValues : {};\nconst bid = [meta.business_id, vars.business_id].find((v) => typeof v === 'string' && uuidRe.test(v)) || null;\n\n// Which number was called? A registered number always wins over call settings.\nconst pn = call.phoneNumber && typeof call.phoneNumber === 'object' ? call.phoneNumber : m.phoneNumber && typeof m.phoneNumber === 'object' ? m.phoneNumber : {};\nconst calledNumber = typeof pn.number === 'string' && /^\\+?[0-9() .-]{7,20}$/.test(pn.number) ? pn.number : null;\nconst vapiNumberId = typeof call.phoneNumberId === 'string' ? call.phoneNumberId.slice(0, 100) : typeof pn.id === 'string' ? pn.id.slice(0, 100) : null;\nconst lookup = { p_called_number: calledNumber, p_vapi_phone_number_id: vapiNumberId, p_fallback: bid };\n\n// The caller is known ONLY by the number the phone network reports, never by what is said.\nconst cn = call.customer && typeof call.customer === 'object' ? String(call.customer.number || '') : '';\nconst callerNumber = /^\\+?[0-9]{7,15}$/.test(cn) ? cn : null;\nconst callId = typeof call.id === 'string' ? call.id.slice(0, 200) : null;\n\nreturn {\n  json: {\n    tool_call_id: tc.id,\n    reply: null,\n    lookup,\n    rpc: 'zella_ai_tool',\n    // the tool call id makes a repeated delivery of the same call a no-op\n    record: { p_provider_call_id: callId, p_business_id: bid, p_tool: nameOf(tc), p_args: { ...clean, caller_number: callerNumber }, p_idempotency_key: callId ? (callId + ':' + tc.id).slice(0, 300) : null },\n  },\n};\n"
+      },
+      "id": "ae2f98a0-99fe-4855-8311-26233e9c1364",
+      "name": "Plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "0215cc46-d344-4fba-85bf-9f0d352b19f1",
+              "leftValue": "={{ !!$json.record }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "5d1cd093-234b-4841-8fb9-74715628c198",
+      "name": "Is a brain tool",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        480,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_business_for_number",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.lookup) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "c973da8c-1d60-4ce4-849f-3728b62085c4",
+      "name": "Find business",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        100
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Vapi tools: put the business found from the called number into the database call.\n// The lookup answers with the business id (or null). A number that is not registered keeps the id from the call\n// settings only if the database accepted it as a fallback; with no business the database call refuses to act.\nconst plan = $('Plan').item.json;\nconst b = $json.body;\nconst found = typeof b === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(b) ? b : null;\nreturn { json: { ...plan, record: { ...plan.record, p_business_id: found } } };\n"
+      },
+      "id": "7f18e741-b5ba-4aff-8802-12c6f1fe9f2d",
+      "name": "Use business",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/' + $json.rpc }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.record) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "f141e23c-2e3b-4f93-8874-46b59e10d531",
+      "name": "Run tool",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        100
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Receptionist Brain: the answer sent back to Vapi. Short, no database details.\nconst plan = $('Plan').item.json;\nif (!plan.record) return { json: plan.reply };\nconst r = $json;\nconst status = Number(r.statusCode);\nconst b = r.body && typeof r.body === 'object' ? r.body : null;\nlet result;\nif (status >= 200 && status < 300 && b && typeof b.say === 'string') {\n  const out = { status: b.status, instruction: b.say };\n  if (Array.isArray(b.slots)) out.times = b.slots.slice(0, 5).map((s) => ({ say: s.say, start: s.start }));\n  if (Array.isArray(b.appointments)) out.appointments = b.appointments.slice(0, 3).map((a) => ({ appointment_id: a.appointment_id, title: a.title, say: a.say }));\n  if (Array.isArray(b.results)) out.results = b.results.slice(0, 3).map((x) => ({ title: x.title, answer: x.answer }));\n  if (typeof b.first_name === 'string') out.first_name = b.first_name.slice(0, 80);\n  result = JSON.stringify(out);\n} else {\n  result = JSON.stringify({ status: 'error', instruction: 'This could not be completed right now. Tell the caller the team will call them back. Do not say it was done.' });\n}\nreturn { json: { results: [{ toolCallId: plan.tool_call_id, result }] } };\n"
+      },
+      "id": "bd492bcf-1208-4f71-88a9-a990a5615d47",
+      "name": "Build reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "6c2bb735-a46a-4ff3-87fe-2e638d581295",
+      "name": "Reply",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1680,
+        200
+      ]
+    }
+  ],
+  "connections": {
+    "Vapi brain tool": {
+      "main": [
+        [
+          {
+            "node": "Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan": {
+      "main": [
+        [
+          {
+            "node": "Is a brain tool",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is a brain tool": {
+      "main": [
+        [
+          {
+            "node": "Find business",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find business": {
+      "main": [
+        [
+          {
+            "node": "Use business",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use business": {
+      "main": [
+        [
+          {
+            "node": "Run tool",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run tool": {
+      "main": [
+        [
+          {
+            "node": "Build reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build reply": {
+      "main": [
+        [
+          {
+            "node": "Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "executionTimeout": 300
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

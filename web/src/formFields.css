@@ -1,12 +1,12 @@
 /* Shared form fields: country-code phone, email, time zone, password.
    Colours follow whichever theme the page uses (CRM --ba-*, admin --status-*). */
 .ff {
-  --ff-border: var(--ba-border-strong, var(--border-strong, #c9c4b8));
+  --ff-border: var(--ba-border-strong, var(--border-strong, #c2beb9));
   --ff-surface: var(--ba-surface, var(--bg-surface, #fff));
   --ff-text: var(--ba-text, var(--text-primary, #1f2328));
   --ff-muted: var(--ba-muted, var(--text-muted, #6b6f76));
-  --ff-focus: var(--ba-primary, var(--color-primary, #2f5d50));
-  --ff-ring: var(--ba-primary-ring, rgba(47, 93, 80, 0.18));
+  --ff-focus: var(--ba-primary, var(--color-primary, #6f4e37));
+  --ff-ring: var(--ba-primary-ring, rgba(111, 78, 55, 0.18));
   --ff-danger: var(--ba-danger, var(--status-danger, #b3261e));
   --ff-danger-bg: var(--ba-danger-bg, #fdf0ee);
   --ff-ok: var(--ba-success, var(--status-success, #2e7d4f));

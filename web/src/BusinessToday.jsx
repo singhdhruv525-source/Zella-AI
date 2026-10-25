@@ -2,6 +2,10 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "./supabase";
 import { Icon, Pill, personName } from "./BusinessUI";
 import { makeTerm, receptionistState } from "./businessWorkspace";
+import { useRoster } from "./BusinessLeads";
+import TodayWelcome from "./TodayWelcome";
+import { CountUp } from "./CrmMotion";
+import { todayNote, welcomeStyle } from "./todayGreeting";
 import { dayRange, formatLongDate, formatTime, greeting, timeAgo } from "./businessTime";
 import { friendly, noShowNotice, setCheckIn } from "./BusinessShared";
 import { RescheduleModal } from "./BusinessForms";
@@ -46,7 +50,7 @@ function Kpi({ label, icon, color, value, children }) {
         <span>{label}</span>
         <span className={`ba-kpi-icon ${color}`}><Icon name={icon} size="sm" /></span>
       </div>
-      <div className="ba-kpi-value">{value}</div>
+      <div className="ba-kpi-value"><CountUp value={value} /></div>
       {children}
     </div>
   );
@@ -81,8 +85,14 @@ function Empty({ title, children }) {
   );
 }
 
-export default function BusinessToday({ workspace, onAddLead, onBook, onNotice, onOpenPerson }) {
+export default function BusinessToday({ workspace, userId, fallbackName, onAddLead, onBook, onNotice, onOpenPerson }) {
   const tz = workspace.timezone;
+  const roster = useRoster(workspace);
+  const known = (n) => (n && n !== "Team member" ? n : "");
+  const firstName = String(known(roster.nameOf[userId]) || fallbackName || "").trim().split(/\s+/)[0];
+  const owner = known(roster.list.find((m) => m.role === "owner")?.name);
+  const [note] = useState(() => todayNote(greeting(tz).replace("Good ", ""), workspace.id));
+  const [style] = useState(() => welcomeStyle());
   const term = makeTerm(workspace);
   const agent = receptionistState(workspace);
   const [range, setRange] = useState("today");
@@ -117,7 +127,7 @@ export default function BusinessToday({ workspace, onAddLead, onBook, onNotice, 
           .lt("created_at", bounds.end.toISOString())
           .order("created_at", { ascending: false })
           .limit(500),
-        supabase.from("calls")
+        supabase.from("calls_view")
           .select("id, status, ai_handled, duration_seconds, from_number, customer_id, created_at, metadata")
           .eq("business_id", id)
           .gte("created_at", bounds.start.toISOString())
@@ -134,7 +144,7 @@ export default function BusinessToday({ workspace, onAddLead, onBook, onNotice, 
           .in("status", ["open", "pending"])
           .order("last_message_at", { ascending: false, nullsFirst: false })
           .limit(20),
-        supabase.from("calls")
+        supabase.from("calls_view")
           .select("id, direction, status, ai_handled, duration_seconds, from_number, customer_id, created_at, transcript, metadata")
           .eq("business_id", id)
           .order("created_at", { ascending: false })
@@ -272,13 +282,14 @@ export default function BusinessToday({ workspace, onAddLead, onBook, onNotice, 
 
   return (
     <>
+      <TodayWelcome
+        heading={style ? `Welcome back${firstName ? `, ${firstName}` : ""}.` : `${greeting(tz)}${firstName ? `, ${firstName}` : ""}.`}
+        business={workspace.name} owner={owner} note={note} partOfDay={greeting(tz).replace("Good ", "")}
+        date={`${formatLongDate(new Date(), tz)} (${tz.replace("_", " ")})`}
+      />
       <div className="ba-page-head">
         <div>
           <div className="ba-crumb">Core / Today</div>
-          <h1>{greeting(tz)}</h1>
-          <p>
-            {workspace.name} at a glance · {formatLongDate(new Date(), tz)} ({tz.replace("_", " ")})
-          </p>
         </div>
         <div className="ba-page-actions">
           <div className="ba-segment" role="tablist" aria-label="Time range">

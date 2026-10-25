@@ -1,0 +1,580 @@
+{
+  "name": "Zella - Follow-up Texts",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "zella/run/followup-texts",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "2af00e23-c480-4a77-8fdd-da60673b2836",
+      "name": "Run now",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "webhookId": "8c9d4951-c8e3-474c-817b-17006c031775",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Zella gateway secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_claim_followup_texts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_limit: 20, p_kinds: [\"no_show_follow_up\",\"post_appointment_follow_up\",\"quote_follow_up\",\"lead_reactivation\",\"callback_sms\",\"welcome_new_customer\",\"feedback_request\",\"cancellation_confirmation\",\"record_status_update\",\"service_due\",\"no_response_follow_up\",\"reschedule_confirmation\",\"booking_follow_up\",\"service_completed\",\"lead_follow_up\",\"lead_final_follow_up\",\"reply_confirmed\",\"reply_reschedule\",\"reply_help\",\"reply_after_hours\",\"waitlist_offer\"] }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "3e91bae5-7c94-4e2a-88d6-6d29b6e18f36",
+      "name": "Claim follow-ups",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        200
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Follow-up Texts: turn one claimed follow-up task into a \"prepare this text\" request.\n// Reactivation is marketing, so it needs the person's opt-in. The others follow up on something\n// the person asked for. Anything unknown is skipped with a visible reason, never dropped silently.\nconst t = $json;\nconst skip = (reason) => ({ json: { task_id: t.task_id, finish: { rpc: 'zella_skip_followup_task', body: { p_task_id: t.task_id, p_reason: reason } } } });\n\nconst kinds = {\n  no_show_follow_up: { key: 'no_show_follow_up', purpose: 'transactional' },\n  post_appointment_follow_up: { key: 'post_appointment_follow_up', purpose: 'transactional' },\n  quote_follow_up: { key: 'quote_follow_up', purpose: 'transactional' },\n  lead_reactivation: { key: 'lead_reactivation', purpose: 'marketing' },\n  welcome_new_customer: { key: 'welcome_new_customer', purpose: 'transactional' },\n  feedback_request: { key: 'feedback_request', purpose: 'transactional' },\n  cancellation_confirmation: { key: 'cancellation_confirmation', purpose: 'transactional' },\n  record_status_update: { key: 'record_status_update', purpose: 'transactional' },\n  service_due: { key: 'service_due', purpose: 'transactional' },\n  no_response_follow_up: { key: 'no_response_follow_up', purpose: 'transactional' },\n  reschedule_confirmation: { key: 'reschedule_confirmation', purpose: 'transactional' },\n  booking_follow_up: { key: 'booking_follow_up', purpose: 'transactional' },\n  service_completed: { key: 'service_completed', purpose: 'transactional' },\n  lead_follow_up: { key: 'lead_follow_up', purpose: 'transactional' },\n  lead_final_follow_up: { key: 'lead_final_follow_up', purpose: 'transactional' },\n  // Replies to a customer's own text (C, R, HELP). The database queues these when the text arrives.\n  reply_confirmed: { key: 'reply_confirmed', purpose: 'transactional' },\n  reply_reschedule: { key: 'reply_reschedule', purpose: 'transactional' },\n  reply_help: { key: 'reply_help', purpose: 'transactional' },\n  reply_after_hours: { key: 'reply_after_hours', purpose: 'transactional' },\n  // A time freed by a cancellation, offered to the next person on the waitlist (with a private Book this time button).\n  waitlist_offer: { key: 'waitlist_offer', purpose: 'transactional' },\n};\n// A callback that ran out of tries leaves a text task behind. The message depends on why the callback existed.\nconst byReason = { missed_call: 'missed_call_follow_up', new_lead: 'lead_acknowledgement' };\nlet k = kinds[t.kind];\nif (t.kind === 'callback_sms') {\n  const key = byReason[t.callback_reason];\n  if (!key) return skip('unknown_callback_reason:' + String(t.callback_reason).slice(0, 30));\n  k = { key, purpose: 'transactional' };\n}\nif (t.channel !== 'sms') return skip('channel_not_supported_yet:' + t.channel);\nif (!k) return skip('unknown_followup_kind:' + t.kind);\n\n// Only the waitlist offer has details to fill in: the offered time and the private link.\nlet vars = {};\n// Messages that carry their own details (a status line, a service name). Only plain short text is passed on.\nif (t.vars && typeof t.vars === 'object') {\n  for (const [key, val] of Object.entries(t.vars)) if (typeof val === 'string') vars[key] = val.slice(0, 300);\n}\nif (t.kind === 'waitlist_offer') {\n  const tz = (t.business && t.business.timezone) || 'America/New_York';\n  const start = new Date(t.offer && t.offer.start);\n  if (isNaN(start.getTime())) return skip('offer_has_no_time');\n  vars = {\n    ...vars,\n    date: start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: tz }),\n    time: start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: tz }),\n    offer_line: typeof t.offer.line === 'string' ? t.offer.line : '',\n  };\n}\n\nreturn {\n  json: {\n    task_id: t.task_id,\n    business_id: t.business.id,\n    customer_id: t.customer.id,\n    template_key: k.key,\n    prepare: { p_business_id: t.business.id, p_customer_id: t.customer.id, p_template_key: k.key, p_vars: vars, p_purpose: k.purpose },\n    finish: null,\n  },\n};\n"
+      },
+      "id": "ae2f98a0-99fe-4855-8311-26233e9c1364",
+      "name": "Plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "9f727a5b-979b-4d20-836d-f88c71842bc4",
+              "leftValue": "={{ !$json.finish }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "faedd73d-d2f2-44a3-8403-f8d31e49c5bf",
+      "name": "Is a text",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        720,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_prepare_sms",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.prepare) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "c8046694-e1d9-4b07-8deb-9cf063b50dcf",
+      "name": "Prepare text",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        100
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Follow-up Texts: read the answer from \"prepare\" and decide what happens to this task.\nconst plan = $('Plan').item.json;\nconst status = Number($json.statusCode);\nconst b = $json.body && typeof $json.body === 'object' ? $json.body : {};\nconst skip = (reason) => ({ json: { task_id: plan.task_id, finish: { rpc: 'zella_skip_followup_task', body: { p_task_id: plan.task_id, p_reason: reason } } } });\nconst fail = (reason) => ({ json: { task_id: plan.task_id, finish: { rpc: 'zella_complete_followup_task', body: { p_task_id: plan.task_id, p_outcome: 'failed', p_notes: reason, p_retry_in_minutes: 15 } } } });\n\nif (!(status >= 200 && status < 300)) return fail('The database call zella_prepare_sms returned ' + status + '.');\nif (b.allowed !== true) return skip(String(b.reason || 'not_allowed').slice(0, 60));\nif (b.live === true && !b.from) return fail('sender_number_not_set');\n\nreturn {\n  json: {\n    task_id: plan.task_id,\n    live: b.live === true,\n    from: b.from || null,\n    to: b.to,\n    text: b.body,\n    finish: null,\n    log: {\n      p_business_id: plan.business_id,\n      p_customer_id: plan.customer_id,\n      p_to: b.to,\n      p_from: b.from || '',\n      p_body: b.body,\n      p_dedupe_key: 'task:' + plan.task_id,\n      p_status: b.live === true ? 'queued' : 'dry_run',\n      p_meta: { task_id: plan.task_id, template_id: b.template_id, template_version: b.template_version, dry_run: b.live !== true },\n    },\n  },\n};\n"
+      },
+      "id": "a26b9b74-779f-41b0-8b15-7fe84ca0f28e",
+      "name": "Decide",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "3901f87d-52bc-4f1c-873d-7953d82cff89",
+              "leftValue": "={{ !$json.finish }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "65dc3e27-968b-4a09-8727-9ae951c2fff1",
+      "name": "Needs sending",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_log_outbound_sms",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.log) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "6fda8955-183b-4ca5-89e2-65aca9827c55",
+      "name": "Log message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1680,
+        0
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Follow-up Texts: after the message is logged, decide whether to really send.\n// A repeat of the same task is never sent twice. In dry-run nothing is sent.\nconst d = $('Decide').item.json;\nconst status = Number($json.statusCode);\nconst b = $json.body && typeof $json.body === 'object' ? $json.body : {};\nconst done = (rpc, body) => ({ json: { task_id: d.task_id, finish: { rpc, body } } });\nconst complete = (outcome, notes) => done('zella_complete_followup_task', { p_task_id: d.task_id, p_outcome: outcome, p_notes: notes, p_retry_in_minutes: 15 });\n\nif (!(status >= 200 && status < 300)) return complete('failed', 'The database call zella_log_outbound_sms returned ' + status + '.');\nif (b.duplicate === true) {\n  if (b.status === 'sent' || b.status === 'delivered') return complete('sms_sent', null);\n  return done('zella_skip_followup_task', { p_task_id: d.task_id, p_reason: 'duplicate_suppressed' });\n}\nif (d.live !== true) return done('zella_skip_followup_task', { p_task_id: d.task_id, p_reason: 'dry_run: no text was sent' });\n\nreturn { json: { task_id: d.task_id, message_id: b.id, finish: null, telnyx: { from: d.from, to: d.to, text: d.text, type: 'SMS' } } };\n"
+      },
+      "id": "3389b79f-e885-4824-82a9-7506f5e23600",
+      "name": "After log",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "9a6fb444-ad46-4d77-8bdf-59a4c941492a",
+              "leftValue": "={{ !$json.finish }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "8091680e-13a6-4652-8624-110992f2ce96",
+      "name": "Send for real",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2160,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.telnyx.com/v2/messages",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.telnyx) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "b362e786-2557-4eb6-8f5e-a08d993c65f1",
+      "name": "Send via Telnyx",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2400,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Follow-up Texts: turn Telnyx's answer into the message update and the task result.\n// Telnyx's response text is never stored, only its status and its error code.\nconst prev = $('After log').item.json;\nconst status = Number($json.statusCode);\nconst b = $json.body && typeof $json.body === 'object' ? $json.body : {};\nconst externalId = b.data && b.data.id ? String(b.data.id) : null;\nconst ok = status >= 200 && status < 300 && !!externalId;\nconst code = Array.isArray(b.errors) && b.errors[0] && b.errors[0].code ? ' (code ' + String(b.errors[0].code).slice(0, 20) + ')' : '';\nconst limited = status === 429;\nconst error = ok ? null : limited ? 'Rate limited (429); trying again later.' : isNaN(status) ? 'No answer from the provider (timed out); trying again later.' : 'Telnyx returned ' + status + code + '.';\n\nreturn {\n  json: {\n    task_id: prev.task_id,\n    update: { p_id: prev.message_id, p_status: ok ? 'sent' : 'failed', p_external_id: externalId, p_error: error },\n    finish: { rpc: 'zella_complete_followup_task', body: { p_task_id: prev.task_id, p_outcome: ok ? 'sms_sent' : 'failed', p_notes: error, p_retry_in_minutes: status === 429 ? 30 : 15 } },\n  },\n};\n"
+      },
+      "id": "b7016995-6b2a-4faf-8e0b-8124952d1931",
+      "name": "After send",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_update_outbound_sms",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.update) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "3bbdf561-2a4b-4aa5-8e17-45c3cba4a0e5",
+      "name": "Update message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2880,
+        -100
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - SMS Sender: bring back the reminder result after the message update ran.\nreturn { json: $('After send').item.json };\n"
+      },
+      "id": "a8ec1f5e-ecfe-475f-87b6-6c4f75f38e23",
+      "name": "Restore result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3120,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/' + $json.finish.rpc }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.finish.body) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "d7b0e7d3-9162-4791-8fba-63675d5075ba",
+      "name": "Finish follow-up",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3360,
+        200
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Run now": {
+      "main": [
+        [
+          {
+            "node": "Claim follow-ups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim follow-ups": {
+      "main": [
+        [
+          {
+            "node": "Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan": {
+      "main": [
+        [
+          {
+            "node": "Is a text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is a text": {
+      "main": [
+        [
+          {
+            "node": "Prepare text",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Finish follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare text": {
+      "main": [
+        [
+          {
+            "node": "Decide",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decide": {
+      "main": [
+        [
+          {
+            "node": "Needs sending",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs sending": {
+      "main": [
+        [
+          {
+            "node": "Log message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Finish follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log message": {
+      "main": [
+        [
+          {
+            "node": "After log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "After log": {
+      "main": [
+        [
+          {
+            "node": "Send for real",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send for real": {
+      "main": [
+        [
+          {
+            "node": "Send via Telnyx",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Finish follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send via Telnyx": {
+      "main": [
+        [
+          {
+            "node": "After send",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "After send": {
+      "main": [
+        [
+          {
+            "node": "Update message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update message": {
+      "main": [
+        [
+          {
+            "node": "Restore result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore result": {
+      "main": [
+        [
+          {
+            "node": "Finish follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "executionTimeout": 300
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

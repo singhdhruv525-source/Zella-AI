@@ -28,7 +28,7 @@ export function AttentionPage({ workspace, refreshKey, onNotice, onOpenPerson, o
   const tz = workspace.timezone;
   const [filter, setFilter] = useState("open");
   const { data, error, loading, reload } = useLoad(async () => {
-    const calls = orThrow(await supabase.from("calls").select("*").eq("business_id", workspace.id).eq("needs_human", true)
+    const calls = orThrow(await supabase.from("calls_view").select("*").eq("business_id", workspace.id).eq("needs_human", true)
       .order("escalated_at", { ascending: false, nullsFirst: false }).limit(200));
     return { calls, people: await loadPeople(calls.map((c) => c.customer_id)) };
   }, [workspace.id, refreshKey]);
@@ -242,7 +242,7 @@ export function ReportsPage({ workspace, refreshKey }) {
     const since = dayRange(tz, -(days - 1)).start;
     const sinceIso = since.toISOString();
     const [calls, appts, people] = await Promise.all([
-      supabase.from("calls").select("*").eq("business_id", workspace.id).gte("created_at", sinceIso).limit(5000),
+      supabase.from("calls_view").select("*").eq("business_id", workspace.id).gte("created_at", sinceIso).limit(5000),
       supabase.from("appointments").select("*").eq("business_id", workspace.id).gte("start_time", sinceIso).lt("start_time", new Date().toISOString()).limit(5000),
       supabase.from("customers").select("id, created_at").eq("business_id", workspace.id).gte("created_at", sinceIso).limit(5000),
     ]);
@@ -331,8 +331,12 @@ export function ReportsPage({ workspace, refreshKey }) {
 const CATALOG = [
   { match: ["telnyx"], icon: "call", name: "Phone line", text: "Your business number, new or forwarded to Zella." },
   { match: ["vapi"], icon: "record_voice_over", name: "Voice assistant", text: "The AI receptionist that answers your calls." },
-  { match: ["google_calendar", "google"], icon: "calendar_month", name: "Google Calendar", text: "Keeps bookings and your calendar in sync." },
-  { match: ["outlook", "microsoft"], icon: "event", name: "Outlook Calendar", text: "Keeps bookings and your calendar in sync." },
+  { match: ["google_calendar", "gcal", "google"], not: ["ads", "lead", "profile", "mail"], icon: "calendar_month", name: "Google Calendar", text: "Keeps bookings and your calendar in sync." },
+  { match: ["outlook_calendar", "microsoft_calendar", "outlook", "microsoft"], not: ["mail"], icon: "event", name: "Outlook / Microsoft Calendar", text: "Keeps bookings and your calendar in sync." },
+  { match: ["gmail", "google_mail"], icon: "mail", name: "Gmail", text: "Sends and reads email from your own address." },
+  { match: ["outlook_mail", "microsoft_mail"], icon: "mail", name: "Outlook email", text: "Sends and reads email from your own address." },
+  { match: ["whatsapp"], icon: "chat", name: "WhatsApp", text: "Chat with customers on WhatsApp from the inbox." },
+  { match: ["google_ads", "google_leads", "google_profile"], icon: "ads_click", name: "Google leads", text: "Brings in leads from Google Ads and your Business Profile." },
   { match: ["meta", "facebook", "instagram"], icon: "campaign", name: "Facebook and Instagram", text: "Brings in leads from your ads and messages." },
   { match: ["website", "form", "web"], icon: "language", name: "Website forms", text: "Sends website enquiries straight into your leads." },
 ];
@@ -401,7 +405,10 @@ export function IntegrationsPage({ workspace, refreshKey, onNotice }) {
   const canManage = ["owner", "admin", "manager"].includes(workspace.role);
   const { data, error, loading, reload } = useLoad(async () =>
     orThrow(await supabase.from("integrations").select("id, provider, status, account_email").eq("business_id", workspace.id)), [workspace.id, refreshKey]);
-  const rowFor = (item) => (data ?? []).find((r) => item.match.some((m) => (r.provider ?? "").toLowerCase().includes(m)));
+  const rowFor = (item) => (data ?? []).find((r) => {
+    const p = (r.provider ?? "").toLowerCase();
+    return item.match.some((m) => p.includes(m)) && !(item.not ?? []).some((n) => p.includes(n));
+  });
   return (
     <>
       <PageHead crumb="Management / Integrations" title="Integrations"

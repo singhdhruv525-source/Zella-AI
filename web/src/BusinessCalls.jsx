@@ -141,6 +141,55 @@ function CallDetail({ call, person, followUps, roster, workspace, onClose, onCha
   );
 }
 
+const INTENT_LABEL = { book_appointment: "Wants to book", reschedule: "Wants to reschedule", cancel: "Wants to cancel", question: "Had a question", quote_request: "Asked for a quote", complaint: "Complaint", callback_request: "Wants a call back", message: "Left a message", emergency: "Emergency", sales_lead: "New enquiry", other: "Other" };
+const INTENT_TONE = { emergency: "danger", complaint: "danger", sales_lead: "info", quote_request: "info" };
+
+// What the AI noticed on recent calls. Nothing changes until someone accepts.
+function CallSuggestions({ workspace, refreshKey, onNotice }) {
+  const [busy, setBusy] = useState(null);
+  const { data, loading, reload } = useLoad(async () => {
+    const res = await supabase.rpc("zella_call_insights_list", { p_business_id: workspace.id, p_limit: 20 });
+    if (res.error) return [];
+    return (res.data ?? []).filter((i) => i.review_status === "new");
+  }, [workspace.id, refreshKey]);
+  if (loading || !data?.length) return null;
+
+  async function review(id, action) {
+    setBusy(id);
+    const res = await supabase.rpc("zella_review_call_insight", { p_insight_id: id, p_action: action });
+    setBusy(null);
+    if (res.error) { onNotice?.(explain(res.error)); return; }
+    onNotice?.(action === "accept" ? (res.data?.customer_updated ? "Saved to the customer." : "Marked as reviewed.") : "Suggestion dismissed.");
+    reload();
+  }
+
+  return (
+    <section className="ba-panel" aria-label="Suggestions from recent calls">
+      <div className="ba-panel-head"><h2>Suggestions from recent calls</h2><span className="ba-muted">{plural(data.length, "call")} to review. Nothing changes until you accept.</span></div>
+      <div className="ba-panel-body">
+        {data.map((i) => {
+          const d = i.details ?? {};
+          const found = ["name", "email", "service", "preferred_time"].filter((k) => d[k]).map((k) => `${k.replace("_", " ")}: ${d[k]}`);
+          return (
+            <div key={i.id} className="ba-suggestion">
+              <div>
+                <Pill tone={INTENT_TONE[i.intent] ?? ""}>{INTENT_LABEL[i.intent] ?? "Other"}</Pill>{" "}
+                <strong>{i.summary}</strong>
+                {found.length > 0 && <small className="ba-muted" style={{ display: "block" }}>{found.join(" · ")}</small>}
+                {(i.unresolved ?? []).length > 0 && <small className="ba-muted" style={{ display: "block" }}>Still open: {(i.unresolved ?? []).map((u) => u.summary ?? u.kind).join("; ")}</small>}
+              </div>
+              <div className="ba-actions">
+                <button type="button" className="ba-btn" disabled={busy === i.id} onClick={() => review(i.id, "accept")}>Accept</button>
+                <button type="button" className="ba-btn ghost" disabled={busy === i.id} onClick={() => review(i.id, "dismiss")}>Dismiss</button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 const FILTERS = [["all", "All"], ["answered", "Answered"], ["missed", "Missed"], ["ai", "AI handled"], ["human", "Needs a human"], ["recorded", "Recordings"]];
 
 export function CallsPage({ workspace, refreshKey, onNotice, onOpenPerson, transcriptsOnly }) {
@@ -150,7 +199,7 @@ export function CallsPage({ workspace, refreshKey, onNotice, onOpenPerson, trans
   const [openId, setOpenId] = useState(null);
   const roster = useRoster(workspace);
   const { data, error, loading, reload } = useLoad(async () => {
-    const calls = orThrow(await supabase.from("calls").select("*").eq("business_id", workspace.id).order("created_at", { ascending: false }).limit(300));
+    const calls = orThrow(await supabase.from("calls_view").select("*").eq("business_id", workspace.id).order("created_at", { ascending: false }).limit(300));
     const ids = calls.map((c) => c.id);
     // Follow-ups linked to these calls (optional: older workspaces just show none).
     const [cbs, fus] = ids.length ? await Promise.all([
@@ -184,6 +233,7 @@ export function CallsPage({ workspace, refreshKey, onNotice, onOpenPerson, trans
       </PageHead>
 
       <Notice error={error} onRetry={reload} />
+      {!transcriptsOnly && <CallSuggestions workspace={workspace} refreshKey={refreshKey} onNotice={onNotice} />}
       <section className="ba-panel">
         {loading && !data ? <div className="ba-panel-body"><p className="ba-muted">Loading…</p></div> : !rows.length ? (
           <div className="ba-panel-body"><Empty title={filter === "all" ? "No calls yet" : "No calls match"}>{filter === "all" ? "Calls appear here once your phone line is live." : "Try another filter."}</Empty></div>

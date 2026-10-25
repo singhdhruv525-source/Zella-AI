@@ -4,6 +4,7 @@ import { Field, Icon, Modal, Pill, initials, personName } from "./BusinessUI";
 import { formatDay, formatTime, timeAgo, todayInput, zonedDateTime } from "./businessTime";
 import { PhoneField } from "./formFields";
 import { validatePhone } from "./formValidation";
+import { pickQuiet, voiceTitle } from "./zellaVoice";
 import { Empty, Notice, PageHead, Segment, explain, loadPeople, orThrow, plural, useLoad } from "./BusinessShared";
 
 /* ------------------------------------------------------------------ */
@@ -365,6 +366,7 @@ export function NotificationsBell({ workspace, onGo }) {
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState([]);
   const [missing, setMissing] = useState(false);
+  const [quiet] = useState(() => pickQuiet());
 
   async function load() {
     const { data, error } = await supabase.from("staff_notifications").select("*").eq("business_id", workspace.id).order("created_at", { ascending: false }).limit(30);
@@ -398,17 +400,17 @@ export function NotificationsBell({ workspace, onGo }) {
     <div className="ba-bell">
       <button type="button" className="ba-btn icon" aria-label={unread.length ? `${unread.length} unread notifications` : "Notifications"} aria-expanded={open} onClick={() => { setOpen(!open); if (!open) load(); }}>
         <Icon name="notifications" />
-        {unread.length > 0 && <span className="ba-count">{unread.length > 9 ? "9+" : unread.length}</span>}
+        {unread.length > 0 && <span className={`ba-count ${unread.some((n) => n.severity === "urgent") ? "urgent" : ""}`}>{unread.length > 9 ? "9+" : unread.length}</span>}
       </button>
       {open && (
         <div className="ba-bell-panel" role="dialog" aria-label="Notifications">
           <div className="ba-bell-head"><strong>Notifications</strong>{unread.length > 0 && <button type="button" className="ba-link" onClick={markAll}>Mark all read</button>}</div>
-          {!rows.length ? <p className="ba-muted pad">You're all caught up.</p> : (
+          {!rows.length ? <p className="ba-muted pad">{quiet}</p> : (
             <ul>
               {rows.map((n) => (
-                <li key={n.id} className={n.read_at ? "" : "unread"}>
+                <li key={n.id} className={`${n.read_at ? "" : "unread"} ${n.severity === "urgent" ? "urgent" : ""}`}>
                   <button type="button" onClick={() => go(n)}>
-                    <span className="ba-kn-head"><strong>{n.title}</strong>{n.severity !== "info" && <Pill tone={NOTE_TONE[n.severity]}>{n.severity === "urgent" ? "Urgent" : "Heads up"}</Pill>}</span>
+                    <span className="ba-kn-head"><strong>{voiceTitle(n, workspace)}</strong>{n.severity !== "info" && <Pill tone={NOTE_TONE[n.severity]}>{n.severity === "urgent" ? "Urgent" : "Heads up"}</Pill>}</span>
                     {n.body && <small>{n.body}</small>}
                     <small>{timeAgo(n.created_at)}</small>
                   </button>

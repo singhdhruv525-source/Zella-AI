@@ -293,6 +293,76 @@ async function mergeSetupData(
   if (error) throw error;
 }
 
+// Every rule a business can have: made for its industry (on by default) plus a few general ones.
+async function industryRuleList(admin: SupabaseClient, businessId: string) {
+  const { data: key, error: keyError } = await admin.rpc("zella_industry_key_for", { p_business_id: businessId });
+  if (keyError) throw keyError;
+  // An industry with no rules of its own ("Other") gets every rule to choose from.
+  const isOther = String(key ?? "other") === "other";
+  const presetQuery = admin.from("industry_automation_presets")
+    .select("name, description, checklist_no, trigger_type, industry_key");
+  const [presets, mine] = await Promise.all([
+    isOther ? presetQuery : presetQuery.in("industry_key", [String(key), "general"]),
+    admin.from("automations").select("name, status, trigger_config").eq("business_id", businessId),
+  ]);
+  if (presets.error) throw presets.error;
+  if (mine.error) throw mine.error;
+  const have = new Map((mine.data ?? []).map((row) => [row.name, row]));
+  const seen = new Set<string>();
+  return (presets.data ?? [])
+    .filter((p) => (seen.has(p.name) ? false : (seen.add(p.name), true)))
+    .map((p) => {
+      const row = have.get(p.name);
+      return {
+        name: p.name,
+        description: p.description ?? "",
+        checklistNo: p.checklist_no,
+        triggerType: p.trigger_type,
+        preferred: !isOther && p.industry_key !== "general",
+        enabled: row ? row.status !== "disabled" : false,
+        notifyVia: oneOf(obj(row?.trigger_config).notify_via, ["sms", "email", "both"] as const, "both"),
+      };
+    })
+    .sort((a, b) =>
+      Number(!a.preferred) - Number(!b.preferred) ||
+      (a.checklistNo ?? 9999) - (b.checklistNo ?? 9999) ||
+      a.name.localeCompare(b.name)
+    );
+}
+
+async function saveIndustryRules(admin: SupabaseClient, businessId: string, rules: unknown, live: boolean) {
+  if (!Array.isArray(rules)) return;
+  const list = await industryRuleList(admin, businessId);
+  const known = new Map(list.map((r) => [r.name, r]));
+  const { data: presets, error } = await admin
+    .from("industry_automation_presets")
+    .select("name, description, trigger_type, trigger_config")
+    .in("name", list.map((r) => r.name));
+  if (error) throw error;
+  const presetByName = new Map((presets ?? []).map((p) => [p.name, p]));
+  const now = new Date().toISOString();
+  for (const raw of rules) {
+    const item = obj(raw);
+    const name = text(item.name, 100);
+    const preset = presetByName.get(name);
+    if (!known.has(name) || !preset) continue;
+    const enabled = bool(item.enabled, false);
+    const status = !enabled ? "disabled" : live ? "active" : "paused";
+    const notify = oneOf(item.notifyVia, ["sms", "email", "both"] as const, "both");
+    const { data: current, error: currentError } = await admin
+      .from("automations").select("id, trigger_config").eq("business_id", businessId).eq("name", name).maybeSingle();
+    if (currentError) throw currentError;
+    const config = { ...obj(current?.trigger_config ?? preset.trigger_config), notify_via: notify };
+    const { error: writeError } = current
+      ? await admin.from("automations").update({ status, trigger_config: config, updated_at: now }).eq("id", current.id)
+      : await admin.from("automations").insert({
+        business_id: businessId, name, description: preset.description, trigger_type: preset.trigger_type,
+        status, trigger_config: config, actions: [], conditions: {},
+      });
+    if (writeError) throw writeError;
+  }
+}
+
 async function loadSetup(admin: SupabaseClient, businessId: string) {
   const business = await getBusiness(admin, businessId);
 
@@ -322,9 +392,9 @@ async function loadSetup(admin: SupabaseClient, businessId: string) {
         .maybeSingle(),
       admin
         .from("automations")
-        .select("trigger_type, name, status, trigger_config")
+        .select("id, trigger_type, name, description, status, trigger_config")
         .eq("business_id", businessId)
-        .in("trigger_type", AUTOMATION_TYPES),
+        .order("name"),
     ]);
 
   const queryError = configResult.error ?? modulesResult.error ??
@@ -360,6 +430,7 @@ async function loadSetup(admin: SupabaseClient, businessId: string) {
       voiceConfig: obj(config?.voice_config),
     },
     automations: automationsResult.data ?? [],
+    industryRules: await industryRuleList(admin, businessId),
   };
 }
 
@@ -774,7 +845,7 @@ async function saveAutomations(
 ) {
   const businessId = requireId(fields.businessId);
   const input = obj(fields.automations);
-  await getBusiness(admin, businessId);
+  const business = await getBusiness(admin, businessId);
 
   const { data: existing, error: existingError } = await admin
     .from("automations")
@@ -805,7 +876,11 @@ async function saveAutomations(
       description: definition.description,
       trigger_type: type,
       status,
-      trigger_config: definition.settings(obj(item.settings)),
+      // How the owner hears about what this automation did: text, email or both.
+      trigger_config: {
+        ...definition.settings(obj(item.settings)),
+        notify_via: oneOf(obj(item.settings).notify_via, ["sms", "email", "both"] as const, "both"),
+      },
       actions: definition.actions,
       conditions: {},
       updated_at: now,
@@ -820,6 +895,8 @@ async function saveAutomations(
       });
     if (error) throw error;
   }
+
+  await saveIndustryRules(admin, businessId, fields.industryRules, business.is_active === true);
 
   // The early on/off step passes early: true, so it doesn't move setup progress forward.
   if (fields.early !== true) await advance(admin, businessId, "automation_setup");
@@ -1948,6 +2025,11 @@ async function integrationsOverview(admin: SupabaseClient) {
         wanted: choices.calendar && choices.calendar !== "none" ? String(choices.calendar) : null,
         connected: hasActive(b.id, String(choices.calendar ?? "")) ||
           hasActive(b.id, choices.calendar === "google" ? "google_calendar" : "outlook_calendar"),
+      },
+      email: {
+        wanted: choices.email && choices.email !== "none" ? String(choices.email) : null,
+        connected: hasActive(b.id, String(choices.email ?? "")) ||
+          hasActive(b.id, choices.email === "gmail" ? "gmail_mail" : "outlook_mail"),
       },
       leads: {
         wanted: Object.entries(leads).filter(([, on]) => on === true).map(([k]) => k),

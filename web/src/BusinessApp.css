@@ -18,12 +18,12 @@
 .ba-root,
 .ba-auth {
   /* Zella theme: Oat & Slate SaaS Beige (same tokens as the admin) */
-  --ba-primary: #2563EB;
-  --ba-primary-hover: #1D4ED8;
-  --ba-primary-soft: #EFF6FF;
-  --ba-primary-border: #BFDBFE;
-  --ba-primary-ring: rgba(37, 99, 235, 0.15);
-  --ba-violet: #0284C7;
+  --ba-primary: #6F4E37;
+  --ba-primary-hover: #5A3F2C;
+  --ba-primary-soft: #E6E0F0;
+  --ba-primary-border: #CFC5E2;
+  --ba-primary-ring: rgba(111, 78, 55, 0.15);
+  --ba-violet: #6B5B95;
   --ba-success: #15803D;
   --ba-success-bg: #DCFCE7;
   --ba-success-border: #BBF7D0;
@@ -33,24 +33,24 @@
   --ba-danger: #DC2626;
   --ba-danger-bg: #FEE2E2;
   --ba-danger-border: #FECACA;
-  --ba-info: #0284C7;
-  --ba-info-bg: #E0F2FE;
-  --ba-text: #221F1E;
-  --ba-text-2: #57534E;
-  --ba-muted: #78716C;
+  --ba-info: #6B5B95;
+  --ba-info-bg: #E6E0F0;
+  --ba-text: #2B211A;
+  --ba-text-2: #5C4E44;
+  --ba-muted: #7B6E65;
   --ba-faint: #A8A29E;
-  --ba-canvas: #FDF6ED;
+  --ba-canvas: #E5E4E2;
   --ba-surface: #FFFFFF;
-  --ba-subtle: #F4EFE6;
-  --ba-alt: #F8F5EE;
-  --ba-border: #E6DEC8;
-  --ba-border-strong: #D4CBB6;
+  --ba-subtle: #EFEEEC;
+  --ba-alt: #F4F3F1;
+  --ba-border: #D6D3CF;
+  --ba-border-strong: #C2BEB9;
   --ba-radius-sm: 6px;
   --ba-radius-md: 10px;
   --ba-radius-card: 12px;
-  --ba-shadow-1: 0 1px 3px 0 rgba(34, 31, 30, 0.04), 0 1px 2px -1px rgba(34, 31, 30, 0.03);
-  --ba-shadow-2: 0 4px 6px -1px rgba(34, 31, 30, 0.07), 0 2px 4px -2px rgba(34, 31, 30, 0.04);
-  --ba-shadow-pop: 0 20px 25px -5px rgba(34, 31, 30, 0.12), 0 8px 10px -6px rgba(34, 31, 30, 0.06);
+  --ba-shadow-1: 0 1px 3px 0 rgba(43, 33, 26, 0.04), 0 1px 2px -1px rgba(43, 33, 26, 0.03);
+  --ba-shadow-2: 0 4px 6px -1px rgba(43, 33, 26, 0.07), 0 2px 4px -2px rgba(43, 33, 26, 0.04);
+  --ba-shadow-pop: 0 20px 25px -5px rgba(43, 33, 26, 0.12), 0 8px 10px -6px rgba(43, 33, 26, 0.06);
 
   color: var(--ba-text);
   font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -247,7 +247,7 @@
   min-height: 60px;
   padding: 10px 28px;
   border-bottom: 1px solid var(--ba-border);
-  background: rgba(253, 246, 237, 0.92);
+  background: rgba(229, 228, 226, 0.92);
   backdrop-filter: blur(8px);
 }
 
@@ -632,7 +632,7 @@
 }
 
 .ba-item:hover { border-color: var(--ba-border-strong); box-shadow: var(--ba-shadow-2); }
-.ba-item.alert { border-color: var(--ba-danger-border); background: #FFFAF8; }
+.ba-item.alert { border-color: var(--ba-danger-border); background: #FBF7F5; }
 .ba-item.muted { background: var(--ba-canvas); }
 
 .ba-item-top {
@@ -817,7 +817,7 @@
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: rgba(34, 31, 30, 0.45);
+  background: rgba(43, 33, 26, 0.45);
 }
 
 .ba-modal {
@@ -892,8 +892,8 @@
   place-items: center;
   padding: 24px 16px;
   background:
-    radial-gradient(circle at 15% 10%, rgba(37, 99, 235, 0.06), transparent 40%),
-    radial-gradient(circle at 85% 90%, rgba(217, 119, 6, 0.05), transparent 40%),
+    radial-gradient(circle at 15% 10%, rgba(230, 224, 240, 0.8), transparent 40%),
+    radial-gradient(circle at 85% 90%, rgba(230, 224, 240, 0.9), transparent 40%),
     var(--ba-canvas);
 }
 
@@ -1187,7 +1187,7 @@
 .ba-stack > .ba-panel > .ba-panel-body { padding: 16px 18px; display: grid; gap: 6px; }
 .ba-stack > .ba-panel > .ba-panel-body > p { margin: 0; }
 .ba-kn-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
-.ba-draft { background: var(--ba-subdued, #F4EFE6); border: 1px dashed var(--ba-border, #E6DEC8); border-radius: 10px; padding: 10px 12px; }
+.ba-draft { background: var(--ba-subdued, #EFEEEC); border: 1px dashed var(--ba-border, #D6D3CF); border-radius: 10px; padding: 10px 12px; }
 .ba-draft-label { margin: 0 0 4px; font-size: 12px; font-weight: 600; color: var(--ba-muted, #6b6560); display: flex; gap: 8px; align-items: center; }
 
 /* Workflows: callbacks, tasks, waitlist, notifications, lead tab, go-live */
@@ -1203,10 +1203,10 @@
 .ba-picklist { list-style: none; margin: 6px 0 0; padding: 0; border: 1px solid var(--ba-border); border-radius: 10px; background: var(--ba-surface); overflow: hidden; }
 .ba-picklist li + li { border-top: 1px solid var(--ba-border); }
 .ba-picklist button { width: 100%; display: flex; justify-content: space-between; gap: 12px; padding: 9px 12px; background: none; border: 0; text-align: left; font: inherit; color: var(--ba-text); cursor: pointer; }
-.ba-picklist button:hover, .ba-picklist button:focus-visible { background: var(--ba-subdued); outline: none; }
+.ba-picklist button:hover, .ba-picklist button:focus-visible { background: var(--ba-subtle); outline: none; }
 .ba-picklist small { color: var(--ba-muted); }
 
-.ba-dup { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 20px; padding: 12px 14px; border: 1px solid var(--ba-border); border-radius: 10px; background: var(--ba-subdued); }
+.ba-dup { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 20px; padding: 12px 14px; border: 1px solid var(--ba-border); border-radius: 10px; background: var(--ba-subtle); }
 .ba-dup > div:not(.ba-form-actions) { display: grid; gap: 2px; }
 .ba-dup small { color: var(--ba-muted); font-size: 12px; }
 .ba-dup .ba-form-actions { grid-column: 1 / -1; }
@@ -1221,13 +1221,13 @@
 .ba-btn.icon .ba-count { position: absolute; top: -6px; right: -6px; margin: 0; }
 .ba-bell { position: relative; }
 .ba-bell-panel { position: absolute; right: 0; top: calc(100% + 8px); width: min(380px, calc(100vw - 32px)); max-height: 70vh; overflow: auto; z-index: 40;
-  background: var(--ba-surface); border: 1px solid var(--ba-border); border-radius: 12px; box-shadow: 0 12px 32px rgba(34, 31, 30, .14); }
+  background: var(--ba-surface); border: 1px solid var(--ba-border); border-radius: 12px; box-shadow: 0 12px 32px rgba(43, 33, 26, .14); }
 .ba-bell-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--ba-border); }
 .ba-bell-panel ul { list-style: none; margin: 0; padding: 0; }
 .ba-bell-panel li + li { border-top: 1px solid var(--ba-border); }
 .ba-bell-panel li button { width: 100%; display: grid; gap: 3px; text-align: left; padding: 11px 14px; background: none; border: 0; font: inherit; color: var(--ba-text); cursor: pointer; }
-.ba-bell-panel li button:hover, .ba-bell-panel li button:focus-visible { background: var(--ba-subdued); outline: none; }
-.ba-bell-panel li.unread button { background: #EEF4FF; }
+.ba-bell-panel li button:hover, .ba-bell-panel li button:focus-visible { background: var(--ba-subtle); outline: none; }
+.ba-bell-panel li.unread button { background: #E6E0F0; }
 .ba-bell-panel small { color: var(--ba-muted); }
 .ba-muted.pad { padding: 16px 14px; margin: 0; }
 .ba-kn-head .ba-pill, .ba-thread-meta .ba-pill, .ba-status-row .ba-pill { text-transform: none; }
@@ -1448,3 +1448,21 @@
 .ba-auto-links { display: flex; flex-wrap: wrap; gap: 14px; }
 .ba-runs { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; padding: 10px; border: 1px solid var(--ba-border); border-radius: var(--ba-radius-md); background: var(--ba-alt); }
 .ba-fail { color: var(--ba-danger); }
+
+.ba-suggestion { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--ba-border); }
+.ba-suggestion:last-child { border-bottom: 0; }
+.ba-suggestion .ba-actions { flex-shrink: 0; display: flex; gap: 8px; }
+@media (max-width: 640px) { .ba-suggestion { flex-direction: column; } }
+.ba-today-owner { font-weight: 600; margin: 2px 0 4px; }
+.ba-today-note { font-size: 1.05rem; margin: 0 0 4px; }
+
+/* Suggested messages */
+.ba-drafts { margin: 0; padding: 0; list-style: none; }
+.ba-draft { padding: 14px 16px; border-bottom: 1px solid var(--ba-border); display: grid; gap: 8px; }
+.ba-draft:last-child { border-bottom: 0; }
+.ba-draft-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+.ba-draft-head small { color: var(--ba-muted); }
+.ba-draft textarea { width: 100%; resize: vertical; font: inherit; padding: 10px 12px; border: 1px solid var(--ba-border); border-radius: 8px; background: var(--ba-surface, #fff); color: var(--ba-text); }
+.ba-draft textarea:focus-visible { outline: 2px solid var(--ba-primary); outline-offset: 1px; }
+.ba-draft-foot { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.ba-draft-foot small { margin-right: auto; color: var(--ba-muted); }
