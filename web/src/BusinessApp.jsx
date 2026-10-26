@@ -26,12 +26,35 @@ import { AddLeadModal, BookAppointmentModal } from "./BusinessForms";
 import { Icon, Pill, initials, loadBusinessFonts } from "./BusinessUI";
 import { formatLongDate } from "./businessTime";
 import { makeTerm, receptionistState } from "./businessWorkspace";
+import { navigate, segments, usePath } from "./router";
 
 // The CRM each client business uses (Stitch design). Routes:
 //   /welcome  set password from an invitation or reset email
 //   /app      sign in, then the business's own workspace
 
 loadBusinessFonts();
+
+// Every page key the app knows, so an address for a page this person can't see
+// says "not available" instead of "not found".
+const KNOWN_PAGES = new Set([
+  "today", "leads", "customers", "calendar", "checkins", "waitlist", "tasks", "drafts", "attention", "callbacks",
+  "inbox", "messages", "calls", "lead-sources", "receptionist", "transcripts", "automations", "knowledge", "team",
+  "access", "approvals", "failed", "security", "reports", "record-settings", "integrations", "settings",
+]);
+
+// Address <-> page:  /app = Today, /app/<key>, /app/records/<type>, /app/settings/<section>.
+function readPage(path, base) {
+  const rest = path === base || path.startsWith(`${base}/`) ? segments(path.slice(base.length)) : [];
+  if (!rest.length) return { key: "today", section: null, extra: false };
+  if (rest[0] === "records") return { key: `rec:${rest[1] ?? ""}`, section: null, extra: rest.length > 2 };
+  if (rest[0] === "settings") return { key: "settings", section: rest[1] ?? null, extra: rest.length > 2 };
+  return { key: rest[0], section: null, extra: rest.length > 1 };
+}
+const pageUrl = (base, key) =>
+  key === "today" ? base : key.startsWith("rec:") ? `${base}/records/${encodeURIComponent(key.slice(4))}` : `${base}/${key}`;
+
+// Pages whose list the header search filters.
+const SEARCHABLE = (key) => key === "customers" || key === "leads" || key.startsWith("rec:");
 
 // Sidebar groups from the design. Core CRM pages always show; the rest follow
 // the business's enabled modules. Pages not built yet are marked "Soon".
@@ -58,6 +81,7 @@ function navigation(workspace, recordTypes = []) {
         { key: "attention", label: "Needs attention", icon: "support_agent", ready: true },
         { key: "callbacks", label: "Callbacks", icon: "phone_callback", ready: true },
         { key: "inbox", label: "Unified Inbox", icon: "forum", ready: true },
+        { key: "messages", label: "Messages", icon: "chat", ready: true },
         has("calls") && { key: "calls", label: "Calls", icon: "call", ready: true },
         { key: "lead-sources", label: "Lead sources", icon: "hub", ready: true },
       ],
@@ -118,8 +142,11 @@ function Blocked({ workspace, onSignOut }) {
   );
 }
 
-function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackName, onSignOut, onReload }) {
-  const [page, setPage] = useState("today");
+function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackName, onSignOut, onReload, base = "/app" }) {
+  const path = usePath();
+  const route = readPage(path, base);
+  const page = route.key;
+  const setPage = (key) => navigate(pageUrl(base, key));
   const [modal, setModal] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -172,7 +199,16 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
   }
 
   const allItems = groups.flatMap((g) => g.items);
-  const current = allItems.find((i) => i.key === page) ?? allItems[0];
+  const found = route.extra ? null : allItems.find((i) => i.key === page);
+  // Shown in place of a page: still loading record types, not allowed for this role or plan, or unknown.
+  const missing = found ? null
+    : page.startsWith("rec:") && !records.loaded ? "loading"
+      : !route.extra && (KNOWN_PAGES.has(page) || page.startsWith("rec:")) ? "unavailable" : "not-found";
+  const current = found ?? { key: "", label: missing === "not-found" ? "Page not found" : "Not available" };
+  const canGo = (key) => allItems.some((i) => i.key === key);
+  const searchable = SEARCHABLE(current.key);
+  const searchLabel = current.key === "leads" ? "leads"
+    : current.key.startsWith("rec:") ? current.label.toLowerCase() : term("customers").toLowerCase();
 
   return (
     <div className="ba-root">
@@ -249,9 +285,11 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
             <Icon name="search" size="sm" />
             <input
               value={search}
-              onChange={(e) => { setSearch(e.target.value); if (page !== "customers" && page !== "leads") setPage("customers"); }}
-              placeholder={`Search ${term("customers").toLowerCase()}`}
-              aria-label={`Search ${term("customers").toLowerCase()}`}
+              onChange={(e) => setSearch(e.target.value)}
+              // On a page without a list, Enter opens the search results in the customer list.
+              onKeyDown={(e) => { if (e.key === "Enter" && !searchable && search.trim()) setPage("customers"); }}
+              placeholder={searchable ? `Search ${searchLabel}` : `Search ${term("customers").toLowerCase()} (press Enter)`}
+              aria-label={`Search ${searchLabel}`}
             />
           </label>
 
@@ -261,7 +299,10 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
                 <Icon name="campaign" /><span>Tell callers</span>
               </button>
             )}
-            <NotificationsBell workspace={workspace} onGo={(key) => { if (groups.some((g) => g.items.some((i) => i.key === key))) setPage(key); }} />
+            <NotificationsBell workspace={workspace} onGo={(key) => {
+              if (canGo(key)) setPage(key);
+              else if (key) setNotice("That page isn't available with your access. Ask an owner or admin if you need it.");
+            }} />
             <button type="button" className="ba-btn primary" onClick={() => setModal("lead")}>
               <Icon name="person_add" /><span>Add lead</span>
             </button>
@@ -302,6 +343,20 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
           )}
           {error && <div className="ba-banner error">{error}</div>}
 
+          {missing === "loading" && <p className="ba-muted">Loading…</p>}
+          {missing && missing !== "loading" && (
+            <section className="ba-panel">
+              <div className="ba-panel-body">
+                <h2>{missing === "not-found" ? "Page not found" : "This page isn't available"}</h2>
+                <p className="ba-muted">
+                  {missing === "not-found"
+                    ? "There's no page at this address. It may have moved, or the link may be incomplete."
+                    : "Your role or this workspace's plan doesn't include this page. Ask an owner or admin if you need it."}
+                </p>
+                <button type="button" className="ba-btn primary" onClick={() => setPage("today")}>Go to Today</button>
+              </div>
+            </section>
+          )}
           {current.key === "today" && (
             <BusinessToday
               key={refreshKey}
@@ -345,7 +400,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
           {current.key === "lead-sources" && <LeadSourcesPage workspace={workspace} refreshKey={refreshKey} />}
           {current.key === "reports" && <ReportsPage workspace={workspace} refreshKey={refreshKey} />}
           {current.key === "integrations" && <IntegrationsPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
-          {current.key === "settings" && <SettingsPage workspace={workspace} email={email} onSignOut={onSignOut} />}
+          {current.key === "settings" && <SettingsPage workspace={workspace} email={email} onSignOut={onSignOut} section={route.section} onReload={onReload} onNotice={setNotice} />}
         </main>
       </div>
 
@@ -498,6 +553,7 @@ function Preview() {
       workspaces={[PREVIEW_WORKSPACE]}
       onSwitch={() => {}}
       email="preview@zella.ai"
+      base="/app/preview"
       onSignOut={() => { window.location.href = "/app"; }}
       onReload={() => {}}
     />

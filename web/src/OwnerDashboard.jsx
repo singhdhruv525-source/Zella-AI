@@ -16,6 +16,7 @@ import ModulesPage from "./ModulesPage";
 import OffersPage from "./OffersPage";
 import { Pill } from "./OwnerOverview";
 import { businessState } from "./ownerFormat";
+import { navigate, segments, usePath } from "./router";
 
 const STATE_FILTERS = [
   ["all", "All businesses"],
@@ -35,25 +36,57 @@ function matchesState(business, filter) {
 }
 
 const NAVIGATION = [
-  { label: "Overview", icon: "◫" },
-  { label: "Businesses", icon: "▦" },
-  { label: "Users & Access", icon: "♙" },
-  { label: "Industry Configuration", icon: "◇" },
-  { label: "Modules & Features", icon: "▤" },
-  { label: "AI Agents", icon: "✳" },
-  { label: "Plans & Subscriptions", icon: "▱" },
-  { label: "Offers & Promotions", icon: "✦" },
-  { label: "Integrations", icon: "↔" },
-  { label: "Platform Operations", icon: "⌘" },
-  { label: "Support", icon: "♡" },
-  { label: "Audit Logs", icon: "☷" },
-  { label: "Settings", icon: "⚙" },
+  { label: "Overview", icon: "◫", path: "/" },
+  { label: "Businesses", icon: "▦", path: "/businesses" },
+  { label: "Users & Access", icon: "♙", path: "/users" },
+  { label: "Industry Configuration", icon: "◇", path: "/industries" },
+  { label: "Modules & Features", icon: "▤", path: "/modules" },
+  { label: "AI Agents", icon: "✳", path: "/agents" },
+  { label: "Plans & Subscriptions", icon: "▱", path: "/plans" },
+  { label: "Offers & Promotions", icon: "✦", path: "/offers" },
+  { label: "Integrations", icon: "↔", path: "/integrations" },
+  { label: "Platform Operations", icon: "⌘", path: "/operations" },
+  { label: "Support", icon: "♡", path: "/support" },
+  { label: "Audit Logs", icon: "☷", path: "/audit-logs" },
+  { label: "Settings", icon: "⚙", path: "/settings" },
 ];
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Which page, business and setup wizard the address shows.
+//   /businesses/new             new business wizard
+//   /businesses/<id>            business details
+//   /businesses/<id>/setup      setup wizard for that business
+//   /settings/<section>         a Settings category
+// Anything else unknown shows "Page not found".
+function readRoute(path) {
+  const [first = "", second, third] = segments(path);
+  const item = NAVIGATION.find((n) => n.path === `/${first}`);
+  if (!item) return { activePage: null, wizard: null, detailId: null, section: null };
+  const route = { activePage: item.label, wizard: null, detailId: null, section: null };
+  if (item.label === "Businesses" && second) {
+    if (second === "new" && !third) route.wizard = { businessId: null };
+    else if (UUID_RE.test(second) && !third) route.detailId = second;
+    else if (UUID_RE.test(second) && third === "setup") route.wizard = { businessId: second };
+    else route.activePage = null;
+  } else if (item.label === "Settings" && second) {
+    route.section = second;
+  } else if (second) {
+    route.activePage = null;
+  }
+  return route;
+}
+
+const pathFor = (label) => NAVIGATION.find((n) => n.label === label)?.path ?? "/";
+
 export default function OwnerDashboard({ onSignOut }) {
-  const [activePage, setActivePage] = useState("Overview");
-  const [wizard, setWizard] = useState(null);
-  const [detailId, setDetailId] = useState(null);
+  const path = usePath();
+  const { activePage, wizard, detailId, section } = readRoute(path);
+  const setActivePage = (label) => navigate(pathFor(label));
+  const setDetailId = (id) => navigate(id ? `/businesses/${id}` : "/businesses");
+  const setWizard = (next) => navigate(next
+    ? next.businessId ? `/businesses/${next.businessId}/setup` : "/businesses/new"
+    : detailId ? `/businesses/${detailId}` : pathFor(activePage ?? "Businesses"));
   const [search, setSearch] = useState("");
   const [stateFilter, setStateFilter] = useState("all");
   const [businesses, setBusinesses] = useState([]);
@@ -118,9 +151,7 @@ useEffect(() => {
   });
 
   function goTo(page) {
-    setActivePage(page);
-    setWizard(null);
-    setDetailId(null);
+    navigate(pathFor(page));
   }
 
   return (
@@ -177,7 +208,7 @@ useEffect(() => {
           <div className="owner-breadcrumb">
             <span>Platform</span>
             <span>/</span>
-            <strong>{activePage}</strong>
+            <strong>{activePage ?? "Page not found"}</strong>
           </div>
 
           <div className="owner-top-actions">
@@ -219,7 +250,7 @@ useEffect(() => {
               businessId={wizard.businessId}
               industries={industries}
               onClose={(changed) => {
-                setWizard(null);
+                navigate(wizard.businessId ? `/businesses/${wizard.businessId}` : "/businesses");
                 if (changed) loadDashboardData();
               }}
             />
@@ -227,10 +258,7 @@ useEffect(() => {
             <BusinessDetails
               key={detailId}
               businessId={detailId}
-              onBack={() => {
-                setDetailId(null);
-                setActivePage("Businesses");
-              }}
+              onBack={() => navigate("/businesses")}
               onOpenSetup={(id) => setWizard({ businessId: id })}
             />
           ) : activePage === "Overview" ? (
@@ -264,7 +292,7 @@ useEffect(() => {
           ) : activePage === "Platform Operations" ? (
             <PlatformOperations onNavigate={goTo} />
           ) : activePage === "Settings" ? (
-            <SettingsPage onNavigate={goTo} />
+            <SettingsPage onNavigate={goTo} section={section} />
           ) : isBusinesses ? (
             <section className="owner-page">
               <div className="owner-page-heading">
@@ -514,36 +542,13 @@ useEffect(() => {
           ) : (
             <section className="owner-page">
               <div className="owner-eyebrow">PLATFORM CONTROL CENTER</div>
-              <h1>{activePage === "Overview" ? "Welcome to Zella" : activePage}</h1>
+              <h1>Page not found</h1>
               <p className="owner-page-description">
-                {activePage === "Overview"
-                  ? "Manage your business workspaces, configurations and platform operations from one place."
-                  : `The ${activePage.toLowerCase()} workspace will be connected in a later implementation step.`}
+                There's no admin page at this address. It may have moved, or the link may be incomplete.
               </p>
-
-              <div className="owner-stat-grid">
-                <StatCard label="Businesses" value="—" note="Awaiting live data" icon="▦" />
-                <StatCard label="Users" value="—" note="Awaiting live data" icon="♙" />
-                <StatCard label="Subscriptions" value="—" note="Awaiting live data" icon="▱" />
-                <StatCard label="Invitations" value="—" note="Awaiting live data" icon="✉" />
-              </div>
-
               <div className="owner-panel owner-overview-panel">
-                <div className="owner-panel-heading">
-                  <div>
-                    <h2>Platform workspace</h2>
-                    <p>Continue setting up your Zella platform.</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  className="owner-primary-button"
-                  onClick={() => {
-                    setActivePage("Businesses");
-                    setWizard(null);
-                  }}
-                >
-                  Manage businesses <span>→</span>
+                <button type="button" className="owner-primary-button" onClick={() => goTo("Overview")}>
+                  Go to Overview <span>→</span>
                 </button>
               </div>
             </section>
