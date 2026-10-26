@@ -996,3 +996,5 @@
   .op-list li { flex-wrap: wrap; }
 }
 .op-list li > .op-inline { flex-direction: row; align-items: center; }
+.op-incident-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; border-top: 1px solid var(--border-subtle); }
+.op-incident-form .owner-input:first-child { width: 320px; }

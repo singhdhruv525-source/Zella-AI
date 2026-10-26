@@ -290,7 +290,7 @@ useEffect(() => {
           ) : activePage === "Offers & Promotions" ? (
             <OffersPage onOpenBusiness={setDetailId} />
           ) : activePage === "Platform Operations" ? (
-            <PlatformOperations onNavigate={goTo} />
+            <PlatformOperations onNavigate={goTo} onOpenBusiness={setDetailId} />
           ) : activePage === "Settings" ? (
             <SettingsPage onNavigate={goTo} section={section} />
           ) : isBusinesses ? (

@@ -3,8 +3,9 @@ import "./OwnerPages.css";
 import { callOwnerFunction } from "./CreateBusinessWizard";
 import { Pill } from "./OwnerOverview";
 import { formatDateTime } from "./ownerFormat";
+import PlatformMonitoring from "./PlatformMonitoring";
 
-export default function PlatformOperations({ onNavigate }) {
+export default function PlatformOperations({ onNavigate, onOpenBusiness }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -104,6 +105,8 @@ export default function PlatformOperations({ onNavigate }) {
           </ul>
         </section>
       </div>
+
+      <PlatformMonitoring onOpenBusiness={onOpenBusiness} />
     </section>
   );
 }
