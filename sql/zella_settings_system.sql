@@ -588,3 +588,72 @@ returns jsonb language sql stable security definer set search_path = public as $
 $$;
 revoke all on function public.zella_my_profile() from public, anon;
 grant execute on function public.zella_my_profile() to authenticated;
+
+-- 13. Business roles: "viewer" really is read-only ------------------------------------------------------------
+--     The member policies on these tables let any active member write. These restrictive policies add one more
+--     condition for writes: the person is not a viewer. Server functions using the server key are not affected.
+
+do $$
+declare t text;
+begin
+  foreach t in array array['customers', 'appointments', 'conversations', 'knowledge_items', 'blocked_times', 'staff_members', 'support_tickets', 'lead_rules', 'calls'] loop
+    if to_regclass('public.' || t) is null then continue; end if;
+    execute format('drop policy if exists zella_viewer_no_insert on public.%I', t);
+    execute format('create policy zella_viewer_no_insert on public.%I as restrictive for insert to authenticated with check (not public.zella_has_role(business_id, array[''viewer'']))', t);
+    execute format('drop policy if exists zella_viewer_no_update on public.%I', t);
+    execute format('create policy zella_viewer_no_update on public.%I as restrictive for update to authenticated using (not public.zella_has_role(business_id, array[''viewer'']))', t);
+    execute format('drop policy if exists zella_viewer_no_delete on public.%I', t);
+    execute format('create policy zella_viewer_no_delete on public.%I as restrictive for delete to authenticated using (not public.zella_has_role(business_id, array[''viewer'']))', t);
+  end loop;
+end $$;
+
+-- 14. Business terminology ------------------------------------------------------------------------------------
+--     Owners and admins can rename the words their workspace uses (stored in businesses.terminology_overrides, which
+--     zella_my_workspaces already merges over the industry's words). Same keys as the admin setup wizard.
+
+create or replace function public.zella_save_terminology(p_business_id uuid, p_words jsonb)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare k text; v text; clean jsonb := '{}'::jsonb;
+  allowed text[] := array['customer', 'customers', 'staff', 'staff_plural', 'service', 'services', 'appointment', 'appointments', 'job', 'jobs', 'visit', 'visits'];
+begin
+  if auth.uid() is null or not public.zella_has_role(p_business_id, array['owner', 'admin']) then raise exception 'NOT_ALLOWED'; end if;
+  if jsonb_typeof(p_words) is distinct from 'object' then raise exception 'BAD_INPUT'; end if;
+  for k, v in select key, value from jsonb_each_text(p_words) loop
+    if not (k = any (allowed)) then continue; end if;
+    v := nullif(left(regexp_replace(trim(coalesce(v, '')), '[<>{}]', '', 'g'), 40), '');
+    if v is not null then clean := clean || jsonb_build_object(k, v); end if;
+  end loop;
+  update public.businesses set terminology_overrides = clean, updated_at = now() where id = p_business_id;
+  insert into public.audit_logs (business_id, user_id, action, entity_type, entity_id, new_data)
+  values (p_business_id, auth.uid(), 'business.terminology_updated', 'business', p_business_id, clean);
+  return clean;
+end $$;
+revoke all on function public.zella_save_terminology(uuid, jsonb) from public, anon;
+grant execute on function public.zella_save_terminology(uuid, jsonb) to authenticated;
+
+-- 15. Requests from a business to Zella ----------------------------------------------------------------------
+--     Plan changes, cancellation, feedback and support requests become support tickets the Zella team handles.
+--     Nothing is changed by the request itself. Plan changes and cancellation: owner only.
+
+create or replace function public.zella_business_request(p_business_id uuid, p_kind text, p_subject text, p_description text, p_details jsonb default '{}'::jsonb)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare v_id uuid; v_cat text; v_pri text := 'normal';
+begin
+  if auth.uid() is null or not public.zella_is_member(p_business_id) then raise exception 'NOT_ALLOWED'; end if;
+  if p_kind in ('plan_change', 'cancellation') and not public.zella_has_role(p_business_id, array['owner']) then raise exception 'OWNER_ONLY'; end if;
+  v_cat := case p_kind when 'plan_change' then 'billing' when 'cancellation' then 'billing' when 'feedback' then 'feedback'
+                       when 'feature' then 'feature_request' when 'issue' then 'technical' when 'support' then 'general' else null end;
+  if v_cat is null then raise exception 'BAD_INPUT'; end if;
+  if length(trim(coalesce(p_subject, ''))) < 3 then raise exception 'SUBJECT_REQUIRED'; end if;
+  if p_kind = 'cancellation' then v_pri := 'high'; end if;
+  if p_kind = 'issue' and coalesce(p_details ->> 'urgent', 'false') = 'true' then v_pri := 'urgent'; end if;
+  insert into public.support_tickets (business_id, created_by, subject, description, status, priority, category, metadata)
+  values (p_business_id, auth.uid(), left(trim(p_subject), 200), left(coalesce(p_description, ''), 5000), 'open', v_pri, v_cat,
+          jsonb_build_object('kind', p_kind, 'details', coalesce(p_details, '{}'::jsonb) - 'urgent', 'source', 'business_settings'))
+  returning id into v_id;
+  insert into public.audit_logs (business_id, user_id, action, entity_type, entity_id, new_data)
+  values (p_business_id, auth.uid(), 'business.request_' || p_kind, 'support_ticket', v_id, jsonb_build_object('subject', left(p_subject, 200)));
+  return v_id;
+end $$;
+revoke all on function public.zella_business_request(uuid, text, text, text, jsonb) from public, anon;
+grant execute on function public.zella_business_request(uuid, text, text, text, jsonb) to authenticated;

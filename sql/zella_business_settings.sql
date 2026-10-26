@@ -5,7 +5,7 @@
 --   had a table each (zella_voice_rules.sql) but nothing could write them, so every business read as "hours not
 --   set" to the phone assistant. These functions let a business keep its own details:
 --     zella_business_settings(business)            everything the Settings page shows, in one read
---     zella_save_business_profile(business, json)  name, contact details, address, time zone (owner, admin)
+--     zella_save_business_profile(business, json)  name, type, description, contact details, address, time zone (owner, admin)
 --     zella_save_business_hours(business, json)    weekly opening hours, split shifts allowed (owner, admin, manager)
 --     zella_add_business_closure(...)              a holiday or special hours (owner, admin, manager)
 --     zella_delete_business_closure(id)            (owner, admin, manager)
@@ -13,7 +13,8 @@
 --
 -- Only columns the existing code already writes are touched:
 --   businesses: name, legal_name, email, phone, website, address_line_1, address_line_2, city, state, postal_code,
---               country, timezone, updated_at  (the same list owner-provision-business saves)
+--               country, timezone, updated_at (the same list owner-provision-business saves), business_type (an existing
+--               column), and two new optional columns: description, alternate_phone
 --   profiles:   first_name, last_name, phone   (read by zella_inbox.sql, zella_lead_pipeline.sql, zella_staff_sms.sql)
 -- The industry, plan, modules and status stay with the Zella admin dashboard.
 --
@@ -36,6 +37,10 @@
 --     raise exception 'RESULT %', r -> 'hours';
 --   end $$;
 
+-- Two optional profile fields the Settings page asks for (additive; existing rows keep null).
+alter table public.businesses add column if not exists description text;
+alter table public.businesses add column if not exists alternate_phone text;
+
 create or replace function public.zella_business_settings(p_business_id uuid)
 returns jsonb language plpgsql stable security definer set search_path = public as $$
 declare v_role text; b record; v_me jsonb;
@@ -52,6 +57,8 @@ begin
     'can_edit_hours', v_role in ('owner', 'admin', 'manager'),
     'business', jsonb_build_object(
       'name', b.name, 'legal_name', b.legal_name, 'email', b.email, 'phone', b.phone, 'website', b.website,
+      'business_type', b.business_type, 'description', b.description, 'alternate_phone', b.alternate_phone, 'logo_url', b.logo_url,
+      'industry', (select i.name from public.industries i where i.id = b.industry_id),
       'address_line_1', b.address_line_1, 'address_line_2', b.address_line_2, 'city', b.city, 'state', b.state,
       'postal_code', b.postal_code, 'country', b.country, 'timezone', b.timezone),
     'hours', coalesce((select jsonb_agg(jsonb_build_object('weekday', h.weekday, 'opens', to_char(h.opens, 'HH24:MI'), 'closes', to_char(h.closes, 'HH24:MI'))
@@ -71,6 +78,7 @@ declare
   v_name text := left(trim(coalesce(p_fields ->> 'name', '')), 200);
   v_email text := lower(nullif(left(trim(coalesce(p_fields ->> 'email', '')), 254), ''));
   v_phone text := nullif(regexp_replace(coalesce(p_fields ->> 'phone', ''), '[\s()-]', '', 'g'), '');
+  v_alt text := nullif(regexp_replace(coalesce(p_fields ->> 'alternate_phone', ''), '[\s()-]', '', 'g'), '');
   v_web text := nullif(left(trim(coalesce(p_fields ->> 'website', '')), 300), '');
   v_country text := upper(nullif(left(trim(coalesce(p_fields ->> 'country', '')), 2), ''));
   v_tz text := nullif(trim(coalesce(p_fields ->> 'timezone', '')), '');
@@ -80,6 +88,7 @@ begin
   if v_name = '' then raise exception 'NAME_REQUIRED'; end if;
   if v_email is not null and v_email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' then raise exception 'BAD_EMAIL'; end if;
   if v_phone is not null and v_phone !~ '^\+[1-9][0-9]{7,14}$' then raise exception 'BAD_PHONE'; end if;
+  if v_alt is not null and v_alt !~ '^\+[1-9][0-9]{7,14}$' then raise exception 'BAD_PHONE'; end if;
   if v_web is not null and v_web !~* '^https?://[^\s/]+\.[^\s]+' then raise exception 'BAD_WEBSITE'; end if;
   if v_country is not null and v_country !~ '^[A-Z]{2}$' then raise exception 'BAD_COUNTRY'; end if;
   if v_tz is null or not exists (select 1 from pg_timezone_names where name = v_tz) then raise exception 'BAD_TIMEZONE'; end if;
@@ -91,7 +100,10 @@ begin
     legal_name = nullif(left(trim(coalesce(p_fields ->> 'legal_name', '')), 200), ''),
     email = v_email,
     phone = v_phone,
+    alternate_phone = v_alt,
     website = v_web,
+    business_type = nullif(left(trim(coalesce(p_fields ->> 'business_type', '')), 80), ''),
+    description = nullif(left(trim(coalesce(p_fields ->> 'description', '')), 1000), ''),
     address_line_1 = nullif(left(trim(coalesce(p_fields ->> 'address_line_1', '')), 200), ''),
     address_line_2 = nullif(left(trim(coalesce(p_fields ->> 'address_line_2', '')), 200), ''),
     city = nullif(left(trim(coalesce(p_fields ->> 'city', '')), 120), ''),
