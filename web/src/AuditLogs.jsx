@@ -36,7 +36,7 @@ export default function AuditLogs({ onOpenBusiness }) {
     <section className="owner-page">
       <div className="owner-page-heading">
         <div>
-          <div className="owner-eyebrow">SECURITY</div>
+          <div className="owner-eyebrow">Security</div>
           <h1>Audit logs</h1>
           <p>Every admin action on client businesses: who did it, what changed and when.</p>
         </div>

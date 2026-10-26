@@ -1,0 +1,83 @@
+/* =========================================================
+   Zella design tokens: the single source of truth for colour,
+   type, spacing, radius and elevation. Every app scope (admin
+   dashboard, business CRM, sign-in, settings, public pages)
+   maps its own variable names to these; change a value here
+   and the whole product follows.
+   ========================================================= */
+
+:root {
+  /* Surfaces */
+  --zella-bg: #F7F4EF;
+  --zella-sidebar: #F1EBE2;
+  --zella-card: #FFFFFF;
+  --zella-subtle: #F3EEE7;        /* quiet fills: hover, table head, footers */
+  --zella-alt: #FAF8F4;           /* alternate rows, read-only fields */
+
+  /* Brand */
+  --zella-primary: #70452F;
+  --zella-primary-hover: #543321;
+  --zella-primary-soft: #F1E7DE;  /* tinted backgrounds: selected rows, chips */
+  --zella-primary-border: #DCC6B4;
+  --zella-primary-ring: rgba(112, 69, 47, 0.16);
+  --zella-nav-active: #E7D9CB;    /* selected navigation on the cream sidebar */
+  --zella-nav-hover: rgba(112, 69, 47, 0.06);
+  --zella-on-primary: #FFFFFF;
+
+  /* Text */
+  --zella-text: #252321;
+  --zella-text-2: #4A4540;        /* body copy that needs a little less weight */
+  --zella-text-secondary: #77716B;
+  --zella-text-faint: #A39C95;
+
+  /* Lines */
+  --zella-border: #E9E2D9;
+  --zella-border-strong: #D9CFC3;
+
+  /* Status: background, readable foreground, border */
+  --zella-success-bg: #DDF4E5;
+  --zella-success: #1F7A45;
+  --zella-success-border: #BFE5CC;
+  --zella-info-bg: #E3EEFA;
+  --zella-info: #2F5F96;
+  --zella-info-border: #C3D8F0;
+  --zella-warning-bg: #FFF0D5;
+  --zella-warning: #8A5A00;
+  --zella-warning-border: #F2D8A4;
+  --zella-danger-bg: #FCE6E3;
+  --zella-danger: #B3362B;
+  --zella-danger-border: #F3C6BF;
+
+  /* Typography */
+  --zella-font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --zella-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --zella-text-xs: 12px;          /* secondary text, badges, table heads */
+  --zella-text-sm: 13px;          /* form labels, dense rows */
+  --zella-text-base: 14px;        /* body, navigation */
+  --zella-text-lg: 16px;          /* section headings */
+  --zella-text-xl: 18px;          /* modal and large section headings */
+  --zella-text-page: 28px;        /* page headings */
+  --zella-text-kpi: 32px;         /* KPI values */
+  --zella-leading: 1.5;
+  --zella-leading-tight: 1.25;
+
+  /* Spacing (4px grid) */
+  --zella-space-1: 4px;
+  --zella-space-2: 8px;
+  --zella-space-3: 12px;
+  --zella-space-4: 16px;
+  --zella-space-5: 20px;
+  --zella-space-6: 24px;
+  --zella-space-8: 32px;
+
+  /* Shape and elevation */
+  --zella-radius-sm: 8px;         /* buttons, inputs */
+  --zella-radius-md: 10px;        /* menus, small cards */
+  --zella-radius-lg: 14px;        /* cards, panels, modals */
+  --zella-radius-full: 999px;
+  --zella-shadow-sm: 0 1px 2px rgba(37, 35, 33, 0.04);
+  --zella-shadow-md: 0 4px 12px -4px rgba(37, 35, 33, 0.08);
+  --zella-shadow-pop: 0 18px 40px -12px rgba(37, 35, 33, 0.18);
+  --zella-overlay: rgba(37, 35, 33, 0.42);
+  --zella-focus: 0 0 0 3px var(--zella-primary-ring);
+}

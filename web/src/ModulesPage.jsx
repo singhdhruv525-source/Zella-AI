@@ -30,7 +30,7 @@ export default function ModulesPage({ onNavigate }) {
     <section className="owner-page">
       <div className="owner-page-heading">
         <div>
-          <div className="owner-eyebrow">CONFIGURATION</div>
+          <div className="owner-eyebrow">Configuration</div>
           <h1>Modules & features</h1>
           <p>Every CRM module on Zella, which industries offer it, and how many businesses use it.</p>
         </div>

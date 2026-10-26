@@ -102,7 +102,7 @@ export default function ContinuePlan() {
 
         {state.status === "scheduled" && (
           <>
-            <div className="owner-eyebrow">YOUR ZELLA PLAN</div>
+            <div className="owner-eyebrow">Your Zella plan</div>
             <h1>Keep {state.businessName} running?</h1>
             <p>
               Your plan is set to end on <strong>{formatDay(state.cancelAt)}</strong>. After that, your AI

@@ -13,22 +13,23 @@
 }
 
 .login-page {
-  --canvas: #E5E4E2;
-  --surface: #FFFFFF;
-  --subdued: #EFEEEC;
-  --alt: #F4F3F1;
-  --border: #D6D3CF;
-  --border-strong: #C2BEB9;
-  --text: #2B211A;
-  --text-2: #5C4E44;
-  --muted: #7B6E65;
-  --primary: #6F4E37;
-  --primary-hover: #5A3F2C;
-  --primary-subtle: #E6E0F0;
-  --success: #15803D;
-  --success-bg: #DCFCE7;
-  --danger: #DC2626;
-  --danger-bg: #FEE2E2;
+  /* Sign-in names for the shared tokens in styles/tokens.css */
+  --canvas: var(--zella-bg);
+  --surface: var(--zella-card);
+  --subdued: var(--zella-subtle);
+  --alt: var(--zella-alt);
+  --border: var(--zella-border);
+  --border-strong: var(--zella-border-strong);
+  --text: var(--zella-text);
+  --text-2: var(--zella-text-2);
+  --muted: var(--zella-text-secondary);
+  --primary: var(--zella-primary);
+  --primary-hover: var(--zella-primary-hover);
+  --primary-subtle: var(--zella-primary-soft);
+  --success: var(--zella-success);
+  --success-bg: var(--zella-success-bg);
+  --danger: var(--zella-danger);
+  --danger-bg: var(--zella-danger-bg);
 
   position: relative;
   min-height: 100vh;
@@ -38,33 +39,15 @@
   padding: 24px;
   background: var(--canvas);
   color: var(--text);
-  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--zella-font);
   text-align: left;
 }
 
 .login-page * { box-sizing: border-box; }
 
+/* The soft background shapes are kept in the markup but not drawn: the page stays calm and flat. */
 .ambient {
-  position: absolute;
-  border-radius: 9999px;
-  filter: blur(80px);
-  pointer-events: none;
-}
-
-.ambient-one {
-  top: -120px;
-  left: -80px;
-  width: 420px;
-  height: 420px;
-  background: rgba(111, 78, 55, 0.08);
-}
-
-.ambient-two {
-  right: -120px;
-  bottom: -140px;
-  width: 460px;
-  height: 460px;
-  background: rgba(230, 224, 240, 0.9);
+  display: none;
 }
 
 .login-layout {
@@ -75,9 +58,9 @@
   grid-template-columns: 1.05fr 1fr;
   overflow: hidden;
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: var(--zella-radius-lg);
   background: var(--surface);
-  box-shadow: 0 1px 3px 0 rgba(43, 33, 26, 0.04), 0 20px 40px -12px rgba(43, 33, 26, 0.12);
+  box-shadow: var(--zella-shadow-md);
 }
 
 /* Left: brand panel */
@@ -131,7 +114,7 @@
   height: 7px;
   border-radius: 9999px;
   background: var(--primary);
-  box-shadow: 0 0 0 4px rgba(111, 78, 55, 0.15);
+  box-shadow: 0 0 0 4px var(--zella-primary-ring);
 }
 
 .brand-message h1 {
@@ -215,7 +198,7 @@
   display: grid;
   place-items: center;
   margin-bottom: 18px;
-  border: 1px solid #CFC5E2;
+  border: 1px solid var(--zella-info-border);
   border-radius: 12px;
   background: var(--primary-subtle);
   color: var(--primary);
@@ -270,7 +253,7 @@
 
 .input-wrap:focus-within {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(111, 78, 55, 0.15);
+  box-shadow: 0 0 0 3px var(--zella-primary-ring);
 }
 
 .input-icon {
@@ -290,7 +273,7 @@
   font-size: 14px;
 }
 
-.input-wrap input::placeholder { color: #A8A29E; }
+.input-wrap input::placeholder { color: var(--zella-text-faint); }
 
 .show-password {
   padding: 4px 6px;
@@ -334,8 +317,8 @@
   font-size: 13px;
 }
 
-.login-message.error { border: 1px solid #FECACA; background: var(--danger-bg); color: var(--danger); }
-.login-message.success { border: 1px solid #BBF7D0; background: var(--success-bg); color: var(--success); }
+.login-message.error { border: 1px solid var(--zella-danger-border); background: var(--danger-bg); color: var(--danger); }
+.login-message.success { border: 1px solid var(--zella-success-border); background: var(--success-bg); color: var(--success); }
 
 .security-note {
   display: flex;
@@ -374,7 +357,7 @@
 
 .field-error {
   margin: -4px 0 12px;
-  color: #b3261e;
+  color: var(--danger);
   font-size: 12.5px;
   line-height: 1.4;
 }

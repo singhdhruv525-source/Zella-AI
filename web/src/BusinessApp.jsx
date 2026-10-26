@@ -151,6 +151,15 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
   const route = readPage(path, base);
   const page = route.key;
   const setPage = (key) => navigate(pageUrl(base, key));
+  // Phone-width menu: the sidebar opens as a drawer and closes as soon as the address changes.
+  const [navOpenAt, setNavOpenAt] = useState(null);
+  const navOpen = navOpenAt === path;
+  useEffect(() => {
+    if (!navOpen) return undefined;
+    const onKey = (e) => { if (e.key === "Escape") setNavOpenAt(null); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [navOpen]);
   const [modal, setModal] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -217,7 +226,8 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
 
   return (
     <div className="ba-root">
-      <aside className="ba-sidebar">
+      {navOpen && <button type="button" className="zella-nav-backdrop" aria-label="Close menu" onClick={() => setNavOpenAt(null)} />}
+      <aside id="ba-sidebar" className={`ba-sidebar ${navOpen ? "open" : ""}`} aria-label="Main navigation">
         <div className="ba-brand">
           <div className="ba-logo">Z</div>
           <div>
@@ -237,6 +247,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
                   className={`ba-nav-item ${page === item.key ? "active" : ""} ${item.ready ? "" : "soon"}`}
                   onClick={() => item.ready && setPage(item.key)}
                   aria-disabled={!item.ready}
+                  aria-current={page === item.key ? "page" : undefined}
                   title={item.label}
                 >
                   <Icon name={item.icon} />
@@ -272,6 +283,10 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
 
       <div className="ba-main">
         <header className="ba-header">
+          <button type="button" className="ba-btn ghost zella-menu-btn ba-menu-btn" aria-label="Open menu" aria-controls="ba-sidebar" aria-expanded={navOpen}
+            onClick={() => setNavOpenAt(navOpen ? null : path)}>
+            <Icon name="menu" />
+          </button>
           <div className="ba-business">
             <Icon name="domain" />
             {workspaces.length > 1 ? (

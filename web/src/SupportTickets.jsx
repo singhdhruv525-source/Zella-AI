@@ -79,7 +79,7 @@ export default function SupportTickets({ onOpenBusiness }) {
     <section className="owner-page">
       <div className="owner-page-heading">
         <div>
-          <div className="owner-eyebrow">SUPPORT</div>
+          <div className="owner-eyebrow">Support</div>
           <h1>Support tickets</h1>
           <p>Issues raised for client businesses, who's handling them and where they stand.</p>
         </div>

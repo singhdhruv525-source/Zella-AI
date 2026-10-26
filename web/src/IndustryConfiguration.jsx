@@ -197,7 +197,7 @@ export default function IndustryConfiguration() {
     <section className="owner-page">
       <div className="owner-page-heading">
         <div>
-          <div className="owner-eyebrow">CONFIGURATION</div>
+          <div className="owner-eyebrow">Configuration</div>
           <h1>Industry configuration</h1>
           <p>Default terminology, AI voice wording and CRM modules each industry starts with.</p>
         </div>

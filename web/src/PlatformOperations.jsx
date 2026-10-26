@@ -41,7 +41,7 @@ export default function PlatformOperations({ onNavigate, onOpenBusiness }) {
     <section className="owner-page">
       <div className="owner-page-heading">
         <div>
-          <div className="owner-eyebrow">OPERATIONS</div>
+          <div className="owner-eyebrow">Operations</div>
           <h1>Platform operations</h1>
           <p>Health of the Zella platform and anything that needs fixing.</p>
         </div>

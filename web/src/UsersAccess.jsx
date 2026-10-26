@@ -77,7 +77,7 @@ export default function UsersAccess() {
     <section className="owner-page">
       <div className="owner-page-heading">
         <div>
-          <div className="owner-eyebrow">ACCESS</div>
+          <div className="owner-eyebrow">Access</div>
           <h1>Users & access</h1>
           <p>People who can use this Zella admin dashboard. Business owners and staff are managed inside each business.</p>
         </div>

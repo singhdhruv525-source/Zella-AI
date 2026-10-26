@@ -61,7 +61,7 @@ export default function PlansPage({ onOpenBusiness }) {
     <section className="owner-page">
       <div className="owner-page-heading">
         <div>
-          <div className="owner-eyebrow">BILLING</div>
+          <div className="owner-eyebrow">Billing</div>
           <h1>Plans & subscriptions</h1>
           <p>The plans businesses can be on, and which business is on which plan.</p>
         </div>

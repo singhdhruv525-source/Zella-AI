@@ -195,7 +195,7 @@ export default function OffersPage({ onOpenBusiness }) {
     <section className="owner-page">
       <div className="owner-page-heading">
         <div>
-          <div className="owner-eyebrow">GROWTH</div>
+          <div className="owner-eyebrow">Growth</div>
           <h1>Offers & promotions</h1>
           <p>Create offers for Small, Medium and Large businesses, schedule them, and see who claimed what.</p>
         </div>

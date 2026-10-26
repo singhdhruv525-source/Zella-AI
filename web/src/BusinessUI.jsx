@@ -3,20 +3,14 @@ import { createPortal } from "react-dom";
 
 // Shared building blocks for the business app (Stitch design).
 
-// Inter and Material Symbols, as in the design. Loaded once.
+// Material Symbols (outline icons) for both apps. Loaded once; Inter comes from index.html.
 export function loadBusinessFonts() {
   if (typeof document === "undefined" || document.getElementById("ba-fonts")) return;
-  const fonts = [
-    "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap",
-    "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,400,0..1,0&display=block",
-  ];
-  fonts.forEach((href, index) => {
-    const link = document.createElement("link");
-    link.rel = "stylesheet";
-    link.href = href;
-    if (index === 0) link.id = "ba-fonts";
-    document.head.appendChild(link);
-  });
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,400,0..1,0&display=block";
+  link.id = "ba-fonts";
+  document.head.appendChild(link);
 }
 
 export function Icon({ name, size, className = "" }) {

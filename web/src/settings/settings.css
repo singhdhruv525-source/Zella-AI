@@ -136,7 +136,7 @@
 .zs-switch.on span { transform: translateX(16px); }
 .zs-switch:disabled { opacity: .5; cursor: not-allowed; }
 
-.zs-overlay { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(20, 16, 12, .45); }
+.zs-overlay { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 16px; background: var(--zella-overlay); }
 .zs-dialog { width: min(480px, 100%); max-height: calc(100vh - 32px); overflow: auto; padding: 18px; border-radius: var(--zs-radius); background: var(--zs-surface); color: var(--zs-text); box-shadow: 0 20px 60px rgba(0,0,0,.25); }
 .zs-dialog h3 { margin: 0 0 8px; font-size: 16px; }
 .zs-dialog-body { margin-bottom: 12px; color: var(--zs-text-2); font-size: 13.5px; }

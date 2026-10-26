@@ -68,7 +68,7 @@ export default function OwnerOverview({ onCreateBusiness, onOpenBusiness, onCont
     <section className="owner-page">
       <div className="owner-page-heading">
         <div>
-          <div className="owner-eyebrow">PLATFORM CONTROL CENTER</div>
+          <div className="owner-eyebrow">Platform control center</div>
           <h1>Overview</h1>
           <p>Every client business on Zella, where its setup stands, and what needs attention.</p>
         </div>

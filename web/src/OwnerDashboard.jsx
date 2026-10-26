@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Icon, loadBusinessFonts } from "./BusinessUI";
 import "./OwnerDashboard.css";
 import CreateBusinessWizard, { callOwnerFunction } from "./CreateBusinessWizard";
 import OwnerOverview from "./OwnerOverview";
@@ -36,20 +37,26 @@ function matchesState(business, filter) {
   return state.key === filter;
 }
 
+loadBusinessFonts();
+
+// Invitation states as badges: the label says it, the colour backs it up.
+const INVITE_TONE = { accepted: "success", sent: "warning", pending: "warning", failed: "danger", expired: "danger", revoked: "neutral" };
+const words = (s) => String(s ?? "").replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+
 const NAVIGATION = [
-  { label: "Overview", icon: "◫", path: "/" },
-  { label: "Businesses", icon: "▦", path: "/businesses" },
-  { label: "Users & Access", icon: "♙", path: "/users" },
-  { label: "Industry Configuration", icon: "◇", path: "/industries" },
-  { label: "Modules & Features", icon: "▤", path: "/modules" },
-  { label: "AI Agents", icon: "✳", path: "/agents" },
-  { label: "Plans & Subscriptions", icon: "▱", path: "/plans" },
-  { label: "Offers & Promotions", icon: "✦", path: "/offers" },
-  { label: "Integrations", icon: "↔", path: "/integrations" },
-  { label: "Platform Operations", icon: "⌘", path: "/operations" },
-  { label: "Support", icon: "♡", path: "/support" },
-  { label: "Audit Logs", icon: "☷", path: "/audit-logs" },
-  { label: "Settings", icon: "⚙", path: "/settings" },
+  { label: "Overview", icon: "space_dashboard", path: "/" },
+  { label: "Businesses", icon: "storefront", path: "/businesses" },
+  { label: "Users & Access", icon: "group", path: "/users" },
+  { label: "Industry Configuration", icon: "category", path: "/industries" },
+  { label: "Modules & Features", icon: "widgets", path: "/modules" },
+  { label: "AI Agents", icon: "smart_toy", path: "/agents" },
+  { label: "Plans & Subscriptions", icon: "credit_card", path: "/plans" },
+  { label: "Offers & Promotions", icon: "sell", path: "/offers" },
+  { label: "Integrations", icon: "hub", path: "/integrations" },
+  { label: "Platform Operations", icon: "monitor_heart", path: "/operations" },
+  { label: "Support", icon: "support_agent", path: "/support" },
+  { label: "Audit Logs", icon: "history", path: "/audit-logs" },
+  { label: "Settings", icon: "settings", path: "/settings" },
 ];
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -157,14 +164,25 @@ useEffect(() => {
     navigate(pathFor(page));
   }
 
+  // Phone-width menu: the sidebar opens as a drawer and closes as soon as the address changes.
+  const [navOpenAt, setNavOpenAt] = useState(null);
+  const navOpen = navOpenAt === path;
+  useEffect(() => {
+    if (!navOpen) return undefined;
+    const onKey = (e) => { if (e.key === "Escape") setNavOpenAt(null); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [navOpen]);
+
   return (
     <div className="owner-app">
-      <aside className="owner-sidebar">
+      {navOpen && <button type="button" className="zella-nav-backdrop" aria-label="Close menu" onClick={() => setNavOpenAt(null)} />}
+      <aside id="owner-sidebar" className={`owner-sidebar ${navOpen ? "open" : ""}`} aria-label="Main navigation">
         <div className="owner-brand">
           <div className="owner-brand-mark">Z</div>
           <div>
-            <div className="owner-brand-name">zella<span>ai</span></div>
-            <div className="owner-brand-caption">PLATFORM CONTROL</div>
+            <div className="owner-brand-name">Zella <span>AI</span></div>
+            <div className="owner-brand-caption">Platform control</div>
           </div>
         </div>
 
@@ -187,8 +205,9 @@ useEffect(() => {
                 activePage === item.label ? "active" : ""
               }`}
               onClick={() => goTo(item.label)}
+              aria-current={activePage === item.label ? "page" : undefined}
             >
-              <span className="owner-nav-icon">{item.icon}</span>
+              <span className="owner-nav-icon"><Icon name={item.icon} /></span>
               <span>{item.label}</span>
               {item.label === "Businesses" && (
                 <span className="owner-nav-arrow">›</span>
@@ -208,6 +227,10 @@ useEffect(() => {
 
       <main className="owner-main">
         <header className="owner-topbar">
+          <button type="button" className="owner-icon-button zella-menu-btn owner-menu-btn" aria-label="Open menu" aria-controls="owner-sidebar" aria-expanded={navOpen}
+            onClick={() => setNavOpenAt(navOpen ? null : path)}>
+            <Icon name="menu" />
+          </button>
           <div className="owner-breadcrumb">
             <span>Platform</span>
             <span>/</span>
@@ -216,7 +239,7 @@ useEffect(() => {
 
           <div className="owner-top-actions">
             <div className="owner-search">
-              <span>⌕</span>
+              <Icon name="search" size="sm" />
               <input
                 value={search}
                 onChange={(event) => {
@@ -237,7 +260,7 @@ useEffect(() => {
               title="Needs attention (Overview)"
               onClick={() => goTo("Overview")}
             >
-              ♧
+              <Icon name="notifications" />
             </button>
             <div className="owner-avatar" title="Platform owner">O</div>
             <button className="owner-signout" type="button" onClick={onSignOut}>
@@ -302,7 +325,7 @@ useEffect(() => {
             <section className="owner-page">
               <div className="owner-page-heading">
                 <div>
-                  <div className="owner-eyebrow">WORKSPACE MANAGEMENT</div>
+                  <div className="owner-eyebrow">Workspace management</div>
                   <h1>Businesses</h1>
                   <p>
                     Create and manage isolated CRM workspaces for every
@@ -335,28 +358,28 @@ useEffect(() => {
     label="Total businesses"
     value={loadingBusinesses ? "..." : stats.totalBusinesses}
     note="Registered businesses"
-    icon="▦"
+    icon="storefront"
   />
 
   <StatCard
     label="Active workspaces"
     value={loadingBusinesses ? "..." : stats.activeWorkspaces}
     note="Currently active"
-    icon="◉"
+    icon="check_circle"
   />
 
   <StatCard
     label="Pending invitations"
     value={loadingBusinesses ? "..." : stats.pendingInvitations}
     note="Awaiting acceptance"
-    icon="✉"
+    icon="mail"
   />
 
   <StatCard
     label="Provisioning issues"
     value={loadingBusinesses ? "..." : stats.provisioningIssues}
     note="Failed invitations"
-    icon="⚑"
+    icon="flag"
   />
 </div>
 
@@ -392,12 +415,12 @@ useEffect(() => {
   <table className="owner-table">
     <thead>
       <tr>
-        <th>BUSINESS</th>
-        <th>INDUSTRY</th>
-        <th>OWNER</th>
-        <th>PLAN</th>
-        <th>WORKSPACE</th>
-        <th>INVITATION</th>
+        <th>Business</th>
+        <th>Industry</th>
+        <th>Owner</th>
+        <th>Plan</th>
+        <th>Workspace</th>
+        <th>Invitation</th>
         <th />
       </tr>
     </thead>
@@ -475,9 +498,9 @@ useEffect(() => {
                 </td>
 
                 <td>
-                  <span className="owner-status">
-                    {invitation?.status ?? "Not sent"}
-                  </span>
+                  <Pill tone={INVITE_TONE[invitation?.status] ?? "neutral"}>
+                    {words(invitation?.status ?? "not_sent")}
+                  </Pill>
                 </td>
 
                 <td>
@@ -505,7 +528,7 @@ useEffect(() => {
         <tr>
           <td colSpan={7}>
             <div className="owner-empty-state">
-              <div className="owner-empty-icon">▦</div>
+              <div className="owner-empty-icon"><Icon name="storefront" /></div>
               <strong>
                 {search.trim() || stateFilter !== "all"
                   ? "No matching businesses found"
@@ -546,7 +569,7 @@ useEffect(() => {
             </section>
           ) : (
             <section className="owner-page">
-              <div className="owner-eyebrow">PLATFORM CONTROL CENTER</div>
+              <div className="owner-eyebrow">Platform control center</div>
               <h1>Page not found</h1>
               <p className="owner-page-description">
                 There's no admin page at this address. It may have moved, or the link may be incomplete.
@@ -570,7 +593,7 @@ function StatCard({ label, value, note, icon }) {
     <div className="owner-stat-card">
       <div className="owner-stat-top">
         <span>{label}</span>
-        <span className="owner-stat-icon">{icon}</span>
+        <span className="owner-stat-icon"><Icon name={icon} size="sm" /></span>
       </div>
       <div className="owner-stat-value">{value}</div>
       <div className="owner-stat-note">{note}</div>

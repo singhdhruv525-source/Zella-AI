@@ -6,7 +6,7 @@
   --ff-text: var(--ba-text, var(--text-primary, #1f2328));
   --ff-muted: var(--ba-muted, var(--text-muted, #6b6f76));
   --ff-focus: var(--ba-primary, var(--color-primary, #6f4e37));
-  --ff-ring: var(--ba-primary-ring, rgba(111, 78, 55, 0.18));
+  --ff-ring: var(--ba-primary-ring, var(--zella-primary-ring));
   --ff-danger: var(--ba-danger, var(--status-danger, #b3261e));
   --ff-danger-bg: var(--ba-danger-bg, #fdf0ee);
   --ff-ok: var(--ba-success, var(--status-success, #2e7d4f));

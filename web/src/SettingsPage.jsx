@@ -4,6 +4,7 @@ import { supabase } from "./supabase";
 import { callOwnerFunction } from "./CreateBusinessWizard";
 import { navigate } from "./router";
 import SettingsWorkspace from "./settings/SettingsWorkspace";
+import { Icon } from "./BusinessUI";
 import { Banner, Loading } from "./settings/SettingsKit";
 import { AccountSecurityPanel, MyProfilePanel, SignOutPanel } from "./settings/PersonalPanels";
 import * as P from "./settings/AdminPanels";
@@ -13,8 +14,9 @@ import { MonitorTab, ReportsTab, RulesTab } from "./OffersPage";
 // Admin Settings: one Settings item in the main sidebar opens this workspace,
 // with 17 categories and their pages at /settings/<category>/<page>.
 
-const Glyph = ({ name }) => <span className="zs-glyph" aria-hidden="true">{GLYPHS[name] ?? "•"}</span>;
-const GLYPHS = { search: "⌕", general: "◫", tenants: "▦", users: "♙", plans: "▱", offers: "✦", billing: "$", ai: "✳", voice: "☏", comms: "✉", integrations: "↔", security: "♢", alerts: "♧", support: "♡", analytics: "▤", legal: "§", dev: "⌘", profile: "☺" };
+// Outline icons (Material Symbols), the same set the sidebars use.
+const Glyph = ({ name }) => <span className="zs-glyph"><Icon name={GLYPHS[name] ?? "radio_button_unchecked"} size="sm" /></span>;
+const GLYPHS = { search: "search", general: "tune", tenants: "storefront", users: "group", plans: "workspace_premium", offers: "sell", billing: "payments", ai: "smart_toy", voice: "call", comms: "forum", integrations: "hub", security: "shield", alerts: "notifications", support: "support_agent", analytics: "monitoring", legal: "gavel", dev: "code", profile: "person" };
 
 const page = (key, label, render, keywords = "") => ({ key, label, render, keywords });
 

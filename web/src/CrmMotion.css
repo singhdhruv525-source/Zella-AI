@@ -1,61 +1,27 @@
-/* Life for the CRM: pages arrive softly, cards rise in turn, things respond when touched.
-   Everything here is switched off for people who prefer reduced motion. */
+/* Motion in the CRM, kept quiet: pages fade in once, progress bars fill, banners slide in.
+   Nothing moves on hover beyond a colour change. Everything here is switched off for
+   people who prefer reduced motion. */
 @media (prefers-reduced-motion: no-preference) {
   /* Each page eases in, its parts one after another. */
-  .ba-content > :not([role="dialog"]) { animation: ba-rise 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
-  .ba-content > :nth-child(2) { animation-delay: 60ms; }
-  .ba-content > :nth-child(3) { animation-delay: 120ms; }
-  .ba-content > :nth-child(4) { animation-delay: 180ms; }
-  .ba-content > :nth-child(n + 5) { animation-delay: 240ms; }
+  .ba-content > :not([role="dialog"]) { animation: ba-rise 0.35s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  .ba-content > :nth-child(2) { animation-delay: 40ms; }
+  .ba-content > :nth-child(3) { animation-delay: 80ms; }
+  .ba-content > :nth-child(n + 4) { animation-delay: 120ms; }
 
-  .ba-kpis > * { animation: ba-rise 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
-  .ba-kpis > :nth-child(1) { animation-delay: 150ms; }
-  .ba-kpis > :nth-child(2) { animation-delay: 220ms; }
-  .ba-kpis > :nth-child(3) { animation-delay: 290ms; }
-  .ba-kpis > :nth-child(4) { animation-delay: 360ms; }
-  .ba-kpis > :nth-child(5) { animation-delay: 430ms; }
-  .ba-kpis > :nth-child(6) { animation-delay: 500ms; }
-
-  /* Cards respond when you reach for them. */
-  .ba-kpi, .ba-panel { transition: transform 0.25s cubic-bezier(0.2, 0.7, 0.2, 1), box-shadow 0.25s ease, border-color 0.25s ease; }
-  .ba-kpi:hover { transform: translateY(-3px); box-shadow: var(--ba-shadow-2); border-color: var(--ba-primary-border); }
-  .ba-kpi-icon { transition: transform 0.3s cubic-bezier(0.3, 1.5, 0.5, 1); }
-  .ba-kpi:hover .ba-kpi-icon { transform: scale(1.15) rotate(-6deg); }
-  .ba-panel:hover { border-color: var(--ba-border-strong); }
-
-  /* Buttons and menu. */
-  .ba-btn { transition: transform 0.15s ease, background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease; }
-  .ba-btn.primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 14px -6px rgba(111, 78, 55, 0.55); }
-  .ba-nav-item { transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease; }
-  .ba-nav-item:hover:not(.soon):not(.active) { transform: translateX(3px); }
-  .ba-nav-item .ba-icon { transition: transform 0.25s cubic-bezier(0.3, 1.5, 0.5, 1); }
-  .ba-nav-item:hover:not(.soon) .ba-icon { transform: scale(1.18); }
-  .ba-nav-item.active { animation: ba-pop 0.35s cubic-bezier(0.3, 1.5, 0.5, 1); }
-  .ba-logo { transition: transform 0.4s cubic-bezier(0.3, 1.5, 0.5, 1); }
-  .ba-brand:hover .ba-logo { transform: rotate(-8deg) scale(1.06); }
-
-  /* Tables and lists feel alive under the pointer. */
-  .ba-table tbody tr { transition: background 0.15s ease; }
-  .ba-table tbody tr:hover { background: var(--ba-primary-soft); }
-  .ba-autos > li, .ba-suggestion { animation: ba-rise 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
-  .ba-autos > li:nth-child(2), .ba-suggestion:nth-child(2) { animation-delay: 60ms; }
-  .ba-autos > li:nth-child(3), .ba-suggestion:nth-child(3) { animation-delay: 120ms; }
-  .ba-autos > li:nth-child(n + 4), .ba-suggestion:nth-child(n + 4) { animation-delay: 180ms; }
+  /* Cards and rows answer the pointer with a border or fill, not movement. */
+  .ba-kpi, .ba-panel { transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+  .ba-kpi:hover, .ba-panel:hover { border-color: var(--ba-border-strong); }
+  .ba-table tbody tr { transition: background-color 0.12s ease; }
 
   /* Progress bars fill in. */
-  .ba-bar span { transform-origin: left center; animation: ba-fill 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) 0.6s both; }
+  .ba-bar span { transform-origin: left center; animation: ba-fill 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) 0.3s both; }
 
-  /* Toasts and banners slide in. */
-  .ba-banner { animation: ba-slide 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  /* Banners slide in. */
+  .ba-banner { animation: ba-slide 0.3s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
 }
-@keyframes ba-rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
-@keyframes ba-pop { from { transform: scale(0.96); } to { transform: none; } }
+@keyframes ba-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @keyframes ba-fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-@keyframes ba-slide { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+@keyframes ba-slide { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
 
 /* Urgent notifications are easy to spot, without shouting. */
 .ba-bell-panel li.urgent button { box-shadow: inset 3px 0 0 var(--ba-danger); }
-@media (prefers-reduced-motion: no-preference) {
-  .ba-count.urgent { animation: ba-beat 1.8s ease-in-out infinite; }
-}
-@keyframes ba-beat { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.18); } }

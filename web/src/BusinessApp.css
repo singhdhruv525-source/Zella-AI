@@ -17,43 +17,45 @@
 
 .ba-root,
 .ba-auth {
-  /* Zella theme: Oat & Slate SaaS Beige (same tokens as the admin) */
-  --ba-primary: #6F4E37;
-  --ba-primary-hover: #5A3F2C;
-  --ba-primary-soft: #E6E0F0;
-  --ba-primary-border: #CFC5E2;
-  --ba-primary-ring: rgba(111, 78, 55, 0.15);
-  --ba-violet: #6B5B95;
-  --ba-success: #15803D;
-  --ba-success-bg: #DCFCE7;
-  --ba-success-border: #BBF7D0;
-  --ba-warning: #D97706;
-  --ba-warning-bg: #FEF3C7;
-  --ba-warning-border: #FDE68A;
-  --ba-danger: #DC2626;
-  --ba-danger-bg: #FEE2E2;
-  --ba-danger-border: #FECACA;
-  --ba-info: #6B5B95;
-  --ba-info-bg: #E6E0F0;
-  --ba-text: #2B211A;
-  --ba-text-2: #5C4E44;
-  --ba-muted: #7B6E65;
-  --ba-faint: #A8A29E;
-  --ba-canvas: #E5E4E2;
-  --ba-surface: #FFFFFF;
-  --ba-subtle: #EFEEEC;
-  --ba-alt: #F4F3F1;
-  --ba-border: #D6D3CF;
-  --ba-border-strong: #C2BEB9;
-  --ba-radius-sm: 6px;
-  --ba-radius-md: 10px;
-  --ba-radius-card: 12px;
-  --ba-shadow-1: 0 1px 3px 0 rgba(43, 33, 26, 0.04), 0 1px 2px -1px rgba(43, 33, 26, 0.03);
-  --ba-shadow-2: 0 4px 6px -1px rgba(43, 33, 26, 0.07), 0 2px 4px -2px rgba(43, 33, 26, 0.04);
-  --ba-shadow-pop: 0 20px 25px -5px rgba(43, 33, 26, 0.12), 0 8px 10px -6px rgba(43, 33, 26, 0.06);
+  /* CRM names for the shared tokens in styles/tokens.css */
+  --ba-primary: var(--zella-primary);
+  --ba-primary-hover: var(--zella-primary-hover);
+  --ba-primary-soft: var(--zella-primary-soft);
+  --ba-primary-border: var(--zella-primary-border);
+  --ba-primary-ring: var(--zella-primary-ring);
+  --ba-violet: var(--zella-info);
+  --ba-success: var(--zella-success);
+  --ba-success-bg: var(--zella-success-bg);
+  --ba-success-border: var(--zella-success-border);
+  --ba-warning: var(--zella-warning);
+  --ba-warning-bg: var(--zella-warning-bg);
+  --ba-warning-border: var(--zella-warning-border);
+  --ba-danger: var(--zella-danger);
+  --ba-danger-bg: var(--zella-danger-bg);
+  --ba-danger-border: var(--zella-danger-border);
+  --ba-info: var(--zella-info);
+  --ba-info-bg: var(--zella-info-bg);
+  --ba-text: var(--zella-text);
+  --ba-text-2: var(--zella-text-2);
+  --ba-muted: var(--zella-text-secondary);
+  --ba-faint: var(--zella-text-faint);
+  --ba-canvas: var(--zella-bg);
+  --ba-sidebar: var(--zella-sidebar);
+  --ba-surface: var(--zella-card);
+  --ba-subtle: var(--zella-subtle);
+  --ba-subdued: var(--zella-subtle);
+  --ba-alt: var(--zella-alt);
+  --ba-border: var(--zella-border);
+  --ba-border-strong: var(--zella-border-strong);
+  --ba-radius-sm: var(--zella-radius-sm);
+  --ba-radius-md: var(--zella-radius-md);
+  --ba-radius-card: var(--zella-radius-lg);
+  --ba-shadow-1: var(--zella-shadow-sm);
+  --ba-shadow-2: var(--zella-shadow-md);
+  --ba-shadow-pop: var(--zella-shadow-pop);
 
   color: var(--ba-text);
-  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--zella-font);
   font-size: 14px;
   line-height: 1.45;
   text-align: left;
@@ -247,7 +249,7 @@
   min-height: 60px;
   padding: 10px 28px;
   border-bottom: 1px solid var(--ba-border);
-  background: rgba(229, 228, 226, 0.92);
+  background: rgba(247, 244, 239, 0.92);
   backdrop-filter: blur(8px);
 }
 
@@ -632,7 +634,7 @@
 }
 
 .ba-item:hover { border-color: var(--ba-border-strong); box-shadow: var(--ba-shadow-2); }
-.ba-item.alert { border-color: var(--ba-danger-border); background: #FBF7F5; }
+.ba-item.alert { border-color: var(--ba-danger-border); background: var(--zella-danger-bg); }
 .ba-item.muted { background: var(--ba-canvas); }
 
 .ba-item-top {
@@ -817,7 +819,7 @@
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: rgba(43, 33, 26, 0.45);
+  background: var(--zella-overlay);
 }
 
 .ba-modal {
@@ -891,10 +893,7 @@
   display: grid;
   place-items: center;
   padding: 24px 16px;
-  background:
-    radial-gradient(circle at 15% 10%, rgba(230, 224, 240, 0.8), transparent 40%),
-    radial-gradient(circle at 85% 90%, rgba(230, 224, 240, 0.9), transparent 40%),
-    var(--ba-canvas);
+  background: var(--ba-canvas);
 }
 
 .ba-auth-card {
@@ -1076,7 +1075,7 @@
 .ba-stack { display: flex; flex-direction: column; gap: 14px; }
 .ba-h2 { margin: 22px 0 10px; font-size: 15px; font-weight: 650; letter-spacing: -0.01em; }
 
-.ba-banner.alert { border-color: var(--ba-danger-border); background: #FFF1EE; color: var(--ba-danger); }
+.ba-banner.alert { border-color: var(--ba-danger-border); background: var(--zella-danger-bg); color: var(--ba-danger); }
 .ba-banner.alert strong { color: var(--ba-danger); }
 
 .ba-namebtn { padding: 0; border: 0; background: none; color: inherit; font: inherit; font-weight: 650; text-align: left; cursor: pointer; }
@@ -1187,8 +1186,8 @@
 .ba-stack > .ba-panel > .ba-panel-body { padding: 16px 18px; display: grid; gap: 6px; }
 .ba-stack > .ba-panel > .ba-panel-body > p { margin: 0; }
 .ba-kn-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
-.ba-draft { background: var(--ba-subdued, #EFEEEC); border: 1px dashed var(--ba-border, #D6D3CF); border-radius: 10px; padding: 10px 12px; }
-.ba-draft-label { margin: 0 0 4px; font-size: 12px; font-weight: 600; color: var(--ba-muted, #6b6560); display: flex; gap: 8px; align-items: center; }
+.ba-draft { background: var(--ba-subdued); border: 1px dashed var(--ba-border-strong); border-radius: 10px; padding: 10px 12px; }
+.ba-draft-label { margin: 0 0 4px; font-size: 12px; font-weight: 600; color: var(--ba-muted); display: flex; gap: 8px; align-items: center; }
 
 /* Workflows: callbacks, tasks, waitlist, notifications, lead tab, go-live */
 .ba-panel.clickable { cursor: pointer; }
@@ -1215,19 +1214,19 @@
 .ba-checklist { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 8px; }
 .ba-checklist li { display: flex; align-items: center; gap: 10px; color: var(--ba-text-2); }
 .ba-checklist li.ok { color: var(--ba-text); }
-.ba-checklist li.ok .ba-icon { color: #15803d; }
+.ba-checklist li.ok .ba-icon { color: var(--zella-success); }
 
 .ba-btn.icon { position: relative; padding: 8px; min-width: 40px; justify-content: center; }
 .ba-btn.icon .ba-count { position: absolute; top: -6px; right: -6px; margin: 0; }
 .ba-bell { position: relative; }
 .ba-bell-panel { position: absolute; right: 0; top: calc(100% + 8px); width: min(380px, calc(100vw - 32px)); max-height: 70vh; overflow: auto; z-index: 40;
-  background: var(--ba-surface); border: 1px solid var(--ba-border); border-radius: 12px; box-shadow: 0 12px 32px rgba(43, 33, 26, .14); }
+  background: var(--ba-surface); border: 1px solid var(--ba-border); border-radius: 12px; box-shadow: var(--zella-shadow-pop); }
 .ba-bell-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--ba-border); }
 .ba-bell-panel ul { list-style: none; margin: 0; padding: 0; }
 .ba-bell-panel li + li { border-top: 1px solid var(--ba-border); }
 .ba-bell-panel li button { width: 100%; display: grid; gap: 3px; text-align: left; padding: 11px 14px; background: none; border: 0; font: inherit; color: var(--ba-text); cursor: pointer; }
 .ba-bell-panel li button:hover, .ba-bell-panel li button:focus-visible { background: var(--ba-subtle); outline: none; }
-.ba-bell-panel li.unread button { background: #E6E0F0; }
+.ba-bell-panel li.unread button { background: var(--zella-primary-soft); }
 .ba-bell-panel small { color: var(--ba-muted); }
 .ba-muted.pad { padding: 16px 14px; margin: 0; }
 .ba-kn-head .ba-pill, .ba-thread-meta .ba-pill, .ba-status-row .ba-pill { text-transform: none; }
@@ -1462,7 +1461,7 @@
 .ba-draft:last-child { border-bottom: 0; }
 .ba-draft-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
 .ba-draft-head small { color: var(--ba-muted); }
-.ba-draft textarea { width: 100%; resize: vertical; font: inherit; padding: 10px 12px; border: 1px solid var(--ba-border); border-radius: 8px; background: var(--ba-surface, #fff); color: var(--ba-text); }
+.ba-draft textarea { width: 100%; resize: vertical; font: inherit; padding: 10px 12px; border: 1px solid var(--ba-border); border-radius: 8px; background: var(--ba-surface); color: var(--ba-text); }
 .ba-draft textarea:focus-visible { outline: 2px solid var(--ba-primary); outline-offset: 1px; }
 .ba-draft-foot { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 .ba-draft-foot small { margin-right: auto; color: var(--ba-muted); }

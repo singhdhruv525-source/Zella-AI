@@ -12,6 +12,9 @@ import { friendlyAuthError, readEmailLink } from "./authErrors";
 import { verifyMfaCode } from "./mfa";
 import { maintenanceText, usePlatformInfo } from "./platformInfo";
 import "./App.css";
+import { Icon, loadBusinessFonts } from "./BusinessUI";
+
+loadBusinessFonts();
 
 
 // Public pages that don't need an admin sign-in.
@@ -304,7 +307,7 @@ function AdminApp() {
         <div className="brand-panel">
           <div className="brand">
             <div className="brand-mark">Z</div>
-            <span>zella<span className="brand-ai">ai</span></span>
+            <span>Zella <span className="brand-ai">AI</span></span>
           </div>
 
           <div className="brand-message">
@@ -326,21 +329,21 @@ function AdminApp() {
 
             <div className="feature-list">
               <div className="feature">
-                <span className="feature-icon">✳</span>
+                <span className="feature-icon"><Icon name="auto_awesome" size="sm" /></span>
                 <div>
                   <strong>AI-powered operations</strong>
                   <span>Manage your platform from one workspace.</span>
                 </div>
               </div>
               <div className="feature">
-                <span className="feature-icon">⌘</span>
+                <span className="feature-icon"><Icon name="tune" size="sm" /></span>
                 <div>
                   <strong>Centralized control</strong>
                   <span>One secure place for platform administration.</span>
                 </div>
               </div>
               <div className="feature">
-                <span className="feature-icon">◈</span>
+                <span className="feature-icon"><Icon name="domain" size="sm" /></span>
                 <div>
                   <strong>Built to scale</strong>
                   <span>A unified foundation for multiple industries.</span>
@@ -359,13 +362,13 @@ function AdminApp() {
           <div className="mobile-brand">
             {platform.logo_url ? <img src={platform.logo_url} alt={platform.display_name ?? "Zella AI"} style={{ maxHeight: 36 }} /> : <>
             <div className="brand-mark">Z</div>
-            <span>zella<span className="brand-ai">ai</span></span></>}
+            <span>Zella <span className="brand-ai">AI</span></span></>}
           </div>
 
           <div className="form-content">
             {maintenanceText(platform) && <div className="login-message error" role="status">{maintenanceText(platform)}</div>}
-            {platform.logo_url ? <img src={platform.logo_url} alt={platform.display_name ?? "Zella AI"} style={{ maxHeight: 48, marginBottom: 12 }} /> : <div className="form-symbol">↗</div>}
-            <div className="form-eyebrow">OWNER ACCESS</div>
+            {platform.logo_url ? <img src={platform.logo_url} alt={platform.display_name ?? "Zella AI"} style={{ maxHeight: 48, marginBottom: 12 }} /> : <div className="form-symbol"><Icon name="login" /></div>}
+            <div className="form-eyebrow">Owner access</div>
             <h2>{mode === "reset" ? "Reset your password" : mode === "setpassword" ? "Choose your password" : mode === "mfa" ? "Enter your code" : "Welcome back"}</h2>
             <p className="form-description">
               {mode === "reset"
@@ -382,7 +385,7 @@ function AdminApp() {
                 <>
                   <label htmlFor="mfa-code">Authenticator code</label>
                   <div className="input-wrap">
-                    <span className="input-icon">#</span>
+                    <span className="input-icon"><Icon name="pin" size="sm" /></span>
                     <input id="mfa-code" inputMode="numeric" autoComplete="one-time-code" maxLength={7} value={code}
                       onChange={(e) => setCode(e.target.value)} placeholder="123456" autoFocus required />
                   </div>
@@ -391,7 +394,7 @@ function AdminApp() {
                 <>
                   <label htmlFor="new-password">New password</label>
                   <div className="input-wrap">
-                    <span className="input-icon">♙</span>
+                    <span className="input-icon"><Icon name="lock" size="sm" /></span>
                     <input id="new-password" type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" required />
                     <button type="button" className="show-password" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? "Hide password" : "Show password"}>
                       {showPassword ? "Hide" : "Show"}
@@ -399,7 +402,7 @@ function AdminApp() {
                   </div>
                   <label htmlFor="confirm-password">Confirm password</label>
                   <div className="input-wrap">
-                    <span className="input-icon">♙</span>
+                    <span className="input-icon"><Icon name="lock" size="sm" /></span>
                     <input id="confirm-password" type={showPassword ? "text" : "password"} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} autoComplete="new-password" required />
                   </div>
                 </>
@@ -407,7 +410,7 @@ function AdminApp() {
                 <>
               <label htmlFor="email">Email address</label>
               <div className="input-wrap">
-                <span className="input-icon">✉</span>
+                <span className="input-icon"><Icon name="mail" size="sm" /></span>
                 <input
                   id="email"
                   type="email"
@@ -433,7 +436,7 @@ function AdminApp() {
                 <label htmlFor="password">Password</label>
               </div>
               <div className="input-wrap">
-                <span className="input-icon">♙</span>
+                <span className="input-icon"><Icon name="lock" size="sm" /></span>
                 <input
                   id="password"
                   type={showPassword ? "text" : "password"}
@@ -490,7 +493,7 @@ function AdminApp() {
             )}
 
             <div className="security-note">
-              <span>♢</span>
+              <span><Icon name="shield" size="sm" /></span>
               <div>
                 <strong>Protected owner access</strong>
                 <p>

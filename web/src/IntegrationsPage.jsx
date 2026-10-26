@@ -48,7 +48,7 @@ export default function IntegrationsPage({ onOpenBusiness }) {
     <section className="owner-page">
       <div className="owner-page-heading">
         <div>
-          <div className="owner-eyebrow">CONNECTIONS</div>
+          <div className="owner-eyebrow">Connections</div>
           <h1>Integrations</h1>
           <p>What each client asked for during setup, and which services are actually connected.</p>
         </div>
