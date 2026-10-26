@@ -24,6 +24,20 @@ const say = (error) => {
   const code = Object.keys(ERRORS).find((k) => (error?.message ?? "").includes(k));
   return code ? ERRORS[code] : friendly(error);
 };
+// Sends the invitation email and ties the invitation to that person's account (staff-invite function).
+async function sendInvitationEmail(invitationId) {
+  const { data, error } = await supabase.functions.invoke("staff-invite", { body: { invitationId } });
+  if (error) {
+    let message = "The invitation email could not be sent. Please try again.";
+    try { message = (await error.context?.json())?.error ?? message; } catch { /* keep the general message */ }
+    throw new Error(message);
+  }
+  return data ?? {};
+}
+const sentMessage = (email, result) => result.existingAccount
+  ? `${email} already has a Zella account. They'll see this workspace the next time they sign in.`
+  : `Invitation emailed to ${email}. The link works once and the invitation is valid for 14 days.`;
+
 const words = (s) => String(s ?? "").replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
 const ROLES = [["staff", "Staff"], ["manager", "Manager"], ["viewer", "View only"], ["admin", "Admin"]];
 
@@ -86,10 +100,18 @@ function InviteModal({ workspace, onClose, onDone }) {
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   async function save() {
     setBusy(true); setProblem("");
-    const { error: e } = await supabase.rpc("zella_invite_staff", { p_business_id: workspace.id, p_email: form.email, p_name: form.name, p_role: form.role });
-    setBusy(false);
-    if (e) return setProblem(say(e));
-    onDone(`Invitation created for ${form.email.trim().toLowerCase()}. It's valid for 14 days.`);
+    const email = form.email.trim().toLowerCase();
+    const { data: invitationId, error: e } = await supabase.rpc("zella_invite_staff", { p_business_id: workspace.id, p_email: form.email, p_name: form.name, p_role: form.role });
+    if (e) { setBusy(false); return setProblem(say(e)); }
+    try {
+      const result = await sendInvitationEmail(invitationId);
+      setBusy(false);
+      onDone(sentMessage(email, result));
+    } catch (err) {
+      setBusy(false);
+      // The invitation is saved; it shows in the list with the error and a Send again button.
+      onDone(`The invitation for ${email} is saved, but the email didn't go out: ${err.message}`);
+    }
   }
   return (
     <Modal title="Invite someone" description="They get an email with a link to join this workspace." onClose={onClose} busy={busy}
@@ -191,6 +213,16 @@ export function AccessPage({ workspace, refreshKey, onNotice, userId }) {
     if (e) return onNotice(say(e));
     onNotice(message); reload();
   }
+  async function resend(invite) {
+    const { error: e } = await supabase.rpc("zella_resend_invitation", { p_invitation_id: invite.id });
+    if (e) return onNotice(say(e));
+    try {
+      onNotice(sentMessage(invite.email, await sendInvitationEmail(invite.id)));
+    } catch (err) {
+      onNotice(err.message);
+    }
+    reload();
+  }
   const roster = data?.roster ?? [];
 
   return (
@@ -231,7 +263,7 @@ export function AccessPage({ workspace, refreshKey, onNotice, userId }) {
                   <span className="ba-thread-icon"><Icon name="mail" size="sm" /></span>
                   <div><strong>{i.email}</strong><small>{words(i.role)} · invited {timeAgo(i.invited_at)}{i.status === "expired" ? " · expired" : ""}{i.last_error ? ` · ${i.last_error}` : ""}</small></div>
                   <div className="ba-thread-meta">
-                    <button type="button" className="ba-btn sm" onClick={() => act("zella_resend_invitation", { p_invitation_id: i.id }, "Invitation sent again for another 14 days.")}>Send again</button>
+                    <button type="button" className="ba-btn sm" onClick={() => resend(i)}>Send again</button>
                     <button type="button" className="ba-btn sm" onClick={() => act("zella_cancel_invitation", { p_invitation_id: i.id }, "Invitation cancelled.")}>Cancel</button>
                   </div>
                 </li>

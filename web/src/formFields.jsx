@@ -26,7 +26,8 @@ function FieldError({ id, text }) {
  */
 export function PhoneField({ value, onChange, required = false, disabled = false, showErrors = false, placeholder, id, label = "Phone number" }) {
   const errId = useId("ff-phone-err");
-  const inputId = id || useId("ff-phone");
+  const ownId = useId("ff-phone");
+  const inputId = id || ownId;
   const [iso, setIso] = useState(() => splitPhone(value, defaultCountryFromBrowser()).iso);
   const [text, setText] = useState(() => splitPhone(value, defaultCountryFromBrowser()).national);
   const [touched, setTouched] = useState(false);

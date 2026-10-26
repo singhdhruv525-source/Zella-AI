@@ -451,3 +451,10 @@ entrypoint = "./functions/website-lead/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/billing-webhook/index.ts"
+
+# Sends team invitation emails from the business app. Checks the caller's sign-in itself.
+[functions.staff-invite]
+enabled = true
+verify_jwt = false
+import_map = "./functions/staff-invite/deno.json"
+entrypoint = "./functions/staff-invite/index.ts"

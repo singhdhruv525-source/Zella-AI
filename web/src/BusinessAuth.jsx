@@ -7,6 +7,18 @@ import { EMAIL_LINK_TYPES, friendlyAuthError, readEmailLink } from "./authErrors
 
 // Sign-in, forgotten password and the welcome (set password) page for
 // business owners and staff. Platform admins use the admin sign-in at "/".
+// Joins every business that invited this account: owners set up by the Zella team
+// (zella_accept_my_invitations) and team members invited from Team access
+// (zella_accept_staff_invitations). Both are safe to repeat. A failure here never
+// blocks sign-in; the workspace list simply stays as it was.
+export async function acceptInvitations() {
+  const results = await Promise.all([
+    supabase.rpc("zella_accept_my_invitations"),
+    supabase.rpc("zella_accept_staff_invitations"),
+  ]);
+  for (const { error } of results) if (error) console.error("Accepting invitations failed:", error.message);
+}
+
 function AuthCard({ eyebrow, title, description, children }) {
   return (
     <main className="ba-auth">
@@ -233,6 +245,12 @@ export function Welcome() {
       if (verifyError) throw verifyError;
       // Keep the address bar clean so a refresh doesn't try the used link again.
       window.history.replaceState(null, "", window.location.pathname);
+      // Confirming an email address (sign-up, magic link, email change) needs no new password.
+      if (!["invite", "recovery"].includes(link.type)) {
+        await acceptInvitations();
+        window.location.replace("/app");
+        return;
+      }
       setEmail(data?.user?.email ?? data?.session?.user?.email ?? "");
       setState("ready");
     } catch (err) {
@@ -260,9 +278,8 @@ export function Welcome() {
     try {
       const { error: updateError } = await supabase.auth.updateUser({ password });
       if (updateError) throw updateError;
-      // Activates the owner's membership so their business's data becomes visible.
-      const { error: acceptError } = await supabase.rpc("zella_accept_my_invitations");
-      if (acceptError) console.error("Accepting invitation failed", acceptError);
+      // Activates the person's memberships so their business's data becomes visible.
+      await acceptInvitations();
       // A platform admin who reset their password goes back to the admin dashboard.
       let isAdmin = false;
       try { isAdmin = (await supabase.rpc("is_platform_admin"))?.data === true; } catch { /* go to the CRM */ }
@@ -282,7 +299,11 @@ export function Welcome() {
     return (
       <AuthCard
         title={resetting ? "Reset your password" : "Welcome to Zella"}
-        description={resetting ? "Press continue to choose a new password." : "Press continue to accept your invitation and choose a password."}
+        description={resetting
+          ? "Press continue to choose a new password."
+          : link.type === "invite"
+            ? "Press continue to accept your invitation and choose a password."
+            : "Press continue to confirm your email address."}
       >
         {error && <div className="ba-error">{error}</div>}
         <button type="button" className="ba-btn primary block" onClick={confirmLink} disabled={busy}>

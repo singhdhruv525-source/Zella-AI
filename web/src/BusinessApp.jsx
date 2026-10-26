@@ -18,7 +18,7 @@ import {
 } from "./BusinessMore";
 import "./BusinessApp.css";
 import { supabase } from "./supabase";
-import { BusinessSignIn, Welcome } from "./BusinessAuth";
+import { BusinessSignIn, Welcome, acceptInvitations } from "./BusinessAuth";
 import "./CrmMotion.css";
 import { warm } from "./zellaVoice";
 import BusinessToday from "./BusinessToday";
@@ -383,8 +383,7 @@ function BusinessHome() {
   const loadWorkspaces = useCallback(async () => {
     setError("");
     // Activates any invitation this person hasn't accepted yet (safe to repeat).
-    const { error: acceptError } = await supabase.rpc("zella_accept_my_invitations");
-    if (acceptError) console.error("Accepting invitations failed", acceptError);
+    await acceptInvitations();
 
     const { data, error: loadError } = await supabase.rpc("zella_my_workspaces");
     if (loadError) {
