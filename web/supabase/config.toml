@@ -430,3 +430,24 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/continue-plan/deno.json"
 entrypoint = "./functions/continue-plan/index.ts"
+
+# Public endpoints. Each one checks its own proof instead of a Supabase sign-in:
+#   reschedule-appointment  the 64-character private code in the customer's link (checked in the database)
+#   website-lead            the business's form key, allowed websites, spam and rate limits (checked in the database)
+#   billing-webhook         the payment provider's signature (STRIPE_WEBHOOK_SECRET), timestamp and event id
+# Without these lines a plain `supabase functions deploy` would turn sign-in checks on and every call would be refused.
+[functions.reschedule-appointment]
+enabled = true
+verify_jwt = false
+import_map = "./functions/reschedule-appointment/deno.json"
+entrypoint = "./functions/reschedule-appointment/index.ts"
+
+[functions.website-lead]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/website-lead/index.ts"
+
+[functions.billing-webhook]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/billing-webhook/index.ts"

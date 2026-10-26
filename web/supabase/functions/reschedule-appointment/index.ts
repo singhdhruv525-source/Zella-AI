@@ -12,6 +12,7 @@
 //   POST { token, action: "offer_accept" }           -> books it (the calendar re-checks the time)
 //   POST { token, action: "offer_decline" }          -> passes it to the next person
 
+import { withCors } from "../_shared/cors.ts";
 import { createClient } from "@supabase/supabase-js";
 
 const corsHeaders = {
@@ -24,7 +25,7 @@ function respond(data: unknown, status = 200) {
   return Response.json(data, { status, headers: corsHeaders });
 }
 
-Deno.serve(async (req: Request) => {
+Deno.serve(withCors(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return respond({ error: "Method not allowed" }, 405);
 
@@ -69,4 +70,4 @@ Deno.serve(async (req: Request) => {
     return respond({ error: "Something went wrong. Please try again." }, 500);
   }
   return respond(result.data);
-});
+}));

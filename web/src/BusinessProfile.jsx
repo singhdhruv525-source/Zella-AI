@@ -33,26 +33,20 @@ export function EscalationControls({ call, onChanged, onNotice, compact }) {
   const [error, setError] = useState("");
   const open = isOpenEscalation(call);
 
-  async function save(values, message) {
+  // The database records who did it and when, and checks the person belongs to this business.
+  async function save(flag, message) {
     setBusy(true);
     setError("");
-    const { error: updateError } = await supabase.from("calls").update({ ...values, updated_at: new Date().toISOString() }).eq("id", call.id);
+    const { error: updateError } = await supabase.rpc("zella_call_set_escalation", { p_call_id: call.id, p_flag: flag, p_reason: flag ? reason : null });
     setBusy(false);
     if (updateError) return setError(friendly(updateError));
     onNotice?.(message);
     onChanged?.();
   }
 
-  async function resolve() {
-    let userId = null;
-    try { userId = (await supabase.auth.getUser())?.data?.user?.id ?? null; } catch { /* resolved without a name */ }
-    save({ escalation_resolved_at: new Date().toISOString(), escalation_resolved_by: userId }, "Hand-off marked as handled.");
-  }
+  const resolve = () => save(false, "Hand-off marked as handled.");
 
-  const flag = () => save(
-    { needs_human: true, escalation_reason: reason, escalated_at: new Date().toISOString(), escalation_resolved_at: null, escalation_resolved_by: null },
-    "Flagged for a human.",
-  );
+  const flag = () => save(true, "Flagged for a human.");
 
   return (
     <div className={`ba-escalate ${compact ? "compact" : ""}`}>

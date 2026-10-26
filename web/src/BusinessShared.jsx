@@ -115,8 +115,20 @@ export function transcriptLines(transcript) {
 
 
 const NEEDS_UPDATE = "Your workspace needs the latest Zella update before this can be saved. Please ask the Zella team.";
-export const friendly = (error) =>
-  /does not exist|schema cache|Could not find the/i.test(error?.message ?? "") ? NEEDS_UPDATE : error?.message ?? String(error);
+// Short codes raised by the database functions, in plain words.
+const CODES = {
+  NOT_ALLOWED: "You don't have permission to do that in this workspace.",
+  NOT_SIGNED_IN: "Your session has ended. Please sign in again.",
+  REASON_REQUIRED: "Pick a reason first.",
+  BAD_INPUT: "Something in the form isn't valid. Check it and try again.",
+  APPROVAL_REQUIRED: "A second owner or admin must approve this first. A request has been sent to them.",
+};
+export const friendly = (error) => {
+  const message = error?.message ?? String(error);
+  if (/does not exist|schema cache|Could not find the/i.test(message)) return NEEDS_UPDATE;
+  if (/JWT expired|invalid JWT|refresh token/i.test(message)) return CODES.NOT_SIGNED_IN;
+  return CODES[message.trim()] ?? message;
+};
 
 // Check a person in (they have arrived) or undo it.
 export function setCheckIn(appointmentId, checkedIn) {

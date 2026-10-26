@@ -267,9 +267,7 @@ export default function BusinessToday({ workspace, userId, fallbackName, onAddLe
       .eq("id", lead.id), `${personName(lead) ?? "Lead"} marked as contacted.`);
 
   const markCalledBack = (call) =>
-    act(`call-${call.id}`, () => supabase.from("calls")
-      .update({ metadata: { ...(call.metadata ?? {}), followed_up_at: new Date().toISOString() }, updated_at: new Date().toISOString() })
-      .eq("id", call.id), "Missed call marked as followed up.");
+    act(`call-${call.id}`, () => supabase.rpc("zella_call_mark_followed_up", { p_call_id: call.id }), "Missed call marked as followed up.");
 
   const show = (v) => (loading && !data ? "…" : v);
   const appts = data?.appointments ?? [];

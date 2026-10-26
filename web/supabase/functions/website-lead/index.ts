@@ -17,10 +17,14 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors(origin) });
   if (req.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405, origin);
 
+  const serverKey = Deno.env.get("ZELLA_SERVER_SECRET_KEY");
+  if (!serverKey) return json({ ok: false, error: "try_again", message: "Something went wrong. Please try again or call us." }, 503, origin);
+
   const raw = await req.text();
   if (raw.length > 12000) return json({ ok: false, error: "too_large" }, 413, origin);
   let b: Record<string, unknown>;
   try { b = JSON.parse(raw); } catch { return json({ ok: false, error: "bad_json" }, 400, origin); }
+  if (typeof b !== "object" || b === null || Array.isArray(b)) return json({ ok: false, error: "bad_json" }, 400, origin);
 
   const str = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : null);
   const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || null;
@@ -30,8 +34,7 @@ Deno.serve(async (req: Request) => {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      apikey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-      Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+      apikey: serverKey,
     },
     body: JSON.stringify({
       p_public_key: str(b.key, 64),

@@ -57,7 +57,7 @@ function CallDetail({ call, person, followUps, roster, workspace, onClose, onCha
       onNotice(res?.result === "needs_review" ? "This number may already be in your list. A task was added to check." : res?.result === "matched" ? "Linked to the person already on file." : "Lead created.");
     });
   };
-  const followedUp = () => run("followed", () => supabase.from("calls").update({ metadata: { ...(call.metadata ?? {}), followed_up_at: new Date().toISOString() }, updated_at: new Date().toISOString() }).eq("id", call.id), "Missed call marked as followed up.");
+  const followedUp = () => run("followed", () => supabase.rpc("zella_call_mark_followed_up", { p_call_id: call.id }), "Missed call marked as followed up.");
 
   return (
     <Modal wide title={personName(person) ?? call.from_number ?? "Unknown caller"} onClose={onClose} busy={Boolean(busy)}

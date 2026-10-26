@@ -8,6 +8,7 @@
 //   POST { token, action: "preview" }  -> business name and end date
 //   POST { token, action: "continue" } -> removes the scheduled cancellation
 
+import { withCors } from "../_shared/cors.ts";
 import { createClient } from "@supabase/supabase-js";
 
 const corsHeaders = {
@@ -54,7 +55,7 @@ async function verify(secret: string, token: string) {
   }
 }
 
-Deno.serve(async (req: Request) => {
+Deno.serve(withCors(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return respond({ error: "Method not allowed" }, 405);
 
@@ -146,4 +147,4 @@ Deno.serve(async (req: Request) => {
   if (auditError) console.error("continue-plan audit failed", auditError);
 
   return respond({ status: "continued", businessName: business.name });
-});
+}));

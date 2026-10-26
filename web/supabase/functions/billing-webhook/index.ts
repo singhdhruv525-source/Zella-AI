@@ -1,6 +1,7 @@
 // Zella - billing webhook (Stripe-style events). Checks the provider's signature, turns the event into a plain type and
 // hands it to the database, which applies each event once. Stays switched off (503) until STRIPE_WEBHOOK_SECRET is set.
 // verify_jwt is off because the provider cannot send a login token; the signature is the proof instead.
+// Replays: events older than 5 minutes are refused, and the database applies each event id only once.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 const enc = new TextEncoder();
@@ -13,7 +14,15 @@ async function verify(raw: string, header: string | null, secret: string): Promi
   if (!t || Math.abs(Date.now() / 1000 - t) > 300) return false;   // reject old or replayed requests
   const key = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   const mac = hex(await crypto.subtle.sign("HMAC", key, enc.encode(`${t}.${raw}`)));
-  return header.split(",").some((p) => p.startsWith("v1=") && p.slice(3) === mac);
+  return header.split(",").some((p) => p.startsWith("v1=") && sameText(p.slice(3), mac));
+}
+
+// Compares two signatures in constant time, so the time taken gives nothing away.
+function sameText(a: string, b: string): boolean {
+  const x = enc.encode(a), y = enc.encode(b);
+  let diff = x.length ^ y.length;
+  for (let i = 0; i < Math.max(x.length, y.length); i++) diff |= (x[i] ?? 0) ^ (y[i] ?? 0);
+  return diff === 0;
 }
 
 const iso = (s: unknown) => (typeof s === "number" ? new Date(s * 1000).toISOString() : null);
@@ -21,11 +30,14 @@ const iso = (s: unknown) => (typeof s === "number" ? new Date(s * 1000).toISOStr
 Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return new Response("method not allowed", { status: 405 });
   const secret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
-  if (!secret) return new Response("billing webhook not configured", { status: 503 });
+  const serverKey = Deno.env.get("ZELLA_SERVER_SECRET_KEY");
+  if (!secret || !serverKey) return new Response("billing webhook not configured", { status: 503 });
   const raw = await req.text();
   if (raw.length > 500000 || !(await verify(raw, req.headers.get("stripe-signature"), secret))) return new Response("bad signature", { status: 400 });
 
-  const ev = JSON.parse(raw);
+  let ev;
+  try { ev = JSON.parse(raw); } catch { return new Response("bad json", { status: 400 }); }
+  if (typeof ev?.id !== "string" || typeof ev?.type !== "string") return new Response("bad event", { status: 400 });
   const o = ev?.data?.object ?? {};
   let args: Record<string, unknown> | null = null;
   switch (ev.type) {
@@ -52,7 +64,7 @@ Deno.serve(async (req: Request) => {
 
   const res = await fetch(`${Deno.env.get("SUPABASE_URL")}/rest/v1/rpc/zella_process_billing_event`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", apikey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}` },
+    headers: { "Content-Type": "application/json", apikey: serverKey },
     body: JSON.stringify({ p_provider: "stripe", p_event_id: ev.id, ...args }),
   });
   if (!res.ok) return new Response("error", { status: 500 });

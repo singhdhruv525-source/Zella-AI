@@ -1,3 +1,4 @@
+import { withCors } from "../_shared/cors.ts";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 const corsHeaders = {
@@ -2692,7 +2693,7 @@ async function invitationResend(admin: SupabaseClient, fields: Json) {
 // Request handler
 // ---------------------------------------------------------------------------
 
-Deno.serve(async (req: Request) => {
+Deno.serve(withCors(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -2964,4 +2965,4 @@ Deno.serve(async (req: Request) => {
     console.error("Platform dashboard function failed", error);
     return respond({ error: "Unexpected server error" }, 500);
   }
-});
+}));
