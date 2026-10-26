@@ -6,11 +6,47 @@ import { useEffect, useState } from "react";
 // (the reschedule, unsubscribe and /app links already rely on that).
 
 const EVENT = "zella:navigate";
+const LEAVE_MESSAGE = "You have unsaved changes. Leave this page and lose them?";
 
-export function navigate(to, { replace = false } = {}) {
+// Forms with unsaved changes register a check; every navigation asks first.
+const guards = new Set();
+let shownPath = typeof window === "undefined" ? "/" : window.location.pathname + window.location.search;
+
+// Returns the function that removes the check (call it when the form goes away).
+export function addLeaveGuard(isDirty) {
+  guards.add(isDirty);
+  return () => guards.delete(isDirty);
+}
+
+const hasUnsaved = () => [...guards].some((g) => g());
+const mayLeave = () => !hasUnsaved() || window.confirm(LEAVE_MESSAGE);
+
+export function navigate(to, { replace = false, force = false } = {}) {
   if (to === window.location.pathname + window.location.search) return;
+  if (!force && !mayLeave()) return;
   window.history[replace ? "replaceState" : "pushState"](null, "", to);
+  shownPath = to;
   window.dispatchEvent(new Event(EVENT));
+}
+
+if (typeof window !== "undefined") {
+  // Back/Forward cannot be cancelled, so put the address back if the person stays.
+  window.addEventListener("popstate", (event) => {
+    const next = window.location.pathname + window.location.search;
+    if (hasUnsaved() && !window.confirm(LEAVE_MESSAGE)) {
+      window.history.pushState(null, "", shownPath);
+      event.stopImmediatePropagation();
+      return;
+    }
+    shownPath = next;
+  }, true);
+  // Closing the tab or reloading with unsaved changes: the browser asks.
+  window.addEventListener("beforeunload", (event) => {
+    if (hasUnsaved()) {
+      event.preventDefault();
+      event.returnValue = "";
+    }
+  });
 }
 
 // The current path, updated on navigate() and on Back/Forward.
