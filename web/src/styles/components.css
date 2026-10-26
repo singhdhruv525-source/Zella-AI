@@ -851,3 +851,24 @@
   .owner-sidebar.open .owner-nav-arrow { display: inline; }
   .owner-sidebar.open .owner-sidebar-bottom { justify-content: flex-start; }
 }
+
+/* ---------- Admin popups: icon header, soft entrance, bottom sheet on phones ---------- */
+.zs-dialog-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.zs-dialog-head h3 { margin: 0; }
+.zs-dialog-icon { flex-shrink: 0; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: var(--color-primary-subtle); color: var(--color-primary); }
+.zs-dialog.danger .zs-dialog-icon, .bd-confirm.danger .zs-dialog-icon { background: var(--status-danger-bg); color: var(--status-danger); }
+.zs-overlay { backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+@media (prefers-reduced-motion: no-preference) {
+  .owner-modal-overlay, .owner-modal-backdrop, .zs-overlay { animation: zella-fade 0.18s ease-out both; }
+  .owner-modal, .zs-dialog { animation: zella-pop 0.24s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+}
+@media (max-width: 640px) {
+  .owner-modal-overlay, .owner-modal-backdrop, .zs-overlay { align-items: flex-end; padding: 12px 0 0; }
+  .owner-modal, .zs-dialog { max-height: calc(100vh - 12px); border-radius: 18px 18px 0 0; }
+}
+@media (prefers-reduced-motion: no-preference) and (max-width: 640px) {
+  .owner-modal, .zs-dialog { animation-name: zella-sheet; }
+}
+@keyframes zella-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes zella-pop { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
+@keyframes zella-sheet { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: none; } }

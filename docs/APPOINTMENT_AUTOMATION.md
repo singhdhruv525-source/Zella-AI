@@ -10,7 +10,7 @@ it is **switched off** until providers are connected. Nothing sends today, and t
 | Confirmation and reminders | `zella_replace_reminders` (on booking/change) -> `appointment_reminders` -> SMS Sender / Email Sender workflows |
 | Old reminders cancelled on change | `zella_replace_reminders` marks pending ones `cancelled: replaced` |
 | Customer confirm / cancel / reschedule by reply | `zella_reminder_response`, `zella_inbound_replies.sql`, reschedule links (`zella_reschedule_*`) |
-| No-show follow-up with rebooking offer | `zella_queue_no_show_followup` trigger -> `followup_tasks` -> Follow-up Texts / Emails |
+| No-show follow-up with rebooking offer | `zella_queue_no_show_followup` trigger -> `followup_tasks` -> AI call (Outbound Calls) or Follow-up Texts / Emails. With `zella_no_show_rebook.sql`: the text/email carries a private link to pick a new time; picking one moves the booking back to scheduled, rebuilds reminders, tells staff and cancels the pending follow-up. A reply still reaches staff as a callback |
 | Follow-up after completed visits | `post_appointment_follow_up` automation -> `followup_tasks` |
 | Staff notifications | `staff_notifications`, Staff Texts workflow, Owner Emails |
 | Safe retries, no duplicates | one send record per reminder/task; `zella_retry_failed` resets only `failed` rows (owner/admin/manager) |
@@ -35,11 +35,14 @@ it is **switched off** until providers are connected. Nothing sends today, and t
 
 ## To go live (your decision and your keys; nothing here was switched on)
 
-1. Back up, then apply `sql/zella_messaging_status.sql` (and the other pending files listed in `SCHEMA_STATUS.md`).
+1. Back up, then apply `sql/zella_messaging_status.sql` and `sql/zella_no_show_rebook.sql` (and the other pending files listed in `SCHEMA_STATUS.md`).
 2. Store the n8n secret: `select vault.create_secret('<secret>', 'zella_n8n_secret');`
 3. Connect providers in n8n: Telnyx (texts, with 10DLC approved) and Resend (email, verified domain); set
    `sms_from_number` / `email_from_address`.
+3b. Set the platform setting `app_base_url` (https) so customer links (reschedule, rebook) are included.
 4. Publish the workflows, turn on the `zella_dispatch` and `zella_jobs_*` jobs, then set `sms_live` / `email_live`
    to true. Test with your own number and address first.
 5. Per business: switch on its appointment automations in Automations. A business that doesn't take appointments
    (retail, some restaurants) simply leaves them off; nothing is sent for it.
+
+Admin Settings > Integrations > n8n shows a go-live checklist (each step ready / not yet) once `zella_messaging_status.sql` is applied.

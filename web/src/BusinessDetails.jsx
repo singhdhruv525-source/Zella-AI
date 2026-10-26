@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import "./OwnerPages.css";
 import { callOwnerFunction } from "./CreateBusinessWizard";
 import { supabase } from "./supabase";
+import { Icon } from "./BusinessUI";
 import { Pill } from "./OwnerOverview";
 import AutomationOverview from "./AutomationOverview";
 import {
@@ -349,7 +350,10 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup }) {
           onMouseDown={(event) => event.target === event.currentTarget && !busy && (setPending(null), setReason(""))}
         >
           <div className={`bd-confirm owner-modal ${action.danger ? "danger" : ""}`} role="dialog" aria-modal="true" aria-label={action.title}>
-            <h3>{action.title}</h3>
+            <div className="zs-dialog-head">
+              <span className="zs-dialog-icon"><Icon name={action.danger ? "warning" : "task_alt"} /></span>
+              <h3>{action.title}</h3>
+            </div>
             <p>{action.body}</p>
             {action.reason && (
               <label className="owner-field">

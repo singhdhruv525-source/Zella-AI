@@ -1030,7 +1030,7 @@ function Readiness() {
     const { data, error } = await supabase.rpc("zella_automation_readiness");
     if (error && (error.code === "PGRST202" || /could not find the function/i.test(error.message))) return { missing: true };
     if (error) throw error;
-    return data;
+    return data ?? { missing: true };
   }, []);
   return (
     <LoadState state={state}>{(r) => r.missing ? (

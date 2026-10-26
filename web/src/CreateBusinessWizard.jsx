@@ -2,7 +2,7 @@ import { automationDefaultsFor, emptyAutomations } from "./industryAutomations";
 import { CATALOG, NOTIFY_OPTIONS, isPreferred, orderTypes } from "./automationCatalog";
 import { EmailField, PhoneField, TimeZoneSelect, UrlField } from "./formFields";
 import { checkEmail, checkUrl, countryList, validatePhone } from "./formValidation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import "./CreateBusinessWizard.css";
 import { supabase } from "./supabase";
 
@@ -373,7 +373,9 @@ function CheckGrid({ options, values, onChange }) {
 }
 
 function Badge({ tone = "neutral", children }) {
-  return <span className={`wiz-badge wiz-badge-${tone}`}>{children}</span>;
+  // Sentence case: "Preferred for this business", "Sent". Plain status words from the server start lower case.
+  const text = typeof children === "string" ? children.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()) : children;
+  return <span className={`wiz-badge wiz-badge-${tone}`}>{text}</span>;
 }
 
 function AutoSelect({ item, setting, options, onSet, numeric = true }) {
@@ -1273,6 +1275,12 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
   const [result, setResult] = useState(null);
 
   const locked = ["testing", "ready", "active"].includes(setup.onboardingStatus);
+  const top = useRef(null);
+
+  // Each step opens at its top, not where the previous step's Save button was.
+  useEffect(() => {
+    top.current?.scrollIntoView?.({ block: "start", behavior: window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  }, [step]);
 
   async function reload(id, jump) {
     const data = await callOwnerFunction("setup_load", { businessId: id });
@@ -1469,7 +1477,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
   const terminology = setup.terminology;
 
   return (
-    <section className="wiz">
+    <section className="wiz" ref={top}>
       <div className="wiz-header">
         <div>
           <div className="owner-eyebrow">{businessId ? "BUSINESS SETUP" : "NEW BUSINESS"}</div>
@@ -1479,6 +1487,11 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
         <button type="button" className="owner-secondary-button" onClick={() => onClose(Boolean(businessId))} disabled={saving}>
           Close
         </button>
+      </div>
+
+      <div className="wiz-progress" role="progressbar" aria-label="Setup progress" aria-valuemin={1} aria-valuemax={STEPS.length} aria-valuenow={step + 1}>
+        <span style={{ width: `${((step + 1) / STEPS.length) * 100}%` }} />
+        <small>Step {step + 1} of {STEPS.length} · {STEPS[step].label}</small>
       </div>
 
       <ol className="wiz-stepper">
@@ -1497,7 +1510,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
         ))}
       </ol>
 
-      <div className="wiz-body">
+      <div className="wiz-body" key={step}>
         {step === 0 && (
           <BusinessStep value={setup.business} onChange={changeBusiness} industries={industries} isExisting={Boolean(businessId)} locked={locked} showErrors={showErrors} />
         )}

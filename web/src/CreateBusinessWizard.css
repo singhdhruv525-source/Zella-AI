@@ -196,7 +196,6 @@
   font-size: 10px;
   font-weight: 700;
   white-space: nowrap;
-  text-transform: capitalize;
 }
 
 .wiz-badge-success {
@@ -886,13 +885,21 @@
     flex-direction: column;
   }
 
+  /* One slim row on phones, so the bar covers as little of the form as possible. */
   .wiz-footer {
-    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px;
   }
 
   .wiz-footer-right {
     flex: 1;
     justify-content: flex-end;
+    gap: 8px;
+  }
+
+  .wiz-footer button {
+    padding-inline: 12px;
+    white-space: nowrap;
   }
 
   .wiz-done {
@@ -910,3 +917,24 @@
 .wiz-notify select { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--wiz-line, #c2beb9); background: #fff; font: inherit; }
 
 .wiz-group-title { margin: 22px 0 4px; font-size: 15px; font-weight: 600; }
+
+/* Progress, and steps that move: the bar fills as setup advances, each step eases in, the current step's number pulses
+   once. All of it is switched off for people who prefer less motion. */
+.wiz-progress { position: relative; display: flex; flex-direction: column; gap: 6px; margin: 0 0 12px; }
+.wiz-progress::before { content: ""; height: 4px; border-radius: 999px; background: var(--bg-surface-subdued); }
+.wiz-progress span { position: absolute; top: 0; left: 0; height: 4px; border-radius: 999px; background: var(--color-primary); transition: width 0.45s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.wiz-progress small { color: var(--text-secondary); font-size: 12px; font-weight: 600; }
+.wiz-module, .wiz-section { transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease; }
+.wiz-module:hover { box-shadow: 0 6px 18px rgba(60, 40, 20, 0.07); }
+@media (prefers-reduced-motion: no-preference) {
+  .wiz-body > * { animation: wiz-in 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  .wiz-body > :nth-child(2) { animation-delay: 50ms; }
+  .wiz-body > :nth-child(n + 3) { animation-delay: 100ms; }
+  .wiz-stepper button.current .wiz-step-num { animation: wiz-pop 0.35s cubic-bezier(0.2, 0.8, 0.2, 1); }
+  .wiz-error { animation: wiz-shake 0.3s ease; }
+  .wiz-done { animation: wiz-in 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  .wiz-done-icon { animation: wiz-pop 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) 0.1s both; }
+}
+@keyframes wiz-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes wiz-pop { 0% { transform: scale(0.6); } 70% { transform: scale(1.12); } 100% { transform: scale(1); } }
+@keyframes wiz-shake { 0%, 100% { transform: none; } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { addLeaveGuard } from "../router";
+import { Icon } from "../BusinessUI";
 
 // Building blocks for settings pages in both apps. Styling comes from
 // settings.css, which maps to each app's own colour tokens.
@@ -169,8 +170,11 @@ export function Confirm({ title, children, confirmLabel = "Confirm", danger, wor
   }
   return (
     <div className="zs-overlay" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}>
-      <div className="zs-dialog" role="dialog" aria-modal="true" aria-labelledby="zs-dialog-title">
-        <h3 id="zs-dialog-title">{title}</h3>
+      <div className={`zs-dialog ${danger ? "danger" : ""}`} role="dialog" aria-modal="true" aria-labelledby="zs-dialog-title">
+        <div className="zs-dialog-head">
+          <span className="zs-dialog-icon"><Icon name={danger ? "warning" : "task_alt"} /></span>
+          <h3 id="zs-dialog-title">{title}</h3>
+        </div>
         <div className="zs-dialog-body">{children}</div>
         {reason && <Field label="Reason" hint="Kept in the audit log."><textarea rows={2} value={why} onChange={(e) => setWhy(e.target.value)} autoFocus /></Field>}
         {word && <Field label={`Type ${word} to confirm`}><input value={typed} onChange={(e) => setTyped(e.target.value)} autoFocus={!reason} /></Field>}
