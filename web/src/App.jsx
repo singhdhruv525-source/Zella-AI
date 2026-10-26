@@ -9,6 +9,7 @@ import WaitlistOffer from "./WaitlistOffer";
 import BusinessApp from "./BusinessApp";
 import { checkEmail, passwordProblems } from "./formValidation";
 import { friendlyAuthError, readEmailLink } from "./authErrors";
+import { verifyMfaCode } from "./mfa";
 import "./App.css";
 
 
@@ -52,6 +53,21 @@ const LANDING = {
     : "",
 };
 
+// Any active platform role may open the dashboard; what each role may do is checked on the server.
+// Falls back to the older check until sql/zella_settings_system.sql is applied.
+async function hasAdminAccess() {
+  const { data, error } = await supabase.rpc("zella_admin_role");
+  if (!error) return typeof data === "string";
+  const legacy = await supabase.rpc("is_platform_admin");
+  return !legacy.error && legacy.data === true;
+}
+
+// The session needs the authenticator code before it may continue.
+async function needsMfaCode() {
+  const { data, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  return !error && data.nextLevel === "aal2" && data.currentLevel !== "aal2";
+}
+
 function AdminApp() {
   const [email, setEmail] = useState("");
   const [emailTouched, setEmailTouched] = useState(false);
@@ -63,7 +79,8 @@ function AdminApp() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
-  const [mode, setMode] = useState(LANDING.setup ? "setpassword" : "signin"); // "signin", "reset" or "setpassword"
+  const [mode, setMode] = useState(LANDING.setup ? "setpassword" : "signin"); // "signin", "reset", "setpassword" or "mfa"
+  const [code, setCode] = useState("");
 
   // Keep an existing owner session after a page refresh,
   // but only if the platform-admin check still passes.
@@ -84,11 +101,15 @@ function AdminApp() {
         }
         if (!data.session) return;
 
-        const { data: isOwner, error } = await supabase.rpc("is_platform_admin");
+        if (await needsMfaCode()) {
+          if (active) { setMode("mfa"); setEmail(data.session.user.email ?? ""); }
+          return;
+        }
+        const isOwner = await hasAdminAccess();
 
         if (!active) return;
 
-        if (!error && isOwner === true) {
+        if (isOwner) {
           setIsAuthorized(true);
         } else {
           // Signed in to the business app in this browser. Don't sign them out of
@@ -167,8 +188,7 @@ function AdminApp() {
     try {
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
-      const { data: isOwner, error: roleError } = await supabase.rpc("is_platform_admin");
-      if (roleError || isOwner !== true) {
+      if (!(await hasAdminAccess())) {
         await supabase.auth.signOut();
         setMode("signin");
         throw new Error("Your password is saved, but this account is not an authorized Zella admin yet.");
@@ -176,6 +196,27 @@ function AdminApp() {
       window.history.replaceState(null, "", window.location.pathname);
       setPassword("");
       setConfirmPassword("");
+      setIsAuthorized(true);
+    } catch (error) {
+      setMessageType("error");
+      setMessage(friendlyAuthError(error));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleMfa(event) {
+    event.preventDefault();
+    setMessage("");
+    setLoading(true);
+    try {
+      await verifyMfaCode(code);
+      if (!(await hasAdminAccess())) {
+        await supabase.auth.signOut();
+        setMode("signin");
+        throw new Error("This account is not authorized to access the Zella Owner Admin.");
+      }
+      setCode("");
       setIsAuthorized(true);
     } catch (error) {
       setMessageType("error");
@@ -216,10 +257,13 @@ function AdminApp() {
       if (error) throw error;
 
       // Authentication alone does not grant platform-owner access.
-      const { data: isOwner, error: roleError } =
-        await supabase.rpc("is_platform_admin");
-
-      if (roleError || isOwner !== true) {
+      if (await needsMfaCode()) {
+        setPassword("");
+        setMode("mfa");
+        setMessage("");
+        return;
+      }
+      if (!(await hasAdminAccess())) {
         await supabase.auth.signOut();
         throw new Error(
           "This account is not authorized to access the Zella Owner Admin."
@@ -318,17 +362,28 @@ function AdminApp() {
           <div className="form-content">
             <div className="form-symbol">↗</div>
             <div className="form-eyebrow">OWNER ACCESS</div>
-            <h2>{mode === "reset" ? "Reset your password" : mode === "setpassword" ? "Choose your password" : "Welcome back"}</h2>
+            <h2>{mode === "reset" ? "Reset your password" : mode === "setpassword" ? "Choose your password" : mode === "mfa" ? "Enter your code" : "Welcome back"}</h2>
             <p className="form-description">
               {mode === "reset"
                 ? "Enter your email and we'll send you a link to set a new password."
                 : mode === "setpassword"
                   ? "You're invited as a Zella admin. Choose a password to finish."
-                  : "Sign in to your Zella platform workspace."}
+                  : mode === "mfa"
+                    ? "Open your authenticator app and enter the 6-digit code for Zella."
+                    : "Sign in to your Zella platform workspace."}
             </p>
 
-            <form onSubmit={mode === "reset" ? handleReset : mode === "setpassword" ? handleSetPassword : handleLogin}>
-              {mode === "setpassword" ? (
+            <form onSubmit={mode === "reset" ? handleReset : mode === "setpassword" ? handleSetPassword : mode === "mfa" ? handleMfa : handleLogin}>
+              {mode === "mfa" ? (
+                <>
+                  <label htmlFor="mfa-code">Authenticator code</label>
+                  <div className="input-wrap">
+                    <span className="input-icon">#</span>
+                    <input id="mfa-code" inputMode="numeric" autoComplete="one-time-code" maxLength={7} value={code}
+                      onChange={(e) => setCode(e.target.value)} placeholder="123456" autoFocus required />
+                  </div>
+                </>
+              ) : mode === "setpassword" ? (
                 <>
                   <label htmlFor="new-password">New password</label>
                   <div className="input-wrap">
@@ -397,14 +452,20 @@ function AdminApp() {
                 </>
               )}
               <button className="login-button" type="submit" disabled={loading}>
-                {mode === "setpassword"
+                {mode === "mfa"
+                  ? loading ? "Checking..." : "Verify and continue"
+                  : mode === "setpassword"
                   ? loading ? "Saving..." : "Save password and continue"
                   : mode === "reset"
                   ? loading ? "Sending..." : "Send reset link"
                   : loading ? "Verifying access..." : "Sign in to Zella"}
                 {!loading && mode === "signin" && <span>→</span>}
               </button>
-              {mode === "setpassword" ? null : mode === "signin" ? (
+              {mode === "mfa" ? (
+                <button type="button" className="forgot-link" onClick={async () => { await supabase.auth.signOut(); switchMode("signin"); }}>
+                  ← Use a different account
+                </button>
+              ) : mode === "setpassword" ? null : mode === "signin" ? (
                 <button type="button" className="forgot-link" onClick={() => switchMode("reset")}>
                   Forgot your password?
                 </button>

@@ -4,6 +4,7 @@ import { supabase } from "./supabase";
 import { ConfirmPasswordField, EmailField, PasswordField } from "./formFields";
 import { checkEmail, passwordProblems } from "./formValidation";
 import { EMAIL_LINK_TYPES, friendlyAuthError, readEmailLink } from "./authErrors";
+import { verifyMfaCode } from "./mfa";
 
 // Sign-in, forgotten password and the welcome (set password) page for
 // business owners and staff. Platform admins use the admin sign-in at "/".
@@ -102,6 +103,38 @@ function SocialSignIn({ email, setError, disabled }) {
         ))}
       </div>
     </div>
+  );
+}
+
+// Second step for people who set up an authenticator app.
+export function MfaCodeCard({ email, onDone }) {
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function submit(event) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await verifyMfaCode(code);
+      await onDone();
+    } catch (err) {
+      setError(friendlyAuthError(err));
+      setBusy(false);
+    }
+  }
+  return (
+    <AuthCard title="Enter your code" description={`Open your authenticator app and enter the 6-digit code for ${email || "your account"}.`}>
+      <form className="ba-form" onSubmit={submit}>
+        <label className="ba-field">
+          <span>Authenticator code</span>
+          <input inputMode="numeric" autoComplete="one-time-code" maxLength={7} value={code} onChange={(e) => setCode(e.target.value)} autoFocus required />
+        </label>
+        {error && <div className="ba-error">{error}</div>}
+        <button type="submit" className="ba-btn primary block" disabled={busy}>{busy ? "Checking..." : "Verify and continue"}</button>
+        <button type="button" className="ba-link ba-center" onClick={() => supabase.auth.signOut()}>Use a different account</button>
+      </form>
+    </AuthCard>
   );
 }
 

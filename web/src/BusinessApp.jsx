@@ -20,7 +20,8 @@ import {
 } from "./BusinessMore";
 import "./BusinessApp.css";
 import { supabase } from "./supabase";
-import { BusinessSignIn, Welcome, acceptInvitations } from "./BusinessAuth";
+import { BusinessSignIn, MfaCodeCard, Welcome, acceptInvitations } from "./BusinessAuth";
+import { useMfaGate } from "./mfa";
 import "./CrmMotion.css";
 import { warm } from "./zellaVoice";
 import BusinessToday from "./BusinessToday";
@@ -468,10 +469,12 @@ function BusinessHome() {
     };
   }, []);
 
+  const mfa = useMfaGate(session);
+
   useEffect(() => {
-    if (session) loadWorkspaces();
-    else setWorkspaces(null);
-  }, [session, loadWorkspaces]);
+    if (session && mfa.state === "ok") loadWorkspaces();
+    else if (!session) setWorkspaces(null);
+  }, [session, mfa.state, loadWorkspaces]);
 
   async function signOut() {
     await supabase.auth.signOut();
@@ -480,6 +483,8 @@ function BusinessHome() {
 
   if (session === undefined) return <Loading text="Loading..." />;
   if (!session) return <BusinessSignIn />;
+  if (mfa.state === "checking") return <Loading text="Loading..." />;
+  if (mfa.state === "needs_code") return <MfaCodeCard email={session.user.email} onDone={mfa.recheck} />;
   if (workspaces === null) return <Loading text="Loading your workspace..." />;
 
   if (!workspaces.length) {
