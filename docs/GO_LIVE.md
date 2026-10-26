@@ -101,7 +101,7 @@ Nothing here has been applied to the live project. Do the steps in this order.
 
 1. **Back up first.** Supabase > Database > Backups: make sure a recent backup or point-in-time recovery exists.
 2. **SQL, in this order** (each file explains itself at the top; none changes or deletes data):
-   `zella_role_check_hardening.sql`, `zella_call_writes.sql` (section 1 only), `zella_staff_invite_binding.sql`, `zella_business_settings.sql`, `zella_receptionist_editor.sql`.
+   `zella_role_check_hardening.sql`, `zella_call_writes.sql` (section 1 only), `zella_staff_invite_binding.sql`, `zella_business_settings.sql`, `zella_receptionist_editor.sql`, `zella_settings_system.sql`.
 3. **Edge function secret:** `ZELLA_SERVER_SECRET_KEY` must be set (Settings > Platform configuration shows it). `billing-webhook` and `website-lead` now use it instead of `SUPABASE_SERVICE_ROLE_KEY`, like the other functions.
 4. **Deploy the functions** from the `web` folder. `config.toml` now marks the public ones, so plain deploys are safe:
    ```
@@ -124,3 +124,20 @@ Nothing here has been applied to the live project. Do the steps in this order.
    - In Supabase > Authentication, decide on public sign-up. Zella onboards businesses by invitation, so either turn sign-ups off or keep email confirmation on. The repo's `config.toml` (local only) has sign-ups on and confirmation off.
    - Add the Resend signing secret (step 2 of the n8n list above).
 9. **Recover the base schema** into `sql/000_base_schema.sql` (see `docs/SCHEMA_STATUS.md`) and run the read-only checks there.
+
+## Settings systems (2026-10-26, branch `settings-system`)
+
+Builds on the steps above (same SQL list; `zella_settings_system.sql` goes last).
+
+1. **Deploy `owner-provision-business` again.** It now has a second file (`settings.ts`) and checks a permission for
+   every action. Until `zella_settings_system.sql` is applied it falls back to the old admin check, so the order of
+   SQL and deploy doesn't matter.
+2. **Turn on multi-factor (TOTP)** in Supabase > Authentication > Multi-factor if it's off, so people can set up an
+   authenticator app in Settings. Admins who set one up must use it; the admin function enforces that.
+3. **Leaked-password protection:** Supabase > Authentication > Passwords. Recommended by the security advisor.
+4. **Deploy `reschedule-appointment`** (not live yet; reschedule and waitlist links depend on it).
+5. **Delete the unused functions** `smart-action` and `zella-admin-check-v2` in the Supabase dashboard.
+6. **Fill in Settings > General platform settings > Platform profile** (support email and phone show to businesses
+   under Help & support) and, when you have prices, **Plans > Plan entitlements** and **Voice cost configuration**.
+7. **Check in a browser**, as an owner and as a read-only admin you invite: the read-only admin can open Settings and
+   see figures but every change is refused with "Your admin role doesn't allow this".

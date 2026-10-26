@@ -1,6 +1,6 @@
 # Database: what the repo can and can't rebuild
 
-Checked on 2026-10-26 against the 98 files in `sql/`. The live Supabase project was not connected
+Checked on 2026-10-26 against the 99 files in `sql/`, and against the live project (read-only) once the Supabase connector was available. The live Supabase project was not connected
 during this check, so anything below marked "live only" could not be verified.
 
 ## The database can't be rebuilt from this repo yet
@@ -88,9 +88,39 @@ None of these have been run on the live project. Run them in this order; each on
 | `zella_staff_invite_binding.sql` | A team invitation can only be accepted by the account it was sent to | No |
 | `zella_business_settings.sql` | Business Settings: profile, hours, holidays, my profile | No |
 | `zella_receptionist_editor.sql` | Managers can read the receptionist's live settings to edit them | No |
+| `zella_settings_system.sql` | Settings foundations: 7 platform roles and a permission matrix, public platform info, sessions, plan entitlements (team seats and phone numbers enforced), voice pricing, usage protection and notices, legal documents, logo bucket, notification preferences, viewer role read-only, terminology, requests to Zella, fixed search_path | Adds tables and policies; the role check on platform_admins allows 5 more roles |
 
 Each file lists its dependencies, what it means for access, how to undo it, and a rolled-back
-check. All five were run against a local PostgreSQL 16 with stand-ins for the Supabase roles and
+check. All six were run against a local PostgreSQL 16 with stand-ins for the Supabase roles and
 `auth.uid()`. The checks there: the right member is allowed; another business's owner, staff below
 the required role, and anonymous callers are refused; bad input is rejected; a second run changes
 nothing.
+
+
+## Live project findings (2026-10-26, read-only)
+
+- None of the six files above are applied yet (only the older `zella_accept_staff_invitations` is live).
+- `zella_tenant_leak_check()` is clean: no business table without row security, no open policies, no anonymous reads.
+- Every insert and update policy on customers, appointments, calls, conversations, support tickets, knowledge items,
+  blocked times and staff members checks the person's own business. Gap fixed in `zella_settings_system.sql`:
+  members with the **viewer** role could still write (the policies only checked membership).
+- Security advisor: 7 functions without a fixed search_path (fixed in `zella_settings_system.sql`); leaked-password
+  protection is off (Supabase dashboard > Authentication); 174 "definer function callable by signed-in users" notices
+  are the app's role-checked functions and expected.
+- Edge functions: `reschedule-appointment` is **not deployed**, so reschedule and waitlist links in texts don't work yet.
+  Two leftover functions, `smart-action` ("zella-admin-check") and `zella-admin-check-v2`, only report whether the
+  caller is an admin, are not in the repo and nothing calls them; delete them in the Supabase dashboard.
+- `platform_admins` allowed only `zella_owner` and `super_admin`; `is_platform_admin()` still means those two only.
+  Restricted roles get no direct database access; they act only through the admin function, one permission at a time.
+- No plans, subscriptions, payments, usage records or calls exist yet, so billing and usage pages correctly show zero.
+- No storage bucket existed; `brand-assets` is created by the migration.
+
+## Settings system checks (run after applying, read-only)
+
+```sql
+select public.zella_rls_coverage();                    -- tables with and without row security
+select role, count(*) from public.platform_role_permissions group by 1;
+select id, public, file_size_limit from storage.buckets where id = 'brand-assets';
+select jobname, schedule from cron.job where jobname = 'zella_usage_thresholds';
+select tablename, policyname from pg_policies where policyname like 'zella_viewer_no_%' order by 1;
+```
