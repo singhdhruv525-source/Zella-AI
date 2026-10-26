@@ -155,3 +155,7 @@
 }
 .zs-glyph { display: inline-flex; width: 18px; justify-content: center; color: var(--zs-muted); font-size: 14px; }
 .zs-tree > li.current > .zs-cat .zs-glyph { color: var(--zs-accent); }
+/* Existing CRM pages shown inside Settings keep their actions but not their big page title. */
+.zs-page .ba-page-head .ba-crumb, .zs-page .ba-page-head h1 { display: none; }
+.zs-page .ba-page-head { margin-bottom: 8px; }
+.ba-root .zs-glyph, .ba-root .zs-cat .ba-icon { color: var(--zs-muted); }

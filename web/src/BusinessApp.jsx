@@ -49,10 +49,10 @@ const KNOWN_PAGES = new Set([
 // Address <-> page:  /app = Today, /app/<key>, /app/records/<type>, /app/settings/<section>.
 function readPage(path, base) {
   const rest = path === base || path.startsWith(`${base}/`) ? segments(path.slice(base.length)) : [];
-  if (!rest.length) return { key: "today", section: null, extra: false };
-  if (rest[0] === "records") return { key: `rec:${rest[1] ?? ""}`, section: null, extra: rest.length > 2 };
-  if (rest[0] === "settings") return { key: "settings", section: rest[1] ?? null, extra: rest.length > 2 };
-  return { key: rest[0], section: null, extra: rest.length > 1 };
+  if (!rest.length) return { key: "today", section: null, sub: null, extra: false };
+  if (rest[0] === "records") return { key: `rec:${rest[1] ?? ""}`, section: null, sub: null, extra: rest.length > 2 };
+  if (rest[0] === "settings") return { key: "settings", section: rest[1] ?? null, sub: rest[2] ?? null, extra: rest.length > 3 };
+  return { key: rest[0], section: null, sub: null, extra: rest.length > 1 };
 }
 const pageUrl = (base, key) =>
   key === "today" ? base : key.startsWith("rec:") ? `${base}/records/${encodeURIComponent(key.slice(4))}` : `${base}/${key}`;
@@ -407,7 +407,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
           {current.key === "lead-sources" && <LeadSourcesPage workspace={workspace} refreshKey={refreshKey} />}
           {current.key === "reports" && <ReportsPage workspace={workspace} refreshKey={refreshKey} />}
           {current.key === "integrations" && <IntegrationsPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
-          {current.key === "settings" && <BusinessSettingsPage workspace={workspace} email={email} onSignOut={onSignOut} section={route.section} onGo={setPage} onReload={onReload} onOpenPerson={openPerson} onNotice={setNotice} />}
+          {current.key === "settings" && <BusinessSettingsPage workspace={workspace} email={email} userId={userId} records={records} onSignOut={onSignOut} section={route.section} sub={route.sub} onGo={setPage} onReload={onReload} onOpenPerson={openPerson} onNotice={setNotice} />}
         </main>
       </div>
 
