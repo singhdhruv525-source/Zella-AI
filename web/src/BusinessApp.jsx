@@ -27,10 +27,13 @@ import "./CrmMotion.css";
 import { warm } from "./zellaVoice";
 import BusinessToday from "./BusinessToday";
 import { AddLeadModal, BookAppointmentModal } from "./BusinessForms";
-import { Icon, Pill, initials, loadBusinessFonts } from "./BusinessUI";
+import { Icon, loadBusinessFonts } from "./BusinessUI";
 import { formatLongDate } from "./businessTime";
 import { makeTerm, receptionistState } from "./businessWorkspace";
 import { navigate, segments, usePath } from "./router";
+import { buildNavigation, flatten } from "./navigation/navConfig";
+import { useWorkspaceNavigation } from "./navigation/useWorkspaceNavigation";
+import { BusinessSwitcher, ProfileMenu, ReceptionistCard, SidebarNav, SidebarState, TestVoiceModal } from "./navigation/Sidebar";
 
 // The CRM each client business uses (Stitch design). Routes:
 //   /welcome  set password from an invitation or reset email
@@ -60,70 +63,6 @@ const pageUrl = (base, key) =>
 // Pages whose list the header search filters.
 const SEARCHABLE = (key) => key === "customers" || key === "leads" || key.startsWith("rec:");
 
-// Sidebar groups from the design. Core CRM pages always show; the rest follow
-// the business's enabled modules. Pages not built yet are marked "Soon".
-function navigation(workspace, recordTypes = []) {
-  const term = makeTerm(workspace);
-  const has = (slug) => workspace.modules.includes(slug);
-  const groups = [
-    {
-      label: "Core",
-      items: [
-        { key: "today", label: "Today", icon: "dashboard", ready: true },
-        { key: "leads", label: "Leads", icon: "filter_alt", ready: true },
-        { key: "customers", label: term("customers"), icon: "group", ready: true },
-        { key: "calendar", label: "Calendar", icon: "calendar_today", ready: true },
-        { key: "checkins", label: "Check-ins", icon: "how_to_reg", ready: true },
-        has("calendar") && { key: "waitlist", label: "Waitlist", icon: "hourglass_top", ready: true },
-        { key: "tasks", label: "Tasks", icon: "task_alt", ready: true },
-        ["owner", "admin", "manager", "staff"].includes(workspace.role) && { key: "drafts", label: "Suggested messages", icon: "mark_email_unread", ready: true },
-      ],
-    },
-    {
-      label: "Communications",
-      items: [
-        { key: "attention", label: "Needs attention", icon: "support_agent", ready: true },
-        { key: "callbacks", label: "Callbacks", icon: "phone_callback", ready: true },
-        { key: "inbox", label: "Unified Inbox", icon: "forum", ready: true },
-        { key: "messages", label: "Messages", icon: "chat", ready: true },
-        has("calls") && { key: "calls", label: "Calls", icon: "call", ready: true },
-        { key: "lead-sources", label: "Lead sources", icon: "hub", ready: true },
-      ],
-    },
-    recordTypes.some((t) => t.enabled) && {
-      label: "Records",
-      items: recordTypes.filter((t) => t.enabled).map((t) => ({ key: `rec:${t.key}`, label: t.plural, icon: t.icon || "folder", ready: true })),
-    },
-    {
-      label: "AI & Intelligence",
-      items: [
-        has("ai-receptionist") && { key: "receptionist", label: "AI Receptionist", icon: "record_voice_over", ready: true },
-        has("calls") && { key: "transcripts", label: "Transcripts", icon: "insights", ready: true },
-        has("automations") && { key: "automations", label: "Automations", icon: "bolt", ready: true },
-        has("ai-receptionist") && { key: "knowledge", label: "Knowledge", icon: "menu_book", ready: true },
-      ],
-    },
-    {
-      label: "Management",
-      items: [
-        { key: "team", label: "Team", icon: "badge", ready: true },
-        ["owner", "admin"].includes(workspace.role) && { key: "access", label: "Team access", icon: "admin_panel_settings", ready: true },
-        ["owner", "admin"].includes(workspace.role) && { key: "approvals", label: "Approvals", icon: "verified_user", ready: true },
-        ["owner", "admin", "manager"].includes(workspace.role) && { key: "failed", label: "Didn't send", icon: "error", ready: true },
-        ["owner", "admin"].includes(workspace.role) && { key: "security", label: "Security log", icon: "history", ready: true },
-        { key: "reports", label: "Reports", icon: "monitoring", ready: true },
-        ["owner", "admin", "manager"].includes(workspace.role) && { key: "record-settings", label: "Customise records", icon: "tune", ready: true },
-        { key: "integrations", label: "Integrations", icon: "extension", ready: true },
-        { key: "settings", label: "Settings", icon: "settings", ready: true },
-      ],
-    },
-  ];
-  return groups
-    .filter(Boolean)
-    .map((g) => ({ ...g, items: g.items.filter(Boolean) }))
-    .filter((g) => g.items.length);
-}
-
 function Blocked({ workspace, onSignOut }) {
   const cancelled = Boolean(workspace.cancelled_at);
   return (
@@ -146,7 +85,7 @@ function Blocked({ workspace, onSignOut }) {
   );
 }
 
-function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackName, onSignOut, onReload, base = "/app" }) {
+function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackName, onSignOut, onReload, base = "/app", navPreview }) {
   const path = usePath();
   const route = readPage(path, base);
   const page = route.key;
@@ -171,7 +110,24 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
   const [error, setError] = useState("");
   const term = makeTerm(workspace);
   const records = useRecordTypes(workspace, 0);
-  const groups = navigation(workspace, records.types);
+  // The sidebar for this business and this person: industry, enabled modules, record types and role (navConfig.js).
+  const nav = useWorkspaceNavigation(workspace, navPreview);
+  const groups = nav.status === "ready" ? buildNavigation({
+    role: workspace.role,
+    modules: new Set((nav.data.modules ?? []).filter((m) => m.enabled).map((m) => m.slug)),
+    recordTypes: records.types,
+    operationsLabel: nav.data.operations_label,
+    configured: nav.data.configured,
+  }, term) : [];
+  const [myName, setMyName] = useState("");
+  useEffect(() => {
+    if (navPreview) return undefined;
+    let live = true;
+    supabase.rpc("zella_my_profile").then(({ data }) => {
+      if (live && data) setMyName([data.first_name, data.last_name].filter(Boolean).join(" "));
+    });
+    return () => { live = false; };
+  }, [navPreview]);
   const agent = receptionistState(workspace);
   const isOwner = workspace.role === "owner";
   const maintenance = maintenanceText(usePlatformInfo());
@@ -212,14 +168,22 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
     setRefreshKey((k) => k + 1);
   }
 
-  const allItems = groups.flatMap((g) => g.items);
-  const found = route.extra ? null : allItems.find((i) => i.key === page);
-  // Shown in place of a page: still loading record types, not allowed for this role or plan, or unknown.
+  const allItems = flatten(groups);
+  const found = route.extra ? null : allItems.find((i) => i.page === page);
+  // Shown in place of a page: the menu or record types still loading, the configuration failed to load, not allowed
+  // for this role, plan or industry, or unknown.
   const missing = found ? null
-    : page.startsWith("rec:") && !records.loaded ? "loading"
-      : !route.extra && (KNOWN_PAGES.has(page) || page.startsWith("rec:")) ? "unavailable" : "not-found";
-  const current = found ?? { key: "", label: missing === "not-found" ? "Page not found" : "Not available" };
-  const canGo = (key) => allItems.some((i) => i.key === key);
+    : nav.status === "loading" || (page.startsWith("rec:") && !records.loaded) ? "loading"
+      : nav.status === "error" ? "config-error"
+        : !route.extra && (KNOWN_PAGES.has(page) || page.startsWith("rec:")) ? "unavailable" : "not-found";
+  const current = found ? { key: found.page, label: found.label } : { key: "", label: missing === "not-found" ? "Page not found" : "Not available" };
+  const canGo = (key) => allItems.some((i) => i.page === key);
+  // Selected state. A Settings shortcut (Call handling rules, Notifications) is selected on its own Settings page,
+  // and then the Settings item isn't.
+  const settingsAt = page === "settings" ? `${route.section}/${route.sub}` : null;
+  const shortcutHere = settingsAt && allItems.some((i) => i.settings === settingsAt);
+  const isActive = (item) => (item.settings ? item.settings === settingsAt : item.page === page && !(page === "settings" && shortcutHere));
+  const openItem = (item) => (item.settings ? navigate(`${base}/settings/${item.settings}`) : setPage(item.page));
   const searchable = SEARCHABLE(current.key);
   const searchLabel = current.key === "leads" ? "leads"
     : current.key.startsWith("rec:") ? current.label.toLowerCase() : term("customers").toLowerCase();
@@ -232,52 +196,16 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
           <div className="ba-logo">Z</div>
           <div>
             <div className="ba-brand-name">Zella AI</div>
-            <div className="ba-brand-sub">{workspace.industry ?? "Business"} CRM</div>
+            <div className="ba-brand-sub">{nav.data?.industry?.name ?? workspace.industry ?? "Business"} CRM</div>
           </div>
         </div>
 
-        {groups.map((group) => (
-          <div key={group.label}>
-            <div className="ba-nav-group">{group.label}</div>
-            <nav className="ba-nav">
-              {group.items.map((item) => (
-                <button
-                  key={item.key}
-                  type="button"
-                  className={`ba-nav-item ${page === item.key ? "active" : ""} ${item.ready ? "" : "soon"}`}
-                  onClick={() => item.ready && setPage(item.key)}
-                  aria-disabled={!item.ready}
-                  aria-current={page === item.key ? "page" : undefined}
-                  title={item.label}
-                >
-                  <Icon name={item.icon} />
-                  <span>{item.label}</span>
-                  {!item.ready && <span className="ba-soon">Soon</span>}
-                  {item.key === "attention" && attention > 0 && <span className="ba-count" aria-label={`${attention} waiting`}>{attention}</span>}
-                </button>
-              ))}
-            </nav>
-          </div>
-        ))}
+        {nav.status === "ready"
+          ? <SidebarNav groups={groups} isActive={isActive} onOpen={openItem} badges={{ attention }} />
+          : <SidebarState status={nav.status} error={nav.error} onRetry={nav.retry} />}
 
         <div className="ba-sidebar-foot">
-          <div className="ba-agent-card">
-            <div className="ba-agent-row">
-              <strong>{workspace.receptionist?.name ?? "AI receptionist"}</strong>
-              <Pill tone={agent.tone} dot={agent.live} pulse={agent.live}>{agent.label}</Pill>
-            </div>
-            <span>{agent.live ? "Answering your calls" : "Zella connects your phone line before it goes live"}</span>
-          </div>
-          <div className="ba-user-card">
-            <div className="ba-avatar">{initials(email)}</div>
-            <div>
-              <strong title={email}>{email}</strong>
-              <span>{workspace.role}</span>
-            </div>
-            <button type="button" className="ba-btn ghost sm" onClick={onSignOut} title="Sign out" aria-label="Sign out">
-              <Icon name="logout" size="sm" />
-            </button>
-          </div>
+          <ReceptionistCard workspace={workspace} agent={agent} term={term} onTest={() => setModal("test-voice")} />
         </div>
       </aside>
 
@@ -287,19 +215,8 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
             onClick={() => setNavOpenAt(navOpen ? null : path)}>
             <Icon name="menu" />
           </button>
-          <div className="ba-business">
-            <Icon name="domain" />
-            {workspaces.length > 1 ? (
-              <select value={workspace.id} onChange={(e) => onSwitch(e.target.value)} aria-label="Switch business">
-                {workspaces.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
-              </select>
-            ) : (
-              <div>
-                <strong>{workspace.name}</strong>
-                <span>{workspace.industry ?? ""}</span>
-              </div>
-            )}
-          </div>
+          <BusinessSwitcher workspace={workspace} workspaces={workspaces} config={nav.data} onSwitch={onSwitch}
+            onGo={(path) => navigate(`${base}/${path}`)} canManage={["owner", "admin"].includes(workspace.role)} />
 
           <label className="ba-search">
             <Icon name="search" size="sm" />
@@ -329,6 +246,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
             <button type="button" className="ba-btn" onClick={() => setModal("book")}>
               <Icon name="event" /><span>Book {term("appointment").toLowerCase()}</span>
             </button>
+            <ProfileMenu email={email} name={myName} role={workspace.role} onGo={(path) => navigate(`${base}/${path}`)} onSignOut={onSignOut} />
           </div>
         </header>
 
@@ -366,7 +284,16 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
           {error && <div className="ba-banner error">{error}</div>}
 
           {missing === "loading" && <p className="ba-muted">Loading…</p>}
-          {missing && missing !== "loading" && (
+          {missing === "config-error" && (
+            <section className="ba-panel">
+              <div className="ba-panel-body">
+                <h2>This business's settings didn't load</h2>
+                <p className="ba-muted">Pages stay hidden until they do, so nothing from another business or a wrong industry is shown.</p>
+                <button type="button" className="ba-btn primary" onClick={nav.retry}>Try again</button>
+              </div>
+            </section>
+          )}
+          {missing && missing !== "loading" && missing !== "config-error" && (
             <section className="ba-panel">
               <div className="ba-panel-body">
                 <h2>{missing === "not-found" ? "Page not found" : "This page isn't available"}</h2>
@@ -438,6 +365,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
       {modal === "lead" && <AddLeadModal workspace={workspace} term={term} onClose={() => setModal(null)} onSaved={saved} />}
       {modal === "live-notice" && <LiveNoticeModal workspace={workspace} onClose={() => setModal(null)} onSaved={(m) => { setModal(null); setNotice(m); setRefreshKey((k) => k + 1); }} />}
       {modal === "book" && <BookAppointmentModal workspace={workspace} term={term} onClose={() => setModal(null)} onSaved={saved} />}
+      {modal === "test-voice" && <TestVoiceModal workspace={workspace} phone={nav.data?.phone} agent={agent} onClose={() => setModal(null)} onGo={(path) => navigate(`${base}/${path}`)} />}
     </div>
   );
 }
@@ -453,7 +381,14 @@ function Loading({ text }) {
 function BusinessHome() {
   const [session, setSession] = useState(undefined);
   const [workspaces, setWorkspaces] = useState(null);
-  const [selectedId, setSelectedId] = useState(null);
+  // The business last opened on this device, so a refresh stays in it. Only a convenience: the list of businesses
+  // comes from the server, and an id that isn't in it is ignored.
+  const [selectedId, setSelectedIdRaw] = useState(() => { try { return localStorage.getItem(LAST_BUSINESS); } catch { return null; } });
+  const setSelectedId = (next) => setSelectedIdRaw((current) => {
+    const id = typeof next === "function" ? next(current) : next;
+    try { if (id) localStorage.setItem(LAST_BUSINESS, id); } catch { /* private mode */ }
+    return id;
+  });
   const [error, setError] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -549,6 +484,8 @@ function BusinessHome() {
 // Look-only preview of the workspace without signing in. It exists only
 // while running locally (npm run dev) and is removed from production builds.
 // It has no data and cannot save anything, because there is no signed-in user.
+const LAST_BUSINESS = "zella.lastBusiness";
+
 const PREVIEW_WORKSPACE = {
   // A real-shaped UUID that matches no business. Queries return nothing instead
   // of failing with: invalid input syntax for type uuid: "preview".
@@ -572,6 +509,12 @@ const PREVIEW_WORKSPACE = {
   voice_connected: true,
 };
 
+// Development preview only (never in a production build): the menu comes from this sample instead of the database.
+const PREVIEW_NAV = {
+  role: "owner", configured: true, industry: { slug: "dental", name: "Dental clinic" }, operations_label: "Clinic operations",
+  modules: PREVIEW_WORKSPACE.modules.map((slug) => ({ slug, enabled: true, available: true })), location: "New York, US", logo_url: null, phone: null,
+};
+
 function Preview() {
   return (
     <Workspace
@@ -582,6 +525,7 @@ function Preview() {
       base="/app/preview"
       onSignOut={() => { window.location.href = "/app"; }}
       onReload={() => {}}
+      navPreview={PREVIEW_NAV}
     />
   );
 }

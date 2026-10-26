@@ -19,6 +19,7 @@ import SettingsWorkspace from "./settings/SettingsWorkspace";
 import { AccountSecurityPanel, MyProfilePanel, SignOutPanel, uploadImage } from "./settings/PersonalPanels";
 import { Banner, Card, Confirm, Empty, Facts, Field, LinkRows, LoadState, Needs, Pill, SaveBar, Table, Toggle, useAsync, useForm, when, words } from "./settings/SettingsKit";
 import { usePlatformInfo } from "./platformInfo";
+import { BusinessModulesPanel } from "./settings/BusinessModulesPanel";
 import { AssignmentSettings, BusinessOffersSettings, LeadQuestions, LeadRules, WebsiteForms, WebsiteSources } from "./settings/BusinessLeadPanels";
 
 // Business Settings: one Settings item in the CRM sidebar opens this workspace,
@@ -592,17 +593,6 @@ function IndustryProfile({ w }) {
   );
 }
 
-function Modules({ w }) {
-  return (
-    <>
-      <Card title="Modules">
-        <Table rowKey={(m) => m} rows={w.modules ?? []} empty="No modules switched on." columns={[["Module", (m) => words(m)], ["Status", () => <Pill tone="success">On</Pill>]]} />
-      </Card>
-      <Needs title="Switching optional modules on or off here isn't available" have="The Zella team sets modules for your industry and plan.">It needs a list of optional modules per plan, checked on the server, so a module can't be switched on outside the plan.</Needs>
-    </>
-  );
-}
-
 /* ---------- 12. Notifications ---------- */
 
 const KINDS = [["daily_summary", "Daily summary", true], ["weekly_review", "Weekly review", true], ["new_lead", "New lead", false], ["lead_overdue", "Lead not followed up", true],
@@ -849,7 +839,7 @@ function registry(w) {
       page("fields", "Industry fields", (c) => <RecordSettingsPage workspace={w} types={c.records.types} canManage={lead} onNotice={c.onNotice} onChanged={c.records.reload} />, "fields"),
       page("workflows", "Workflow rules", (c) => <AutomationsPage workspace={w} refreshKey={0} onNotice={c.onNotice} />, "rules status follow-up"),
       page("services", "Service catalog", (c) => <KnowledgePage workspace={w} refreshKey={0} onNotice={c.onNotice} />, "services prices"),
-      page("modules", "Industry modules", () => <Modules w={w} />, "modules"),
+      page("modules", "Modules", (c) => <BusinessModulesPanel w={w} onGo={c.onGo} />, "modules industry enabled disabled available operations records"),
     ] },
     { key: "automations", label: "Automations", icon: "bolt", items: [
       page("library", "Automation library", (c) => <AutomationsPage workspace={w} refreshKey={0} onNotice={c.onNotice} />, "templates active disabled"),

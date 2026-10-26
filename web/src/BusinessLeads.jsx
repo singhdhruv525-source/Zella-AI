@@ -123,7 +123,7 @@ export function LeadsPage({ workspace, query, refreshKey, onNotice, onOpenPerson
 
   return (
     <>
-      <PageHead crumb="Core / Leads" title="Leads"
+      <PageHead crumb="CRM / Leads" title="Leads"
         sub={overdueCount ? `${overdueCount} ${overdueCount === 1 ? "lead is" : "leads are"} overdue for a follow-up.` : "Everyone who reached out, by where they are and who is following up."}>
         <Segment label="Lead view" value={view} onChange={setView} options={[["pipeline", "Pipeline"], ["list", "List"]]} />
       </PageHead>

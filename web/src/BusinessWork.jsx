@@ -192,7 +192,7 @@ export function TasksPage({ workspace, refreshKey, onNotice, onOpenPerson, onCha
 
   return (
     <>
-      <PageHead crumb="Core / Tasks" title="Tasks" sub={open.length ? `${plural(open.length, "thing")} to do.` : "Nothing waiting. Zella adds tasks when a lead needs contacting, a quote is open or a booking needs rearranging."}>
+      <PageHead crumb="Workspace / Tasks & Follow-ups" title="Tasks" sub={open.length ? `${plural(open.length, "thing")} to do.` : "Nothing waiting. Zella adds tasks when a lead needs contacting, a quote is open or a booking needs rearranging."}>
         <button type="button" className="ba-btn primary" onClick={() => setAdding(true)}><Icon name="add_task" size="sm" />Add task</button>
         <Segment label="Task filter" value={filter} onChange={setFilter} options={[["open", `To do (${open.length})`], ["done", "Done"]]} />
       </PageHead>
@@ -317,7 +317,7 @@ export function WaitlistPage({ workspace, term, refreshKey, onNotice, onOpenPers
 
   return (
     <>
-      <PageHead crumb="Core / Waitlist" title="Waitlist" sub="People who want an earlier time. When someone cancels, Zella can offer the opening to the next person. Nothing is booked until they say yes.">
+      <PageHead crumb="Workspace / Waitlist" title="Waitlist" sub="People who want an earlier time. When someone cancels, Zella can offer the opening to the next person. Nothing is booked until they say yes.">
         <button type="button" className="ba-btn primary" onClick={() => setAdding(true)}><Icon name="playlist_add" size="sm" />Add to waitlist</button>
         <Segment label="Waitlist filter" value={filter} onChange={setFilter} options={[["active", `Waiting (${active.length})`], ["past", "Booked or removed"]]} />
       </PageHead>

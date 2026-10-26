@@ -61,7 +61,7 @@ export function ApprovalsPage({ workspace, refreshKey, onNotice }) {
 
   return (
     <>
-      <PageHead crumb="Management / Approvals" title="Approvals" sub="Sensitive actions wait here until a second person says yes." />
+      <PageHead crumb="Team & Staff / Approvals" title="Approvals" sub="Sensitive actions wait here until a second person says yes." />
       <Notice error={error} onRetry={reload} />
       <section className="ba-panel">
         {!data?.length ? (
@@ -227,7 +227,7 @@ export function AccessPage({ workspace, refreshKey, onNotice, userId }) {
 
   return (
     <>
-      <PageHead crumb="Management / Access" title="Team access" sub="Who can sign in, what they can do, and who is waiting to join.">
+      <PageHead crumb="Team & Staff / Team access" title="Team access" sub="Who can sign in, what they can do, and who is waiting to join.">
         <button type="button" className="ba-btn" onClick={() => setModal({ kind: "handover" })}><Icon name="swap_horiz" size="sm" /><span>Hand over work</span></button>
         {canAdmin && <button type="button" className="ba-btn primary" onClick={() => setModal({ kind: "invite" })}><Icon name="person_add" size="sm" /><span>Invite someone</span></button>}
       </PageHead>
@@ -300,7 +300,7 @@ export function FailedWorkPage({ workspace, refreshKey, onNotice }) {
 
   return (
     <>
-      <PageHead crumb="Management / Health" title="Messages that didn't send" sub="Anything that failed in the last 7 days. Try again once the cause is fixed, such as a reconnected account." />
+      <PageHead crumb="Calls & Messages / Didn't send" title="Messages that didn't send" sub="Anything that failed in the last 7 days. Try again once the cause is fixed, such as a reconnected account." />
       <Notice error={error} onRetry={reload} />
       <section className="ba-panel">
         {!rows.length ? (
@@ -330,7 +330,7 @@ export function SecurityLogPage({ workspace, refreshKey }) {
   }, [workspace.id, refreshKey]);
   return (
     <>
-      <PageHead crumb="Management / Security" title="Security log" sub="Who changed what in this workspace. The last 100 changes." />
+      <PageHead crumb="Team & Staff / Security log" title="Security log" sub="Who changed what in this workspace. The last 100 changes." />
       <Notice error={error} onRetry={reload} />
       <section className="ba-panel">
         {!data?.length ? (

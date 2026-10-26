@@ -803,8 +803,14 @@
   }
   .ba-sidebar.open .ba-brand { justify-content: flex-start; padding: 4px 8px 18px; }
   .ba-sidebar.open .ba-brand > div:last-child,
-  .ba-sidebar.open .ba-nav-group,
-  .ba-sidebar.open .ba-user-card > div { display: block; }
+  .ba-sidebar.open .ba-user-card > div,
+  .ba-sidebar.open .ba-nav-notice,
+  .ba-sidebar.open .ba-nav-skeleton { display: block; }
+  .ba-sidebar.open .ba-nav-group { display: flex; }
+  .ba-sidebar.open .ba-nav-section.folded .ba-nav { display: none; }
+  .ba-sidebar.open .ba-nav-item .ba-nav-chev,
+  .ba-sidebar.open .ba-nav-item .ba-count { display: inline-flex; }
+  .ba-sidebar.open .ba-nav-children { margin-left: 18px; padding-left: 8px; border-left: 1px solid var(--zella-border); }
   .ba-sidebar.open .ba-nav-item > span:nth-child(2) { display: block; }
   .ba-sidebar.open .ba-soon { display: inline; }
   .ba-sidebar.open .ba-agent-card { display: flex; }

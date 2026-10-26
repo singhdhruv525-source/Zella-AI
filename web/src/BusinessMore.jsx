@@ -42,7 +42,7 @@ export function AttentionPage({ workspace, refreshKey, onNotice, onOpenPerson, o
   return (
     <>
       <PageHead
-        crumb="Communications / Needs attention"
+        crumb="Calls & Messages / Needs attention"
         title="Needs attention"
         sub={open.length ? `${plural(open.length, "caller")} waiting for a person. Your AI receptionist handed these over.` : "Nothing is waiting. Anything your AI receptionist can't handle shows up here."}
       >
@@ -188,7 +188,7 @@ export function LeadSourcesPage({ workspace, refreshKey }) {
 
   return (
     <>
-      <PageHead crumb="Communications / Lead sources" title="Lead sources" sub={`Where new ${term("customers").toLowerCase()} come from, and how many became bookings.`}>
+      <PageHead crumb="Business Growth / Lead sources" title="Lead sources" sub={`Where new ${term("customers").toLowerCase()} come from, and how many became bookings.`}>
         <Segment label="Date range" value={range} onChange={setRange} options={RANGES} />
       </PageHead>
       <Notice error={error} onRetry={reload} />
@@ -284,7 +284,7 @@ export function ReportsPage({ workspace, refreshKey }) {
   const peak = Math.max(1, ...(r?.perDay ?? []).map((d) => d.n));
   return (
     <>
-      <PageHead crumb="Management / Reports" title="Reports" sub={`How ${workspace.name} is doing. Every figure comes from your own records.`}>
+      <PageHead crumb="Business Growth / Reports & Analytics" title="Reports" sub={`How ${workspace.name} is doing. Every figure comes from your own records.`}>
         <Segment label="Date range" value={range} onChange={setRange} options={RANGES} />
       </PageHead>
       <Notice error={error} onRetry={reload} />

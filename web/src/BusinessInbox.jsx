@@ -286,7 +286,7 @@ export function InboxPage({ workspace, refreshKey, onNotice, onOpenPerson }) {
 
   return (
     <>
-      <PageHead crumb="Communications / Unified Inbox" title="Unified inbox"
+      <PageHead crumb="Calls & Messages / Conversations" title="Unified inbox"
         sub={unreadCount ? `${plural(unreadCount, "conversation")} unread.` : "Every call, text and email in one place."} />
       <Notice error={error} onRetry={reload} />
       <div className="ba-inbox-filters">

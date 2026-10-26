@@ -89,6 +89,7 @@ None of these have been run on the live project. Run them in this order; each on
 | `zella_business_settings.sql` | Business Settings: profile, hours, holidays, my profile | No |
 | `zella_receptionist_editor.sql` | Managers can read the receptionist's live settings to edit them | No |
 | `zella_settings_system.sql` | Settings foundations: 7 platform roles and a permission matrix, public platform info, sessions, plan entitlements (team seats and phone numbers enforced), voice pricing, usage protection and notices, legal documents, logo bucket, notification preferences, viewer role read-only, terminology, requests to Zella, fixed search_path; website forms (list, edit, allowed websites, switch off), lead rules and qualifying questions limited to owners/admins/managers, work assignment settings | Adds tables and policies; the role check on platform_admins allows 5 more roles |
+| `zella_navigation.sql` | CRM navigation: `zella_workspace_navigation`, `zella_module_on`, and read rules that hide calls, transcripts, automations and switched-off record types when the module is off | Restrictive policies only; no tables or rows change |
 
 Each file lists its dependencies, what it means for access, how to undo it, and a rolled-back
 check. All six were run against a local PostgreSQL 16 with stand-ins for the Supabase roles and

@@ -150,7 +150,7 @@ export function KnowledgePage({ workspace, refreshKey, onNotice }) {
   return (
     <>
       <PageHead
-        crumb="AI & Intelligence / Knowledge"
+        crumb="AI Receptionist / Knowledge base"
         title="Knowledge"
         sub="What your AI receptionist is allowed to say. It only uses an answer once it shows Ready."
       >

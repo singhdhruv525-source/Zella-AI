@@ -287,7 +287,7 @@ export default function BusinessToday({ workspace, userId, fallbackName, onAddLe
       />
       <div className="ba-page-head">
         <div>
-          <div className="ba-crumb">Core / Today</div>
+          <div className="ba-crumb">Workspace / Today</div>
         </div>
         <div className="ba-page-actions">
           <div className="ba-segment" role="tablist" aria-label="Time range">

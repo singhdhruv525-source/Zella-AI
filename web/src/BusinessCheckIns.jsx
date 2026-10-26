@@ -179,7 +179,7 @@ export function CheckInsPage({ workspace, refreshKey, onNotice, onOpenPerson, on
 
   return (
     <>
-      <PageHead crumb="Core / Check-ins" title="Check-ins" sub={`Who is expected, who has arrived, and who is done today (${tz.replace("_", " ")}). You record each step.`}>
+      <PageHead crumb="Workspace / Check-ins" title="Check-ins" sub={`Who is expected, who has arrived, and who is done today (${tz.replace("_", " ")}). You record each step.`}>
         <button type="button" className="ba-btn primary" onClick={() => setWalkIn(true)}><Icon name="directions_walk" size="sm" /><span>Add walk-in</span></button>
       </PageHead>
       <div className="ba-toolbar ba-lead-tools">

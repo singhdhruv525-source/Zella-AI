@@ -59,7 +59,7 @@ export function DraftsPage({ workspace, refreshKey, onNotice }) {
 
   return (
     <>
-      <PageHead crumb="Work / Suggested messages" title="Suggested messages"
+      <PageHead crumb="Calls & Messages / Suggested messages" title="Suggested messages"
         sub="Zella writes these when a follow-up is due. Nothing is sent until you check it and press Send." />
       <Notice error={error} onRetry={reload} />
       <section className="ba-panel">

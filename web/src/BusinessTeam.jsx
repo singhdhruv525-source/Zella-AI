@@ -161,7 +161,7 @@ export function TeamPage({ workspace, email, refreshKey, onNotice }) {
   return (
     <>
       <PageHead
-        crumb="Management / Team"
+        crumb="Team & Staff"
         title="Team"
         sub={`${term("staff_plural")}, their hours and breaks, and who is away. Your AI receptionist only books people who are available.`}
       >

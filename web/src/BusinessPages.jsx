@@ -537,7 +537,7 @@ export function CalendarPage({ workspace, refreshKey, onNotice, onOpenPerson }) 
 
   return (
     <>
-      <PageHead crumb="Core / Calendar" title="Calendar" sub={`${term("appointments")} · ${title} (${tz.replace("_", " ")})`}>
+      <PageHead crumb="Workspace / Calendar" title="Calendar" sub={`${term("appointments")} · ${title} (${tz.replace("_", " ")})`}>
         <div className="ba-segment" role="group" aria-label="Calendar view">
           {VIEWS.map(([id, label]) => (
             <button key={id} type="button" className={view === id ? "active" : ""} onClick={() => setView(id)}>{label}</button>
@@ -673,7 +673,7 @@ export function MessagesPage({ workspace, refreshKey, onOpenPerson }) {
   const rows = (data?.rows ?? []).filter((r) => filter === "all" || r.channel === filter);
   return (
     <>
-      <PageHead crumb="Communications / Messages" title="Messages" sub="Conversations by text and email. Your AI receptionist answers the routine ones.">
+      <PageHead crumb="Calls & Messages / Messages" title="Messages" sub="Conversations by text and email. Your AI receptionist answers the routine ones.">
         {channels.length > 1 && (
           <Segment label="Channel" value={filter} onChange={setFilter} options={[["all", "All"], ...channels.map((c) => [c, c.toUpperCase() === c ? c : c[0].toUpperCase() + c.slice(1)])]} />
         )}
@@ -737,7 +737,7 @@ export function ReceptionistPage({ workspace, onNotice, onReload }) {
 
   return (
     <>
-      <PageHead crumb="AI & Intelligence / AI Receptionist" title={workspace.receptionist?.name ?? "AI receptionist"} sub="Answers your calls, books appointments and adds new people to your CRM.">
+      <PageHead crumb="AI Receptionist / Voice and setup" title={workspace.receptionist?.name ?? "AI receptionist"} sub="Answers your calls, books appointments and adds new people to your CRM.">
         <Pill tone={agent.tone} dot={agent.live} pulse={agent.live}>{agent.label}</Pill>
       </PageHead>
       <Notice error={error} onRetry={reload} />
