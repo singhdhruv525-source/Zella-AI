@@ -1,6 +1,6 @@
 # Database: what the repo can and can't rebuild
 
-Checked on 2026-10-26 against the 97 files in `sql/`. The live Supabase project was not connected
+Checked on 2026-10-26 against the 98 files in `sql/`. The live Supabase project was not connected
 during this check, so anything below marked "live only" could not be verified.
 
 ## The database can't be rebuilt from this repo yet
@@ -87,9 +87,10 @@ None of these have been run on the live project. Run them in this order; each on
 | `zella_call_writes.sql` | `zella_call_mark_followed_up`, `zella_call_set_escalation`. Section 2 (the lock) stays commented out | No |
 | `zella_staff_invite_binding.sql` | A team invitation can only be accepted by the account it was sent to | No |
 | `zella_business_settings.sql` | Business Settings: profile, hours, holidays, my profile | No |
+| `zella_receptionist_editor.sql` | Managers can read the receptionist's live settings to edit them | No |
 
 Each file lists its dependencies, what it means for access, how to undo it, and a rolled-back
-check. All four were run against a local PostgreSQL 16 with stand-ins for the Supabase roles and
+check. All five were run against a local PostgreSQL 16 with stand-ins for the Supabase roles and
 `auth.uid()`. The checks there: the right member is allowed; another business's owner, staff below
 the required role, and anonymous callers are refused; bad input is rejected; a second run changes
 nothing.

@@ -227,7 +227,7 @@ export function TeamPage({ workspace, email, refreshKey, onNotice }) {
 
       <section className="ba-panel ba-gap">
         <div className="ba-panel-head">
-          <div className="ba-panel-title"><div><h2>Who can sign in</h2><p>Accounts with access to this workspace. To add or remove one, ask the Zella team.</p></div></div>
+          <div className="ba-panel-title"><div><h2>Who can sign in</h2><p>Accounts with access to this workspace. Owners and admins add or remove them in Team access.</p></div></div>
         </div>
         <ul className="ba-threads">
           {(data?.logins ?? []).map((m) => {

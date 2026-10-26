@@ -11,6 +11,7 @@ import { EscalationControls, Transcript, isOpenEscalation } from "./BusinessProf
 import { AddCustomerModal, BookAppointmentModal, RescheduleModal } from "./BusinessForms";
 import { MonthGrid, TimeGrid, clockText, dayInfo, minutesInto } from "./BusinessCalendar";
 import { ActivationCard } from "./BusinessWork";
+import { ReceptionistEditor } from "./BusinessReceptionist";
 
 // The rest of the business app: Leads, People (Patients / Customers / Clients…),
 // Calendar, Calls, Messages, AI Receptionist, Automations, Team and Settings.
@@ -767,7 +768,7 @@ export function ReceptionistPage({ workspace, onNotice, onReload }) {
           )}
         </section>
       </div>
-      <p className="ba-muted pad-top">To change what your receptionist says or knows, ask the Zella team. Editing from here is coming.</p>
+      <ReceptionistEditor workspace={workspace} agent={primary} onNotice={onNotice} />
     </>
   );
 }

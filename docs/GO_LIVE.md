@@ -101,7 +101,7 @@ Nothing here has been applied to the live project. Do the steps in this order.
 
 1. **Back up first.** Supabase > Database > Backups: make sure a recent backup or point-in-time recovery exists.
 2. **SQL, in this order** (each file explains itself at the top; none changes or deletes data):
-   `zella_role_check_hardening.sql`, `zella_call_writes.sql` (section 1 only), `zella_staff_invite_binding.sql`, `zella_business_settings.sql`.
+   `zella_role_check_hardening.sql`, `zella_call_writes.sql` (section 1 only), `zella_staff_invite_binding.sql`, `zella_business_settings.sql`, `zella_receptionist_editor.sql`.
 3. **Edge function secret:** `ZELLA_SERVER_SECRET_KEY` must be set (Settings > Platform configuration shows it). `billing-webhook` and `website-lead` now use it instead of `SUPABASE_SERVICE_ROLE_KEY`, like the other functions.
 4. **Deploy the functions** from the `web` folder. `config.toml` now marks the public ones, so plain deploys are safe:
    ```
