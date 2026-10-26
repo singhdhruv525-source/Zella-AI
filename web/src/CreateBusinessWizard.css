@@ -938,3 +938,59 @@
 @keyframes wiz-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes wiz-pop { 0% { transform: scale(0.6); } 70% { transform: scale(1.12); } 100% { transform: scale(1); } }
 @keyframes wiz-shake { 0%, 100% { transform: none; } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+
+/* ---------- Owner & verification: documents ---------- */
+.wiz-docs { display: grid; gap: 10px; }
+.wiz-doc { padding: 12px 14px; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--bg-surface); transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+.wiz-doc:hover { box-shadow: 0 6px 18px rgba(60, 40, 20, 0.06); }
+.wiz-doc.has.verified { border-color: var(--status-success); }
+.wiz-doc.has.rejected { border-color: var(--status-danger); }
+.wiz-doc-main { display: flex; align-items: flex-start; gap: 12px; }
+.wiz-doc-main > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.wiz-doc-main small { color: var(--text-secondary); font-size: 12px; overflow-wrap: anywhere; }
+.wiz-doc-main .wiz-doc-note { color: var(--status-danger); }
+.wiz-doc-icon { flex-shrink: 0; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 11px; background: var(--color-primary-subtle); color: var(--color-primary); }
+.wiz-doc.has.verified .wiz-doc-icon { background: var(--status-success-bg); color: var(--status-success); }
+.wiz-doc.has.rejected .wiz-doc-icon { background: var(--status-danger-bg); color: var(--status-danger); }
+.wiz-doc-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin: 10px 0 0 50px; }
+.wiz-upload { position: relative; cursor: pointer; }
+.wiz-upload input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.wiz-upload.busy { opacity: 0.7; pointer-events: none; }
+.wiz-upload:focus-within { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+.wiz-doc-reject { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 0 50px; }
+.wiz-doc-reject input { flex: 1 1 220px; min-width: 0; padding: 8px 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-md); font: inherit; }
+
+/* ---------- Hours & services ---------- */
+.wiz-hours-row.closed { opacity: 0.6; }
+.wiz-segment { display: inline-flex; width: max-content; justify-self: start; align-self: start; padding: 3px; border: 1px solid var(--border-strong); border-radius: 999px; background: var(--bg-surface-subdued); }
+.wiz-segment button { min-width: 64px; padding: 6px 14px; border: 0; border-radius: 999px; background: transparent; color: var(--text-secondary); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; transition: background-color 0.15s ease, color 0.15s ease; }
+.wiz-segment button.on { background: var(--color-primary); color: var(--text-inverse); }
+.wiz-prompts { align-items: center; margin-bottom: 12px; }
+button.wiz-chip { background: var(--bg-surface); font: inherit; font-size: 12px; cursor: pointer; }
+button.wiz-chip:hover { border-color: var(--color-primary); color: var(--color-primary); }
+
+/* ---------- Optional sections that open on demand ---------- */
+.wiz-advanced { margin-top: 14px; border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); background: var(--bg-surface); }
+.wiz-advanced > summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 16px 20px; cursor: pointer; list-style: none; }
+.wiz-advanced > summary::-webkit-details-marker { display: none; }
+.wiz-advanced > summary::before { content: "›"; display: inline-block; width: 12px; color: var(--text-secondary); font-weight: 700; transition: transform 0.2s ease; }
+.wiz-advanced[open] > summary::before { transform: rotate(90deg); }
+.wiz-advanced > summary span { font-weight: 650; }
+.wiz-advanced > summary small { color: var(--text-secondary); font-size: 12px; }
+.wiz-advanced > :not(summary) { margin: 0 14px 14px; }
+.wiz-advanced .wiz-section { border: 0; box-shadow: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .wiz-advanced[open] > :not(summary) { animation: wiz-in 0.25s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+}
+
+/* ---------- Friendlier empty states ---------- */
+.wiz-empty-rich { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 22px 16px; text-align: center; }
+.wiz-empty-rich .ba-icon { display: grid; place-items: center; width: 40px; height: 40px; margin-bottom: 4px; border-radius: 50%; background: var(--bg-surface-subdued); color: var(--text-secondary); }
+.wiz-empty-rich span { color: var(--text-secondary); font-size: 12.5px; }
+
+@media (max-width: 640px) {
+  .wiz-doc-actions, .wiz-doc-reject { margin-left: 0; }
+}
+@media (max-width: 640px) {
+  .wiz-section-head { flex-wrap: wrap; }
+}

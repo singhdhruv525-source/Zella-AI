@@ -5,6 +5,8 @@ import { checkEmail, checkUrl, countryList, validatePhone } from "./formValidati
 import { useEffect, useMemo, useRef, useState } from "react";
 import "./CreateBusinessWizard.css";
 import { supabase } from "./supabase";
+import { Icon } from "./BusinessUI";
+import { DOCUMENT_KINDS, DOCUMENT_MAX_BYTES, DOCUMENT_TYPES, LENGTH_OPTIONS, missingDetails, onboardingFor } from "./onboardingConfig";
 
 // ---------------------------------------------------------------------------
 // Server calls
@@ -36,29 +38,32 @@ export async function callOwnerFunction(action, payload = {}) {
 // Static options
 // ---------------------------------------------------------------------------
 
+// Essentials first (business, owner, hours), then what the AI and the phone need, then optional fine-tuning.
 const STEPS = [
   { key: "business", label: "Business" },
-  { key: "switches", label: "Automations" },
-  { key: "owner", label: "Owner" },
-  { key: "terminology", label: "Terminology" },
-  { key: "modules", label: "Modules" },
+  { key: "owner", label: "Owner & verification" },
+  { key: "operations", label: "Hours & services" },
+  { key: "team", label: "Team", optional: true },
   { key: "receptionist", label: "AI receptionist" },
-  { key: "integrations", label: "Phone & integrations" },
-  { key: "automations", label: "Automation options" },
+  { key: "integrations", label: "Phone & integrations", optional: true },
+  { key: "automations", label: "Automations" },
+  { key: "crm", label: "CRM setup", optional: true },
   { key: "review", label: "Review" },
 ];
+const STEP = Object.fromEntries(STEPS.map((s, i) => [s.key, i]));
 
+// Where a saved draft reopens: the step after the last one that moved setup forward.
 const RESUME_STEP = {
-  started: 0,
-  business_info: 1,
-  owner_setup: 3,
-  industry_setup: 4,
-  ai_setup: 6,
-  communications_setup: 7,
-  automation_setup: 8,
-  testing: 8,
-  ready: 8,
-  active: 8,
+  started: STEP.business,
+  business_info: STEP.owner,
+  owner_setup: STEP.operations,
+  industry_setup: STEP.team,
+  ai_setup: STEP.integrations,
+  communications_setup: STEP.automations,
+  automation_setup: STEP.crm,
+  testing: STEP.review,
+  ready: STEP.review,
+  active: STEP.review,
 };
 
 const COUNTRIES = countryList().map((c) => [c.iso, c.name]);
@@ -161,6 +166,13 @@ function emptySetup() {
     invitation: null,
     terminology: { industry: {}, overrides: {} },
     modules: [],
+    operations: {
+      hours: emptyHours(), about: "", services: [], details: {},
+      booking: { defaultMinutes: 30, bufferMinutes: 0, minNoticeHours: 2, maxDaysAhead: 60 },
+    },
+    team: [],
+    documents: [],
+    documentsAvailable: true,
     receptionist: {
       name: "AI Receptionist",
       greeting: "",
@@ -289,6 +301,40 @@ function fromServer(data, industries = []) {
       };
     }
   }
+
+  // Hours & services: the hours table wins (the CRM and bookings read it); older drafts only have the AI's copy.
+  const days = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+  const opsHours = emptyHours();
+  if (data.hours?.length) {
+    for (const [day] of DAYS) {
+      const rows = data.hours.filter((r) => days[r.weekday] === day);
+      opsHours[day] = rows.length
+        ? { closed: false, open: String(rows[0].opens).slice(0, 5), close: String(rows[rows.length - 1].closes).slice(0, 5) }
+        : { closed: true, open: "", close: "" };
+    }
+  } else {
+    Object.assign(opsHours, hours);
+  }
+  const saved = data.operations || {};
+  const industrySlug = industries.find((i) => i.id === setup.business.industryId)?.slug;
+  const cfg = onboardingFor(industrySlug);
+  setup.operations = {
+    hours: opsHours,
+    about: b.description || kb.about || "",
+    services: kb.services || [],
+    details: Object.fromEntries((saved.details || []).map((d) => [d.key, d.value])),
+    booking: {
+      defaultMinutes: saved.booking?.default_minutes ?? cfg.defaultLength,
+      bufferMinutes: saved.booking?.buffer_minutes ?? 0,
+      minNoticeHours: saved.booking?.min_notice_hours ?? 2,
+      maxDaysAhead: saved.booking?.max_days_ahead ?? 60,
+    },
+  };
+  if (!saved.details?.length && kb.service_area && cfg.details.some((d) => d.key === "service_area")) setup.operations.details.service_area = kb.service_area;
+  setup.team = (data.team || []).map((m) => ({ id: m.id, name: m.name || "", title: m.title || "", phone: m.phone || "", email: m.email || "" }));
+  setup.documents = data.documents || [];
+  setup.documentsAvailable = data.documentsAvailable !== false;
+  if (!hasConfig) setup.receptionist.capabilities = cfg.capabilities;
 
   setup.onboardingStatus = b.onboarding_status;
   return setup;
@@ -672,12 +718,10 @@ function ListEditor({ items, onChange, fields, addLabel, emptyText }) {
   );
 }
 
-function ReceptionistStep({ value, onChange, terminology, showErrors }) {
+function ReceptionistStep({ value, onChange, terminology, showErrors, faqPrompts = [] }) {
   const set = (key) => (event) => onChange({ ...value, [key]: event.target.value });
-  const services = termFor(terminology, "services");
-
-  const setHours = (day, patch) =>
-    onChange({ ...value, hours: { ...value.hours, [day]: { ...value.hours[day], ...patch } } });
+  const asked = new Set(value.faqs.map((f) => f.question.trim().toLowerCase()));
+  const prompts = faqPrompts.filter((q) => !asked.has(q.toLowerCase()));
 
   return (
     <>
@@ -711,53 +755,15 @@ function ReceptionistStep({ value, onChange, terminology, showErrors }) {
         </Field>
       </Section>
 
-      <Section title="About the business">
-        <div className="owner-form-grid">
-          <Field label="Business description" full hint="Only real facts. The AI repeats this to callers.">
-            <textarea value={value.about} onChange={set("about")} />
-          </Field>
-          <Field label="Service area" full>
-            <input value={value.serviceArea} onChange={set("serviceArea")} placeholder="e.g. Austin and surrounding areas" />
-          </Field>
-        </div>
-      </Section>
-
-      <Section title="Business hours" description="Days left blank are saved as 'not set', so the AI won't guess.">
-        <div className="wiz-hours">
-          {DAYS.map(([day, label]) => {
-            const h = value.hours[day];
-            return (
-              <div className="wiz-hours-row" key={day}>
-                <strong>{label}</strong>
-                <label className="wiz-inline-check">
-                  <input type="checkbox" checked={h.closed} onChange={(e) => setHours(day, { closed: e.target.checked })} />
-                  Closed
-                </label>
-                <input type="time" aria-label={`${label} opens`} value={h.open} disabled={h.closed} onChange={(e) => setHours(day, { open: e.target.value })} />
-                <span>to</span>
-                <input type="time" aria-label={`${label} closes`} value={h.close} disabled={h.closed} onChange={(e) => setHours(day, { close: e.target.value })} />
-              </div>
-            );
-          })}
-        </div>
-      </Section>
-
-      <Section title={services} description={`The ${services.toLowerCase()} the AI can talk about.`}>
-        <ListEditor
-          items={value.services}
-          onChange={(items) => onChange({ ...value, services: items })}
-          addLabel={`Add ${termFor(terminology, "service").toLowerCase()}`}
-          emptyText={`No ${services.toLowerCase()} added yet.`}
-          fields={[
-            { key: "name", label: "Name", required: true },
-            { key: "price", label: "Price", placeholder: "Leave empty if the AI shouldn't quote it" },
-            { key: "duration", label: "Duration", placeholder: "e.g. 45 minutes" },
-            { key: "description", label: "Description", full: true, multiline: true },
-          ]}
-        />
-      </Section>
-
       <Section title="FAQs" description="Questions customers often ask, with the business's real answers.">
+        {prompts.length > 0 && (
+          <div className="wiz-chip-row wiz-prompts">
+            <span className="wiz-hint">Often asked:</span>
+            {prompts.map((q) => (
+              <button key={q} type="button" className="wiz-chip" onClick={() => onChange({ ...value, faqs: [...value.faqs, { question: q, answer: "" }] })}>＋ {q}</button>
+            ))}
+          </div>
+        )}
         <ListEditor
           items={value.faqs}
           onChange={(items) => onChange({ ...value, faqs: items })}
@@ -1210,33 +1216,364 @@ function AutomationsStep({ value, onChange, terminology, industryName }) {
   );
 }
 
-function ReviewStep({ setup, industries, goTo }) {
-  const r = setup.receptionist;
-  const industry = industries.find((i) => i.id === setup.business.industryId);
-  const enabledModules = setup.modules.filter((m) => m.enabled);
-  const enabledAutomations = Object.values(setup.automations).filter((a) => a.enabled).length;
-  const leads = Object.entries(setup.integrations.leadSources).filter(([, on]) => on).map(([k]) => ({ meta: "Meta", website: "Website", google: "Google" })[k]);
-  const hoursSet = Object.values(r.hours).some((h) => h.closed || h.open);
 
-  const rows = [
-    { step: 0, title: "Business", ok: Boolean(setup.business.name && industry), required: true,
-      detail: [setup.business.name, industry?.name && `${industry.name} CRM`, setup.business.timezone].filter(Boolean).join(" · ") },
-    { step: 2, title: "Owner", ok: Boolean(setup.owner.name && setup.owner.email), required: true,
-      detail: setup.owner.email ? `${setup.owner.name} · ${setup.owner.email}` : "Not added" },
-    { step: 3, title: "Terminology", ok: true,
-      detail: `${termFor(setup.terminology, "customers")}, ${termFor(setup.terminology, "staff_plural")}, ${termFor(setup.terminology, "appointments")}` },
-    { step: 4, title: "Modules", ok: enabledModules.length > 0,
-      detail: enabledModules.length ? enabledModules.map((m) => m.name).join(", ") : "None enabled" },
-    { step: 5, title: "AI receptionist", ok: r.services.length > 0 || r.faqs.length > 0,
-      detail: `${r.services.length} ${termFor(setup.terminology, "services").toLowerCase()} · ${r.faqs.length} FAQs · hours ${hoursSet ? "set" : "not set"}` },
-    { step: 6, title: "Phone & integrations", ok: true,
-      detail: `${setup.integrations.phone.mode === "new_number" ? "New Zella number" : `Call forwarding from ${setup.integrations.phone.existingNumber || "number not set"}`} · calendar ${setup.integrations.calendar} · leads ${leads.length ? leads.join(", ") : "none"}` },
-    { step: 7, title: "Automations", ok: true, detail: `${enabledAutomations} turned on (paused until go-live)` },
-  ];
+// ---------------------------------------------------------------------------
+// Owner & verification: documents
+// ---------------------------------------------------------------------------
+
+const DOC_STATUS = {
+  pending_review: ["neutral", "Waiting for review"],
+  verified: ["success", "Verified"],
+  rejected: ["danger", "Rejected"],
+};
+
+function DocumentsSection({ businessId, documents, available, onChange }) {
+  const [busy, setBusy] = useState("");
+  const [problem, setProblem] = useState("");
+  const [rejecting, setRejecting] = useState(null);
+  const [note, setNote] = useState("");
+  const byKind = Object.fromEntries(documents.map((d) => [d.kind, d]));
+
+  if (!available) {
+    return (
+      <Section title="Verification documents" description="The business's registration and the owner's photo ID.">
+        <div className="wiz-note">
+          Document storage isn't set up yet. Apply <strong>sql/zella_onboarding.sql</strong>, then upload the documents here.
+          Until then setup can be finished without them.
+        </div>
+      </Section>
+    );
+  }
+
+  async function upload(kind, file) {
+    setProblem("");
+    if (!file) return;
+    if (!DOCUMENT_TYPES.includes(file.type)) return setProblem("Upload a PDF, JPG, PNG, WEBP or HEIC file.");
+    if (file.size > DOCUMENT_MAX_BYTES) return setProblem("Files must be 10 MB or smaller.");
+    setBusy(kind);
+    try {
+      const meta = { businessId, kind, fileName: file.name, mimeType: file.type, size: file.size };
+      const { path, token } = await callOwnerFunction("setup_document_upload_url", meta);
+      const { error } = await supabase.storage.from("business-documents").uploadToSignedUrl(path, token, file, { contentType: file.type });
+      if (error) throw new Error(error.message || "The upload didn't finish.");
+      const { document } = await callOwnerFunction("setup_document_confirm", { ...meta, path });
+      onChange([document, ...documents.filter((d) => d.kind !== kind)]);
+    } catch (err) {
+      setProblem(err.message);
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function view(doc) {
+    setProblem("");
+    try {
+      const { url } = await callOwnerFunction("document_view", { documentId: doc.id });
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      setProblem(err.message);
+    }
+  }
+
+  async function review(doc, status) {
+    setProblem("");
+    setBusy(doc.kind);
+    try {
+      const { document } = await callOwnerFunction("document_review", { documentId: doc.id, status, note: status === "rejected" ? note : "" });
+      onChange(documents.map((d) => (d.id === doc.id ? document : d)));
+      setRejecting(null);
+      setNote("");
+    } catch (err) {
+      setProblem(err.message);
+    } finally {
+      setBusy("");
+    }
+  }
+
+  return (
+    <Section
+      title="Verification documents"
+      description="Proof that the business is real and that the person registering it may act for it. Files are private: only Zella admins can open them, through a link that expires after a minute."
+      aside={<Badge tone={DOCUMENT_KINDS.filter((k) => k.required).every((k) => byKind[k.kind] && byKind[k.kind].status !== "rejected") ? "success" : "neutral"}>
+        {DOCUMENT_KINDS.filter((k) => k.required && byKind[k.kind] && byKind[k.kind].status !== "rejected").length} of {DOCUMENT_KINDS.filter((k) => k.required).length} required uploaded
+      </Badge>}
+    >
+      {problem && <div className="owner-form-error" role="alert">{problem}</div>}
+      <div className="wiz-docs">
+        {DOCUMENT_KINDS.map((k) => {
+          const doc = byKind[k.kind];
+          const [tone, label] = doc ? DOC_STATUS[doc.status] ?? ["neutral", doc.status] : [k.required ? "danger" : "neutral", k.required ? "Required" : "Optional"];
+          return (
+            <div key={k.kind} className={`wiz-doc ${doc ? `has ${doc.status}` : ""}`}>
+              <div className="wiz-doc-main">
+                <span className="wiz-doc-icon" aria-hidden="true"><Icon name={k.kind === "owner_identity" ? "badge" : "description"} /></span>
+                <div>
+                  <strong>{k.label}{k.required ? " *" : ""}</strong>
+                  <small>{doc ? `${doc.file_name} · ${Math.max(1, Math.round(doc.size_bytes / 1024))} KB` : k.hint}</small>
+                  {doc?.status === "rejected" && doc.review_note && <small className="wiz-doc-note">Rejected: {doc.review_note}</small>}
+                </div>
+                <Badge tone={tone}>{label}</Badge>
+              </div>
+              <div className="wiz-doc-actions">
+                <label className={`owner-secondary-button wiz-upload ${busy === k.kind ? "busy" : ""}`}>
+                  <input type="file" accept={DOCUMENT_TYPES.join(",")} disabled={Boolean(busy)} onChange={(e) => { upload(k.kind, e.target.files?.[0]); e.target.value = ""; }} />
+                  {busy === k.kind ? "Uploading…" : doc ? "Replace" : "Upload"}
+                </label>
+                {doc && <button type="button" className="wiz-link" onClick={() => view(doc)}>View</button>}
+                {doc && doc.status !== "verified" && <button type="button" className="wiz-link" disabled={Boolean(busy)} onClick={() => review(doc, "verified")}>Mark verified</button>}
+                {doc && doc.status !== "rejected" && <button type="button" className="wiz-link-danger" disabled={Boolean(busy)} onClick={() => { setRejecting(doc.id); setNote(""); }}>Reject</button>}
+              </div>
+              {rejecting === doc?.id && (
+                <div className="wiz-doc-reject">
+                  <input value={note} maxLength={500} onChange={(e) => setNote(e.target.value)} placeholder="Why? e.g. the name doesn't match the business" aria-label="Reason for rejecting" />
+                  <button type="button" className="owner-secondary-button" onClick={() => setRejecting(null)}>Cancel</button>
+                  <button type="button" className="owner-primary-button" disabled={!note.trim() || Boolean(busy)} onClick={() => review(doc, "rejected")}>Reject</button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <p className="wiz-hint">PDF or photo, up to 10 MB. Both required documents must be uploaded before setup can be finished.</p>
+    </Section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Hours & services (adapts to the industry)
+// ---------------------------------------------------------------------------
+
+function DetailInput({ field, value, onChange }) {
+  if (field.type === "yesno") {
+    return (
+      <div className="wiz-segment" role="group" aria-label={field.label}>
+        {[[true, "Yes"], [false, "No"]].map(([v, label]) => (
+          <button key={label} type="button" className={value === v ? "on" : ""} aria-pressed={value === v} onClick={() => onChange(value === v ? "" : v)}>{label}</button>
+        ))}
+      </div>
+    );
+  }
+  if (field.type === "select") {
+    return (
+      <select value={value ?? ""} onChange={(e) => onChange(e.target.value)}>
+        <option value="">Not set</option>
+        {field.options.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+      </select>
+    );
+  }
+  if (field.type === "number") {
+    return <input type="number" inputMode="numeric" min={field.min} max={field.max} value={value ?? ""} onChange={(e) => onChange(e.target.value === "" ? "" : Number(e.target.value))} />;
+  }
+  if (field.type === "time") return <input type="time" value={value ?? ""} onChange={(e) => onChange(e.target.value)} />;
+  return <input value={value ?? ""} placeholder={field.placeholder} onChange={(e) => onChange(e.target.value)} />;
+}
+
+function OperationsStep({ value, onChange, config, terminology, industryName }) {
+  const services = termFor(terminology, "services");
+  const setHours = (day, patch) => onChange({ ...value, hours: { ...value.hours, [day]: { ...value.hours[day], ...patch } } });
+  const copyMonday = () => {
+    const mon = value.hours.mon;
+    onChange({ ...value, hours: Object.fromEntries(DAYS.map(([day]) => [day, day === "mon" || value.hours[day].closed ? value.hours[day] : { ...mon }])) });
+  };
+  const setDetail = (key, v) => onChange({ ...value, details: { ...value.details, [key]: v } });
+  const setBooking = (key, v) => onChange({ ...value, booking: { ...value.booking, [key]: v } });
 
   return (
     <>
-      <Section title="Review setup" description="Required items must be complete. Everything else can be finished later by you or the business owner.">
+      <Section title="Opening hours" description="Used everywhere: when the AI books, when it says you're closed, and when follow-ups are allowed to go out.">
+        <div className="wiz-hours">
+          {DAYS.map(([day, label]) => {
+            const h = value.hours[day];
+            return (
+              <div className={`wiz-hours-row ${h.closed ? "closed" : ""}`} key={day}>
+                <strong>{label}</strong>
+                <label className="wiz-inline-check">
+                  <input type="checkbox" checked={h.closed} onChange={(e) => setHours(day, { closed: e.target.checked })} />
+                  Closed
+                </label>
+                <input type="time" aria-label={`${label} opens`} value={h.open} disabled={h.closed} onChange={(e) => setHours(day, { open: e.target.value })} />
+                <span>to</span>
+                <input type="time" aria-label={`${label} closes`} value={h.close} disabled={h.closed} onChange={(e) => setHours(day, { close: e.target.value })} />
+              </div>
+            );
+          })}
+        </div>
+        <button type="button" className="wiz-link wiz-gap-top" onClick={copyMonday} disabled={!value.hours.mon.open || !value.hours.mon.close}>Copy Monday's hours to every open day</button>
+      </Section>
+
+      <Section title={`About ${industryName ? `this ${industryName.toLowerCase()} business` : "the business"}`} description="Real facts only. The AI repeats them to callers.">
+        <div className="owner-form-grid">
+          <Field label="Short description" full>
+            <textarea value={value.about} onChange={(e) => onChange({ ...value, about: e.target.value })} placeholder="What the business does, who it serves and what makes it different." />
+          </Field>
+          {config.details.map((field) => (
+            <Field key={field.key} label={field.label} required={field.required} hint={field.hint || (field.type === "list" ? "Separate with commas" : undefined)} bare={field.type === "yesno"}>
+              <DetailInput field={field} value={value.details[field.key]} onChange={(v) => setDetail(field.key, v)} />
+            </Field>
+          ))}
+        </div>
+      </Section>
+
+      {config.appointments && (
+        <Section title={`${termFor(terminology, "appointment")} preferences`} description="How the AI and the online booking offer times.">
+          <div className="owner-form-grid">
+            <Field label={`Usual length of a ${termFor(terminology, "appointment").toLowerCase()}`}>
+              <select value={value.booking.defaultMinutes} onChange={(e) => setBooking("defaultMinutes", Number(e.target.value))}>
+                {LENGTH_OPTIONS.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+              </select>
+            </Field>
+            <Field label="Gap between bookings">
+              <select value={value.booking.bufferMinutes} onChange={(e) => setBooking("bufferMinutes", Number(e.target.value))}>
+                {[[0, "None"], [5, "5 min"], [10, "10 min"], [15, "15 min"], [30, "30 min"]].map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+              </select>
+            </Field>
+            <Field label="Shortest notice">
+              <select value={value.booking.minNoticeHours} onChange={(e) => setBooking("minNoticeHours", Number(e.target.value))}>
+                {[[0, "No minimum"], [1, "1 hour"], [2, "2 hours"], [4, "4 hours"], [24, "1 day"], [48, "2 days"]].map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+              </select>
+            </Field>
+            <Field label="Book up to">
+              <select value={value.booking.maxDaysAhead} onChange={(e) => setBooking("maxDaysAhead", Number(e.target.value))}>
+                {[[7, "1 week ahead"], [14, "2 weeks ahead"], [30, "1 month ahead"], [60, "2 months ahead"], [90, "3 months ahead"], [180, "6 months ahead"]].map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+              </select>
+            </Field>
+          </div>
+        </Section>
+      )}
+
+      <Section title={services} description={config.servicesHint}>
+        <ListEditor
+          items={value.services}
+          onChange={(items) => onChange({ ...value, services: items })}
+          addLabel={`Add ${termFor(terminology, "service").toLowerCase()}`}
+          emptyText={`No ${services.toLowerCase()} added yet. The AI won't describe ones that aren't listed.`}
+          fields={[
+            { key: "name", label: "Name", required: true },
+            { key: "price", label: "Price", placeholder: "Leave empty if the AI shouldn't quote it" },
+            { key: "duration", label: "Duration", placeholder: "e.g. 45 minutes" },
+            { key: "description", label: "Description", full: true, multiline: true },
+          ]}
+        />
+      </Section>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Team (optional)
+// ---------------------------------------------------------------------------
+
+function TeamStep({ value, onChange, config, terminology, showErrors }) {
+  const staffWord = termFor(terminology, "staff");
+  const plural = termFor(terminology, "staff_plural");
+  const set = (i, patch) => onChange(value.map((m, n) => (n === i ? { ...m, ...patch } : m)));
+  return (
+    <Section
+      title={plural}
+      description={config.teamHint}
+      aside={<Badge tone={config.team === "recommended" ? "success" : "neutral"}>{config.team === "recommended" ? "Recommended" : "Optional"}</Badge>}
+    >
+      {value.length === 0 && (
+        <div className="wiz-empty wiz-empty-rich">
+          <Icon name="groups" />
+          <strong>No {plural.toLowerCase()} added</strong>
+          <span>You can skip this. Without a team, bookings use the business's opening hours.</span>
+        </div>
+      )}
+      <div className="wiz-list">
+        {value.map((m, i) => (
+          <div className="wiz-list-item" key={m.id || `new-${i}`}>
+            <div className="owner-form-grid">
+              <Field label="Name" required><input value={m.name} onChange={(e) => set(i, { name: e.target.value })} /></Field>
+              <Field label="Role"><input value={m.title} placeholder={`e.g. ${staffWord}`} onChange={(e) => set(i, { title: e.target.value })} /></Field>
+              <Field label="Phone" bare><PhoneField value={m.phone} onChange={(phone) => set(i, { phone })} showErrors={showErrors} label={`${m.name || "Team member"} phone`} /></Field>
+              <Field label="Email" bare><EmailField value={m.email} onChange={(email) => set(i, { email })} showErrors={showErrors} placeholder="name@business.com" /></Field>
+            </div>
+            <button type="button" className="wiz-link-danger" onClick={() => onChange(value.filter((_, n) => n !== i))}>Remove</button>
+          </div>
+        ))}
+        <button type="button" className="owner-secondary-button" onClick={() => onChange([...value, { id: "", name: "", title: "", phone: "", email: "" }])}>
+          ＋ Add {staffWord.toLowerCase()}
+        </button>
+      </div>
+      <p className="wiz-hint">Each person works the opening hours until their own hours are set in the CRM. Removing someone here switches them off; past bookings keep their name.</p>
+    </Section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Automations (on/off, then optional fine-tuning) and CRM setup (optional)
+// ---------------------------------------------------------------------------
+
+function AutomationsCombinedStep(props) {
+  return (
+    <>
+      <AutomationSwitchesStep {...props} />
+      <details className="wiz-advanced">
+        <summary><span>Fine-tune timing and channels</span><small>Optional. The usual settings for the industry are already chosen.</small></summary>
+        <AutomationsStep value={props.value} onChange={props.onChange} terminology={props.terminology} industryName={props.industryName} />
+      </details>
+    </>
+  );
+}
+
+function CrmSetupStep({ terminology, onTerminology, modules, onModules }) {
+  const changed = Object.keys(terminology.overrides || {}).length;
+  return (
+    <>
+      <div className="wiz-note">
+        This business already has its industry's modules and words. Change them only if it works differently.
+      </div>
+      <details className="wiz-advanced">
+        <summary><span>Modules</span><small>{modules.filter((m) => m.enabled).length} of {modules.length} switched on</small></summary>
+        <ModulesStep modules={modules} onChange={onModules} />
+      </details>
+      <details className="wiz-advanced">
+        <summary><span>Words used in the CRM</span><small>{changed ? `${changed} changed from the industry's` : "Industry defaults"}</small></summary>
+        <TerminologyStep value={terminology} onChange={onTerminology} />
+      </details>
+    </>
+  );
+}
+
+function ReviewStep({ setup, industries, goTo, config, docsReady }) {
+  const r = setup.receptionist;
+  const o = setup.operations;
+  const industry = industries.find((i) => i.id === setup.business.industryId);
+  const enabledModules = setup.modules.filter((m) => m.enabled);
+  const enabledAutomations = Object.values(setup.automations).filter((a) => a.enabled).length + setup.industryRules.filter((x) => x.enabled).length;
+  const leads = Object.entries(setup.integrations.leadSources).filter(([, on]) => on).map(([k]) => ({ meta: "Meta", website: "Website", google: "Google" })[k]);
+  const openDays = DAYS.filter(([day]) => !o.hours[day].closed && o.hours[day].open).length;
+  const missing = missingDetails(config, o.details);
+  const docs = DOCUMENT_KINDS.filter((k) => k.required).map((k) => ({ ...k, doc: setup.documents.find((d) => d.kind === k.kind) }));
+  const verified = docs.every((d) => d.doc?.status === "verified");
+
+  const rows = [
+    { key: "business", title: "Business", ok: Boolean(setup.business.name && industry), required: true,
+      detail: [setup.business.name, industry?.name, setup.business.city, setup.business.timezone].filter(Boolean).join(" · ") },
+    { key: "owner", title: "Owner", ok: Boolean(setup.owner.name && setup.owner.email), required: true,
+      detail: setup.owner.email ? `${setup.owner.name} · ${setup.owner.email}` : "Not added" },
+    { key: "owner", title: "Verification documents", ok: docsReady, required: setup.documentsAvailable,
+      detail: !setup.documentsAvailable ? "Document storage not set up yet (apply sql/zella_onboarding.sql)"
+        : docs.map((d) => `${d.label}: ${d.doc ? ({ pending_review: "waiting for review", verified: "verified", rejected: "rejected" })[d.doc.status] : "missing"}`).join(" · ") },
+    { key: "operations", title: "Hours & services", ok: openDays > 0 && missing.length === 0, required: true,
+      detail: `${openDays} open day${openDays === 1 ? "" : "s"} · ${o.services.length} ${termFor(setup.terminology, o.services.length === 1 ? "service" : "services").toLowerCase()}${missing.length ? ` · missing ${missing.join(", ")}` : ""}` },
+    { key: "team", title: termFor(setup.terminology, "staff_plural"), ok: setup.team.length > 0,
+      detail: setup.team.length ? setup.team.map((m) => m.name).join(", ") : config.team === "recommended" ? "None yet (recommended)" : "None (optional)" },
+    { key: "receptionist", title: "AI receptionist", ok: r.faqs.length > 0 || o.services.length > 0,
+      detail: `${r.name} · ${r.faqs.length} FAQs · ${r.capabilities.length} abilities` },
+    { key: "integrations", title: "Phone & integrations", ok: true,
+      detail: `${setup.integrations.phone.mode === "new_number" ? "New Zella number" : `Call forwarding from ${setup.integrations.phone.existingNumber || "number not set"}`} · calendar ${setup.integrations.calendar} · leads ${leads.length ? leads.join(", ") : "none"}` },
+    { key: "automations", title: "Automations", ok: true, detail: `${enabledAutomations} turned on (paused until go-live)` },
+    { key: "crm", title: "CRM setup", ok: enabledModules.length > 0,
+      detail: `${enabledModules.length} modules · ${termFor(setup.terminology, "customers")}, ${termFor(setup.terminology, "appointments")}` },
+  ];
+  const blocking = rows.filter((row) => row.required && !row.ok);
+
+  return (
+    <>
+      <Section title="Review setup" description="Required items must be complete. Everything else can be finished later by you or the business owner."
+        aside={<Badge tone={blocking.length ? "danger" : "success"}>{blocking.length ? `${blocking.length} to finish` : "Ready to finish"}</Badge>}>
         <div className="wiz-review">
           {rows.map((row) => (
             <div key={row.title} className="wiz-review-row">
@@ -1247,14 +1584,16 @@ function ReviewStep({ setup, industries, goTo }) {
                 <strong>{row.title}{row.required ? " *" : ""}</strong>
                 <span>{row.detail}</span>
               </div>
-              <button type="button" className="wiz-link" onClick={() => goTo(row.step)}>Edit</button>
+              <button type="button" className="wiz-link" onClick={() => goTo(STEP[row.key])}>Edit</button>
             </div>
           ))}
         </div>
       </Section>
       <div className="wiz-note">
-        Finishing makes the workspace active and emails the owner their invitation. The AI receptionist stays
-        <strong> off</strong> until its phone number and voice agent are connected and tested.
+        Finishing makes the workspace active with its industry's modules and words, and emails the owner their invitation.
+        {setup.documentsAvailable && !verified && <> The documents stay <strong>waiting for review</strong> until an admin marks them verified.</>}
+        {" "}The AI receptionist stays <strong>off</strong> until its phone number and voice agent are connected and tested,
+        and automations stay paused until the business goes live.
       </div>
     </>
   );
@@ -1300,38 +1639,78 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialBusinessId]);
 
-  const update = (key) => (value) => setSetup((current) => ({ ...current, [key]: value }));
+  // Changing an answer clears the last "fix this" message, so it never describes a problem that's gone.
+  const update = (key) => (value) => { setError(""); setSetup((current) => ({ ...current, [key]: value })); };
 
   // Picking an industry also picks that industry's usual automations. The wording
   // (terminology) follows from the industry on the next save.
   const changeBusiness = (business) =>
-    setSetup((current) => {
+    setError("") || setSetup((current) => {
       if (business.industryId === current.business.industryId) return { ...current, business };
-      const name = industries.find((i) => i.id === business.industryId)?.name;
-      return { ...current, business, automations: automationDefaultsFor(name), automationsFromIndustry: name || "" };
+      const industry = industries.find((i) => i.id === business.industryId);
+      const cfg = onboardingFor(industry?.slug);
+      // A new industry brings its usual automations, booking length and AI abilities; earlier answers to the
+      // old industry's own questions no longer apply.
+      return {
+        ...current, business, automations: automationDefaultsFor(industry?.name), automationsFromIndustry: industry?.name || "",
+        operations: { ...current.operations, details: {}, booking: { ...current.operations.booking, defaultMinutes: cfg.defaultLength } },
+        receptionist: { ...current.receptionist, capabilities: cfg.capabilities },
+      };
     });
 
+  const industry = industries.find((i) => i.id === setup.business.industryId);
+  const config = onboardingFor(industry?.slug);
+  const requiredDocs = DOCUMENT_KINDS.filter((k) => k.required);
+  const docsReady = !setup.documentsAvailable || requiredDocs.every((k) => setup.documents.some((d) => d.kind === k.kind && d.status !== "rejected"));
+
   function validate() {
-    if (step === 0) {
+    const key = STEPS[step].key;
+    if (key === "business") {
       if (!setup.business.name.trim()) return "Enter the business name.";
       if (!setup.business.industryId) return "Select an industry.";
       if (checkEmail(setup.business.email)) return `Business email: ${checkEmail(setup.business.email)}`;
       if (validatePhone(setup.business.phone)) return `Business phone: ${validatePhone(setup.business.phone)}`;
       if (checkUrl(setup.business.website)) return `Website: ${checkUrl(setup.business.website)}`;
     }
-    if (step === 2) {
+    if (key === "owner") {
       if (!setup.owner.name.trim() || !setup.owner.email.trim()) return "Enter the owner's name and email.";
       if (checkEmail(setup.owner.email, { required: true })) return `Owner email: ${checkEmail(setup.owner.email, { required: true })}`;
       if (validatePhone(setup.owner.phone)) return `Owner phone: ${validatePhone(setup.owner.phone)}`;
     }
-    if (step === 5 && validatePhone(setup.receptionist.escalation.transferTo.phone)) {
-      return `Transfer phone number: ${validatePhone(setup.receptionist.escalation.transferTo.phone)}`;
+    if (key === "operations") {
+      const hours = setup.operations.hours;
+      const label = Object.fromEntries(DAYS);
+      for (const [day] of DAYS) {
+        const h = hours[day];
+        if (h.closed || (!h.open && !h.close)) continue;
+        if (!h.open || !h.close) return `${label[day]}: enter both the opening and the closing time, or mark it closed.`;
+        if (h.close <= h.open) return `${label[day]}: the closing time must be after the opening time.`;
+      }
+      if (!DAYS.some(([day]) => !hours[day].closed && hours[day].open)) return "Enter the opening hours for at least one day.";
+      const missing = missingDetails(config, setup.operations.details);
+      if (missing.length) return `Fill in: ${missing.join(", ")}.`;
+      const bad = config.details.find((d) => d.type === "number" && setup.operations.details[d.key] !== "" && setup.operations.details[d.key] !== undefined
+        && (setup.operations.details[d.key] < (d.min ?? -Infinity) || setup.operations.details[d.key] > (d.max ?? Infinity)));
+      if (bad) return `${bad.label}: enter a number from ${bad.min} to ${bad.max}.`;
     }
-    if (step === 6 && validatePhone(setup.integrations.transferNumber)) return `Call transfer number: ${validatePhone(setup.integrations.transferNumber)}`;
-    if (step === 6 && setup.integrations.phone.mode === "call_forwarding") {
-      if (!setup.integrations.phone.existingNumber.trim()) return "Enter the business number that will be forwarded to Zella.";
-      const bad = validatePhone(setup.integrations.phone.existingNumber, { required: true });
-      if (bad) return `Business number to forward: ${bad}`;
+    if (key === "team") {
+      for (const m of setup.team) {
+        if (!m.name.trim() && (m.title || m.phone || m.email)) return "Every team member needs a name, or remove the empty row.";
+        if (checkEmail(m.email)) return `${m.name || "Team member"} email: ${checkEmail(m.email)}`;
+        if (validatePhone(m.phone)) return `${m.name || "Team member"} phone: ${validatePhone(m.phone)}`;
+      }
+    }
+    if (key === "receptionist") {
+      if (validatePhone(setup.receptionist.escalation.transferTo.phone)) return `Transfer phone number: ${validatePhone(setup.receptionist.escalation.transferTo.phone)}`;
+      if (setup.receptionist.faqs.some((f) => f.question.trim() && !f.answer.trim())) return "Answer every FAQ, or remove the ones without an answer.";
+    }
+    if (key === "integrations") {
+      if (validatePhone(setup.integrations.transferNumber)) return `Call transfer number: ${validatePhone(setup.integrations.transferNumber)}`;
+      if (setup.integrations.phone.mode === "call_forwarding") {
+        if (!setup.integrations.phone.existingNumber.trim()) return "Enter the business number that will be forwarded to Zella.";
+        const bad = validatePhone(setup.integrations.phone.existingNumber, { required: true });
+        if (bad) return `Business number to forward: ${bad}`;
+      }
     }
     return "";
   }
@@ -1352,25 +1731,46 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
       return;
     }
 
-    if (key === "terminology") {
-      await callOwnerFunction("setup_save_terminology", { businessId, overrides: setup.terminology.overrides });
+    if (key === "operations") {
+      const o = setup.operations;
+      const details = config.details
+        .map((d) => {
+          const raw = o.details[d.key];
+          const value = d.type === "select" ? d.options.find(([v]) => v === raw)?.[1] ?? "" : raw;
+          return { key: d.key, label: d.label, value: value === undefined || value === null ? "" : value };
+        })
+        .filter((d) => d.value !== "");
+      await callOwnerFunction("setup_save_operations", {
+        businessId,
+        operations: { hours: o.hours, about: o.about, services: o.services, details, booking: o.booking, appointments: config.appointments },
+      });
       return;
     }
 
-    if (key === "modules") {
+    if (key === "team") {
+      await callOwnerFunction("setup_save_team", { businessId, team: setup.team.filter((m) => m.name.trim()) });
+      await reload(businessId, false); // new team members get their ids
+      return;
+    }
+
+    if (key === "crm") {
       await callOwnerFunction("setup_save_modules", {
         businessId,
         enabledModuleIds: setup.modules.filter((m) => m.enabled).map((m) => m.id),
       });
+      await callOwnerFunction("setup_save_terminology", { businessId, overrides: setup.terminology.overrides });
       return;
     }
 
     if (key === "receptionist") {
       const r = setup.receptionist;
+      // Hours, services and business facts are saved on the Hours & services step, not here.
+      const { hours: _h, services: _s, about: _a, serviceArea: _sa, ...rest } = r;
       await callOwnerFunction("setup_save_receptionist", {
         businessId,
         receptionist: {
-          ...r,
+          ...rest,
+          faqs: r.faqs.filter((f) => f.question.trim() && f.answer.trim()),
           restrictions: r.restrictions.split("\n").map((line) => line.trim()).filter(Boolean),
         },
       });
@@ -1379,12 +1779,6 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
 
     if (key === "integrations") {
       await callOwnerFunction("setup_save_integrations", { businessId, integrations: setup.integrations });
-      return;
-    }
-
-    if (key === "switches") {
-      // Saved quietly: it doesn't move the setup progress forward, so a draft reopens where it was left.
-      await callOwnerFunction("setup_save_automations", { businessId, automations: setup.automations, industryRules: setup.industryRules, early: true });
       return;
     }
 
@@ -1511,17 +1905,22 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
       </ol>
 
       <div className="wiz-body" key={step}>
-        {step === 0 && (
+        {STEPS[step].key === "business" && (
           <BusinessStep value={setup.business} onChange={changeBusiness} industries={industries} isExisting={Boolean(businessId)} locked={locked} showErrors={showErrors} />
         )}
-        {step === 1 && <AutomationSwitchesStep value={setup.automations} onChange={update("automations")} rules={setup.industryRules} onRules={update("industryRules")} terminology={terminology} industryName={industries.find((i) => i.id === setup.business.industryId)?.name} />}
-        {step === 2 && <OwnerStep value={setup.owner} onChange={update("owner")} invitation={setup.invitation} showErrors={showErrors} />}
-        {step === 3 && <TerminologyStep value={terminology} onChange={update("terminology")} />}
-        {step === 4 && <ModulesStep modules={setup.modules} onChange={update("modules")} />}
-        {step === 5 && <ReceptionistStep value={setup.receptionist} onChange={update("receptionist")} terminology={terminology} showErrors={showErrors} />}
-        {step === 6 && <IntegrationsStep value={setup.integrations} onChange={update("integrations")} showErrors={showErrors} />}
-        {step === 7 && <AutomationsStep value={setup.automations} onChange={update("automations")} terminology={terminology} industryName={industries.find((i) => i.id === setup.business.industryId)?.name} />}
-        {step === 8 && <ReviewStep setup={setup} industries={industries} goTo={goTo} />}
+        {STEPS[step].key === "owner" && (
+          <>
+            <OwnerStep value={setup.owner} onChange={update("owner")} invitation={setup.invitation} showErrors={showErrors} />
+            <DocumentsSection businessId={businessId} documents={setup.documents} available={setup.documentsAvailable} onChange={update("documents")} />
+          </>
+        )}
+        {STEPS[step].key === "operations" && <OperationsStep value={setup.operations} onChange={update("operations")} config={config} terminology={terminology} industryName={industry?.name} />}
+        {STEPS[step].key === "team" && <TeamStep value={setup.team} onChange={update("team")} config={config} terminology={terminology} showErrors={showErrors} />}
+        {STEPS[step].key === "receptionist" && <ReceptionistStep value={setup.receptionist} onChange={update("receptionist")} terminology={terminology} showErrors={showErrors} faqPrompts={config.faqPrompts} />}
+        {STEPS[step].key === "integrations" && <IntegrationsStep value={setup.integrations} onChange={update("integrations")} showErrors={showErrors} />}
+        {STEPS[step].key === "automations" && <AutomationsCombinedStep value={setup.automations} onChange={update("automations")} rules={setup.industryRules} onRules={update("industryRules")} terminology={terminology} industryName={industry?.name} />}
+        {STEPS[step].key === "crm" && <CrmSetupStep terminology={terminology} onTerminology={update("terminology")} modules={setup.modules} onModules={update("modules")} />}
+        {STEPS[step].key === "review" && <ReviewStep setup={setup} industries={industries} goTo={goTo} config={config} docsReady={docsReady} />}
       </div>
 
       {error && <div className="owner-form-error wiz-error" role="alert">{error}</div>}
@@ -1541,7 +1940,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
               type="button"
               className="owner-primary-button"
               onClick={finish}
-              disabled={saving || !setup.owner.email}
+              disabled={saving || !setup.owner.email || !docsReady}
             >
               {saving ? "Finishing..." : setup.invitation?.status === "sent" || setup.invitation?.status === "accepted" ? "Save & finish" : "Finish & send invitation"}
             </button>

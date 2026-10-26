@@ -1,6 +1,7 @@
 import { withCors } from "../_shared/cors.ts";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { PERMISSIONS, RESTRICTED_ROLES, settingsHandlers } from "./settings.ts";
+import { ONBOARDING_PERMISSIONS, documentsReady, loadOnboarding, onboardingHandlers } from "./onboarding.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -433,6 +434,7 @@ async function loadSetup(admin: SupabaseClient, businessId: string) {
     },
     automations: automationsResult.data ?? [],
     industryRules: await industryRuleList(admin, businessId),
+    ...(await loadOnboarding(admin, businessId, obj(business.setup_data))),
   };
 }
 
@@ -747,11 +749,14 @@ async function saveReceptionist(admin: SupabaseClient, fields: Json) {
     personality,
     tone: text(input.instructions, 2000),
     capabilities,
+    // Hours, services and business facts are saved on the Hours & services step; they are only replaced
+    // here when this request carries them (older drafts), so saving the receptionist never wipes them.
     knowledge_base: {
-      about: text(input.about, 3000),
-      service_area: text(input.serviceArea, 500),
-      hours,
-      services,
+      ...obj(config?.knowledge_base),
+      ...("about" in input ? { about: text(input.about, 3000) } : {}),
+      ...("serviceArea" in input ? { service_area: text(input.serviceArea, 500) } : {}),
+      ...("hours" in input ? { hours } : {}),
+      ...("services" in input ? { services } : {}),
       faqs,
       policies,
       restrictions,
@@ -765,6 +770,7 @@ async function saveReceptionist(admin: SupabaseClient, fields: Json) {
       },
     },
     appointment_rules: {
+      ...obj(config?.appointment_rules),
       can_book: capabilities.includes("book_appointments"),
       can_reschedule: capabilities.includes("reschedule_appointments"),
       can_cancel: capabilities.includes("cancel_appointments"),
@@ -920,6 +926,11 @@ async function finishSetup(admin: SupabaseClient, fields: Json) {
 
   if (!invitation) {
     throw new InputError("Add the business owner before finishing setup");
+  }
+
+  const documents = await documentsReady(admin, businessId);
+  if (!documents.ready) {
+    throw new InputError("Upload the business registration document and the owner's photo ID before finishing setup");
   }
 
   const now = new Date().toISOString();
@@ -2937,7 +2948,7 @@ Deno.serve(withCors(async (req: Request) => {
       typeof fields.action === "string" ? fields.action : "";
 
     // Every action needs a permission; restricted roles only have what the owner gave them.
-    const permission = PERMISSIONS[action];
+    const permission = PERMISSIONS[action] ?? ONBOARDING_PERMISSIONS[action];
     if (!permission) return respond({ error: "Unknown action" }, 400);
     let allowed = role === "zella_owner" || (role === "super_admin" && !["admins.manage", "roles.manage"].includes(permission));
     if (!allowed && RESTRICTED_ROLES.includes(role)) {
@@ -3096,17 +3107,23 @@ Deno.serve(withCors(async (req: Request) => {
 
     const extra = settingsHandlers(adminClient, fields, { userId: user.id, role, aal, mfa: hasMfa },
       { text, bool, obj, requireId, validTimezone, InputError, EMAIL_RE, UUID_RE });
-    const handler = handlers[action] ?? extra.handlers[action];
+    const onboarding = onboardingHandlers(adminClient, fields, user.id, {
+      text, bool, obj, requireId, optionalPhone, getBusiness, getReceptionist, advance, mergeSetupData, InputError, EMAIL_RE, UUID_RE,
+    });
+    const handler = handlers[action] ?? extra.handlers[action] ?? onboarding.handlers[action];
     if (!handler) return respond({ error: "Unknown action" }, 400);
 
     try {
       const result = await handler();
 
-      const describe = AUDITED[action] ?? extra.audited[action];
+      // Setup actions describe themselves from the request and result; settings and onboarding actions from
+      // their result only (passing the request there recorded empty before/after values).
+      const later = extra.audited[action] ?? onboarding.audited[action];
+      const entry = AUDITED[action] ? AUDITED[action](fields, result) : later ? (later(result as Json) as AuditEntry) : null;
       const unchanged = action === "ticket_update" &&
         Object.keys(obj((result as Json).changes)).length === 0;
-      if (describe && !unchanged) {
-        await writeAudit(adminClient, requestContext(req, user.id), describe(fields, result));
+      if (entry && !unchanged) {
+        await writeAudit(adminClient, requestContext(req, user.id), entry);
       }
 
       return respond(result);

@@ -95,6 +95,7 @@ None of these have been run on the live project. Run them in this order; each on
 | `zella_db_fixes.sql` | Missing foreign-key indexes, a faster `legal_acceptances_read` rule, and removes one exact duplicate read rule | Indexes and policies only; no data changes |
 | `zella_messaging_status.sql` | `zella_messaging_status` (booking panel's Messages: on/off flags, members only) and `zella_automation_readiness` (Admin Settings > n8n go-live checklist, platform admins only) | Two read-only functions |
 | `zella_no_show_rebook.sql` | No-show follow-up texts and emails carry a private 14-day link to pick a new time; the reschedule page accepts it for a missed visit | Two columns on `appointment_reschedule_links`, one new function, three replaced (`zella_reschedule_lookup`, `zella_claim_followup_texts`, `zella_claim_followup_emails`, built from the live bodies), two starter templates updated |
+| `zella_onboarding.sql` | Verification documents (`business_verification_documents`, private bucket `business-documents`); bookings follow the business's opening hours when no team hours exist; whole-hour slot steps no longer fail | One table, one bucket, one function replaced (built from its live body) |
 
 Each file lists its dependencies, what it means for access, how to undo it, and a rolled-back
 check. All six were run against a local PostgreSQL 16 with stand-ins for the Supabase roles and
