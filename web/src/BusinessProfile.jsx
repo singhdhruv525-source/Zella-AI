@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { DATA_RIGHTS_ROLES, PersonDataRights } from "./BusinessDataRights";
 import { supabase } from "./supabase";
 import { Field, Icon, Modal, Pill, initials, personName } from "./BusinessUI";
 import { makeTerm } from "./businessWorkspace";
@@ -142,7 +143,7 @@ function buildTimeline(person, calls, appts, convos, follows = [], cbs = [], tas
   return events.sort((a, b) => new Date(b.at) - new Date(a.at));
 }
 
-const TABS = [["overview", "Overview"], ["appointments", "Appointments"], ["timeline", "Timeline"], ["calls", "Calls"], ["messages", "Messages"], ["followups", "Follow-ups"], ["lead", "Lead & quotes"]];
+const TABS = [["overview", "Overview"], ["appointments", "Appointments"], ["timeline", "Timeline"], ["calls", "Calls"], ["messages", "Messages"], ["followups", "Follow-ups"], ["lead", "Lead & quotes"], ["privacy", "Privacy"]];
 
 export default function PersonProfile({ personId, workspace, onClose, onChanged, onNotice }) {
   const tz = workspace.timezone;
@@ -166,9 +167,12 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
     const cbRes = await supabase.from("callbacks").select("*").eq("customer_id", personId).order("created_at", { ascending: false }).limit(30);
     const taskRes = await supabase.from("crm_tasks").select("*").eq("customer_id", personId).order("created_at", { ascending: false }).limit(30);
     const staffRes = await supabase.from("staff_members").select("id, name").eq("business_id", workspace.id);
+    // Texts, emails and record changes come from the server timeline (calls, appointments and the rest are loaded above).
+    const tlRes = await supabase.rpc("zella_customer_timeline", { p_business_id: workspace.id, p_customer_id: personId, p_limit: 100 });
     return {
       person: row, calls: orThrow(calls), appts: orThrow(appts), convos: orThrow(convos), follows: followRes.error ? [] : (followRes.data ?? []),
       cbs: cbRes.error ? [] : cbRes.data ?? [], tasks: taskRes.error ? [] : taskRes.data ?? [], staff: staffRes.error ? [] : staffRes.data ?? [],
+      server: tlRes.error ? [] : (tlRes.data ?? []).filter((e) => ["text", "email", "change"].includes(e.type)),
     };
   }, [personId]);
 
@@ -227,7 +231,11 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
   const openCalls = (data?.calls ?? []).filter(isOpenEscalation);
   const [showErrors, setShowErrors] = useState(false);
   const set = (key) => (e) => setForm({ ...form, [key]: e.target.type === "checkbox" ? e.target.checked : e.target.value });
-  const timeline = person ? buildTimeline(person, data.calls, data.appts, data.convos, data.follows, data.cbs, data.tasks) : [];
+  const timeline = person
+    ? [...buildTimeline(person, data.calls, data.appts, data.convos, data.follows, data.cbs, data.tasks),
+      ...data.server.map((e) => ({ key: `s-${e.type}-${e.id}`, kind: `srv-${e.type}`, at: e.at, srv: e }))]
+      .sort((a, b) => new Date(b.at) - new Date(a.at))
+    : [];
   const roster = useRoster(workspace);
   const staffName = Object.fromEntries((data?.staff ?? []).map((m) => [m.id, m.name]));
   const usualProvider = (() => {
@@ -294,7 +302,7 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
             </div>
 
             <div className="ba-segment" role="tablist" aria-label="Profile sections">
-              {TABS.map(([key, label]) => (
+              {TABS.filter(([key]) => key !== "privacy" || DATA_RIGHTS_ROLES.includes(workspace.role)).map(([key, label]) => (
                 <button key={key} type="button" role="tab" aria-selected={tab === key} className={tab === key ? "active" : ""} onClick={() => setTab(key)}>
                   {label}{key === "calls" ? ` (${data.calls.length})` : key === "appointments" ? ` (${data.appts.length})` : key === "messages" ? ` (${data.convos.length})` : key === "followups" ? ` (${data.cbs.length + data.tasks.length + data.follows.length})` : ""}
                 </button>
@@ -327,6 +335,8 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
               </form>
             )}
 
+            {tab === "privacy" && <PersonDataRights person={person} workspace={workspace} onChanged={refresh} onNotice={onNotice} />}
+
             {tab === "lead" && <LeadTab person={person} workspace={workspace} onChanged={refresh} onNotice={onNotice} />}
 
             {tab === "timeline" && (
@@ -334,7 +344,7 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
                 <ol className="ba-timeline">
                   {timeline.map((e) => (
                     <li key={e.key} className={e.kind}>
-                      <span className="ba-tl-dot"><Icon size="sm" name={e.kind === "call" ? "call" : e.kind === "appt" ? "event" : e.kind === "convo" ? "chat" : e.kind === "follow" || e.kind === "cb" ? "phone_callback" : e.kind === "task" ? "task_alt" : "person_add"} /></span>
+                      <span className="ba-tl-dot"><Icon size="sm" name={e.kind === "srv-text" ? "sms" : e.kind === "srv-email" ? "mail" : e.kind === "srv-change" ? "edit" : e.kind === "call" ? "call" : e.kind === "appt" ? "event" : e.kind === "convo" ? "chat" : e.kind === "follow" || e.kind === "cb" ? "phone_callback" : e.kind === "task" ? "task_alt" : "person_add"} /></span>
                       <div>
                         <strong>
                           {e.kind === "call" && `${e.call.status === "missed" ? "Missed call" : e.call.ai_handled ? "Call answered by the AI receptionist" : "Call answered by the team"}`}
@@ -344,6 +354,7 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
                           {e.kind === "cb" && `${CB_REASON[e.cb.reason] ?? "Callback"}${CB_CLOSED.includes(e.cb.status) ? " · done" : ` · due ${formatDay(e.cb.due_at, tz)}`}`}
                           {e.kind === "task" && `${e.task.title}${e.task.status === "open" ? "" : " · done"}`}
                           {e.kind === "added" && `Added to your ${term("customers").toLowerCase()}`}
+                          {e.srv && `${e.srv.title}${e.srv.status ? ` · ${String(e.srv.status).replace(/_/g, " ")}` : ""}`}
                         </strong>
                         <small>
                           {formatDay(e.at, tz)} · {formatTime(e.at, tz)}
@@ -352,6 +363,7 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
                         </small>
                         {e.kind === "call" && isOpenEscalation(e.call) && <Pill tone="danger">Needs a human</Pill>}
                         {e.kind === "call" && e.call.summary && <p className="ba-item-text">{e.call.summary}</p>}
+                        {e.srv?.detail && e.srv.type !== "change" && <p className="ba-item-text">{e.srv.detail}</p>}
                       </div>
                     </li>
                   ))}

@@ -9,6 +9,7 @@ import {
 } from "./BusinessShared";
 import { CallCard, isOpenEscalation } from "./BusinessProfile";
 import { RescheduleModal } from "./BusinessForms";
+import { MoreReports } from "./BusinessReports";
 
 // Needs attention, Check-ins, Unified Inbox, Lead sources, Reports and
 // Integrations. Everything is calculated from the business's own records.
@@ -320,6 +321,7 @@ export function ReportsPage({ workspace, refreshKey }) {
           </div>
         </>
       )}
+      <MoreReports workspace={workspace} days={Number(range)} refreshKey={refreshKey} />
     </>
   );
 }

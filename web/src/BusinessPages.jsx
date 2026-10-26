@@ -8,7 +8,7 @@ import {
   availabilityAt, explain, findConflict, noShowNotice, orThrow, plural, setCheckIn, sourceLabel, useLoad,
 } from "./BusinessShared";
 import { EscalationControls, Transcript, isOpenEscalation } from "./BusinessProfile";
-import { BookAppointmentModal, RescheduleModal } from "./BusinessForms";
+import { AddCustomerModal, BookAppointmentModal, RescheduleModal } from "./BusinessForms";
 import { MonthGrid, TimeGrid, clockText, dayInfo, minutesInto } from "./BusinessCalendar";
 import { ActivationCard } from "./BusinessWork";
 
@@ -28,6 +28,8 @@ function PeoplePage({ mode, workspace, query, refreshKey, onOpenPerson }) {
   const [filter, setFilter] = useState(isLeads ? "new" : "all");
   const [source, setSource] = useState("all");
   const [page, setPage] = useState(0);
+  const [adding, setAdding] = useState(false);
+  const [added, setAdded] = useState("");
   const { data, error, loading, reload } = useLoad(async () => {
     return orThrow(await supabase
       .from("customers")
@@ -70,7 +72,23 @@ function PeoplePage({ mode, workspace, query, refreshKey, onOpenPerson }) {
         {isLeads && (
           <Segment label="Lead filter" value={filter} onChange={setFilter} options={[["new", "Needs follow-up"], ["contacted", "Contacted"], ["all", "All"]]} />
         )}
+        {!isLeads && workspace.role !== "viewer" && (
+          <button type="button" className="ba-btn primary" onClick={() => { setAdded(""); setAdding(true); }}>
+            <Icon name="person_add" /><span>Add {term("customer").toLowerCase()}</span>
+          </button>
+        )}
       </PageHead>
+      {added && <div className="ba-banner success" role="status"><span>{added}</span></div>}
+      {adding && (
+        <AddCustomerModal workspace={workspace} term={term} onClose={() => setAdding(false)} onDone={(res) => {
+          setAdding(false);
+          setAdded(res?.result === "exists" ? "They're already on file, so nobody new was added. Their profile is open."
+            : res?.result === "needs_review" ? "Someone similar is already on file. A duplicate check was added to Tasks."
+            : "Added.");
+          reload();
+          if (res?.customer_id && res.result !== "needs_review") onOpenPerson(res.customer_id);
+        }} />
+      )}
 
       <Notice error={error} onRetry={reload} />
       <section className="ba-panel">

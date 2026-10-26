@@ -4,6 +4,7 @@ import {
   MessagesPage, ReceptionistPage,
 } from "./BusinessPages";
 import { BusinessSettingsPage } from "./BusinessSettings";
+import { ReconnectBanner } from "./BusinessReports";
 import { TeamPage } from "./BusinessTeam";
 import { DraftsPage, LiveNoticeBanner, LiveNoticeModal } from "./BusinessDrafts";
 import { AccessPage, ApprovalsPage, FailedWorkPage, SecurityLogPage } from "./BusinessAccess";
@@ -328,6 +329,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
             </div>
           )}
           <LiveNoticeBanner workspace={workspace} tick={refreshKey} canManage={["owner", "admin", "manager"].includes(workspace.role)} onNotice={setNotice} />
+          {current.key !== "integrations" && <ReconnectBanner workspace={workspace} tick={refreshKey} onGo={setPage} />}
           {attention > 0 && current.key !== "attention" && (
             <div className="ba-banner alert" role="alert">
               <span><strong>{attention === 1 ? "1 caller needs" : `${attention} callers need`} a person.</strong> Your AI receptionist handed them over.</span>
@@ -401,7 +403,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
           {current.key === "lead-sources" && <LeadSourcesPage workspace={workspace} refreshKey={refreshKey} />}
           {current.key === "reports" && <ReportsPage workspace={workspace} refreshKey={refreshKey} />}
           {current.key === "integrations" && <IntegrationsPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
-          {current.key === "settings" && <BusinessSettingsPage workspace={workspace} email={email} onSignOut={onSignOut} section={route.section} onGo={setPage} onReload={onReload} />}
+          {current.key === "settings" && <BusinessSettingsPage workspace={workspace} email={email} onSignOut={onSignOut} section={route.section} onGo={setPage} onReload={onReload} onOpenPerson={openPerson} onNotice={setNotice} />}
         </main>
       </div>
 

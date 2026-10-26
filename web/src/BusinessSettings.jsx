@@ -8,6 +8,7 @@ import { ReviewLinkPanel } from "./BusinessDrafts";
 import { OffersPanel } from "./BusinessOffers";
 import { formatDay, formatLongDate } from "./businessTime";
 import { makeTerm } from "./businessWorkspace";
+import { DATA_RIGHTS_ROLES, DataRightsList } from "./BusinessDataRights";
 
 // Business Settings. Categories sit in the page's own menu (the main sidebar
 // keeps its single Settings item); the address is /app/settings/<category>.
@@ -54,6 +55,7 @@ function sections(workspace) {
     { key: "integrations", label: "Calendar & email", icon: "extension" },
     has("automations") && { key: "automations", label: "Automations", icon: "bolt" },
     { key: "messages", label: "Reviews & offers", icon: "campaign" },
+    DATA_RIGHTS_ROLES.includes(workspace.role) && { key: "privacy", label: "Privacy requests", icon: "shield_person" },
     { key: "billing", label: "Plan & billing", icon: "credit_card" },
     { key: "industry", label: "Industry preferences", icon: "tune" },
   ].filter(Boolean);
@@ -442,7 +444,7 @@ function IndustrySection({ workspace, onGo }) {
 }
 
 /* ---------- Page ---------- */
-export function BusinessSettingsPage({ workspace, email, onSignOut, section, onGo, onReload }) {
+export function BusinessSettingsPage({ workspace, email, onSignOut, section, onGo, onReload, onOpenPerson, onNotice }) {
   const list = sections(workspace);
   const current = list.find((s) => s.key === section) ?? list[0];
   const unknown = section && !list.some((s) => s.key === section);
@@ -480,6 +482,7 @@ export function BusinessSettingsPage({ workspace, email, onSignOut, section, onG
           {current.key === "integrations" && <IntegrationsSection onGo={onGo} />}
           {current.key === "automations" && <AutomationsSection onGo={onGo} />}
           {current.key === "messages" && <div className="ba-grid-2"><ReviewLinkPanel workspace={workspace} /><OffersPanel workspace={workspace} /></div>}
+          {current.key === "privacy" && <DataRightsList workspace={workspace} onOpenPerson={onOpenPerson} onNotice={onNotice} />}
           {current.key === "billing" && <BillingSection workspace={workspace} onReload={onReload} />}
           {current.key === "industry" && <IndustrySection workspace={workspace} onGo={onGo} />}
         </div>

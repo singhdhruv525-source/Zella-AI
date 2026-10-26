@@ -22,6 +22,63 @@ const SOURCES = [
 ];
 
 
+// Staff add an existing customer by hand. The database checks the role, looks for
+// the same person first (phone or email) and never creates a duplicate.
+const ADD_ERRORS = {
+  NAME_REQUIRED: "Enter a first name.",
+  NO_CONTACT: "Enter a phone number or email.",
+  BAD_EMAIL: "That email address doesn't look right.",
+};
+export function AddCustomerModal({ workspace, term, onClose, onDone }) {
+  const [form, setForm] = useState({ first_name: "", last_name: "", phone: "", email: "", notes: "" });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [showErrors, setShowErrors] = useState(false);
+  const set = (key) => (event) => setForm({ ...form, [key]: event.target.value });
+  const noun = term("customer").toLowerCase();
+
+  async function save(event) {
+    event.preventDefault();
+    setShowErrors(true);
+    const v = Object.fromEntries(Object.entries(form).map(([k, x]) => [k, x.trim()]));
+    if (!v.first_name) return setError(ADD_ERRORS.NAME_REQUIRED);
+    if (!v.phone && !v.email) return setError(ADD_ERRORS.NO_CONTACT);
+    if (validatePhone(v.phone)) return setError(`Phone: ${validatePhone(v.phone)}`);
+    if (checkEmail(v.email)) return setError(`Email: ${checkEmail(v.email)}`);
+    setBusy(true);
+    setError("");
+    const { data, error: e } = await supabase.rpc("zella_staff_add_customer", {
+      p_business_id: workspace.id, p_first_name: v.first_name, p_last_name: v.last_name || null,
+      p_phone: v.phone || null, p_email: v.email || null, p_notes: v.notes || null,
+    });
+    setBusy(false);
+    if (e) {
+      const code = Object.keys(ADD_ERRORS).find((k) => e.message.includes(k));
+      return setError(code ? ADD_ERRORS[code] : friendly(e));
+    }
+    onDone(data);
+  }
+
+  return (
+    <Modal title={`Add a ${noun}`} description="Zella checks for someone with the same phone or email first, so nobody is added twice." onClose={onClose} busy={busy}
+      footer={<>
+        <button type="button" className="ba-btn" onClick={onClose} disabled={busy}>Cancel</button>
+        <button type="submit" form="ba-add-customer" className="ba-btn primary" disabled={busy}>{busy ? "Saving..." : `Add ${noun}`}</button>
+      </>}>
+      <form id="ba-add-customer" className="ba-modal-body" onSubmit={save}>
+        <div className="ba-form-grid">
+          <Field label="First name"><input value={form.first_name} onChange={set("first_name")} autoFocus maxLength={100} /></Field>
+          <Field label="Last name"><input value={form.last_name} onChange={set("last_name")} maxLength={100} /></Field>
+          <Field label="Phone" bare><PhoneField value={form.phone} onChange={(phone) => setForm((f) => ({ ...f, phone }))} showErrors={showErrors} label="Phone" /></Field>
+          <Field label="Email" bare><EmailField value={form.email} onChange={(email) => setForm((f) => ({ ...f, email }))} showErrors={showErrors} /></Field>
+          <Field label="Administrative notes" hint="Front-desk notes only. No medical or treatment details." full><textarea value={form.notes} onChange={set("notes")} maxLength={2000} /></Field>
+        </div>
+        {error && <p className="ba-error" role="alert">{error}</p>}
+      </form>
+    </Modal>
+  );
+}
+
 export function AddLeadModal({ workspace, term, onClose, onSaved }) {
   const [form, setForm] = useState({ first_name: "", last_name: "", phone: "", email: "", source: "manual", notes: "" });
   const [busy, setBusy] = useState(false);
