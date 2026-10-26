@@ -100,6 +100,16 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
     return () => window.removeEventListener("keydown", onKey);
   }, [navOpen]);
   const [modal, setModal] = useState(null);
+  // A walk-in is a booking that starts now; the form opens on today's date and the current time.
+  const [bookInitial, setBookInitial] = useState(null);
+  const openBooking = (opts) => {
+    if (opts?.walkIn) {
+      const [date, time] = new Intl.DateTimeFormat("en-CA", { timeZone: workspace.timezone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+        .format(new Date()).split(", ");
+      setBookInitial({ date, time });
+    } else setBookInitial(null);
+    setModal("book");
+  };
   const [refreshKey, setRefreshKey] = useState(0);
   const [busy, setBusy] = useState(false);
   const [notice, setNoticeRaw] = useState("");
@@ -243,7 +253,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
             <button type="button" className="ba-btn primary" onClick={() => setModal("lead")}>
               <Icon name="person_add" /><span>Add lead</span>
             </button>
-            <button type="button" className="ba-btn" onClick={() => setModal("book")}>
+            <button type="button" className="ba-btn" onClick={() => openBooking()}>
               <Icon name="event" /><span>Book {term("appointment").toLowerCase()}</span>
             </button>
             <ProfileMenu email={email} name={myName} role={workspace.role} onGo={(path) => navigate(`${base}/${path}`)} onSignOut={onSignOut} />
@@ -311,9 +321,12 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
               key={refreshKey}
               workspace={workspace}
               userId={userId}
-              fallbackName={fallbackName}
+              fallbackName={myName || fallbackName}
+              industry={nav.data?.industry?.slug}
+              operations={records.types}
               onAddLead={() => setModal("lead")}
-              onBook={() => setModal("book")}
+              onBook={(opts) => openBooking(opts)}
+              onGo={(key) => (key.startsWith("settings/") ? navigate(`${base}/${key}`) : setPage(key))}
               onNotice={setNotice}
               onOpenPerson={openPerson}
             />
@@ -364,7 +377,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
       )}
       {modal === "lead" && <AddLeadModal workspace={workspace} term={term} onClose={() => setModal(null)} onSaved={saved} />}
       {modal === "live-notice" && <LiveNoticeModal workspace={workspace} onClose={() => setModal(null)} onSaved={(m) => { setModal(null); setNotice(m); setRefreshKey((k) => k + 1); }} />}
-      {modal === "book" && <BookAppointmentModal workspace={workspace} term={term} onClose={() => setModal(null)} onSaved={saved} />}
+      {modal === "book" && <BookAppointmentModal workspace={workspace} term={term} initial={bookInitial} onClose={() => setModal(null)} onSaved={saved} />}
       {modal === "test-voice" && <TestVoiceModal workspace={workspace} phone={nav.data?.phone} agent={agent} onClose={() => setModal(null)} onGo={(path) => navigate(`${base}/${path}`)} />}
     </div>
   );

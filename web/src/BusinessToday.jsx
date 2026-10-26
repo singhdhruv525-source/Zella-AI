@@ -1,581 +1,428 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "./supabase";
 import { Icon, Pill, personName } from "./BusinessUI";
 import { makeTerm, receptionistState } from "./businessWorkspace";
 import { useRoster } from "./BusinessLeads";
-import TodayWelcome from "./TodayWelcome";
 import { CountUp } from "./CrmMotion";
-import { todayNote, welcomeStyle } from "./todayGreeting";
-import { dayRange, formatLongDate, formatTime, greeting, timeAgo } from "./businessTime";
+import { formatLongDate, formatTime, greeting, timeAgo, todayInput, zonedDateTime } from "./businessTime";
 import { friendly, noShowNotice, setCheckIn } from "./BusinessShared";
 import { RescheduleModal } from "./BusinessForms";
+import { CONNECT, todayConfig } from "./todayConfig";
 
-// Today dashboard (Stitch design), built only from real records. Everything is
-// read with the member's own session, so Row Level Security returns this
-// business's data only. Where Zella has no data yet, it says so.
+// Today dashboard, built only from this business's real records, read with the member's own session so row level
+// security returns this business's data only. Words follow the industry (Reservations, Patients, Technicians ...)
+// and todayConfig.js decides the few industry-specific columns and cards. Where Zella has no data source yet it says
+// so plainly instead of showing numbers.
 
-const RANGES = [
-  ["today", "Today"],
-  ["yesterday", "Yesterday"],
-  ["week", "Last 7 days"],
-];
-
-const SOURCE_LABELS = {
-  manual: "Team", phone: "Phone", walk_in: "Walk-in", website: "Website", google: "Google",
-  meta: "Meta", referral: "Referral", call: "Call", voice: "Voice AI", other: "Other",
+const SOURCE = {
+  manual: ["Team", "person"], phone: ["Phone", "call"], call: ["Phone", "call"], voice: ["AI receptionist", "smart_toy"],
+  walk_in: ["Walk-in", "directions_walk"], website: ["Online", "language"], website_chat: ["Online chat", "chat"],
+  google: ["Google", "travel_explore"], meta: ["Meta", "thumb_up"], referral: ["Referral", "group"], other: ["Other", "more_horiz"],
 };
+const PRIORITY_TONE = { urgent: "danger", high: "warning", normal: "" };
 
-const APPT_TONE = { scheduled: "warning", confirmed: "success", completed: "info", cancelled: "", no_show: "danger" };
-const APPT_LABEL = { scheduled: "Scheduled", confirmed: "Confirmed", completed: "Completed", cancelled: "Cancelled", no_show: "No-show" };
+const addDays = (dateStr, n) => {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d + n));
+  return `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, "0")}-${String(t.getUTCDate()).padStart(2, "0")}`;
+};
+const dayBounds = (dateStr, tz) => ({ start: zonedDateTime(dateStr, "00:00", tz), end: zonedDateTime(addDays(dateStr, 1), "00:00", tz) });
+const minutes = (a) => (a.end_time ? Math.round((new Date(a.end_time) - new Date(a.start_time)) / 60000) : null);
 
-function rangeBounds(range, tz) {
-  if (range === "yesterday") return dayRange(tz, -1);
-  if (range === "week") return { start: dayRange(tz, -6).start, end: dayRange(tz, 0).end };
-  return dayRange(tz, 0);
+// Where a booking is in its day. Final states first.
+function stage(a, now) {
+  if (a.status === "cancelled") return "cancelled";
+  if (a.status === "no_show") return "no_show";
+  if (a.status === "completed") return "completed";
+  if (a.checked_in_at || a.arrived_at || a.in_service_at) return "arrived";
+  return new Date(a.start_time).getTime() < now ? "late" : "upcoming";
 }
 
-function plural(n, word) {
-  return `${n} ${word}${n === 1 ? "" : "s"}`;
+// Change against the same day last week. upIsGood decides the colour; the words always say which way it went.
+function trend(cur, prev, upIsGood = true) {
+  if (cur === null || prev === null || prev === undefined) return null;
+  if (prev === 0 && cur === 0) return { text: "Same as last week", tone: "" };
+  if (prev === 0) return { text: "New vs last week", tone: upIsGood ? "up" : "down", arrow: "arrow_upward" };
+  const pct = Math.round(((cur - prev) / prev) * 100);
+  if (pct === 0) return { text: "Same as last week", tone: "" };
+  const up = pct > 0;
+  return { text: `${Math.abs(pct)}% vs last week`, label: `${up ? "Up" : "Down"} ${Math.abs(pct)}% vs last week`, tone: up === upIsGood ? "up" : "down", arrow: up ? "arrow_upward" : "arrow_downward" };
 }
 
-function duration(seconds) {
-  if (!seconds && seconds !== 0) return "—";
-  return `${Math.floor(seconds / 60)}:${String(Math.round(seconds % 60)).padStart(2, "0")}`;
-}
-
-function Kpi({ label, icon, color, value, children }) {
+function Kpi({ icon, tone, label, value, change, loading }) {
   return (
-    <div className="ba-kpi">
-      <div className="ba-kpi-top">
-        <span>{label}</span>
-        <span className={`ba-kpi-icon ${color}`}><Icon name={icon} size="sm" /></span>
+    <div className="ba-kpi td-kpi">
+      <span className={`ba-kpi-icon ${tone}`}><Icon name={icon} /></span>
+      <div className="td-kpi-body">
+        <span className="td-kpi-label">{label}</span>
+        <div className="td-kpi-row">
+          <span className="ba-kpi-value">{loading ? "…" : <CountUp value={value} />}</span>
+          {change && (
+            <span className={`td-trend ${change.tone}`} aria-label={change.label ?? change.text}>
+              {change.arrow && <Icon name={change.arrow} size="sm" />}{change.text}
+            </span>
+          )}
+        </div>
       </div>
-      <div className="ba-kpi-value"><CountUp value={value} /></div>
-      {children}
     </div>
   );
 }
 
-function Panel({ icon, color, title, subtitle, action, tabs, children, foot }) {
+function Card({ title, action, children, className = "", tabs }) {
   return (
-    <section className="ba-panel">
-      <div className="ba-panel-head">
-        <div className="ba-panel-title">
-          <span className={`ba-kpi-icon ${color}`}><Icon name={icon} size="sm" /></span>
-          <div>
-            <h2>{title}</h2>
-            {subtitle && <p>{subtitle}</p>}
-          </div>
-        </div>
-        {action}
-      </div>
+    <section className={`ba-panel td-card ${className}`}>
+      <div className="td-card-head"><h2>{title}</h2>{action}</div>
       {tabs}
-      <div className="ba-panel-body">{children}</div>
-      {foot && <div className="ba-panel-foot">{foot}</div>}
+      <div className="td-card-body">{children}</div>
     </section>
   );
 }
 
 function Empty({ title, children }) {
-  return (
-    <div className="ba-empty">
-      {title && <strong>{title}</strong>}
-      {children}
-    </div>
-  );
+  return <div className="ba-empty">{title && <strong>{title}</strong>}{children}</div>;
 }
 
-export default function BusinessToday({ workspace, userId, fallbackName, onAddLead, onBook, onNotice, onOpenPerson }) {
+export default function BusinessToday({ workspace, userId, fallbackName, industry, operations = [], onAddLead, onBook, onGo, onNotice, onOpenPerson }) {
   const tz = workspace.timezone;
+  const term = makeTerm(workspace);
+  const cfg = todayConfig(industry);
+  const agent = receptionistState(workspace);
   const roster = useRoster(workspace);
   const known = (n) => (n && n !== "Team member" ? n : "");
   const firstName = String(known(roster.nameOf[userId]) || fallbackName || "").trim().split(/\s+/)[0];
-  const owner = known(roster.list.find((m) => m.role === "owner")?.name);
-  const [note] = useState(() => todayNote(greeting(tz).replace("Good ", ""), workspace.industry));
-  const [style] = useState(() => welcomeStyle());
-  const term = makeTerm(workspace);
-  const agent = receptionistState(workspace);
-  const [range, setRange] = useState("today");
-  const [tab, setTab] = useState("leads");
+
+  const today = todayInput(tz);
+  const [day, setDay] = useState(today);
+  const [tab, setTab] = useState("all");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [working, setWorking] = useState(null);
   const [moving, setMoving] = useState(null);
+  const opsKeys = useMemo(() => operations.filter((t) => t.enabled).slice(0, 2).map((t) => t.key), [operations]);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
     const id = workspace.id;
-    const bounds = rangeBounds(range, tz);
-    const today = dayRange(tz, 0);
-    const weekStart = dayRange(tz, -6).start;
-    const head = { count: "exact", head: true };
-
+    const cur = dayBounds(day, tz);
+    const prev = dayBounds(addDays(day, -7), tz);
+    const next7 = { start: cur.end, end: dayBounds(addDays(day, 8), tz).start };
+    const since90 = new Date(Date.now() - 90 * 864e5).toISOString();
+    const iso = (d) => d.toISOString();
     try {
       const results = await Promise.all([
-        supabase.from("appointments")
-          .select("*")
-          .eq("business_id", id)
-          .gte("start_time", today.start.toISOString())
-          .lt("start_time", today.end.toISOString())
-          .order("start_time"),
-        supabase.from("customers")
-          .select("id, first_name, last_name, company_name, phone, email, source, notes, last_contacted_at, created_at")
-          .eq("business_id", id)
-          .gte("created_at", bounds.start.toISOString())
-          .lt("created_at", bounds.end.toISOString())
-          .order("created_at", { ascending: false })
-          .limit(500),
-        supabase.from("calls_view")
-          .select("id, status, ai_handled, duration_seconds, from_number, customer_id, created_at, metadata")
-          .eq("business_id", id)
-          .gte("created_at", bounds.start.toISOString())
-          .lt("created_at", bounds.end.toISOString())
-          .order("created_at", { ascending: false })
-          .limit(500),
-        supabase.from("appointments").select("id", head)
-          .eq("business_id", id)
-          .eq("status", "no_show")
-          .gte("start_time", weekStart.toISOString()),
-        supabase.from("conversations")
-          .select("id, subject, channel, status, last_message_at, customer_id, ai_handled")
-          .eq("business_id", id)
-          .in("status", ["open", "pending"])
-          .order("last_message_at", { ascending: false, nullsFirst: false })
-          .limit(20),
-        supabase.from("calls_view")
-          .select("id, direction, status, ai_handled, duration_seconds, from_number, customer_id, created_at, transcript, metadata")
-          .eq("business_id", id)
-          .order("created_at", { ascending: false })
-          .limit(1),
-        supabase.from("automations")
-          .select("id, name, status, trigger_type")
-          .eq("business_id", id)
-          .neq("status", "disabled")
-          .order("name"),
+        supabase.from("appointments").select("*").eq("business_id", id).gte("start_time", iso(cur.start)).lt("start_time", iso(cur.end)).order("start_time"),
+        supabase.from("appointments").select("id, party_size, status").eq("business_id", id).neq("status", "cancelled").gte("start_time", iso(prev.start)).lt("start_time", iso(prev.end)).limit(2000),
+        supabase.from("customers").select("id, first_name, last_name, company_name, phone, email, source, notes, last_contacted_at, created_at").eq("business_id", id)
+          .gte("created_at", iso(cur.start)).lt("created_at", iso(cur.end)).order("created_at", { ascending: false }).limit(500),
+        supabase.from("customers").select("id", { count: "exact", head: true }).eq("business_id", id).gte("created_at", iso(prev.start)).lt("created_at", iso(prev.end)),
+        supabase.from("calls_view").select("id, status, ai_handled, metadata").eq("business_id", id).gte("created_at", iso(cur.start)).lt("created_at", iso(cur.end)).limit(2000),
+        supabase.from("calls_view").select("id, status, ai_handled").eq("business_id", id).gte("created_at", iso(prev.start)).lt("created_at", iso(prev.end)).limit(2000),
+        // Receptionist activity: the latest calls and AI-handled conversations, whatever the date.
+        supabase.from("calls_view").select("id, status, direction, ai_handled, needs_human, from_number, customer_id, created_at, summary, outcome, metadata").eq("business_id", id)
+          .order("created_at", { ascending: false }).limit(8),
+        supabase.from("conversations").select("id, subject, channel, status, last_message_at, customer_id, ai_handled").eq("business_id", id)
+          .order("last_message_at", { ascending: false, nullsFirst: false }).limit(8),
+        supabase.from("crm_tasks").select("id, title, body, priority, due_at, customer_id").eq("business_id", id).eq("status", "open")
+          .order("due_at", { ascending: true, nullsFirst: false }).limit(6),
+        supabase.from("appointments").select("customer_id, status").eq("business_id", id).eq("status", "completed").gte("start_time", since90).not("customer_id", "is", null).limit(3000),
+        supabase.from("appointments").select("id, title, start_time, customer_id, status, party_size").eq("business_id", id).neq("status", "cancelled")
+          .gte("start_time", iso(next7.start)).lt("start_time", iso(next7.end)).order("start_time").limit(6),
+        opsKeys.length
+          ? supabase.from("crm_records").select("id, type_key, title, status, due_at, customer_id, updated_at").eq("business_id", id).in("type_key", opsKeys)
+            .is("closed_at", null).is("archived_at", null).order("due_at", { ascending: true, nullsFirst: false }).limit(12)
+          : Promise.resolve({ data: [] }),
+        cfg.staffColumn ? supabase.from("staff_members").select("id, name").eq("business_id", id) : Promise.resolve({ data: [] }),
       ]);
-
       const failed = results.find((r) => r.error);
       if (failed) throw failed.error;
-      const [appointments, leads, calls, noShows, conversations, lastCall, automations] = results;
+      const [appts, prevAppts, leads, , calls, prevCalls, recentCalls, convos, tasks, visits, upcoming, records, staff] = results.map((r) => r.data ?? []);
+      const prevLeadCount = results[3].count ?? 0;
 
-      // Names for customers referenced by appointments, calls and conversations.
-      const ids = [...new Set([
-        ...(appointments.data ?? []).map((a) => a.customer_id),
-        ...(calls.data ?? []).map((c) => c.customer_id),
-        ...(conversations.data ?? []).map((c) => c.customer_id),
-        ...(lastCall.data ?? []).map((c) => c.customer_id),
-      ].filter(Boolean))];
+      const visitCount = {};
+      for (const v of visits) visitCount[v.customer_id] = (visitCount[v.customer_id] ?? 0) + 1;
+      const top = Object.entries(visitCount).sort((a, b) => b[1] - a[1]).slice(0, 5);
 
+      const ids = [...new Set([...appts, ...recentCalls, ...convos, ...tasks, ...upcoming, ...records].map((r) => r.customer_id).concat(top.map(([cid]) => cid)).filter(Boolean))];
       let people = {};
       if (ids.length) {
-        const { data: rows, error: peopleError } = await supabase
-          .from("customers")
-          .select("id, first_name, last_name, company_name, phone")
-          .in("id", ids);
-        if (peopleError) throw peopleError;
+        const { data: rows, error: e } = await supabase.from("customers").select("id, first_name, last_name, company_name, phone, source").in("id", ids);
+        if (e) throw e;
         people = Object.fromEntries((rows ?? []).map((p) => [p.id, p]));
       }
-
-      const callRows = calls.data ?? [];
-      const answeredWithTime = callRows.filter((c) => c.duration_seconds);
-      const missed = callRows.filter((c) => c.status === "missed");
-      const missedOpen = missed.filter((c) => !c.metadata?.followed_up_at);
-      const leadRows = leads.data ?? [];
-      const sourceCounts = {};
-      for (const lead of leadRows) {
-        const key = lead.source || "other";
-        sourceCounts[key] = (sourceCounts[key] ?? 0) + 1;
-      }
+      const withPerson = (r) => ({ ...r, customer: people[r.customer_id] });
+      const missedOpen = (rows) => rows.filter((c) => c.status === "missed" && !c.metadata?.followed_up_at).length;
 
       setData({
-        appointments: (appointments.data ?? []).map((a) => ({ ...a, customer: people[a.customer_id] })),
-        leads: leadRows,
-        sources: Object.entries(sourceCounts).sort((a, b) => b[1] - a[1]),
-        uncontacted: leadRows.filter((l) => !l.last_contacted_at),
-        aiCalls: callRows.filter((c) => c.ai_handled).length,
-        totalCalls: callRows.length,
-        avgDuration: answeredWithTime.length
-          ? answeredWithTime.reduce((sum, c) => sum + c.duration_seconds, 0) / answeredWithTime.length
-          : null,
-        missed: missed.map((c) => ({ ...c, customer: people[c.customer_id] })),
-        missedOpen: missedOpen.map((c) => ({ ...c, customer: people[c.customer_id] })),
-        noShows: noShows.count ?? 0,
-        conversations: (conversations.data ?? []).map((c) => ({ ...c, customer: people[c.customer_id] })),
-        lastCall: lastCall.data?.[0] ? { ...lastCall.data[0], customer: people[lastCall.data[0].customer_id] } : null,
-        automations: automations.data ?? [],
-        loadedAt: new Date(),
+        appts: appts.map(withPerson),
+        prev: {
+          bookings: prevAppts.length, guests: prevAppts.reduce((n, a) => n + (a.party_size ?? 0), 0), leads: prevLeadCount,
+          aiCalls: prevCalls.filter((c) => c.ai_handled).length, missed: prevCalls.filter((c) => c.status === "missed").length,
+        },
+        leads,
+        aiCalls: calls.filter((c) => c.ai_handled).length,
+        missed: calls.filter((c) => c.status === "missed").length,
+        missedOpen: missedOpen(calls),
+        activity: [
+          ...recentCalls.map((c) => ({ kind: "call", at: c.created_at, ...withPerson(c) })),
+          ...convos.filter((c) => c.ai_handled).map((c) => ({ kind: "message", at: c.last_message_at, ...withPerson(c) })),
+        ].filter((x) => x.at).sort((a, b) => new Date(b.at) - new Date(a.at)).slice(0, 6),
+        tasks: tasks.map(withPerson),
+        top: top.map(([cid, n]) => ({ customer: people[cid], id: cid, visits: n })).filter((t) => t.customer),
+        upcoming: upcoming.map(withPerson),
+        records: records.map(withPerson),
+        staff: Object.fromEntries(staff.map((s) => [s.id, s.name])),
       });
     } catch (err) {
-      setError(err.message);
+      setError(friendly(err));
     } finally {
       setLoading(false);
     }
-  }, [workspace.id, range, tz]);
+  }, [workspace.id, day, tz, opsKeys, cfg.staffColumn]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
 
   async function act(key, run, message) {
     setWorking(key);
     setError("");
-    const { error: actError } = await run();
+    const { error: e } = await run();
     setWorking(null);
-    if (actError) {
-      setError(friendly(actError));
-      return;
-    }
+    if (e) { setError(friendly(e)); return; }
     if (message) onNotice(message);
     load();
   }
-
-  async function markNoShow(appt) {
-    setWorking(`appt-${appt.id}`);
-    setError("");
-    const { error: updateError } = await supabase.from("appointments")
-      .update({ status: "no_show", updated_at: new Date().toISOString() }).eq("id", appt.id);
-    if (updateError) {
-      setWorking(null);
-      setError(friendly(updateError));
-      return;
-    }
-    const message = await noShowNotice(appt.id, personName(appt.customer) ?? appt.title, tz);
+  async function markNoShow(a) {
+    setWorking(`appt-${a.id}`);
+    const { error: e } = await supabase.from("appointments").update({ status: "no_show", updated_at: new Date().toISOString() }).eq("id", a.id);
+    if (e) { setWorking(null); setError(friendly(e)); return; }
+    const message = await noShowNotice(a.id, personName(a.customer) ?? a.title, tz);
     setWorking(null);
     onNotice(message);
     load();
   }
+  const setStatus = (a, status, done) => act(`appt-${a.id}`, () => supabase.from("appointments").update({ status, updated_at: new Date().toISOString() }).eq("id", a.id), done);
+  const checkIn = (a) => act(`appt-${a.id}`, () => setCheckIn(a.id, !a.checked_in_at), a.checked_in_at ? "Undone." : `${personName(a.customer) ?? a.title}: ${cfg.arrived.toLowerCase()}.`);
+  const completeTask = (t) => act(`task-${t.id}`, () => supabase.rpc("zella_complete_task", { p_task_id: t.id }), "Task done.");
+  const person = (id, label) => (id && onOpenPerson ? <button type="button" className="ba-namebtn" onClick={() => onOpenPerson(id)}>{label}</button> : <span>{label}</span>);
 
-  const setAppointment = (appt, status) => status === "no_show"
-    ? markNoShow(appt)
-    : act(`appt-${appt.id}`, () => supabase.from("appointments")
-      .update({ status, updated_at: new Date().toISOString() })
-      .eq("id", appt.id), `${appt.title} marked ${APPT_LABEL[status].toLowerCase()}.`);
-
-  const toggleCheckIn = (appt) =>
-    act(`appt-${appt.id}`, () => setCheckIn(appt.id, !appt.checked_in_at),
-      appt.checked_in_at ? "Check-in undone." : `${personName(appt.customer) ?? appt.title} checked in.`);
-
-  const nameLink = (id, label) => (id && onOpenPerson
-    ? <button type="button" className="ba-namebtn" onClick={() => onOpenPerson(id)}>{label}</button>
-    : <span>{label}</span>);
-
-  const markContacted = (lead) =>
-    act(`lead-${lead.id}`, () => supabase.from("customers")
-      .update({ last_contacted_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-      .eq("id", lead.id), `${personName(lead) ?? "Lead"} marked as contacted.`);
-
-  const markCalledBack = (call) =>
-    act(`call-${call.id}`, () => supabase.rpc("zella_call_mark_followed_up", { p_call_id: call.id }), "Missed call marked as followed up.");
-
-  const show = (v) => (loading && !data ? "…" : v);
-  const appts = data?.appointments ?? [];
-  const activeAppts = appts.filter((a) => a.status !== "cancelled");
-  const counts = Object.fromEntries(Object.keys(APPT_LABEL).map((k) => [k, appts.filter((a) => a.status === k).length]));
   const now = Date.now();
-  const recovery = (data?.noShows ?? 0) + (data?.missedOpen?.length ?? 0) + (data?.uncontacted?.length ?? 0);
-  const rangeLabel = RANGES.find(([k]) => k === range)[1].toLowerCase();
-  const pct = (n) => (activeAppts.length ? `${(n / activeAppts.length) * 100}%` : "0%");
+  const appts = (data?.appts ?? []).map((a) => ({ ...a, stage: stage(a, now) }));
+  const active = appts.filter((a) => !["cancelled", "no_show"].includes(a.stage));
+  const guests = active.reduce((n, a) => n + (a.party_size ?? 0), 0);
+  const showGuests = cfg.guests;
+  const showStaff = cfg.staffColumn && appts.some((a) => a.staff_id);
+  const TABS = [["all", "All", appts.length], ["upcoming", "Upcoming", appts.filter((a) => ["upcoming", "late"].includes(a.stage)).length],
+    ["arrived", cfg.arrived, appts.filter((a) => a.stage === "arrived").length], ["completed", "Completed", appts.filter((a) => a.stage === "completed").length],
+    ["cancelled", "Cancelled", appts.filter((a) => ["cancelled", "no_show"].includes(a.stage)).length]];
+  const rows = appts.filter((a) => tab === "all" || (tab === "upcoming" ? ["upcoming", "late"].includes(a.stage) : tab === "cancelled" ? ["cancelled", "no_show"].includes(a.stage) : a.stage === tab));
+  const STAGE = { upcoming: ["Upcoming", "info"], late: ["Running late", "danger"], arrived: [cfg.arrived, "success"], completed: ["Completed", ""], cancelled: ["Cancelled", ""], no_show: ["No-show", "danger"] };
+  const isToday = day === today;
+  const dayLabel = isToday ? "today" : formatLongDate(dayBounds(day, tz).start, tz);
+  const p = data?.prev;
+  const bookingWord = term("appointments");
+  const oneBooking = term("appointment");
+  const opsTypes = operations.filter((t) => opsKeys.includes(t.key));
 
   return (
     <>
-      <TodayWelcome
-        heading={style ? `Welcome back${firstName ? `, ${firstName}` : ""}.` : `${greeting(tz)}${firstName ? `, ${firstName}` : ""}.`}
-        business={workspace.name} owner={owner} note={note} partOfDay={greeting(tz).replace("Good ", "")}
-        date={`${formatLongDate(new Date(), tz)} (${tz.replace("_", " ")})`}
-      />
-      <div className="ba-page-head">
+      <div className="ba-page-head td-head">
         <div>
-          <div className="ba-crumb">Workspace / Today</div>
+          <h1>{greeting(tz)}{firstName ? `, ${firstName}` : ""}!</h1>
+          <p>Here's what's happening at {workspace.name} {isToday ? "today" : `on ${dayLabel}`}.</p>
         </div>
         <div className="ba-page-actions">
-          <div className="ba-segment" role="tablist" aria-label="Time range">
-            {RANGES.map(([key, label]) => (
-              <button key={key} type="button" role="tab" aria-selected={range === key} className={range === key ? "active" : ""} onClick={() => setRange(key)}>
-                {label}
-              </button>
-            ))}
-          </div>
-          <button type="button" className="ba-btn" onClick={load} disabled={loading} title="Refresh">
-            <Icon name="refresh" size="sm" />
-          </button>
+          <label className="td-date">
+            <Icon name="calendar_month" size="sm" />
+            <input type="date" value={day} onChange={(e) => e.target.value && setDay(e.target.value)} aria-label="Day to show" />
+          </label>
+          {!isToday && <button type="button" className="ba-btn" onClick={() => setDay(today)}>Today</button>}
+          <button type="button" className="ba-btn primary" onClick={() => onBook()}><Icon name="add" size="sm" />New {oneBooking}</button>
+          {cfg.walkIn
+            ? <button type="button" className="ba-btn" onClick={() => onBook({ walkIn: true })}><Icon name="directions_walk" size="sm" />Walk-in</button>
+            : <button type="button" className="ba-btn" onClick={onAddLead}><Icon name="person_add" size="sm" />Add lead</button>}
+          <button type="button" className="ba-btn ghost" onClick={load} disabled={loading} aria-label="Refresh"><Icon name="refresh" size="sm" /></button>
         </div>
       </div>
 
-      {error && <div className="ba-banner error">Couldn't load everything: {error}</div>}
+      {error && <div className="ba-banner error">Couldn't load everything: {error} <button type="button" className="ba-link" onClick={load}>Try again</button></div>}
 
-      <div className="ba-kpis">
-        <Kpi label={`New leads ${rangeLabel}`} icon="group_add" color="indigo" value={show(data?.leads?.length ?? 0)}>
-          <div className="ba-kpi-note">
-            {data?.sources?.length
-              ? data.sources.slice(0, 3).map(([s, n]) => `${n} ${SOURCE_LABELS[s] ?? s}`).join(" · ")
-              : "No new leads yet"}
-          </div>
-        </Kpi>
-        <Kpi label="AI-answered calls" icon="smart_toy" color="amber" value={show(data?.aiCalls ?? 0)}>
-          <div className="ba-kpi-note">
-            {data?.totalCalls
-              ? `${data.totalCalls} calls · ${data.missed.length} missed · avg ${duration(data.avgDuration)}`
-              : agent.live ? "No calls yet" : "Starts when your AI receptionist goes live"}
-          </div>
-        </Kpi>
-        <Kpi label={`${term("appointments")} today`} icon="calendar_month" color="blue" value={show(activeAppts.length)}>
-          <div className="ba-kpi-note">
-            {counts.completed} done · {counts.confirmed} confirmed · {counts.scheduled} scheduled{counts.no_show ? ` · ${counts.no_show} no-show` : ""}
-          </div>
-          <div className="ba-bar" aria-hidden="true">
-            <span className="done" style={{ width: pct(counts.completed) }} />
-            <span className="confirmed" style={{ width: pct(counts.confirmed) }} />
-            <span className="scheduled" style={{ width: pct(counts.scheduled) }} />
-            <span className="noshow" style={{ width: pct(counts.no_show) }} />
-          </div>
-        </Kpi>
-        <Kpi label="Missed calls" icon="phone_missed" color="rose" value={show(data?.missedOpen?.length ?? 0)}>
-          <div className="ba-kpi-note">
-            {data?.missed?.length ? `${data.missed.length} missed ${rangeLabel} · ${data.missedOpen.length} still to call back` : `None ${rangeLabel}`}
-          </div>
-        </Kpi>
-        <Kpi label="Recovery queue" icon="restart_alt" color="violet" value={show(recovery)}>
-          <div className="ba-kpi-note">
-            {data ? `${plural(data.noShows, "no-show")} (7 days) · ${plural(data.missedOpen.length, "missed call")} · ${plural(data.uncontacted.length, "lead")} not contacted` : ""}
-          </div>
-        </Kpi>
-        <Kpi label="Open conversations" icon="forum" color="green" value={show(data?.conversations?.length ?? 0)}>
-          <div className="ba-kpi-note">{data?.conversations?.length ? "Waiting on a reply or follow-up" : "Nothing waiting"}</div>
-        </Kpi>
+      <div className="td-kpis">
+        <Kpi icon="event" tone="rose" label={`${bookingWord} ${isToday ? "today" : ""}`.trim()} value={active.length} loading={loading && !data} change={p && trend(active.length, p.bookings)} />
+        {showGuests && <Kpi icon="groups" tone="indigo" label={`Total ${term("customers").toLowerCase()}`} value={guests} loading={loading && !data} change={p && trend(guests, p.guests)} />}
+        <Kpi icon="person_add" tone="amber" label="New leads" value={data?.leads.length ?? 0} loading={loading && !data} change={p && trend(data.leads.length, p.leads)} />
+        <Kpi icon="smart_toy" tone="green" label="AI-answered calls" value={data?.aiCalls ?? 0} loading={loading && !data} change={p && trend(data.aiCalls, p.aiCalls)} />
+        <Kpi icon="phone_missed" tone="rose" label="Missed calls" value={data?.missed ?? 0} loading={loading && !data} change={p && trend(data.missed, p.missed, false)} />
       </div>
 
-      <div className="ba-columns">
-        {/* Column 1: today's schedule */}
-        <Panel
-          icon="event_available"
-          color="blue"
-          title={`Today's ${term("appointments").toLowerCase()}`}
-          subtitle={formatLongDate(new Date(), tz)}
-          action={<button type="button" className="ba-btn primary sm" onClick={onBook}><Icon name="add" size="sm" />Book</button>}
-          foot={<><span>{counts.completed} completed today</span><span>{plural(counts.no_show, "no-show")}</span></>}
-        >
-          {appts.length ? appts.map((a) => {
-            const late = ["scheduled", "confirmed"].includes(a.status) && new Date(a.start_time).getTime() < now;
-            const name = personName(a.customer);
-            const busy = working === `appt-${a.id}`;
-            return (
-              <article key={a.id} className={`ba-item ${late ? "alert" : ""} ${a.status === "cancelled" ? "muted" : ""}`}>
-                <div className="ba-item-top">
-                  <div className="ba-item-name">
-                    <span className="ba-dot" style={{ color: late ? "var(--ba-danger)" : a.status === "confirmed" ? "var(--ba-success)" : "var(--ba-warning)" }} />
-                    {nameLink(a.customer?.id, name ?? a.title)}
-                  </div>
-                  <span className="ba-item-time">{formatTime(a.start_time, tz)}</span>
-                </div>
-                <div className="ba-item-meta">
-                  <span>{name ? a.title : `No ${term("customer").toLowerCase()} linked`}</span>
-                  {a.location && <span>· {a.location}</span>}
-                  <Pill tone={late ? "danger" : APPT_TONE[a.status]}>{late ? "Running late" : APPT_LABEL[a.status]}</Pill>
-                  {a.checked_in_at && <Pill tone="success">Arrived {formatTime(a.checked_in_at, tz)}</Pill>}
-                </div>
-                {["scheduled", "confirmed"].includes(a.status) && (
-                  <div className="ba-item-actions">
-                    <button type="button" className={`ba-btn sm ${a.checked_in_at ? "" : "primary"}`} disabled={busy} onClick={() => toggleCheckIn(a)}>
-                      <Icon name={a.checked_in_at ? "undo" : "how_to_reg"} size="sm" />{a.checked_in_at ? "Undo check-in" : "Check in"}
-                    </button>
-                    {a.status === "scheduled" && !late && (
-                      <button type="button" className="ba-btn sm" disabled={busy} onClick={() => setAppointment(a, "confirmed")}>Confirm</button>
-                    )}
-                    <button type="button" className="ba-btn sm" disabled={busy} onClick={() => setAppointment(a, "completed")}>Mark done</button>
-                    <button type="button" className="ba-btn sm" disabled={busy} onClick={() => setMoving(a)}><Icon name="event_repeat" size="sm" />Reschedule</button>
-                    {late && (
-                      <button type="button" className="ba-btn sm danger-outline" disabled={busy} onClick={() => setAppointment(a, "no_show")}>No-show</button>
-                    )}
-                    {a.customer?.phone && <a className="ba-btn sm" href={`tel:${a.customer.phone}`}><Icon name="call" size="sm" />Call</a>}
-                  </div>
-                )}
-              </article>
-            );
-          }) : (
-            <Empty title={loading && !data ? "Loading..." : `No ${term("appointments").toLowerCase()} today`}>
-              {!loading && "Book one from the button above."}
-            </Empty>
-          )}
-        </Panel>
-
-        {/* Column 2: leads, missed calls, inbox */}
-        <Panel
-          icon="bolt"
-          color="indigo"
-          title="Follow-ups"
-          subtitle="Who to contact next"
-          action={<button type="button" className="ba-btn sm" onClick={onAddLead}><Icon name="person_add" size="sm" />Lead</button>}
+      <div className="td-grid">
+        <Card className="td-span2" title={`${isToday ? "Today's" : ""} ${bookingWord}`.trim()}
+          action={<button type="button" className="ba-btn sm" onClick={() => onGo("calendar")}>View calendar</button>}
           tabs={
-            <div className="ba-panel-tabs">
-              <div className="ba-segment" role="tablist">
-                {[
-                  ["leads", `New leads (${data?.uncontacted?.length ?? 0})`],
-                  ["missed", `Missed calls (${data?.missedOpen?.length ?? 0})`],
-                  ["inbox", `Inbox (${data?.conversations?.length ?? 0})`],
-                ].map(([key, label]) => (
-                  <button key={key} type="button" role="tab" aria-selected={tab === key} className={tab === key ? "active" : ""} onClick={() => setTab(key)}>
-                    {label}
-                  </button>
-                ))}
-              </div>
+            <div className="td-tabs" role="tablist" aria-label={`${bookingWord} by status`}>
+              {TABS.map(([key, label, n]) => (
+                <button key={key} type="button" role="tab" aria-selected={tab === key} className={tab === key ? "active" : ""} onClick={() => setTab(key)}>
+                  {label} <span>{n}</span>
+                </button>
+              ))}
             </div>
-          }
-        >
-          {tab === "leads" && (data?.leads?.length ? data.leads.slice(0, 12).map((lead) => {
-            const contacted = Boolean(lead.last_contacted_at);
-            const busy = working === `lead-${lead.id}`;
-            return (
-              <article key={lead.id} className="ba-item">
-                <div className="ba-item-top">
-                  <div className="ba-item-name">
-                    {lead.source && <Pill tone="indigo">{SOURCE_LABELS[lead.source] ?? lead.source}</Pill>}
-                    {nameLink(lead.id, personName(lead) ?? lead.phone ?? lead.email ?? "Unnamed lead")}
-                  </div>
-                  <Pill tone={contacted ? "success" : "warning"}>{contacted ? "Contacted" : "Needs contact"}</Pill>
-                </div>
-                {lead.notes && <p className="ba-item-text">{lead.notes.length > 160 ? `${lead.notes.slice(0, 160)}…` : lead.notes}</p>}
-                <div className="ba-item-meta">
-                  <span>{[lead.phone, lead.email].filter(Boolean).join(" · ") || "No contact details"}</span>
-                  <span>· {timeAgo(lead.created_at)}</span>
-                </div>
-                <div className="ba-item-actions">
-                  {lead.phone && <a className="ba-btn sm primary" href={`tel:${lead.phone}`}><Icon name="call" size="sm" />Call</a>}
-                  {lead.email && <a className="ba-btn sm" href={`mailto:${lead.email}`}><Icon name="mail" size="sm" />Email</a>}
-                  {!contacted && <button type="button" className="ba-btn sm" disabled={busy} onClick={() => markContacted(lead)}>Mark contacted</button>}
-                </div>
-              </article>
-            );
-          }) : (
-            <Empty title={loading && !data ? "Loading..." : `No new leads ${rangeLabel}`}>
-              {!loading && "Leads from calls, your website and ads appear here once those are connected."}
-            </Empty>
-          ))}
-
-          {tab === "missed" && (data?.missed?.length ? data.missed.map((call) => {
-            const done = Boolean(call.metadata?.followed_up_at);
-            const busy = working === `call-${call.id}`;
-            return (
-              <article key={call.id} className={`ba-item ${done ? "muted" : ""}`}>
-                <div className="ba-item-top">
-                  <div className="ba-item-name">
-                    <Icon name="phone_missed" size="sm" />
-                    {nameLink(call.customer?.id, personName(call.customer) ?? call.from_number ?? "Unknown caller")}
-                  </div>
-                  <span className="ba-item-time">{timeAgo(call.created_at)}</span>
-                </div>
-                <div className="ba-item-meta">
-                  {personName(call.customer) && call.from_number && <span>{call.from_number}</span>}
-                  <Pill tone={done ? "success" : "danger"}>{done ? "Followed up" : "Call back"}</Pill>
-                </div>
-                {!done && (
-                  <div className="ba-item-actions">
-                    {call.from_number && <a className="ba-btn sm primary" href={`tel:${call.from_number}`}><Icon name="call" size="sm" />Call back</a>}
-                    <button type="button" className="ba-btn sm" disabled={busy} onClick={() => markCalledBack(call)}>Mark done</button>
-                  </div>
-                )}
-              </article>
-            );
-          }) : (
-            <Empty title={loading && !data ? "Loading..." : `No missed calls ${rangeLabel}`}>
-              {!loading && !agent.live && "Calls are recorded once your phone line is connected."}
-            </Empty>
-          ))}
-
-          {tab === "inbox" && (data?.conversations?.length ? data.conversations.map((c) => (
-            <article key={c.id} className="ba-item">
-              <div className="ba-item-top">
-                <div className="ba-item-name">
-                  <Pill tone="indigo">{c.channel}</Pill>
-                  {nameLink(c.customer?.id, personName(c.customer) ?? c.subject ?? "Conversation")}
-                </div>
-                <span className="ba-item-time">{timeAgo(c.last_message_at)}</span>
-              </div>
-              <div className="ba-item-meta">
-                {c.subject && <span>{c.subject}</span>}
-                <Pill tone={c.status === "pending" ? "warning" : "info"}>{c.status}</Pill>
-                {c.ai_handled && <Pill tone="violet">AI</Pill>}
-              </div>
-            </article>
-          )) : (
-            <Empty title={loading && !data ? "Loading..." : "Inbox is clear"}>
-              {!loading && "Texts, emails and chats that need a reply show up here."}
-            </Empty>
-          ))}
-        </Panel>
-
-        {/* Column 3: AI receptionist */}
-        <Panel
-          icon="record_voice_over"
-          color="green"
-          title="Voice receptionist"
-          subtitle={workspace.receptionist?.name ?? "AI receptionist"}
-          action={<Pill tone={agent.tone} dot={agent.live} pulse={agent.live}>{agent.label}</Pill>}
-        >
-          <div className="ba-status-row">
-            <span>Phone line</span>
-            <Pill tone={workspace.phone_connected ? "success" : ""}>{workspace.phone_connected ? "Connected" : "Not connected"}</Pill>
-          </div>
-          <div className="ba-status-row">
-            <span>Voice agent</span>
-            <Pill tone={workspace.voice_connected ? "success" : ""}>{workspace.voice_connected ? "Connected" : "Not connected"}</Pill>
-          </div>
-
-          <div className="ba-section-label">Last call</div>
-          {data?.lastCall ? (
-            <article className="ba-item">
-              <div className="ba-item-top">
-                <div className="ba-item-name">
-                  <Icon name={data.lastCall.direction === "outbound" ? "call_made" : "call_received"} size="sm" />
-                  <span>{personName(data.lastCall.customer) ?? data.lastCall.from_number ?? "Caller"}</span>
-                </div>
-                <span className="ba-item-time">{timeAgo(data.lastCall.created_at)} · {duration(data.lastCall.duration_seconds)}</span>
-              </div>
-              {(data.lastCall.metadata?.summary || data.lastCall.transcript) && (
-                <p className="ba-quote">
-                  {(data.lastCall.metadata?.summary || data.lastCall.transcript).slice(0, 320)}
-                  {(data.lastCall.metadata?.summary || data.lastCall.transcript).length > 320 ? "…" : ""}
-                </p>
-              )}
-              <div className="ba-item-meta">
-                <Pill tone={data.lastCall.status === "missed" ? "danger" : "success"}>{data.lastCall.status}</Pill>
-                {data.lastCall.ai_handled && <Pill tone="violet">Handled by AI</Pill>}
-              </div>
-            </article>
+          }>
+          {rows.length ? (
+            <div className="ba-table-wrap">
+              <table className="ba-table static td-table">
+                <thead><tr>
+                  <th>Time</th><th>{term("customer")}</th>{showGuests && <th>{term("customers")}</th>}{showStaff && <th>{term("staff")}</th>}
+                  <th>Status</th><th>Notes</th><th><span className="ba-sr">Actions</span></th>
+                </tr></thead>
+                <tbody>
+                  {rows.map((a) => {
+                    const [stageLabel, tone] = STAGE[a.stage];
+                    const [src, srcIcon] = SOURCE[a.customer?.source] ?? (a.customer?.source ? [a.customer.source, "more_horiz"] : ["—", null]);
+                    const busy = working === `appt-${a.id}`;
+                    const mins = minutes(a);
+                    return (
+                      <tr key={a.id}>
+                        <td className="td-time">{formatTime(a.start_time, tz)}{mins ? <small>{mins} min</small> : null}</td>
+                        <td>{person(a.customer?.id, personName(a.customer) ?? a.title)}
+                          <small className="td-sub">{srcIcon && <Icon name={srcIcon} size="sm" />} {src !== "—" ? src : ""}{src !== "—" && personName(a.customer) && a.title ? " · " : ""}{personName(a.customer) ? a.title : ""}</small></td>
+                        {showGuests && <td>{a.party_size ?? "—"}</td>}
+                        {showStaff && <td>{data.staff[a.staff_id] ?? "—"}</td>}
+                        <td><Pill tone={tone}>{stageLabel}</Pill>{a.booking_state === "requested" && <small className="td-sub">Request, not booked</small>}</td>
+                        <td className="td-notes">{a.description || a.internal_notes || a.location || ""}</td>
+                        <td>
+                          <div className="td-actions">
+                            {a.customer?.phone && <a className="ba-btn ghost sm" href={`tel:${a.customer.phone}`} aria-label={`Call ${personName(a.customer) ?? ""}`} title="Call"><Icon name="call" size="sm" /></a>}
+                            {/* Up to four actions, by state: upcoming = confirm, arrived, reschedule; late = arrived, no-show;
+                                arrived = completed, undo. */}
+                            {a.stage === "upcoming" && a.status === "scheduled" && <button type="button" className="ba-btn ghost sm" disabled={busy} onClick={() => setStatus(a, "confirmed", `${oneBooking} confirmed.`)} title="Confirm" aria-label="Confirm"><Icon name="check" size="sm" /></button>}
+                            {["upcoming", "late"].includes(a.stage) && <button type="button" className="ba-btn ghost sm" disabled={busy} onClick={() => checkIn(a)} title={cfg.arrived} aria-label={`Mark ${cfg.arrived.toLowerCase()}`}><Icon name="how_to_reg" size="sm" /></button>}
+                            {a.stage === "upcoming" && <button type="button" className="ba-btn ghost sm" disabled={busy} onClick={() => setMoving(a)} title="Reschedule" aria-label="Reschedule"><Icon name="event_repeat" size="sm" /></button>}
+                            {a.stage === "late" && <button type="button" className="ba-btn ghost sm" disabled={busy} onClick={() => markNoShow(a)} title="No-show" aria-label="Mark no-show"><Icon name="person_off" size="sm" /></button>}
+                            {a.stage === "arrived" && <button type="button" className="ba-btn ghost sm" disabled={busy} onClick={() => setStatus(a, "completed", `${oneBooking} completed.`)} title="Mark completed" aria-label="Mark completed"><Icon name="task_alt" size="sm" /></button>}
+                            {a.stage === "arrived" && a.checked_in_at && <button type="button" className="ba-btn ghost sm" disabled={busy} onClick={() => checkIn(a)} title="Undo" aria-label={`Undo ${cfg.arrived.toLowerCase()}`}><Icon name="undo" size="sm" /></button>}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           ) : (
-            <Empty>{loading && !data ? "Loading..." : "No calls yet. Your receptionist's calls and summaries will appear here."}</Empty>
+            <Empty title={loading && !data ? "Loading…" : `No ${bookingWord.toLowerCase()} ${tab === "all" ? dayLabel : "here"}`}>
+              {!loading && tab === "all" && `Book one with New ${oneBooking.toLowerCase()}.`}
+            </Empty>
           )}
+        </Card>
 
-          <div className="ba-section-label">Automations</div>
-          {data?.automations?.length ? data.automations.map((a) => (
-            <div key={a.id} className="ba-status-row">
-              <span>{a.name}</span>
-              <Pill tone={a.status === "active" ? "success" : "warning"} dot={a.status === "active"}>
-                {a.status === "active" ? "Running" : "Paused"}
-              </Pill>
-            </div>
-          )) : (
-            <Empty>{loading && !data ? "Loading..." : "No automations turned on."}</Empty>
+        <Card title="AI Receptionist Activity" action={<Pill tone={agent.tone} dot={agent.live} pulse={agent.live}>{agent.live ? "Live" : agent.label}</Pill>}>
+          {data?.activity.length ? (
+            <ul className="td-feed">
+              {data.activity.map((x) => {
+                const who = personName(x.customer) ?? x.from_number ?? "a caller";
+                const [icon, tone, text, sub] = x.kind === "message"
+                  ? ["sms", "violet", `Replied by ${x.channel === "email" ? "email" : "text"} to ${who}`, x.subject]
+                  : x.status === "missed" ? ["phone_missed", "rose", `Missed call from ${who}`, x.metadata?.followed_up_at ? "Followed up" : "Waiting for a call back"]
+                    : x.needs_human ? ["support_agent", "amber", `Handed ${who} to a person`, x.summary]
+                      : ["call", "green", `${x.ai_handled ? "Answered" : "Call with"} ${who}`, x.summary || x.outcome];
+                return (
+                  <li key={`${x.kind}-${x.id}`}>
+                    <span className={`ba-kpi-icon ${tone}`}><Icon name={icon} size="sm" /></span>
+                    <div><strong>{text}</strong>{sub && <small>{String(sub).slice(0, 90)}</small>}</div>
+                    <time>{timeAgo(x.at)}</time>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <Empty title={loading && !data ? "Loading…" : "No activity yet"}>{!loading && (agent.live ? "Calls and messages your receptionist handles appear here." : "Starts once your AI receptionist is live.")}</Empty>
           )}
-        </Panel>
-      </div>
+        </Card>
 
-      <div className="ba-strip">
-        <span className={agent.live ? "ok" : "off"}><Icon name="smart_toy" size="sm" /><strong>AI receptionist:</strong> {agent.label}</span>
-        <span className={workspace.phone_connected ? "ok" : "off"}><Icon name="call" size="sm" /><strong>Phone:</strong> {workspace.phone_connected ? "Connected" : "Not connected"}</span>
-        <span><Icon name="schedule" size="sm" /><strong>Updated:</strong> {data ? timeAgo(data.loadedAt) : "—"}</span>
+        {opsTypes.map((t) => {
+          const recs = (data?.records ?? []).filter((r) => r.type_key === t.key).slice(0, 5);
+          return (
+            <Card key={t.key} title={t.plural} action={<button type="button" className="ba-btn sm" onClick={() => onGo(`rec:${t.key}`)}>View all</button>}>
+              {recs.length ? (
+                <ul className="td-list">
+                  {recs.map((r) => (
+                    <li key={r.id}>
+                      <div><strong>{r.title}</strong><small>{personName(r.customer) ?? (r.due_at ? `Due ${formatLongDate(r.due_at, tz)}` : `Updated ${timeAgo(r.updated_at)}`)}</small></div>
+                      <Pill>{String(r.status).replace(/_/g, " ")}</Pill>
+                    </li>
+                  ))}
+                </ul>
+              ) : <Empty title={loading && !data ? "Loading…" : `No open ${t.plural.toLowerCase()}`} />}
+            </Card>
+          );
+        })}
+
+        <Card title={`Top ${term("customers").toLowerCase()}`} action={<button type="button" className="ba-btn sm" onClick={() => onGo("customers")}>View all</button>}>
+          {data?.top.length ? (
+            <ul className="td-list">
+              {data.top.map((t, n) => (
+                <li key={t.id}>
+                  <span className="ba-avatar">{(personName(t.customer) ?? "?").split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase()}</span>
+                  <div>{person(t.id, personName(t.customer) ?? "Unnamed")}<small>{t.visits} {t.visits === 1 ? "visit" : "visits"} in 90 days</small></div>
+                  {n < 2 && <Icon name="workspace_premium" size="sm" className="td-star" />}
+                </li>
+              ))}
+            </ul>
+          ) : <Empty title={loading && !data ? "Loading…" : "No completed visits yet"}>{!loading && `Ranked by completed ${bookingWord.toLowerCase()} in the last 90 days.`}</Empty>}
+        </Card>
+
+        <Card title="Tasks & Follow-ups" action={<button type="button" className="ba-btn sm" onClick={() => onGo("tasks")}>View all</button>}>
+          {data?.tasks.length ? (
+            <ul className="td-list">
+              {data.tasks.map((t) => {
+                const overdue = t.due_at && new Date(t.due_at).getTime() < now;
+                return (
+                  <li key={t.id}>
+                    <input type="checkbox" aria-label={`Mark "${t.title}" done`} disabled={working === `task-${t.id}`} onChange={() => completeTask(t)} />
+                    <div><strong>{t.title}</strong><small>{personName(t.customer) ?? t.body ?? ""}</small></div>
+                    <div className="td-right">
+                      {t.priority && t.priority !== "normal" && <Pill tone={PRIORITY_TONE[t.priority]}>{t.priority === "urgent" ? "Urgent" : "High"}</Pill>}
+                      {t.due_at && <small className={overdue ? "td-overdue" : ""}>{overdue ? "Overdue" : `Due ${formatTime(t.due_at, tz)}`}</small>}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : <Empty title={loading && !data ? "Loading…" : "Nothing to follow up"}>{!loading && "Tasks from calls, leads and your team appear here."}</Empty>}
+        </Card>
+
+        <Card title={`Upcoming ${bookingWord.toLowerCase()}`} action={<button type="button" className="ba-btn sm" onClick={() => onGo("calendar")}>View all</button>}>
+          {data?.upcoming.length ? (
+            <ul className="td-list">
+              {data.upcoming.map((a) => (
+                <li key={a.id}>
+                  <span className="ba-kpi-icon rose"><Icon name="event" size="sm" /></span>
+                  <div><strong>{personName(a.customer) ?? a.title}</strong><small>{formatLongDate(a.start_time, tz)} · {formatTime(a.start_time, tz)}{a.party_size ? ` · ${a.party_size} ${term("customers").toLowerCase()}` : ""}</small></div>
+                </li>
+              ))}
+            </ul>
+          ) : <Empty title={loading && !data ? "Loading…" : "Nothing in the next 7 days"} />}
+        </Card>
+
+        {cfg.connect.map((key) => {
+          const c = CONNECT[key];
+          return (
+            <Card key={key} title={c.title} className="td-connect">
+              <div className="td-connect-body">
+                <span className="ba-kpi-icon indigo"><Icon name={c.icon} /></span>
+                <p>{c.text}</p>
+                {key === "reviews" && <button type="button" className="ba-btn sm" onClick={() => onGo("settings/messages/reviews")}>Review link</button>}
+                {key === "tables" && operations.some((t) => t.key === "tables" && t.enabled) && <button type="button" className="ba-btn sm" onClick={() => onGo("rec:tables")}>Open tables</button>}
+                {key !== "reviews" && key !== "tables" && <button type="button" className="ba-btn sm" onClick={() => onGo("integrations")}>Integrations</button>}
+              </div>
+            </Card>
+          );
+        })}
       </div>
 
       {moving && (
-        <RescheduleModal
-          workspace={workspace}
-          term={term}
-          appt={moving}
-          person={moving.customer}
-          onClose={() => setMoving(null)}
-          onSaved={(message) => { setMoving(null); onNotice(message); load(); }}
-        />
+        <RescheduleModal workspace={workspace} term={term} appt={moving} person={moving.customer}
+          onClose={() => setMoving(null)} onSaved={(message) => { setMoving(null); onNotice(message); load(); }} />
       )}
     </>
   );
