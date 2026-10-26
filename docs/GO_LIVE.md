@@ -94,3 +94,33 @@ Applied live and saved in the repo: `sql/zella_offers.sql`, `sql/zella_admin_ale
 5. **Unavailable until their connections exist** (shown as Unavailable in the dashboard, cannot be switched on): checkout and sign-up offers, introductory price renewal, referral rewards, win-back, promotional emails (sending is switched off by the owner).
 6. **Not built:** AI-written offer descriptions and campaign recommendations (needs the Anthropic key and a new workflow), impression tracking, a public pricing page.
 7. Tested inside the database in rolled-back transactions: approvals and second-owner rule, duplicate codes, limits, per-business limits, idempotency, pause/resume, end now, scheduled start, expiry, unpaid-claim release, payment confirmation, refund reversal, time zones, permissions. Simultaneous claims are protected by a row lock but were not load-tested.
+
+## Security, settings and navigation fixes (2026-10-26, branch `production-fixes`)
+
+Nothing here has been applied to the live project. Do the steps in this order.
+
+1. **Back up first.** Supabase > Database > Backups: make sure a recent backup or point-in-time recovery exists.
+2. **SQL, in this order** (each file explains itself at the top; none changes or deletes data):
+   `zella_role_check_hardening.sql`, `zella_call_writes.sql` (section 1 only), `zella_staff_invite_binding.sql`, `zella_business_settings.sql`.
+3. **Edge function secret:** `ZELLA_SERVER_SECRET_KEY` must be set (Settings > Platform configuration shows it). `billing-webhook` and `website-lead` now use it instead of `SUPABASE_SERVICE_ROLE_KEY`, like the other functions.
+4. **Deploy the functions** from the `web` folder. `config.toml` now marks the public ones, so plain deploys are safe:
+   ```
+   npx supabase functions deploy owner-provision-business continue-plan reschedule-appointment website-lead billing-webhook staff-invite --project-ref pffqxlumqhjdbzvvoszm
+   ```
+   `staff-invite` is new: it emails team invitations made in the business app. Before this, those invitations were saved but never sent.
+5. **Hosting:** every path must serve `index.html` (pages now live in the address bar, e.g. `/app/settings/hours`, `/businesses/<id>`). The existing `/app`, `/r/...` and `/w/...` links already need this.
+6. **Check in a browser** (signed in as an owner, then as a staff member):
+   - Mark a missed call as followed up, flag a call for a human, mark it handled.
+   - Invite a team member from Team access. They get the email, set a password, and see the workspace.
+   - Settings > Business profile, Hours & holidays, My account, Notifications: save, refresh, and check the values stay.
+   - Refresh on a few pages; Back and Forward; open an unknown address.
+7. **Then lock recordings and transcripts** (section 2 of `zella_call_writes.sql`, by hand):
+   ```sql
+   revoke insert, update, delete on public.calls from authenticated;
+   select public.zella_lock_call_columns();
+   ```
+8. **At go-live:**
+   - Set `ZELLA_ALLOWED_ORIGINS` to the app's address(es), e.g. `https://app.yourdomain.com`. Until then any website may call the browser-facing functions. Each one still checks a sign-in or a private link code.
+   - In Supabase > Authentication, decide on public sign-up. Zella onboards businesses by invitation, so either turn sign-ups off or keep email confirmation on. The repo's `config.toml` (local only) has sign-ups on and confirmation off.
+   - Add the Resend signing secret (step 2 of the n8n list above).
+9. **Recover the base schema** into `sql/000_base_schema.sql` (see `docs/SCHEMA_STATUS.md`) and run the read-only checks there.
