@@ -1326,7 +1326,10 @@
 .ba-ev.conflict { background: var(--ba-warning-bg); }
 .ba-ev.dragging { opacity: 0.35; cursor: grabbing; }
 .ba-ev.ghost { left: 2px; right: 2px; z-index: 4; border-color: var(--ba-primary); background: var(--ba-primary-soft); pointer-events: none; }
-.ba-ev-time { display: flex; align-items: center; gap: 3px; color: var(--ba-primary); font-weight: 650; }
+.ba-ev-time { display: flex; align-items: center; gap: 3px; min-width: 0; color: var(--ba-primary); font-weight: 650; white-space: nowrap; }
+.ba-ev-time b { flex-shrink: 0; font-weight: inherit; }
+.ba-ev-time .ba-icon { flex-shrink: 0; }
+.ba-ev-len { overflow: hidden; min-width: 0; font-weight: 500; text-overflow: clip; }
 .ba-ev-title { overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .ba-ev-who { overflow: hidden; color: var(--ba-muted); text-overflow: ellipsis; white-space: nowrap; }
 .ba-tg-block { position: absolute; left: 0; right: 0; z-index: 0; display: flex; align-items: flex-start; gap: 4px; overflow: hidden; padding: 3px 6px; border: 0; background: repeating-linear-gradient(135deg, var(--ba-subtle), var(--ba-subtle) 6px, var(--ba-alt) 6px, var(--ba-alt) 12px); color: var(--ba-text-2); font: inherit; font-size: 11px; text-align: left; cursor: pointer; }
@@ -1669,4 +1672,60 @@
   .td-kpi { padding: 12px; gap: 10px; }
   .td-kpi > .ba-kpi-icon { width: 36px; height: 36px; }
   .td-kpi .ba-kpi-value { font-size: 24px; }
+}
+
+/* ---------- Calendar (BusinessPages.jsx CalendarPage) ---------- */
+.cal-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+.cal-toolbar .cal-search { width: min(320px, 100%); }
+.cal-grow { flex: 1; }
+.cal-toolbar .ba-btn.active { border-color: var(--ba-primary); color: var(--ba-primary); }
+.cal-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 12px; padding: 12px 14px; border: 1px solid var(--ba-border); border-radius: var(--ba-radius-md); background: var(--ba-surface); }
+.cal-filters .td-tabs { padding: 0; }
+.cal-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 14px; }
+.cal-stat { display: flex; align-items: center; gap: 12px; padding: 12px 14px; }
+.cal-stat > div { display: flex; flex-direction: column; min-width: 0; }
+.cal-stat span:not(.ba-kpi-icon) { color: var(--ba-muted); font-size: 12.5px; }
+.cal-stat strong { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.cal-agenda { display: flex; flex-direction: column; gap: 12px; }
+.cal-agenda-day h3 { margin: 0; padding: 12px 16px; border-bottom: 1px solid var(--ba-border); font-size: 14px; font-weight: 600; }
+.cal-agenda-day ul { margin: 0; padding: 0; list-style: none; }
+.cal-agenda-day li + li { border-top: 1px solid var(--ba-border); }
+.cal-agenda-row { width: 100%; display: flex; align-items: center; gap: 14px; padding: 10px 16px; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.cal-agenda-row:hover, .cal-agenda-row:focus-visible { background: var(--ba-alt); }
+.cal-agenda-time { width: 72px; flex-shrink: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+.cal-agenda-time small, .cal-agenda-main small { display: block; color: var(--ba-muted); font-size: 12px; font-weight: 400; }
+.cal-agenda-main { flex: 1; min-width: 0; }
+.cal-agenda-main strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; }
+.cal-ai { color: var(--ba-primary); }
+
+/* Booking side panel (BookingPanel.jsx) */
+.bp-backdrop { position: fixed; inset: 0; z-index: 90; display: flex; justify-content: flex-end; background: var(--zella-overlay); }
+.bp-panel { width: min(460px, 100%); height: 100%; display: flex; flex-direction: column; border-left: 1px solid var(--ba-border); background: var(--ba-surface); box-shadow: var(--ba-shadow-pop); outline: none; animation: bp-in 0.2s ease-out; }
+@keyframes bp-in { from { transform: translateX(24px); opacity: 0.6; } to { transform: none; opacity: 1; } }
+.bp-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 18px 20px 14px; border-bottom: 1px solid var(--ba-border); }
+.bp-head small { color: var(--ba-muted); font-size: 11.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+.bp-head h2 { margin: 4px 0 2px; font-size: 19px; font-weight: 600; }
+.bp-head p { margin: 0; color: var(--ba-muted); font-size: 13px; }
+.bp-body { flex: 1; overflow-y: auto; padding: 6px 20px 16px; }
+.bp-section { padding: 14px 0; border-bottom: 1px solid var(--ba-border); }
+.bp-section:last-child { border-bottom: 0; }
+.bp-section h3 { margin: 0 0 10px; color: var(--ba-muted); font-size: 11.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+.bp-rows { display: grid; gap: 8px; margin: 0 0 10px; }
+.bp-row { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 10px; font-size: 13px; }
+.bp-row dt { color: var(--ba-muted); }
+.bp-row dd { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; color: var(--ba-text); overflow-wrap: anywhere; }
+.bp-notes { margin: 0 0 10px; padding: 10px 12px; border-radius: var(--ba-radius-sm); background: var(--ba-alt); font-size: 13px; }
+.bp-feed { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.bp-feed li { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; }
+.bp-feed li .ba-icon { color: var(--ba-muted); margin-top: 1px; }
+.bp-feed li > span:not(.ba-icon) { flex: 1; min-width: 0; color: var(--ba-text-2); }
+.bp-feed time { flex-shrink: 0; color: var(--ba-faint); font-size: 11.5px; }
+.bp-request { flex-direction: column; align-items: stretch; }
+.bp-edit .ba-form-actions { margin-top: 10px; display: flex; justify-content: flex-end; gap: 8px; }
+.bp-foot { display: flex; flex-wrap: wrap; gap: 8px; padding: 14px 20px; border-top: 1px solid var(--ba-border); background: var(--ba-alt); }
+@media (max-width: 760px) {
+  .bp-panel { width: 100%; }
+  .bp-row { grid-template-columns: 110px minmax(0, 1fr); }
+  .cal-toolbar .cal-search { width: 100%; }
 }

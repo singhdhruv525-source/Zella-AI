@@ -87,7 +87,7 @@ export function orThrow(result) {
 export async function loadPeople(ids) {
   const unique = [...new Set(ids.filter(Boolean))];
   if (!unique.length) return {};
-  const rows = orThrow(await supabase.from("customers").select("id, first_name, last_name, company_name, phone, email, do_not_contact, do_not_call, do_not_sms, do_not_email").in("id", unique));
+  const rows = orThrow(await supabase.from("customers").select("id, first_name, last_name, company_name, phone, email, address, do_not_contact, do_not_call, do_not_sms, do_not_email").in("id", unique));
   return Object.fromEntries(rows.map((p) => [p.id, p]));
 }
 

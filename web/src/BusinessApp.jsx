@@ -333,7 +333,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
           )}
           {current.key === "leads" && <LeadsPage workspace={workspace} query={search} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} />}
           {current.key === "customers" && <CustomersPage workspace={workspace} query={search} refreshKey={refreshKey} onOpenPerson={openPerson} />}
-          {current.key === "calendar" && <CalendarPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} />}
+          {current.key === "calendar" && <CalendarPage workspace={workspace} industry={nav.data?.industry?.slug} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} />}
           {current.key === "calls" && <CallsPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} />}
           {current.key === "transcripts" && <CallsPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} transcriptsOnly />}
           {current.key === "messages" && <MessagesPage workspace={workspace} refreshKey={refreshKey} onOpenPerson={openPerson} />}

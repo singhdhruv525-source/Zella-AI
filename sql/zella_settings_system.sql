@@ -414,7 +414,7 @@ alter table public.legal_acceptances enable row level security;
 revoke all on public.legal_acceptances from anon, authenticated;
 drop policy if exists legal_acceptances_read on public.legal_acceptances;
 create policy legal_acceptances_read on public.legal_acceptances for select to authenticated
-  using (user_id = auth.uid() or (business_id is not null and public.zella_has_role(business_id, array['owner', 'admin'])));
+  using (user_id = (select auth.uid()) or (business_id is not null and public.zella_has_role(business_id, array['owner', 'admin'])));
 grant select on public.legal_acceptances to authenticated;
 
 -- A person accepts for themselves (and, as owner/admin, on behalf of their business). Never done automatically.

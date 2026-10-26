@@ -2,16 +2,17 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "./supabase";
 import { Field, Icon, Modal, Pill, initials, personName } from "./BusinessUI";
 import { makeTerm, receptionistState } from "./businessWorkspace";
-import { dayRange, formatDay, formatLongDate, formatTime, timeAgo, todayInput, zonedDateTime } from "./businessTime";
+import { dayRange, formatDay, formatLongDate, formatTime, timeAgo, zonedDateTime } from "./businessTime";
 import {
   APPT_LABEL, APPT_TONE, Empty, Notice, PAGE_SIZE, PageHead, Pager, Segment, clock, friendly, loadPeople,
-  availabilityAt, explain, findConflict, noShowNotice, orThrow, plural, setCheckIn, sourceLabel, useLoad,
+  availabilityAt, findConflict, orThrow, sourceLabel, useLoad,
 } from "./BusinessShared";
-import { EscalationControls, Transcript, isOpenEscalation } from "./BusinessProfile";
-import { AddCustomerModal, BookAppointmentModal, RescheduleModal } from "./BusinessForms";
+import { AddCustomerModal, BookAppointmentModal } from "./BusinessForms";
 import { MonthGrid, TimeGrid, clockText, dayInfo, minutesInto } from "./BusinessCalendar";
 import { ActivationCard } from "./BusinessWork";
 import { ReceptionistEditor } from "./BusinessReceptionist";
+import { BookingPanel } from "./BookingPanel";
+import { todayConfig } from "./todayConfig";
 
 // The rest of the business app: Leads, People (Patients / Customers / Clients…),
 // Calendar, Calls, Messages, AI Receptionist, Automations, Team and Settings.
@@ -161,123 +162,6 @@ export const CustomersPage = (props) => <PeoplePage mode="customers" {...props} 
 /* Calendar                                                            */
 /* ------------------------------------------------------------------ */
 
-function AppointmentDetail({ workspace, appt, person, tz, term, onClose, onChanged, onNotice, onOpenPerson }) {
-  const [moving, setMoving] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [confirmForm, setConfirmForm] = useState({ date: todayInput(tz), time: "09:00", minutes: "30" });
-  const requested = appt.booking_state === "requested";
-  const tentative = appt.booking_state === "tentative";
-
-  // A request is not a booking: the schedule must accept the time first.
-  async function confirmRequest(event) {
-    event.preventDefault();
-    setBusy(true);
-    setError("");
-    const { error: rpcError } = await supabase.rpc("zella_confirm_requested_appointment", {
-      p_appointment_id: appt.id, p_start: zonedDateTime(confirmForm.date, confirmForm.time, tz).toISOString(), p_duration_minutes: Number(confirmForm.minutes) || 30, p_staff_id: null,
-    });
-    setBusy(false);
-    if (rpcError) return setError(explain(rpcError));
-    onNotice("Booking confirmed. Reminders are set.");
-    onChanged();
-  }
-
-  async function setStatus(status) {
-    setBusy(true);
-    setError("");
-    const { error: updateError } = await supabase.from("appointments").update({ status, updated_at: new Date().toISOString() }).eq("id", appt.id);
-    setBusy(false);
-    if (updateError) return setError(friendly(updateError));
-    onNotice(status === "no_show"
-      ? await noShowNotice(appt.id, personName(person) ?? appt.title, tz)
-      : `${appt.title} marked ${APPT_LABEL[status].toLowerCase()}.`);
-    onChanged();
-  }
-
-  async function toggleCheckIn() {
-    setBusy(true);
-    setError("");
-    const { error: updateError } = await setCheckIn(appt.id, !appt.checked_in_at);
-    setBusy(false);
-    if (updateError) return setError(friendly(updateError));
-    onNotice(appt.checked_in_at ? "Check-in undone." : `${personName(person) ?? "Guest"} checked in.`);
-    onChanged();
-  }
-
-  const name = personName(person);
-  const active = ["scheduled", "confirmed"].includes(appt.status) && !requested;
-  const next = ["confirmed", "completed", "no_show", "cancelled"].filter((s) => s !== appt.status);
-  return (
-    <>
-    <Modal
-      title={appt.title}
-      description={`${formatLongDate(appt.start_time, tz)} · ${formatTime(appt.start_time, tz)} to ${formatTime(appt.end_time, tz)}`}
-      onClose={onClose}
-      busy={busy}
-      footer={
-        <>
-          {active && (
-            <button type="button" className="ba-btn primary" disabled={busy} onClick={toggleCheckIn}>
-              <Icon name={appt.checked_in_at ? "undo" : "how_to_reg"} size="sm" />{appt.checked_in_at ? "Undo check-in" : "Check in"}
-            </button>
-          )}
-          {["scheduled", "confirmed", "no_show"].includes(appt.status) && !requested && (
-            <button type="button" className="ba-btn" disabled={busy} onClick={() => setMoving(true)}><Icon name="event_repeat" size="sm" />Reschedule</button>
-          )}
-          {next.map((s) => (
-            <button key={s} type="button" className={`ba-btn ${s === "cancelled" || s === "no_show" ? "danger-outline" : ""}`} disabled={busy} onClick={() => setStatus(s)}>
-              {s === "confirmed" ? "Confirm" : s === "completed" ? "Mark done" : s === "no_show" ? "No-show" : "Cancel"}
-            </button>
-          ))}
-        </>
-      }
-    >
-      <div className="ba-detail">
-        {error && <div className="ba-banner error">{error}</div>}
-        {appt.conflict_note && <div className="ba-banner error"><span><strong>Needs rearranging.</strong> {appt.conflict_note} Reschedule it, or check your Tasks for suggested times.</span></div>}
-        {tentative && <div className="ba-banner"><span><strong>Held, not confirmed.</strong> This time is held until {formatTime(appt.hold_expires_at, tz)} while the customer decides.</span></div>}
-        {requested && (
-          <form className="ba-banner" onSubmit={confirmRequest}>
-            <span><strong>Requested, not booked.</strong> Zella couldn't confirm a time. Pick one to book it.</span>
-            <span className="ba-inline-form">
-              <input type="date" min={todayInput(tz)} value={confirmForm.date} onChange={(e) => setConfirmForm({ ...confirmForm, date: e.target.value })} aria-label="Day" />
-              <input type="time" step="300" value={confirmForm.time} onChange={(e) => setConfirmForm({ ...confirmForm, time: e.target.value })} aria-label="Time" />
-              <select value={confirmForm.minutes} onChange={(e) => setConfirmForm({ ...confirmForm, minutes: e.target.value })} aria-label="Length">
-                {["15", "30", "45", "60", "90", "120"].map((m) => <option key={m} value={m}>{m} min</option>)}
-              </select>
-              <button type="submit" className="ba-btn primary sm" disabled={busy}>Confirm booking</button>
-            </span>
-          </form>
-        )}
-        <dl className="ba-facts">
-          {appt.original_start_time && <div><dt>Moved from</dt><dd>{formatLongDate(appt.original_start_time, tz)} · {formatTime(appt.original_start_time, tz)}{appt.reschedule_requested_by ? ` · asked by ${appt.reschedule_requested_by === "ai" ? "Zella" : appt.reschedule_requested_by}` : ""}</dd></div>}
-          <div><dt>Status</dt><dd><Pill tone={APPT_TONE[appt.status]}>{APPT_LABEL[appt.status] ?? appt.status}</Pill>{requested && <Pill tone="warning">Requested</Pill>}{tentative && <Pill tone="warning">Held</Pill>}</dd></div>
-          <div><dt>Check-in</dt><dd>{appt.checked_in_at ? <Pill tone="success">Arrived {formatTime(appt.checked_in_at, tz)}</Pill> : "Not arrived"}</dd></div>
-          <div>
-            <dt>{term("customer")}</dt>
-            <dd>{name ? <button type="button" className="ba-namebtn" onClick={() => onOpenPerson(person.id)}>{name}</button> : "Not linked"}</dd>
-          </div>
-          <div><dt>Phone</dt><dd>{person?.phone ? <a className="ba-link" href={`tel:${person.phone}`}>{person.phone}</a> : "—"}</dd></div>
-          <div><dt>Where</dt><dd>{appt.location ?? "—"}</dd></div>
-        </dl>
-        {appt.description && <p className="ba-note pre">{appt.description}</p>}
-      </div>
-    </Modal>
-    {moving && (
-      <RescheduleModal
-        workspace={workspace}
-        term={term}
-        appt={appt}
-        person={person}
-        onClose={() => setMoving(false)}
-        onSaved={(message) => { onNotice(message); onChanged(); }}
-      />
-    )}
-    </>
-  );
-}
-
 const BLOCK_REASONS = ["Lunch break", "Time off", "Holiday", "Training", "Meeting", "Closed", "Other"];
 
 export function BlockTimeModal({ workspace, staff = [], defaultStaffId = "", defaultDate, onClose, onSaved }) {
@@ -385,9 +269,74 @@ function BlockDetail({ block, who, tz, onClose, onChanged, onNotice }) {
   );
 }
 
-const VIEWS = [["day", "Day"], ["week", "Week"], ["month", "Month"]];
+const VIEWS = [["day", "Day"], ["week", "Week"], ["month", "Month"], ["agenda", "Agenda"], ["staff", "Staff"]];
+const AGENDA_DAYS = 14;
+// Filters by where a booking stands. "Awaiting" = not confirmed yet (scheduled, held or requested).
+const STATUS_FILTERS = [["all", "All"], ["awaiting", "Awaiting confirmation"], ["confirmed", "Confirmed"], ["completed", "Completed"], ["cancelled", "Cancelled or no-show"]];
+const awaiting = (x) => x.status === "scheduled" || x.booking_state === "requested" || x.booking_state === "tentative";
+const matchesStatus = (x, f) => f === "all" || (f === "awaiting" ? awaiting(x) && x.status !== "cancelled"
+  : f === "cancelled" ? ["cancelled", "no_show"].includes(x.status) : x.status === f);
 
-export function CalendarPage({ workspace, refreshKey, onNotice, onOpenPerson }) {
+// Compact counts for the period on screen. The extra card follows the industry: expected guests where bookings have
+// party sizes (restaurants, hotels), unassigned bookings where work is assigned to a team (field services).
+function CalendarSummary({ appts, staff, cfg, term, period, loading }) {
+  const live = appts.filter((x) => x.status !== "cancelled" && x.status !== "no_show");
+  const cards = [
+    ["event", "rose", `${term("appointments")} ${period}`, live.length],
+    ["check_circle", "green", "Confirmed", appts.filter((x) => x.status === "confirmed").length],
+    ["pending", "amber", "Awaiting confirmation", appts.filter((x) => awaiting(x) && x.status !== "cancelled").length],
+    ["event_busy", "", "Cancelled", appts.filter((x) => x.status === "cancelled" || x.status === "no_show").length],
+  ];
+  if (cfg.guests) cards.push(["groups", "indigo", `Expected ${term("customers").toLowerCase()}`, live.reduce((n, x) => n + (x.party_size ?? 0), 0)]);
+  else if (cfg.arrived === "On site" && staff.length) cards.push(["person_alert", "blue", "Unassigned", live.filter((x) => !x.staff_id).length]);
+  return (
+    <div className="cal-summary">
+      {cards.map(([icon, tone, label, value]) => (
+        <div key={label} className="ba-kpi cal-stat">
+          <span className={`ba-kpi-icon ${tone}`}><Icon name={icon} size="sm" /></span>
+          <div><span>{label}</span><strong>{loading ? "…" : value}</strong></div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Agenda: bookings in time order, grouped by day.
+function AgendaList({ days, appts, people, staffName, tz, term, cfg, onOpen }) {
+  const groups = days.map((d) => ({ d, list: appts.filter((x) => { const t = new Date(x.start_time); return t >= d.start && t < d.end; }) })).filter((g) => g.list.length);
+  if (!groups.length) return <Empty title={`No ${term("appointments").toLowerCase()} in these ${AGENDA_DAYS} days`}>Use New {term("appointment").toLowerCase()} to add one.</Empty>;
+  return (
+    <div className="cal-agenda">
+      {groups.map(({ d, list }) => (
+        <section key={d.dateStr} className="ba-panel cal-agenda-day">
+          <h3>{formatLongDate(d.start, tz)}</h3>
+          <ul>
+            {list.map((x) => {
+              const who = personName(people[x.customer_id]);
+              const len = x.end_time ? Math.round((new Date(x.end_time) - new Date(x.start_time)) / 60000) : null;
+              const state = x.booking_state === "requested" ? ["Requested", "warning"] : x.booking_state === "tentative" ? ["Held", "warning"] : [APPT_LABEL[x.status] ?? x.status, APPT_TONE[x.status]];
+              return (
+                <li key={x.id}>
+                  <button type="button" className="cal-agenda-row" onClick={() => onOpen(x)}>
+                    <span className="cal-agenda-time">{formatTime(x.start_time, tz)}{len ? <small>{len} min</small> : null}</span>
+                    <span className="cal-agenda-main">
+                      <strong>{who ?? x.title}</strong>
+                      <small>{[who ? x.title : null, x.appointment_type, x.staff_id ? staffName[x.staff_id] : null, cfg.guests && x.party_size ? `${x.party_size} ${term("customers").toLowerCase()}` : null].filter(Boolean).join(" · ")}</small>
+                    </span>
+                    {["zella", "ai_receptionist"].includes(x.metadata?.source) && <Icon name="smart_toy" size="sm" className="cal-ai" />}
+                    <Pill tone={state[1]}>{state[0]}</Pill>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+export function CalendarPage({ workspace, industry, refreshKey, onNotice, onOpenPerson }) {
   const tz = workspace.timezone;
   const term = makeTerm(workspace);
   const [view, setView] = useState("week");
@@ -399,10 +348,15 @@ export function CalendarPage({ workspace, refreshKey, onNotice, onOpenPerson }) 
   const [pending, setPending] = useState(null); // a drag that needs "Move anyway?"
   const [moving, setMoving] = useState(false);
   const [who, setWho] = useState("all");
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const cfg = todayConfig(industry);
 
   const a = useMemo(() => dayInfo(dayRange, tz, anchor), [tz, anchor]);
   const { first, count, month } = useMemo(() => {
-    if (view === "day") return { first: anchor, count: 1, month: a.m };
+    if (view === "day" || view === "staff") return { first: anchor, count: 1, month: a.m };
+    if (view === "agenda") return { first: anchor, count: AGENDA_DAYS, month: a.m };
     if (view === "week") return { first: anchor - a.dow, count: 7, month: a.m };
     const monthStart = anchor - (a.d - 1);
     const dow = dayInfo(dayRange, tz, monthStart).dow;
@@ -431,7 +385,10 @@ export function CalendarPage({ workspace, refreshKey, onNotice, onOpenPerson }) 
   const staff = data?.staff ?? [];
   const staffName = Object.fromEntries(staff.map((m) => [m.id, m.name]));
   const people = data?.people ?? {};
-  const appts = (data?.appts ?? []).filter((x) => who === "all" || x.staff_id === who);
+  const q = query.trim().toLowerCase();
+  const matchesQuery = (x) => !q || [personName(people[x.customer_id]), people[x.customer_id]?.phone, x.title, x.appointment_type, x.location]
+    .some((v) => String(v ?? "").toLowerCase().includes(q));
+  const appts = (data?.appts ?? []).filter((x) => (who === "all" || x.staff_id === who) && matchesStatus(x, statusFilter) && matchesQuery(x));
   const blocks = (data?.blocks ?? []).filter((b) => who === "all" || !b.staff_id || b.staff_id === who);
   const inDay = (list, d) => list.filter((x) => {
     const t = new Date(x.start_time).getTime();
@@ -453,6 +410,7 @@ export function CalendarPage({ workspace, refreshKey, onNotice, onOpenPerson }) 
     const d = days[0];
     const today = d.start.getTime() === todayStart;
     const dayAppts = inDay(appts, d);
+    if (view === "day" || !staff.length) return [{ key: "all", title: who === "all" ? "Everyone" : staffName[who] ?? "Everyone", dayStart: d.start, today, staffId: undefined, appts: dayAppts, blocks: blocksIn(d) }];
     const shown = who === "all" ? staff : staff.filter((m) => m.id === who);
     if (!shown.length) return [{ key: "all", title: "Everyone", dayStart: d.start, today, staffId: undefined, appts: dayAppts, blocks: blocksIn(d) }];
     const cols = shown.map((m) => ({
@@ -475,7 +433,8 @@ export function CalendarPage({ workspace, refreshKey, onNotice, onOpenPerson }) 
   const endMin = Math.min(24 * 60, Math.ceil(hi / 60) * 60);
 
   const shift = (dir) => setAnchor((cur) => {
-    if (view === "day") return cur + dir;
+    if (view === "day" || view === "staff") return cur + dir;
+    if (view === "agenda") return cur + dir * AGENDA_DAYS;
     if (view === "week") return cur + dir * 7;
     const info = dayInfo(dayRange, tz, cur);
     const target = new Date(Date.UTC(info.y, info.m - 1 + dir, 1));
@@ -484,8 +443,9 @@ export function CalendarPage({ workspace, refreshKey, onNotice, onOpenPerson }) 
     return cur + (Date.UTC(target.getUTCFullYear(), target.getUTCMonth(), day) - Date.UTC(info.y, info.m - 1, info.d)) / 86400000;
   });
 
-  const title = view === "day"
+  const title = view === "day" || view === "staff"
     ? formatLongDate(days[0].start, tz)
+    : view === "agenda" ? `${formatDay(days[0].start, tz)} to ${formatDay(days[count - 1].start, tz)}`
     : view === "week"
       ? `${formatDay(days[0].start, tz)} to ${formatDay(days[6].start, tz)}`
       : new Date(Date.UTC(a.y, a.m - 1, 1)).toLocaleDateString("en-US", { timeZone: "UTC", month: "long", year: "numeric" });
@@ -524,7 +484,7 @@ export function CalendarPage({ workspace, refreshKey, onNotice, onOpenPerson }) 
     const c = columns[colIndex];
     const start = zonedDateTime(dateOfColumn(c), clockText(top), tz);
     const end = new Date(start.getTime() + (new Date(appt.end_time) - new Date(appt.start_time)));
-    const staffId = view === "day" ? c.staffId ?? "" : appt.staff_id ?? "";
+    const staffId = view === "staff" ? c.staffId ?? "" : appt.staff_id ?? "";
     const blockResult = await supabase.from("blocked_times").select("*").eq("business_id", workspace.id)
       .lt("start_time", end.toISOString()).gt("end_time", start.toISOString());
     const message = findConflict({ staff, blocks: blockResult.error ? [] : blockResult.data ?? [], start, end, staffId, timeZone: tz });
@@ -537,29 +497,61 @@ export function CalendarPage({ workspace, refreshKey, onNotice, onOpenPerson }) 
 
   return (
     <>
-      <PageHead crumb="Workspace / Calendar" title="Calendar" sub={`${term("appointments")} · ${title} (${tz.replace("_", " ")})`}>
+      <PageHead crumb="Workspace / Calendar" title="Calendar" sub={`${title} · ${tz.replace(/_/g, " ")}`}>
         <div className="ba-segment" role="group" aria-label="Calendar view">
-          {VIEWS.map(([id, label]) => (
-            <button key={id} type="button" className={view === id ? "active" : ""} onClick={() => setView(id)}>{label}</button>
+          {VIEWS.filter(([id]) => id !== "staff" || staff.length > 0).map(([id, label]) => (
+            <button key={id} type="button" className={view === id ? "active" : ""} aria-pressed={view === id} onClick={() => setView(id)}>{id === "staff" ? term("staff_plural") : label}</button>
           ))}
         </div>
         <div className="ba-segment">
-          <button type="button" onClick={() => shift(-1)} aria-label={`Previous ${view}`}><Icon name="chevron_left" size="sm" /></button>
+          <button type="button" onClick={() => shift(-1)} aria-label="Previous"><Icon name="chevron_left" size="sm" /></button>
           <button type="button" className={anchor === 0 ? "active" : ""} onClick={() => setAnchor(0)}>Today</button>
-          <button type="button" onClick={() => shift(1)} aria-label={`Next ${view}`}><Icon name="chevron_right" size="sm" /></button>
+          <button type="button" onClick={() => shift(1)} aria-label="Next"><Icon name="chevron_right" size="sm" /></button>
         </div>
-        {staff.length > 0 && (
-          <label className="ba-select">
-            <span>{term("staff")}</span>
-            <select value={who} onChange={(e) => setWho(e.target.value)}>
-              <option value="all">Everyone</option>
-              {staff.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-            </select>
-          </label>
-        )}
-        <button type="button" className="ba-btn" onClick={() => setBlocking(true)}><Icon name="block" size="sm" /><span>Block time</span></button>
-        <button type="button" className="ba-btn primary" onClick={() => setBooking({ date: days[0].dateStr, time: "09:00", staffId: who === "all" ? "" : who })}><Icon name="add" size="sm" /><span>Book</span></button>
+        <label className="td-date">
+          <Icon name="calendar_month" size="sm" />
+          <input type="date" value={a.dateStr} aria-label="Go to date" onChange={(e) => {
+            if (!e.target.value) return;
+            const [y, m, d] = e.target.value.split("-").map(Number);
+            const t = dayInfo(dayRange, tz, 0);
+            setAnchor(Math.round((Date.UTC(y, m - 1, d) - Date.UTC(t.y, t.m - 1, t.d)) / 86400000));
+          }} />
+        </label>
       </PageHead>
+
+      <div className="cal-toolbar">
+        <label className="ba-search cal-search">
+          <Icon name="search" size="sm" />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={`Search ${term("appointments").toLowerCase()}`} aria-label={`Search ${term("appointments").toLowerCase()}`} />
+        </label>
+        <button type="button" className={`ba-btn ${filtersOpen ? "active" : ""}`} aria-expanded={filtersOpen} onClick={() => setFiltersOpen(!filtersOpen)}>
+          <Icon name="filter_list" size="sm" />Filter{(statusFilter !== "all" ? 1 : 0) + (who !== "all" ? 1 : 0) ? ` (${(statusFilter !== "all" ? 1 : 0) + (who !== "all" ? 1 : 0)})` : ""}
+        </button>
+        <span className="cal-grow" />
+        <button type="button" className="ba-btn" onClick={() => setBlocking(true)}><Icon name="block" size="sm" /><span>Block time</span></button>
+        <button type="button" className="ba-btn primary" onClick={() => setBooking({ date: days[0].dateStr, time: "09:00", staffId: who === "all" ? "" : who })}><Icon name="add" size="sm" /><span>New {term("appointment")}</span></button>
+      </div>
+      {filtersOpen && (
+        <div className="cal-filters" role="group" aria-label="Filters">
+          <div className="td-tabs">
+            {STATUS_FILTERS.map(([id, label]) => (
+              <button key={id} type="button" className={statusFilter === id ? "active" : ""} aria-pressed={statusFilter === id} onClick={() => setStatusFilter(id)}>{label}</button>
+            ))}
+          </div>
+          {staff.length > 0 && (
+            <label className="ba-select">
+              <span>{term("staff")}</span>
+              <select value={who} onChange={(e) => setWho(e.target.value)}>
+                <option value="all">Everyone</option>
+                {staff.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+              </select>
+            </label>
+          )}
+          {(statusFilter !== "all" || who !== "all") && <button type="button" className="ba-link" onClick={() => { setStatusFilter("all"); setWho("all"); }}>Clear filters</button>}
+        </div>
+      )}
+
+      <CalendarSummary appts={data?.appts ?? []} staff={staff} cfg={cfg} term={term} period={view === "day" || view === "staff" ? (anchor === 0 ? "today" : "this day") : view === "week" ? "this week" : view === "month" ? "this month" : `next ${AGENDA_DAYS} days`} loading={loading && !data} />
 
       <Notice error={error} onRetry={reload} />
       {showWhosIn && (
@@ -577,7 +569,9 @@ export function CalendarPage({ workspace, refreshKey, onNotice, onOpenPerson }) 
         </div>
       )}
 
-      {view === "month" ? (
+      {view === "agenda" ? (
+        <AgendaList days={days} appts={appts} people={people} staffName={staffName} tz={tz} term={term} cfg={cfg} onOpen={setOpen} />
+      ) : view === "month" ? (
         <MonthGrid
           tz={tz}
           people={people}
@@ -591,17 +585,17 @@ export function CalendarPage({ workspace, refreshKey, onNotice, onOpenPerson }) 
       ) : (
         <TimeGrid
           columns={columns} tz={tz} startMin={startMin} endMin={endMin} people={people} staffName={staffName}
-          now={now} term={term("appointment")}
+          now={now} term={term("appointment")} showStaff={view !== "staff"} guestWord={cfg.guests ? term("customers").toLowerCase() : null}
           onOpen={setOpen} onOpenBlock={setOpenBlock} onBook={bookAt} onMove={dropAppt}
         />
       )}
-      {!loading && data && total === 0 && !blocks.length && (
+      {!loading && data && total === 0 && !blocks.length && view !== "agenda" && (
         <Empty title={`No ${term("appointments").toLowerCase()} here`}>Click an empty time to book one, or let your AI receptionist fill the calendar.</Empty>
       )}
 
       {open && (
-        <AppointmentDetail
-          workspace={workspace} appt={open} person={people[open.customer_id]} tz={tz} term={term}
+        <BookingPanel
+          workspace={workspace} industry={industry} appt={open} person={people[open.customer_id]} staff={staff} blocks={data?.blocks ?? []} tz={tz} term={term}
           onClose={() => setOpen(null)}
           onChanged={() => { setOpen(null); reload(); }}
           onNotice={onNotice}

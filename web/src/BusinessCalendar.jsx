@@ -58,7 +58,7 @@ export const canDrag = (appt) => ["scheduled", "confirmed"].includes(appt.status
  * Events and blocks are positioned from their time inside dayStart.
  */
 export function TimeGrid({
-  columns, tz, startMin, endMin, people, staffName, now, onOpen, onOpenBlock, onBook, onMove, term,
+  columns, tz, startMin, endMin, people, staffName, now, onOpen, onOpenBlock, onBook, onMove, term, showStaff = true, guestWord = null,
 }) {
   const scale = PX_PER_HOUR / 60;
   const height = (endMin - startMin) * scale;
@@ -194,9 +194,14 @@ export function TimeGrid({
                     onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(a); } }}
                     aria-label={`${a.title}, ${formatTime(a.start_time, tz)}${person ? `, ${person}` : ""}`}
                   >
-                    <span className="ba-ev-time">{formatTime(a.start_time, tz)}{a.checked_in_at && <Icon name="how_to_reg" size="sm" />}{a.conflict_note && <Icon name="warning" size="sm" />}</span>
-                    <span className="ba-ev-title">{a.booking_state === "requested" ? "Requested: " : a.booking_state === "tentative" ? "Held: " : ""}{a.title}</span>
-                    {person && <span className="ba-ev-who">{person}</span>}
+                    <span className="ba-ev-time">
+                      <b>{formatTime(a.start_time, tz)}</b>{endM - startM >= 15 && <span className="ba-ev-len">· {Math.round(endM - startM)} min</span>}
+                      {a.checked_in_at && <Icon name="how_to_reg" size="sm" />}{a.conflict_note && <Icon name="warning" size="sm" />}
+                      {["zella", "ai_receptionist"].includes(a.metadata?.source) && <Icon name="smart_toy" size="sm" />}
+                    </span>
+                    <span className="ba-ev-title">{a.booking_state === "requested" ? "Requested: " : a.booking_state === "tentative" ? "Held: " : ""}{person ?? a.title}</span>
+                    <span className="ba-ev-who">{[person ? a.appointment_type || a.title : a.appointment_type, showStaff && a.staff_id ? staffName[a.staff_id] : null,
+                      guestWord && a.party_size ? `${a.party_size} ${guestWord}` : null, a.status === "cancelled" ? "Cancelled" : a.status === "no_show" ? "No-show" : null].filter(Boolean).join(" · ")}</span>
                   </div>
                 );
               })}
