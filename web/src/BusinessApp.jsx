@@ -22,6 +22,7 @@ import "./BusinessApp.css";
 import { supabase } from "./supabase";
 import { BusinessSignIn, MfaCodeCard, Welcome, acceptInvitations } from "./BusinessAuth";
 import { useMfaGate } from "./mfa";
+import { maintenanceText, usePlatformInfo } from "./platformInfo";
 import "./CrmMotion.css";
 import { warm } from "./zellaVoice";
 import BusinessToday from "./BusinessToday";
@@ -164,6 +165,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
   const groups = navigation(workspace, records.types);
   const agent = receptionistState(workspace);
   const isOwner = workspace.role === "owner";
+  const maintenance = maintenanceText(usePlatformInfo());
 
   async function keepPlan() {
     setBusy(true);
@@ -316,6 +318,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
         </header>
 
         <main className="ba-content">
+          {maintenance && <div className="ba-banner" role="status"><span>{maintenance}</span></div>}
           {workspace.cancel_at && !workspace.cancelled_at && (
             <div className="ba-banner">
               <span>

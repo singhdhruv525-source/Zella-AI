@@ -5,6 +5,7 @@ import { ConfirmPasswordField, EmailField, PasswordField } from "./formFields";
 import { checkEmail, passwordProblems } from "./formValidation";
 import { EMAIL_LINK_TYPES, friendlyAuthError, readEmailLink } from "./authErrors";
 import { verifyMfaCode } from "./mfa";
+import { maintenanceText, usePlatformInfo } from "./platformInfo";
 
 // Sign-in, forgotten password and the welcome (set password) page for
 // business owners and staff. Platform admins use the admin sign-in at "/".
@@ -21,16 +22,18 @@ export async function acceptInvitations() {
 }
 
 function AuthCard({ eyebrow, title, description, children }) {
+  const platform = usePlatformInfo();
   return (
     <main className="ba-auth">
         <section className="ba-auth-card">
           <div className="ba-brand">
-            <div className="ba-logo">Z</div>
+            {platform.logo_url ? <img src={platform.logo_url} alt="" style={{ maxHeight: 36 }} /> : <div className="ba-logo">Z</div>}
             <div>
-              <div className="ba-brand-name">Zella AI</div>
-              <div className="ba-brand-sub">Hands full. Phone handled.</div>
+              <div className="ba-brand-name">{platform.display_name ?? "Zella AI"}</div>
+              <div className="ba-brand-sub">{platform.login_headline || "Hands full. Phone handled."}</div>
             </div>
           </div>
+          {maintenanceText(platform) && <div className="ba-banner" role="status"><span>{maintenanceText(platform)}</span></div>}
           {eyebrow && <div className="ba-eyebrow">{eyebrow}</div>}
           <h1>{title}</h1>
           {description && <p className="ba-auth-description">{description}</p>}

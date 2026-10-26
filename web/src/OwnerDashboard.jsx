@@ -17,6 +17,7 @@ import OffersPage from "./OffersPage";
 import { Pill } from "./OwnerOverview";
 import { businessState } from "./ownerFormat";
 import { navigate, segments, usePath } from "./router";
+import { maintenanceText, usePlatformInfo } from "./platformInfo";
 
 const STATE_FILTERS = [
   ["all", "All businesses"],
@@ -82,6 +83,7 @@ const pathFor = (label) => NAVIGATION.find((n) => n.label === label)?.path ?? "/
 
 export default function OwnerDashboard({ onSignOut }) {
   const path = usePath();
+  const notice = maintenanceText(usePlatformInfo());
   const { activePage, wizard, detailId, section, sub } = readRoute(path);
   const setActivePage = (label) => navigate(pathFor(label));
   const setDetailId = (id) => navigate(id ? `/businesses/${id}` : "/businesses");
@@ -245,6 +247,7 @@ useEffect(() => {
         </header>
 
         <div className="owner-content">
+          {notice && <div className="owner-form-error op-gap" role="status">{notice}</div>}
           {wizard ? (
             <CreateBusinessWizard
               key={wizard.businessId || "new"}

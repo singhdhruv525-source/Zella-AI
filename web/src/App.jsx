@@ -10,6 +10,7 @@ import BusinessApp from "./BusinessApp";
 import { checkEmail, passwordProblems } from "./formValidation";
 import { friendlyAuthError, readEmailLink } from "./authErrors";
 import { verifyMfaCode } from "./mfa";
+import { maintenanceText, usePlatformInfo } from "./platformInfo";
 import "./App.css";
 
 
@@ -81,6 +82,7 @@ function AdminApp() {
   const [checkingSession, setCheckingSession] = useState(true);
   const [mode, setMode] = useState(LANDING.setup ? "setpassword" : "signin"); // "signin", "reset", "setpassword" or "mfa"
   const [code, setCode] = useState("");
+  const platform = usePlatformInfo();
 
   // Keep an existing owner session after a page refresh,
   // but only if the platform-admin check still passes.
@@ -355,12 +357,14 @@ function AdminApp() {
 
         <div className="form-panel">
           <div className="mobile-brand">
+            {platform.logo_url ? <img src={platform.logo_url} alt={platform.display_name ?? "Zella AI"} style={{ maxHeight: 36 }} /> : <>
             <div className="brand-mark">Z</div>
-            <span>zella<span className="brand-ai">ai</span></span>
+            <span>zella<span className="brand-ai">ai</span></span></>}
           </div>
 
           <div className="form-content">
-            <div className="form-symbol">↗</div>
+            {maintenanceText(platform) && <div className="login-message error" role="status">{maintenanceText(platform)}</div>}
+            {platform.logo_url ? <img src={platform.logo_url} alt={platform.display_name ?? "Zella AI"} style={{ maxHeight: 48, marginBottom: 12 }} /> : <div className="form-symbol">↗</div>}
             <div className="form-eyebrow">OWNER ACCESS</div>
             <h2>{mode === "reset" ? "Reset your password" : mode === "setpassword" ? "Choose your password" : mode === "mfa" ? "Enter your code" : "Welcome back"}</h2>
             <p className="form-description">
@@ -370,7 +374,7 @@ function AdminApp() {
                   ? "You're invited as a Zella admin. Choose a password to finish."
                   : mode === "mfa"
                     ? "Open your authenticator app and enter the 6-digit code for Zella."
-                    : "Sign in to your Zella platform workspace."}
+                    : platform.login_headline || "Sign in to your Zella platform workspace."}
             </p>
 
             <form onSubmit={mode === "reset" ? handleReset : mode === "setpassword" ? handleSetPassword : mode === "mfa" ? handleMfa : handleLogin}>
