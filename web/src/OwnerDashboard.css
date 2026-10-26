@@ -1527,3 +1527,9 @@
   background: var(--status-success);
   box-shadow: 0 0 0 3px var(--status-success-bg);
 }
+
+/* Grouped admin sidebar: related pages together, a little air between groups, scrolls when the window is short. */
+.owner-sidebar .owner-nav { flex: 1 1 auto; min-height: 0; overflow-y: auto; gap: 10px; margin-right: -6px; padding-right: 6px; }
+.owner-nav-group { display: flex; flex-direction: column; gap: 2px; }
+.owner-nav-group .owner-nav-label { padding: 6px 11px 4px; }
+.owner-nav-group .owner-nav-item { min-height: 38px; }

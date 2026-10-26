@@ -6,6 +6,7 @@ import { supabase } from "./supabase";
 import { Icon } from "./BusinessUI";
 import { Pill } from "./OwnerOverview";
 import AutomationOverview from "./AutomationOverview";
+import { BusinessModulesCard, BusinessRecordsCard } from "./BusinessAdminControls";
 import {
   actionLabel, businessState, formatDate, formatDateTime, timeAgo, formatDuration,
 } from "./ownerFormat";
@@ -391,6 +392,20 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup }) {
 
       {tab === "Overview" && (
         <div className="op-grid">
+          <Card title="Verification" description="The business's registration and the owner's photo ID."
+            action={<button type="button" className="owner-secondary-button" onClick={() => onOpenSetup(businessId)}>{data.documents?.length ? "Review" : "Upload"}</button>}>
+            {data.documentsAvailable === false ? (
+              <Empty>Document storage isn't set up yet (apply sql/zella_onboarding.sql).</Empty>
+            ) : (
+              <ul className="op-checks">
+                {[["business_registration", "Business registration"], ["owner_identity", "Owner's photo ID"]].map(([kind, label]) => {
+                  const doc = (data.documents ?? []).find((d) => d.kind === kind);
+                  const state = !doc ? "Not uploaded" : doc.status === "verified" ? "Verified" : doc.status === "rejected" ? `Rejected: ${doc.review_note ?? "no reason given"}` : "Waiting for review";
+                  return <Check key={kind} ok={doc?.status === "verified"} title={label} detail={state} />;
+                })}
+              </ul>
+            )}
+          </Card>
           <Card title="Setup progress" description="What's done and what's left before this business goes live.">
             <ul className="op-checks">
               <Check ok title="Business details" detail={`${data.industryName} · ${b.timezone}`} />
@@ -496,16 +511,12 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup }) {
             </div>
           </Card>
 
-          <Card title="Modules" description={`${enabledModules.length} of ${data.modules.length} enabled`}>
-            {data.modules.length ? (
-              <ul className="op-tag-list">
-                {data.modules.map((m) => (
-                  <li key={m.id} className={m.enabled ? "on" : ""}>{m.enabled ? "✓ " : ""}{m.name}</li>
-                ))}
-              </ul>
-            ) : (
-              <Empty>No modules configured for this industry.</Empty>
-            )}
+          <Card title="Modules" description={`${enabledModules.length} of ${data.modules.length} switched on. Only modules its industry offers are listed.`}>
+            <BusinessModulesCard key={data.modules.map((m) => `${m.id}${m.enabled}`).join()} businessId={businessId} modules={data.modules} onSaved={load} />
+          </Card>
+
+          <Card title="Industry records" description="Record types from its industry, such as tables, recalls or vehicles. Switching one off hides it; records are kept.">
+            <BusinessRecordsCard businessId={businessId} />
           </Card>
         </div>
       )}

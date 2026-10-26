@@ -36,7 +36,9 @@ function Panel({ title, description, action, children }) {
 }
 
 export function Pill({ tone = "neutral", children }) {
-  return <span className={`op-pill op-pill-${tone}`}>{children}</span>;
+  // Sentence case for plain status words ("past_due" -> "Past due"); anything else is shown as given.
+  const text = typeof children === "string" ? children.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()) : children;
+  return <span className={`op-pill op-pill-${tone}`}>{text}</span>;
 }
 
 export default function OwnerOverview({ onCreateBusiness, onOpenBusiness, onContinueSetup, onNavigate }) {

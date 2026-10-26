@@ -2,6 +2,7 @@ import { withCors } from "../_shared/cors.ts";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { PERMISSIONS, RESTRICTED_ROLES, settingsHandlers } from "./settings.ts";
 import { ONBOARDING_PERMISSIONS, documentsReady, loadOnboarding, onboardingHandlers } from "./onboarding.ts";
+import { PLATFORM_PERMISSIONS, platformHandlers } from "./platform.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -667,7 +668,8 @@ async function saveModules(admin: SupabaseClient, fields: Json) {
     throw error;
   }
 
-  await advance(admin, businessId, "industry_setup");
+  // Changing modules from a business's details page (advance: false) must not move its setup progress.
+  if (fields.advance !== false) await advance(admin, businessId, "industry_setup");
   return { businessId, enabledModules: count };
 }
 
@@ -2948,7 +2950,7 @@ Deno.serve(withCors(async (req: Request) => {
       typeof fields.action === "string" ? fields.action : "";
 
     // Every action needs a permission; restricted roles only have what the owner gave them.
-    const permission = PERMISSIONS[action] ?? ONBOARDING_PERMISSIONS[action];
+    const permission = PERMISSIONS[action] ?? ONBOARDING_PERMISSIONS[action] ?? PLATFORM_PERMISSIONS[action];
     if (!permission) return respond({ error: "Unknown action" }, 400);
     let allowed = role === "zella_owner" || (role === "super_admin" && !["admins.manage", "roles.manage"].includes(permission));
     if (!allowed && RESTRICTED_ROLES.includes(role)) {
@@ -3110,7 +3112,8 @@ Deno.serve(withCors(async (req: Request) => {
     const onboarding = onboardingHandlers(adminClient, fields, user.id, {
       text, bool, obj, requireId, optionalPhone, getBusiness, getReceptionist, advance, mergeSetupData, InputError, EMAIL_RE, UUID_RE,
     });
-    const handler = handlers[action] ?? extra.handlers[action] ?? onboarding.handlers[action];
+    const platform = platformHandlers(adminClient, fields, { text, bool, obj, requireId, InputError });
+    const handler = handlers[action] ?? extra.handlers[action] ?? onboarding.handlers[action] ?? platform.handlers[action];
     if (!handler) return respond({ error: "Unknown action" }, 400);
 
     try {
@@ -3118,7 +3121,7 @@ Deno.serve(withCors(async (req: Request) => {
 
       // Setup actions describe themselves from the request and result; settings and onboarding actions from
       // their result only (passing the request there recorded empty before/after values).
-      const later = extra.audited[action] ?? onboarding.audited[action];
+      const later = extra.audited[action] ?? onboarding.audited[action] ?? platform.audited[action];
       const entry = AUDITED[action] ? AUDITED[action](fields, result) : later ? (later(result as Json) as AuditEntry) : null;
       const unchanged = action === "ticket_update" &&
         Object.keys(obj((result as Json).changes)).length === 0;

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon, loadBusinessFonts } from "./BusinessUI";
 import "./OwnerDashboard.css";
 import CreateBusinessWizard, { callOwnerFunction } from "./CreateBusinessWizard";
@@ -15,6 +15,8 @@ import PlatformOperations from "./PlatformOperations";
 import SettingsPage from "./SettingsPage";
 import ModulesPage from "./ModulesPage";
 import OffersPage from "./OffersPage";
+import VerificationQueue from "./VerificationQueue";
+import { supabase } from "./supabase";
 import { Pill } from "./OwnerOverview";
 import { businessState } from "./ownerFormat";
 import { navigate, segments, usePath } from "./router";
@@ -43,21 +45,28 @@ loadBusinessFonts();
 const INVITE_TONE = { accepted: "success", sent: "warning", pending: "warning", failed: "danger", expired: "danger", revoked: "neutral" };
 const words = (s) => String(s ?? "").replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
 
+// The admin sidebar. Each page lists the permission it needs (the same one the server checks for its data), so an
+// admin with a restricted role only sees pages they can use. Items with `settings` open a Settings page directly.
 const NAVIGATION = [
-  { label: "Overview", icon: "space_dashboard", path: "/" },
-  { label: "Businesses", icon: "storefront", path: "/businesses" },
-  { label: "Users & Access", icon: "group", path: "/users" },
-  { label: "Industry Configuration", icon: "category", path: "/industries" },
-  { label: "Modules & Features", icon: "widgets", path: "/modules" },
-  { label: "AI Agents", icon: "smart_toy", path: "/agents" },
-  { label: "Plans & Subscriptions", icon: "credit_card", path: "/plans" },
-  { label: "Offers & Promotions", icon: "sell", path: "/offers" },
-  { label: "Integrations", icon: "hub", path: "/integrations" },
-  { label: "Platform Operations", icon: "monitor_heart", path: "/operations" },
-  { label: "Support", icon: "support_agent", path: "/support" },
-  { label: "Audit Logs", icon: "history", path: "/audit-logs" },
-  { label: "Settings", icon: "settings", path: "/settings" },
+  { label: "Overview", icon: "space_dashboard", path: "/", group: null, perm: "businesses.view" },
+  { label: "Businesses", icon: "storefront", path: "/businesses", group: "Businesses", perm: "businesses.view" },
+  { label: "Verification", icon: "verified_user", path: "/verification", group: "Businesses", perm: "businesses.manage" },
+  { label: "Industry Configuration", icon: "category", path: "/industries", group: "Configuration", perm: "businesses.view" },
+  { label: "Modules & Features", icon: "widgets", path: "/modules", group: "Configuration", perm: "businesses.view" },
+  { label: "Plans & Subscriptions", icon: "credit_card", path: "/plans", group: "Configuration", perm: "billing.view" },
+  { label: "Offers & Promotions", icon: "sell", path: "/offers", group: "Configuration", perm: "billing.view" },
+  { label: "AI Agents", icon: "smart_toy", path: "/agents", group: "AI & communications", perm: "businesses.view" },
+  { label: "Voice & numbers", icon: "call", settings: "voice/numbers", group: "AI & communications", perm: "businesses.view" },
+  { label: "Messaging", icon: "forum", settings: "comms/sms", group: "AI & communications", perm: "businesses.view" },
+  { label: "Platform Operations", icon: "monitor_heart", path: "/operations", group: "Operations", perm: "businesses.view" },
+  { label: "Automations", icon: "bolt", settings: "integrations/n8n", group: "Operations", perm: "businesses.view" },
+  { label: "Integrations", icon: "hub", path: "/integrations", group: "Operations", perm: "businesses.view" },
+  { label: "Support", icon: "support_agent", path: "/support", group: "Operations", perm: "support.manage" },
+  { label: "Users & Access", icon: "group", path: "/users", group: "Administration", perm: "security.view" },
+  { label: "Audit Logs", icon: "history", path: "/audit-logs", group: "Administration", perm: "audit.view" },
+  { label: "Settings", icon: "settings", path: "/settings", group: "Administration", perm: null },
 ];
+const NAV_GROUPS = [null, "Businesses", "Configuration", "AI & communications", "Operations", "Administration"];
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -69,7 +78,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // Anything else unknown shows "Page not found".
 function readRoute(path) {
   const [first = "", second, third] = segments(path);
-  const item = NAVIGATION.find((n) => n.path === `/${first}`);
+  const item = NAVIGATION.find((n) => n.path && n.path === `/${first}`);
   if (!item) return { activePage: null, wizard: null, detailId: null, section: null, sub: null };
   const route = { activePage: item.label, wizard: null, detailId: null, section: null, sub: null };
   if (item.label === "Businesses" && second) {
@@ -161,8 +170,35 @@ useEffect(() => {
   });
 
   function goTo(page) {
-    navigate(pathFor(page));
+    const item = NAVIGATION.find((n) => n.label === page);
+    navigate(item?.settings ? `/settings/${item.settings}` : pathFor(page));
   }
+
+  // Who is signed in: their role and permissions decide which pages the sidebar offers. The server checks the same
+  // permission for every action, so hiding a page is a convenience, never the protection.
+  const [me, setMe] = useState(null);
+  const [meFailed, setMeFailed] = useState(false);
+  const [email, setEmail] = useState("");
+  useEffect(() => {
+    let live = true;
+    callOwnerFunction("me_admin").then((m) => live && setMe(m)).catch(() => live && setMeFailed(true));
+    supabase.auth.getUser().then(({ data }) => live && setEmail(data?.user?.email ?? ""));
+    return () => { live = false; };
+  }, []);
+  const allowed = (item) => !item.perm || meFailed || Boolean(me?.permissions?.includes(item.perm));
+  const isCurrent = (item) => item.settings
+    ? activePage === "Settings" && `${section}/${sub}` === item.settings
+    : activePage === item.label && !(item.label === "Settings" && NAVIGATION.some((n) => n.settings === `${section}/${sub}`));
+
+  // ⌘K / Ctrl+K jumps to the business search, as the hint in the search box says.
+  const searchBox = useRef(null);
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); searchBox.current?.focus(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   // Phone-width menu: the sidebar opens as a drawer and closes as soon as the address changes.
   const [navOpenAt, setNavOpenAt] = useState(null);
@@ -190,30 +226,32 @@ useEffect(() => {
           <div className="owner-workspace-icon">Z</div>
           <div className="owner-workspace-copy">
             <strong>Zella Platform</strong>
-            <span>Owner workspace</span>
+            <span>{me?.roleLabel ?? (meFailed ? "Platform admin" : "Loading role…")}</span>
           </div>
-          <span className="owner-chevron">⌄</span>
         </div>
 
-        <div className="owner-nav-label">PLATFORM</div>
-        <nav className="owner-nav">
-          {NAVIGATION.map((item) => (
-            <button
-              key={item.label}
-              type="button"
-              className={`owner-nav-item ${
-                activePage === item.label ? "active" : ""
-              }`}
-              onClick={() => goTo(item.label)}
-              aria-current={activePage === item.label ? "page" : undefined}
-            >
-              <span className="owner-nav-icon"><Icon name={item.icon} /></span>
-              <span>{item.label}</span>
-              {item.label === "Businesses" && (
-                <span className="owner-nav-arrow">›</span>
-              )}
-            </button>
-          ))}
+        <nav className="owner-nav" aria-label="Admin pages">
+          {NAV_GROUPS.map((group) => {
+            const items = NAVIGATION.filter((item) => item.group === group && allowed(item));
+            if (!items.length) return null;
+            return (
+              <div key={group ?? "top"} className="owner-nav-group">
+                {group && <div className="owner-nav-label">{group}</div>}
+                {items.map((item) => (
+                  <button
+                    key={item.label}
+                    type="button"
+                    className={`owner-nav-item ${isCurrent(item) ? "active" : ""}`}
+                    onClick={() => goTo(item.label)}
+                    aria-current={isCurrent(item) ? "page" : undefined}
+                  >
+                    <span className="owner-nav-icon"><Icon name={item.icon} /></span>
+                    <span>{item.label}</span>
+                  </button>
+                ))}
+              </div>
+            );
+          })}
         </nav>
 
         <button type="button" className="owner-sidebar-bottom op-status-link" onClick={() => goTo("Platform Operations")}>
@@ -234,13 +272,14 @@ useEffect(() => {
           <div className="owner-breadcrumb">
             <span>Platform</span>
             <span>/</span>
-            <strong>{activePage ?? "Page not found"}</strong>
+            <strong>{NAVIGATION.find((n) => n.settings && isCurrent(n))?.label ?? activePage ?? "Page not found"}</strong>
           </div>
 
           <div className="owner-top-actions">
             <div className="owner-search">
               <Icon name="search" size="sm" />
               <input
+                ref={searchBox}
                 value={search}
                 onChange={(event) => {
                   setSearch(event.target.value);
@@ -262,7 +301,9 @@ useEffect(() => {
             >
               <Icon name="notifications" />
             </button>
-            <div className="owner-avatar" title="Platform owner">O</div>
+            <div className="owner-avatar" title={[email, me?.roleLabel].filter(Boolean).join(" · ") || "Platform admin"}>
+              {(email || "A").slice(0, 1).toUpperCase()}
+            </div>
             <button className="owner-signout" type="button" onClick={onSignOut}>
               Sign out
             </button>
@@ -295,6 +336,8 @@ useEffect(() => {
               onContinueSetup={(id) => setWizard({ businessId: id })}
               onNavigate={setActivePage}
             />
+          ) : activePage === "Verification" ? (
+            <VerificationQueue onOpenBusiness={setDetailId} onOpenSetup={(id) => setWizard({ businessId: id })} />
           ) : activePage === "Audit Logs" ? (
             <AuditLogs onOpenBusiness={setDetailId} />
           ) : activePage === "Industry Configuration" ? (

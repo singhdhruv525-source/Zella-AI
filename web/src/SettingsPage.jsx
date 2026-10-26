@@ -42,7 +42,6 @@ function registry() {
       page("roles", "Platform roles", (c) => <P.PlatformRoles me={c.me} />, "role matrix super admin billing support security read-only"),
       page("permissions", "Permissions", () => <P.Permissions />, "permission enforcement"),
       page("auth", "Authentication policies", () => <P.AuthPolicies />, "password mfa session providers recovery"),
-      page("sessions", "Administrative sessions", (c) => <AccountSecurityPanel email={c.email} />, "sessions revoke devices login history"),
     ] },
     { key: "plans", label: "Plans, subscriptions and entitlements", icon: "plans", items: [
       page("plans", "Plan management", (c) => <P.PlanManagement me={c.me} onNavigate={c.onNavigate} />, "create edit archive price"),
@@ -89,7 +88,7 @@ function registry() {
       page("oauth", "OAuth applications", () => <P.OauthApps />, "google calendar gmail"),
       page("n8n", "n8n configuration", () => <P.N8nConfig />, "workflow dispatcher"),
       page("monitoring", "Automation monitoring", (c) => <P.AutomationMonitoring openBusiness={c.openBusiness} />, "executions failures"),
-      page("webhooks", "Webhooks", () => <P.Webhooks />, "endpoints signature"),
+      page("webhooks", "Webhooks", () => <P.Webhooks />, "endpoints signature signing"),
     ] },
     { key: "security", label: "Security and privacy", icon: "security", items: [
       page("overview", "Security overview", () => <P.SecurityOverview />, "incidents suspicious"),
@@ -100,13 +99,11 @@ function registry() {
       page("audit", "Security audit", (c) => <P.SecurityAudit onNavigate={c.onNavigate} />, "audit log"),
     ] },
     { key: "alerts", label: "Notifications and alerts", icon: "alerts", items: [
-      page("admin", "Admin notifications", () => <P.AdminNotifications />, "email digest alerts"),
       page("rules", "Alert rules", () => <P.AlertRules />, "severity escalation"),
       page("channels", "Notification channels", () => <P.NotificationChannels />, "email in-app"),
       page("history", "Notification history", (c) => <P.NotificationHistory me={c.me} />, "acknowledge resolve"),
     ] },
     { key: "support", label: "Support and service operations", icon: "support", items: [
-      page("tickets", "Support tickets", (c) => <SupportLink onNavigate={c.onNavigate} />, "tickets"),
       page("health", "Service health", () => <HealthPanel />, "providers status"),
       page("incidents", "Incident management", () => <IncidentsPanel />, "incident outage"),
       page("logs", "System logs", (c) => <><FailedEventsPanel onOpenBusiness={c.openBusiness} /><P.AutomationMonitoring openBusiness={c.openBusiness} /></>, "errors failed jobs correlation"),
@@ -123,24 +120,16 @@ function registry() {
     ] },
     { key: "developer", label: "Developer and API", icon: "dev", items: [
       page("api", "API management", () => <P.ApiManagement />, "keys scopes"),
-      page("webhooks", "Webhook management", () => <P.Webhooks />, "endpoints signing"),
       page("environment", "Environment configuration", () => <P.Environment />, "environment config validation"),
       page("system", "System configuration", () => <P.SystemConfig />, "feature flags history"),
     ] },
     { key: "profile", label: "Administrator profile", icon: "profile", items: [
       page("me", "My profile", (c) => <MyProfilePanel email={c.email} />, "name picture"),
-      page("security", "Account security", (c) => <AccountSecurityPanel email={c.email} />, "password mfa sessions"),
-      page("notifications", "Personal notifications", () => <P.AdminNotifications />, "email alerts"),
+      page("security", "Account security", (c) => <AccountSecurityPanel email={c.email} />, "password mfa sessions revoke devices login history"),
+      page("notifications", "Personal notifications", () => <P.AdminNotifications />, "email alerts digest admin notifications"),
       page("signout", "Sign out", (c) => <SignOutPanel who="you" onSignOut={c.onSignOut} />, "logout"),
     ] },
   ];
-}
-
-function SupportLink({ onNavigate }) {
-  return (
-    <ul className="zs-rows"><li><div><strong>Support tickets</strong><small>Ticket list, priority, status, assignment and notes are on the Support page.</small></div>
-      <button type="button" className="zs-btn sm" onClick={() => onNavigate("Support")}>Open</button></li></ul>
-  );
 }
 
 const REGISTRY = registry();

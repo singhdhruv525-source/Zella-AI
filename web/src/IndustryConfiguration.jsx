@@ -3,6 +3,7 @@ import "./OwnerPages.css";
 import { callOwnerFunction } from "./CreateBusinessWizard";
 import { Pill } from "./OwnerOverview";
 import { formatDate } from "./ownerFormat";
+import IndustryRecords from "./IndustryRecords";
 
 const TERM_ROWS = [
   { singular: "customer", plural: "customers", label: "Customers", hint: "People the business serves" },
@@ -446,6 +447,8 @@ export default function IndustryConfiguration() {
                   </button>
                 </div>
               </div>
+
+              <IndustryRecords key={selected.id} industryId={selected.id} industryName={selected.name} />
             </>
           )}
         </div>
