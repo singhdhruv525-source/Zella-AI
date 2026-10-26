@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   AutomationsPage, CalendarPage, CallsPage, CustomersPage, LeadsPage,
-  MessagesPage, ReceptionistPage, SettingsPage,
+  MessagesPage, ReceptionistPage,
 } from "./BusinessPages";
+import { BusinessSettingsPage } from "./BusinessSettings";
 import { TeamPage } from "./BusinessTeam";
 import { DraftsPage, LiveNoticeBanner, LiveNoticeModal } from "./BusinessDrafts";
 import { AccessPage, ApprovalsPage, FailedWorkPage, SecurityLogPage } from "./BusinessAccess";
@@ -400,7 +401,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
           {current.key === "lead-sources" && <LeadSourcesPage workspace={workspace} refreshKey={refreshKey} />}
           {current.key === "reports" && <ReportsPage workspace={workspace} refreshKey={refreshKey} />}
           {current.key === "integrations" && <IntegrationsPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
-          {current.key === "settings" && <SettingsPage workspace={workspace} email={email} onSignOut={onSignOut} section={route.section} onReload={onReload} onNotice={setNotice} />}
+          {current.key === "settings" && <BusinessSettingsPage workspace={workspace} email={email} onSignOut={onSignOut} section={route.section} onGo={setPage} onReload={onReload} />}
         </main>
       </div>
 

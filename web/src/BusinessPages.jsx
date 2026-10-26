@@ -11,8 +11,6 @@ import { EscalationControls, Transcript, isOpenEscalation } from "./BusinessProf
 import { BookAppointmentModal, RescheduleModal } from "./BusinessForms";
 import { MonthGrid, TimeGrid, clockText, dayInfo, minutesInto } from "./BusinessCalendar";
 import { ActivationCard } from "./BusinessWork";
-import { ReviewLinkPanel } from "./BusinessDrafts";
-import { OffersPanel } from "./BusinessOffers";
 
 // The rest of the business app: Leads, People (Patients / Customers / Clients…),
 // Calendar, Calls, Messages, AI Receptionist, Automations, Team and Settings.
@@ -761,44 +759,3 @@ export { AutomationsPage } from "./BusinessControls";
 /* ------------------------------------------------------------------ */
 /* Team and settings                                                   */
 /* ------------------------------------------------------------------ */
-
-export function SettingsPage({ workspace, email, onSignOut }) {
-  const term = makeTerm(workspace);
-  const words = [
-    ["Customer", "customer"], ["Customers", "customers"], ["Appointment", "appointment"],
-    ["Appointments", "appointments"], ["Staff", "staff_plural"],
-  ];
-  const state = workspace.cancelled_at ? "Ended" : workspace.suspended_at ? "Paused" : workspace.cancel_at ? `Ends ${formatLongDate(workspace.cancel_at, workspace.timezone)}` : "Active";
-  return (
-    <>
-      <PageHead crumb="Management / Settings" title="Settings" sub="Your business details. Changes to these are made by the Zella team for now." />
-      <div className="ba-grid-2">
-        <section className="ba-panel">
-          <div className="ba-panel-head"><div className="ba-panel-title"><div><h2>Business</h2></div></div></div>
-          <dl className="ba-facts pad">
-            <div><dt>Name</dt><dd>{workspace.name}</dd></div>
-            <div><dt>Industry</dt><dd>{workspace.industry ?? "—"}</dd></div>
-            <div><dt>Time zone</dt><dd>{workspace.timezone.replace("_", " ")}</dd></div>
-            <div><dt>Plan</dt><dd><Pill tone={state === "Active" ? "success" : "warning"}>{state}</Pill></dd></div>
-          </dl>
-        </section>
-        <section className="ba-panel">
-          <div className="ba-panel-head"><div className="ba-panel-title"><div><h2>Your words</h2><p>How this workspace names things.</p></div></div></div>
-          <dl className="ba-facts pad">
-            {words.map(([label, key]) => <div key={key}><dt>{label}</dt><dd>{term(key)}</dd></div>)}
-          </dl>
-        </section>
-        <ReviewLinkPanel workspace={workspace} />
-        <OffersPanel workspace={workspace} />
-        <section className="ba-panel">
-          <div className="ba-panel-head"><div className="ba-panel-title"><div><h2>Your account</h2></div></div></div>
-          <dl className="ba-facts pad">
-            <div><dt>Signed in as</dt><dd>{email}</dd></div>
-            <div><dt>Role</dt><dd>{workspace.role}</dd></div>
-          </dl>
-          <div className="ba-panel-foot"><span /><button type="button" className="ba-btn" onClick={onSignOut}><Icon name="logout" size="sm" />Sign out</button></div>
-        </section>
-      </div>
-    </>
-  );
-}

@@ -1480,3 +1480,28 @@
   .ba-offer-side { align-items: flex-start; }
   .ba-offer-code { flex-direction: column; align-items: stretch; }
 }
+
+/* Settings: categories in the page's own menu, the chosen one beside it. */
+.ba-root .ba-settings { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 18px; align-items: start; }
+.ba-root .ba-settings-nav { position: sticky; top: 12px; display: flex; flex-direction: column; gap: 2px; padding: 8px; border: 1px solid var(--ba-border); border-radius: var(--ba-radius-card); background: var(--ba-surface); }
+.ba-root .ba-settings-body { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.ba-root .ba-list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.ba-root .ba-list-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--ba-border); }
+.ba-root .ba-list-row:last-child { border-bottom: 0; }
+.ba-root .ba-list-row strong { display: block; color: var(--ba-text); font-size: 13.5px; }
+.ba-root .ba-list-row small { color: var(--ba-muted); font-size: 12.5px; }
+.ba-root .ba-hours-day { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 10px; align-items: start; padding: 8px 0; border-bottom: 1px solid var(--ba-border); }
+.ba-root .ba-hours-day:last-child { border-bottom: 0; }
+.ba-root .ba-hours-day > strong { padding-top: 7px; font-size: 13.5px; }
+.ba-root .ba-hours-day > div { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding-top: 4px; }
+.ba-root .ba-hours-range { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ba-root .ba-hours-range input[type="time"] { height: 34px; padding: 0 8px; border: 1px solid var(--ba-border-strong); border-radius: var(--ba-radius-sm); background: var(--ba-surface); color: var(--ba-text); font: inherit; font-size: 13px; }
+@media (max-width: 860px) {
+  .ba-root .ba-settings { grid-template-columns: 1fr; }
+  .ba-root .ba-settings-nav { position: static; flex-direction: row; overflow-x: auto; }
+  .ba-root .ba-settings-nav .ba-nav-item { flex: 0 0 auto; }
+  .ba-root .ba-hours-day { grid-template-columns: 1fr; }
+}
+/* The narrow-screen sidebar hides nav labels; the Settings menu always keeps them. */
+.ba-root .ba-settings-nav .ba-nav-item { justify-content: flex-start; padding: 8px 10px; }
+.ba-root .ba-settings-nav .ba-nav-item > span:nth-child(2) { display: block; }
