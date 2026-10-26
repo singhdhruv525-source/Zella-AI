@@ -155,6 +155,13 @@ const emptyHours = () =>
 
 const DEFAULT_AUTOMATIONS = emptyAutomations();
 
+// Spam protection starts on, with the platform's secure defaults; the business can tune it later in its CRM.
+const SPAM_DEFAULTS = {
+  enabled: true, call_screening: "flag", ai_spam_handling: "end_politely", sms_monitoring: true, email_monitoring: true,
+  booking_protection: true, booking_daily_limit: 3, auto_restrict: true, notify_high_risk: true,
+  repeat_call_limit: 5, repeat_window_minutes: 60, sms_flood_limit: 10, email_flood_limit: 10,
+};
+
 function emptySetup() {
   return {
     business: {
@@ -173,6 +180,8 @@ function emptySetup() {
     team: [],
     documents: [],
     documentsAvailable: true,
+    spam: { ...SPAM_DEFAULTS },
+    spamAvailable: true,
     receptionist: {
       name: "AI Receptionist",
       greeting: "",
@@ -335,6 +344,10 @@ function fromServer(data, industries = []) {
   setup.documents = data.documents || [];
   setup.documentsAvailable = data.documentsAvailable !== false;
   if (!hasConfig) setup.receptionist.capabilities = cfg.capabilities;
+  setup.spamAvailable = data.spamAvailable !== false;
+  setup.spam = data.spam
+    ? Object.fromEntries(Object.keys(SPAM_DEFAULTS).map((k) => [k, data.spam[k] ?? SPAM_DEFAULTS[k]]))
+    : { ...SPAM_DEFAULTS, booking_daily_limit: cfg.spamBookingLimit ?? SPAM_DEFAULTS.booking_daily_limit };
 
   setup.onboardingStatus = b.onboarding_status;
   return setup;
@@ -1536,6 +1549,83 @@ function CrmSetupStep({ terminology, onTerminology, modules, onModules }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Spam protection (part of Phone & integrations): only the channels this business has
+// ---------------------------------------------------------------------------
+
+function SpamSection({ value, onChange, modules, config, available }) {
+  const on = (slug) => modules.some((m) => m.slug === slug && m.enabled);
+  const has = { call: on("calls") || on("ai-receptionist"), sms: on("sms"), email: on("email"), booking: config.appointments && on("calendar") };
+  const set = (k, v) => onChange({ ...value, [k]: v });
+  const row = (k, label, hint) => (
+    <div className="wiz-spam-row">
+      <div><strong>{label}</strong><small>{hint}</small></div>
+      <Toggle checked={Boolean(value[k])} label={label} disabled={!value.enabled} onChange={(v) => set(k, v)} />
+    </div>
+  );
+  if (!available) {
+    return (
+      <Section title="Spam protection" description="Screens spam calls, texts, emails and fake bookings.">
+        <div className="wiz-note">Spam protection isn't set up on Zella yet (apply sql/zella_spam_protection.sql). Zella's platform limits still apply.</div>
+      </Section>
+    );
+  }
+  return (
+    <Section
+      title="Spam protection"
+      description="On by default with safe settings. Zella's platform rules and limits always apply, whatever is chosen here."
+      aside={<Toggle checked={value.enabled} label="Spam protection" onChange={(v) => set("enabled", v)} />}
+    >
+      {!value.enabled && <div className="wiz-note">Off: only Zella's platform-wide rules and limits will protect this business.</div>}
+      {value.enabled && (
+        <>
+          {has.call && (
+            <div className="wiz-spam-row">
+              <div><strong>Suspicious callers</strong><small>Repeated calls, withheld numbers and blocked numbers are checked before the AI helps them.</small></div>
+              <select value={value.call_screening} onChange={(e) => set("call_screening", e.target.value)} aria-label="Suspicious callers">
+                <option value="flag">Answer and flag for review</option>
+                <option value="screen">Screen: the AI doesn't help them</option>
+              </select>
+            </div>
+          )}
+          {has.call && value.call_screening === "screen" && (
+            <div className="wiz-spam-row">
+              <div><strong>When a call is screened, the AI</strong><small>Blocked numbers are always ended politely.</small></div>
+              <select value={value.ai_spam_handling} onChange={(e) => set("ai_spam_handling", e.target.value)} aria-label="When screened">
+                <option value="end_politely">Ends the call politely</option>
+                <option value="take_message">Takes a short message only</option>
+              </select>
+            </div>
+          )}
+          {has.sms && row("sms_monitoring", "Watch incoming texts", "Floods, suspicious links and spam wording. No automatic replies to blocked senders.")}
+          {has.email && row("email_monitoring", "Watch incoming email", "Floods, suspicious links and the email provider's own spam verdict.")}
+          {has.booking && row("booking_protection", "Hold suspicious bookings", "Too many bookings from one contact, or a blocked contact: kept as a request for the team to confirm.")}
+          {has.booking && value.booking_protection && (
+            <div className="wiz-spam-row">
+              <div><strong>Bookings allowed per contact per day</strong><small>Team bookings are never limited.</small></div>
+              <input type="number" min={1} max={20} value={value.booking_daily_limit} aria-label="Bookings per contact per day"
+                onChange={(e) => set("booking_daily_limit", Math.max(1, Math.min(20, Number(e.target.value) || 1)))} />
+            </div>
+          )}
+          {row("notify_high_risk", "Alert the team about high-risk activity", "A few alerts an hour at most, without message content.")}
+          <details className="wiz-spam-more">
+            <summary>More options</summary>
+            {row("auto_restrict", "Temporarily restrict clear abuse", "Only with two or more signals at high risk, for 24 hours, on that channel. Never permanent.")}
+            {has.call && (
+              <div className="wiz-spam-row">
+                <div><strong>Flag repeated calls after</strong><small>Calls from one number within an hour.</small></div>
+                <input type="number" min={2} max={50} value={value.repeat_call_limit} aria-label="Repeated calls"
+                  onChange={(e) => set("repeat_call_limit", Math.max(2, Math.min(50, Number(e.target.value) || 2)))} />
+              </div>
+            )}
+          </details>
+          {!has.sms && !has.email && <p className="wiz-hint">Text and email checks appear here once those modules are switched on.</p>}
+        </>
+      )}
+    </Section>
+  );
+}
+
 function ReviewStep({ setup, industries, goTo, config, docsReady }) {
   const r = setup.receptionist;
   const o = setup.operations;
@@ -1564,6 +1654,8 @@ function ReviewStep({ setup, industries, goTo, config, docsReady }) {
       detail: `${r.name} · ${r.faqs.length} FAQs · ${r.capabilities.length} abilities` },
     { key: "integrations", title: "Phone & integrations", ok: true,
       detail: `${setup.integrations.phone.mode === "new_number" ? "New Zella number" : `Call forwarding from ${setup.integrations.phone.existingNumber || "number not set"}`} · calendar ${setup.integrations.calendar} · leads ${leads.length ? leads.join(", ") : "none"}` },
+    { key: "integrations", title: "Spam protection", ok: true,
+      detail: !setup.spamAvailable ? "Not set up on Zella yet" : setup.spam.enabled ? `On · suspicious callers ${setup.spam.call_screening === "screen" ? "screened" : "flagged"}` : "Off (platform rules still apply)" },
     { key: "automations", title: "Automations", ok: true, detail: `${enabledAutomations} turned on (paused until go-live)` },
     { key: "crm", title: "CRM setup", ok: enabledModules.length > 0,
       detail: `${enabledModules.length} modules · ${termFor(setup.terminology, "customers")}, ${termFor(setup.terminology, "appointments")}` },
@@ -1779,6 +1871,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
 
     if (key === "integrations") {
       await callOwnerFunction("setup_save_integrations", { businessId, integrations: setup.integrations });
+      if (setup.spamAvailable) await callOwnerFunction("setup_save_spam", { businessId, spam: setup.spam });
       return;
     }
 
@@ -1917,7 +2010,12 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
         {STEPS[step].key === "operations" && <OperationsStep value={setup.operations} onChange={update("operations")} config={config} terminology={terminology} industryName={industry?.name} />}
         {STEPS[step].key === "team" && <TeamStep value={setup.team} onChange={update("team")} config={config} terminology={terminology} showErrors={showErrors} />}
         {STEPS[step].key === "receptionist" && <ReceptionistStep value={setup.receptionist} onChange={update("receptionist")} terminology={terminology} showErrors={showErrors} faqPrompts={config.faqPrompts} />}
-        {STEPS[step].key === "integrations" && <IntegrationsStep value={setup.integrations} onChange={update("integrations")} showErrors={showErrors} />}
+        {STEPS[step].key === "integrations" && (
+          <>
+            <IntegrationsStep value={setup.integrations} onChange={update("integrations")} showErrors={showErrors} />
+            <SpamSection value={setup.spam} onChange={update("spam")} modules={setup.modules} config={config} available={setup.spamAvailable} />
+          </>
+        )}
         {STEPS[step].key === "automations" && <AutomationsCombinedStep value={setup.automations} onChange={update("automations")} rules={setup.industryRules} onRules={update("industryRules")} terminology={terminology} industryName={industry?.name} />}
         {STEPS[step].key === "crm" && <CrmSetupStep terminology={terminology} onTerminology={update("terminology")} modules={setup.modules} onModules={update("modules")} />}
         {STEPS[step].key === "review" && <ReviewStep setup={setup} industries={industries} goTo={goTo} config={config} docsReady={docsReady} />}

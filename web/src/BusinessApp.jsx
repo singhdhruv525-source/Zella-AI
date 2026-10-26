@@ -19,6 +19,7 @@ import {
   AttentionPage, IntegrationsPage, LeadSourcesPage, ReportsPage,
 } from "./BusinessMore";
 import "./BusinessApp.css";
+import SpamPage from "./SpamPage";
 import { supabase } from "./supabase";
 import { BusinessSignIn, MfaCodeCard, Welcome, acceptInvitations } from "./BusinessAuth";
 import { useMfaGate } from "./mfa";
@@ -46,7 +47,7 @@ loadBusinessFonts();
 const KNOWN_PAGES = new Set([
   "today", "leads", "customers", "calendar", "checkins", "waitlist", "tasks", "drafts", "attention", "callbacks",
   "inbox", "messages", "calls", "lead-sources", "receptionist", "transcripts", "automations", "knowledge", "team",
-  "access", "approvals", "failed", "security", "reports", "record-settings", "integrations", "settings",
+  "access", "approvals", "failed", "security", "reports", "record-settings", "integrations", "settings", "spam",
 ]);
 
 // Address <-> page:  /app = Today, /app/<key>, /app/records/<type>, /app/settings/<section>.
@@ -342,6 +343,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
           {current.key === "callbacks" && <CallbacksPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} onChanged={countAttention} />}
           {current.key === "tasks" && <TasksPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} />}
           {current.key === "waitlist" && <WaitlistPage workspace={workspace} term={term} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} />}
+          {current.key === "spam" && <SpamPage workspace={workspace} onNotice={setNotice} onOpenPerson={openPerson} />}
           {current.key === "knowledge" && <KnowledgePage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
           {current.key.startsWith("rec:") && records.types.find((t) => `rec:${t.key}` === current.key) && (
             <RecordsPage workspace={workspace} type={records.types.find((t) => `rec:${t.key}` === current.key)} query={search} refreshKey={refreshKey}

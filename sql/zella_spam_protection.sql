@@ -656,6 +656,9 @@ begin
   elsif v_value ~ '^@?[a-z0-9.-]+\.[a-z]{2,}$' then v_type := 'domain'; v_value := ltrim(v_value, '@');
   elsif public.zella_digits(v_value) is not null and length(public.zella_digits(v_value)) >= 7 then v_type := 'phone'; v_value := public.zella_digits(v_value);
   else raise exception 'BAD_VALUE'; end if;
+  -- A phone number only makes sense for calls and texts, an address or domain only for email (bookings and "all"
+  -- take either).
+  if (v_type = 'phone' and p_channel = 'email') or (v_type <> 'phone' and p_channel in ('call', 'sms')) then raise exception 'CHANNEL_MISMATCH'; end if;
   if p_hours is not null and (p_hours < 1 or p_hours > 8760) then raise exception 'BAD_INPUT'; end if;
   -- The opposite list entry for the same sender and channel ends; a sender is never on both.
   update public.spam_list_entries set removed_at = now(), removed_by = auth.uid()

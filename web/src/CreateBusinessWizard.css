@@ -994,3 +994,17 @@ button.wiz-chip:hover { border-color: var(--color-primary); color: var(--color-p
 @media (max-width: 640px) {
   .wiz-section-head { flex-wrap: wrap; }
 }
+
+/* Spam protection section (Phone & integrations) */
+.wiz-spam-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 0; border-top: 1px solid var(--border-subtle); }
+.wiz-spam-row:first-of-type { border-top: 0; }
+.wiz-spam-row > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.wiz-spam-row small { color: var(--text-secondary); font-size: 12px; }
+.wiz-spam-row select, .wiz-spam-row input { flex-shrink: 0; max-width: 260px; padding: 8px 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-md); background: var(--bg-surface); font: inherit; font-size: 13px; }
+.wiz-spam-row input { width: 80px; }
+.wiz-spam-more { margin-top: 6px; }
+.wiz-spam-more > summary { padding: 8px 0; color: var(--color-primary); font-size: 13px; font-weight: 600; cursor: pointer; }
+@media (max-width: 640px) {
+  .wiz-spam-row { flex-wrap: wrap; }
+  .wiz-spam-row select { max-width: 100%; width: 100%; }
+}

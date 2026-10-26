@@ -3112,7 +3112,7 @@ Deno.serve(withCors(async (req: Request) => {
     const onboarding = onboardingHandlers(adminClient, fields, user.id, {
       text, bool, obj, requireId, optionalPhone, getBusiness, getReceptionist, advance, mergeSetupData, InputError, EMAIL_RE, UUID_RE,
     });
-    const platform = platformHandlers(adminClient, fields, { text, bool, obj, requireId, InputError });
+    const platform = platformHandlers(adminClient, fields, { text, bool, obj, requireId, InputError }, user.id);
     const handler = handlers[action] ?? extra.handlers[action] ?? onboarding.handlers[action] ?? platform.handlers[action];
     if (!handler) return respond({ error: "Unknown action" }, 400);
 

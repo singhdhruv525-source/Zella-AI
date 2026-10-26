@@ -56,6 +56,7 @@ export const NAV_ITEMS = [
       { id: "callbacks", label: "Callbacks", icon: "phone_callback", page: "callbacks" },
       { id: "drafts", label: "Suggested messages", icon: "mark_email_unread", page: "drafts", roles: WORK_ROLES },
       { id: "failed", label: "Didn't send", icon: "error", page: "failed", roles: LEAD_ROLES },
+      { id: "spam", label: "Spam protection", icon: "gpp_maybe", page: "spam", roles: LEAD_ROLES },
     ],
   },
 

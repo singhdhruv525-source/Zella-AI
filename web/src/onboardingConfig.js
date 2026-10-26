@@ -22,11 +22,13 @@ const GENERAL = {
   ],
   faqPrompts: ["Do you take walk-ins?", "Where can I park?", "What payment methods do you accept?"],
   capabilities: ["answer_questions", "answer_calls", "collect_customer_info", "take_messages", "book_appointments", "reschedule_appointments"],
+  spamBookingLimit: 3,         // bookings one contact may make per day before the rest wait for the team
 };
 
 const DINING = {
   ...GENERAL,
   kind: "dining",
+  spamBookingLimit: 2,
   team: "optional",
   teamHint: "Optional. Restaurants usually book tables, not people, so you can skip this.",
   servicesHint: "Menus, set menus, private dining or catering the AI can describe. Prices are optional.",
@@ -46,6 +48,7 @@ const DINING = {
 const LODGING = {
   ...GENERAL,
   kind: "lodging",
+  spamBookingLimit: 2,
   teamHint: "Optional. Add front-desk or concierge staff if guests book time with them.",
   servicesHint: "Room types and extras (breakfast, spa, airport transfer). Prices are optional.",
   defaultLength: 60,
@@ -63,6 +66,7 @@ const LODGING = {
 const CLINIC = {
   ...GENERAL,
   kind: "clinic",
+  spamBookingLimit: 2,
   team: "recommended",
   teamHint: "Add the providers patients book with, so the AI only offers their real availability.",
   servicesHint: "Treatments and visit types. Leave prices empty if they depend on an exam.",

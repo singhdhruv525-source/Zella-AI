@@ -31,6 +31,7 @@ export const ONBOARDING_PERMISSIONS: Record<string, string> = {
   setup_document_confirm: "businesses.manage",
   document_view: "businesses.manage",
   document_review: "businesses.manage",
+  setup_save_spam: "businesses.manage",
 };
 
 export const DOCUMENT_BUCKET = "business-documents";
@@ -272,7 +273,42 @@ export function onboardingHandlers(admin: SupabaseClient, fields: Json, userId: 
     return { businessId: doc.business_id, before: doc.status, document: data };
   };
 
+  // Spam protection chosen during setup: one row per business in spam_settings (the same row the CRM's Spam
+  // protection settings edit). Values are clamped to the database's own limits; unknown keys are ignored.
+  const saveSpam = async () => {
+    const businessId = requireId(fields.businessId);
+    await kit.getBusiness(admin, businessId);
+    const input = obj(fields.spam);
+    const int = (v: unknown, lo: number, hi: number, d: number) => { const n = Math.round(Number(v)); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d; };
+    const row = {
+      business_id: businessId,
+      enabled: bool(input.enabled, true),
+      call_screening: input.call_screening === "screen" ? "screen" : "flag",
+      ai_spam_handling: input.ai_spam_handling === "take_message" ? "take_message" : "end_politely",
+      repeat_call_limit: int(input.repeat_call_limit, 2, 50, 5),
+      repeat_window_minutes: int(input.repeat_window_minutes, 5, 1440, 60),
+      sms_monitoring: bool(input.sms_monitoring, true),
+      sms_flood_limit: int(input.sms_flood_limit, 3, 200, 10),
+      email_monitoring: bool(input.email_monitoring, true),
+      email_flood_limit: int(input.email_flood_limit, 3, 200, 10),
+      booking_protection: bool(input.booking_protection, true),
+      booking_daily_limit: int(input.booking_daily_limit, 1, 20, 3),
+      auto_restrict: bool(input.auto_restrict, true),
+      notify_high_risk: bool(input.notify_high_risk, true),
+      updated_at: new Date().toISOString(),
+      updated_by: userId,
+    };
+    const { error } = await admin.from("spam_settings").upsert(row, { onConflict: "business_id" });
+    if (error) {
+      if (missingTable(error)) return { businessId, saved: false, reason: "not_set_up" };
+      throw error;
+    }
+    const { business_id: _b, updated_at: _u, updated_by: _ub, ...settings } = row;
+    return { businessId, saved: true, settings };
+  };
+
   const handlers: Record<string, () => Promise<unknown>> = {
+    setup_save_spam: saveSpam,
     setup_save_operations: saveOperations,
     setup_save_team: saveTeam,
     setup_document_upload_url: documentUploadUrl,
@@ -286,6 +322,7 @@ export function onboardingHandlers(admin: SupabaseClient, fields: Json, userId: 
     setup_save_operations: (r) => ({ action: "business.operations_updated", business_id: r.businessId, entity_type: "business", entity_id: r.businessId, new_data: { hours: r.hours, services: r.services, details: r.details } }),
     setup_save_team: (r) => ({ action: "business.team_updated", business_id: r.businessId, entity_type: "staff_member", new_data: { team: r.team, added: r.added, removed: r.removed } }),
     setup_document_confirm: (r) => ({ action: "business.document_uploaded", business_id: r.businessId, entity_type: "verification_document", entity_id: obj(r.document).id, new_data: { kind: obj(r.document).kind, file_name: obj(r.document).file_name } }),
+    setup_save_spam: (r) => (r.saved ? { action: "spam.settings_updated", business_id: r.businessId, entity_type: "business", entity_id: r.businessId, new_data: r.settings } : null) as Json,
     document_view: (r) => ({ action: "business.document_viewed", business_id: r.businessId, entity_type: "verification_document", entity_id: r.documentId, new_data: { kind: r.kind } }),
     document_review: (r) => ({ action: "business.document_" + obj(r.document).status, business_id: r.businessId, entity_type: "verification_document", entity_id: obj(r.document).id, old_data: { status: r.before }, new_data: { status: obj(r.document).status, note: obj(r.document).review_note } }),
   };
@@ -304,6 +341,8 @@ export async function loadOnboarding(admin: SupabaseClient, businessId: string, 
   ]);
   if (docs.error && !missingTable(docs.error)) throw docs.error;
   if (staff.error) throw staff.error;
+  const spam = await admin.from("spam_settings").select("*").eq("business_id", businessId).maybeSingle();
+  if (spam.error && !missingTable(spam.error)) throw spam.error;
   const { data: hours, error: hoursError } = await admin.from("business_hours").select("weekday, opens, closes").eq("business_id", businessId).order("weekday").order("opens");
   if (hoursError) throw hoursError;
   return {
@@ -312,6 +351,8 @@ export async function loadOnboarding(admin: SupabaseClient, businessId: string, 
     team: staff.data ?? [],
     hours: hours ?? [],
     operations: (setupData.operations && typeof setupData.operations === "object") ? setupData.operations : null,
+    spamAvailable: !spam.error,
+    spam: spam.error ? null : spam.data,
   };
 }
 

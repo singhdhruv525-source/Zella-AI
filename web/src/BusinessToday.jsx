@@ -68,6 +68,53 @@ function Kpi({ icon, tone, label, value, change, loading }) {
   );
 }
 
+// Spam: suspected spam incidents for the selected day, how many still need a look, and the same day last week.
+// Real counts from zella_spam_overview (owners, admins and managers only); the whole card opens Spam protection.
+const SPAM_ROLES = ["owner", "admin", "manager"];
+function SpamKpi({ workspace, day, tz, onOpen }) {
+  const [state, setState] = useState({ loading: true });
+  const allowed = SPAM_ROLES.includes(workspace.role);
+  useEffect(() => {
+    if (!allowed) return undefined;
+    let live = true;
+    const cur = dayBounds(day, tz);
+    const prev = dayBounds(addDays(day, -7), tz);
+    const ask = (b) => supabase.rpc("zella_spam_overview", { p_business_id: workspace.id, p_from: b.start.toISOString(), p_to: b.end.toISOString() });
+    Promise.all([ask(cur), ask(prev)]).then(([a, b]) => {
+      if (!live) return;
+      if (a.error) {
+        const missing = a.error.code === "PGRST202" || /could not find the function/i.test(a.error.message ?? "");
+        setState({ loading: false, missing, failed: !missing });
+      } else {
+        setState({ loading: false, data: a.data, prev: b.error ? null : b.data });
+      }
+    });
+    return () => { live = false; };
+  }, [allowed, workspace.id, day, tz]);
+  if (!allowed) return null;
+  const d = state.data;
+  const change = d && state.prev && trend(d.total, state.prev.total, false);
+  return (
+    <button type="button" className="ba-kpi td-kpi td-kpi-link td-kpi-spam" onClick={onOpen}
+      aria-label={d ? `Spam: ${d.total} suspected, ${d.unreviewed} to review. Open Spam protection` : "Open Spam protection"}>
+      <span className={`ba-kpi-icon ${d?.unreviewed ? "rose" : ""}`}><Icon name="gpp_maybe" /></span>
+      <div className="td-kpi-body">
+        <span className="td-kpi-label">Spam</span>
+        <div className="td-kpi-row">
+          <span className="ba-kpi-value">{state.loading ? "…" : d ? <CountUp value={d.total} /> : "—"}</span>
+          {d && d.unreviewed > 0 && <span className="td-spam-new">{d.unreviewed} to review</span>}
+          {d && !d.unreviewed && change && (
+            <span className={`td-trend ${change.tone}`} aria-label={change.label ?? change.text}>
+              {change.arrow && <Icon name={change.arrow} size="sm" />}{change.text}
+            </span>
+          )}
+          {!state.loading && !d && <span className="td-trend">{state.missing ? "Not set up yet" : "Couldn't load"}</span>}
+        </div>
+      </div>
+    </button>
+  );
+}
+
 function Card({ title, action, children, className = "", tabs }) {
   return (
     <section className={`ba-panel td-card ${className}`}>
@@ -253,6 +300,7 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
         <Kpi icon="person_add" tone="amber" label="New leads" value={data?.leads.length ?? 0} loading={loading && !data} change={p && trend(data.leads.length, p.leads)} />
         <Kpi icon="smart_toy" tone="green" label="AI-answered calls" value={data?.aiCalls ?? 0} loading={loading && !data} change={p && trend(data.aiCalls, p.aiCalls)} />
         <Kpi icon="phone_missed" tone="rose" label="Missed calls" value={data?.missed ?? 0} loading={loading && !data} change={p && trend(data.missed, p.missed, false)} />
+        <SpamKpi workspace={workspace} day={day} tz={tz} onOpen={() => onGo("spam")} />
       </div>
 
       <div className="td-grid">

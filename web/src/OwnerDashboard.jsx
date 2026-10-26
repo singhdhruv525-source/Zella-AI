@@ -16,6 +16,7 @@ import SettingsPage from "./SettingsPage";
 import ModulesPage from "./ModulesPage";
 import OffersPage from "./OffersPage";
 import VerificationQueue from "./VerificationQueue";
+import SecurityAbuse from "./SecurityAbuse";
 import { supabase } from "./supabase";
 import { Pill } from "./OwnerOverview";
 import { businessState } from "./ownerFormat";
@@ -62,6 +63,7 @@ const NAVIGATION = [
   { label: "Automations", icon: "bolt", settings: "integrations/n8n", group: "Operations", perm: "businesses.view" },
   { label: "Integrations", icon: "hub", path: "/integrations", group: "Operations", perm: "businesses.view" },
   { label: "Support", icon: "support_agent", path: "/support", group: "Operations", perm: "support.manage" },
+  { label: "Security & Abuse", icon: "gpp_maybe", path: "/security-abuse", group: "Operations", perm: "security.view" },
   { label: "Users & Access", icon: "group", path: "/users", group: "Administration", perm: "security.view" },
   { label: "Audit Logs", icon: "history", path: "/audit-logs", group: "Administration", perm: "audit.view" },
   { label: "Settings", icon: "settings", path: "/settings", group: "Administration", perm: null },
@@ -338,6 +340,8 @@ useEffect(() => {
             />
           ) : activePage === "Verification" ? (
             <VerificationQueue onOpenBusiness={setDetailId} onOpenSetup={(id) => setWizard({ businessId: id })} />
+          ) : activePage === "Security & Abuse" ? (
+            <SecurityAbuse permissions={meFailed ? null : me?.permissions} onOpenBusiness={setDetailId} />
           ) : activePage === "Audit Logs" ? (
             <AuditLogs onOpenBusiness={setDetailId} />
           ) : activePage === "Industry Configuration" ? (
