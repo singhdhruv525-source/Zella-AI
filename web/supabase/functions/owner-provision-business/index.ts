@@ -1048,6 +1048,12 @@ function requestContext(req: Request, userId: string): AuditContext {
 // summarised as counts so the log stays readable.
 // deno-lint-ignore no-explicit-any
 const AUDITED: Record<string, (fields: Json, result: any) => AuditEntry> = {
+  platform_setting_save: (_fields, r) => ({
+    action: "platform.setting_updated",
+    entity_type: "platform_setting",
+    old_data: { key: r.key, value: r.previous },
+    new_data: { key: r.key, value: r.value },
+  }),
   setup_save_business: (_fields, r) => ({
     action: r.created
       ? "business.draft_created"
@@ -2333,6 +2339,9 @@ async function platformStatus(admin: SupabaseClient, userId: string) {
     // Only whether each value is set. Secret values never leave the server.
     configuration: [
       { key: "ZELLA_APP_URL", label: "App URL for invitation links", set: has("ZELLA_APP_URL"), required: true },
+      { key: "ZELLA_SERVER_SECRET_KEY", label: "Server key for public pages and webhooks", set: has("ZELLA_SERVER_SECRET_KEY"), required: true },
+      { key: "ZELLA_ALLOWED_ORIGINS", label: "Websites allowed to call Zella (set at go-live)", set: has("ZELLA_ALLOWED_ORIGINS"), required: false },
+      { key: "STRIPE_WEBHOOK_SECRET", label: "Payment provider webhook signature", set: has("STRIPE_WEBHOOK_SECRET"), required: false },
       { key: "TELNYX_API_KEY", label: "Telnyx (phone numbers)", set: has("TELNYX_API_KEY"), required: false },
       { key: "VAPI_API_KEY", label: "Vapi (voice agents)", set: has("VAPI_API_KEY"), required: false },
       { key: "N8N_WEBHOOK_URL", label: "n8n (automations and emails)", set: has("N8N_WEBHOOK_URL"), required: false },
@@ -2693,6 +2702,79 @@ async function invitationResend(admin: SupabaseClient, fields: Json) {
 // Request handler
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Platform settings and failed events (admin Settings and Platform Operations)
+// ---------------------------------------------------------------------------
+
+// Settings an owner may change here. The live switches (sms_live, email_live, calls_live, ...) are left out on
+// purpose: they start real texts, emails and calls, and go-live turns them on in order (n8n/GO-LIVE.md).
+const EDITABLE_SETTINGS: Record<string, { label: string; check: (v: unknown) => unknown }> = {
+  email_from_address: { label: "Sender address for emails", check: (v) => {
+    const t = text(v, 254).toLowerCase();
+    if (t && !EMAIL_RE.test(t)) throw new InputError("Enter a valid sender email address");
+    return t;
+  } },
+  sms_from_number: { label: "Number texts are sent from", check: (v) => {
+    const t = text(v, 20).replace(/[\s()-]/g, "");
+    if (t && !/^\+[1-9]\d{7,14}$/.test(t)) throw new InputError("Enter the number with its country code, like +15551234567");
+    return t;
+  } },
+  response_time_minutes: { label: "Target time to reply to a new lead (minutes)", check: (v) => intIn(v, 1, 1440) },
+  task_overdue_grace_minutes: { label: "Minutes before a task counts as overdue", check: (v) => intIn(v, 0, 1440) },
+  task_escalate_hours: { label: "Hours before an overdue task is escalated", check: (v) => intIn(v, 1, 168) },
+  team_summary_hour: { label: "Hour the daily team summary is sent (0-23, business time)", check: (v) => intIn(v, 0, 23) },
+  missed_call_max_seconds: { label: "Calls shorter than this count as missed (seconds)", check: (v) => intIn(v, 0, 60) },
+  knowledge_repeat_threshold: { label: "Times a question repeats before it's suggested as knowledge", check: (v) => intIn(v, 1, 50) },
+  call_intel_monthly_limit: { label: "Calls analysed by AI per business per month", check: (v) => intIn(v, 0, 100000) },
+};
+
+function intIn(v: unknown, min: number, max: number) {
+  const n = typeof v === "number" ? v : Number(String(v ?? "").trim());
+  if (!Number.isInteger(n) || n < min || n > max) throw new InputError(`Enter a whole number from ${min} to ${max}`);
+  return n;
+}
+
+async function platformSettingsList(admin: SupabaseClient, userId: string) {
+  const { data, error } = await admin.from("platform_settings").select("key, value, updated_at").order("key");
+  if (error) throw error;
+  const canEdit = (await callerRole(admin, userId)) === "zella_owner";
+  return {
+    canEdit,
+    settings: (data ?? []).map((row) => ({
+      ...row,
+      label: EDITABLE_SETTINGS[row.key]?.label ?? null,
+      editable: canEdit && Boolean(EDITABLE_SETTINGS[row.key]),
+      live: /_live$/.test(row.key),
+    })),
+  };
+}
+
+async function platformSettingSave(admin: SupabaseClient, fields: Json, userId: string) {
+  if ((await callerRole(admin, userId)) !== "zella_owner") throw new InputError("Only a Zella owner can change platform settings", 403);
+  const key = text(fields.key, 80);
+  const rule = EDITABLE_SETTINGS[key];
+  if (!rule) throw new InputError("This setting can't be changed here", 400);
+  const value = rule.check(fields.value);
+  const { data: before } = await admin.from("platform_settings").select("value").eq("key", key).maybeSingle();
+  const { error } = await admin.from("platform_settings")
+    .upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: "key" });
+  if (error) throw error;
+  return { key, value, previous: before?.value ?? null };
+}
+
+// Events that failed for good, newest first. The payload is left out (it can hold customer details).
+async function failedEventsList(admin: SupabaseClient, fields: Json) {
+  const limit = Math.min(Math.max(Number(fields.limit) || 50, 1), 200);
+  const { data, error } = await admin.from("automation_events")
+    .select("id, business_id, event_type, source, attempts, error_category, error_message, received_at")
+    .eq("status", "failed").order("received_at", { ascending: false }).limit(limit);
+  if (error) throw error;
+  const ids = [...new Set((data ?? []).map((e) => e.business_id))];
+  const { data: names } = ids.length ? await admin.from("businesses").select("id, name").in("id", ids) : { data: [] };
+  const nameOf = Object.fromEntries((names ?? []).map((b) => [b.id, b.name]));
+  return { events: (data ?? []).map((e) => ({ ...e, business_name: nameOf[e.business_id] ?? null })) };
+}
+
 Deno.serve(withCors(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -2938,6 +3020,9 @@ Deno.serve(withCors(async (req: Request) => {
       business_undo_cancel: () => businessUndoCancel(adminClient, fields),
       invitation_resend: () => invitationResend(adminClient, fields),
       modules_overview: () => modulesOverview(adminClient),
+      platform_settings_list: () => platformSettingsList(adminClient, user.id),
+      platform_setting_save: () => platformSettingSave(adminClient, fields, user.id),
+      failed_events_list: () => failedEventsList(adminClient, fields),
     };
 
     const handler = handlers[action];
