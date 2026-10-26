@@ -41,7 +41,7 @@ const loadHealth = async () => {
   return data;
 };
 
-function HealthPanel() {
+export function HealthPanel() {
   const { data, error, loading } = useAsync(loadHealth);
   const alerts = data?.open_alerts ?? {};
   return (
@@ -68,7 +68,7 @@ function HealthPanel() {
 
 const loadFailed = () => callOwnerFunction("failed_events_list", { limit: 50 });
 
-function FailedEventsPanel({ onOpenBusiness }) {
+export function FailedEventsPanel({ onOpenBusiness }) {
   const { data, error, loading, reload } = useAsync(loadFailed);
   const [busy, setBusy] = useState("");
   const [notice, setNotice] = useState("");
@@ -117,7 +117,7 @@ const loadIncidents = async () => {
   return data ?? [];
 };
 
-function IncidentsPanel() {
+export function IncidentsPanel() {
   const { data, error, loading, reload } = useAsync(loadIncidents);
   const [form, setForm] = useState({ title: "", detail: "" });
   const [notes, setNotes] = useState({});

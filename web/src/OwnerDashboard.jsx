@@ -62,8 +62,8 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 function readRoute(path) {
   const [first = "", second, third] = segments(path);
   const item = NAVIGATION.find((n) => n.path === `/${first}`);
-  if (!item) return { activePage: null, wizard: null, detailId: null, section: null };
-  const route = { activePage: item.label, wizard: null, detailId: null, section: null };
+  if (!item) return { activePage: null, wizard: null, detailId: null, section: null, sub: null };
+  const route = { activePage: item.label, wizard: null, detailId: null, section: null, sub: null };
   if (item.label === "Businesses" && second) {
     if (second === "new" && !third) route.wizard = { businessId: null };
     else if (UUID_RE.test(second) && !third) route.detailId = second;
@@ -71,6 +71,7 @@ function readRoute(path) {
     else route.activePage = null;
   } else if (item.label === "Settings" && second) {
     route.section = second;
+    route.sub = third ?? null;
   } else if (second) {
     route.activePage = null;
   }
@@ -81,7 +82,7 @@ const pathFor = (label) => NAVIGATION.find((n) => n.label === label)?.path ?? "/
 
 export default function OwnerDashboard({ onSignOut }) {
   const path = usePath();
-  const { activePage, wizard, detailId, section } = readRoute(path);
+  const { activePage, wizard, detailId, section, sub } = readRoute(path);
   const setActivePage = (label) => navigate(pathFor(label));
   const setDetailId = (id) => navigate(id ? `/businesses/${id}` : "/businesses");
   const setWizard = (next) => navigate(next
@@ -292,7 +293,8 @@ useEffect(() => {
           ) : activePage === "Platform Operations" ? (
             <PlatformOperations onNavigate={goTo} onOpenBusiness={setDetailId} />
           ) : activePage === "Settings" ? (
-            <SettingsPage onNavigate={goTo} section={section} />
+            <SettingsPage onNavigate={goTo} section={section} sub={sub} onSignOut={onSignOut}
+              onOpenBusiness={setDetailId} onOpenSetup={(id) => setWizard({ businessId: id })} />
           ) : isBusinesses ? (
             <section className="owner-page">
               <div className="owner-page-heading">

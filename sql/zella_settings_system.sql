@@ -428,7 +428,8 @@ grant execute on function public.zella_accept_legal_document(uuid, uuid) to auth
 
 -- 8. Logos -----------------------------------------------------------------------------------------------------
 --    Public bucket (logos appear on sign-in pages and emails). platform/... is written by platform admins with
---    platform.configure; business/<business id>/... by that business's owners and admins. PNG, JPEG, WebP, 2 MB.
+--    platform.configure; business/<business id>/... by that business's owners and admins; user/<user id>/... by that
+--    person (profile picture). PNG, JPEG, WebP, 2 MB.
 --    SVG is not allowed (it can carry scripts).
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
@@ -440,6 +441,7 @@ returns boolean language sql stable security definer set search_path = public as
   select case
     when p_name like 'platform/%' then public.zella_admin_can('platform.configure')
     when p_name ~ '^business/[0-9a-f-]{36}/' then auth.uid() is not null and public.zella_has_role(split_part(p_name, '/', 2)::uuid, array['owner', 'admin'])
+    when p_name like 'user/%' then auth.uid() is not null and split_part(p_name, '/', 2) = auth.uid()::text
     else false end;
 $$;
 revoke all on function public.zella_can_write_brand_asset(text) from public, anon;
@@ -563,3 +565,26 @@ grant execute on function public.zella_rls_coverage() to service_role;
 do $$ begin
   if to_regprocedure('public.zella_tenant_leak_check()') is not null then grant execute on function public.zella_tenant_leak_check() to service_role; end if;
 end $$;
+
+-- 12. Profile picture -------------------------------------------------------------------------------------------
+
+create or replace function public.zella_set_my_avatar(p_url text)
+returns text language plpgsql security definer set search_path = public as $$
+declare v_url text := nullif(trim(coalesce(p_url, '')), '');
+begin
+  if auth.uid() is null then raise exception 'NOT_SIGNED_IN'; end if;
+  if v_url is not null and position('/storage/v1/object/public/brand-assets/user/' || auth.uid()::text || '/' in v_url) = 0 then raise exception 'BAD_AVATAR_URL'; end if;
+  update public.profiles set avatar_url = v_url, updated_at = now() where id = auth.uid();
+  if not found then insert into public.profiles (id, avatar_url) values (auth.uid(), v_url); end if;
+  return v_url;
+end $$;
+revoke all on function public.zella_set_my_avatar(text) from public, anon;
+grant execute on function public.zella_set_my_avatar(text) to authenticated;
+
+create or replace function public.zella_my_profile()
+returns jsonb language sql stable security definer set search_path = public as $$
+  select jsonb_build_object('first_name', p.first_name, 'last_name', p.last_name, 'phone', p.phone, 'avatar_url', p.avatar_url)
+    from public.profiles p where p.id = auth.uid();
+$$;
+revoke all on function public.zella_my_profile() from public, anon;
+grant execute on function public.zella_my_profile() to authenticated;

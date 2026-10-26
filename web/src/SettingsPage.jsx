@@ -1,261 +1,159 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import "./OwnerPages.css";
 import { supabase } from "./supabase";
 import { callOwnerFunction } from "./CreateBusinessWizard";
-import { Pill } from "./OwnerOverview";
-import { formatDateTime } from "./ownerFormat";
 import { navigate } from "./router";
+import SettingsWorkspace from "./settings/SettingsWorkspace";
+import { Banner, Loading } from "./settings/SettingsKit";
+import { AccountSecurityPanel, MyProfilePanel, SignOutPanel } from "./settings/PersonalPanels";
+import * as P from "./settings/AdminPanels";
+import { FailedEventsPanel, HealthPanel, IncidentsPanel } from "./PlatformMonitoring";
 
-// Admin Settings. Categories live in this page's own menu (the main sidebar keeps
-// one Settings item); the address is /settings/<category>. Every value comes from
-// the owner-provision-business function, which checks the admin role first.
+// Admin Settings: one Settings item in the main sidebar opens this workspace,
+// with 16 categories and their pages at /settings/<category>/<page>.
 
-const ROLE_LABELS = { zella_owner: "Zella owner", super_admin: "Super admin" };
+const Glyph = ({ name }) => <span className="zs-glyph" aria-hidden="true">{GLYPHS[name] ?? "•"}</span>;
+const GLYPHS = { search: "⌕", general: "◫", tenants: "▦", users: "♙", plans: "▱", billing: "$", ai: "✳", voice: "☏", comms: "✉", integrations: "↔", security: "♢", alerts: "♧", support: "♡", analytics: "▤", legal: "§", dev: "⌘", profile: "☺" };
 
-const SECTIONS = [
-  ["account", "Profile & account"],
-  ["platform", "Platform configuration"],
-  ["preferences", "Operational preferences"],
-  ["security", "Security & access"],
-  ["businesses", "Business management"],
-  ["notifications", "Notifications"],
-  ["integrations", "Integrations"],
-  ["billing", "Subscriptions & billing"],
-  ["audit", "Audit logs"],
-];
+const page = (key, label, render, keywords = "") => ({ key, label, render, keywords });
 
-function Row({ title, detail, action }) {
+function registry() {
+  return [
+    { key: "general", label: "General platform settings", icon: "general", items: [
+      page("profile", "Platform profile", (c) => <P.PlatformProfile me={c.me} />, "name legal support email phone website address country timezone currency"),
+      page("branding", "Branding and appearance", (c) => <P.Branding me={c.me} />, "logo favicon theme colour color login email"),
+      page("localization", "Localization", () => <P.Localization />, "language date time currency format locale"),
+      page("maintenance", "Platform maintenance", (c) => <P.Maintenance me={c.me} />, "maintenance announcement downtime read-only"),
+    ] },
+    { key: "tenants", label: "Business and tenant management", icon: "tenants", items: [
+      page("all", "All businesses", (c) => <P.AllBusinesses openBusiness={c.openBusiness} />, "search filter industry plan status onboarding created"),
+      page("onboarding", "Business onboarding", (c) => <P.Onboarding me={c.me} openSetup={c.openSetup} openBusiness={c.openBusiness} />, "setup blockers invite"),
+      page("lifecycle", "Status and lifecycle", (c) => <P.Lifecycle openBusiness={c.openBusiness} />, "suspend deactivate cancel delete"),
+      page("details", "Business details", (c) => <P.BusinessDetailsPicker openBusiness={c.openBusiness} />, "owner members subscription modules"),
+      page("provisioning", "Business provisioning", (c) => <P.Provisioning openBusiness={c.openBusiness} />, "workspace errors retry"),
+      page("data", "Data lifecycle", (c) => <P.DataLifecycle me={c.me} />, "export deletion retention"),
+    ] },
+    { key: "users", label: "Users, roles and access", icon: "users", items: [
+      page("admins", "Platform administrators", (c) => <P.Administrators onNavigate={c.onNavigate} />, "admin invite mfa last login"),
+      page("roles", "Platform roles", (c) => <P.PlatformRoles me={c.me} />, "role matrix super admin billing support security read-only"),
+      page("permissions", "Permissions", () => <P.Permissions />, "permission enforcement"),
+      page("auth", "Authentication policies", () => <P.AuthPolicies />, "password mfa session providers recovery"),
+      page("sessions", "Administrative sessions", (c) => <AccountSecurityPanel email={c.email} />, "sessions revoke devices login history"),
+    ] },
+    { key: "plans", label: "Plans, subscriptions and entitlements", icon: "plans", items: [
+      page("plans", "Plan management", (c) => <P.PlanManagement me={c.me} onNavigate={c.onNavigate} />, "create edit archive price"),
+      page("entitlements", "Plan entitlements", (c) => <P.PlanEntitlements me={c.me} />, "allowance minutes sms seats numbers limits"),
+      page("subscriptions", "Subscription management", () => <P.Subscriptions />, "trial past due cancelled renewal"),
+      page("promotions", "Trials and promotions", (c) => <P.TrialsPromotions onNavigate={c.onNavigate} />, "promo code discount trial"),
+      page("enforcement", "Entitlement enforcement", () => <P.EntitlementEnforcement />, "limits enforced"),
+    ] },
+    { key: "billing", label: "Billing and financial operations", icon: "billing", items: [
+      page("overview", "Billing overview", () => <P.BillingOverview />, "mrr arr revenue"),
+      page("payments", "Payments", () => <P.Payments />, "transactions"),
+      page("invoices", "Invoices", () => <P.Invoices />, "invoice tax"),
+      page("refunds", "Refunds and adjustments", () => <P.Refunds />, "refund credit"),
+      page("config", "Billing configuration", (c) => <P.BillingConfig me={c.me} />, "stripe grace retry tax"),
+    ] },
+    { key: "ai", label: "AI providers and agents", icon: "ai", items: [
+      page("providers", "AI provider configuration", (c) => <P.AiProviders me={c.me} />, "model anthropic vapi health"),
+      page("registry", "AI agent registry", (c) => <P.AgentRegistry onNavigate={c.onNavigate} />, "agents"),
+      page("configuration", "AI agent configuration", (c) => <P.AgentConfiguration onNavigate={c.onNavigate} />, "instructions defaults versions"),
+      page("testing", "AI testing and evaluation", () => <P.AiTesting />, "eval test accuracy"),
+      page("guardrails", "AI safety and guardrails", () => <P.AiGuardrails />, "safety handoff injection"),
+    ] },
+    { key: "voice", label: "Voice, telephony and usage", icon: "voice", items: [
+      page("providers", "Telephony providers", () => <P.TelephonyProviders />, "telnyx twilio vapi"),
+      page("numbers", "Phone number management", (c) => <P.PhoneNumbers me={c.me} />, "assign reassign release"),
+      page("usage", "Voice usage", () => <P.VoiceUsage />, "minutes calls cost"),
+      page("costs", "Voice cost configuration", (c) => <P.VoiceCosts me={c.me} />, "pricing rate per minute"),
+      page("limits", "Usage limits", () => <P.UsageLimits />, "top-up spending limit"),
+    ] },
+    { key: "comms", label: "SMS, email and communications", icon: "comms", items: [
+      page("sms", "SMS configuration", (c) => <P.SmsConfig me={c.me} />, "text telnyx sender opt-out"),
+      page("email", "Email configuration", (c) => <P.EmailConfig me={c.me} />, "resend sender bounce"),
+      page("templates", "Communication templates", () => <P.Templates />, "template preview variables"),
+      page("delivery", "Delivery monitoring", (c) => <P.DeliveryMonitoring onNavigate={c.onNavigate} />, "failed suppression"),
+    ] },
+    { key: "integrations", label: "Integrations and automation", icon: "integrations", items: [
+      page("registry", "Integration registry", (c) => <P.IntegrationRegistry onNavigate={c.onNavigate} />, "connections health"),
+      page("oauth", "OAuth applications", () => <P.OauthApps />, "google calendar gmail"),
+      page("n8n", "n8n configuration", () => <P.N8nConfig />, "workflow dispatcher"),
+      page("monitoring", "Automation monitoring", (c) => <P.AutomationMonitoring openBusiness={c.openBusiness} />, "executions failures"),
+      page("webhooks", "Webhooks", () => <P.Webhooks />, "endpoints signature"),
+    ] },
+    { key: "security", label: "Security and privacy", icon: "security", items: [
+      page("overview", "Security overview", () => <P.SecurityOverview />, "incidents suspicious"),
+      page("isolation", "Data isolation", () => <P.DataIsolation />, "rls tenant row level"),
+      page("secrets", "Secrets and credentials", () => <P.Secrets />, "keys rotation"),
+      page("retention", "Data retention", (c) => <P.Retention me={c.me} />, "retention recording transcript"),
+      page("privacy", "Privacy controls", (c) => <P.PrivacyControls onGo={c.onGo} />, "data requests consent"),
+      page("audit", "Security audit", (c) => <P.SecurityAudit onNavigate={c.onNavigate} />, "audit log"),
+    ] },
+    { key: "alerts", label: "Notifications and alerts", icon: "alerts", items: [
+      page("admin", "Admin notifications", () => <P.AdminNotifications />, "email digest alerts"),
+      page("rules", "Alert rules", () => <P.AlertRules />, "severity escalation"),
+      page("channels", "Notification channels", () => <P.NotificationChannels />, "email in-app"),
+      page("history", "Notification history", (c) => <P.NotificationHistory me={c.me} />, "acknowledge resolve"),
+    ] },
+    { key: "support", label: "Support and service operations", icon: "support", items: [
+      page("tickets", "Support tickets", (c) => <SupportLink onNavigate={c.onNavigate} />, "tickets"),
+      page("health", "Service health", () => <HealthPanel />, "providers status"),
+      page("incidents", "Incident management", () => <IncidentsPanel />, "incident outage"),
+      page("logs", "System logs", (c) => <><FailedEventsPanel onOpenBusiness={c.openBusiness} /><P.AutomationMonitoring openBusiness={c.openBusiness} /></>, "errors failed jobs correlation"),
+    ] },
+    { key: "analytics", label: "Analytics and reporting", icon: "analytics", items: [
+      page("global", "Global analytics", () => <P.GlobalAnalytics />, "growth revenue usage retention"),
+      page("reporting", "Reporting configuration", () => <P.ReportingConfig />, "scheduled reports"),
+      page("quality", "Data quality", () => <P.DataQuality />, "duplicates unmatched"),
+    ] },
+    { key: "legal", label: "Legal, policy and documents", icon: "legal", items: [
+      page("documents", "Legal documents", (c) => <P.LegalDocuments me={c.me} />, "terms privacy dpa cookie ai disclosure"),
+      page("versions", "Document versioning", (c) => <P.LegalVersioning me={c.me} />, "publish review acceptance"),
+      page("policy", "Policy configuration", (c) => <P.PolicyConfig onGo={c.onGo} />, "retention recording consent"),
+    ] },
+    { key: "developer", label: "Developer and API", icon: "dev", items: [
+      page("api", "API management", () => <P.ApiManagement />, "keys scopes"),
+      page("webhooks", "Webhook management", () => <P.Webhooks />, "endpoints signing"),
+      page("environment", "Environment configuration", () => <P.Environment />, "environment config validation"),
+      page("system", "System configuration", () => <P.SystemConfig />, "feature flags history"),
+    ] },
+    { key: "profile", label: "Administrator profile", icon: "profile", items: [
+      page("me", "My profile", (c) => <MyProfilePanel email={c.email} />, "name picture"),
+      page("security", "Account security", (c) => <AccountSecurityPanel email={c.email} />, "password mfa sessions"),
+      page("notifications", "Personal notifications", () => <P.AdminNotifications />, "email alerts"),
+      page("signout", "Sign out", (c) => <SignOutPanel who="you" onSignOut={c.onSignOut} />, "logout"),
+    ] },
+  ];
+}
+
+function SupportLink({ onNavigate }) {
   return (
-    <li>
-      <div>
-        <strong>{title}</strong>
-        <span>{detail}</span>
-      </div>
-      {action}
-    </li>
+    <ul className="zs-rows"><li><div><strong>Support tickets</strong><small>Ticket list, priority, status, assignment and notes are on the Support page.</small></div>
+      <button type="button" className="zs-btn sm" onClick={() => onNavigate("Support")}>Open</button></li></ul>
   );
 }
 
-function Card({ title, sub, children }) {
-  return (
-    <section className="owner-panel op-card">
-      <div className="owner-panel-heading"><div><h2>{title}</h2>{sub && <p>{sub}</p>}</div></div>
-      {children}
-    </section>
-  );
-}
+const REGISTRY = registry();
 
-function AccountSection({ data, loading }) {
-  const [sent, setSent] = useState("");
-  const [busy, setBusy] = useState(false);
-  async function reset() {
-    setBusy(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(data.me.email, { redirectTo: `${window.location.origin}/welcome` });
-    setBusy(false);
-    setSent(error ? `Couldn't send the link: ${error.message}` : `A link to choose a new password is on its way to ${data.me.email}.`);
-  }
-  return (
-    <Card title="Your account">
-      <ul className="op-list">
-        <Row title="Email" detail={loading && !data ? "Loading..." : data?.me?.email ?? "—"} />
-        <Row title="Role" detail={ROLE_LABELS[data?.me?.role] ?? data?.me?.role ?? "—"} />
-        <Row title="Last sign-in" detail={formatDateTime(data?.me?.lastSignInAt)} />
-        <Row title="Password" detail={sent || "Change it with a link sent to your email."}
-          action={data?.me?.email && !sent && <button type="button" className="owner-secondary-button op-small" onClick={reset} disabled={busy}>{busy ? "Sending..." : "Send link"}</button>} />
-      </ul>
-    </Card>
-  );
-}
-
-function PlatformSection({ data }) {
-  return (
-    <Card title="Server configuration" sub={<>Set with <code>supabase secrets set NAME=value</code>. Values are never shown here.</>}>
-      <ul className="op-list">
-        {(data?.configuration ?? []).map((c) => (
-          <Row key={c.key} title={c.label} detail={c.key}
-            action={<Pill tone={c.set ? "success" : c.required ? "danger" : "neutral"}>{c.set ? "Configured" : "Not set"}</Pill>} />
-        ))}
-        {data?.appUrl && <Row title="Invitation links open" detail={data.appUrl} />}
-      </ul>
-    </Card>
-  );
-}
-
-function SettingValue({ row, onSaved }) {
-  const shown = typeof row.value === "string" ? row.value : JSON.stringify(row.value);
-  const [value, setValue] = useState(shown);
-  const [busy, setBusy] = useState(false);
+export default function SettingsPage({ onNavigate, onOpenBusiness, onOpenSetup, onSignOut, section, sub }) {
+  const [me, setMe] = useState(null);
+  const [email, setEmail] = useState("");
   const [error, setError] = useState("");
-  async function save() {
-    setBusy(true);
-    setError("");
-    try {
-      await callOwnerFunction("platform_setting_save", { key: row.key, value });
-      onSaved(`${row.label} saved.`);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <li>
-      <div>
-        <strong>{row.label}</strong>
-        <span>{row.key} · changed {formatDateTime(row.updated_at)}</span>
-        {error && <span className="op-error" role="alert">{error}</span>}
-      </div>
-      <div className="op-inline">
-        <input className="owner-input" aria-label={row.label} value={value} onChange={(e) => setValue(e.target.value)} disabled={busy} />
-        <button type="button" className="owner-secondary-button op-small" onClick={save} disabled={busy || value === shown}>{busy ? "Saving..." : "Save"}</button>
-      </div>
-    </li>
-  );
-}
-
-function PreferencesSection() {
-  const [state, setState] = useState({ data: null, error: "", notice: "" });
-  const load = useCallback(async (notice = "") => {
-    try {
-      setState({ data: await callOwnerFunction("platform_settings_list"), error: "", notice });
-    } catch (err) {
-      setState((s) => ({ ...s, error: err.message }));
-    }
-  }, []);
-  useEffect(() => { load(); }, [load]);
-  const rows = state.data?.settings ?? [];
-  const editable = rows.filter((r) => r.label);
-  const live = rows.filter((r) => r.live);
-  return (
-    <>
-      {state.error && <div className="owner-form-error op-gap">Could not load platform settings: {state.error}</div>}
-      {state.notice && <div className="owner-form-success op-gap" role="status">{state.notice}</div>}
-      <Card title="Operational preferences" sub={state.data?.canEdit ? "Applies to every business. Each change is recorded in the audit log." : "Only a Zella owner can change these."}>
-        <ul className="op-list">
-          {!state.data && !state.error && <Row title="Loading..." detail="" />}
-          {editable.map((r) => r.editable
-            ? <SettingValue key={`${r.key}:${r.updated_at}`} row={r} onSaved={(m) => load(m)} />
-            : <Row key={r.key} title={r.label} detail={`${typeof r.value === "string" ? r.value || "—" : JSON.stringify(r.value)} · ${r.key}`} />)}
-        </ul>
-      </Card>
-      <Card title="Live switches" sub="Real texts, emails and calls start only when these are on. They are switched on at go-live, in the order in n8n/GO-LIVE.md, not from here.">
-        <ul className="op-list">
-          {live.map((r) => <Row key={r.key} title={r.key} detail={`Changed ${formatDateTime(r.updated_at)}`} action={<Pill tone={r.value === true ? "success" : "neutral"}>{r.value === true ? "On" : "Off"}</Pill>} />)}
-          {state.data && !live.length && <Row title="No live switches found" detail="Run the automation SQL files to create them." />}
-        </ul>
-      </Card>
-    </>
-  );
-}
-
-function LinksSection({ title, sub, rows, onNavigate }) {
-  return (
-    <Card title={title} sub={sub}>
-      <ul className="op-list">
-        {rows.map(([page, text, detail, label = "Open"]) => (
-          <Row key={page + text} title={text} detail={detail}
-            action={<button type="button" className="owner-secondary-button op-small" onClick={() => onNavigate(page)}>{label}</button>} />
-        ))}
-      </ul>
-    </Card>
-  );
-}
-
-function SecuritySection({ data, onNavigate }) {
-  const origins = data?.configuration?.find((c) => c.key === "ZELLA_ALLOWED_ORIGINS");
-  return (
-    <>
-      <LinksSection title="Security & access" onNavigate={onNavigate} rows={[
-        ["Users & Access", "Platform admins", "Who can use this dashboard and their roles.", "Manage"],
-        ["Audit Logs", "Audit log", "Every admin action is recorded automatically and kept.", "View"],
-      ]} />
-      <Card title="Checks" sub="Some sign-in settings live in the Supabase dashboard and can't be read from here.">
-        <ul className="op-list">
-          <Row title="Allowed websites" detail="Which sites may call the browser-facing functions."
-            action={<Pill tone={origins?.set ? "success" : "warning"}>{origins?.set ? "Restricted" : "Any site (set at go-live)"}</Pill>} />
-          <Row title="Public sign-up and email confirmation" detail="Supabase > Authentication > Sign In / Providers. Zella onboards businesses by invitation, so check sign-ups are off or emails are confirmed." />
-          <Row title="Tenant isolation check" detail="Runs daily (zella_tenant_leak_check) and raises a platform alert if any business data is open." />
-        </ul>
-      </Card>
-    </>
-  );
-}
-
-export default function SettingsPage({ onNavigate, section }) {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const current = SECTIONS.find(([key]) => key === section)?.[0] ?? "account";
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      setData(await callOwnerFunction("platform_status"));
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    load();
-  }, [load]);
-
-  const health = data?.health;
-
+    let live = true;
+    callOwnerFunction("me_admin").then((m) => live && setMe(m)).catch((err) => live && setError(err.message));
+    supabase.auth.getUser().then(({ data }) => live && setEmail(data?.user?.email ?? ""));
+    return () => { live = false; };
+  }, []);
+  if (error) return <section className="owner-page"><Banner tone="error">Couldn't load Settings: {error}</Banner></section>;
+  if (!me) return <section className="owner-page"><Loading /></section>;
+  const context = {
+    me, email, onNavigate, onSignOut, openBusiness: onOpenBusiness, openSetup: onOpenSetup,
+    onGo: (path) => navigate(`/settings/${path}`),
+  };
   return (
-    <section className="owner-page">
-      <div className="owner-page-heading">
-        <div>
-          <div className="owner-eyebrow">SETTINGS</div>
-          <h1>Settings</h1>
-          <p>Your account and how the Zella platform is configured.</p>
-        </div>
-      </div>
-
-      {error && <div className="owner-form-error op-gap">Could not load settings: {error}</div>}
-      {section && !SECTIONS.some(([key]) => key === section) && <div className="owner-form-error op-gap">That settings page doesn't exist, so here is your account.</div>}
-
-      <div className="op-settings">
-        <nav className="op-settings-nav" aria-label="Settings categories">
-          {SECTIONS.map(([key, label]) => (
-            <button key={key} type="button" className={`owner-nav-item ${current === key ? "active" : ""}`}
-              aria-current={current === key ? "page" : undefined} onClick={() => navigate(`/settings/${key}`)}>
-              <span>{label}</span>
-            </button>
-          ))}
-        </nav>
-        <div className="op-settings-body">
-          {current === "account" && <AccountSection data={data} loading={loading} />}
-          {current === "platform" && <PlatformSection data={data} />}
-          {current === "preferences" && <PreferencesSection />}
-          {current === "security" && <SecuritySection data={data} onNavigate={onNavigate} />}
-          {current === "businesses" && <LinksSection title="Business management" onNavigate={onNavigate} rows={[
-            ["Businesses", "Businesses", health ? `${health.businesses} businesses · ${health.failedSetups} failed setups · ${health.failedInvites} failed invitations` : "All client workspaces."],
-            ["Industry Configuration", "Industries & terminology", "Default CRM words, receptionist wording and modules per industry."],
-            ["Modules & Features", "Modules", "Which modules exist and how widely they're used."],
-            ["AI Agents", "AI agents", "Every business's receptionist and its status."],
-          ]} />}
-          {current === "notifications" && <LinksSection title="Notifications"
-            sub="Platform alerts (failed jobs, provider problems, offers) are emailed to every active admin once email sending is live and a sender address is set under Operational preferences."
-            onNavigate={onNavigate} rows={[
-              ["Platform Operations", "Platform alerts and health", health ? `${health.urgentTickets} urgent tickets · ${health.brokenIntegrations} broken integrations` : "Open alerts, failed events and incidents.", "Check"],
-              ["Support", "Support tickets", "Requests from businesses."],
-            ]} />}
-          {current === "integrations" && <LinksSection title="Integrations" onNavigate={onNavigate} rows={[
-            ["Integrations", "Integrations across businesses", health ? `${health.brokenIntegrations} need attention` : "Connection status for every business."],
-          ]} />}
-          {current === "billing" && <LinksSection title="Subscriptions & billing" sub="Payment events arrive through the billing webhook once STRIPE_WEBHOOK_SECRET is set." onNavigate={onNavigate} rows={[
-            ["Plans & Subscriptions", "Plans", "Plan names, availability and each business's subscription."],
-            ["Offers & Promotions", "Offers", "Discounts and promotions."],
-          ]} />}
-          {current === "audit" && <LinksSection title="Audit logs" onNavigate={onNavigate} rows={[
-            ["Audit Logs", "Audit log", health ? `${health.auditLast24h} entries in the last 24 hours` : "Every admin action.", "View"],
-          ]} />}
-        </div>
-      </div>
-    </section>
+    <SettingsWorkspace
+      description={`Platform administration · signed in as ${me.roleLabel}${me.mfa ? " with two-step sign-in" : ""}`}
+      registry={REGISTRY} category={section} item={sub} base="/settings" go={navigate} Icon={Glyph} context={context} />
   );
 }

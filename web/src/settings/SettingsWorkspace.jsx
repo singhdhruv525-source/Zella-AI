@@ -82,7 +82,7 @@ export default function SettingsWorkspace({ title = "Settings", description, reg
                 <li key={c.key} className={c.key === cat.key ? "current" : ""}>
                   <button type="button" className="zs-cat" aria-expanded={isOpen(c.key)} onClick={() => toggle(c.key)}>
                     <Icon name={c.icon} />
-                    <span>{c.label}</span>
+                    <span className="zs-cat-label">{c.label}</span>
                     <span className="zs-chev" aria-hidden="true">{isOpen(c.key) ? "▾" : "▸"}</span>
                   </button>
                   {isOpen(c.key) && (

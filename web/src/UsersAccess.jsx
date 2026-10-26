@@ -6,7 +6,12 @@ import { checkEmail } from "./formValidation";
 import { Pill } from "./OwnerOverview";
 import { formatDate, timeAgo } from "./ownerFormat";
 
-const ROLE_LABELS = { zella_owner: "Zella owner", super_admin: "Super admin" };
+const ROLE_LABELS = {
+  zella_owner: "Zella owner", super_admin: "Super admin", platform_operations: "Platform operations",
+  billing_admin: "Billing admin", support_admin: "Support admin", security_admin: "Security admin", read_only_admin: "Read-only admin",
+};
+// What each restricted role can do is set in Settings > Users, roles & access > Platform roles.
+const RESTRICTED = ["platform_operations", "billing_admin", "support_admin", "security_admin", "read_only_admin"];
 
 export default function UsersAccess() {
   const [data, setData] = useState(null);
@@ -108,6 +113,7 @@ export default function UsersAccess() {
               <select value={invite.role} onChange={(e) => setInvite({ ...invite, role: e.target.value })}>
                 <option value="super_admin">Super admin: manages businesses and setup</option>
                 <option value="zella_owner">Zella owner: also manages admins</option>
+                {RESTRICTED.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}: only the permissions set for this role</option>)}
               </select>
             </label>
           </div>
@@ -165,6 +171,7 @@ export default function UsersAccess() {
                       >
                         <option value="super_admin">Super admin</option>
                         <option value="zella_owner">Zella owner</option>
+                        {RESTRICTED.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
                       </select>
                     ) : (
                       ROLE_LABELS[a.role] ?? a.role

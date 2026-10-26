@@ -1846,7 +1846,8 @@ async function agentsList(admin: SupabaseClient) {
 // Platform admins (Users & Access)
 // ---------------------------------------------------------------------------
 
-const ADMIN_ROLES = ["super_admin", "zella_owner"] as const;
+// The restricted roles need sql/zella_settings_system.sql (role check and permission matrix).
+const ADMIN_ROLES = ["super_admin", "zella_owner", "platform_operations", "billing_admin", "support_admin", "security_admin", "read_only_admin"] as const;
 
 async function callerRole(admin: SupabaseClient, userId: string) {
   const { data, error } = await admin
@@ -2235,7 +2236,7 @@ function withoutPricing(row: Json) {
 async function plansList(admin: SupabaseClient) {
   const [plansResult, subscriptionsResult, businessesResult] = await Promise.all([
     admin.from("plans")
-      .select("id, name, slug, description, is_active, features, limits, created_at, updated_at")
+      .select("id, name, slug, description, is_active, features, limits, price_monthly, price_yearly, currency, created_at, updated_at")
       .order("created_at", { ascending: true }),
     admin.from("subscriptions").select("*"),
     admin.from("businesses").select("id, name"),
