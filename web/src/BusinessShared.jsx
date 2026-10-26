@@ -42,9 +42,10 @@ export function Segment({ value, onChange, options, label }) {
   );
 }
 
-export function Empty({ title, children }) {
+export function Empty({ title, icon = "inbox", children }) {
   return (
     <div className="ba-empty">
+      {icon && <span className="ba-empty-icon"><Icon name={icon} /></span>}
       {title && <strong>{title}</strong>}
       {children}
     </div>

@@ -25,3 +25,28 @@
 
 /* Urgent notifications are easy to spot, without shouting. */
 .ba-bell-panel li.urgent button { box-shadow: inset 3px 0 0 var(--ba-danger); }
+
+/* Popups, side panels and menus open with a short, soft movement and close back the way they came. */
+@media (prefers-reduced-motion: no-preference) {
+  .ba-modal-backdrop, .bp-backdrop { animation: ba-fade 0.18s ease-out both; }
+  .ba-modal { animation: ba-pop 0.24s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  .bp-panel { animation: bp-slide 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  .bp-section { animation: ba-rise 0.3s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  .bp-section:nth-of-type(2) { animation-delay: 40ms; }
+  .bp-section:nth-of-type(3) { animation-delay: 80ms; }
+  .bp-section:nth-of-type(n + 4) { animation-delay: 120ms; }
+  .ba-bell-panel { transform-origin: top right; animation: ba-menu 0.16s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  .ba-menu { transform-origin: top left; animation: ba-menu 0.16s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  .ba-menu.right { transform-origin: top right; }
+  .bp-msg { transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+  .bp-msg:hover { border-color: var(--ba-border-strong); box-shadow: var(--ba-shadow-1); }
+  .ba-modal .ba-field input, .ba-modal .ba-field select, .ba-modal .ba-field textarea { transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+}
+@media (prefers-reduced-motion: no-preference) and (max-width: 640px) {
+  .ba-modal { animation-name: ba-sheet; }
+}
+@keyframes ba-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ba-pop { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
+@keyframes ba-sheet { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes bp-slide { from { transform: translateX(32px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes ba-menu { from { opacity: 0; transform: translateY(-4px) scale(0.97); } to { opacity: 1; transform: none; } }

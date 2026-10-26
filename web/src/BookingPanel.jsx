@@ -5,6 +5,7 @@ import { Field, Icon, Pill, personName } from "./BusinessUI";
 import { formatLongDate, formatTime, timeAgo, todayInput, zonedDateTime } from "./businessTime";
 import { APPT_LABEL, APPT_TONE, availabilityAt, explain, friendly, noShowNotice, setCheckIn } from "./BusinessShared";
 import { RescheduleModal } from "./BusinessForms";
+import { BookingMessages } from "./BookingMessages";
 import { bookingFields, fieldValue, todayConfig } from "./todayConfig";
 
 // The side panel a booking opens in, from the calendar. Sections: booking details, customer, assignment, activity
@@ -180,6 +181,10 @@ export function BookingPanel({ workspace, industry, appt, person, staff, blocks,
               <Row label="Assignment">{appt.staff_id ? <Pill tone="success">Assigned</Pill> : <Pill tone="warning">Needs assigning</Pill>}</Row>
             </dl>
           </Section>}
+
+          <Section title="Messages">
+            <BookingMessages workspace={workspace} appt={appt} tz={tz} term={term} />
+          </Section>
 
           <Section title="Activity">
             {appt.description && <p className="ba-note pre bp-notes">{appt.description}</p>}

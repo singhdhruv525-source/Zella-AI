@@ -114,7 +114,7 @@ function InviteModal({ workspace, onClose, onDone }) {
     }
   }
   return (
-    <Modal title="Invite someone" description="They get an email with a link to join this workspace." onClose={onClose} busy={busy}
+    <Modal icon="group_add" title="Invite someone" description="They get an email with a link to join this workspace." onClose={onClose} busy={busy}
       footer={<><button type="button" className="ba-btn" onClick={onClose} disabled={busy}>Cancel</button>
         <button type="button" className="ba-btn primary" onClick={save} disabled={busy || !form.email.trim()}>{busy ? "Sending…" : "Send invitation"}</button></>}>
       <div className="ba-form">
@@ -143,7 +143,7 @@ function RemoveModal({ workspace, member, others, onClose, onDone }) {
     onDone(`${member.name || "That person"} no longer has access.${to ? " Their open work was handed over." : " Their open work is now unassigned."}`);
   }
   return (
-    <Modal title={`Remove ${member.name || "this person"}?`} description="They can't sign in to this workspace any more. Their history stays." onClose={onClose} busy={busy}
+    <Modal icon="person_remove" tone="danger" title={`Remove ${member.name || "this person"}?`} description="They can't sign in to this workspace any more. Their history stays." onClose={onClose} busy={busy}
       footer={<><button type="button" className="ba-btn" onClick={onClose} disabled={busy}>Keep access</button>
         <button type="button" className="ba-btn primary" onClick={save} disabled={busy}>{busy ? "Removing…" : "Remove access"}</button></>}>
       <div className="ba-form">
@@ -171,7 +171,7 @@ function HandoverModal({ workspace, people, me, onClose, onDone }) {
     onDone("Handed over. They've been told.");
   }
   return (
-    <Modal title="Hand over work" description="Move open leads, callbacks and requests to someone else, for example at the end of a shift." onClose={onClose} busy={busy}
+    <Modal icon="swap_horiz" title="Hand over work" description="Move open leads, callbacks and requests to someone else, for example at the end of a shift." onClose={onClose} busy={busy}
       footer={<><button type="button" className="ba-btn" onClick={onClose} disabled={busy}>Cancel</button>
         <button type="button" className="ba-btn primary" onClick={save} disabled={busy || !form.to}>{busy ? "Handing over…" : "Hand over"}</button></>}>
       <div className="ba-form">

@@ -30,7 +30,7 @@ export function Pill({ tone, dot, pulse, children }) {
   );
 }
 
-export function Modal({ title, description, onClose, children, footer, busy, wide }) {
+export function Modal({ title, description, onClose, children, footer, busy, wide, icon, tone }) {
   useEffect(() => {
     const onKey = (event) => event.key === "Escape" && !busy && onClose();
     window.addEventListener("keydown", onKey);
@@ -51,7 +51,8 @@ export function Modal({ title, description, onClose, children, footer, busy, wid
     >
       <section className={`ba-modal ${wide ? "wide" : ""}`} role="dialog" aria-modal="true" aria-label={title}>
         <div className="ba-modal-head">
-          <div>
+          {icon && <span className={`ba-modal-icon ${tone ?? ""}`}><Icon name={icon} /></span>}
+          <div className="ba-modal-title">
             <h2>{title}</h2>
             {description && <p>{description}</p>}
           </div>

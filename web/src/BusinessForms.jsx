@@ -60,7 +60,7 @@ export function AddCustomerModal({ workspace, term, onClose, onDone }) {
   }
 
   return (
-    <Modal title={`Add a ${noun}`} description="Zella checks for someone with the same phone or email first, so nobody is added twice." onClose={onClose} busy={busy}
+    <Modal icon="person_add" title={`Add a ${noun}`} description="Zella checks for someone with the same phone or email first, so nobody is added twice." onClose={onClose} busy={busy}
       footer={<>
         <button type="button" className="ba-btn" onClick={onClose} disabled={busy}>Cancel</button>
         <button type="submit" form="ba-add-customer" className="ba-btn primary" disabled={busy}>{busy ? "Saving..." : `Add ${noun}`}</button>
@@ -119,6 +119,7 @@ export function AddLeadModal({ workspace, term, onClose, onSaved }) {
 
   return (
     <Modal
+      icon="trending_up"
       title="Add a lead"
       description={`A new enquiry. They'll appear in your ${term("customers").toLowerCase()} and on Today.`}
       onClose={onClose}
@@ -251,6 +252,7 @@ export function BookAppointmentModal({ workspace, term, onClose, onSaved, initia
 
   return (
     <Modal
+      icon="event_available"
       title={`Book ${term("appointment").toLowerCase()}`}
       description={`Times are in ${workspace.name}'s time zone (${tz.replace("_", " ")}).`}
       onClose={onClose}
@@ -384,6 +386,7 @@ export function RescheduleModal({ workspace, term, appt, person, onClose, onSave
 
   return (
     <Modal
+      icon="event_repeat"
       title={`Reschedule ${term("appointment").toLowerCase()}`}
       description={`${appt.title}${personName(person) ? ` · ${personName(person)}` : ""}. Times are in ${workspace.name}'s time zone (${tz.replace("_", " ")}).`}
       onClose={onClose}

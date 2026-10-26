@@ -204,6 +204,7 @@ export function BlockTimeModal({ workspace, staff = [], defaultStaffId = "", def
 
   return (
     <Modal
+      icon="block"
       title="Block time"
       description={`Times are in ${workspace.name}'s time zone (${tz.replace("_", " ")}). Your AI receptionist won't offer blocked times.${staff.length ? ` Pick a ${term("staff").toLowerCase()} if only they are away.` : ""}`}
       onClose={onClose}
@@ -255,6 +256,7 @@ function BlockDetail({ block, who, tz, onClose, onChanged, onNotice }) {
   }
   return (
     <Modal
+      icon="event_busy"
       title={`${block.title}${who ? ` · ${who}` : ""}`}
       description={block.all_day ? `${formatDay(block.start_time, tz)} to ${formatDay(new Date(new Date(block.end_time).getTime() - 60000), tz)}, all day` : `${formatLongDate(block.start_time, tz)} · ${formatTime(block.start_time, tz)} to ${formatTime(block.end_time, tz)}`}
       onClose={onClose}
@@ -529,7 +531,7 @@ export function CalendarPage({ workspace, industry, refreshKey, onNotice, onOpen
         </button>
         <span className="cal-grow" />
         <button type="button" className="ba-btn" onClick={() => setBlocking(true)}><Icon name="block" size="sm" /><span>Block time</span></button>
-        <button type="button" className="ba-btn primary" onClick={() => setBooking({ date: days[0].dateStr, time: "09:00", staffId: who === "all" ? "" : who })}><Icon name="add" size="sm" /><span>New {term("appointment")}</span></button>
+        <button type="button" className="ba-btn primary" onClick={() => setBooking({ date: a.dateStr, time: "09:00", staffId: who === "all" ? "" : who })}><Icon name="add" size="sm" /><span>New {term("appointment")}</span></button>
       </div>
       {filtersOpen && (
         <div className="cal-filters" role="group" aria-label="Filters">
@@ -607,7 +609,7 @@ export function CalendarPage({ workspace, industry, refreshKey, onNotice, onOpen
       )}
       {blocking && (
         <BlockTimeModal
-          workspace={workspace} staff={staff} defaultStaffId={who === "all" ? "" : who} defaultDate={days[0].dateStr}
+          workspace={workspace} staff={staff} defaultStaffId={who === "all" ? "" : who} defaultDate={a.dateStr}
           onClose={() => setBlocking(false)}
           onSaved={(message) => { setBlocking(false); onNotice(message); reload(); }}
         />
@@ -621,6 +623,8 @@ export function CalendarPage({ workspace, industry, refreshKey, onNotice, onOpen
       )}
       {pending && (
         <Modal
+          icon="warning"
+          tone="warning"
           title="Move anyway?"
           description={pending.message}
           onClose={() => setPending(null)}
