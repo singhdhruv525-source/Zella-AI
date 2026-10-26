@@ -10,7 +10,11 @@ async function call(token, action, extra = {}) {
   const { data, error } = await supabase.functions.invoke("reschedule-appointment", {
     body: { token, action, ...extra },
   });
-  if (error) throw new Error("Something went wrong. Please try again.");
+  if (error) {
+    // Too many tries in a minute (the link's rate limit) gets its own plain message.
+    const status = error.context?.status;
+    throw new Error(status === 429 ? "Too many tries. Please wait a minute and try again." : "Something went wrong. Please try again.");
+  }
   return data;
 }
 

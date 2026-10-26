@@ -50,6 +50,16 @@ Deno.serve(withCors(async (req: Request) => {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
+  // Rate limits (the shared, concurrency-safe database counter): per visitor address and per link, so a script
+  // can't hammer slot lookups or confirmations. A failing counter never blocks a real customer.
+  const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim().slice(0, 64) || "unknown";
+  const writes = body.action === "confirm" || body.action === "offer_accept" || body.action === "offer_decline";
+  for (const [key, max] of [[`resched:ip:${ip}`, 60], [`resched:token:${token.slice(0, 16)}`, writes ? 10 : 40]] as const) {
+    const { data: ok, error: limitError } = await admin.rpc("zella_rate_limit", { p_key: key, p_max: max, p_window_seconds: 60 });
+    if (limitError) { console.error("rate limit check failed", limitError.message); break; }
+    if (ok === false) return respond({ ok: false, reason: "busy", error: "Too many tries. Please wait a minute and try again." }, 429);
+  }
+
   let result;
   if (body.action === "offer_lookup") {
     result = await admin.rpc("zella_waitlist_offer_lookup", { p_token: token });
