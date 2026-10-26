@@ -63,11 +63,11 @@ export const NAV_ITEMS = [
     id: "ai-receptionist", group: "ai", order: 10, label: "AI Receptionist", icon: "record_voice_over", module: "ai-receptionist",
     children: [
       { id: "receptionist", label: "Voice and setup", icon: "settings_voice", page: "receptionist" },
-      { id: "knowledge", label: "Knowledge base", icon: "menu_book", page: "knowledge" },
       { id: "transcripts", label: "Transcripts", icon: "insights", page: "transcripts", module: "calls" },
       { id: "call-rules", label: "Call handling rules", icon: "alt_route", settings: "receptionist/calls" },
     ],
   },
+  { id: "knowledge", group: "ai", order: 15, label: "Knowledge base", icon: "menu_book", page: "knowledge", module: "ai-receptionist" },
   { id: "automations", group: "ai", order: 20, label: "Automations", icon: "bolt", page: "automations", module: "automations" },
 
   { id: "lead-sources", group: "growth", order: 10, label: "Lead sources", icon: "hub", page: "lead-sources" },

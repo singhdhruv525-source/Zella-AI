@@ -1010,13 +1010,60 @@ export function OauthApps() {
   return <Needs title="OAuth app settings are kept outside Zella" have="Google Calendar connections are stored per business (calendar_connections), with tokens in the database vault; only status and the account email are ever shown.">Client IDs and secrets live in Google Cloud and in Supabase secrets. Showing whether they're set needs those secret names added to the server configuration check.</Needs>;
 }
 
+// The go-live checklist: each step that must be true before Zella's automations really reach customers. Read from
+// the database (zella_automation_readiness, platform admins only); on/off facts only, never a key or number.
+const READINESS = [
+  ["dispatch_switch", "Dispatcher switch on", "Platform setting n8n_dispatch_enabled"],
+  ["secret_stored", "n8n secret stored in the database", "vault secret zella_n8n_secret (see n8n/README.md)"],
+  ["dispatch_job", "Dispatcher job running", "Scheduled job zella_dispatch (every minute)"],
+  ["n8n_address_set", "n8n address set", "Platform setting n8n_base_url"],
+  ["app_address_set", "App address set (customer links)", "Platform setting app_base_url, https"],
+  ["text_sender_set", "Text sender number set", "Platform setting sms_from_number"],
+  ["texts_live", "Texts live", "sms_live: off means test mode, nothing is sent"],
+  ["email_sender_set", "Email sender address set", "Platform setting email_from_address"],
+  ["emails_live", "Emails live", "email_live: off means test mode, nothing is sent"],
+  ["calls_live", "AI calls live", "calls_live"],
+];
+
+function Readiness() {
+  const state = useAsync(async () => {
+    const { data, error } = await supabase.rpc("zella_automation_readiness");
+    if (error && (error.code === "PGRST202" || /could not find the function/i.test(error.message))) return { missing: true };
+    if (error) throw error;
+    return data;
+  }, []);
+  return (
+    <LoadState state={state}>{(r) => r.missing ? (
+      <Needs title="The go-live checklist needs a database update" have="The settings below still show what the server knows.">Apply sql/zella_messaging_status.sql, then this shows each step that must be on before messages and calls really go out.</Needs>
+    ) : (
+      <>
+        <Card title="Go-live checklist" sub={`${READINESS.filter(([k]) => r[k]).length} of ${READINESS.length} ready. Until every step is ready, Zella records messages as not sent and nothing reaches customers.`}>
+          <ul className="zs-checklist">
+            {READINESS.map(([key, label, hint]) => (
+              <li key={key} className={r[key] ? "ok" : ""}>
+                <span className="zs-check" aria-hidden="true">{r[key] ? "✓" : ""}</span>
+                <span><strong>{label}</strong><small>{hint}</small></span>
+                <Pill tone={r[key] ? "success" : "warning"}>{r[key] ? "Ready" : "Not yet"}</Pill>
+              </li>
+            ))}
+          </ul>
+        </Card>
+        <Card title="Scheduled database jobs" sub="They run inside Supabase and hand due work to n8n.">
+          <Table rowKey={(j) => j.name} rows={r.jobs ?? []} empty="No Zella jobs found. Run sql/zella_dispatcher.sql last." columns={[["Job", (j) => j.name], ["Schedule", (j) => j.schedule], ["State", (j) => <Pill tone={j.active ? "success" : "warning"}>{j.active ? "Running" : "Off"}</Pill>]]} />
+        </Card>
+      </>
+    )}</LoadState>
+  );
+}
+
 export function N8nConfig() {
   const state = useAsync(() => call("automation_overview"), []);
   return (
     <LoadState state={state}>{(a) => (
       <>
+        <Readiness />
         <Card title="n8n">
-          <Facts rows={[["Webhook address", a.n8n.url ? "Set" : "Not set"], ["Database dispatcher", a.n8n.dispatchEnabled ? "On" : "Off"], ["n8n address in database", a.n8n.baseUrlSet ? "Set" : "Not set"],
+          <Facts rows={[["Webhook address", a.n8n.url ? "Set" : "Not set"], ["Dispatcher switch", a.n8n.dispatchEnabled ? "On (the job and secret are in the checklist above)" : "Off"], ["n8n address in database", a.n8n.baseUrlSet ? "Set" : "Not set"],
             ["Dead letters", a.deadLetters]]} />
         </Card>
         <Card title="Dispatcher state" sub="What the database sent to each n8n workflow most recently.">

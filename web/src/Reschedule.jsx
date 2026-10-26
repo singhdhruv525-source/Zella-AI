@@ -145,11 +145,18 @@ export default function Reschedule() {
 
         {info?.appointment && !stop && !done && (
           <>
-            <h1>Pick a new time</h1>
-            <p>
-              Your {info.appointment.title || "appointment"} is now on{" "}
-              <strong>{longDay(info.appointment.start, tz)} at {clock(info.appointment.start, tz)}</strong>.
-            </p>
+            <h1>{info.missed ? `${info.first_name ? `${info.first_name}, w` : "W"}e missed you` : "Pick a new time"}</h1>
+            {info.missed ? (
+              <p>
+                Your {info.appointment.title || "appointment"} was on{" "}
+                <strong>{longDay(info.appointment.start, tz)} at {clock(info.appointment.start, tz)}</strong>. Pick a new time below.
+              </p>
+            ) : (
+              <p>
+                Your {info.appointment.title || "appointment"} is now on{" "}
+                <strong>{longDay(info.appointment.start, tz)} at {clock(info.appointment.start, tz)}</strong>.
+              </p>
+            )}
 
             {days.length === 0 && (
               <p>There are no free times in the next two weeks. Please contact {info.business} to find one.</p>
