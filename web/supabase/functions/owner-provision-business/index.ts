@@ -1,5 +1,6 @@
 import { withCors } from "../_shared/cors.ts";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { PERMISSIONS, RESTRICTED_ROLES, settingsHandlers } from "./settings.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -2726,7 +2727,25 @@ const EDITABLE_SETTINGS: Record<string, { label: string; check: (v: unknown) => 
   missed_call_max_seconds: { label: "Calls shorter than this count as missed (seconds)", check: (v) => intIn(v, 0, 60) },
   knowledge_repeat_threshold: { label: "Times a question repeats before it's suggested as knowledge", check: (v) => intIn(v, 1, 50) },
   call_intel_monthly_limit: { label: "Calls analysed by AI per business per month", check: (v) => intIn(v, 0, 100000) },
+  retention_days: { label: "Days a cancelled business's records are kept", check: (v) => intIn(v, 30, 3650) },
+  payment_grace_days: { label: "Grace days after a failed payment", check: (v) => intIn(v, 0, 60) },
+  payment_suspend_after_days: { label: "Days past due before a workspace is paused", check: (v) => intIn(v, 0, 120) },
+  voice_llm_provider: { label: "AI model provider for the phone assistant", check: (v) => {
+    const t = text(v, 20).toLowerCase();
+    if (!["anthropic", "openai", "google"].includes(t)) throw new InputError("Choose anthropic, openai or google");
+    return t;
+  } },
+  voice_llm_model: { label: "AI model for the phone assistant", check: modelName },
+  call_intel_model: { label: "AI model for call summaries and suggestions", check: modelName },
+  knowledge_ai_model: { label: "AI model for drafting knowledge answers", check: modelName },
 };
+
+// A model id as the provider writes it, e.g. claude-haiku-5-5. Checked by the provider on first use.
+function modelName(v: unknown) {
+  const t = text(v, 80);
+  if (!/^[A-Za-z0-9][A-Za-z0-9.\-:_/]{2,79}$/.test(t)) throw new InputError("Enter the model id exactly as the provider lists it");
+  return t;
+}
 
 function intIn(v: unknown, min: number, max: number) {
   const n = typeof v === "number" ? v : Number(String(v ?? "").trim());
@@ -2829,23 +2848,39 @@ Deno.serve(withCors(async (req: Request) => {
       return respond({ error: "Please sign in first" }, 401);
     }
 
-    // Only an active, authorized platform administrator may continue.
-    const { data: isAdmin, error: adminError } =
-      await callerClient.rpc("is_platform_admin");
+    // Server-side client, used only after the caller's role is known.
+    const adminClient = createClient(supabaseUrl, serverSecretKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
 
-    if (adminError) {
-      console.error("Platform admin verification failed", adminError);
-      return respond(
-        { error: "Could not verify platform admin access" },
-        500,
-      );
+    // The caller's platform role (any of the seven). Falls back to the older admin check while
+    // sql/zella_settings_system.sql is not applied yet, so the dashboard keeps working during the rollout.
+    let role: string | null = null;
+    const roleRes = await callerClient.rpc("zella_admin_role");
+    if (roleRes.error) {
+      const legacy = await callerClient.rpc("is_platform_admin");
+      if (legacy.error) {
+        console.error("Platform admin verification failed", legacy.error);
+        return respond({ error: "Could not verify platform admin access" }, 500);
+      }
+      role = legacy.data === true ? await callerRole(adminClient, user.id) : null;
+    } else {
+      role = typeof roleRes.data === "string" ? roleRes.data : null;
+    }
+    if (!role) {
+      return respond({ error: "Platform admin access required" }, 403);
     }
 
-    if (isAdmin !== true) {
-      return respond(
-        { error: "Platform admin access required" },
-        403,
-      );
+    // Admins who set up two-step sign-in must have used it for this session.
+    const factors = ((user as { factors?: { status?: string }[] }).factors ?? []);
+    const hasMfa = factors.some((f) => f.status === "verified");
+    let aal = "aal1";
+    try {
+      const payload = authorization.slice(7).split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+      aal = String(JSON.parse(atob(payload.padEnd(Math.ceil(payload.length / 4) * 4, "="))).aal ?? "aal1");
+    } catch { /* treated as aal1 */ }
+    if (hasMfa && aal !== "aal2") {
+      return respond({ error: "Enter the code from your authenticator app to continue.", code: "MFA_REQUIRED" }, 403);
     }
 
     let body: unknown;
@@ -2874,10 +2909,17 @@ Deno.serve(withCors(async (req: Request) => {
     const action =
       typeof fields.action === "string" ? fields.action : "";
 
-    // Server-side client, used only after admin verification.
-    const adminClient = createClient(supabaseUrl, serverSecretKey, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
+    // Every action needs a permission; restricted roles only have what the owner gave them.
+    const permission = PERMISSIONS[action];
+    if (!permission) return respond({ error: "Unknown action" }, 400);
+    let allowed = role === "zella_owner" || (role === "super_admin" && !["admins.manage", "roles.manage"].includes(permission));
+    if (!allowed && RESTRICTED_ROLES.includes(role)) {
+      const { data: grant } = await adminClient.from("platform_role_permissions").select("permission").eq("role", role).eq("permission", permission).maybeSingle();
+      allowed = Boolean(grant);
+    }
+    if (!allowed) {
+      return respond({ error: "Your admin role doesn't allow this. Ask a Zella owner to change your role or its permissions.", code: "NOT_PERMITTED", permission }, 403);
+    }
 
     if (action === "dashboard_data") {
       await processCancellations(adminClient);
@@ -3025,13 +3067,15 @@ Deno.serve(withCors(async (req: Request) => {
       failed_events_list: () => failedEventsList(adminClient, fields),
     };
 
-    const handler = handlers[action];
+    const extra = settingsHandlers(adminClient, fields, { userId: user.id, role, aal, mfa: hasMfa },
+      { text, bool, obj, requireId, validTimezone, InputError, EMAIL_RE, UUID_RE });
+    const handler = handlers[action] ?? extra.handlers[action];
     if (!handler) return respond({ error: "Unknown action" }, 400);
 
     try {
       const result = await handler();
 
-      const describe = AUDITED[action];
+      const describe = AUDITED[action] ?? extra.audited[action];
       const unchanged = action === "ticket_update" &&
         Object.keys(obj((result as Json).changes)).length === 0;
       if (describe && !unchanged) {

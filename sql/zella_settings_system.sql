@@ -542,3 +542,24 @@ begin
     execute format('alter function %s set search_path = public, pg_temp', f.sig);
   end loop;
 end $$;
+
+-- 11. Security reporting for the admin Settings (server key only) ----------------------------------------------
+
+-- Row level security coverage of public tables, and policies that let everyone read.
+create or replace function public.zella_rls_coverage()
+returns jsonb language sql stable security definer set search_path = public as $$
+  select jsonb_build_object(
+    'tables', count(*),
+    'with_rls', count(*) filter (where c.relrowsecurity),
+    'without_rls', coalesce(jsonb_agg(c.relname order by c.relname) filter (where not c.relrowsecurity), '[]'::jsonb),
+    'with_business_id', count(*) filter (where exists (select 1 from pg_attribute a where a.attrelid = c.oid and a.attname = 'business_id' and not a.attisdropped)),
+    'policies', (select count(*) from pg_policies where schemaname = 'public'),
+    'checked_at', now())
+  from pg_class c join pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = 'public' and c.relkind = 'r';
+$$;
+revoke all on function public.zella_rls_coverage() from public, anon, authenticated;
+grant execute on function public.zella_rls_coverage() to service_role;
+do $$ begin
+  if to_regprocedure('public.zella_tenant_leak_check()') is not null then grant execute on function public.zella_tenant_leak_check() to service_role; end if;
+end $$;
