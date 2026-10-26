@@ -88,7 +88,7 @@ None of these have been run on the live project. Run them in this order; each on
 | `zella_staff_invite_binding.sql` | A team invitation can only be accepted by the account it was sent to | No |
 | `zella_business_settings.sql` | Business Settings: profile, hours, holidays, my profile | No |
 | `zella_receptionist_editor.sql` | Managers can read the receptionist's live settings to edit them | No |
-| `zella_settings_system.sql` | Settings foundations: 7 platform roles and a permission matrix, public platform info, sessions, plan entitlements (team seats and phone numbers enforced), voice pricing, usage protection and notices, legal documents, logo bucket, notification preferences, viewer role read-only, terminology, requests to Zella, fixed search_path | Adds tables and policies; the role check on platform_admins allows 5 more roles |
+| `zella_settings_system.sql` | Settings foundations: 7 platform roles and a permission matrix, public platform info, sessions, plan entitlements (team seats and phone numbers enforced), voice pricing, usage protection and notices, legal documents, logo bucket, notification preferences, viewer role read-only, terminology, requests to Zella, fixed search_path; website forms (list, edit, allowed websites, switch off), lead rules and qualifying questions limited to owners/admins/managers, work assignment settings | Adds tables and policies; the role check on platform_admins allows 5 more roles |
 
 Each file lists its dependencies, what it means for access, how to undo it, and a rolled-back
 check. All six were run against a local PostgreSQL 16 with stand-ins for the Supabase roles and
@@ -123,4 +123,13 @@ select role, count(*) from public.platform_role_permissions group by 1;
 select id, public, file_size_limit from storage.buckets where id = 'brand-assets';
 select jobname, schedule from cron.job where jobname = 'zella_usage_thresholds';
 select tablename, policyname from pg_policies where policyname like 'zella_viewer_no_%' order by 1;
+select tablename, policyname from pg_policies where policyname like 'zella_leads_managers_%' order by 1;  -- 6 rows
+select tgname from pg_trigger where tgname = 'zella_lead_rule_check_trg';
+-- Lead rules per business (to see who uses them before staff lose write access).
+select business_id, count(*) from public.lead_rules group by 1;
 ```
+
+Before applying section 17, check that no staff member's work depends on editing lead rules or qualifying
+questions: from then on only owners, admins and managers can change them (everyone can still read them). The
+website-crawler pages in Settings (AI receptionist > Website knowledge sources) need `zella_website_crawler.sql`
+applied, and pages are only read once `website_crawl_live` is switched on.

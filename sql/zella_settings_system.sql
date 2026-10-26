@@ -13,6 +13,10 @@
 --   8. brand-assets storage bucket for platform and business logos.
 --   9. Notification preferences (business members) and admin alert email opt-out.
 --  10. Fixed search_path on seven offer helper functions (Supabase security advisor).
+--  11-15. RLS coverage check, profile picture, read-only viewers, terminology, business requests to Zella.
+--  16. Website forms: list, rename, allowed websites, switch off.
+--  17. Lead assignment rules and qualifying questions: owners, admins and managers only; assignee must be a member.
+--  18. Automatic work assignment settings (assignment_rules) can be saved by owners and admins.
 --
 -- Needs: zella_workflows.sql (platform_settings, zella_setting), zella_ops_extras.sql (zella_has_role),
 --   zella_admin_alerts.sql (zella_claim_admin_alert_email), zella_staff_invites_approvals.sql. pg_cron (already used).
@@ -28,7 +32,8 @@
 --   more roles (put the old check back only after removing admins with those roles), zella_claim_admin_alert_email
 --   skips admins who opted out (re-run zella_admin_alerts.sql to undo), a trigger on business_invitations
 --   (drop trigger zella_team_capacity_trg on public.business_invitations) and one on business_phone_numbers
---   (drop trigger zella_phone_capacity_trg on public.business_phone_numbers).
+--   (drop trigger zella_phone_capacity_trg on public.business_phone_numbers), the zella_leads_managers_* policies on
+--   lead_rules and lead_questions (drop them to let every member write again) and zella_lead_rule_check_trg on lead_rules.
 --
 -- Validation: see docs/SCHEMA_STATUS.md ("Settings system checks").
 
@@ -657,3 +662,122 @@ begin
 end $$;
 revoke all on function public.zella_business_request(uuid, text, text, text, jsonb) from public, anon;
 grant execute on function public.zella_business_request(uuid, text, text, text, jsonb) to authenticated;
+
+-- 16. Website forms -----------------------------------------------------------------------------------------
+--     website_forms had a create function but no way to list, rename, limit to websites or switch a form off.
+--     Owners, admins and managers manage them; every member can see them. The public key is not a secret (it is
+--     in the website's page); allowed websites are what stop other sites using it.
+
+create or replace function public.zella_clean_origins(p_origins text[])
+returns text[] language plpgsql immutable set search_path = public as $$
+declare o text; v_out text[] := '{}';
+begin
+  foreach o in array coalesce(p_origins, '{}') loop
+    o := lower(regexp_replace(trim(o), '/+$', ''));
+    if o = '' then continue; end if;
+    if o !~ '^https?://(localhost|[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+)(:[0-9]{2,5})?$' then raise exception 'BAD_ORIGIN'; end if;
+    if not (o = any (v_out)) then v_out := v_out || o; end if;
+  end loop;
+  if cardinality(v_out) > 10 then raise exception 'TOO_MANY_ORIGINS'; end if;
+  return v_out;
+end $$;
+revoke all on function public.zella_clean_origins(text[]) from public, anon;
+grant execute on function public.zella_clean_origins(text[]) to authenticated, service_role;
+
+create or replace function public.zella_website_forms(p_business_id uuid)
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+begin
+  if auth.uid() is null or not public.zella_is_member(p_business_id) then raise exception 'NOT_ALLOWED'; end if;
+  return coalesce((select jsonb_agg(jsonb_build_object('id', f.id, 'name', f.name, 'public_key', f.public_key, 'allowed_origins', to_jsonb(f.allowed_origins),
+      'enabled', f.enabled, 'created_at', f.created_at,
+      'last_30_days', (select jsonb_object_agg(s.status, s.n) from (select status, count(*) n from public.lead_submissions l
+                        where l.form_id = f.id and l.created_at > now() - interval '30 days' group by 1) s),
+      'last_submission_at', (select max(l.created_at) from public.lead_submissions l where l.form_id = f.id)) order by f.created_at)
+    from public.website_forms f where f.business_id = p_business_id), '[]'::jsonb);
+end $$;
+revoke all on function public.zella_website_forms(uuid) from public, anon;
+grant execute on function public.zella_website_forms(uuid) to authenticated;
+
+create or replace function public.zella_website_form_save(p_form_id uuid, p_name text, p_allowed_origins text[], p_enabled boolean)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare f public.website_forms; v_origins text[] := public.zella_clean_origins(p_allowed_origins);
+begin
+  select * into f from public.website_forms where id = p_form_id for update;
+  if not found or auth.uid() is null or not public.zella_has_role(f.business_id, array['owner', 'admin', 'manager']) then raise exception 'NOT_ALLOWED'; end if;
+  update public.website_forms set name = left(coalesce(nullif(trim(p_name), ''), name), 80), allowed_origins = v_origins, enabled = coalesce(p_enabled, enabled)
+   where id = f.id;
+  insert into public.audit_logs (business_id, user_id, action, entity_type, entity_id, old_data, new_data)
+  values (f.business_id, auth.uid(), 'website_form.updated', 'website_form', f.id,
+          jsonb_build_object('name', f.name, 'allowed_origins', to_jsonb(f.allowed_origins), 'enabled', f.enabled),
+          jsonb_build_object('name', left(coalesce(nullif(trim(p_name), ''), f.name), 80), 'allowed_origins', to_jsonb(v_origins), 'enabled', coalesce(p_enabled, f.enabled)));
+  return jsonb_build_object('id', f.id, 'allowed_origins', to_jsonb(v_origins));
+end $$;
+revoke all on function public.zella_website_form_save(uuid, text, text[], boolean) from public, anon;
+grant execute on function public.zella_website_form_save(uuid, text, text[], boolean) to authenticated;
+
+-- 17. Lead assignment rules and qualifying questions -----------------------------------------------------------
+--     The member policy on lead_rules and lead_questions let any active member change them. Only owners, admins and
+--     managers may now (restrictive policies, one per write command, so reading is unchanged). A rule may only assign
+--     to an active member of the same business, and only known match keys are kept.
+
+do $$
+declare t text;
+begin
+  foreach t in array array['lead_rules', 'lead_questions'] loop
+    if to_regclass('public.' || t) is null then continue; end if;
+    execute format('drop policy if exists zella_leads_managers_insert on public.%I', t);
+    execute format('create policy zella_leads_managers_insert on public.%I as restrictive for insert to authenticated with check (public.zella_has_role(business_id, array[''owner'', ''admin'', ''manager'']))', t);
+    execute format('drop policy if exists zella_leads_managers_update on public.%I', t);
+    execute format('create policy zella_leads_managers_update on public.%I as restrictive for update to authenticated using (public.zella_has_role(business_id, array[''owner'', ''admin'', ''manager''])) with check (public.zella_has_role(business_id, array[''owner'', ''admin'', ''manager'']))', t);
+    execute format('drop policy if exists zella_leads_managers_delete on public.%I', t);
+    execute format('create policy zella_leads_managers_delete on public.%I as restrictive for delete to authenticated using (public.zella_has_role(business_id, array[''owner'', ''admin'', ''manager'']))', t);
+  end loop;
+end $$;
+
+create or replace function public.zella_lead_rule_check()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v_match jsonb := '{}'::jsonb;
+begin
+  new.name := left(coalesce(nullif(trim(new.name), ''), 'Rule'), 80);
+  if new.assign_to is not null and not exists (select 1 from public.business_members m where m.business_id = new.business_id and m.user_id = new.assign_to and m.status = 'active') then
+    raise exception 'TARGET_NOT_ACTIVE';
+  end if;
+  if jsonb_typeof(coalesce(new.match, '{}'::jsonb)) <> 'object' then raise exception 'BAD_INPUT'; end if;
+  if nullif(trim(new.match ->> 'source'), '') is not null then v_match := v_match || jsonb_build_object('source', left(lower(trim(new.match ->> 'source')), 40)); end if;
+  if nullif(trim(new.match ->> 'keyword'), '') is not null then v_match := v_match || jsonb_build_object('keyword', left(trim(new.match ->> 'keyword'), 80)); end if;
+  if jsonb_typeof(new.match -> 'answer_equals') = 'object' and new.match -> 'answer_equals' <> '{}'::jsonb then v_match := v_match || jsonb_build_object('answer_equals', new.match -> 'answer_equals'); end if;
+  new.match := v_match;
+  return new;
+end $$;
+revoke all on function public.zella_lead_rule_check() from public, anon, authenticated;
+do $$ begin
+  if to_regclass('public.lead_rules') is not null then
+    drop trigger if exists zella_lead_rule_check_trg on public.lead_rules;
+    create trigger zella_lead_rule_check_trg before insert or update on public.lead_rules for each row execute function public.zella_lead_rule_check();
+  end if;
+end $$;
+
+-- 18. Automatic work assignment ---------------------------------------------------------------------------------
+--     assignment_rules (how new leads and callbacks are shared) could be read but not changed. Owners and admins
+--     choose the mode, which roles take work, and when unassigned work is flagged.
+
+create or replace function public.zella_save_assignment_rules(p_business_id uuid, p_mode text, p_roles text[], p_alert_minutes integer)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare v_old jsonb; v_roles text[];
+begin
+  if auth.uid() is null or not public.zella_has_role(p_business_id, array['owner', 'admin']) then raise exception 'NOT_ALLOWED'; end if;
+  if p_mode not in ('off', 'round_robin', 'least_busy') then raise exception 'BAD_INPUT'; end if;
+  v_roles := array(select distinct r from unnest(coalesce(p_roles, '{}')) r where r in ('owner', 'admin', 'manager', 'staff') order by 1);
+  if p_mode <> 'off' and cardinality(v_roles) = 0 then raise exception 'ROLES_REQUIRED'; end if;
+  if p_alert_minutes is null or p_alert_minutes not between 5 and 1440 then raise exception 'BAD_INPUT'; end if;
+  select to_jsonb(a) - 'business_id' into v_old from public.assignment_rules a where a.business_id = p_business_id;
+  insert into public.assignment_rules (business_id, mode, roles, unassigned_alert_minutes, updated_at)
+  values (p_business_id, p_mode, v_roles, p_alert_minutes, now())
+  on conflict (business_id) do update set mode = excluded.mode, roles = excluded.roles, unassigned_alert_minutes = excluded.unassigned_alert_minutes, updated_at = now();
+  insert into public.audit_logs (business_id, user_id, action, entity_type, entity_id, old_data, new_data)
+  values (p_business_id, auth.uid(), 'assignment_rules.updated', 'business', p_business_id, v_old,
+          jsonb_build_object('mode', p_mode, 'roles', to_jsonb(v_roles), 'unassigned_alert_minutes', p_alert_minutes));
+  return jsonb_build_object('mode', p_mode, 'roles', to_jsonb(v_roles), 'unassigned_alert_minutes', p_alert_minutes);
+end $$;
+revoke all on function public.zella_save_assignment_rules(uuid, text, text[], integer) from public, anon;
+grant execute on function public.zella_save_assignment_rules(uuid, text, text[], integer) to authenticated;

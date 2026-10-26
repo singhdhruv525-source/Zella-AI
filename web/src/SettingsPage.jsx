@@ -8,12 +8,13 @@ import { Banner, Loading } from "./settings/SettingsKit";
 import { AccountSecurityPanel, MyProfilePanel, SignOutPanel } from "./settings/PersonalPanels";
 import * as P from "./settings/AdminPanels";
 import { FailedEventsPanel, HealthPanel, IncidentsPanel } from "./PlatformMonitoring";
+import { MonitorTab, ReportsTab, RulesTab } from "./OffersPage";
 
 // Admin Settings: one Settings item in the main sidebar opens this workspace,
-// with 16 categories and their pages at /settings/<category>/<page>.
+// with 17 categories and their pages at /settings/<category>/<page>.
 
 const Glyph = ({ name }) => <span className="zs-glyph" aria-hidden="true">{GLYPHS[name] ?? "•"}</span>;
-const GLYPHS = { search: "⌕", general: "◫", tenants: "▦", users: "♙", plans: "▱", billing: "$", ai: "✳", voice: "☏", comms: "✉", integrations: "↔", security: "♢", alerts: "♧", support: "♡", analytics: "▤", legal: "§", dev: "⌘", profile: "☺" };
+const GLYPHS = { search: "⌕", general: "◫", tenants: "▦", users: "♙", plans: "▱", offers: "✦", billing: "$", ai: "✳", voice: "☏", comms: "✉", integrations: "↔", security: "♢", alerts: "♧", support: "♡", analytics: "▤", legal: "§", dev: "⌘", profile: "☺" };
 
 const page = (key, label, render, keywords = "") => ({ key, label, render, keywords });
 
@@ -24,6 +25,7 @@ function registry() {
       page("branding", "Branding and appearance", (c) => <P.Branding me={c.me} />, "logo favicon theme colour color login email"),
       page("localization", "Localization", () => <P.Localization />, "language date time currency format locale"),
       page("maintenance", "Platform maintenance", (c) => <P.Maintenance me={c.me} />, "maintenance announcement downtime read-only"),
+      page("operations", "Operational rules", (c) => <P.OperationalRules me={c.me} />, "response time task overdue escalate summary missed call transfer invitation reminder setup incomplete trial notice sample low confidence knowledge threshold"),
     ] },
     { key: "tenants", label: "Business and tenant management", icon: "tenants", items: [
       page("all", "All businesses", (c) => <P.AllBusinesses openBusiness={c.openBusiness} />, "search filter industry plan status onboarding created"),
@@ -44,8 +46,14 @@ function registry() {
       page("plans", "Plan management", (c) => <P.PlanManagement me={c.me} onNavigate={c.onNavigate} />, "create edit archive price"),
       page("entitlements", "Plan entitlements", (c) => <P.PlanEntitlements me={c.me} />, "allowance minutes sms seats numbers limits"),
       page("subscriptions", "Subscription management", () => <P.Subscriptions />, "trial past due cancelled renewal"),
-      page("promotions", "Trials and promotions", (c) => <P.TrialsPromotions onNavigate={c.onNavigate} />, "promo code discount trial"),
+      page("promotions", "Trials and promotions", (c) => <P.TrialsPromotions onNavigate={c.onNavigate} onGo={c.onGo} />, "promo code discount trial"),
       page("enforcement", "Entitlement enforcement", () => <P.EntitlementEnforcement />, "limits enforced"),
+    ] },
+    { key: "offers", label: "Offers and promotions", icon: "offers", items: [
+      page("overview", "Offers overview", (c) => <P.OffersGate me={c.me}><P.OffersOverview onNavigate={c.onNavigate} /></P.OffersGate>, "offers promo code discount deal status approval connections"),
+      page("rules", "Offer automation rules", (c) => <P.OffersGate me={c.me}><RulesTab onChanged={() => {}} /></P.OffersGate>, "start end approval thresholds claim hold unpaid expiry warning limit unusual activity renewal referral win-back abandoned checkout"),
+      page("monitoring", "Offer monitoring", (c) => <P.OffersGate me={c.me}><MonitorTab onOpenOffer={() => c.onNavigate("Offers & Promotions")} /></P.OffersGate>, "claims failed codes attempts activity"),
+      page("reports", "Offer reports", (c) => <P.OffersGate me={c.me}><ReportsTab /></P.OffersGate>, "redemptions revenue discount report"),
     ] },
     { key: "billing", label: "Billing and financial operations", icon: "billing", items: [
       page("overview", "Billing overview", () => <P.BillingOverview />, "mrr arr revenue"),

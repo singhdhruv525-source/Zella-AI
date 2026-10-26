@@ -4,7 +4,6 @@ import { Icon } from "./BusinessUI";
 import { friendly, orThrow } from "./BusinessShared";
 import { TimeZoneSelect } from "./formFields";
 import { ReviewLinkPanel } from "./BusinessDrafts";
-import { OffersPanel } from "./BusinessOffers";
 import { makeTerm } from "./businessWorkspace";
 import { DATA_RIGHTS_ROLES, DataRightsList } from "./BusinessDataRights";
 import { HoursSection } from "./BusinessHours";
@@ -20,6 +19,7 @@ import SettingsWorkspace from "./settings/SettingsWorkspace";
 import { AccountSecurityPanel, MyProfilePanel, SignOutPanel, uploadImage } from "./settings/PersonalPanels";
 import { Banner, Card, Confirm, Empty, Facts, Field, LinkRows, LoadState, Needs, Pill, SaveBar, Table, Toggle, useAsync, useForm, when, words } from "./settings/SettingsKit";
 import { usePlatformInfo } from "./platformInfo";
+import { AssignmentSettings, BusinessOffersSettings, LeadQuestions, LeadRules, WebsiteForms, WebsiteSources } from "./settings/BusinessLeadPanels";
 
 // Business Settings: one Settings item in the CRM sidebar opens this workspace,
 // with 16 categories at /app/settings/<category>/<page>. Everything saves
@@ -792,12 +792,14 @@ function registry(w) {
       page("roles", "Roles and permissions", () => <RolesPermissions />, "owner admin manager staff viewer"),
       page("invitations", "Team invitations", (c) => only(manage, <AccessPage workspace={w} userId={c.userId} refreshKey={0} onNotice={c.onNotice} />), "resend revoke expired"),
       page("availability", "Staff availability", (c) => <TeamPage workspace={w} email={c.email} refreshKey={0} onNotice={c.onNotice} />, "working hours time off"),
+      page("assignment", "Work assignment", () => <AssignmentSettings w={w} />, "round robin least busy share leads callbacks unassigned alert"),
       page("security", "Team security", (c) => only(manage, <><SecurityLogPage workspace={w} refreshKey={0} /><ApprovalsPage workspace={w} refreshKey={0} onNotice={c.onNotice} /></>), "access review role history"),
     ] },
     { key: "receptionist", label: "AI receptionist", icon: "record_voice_over", items: [
       page("overview", "Receptionist overview", () => <ReceptionistOverview w={w} />, "status phone version"),
       page("voice", "Voice and personality", (c) => only(lead, <ReceptionistEdit w={w} onNotice={c.onNotice} />), "greeting tone personality instructions voice language"),
       page("knowledge", "Business knowledge", (c) => <KnowledgePage workspace={w} refreshKey={0} onNotice={c.onNotice} />, "services faq policies prices"),
+      page("website", "Website knowledge sources", () => <WebsiteSources w={w} />, "website crawl sitemap pages read approve"),
       page("calls", "Call handling", (c) => <ConfigFacts w={w} onGo={c.onGo} pick={(r) => callHandling(r)} />, "after hours transfer message callback missed"),
       page("escalation", "Escalation and fallback", (c) => <ConfigFacts w={w} onGo={c.onGo} pick={(r) => escalation(r)} />, "emergency human handoff voicemail fallback"),
       page("booking", "Appointment booking", (c) => <Booking w={w} onGo={c.onGo} />, "book schedule notice duration"),
@@ -817,6 +819,7 @@ function registry(w) {
       page("usage", "Usage and charges", () => <VoiceUsage w={w} />, "usage sms voice charges"),
       page("protection", "AI usage protection", () => <UsageProtection w={w} />, "top-up pay as you go spending limit 70 90 100"),
       page("rollover", "Rollover policy", () => <Rollover w={w} />, "reset remaining"),
+      page("offers", "Offers and promo codes", () => <BusinessOffersSettings w={w} />, "offer promo code discount deal claim"),
       page("payment-methods", "Payment methods", lazyNeeds("Payment methods aren't managed in Zella yet", "Nothing is charged from Zella today.", "Adding a card needs the payment provider's secure page; Zella never stores card numbers.")),
       page("invoices", "Invoices", lazyNeeds("Invoices aren't available in Zella yet", "The Zella team sends invoices by email.", "They need the payment provider's invoice records.")),
       page("changes", "Plan changes", () => <PlanChanges w={w} />, "upgrade downgrade compare"),
@@ -831,7 +834,10 @@ function registry(w) {
     ] },
     { key: "crm", label: "CRM and customers", icon: "group", items: [
       page("records", "Customer records", (c) => <CustomerRecords w={w} records={c.records} onNotice={c.onNotice} />, "fields duplicate status"),
-      page("leads", "Lead management", () => <LeadSourcesPage workspace={w} refreshKey={0} />, "sources assignment"),
+      page("leads", "Lead management", () => <LeadSourcesPage workspace={w} refreshKey={0} />, "sources"),
+      page("forms", "Website forms", () => <WebsiteForms w={w} />, "website form contact embed code key allowed websites"),
+      page("assignment", "Lead assignment rules", () => <LeadRules w={w} />, "assign route priority urgent keyword source rule"),
+      page("questions", "Qualifying questions", () => <LeadQuestions w={w} />, "qualify qualification questions required answer"),
       page("pipeline", "Pipeline", lazyNeeds("Pipeline stages aren't editable yet", "Leads move through the fixed stages on the Leads page; changing stage never changes the customer's details.", "Custom stages need a stage list per business that the Leads page and automations read.")),
       page("fields", "Custom fields", (c) => <RecordSettingsPage workspace={w} types={c.records.types} canManage={lead} onNotice={c.onNotice} onChanged={c.records.reload} />, "field type required"),
       page("export", "Import and export", () => <><DataExport w={w} /><BillingNeeds title="Importing isn't available yet" have="Add people one at a time, or ask Zella to import a file for you.">Importing needs a file upload with field mapping, a preview and duplicate checks.</BillingNeeds></>, "csv import export"),
@@ -860,7 +866,7 @@ function registry(w) {
       page("config", "Messaging setup", () => <Card title="Messaging"><Facts rows={[["Texts", w.phone_connected ? "From your Zella number" : "Start once your number is connected"], ["Email", "Sent with your business name"], ["Marketing texts", "Off"], ["Quiet hours", "Texts wait until morning"]]} /></Card>, "provider sender"),
       page("templates", "Message templates", () => <Templates w={w} />, "sms email templates"),
       page("rules", "Communication rules", () => <Card title="Rules every message follows"><Facts rows={[["Consent", "Checked before every text and email"], ["Opt-out", "STOP, unsubscribe links"], ["Quiet hours", "No texts late at night, business time"], ["Duplicates", "The same message isn't sent twice"]]} /></Card>, "consent quiet hours"),
-      page("reviews", "Reviews and offers", () => <div className="zs-cols"><ReviewLinkPanel workspace={w} /><OffersPanel workspace={w} /></div>, "review link offers"),
+      page("reviews", "Review link", (c) => <><ReviewLinkPanel workspace={w} /><LinkRows rows={[{ title: "Offers and promo codes", detail: "Billing and subscription", onClick: () => c.onGo("settings/billing/offers") }]} /></>, "review link google offers"),
       page("history", "Delivery history", (c) => <InboxPage workspace={w} refreshKey={0} onNotice={c.onNotice} onOpenPerson={c.onOpenPerson} />, "delivered failed"),
     ] },
     { key: "notifications", label: "Notifications", icon: "notifications", items: [

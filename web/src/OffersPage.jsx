@@ -875,7 +875,7 @@ function ruleState(r, lastRun) {
   return ["Active", "success"];
 }
 
-function RulesTab({ onChanged }) {
+export function RulesTab({ onChanged }) {
   const [data, setData] = useState(null);
   const [edit, setEdit] = useState({});
   const [busy, setBusy] = useState("");
@@ -992,7 +992,7 @@ const REASON = {
   too_many_attempts: "Too many code tries",
 };
 
-function MonitorTab({ onOpenOffer }) {
+export function MonitorTab({ onOpenOffer }) {
   const [filter, setFilter] = useState("all");
   const [data, setData] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -1071,7 +1071,7 @@ function MonitorTab({ onOpenOffer }) {
 // ------------------------------------------------------------------ reports
 const isoDay = (d) => d.toISOString().slice(0, 10);
 
-function ReportsTab() {
+export function ReportsTab() {
   const [from, setFrom] = useState(isoDay(new Date(Date.now() - 30 * 864e5)));
   const [to, setTo] = useState(isoDay(new Date()));
   const [data, setData] = useState(null);

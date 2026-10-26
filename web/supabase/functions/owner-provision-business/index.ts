@@ -2739,7 +2739,33 @@ const EDITABLE_SETTINGS: Record<string, { label: string; check: (v: unknown) => 
   voice_llm_model: { label: "AI model for the phone assistant", check: modelName },
   call_intel_model: { label: "AI model for call summaries and suggestions", check: modelName },
   knowledge_ai_model: { label: "AI model for drafting knowledge answers", check: modelName },
+  invitation_reminder_hours: { label: "Hours after an invitation that reminders are sent", check: (v) => intList(v, 1, 336, 5, "up") },
+  setup_incomplete_after_days: { label: "Days before an unfinished setup is flagged", check: (v) => intIn(v, 1, 60) },
+  trial_notice_days: { label: "Days before a trial ends that the owner is told", check: (v) => intList(v, 1, 60, 5, "down") },
+  transfer_failure_threshold: { label: "Failed transfers before a business is flagged", check: (v) => intIn(v, 1, 50) },
+  ai_low_confidence_questions: { label: "Unsure answers in one call before it is flagged for review", check: (v) => intIn(v, 2, 20) },
+  response_sample_rate: { label: "Share of AI conversations sampled for quality review (0 to 1)", check: (v) => fraction(v) },
 };
+
+// A short list of whole numbers, from "24, 72", "[24,72]" or an array. Kept unique and in the order its job reads
+// them: reminder hours rising (first reminder first), trial notice days falling.
+function intList(v: unknown, min: number, max: number, most: number, order: "up" | "down") {
+  let items: unknown[];
+  if (Array.isArray(v)) items = v;
+  else {
+    const t = String(v ?? "").trim().replace(/^\[|\]$/g, "");
+    items = t ? t.split(/[\s,]+/) : [];
+  }
+  const nums = [...new Set(items.map((x) => intIn(x, min, max)))].sort((a, b) => (order === "up" ? a - b : b - a));
+  if (!nums.length || nums.length > most) throw new InputError(`Enter 1 to ${most} whole numbers from ${min} to ${max}, separated by commas`);
+  return nums;
+}
+
+function fraction(v: unknown) {
+  const n = typeof v === "number" ? v : Number(String(v ?? "").trim());
+  if (!Number.isFinite(n) || n < 0 || n > 1) throw new InputError("Enter a number from 0 to 1, for example 0.1 for one in ten");
+  return Math.round(n * 1000) / 1000;
+}
 
 // A model id as the provider writes it, e.g. claude-haiku-5-5. Checked by the provider on first use.
 function modelName(v: unknown) {

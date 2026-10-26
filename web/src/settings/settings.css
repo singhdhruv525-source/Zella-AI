@@ -57,6 +57,7 @@
 @keyframes zs-in { from { opacity: .4; transform: translateY(2px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .zs-page { animation: none; } }
 .zs-title { margin: 8px 0 2px; font-size: 19px; }
+.zs-group { margin: 18px 0 8px; font-size: 14px; text-transform: uppercase; letter-spacing: .04em; color: var(--zs-muted); }
 .zs-desc { margin: 0 0 12px; color: var(--zs-text-2); font-size: 13px; }
 .zs-page > * + * { margin-top: 14px; }
 
@@ -159,3 +160,10 @@
 .zs-page .ba-page-head .ba-crumb, .zs-page .ba-page-head h1 { display: none; }
 .zs-page .ba-page-head { margin-bottom: 8px; }
 .ba-root .zs-glyph, .ba-root .zs-cat .ba-icon { color: var(--zs-muted); }
+
+/* Code to copy, and a list of radio choices. */
+.zs .zs-code { margin: 10px 0 0; padding: 12px; max-height: 320px; overflow: auto; border: 1px solid var(--zs-border); border-radius: 10px; background: var(--zs-subtle); font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre; }
+.zs .zs-choice { display: grid; gap: 8px; margin-bottom: 14px; }
+.zs .zs-option { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--zs-border); border-radius: 10px; cursor: pointer; }
+.zs .zs-option.on { border-color: var(--zs-accent); }
+.zs .zs-option small { display: block; color: var(--zs-muted); }

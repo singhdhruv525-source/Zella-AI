@@ -599,10 +599,12 @@ export function Subscriptions() {
   );
 }
 
-export function TrialsPromotions({ onNavigate }) {
+export function TrialsPromotions({ onNavigate, onGo }) {
   return (
     <>
-      <LinkRows rows={[{ title: "Promotion codes and discounts", detail: "Discount type and value, start and end, redemption limits, eligibility and approval: on the Offers & Promotions page.", onClick: () => onNavigate("Offers & Promotions") }]} />
+      <LinkRows rows={[{ title: "Promotion codes and discounts", detail: "Discount type and value, start and end, redemption limits, eligibility and approval: on the Offers & Promotions page.", onClick: () => onNavigate("Offers & Promotions") },
+        { title: "Offer automation rules", detail: "Starting and ending on time, approval limits, unpaid claim hold and alerts.", onClick: () => onGo("offers/rules") },
+        { title: "Trial-ending notices", detail: "When owners are told a trial is ending.", onClick: () => onGo("general/operations") }]} />
       <Needs title="Trial length and eligible plans aren't configurable yet" have="Trials come from the payment provider's subscription (trial start and end dates are stored). Trial-ending notices use the trial_notice_days setting.">
         Zella-side trials need a trial length per plan and a sign-up flow that starts the trial.
       </Needs>
@@ -735,12 +737,12 @@ export function AiProviders({ me }) {
   );
 }
 
-function SettingText({ me, row }) {
-  const form = useForm({ value: typeof row.value === "string" ? row.value : JSON.stringify(row.value) });
+function SettingText({ me, row, hint = "Checked by the provider on first use." }) {
+  const form = useForm({ value: typeof row.value === "string" ? row.value : Array.isArray(row.value) ? row.value.join(", ") : JSON.stringify(row.value) });
   const owner = me?.role === "zella_owner";
   return (
     <Card title={row.label ?? row.key} sub={`${row.key} · changed ${when(row.updated_at)}`}>
-      <div className="zs-grid"><Field label="Value" hint={owner ? "Checked by the provider on first use." : "Only a Zella owner can change this."}><input value={form.values.value} onChange={form.set("value")} disabled={!owner} /></Field></div>
+      <div className="zs-grid"><Field label="Value" hint={owner ? hint : "Only a Zella owner can change this."}><input value={form.values.value} onChange={form.set("value")} disabled={!owner} /></Field></div>
       {owner && <SaveBar form={form} onSave={() => form.save(async (v) => { await call("platform_setting_save", { key: row.key, value: v.value }); })} />}
     </Card>
   );
@@ -1372,5 +1374,107 @@ export function SystemConfig() {
         </Card>
       </>
     )}</LoadState>
+  );
+}
+
+/* ---------------- Operational rules ---------------- */
+
+// Timings and thresholds the scheduled checks read from platform_settings. Saved by a Zella owner; each value is
+// checked by the admin function before it is stored, and the jobs pick it up on their next run.
+const OPERATIONAL = [
+  ["Leads and tasks", [
+    ["response_time_minutes", "How fast a new lead should get a reply. Late replies show on reports and in alerts."],
+    ["task_overdue_grace_minutes", "Extra minutes before a task counts as overdue."],
+    ["task_escalate_hours", "Overdue tasks are sent to the business owner after this long."],
+    ["team_summary_hour", "Hour of the day (business time) the daily team summary is sent."],
+  ]],
+  ["Calls", [
+    ["missed_call_max_seconds", "Calls shorter than this count as missed and get a callback."],
+    ["transfer_failure_threshold", "Failed transfers to a person, in a day, before Zella flags the business."],
+    ["call_intel_monthly_limit", "Calls per business per month that the AI summarises."],
+  ]],
+  ["AI quality and knowledge", [
+    ["ai_low_confidence_questions", "Unsure answers in one call before the call is flagged for review."],
+    ["knowledge_repeat_threshold", "Times the same question is asked before it is suggested as new knowledge."],
+    ["response_sample_rate", "Share of AI conversations picked for quality review: 0.1 is one in ten."],
+  ]],
+  ["Onboarding and trials", [
+    ["invitation_reminder_hours", "Hours after an owner invitation that reminders go out, for example 24, 72."],
+    ["setup_incomplete_after_days", "Days after creation before an unfinished setup is flagged."],
+    ["trial_notice_days", "Days before a trial ends that the owner is told, for example 7, 3, 1."],
+  ]],
+];
+
+export function OperationalRules({ me }) {
+  const state = useAsync(() => call("platform_settings_list"), []);
+  return (
+    <LoadState state={state}>{(s) => (
+      <>
+        {me?.role !== "zella_owner" && <Banner tone="warn">Only a Zella owner can change these. You can see the current values.</Banner>}
+        {OPERATIONAL.map(([group, keys]) => (
+          <div key={group}>
+            <h3 className="zs-group">{group}</h3>
+            {keys.map(([k, hint]) => {
+              const row = s.settings.find((x) => x.key === k);
+              return row
+                ? <SettingText key={k} me={me} row={row} hint={hint} />
+                : <Banner key={k} tone="warn"><code>{k}</code> isn't in platform settings yet. The migration that adds it hasn't been applied.</Banner>;
+            })}
+          </div>
+        ))}
+      </>
+    )}</LoadState>
+  );
+}
+
+/* ---------------- Offers and promotions ---------------- */
+
+const FULL_ADMIN = ["zella_owner", "super_admin"];
+const OFFER_STATUS = [["active", "Active"], ["pending_approval", "Waiting for approval"], ["scheduled", "Scheduled"], ["paused", "Paused"], ["draft", "Drafts"], ["expired", "Ended"], ["archived", "Archived"]];
+const OFFER_CAPS = [
+  ["billing", "Payments", "Claims become Paid when a real payment arrives from the payment provider."],
+  ["checkout", "Self-serve checkout", "Needed for checkout prices and abandoned checkout reminders."],
+  ["referral_tracking", "Referral links", "Needed for referral rewards."],
+  ["promo_sending", "Promotional sending", "Needed for promotional emails and win-back."],
+];
+
+// Offers are run by the database for Zella owners and super admins only (is_platform_admin).
+export function OffersGate({ me, children }) {
+  if (!FULL_ADMIN.includes(me?.role)) return <Banner tone="warn">Offers and promotions are managed by Zella owners and super admins. Your role ({me?.roleLabel}) can't open them.</Banner>;
+  return children;
+}
+
+export function OffersOverview({ onNavigate }) {
+  const state = useAsync(async () => {
+    const { data, error } = await supabase.rpc("zella_offers_list");
+    if (error) throw new Error(error.message);
+    return data;
+  }, []);
+  return (
+    <LoadState state={state}>{(d) => {
+      const count = (st) => d.offers.filter((o) => o.status === st).length;
+      const problems = d.offers.filter((o) => o.problems?.length);
+      return (
+        <>
+          <Card title="Offers" sub="Discounts, promo codes and deals for businesses. Created, approved and scheduled on the Offers & Promotions page."
+            actions={<button type="button" className="zs-btn sm primary" onClick={() => onNavigate("Offers & Promotions")}>Open Offers & Promotions</button>}>
+            <Facts rows={[...OFFER_STATUS.map(([k, label]) => [label, count(k)]),
+              ["Claims waiting for payment", d.offers.reduce((n, o) => n + (o.claims - o.confirmed), 0)], ["Paid claims", d.offers.reduce((n, o) => n + o.confirmed, 0)]]} />
+          </Card>
+          {problems.length > 0 && (
+            <Card title="Offers that can't go live yet" sub="Fix these on the Offers & Promotions page.">
+              <Table rows={problems} columns={[["Offer", (o) => o.name], ["Status", (o) => words(o.status)], ["To fix", (o) => o.problems.join(" ")]]} />
+            </Card>
+          )}
+          <Card title="What offers can use" sub="Rules and offer types that need a missing connection stay switched off.">
+            <Table rowKey={(c) => c[0]} rows={OFFER_CAPS} columns={[["Connection", (c) => c[1]], ["State", (c) => <Pill tone={d.capabilities?.[c[0]] ? "success" : "warning"}>{d.capabilities?.[c[0]] ? "Available" : "Not connected"}</Pill>], ["Used for", (c) => c[2]]]} />
+          </Card>
+          <Card title="Who can do what">
+            <Facts rows={[["Create and edit drafts", "Zella owners and super admins"], ["Approve offers over the limits", "Zella owners"], ["Change automation rules", "Zella owners"],
+              ["Claim an offer", "The business owner, in their Settings (Billing > Offers and promo codes)"], ["Prices", "Never changed by an offer alone: a claim is Paid only when the payment arrives"]]} />
+          </Card>
+        </>
+      );
+    }}</LoadState>
   );
 }
