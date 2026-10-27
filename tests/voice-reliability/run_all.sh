@@ -84,6 +84,8 @@ node mock-rest.mjs > "$WORK/mock.log" 2>&1 & MOCK=$!
   "$DENO" run --allow-net --allow-env --allow-read --allow-sys index.ts > "$WORK/fn.log" 2>&1 ) & FN=$!
 for i in $(seq 1 30); do curl -s -o /dev/null --max-time 1 http://127.0.0.1:8000 && break; sleep 1; done
 NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 node edge-e2e.mjs | tee "$WORK/edge.out"; grep -q '^FAIL' "$WORK/edge.out" && FAILS=$((FAILS + 1))
+echo "== the 14 Receptionist Brain tools through voice-rules (HTTP)"
+NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 node brain-e2e.mjs > "$WORK/brain.out" 2>&1; cat "$WORK/brain.out"; grep -q '^FAIL\|Error' "$WORK/brain.out" && FAILS=$((FAILS + 1))
 kill $FN $MOCK 2>/dev/null; wait $FN $MOCK 2>/dev/null
 rm -rf "$WORK"
 echo; [ $FAILS = 0 ] && echo "ALL PASSED" || echo "$FAILS FAILED"; exit $([ $FAILS = 0 ] && echo 0 || echo 1)

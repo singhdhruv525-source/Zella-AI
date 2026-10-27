@@ -12,6 +12,8 @@ after, and runs the tests again on both.
   patch), and `live_two.sql` holds the two bodies that exist only in production. The run stops unless all 33 match.
 - `spam_tables.sql`, `spam_md5.txt`: the extra tables and the two live helper functions spam protection needs.
 - `auth_test.sql`: the Vapi signature check; `spam_compat.sql`: blocked callers, requests and status events with both.
+- `vapi-client.mjs`: signs test requests like Vapi's HMAC credential; `brain-e2e.mjs`: the 14 Brain tools over HTTP;
+  `bench.sh` / `bench.mjs`: latency of the synchronous path (run after `run_all.sh`; `ZDB=zvs` for the spam database).
 - `race.sh`: N sessions held on an advisory-lock barrier, released at the same instant.
 - `*_test.sql`: assertion blocks; `brain-flow.mjs`: the shipped Brain Tools code nodes against the patched functions;
   `edge-e2e.mjs` + `mock-rest.mjs`: the `voice-rules` function over HTTP against the staging database.

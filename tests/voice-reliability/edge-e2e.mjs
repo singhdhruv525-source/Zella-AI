@@ -1,19 +1,7 @@
-// voice-rules over HTTP against the staging database (through mock-rest.mjs). Every request is signed the way Vapi's
-// HMAC credential signs (sha256 over "{timestamp}.{body}", hex, x-signature / x-timestamp) with a TEST secret.
-import { createHmac } from 'node:crypto';
-import { writeFileSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
-const SECRET = process.env.TEST_HMAC_SECRET;
-const URL_ = 'http://127.0.0.1:8000';
-const sql = (q) => execFileSync('su', ['nobody', '-s', '/bin/bash', '-c', process.env.ZPSQL + ' -d ' + (process.env.ZDB || 'zvoice')], { input: q }).toString().trim();
-const sign = (raw, ts, secret = SECRET) => createHmac('sha256', secret).update(ts + '.' + raw).digest('hex');
-const now = () => String(Math.floor(Date.now() / 1000));
-const send = (raw, headers = {}) => fetch(URL_, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: raw });
-const P = (body, o = {}) => { const raw = typeof body === 'string' ? body : JSON.stringify(body); const ts = o.ts ?? now();
-  return send(raw, { 'x-timestamp': ts, 'x-signature': sign(raw, ts, o.secret), ...(o.headers || {}) }); };
-const control = (v) => writeFileSync(process.env.MOCK_CONTROL, v);
-const callA = (id, extra = {}) => ({ id, type: 'inboundPhoneCall', customer: { number: '+15551230001' }, phoneNumber: { number: '+15550001000' }, phoneNumberId: 'pn-A', ...extra });
-let pass = 0, fail = 0; const ok = (c, m) => { c ? pass++ : fail++; console.log((c ? 'PASS ' : 'FAIL ') + m); };
+// voice-rules over HTTP against the staging database (through mock-rest.mjs), every request signed like Vapi's HMAC
+// credential (vapi-client.mjs) with a TEST secret.
+import { P, send, sign, now, sql, control, callA, counter, URL_, SECRET } from './vapi-client.mjs';
+const { ok, done } = counter();
 control('');
 
 // ---- authentication
@@ -99,4 +87,4 @@ t0 = Date.now();
 ok((await P({ message: { type: 'status-update', status: 'ended', call: callA('e2e-5') } })).status === 503 && Date.now() - t0 < 9000, 'signature check too slow: 503 within the time limit');
 control('');
 ok(sql("select count(*) from calls where external_call_id = 'e2e-5'") === '0', 'no call row from requests that could not be checked');
-console.log(`${pass} passed, ${fail} failed`);
+done();

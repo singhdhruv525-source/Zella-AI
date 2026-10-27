@@ -43,19 +43,23 @@ for DB in zsv zvs; do
     [ $t = spam_compat ] && echo "$out" | grep -o 'PASS.*' | sed 's/^/   /'
   done
 done
-echo "== voice-rules over HTTP on zvs (spam protection applied last)"
-run zvs < fixture.sql
-q zvs "insert into business_phone_numbers (business_id, e164, vapi_phone_number_id) values ('aaaaaaaa-0000-4000-8000-000000000001', '+15550001000', 'pn-A'), ('bbbbbbbb-0000-4000-8000-000000000002', '+15550002000', 'pn-B');
+for DB in zsv zvs; do
+echo "== voice-rules over HTTP on $DB"
+run $DB < fixture.sql
+q $DB "insert into business_phone_numbers (business_id, e164, vapi_phone_number_id) values ('aaaaaaaa-0000-4000-8000-000000000001', '+15550001000', 'pn-A'), ('bbbbbbbb-0000-4000-8000-000000000002', '+15550002000', 'pn-B');
   insert into ai_agents (id, business_id, name, agent_type, is_default) values ('a0000000-0000-4000-8000-00000000000a', 'aaaaaaaa-0000-4000-8000-000000000001', 'R', 'receptionist', true), ('b0000000-0000-4000-8000-00000000000b', 'bbbbbbbb-0000-4000-8000-000000000002', 'R', 'receptionist', true);
   insert into ai_agent_configs (agent_id, escalation_rules) values ('a0000000-0000-4000-8000-00000000000a', '{\"transfer_number\": \"+15550101111\", \"transfer_open_hours_only\": false}'), ('b0000000-0000-4000-8000-00000000000b', '{\"transfer_enabled\": false}')" > /dev/null
-export ZDB=zvs TEST_HMAC_SECRET="test-only-$(date +%s%N)-hmac" MOCK_CONTROL="$WORK/mock.ctl"
-q zvs "delete from vault.decrypted_secrets where name like 'zella_vapi_%'; delete from platform_settings where key = 'vapi_auth_mode'; insert into vault.decrypted_secrets values ('zella_vapi_hmac_secret', '$TEST_HMAC_SECRET')" > /dev/null
+export ZDB=$DB TEST_HMAC_SECRET="test-only-$(date +%s%N)-hmac" MOCK_CONTROL="$WORK/mock.ctl"
+q $DB "delete from vault.decrypted_secrets where name like 'zella_vapi_%'; delete from platform_settings where key = 'vapi_auth_mode'; insert into vault.decrypted_secrets values ('zella_vapi_hmac_secret', '$TEST_HMAC_SECRET')" > /dev/null
 : > "$MOCK_CONTROL"; chmod 666 "$MOCK_CONTROL"
 node mock-rest.mjs > "$WORK/mock.log" 2>&1 & MOCK=$!
 ( cd "$REPO/web/supabase/functions/voice-rules" && exec env SUPABASE_URL=http://127.0.0.1:54400 ZELLA_SERVER_SECRET_KEY=test-key ZELLA_VOICE_RPC_MS=1500 ZELLA_VOICE_BUDGET_MS=4000 NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 \
   "$DENO" run --allow-net --allow-env --allow-read --allow-sys index.ts > "$WORK/fn.log" 2>&1 ) & FN=$!
 for i in $(seq 1 30); do curl -s -o /dev/null --max-time 1 http://127.0.0.1:8000 && break; sleep 1; done
-NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 node edge-e2e.mjs > "$WORK/edge.out"; tail -1 "$WORK/edge.out"; grep '^FAIL' "$WORK/edge.out" && FAILS=$((FAILS + 1))
+NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 node edge-e2e.mjs > "$WORK/edge.out"; echo "   edge: $(tail -1 "$WORK/edge.out")"; grep '^FAIL' "$WORK/edge.out" && FAILS=$((FAILS + 1))
+NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 node brain-e2e.mjs > "$WORK/brain.out" 2>&1; echo "   brain tools: $(tail -1 "$WORK/brain.out")"; grep '^FAIL\|Error' "$WORK/brain.out" && FAILS=$((FAILS + 1))
+grep 'spam-screened' "$WORK/brain.out" | sed 's/^/   /'
 kill $FN $MOCK 2>/dev/null; wait $FN $MOCK 2>/dev/null
+done
 rm -rf "$WORK"
 echo; [ $FAILS = 0 ] && echo "ALL PASSED" || echo "$FAILS FAILED"; exit $([ $FAILS = 0 ] && echo 0 || echo 1)
