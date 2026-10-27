@@ -12,6 +12,7 @@ Seven workflows. All are shared by every business and every industry. Nothing bu
 | `workflows/zella-email-sender.json` | Takes due appointment confirmations and reminders whose channel is **email** and runs them through the same pipeline as the text sender: consent, template, safe HTML, logging, duplicate protection, dry-run switch. Sends through Resend **only when live**. |
 | `workflows/zella-followup-emails.json` | Takes due follow-up tasks whose channel is **email** (same kinds as the follow-up texts) through the same consent check, logging and dry-run switch. A task moves to email when the customer cannot be texted but can be emailed. |
 | `workflows/zella-owner-emails.json` | Emails owner notifications (daily summary, weekly review, any warning or urgent alert) to the right people, honouring each person's email preferences. Same dry-run switch and Resend box as the email sender. |
+| `workflows/zella-spam-response.json` | Follow-up for spam incidents the database already detected, scored and screened: routes each by severity, checks repeat offenders, asks the AI only about ambiguous texts/emails (optional), and posts a weekly summary. Every result goes back through `zella_spam_finish_work`, which re-checks it and applies only the approved policy. See "Spam Response" below. |
 | `workflows/zella-event-router.json` | Takes up to 20 stored events (`zella_claim_events`), runs the right handler, writes an execution record, and reports the result (`zella_complete_event`). Temporary failures are retried by the database with a growing delay. Permanent ones go to the dead-letter list. |
 
 ## What the router handles today
@@ -431,3 +432,16 @@ After a call ends with a real transcript it waits in `call_insights`. When `call
 
 ## Admin alerts (Zella - Admin Alerts)
 Run `sql/zella_admin_alerts.sql`. Webhook `zella/run/admin-alerts`, started by the dispatcher when open platform alerts have not been emailed and email is live. `zella_claim_admin_alert_email` hands out up to 25 alerts (urgent first) with the active admins' addresses; the workflow sends one plain-text digest through Resend and reports back with `zella_finish_admin_alert_email` (a failed send is retried up to 3 times; the alert itself stays open in the dashboard either way). Offers & Promotions raise alerts for: ending soon, limit nearly reached, limit reached, unusual claims, could not go live, ended (summary), and a failed schedule job.
+
+## Spam Response (`spam-response` lane, workflow `a7Nfsi9mkQbBmc0L`, unpublished)
+
+**What never waits for n8n:** spam detection and scoring, call screening, booking holds, block lists, rate limits, who may see what, and saving the incident. All of that happens in the database (and the `voice-rules` edge function for calls) before this workflow is even called. If n8n is slow or down, a blocked caller is still screened and every incident is still recorded.
+
+Flow: Run now -> Claim work (`zella_spam_claim_work`) -> Evaluate severity -> log / alert / investigate -> Check repeat offender -> (Ask AI) -> Apply approved policy (`zella_spam_finish_work`); weekly reports go Build report -> Save report (`zella_spam_save_report`).
+
+- **Off by default** (`spam_workflow_live`). Off: incidents are handled in the database exactly as before (high-risk alerts written straight away). On: medium and high incidents are queued; low risk never costs a run.
+- **The database decides.** The workflow suggests a route; `zella_spam_finish_work` re-reads the facts, decides severity itself, notifies once per incident within the business's hourly cap, and applies only one consequential action: a 24-hour, channel-only restriction when the business has auto-restrict on and its team already confirmed this sender as spam twice (never after a "not spam"). A sender confirmed at 3+ businesses raises one platform alert; admins decide on a global rule.
+- **AI is advisory.** Only medium-risk texts and emails, only when `spam_ai_live` is on and the business opted in, within `spam_ai_monthly_limit` per business, once per incident. Names, numbers, emails and link paths are removed before anything is sent. The label is shown to the team as a suggestion; it never blocks or changes an incident. AI down or nonsense: the incident is processed without it.
+- **Retries and duplicates.** Each claim has a token; a replayed or late result is refused. A failed step is retried with a growing delay (5, 20, 45 minutes), then marked failed. A run that never reports back is picked up again after 10 minutes. Weekly reports are posted once per business per week.
+- **Fallback.** If the workflow hasn't handled a high-risk incident within 15 minutes (off, n8n down, gave up), `zella_spam_hourly` sends the notification from the database, once.
+- **Tenant data.** The workflow gets one business's incident, its policy and counts about the sender elsewhere (never another business's name or messages).

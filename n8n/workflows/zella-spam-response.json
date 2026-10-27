@@ -1,0 +1,541 @@
+{
+  "name": "Zella - Spam Response",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "zella/run/spam-response",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "2af00e23-c480-4a77-8fdd-da60673b2836",
+      "name": "Run now",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "webhookId": "9b3733b9-1a3d-4d48-8c96-b4426b3396b4",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Zella gateway secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_spam_claim_work",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_limit: 20 }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "3499d72b-34fa-4f4c-8718-a16c6325352c",
+      "name": "Claim work",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        200
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Spam Response: decide where each claimed item goes. The incident is already detected, scored, saved and\n// (for calls) screened by the database before this runs; this only routes the follow-up:\n//   log          nothing for anyone to do now (recorded as processed)\n//   alert        tell the team (high risk, or medium when the business asked for medium alerts)\n//   investigate  look closer first: a sender seen before, at other businesses, flooding, or an ambiguous message\n// The database checks everything again when the result comes back, so a wrong route here can't cause harm.\nconst uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;\nconst j = $json && typeof $json === 'object' ? $json : {};\n\nif (j.kind === 'report') {\n  if (!uuid.test(String(j.business_id || '')) || !/^\\d{4}-\\d{2}-\\d{2}$/.test(String(j.week_start || ''))) return { json: { kind: 'skip', why: 'bad_report' } };\n  return { json: { kind: 'report', business_id: j.business_id, business_name: String(j.business_name || '').slice(0, 120), week_start: j.week_start, stats: j.stats && typeof j.stats === 'object' ? j.stats : {} } };\n}\nif (j.kind !== 'incident' || !uuid.test(String(j.incident_id || '')) || !uuid.test(String(j.claim || ''))) return { json: { kind: 'skip', why: 'not_an_item' } };\n\nconst inc = j.incident && typeof j.incident === 'object' ? j.incident : {};\nconst f = j.facts && typeof j.facts === 'object' ? j.facts : {};\nconst p = j.policy && typeof j.policy === 'object' ? j.policy : {};\nconst n = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);\nconst seenBefore = n(f.here_prior) > 0 || n(f.here_confirmed) > 0 || n(f.other_businesses) > 0;\nconst flooding = n(inc.occurrences) >= Math.max(2, n(p.flood_alert_at) || 20);\nconst ai = j.ai_request && typeof j.ai_request === 'object' && Array.isArray(j.ai_request.messages) ? j.ai_request : null;\n\nlet route = 'log';\nif (f.allowlisted === true) route = 'log';\nelse if (inc.risk_level === 'high') route = seenBefore || flooding ? 'investigate' : 'alert';\nelse if (inc.risk_level === 'medium') route = ai || seenBefore ? 'investigate' : p.notify_medium === true ? 'alert' : 'log';\n\nreturn {\n  json: {\n    kind: 'incident', route, incident_id: j.incident_id, claim: j.claim,\n    risk_level: inc.risk_level || null, channel: inc.channel || null, facts: f,\n    ai_request: route === 'investigate' ? ai : null,\n    finish: { p_incident_id: j.incident_id, p_claim: j.claim, p_result: { route } },\n  },\n};\n"
+      },
+      "id": "176ce52c-1ff0-46af-8287-912f1b8e72fe",
+      "name": "Evaluate severity",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "fb4bed6f-c112-430d-80d2-de20df943de7",
+              "leftValue": "={{ $json.kind === 'incident' || $json.kind === 'report' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "022c50a1-bd22-4442-88c6-8ad4337d6034",
+      "name": "Has work",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        720,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "ab6dd2be-1b8d-40ee-8348-0f59d2d98a9b",
+              "leftValue": "={{ $json.kind === 'report' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "38d1d5b5-6f69-401d-85fe-39cc2fe07d63",
+      "name": "Is a report",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        960,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Spam Response: the weekly summary for one business, from the counts the database prepared. Posted once per\n// week (the database refuses a second one); emailed only if the person turned that on in their notification settings.\nconst r = $json;\nconst s = r.stats || {};\nconst n = (v) => (Number.isFinite(Number(v)) ? Math.max(0, Math.round(Number(v))) : 0);\nconst total = n(s.total);\nconst plural = (k, one, many) => k + ' ' + (k === 1 ? one : many);\nconst parts = [['calls', 'call', 'calls'], ['texts', 'text', 'texts'], ['emails', 'email', 'emails'], ['bookings', 'booking', 'bookings']]\n  .filter(([k]) => n(s[k]) > 0).map(([k, one, many]) => plural(n(s[k]), one, many));\nconst lines = [\n  plural(total, 'suspicious contact was', 'suspicious contacts were') + ' flagged last week' + (parts.length ? ' (' + parts.join(', ') + ')' : '') + '.',\n  n(s.high) ? plural(n(s.high), 'was', 'were') + ' high risk.' : null,\n  n(s.blocked) ? plural(n(s.blocked), 'was', 'were') + ' blocked, screened or restricted.' : null,\n  n(s.held) ? plural(n(s.held), 'booking was', 'bookings were') + ' held for your team to confirm.' : null,\n  n(s.confirmed) || n(s.not_spam) ? 'Your team confirmed ' + n(s.confirmed) + ' as spam and marked ' + n(s.not_spam) + ' as not spam.' : null,\n  n(s.open) ? plural(n(s.open), 'incident is', 'incidents are') + ' still waiting for review.' : 'Nothing is waiting for review.',\n  'Open Spam protection for details.',\n].filter(Boolean);\nreturn {\n  json: {\n    body: {\n      p_business_id: r.business_id,\n      p_week_start: r.week_start,\n      p_title: 'Spam protection: ' + plural(total, 'incident', 'incidents') + ' last week',\n      p_body: lines.join(' '),\n    },\n  },\n};\n"
+      },
+      "id": "70fb992c-20ba-4d68-8e1b-6a10d7c015c1",
+      "name": "Build report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_spam_save_report",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "d54bdd02-147e-4b46-8d92-565240f9d555",
+      "name": "Save report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1440,
+        0
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "064af5c3-fbb1-4ee1-8fe0-42d32530cb2d",
+              "leftValue": "={{ $json.route === 'alert' || $json.route === 'investigate' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "067fefc1-8207-4350-8048-ca6e258dee43",
+      "name": "Needs follow-up",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_spam_finish_work",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.finish) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "1b641126-6076-4564-8f4d-81c6db731b9b",
+      "name": "Log event",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1440,
+        500
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Spam Response: repeat-offender check for incidents that need a closer look. Uses only the counts the\n// database handed over (never another business's name or messages) and writes down what was found. Any action\n// that follows (a temporary restriction, a platform alert) is decided by the database's approved policy.\nconst s = $json;\nconst f = s.facts || {};\nconst n = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);\nconst findings = [];\nif (n(f.here_confirmed) > 0) findings.push('confirmed_here_' + n(f.here_confirmed));\nelse if (n(f.here_prior) > 0) findings.push('seen_here_before');\nif (n(f.other_confirmed) > 0) findings.push('confirmed_elsewhere_' + n(f.other_confirmed));\nelse if (n(f.other_businesses) > 0) findings.push('seen_elsewhere');\nif (f.platform_rule === true) findings.push('platform_rule');\nconst repeat = n(f.here_confirmed) >= 2 || n(f.other_confirmed) >= 2;\nreturn {\n  json: {\n    ...s,\n    finish: { ...s.finish, p_result: { ...s.finish.p_result, route: 'investigate', repeat_offender: repeat, findings } },\n  },\n};\n"
+      },
+      "id": "546ad711-929d-4a2f-89f3-eb67f5119af2",
+      "name": "Check repeat offender",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "9b34a430-2b05-419d-81fb-12d1fca009c1",
+              "leftValue": "={{ !!$json.ai_request }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "371836db-c696-454b-8f61-f5317c7b2eb8",
+      "name": "Needs AI",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.ai_request) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 60000
+        }
+      },
+      "id": "8dbaeb8e-db74-4292-8889-062eac8ffeac",
+      "name": "Ask AI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1920,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Spam Response: read the AI's second opinion. It is only a suggestion shown to the team: the database keeps\n// it (if this incident was allowed an AI review at all) and never blocks or changes anything because of it.\n// If the AI is down or answers badly, the incident is still processed without it, so alerts are never held up.\nconst s = $('Check repeat offender').item.json;\nconst status = Number($json.statusCode);\nconst b = $json.body && typeof $json.body === 'object' ? $json.body : {};\nconst out = (extra) => ({ json: { ...s, finish: { ...s.finish, p_result: { ...s.finish.p_result, ...extra } } } });\nif (!(status >= 200 && status < 300) || !Array.isArray(b.content)) return out({ ai_error: 'AI unavailable (' + (status || 'no answer') + ')' });\nconst text = b.content.filter((c) => c && c.type === 'text').map((c) => c.text).join('');\nlet d;\ntry { d = JSON.parse(text.replace(/^```(?:json)?\\s*|\\s*```$/g, '').trim()); } catch (e) { return out({ ai_error: 'Unreadable AI answer' }); }\nif (!d || typeof d !== 'object' || !['spam', 'not_spam', 'unsure'].includes(d.label)) return out({ ai_error: 'Unreadable AI answer' });\nconst confidence = Number(d.confidence);\nreturn out({\n  ai: {\n    label: d.label,\n    confidence: Number.isFinite(confidence) ? Math.min(1, Math.max(0, confidence)) : null,\n    reason: typeof d.reason === 'string' ? d.reason.replace(/\\s+/g, ' ').trim().slice(0, 200) : '',\n  },\n});\n"
+      },
+      "id": "a59d47b2-e4ac-440b-809a-f043d73644a2",
+      "name": "Read AI",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2160,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_spam_finish_work",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.finish) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "fd3d9711-3634-455e-8e81-c50e95c210ef",
+      "name": "Apply approved policy",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2400,
+        300
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Run now": {
+      "main": [
+        [
+          {
+            "node": "Claim work",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim work": {
+      "main": [
+        [
+          {
+            "node": "Evaluate severity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evaluate severity": {
+      "main": [
+        [
+          {
+            "node": "Has work",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has work": {
+      "main": [
+        [
+          {
+            "node": "Is a report",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Is a report": {
+      "main": [
+        [
+          {
+            "node": "Build report",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Needs follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build report": {
+      "main": [
+        [
+          {
+            "node": "Save report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs follow-up": {
+      "main": [
+        [
+          {
+            "node": "Check repeat offender",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check repeat offender": {
+      "main": [
+        [
+          {
+            "node": "Needs AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs AI": {
+      "main": [
+        [
+          {
+            "node": "Ask AI",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Apply approved policy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ask AI": {
+      "main": [
+        [
+          {
+            "node": "Read AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read AI": {
+      "main": [
+        [
+          {
+            "node": "Apply approved policy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "executionTimeout": 300
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

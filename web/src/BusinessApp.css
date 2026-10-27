@@ -1832,3 +1832,7 @@
 }
 .sp-badges .ba-pill, .sp-table .ba-pill, .sp-lists .ba-pill { text-transform: none; }
 .sp-kpis .td-trend { white-space: normal; }
+.sp-followup { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 13px; }
+.sp-followup li { display: flex; align-items: center; gap: 8px; }
+.sp-ai { display: grid; gap: 4px; margin-top: 10px; padding: 10px 12px; border: 1px dashed var(--border-subtle, #ddd); border-radius: 10px; font-size: 13px; }
+.sp-ai small { font-size: 12px; }

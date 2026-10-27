@@ -1093,3 +1093,6 @@
   .sa-rule-form { grid-template-columns: 1fr; }
   .sa-field { flex-direction: column; align-items: flex-start; gap: 6px; }
 }
+.sa-h2 { font-size: 15px; margin: 18px 0 10px; }
+.sa-list li .owner-secondary-button { flex: none; }
+.sa-stack { display: flex; flex-direction: column; gap: 2px; }

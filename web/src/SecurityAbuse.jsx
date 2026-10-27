@@ -42,7 +42,7 @@ const POLICY = [
     ["retention_days", "Keep incidents for", "days"],
   ]],
 ];
-const TABS = [["overview", "Overview"], ["incidents", "Incidents"], ["coverage", "Protection by business"], ["policy", "Platform defaults"], ["rules", "Global block rules"]];
+const TABS = [["overview", "Overview"], ["incidents", "Incidents"], ["coverage", "Protection by business"], ["policy", "Platform defaults"], ["rules", "Global block rules"], ["automation", "Automation"]];
 const when = (v) => (v ? new Date(v).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "—");
 
 function NotSetUp() {
@@ -124,6 +124,7 @@ export default function SecurityAbuse({ permissions, onOpenBusiness }) {
           {tab === "coverage" && <Coverage rows={data.coverage} onOpenBusiness={onOpenBusiness} />}
           {tab === "policy" && <Policy policy={data.policy} canSave={can("platform.configure")} onSaved={(m) => { setNotice(m); load(); }} />}
           {tab === "rules" && <Rules canManage={can("security.manage")} onChanged={setNotice} />}
+          {tab === "automation" && <Automation info={data.automation} canSave={can("platform.configure")} onSaved={(m) => { setNotice(m); load(); }} />}
         </>
       )}
     </section>
@@ -518,6 +519,89 @@ function Rules({ canManage, onChanged }) {
             <div className="ic-actions">
               <button type="button" className="owner-secondary-button" onClick={() => setRemoving(null)} disabled={busy}>Go back</button>
               <button type="button" className="bd-danger-button" disabled={busy} onClick={() => remove(removing)}>{busy ? "Removing..." : "Remove rule"}</button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+    </section>
+  );
+}
+
+// The Spam Response workflow in n8n: follow-up only (alerts, repeat-offender checks, AI second opinion, weekly
+// summaries). Blocking, screening and rate limits never wait for it. Switching it on or off is audited.
+function Automation({ info, canSave, onSaved }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [limit, setLimit] = useState(info?.ai_monthly_limit ?? 200);
+  const [confirmAi, setConfirmAi] = useState(false);
+  if (!info?.available) {
+    return <section className="owner-panel sa-panel"><p className="op-muted">The automation columns come with the current <strong>sql/zella_spam_protection.sql</strong>. Apply it (after a backup) to see the queue here.</p></section>;
+  }
+  async function save(patch, message) {
+    setBusy(true);
+    setError("");
+    try {
+      await callOwnerFunction("spam_admin_automation_save", { automation: patch });
+      setConfirmAi(false);
+      onSaved(message);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  const q = info.queue ?? {};
+  return (
+    <section className="owner-panel sa-panel">
+      <p className="op-muted">
+        The <strong>Zella - Spam Response</strong> workflow in n8n handles follow-up for incidents the database has already detected, scored and
+        (for calls) screened: severity-based alerts, repeat-offender checks, an optional AI second opinion and weekly summaries. Blocking, screening
+        and rate limits never wait for it. If it doesn't run within 15 minutes, high-risk alerts are sent by the database instead.
+      </p>
+      {error && <div className="owner-form-error" role="alert">{error}</div>}
+      <ul className="sa-list">
+        <li>
+          <span className="sa-stack"><strong>Spam Response workflow</strong><small className="op-muted">{info.live ? "On: medium and high incidents are queued for it" : "Off: everything is handled in the database, as before"}</small></span>
+          <Pill tone={info.live ? "success" : "neutral"}>{info.live ? "On" : "Off"}</Pill>
+          {canSave && <button type="button" className="owner-secondary-button" disabled={busy} onClick={() => save({ live: !info.live }, info.live ? "Spam Response switched off." : "Spam Response switched on. Make sure the workflow is published in n8n.")}>{info.live ? "Switch off" : "Switch on"}</button>}
+        </li>
+        <li>
+          <span className="sa-stack"><strong>AI second opinion</strong><small className="op-muted">{info.ai_live ? `On (${info.ai_model ?? "default model"}), for businesses that opt in` : "Off"}. Only medium-risk texts and emails, details removed first; never blocks anyone.</small></span>
+          <Pill tone={info.ai_live ? "success" : "neutral"}>{info.ai_live ? "On" : "Off"}</Pill>
+          {canSave && <button type="button" className="owner-secondary-button" disabled={busy} onClick={() => (info.ai_live ? save({ ai_live: false }, "AI second opinion switched off.") : setConfirmAi(true))}>{info.ai_live ? "Switch off" : "Switch on"}</button>}
+        </li>
+        <li>
+          <span className="sa-stack"><strong>n8n</strong><small className="op-muted">{info.n8n_connected ? (info.last_run ? `Last called ${when(info.last_run)} · ${info.runs_total} runs in total` : "Address set; not called yet") : "No n8n address set: the workflow can't be called"}</small></span>
+          <Pill tone={info.n8n_connected ? (info.last_run ? "success" : "warning") : "danger"}>{info.n8n_connected ? (info.last_run ? "Connected" : "Waiting") : "Not connected"}</Pill>
+        </li>
+      </ul>
+      <h2 className="sa-h2">Queue for this period</h2>
+      <div className="vq-stats sa-stats">
+        {[["Waiting", q.pending, "schedule", "warning"], ["Running", q.processing, "sync", "neutral"], ["Done", q.done, "task_alt", "success"], ["Failed", q.failed, "error", "danger"],
+          ["Sent by the database instead", q.fallback, "shield", "neutral"], ["AI reviewed", q.ai_reviewed, "psychology", "neutral"]].map(([label, n, icon, tone]) => (
+          <div key={label} className="vq-stat sa-stat"><span className={`vq-stat-icon ${tone}`}><Icon name={icon} /></span><span><strong>{n ?? 0}</strong><small>{label}</small></span></div>
+        ))}
+      </div>
+      {canSave && (
+        <label className="sa-field">
+          <span>AI reviews per business per month</span>
+          <span className="sa-input">
+            <input type="number" min={0} max={10000} value={limit} disabled={busy} onChange={(e) => setLimit(e.target.value)} aria-label="AI reviews per business per month" />
+            <button type="button" className="owner-secondary-button" disabled={busy || Number(limit) === Number(info.ai_monthly_limit)} onClick={() => save({ ai_monthly_limit: Number(limit) }, "AI review limit saved.")}>Save</button>
+          </span>
+        </label>
+      )}
+      {!canSave && <p className="op-muted">Your role can view this but not change it.</p>}
+      {confirmAi && createPortal(
+        <div className="owner-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && !busy && setConfirmAi(false)}>
+          <div className="bd-confirm owner-modal" role="dialog" aria-modal="true" aria-label="Switch on AI second opinion">
+            <div className="zs-dialog-head"><span className="zs-dialog-icon"><Icon name="psychology" /></span><h3>Switch on AI second opinion?</h3></div>
+            <p>For businesses that opt in, medium-risk texts and emails are sent to the AI provider (Anthropic) with names, numbers and email addresses removed first.
+              The answer is shown to the team as a suggestion and never blocks anyone. Add the Anthropic key to the "Ask AI" box in n8n first.</p>
+            <div className="ic-actions">
+              <button type="button" className="owner-secondary-button" onClick={() => setConfirmAi(false)} disabled={busy}>Go back</button>
+              <button type="button" className="owner-primary-button" disabled={busy} onClick={() => save({ ai_live: true }, "AI second opinion switched on.")}>{busy ? "Saving..." : "Switch on"}</button>
             </div>
           </div>
         </div>,

@@ -21,7 +21,8 @@ const STATUS = {
 };
 const RISK = { high: ["danger", "High"], medium: ["warning", "Medium"], low: ["neutral", "Low"] };
 const ACTION = { allowed: "Allowed", flagged: "Flagged for review", held: "Held for the team to confirm", screened: "Screened by the AI", restricted: "Temporarily restricted", blocked: "Blocked" };
-const EVENT = { detected: "Detected", occurrence: "Happened again", status: "Status changed", note: "Note", listed: "Added to a list", unlisted: "Removed from a list", assigned: "Assigned", notified: "Team notified" };
+const EVENT = { detected: "Detected", occurrence: "Happened again", status: "Status changed", note: "Note", listed: "Added to a list", unlisted: "Removed from a list", assigned: "Assigned", notified: "Team notified", workflow: "Automatic follow-up" };
+const AI_LABEL = { spam: "likely spam", not_spam: "may be genuine", unsure: "not sure" };
 const ref = (id) => `#${String(id).slice(0, 8).toUpperCase()}`;
 const sinceDays = (days) => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - (Number(days) - 1)); return d; };
 const missingFn = (e) => e && (e.code === "PGRST202" || e.code === "PGRST205" || e.code === "42P01" || /could not find|does not exist/i.test(e.message ?? ""));
@@ -342,6 +343,8 @@ function IncidentPanel({ workspace, incident, person, roster, onClose, onChanged
             <p className="ba-muted sp-small">Caller ID and sender addresses can be faked, so a number or address alone is never treated as proof.</p>
           </section>
 
+          <FollowUp inc={inc} />
+
           <section className="bp-section">
             <h3>Who</h3>
             <dl className="bp-rows">
@@ -372,6 +375,8 @@ function IncidentPanel({ workspace, incident, person, roster, onClose, onChanged
                     {EVENT[e.kind] ?? e.kind}
                     {e.kind === "status" && `: ${STATUS[e.from_status]?.[1] ?? e.from_status} → ${STATUS[e.to_status]?.[1] ?? e.to_status}`}
                     {(e.kind === "listed" || e.kind === "unlisted") && e.detail?.list && `: ${e.detail.list} (${e.detail.channel}${e.detail.temporary_hours ? `, ${e.detail.temporary_hours} h` : ""})`}
+                    {e.kind === "workflow" && e.detail?.severity && `: ${e.detail.severity} severity${e.detail.notified ? ", team told" : ""}${e.detail.restricted ? ", restricted" : ""}`}
+                    {e.kind === "notified" && e.detail?.by === "fallback" && " (sent directly; the automation hadn't run)"}
                     {e.actor && ` · ${roster.nameOf[e.actor] ?? "Team member"}`}
                     {e.note && <em className="sp-note">{e.note}</em>}
                   </span>
@@ -558,6 +563,38 @@ function Lists({ workspace, onNotice }) {
   );
 }
 
+// What the Spam Response automation did with this incident. Shown only when it has run (or is about to).
+// The AI's opinion is a suggestion for the team; it never blocks anyone or changes the incident.
+function FollowUp({ inc }) {
+  const st = inc.workflow_status;
+  if (!st || st === "not_needed") return null;
+  const r = inc.workflow_result ?? {};
+  const f = r.facts ?? {};
+  return (
+    <section className="bp-section">
+      <h3>Automatic follow-up</h3>
+      {(st === "pending" || st === "processing") && <p className="ba-muted sp-small">Queued for follow-up (alerts and a repeat-sender check). Blocking and screening already happened when it came in.</p>}
+      {st === "failed" && <p className="ba-muted sp-small">The follow-up couldn't run{r.fallback_notified ? ", so the team was told about it directly" : ""}. Nothing about how this sender is handled depends on it.</p>}
+      {st === "done" && (
+        <ul className="sp-followup">
+          <li><Icon name={r.notified ? "notifications_active" : "notifications_off"} size="sm" />{r.notified ? "Team notified" : r.fallback_notified ? "Team notified directly" : "No alert needed"}{r.severity ? ` · ${r.severity} severity` : ""}</li>
+          {Number(f.here_confirmed) > 0 && <li><Icon name="history" size="sm" />Your team confirmed this sender as spam {f.here_confirmed} time{Number(f.here_confirmed) === 1 ? "" : "s"} before</li>}
+          {Number(f.other_businesses) > 0 && <li><Icon name="hub" size="sm" />Also seen at {f.other_businesses} other business{Number(f.other_businesses) === 1 ? "" : "es"} on Zella this month</li>}
+          {r.restricted && <li><Icon name="block" size="sm" />Temporarily restricted by your auto-restrict setting (confirmed twice before)</li>}
+          {r.escalated && <li><Icon name="shield" size="sm" />Reported to Zella's security team</li>}
+        </ul>
+      )}
+      {r.ai && (
+        <div className="sp-ai">
+          <strong>AI suggestion: {AI_LABEL[r.ai.label] ?? r.ai.label}{r.ai.confidence != null ? ` (${Math.round(Number(r.ai.confidence) * 100)}%)` : ""}</strong>
+          {r.ai.reason && <span>{r.ai.reason}</span>}
+          <small className="ba-muted">A suggestion only. It never blocks anyone or changes this incident; your team decides.</small>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function Settings({ workspace, setup, onSaved }) {
   const [form, setForm] = useState(setup?.settings ?? null);
   const [busy, setBusy] = useState(false);
@@ -566,19 +603,20 @@ function Settings({ workspace, setup, onSaved }) {
   if (!setup || !form) return <section className="ba-panel"><p className="ba-muted sp-quiet">Loading settings…</p></section>;
   const can = setup.can_edit;
   const ch = setup.channels ?? {};
+  const auto = setup.automation ?? {};
   const set = (k, v) => setForm({ ...form, [k]: v });
   const num = (k, lo, hi) => (e) => set(k, Math.max(lo, Math.min(hi, Number(e.target.value) || lo)));
   const toggle = (k, label, hint, disabled) => (
     <label className={`sp-toggle ${disabled ? "off" : ""}`}>
       <input type="checkbox" checked={Boolean(form[k])} disabled={!can || disabled || busy} onChange={(e) => set(k, e.target.checked)} />
-      <span><strong>{label}</strong><small>{disabled ? "Not connected for this business" : hint}</small></span>
+      <span><strong>{label}</strong><small>{disabled && k !== "ai_review" ? "Not connected for this business" : hint}</small></span>
     </label>
   );
 
   async function save() {
     setBusy(true);
     setError("");
-    const keys = ["enabled", "call_screening", "ai_spam_handling", "repeat_call_limit", "repeat_window_minutes", "sms_monitoring", "sms_flood_limit", "email_monitoring", "email_flood_limit", "booking_protection", "booking_daily_limit", "auto_restrict", "notify_high_risk"];
+    const keys = ["enabled", "call_screening", "ai_spam_handling", "repeat_call_limit", "repeat_window_minutes", "sms_monitoring", "sms_flood_limit", "email_monitoring", "email_flood_limit", "booking_protection", "booking_daily_limit", "auto_restrict", "notify_high_risk", "notify_medium", "weekly_report", "ai_review"];
     const { data, error: err } = await supabase.rpc("zella_spam_settings_save", { p_business_id: workspace.id, p_settings: Object.fromEntries(keys.map((k) => [k, form[k]])) });
     setBusy(false);
     if (err) { setError(friendly(err)); return; }
@@ -615,8 +653,12 @@ function Settings({ workspace, setup, onSaved }) {
       </fieldset>
       <fieldset className="sp-group" disabled={!form.enabled}>
         <legend>Responses and alerts</legend>
-        {toggle("auto_restrict", "Temporarily restrict clear abuse", "Only with two or more signals at high risk, for 24 hours, on that channel. Never permanent; undo by marking it not spam.")}
+        {toggle("auto_restrict", "Temporarily restrict clear abuse", "Only with two or more signals at high risk, or a sender your team confirmed as spam twice, for 24 hours, on that channel. Never permanent; undo by marking it not spam.")}
         {toggle("notify_high_risk", "Tell the team about high-risk incidents", "A few alerts an hour at most, without message content.")}
+        {toggle("notify_medium", "Also tell the team about medium-risk incidents", auto.live ? "Same hourly limit. Off by default to keep alerts useful." : "Needs Zella's spam automation, which isn't switched on yet.")}
+        {toggle("weekly_report", "Weekly spam summary", auto.live ? "Every Monday, if anything was flagged the week before." : "Needs Zella's spam automation, which isn't switched on yet.")}
+        {toggle("ai_review", "AI second opinion on unclear texts and emails",
+          auto.ai_available ? "Only medium-risk messages, with names, numbers and addresses removed first. A suggestion for your team; it never blocks anyone." : "Not available yet: Zella hasn't switched on AI review.", !auto.ai_available)}
       </fieldset>
       {can && <div className="sp-save"><button type="button" className="ba-btn primary" disabled={busy} onClick={save}>{busy ? "Saving…" : "Save settings"}</button></div>}
     </section>

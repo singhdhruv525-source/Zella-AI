@@ -791,6 +791,47 @@ const staffTexts = wf('Zella - Staff Texts', [
   'After send': { main: [[link('Update message')]] },
 });
 
+// Spam Response: follow-up for spam incidents the database already detected, scored, saved and (for calls) screened.
+// Routes each one by severity, checks repeat offenders, asks the AI only about ambiguous texts/emails the business
+// allowed it for, and hands the result back to zella_spam_finish_work, which re-checks everything and applies only
+// the approved policy (notifications, a temporary restriction for a sender the team confirmed twice, a platform alert).
+// Nothing here can block a caller or answer a call: that never waits for n8n. Off until spam_workflow_live is true;
+// the AI box ships with NO credential and is only reached when spam_ai_live is true and a business opted in.
+const spamResponse = wf('Zella - Spam Response', [
+  runTrigger('spam-response'),
+  rpcNode('Claim work', [240, 200], 'zella_spam_claim_work', '={{ JSON.stringify({ p_limit: 20 }) }}'),
+  code('Evaluate severity', [480, 200], 'spam-severity.js'),
+  ifBool('Has work', [720, 200], "={{ $json.kind === 'incident' || $json.kind === 'report' }}"),
+  ifBool('Is a report', [960, 200], "={{ $json.kind === 'report' }}"),
+  code('Build report', [1200, 0], 'spam-report.js'),
+  rpcNode('Save report', [1440, 0], 'zella_spam_save_report', '={{ JSON.stringify($json.body) }}', { full: true }),
+  ifBool('Needs follow-up', [1200, 300], "={{ $json.route === 'alert' || $json.route === 'investigate' }}"),
+  rpcNode('Log event', [1440, 500], 'zella_spam_finish_work', '={{ JSON.stringify($json.finish) }}', { full: true }),
+  code('Check repeat offender', [1440, 200], 'spam-investigate.js'),
+  ifBool('Needs AI', [1680, 200], '={{ !!$json.ai_request }}'),
+  node('Ask AI', 'n8n-nodes-base.httpRequest', 4.2, [1920, 100], {
+    method: 'POST', url: 'https://api.anthropic.com/v1/messages', authentication: 'none',
+    sendHeaders: true, headerParameters: { parameters: [{ name: 'anthropic-version', value: '2023-06-01' }] },
+    sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify($json.ai_request) }}',
+    options: { response: { response: { fullResponse: true, neverError: true, responseFormat: 'json' } } },
+  }),
+  code('Read AI', [2160, 100], 'spam-ai-read.js'),
+  rpcNode('Apply approved policy', [2400, 300], 'zella_spam_finish_work', '={{ JSON.stringify($json.finish) }}', { full: true }),
+], {
+  'Run now': { main: [[link('Claim work')]] },
+  'Claim work': { main: [[link('Evaluate severity')]] },
+  'Evaluate severity': { main: [[link('Has work')]] },
+  'Has work': { main: [[link('Is a report')], []] },
+  'Is a report': { main: [[link('Build report')], [link('Needs follow-up')]] },
+  'Build report': { main: [[link('Save report')]] },
+  'Needs follow-up': { main: [[link('Check repeat offender')], [link('Log event')]] },
+  'Check repeat offender': { main: [[link('Needs AI')]] },
+  'Needs AI': { main: [[link('Ask AI')], [link('Apply approved policy')]] },
+  'Ask AI': { main: [[link('Read AI')]] },
+  'Read AI': { main: [[link('Apply approved policy')]] },
+});
+writeFileSync(join(out, 'zella-spam-response.json'), JSON.stringify(spamResponse, null, 2) + '\n');
+
 writeFileSync(join(out, 'zella-sms-sender.json'), JSON.stringify(smsSender, null, 2) + '\n');
 writeFileSync(join(out, 'zella-email-sender.json'), JSON.stringify(emailSender, null, 2) + '\n');
 writeFileSync(join(out, 'zella-owner-emails.json'), JSON.stringify(ownerEmails, null, 2) + '\n');
@@ -814,4 +855,4 @@ writeFileSync(join(out, 'zella-email-events.json'), JSON.stringify(emailEvents, 
 writeFileSync(join(out, 'zella-calendar-sync.json'), JSON.stringify(calendarSync, null, 2) + '\n');
 writeFileSync(join(out, 'zella-connection-tests.json'), JSON.stringify(connectionTests, null, 2) + '\n');
 writeFileSync(join(out, 'zella-call-results.json'), JSON.stringify(callResults, null, 2) + '\n');
-console.log('Built', [gateway, router, smsSender, followupSender, emailSender, followupEmails, ownerEmails, outboundCalls, callResults, knowledge, assistantTools, voiceRules, inboundEmail, metaWebhook, metaLeads, metaSender, metaHealth, aiBooking, emailEvents, calendarSync, connectionTests, websiteCrawler, staffTexts, adminAlerts].map((w) => w.name + ' (' + w.nodes.length + ')').join(', '));
+console.log('Built', [gateway, router, smsSender, followupSender, emailSender, followupEmails, ownerEmails, outboundCalls, callResults, knowledge, assistantTools, voiceRules, inboundEmail, metaWebhook, metaLeads, metaSender, metaHealth, aiBooking, emailEvents, calendarSync, connectionTests, websiteCrawler, staffTexts, adminAlerts, spamResponse].map((w) => w.name + ' (' + w.nodes.length + ')').join(', '));

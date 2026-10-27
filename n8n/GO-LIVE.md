@@ -64,3 +64,12 @@ Nothing below has been done yet on purpose: all n8n workflows are unpublished an
 - Run `sql/zella_website_crawler.sql` (already applied to the live database) before re-running `sql/zella_dispatcher.sql`.
 - Turn on `website_crawl_live`, then publish the "Zella - Website Crawler" workflow. No keys are needed.
 - Front-end still to build: add website, approve it, page approval list, review of drafts (with "website changed" / "conflict" badges), version history.
+
+## Spam protection and the Spam Response workflow
+- Back up, then run `sql/zella_spam_protection.sql` (not applied yet; safe to re-run), then re-run `sql/zella_dispatcher.sql` (adds the `spam-response` lane).
+- Deploy the edge functions `voice-rules` (new), `owner-provision-business` and `reschedule-appointment`. Set the function secret `ZELLA_VAPI_SECRET` to the value Vapi sends in `X-Zella-Secret` (`ZELLA_SERVER_SECRET_KEY` is already used by the other functions).
+- In Vapi, point the `call_rules` tool at `https://pffqxlumqhjdbzvvoszm.supabase.co/functions/v1/voice-rules` (same header) instead of the n8n `/webhook/zella/vapi-voice`. Spam screening then never waits for n8n. Test with one call from a number on a business's block list first.
+- "Zella - Spam Response" (workflow `a7Nfsi9mkQbBmc0L`, unpublished) already has the Supabase and gateway credentials. Publish it, then turn it on in Admin > Security & Abuse > Automation (or set `spam_workflow_live` to `true`).
+- Optional AI second opinion: put the Anthropic key on its "Ask AI" box, then switch on AI in the same Automation tab (`spam_ai_live`). Each business must also opt in under Spam protection > Settings.
+- Turn on the `zella_spam_hourly` job (fallback alerts, reminders, retention): `update cron.job set active = true where jobname = 'zella_spam_hourly';`
+- Re-import "Zella - Voice Rules" from the repo if it stays in use (its reply now passes the screening instruction on).

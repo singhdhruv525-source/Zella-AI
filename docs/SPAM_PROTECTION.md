@@ -38,7 +38,8 @@ CRM inbox, admin view.
 
 | Channel | Point | What happens |
 |---|---|---|
-| Calls | `zella_caller_context` (start of call, before the AI speaks) | Blocked or high-risk callers: the AI is told to end politely and take no actions; incident recorded. |
+| Calls | `voice-rules` edge function -> `zella_ai_voice` -> `zella_caller_context` (the assistant's `call_rules` tool at the start of the call) | Blocked or high-risk callers: the AI is told to end politely and take no actions. Answered by the backend directly, never through n8n. |
+| Calls | `zella_ai_voice` transfer / message during the call | A screened caller can't be transferred or leave a callback, whatever the AI asks for; emergencies are always allowed |
 | Calls | after the call is recorded (`calls` insert) | Repeated calls, AI manipulation phrases in the transcript; callbacks for blocked callers are cancelled |
 | Bookings | `appointments` before insert, non-staff bookings only | Blocked contact or over the booking limit: kept as a *request* for staff to confirm (never silently dropped, never auto-confirmed) |
 | SMS | `sms_messages` insert (inbound) | Flooding, suspicious links/phrases, blocked sender; automatic replies to blocked senders are skipped |
@@ -60,20 +61,66 @@ caller is answered and the call ended by the AI), email gateway filtering (Zella
 Business settings override the platform defaults for the limits they save; score bands, alert levels, restriction
 length, notification cap and retention always come from the platform defaults.
 
-## Notifications (n8n)
+## What must never depend on n8n
 
-No new workflow was needed. High-risk incidents write a `staff_notifications` row (at most 3 an hour per business,
-sender masked), delivered by the existing **Owner Emails** workflow; floods and call-volume spikes raise a
-`platform_alerts` row delivered by the existing **Admin Alerts** workflow. Both workflows are **unpublished** in n8n
-today, so these notifications are stored and visible in the apps but **not emailed** until those workflows are
-published. The `zella_spam_hourly` cron job (review reminders, expired restrictions, retention) is created
-**inactive**.
+Detection, scoring, call screening, booking holds, block lists, rate limits, tenant authorization and saving the
+incident all happen in the database (and, for calls, the `voice-rules` edge function) before n8n is involved.
+A slow or stopped workflow can't let a blocked caller through, hold a call up, or lose an incident.
+
+```
+Vapi call ──> voice-rules (edge) ──> zella_ai_voice / zella_caller_context ──> decision back to Vapi
+                                                         │
+          texts, emails, bookings, calls ──> triggers ──>│ zella_spam_assess ──> zella_spam_record ──> spam_incidents
+                                                                                                       │ (queued: medium/high)
+                                                         dispatcher ──> n8n "Zella - Spam Response"    │
+                                                         Evaluate severity ─ log ─────────────────────┐ │
+                                                                          └ alert / investigate        │ │
+                                                         Check repeat offender ─ (Ask AI, optional) ──┤ │
+                                                         zella_spam_finish_work: re-checks, decides, ◄┘ │
+                                                         notifies, applies approved policy, records ────┘
+```
+
+## Spam Response workflow (n8n)
+
+Workflow **Zella - Spam Response** (`n8n/workflows/zella-spam-response.json`, instance id `a7Nfsi9mkQbBmc0L`,
+**unpublished**), lane `spam-response` on the existing dispatcher. No new tables: it adds workflow columns to
+`spam_incidents`, three settings to `spam_settings`, and one history kind (`workflow`).
+
+| Responsibility | Where |
+|---|---|
+| Severity routing (log / alert / investigate) | n8n (advisory) — the database decides severity again |
+| Configurable notifications (high, optionally medium), escalation to urgent for repeat offenders | `zella_spam_finish_work`, through the existing staff notifications (Owner Emails, Staff Texts) |
+| Repeat-offender investigation | counts from `zella_spam_sender_facts` (this business, other businesses as counts only) |
+| Approved policy | 24 h channel-only restriction only if auto-restrict is on and the team confirmed this sender twice (none marked "not spam"); platform alert when confirmed at 3+ businesses — admins decide global rules |
+| AI classification | optional, medium-risk texts/emails only, redacted, monthly cap; stored as a suggestion; never blocks |
+| Weekly report | `zella_spam_save_report`, once per business per week |
+| Idempotency and retries | claim tokens, replay refused, backoff 5/20/45 min, failed after 3, stuck runs reclaimed after 10 min |
+| Fallback | `zella_spam_hourly` sends the high-risk alert itself if the workflow hasn't within 15 minutes |
+
+Off by default (`spam_workflow_live`); while off, incidents are handled in the database exactly as before (high-risk
+alerts written immediately). Alerts are emailed by the existing **Owner Emails** workflow and platform alerts by
+**Admin Alerts**; both are **unpublished**, so today alerts appear in the apps but aren't emailed. The
+`zella_spam_hourly` cron job is created **inactive**.
+
+### Environment and settings
+
+| Name | Where | Purpose |
+|---|---|---|
+| `ZELLA_VAPI_SECRET` | Supabase function secret (new) | the `X-Zella-Secret` value Vapi sends to `voice-rules` |
+| `ZELLA_SERVER_SECRET_KEY`, `SUPABASE_URL` | Supabase function secrets (existing) | server access for `voice-rules` |
+| `spam_workflow_live`, `spam_ai_live`, `spam_ai_model`, `spam_ai_monthly_limit` | `platform_settings` (Admin > Security & Abuse > Automation) | switches and limits, all off / conservative by default |
+| `n8n_base_url`, Vault `zella_n8n_secret` | existing | the dispatcher calling n8n |
+| "Zella Supabase service role", "Zella gateway secret" | n8n credentials (existing, already attached) | workflow access |
+| Anthropic key | n8n "Ask AI" box, by hand | only if AI review is switched on |
 
 ## Deployment (needs approval)
 
-1. Take a backup, then apply `sql/zella_spam_protection.sql` (safe to run more than once; undo steps at the top).
-2. Deploy edge functions `owner-provision-business` and `reschedule-appointment`.
-3. Optional: turn on the `zella_spam_hourly` cron job; publish Owner Emails and Admin Alerts in n8n.
+1. Take a backup, then apply `sql/zella_spam_protection.sql` (safe to run more than once; undo steps at the top), then
+   re-run `sql/zella_dispatcher.sql` (adds the `spam-response` lane; it also re-schedules the Zella timers, as at go-live).
+2. Deploy edge functions `voice-rules` (new), `owner-provision-business` and `reschedule-appointment`; set `ZELLA_VAPI_SECRET`.
+3. In Vapi point the `call_rules` tool at `.../functions/v1/voice-rules` (header `X-Zella-Secret`); test with a blocked number.
+4. Publish "Zella - Spam Response" in n8n and switch it on in Admin > Security & Abuse > Automation.
+5. Optional: AI review (Anthropic key on "Ask AI", then switch on); turn on `zella_spam_hourly`; publish Owner Emails and Admin Alerts.
 
 Until step 1 the CRM card reads "Not set up yet", the CRM page and admin page explain what to apply, and the wizard
 saves everything except spam settings (reported, not faked).
@@ -81,7 +128,11 @@ saves everything except spam settings (reported, not faked).
 ## Known limits and risks
 
 - Not carrier-level: a blocked caller is answered and the AI ends the call. Rejecting before connect needs Vapi's
-  `assistant-request` server URL, which is not configured.
+  `assistant-request` server URL, which is not configured and hasn't been tested against a Vapi account.
+- Screening at call start relies on the assistant calling `call_rules` first (its prompt says so); transfers and
+  callbacks are refused by the database regardless, but a misbehaving assistant could still talk to the caller.
+- The n8n "Voice Rules" workflow in the instance still has the old reply (drops the screening note); the repo copy is
+  fixed. Moving Vapi to `voice-rules` makes that moot.
 - Email checks only cover mail forwarded to Zella; there is no gateway filtering.
 - Sign-up and login rate limits are Supabase Auth settings, not part of this change.
 - A held booking is kept as a request; the AI may still tell the caller it's booked. Staff confirm it in the calendar.
@@ -102,5 +153,8 @@ saves everything except spam settings (reported, not faked).
 | CRM card and Spam protection page | Built; browser-tested at 1400 px and 390 px against stubbed responses |
 | Create Business wizard settings | Built; browser-tested for restaurant and ecommerce |
 | Admin Security & Abuse | Built; browser-tested at 1400 px and 390 px, and with a view-only role |
+| Spam Response workflow | Built; 369 n8n tests; code nodes run against the real database functions (16 checks); created in n8n **unpublished** |
+| Workflow backend (queue, claim/finish, policy, AI gate, reports, fallback) | Built; 18 database checks on a local Postgres copy |
+| `voice-rules` edge function + screened-caller guard | Built; 8 unit tests; 9 end-to-end checks against the rebuilt production `zella_ai_voice` |
 | Applied to production | **No**: waiting for backup and approval |
-| n8n delivery | Uses existing workflows, which are **unpublished** |
+| n8n delivery | Existing Owner Emails / Admin Alerts, **unpublished** |

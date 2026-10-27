@@ -30,6 +30,7 @@ export const PLATFORM_PERMISSIONS: Record<string, string> = {
   spam_admin_policy_save: "platform.configure",
   spam_admin_rule_add: "security.manage",
   spam_admin_rule_remove: "security.manage",
+  spam_admin_automation_save: "platform.configure",
 };
 
 // Spam: what platform admins see. Masked senders, reasons and decisions; never message bodies, transcripts,
@@ -289,7 +290,52 @@ export function platformHandlers(admin: SupabaseClient, fields: Json, kit: Platf
       }),
       alerts: (alerts ?? []).map((a) => ({ ...a, business_name: a.business_id ? names.get(a.business_id) ?? null : null })),
       policy: obj((await admin.from("platform_settings").select("value").eq("key", "spam_defaults").maybeSingle()).data?.value),
+      automation: await spamAutomation(from),
     };
+  };
+
+  // The Spam Response workflow: is it on, what's waiting, when the dispatcher last called it. Counts only.
+  const spamAutomation = async (from: string) => {
+    const keys = ["spam_workflow_live", "spam_ai_live", "spam_ai_model", "spam_ai_monthly_limit", "n8n_base_url"];
+    const [{ data: settings }, { data: queue, error: qErr }, { data: dispatch }] = await Promise.all([
+      admin.from("platform_settings").select("key, value").in("key", keys),
+      admin.from("spam_incidents").select("workflow_status, workflow_result").gte("first_seen_at", from).neq("workflow_status", "not_needed").limit(20000),
+      admin.from("n8n_dispatch_state").select("last_triggered_at, triggers_total, consecutive_same").eq("workflow", "spam-response").maybeSingle(),
+    ]);
+    if (qErr) return { available: false };   // the workflow columns come with the current zella_spam_protection.sql
+    const v = new Map((settings ?? []).map((x) => [x.key, x.value]));
+    const by = (st: string) => (queue ?? []).filter((r) => r.workflow_status === st).length;
+    return {
+      available: true,
+      live: v.get("spam_workflow_live") === true, ai_live: v.get("spam_ai_live") === true,
+      ai_model: typeof v.get("spam_ai_model") === "string" ? v.get("spam_ai_model") : null,
+      ai_monthly_limit: Number(v.get("spam_ai_monthly_limit") ?? 200),
+      n8n_connected: typeof v.get("n8n_base_url") === "string" && Boolean(v.get("n8n_base_url")),
+      queue: { pending: by("pending"), processing: by("processing"), done: by("done"), failed: by("failed"),
+               ai_reviewed: (queue ?? []).filter((r) => obj(r.workflow_result).ai).length,
+               fallback: (queue ?? []).filter((r) => obj(r.workflow_result).fallback_notified === true).length },
+      last_run: dispatch?.last_triggered_at ?? null, runs_total: dispatch?.triggers_total ?? 0,
+    };
+  };
+
+  const spamAdminAutomationSave = async () => {
+    const input = obj(fields.automation);
+    const { data: cur, error } = await admin.from("platform_settings").select("key, value").in("key", ["spam_workflow_live", "spam_ai_live", "spam_ai_monthly_limit"]);
+    if (error) throw error;
+    const before = Object.fromEntries((cur ?? []).map((x) => [x.key, x.value]));
+    const next: Json = {};
+    if ("live" in input) next.spam_workflow_live = bool(input.live);
+    if ("ai_live" in input) next.spam_ai_live = bool(input.ai_live);
+    if ("ai_monthly_limit" in input) {
+      const n = Math.round(Number(input.ai_monthly_limit));
+      if (!Number.isFinite(n) || n < 0 || n > 10000) throw new InputError("AI reviews per business per month must be between 0 and 10000");
+      next.spam_ai_monthly_limit = n;
+    }
+    if (!Object.keys(next).length) throw new InputError("Nothing to change");
+    const now = new Date().toISOString();
+    const { error: upError } = await admin.from("platform_settings").upsert(Object.entries(next).map(([key, value]) => ({ key, value, updated_at: now })), { onConflict: "key" });
+    if (upError) throw upError;
+    return { before, after: next };
   };
 
   const spamAdminIncidents = async () => {
@@ -388,6 +434,7 @@ export function platformHandlers(admin: SupabaseClient, fields: Json, kit: Platf
     spam_admin_rule_add: spamAdminRuleAdd,
     spam_admin_rule_remove: spamAdminRuleRemove,
     spam_admin_rules: spamAdminRules,
+    spam_admin_automation_save: spamAdminAutomationSave,
     industry_records_get: industryRecordsGet,
     industry_records_save: industryRecordsSave,
     business_records_get: businessRecordsGet,
@@ -399,6 +446,7 @@ export function platformHandlers(admin: SupabaseClient, fields: Json, kit: Platf
     industry_records_save: (r) => ({ action: r.created ? "industry.records_created" : "industry.records_updated", entity_type: "industry", entity_id: r.industryId, old_data: { preset: r.presetKey, types: r.before }, new_data: { preset: r.presetKey, types: r.after } }),
     spam_admin_policy_save: (r) => ({ action: "platform.spam_policy_updated", entity_type: "platform_setting", old_data: r.before as Json, new_data: r.after as Json }),
     spam_admin_rule_add: (r) => ({ action: "platform.spam_rule_added", entity_type: "spam_list_entry", entity_id: obj(r.rule).id, new_data: { channel: obj(r.rule).channel, type: obj(r.rule).value_type, reason: obj(r.rule).reason, expires_at: obj(r.rule).expires_at } }),
+    spam_admin_automation_save: (r) => ({ action: "platform.spam_automation_updated", entity_type: "platform_setting", old_data: r.before as Json, new_data: r.after as Json }),
     spam_admin_rule_remove: (r) => ({ action: "platform.spam_rule_removed", entity_type: "spam_list_entry", entity_id: obj(r.rule).id, old_data: { channel: obj(r.rule).channel, type: obj(r.rule).value_type } }),
     business_records_save: (r) => ({ action: "business.record_types_updated", business_id: r.businessId, entity_type: "business", entity_id: r.businessId, new_data: { changes: r.changes } }),
   };
