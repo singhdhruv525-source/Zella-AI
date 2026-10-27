@@ -6,8 +6,12 @@ import { fileURLToPath } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 export const eventTypes = JSON.parse(readFileSync(join(here, 'events.json'), 'utf8'));
 
+// Code shared with the Supabase edge functions: one implementation, inlined into the n8n Code node (exports removed).
+const shared = (name) => readFileSync(join(here, '../../web/supabase/functions/_shared', name), 'utf8').replace(/^export /gm, '');
+
 export function loadCode(file, vars = {}) {
   let text = readFileSync(join(here, file), 'utf8').replace('__EVENT_TYPES__', JSON.stringify(eventTypes));
+  if (text.includes('__VAPI_CALL_EVENTS__')) text = text.replace('__VAPI_CALL_EVENTS__', () => shared('vapi-call-events.js'));
   for (const [k, v] of Object.entries(vars)) text = text.replaceAll('__' + k + '__', v);
   return text;
 }

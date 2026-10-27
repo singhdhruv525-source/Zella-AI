@@ -67,14 +67,20 @@ Nothing below has been done yet on purpose: all n8n workflows are unpublished an
 
 ## Spam protection and the Spam Response workflow
 - Back up, then run `sql/zella_spam_protection.sql` (not applied yet; safe to re-run), then re-run `sql/zella_dispatcher.sql` (adds the `spam-response` lane).
-- Deploy the edge functions `voice-rules` (new), `owner-provision-business` and `reschedule-appointment`. Set the function secret `ZELLA_VAPI_SECRET` to the value Vapi sends in `X-Zella-Secret` (`ZELLA_SERVER_SECRET_KEY` is already used by the other functions).
-- In Vapi, point the `call_rules` tool at `https://pffqxlumqhjdbzvvoszm.supabase.co/functions/v1/voice-rules` (same header) instead of the n8n `/webhook/zella/vapi-voice`. Spam screening then never waits for n8n. Test with one call from a number on a business's block list first.
+- Deploy the edge functions `owner-provision-business` and `reschedule-appointment`. Deploy `voice-rules` only as part of the voice reliability steps below (it now needs `sql/zella_vapi_auth.sql` and a Vapi credential; it no longer uses `ZELLA_VAPI_SECRET`).
 - "Zella - Spam Response" (workflow `a7Nfsi9mkQbBmc0L`, unpublished) already has the Supabase and gateway credentials. Publish it, then turn it on in Admin > Security & Abuse > Automation (or set `spam_workflow_live` to `true`).
 - Optional AI second opinion: put the Anthropic key on its "Ask AI" box, then switch on AI in the same Automation tab (`spam_ai_live`). Each business must also opt in under Spam protection > Settings.
 - Turn on the `zella_spam_hourly` job (fallback alerts, reminders, retention): `update cron.job set active = true where jobname = 'zella_spam_hourly';`
 - Re-import "Zella - Voice Rules" from the repo if it stays in use (its reply now passes the screening instruction on).
 
-## Voice reliability (phase 1; nothing applied yet)
-- Back up, then run `sql/zella_voice_reliability.sql` after the files it patches, then re-run `sql/zella_dispatcher.sql` (adds the `call-reconcile` lane). Check `select zella_voice_reliability_status();` shows all true.
-- Re-import Receptionist Brain Tools, Call Results and Voice Rules from the repo; import Call Reconciliation (Vapi key by hand), then set `call_reconcile_live` to `true` when calls are live.
-- In Vapi: server messages `end-of-call-report` and `status-update`; the transfer tool with no fixed destination, answered by `voice-rules` (`transfer-destination-request`). Details in `docs/VOICE_RELIABILITY.md`.
+## Voice reliability (phases 1 and 2; nothing applied yet). In this order, each step needs approval
+1. Back up the database (Supabase dashboard > Database > Backups, or `pg_dump`). Check there are no duplicate call ids: `select external_call_id from calls where external_call_id is not null group by 1 having count(*) > 1;` (must be empty).
+2. Spam protection first if it is going live too (section above). Both orders were tested; this one is the one documented.
+3. Run `sql/zella_voice_reliability.sql` (after the files it patches), then `sql/zella_vapi_auth.sql`, then re-run `sql/zella_dispatcher.sql`. Check `select zella_voice_reliability_status();` (12 true).
+4. Create the secret (a random 32+ character value, never in git or chat): `select vault.create_secret('<value>', 'zella_vapi_hmac_secret');`. Until it exists every Vapi request is refused.
+5. In Vapi, create a credential of type **HMAC** with the same value: algorithm `sha256`, signature header `x-signature`, timestamp header `x-timestamp`, include timestamp on, payload format `{timestamp}.{body}`, encoding `hex`, no prefix, secret not base64. Note its credential id.
+6. Deploy `voice-rules` with `--no-verify-jwt` (secrets `SUPABASE_URL`, `ZELLA_SERVER_SECRET_KEY` already exist). Remove the unused `ZELLA_VAPI_SECRET` function secret if it was ever set.
+7. Re-import from the repo: Receptionist Brain Tools and Call Results (both now check the signature first). Voice Rules, Assistant Tools and Appointment Booking only if they stay in use. Import Call Reconciliation and put the Vapi API key on its "Get call" box by hand.
+8. Vapi, on a TEST assistant first (not the live one): server URL `https://pffqxlumqhjdbzvvoszm.supabase.co/functions/v1/voice-rules` with the credential from step 5; server messages `tool-calls`, `transfer-destination-request`, `status-update`, `end-of-call-report`; tool `call_rules` with no own server (uses the assistant's); the 14 brain tools with server URL `<n8n>/webhook/zella/vapi-brain`, the same credential and the header `X-Zella-Secret`; every tool synchronous (`async` off); a transfer tool with no destinations; book, reschedule and cancel with the boolean `confirmed`. Leave retries off (`backoffPlan` unset).
+9. Test calls on the test assistant (section "What still needs a real call" in `docs/VOICE_RELIABILITY.md`), checking `calls`, `ai_tool_calls` and the edge function logs. Only then point the live assistant and phone numbers at the same settings.
+10. Set `call_reconcile_live` to `true` once real calls are coming in.

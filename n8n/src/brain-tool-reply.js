@@ -1,5 +1,6 @@
 // Zella - Receptionist Brain: the answer for ONE tool call, matched by its own toolCallId. Short, no database details.
-// Vapi's format: { toolCallId, result } on success or { toolCallId, error } on failure, each a single-line string.
+// Vapi's format (ToolCallResult): { name, toolCallId, result } on success or { name, toolCallId, error } on failure,
+// each a single-line string.
 // The transfer number is never given to the model: the system picks it when Vapi asks (transfer-destination-request).
 // A caller the backend screened out gets the screening instruction instead of anything else.
 const plan = $('Use business').item.json;
@@ -8,7 +9,7 @@ const status = Number(r.statusCode);
 const b = r.body && typeof r.body === 'object' && !Array.isArray(r.body) ? r.body : null;
 const line = (s, n) => String(s).replace(/[\r\n]+/g, ' ').slice(0, n);
 if (!(status >= 200 && status < 300) || !b || typeof b.say !== 'string') {
-  return { json: { toolCallId: plan.tool_call_id, error: 'This could not be completed right now. Tell the caller the team will call them back. Do not say it was done.' } };
+  return { json: { name: String(plan.tool || '').slice(0, 80), toolCallId: plan.tool_call_id, error: 'This could not be completed right now. Tell the caller the team will call them back. Do not say it was done.' } };
 }
 const caller = b.caller && typeof b.caller === 'object' ? b.caller : {};
 const scr = caller.screening && typeof caller.screening === 'object' ? caller.screening : {};
@@ -27,4 +28,4 @@ if (b.status === 'screened' || (['blocked', 'restricted', 'screened'].includes(s
   if (Array.isArray(b.results)) out.results = b.results.slice(0, 3).map((x) => ({ title: x.title, answer: x.answer }));
   if (typeof b.first_name === 'string') out.first_name = b.first_name.slice(0, 80);
 }
-return { json: { toolCallId: plan.tool_call_id, result: JSON.stringify(out) } };
+return { json: { name: String(plan.tool || '').slice(0, 80), toolCallId: plan.tool_call_id, result: JSON.stringify(out) } };

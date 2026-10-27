@@ -42,7 +42,7 @@ for (const tc of list.slice(0, 10)) {
     if (typeof args[k] === 'string') clean[k] = args[k].replace(/\s+/g, ' ').trim().slice(0, 1500);
   }
   if (callerNumber) { clean.caller_number = callerNumber; if (!clean.phone) clean.phone = callerNumber; }
-  out.push({ json: { tool_call_id: tc.id, valid, lookup, rpc: 'zella_ai_voice',
+  out.push({ json: { tool_call_id: tc.id, tool: nameOf(tc).slice(0, 80), valid, lookup, rpc: 'zella_ai_voice',
     record: { p_provider_call_id: callId, p_business_id: bid, p_action: valid ? action : 'invalid', p_args: valid ? clean : {} } } });
 }
 return out.length ? out : [{ json: { reply: { results: [] }, record: null } }];

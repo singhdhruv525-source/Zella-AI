@@ -41,7 +41,7 @@ for (const tc of list.slice(0, 10)) {
   const question = String((isRequest ? args.summary : args.question) || '').replace(/\s+/g, ' ').trim().slice(0, isRequest ? 1000 : 500);
   const kind = typeof args.kind === 'string' ? args.kind.trim().toLowerCase() : '';
   const loggable = TOOLS.includes(name) && question.length >= 3 && (!isRequest || kinds.includes(kind));
-  out.push({ json: { tool_call_id: tc.id, reply_text: ok, loggable, lookup,
+  out.push({ json: { tool_call_id: tc.id, tool: name.slice(0, 80), reply_text: ok, loggable, lookup,
     rpc: loggable && isRequest ? 'zella_ai_log_request' : 'zella_report_unanswered',
     record: loggable && isRequest
       ? { p_provider_call_id: callId, p_business_id: bid, p_kind: kind, p_summary: question }

@@ -1623,6 +1623,64 @@ test('voice reliability sql: every booking writer locks before checking; duplica
   assert.ok(vrelSql.includes("('call_reconcile_live', 'false'::jsonb)"));
 });
 
+// ---------------- Vapi request authentication (phase 2): every Vapi webhook is checked by the database first
+const vapiHooks = [['zella-brain-tools.json', 'Vapi brain tool', true], ['zella-appointment-booking.json', 'Vapi booking tool', true],
+  ['zella-voice-rules.json', 'Vapi voice tool', true], ['zella-assistant-tools.json', 'Vapi tool call', true], ['zella-call-results.json', 'Vapi report', false]];
+test('vapi auth: every Vapi webhook goes through the database signature check before its plan', () => {
+  for (const [f, hook, respond] of vapiHooks) {
+    const w = wfJson(f); const h = w.nodes.find((n) => n.name === hook);
+    assert.equal(h.parameters.options.rawBody, true, f + ' raw body');
+    assert.deepEqual(w.connections[hook].main[0].map((l) => l.node), ['Read request'], f + ' webhook -> check only');
+    assert.match(w.nodes.find((n) => n.name === 'Check signature').parameters.url, /\/rpc\/zella_vapi_authenticate$/, f);
+    assert.equal(w.connections['Signed'].main[0][0].node, 'Request', f);
+    assert.equal(w.connections['Request'].main[0][0].node, 'Plan', f + ' plan only after the check');
+    assert.equal(w.nodes.find((n) => n.name === 'Signed').parameters.conditions.conditions[0].leftValue, "={{ $json.statusCode === 200 && $json.body === 'ok' }}", f);
+    const refuse = w.nodes.find((n) => n.name === 'Refuse');
+    if (respond) { assert.equal(w.connections['Signed'].main[1][0].node, 'Refuse'); assert.equal(refuse.parameters.options.responseCode, 401); assert.ok(!refuse.parameters.responseBody.includes('$json')); }
+    else assert.deepEqual(w.connections['Signed'].main[1], [], f + ' refused report: nothing recorded');
+    // only the webhook, the check and nothing else can reach Plan
+    const into = Object.entries(w.connections).filter(([, c]) => c.main.flat().some((l) => l.node === 'Plan')).map(([k]) => k);
+    assert.deepEqual(into, ['Request'], f + ' single path into Plan');
+    assert.ok(w.nodes.find((n) => n.name === 'Request').parameters.jsCode.includes(`$('${hook}').all()`), f);
+  }
+});
+{
+  const AsyncFn = Object.getPrototypeOf(async function () {}).constructor;
+  const readReq = (headers, raw) => new AsyncFn('$input', loadCode('vapi-auth-read.js'))
+    .call({ helpers: { getBinaryDataBuffer: async () => { if (raw === null) throw new Error('no binary'); return Buffer.from(raw); } } }, { first: () => ({ json: { headers } }) });
+  const r1 = (await readReq({ 'x-signature': 'abc', 'x-timestamp': '1793102400', authorization: 'Bearer t', cookie: 'secret', 'x-zella-secret': 'g' }, '{"message":{"type":"x"}}'))[0].json.record;
+  const r2 = (await readReq({}, null))[0].json.record;
+  const r3 = (await readReq({ 'x-signature': 'a'.repeat(5000) }, 'x'.repeat(300000)))[0].json.record;
+  test('vapi auth: the exact body and only the signature headers are handed to the database', () => {
+    assert.deepEqual(r1, { p_raw: '{"message":{"type":"x"}}', p_headers: { 'x-signature': 'abc', 'x-timestamp': '1793102400', authorization: 'Bearer t' } });
+    assert.deepEqual(r2, { p_raw: '', p_headers: {} });
+    assert.equal(r3.p_raw, ''); assert.equal(r3.p_headers['x-signature'].length, 1000);
+  });
+}
+test('vapi auth: SQL fails closed, keeps the secret in Vault, refuses old and repeated requests', () => {
+  const a = readFileSync(new URL('../sql/zella_vapi_auth.sql', import.meta.url), 'utf8');
+  assert.ok(a.includes("name = 'zella_vapi_hmac_secret'") && a.includes("return 'not_configured'") && !/return 'ok'[^;]*;\s*end if;\s*if v_mode <> 'hmac'/.test(a));
+  assert.ok(a.includes("> 300 then return 'expired'") && a.includes("return 'replayed'") && a.includes('"{timestamp}.{body}"') && a.includes("v_ts || '.' || p_raw"));
+  assert.ok(a.includes('grant execute on function public.zella_vapi_authenticate(text, jsonb) to service_role') && a.includes('from public, anon, authenticated'));
+  assert.ok(!/\boff\b'/.test(a));
+});
+test('tool answers carry the tool name (Vapi ToolCallResult.name)', () => {
+  const b = runCode('brain-tool-reply.js', { json: { statusCode: 200, body: { status: 'open', say: 'x' } }, nodes: { 'Use business': { tool_call_id: 't', tool: 'check_open_hours' } } }).json;
+  assert.equal(b.name, 'check_open_hours');
+  assert.equal(runCode('voice-tool-reply.js', { json: {}, nodes: { 'Use business': { tool_call_id: 't', tool: 'call_rules', valid: true } } }).json.name, 'call_rules');
+  assert.equal(runCode('vapi-tool-reply.js', { json: {}, nodes: { 'Use business': { tool_call_id: 't', tool: 'report_unanswered_question', reply_text: 'x' } } }).json.name, 'report_unanswered_question');
+});
+test('call results: Vapi end-of-call fields (artifact, analysis, start/end) are read; the edge function uses the same code', () => {
+  const r = runCode('call-result-plan.js', { json: { body: { message: { type: 'end-of-call-report', endedReason: 'customer-ended-call', startedAt: '2026-11-02T15:00:00Z', endedAt: '2026-11-02T15:00:40Z',
+    artifact: { transcript: 'AI: hi', recordingUrl: 'https://x/y.wav' }, analysis: { summary: 'Booked a cut.' }, call: { id: 'c1', type: 'inboundPhoneCall', customer: { number: '+14155550100' } } } } } }).json;
+  assert.deepEqual([r.inbound.p_seconds, r.inbound.p_transcript, r.inbound.p_recording_url, r.inbound.p_summary], [40, 'AI: hi', 'https://x/y.wav', 'Booked a cut.']);
+  const cb = runCode('call-result-plan.js', { json: { body: { message: { type: 'end-of-call-report', endedReason: 'customer-ended-call', startedAt: '2026-11-02T15:00:00Z', endedAt: '2026-11-02T15:00:40Z',
+    call: { id: 'c2', type: 'outboundPhoneCall', metadata: { zella_source: 'callback', zella_id: BIZ } } } } } }).json;
+  assert.equal(cb.record.p_outcome, 'connected');   // a 40-second callback is a conversation (was counted as no answer)
+  assert.ok(wfJson('zella-call-results.json').nodes.find((n) => n.name === 'Plan').parameters.jsCode.includes('function planCallEvent('));
+  assert.ok(!wfJson('zella-call-results.json').nodes.find((n) => n.name === 'Plan').parameters.jsCode.includes('export '));
+});
+
 console.log(`${passed} passed, ${failures.length} failed`);
 for (const f of failures) console.log('  FAIL ' + f);
 process.exit(failures.length ? 1 : 0);

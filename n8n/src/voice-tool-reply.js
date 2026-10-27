@@ -7,9 +7,9 @@ const r = $json;
 const status = Number(r.statusCode);
 const b = r.body && typeof r.body === 'object' && !Array.isArray(r.body) ? r.body : null;
 const line = (s, n) => String(s).replace(/[\r\n]+/g, ' ').slice(0, n);
-if (!plan.valid) return { json: { toolCallId: plan.tool_call_id, error: 'Use the tool call_rules with action rules, message, emergency or transfer.' } };
+if (!plan.valid) return { json: { name: String(plan.tool || '').slice(0, 80), toolCallId: plan.tool_call_id, error: 'Use the tool call_rules with action rules, message, emergency or transfer.' } };
 if (!(status >= 200 && status < 300) || !b || typeof b.say !== 'string') {
-  return { json: { toolCallId: plan.tool_call_id, error: 'This could not be done right now. Tell the caller the team will call them back. Do not promise anything else.' } };
+  return { json: { name: String(plan.tool || '').slice(0, 80), toolCallId: plan.tool_call_id, error: 'This could not be done right now. Tell the caller the team will call them back. Do not promise anything else.' } };
 }
 const caller = b.caller && typeof b.caller === 'object' ? b.caller : {};
 const scr = caller.screening && typeof caller.screening === 'object' ? caller.screening : {};
@@ -27,4 +27,4 @@ if (b.status === 'screened' || (['blocked', 'restricted', 'screened'].includes(d
   if (Array.isArray(b.emergency_keywords)) out.emergency_words = b.emergency_keywords.slice(0, 20);
   if (decision === 'flagged') out.caution = true;
 }
-return { json: { toolCallId: plan.tool_call_id, result: JSON.stringify(out) } };
+return { json: { name: String(plan.tool || '').slice(0, 80), toolCallId: plan.tool_call_id, result: JSON.stringify(out) } };

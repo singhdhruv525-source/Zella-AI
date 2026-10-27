@@ -7,7 +7,9 @@
         "path": "zella/vapi-brain",
         "authentication": "headerAuth",
         "responseMode": "responseNode",
-        "options": {}
+        "options": {
+          "rawBody": true
+        }
       },
       "id": "2519af95-c06d-4c6d-842a-a3345cbdbcac",
       "name": "Vapi brain tool",
@@ -159,7 +161,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Zella - Receptionist Brain: the answer for ONE tool call, matched by its own toolCallId. Short, no database details.\n// Vapi's format: { toolCallId, result } on success or { toolCallId, error } on failure, each a single-line string.\n// The transfer number is never given to the model: the system picks it when Vapi asks (transfer-destination-request).\n// A caller the backend screened out gets the screening instruction instead of anything else.\nconst plan = $('Use business').item.json;\nconst r = $json;\nconst status = Number(r.statusCode);\nconst b = r.body && typeof r.body === 'object' && !Array.isArray(r.body) ? r.body : null;\nconst line = (s, n) => String(s).replace(/[\\r\\n]+/g, ' ').slice(0, n);\nif (!(status >= 200 && status < 300) || !b || typeof b.say !== 'string') {\n  return { json: { toolCallId: plan.tool_call_id, error: 'This could not be completed right now. Tell the caller the team will call them back. Do not say it was done.' } };\n}\nconst caller = b.caller && typeof b.caller === 'object' ? b.caller : {};\nconst scr = caller.screening && typeof caller.screening === 'object' ? caller.screening : {};\nlet out;\nif (b.status === 'screened' || (['blocked', 'restricted', 'screened'].includes(scr.decision) && typeof caller.say === 'string')) {\n  out = { status: 'screened', instruction: line(b.status === 'screened' ? b.say : caller.say, 600), can_transfer: false };\n} else {\n  out = { status: b.status, instruction: line(b.say + (typeof caller.say === 'string' && caller.say ? ' About this caller: ' + caller.say : ''), 900) };\n  if (typeof b.open === 'boolean') out.open = b.open;\n  if (typeof b.can_transfer === 'boolean') out.can_transfer = b.can_transfer;\n  if (b.status === 'transfer') out.use_transfer_tool = true;\n  if (scr.decision === 'flagged') out.caution = true;\n  if (Array.isArray(b.emergency_keywords)) out.emergency_words = b.emergency_keywords.slice(0, 20);\n  if (Array.isArray(b.slots)) out.times = b.slots.slice(0, 5).map((s) => ({ say: s.say, start: s.start }));\n  if (Array.isArray(b.appointments)) out.appointments = b.appointments.slice(0, 3).map((a) => ({ appointment_id: a.appointment_id, title: a.title, say: a.say }));\n  if (Array.isArray(b.results)) out.results = b.results.slice(0, 3).map((x) => ({ title: x.title, answer: x.answer }));\n  if (typeof b.first_name === 'string') out.first_name = b.first_name.slice(0, 80);\n}\nreturn { json: { toolCallId: plan.tool_call_id, result: JSON.stringify(out) } };\n"
+        "jsCode": "// Zella - Receptionist Brain: the answer for ONE tool call, matched by its own toolCallId. Short, no database details.\n// Vapi's format (ToolCallResult): { name, toolCallId, result } on success or { name, toolCallId, error } on failure,\n// each a single-line string.\n// The transfer number is never given to the model: the system picks it when Vapi asks (transfer-destination-request).\n// A caller the backend screened out gets the screening instruction instead of anything else.\nconst plan = $('Use business').item.json;\nconst r = $json;\nconst status = Number(r.statusCode);\nconst b = r.body && typeof r.body === 'object' && !Array.isArray(r.body) ? r.body : null;\nconst line = (s, n) => String(s).replace(/[\\r\\n]+/g, ' ').slice(0, n);\nif (!(status >= 200 && status < 300) || !b || typeof b.say !== 'string') {\n  return { json: { name: String(plan.tool || '').slice(0, 80), toolCallId: plan.tool_call_id, error: 'This could not be completed right now. Tell the caller the team will call them back. Do not say it was done.' } };\n}\nconst caller = b.caller && typeof b.caller === 'object' ? b.caller : {};\nconst scr = caller.screening && typeof caller.screening === 'object' ? caller.screening : {};\nlet out;\nif (b.status === 'screened' || (['blocked', 'restricted', 'screened'].includes(scr.decision) && typeof caller.say === 'string')) {\n  out = { status: 'screened', instruction: line(b.status === 'screened' ? b.say : caller.say, 600), can_transfer: false };\n} else {\n  out = { status: b.status, instruction: line(b.say + (typeof caller.say === 'string' && caller.say ? ' About this caller: ' + caller.say : ''), 900) };\n  if (typeof b.open === 'boolean') out.open = b.open;\n  if (typeof b.can_transfer === 'boolean') out.can_transfer = b.can_transfer;\n  if (b.status === 'transfer') out.use_transfer_tool = true;\n  if (scr.decision === 'flagged') out.caution = true;\n  if (Array.isArray(b.emergency_keywords)) out.emergency_words = b.emergency_keywords.slice(0, 20);\n  if (Array.isArray(b.slots)) out.times = b.slots.slice(0, 5).map((s) => ({ say: s.say, start: s.start }));\n  if (Array.isArray(b.appointments)) out.appointments = b.appointments.slice(0, 3).map((a) => ({ appointment_id: a.appointment_id, title: a.title, say: a.say }));\n  if (Array.isArray(b.results)) out.results = b.results.slice(0, 3).map((x) => ({ title: x.title, answer: x.answer }));\n  if (typeof b.first_name === 'string') out.first_name = b.first_name.slice(0, 80);\n}\nreturn { json: { name: String(plan.tool || '').slice(0, 80), toolCallId: plan.tool_call_id, result: JSON.stringify(out) } };\n"
       },
       "id": "bd492bcf-1208-4f71-88a9-a990a5615d47",
       "name": "Build reply",
@@ -200,6 +202,119 @@
         1920,
         200
       ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Zella - Vapi webhooks: hand the database the exact request bytes and the signature headers. The database checks the\n// signature, the timestamp and that the request is new (zella_vapi_authenticate); the secret never reaches n8n.\n// Nothing else in the workflow runs unless the answer is \"ok\".\nconst first = $input.first() || { json: {} };\nconst h = first.json.headers && typeof first.json.headers === 'object' ? first.json.headers : {};\nconst headers = {};\nfor (const k of ['x-signature', 'x-timestamp', 'authorization']) if (typeof h[k] === 'string') headers[k] = h[k].slice(0, 1000);\nlet raw = '';\ntry {\n  const buf = await this.helpers.getBinaryDataBuffer(0, 'data');\n  raw = buf.toString('utf8');\n} catch (e) { raw = ''; }\nif (raw.length > 262144) raw = '';\nreturn [{ json: { record: { p_raw: raw, p_headers: headers } } }];\n"
+      },
+      "id": "3adaf95b-b601-4217-8b2f-322ece273630",
+      "name": "Read request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        120,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_vapi_authenticate",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.record) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "aa3f3783-659c-416c-8187-4115c8c5cdbf",
+      "name": "Check signature",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        360,
+        -40
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "fcb03b4a-43de-4e06-8ab7-10298bf897be",
+              "leftValue": "={{ $json.statusCode === 200 && $json.body === 'ok' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "6e3665d8-5fde-4011-8cce-c1bb287428d4",
+      "name": "Signed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        600,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Zella - Vapi webhooks: the signature was accepted; continue with the request exactly as it was received.\nreturn $('Vapi brain tool').all().map((i) => ({ json: i.json }));\n"
+      },
+      "id": "4aed03ca-c49d-4e43-8a4e-855a96728693",
+      "name": "Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        840,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ error: \"Unauthorized\" }) }}",
+        "options": {
+          "responseCode": 401
+        }
+      },
+      "id": "3eb80c1e-8645-4a1b-8f52-51cf40506b3e",
+      "name": "Refuse",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        840,
+        80
+      ]
     }
   ],
   "connections": {
@@ -207,7 +322,7 @@
       "main": [
         [
           {
-            "node": "Plan",
+            "node": "Read request",
             "type": "main",
             "index": 0
           }
@@ -292,6 +407,57 @@
         [
           {
             "node": "Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read request": {
+      "main": [
+        [
+          {
+            "node": "Check signature",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check signature": {
+      "main": [
+        [
+          {
+            "node": "Signed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Signed": {
+      "main": [
+        [
+          {
+            "node": "Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Refuse",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Request": {
+      "main": [
+        [
+          {
+            "node": "Plan",
             "type": "main",
             "index": 0
           }

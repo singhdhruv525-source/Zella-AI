@@ -7,7 +7,9 @@
         "path": "zella/vapi",
         "authentication": "headerAuth",
         "responseMode": "onReceived",
-        "options": {}
+        "options": {
+          "rawBody": true
+        }
       },
       "id": "f4a7376a-afc7-4c90-8de8-08fb88978e81",
       "name": "Vapi report",
@@ -28,7 +30,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Zella - Call Results: turn Vapi's end-of-call report into one database call.\n// A call Zella placed -> record (callback / task result). A call a customer made to the business -> inbound (call wrap-up).\n// Anything else is ignored (record: null, inbound: null).\n// The call carries zella_source and zella_id in its metadata (set by Outbound Calls).\nconst body = $json.body && typeof $json.body === 'object' ? $json.body : {};\nconst m = body.message && typeof body.message === 'object' ? body.message : {};\nconst none = { json: { record: null, inbound: null, status: null } };\n// Call status (ringing, in-progress, forwarding, ended): recorded as it happens, so a lost end-of-call report can't\n// erase the call. The database applies each status once and in order, and finds the business from the called number.\nif (m.type === 'status-update') {\n  const call = m.call && typeof m.call === 'object' ? m.call : {};\n  const id = typeof call.id === 'string' ? call.id.slice(0, 200) : '';\n  const st = typeof m.status === 'string' ? m.status : '';\n  if (!id || !['ringing', 'in-progress', 'forwarding', 'ended'].includes(st)) return none;\n  const t = typeof m.timestamp === 'number' ? m.timestamp : Date.parse(m.timestamp || '');\n  const phone = (x) => (typeof x === 'string' && /^\\+?[0-9() .-]{7,20}$/.test(x) ? x.slice(0, 30) : null);\n  const pn = (call.phoneNumber && typeof call.phoneNumber === 'object' ? call.phoneNumber : m.phoneNumber && typeof m.phoneNumber === 'object' ? m.phoneNumber : {});\n  return { json: { record: null, inbound: null, status: {\n    p_provider_call_id: id, p_status: st, p_called_number: phone(pn.number),\n    p_vapi_phone_number_id: typeof call.phoneNumberId === 'string' ? call.phoneNumberId.slice(0, 100) : null,\n    p_from_number: phone(call.customer && call.customer.number),\n    p_direction: /inbound/i.test(String(call.type || '')) ? 'inbound' : /outbound/i.test(String(call.type || '')) ? 'outbound' : 'other',\n    p_event_at: isNaN(t) ? null : new Date(t).toISOString(),\n    p_ended_reason: typeof m.endedReason === 'string' ? m.endedReason.slice(0, 80) : null } } };\n}\nif (m.type !== 'end-of-call-report') return none;\n\nconst call = m.call && typeof m.call === 'object' ? m.call : {};\nconst meta = call.metadata && typeof call.metadata === 'object' ? call.metadata : {};\nconst source = meta.zella_source === 'callback' ? 'callback' : meta.zella_source === 'task' ? 'task' : null;\nconst uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;\nif (!source || typeof meta.zella_id !== 'string' || !uuid.test(meta.zella_id)) {\n  // a customer called the business\n  const cid = typeof call.id === 'string' ? call.id.slice(0, 200) : '';\n  if (!cid || !/inbound/i.test(String(call.type || ''))) return none;\n  const iso = (v) => { const t = Date.parse(v); return isNaN(t) ? null : new Date(t).toISOString(); };\n  const a = m.analysis && typeof m.analysis === 'object' ? m.analysis : {};\n  const sd = a.structuredData && typeof a.structuredData === 'object' ? a.structuredData : {};\n  const sum = String(m.summary || a.summary || '').replace(/\\s+/g, ' ').trim().slice(0, 1500);\n  const ask = sd.callback_requested === true || /(asked|wants?|requested|would like) (for )?(a |to be |someone to )?(call ?back|called back|call (them|her|him) back|return (the |a )?call)/i.test(sum);\n  const phone = (x) => (typeof x === 'string' ? x.slice(0, 30) : null);\n  return { json: { record: null, inbound: {\n    p_provider_call_id: cid, p_called_number: phone(m.phoneNumber && m.phoneNumber.number), p_vapi_phone_number_id: typeof call.phoneNumberId === 'string' ? call.phoneNumberId.slice(0, 100) : null,\n    p_from_number: phone(call.customer && call.customer.number), p_started_at: iso(m.startedAt || call.startedAt), p_ended_at: iso(m.endedAt || call.endedAt),\n    p_seconds: Number.isFinite(Number(m.durationSeconds)) ? Math.round(Number(m.durationSeconds)) : null, p_reason: String(m.endedReason || call.endedReason || '').slice(0, 80),\n    p_summary: sum || null, p_recording_url: typeof m.recordingUrl === 'string' && /^https:\\/\\//.test(m.recordingUrl) ? m.recordingUrl.slice(0, 1000) : null,\n    p_transcript: typeof m.transcript === 'string' ? m.transcript.slice(0, 60000) : null, p_wants_callback: ask } } };\n}\n\nconst reason = String(m.endedReason || call.endedReason || '').toLowerCase();\nconst seconds = Number(m.durationSeconds);\nconst talked = !isNaN(seconds) && seconds >= 8;\n\nlet outcome;\nif (/voicemail/.test(reason)) outcome = 'voicemail';\nelse if (/did-not-answer|no-answer/.test(reason)) outcome = 'no_answer';\nelse if (/busy/.test(reason)) outcome = 'busy';\nelse if (/invalid|misdial|unallocated|number-not|not-a-valid/.test(reason)) outcome = 'invalid_number';\nelse if (/customer-ended-call|assistant-ended-call|silence-timed-out|exceeded-max-duration|assistant-forwarded-call|assistant-said-end-call/.test(reason)) outcome = talked ? 'connected' : 'no_answer';\nelse outcome = 'failed_connection';\n\nconst summary = String(m.summary || (m.analysis && m.analysis.summary) || '').replace(/\\s+/g, ' ').trim().slice(0, 250);\nconst providerId = typeof call.id === 'string' ? call.id.slice(0, 200) : null;\n\nlet finalOutcome = outcome;\nlet notes = summary || ('vapi_' + reason.replace(/[^a-z0-9-]/g, '').slice(0, 60));\nif (source === 'task') {\n  if (outcome === 'connected') {\n    const said = m.analysis && m.analysis.structuredData && m.analysis.structuredData.outcome;\n    finalOutcome = ['rescheduled', 'wants_callback', 'declined'].includes(said) ? said : 'wants_callback';\n    if (!summary) notes = 'Spoke with the customer; no summary was returned.';\n  } else if (outcome === 'busy') finalOutcome = 'no_answer';\n  else if (outcome === 'invalid_number' || outcome === 'failed_connection') finalOutcome = 'failed';\n}\n\nreturn { json: { inbound: null, record: { p_source: source, p_id: meta.zella_id, p_outcome: finalOutcome, p_provider_call_id: providerId, p_notes: notes } } };\n"
+        "jsCode": "// Zella - Call Results: turn one Vapi call event into one database call (the same code the voice-rules edge function\n// runs; build.mjs inlines web/supabase/functions/_shared/vapi-call-events.js here).\n//   status-update -> status (ringing, in-progress, forwarding, ended; applied once and in order)\n//   end-of-call-report for a call Zella placed (metadata zella_source / zella_id, set by Outbound Calls) -> record\n//   end-of-call-report for a customer's call to the business -> inbound (call wrap-up)\n// Anything else is ignored (record, inbound and status all null).\n// @ts-self-types=\"./vapi-call-events.d.ts\"\n// Vapi call events -> the database call that records them. ONE implementation, used by the voice-rules edge function\n// (import) and by n8n Call Results (inlined at build time by n8n/src/load.mjs, with the `export` keyword removed).\n// No network, no secrets. Field names follow Vapi's ServerMessage schema (@vapi-ai/server-sdk 3.0.0):\n//   status-update:      message.status, message.endedReason (only when ended), message.timestamp (number), message.call\n//   end-of-call-report: message.endedReason, message.startedAt / endedAt (ISO), message.artifact.{transcript, recordingUrl},\n//                       message.analysis.{summary, structuredData}, message.call\n// Older top-level fields (summary, transcript, recordingUrl, durationSeconds) are still read when present.\n// Returns { record, inbound, status }: at most one is set; all null means \"nothing to record\".\n\nconst UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;\nconst LIVE_STATUSES = ['ringing', 'in-progress', 'forwarding', 'ended'];\nconst isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);\nconst o = (v) => (isObj(v) ? v : {});\nconst phoneOrNull = (x) => (typeof x === 'string' && /^\\+?[0-9() .-]{7,20}$/.test(x) ? x.slice(0, 30) : null);\nconst iso = (v) => { if (typeof v !== 'string') return null; const t = Date.parse(v); return Number.isNaN(t) ? null : new Date(t).toISOString(); };\n\n// Vapi sends message.timestamp as a number; its unit is not stated in the schema. Milliseconds are assumed, and a value\n// that can only be seconds (before the year 2001 as milliseconds) is read as seconds, so a call is never dated 1970.\nfunction eventTime(ts) {\n  const t = typeof ts === 'number' ? ts : typeof ts === 'string' && /^[0-9]{9,13}$/.test(ts) ? Number(ts) : Date.parse(String(ts || ''));\n  if (!Number.isFinite(t) || t <= 0) return null;\n  return new Date(t < 1e12 ? t * 1000 : t).toISOString();\n}\n\n// Duration only from what the provider reported: its own duration, or the gap between its own start and end times.\nfunction seconds(m) {\n  const d = Number(m.durationSeconds);\n  if (m.durationSeconds !== undefined && m.durationSeconds !== null && Number.isFinite(d) && d >= 0) return Math.round(d);\n  const call = o(m.call);\n  const a = Date.parse(m.startedAt || call.startedAt || ''), b = Date.parse(m.endedAt || call.endedAt || '');\n  return Number.isFinite(a) && Number.isFinite(b) && b >= a ? Math.round((b - a) / 1000) : null;\n}\n\nfunction planCallEvent(message) {\n  const m = o(message);\n  const call = o(m.call);\n  const none = { record: null, inbound: null, status: null };\n  const pn = isObj(call.phoneNumber) ? call.phoneNumber : o(m.phoneNumber);\n  const callId = typeof call.id === 'string' && call.id ? call.id.slice(0, 200) : '';\n  const direction = /inbound/i.test(String(call.type || '')) ? 'inbound' : /outbound/i.test(String(call.type || '')) ? 'outbound' : 'other';\n\n  // Call status: recorded as it happens, so a lost end-of-call report can't erase the call. The database applies each\n  // status once and in order (late or repeated events change nothing) and finds the business from the called number.\n  if (m.type === 'status-update') {\n    const st = typeof m.status === 'string' ? m.status : '';\n    if (!callId || !LIVE_STATUSES.includes(st)) return none;\n    return { ...none, status: {\n      p_provider_call_id: callId, p_status: st, p_called_number: phoneOrNull(pn.number),\n      p_vapi_phone_number_id: typeof call.phoneNumberId === 'string' ? call.phoneNumberId.slice(0, 100) : typeof pn.id === 'string' ? pn.id.slice(0, 100) : null,\n      p_from_number: phoneOrNull(o(call.customer).number), p_direction: direction, p_event_at: eventTime(m.timestamp),\n      p_ended_reason: typeof m.endedReason === 'string' ? m.endedReason.slice(0, 80) : null } };\n  }\n  if (m.type !== 'end-of-call-report') return none;\n\n  const art = o(m.artifact);\n  const an = o(m.analysis);\n  const sd = o(an.structuredData);\n  const meta = o(call.metadata);\n  const reasonRaw = String(m.endedReason || call.endedReason || '');\n  const secs = seconds(m);\n  const source = meta.zella_source === 'callback' ? 'callback' : meta.zella_source === 'task' ? 'task' : null;\n\n  if (!source || typeof meta.zella_id !== 'string' || !UUID.test(meta.zella_id)) {\n    // a customer called the business\n    if (!callId || direction !== 'inbound') return none;\n    const sum = String(an.summary || m.summary || '').replace(/\\s+/g, ' ').trim().slice(0, 1500);\n    const ask = sd.callback_requested === true || /(asked|wants?|requested|would like) (for )?(a |to be |someone to )?(call ?back|called back|call (them|her|him) back|return (the |a )?call)/i.test(sum);\n    const rec = typeof art.recordingUrl === 'string' ? art.recordingUrl : m.recordingUrl;\n    const tr = typeof art.transcript === 'string' ? art.transcript : m.transcript;\n    return { ...none, inbound: {\n      p_provider_call_id: callId, p_called_number: typeof pn.number === 'string' ? pn.number.slice(0, 30) : null,\n      p_vapi_phone_number_id: typeof call.phoneNumberId === 'string' ? call.phoneNumberId.slice(0, 100) : null,\n      p_from_number: typeof o(call.customer).number === 'string' ? call.customer.number.slice(0, 30) : null,\n      p_started_at: iso(m.startedAt || call.startedAt), p_ended_at: iso(m.endedAt || call.endedAt),\n      p_seconds: secs, p_reason: reasonRaw.slice(0, 80), p_summary: sum || null,\n      p_recording_url: typeof rec === 'string' && /^https:\\/\\//.test(rec) ? rec.slice(0, 1000) : null,\n      p_transcript: typeof tr === 'string' ? tr.slice(0, 60000) : null, p_wants_callback: ask } };\n  }\n\n  // a call Zella placed (a callback or a follow-up task)\n  const reason = reasonRaw.toLowerCase();\n  const talked = secs !== null && secs >= 8;\n  let outcome;\n  if (/voicemail/.test(reason)) outcome = 'voicemail';\n  else if (/did-not-answer|no-answer/.test(reason)) outcome = 'no_answer';\n  else if (/busy/.test(reason)) outcome = 'busy';\n  else if (/invalid|misdial|unallocated|number-not|not-a-valid/.test(reason)) outcome = 'invalid_number';\n  else if (/customer-ended-call|assistant-ended-call|silence-timed-out|exceeded-max-duration|assistant-forwarded-call|assistant-said-end-call/.test(reason)) outcome = talked ? 'connected' : 'no_answer';\n  else outcome = 'failed_connection';\n\n  const summary = String(an.summary || m.summary || '').replace(/\\s+/g, ' ').trim().slice(0, 250);\n  let finalOutcome = outcome;\n  let notes = summary || ('vapi_' + reason.replace(/[^a-z0-9-]/g, '').slice(0, 60));\n  if (source === 'task') {\n    if (outcome === 'connected') {\n      finalOutcome = ['rescheduled', 'wants_callback', 'declined'].includes(sd.outcome) ? sd.outcome : 'wants_callback';\n      if (!summary) notes = 'Spoke with the customer; no summary was returned.';\n    } else if (outcome === 'busy') finalOutcome = 'no_answer';\n    else if (outcome === 'invalid_number' || outcome === 'failed_connection') finalOutcome = 'failed';\n  }\n  return { ...none, record: { p_source: source, p_id: meta.zella_id, p_outcome: finalOutcome, p_provider_call_id: callId || null, p_notes: notes } };\n}\n\nconst body = $json.body && typeof $json.body === 'object' ? $json.body : {};\nreturn { json: planCallEvent(body.message) };\n"
       },
       "id": "ae2f98a0-99fe-4855-8311-26233e9c1364",
       "name": "Plan",
@@ -242,6 +244,102 @@
           "name": "Zella Supabase service role"
         }
       }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Zella - Vapi webhooks: hand the database the exact request bytes and the signature headers. The database checks the\n// signature, the timestamp and that the request is new (zella_vapi_authenticate); the secret never reaches n8n.\n// Nothing else in the workflow runs unless the answer is \"ok\".\nconst first = $input.first() || { json: {} };\nconst h = first.json.headers && typeof first.json.headers === 'object' ? first.json.headers : {};\nconst headers = {};\nfor (const k of ['x-signature', 'x-timestamp', 'authorization']) if (typeof h[k] === 'string') headers[k] = h[k].slice(0, 1000);\nlet raw = '';\ntry {\n  const buf = await this.helpers.getBinaryDataBuffer(0, 'data');\n  raw = buf.toString('utf8');\n} catch (e) { raw = ''; }\nif (raw.length > 262144) raw = '';\nreturn [{ json: { record: { p_raw: raw, p_headers: headers } } }];\n"
+      },
+      "id": "3adaf95b-b601-4217-8b2f-322ece273630",
+      "name": "Read request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        120,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_vapi_authenticate",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.record) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "aa3f3783-659c-416c-8187-4115c8c5cdbf",
+      "name": "Check signature",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        360,
+        -40
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "fcb03b4a-43de-4e06-8ab7-10298bf897be",
+              "leftValue": "={{ $json.statusCode === 200 && $json.body === 'ok' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "6e3665d8-5fde-4011-8cce-c1bb287428d4",
+      "name": "Signed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        600,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Zella - Vapi webhooks: the signature was accepted; continue with the request exactly as it was received.\nreturn $('Vapi report').all().map((i) => ({ json: i.json }));\n"
+      },
+      "id": "4aed03ca-c49d-4e43-8a4e-855a96728693",
+      "name": "Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        840,
+        -120
+      ]
     }
   ],
   "connections": {
@@ -249,7 +347,7 @@
       "main": [
         [
           {
-            "node": "Plan",
+            "node": "Read request",
             "type": "main",
             "index": 0
           }
@@ -313,6 +411,51 @@
           }
         ],
         []
+      ]
+    },
+    "Read request": {
+      "main": [
+        [
+          {
+            "node": "Check signature",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check signature": {
+      "main": [
+        [
+          {
+            "node": "Signed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Signed": {
+      "main": [
+        [
+          {
+            "node": "Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Request": {
+      "main": [
+        [
+          {
+            "node": "Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     }
   },

@@ -57,6 +57,31 @@ const wf = (name, nodes, connections) => ({
   meta: { templateCredsSetupCompleted: false },
 });
 
+// Every webhook Vapi calls is checked by the database before anything else runs (sql/zella_vapi_auth.sql): the exact
+// bytes, Vapi's HMAC signature and timestamp (or its Bearer token), and that the request was not seen before. The
+// gateway header (X-Zella-Secret) stays as an outer check. A refused request gets 401 where Vapi waits for an answer.
+const secureVapi = (w, webhookName, respond) => {
+  const hook = w.nodes.find((n) => n.name === webhookName);
+  hook.parameters.options = { ...hook.parameters.options, rawBody: true };
+  const next = w.connections[webhookName].main[0];
+  const [x, y] = hook.position;
+  w.nodes.push(
+    codeAll('Read request', [x + 120, y - 240], 'vapi-auth-read.js'),
+    rpcNode('Check signature', [x + 360, y - 240], 'zella_vapi_authenticate', '={{ JSON.stringify($json.record) }}', { full: true }),
+    ifBool('Signed', [x + 600, y - 240], "={{ $json.statusCode === 200 && $json.body === 'ok' }}"),
+    codeAll('Request', [x + 840, y - 320], 'vapi-auth-pass.js', { WEBHOOK: webhookName }),
+  );
+  if (respond) w.nodes.push(node('Refuse', 'n8n-nodes-base.respondToWebhook', 1.1, [x + 840, y - 120], {
+    respondWith: 'json', responseBody: '={{ JSON.stringify({ error: "Unauthorized" }) }}', options: { responseCode: 401 },
+  }));
+  w.connections[webhookName] = { main: [[link('Read request')]] };
+  w.connections['Read request'] = { main: [[link('Check signature')]] };
+  w.connections['Check signature'] = { main: [[link('Signed')]] };
+  w.connections['Signed'] = { main: [[link('Request')], respond ? [link('Refuse')] : []] };
+  w.connections['Request'] = { main: [next] };
+  return w;
+};
+
 // Every workflow except the gateway is started by the database dispatcher (sql/zella_dispatcher.sql), which
 // calls it only when something is waiting. This keeps n8n Cloud's monthly run allowance for real work.
 const runTrigger = (workflowName) => node('Run now', 'n8n-nodes-base.webhook', 2, [0, 200], {
@@ -281,7 +306,7 @@ const outboundCalls = wf('Zella - Outbound Calls', [
 // Point the Vapi assistant's server URL at <n8n>/webhook/zella/vapi with the header X-Zella-Secret, and set its
 // server messages to end-of-call-report and status-update only, so no other message wakes the workflow.
 // status-update creates the call record as the call starts (zella_record_call_status), so a lost report can't erase it.
-const callResults = wf('Zella - Call Results', [
+const callResults = secureVapi(wf('Zella - Call Results', [
   node('Vapi report', 'n8n-nodes-base.webhook', 2, [0, 200], {
     httpMethod: 'POST', path: 'zella/vapi', authentication: 'headerAuth', responseMode: 'onReceived', options: {},
   }, { webhookId: id('webhook:zella-vapi'), credentials: GATEWAY_CRED }),
@@ -298,7 +323,7 @@ const callResults = wf('Zella - Call Results', [
   'Is a call result': { main: [[link('Record call result')], [link('Is an inbound call')]] },
   'Is an inbound call': { main: [[link('Record inbound call')], [link('Is a status update')]] },
   'Is a status update': { main: [[link('Record call status')], []] },
-});
+}), 'Vapi report', false);
 
 // Knowledge: (1) publish knowledge an owner added or changed, (2) draft answers for questions the assistant could not
 // answer (the owner must still approve them). Started by the dispatcher only when something is waiting. The AI box
@@ -340,7 +365,7 @@ const knowledge = wf('Zella - Knowledge', [
 // In Vapi: add a server tool "report_unanswered_question" (parameter: question, text) pointing at
 // <n8n>/webhook/zella/vapi-tools with the X-Zella-Secret header. The call must carry the business id (call metadata
 // or the assistant variable business_id) unless the call is already known to Zella.
-const assistantTools = wf('Zella - Assistant Tools', [
+const assistantTools = secureVapi(wf('Zella - Assistant Tools', [
   node('Vapi tool call', 'n8n-nodes-base.webhook', 2, [0, 200], {
     httpMethod: 'POST', path: 'zella/vapi-tools', authentication: 'headerAuth', responseMode: 'responseNode', options: {},
   }, { webhookId: id('webhook:zella-vapi-tools'), credentials: GATEWAY_CRED }),
@@ -363,14 +388,14 @@ const assistantTools = wf('Zella - Assistant Tools', [
   'Log question': { main: [[link('Build reply')]] },
   'Build reply': { main: [[link('Collect replies')]] },
   'Collect replies': { main: [[link('Reply')]] },
-});
+}), 'Vapi tool call', true);
 
 // Appointment booking by the phone assistant: Vapi calls this during a call with two tools, check_availability and
 // book_appointment (and, for existing bookings, find_my_appointments / reschedule_appointment / cancel_appointment).
 // They go through the same gateway as the Receptionist Brain (zella_ai_tool: the caller must confirm before a booking is
 // changed, retries return the first answer, every call is logged), limited to these five tools, one answer per tool call.
 const BOOKING_TOOLS = 'check_availability,book_appointment,find_my_appointments,reschedule_appointment,cancel_appointment';
-const aiBooking = wf('Zella - Appointment Booking', [
+const aiBooking = secureVapi(wf('Zella - Appointment Booking', [
   node('Vapi booking tool', 'n8n-nodes-base.webhook', 2, [0, 200], {
     httpMethod: 'POST', path: 'zella/vapi-booking', authentication: 'headerAuth', responseMode: 'responseNode', options: {},
   }, { webhookId: id('webhook:zella-vapi-booking'), credentials: GATEWAY_CRED }),
@@ -393,12 +418,12 @@ const aiBooking = wf('Zella - Appointment Booking', [
   'Run booking': { main: [[link('Build reply')]] },
   'Build reply': { main: [[link('Collect replies')]] },
   'Collect replies': { main: [[link('Reply')]] },
-});
+}), 'Vapi booking tool', true);
 
 // Voice rules: the phone assistant asks "call_rules" during a call (open or closed, take a message, emergency, reach a person).
 // Every decision is made by the database (zella_ai_voice); this workflow only passes the question on and the answer back.
 // One item per tool call, each answered under its own toolCallId. The voice-rules Supabase function does the same without n8n.
-const voiceRules = wf('Zella - Voice Rules', [
+const voiceRules = secureVapi(wf('Zella - Voice Rules', [
   node('Vapi voice tool', 'n8n-nodes-base.webhook', 2, [0, 200], {
     httpMethod: 'POST', path: 'zella/vapi-voice', authentication: 'headerAuth', responseMode: 'responseNode', options: {},
   }, { webhookId: id('webhook:zella-vapi-voice'), credentials: GATEWAY_CRED }),
@@ -421,7 +446,7 @@ const voiceRules = wf('Zella - Voice Rules', [
   'Run voice rule': { main: [[link('Build reply')]] },
   'Build reply': { main: [[link('Collect replies')]] },
   'Collect replies': { main: [[link('Reply')]] },
-});
+}), 'Vapi voice tool', true);
 
 // Inbound email: Resend posts here when a customer replies to an email. The event only names the email, so it is fetched
 // from Resend (key added by hand at go-live) and handed to the database, which checks the secret key in the address,
@@ -718,7 +743,7 @@ const metaHealth = wf('Zella - Meta Health', [
 // Receptionist Brain: the webhook for every tool the phone assistant uses during a call (14 tools behind zella_ai_tool).
 // One item per tool call, so several tool calls in one request each get their own answer, matched by toolCallId.
 // Until phase 3 moves live-call tools to a Supabase function, this is the endpoint brain_tools_url points at.
-const brainTools = wf('Zella - Receptionist Brain Tools', [
+const brainTools = secureVapi(wf('Zella - Receptionist Brain Tools', [
   node('Vapi brain tool', 'n8n-nodes-base.webhook', 2, [0, 200], {
     httpMethod: 'POST', path: 'zella/vapi-brain', authentication: 'headerAuth', responseMode: 'responseNode', options: {},
   }, { webhookId: '9439095a-ccca-43a3-bc4b-5a5c07862415', credentials: GATEWAY_CRED }),
@@ -741,7 +766,7 @@ const brainTools = wf('Zella - Receptionist Brain Tools', [
   'Run tool': { main: [[link('Build reply')]] },
   'Build reply': { main: [[link('Collect replies')]] },
   'Collect replies': { main: [[link('Reply')]] },
-});
+}), 'Vapi brain tool', true);
 writeFileSync(join(out, 'zella-brain-tools.json'), JSON.stringify(brainTools, null, 2) + '\n');
 
 // Call Reconciliation: for calls whose end-of-call report never arrived, ask the provider for its record of the call and
