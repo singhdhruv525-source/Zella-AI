@@ -1,4 +1,4 @@
-import { authHeaders, FAILED, plan, toolResult, transferReply, UNSUPPORTED, unsupported } from "./logic.ts";
+import { authHeaders, brainInvalidReply, brainToolReply, FAILED, plan, toolResult, transferReply, UNSUPPORTED, unsupported } from "./logic.ts";
 import { eventTime, planCallEvent } from "../_shared/vapi-call-events.js";
 
 function eq(a: unknown, b: unknown, m: string) { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(m + ": " + JSON.stringify(a) + " !== " + JSON.stringify(b)); }
@@ -97,4 +97,41 @@ Deno.test("end-of-call-report for a callback Zella placed: outcome from the real
 Deno.test("event timestamps: milliseconds, or seconds, never 1970", () => {
   eq(eventTime(1793102400000), "2026-10-27T12:00:00.000Z", "ms"); eq(eventTime(1793102400), "2026-10-27T12:00:00.000Z", "s");
   eq(eventTime("2026-10-27T12:00:00Z"), "2026-10-27T12:00:00.000Z", "iso"); eq(eventTime(undefined), null, "missing"); eq(eventTime(-5), null, "junk");
+});
+Deno.test("Brain tools: each of the 14 is planned for the audited gateway, call_rules for voice rules, anything else refused", () => {
+  const names = ["search_knowledge", "check_open_hours", "lookup_caller", "update_caller", "check_availability", "book_appointment", "find_my_appointments",
+    "reschedule_appointment", "cancel_appointment", "take_message", "report_emergency", "transfer_to_human", "request_follow_up", "report_unanswered_question"];
+  const p1 = plan(toolMsg(names.slice(0, 10).map((n, i) => ({ id: "t" + i, function: { name: n, arguments: "{}" } }))));
+  const p2 = plan(toolMsg([...names.slice(10).map((n, i) => ({ id: "u" + i, name: n, arguments: {} })), rules("r", {}), { id: "x", name: "drop_all", arguments: {} }]));
+  if (p1.kind !== "tools" || p2.kind !== "tools") throw new Error("not tools");
+  eq([...p1.calls, ...p2.calls].map((c) => c.kind), [...names.map(() => "brain"), "rules", "unsupported"], "kinds");
+  eq(p1.calls.map((c) => c.record?.p_tool), names.slice(0, 10), "tool names passed to zella_ai_tool");
+  eq(p1.calls[0].record?.p_idempotency_key, "call-1:t0", "idempotency key = call id + tool call id");
+});
+Deno.test("Brain tools: only known fields, the network caller number, and confirmed only as a real boolean", () => {
+  const p = plan(toolMsg([{ id: "b", name: "book_appointment", arguments: { start: "2026-11-02T15:00:00Z", first_name: "  Ana  ", confirmed: "true", caller_number: "+19999999999", business_id: "x", evil: 1 } },
+    { id: "c", name: "cancel_appointment", arguments: { appointment_id: "33333333-3333-4333-8333-333333333333", confirmed: true } }]));
+  if (p.kind !== "tools") throw new Error("not tools");
+  const a = p.calls[0].record?.p_args as Record<string, unknown>;
+  eq([a.first_name, a.confirmed, a.caller_number, "evil" in a, "business_id" in a], ["Ana", false, "+15559990001", false, false], "args");
+  eq((p.calls[1].record?.p_args as Record<string, unknown>).confirmed, true, "real boolean yes");
+});
+Deno.test("Brain tools: malformed arguments are refused before the database, saying what to fix", () => {
+  const bad = { date: "next week", start: "tomorrow", appointment_id: "1 or 1=1", days: 40, duration_minutes: 2, preferred_contact_method: "fax" };
+  const p = plan(toolMsg(Object.entries(bad).map(([k, v], i) => ({ id: "v" + i, name: k === "preferred_contact_method" ? "update_caller" : k === "appointment_id" ? "cancel_appointment" : "check_availability", arguments: { [k]: v } }))));
+  if (p.kind !== "tools") throw new Error("not tools");
+  eq(p.calls.map((c) => c.kind), ["invalid", "invalid", "invalid", "invalid", "invalid", "invalid"], "each malformed value refused");
+  const b = plan(toolMsg([{ id: "s", name: "book_appointment", arguments: { start: "tomorrow at 3" } }]));
+  if (b.kind !== "tools") throw new Error("not tools");
+  eq([b.calls[0].kind, /start/.test(b.calls[0].why ?? "")], ["invalid", true], "bad start on booking");
+  eq(brainInvalidReply("x", "v", "date must be YYYY-MM-DD").error, "Invalid arguments: date must be YYYY-MM-DD. Nothing was done.", "reply");
+});
+Deno.test("Brain tools: replies keep the id and name, hide the transfer number, pass screening, and fail safely", () => {
+  const ok = brainToolReply("check_availability", "a", true, { status: "slots", say: "Offer.", slots: [{ say: "Mon 9", start: "s", secret: 1 }] });
+  eq([ok.name, ok.toolCallId, JSON.parse(ok.result as string).times], ["check_availability", "a", [{ say: "Mon 9", start: "s" }]], "slots");
+  const tr = brainToolReply("transfer_to_human", "t", true, { status: "transfer", say: "x", transfer_number: "+15550109999" });
+  eq([String(tr.result).includes("5550109999"), JSON.parse(tr.result as string).use_transfer_tool], [false, true], "transfer");
+  eq(JSON.parse(brainToolReply("lookup_caller", "s", true, { status: "screened", say: "End politely." }).result as string).status, "screened", "screened");
+  for (const body of [null, [], "x", { status: "ok" }, { say: 5 }]) eq("error" in brainToolReply("n", "f", true, body), true, "malformed: " + JSON.stringify(body));
+  eq("error" in brainToolReply("n", "f", false, { say: "x" }), true, "database error");
 });

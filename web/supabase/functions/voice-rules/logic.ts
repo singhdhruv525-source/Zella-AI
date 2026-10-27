@@ -1,11 +1,22 @@
-// Pure parts of the voice-rules function (no network), shared with its tests.
+// Pure parts of the voice-rules function (no network), shared with its tests. Brain tool parsing and replies come from
+// the shared vapi-brain-tools.js (the same code n8n Brain Tools runs).
 // Request and reply shapes follow Vapi's ServerMessage schema (@vapi-ai/server-sdk 3.0.0): a tool-calls request is
 // answered with { results: [{ name, toolCallId, result | error }] }, one entry per tool call, each a single-line string,
 // always HTTP 200. Call events (status-update, end-of-call-report) are planned by the shared vapi-call-events.js.
 import { planCallEvent } from "../_shared/vapi-call-events.js";
+import { BRAIN_TOOLS, planBrainTool, toolArgs, toolCallList, toolName, vapiCallContext } from "../_shared/vapi-brain-tools.js";
+export { brainInvalidReply, brainToolReply } from "../_shared/vapi-brain-tools.js";
 
 export type Json = Record<string, unknown>;
-export type ToolCall = { toolCallId: string; name: string; action: string | null; args: Json };
+// One tool call, as decided before any database work:
+//   rules       call_rules with a known action  -> zella_ai_voice
+//   brain       one of the 14 Receptionist Brain tools with valid arguments -> zella_ai_tool (the audited gateway)
+//   invalid     a Brain tool with malformed arguments -> error answer, nothing done
+//   unsupported anything else -> error answer, nothing done
+export type ToolCall = {
+  toolCallId: string; name: string; kind: "rules" | "brain" | "invalid" | "unsupported";
+  action: string | null; args: Json; record?: Json; why?: string;
+};
 export type Plan =
   | { kind: "invalid" }
   | { kind: "ignore"; reply: Json }
@@ -15,34 +26,17 @@ export type Plan =
   | { kind: "report"; rpc: "zella_record_call_result" | "zella_record_inbound_call"; record: Json };
 
 const ACTIONS = ["rules", "message", "emergency", "transfer"];
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const PHONE = /^\+?[0-9() .-]{7,20}$/;
 const obj = (v: unknown): Json => (v && typeof v === "object" && !Array.isArray(v) ? v as Json : {});
-const MAX_CALLS = 10;
-
-function callContext(m: Json) {
-  const call = obj(m.call);
-  const pn = Object.keys(obj(call.phoneNumber)).length ? obj(call.phoneNumber) : obj(m.phoneNumber);
-  const cn = String(obj(call.customer).number || "");
-  return {
-    call,
-    providerCallId: typeof call.id === "string" && call.id ? call.id.slice(0, 200) : null,
-    calledNumber: typeof pn.number === "string" && PHONE.test(pn.number) ? pn.number : null,
-    vapiNumberId: typeof call.phoneNumberId === "string" ? call.phoneNumberId.slice(0, 100) : typeof pn.id === "string" ? pn.id.slice(0, 100) : null,
-    // the caller's own number comes from the phone network, never from what they say
-    callerNumber: /^\+?[0-9]{7,15}$/.test(cn) ? cn : null,
-  };
-}
 
 export function plan(body: unknown): Plan {
   // every Vapi server message is { message: { type, ... } }; anything else is refused before any database work
   const raw = obj(body).message;
   if (!raw || typeof raw !== "object" || Array.isArray(raw) || typeof (raw as Json).type !== "string") return { kind: "invalid" };
   const m = obj(raw);
-  const ctx = callContext(m);
+  const ctx = vapiCallContext(m);
 
   if (m.type === "transfer-destination-request") {
-    return { kind: "transfer", providerCallId: ctx.providerCallId, calledNumber: ctx.calledNumber, vapiNumberId: ctx.vapiNumberId, callerNumber: ctx.callerNumber };
+    return { kind: "transfer", providerCallId: ctx.callId, calledNumber: ctx.calledNumber, vapiNumberId: ctx.vapiNumberId, callerNumber: ctx.callerNumber };
   }
 
   if (m.type === "status-update" || m.type === "end-of-call-report") {
@@ -53,36 +47,33 @@ export function plan(body: unknown): Plan {
     return { kind: "ignore", reply: {} };
   }
 
-  const list = Array.isArray(m.toolCallList) ? m.toolCallList : Array.isArray(m.toolCalls) ? m.toolCalls : [];
-  if (m.type !== "tool-calls" || !list.length) return { kind: "ignore", reply: { results: [] } };
+  // a tool call without a usable id can't be answered; a repeated id in one request is answered once; at most 10
+  const list = m.type === "tool-calls" ? toolCallList(m) : [];
+  if (!list.length) return { kind: "ignore", reply: { results: [] } };
 
-  const nameOf = (t: Json) => String(t.name || obj(t.function).name || "");
-  const calls: ToolCall[] = [];
-  const seen = new Set<string>();
-  for (const raw of (list as unknown[]).slice(0, MAX_CALLS)) {
-    const tc = obj(raw);
-    // a tool call without a usable id can't be answered; a repeated id in one request is answered once
-    if (typeof tc.id !== "string" || !tc.id || tc.id.length > 200 || seen.has(tc.id)) continue;
-    seen.add(tc.id);
-    let args: unknown = tc.arguments !== undefined ? tc.arguments : obj(tc.function).arguments;
-    if (typeof args === "string") { try { args = JSON.parse(args); } catch { args = {}; } }
-    const a = obj(args);
-    const action = typeof a.action === "string" ? a.action.trim().toLowerCase() : "rules";
-    const clean: Json = {};
-    for (const k of ["message", "name", "phone", "summary", "reason"]) {
-      if (typeof a[k] === "string") clean[k] = (a[k] as string).replace(/\s+/g, " ").trim().slice(0, 1500);
+  const calls: ToolCall[] = list.map((tc) => {
+    const name = toolName(tc);
+    const id = tc.id as string;
+    if (name === "call_rules") {
+      const a = toolArgs(tc);
+      const action = typeof a.action === "string" ? a.action.trim().toLowerCase() : "rules";
+      const clean: Json = {};
+      for (const k of ["message", "name", "phone", "summary", "reason"]) {
+        if (typeof a[k] === "string") clean[k] = (a[k] as string).replace(/\s+/g, " ").trim().slice(0, 1500);
+      }
+      // the caller's own number comes from the phone network, never from what they say
+      if (ctx.callerNumber) { clean.caller_number = ctx.callerNumber; if (!clean.phone) clean.phone = ctx.callerNumber; }
+      return ACTIONS.includes(action) ? { toolCallId: id, name, kind: "rules", action, args: clean } : { toolCallId: id, name, kind: "unsupported", action: null, args: clean };
     }
-    if (ctx.callerNumber) { clean.caller_number = ctx.callerNumber; if (!clean.phone) clean.phone = ctx.callerNumber; }
-    // only call_rules with a known action reaches the database; anything else gets its own error answer
-    calls.push({ toolCallId: tc.id, name: nameOf(tc).slice(0, 80), action: nameOf(tc) === "call_rules" && ACTIONS.includes(action) ? action : null, args: clean });
-  }
-  if (!calls.length) return { kind: "ignore", reply: { results: [] } };
-
-  const meta = obj(ctx.call.metadata);
-  const vars = obj(obj(ctx.call.assistantOverrides).variableValues);
-  const bid = [meta.business_id, vars.business_id].find((v) => typeof v === "string" && UUID.test(v)) as string | undefined;
-  return { kind: "tools", providerCallId: ctx.providerCallId, calls,
-    lookup: { p_called_number: ctx.calledNumber, p_vapi_phone_number_id: ctx.vapiNumberId, p_fallback: bid ?? null } };
+    if (BRAIN_TOOLS.includes(name)) {
+      const p = planBrainTool(tc, ctx);
+      return p.invalid ? { toolCallId: id, name, kind: "invalid", action: null, args: {}, why: p.invalid }
+        : { toolCallId: id, name, kind: "brain", action: null, args: {}, record: p.record };
+    }
+    return { toolCallId: id, name, kind: "unsupported", action: null, args: {} };
+  });
+  return { kind: "tools", providerCallId: ctx.callId, calls,
+    lookup: { p_called_number: ctx.calledNumber, p_vapi_phone_number_id: ctx.vapiNumberId, p_fallback: ctx.fallbackBusinessId } };
 }
 
 export const FAILED = "This could not be done right now. Tell the caller the team will call them back. Do not promise anything else.";
