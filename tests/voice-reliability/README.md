@@ -1,0 +1,15 @@
+# Voice reliability tests (staging only)
+
+`run_all.sh` builds two local databases from the repo's SQL: `zbase` (the live functions as they are) and `zvoice`
+(the same plus `sql/zella_voice_reliability.sql`). Then it runs the same tests on both. Never point it at production.
+
+- `tables.sql`: the live table definitions (columns, defaults, checks, keys, indexes) for the 24 tables involved, as
+  reported by the production catalog on 2026-10-27; no data.
+- `prod_md5.txt`: md5 of each live function body (`prosrc`). `build_functions.py` picks the repo definition with the
+  same md5 (raw or comment-stripped), `rebuild_ai_voice.py` reproduces `zella_ai_voice` (repo body plus the caller
+  patch), and `live_two.sql` holds the two bodies that exist only in production. The run stops unless all 33 match.
+- `race.sh`: N sessions held on an advisory-lock barrier, released at the same instant.
+- `*_test.sql`: assertion blocks; `brain-flow.mjs`: the shipped Brain Tools code nodes against the patched functions;
+  `edge-e2e.mjs` + `mock-rest.mjs`: the `voice-rules` function over HTTP against the staging database.
+
+Run: `DENO=<path to deno> tests/voice-reliability/run_all.sh` (needs a local Postgres; set `ZPSQL` to its psql command).
