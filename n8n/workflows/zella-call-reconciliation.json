@@ -1,0 +1,256 @@
+{
+  "name": "Zella - Call Reconciliation",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "zella/run/call-reconcile",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "2af00e23-c480-4a77-8fdd-da60673b2836",
+      "name": "Run now",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "webhookId": "55358250-5446-4082-8a14-595d37eea560",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Zella gateway secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_calls_to_reconcile",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_limit: 10 }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "c0d77d88-3573-4090-8b9e-281b1b2b03cd",
+      "name": "Claim calls",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        200
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Call Reconciliation: fetch the provider's own record of a call whose end-of-call report never arrived.\n// The database chose the call (zella_calls_to_reconcile); only a well-formed provider call id is ever put in a URL.\nconst id = typeof $json.provider_call_id === 'string' ? $json.provider_call_id : '';\nif (!/^[A-Za-z0-9_-]{6,100}$/.test(id)) return { json: { skip: true, id: null } };\nreturn { json: { skip: false, id, url: 'https://api.vapi.ai/call/' + encodeURIComponent(id) } };\n"
+      },
+      "id": "ae2f98a0-99fe-4855-8311-26233e9c1364",
+      "name": "Plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "86bd1bc2-f868-4b16-8790-57a7db94f02e",
+              "leftValue": "={{ !$json.skip }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c4e9836c-26d6-4ab3-87b0-5d24cbde29b0",
+      "name": "Can fetch",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        720,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.url }}",
+        "authentication": "none",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "ff0aa3bc-4d11-49f0-8088-5a4e59fd3676",
+      "name": "Fetch Vapi call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella - Call Reconciliation: hand the database only the fields it records (ids, times, ended reason, numbers,\n// summary, transcript, recording link). The database checks the id matches and that the call really ended.\nconst plan = $('Plan').item.json;\nconst status = Number($json.statusCode);\nconst b = $json.body && typeof $json.body === 'object' && !Array.isArray($json.body) ? $json.body : {};\nconst str = (v, n) => (typeof v === 'string' ? v.slice(0, n) : null);\nconst a = b.artifact && typeof b.artifact === 'object' ? b.artifact : {};\nconst an = b.analysis && typeof b.analysis === 'object' ? b.analysis : {};\nconst call = {\n  id: str(b.id, 200), status: str(b.status, 30), startedAt: str(b.startedAt, 40), endedAt: str(b.endedAt, 40), endedReason: str(b.endedReason, 80),\n  phoneNumberId: str(b.phoneNumberId, 100),\n  phoneNumber: { number: str(b.phoneNumber && b.phoneNumber.number, 30) }, customer: { number: str(b.customer && b.customer.number, 30) },\n  analysis: { summary: str(an.summary, 1500), structuredData: { callback_requested: !!(an.structuredData && an.structuredData.callback_requested === true) } },\n  artifact: { transcript: str(a.transcript || b.transcript, 60000), recordingUrl: str(a.recordingUrl || b.recordingUrl, 1000) },\n};\nreturn { json: { record: { p_provider_call_id: plan.id, p_status_code: Number.isFinite(status) ? status : null, p_call: call } } };\n"
+      },
+      "id": "73f1709f-363d-4524-85cf-f15885aaecb0",
+      "name": "Read call",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_reconcile_call",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.record) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "63316be9-9b76-45ef-84ea-da1e836b8ca2",
+      "name": "Record call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1440,
+        100
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Run now": {
+      "main": [
+        [
+          {
+            "node": "Claim calls",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim calls": {
+      "main": [
+        [
+          {
+            "node": "Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan": {
+      "main": [
+        [
+          {
+            "node": "Can fetch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Can fetch": {
+      "main": [
+        [
+          {
+            "node": "Fetch Vapi call",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Fetch Vapi call": {
+      "main": [
+        [
+          {
+            "node": "Read call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read call": {
+      "main": [
+        [
+          {
+            "node": "Record call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "executionTimeout": 300
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

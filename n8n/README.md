@@ -445,3 +445,16 @@ Flow: Run now -> Claim work (`zella_spam_claim_work`) -> Evaluate severity -> lo
 - **Retries and duplicates.** Each claim has a token; a replayed or late result is refused. A failed step is retried with a growing delay (5, 20, 45 minutes), then marked failed. A run that never reports back is picked up again after 10 minutes. Weekly reports are posted once per business per week.
 - **Fallback.** If the workflow hasn't handled a high-risk incident within 15 minutes (off, n8n down, gave up), `zella_spam_hourly` sends the notification from the database, once.
 - **Tenant data.** The workflow gets one business's incident, its policy and counts about the sender elsewhere (never another business's name or messages).
+
+## Voice reliability (phase 1)
+
+- **Receptionist Brain Tools** (`zella-brain-tools.json`) is now built by `src/build.mjs`; it was hand-edited before.
+  Every tool call in a request gets its own answer under its own `toolCallId` (`brain-tool-plan.js` →
+  per call → `brain-tool-collect.js`). Failures use Vapi's `error` field; the transfer number is never in a tool result.
+- **Call Results** also takes `status-update` (set the assistant's server messages to `end-of-call-report` and
+  `status-update`): the call is recorded as it starts (`zella_record_call_status`), so a lost report can't erase it.
+- **Zella - Call Reconciliation** (`zella-call-reconciliation.json`, lane `call-reconcile`, not imported yet) fetches
+  Vapi's record of calls whose report never arrived. Off until `call_reconcile_live`; the "Fetch Vapi call" box ships
+  with no credential (add `Authorization: Bearer <Vapi private key>` by hand).
+- **Voice Rules** no longer hands the transfer number to the model (`use_transfer_tool` instead).
+- Tests: `node n8n/test.mjs`, plus `tests/voice-reliability/run_all.sh` (staging database, before/after).

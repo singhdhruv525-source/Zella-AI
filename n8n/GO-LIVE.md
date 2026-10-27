@@ -73,3 +73,8 @@ Nothing below has been done yet on purpose: all n8n workflows are unpublished an
 - Optional AI second opinion: put the Anthropic key on its "Ask AI" box, then switch on AI in the same Automation tab (`spam_ai_live`). Each business must also opt in under Spam protection > Settings.
 - Turn on the `zella_spam_hourly` job (fallback alerts, reminders, retention): `update cron.job set active = true where jobname = 'zella_spam_hourly';`
 - Re-import "Zella - Voice Rules" from the repo if it stays in use (its reply now passes the screening instruction on).
+
+## Voice reliability (phase 1; nothing applied yet)
+- Back up, then run `sql/zella_voice_reliability.sql` after the files it patches, then re-run `sql/zella_dispatcher.sql` (adds the `call-reconcile` lane). Check `select zella_voice_reliability_status();` shows all true.
+- Re-import Receptionist Brain Tools, Call Results and Voice Rules from the repo; import Call Reconciliation (Vapi key by hand), then set `call_reconcile_live` to `true` when calls are live.
+- In Vapi: server messages `end-of-call-report` and `status-update`; the transfer tool with no fixed destination, answered by `voice-rules` (`transfer-destination-request`). Details in `docs/VOICE_RELIABILITY.md`.

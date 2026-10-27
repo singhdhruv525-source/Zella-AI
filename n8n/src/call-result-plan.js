@@ -4,7 +4,25 @@
 // The call carries zella_source and zella_id in its metadata (set by Outbound Calls).
 const body = $json.body && typeof $json.body === 'object' ? $json.body : {};
 const m = body.message && typeof body.message === 'object' ? body.message : {};
-const none = { json: { record: null, inbound: null } };
+const none = { json: { record: null, inbound: null, status: null } };
+// Call status (ringing, in-progress, forwarding, ended): recorded as it happens, so a lost end-of-call report can't
+// erase the call. The database applies each status once and in order, and finds the business from the called number.
+if (m.type === 'status-update') {
+  const call = m.call && typeof m.call === 'object' ? m.call : {};
+  const id = typeof call.id === 'string' ? call.id.slice(0, 200) : '';
+  const st = typeof m.status === 'string' ? m.status : '';
+  if (!id || !['ringing', 'in-progress', 'forwarding', 'ended'].includes(st)) return none;
+  const t = typeof m.timestamp === 'number' ? m.timestamp : Date.parse(m.timestamp || '');
+  const phone = (x) => (typeof x === 'string' && /^\+?[0-9() .-]{7,20}$/.test(x) ? x.slice(0, 30) : null);
+  const pn = (call.phoneNumber && typeof call.phoneNumber === 'object' ? call.phoneNumber : m.phoneNumber && typeof m.phoneNumber === 'object' ? m.phoneNumber : {});
+  return { json: { record: null, inbound: null, status: {
+    p_provider_call_id: id, p_status: st, p_called_number: phone(pn.number),
+    p_vapi_phone_number_id: typeof call.phoneNumberId === 'string' ? call.phoneNumberId.slice(0, 100) : null,
+    p_from_number: phone(call.customer && call.customer.number),
+    p_direction: /inbound/i.test(String(call.type || '')) ? 'inbound' : /outbound/i.test(String(call.type || '')) ? 'outbound' : 'other',
+    p_event_at: isNaN(t) ? null : new Date(t).toISOString(),
+    p_ended_reason: typeof m.endedReason === 'string' ? m.endedReason.slice(0, 80) : null } } };
+}
 if (m.type !== 'end-of-call-report') return none;
 
 const call = m.call && typeof m.call === 'object' ? m.call : {};

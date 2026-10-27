@@ -28,3 +28,14 @@ export async function runCodeAsync(file, { json = {}, raw = '', vars = {} } = {}
   const fn = new AsyncFn('$json', '$', loadCode(file, vars));
   return fn.call({ helpers: { getBinaryDataBuffer: async () => Buffer.from(raw) } }, json, () => ({ item: { json: {} } }));
 }
+
+// Same, for Code nodes that run once for all items ("run once for all items"): they read $input.first() / $input.all().
+export function runCodeAll(file, { items = [], nodes = {}, vars = {} } = {}) {
+  const fn = new Function('$input', '$', loadCode(file, vars));
+  const $input = { first: () => items[0], all: () => items, item: items[0] };
+  const lookup = (name) => {
+    if (!(name in nodes)) throw new Error('Test did not provide node: ' + name);
+    return { item: { json: nodes[name] }, all: () => [].concat(nodes[name]).map((json) => ({ json })) };
+  };
+  return fn($input, lookup);
+}

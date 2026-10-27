@@ -40,6 +40,8 @@ const rpcNode = (name, position, fn, bodyExpr, opts = {}) =>
   }, { credentials: SUPABASE_CRED, ...(opts.timeout ? {} : {}) });
 const code = (name, position, file, vars = {}) =>
   node(name, 'n8n-nodes-base.code', 2, position, { mode: 'runOnceForEachItem', jsCode: loadCode(file, vars) });
+const codeAll = (name, position, file, vars = {}) =>
+  node(name, 'n8n-nodes-base.code', 2, position, { mode: 'runOnceForAllItems', jsCode: loadCode(file, vars) });
 const ifBool = (name, position, expr) =>
   node(name, 'n8n-nodes-base.if', 2, position, {
     conditions: {
@@ -277,7 +279,8 @@ const outboundCalls = wf('Zella - Outbound Calls', [
 
 // Call results: Vapi posts an end-of-call report when a call Zella placed ends. Event-driven (runs only then).
 // Point the Vapi assistant's server URL at <n8n>/webhook/zella/vapi with the header X-Zella-Secret, and set its
-// server messages to end-of-call-report only, so no other message wakes the workflow.
+// server messages to end-of-call-report and status-update only, so no other message wakes the workflow.
+// status-update creates the call record as the call starts (zella_record_call_status), so a lost report can't erase it.
 const callResults = wf('Zella - Call Results', [
   node('Vapi report', 'n8n-nodes-base.webhook', 2, [0, 200], {
     httpMethod: 'POST', path: 'zella/vapi', authentication: 'headerAuth', responseMode: 'onReceived', options: {},
@@ -287,11 +290,14 @@ const callResults = wf('Zella - Call Results', [
   rpcNode('Record call result', [720, 100], 'zella_record_call_result', '={{ JSON.stringify($json.record) }}', { full: true }),
   ifBool('Is an inbound call', [720, 320], '={{ !!$json.inbound }}'),
   rpcNode('Record inbound call', [960, 320], 'zella_record_inbound_call', '={{ JSON.stringify($json.inbound) }}', { full: true }),
+  ifBool('Is a status update', [960, 520], '={{ !!$json.status }}'),
+  rpcNode('Record call status', [1200, 520], 'zella_record_call_status', '={{ JSON.stringify($json.status) }}', { full: true }),
 ], {
   'Vapi report': { main: [[link('Plan')]] },
   'Plan': { main: [[link('Is a call result')]] },
   'Is a call result': { main: [[link('Record call result')], [link('Is an inbound call')]] },
-  'Is an inbound call': { main: [[link('Record inbound call')], []] },
+  'Is an inbound call': { main: [[link('Record inbound call')], [link('Is a status update')]] },
+  'Is a status update': { main: [[link('Record call status')], []] },
 });
 
 // Knowledge: (1) publish knowledge an owner added or changed, (2) draft answers for questions the assistant could not
@@ -698,6 +704,59 @@ const metaHealth = wf('Zella - Meta Health', [
   'Has templates': { main: [[link('Record templates')], []] },
 });
 
+// Receptionist Brain: the webhook for every tool the phone assistant uses during a call (14 tools behind zella_ai_tool).
+// One item per tool call, so several tool calls in one request each get their own answer, matched by toolCallId.
+// Until phase 3 moves live-call tools to a Supabase function, this is the endpoint brain_tools_url points at.
+const brainTools = wf('Zella - Receptionist Brain Tools', [
+  node('Vapi brain tool', 'n8n-nodes-base.webhook', 2, [0, 200], {
+    httpMethod: 'POST', path: 'zella/vapi-brain', authentication: 'headerAuth', responseMode: 'responseNode', options: {},
+  }, { webhookId: '9439095a-ccca-43a3-bc4b-5a5c07862415', credentials: GATEWAY_CRED }),
+  codeAll('Plan', [240, 200], 'brain-tool-plan.js'),
+  ifBool('Is a brain tool', [480, 200], '={{ !!$json.record }}'),
+  rpcNode('Find business', [720, 100], 'zella_business_for_number', '={{ JSON.stringify($json.lookup) }}', { full: true }),
+  code('Use business', [960, 100], 'business-apply.js'),
+  rpcNode('Run tool', [1200, 100], 'zella_ai_tool', '={{ JSON.stringify($json.record) }}', { full: true }),
+  code('Build reply', [1440, 100], 'brain-tool-reply.js'),
+  codeAll('Collect replies', [1680, 100], 'brain-tool-collect.js'),
+  node('Reply', 'n8n-nodes-base.respondToWebhook', 1.1, [1920, 200], {
+    respondWith: 'json', responseBody: '={{ JSON.stringify({ results: Array.isArray($json.results) ? $json.results : [] }) }}', options: { responseCode: 200 },
+  }),
+], {
+  'Vapi brain tool': { main: [[link('Plan')]] },
+  'Plan': { main: [[link('Is a brain tool')]] },
+  'Is a brain tool': { main: [[link('Find business')], [link('Reply')]] },
+  'Find business': { main: [[link('Use business')]] },
+  'Use business': { main: [[link('Run tool')]] },
+  'Run tool': { main: [[link('Build reply')]] },
+  'Build reply': { main: [[link('Collect replies')]] },
+  'Collect replies': { main: [[link('Reply')]] },
+});
+writeFileSync(join(out, 'zella-brain-tools.json'), JSON.stringify(brainTools, null, 2) + '\n');
+
+// Call Reconciliation: for calls whose end-of-call report never arrived, ask the provider for its record of the call and
+// let the database complete it (zella_reconcile_call). Started by the dispatcher only when such calls exist; off until
+// call_reconcile_live is true. The "Fetch Vapi call" box ships with NO credential: add the Vapi private key by hand.
+const callReconcile = wf('Zella - Call Reconciliation', [
+  runTrigger('call-reconcile'),
+  rpcNode('Claim calls', [240, 200], 'zella_calls_to_reconcile', '={{ JSON.stringify({ p_limit: 10 }) }}'),
+  code('Plan', [480, 200], 'reconcile-plan.js'),
+  ifBool('Can fetch', [720, 200], '={{ !$json.skip }}'),
+  node('Fetch Vapi call', 'n8n-nodes-base.httpRequest', 4.2, [960, 100], {
+    method: 'GET', url: '={{ $json.url }}', authentication: 'none',
+    options: { response: { response: { fullResponse: true, neverError: true, responseFormat: 'json' } } },
+  }),
+  code('Read call', [1200, 100], 'reconcile-read.js'),
+  rpcNode('Record call', [1440, 100], 'zella_reconcile_call', '={{ JSON.stringify($json.record) }}', { full: true }),
+], {
+  'Run now': { main: [[link('Claim calls')]] },
+  'Claim calls': { main: [[link('Plan')]] },
+  'Plan': { main: [[link('Can fetch')]] },
+  'Can fetch': { main: [[link('Fetch Vapi call')], []] },
+  'Fetch Vapi call': { main: [[link('Read call')]] },
+  'Read call': { main: [[link('Record call')]] },
+});
+writeFileSync(join(out, 'zella-call-reconciliation.json'), JSON.stringify(callReconcile, null, 2) + '\n');
+
 writeFileSync(join(out, 'zella-event-gateway.json'), JSON.stringify(gateway, null, 2) + '\n');
 writeFileSync(join(out, 'zella-event-router.json'), JSON.stringify(router, null, 2) + '\n');
 
@@ -855,4 +914,4 @@ writeFileSync(join(out, 'zella-email-events.json'), JSON.stringify(emailEvents, 
 writeFileSync(join(out, 'zella-calendar-sync.json'), JSON.stringify(calendarSync, null, 2) + '\n');
 writeFileSync(join(out, 'zella-connection-tests.json'), JSON.stringify(connectionTests, null, 2) + '\n');
 writeFileSync(join(out, 'zella-call-results.json'), JSON.stringify(callResults, null, 2) + '\n');
-console.log('Built', [gateway, router, smsSender, followupSender, emailSender, followupEmails, ownerEmails, outboundCalls, callResults, knowledge, assistantTools, voiceRules, inboundEmail, metaWebhook, metaLeads, metaSender, metaHealth, aiBooking, emailEvents, calendarSync, connectionTests, websiteCrawler, staffTexts, adminAlerts, spamResponse].map((w) => w.name + ' (' + w.nodes.length + ')').join(', '));
+console.log('Built', [gateway, router, smsSender, followupSender, emailSender, followupEmails, ownerEmails, outboundCalls, callResults, knowledge, assistantTools, voiceRules, inboundEmail, metaWebhook, metaLeads, metaSender, metaHealth, aiBooking, emailEvents, calendarSync, connectionTests, websiteCrawler, staffTexts, adminAlerts, spamResponse, brainTools, callReconcile].map((w) => w.name + ' (' + w.nodes.length + ')').join(', '));

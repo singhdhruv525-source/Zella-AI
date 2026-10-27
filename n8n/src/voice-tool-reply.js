@@ -20,7 +20,8 @@ if (status >= 200 && status < 300 && b && typeof b.say === 'string') {
     out = { status: b.status, instruction: b.say + (typeof caller.say === 'string' && caller.say ? ' About this caller: ' + caller.say : '') };
     if (typeof b.open === 'boolean') out.open = b.open;
     if (typeof b.can_transfer === 'boolean') out.can_transfer = b.can_transfer;
-    if (b.status === 'transfer' && typeof b.transfer_number === 'string' && /^\+?[0-9]{7,15}$/.test(b.transfer_number)) out.transfer_number = b.transfer_number;
+    // the number is never given to the model; the system chooses it when Vapi sends transfer-destination-request
+    if (b.status === 'transfer') out.use_transfer_tool = true;
     if (Array.isArray(b.emergency_keywords)) out.emergency_words = b.emergency_keywords.slice(0, 20);
     if (decision === 'flagged') out.caution = true;
   }
