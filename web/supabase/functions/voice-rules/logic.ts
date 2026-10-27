@@ -1,14 +1,18 @@
 // Pure parts of the voice-rules function (no network), shared with its tests.
-// Request and reply shapes follow Vapi's server messages: a tool-calls request is answered with
-// { results: [{ toolCallId, result | error }] }, one entry per tool call, each a single-line string, always HTTP 200.
+// Request and reply shapes follow Vapi's ServerMessage schema (@vapi-ai/server-sdk 3.0.0): a tool-calls request is
+// answered with { results: [{ name, toolCallId, result | error }] }, one entry per tool call, each a single-line string,
+// always HTTP 200. Call events (status-update, end-of-call-report) are planned by the shared vapi-call-events.js.
+import { planCallEvent } from "../_shared/vapi-call-events.js";
 
 export type Json = Record<string, unknown>;
-export type ToolCall = { toolCallId: string; action: string | null; args: Json };
+export type ToolCall = { toolCallId: string; name: string; action: string | null; args: Json };
 export type Plan =
+  | { kind: "invalid" }
   | { kind: "ignore"; reply: Json }
   | { kind: "tools"; providerCallId: string | null; calls: ToolCall[]; lookup: Json }
   | { kind: "transfer"; providerCallId: string | null; calledNumber: string | null; vapiNumberId: string | null; callerNumber: string | null }
-  | { kind: "status"; record: Json };
+  | { kind: "status"; record: Json }
+  | { kind: "report"; rpc: "zella_record_call_result" | "zella_record_inbound_call"; record: Json };
 
 const ACTIONS = ["rules", "message", "emergency", "transfer"];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -31,24 +35,22 @@ function callContext(m: Json) {
 }
 
 export function plan(body: unknown): Plan {
-  const m = obj(obj(body).message);
+  // every Vapi server message is { message: { type, ... } }; anything else is refused before any database work
+  const raw = obj(body).message;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw) || typeof (raw as Json).type !== "string") return { kind: "invalid" };
+  const m = obj(raw);
   const ctx = callContext(m);
 
   if (m.type === "transfer-destination-request") {
     return { kind: "transfer", providerCallId: ctx.providerCallId, calledNumber: ctx.calledNumber, vapiNumberId: ctx.vapiNumberId, callerNumber: ctx.callerNumber };
   }
 
-  if (m.type === "status-update") {
-    const st = typeof m.status === "string" ? m.status : "";
-    if (!ctx.providerCallId || !["ringing", "in-progress", "forwarding", "ended"].includes(st)) return { kind: "ignore", reply: {} };
-    const t = typeof m.timestamp === "number" ? m.timestamp : Date.parse(String(m.timestamp || ""));
-    const type = String(ctx.call.type || "");
-    return { kind: "status", record: {
-      p_provider_call_id: ctx.providerCallId, p_status: st, p_called_number: ctx.calledNumber, p_vapi_phone_number_id: ctx.vapiNumberId,
-      p_from_number: ctx.callerNumber, p_direction: /inbound/i.test(type) ? "inbound" : /outbound/i.test(type) ? "outbound" : "other",
-      p_event_at: Number.isNaN(t) ? null : new Date(t).toISOString(),
-      p_ended_reason: typeof m.endedReason === "string" ? m.endedReason.slice(0, 80) : null,
-    } };
+  if (m.type === "status-update" || m.type === "end-of-call-report") {
+    const ev = planCallEvent(m);
+    if (ev.status) return { kind: "status", record: ev.status };
+    if (ev.record) return { kind: "report", rpc: "zella_record_call_result", record: ev.record };
+    if (ev.inbound) return { kind: "report", rpc: "zella_record_inbound_call", record: ev.inbound };
+    return { kind: "ignore", reply: {} };
   }
 
   const list = Array.isArray(m.toolCallList) ? m.toolCallList : Array.isArray(m.toolCalls) ? m.toolCalls : [];
@@ -72,7 +74,7 @@ export function plan(body: unknown): Plan {
     }
     if (ctx.callerNumber) { clean.caller_number = ctx.callerNumber; if (!clean.phone) clean.phone = ctx.callerNumber; }
     // only call_rules with a known action reaches the database; anything else gets its own error answer
-    calls.push({ toolCallId: tc.id, action: nameOf(tc) === "call_rules" && ACTIONS.includes(action) ? action : null, args: clean });
+    calls.push({ toolCallId: tc.id, name: nameOf(tc).slice(0, 80), action: nameOf(tc) === "call_rules" && ACTIONS.includes(action) ? action : null, args: clean });
   }
   if (!calls.length) return { kind: "ignore", reply: { results: [] } };
 
@@ -90,8 +92,8 @@ const line = (s: unknown, n: number) => String(s).replace(/[\r\n]+/g, " ").slice
 // The answer for one tool call. A caller the backend screened out gets the screening instruction (end politely, use no
 // tools) in place of everything else. The transfer number is never given to the model: the system chooses it when Vapi
 // sends transfer-destination-request.
-export function toolResult(toolCallId: string, ok: boolean, b: Json | null): Json {
-  if (!ok || !b || typeof b.say !== "string") return { toolCallId, error: FAILED };
+export function toolResult(toolCallId: string, ok: boolean, b: Json | null, name = "call_rules"): Json {
+  if (!ok || !b || typeof b.say !== "string") return { name, toolCallId, error: FAILED };
   const caller = obj(b.caller);
   const scr = obj(caller.screening);
   const decision = typeof scr.decision === "string" ? scr.decision : null;
@@ -107,10 +109,10 @@ export function toolResult(toolCallId: string, ok: boolean, b: Json | null): Jso
     if (Array.isArray(b.emergency_keywords)) result.emergency_words = b.emergency_keywords.slice(0, 20);
     if (decision === "flagged") result.caution = true;
   }
-  return { toolCallId, result: JSON.stringify(result) };
+  return { name, toolCallId, result: JSON.stringify(result) };
 }
 
-export const unsupported = (toolCallId: string): Json => ({ toolCallId, error: UNSUPPORTED });
+export const unsupported = (toolCallId: string, name = ""): Json => ({ name, toolCallId, error: UNSUPPORTED });
 
 // Answer to Vapi's transfer-destination-request. Only a number the database authorised for this call's own business
 // is returned; anything else is a refusal, so the assistant never says the transfer worked when it can't.
@@ -122,10 +124,13 @@ export function transferReply(ok: boolean, d: Json | null): Json {
   return { error: line(typeof r.message === "string" ? r.message : "Transfer is not available right now.", 200) };
 }
 
-// Constant-time comparison for the shared secret.
-export function sameSecret(a: string, b: string): boolean {
-  const x = new TextEncoder().encode(a), y = new TextEncoder().encode(b);
-  let diff = x.length ^ y.length;
-  for (let i = 0; i < Math.max(x.length, y.length); i++) diff |= (x[i] ?? 0) ^ (y[i] ?? 0);
-  return diff === 0 && x.length > 0;
+// Headers handed to the database's signature check: only the ones it reads, lower-cased, short.
+export const AUTH_HEADERS = ["x-signature", "x-timestamp", "authorization"];
+export function authHeaders(h: Headers): Json {
+  const out: Json = {};
+  for (const k of AUTH_HEADERS) { const v = h.get(k); if (v !== null) out[k] = v.slice(0, 1000); }
+  return out;
 }
+
+// What the caller of the endpoint is told when the check fails. Nothing more specific: a probe learns nothing.
+export const AUTH_OK = "ok";

@@ -435,7 +435,7 @@ entrypoint = "./functions/continue-plan/index.ts"
 #   reschedule-appointment  the 64-character private code in the customer's link (checked in the database)
 #   website-lead            the business's form key, allowed websites, spam and rate limits (checked in the database)
 #   billing-webhook         the payment provider's signature (STRIPE_WEBHOOK_SECRET), timestamp and event id
-#   voice-rules             the shared X-Zella-Secret header Vapi sends (ZELLA_VAPI_SECRET); answers call_rules during calls
+#   voice-rules             Vapi's HMAC signature, checked by the database (zella_vapi_authenticate); Vapi's server URL
 # Without these lines a plain `supabase functions deploy` would turn sign-in checks on and every call would be refused.
 [functions.reschedule-appointment]
 enabled = true
