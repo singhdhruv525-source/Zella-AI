@@ -1,7 +1,7 @@
 #!/bin/bash
-# Voice reliability phase 1 tests, on a STAGING copy of the live database functions (never production).
+# Voice reliability phase 1 and 2 tests, on a STAGING copy of the live database functions (never production).
 # Needs a local Postgres (ZPSQL, default: the session's local cluster), node, python3 and deno (DENO).
-# Builds: zbase = live functions as they are; zvoice = live functions + sql/zella_voice_reliability.sql. Exits 1 on any failure.
+# Builds: zbase = live functions as they are; zvoice = live functions + sql/zella_voice_reliability.sql + sql/zella_vapi_auth.sql. Exits 1 on any failure.
 set -u
 cd "$(dirname "$0")"; HERE=$(pwd); REPO=$(cd ../.. && pwd)
 export ZPSQL=${ZPSQL:-"psql -q -At -v ON_ERROR_STOP=1 -h /var/tmp/zella-pg -p 54329 -U postgres"}
@@ -23,7 +23,10 @@ done
 q zvoice "select string_agg(p.proname || '=' || md5(p.prosrc), ' ' order by p.proname) from pg_proc p where p.pronamespace = 'public'::regnamespace and p.prokind = 'f' and p.proname like 'zella_%'" | tr ' ' '\n' | sort > "$WORK/l.txt"
 tr ' ' '\n' < prod_md5.txt | sort | diff - "$WORK/l.txt" > /dev/null && pass "staging copy reproduces all $(wc -l < "$WORK/l.txt") live function bodies exactly" || { fail "staging copy differs from production"; exit 1; }
 for i in 1 2; do run zvoice < "$REPO/sql/zella_voice_reliability.sql" > /dev/null 2>&1 || fail "migration run $i"; done
-[ "$(q zvoice "select count(*) from jsonb_each(zella_voice_reliability_status()) where value = 'true'::jsonb")" = 10 ] && pass "migration applied twice; all 10 patches in place" || fail "patch status"
+[ "$(q zvoice "select count(*) from jsonb_each(zella_voice_reliability_status()) where value = 'true'::jsonb")" = 12 ] && pass "migration applied twice; all 12 patches in place" || fail "patch status"
+for i in 1 2; do run zvoice < "$REPO/sql/zella_vapi_auth.sql" > /dev/null 2>&1 || fail "auth migration run $i"; done
+echo "== Vapi request authentication (database check)"
+out=$(run zvoice < auth_test.sql 2>&1); echo "$out" | grep -o 'PASS.*'; echo "$out" | grep -q 'ERROR' && fail "auth_test: $(echo "$out" | grep ERROR | head -1)"
 
 count() { q "$1" "$2"; }
 race() { ./race.sh "$1" "$2" "$3" > "$WORK/race.out" 2>&1; }
@@ -73,8 +76,11 @@ run zvoice < fixture.sql
 q zvoice "insert into business_phone_numbers (business_id, e164, vapi_phone_number_id) values ('aaaaaaaa-0000-4000-8000-000000000001', '+15550001000', 'pn-A'), ('bbbbbbbb-0000-4000-8000-000000000002', '+15550002000', 'pn-B');
   insert into ai_agents (id, business_id, name, agent_type, is_default) values ('a0000000-0000-4000-8000-00000000000a', 'aaaaaaaa-0000-4000-8000-000000000001', 'R', 'receptionist', true), ('b0000000-0000-4000-8000-00000000000b', 'bbbbbbbb-0000-4000-8000-000000000002', 'R', 'receptionist', true);
   insert into ai_agent_configs (agent_id, escalation_rules) values ('a0000000-0000-4000-8000-00000000000a', '{\"transfer_number\": \"+15550101111\", \"transfer_open_hours_only\": false}'), ('b0000000-0000-4000-8000-00000000000b', '{\"transfer_enabled\": false}')" > /dev/null
+export TEST_HMAC_SECRET="test-only-$(date +%s%N)-hmac" MOCK_CONTROL="$WORK/mock.ctl"
+q zvoice "delete from vault.decrypted_secrets where name like 'zella_vapi_%'; delete from platform_settings where key = 'vapi_auth_mode'; insert into vault.decrypted_secrets values ('zella_vapi_hmac_secret', '$TEST_HMAC_SECRET')" > /dev/null
+: > "$MOCK_CONTROL"; chmod 666 "$MOCK_CONTROL"
 node mock-rest.mjs > "$WORK/mock.log" 2>&1 & MOCK=$!
-( cd "$REPO/web/supabase/functions/voice-rules" && exec env SUPABASE_URL=http://127.0.0.1:54400 ZELLA_SERVER_SECRET_KEY=test-key ZELLA_VAPI_SECRET=s3cret-test NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 \
+( cd "$REPO/web/supabase/functions/voice-rules" && exec env SUPABASE_URL=http://127.0.0.1:54400 ZELLA_SERVER_SECRET_KEY=test-key ZELLA_VOICE_RPC_MS=1500 ZELLA_VOICE_BUDGET_MS=4000 NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 \
   "$DENO" run --allow-net --allow-env --allow-read --allow-sys index.ts > "$WORK/fn.log" 2>&1 ) & FN=$!
 for i in $(seq 1 30); do curl -s -o /dev/null --max-time 1 http://127.0.0.1:8000 && break; sleep 1; done
 NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 node edge-e2e.mjs | tee "$WORK/edge.out"; grep -q '^FAIL' "$WORK/edge.out" && FAILS=$((FAILS + 1))

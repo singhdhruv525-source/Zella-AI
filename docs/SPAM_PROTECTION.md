@@ -106,7 +106,7 @@ alerts written immediately). Alerts are emailed by the existing **Owner Emails**
 
 | Name | Where | Purpose |
 |---|---|---|
-| `ZELLA_VAPI_SECRET` | Supabase function secret (new) | the `X-Zella-Secret` value Vapi sends to `voice-rules` |
+| `zella_vapi_hmac_secret` | Vault (new, `sql/zella_vapi_auth.sql`) | the HMAC secret of the Vapi credential; `voice-rules` checks every request against it (replaces `ZELLA_VAPI_SECRET`) |
 | `ZELLA_SERVER_SECRET_KEY`, `SUPABASE_URL` | Supabase function secrets (existing) | server access for `voice-rules` |
 | `spam_workflow_live`, `spam_ai_live`, `spam_ai_model`, `spam_ai_monthly_limit` | `platform_settings` (Admin > Security & Abuse > Automation) | switches and limits, all off / conservative by default |
 | `n8n_base_url`, Vault `zella_n8n_secret` | existing | the dispatcher calling n8n |
@@ -117,8 +117,10 @@ alerts written immediately). Alerts are emailed by the existing **Owner Emails**
 
 1. Take a backup, then apply `sql/zella_spam_protection.sql` (safe to run more than once; undo steps at the top), then
    re-run `sql/zella_dispatcher.sql` (adds the `spam-response` lane; it also re-schedules the Zella timers, as at go-live).
-2. Deploy edge functions `voice-rules` (new), `owner-provision-business` and `reschedule-appointment`; set `ZELLA_VAPI_SECRET`.
-3. In Vapi point the `call_rules` tool at `.../functions/v1/voice-rules` (header `X-Zella-Secret`); test with a blocked number.
+2. Deploy edge functions `owner-provision-business` and `reschedule-appointment`. `voice-rules` is deployed with the voice
+   reliability steps (`n8n/GO-LIVE.md`), which set up its Vapi HMAC credential.
+3. Test with one call from a blocked number once `voice-rules` is the assistant server URL. Since voice reliability phase 2
+   the tool gateway also refuses every tool except emergencies for a screened caller (`zella_ai_tool_screening`).
 4. Publish "Zella - Spam Response" in n8n and switch it on in Admin > Security & Abuse > Automation.
 5. Optional: AI review (Anthropic key on "Ask AI", then switch on); turn on `zella_spam_hourly`; publish Owner Emails and Admin Alerts.
 

@@ -2,6 +2,14 @@
 -- Columns, defaults, checks, primary keys and indexes as reported by the production catalog. No data. FKs, RLS and
 -- triggers are not reproduced (the functions under test don't depend on them).
 create schema if not exists auth;
+-- Supabase stand-ins: pgcrypto in the extensions schema, and Vault's decrypted view (test secrets only)
+create schema if not exists extensions;
+create extension if not exists pgcrypto schema extensions;
+create schema if not exists vault;
+create table if not exists vault.decrypted_secrets (name text primary key, decrypted_secret text);
+-- like Supabase: new tables and functions in public are open to anon and signed-in users unless a migration revokes it
+alter default privileges in schema public grant all on tables to anon, authenticated;
+alter default privileges in schema public grant execute on functions to anon, authenticated;
 create or replace function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
 create or replace function auth.jwt() returns jsonb language sql stable as $$ select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb $$;
 create or replace function auth.role() returns text language sql stable as $$ select coalesce(nullif(current_setting('request.jwt.claim.role', true), ''), 'service_role') $$;

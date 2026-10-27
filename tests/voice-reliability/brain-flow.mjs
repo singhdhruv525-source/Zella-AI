@@ -1,7 +1,8 @@
 // Drives the shipped Brain Tools code nodes (plan -> per call: find business, use business, run tool, build reply -> collect)
 // against the patched staging copy of the live database functions. Supabase calls are real SQL calls; one is failed on purpose.
 import { execFileSync } from 'node:child_process';
-import { runCode, runCodeAll } from '../../n8n/src/load.mjs';
+import { runCode, runCodeAll, loadCode } from '../../n8n/src/load.mjs';
+import { createHmac } from 'node:crypto';
 const sql = (q) => execFileSync('su', ['nobody', '-s', '/bin/bash', '-c', process.env.ZPSQL + ' -d ' + (process.env.ZDB || 'zvoice')], { input: q }).toString().trim();
 const lit = (v) => v === null || v === undefined ? 'null' : typeof v === 'object' ? "'" + JSON.stringify(v).replace(/'/g, "''") + "'::jsonb" : "'" + String(v).replace(/'/g, "''") + "'";
 const rpc = (fn, args, fail) => { if (fail) return { statusCode: 503, body: { message: 'upstream unavailable' } };
@@ -89,4 +90,19 @@ const a2 = oldFlow('vapi-tool-plan.js', {}, 'vapi-tool-reply.js', (u) => u.rpc, 
   { id: 'q-1', name: 'report_unanswered_question', arguments: { question: 'Do you take insurance?' } }, { id: 'q-2', name: 'report_unanswered_question', arguments: { question: 'Is there parking nearby?' } }, { id: 'q-3', name: 'report_unanswered_question', arguments: {} }] });
 ok(a2.results.length === 3 && a2.results.every((x) => typeof x.result === 'string'), 'assistant tools webhook: 3 tool calls -> 3 answers');
 ok(Number(sql("select count(*) from knowledge_gaps")) - Number(before) === 2, 'assistant tools webhook: two questions logged, the empty one refused');
+
+// ---- the n8n signature gate (Read request -> Check signature) against the real database check
+sql(`delete from vault.decrypted_secrets where name like 'zella_vapi_%'; delete from platform_settings where key = 'vapi_auth_mode';
+     insert into vault.decrypted_secrets values ('zella_vapi_hmac_secret', 'brain-flow-test-secret-0123456789')`);
+const AsyncFn = Object.getPrototypeOf(async function () {}).constructor;
+const gate = async (raw, headers) => {
+  const rec = (await new AsyncFn('$input', loadCode('vapi-auth-read.js')).call({ helpers: { getBinaryDataBuffer: async () => Buffer.from(raw) } }, { first: () => ({ json: { headers } }) }))[0].json.record;
+  return rpc('zella_vapi_authenticate', rec).body;
+};
+const gRaw = JSON.stringify({ message: { type: 'tool-calls', call, toolCallList: [{ id: 'g-1', name: 'check_open_hours', arguments: {} }] } });
+const gTs = String(Math.floor(Date.now() / 1000));
+const gSig = createHmac('sha256', 'brain-flow-test-secret-0123456789').update(gTs + '.' + gRaw).digest('hex');
+ok(await gate(gRaw, { 'x-signature': gSig, 'x-timestamp': gTs }) === 'ok', 'n8n gate: a Vapi-signed request is accepted by the database check');
+ok(await gate(gRaw, { 'x-signature': gSig, 'x-timestamp': gTs }) === 'replayed', 'n8n gate: the same request again is refused (replayed)');
+ok(await gate(gRaw, { 'x-zella-secret': 'anything' }) === 'unauthenticated', 'n8n gate: the gateway header alone is not enough');
 console.log(`${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0);

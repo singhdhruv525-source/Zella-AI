@@ -1,6 +1,6 @@
 # Voice reliability
 
-Making the existing Vapi receptionist correct before tuning or changing providers. Phases 0 and 1 are done
+Making the existing Vapi receptionist correct before tuning or changing providers. Phases 0, 1 and 2 are done
 (branch `voice-reliability`); nothing here has been applied to production or configured in Vapi.
 
 Target: phone call → telephony → Vapi → secure Zella endpoint → Supabase. n8n only for work that doesn't make the
@@ -76,10 +76,110 @@ before (unpatched) and after:
 Not covered yet: a real Vapi call, the workflows running inside n8n, slow-database and n8n-outage behaviour (phases 3
 and 7), and anything on production.
 
+## Phase 2: endpoints and authentication
+
+### What Vapi supports (checked 2026-10-27)
+
+docs.vapi.ai is blocked from the build environment, so the source is Vapi's own server SDK, `@vapi-ai/server-sdk`
+3.0.0 (published 2026-10-09, generated from Vapi's API schema), plus Vapi's server-authentication page as listed by
+search. Confirmed from the schema:
+
+| Topic | What the schema says | Used how |
+|---|---|---|
+| Authentication | A `Server` (assistant, tool or phone number) takes a `credentialId`; credential types: **HMAC**, **Bearer**, OAuth2. Static `headers` can be added too | HMAC by default, Bearer as a fallback |
+| HMAC | `secretKey`; `algorithm` sha256 / sha512 / sha1; `signatureHeader` default `x-signature`; `timestampHeader` default `x-timestamp`; `includeTimestamp` default true; `payloadFormat` default `{timestamp}.{body}`; `signatureEncoding` default hex; optional `signaturePrefix`, `messageIdHeader`, `secretIsBase64` | Exactly these defaults, sha256 |
+| Bearer | `token`, header default `Authorization`, `Bearer ` prefix by default | Exact token |
+| Tool calls | `message.type = tool-calls`, `toolCallList[]` of `{ id, type, function: { name, arguments (string) } }` | Both this and `{ id, name, arguments }` accepted |
+| Tool reply | `{ results: [{ name, toolCallId, result? , error?, message? }] }` (`name` required) | `name` added to every answer (it was missing) |
+| Where tool calls go | first of tool.server.url, assistant.server.url, phoneNumber.server.url, org | Brain tools keep their own n8n URL; `call_rules` uses the assistant URL |
+| Async tools | `async: true` means Vapi does not wait for the answer | Every Zella tool must stay synchronous |
+| Transfer | Transfer tool with no destinations -> `transfer-destination-request` to the server URL. Reply `{ destination: { type: number, number, message? }, message?, error? }`; `error` = "the transfer should not be made" | Refusal uses `error` (now confirmed) |
+| Status update | `status` scheduled, queued, ringing, in-progress, forwarding, ended, not-found, deletion-failed; `endedReason` only when ended; `timestamp` is a number (unit not stated) | ringing to ended recorded; ms assumed, seconds detected |
+| End-of-call report | `endedReason`, `startedAt` / `endedAt` (ISO), `artifact.transcript`, `artifact.recordingUrl`, `analysis.summary` / `structuredData`, `cost`; no duration field | Fixed: these were read from old top-level names, so transcripts and recordings were lost and every callback without `durationSeconds` counted as "no answer" |
+| GET /call/{id} | `id, status, startedAt, endedAt, endedReason, phoneNumberId, customer, artifact, analysis` | Reconciliation reads these (unchanged) |
+| Timeouts, retries | `Server.timeoutSeconds` default 20; `backoffPlan` default none (no retries), `maxRetries`, `excludedStatusCodes` | Budget 12 s per request, 4 s per database call; leave retries off |
+
+**Not confirmed (needs a real call):** the HMAC timestamp's unit (seconds or ms, both accepted); whether a retry is
+re-signed with a new timestamp; whether HMAC (or any credential) applies to `transfer-destination-request`,
+`status-update` and `end-of-call-report` the same as to tool calls; the exact `phoneNumber` / `call.type` values on
+real inbound calls; whether `endedReason` is `assistant-forwarded-call` after every successful transfer.
+
+### Request paths
+
+| Request | Vapi waits? | Goes to | Answer |
+|---|---|---|---|
+| `call_rules` tool (hours, message, emergency, transfer) | yes | `voice-rules` edge function (assistant server URL) | per tool call, after the database |
+| 14 Receptionist Brain tools (incl. booking, reschedule, cancel, unanswered question) | yes | n8n Brain Tools (each tool's own server URL), `responseNode`: answers only after `zella_ai_tool` | per tool call; moved to Supabase in phase 3 |
+| Transfer (`transfer-destination-request`) | yes | `voice-rules` | authorised number or refusal |
+| `status-update` | no | `voice-rules` | `{}` after recording |
+| `end-of-call-report` | no | `voice-rules` | `{}` after recording (callbacks and follow-up calls included, via call metadata) |
+| Outbound callback / follow-up call | - | n8n Outbound Calls starts it (`POST /call`); its events come back to the same assistant server URL | - |
+| Reconciliation | - | n8n Call Reconciliation, every few minutes when calls are missing a report | - |
+
+The n8n Call Results webhook acknowledges before it runs, so it can never answer a transfer request: the assistant server
+URL moves to `voice-rules`. Call Results stays (secured, same parsing code) until the switch is verified. The old
+Voice Rules, Assistant Tools and Appointment Booking webhooks are not part of the target setup; they are secured the
+same way in case they stay imported.
+
+### Authentication and replay protection
+
+- **One check, in the database** (`sql/zella_vapi_auth.sql`, `zella_vapi_authenticate(raw body, headers)`), used by the
+  edge function and by every Vapi-facing n8n webhook (Read request -> Check signature -> Signed). The secret is only
+  in Vault (`zella_vapi_hmac_secret`); the edge function, n8n and the browser never hold it.
+- **HMAC mode (default):** sha256 over `{timestamp}.{exact body bytes}` must match `x-signature` (hex). The timestamp
+  must be within 5 minutes of the database clock. A signature that has been accepted once is stored
+  (`vapi_request_receipts`) and refused the next time: a replay, even inside the 5 minutes, gets 401 before anything runs.
+- **Bearer mode** (`vapi_auth_mode = bearer`, token `zella_vapi_bearer_token`): exact token only. No expiry and no
+  replay protection: use only if HMAC can't be set up.
+- **Fails closed:** no secret, an unknown mode, or a database that can't be reached means every request is refused
+  (401 or 503). There is no "off". The old `X-Zella-Secret` header alone is no longer accepted by `voice-rules`;
+  n8n keeps it as an extra outer check.
+- **Order:** size limit -> signature -> JSON shape -> action. A refused request reads or writes nothing except the receipt.
+- **Limits:** a valid request can't be refused as a replay unless it's an exact duplicate; if Vapi retries without
+  re-signing, the retry is refused (Vapi retries are off by default, and every action is idempotent anyway). The
+  receipt table is cleaned opportunistically (rows older than 15 minutes).
+
+### Also fixed in phase 2
+
+- **Screened callers were only blocked by instruction.** With spam protection applied, a caller on a business's call
+  block list could still book, look up appointments or update details if the model ignored the instruction.
+  `zella_ai_tool` now refuses every tool except `report_emergency` for a screened caller (`zella_ai_tool_screening`).
+- **"Booked" for a request.** When spam protection's booking rule (or anything else) kept a booking as a request, the
+  gateway still told the assistant "booked". Now it says "requested" (`zella_ai_tool_confirmed_only`).
+- Tool answers carry `name`; status timestamps in seconds no longer become 1970; malformed messages get 400.
+
+### Tests (phase 2, all run on staging copies)
+
+- `auth_test.sql` (15): right signature, replay, one-byte body change, changed timestamp, missing / malformed headers,
+  other secret, 400 s old or ahead, ms timestamp, bearer in HMAC mode, non-ASCII body, bearer mode, unknown mode,
+  no secret, anon / signed-in users can't call it or read receipts.
+- `edge-e2e.mjs` (36): over HTTP with real HMAC signatures: no / wrong / tampered / expired / replayed signatures (and
+  a replayed tool call returns no data), malformed JSON, 405, 413, multiple tool calls with names, transfer allowed /
+  refused (other business, unregistered line, no call), business routing by registered number, end-of-call report
+  (duration from Vapi's times, transcript, recording), late and repeated events, slow database (safe answers within
+  the budget), slow or unreachable signature check (503).
+- `brain-flow.mjs` (+3): the n8n gate code against the real check (accepted, replayed, gateway header alone refused).
+- `spam_compat.sh`: all three migrations in both orders, twice each; booking race, call rows, rules, lifecycle,
+  transfer and auth tests on both; blocked-caller checks; the HTTP suite on the spam-last database.
+- `n8n/test.mjs` and `voice-rules` unit tests: the gate is the only way into each Vapi workflow's plan; tool names;
+  end-of-call fields; event times; malformed messages.
+
+Not run: anything against real Vapi, n8n Cloud or production.
+
+### What still needs a real call (test assistant, test number)
+
+1. A signed tool call reaches `voice-rules` and is accepted (proves header names, payload format, timestamp unit).
+2. Two tools in one turn: both answered and spoken correctly (`name` + `toolCallId`).
+3. A brain tool (n8n) with the credential and `X-Zella-Secret` header: accepted, answered within the timeout.
+4. Booking: the assistant asks for confirmation, then books once; a retry does not double-book.
+5. Transfer: `transfer-destination-request` arrives signed, the business's number is dialled; a closed business or a
+   blocked caller is refused and the assistant says so; `transfer_status` is recorded.
+6. `status-update` events and the end-of-call report arrive signed; `calls` has real times, duration, transcript.
+7. A request replayed by hand (same headers and body) gets 401; one with an old timestamp gets 401.
+8. A callback placed by Outbound Calls: its report updates the callback with the right outcome.
+
 ## Not yet done (later phases)
 
-- Signature verification and replay protection for Vapi requests (phase 2). Today: a static shared secret.
 - Moving the 14 brain tools off n8n (phase 3); the Brain Tools workflow is still the endpoint `brain_tools_url` names.
-- Pointing Vapi's server URL at an endpoint that can answer `transfer-destination-request`. The n8n Call Results
-  webhook replies before it runs, so it can't; `voice-rules` can (phase 2/4 decision).
+- A real Vapi call to confirm the items under "Not confirmed" above.
 - Assistant configuration, phone numbers, multi-business routing, latency metrics (phases 4 to 6).
