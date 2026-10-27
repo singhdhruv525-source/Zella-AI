@@ -11,6 +11,10 @@ if (m.type !== 'tool-calls' || !list.length) return [{ json: { reply: { results:
 
 const TOOLS = ['search_knowledge', 'check_open_hours', 'lookup_caller', 'update_caller', 'check_availability', 'book_appointment', 'find_my_appointments',
   'reschedule_appointment', 'cancel_appointment', 'take_message', 'report_emergency', 'transfer_to_human', 'request_follow_up', 'report_unanswered_question'];
+// The Appointment Booking webhook reuses this file with only the booking tools (build.mjs fills __ONLY_TOOLS__ in);
+// any other tool name sent there is answered "not something you can do".
+const ONLY = '__ONLY_TOOLS__';
+const ALLOWED = ONLY.startsWith('__') ? TOOLS : TOOLS.filter((t) => ONLY.split(',').includes(t));
 const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const allowed = ['query', 'appointment_id', 'date', 'days', 'duration_minutes', 'start', 'first_name', 'last_name', 'phone', 'email', 'title', 'notes', 'name', 'message',
   'preferred_contact_method', 'reason', 'when', 'summary', 'question'];
@@ -54,7 +58,7 @@ for (const tc of list.slice(0, 10)) {
       tool: name,
       lookup,
       // a tool not on the list still gets an answer: the database replies "not something you can do" without acting
-      record: { p_provider_call_id: callId, p_business_id: bid, p_tool: TOOLS.includes(name) ? name : 'unknown',
+      record: { p_provider_call_id: callId, p_business_id: bid, p_tool: ALLOWED.includes(name) ? name : 'unknown',
                 p_args: { ...clean, caller_number: callerNumber },
                 // the tool call id makes a repeated delivery of the same call a no-op (and waits for one still running)
                 p_idempotency_key: callId ? (callId + ':' + tc.id).slice(0, 300) : null },

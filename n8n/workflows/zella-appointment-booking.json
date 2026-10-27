@@ -27,8 +27,8 @@
     },
     {
       "parameters": {
-        "mode": "runOnceForEachItem",
-        "jsCode": "// Zella - Appointment Booking: Vapi calls this DURING a call with the tools check_availability and book_appointment.\n// Output: { reply, record }. record = the one database call that decides everything (zella_ai_booking), or null.\n// Only known fields are passed on; the caller's words are data and are never run as instructions.\nconst body = $json.body && typeof $json.body === 'object' ? $json.body : {};\nconst m = body.message && typeof body.message === 'object' ? body.message : {};\nconst list = Array.isArray(m.toolCallList) ? m.toolCallList : Array.isArray(m.toolCalls) ? m.toolCalls : [];\nconst actions = { check_availability: 'availability', book_appointment: 'book' };\n// Changing an existing booking: the caller is recognised by the number they are calling from, never by what they say.\nconst manage = { find_my_appointments: 'find', reschedule_appointment: 'reschedule', cancel_appointment: 'cancel' };\nconst nameOf = (t) => (t && (t.name || (t.function && t.function.name))) || '';\nconst tc = list.find((t) => t && typeof t.id === 'string' && (actions[nameOf(t)] || manage[nameOf(t)]));\nif (m.type !== 'tool-calls' || !tc) return { json: { reply: { results: [] }, record: null } };\n\nlet args = tc.arguments !== undefined ? tc.arguments : tc.function && tc.function.arguments;\nif (typeof args === 'string') { try { args = JSON.parse(args); } catch (e) { args = {}; } }\nargs = args && typeof args === 'object' ? args : {};\n\nconst uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;\nconst allowed = ['appointment_id', 'date', 'days', 'duration_minutes', 'start', 'first_name', 'last_name', 'phone', 'email', 'title', 'notes'];\nconst clean = {};\nfor (const k of allowed) {\n  const v = args[k];\n  if (typeof v === 'string') clean[k] = v.replace(/\\s+/g, ' ').trim().slice(0, 500);\n  else if (typeof v === 'number' && isFinite(v)) clean[k] = v;\n}\n\nif (clean.appointment_id !== undefined && !uuidRe.test(String(clean.appointment_id))) delete clean.appointment_id;\nconst call = m.call && typeof m.call === 'object' ? m.call : {};\nconst meta = call.metadata && typeof call.metadata === 'object' ? call.metadata : {};\nconst vars = call.assistantOverrides && call.assistantOverrides.variableValues && typeof call.assistantOverrides.variableValues === 'object' ? call.assistantOverrides.variableValues : {};\nconst uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;\nconst bid = [meta.business_id, vars.business_id].find((v) => typeof v === 'string' && uuid.test(v)) || null;\n\n// Which number was called? Used to find the business (a registered number always wins over call settings).\nconst pn = call.phoneNumber && typeof call.phoneNumber === 'object' ? call.phoneNumber : m.phoneNumber && typeof m.phoneNumber === 'object' ? m.phoneNumber : {};\nconst calledNumber = typeof pn.number === 'string' && /^\\+?[0-9() .-]{7,20}$/.test(pn.number) ? pn.number : null;\nconst vapiNumberId = typeof call.phoneNumberId === 'string' ? call.phoneNumberId.slice(0, 100) : typeof pn.id === 'string' ? pn.id.slice(0, 100) : null;\nconst lookup = { p_called_number: calledNumber, p_vapi_phone_number_id: vapiNumberId, p_fallback: bid };\n\nconst cn = call.customer && typeof call.customer === 'object' ? String(call.customer.number || '') : '';\nconst callerNumber = /^\\+?[0-9]{7,15}$/.test(cn) ? cn : null;\n\nreturn {\n  json: {\n    tool_call_id: tc.id,\n    reply: null,\n    lookup,\n    rpc: manage[nameOf(tc)] ? 'zella_ai_manage_booking' : 'zella_ai_booking',\n    record: { p_provider_call_id: typeof call.id === 'string' ? call.id.slice(0, 200) : null, p_business_id: bid, p_action: actions[nameOf(tc)] || manage[nameOf(tc)], p_args: manage[nameOf(tc)] ? { ...clean, caller_number: callerNumber } : clean },\n  },\n};\n"
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Zella - Receptionist Brain: the webhook for every tool the phone assistant (Vapi) uses during a call.\n// Runs once for the whole request and returns ONE ITEM PER TOOL CALL, so every tool call Vapi sent gets its own answer\n// (Vapi may send several at once). Each item carries its own tool call id and one database call (zella_ai_tool), which\n// checks, acts, verifies and logs. A request that isn't a tool call returns one item with an empty reply.\n// Only known fields pass; the caller's words are data and are never run as instructions.\nconst body = (($input.first() || {}).json || {}).body;\nconst m = body && typeof body === 'object' && body.message && typeof body.message === 'object' ? body.message : {};\nconst list = Array.isArray(m.toolCallList) ? m.toolCallList : Array.isArray(m.toolCalls) ? m.toolCalls : [];\nconst nameOf = (t) => (t && (t.name || (t.function && t.function.name))) || '';\nif (m.type !== 'tool-calls' || !list.length) return [{ json: { reply: { results: [] }, record: null } }];\n\nconst TOOLS = ['search_knowledge', 'check_open_hours', 'lookup_caller', 'update_caller', 'check_availability', 'book_appointment', 'find_my_appointments',\n  'reschedule_appointment', 'cancel_appointment', 'take_message', 'report_emergency', 'transfer_to_human', 'request_follow_up', 'report_unanswered_question'];\n// The Appointment Booking webhook reuses this file with only the booking tools (build.mjs fills check_availability,book_appointment,find_my_appointments,reschedule_appointment,cancel_appointment in);\n// any other tool name sent there is answered \"not something you can do\".\nconst ONLY = 'check_availability,book_appointment,find_my_appointments,reschedule_appointment,cancel_appointment';\nconst ALLOWED = ONLY.startsWith('__') ? TOOLS : TOOLS.filter((t) => ONLY.split(',').includes(t));\nconst uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;\nconst allowed = ['query', 'appointment_id', 'date', 'days', 'duration_minutes', 'start', 'first_name', 'last_name', 'phone', 'email', 'title', 'notes', 'name', 'message',\n  'preferred_contact_method', 'reason', 'when', 'summary', 'question'];\n\nconst call = m.call && typeof m.call === 'object' ? m.call : {};\nconst meta = call.metadata && typeof call.metadata === 'object' ? call.metadata : {};\nconst vars = call.assistantOverrides && call.assistantOverrides.variableValues && typeof call.assistantOverrides.variableValues === 'object' ? call.assistantOverrides.variableValues : {};\nconst bid = [meta.business_id, vars.business_id].find((v) => typeof v === 'string' && uuidRe.test(v)) || null;\n// Which number was called? A registered number always wins over call settings.\nconst pn = call.phoneNumber && typeof call.phoneNumber === 'object' ? call.phoneNumber : m.phoneNumber && typeof m.phoneNumber === 'object' ? m.phoneNumber : {};\nconst calledNumber = typeof pn.number === 'string' && /^\\+?[0-9() .-]{7,20}$/.test(pn.number) ? pn.number : null;\nconst vapiNumberId = typeof call.phoneNumberId === 'string' ? call.phoneNumberId.slice(0, 100) : typeof pn.id === 'string' ? pn.id.slice(0, 100) : null;\nconst lookup = { p_called_number: calledNumber, p_vapi_phone_number_id: vapiNumberId, p_fallback: bid };\n// The caller is known ONLY by the number the phone network reports, never by what is said.\nconst cn = call.customer && typeof call.customer === 'object' ? String(call.customer.number || '') : '';\nconst callerNumber = /^\\+?[0-9]{7,15}$/.test(cn) ? cn : null;\nconst callId = typeof call.id === 'string' ? call.id.slice(0, 200) : null;\n\nconst out = [];\nconst seen = new Set();\nfor (const tc of list.slice(0, 10)) {\n  // a tool call without a usable id can't be answered, and a repeated id in the same request is answered once\n  if (!tc || typeof tc.id !== 'string' || !tc.id || tc.id.length > 200 || seen.has(tc.id)) continue;\n  seen.add(tc.id);\n  const name = nameOf(tc);\n  let args = tc.arguments !== undefined ? tc.arguments : tc.function && tc.function.arguments;\n  if (typeof args === 'string') { try { args = JSON.parse(args); } catch (e) { args = {}; } }\n  args = args && typeof args === 'object' && !Array.isArray(args) ? args : {};\n  const clean = {};\n  for (const k of allowed) {\n    const v = args[k];\n    if (typeof v === 'string') clean[k] = v.replace(/\\s+/g, ' ').trim().slice(0, 1500);\n    else if (typeof v === 'number' && isFinite(v)) clean[k] = v;\n  }\n  // the caller's yes must be a real boolean from the assistant; anything else counts as \"not confirmed\"\n  clean.confirmed = args.confirmed === true;\n  if (clean.appointment_id !== undefined && !uuidRe.test(String(clean.appointment_id))) delete clean.appointment_id;\n  out.push({\n    json: {\n      tool_call_id: tc.id,\n      tool: name,\n      lookup,\n      // a tool not on the list still gets an answer: the database replies \"not something you can do\" without acting\n      record: { p_provider_call_id: callId, p_business_id: bid, p_tool: ALLOWED.includes(name) ? name : 'unknown',\n                p_args: { ...clean, caller_number: callerNumber },\n                // the tool call id makes a repeated delivery of the same call a no-op (and waits for one still running)\n                p_idempotency_key: callId ? (callId + ':' + tc.id).slice(0, 300) : null },\n    },\n  });\n}\nreturn out.length ? out : [{ json: { reply: { results: [] }, record: null } }];\n"
       },
       "id": "ae2f98a0-99fe-4855-8311-26233e9c1364",
       "name": "Plan",
@@ -124,7 +124,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ 'https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/' + $json.rpc }}",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_ai_tool",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
         "sendBody": true,
@@ -159,7 +159,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Zella - Appointment Booking: the answer sent back to Vapi. Short, no database details.\nconst plan = $('Plan').item.json;\nif (!plan.record) return { json: plan.reply };\nconst r = $json;\nconst status = Number(r.statusCode);\nconst b = r.body && typeof r.body === 'object' ? r.body : null;\nlet result;\nif (status >= 200 && status < 300 && b && typeof b.say === 'string') {\n  const out = { status: b.status, instruction: b.say };\n  if (Array.isArray(b.slots)) out.times = b.slots.slice(0, 5).map((s) => ({ say: s.say, start: s.start }));\n  if (Array.isArray(b.appointments)) out.appointments = b.appointments.slice(0, 3).map((a) => ({ appointment_id: a.appointment_id, title: a.title, say: a.say }));\n  result = JSON.stringify(out);\n} else {\n  result = JSON.stringify({ status: 'error', instruction: 'This could not be completed right now. Tell the caller the team will call them back to finish the booking. Do not say it is booked.' });\n}\nreturn { json: { results: [{ toolCallId: plan.tool_call_id, result }] } };\n"
+        "jsCode": "// Zella - Receptionist Brain: the answer for ONE tool call, matched by its own toolCallId. Short, no database details.\n// Vapi's format: { toolCallId, result } on success or { toolCallId, error } on failure, each a single-line string.\n// The transfer number is never given to the model: the system picks it when Vapi asks (transfer-destination-request).\n// A caller the backend screened out gets the screening instruction instead of anything else.\nconst plan = $('Use business').item.json;\nconst r = $json;\nconst status = Number(r.statusCode);\nconst b = r.body && typeof r.body === 'object' && !Array.isArray(r.body) ? r.body : null;\nconst line = (s, n) => String(s).replace(/[\\r\\n]+/g, ' ').slice(0, n);\nif (!(status >= 200 && status < 300) || !b || typeof b.say !== 'string') {\n  return { json: { toolCallId: plan.tool_call_id, error: 'This could not be completed right now. Tell the caller the team will call them back. Do not say it was done.' } };\n}\nconst caller = b.caller && typeof b.caller === 'object' ? b.caller : {};\nconst scr = caller.screening && typeof caller.screening === 'object' ? caller.screening : {};\nlet out;\nif (b.status === 'screened' || (['blocked', 'restricted', 'screened'].includes(scr.decision) && typeof caller.say === 'string')) {\n  out = { status: 'screened', instruction: line(b.status === 'screened' ? b.say : caller.say, 600), can_transfer: false };\n} else {\n  out = { status: b.status, instruction: line(b.say + (typeof caller.say === 'string' && caller.say ? ' About this caller: ' + caller.say : ''), 900) };\n  if (typeof b.open === 'boolean') out.open = b.open;\n  if (typeof b.can_transfer === 'boolean') out.can_transfer = b.can_transfer;\n  if (b.status === 'transfer') out.use_transfer_tool = true;\n  if (scr.decision === 'flagged') out.caution = true;\n  if (Array.isArray(b.emergency_keywords)) out.emergency_words = b.emergency_keywords.slice(0, 20);\n  if (Array.isArray(b.slots)) out.times = b.slots.slice(0, 5).map((s) => ({ say: s.say, start: s.start }));\n  if (Array.isArray(b.appointments)) out.appointments = b.appointments.slice(0, 3).map((a) => ({ appointment_id: a.appointment_id, title: a.title, say: a.say }));\n  if (Array.isArray(b.results)) out.results = b.results.slice(0, 3).map((x) => ({ title: x.title, answer: x.answer }));\n  if (typeof b.first_name === 'string') out.first_name = b.first_name.slice(0, 80);\n}\nreturn { json: { toolCallId: plan.tool_call_id, result: JSON.stringify(out) } };\n"
       },
       "id": "bd492bcf-1208-4f71-88a9-a990a5615d47",
       "name": "Build reply",
@@ -167,13 +167,27 @@
       "typeVersion": 2,
       "position": [
         1440,
-        200
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Zella - Receptionist Brain: one response with every tool call's answer (Vapi matches them by toolCallId, any order).\nreturn [{ json: { results: $input.all().map((i) => i.json).filter((x) => x && typeof x.toolCallId === 'string') } }];\n"
+      },
+      "id": "37727464-527d-4581-87e9-0df6f85d7b05",
+      "name": "Collect replies",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        100
       ]
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify($json) }}",
+        "responseBody": "={{ JSON.stringify({ results: Array.isArray($json.results) ? $json.results : [] }) }}",
         "options": {
           "responseCode": 200
         }
@@ -183,7 +197,7 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        1680,
+        1920,
         200
       ]
     }
@@ -222,7 +236,7 @@
         ],
         [
           {
-            "node": "Build reply",
+            "node": "Reply",
             "type": "main",
             "index": 0
           }
@@ -263,6 +277,17 @@
       ]
     },
     "Build reply": {
+      "main": [
+        [
+          {
+            "node": "Collect replies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect replies": {
       "main": [
         [
           {

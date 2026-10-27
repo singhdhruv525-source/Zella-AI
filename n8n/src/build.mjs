@@ -336,6 +336,7 @@ const knowledge = wf('Zella - Knowledge', [
 
 // Assistant tools: Vapi calls this DURING a call (a server tool) when the assistant cannot answer a question. It logs the
 // question for the owner to review (the Knowledge workflow then drafts an answer). It answers Vapi straight away.
+// One item per tool call, so several tool calls in one request each get their own answer, matched by toolCallId.
 // In Vapi: add a server tool "report_unanswered_question" (parameter: question, text) pointing at
 // <n8n>/webhook/zella/vapi-tools with the X-Zella-Secret header. The call must carry the business id (call metadata
 // or the assistant variable business_id) unless the call is already known to Zella.
@@ -343,73 +344,83 @@ const assistantTools = wf('Zella - Assistant Tools', [
   node('Vapi tool call', 'n8n-nodes-base.webhook', 2, [0, 200], {
     httpMethod: 'POST', path: 'zella/vapi-tools', authentication: 'headerAuth', responseMode: 'responseNode', options: {},
   }, { webhookId: id('webhook:zella-vapi-tools'), credentials: GATEWAY_CRED }),
-  code('Plan', [240, 200], 'vapi-tool-plan.js'),
+  codeAll('Plan', [240, 200], 'vapi-tool-plan.js'),
   ifBool('Has question', [480, 200], '={{ !!$json.record }}'),
   rpcNode('Find business', [720, 100], 'zella_business_for_number', '={{ JSON.stringify($json.lookup) }}', { full: true }),
   code('Use business', [960, 100], 'business-apply.js'),
   rpcNode('Log question', [1200, 100], '', '={{ JSON.stringify($json.record) }}', { full: true, urlExpr: `={{ '${SUPABASE}/rest/v1/rpc/' + $json.rpc }}` }),
-  code('Build reply', [1440, 200], 'vapi-tool-reply.js'),
-  node('Reply', 'n8n-nodes-base.respondToWebhook', 1.1, [1680, 200], {
-    respondWith: 'json', responseBody: '={{ JSON.stringify($json) }}', options: { responseCode: 200 },
+  code('Build reply', [1440, 100], 'vapi-tool-reply.js'),
+  codeAll('Collect replies', [1680, 100], 'brain-tool-collect.js'),
+  node('Reply', 'n8n-nodes-base.respondToWebhook', 1.1, [1920, 200], {
+    respondWith: 'json', responseBody: '={{ JSON.stringify({ results: Array.isArray($json.results) ? $json.results : [] }) }}', options: { responseCode: 200 },
   }),
 ], {
   'Vapi tool call': { main: [[link('Plan')]] },
   'Plan': { main: [[link('Has question')]] },
-  'Has question': { main: [[link('Find business')], [link('Build reply')]] },
+  'Has question': { main: [[link('Find business')], [link('Reply')]] },
   'Find business': { main: [[link('Use business')]] },
   'Use business': { main: [[link('Log question')]] },
   'Log question': { main: [[link('Build reply')]] },
-  'Build reply': { main: [[link('Reply')]] },
+  'Build reply': { main: [[link('Collect replies')]] },
+  'Collect replies': { main: [[link('Reply')]] },
 });
 
 // Appointment booking by the phone assistant: Vapi calls this during a call with two tools, check_availability and
-// book_appointment (and, for existing bookings, find_my_appointments / reschedule_appointment / cancel_appointment). All decisions are made in the database (zella_ai_booking); this only passes them through.
+// book_appointment (and, for existing bookings, find_my_appointments / reschedule_appointment / cancel_appointment).
+// They go through the same gateway as the Receptionist Brain (zella_ai_tool: the caller must confirm before a booking is
+// changed, retries return the first answer, every call is logged), limited to these five tools, one answer per tool call.
+const BOOKING_TOOLS = 'check_availability,book_appointment,find_my_appointments,reschedule_appointment,cancel_appointment';
 const aiBooking = wf('Zella - Appointment Booking', [
   node('Vapi booking tool', 'n8n-nodes-base.webhook', 2, [0, 200], {
     httpMethod: 'POST', path: 'zella/vapi-booking', authentication: 'headerAuth', responseMode: 'responseNode', options: {},
   }, { webhookId: id('webhook:zella-vapi-booking'), credentials: GATEWAY_CRED }),
-  code('Plan', [240, 200], 'booking-tool-plan.js'),
+  codeAll('Plan', [240, 200], 'brain-tool-plan.js', { ONLY_TOOLS: BOOKING_TOOLS }),
   ifBool('Is a booking tool', [480, 200], '={{ !!$json.record }}'),
   rpcNode('Find business', [720, 100], 'zella_business_for_number', '={{ JSON.stringify($json.lookup) }}', { full: true }),
   code('Use business', [960, 100], 'business-apply.js'),
-  rpcNode('Run booking', [1200, 100], '', '={{ JSON.stringify($json.record) }}', { full: true, urlExpr: `={{ '${SUPABASE}/rest/v1/rpc/' + $json.rpc }}` }),
-  code('Build reply', [1440, 200], 'booking-tool-reply.js'),
-  node('Reply', 'n8n-nodes-base.respondToWebhook', 1.1, [1680, 200], {
-    respondWith: 'json', responseBody: '={{ JSON.stringify($json) }}', options: { responseCode: 200 },
+  rpcNode('Run booking', [1200, 100], 'zella_ai_tool', '={{ JSON.stringify($json.record) }}', { full: true }),
+  code('Build reply', [1440, 100], 'brain-tool-reply.js'),
+  codeAll('Collect replies', [1680, 100], 'brain-tool-collect.js'),
+  node('Reply', 'n8n-nodes-base.respondToWebhook', 1.1, [1920, 200], {
+    respondWith: 'json', responseBody: '={{ JSON.stringify({ results: Array.isArray($json.results) ? $json.results : [] }) }}', options: { responseCode: 200 },
   }),
 ], {
   'Vapi booking tool': { main: [[link('Plan')]] },
   'Plan': { main: [[link('Is a booking tool')]] },
-  'Is a booking tool': { main: [[link('Find business')], [link('Build reply')]] },
+  'Is a booking tool': { main: [[link('Find business')], [link('Reply')]] },
   'Find business': { main: [[link('Use business')]] },
   'Use business': { main: [[link('Run booking')]] },
   'Run booking': { main: [[link('Build reply')]] },
-  'Build reply': { main: [[link('Reply')]] },
+  'Build reply': { main: [[link('Collect replies')]] },
+  'Collect replies': { main: [[link('Reply')]] },
 });
 
 // Voice rules: the phone assistant asks "call_rules" during a call (open or closed, take a message, emergency, reach a person).
 // Every decision is made by the database (zella_ai_voice); this workflow only passes the question on and the answer back.
+// One item per tool call, each answered under its own toolCallId. The voice-rules Supabase function does the same without n8n.
 const voiceRules = wf('Zella - Voice Rules', [
   node('Vapi voice tool', 'n8n-nodes-base.webhook', 2, [0, 200], {
     httpMethod: 'POST', path: 'zella/vapi-voice', authentication: 'headerAuth', responseMode: 'responseNode', options: {},
   }, { webhookId: id('webhook:zella-vapi-voice'), credentials: GATEWAY_CRED }),
-  code('Plan', [240, 200], 'voice-tool-plan.js'),
+  codeAll('Plan', [240, 200], 'voice-tool-plan.js'),
   ifBool('Is a voice tool', [480, 200], '={{ !!$json.record }}'),
   rpcNode('Find business', [720, 100], 'zella_business_for_number', '={{ JSON.stringify($json.lookup) }}', { full: true }),
   code('Use business', [960, 100], 'business-apply.js'),
   rpcNode('Run voice rule', [1200, 100], '', '={{ JSON.stringify($json.record) }}', { full: true, urlExpr: `={{ '${SUPABASE}/rest/v1/rpc/' + $json.rpc }}` }),
-  code('Build reply', [1440, 200], 'voice-tool-reply.js'),
-  node('Reply', 'n8n-nodes-base.respondToWebhook', 1.1, [1680, 200], {
-    respondWith: 'json', responseBody: '={{ JSON.stringify($json) }}', options: { responseCode: 200 },
+  code('Build reply', [1440, 100], 'voice-tool-reply.js'),
+  codeAll('Collect replies', [1680, 100], 'brain-tool-collect.js'),
+  node('Reply', 'n8n-nodes-base.respondToWebhook', 1.1, [1920, 200], {
+    respondWith: 'json', responseBody: '={{ JSON.stringify({ results: Array.isArray($json.results) ? $json.results : [] }) }}', options: { responseCode: 200 },
   }),
 ], {
   'Vapi voice tool': { main: [[link('Plan')]] },
   'Plan': { main: [[link('Is a voice tool')]] },
-  'Is a voice tool': { main: [[link('Find business')], [link('Build reply')]] },
+  'Is a voice tool': { main: [[link('Find business')], [link('Reply')]] },
   'Find business': { main: [[link('Use business')]] },
   'Use business': { main: [[link('Run voice rule')]] },
   'Run voice rule': { main: [[link('Build reply')]] },
-  'Build reply': { main: [[link('Reply')]] },
+  'Build reply': { main: [[link('Collect replies')]] },
+  'Collect replies': { main: [[link('Reply')]] },
 });
 
 // Inbound email: Resend posts here when a customer replies to an email. The event only names the email, so it is fetched
