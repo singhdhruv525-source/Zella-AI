@@ -12,6 +12,7 @@ const shared = (name) => readFileSync(join(here, '../../web/supabase/functions/_
 export function loadCode(file, vars = {}) {
   let text = readFileSync(join(here, file), 'utf8').replace('__EVENT_TYPES__', JSON.stringify(eventTypes));
   if (text.includes('__VAPI_CALL_EVENTS__')) text = text.replace('__VAPI_CALL_EVENTS__', () => shared('vapi-call-events.js'));
+  if (text.includes('__VAPI_BRAIN_TOOLS__')) text = text.replace('__VAPI_BRAIN_TOOLS__', () => shared('vapi-brain-tools.js'));
   for (const [k, v] of Object.entries(vars)) text = text.replaceAll('__' + k + '__', v);
   return text;
 }

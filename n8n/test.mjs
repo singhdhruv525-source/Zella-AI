@@ -645,7 +645,9 @@ test('booking tools: changing a booking uses the caller\'s own number, never one
   const r = bt(btm('cancel_appointment', { appointment_id: '33333333-3333-4333-8333-333333333333', caller_number: '+19999999999' }, { call: { id: 'c9', metadata: { business_id: BIZ2 }, customer: { number: '+14155550177' } } }));
   assert.equal(r.record.p_tool, 'cancel_appointment'); assert.equal(r.record.p_args.caller_number, '+14155550177'); assert.equal(r.record.p_args.appointment_id, '33333333-3333-4333-8333-333333333333');
   const none = bt(btm('find_my_appointments', {})); assert.equal(none.record.p_args.caller_number, null); assert.equal(none.record.p_tool, 'find_my_appointments');
-  assert.equal(bt(btm('reschedule_appointment', { appointment_id: 'bad' })).record.p_args.appointment_id, undefined);
+  const badId = bt(btm('reschedule_appointment', { appointment_id: 'bad' }));   // refused before the database, never guessed
+  assert.equal(badId.record.p_tool, 'unknown'); assert.match(badId.invalid, /appointment_id/);
+  assert.match(runCode('brain-tool-reply.js', { json: {}, nodes: { 'Use business': badId } }).json.error, /^Invalid arguments: appointment_id/);
   assert.ok(bkSql.includes('zella_ai_manage_booking') && bkSql.includes("certainty = 'exact'") && bkSql.includes('handoff'));
 });
 
@@ -1679,6 +1681,26 @@ test('call results: Vapi end-of-call fields (artifact, analysis, start/end) are 
   assert.equal(cb.record.p_outcome, 'connected');   // a 40-second callback is a conversation (was counted as no answer)
   assert.ok(wfJson('zella-call-results.json').nodes.find((n) => n.name === 'Plan').parameters.jsCode.includes('function planCallEvent('));
   assert.ok(!wfJson('zella-call-results.json').nodes.find((n) => n.name === 'Plan').parameters.jsCode.includes('export '));
+});
+
+// ---------------- phase 3: one Brain tool implementation, shared by n8n and the voice-rules edge function
+const sharedBrain = await import('../web/supabase/functions/_shared/vapi-brain-tools.js');
+test('brain tools: n8n and the edge function build exactly the same database call and answer', () => {
+  const message = { type: 'tool-calls', call: { id: 'c-9', customer: { number: '+15551230001' }, phoneNumber: { number: '+15550001000' }, phoneNumberId: 'pn-1', metadata: { business_id: BIZ } },
+    toolCallList: [{ id: 'a', name: 'book_appointment', arguments: { start: '2026-11-02T15:00:00Z', first_name: ' Ana ', confirmed: true, evil: 1 } }, { id: 'b', function: { name: 'check_availability', arguments: '{"date":"bad"}' } }, { id: 'c', name: 'nope' }] };
+  const n8nItems = runCodeAll('brain-tool-plan.js', { items: [{ json: { body: { message } } }] }).map((i) => i.json);
+  const ctx = sharedBrain.vapiCallContext(message);
+  const edge = sharedBrain.toolCallList(message).map((tc) => sharedBrain.planBrainTool(tc, ctx));
+  assert.deepEqual(n8nItems.map((i) => i.record), edge.map((e) => e.record));
+  assert.deepEqual(n8nItems.map((i) => i.invalid), edge.map((e) => e.invalid));
+  const body = { ok: true, status: 'booked', say: 'Booked.', appointment_id: 'x' };
+  assert.deepEqual(runCode('brain-tool-reply.js', { json: { statusCode: 200, body }, nodes: { 'Use business': n8nItems[0] } }).json, sharedBrain.brainToolReply('book_appointment', 'a', true, body));
+  assert.ok(planCode.includes('function planBrainTool(') && !planCode.includes('export '));
+});
+test('brain tools: the shared tool list is exactly the database tool list', () => {
+  const sqlNames = [...brainSql.matchAll(/jsonb_build_object\('name', '([a-z_]+)', 'consequential'/g)].map((x) => x[1]).sort();
+  assert.deepEqual([...sharedBrain.BRAIN_TOOLS].sort(), sqlNames);
+  assert.ok(sharedBrain.BOOKING_TOOLS.every((t) => sqlNames.includes(t)));
 });
 
 console.log(`${passed} passed, ${failures.length} failed`);
