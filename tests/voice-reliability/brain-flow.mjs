@@ -53,4 +53,40 @@ sql(`insert into ai_agents (id, business_id, name, agent_type, is_default) value
      insert into ai_agent_configs (agent_id, escalation_rules) values ('a0000000-0000-4000-8000-00000000000a', '{"transfer_number": "+15550101111", "transfer_open_hours_only": false}');`);
 const t = flow({ type: 'tool-calls', call, toolCallList: [{ id: 't-1', name: 'transfer_to_human', arguments: { reason: 'wants a person' } }] }, null);
 ok(JSON.parse(t.results[0].result).use_transfer_tool === true && !t.results[0].result.includes('5550101111'), 'transfer_to_human: "use the transfer tool", number not exposed to the model');
+
+// ---- the older single-purpose webhooks, now one answer per tool call (same staging database)
+const tryRpc = (fn, args) => { try { return rpc(fn, args); } catch { return { statusCode: 400, body: { message: 'refused' } }; } };
+function oldFlow(planFile, vars, replyFile, fnOf, message) {
+  const items = runCodeAll(planFile, { items: [{ json: { body: { message } } }], vars }).map((i) => i.json);
+  if (!items[0].record) return { results: [] };
+  const replies = items.map((it) => {
+    const use = runCode('business-apply.js', { json: rpc('zella_business_for_number', it.lookup), nodes: { Plan: it } }).json;
+    return { json: runCode(replyFile, { json: tryRpc(fnOf(use), use.record), nodes: { 'Use business': use } }).json };
+  });
+  return runCodeAll('brain-tool-collect.js', { items: replies })[0].json;
+}
+const BOOK = { ONLY_TOOLS: 'check_availability,book_appointment,find_my_appointments,reschedule_appointment,cancel_appointment' };
+const bcall = { ...call, id: 'vapi-int-3', customer: { number: '+15551230003' } };
+const bslot = { start: '2026-11-02T17:00:00Z', first_name: 'Bo', phone: '+15551230003', title: 'Cleaning' };
+const bk = (list) => oldFlow('brain-tool-plan.js', BOOK, 'brain-tool-reply.js', () => 'zella_ai_tool', { type: 'tool-calls', call: bcall, toolCallList: list });
+const k1 = bk([{ id: 'k-1', name: 'book_appointment', arguments: bslot }, { id: 'k-2', name: 'update_caller', arguments: { first_name: 'Evil' } }, { id: 'k-3', name: 'check_availability', arguments: { date: '2026-11-02', days: 1 } }]);
+const kb = Object.fromEntries(k1.results.map((x) => [x.toolCallId, JSON.parse(x.result || '{}')]));
+ok(k1.results.length === 3 && sql("select count(*) from appointments where start_time = '2026-11-02T17:00:00Z'") === '0', 'booking webhook: 3 tool calls -> 3 answers; booking without the caller\'s yes books nothing');
+ok(kb['k-2'].status === 'unknown_tool' && Array.isArray(kb['k-3'].times), 'booking webhook: a non-booking tool is refused, availability still answered');
+const k2 = bk([{ id: 'k-4', name: 'book_appointment', arguments: { ...bslot, confirmed: true } }]), k2b = bk([{ id: 'k-4', name: 'book_appointment', arguments: { ...bslot, confirmed: true } }]);
+ok(JSON.parse(k2.results[0].result).status === 'booked' && JSON.parse(k2b.results[0].result).status === 'booked' && sql("select count(*) from appointments where start_time = '2026-11-02T17:00:00Z'") === '1', 'booking webhook: confirmed booking goes through zella_ai_tool; redelivery answers the same, one appointment');
+ok(sql("select count(*) from ai_tool_calls where idempotency_key = 'vapi-int-3:k-4'") === '1', 'booking webhook: audited in ai_tool_calls');
+// Voice Rules: an invalid action is refused by the database and leaves nothing behind
+const vcall = { ...call, id: 'vapi-int-4' };
+const v = oldFlow('voice-tool-plan.js', {}, 'voice-tool-reply.js', (u) => u.rpc, { type: 'tool-calls', call: vcall, toolCallList: [
+  { id: 'v-1', name: 'call_rules', arguments: { action: 'drop_everything' } }, { id: 'v-2', name: 'call_rules', arguments: { action: 'rules' } }, { id: 'v-3', name: 'transfer_now', arguments: {} }] });
+const vb = Object.fromEntries(v.results.map((x) => [x.toolCallId, x]));
+ok(v.results.length === 3 && vb['v-1'].error && vb['v-3'].error && JSON.parse(vb['v-2'].result).instruction, 'voice rules webhook: 3 tool calls -> 3 answers; bad action and other tool get the error field');
+ok(sql("select count(*) from calls where external_call_id = 'vapi-int-4'") === '1', 'voice rules webhook: one call row (the refused action rolled back its own)');
+// Assistant Tools: each question logged once under its own tool call; junk logs nothing
+const before = sql("select count(*) from knowledge_gaps");
+const a2 = oldFlow('vapi-tool-plan.js', {}, 'vapi-tool-reply.js', (u) => u.rpc, { type: 'tool-calls', call: { ...call, id: 'vapi-int-5' }, toolCallList: [
+  { id: 'q-1', name: 'report_unanswered_question', arguments: { question: 'Do you take insurance?' } }, { id: 'q-2', name: 'report_unanswered_question', arguments: { question: 'Is there parking nearby?' } }, { id: 'q-3', name: 'report_unanswered_question', arguments: {} }] });
+ok(a2.results.length === 3 && a2.results.every((x) => typeof x.result === 'string'), 'assistant tools webhook: 3 tool calls -> 3 answers');
+ok(Number(sql("select count(*) from knowledge_gaps")) - Number(before) === 2, 'assistant tools webhook: two questions logged, the empty one refused');
 console.log(`${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0);

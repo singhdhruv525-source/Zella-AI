@@ -547,7 +547,10 @@ test('knowledge: the AI box has no credential, the SQL claims nothing unless liv
 
 // ---------------- assistant tools (Vapi asks Zella to log a question it could not answer)
 const BIZ2 = '0ed3b097-8dee-4fa8-98c2-3888be3e79b2';
-const vt = (message) => runCode('vapi-tool-plan.js', { json: { body: { message } } }).json;
+const vtAll = (message) => runCodeAll('vapi-tool-plan.js', { items: [{ json: { body: { message } } }] }).map((i) => i.json);
+const vtReply = (p) => runCode('vapi-tool-reply.js', { json: {}, nodes: { 'Use business': p } }).json;
+// first tool call's plan, with .reply as the answer Vapi would get for it
+const vt = (message) => { const p = vtAll(message)[0]; return p.tool_call_id ? { ...p, record: p.loggable ? p.record : null, reply: { results: [vtReply(p)] } } : p; };
 const tcm = (args, over = {}) => ({ type: 'tool-calls', toolCallList: [{ id: 'tc1', name: 'report_unanswered_question', arguments: args }], call: { id: 'call_7', metadata: { business_id: BIZ2 } }, ...over });
 test('assistant tools: a question is logged against the call and its business', () => {
   const r = vt(tcm({ question: '  Do you do   bridal hair? ' }));
@@ -572,6 +575,19 @@ test('assistant tools: arguments as text, the business id from assistant variabl
   assert.equal(vt({ type: 'status-update' }).record, null); assert.deepEqual(vt({ type: 'status-update' }).reply, { results: [] });
   assert.equal(vt(tcm({ question: 'q'.repeat(900) })).record.p_question.length, 500);
 });
+test('assistant tools: several tool calls in one request each get their own answer; bad ones are refused by the database', () => {
+  const ps = vtAll({ ...tcm({}), toolCallList: [{ id: 'a', name: 'report_unanswered_question', arguments: { question: 'Do you do nails?' } },
+    { id: 'b', name: 'log_customer_request', arguments: { kind: 'complaint', summary: 'Too loud in the shop' } }, { id: 'c', name: 'drop_tables', arguments: {} }, { id: 'a', name: 'report_unanswered_question', arguments: {} }] });
+  assert.deepEqual(ps.map((p) => p.tool_call_id), ['a', 'b', 'c']);
+  assert.deepEqual(ps.map((p) => p.rpc), ['zella_report_unanswered', 'zella_ai_log_request', 'zella_report_unanswered']);
+  assert.equal(ps[2].record.p_question, '');   // EMPTY_QUESTION: the database refuses before doing anything
+  assert.match(vtReply(ps[2]).result, /not something you can do/);
+  const out = runCodeAll('brain-tool-collect.js', { items: ps.map((p) => ({ json: vtReply(p) })) })[0].json;
+  assert.deepEqual(out.results.map((r) => r.toolCallId), ['a', 'b', 'c']);
+  const w = wfJson('zella-assistant-tools.json');
+  assert.equal(w.nodes.find((n) => n.name === 'Plan').parameters.mode, 'runOnceForAllItems');
+  assert.equal(w.connections['Build reply'].main[0][0].node, 'Collect replies'); assert.equal(w.connections['Has question'].main[1][0].node, 'Reply');
+});
 test('assistant tools: protected webhook that answers Vapi itself, and the SQL stays inside the database', () => {
   const w = wfJson('zella-assistant-tools.json'); const t = w.nodes.find((n) => n.name === 'Vapi tool call');
   assert.equal(t.parameters.path, 'zella/vapi-tools'); assert.equal(t.parameters.authentication, 'headerAuth'); assert.equal(t.parameters.responseMode, 'responseNode');
@@ -580,43 +596,56 @@ test('assistant tools: protected webhook that answers Vapi itself, and the SQL s
 
 // ---------------- appointment booking by the phone assistant
 const bkSql = readFileSync(new URL('../sql/zella_ai_booking.sql', import.meta.url), 'utf8');
-const bt = (message) => runCode('booking-tool-plan.js', { json: { body: { message } } }).json;
+const BOOK = { ONLY_TOOLS: 'check_availability,book_appointment,find_my_appointments,reschedule_appointment,cancel_appointment' };
+const btAll = (message) => runCodeAll('brain-tool-plan.js', { items: [{ json: { body: { message } } }], vars: BOOK }).map((i) => i.json);
+const bt = (message) => btAll(message)[0];
 const btm = (name, args, over = {}) => ({ type: 'tool-calls', toolCallList: [{ id: 'tc2', name, arguments: args }], call: { id: 'call_8', metadata: { business_id: BIZ2 } }, ...over });
-test('booking tools: each tool maps to one database action and passes only known fields', () => {
+test('booking tools: they go through the audited gateway with confirmation and an idempotency key, and only known fields', () => {
   const a = bt(btm('check_availability', { date: '2026-11-02', days: 3, evil: 'x' })).record;
-  assert.equal(a.p_action, 'availability'); assert.deepEqual(a.p_args, { date: '2026-11-02', days: 3 }); assert.equal(a.p_business_id, BIZ2); assert.equal(a.p_provider_call_id, 'call_8');
+  assert.equal(a.p_tool, 'check_availability'); assert.equal(a.p_args.date, '2026-11-02'); assert.equal(a.p_args.days, 3); assert.ok(!('evil' in a.p_args));
+  assert.equal(a.p_business_id, BIZ2); assert.equal(a.p_provider_call_id, 'call_8'); assert.equal(a.p_idempotency_key, 'call_8:tc2');
   const k = bt(btm('book_appointment', '{"first_name":" Ana ","phone":"4155550123","start":"2026-11-02T10:00:00-05:00","drop":1}')).record;
-  assert.equal(k.p_action, 'book'); assert.deepEqual(k.p_args, { first_name: 'Ana', phone: '4155550123', start: '2026-11-02T10:00:00-05:00' });
+  assert.equal(k.p_tool, 'book_appointment'); assert.equal(k.p_args.first_name, 'Ana'); assert.equal(k.p_args.confirmed, false); assert.ok(!('drop' in k.p_args));
+  assert.equal(bt(btm('book_appointment', { confirmed: true })).record.p_args.confirmed, true);
+  assert.equal(bt(btm('book_appointment', { confirmed: 'yes' })).record.p_args.confirmed, false);
 });
-test('booking tools: anything else is ignored and answered with an empty result', () => {
-  assert.equal(bt({ type: 'status-update' }).record, null); assert.equal(bt(btm('something_else', {})).record, null);
+test('booking tools: other tools are answered without acting, and non-tool messages are not sent anywhere', () => {
+  assert.equal(bt({ type: 'status-update' }).record, null);
+  for (const t of ['something_else', 'update_caller', 'transfer_to_human', 'search_knowledge']) assert.equal(bt(btm(t, {})).record.p_tool, 'unknown');
   assert.equal(bt(btm('book_appointment', {}, { call: { id: 'c', metadata: { business_id: 'nope' } } })).record.p_business_id, null);
+  // the Receptionist Brain itself is not restricted
+  assert.equal(runCodeAll('brain-tool-plan.js', { items: [{ json: { body: { message: btm('update_caller', {}) } } }] })[0].json.record.p_tool, 'update_caller');
 });
-const bReply = (planJson, res) => runCode('booking-tool-reply.js', { json: res, nodes: { Plan: planJson } }).json;
+test('booking tools: several tool calls in one request each get their own answer', () => {
+  const ps = btAll({ ...btm('x', {}), toolCallList: [{ id: 'a', name: 'check_availability', arguments: {} }, { id: 'b', name: 'find_my_appointments', arguments: {} }] });
+  assert.deepEqual(ps.map((p) => [p.tool_call_id, p.record.p_tool]), [['a', 'check_availability'], ['b', 'find_my_appointments']]);
+});
+const bReply = (planJson, res) => runCode('brain-tool-reply.js', { json: res, nodes: { 'Use business': planJson } }).json;
 test('booking tools: Vapi gets a short instruction, and a failure never says the booking happened', () => {
   const plan = { tool_call_id: 'tc2', record: {} };
   const ok = bReply(plan, { statusCode: 200, body: { status: 'slots', say: 'Offer times.', slots: [{ say: 'Monday at 9', start: '2026-11-02T14:00:00+00:00' }] } });
-  const p = JSON.parse(ok.results[0].result); assert.equal(ok.results[0].toolCallId, 'tc2'); assert.equal(p.times[0].say, 'Monday at 9'); assert.equal(p.status, 'slots');
-  const bad = JSON.parse(bReply(plan, { statusCode: 500, body: { message: 'secret detail' } }).results[0].result);
-  assert.equal(bad.status, 'error'); assert.match(bad.instruction, /Do not say it is booked/); assert.ok(!JSON.stringify(bad).includes('secret'));
-  assert.deepEqual(bReply({ reply: { results: [] }, record: null }, {}), { results: [] });
+  const p = JSON.parse(ok.result); assert.equal(ok.toolCallId, 'tc2'); assert.equal(p.times[0].say, 'Monday at 9'); assert.equal(p.status, 'slots');
+  const bad = bReply(plan, { statusCode: 500, body: { message: 'secret detail' } });
+  assert.equal(bad.toolCallId, 'tc2'); assert.match(bad.error, /Do not say it was done/); assert.ok(!JSON.stringify(bad).includes('secret'));
 });
 test('booking tools: found appointments are passed on with their ids so the next tool can use them', () => {
-  const r = JSON.parse(bReply({ tool_call_id: 't', record: {} }, { statusCode: 200, body: { status: 'appointments', say: 'Confirm which.', appointments: [{ appointment_id: 'a1', title: 'Cut', say: 'Monday at 9', start: 'x' }] } }).results[0].result);
+  const r = JSON.parse(bReply({ tool_call_id: 't', record: {} }, { statusCode: 200, body: { status: 'appointments', say: 'Confirm which.', appointments: [{ appointment_id: 'a1', title: 'Cut', say: 'Monday at 9', start: 'x' }] } }).result);
   assert.deepEqual(r.appointments, [{ appointment_id: 'a1', title: 'Cut', say: 'Monday at 9' }]);
 });
-test('booking tools: the workflow is a protected webhook that answers Vapi, and the SQL never double-books', () => {
+test('booking tools: the workflow is a protected webhook that answers Vapi through zella_ai_tool, and the SQL never double-books', () => {
   const w = wfJson('zella-appointment-booking.json'); const t = w.nodes.find((n) => n.name === 'Vapi booking tool');
   assert.equal(t.parameters.path, 'zella/vapi-booking'); assert.equal(t.parameters.authentication, 'headerAuth'); assert.equal(t.parameters.responseMode, 'responseNode');
+  assert.match(w.nodes.find((n) => n.name === 'Run booking').parameters.url, /\/rpc\/zella_ai_tool$/);
+  assert.ok(w.nodes.find((n) => n.name === 'Plan').parameters.jsCode.includes("const ONLY = 'check_availability,book_appointment,"));
+  assert.equal(w.connections['Build reply'].main[0][0].node, 'Collect replies');
   assert.ok(bkSql.includes('zella_book_appointment') && bkSql.includes('zella_request_appointment') && bkSql.includes("'SLOT_TAKEN'") && !/api\.vapi\.ai|net\.http_post/.test(bkSql));
 });
 
 test('booking tools: changing a booking uses the caller\'s own number, never one the model supplies', () => {
   const r = bt(btm('cancel_appointment', { appointment_id: '33333333-3333-4333-8333-333333333333', caller_number: '+19999999999' }, { call: { id: 'c9', metadata: { business_id: BIZ2 }, customer: { number: '+14155550177' } } }));
-  assert.equal(r.rpc, 'zella_ai_manage_booking'); assert.equal(r.record.p_action, 'cancel'); assert.equal(r.record.p_args.caller_number, '+14155550177'); assert.equal(r.record.p_args.appointment_id, '33333333-3333-4333-8333-333333333333');
-  const none = bt(btm('find_my_appointments', {})); assert.equal(none.record.p_args.caller_number, null); assert.equal(none.record.p_action, 'find');
+  assert.equal(r.record.p_tool, 'cancel_appointment'); assert.equal(r.record.p_args.caller_number, '+14155550177'); assert.equal(r.record.p_args.appointment_id, '33333333-3333-4333-8333-333333333333');
+  const none = bt(btm('find_my_appointments', {})); assert.equal(none.record.p_args.caller_number, null); assert.equal(none.record.p_tool, 'find_my_appointments');
   assert.equal(bt(btm('reschedule_appointment', { appointment_id: 'bad' })).record.p_args.appointment_id, undefined);
-  assert.equal(bt(btm('check_availability', {})).rpc, 'zella_ai_booking');
   assert.ok(bkSql.includes('zella_ai_manage_booking') && bkSql.includes("certainty = 'exact'") && bkSql.includes('handoff'));
 });
 
@@ -742,18 +771,20 @@ test('calendar sql: the token lives only in the vault, nothing runs until calend
 const phoneSql = readFileSync(new URL('../sql/zella_phone_numbers.sql', import.meta.url), 'utf8');
 const vapiMsg = (name, args, call) => ({ body: { message: { type: 'tool-calls', toolCallList: [{ id: 'tc1', name, arguments: args }], call: { id: 'call-1', ...call } } } });
 test('phone link: the called number and Vapi number id are passed on, with the call-settings id only as a fallback', () => {
-  const p = runCode('vapi-tool-plan.js', { json: vapiMsg('report_unanswered_question', { question: 'Do you do nails?' }, { phoneNumber: { number: '+14155550123' }, phoneNumberId: 'vp-1', metadata: { business_id: BIZ } }) }).json;
+  const p = runCodeAll('vapi-tool-plan.js', { items: [{ json: vapiMsg('report_unanswered_question', { question: 'Do you do nails?' }, { phoneNumber: { number: '+14155550123' }, phoneNumberId: 'vp-1', metadata: { business_id: BIZ } }) }] })[0].json;
   assert.deepEqual(p.lookup, { p_called_number: '+14155550123', p_vapi_phone_number_id: 'vp-1', p_fallback: BIZ });
-  const q = runCode('booking-tool-plan.js', { json: vapiMsg('check_availability', { date: '2026-11-02' }, { phoneNumber: { number: '(415) 555-0123' } }) }).json;
+  const q = runCodeAll('brain-tool-plan.js', { items: [{ json: vapiMsg('check_availability', { date: '2026-11-02' }, { phoneNumber: { number: '(415) 555-0123' } }) }], vars: BOOK })[0].json;
   assert.equal(q.lookup.p_called_number, '(415) 555-0123'); assert.equal(q.lookup.p_fallback, null);
 });
 test('phone link: junk in the called number is dropped, never passed to the database', () => {
-  const p = runCode('vapi-tool-plan.js', { json: vapiMsg('report_unanswered_question', { question: 'Hello there' }, { phoneNumber: { number: "'; drop table x;--" } }) }).json;
+  const p = runCodeAll('vapi-tool-plan.js', { items: [{ json: vapiMsg('report_unanswered_question', { question: 'Hello there' }, { phoneNumber: { number: "'; drop table x;--" } }) }] })[0].json;
   assert.equal(p.lookup.p_called_number, null);
 });
 // ---------------- voice rules (hours, messages, emergency, transfer)
 const vrSql = readFileSync(new URL('../sql/zella_voice_rules.sql', import.meta.url), 'utf8');
-const vrPlan = (message) => runCode('voice-tool-plan.js', { json: { body: { message } } }).json;
+const vrAll = (message) => runCodeAll('voice-tool-plan.js', { items: [{ json: { body: { message } } }] }).map((i) => i.json);
+const vrPlan = (message) => vrAll(message)[0];
+const vrReply = (p, res = {}) => runCode('voice-tool-reply.js', { json: res, nodes: { 'Use business': p } }).json;
 const vrMsg = (args, over = {}) => ({ type: 'tool-calls', toolCallList: [{ id: 'tc9', name: 'call_rules', arguments: args }], call: { id: 'call_9', metadata: { business_id: BIZ2 }, customer: { number: '+14155550142' } }, ...over });
 test('voice rules: each action maps to one database call, with only known fields', () => {
   const r = vrPlan(vrMsg({ action: 'message', message: ' call me back ', name: 'Sam', evil: 'x' })).record;
@@ -764,13 +795,17 @@ test('voice rules: each action maps to one database call, with only known fields
 test('voice rules: the caller number comes from the phone network, and a bad action or tool is refused', () => {
   const r = vrPlan(vrMsg({ action: 'transfer', phone: '5559999999' })).record;
   assert.equal(r.p_args.caller_number, '+14155550142'); assert.equal(r.p_args.phone, '5559999999');
-  const bad = vrPlan(vrMsg({ action: 'delete_everything' })); assert.equal(bad.record, null); assert.equal(JSON.parse(bad.reply.results[0].result).status, 'error');
+  // a bad action or another tool is sent as "invalid", which zella_ai_voice refuses (BAD_ACTION) and rolls back; the answer is an error
+  const bad = vrPlan(vrMsg({ action: 'delete_everything', message: 'x' })); assert.equal(bad.valid, false); assert.equal(bad.record.p_action, 'invalid'); assert.deepEqual(bad.record.p_args, {});
+  assert.equal(vrReply(bad, { statusCode: 200, body: { status: 'open', say: 'x' } }).error.length > 0, true);
   assert.equal(vrPlan({ type: 'status-update' }).record, null);
-  assert.equal(vrPlan({ type: 'tool-calls', toolCallList: [{ id: 'x', name: 'other_tool', arguments: {} }], call: {} }).record, null);
+  const other = vrPlan({ type: 'tool-calls', toolCallList: [{ id: 'x', name: 'other_tool', arguments: {} }], call: {} });
+  assert.equal(other.record.p_action, 'invalid'); assert.equal(vrReply(other).toolCallId, 'x'); assert.ok(vrReply(other).error);
+  assert.ok(vrSql.includes("raise exception 'BAD_ACTION'"));
 });
 test('voice rules: the model never gets a transfer number, and a failure promises nothing', () => {
-  const plan = { tool_call_id: 'tc9', record: {} };
-  const rp = (body, statusCode = 200) => JSON.parse(runCode('voice-tool-reply.js', { json: { statusCode, body }, nodes: { Plan: plan } }).json.results[0].result);
+  const plan = { tool_call_id: 'tc9', valid: true, record: {} };
+  const rp = (body, statusCode = 200) => { const r = vrReply(plan, { statusCode, body }); return r.error ? { status: 'error', error: r.error } : JSON.parse(r.result); };
   // the transfer number is never handed to the model (the system resolves it via transfer-destination-request)
   const t = rp({ status: 'transfer', say: 'x', transfer_number: '+14155550999' });
   assert.equal(t.use_transfer_tool, true); assert.ok(!('transfer_number' in t)); assert.ok(!JSON.stringify(t).includes('4155550999'));
@@ -778,8 +813,8 @@ test('voice rules: the model never gets a transfer number, and a failure promise
   const bad = rp({ message: 'secret detail' }, 500); assert.equal(bad.status, 'error'); assert.ok(!JSON.stringify(bad).includes('secret'));
 });
 test('voice rules: a screened caller gets the screening instruction (it used to be dropped), others get the caller note', () => {
-  const plan = { tool_call_id: 'tc9', record: {} };
-  const rp = (body) => JSON.parse(runCode('voice-tool-reply.js', { json: { statusCode: 200, body }, nodes: { Plan: plan } }).json.results[0].result);
+  const plan = { tool_call_id: 'tc9', valid: true, record: {} };
+  const rp = (body) => JSON.parse(vrReply(plan, { statusCode: 200, body }).result);
   const s = rp({ status: 'open', say: 'Open now.', can_transfer: true, transfer_number: '+14155550999', emergency_keywords: ['flood'],
     caller: { say: 'Spam protection: this caller is not accepted.', screening: { decision: 'blocked', level: 'high' } } });
   assert.equal(s.status, 'screened'); assert.equal(s.instruction, 'Spam protection: this caller is not accepted.'); assert.equal(s.can_transfer, false);
@@ -788,10 +823,20 @@ test('voice rules: a screened caller gets the screening instruction (it used to 
   assert.equal(rp({ status: 'open', say: 'Open now.', caller: { say: 'New caller.' } }).instruction, 'Open now. About this caller: New caller.');
   assert.equal(rp({ status: 'open', say: 'Open now.', caller: { say: 'x', screening: { decision: 'flagged' } } }).caution, true);
 });
+test('voice rules: several tool calls in one request each get their own answer, in one response', () => {
+  const ps = vrAll({ ...vrMsg({}), toolCallList: [{ id: 'a', name: 'call_rules', arguments: { action: 'rules' } }, { id: 'b', name: 'call_rules', arguments: '{"action":"message","message":"hi"}' },
+    { id: 'c', name: 'call_rules', arguments: { action: 'nope' } }, { id: 'b', name: 'call_rules', arguments: {} }, { name: 'call_rules', arguments: {} }] });
+  assert.deepEqual(ps.map((p) => [p.tool_call_id, p.record.p_action]), [['a', 'rules'], ['b', 'message'], ['c', 'invalid']]);
+  const replies = [vrReply(ps[0], { statusCode: 200, body: { status: 'open', say: 'Open.' } }), vrReply(ps[1], { statusCode: 500, body: {} }), vrReply(ps[2], { statusCode: 400, body: {} })];
+  const out = runCodeAll('brain-tool-collect.js', { items: replies.map((json) => ({ json })) })[0].json;
+  assert.deepEqual(out.results.map((r) => [r.toolCallId, 'result' in r]), [['a', true], ['b', false], ['c', false]]);
+  assert.equal(vrAll({ ...vrMsg({}), toolCallList: Array.from({ length: 15 }, (_, i) => ({ id: 't' + i, name: 'call_rules', arguments: {} })) }).length, 10);
+});
 test('voice rules: the workflow is a protected webhook that looks the business up before acting', () => {
   const w = wfJson('zella-voice-rules.json'); const t = w.nodes.find((n) => n.name === 'Vapi voice tool');
   assert.equal(t.parameters.path, 'zella/vapi-voice'); assert.equal(t.parameters.authentication, 'headerAuth'); assert.equal(t.parameters.responseMode, 'responseNode');
   assert.equal(w.connections['Find business'].main[0][0].node, 'Use business'); assert.equal(w.connections['Use business'].main[0][0].node, 'Run voice rule');
+  assert.equal(w.nodes.find((n) => n.name === 'Plan').parameters.mode, 'runOnceForAllItems'); assert.equal(w.connections['Build reply'].main[0][0].node, 'Collect replies');
 });
 test('voice rules sql: missing hours never mean closed, holidays win, and the function is service role only', () => {
   assert.ok(vrSql.includes("'no_hours_set'") && vrSql.includes("'holiday'") && vrSql.includes("'closed_hours'"));

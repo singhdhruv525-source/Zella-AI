@@ -192,7 +192,7 @@ Run `sql/zella_knowledge_automation.sql` (needs `zella_knowledge.sql`). Import `
 
 ## Assistant tools (the "couldn't answer" report)
 
-Run the third section of `sql/zella_knowledge_automation.sql` (it is in the same file). Import `workflows/zella-assistant-tools.json` (webhook `/webhook/zella/vapi-tools`, same `X-Zella-Secret`). It runs only when the phone assistant calls it during a call.
+Run the third section of `sql/zella_knowledge_automation.sql` (it is in the same file). Import `workflows/zella-assistant-tools.json` (webhook `/webhook/zella/vapi-tools`, same `X-Zella-Secret`). It runs only when the phone assistant calls it during a call. Several tool calls in one request each get their own answer.
 
 - In Vapi, add a **server tool** named `report_unanswered_question` with one text parameter `question`, pointing at that webhook. Tell the assistant to use it when it does not know an answer, and then to say the team will get back to the caller.
 - The workflow logs the question for the owner (`zella_report_unanswered`). The business comes from the call when Zella already knows the call, otherwise from `business_id` in the call's metadata or assistant variables. A call with no business is rejected. At most 5 questions per call; the same question is one review item that counts up.
@@ -202,7 +202,9 @@ Run the third section of `sql/zella_knowledge_automation.sql` (it is in the same
 
 ## Appointment booking by the phone assistant
 
-Run `sql/zella_ai_booking.sql` (needs `zella_run_all.sql`). Import `workflows/zella-appointment-booking.json` (webhook `/webhook/zella/vapi-booking`, same `X-Zella-Secret`). It runs only when the assistant uses one of its two tools during a call.
+Run `sql/zella_ai_booking.sql` (needs `zella_run_all.sql`). Import `workflows/zella-appointment-booking.json` (webhook `/webhook/zella/vapi-booking`, same `X-Zella-Secret`). It runs only when the assistant uses one of its tools during a call.
+
+- **Since the voice-reliability changes** these five tools go through the same gateway as the Receptionist Brain (`zella_ai_tool`, see below), limited to these five: every tool call in a request gets its own answer, a retry of the same tool call returns the first answer, and book / reschedule / cancel need `confirmed` = true (a boolean the assistant sets only after the caller said yes). Add `confirmed` to those three tool definitions in Vapi, or the assistant is told to confirm first and nothing is booked.
 
 - In Vapi add two **server tools** pointing at that webhook: `check_availability` (optional: `date` as YYYY-MM-DD, `days`, `duration_minutes`) and `book_appointment` (`start` exactly as returned by check_availability, `first_name`, `last_name`, `phone`, optional `email`, `title`, `notes`, `duration_minutes`).
 - **The database decides everything** (`zella_ai_booking`): the calendar's working hours, breaks, time off and existing bookings are respected. Times are up to 5 openings, in the business's own time zone.
@@ -282,7 +284,7 @@ Run `sql/zella_ops_extras.sql`. All database. Callbacks can be reassigned, resch
 
 ## Voice rules
 
-`zella-voice-rules` (webhook `zella/vapi-voice`, workflow id GtH5oIq3xSHoKj8B) is the one tool the phone assistant uses during a call: `call_rules` with `action` = `rules` (open or closed, holiday), `message` (take a message), `emergency`, or `transfer`. Supabase decides everything (`sql/zella_voice_rules.sql`, function `zella_ai_voice`):
+`zella-voice-rules` (webhook `zella/vapi-voice`, workflow id GtH5oIq3xSHoKj8B) is the one tool the phone assistant uses during a call (each tool call in a request gets its own answer; the `voice-rules` Supabase function answers the same tool without n8n and is preferred): `call_rules` with `action` = `rules` (open or closed, holiday), `message` (take a message), `emergency`, or `transfer`. Supabase decides everything (`sql/zella_voice_rules.sql`, function `zella_ai_voice`):
 - Hours live in `business_hours` (several rows per day allowed) and holidays in `business_closures`. A business with no hours set is never treated as closed.
 - Messages go to `call_messages` and create a callback; emergencies flag the call, alert the owners (urgent) and create an urgent callback; a transfer with nobody available becomes a callback.
 - Settings come from the agent's `escalation_rules`: `transfer_number` (or the older `transfer_to.phone`), `fallback_number`, `transfer_enabled`, `transfer_open_hours_only`, `emergency_enabled` (or an `emergency` trigger), `emergency_keywords`, `after_hours_mode` (`take_message`, `book_only`, `info_only`).

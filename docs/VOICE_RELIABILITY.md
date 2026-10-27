@@ -16,7 +16,8 @@ caller wait (post-call processing, notifications, follow-ups, outbound, reconcil
 | 20 identical in-flight AI booking retries: 1 booked, **19 told "could not be completed"** (unique index on finished tool calls) | CONFIRMED (measured) | same |
 | 20 different callers via the AI tool: **2 to 7 booked into one slot** | CONFIRMED (measured) | same |
 | No unique key on `calls.external_call_id`; 10 parallel first tool calls made **7 to 9 rows for one call** | CONFIRMED (measured) | same |
-| Brain Tools answered only the first tool call in a request | CONFIRMED | old `n8n/workflows/zella-brain-tools.json` "Plan" |
+| Brain Tools, Voice Rules, Appointment Booking and Assistant Tools answered only the first tool call in a request | CONFIRMED | old "Plan" code of each workflow |
+| Appointment Booking called the booking functions directly, skipping `zella_ai_tool`: no caller confirmation, no retry protection, no result check, no audit row | CONFIRMED | old `n8n/src/booking-tool-plan.js` |
 | Brain Tools reply dropped the transfer number and caller screening; Voice Rules handed the raw number to the model | CONFIRMED | old reply code |
 | Call history depended on the end-of-call report alone; a report without a duration stored 0 seconds | CONFIRMED | live `zella_record_inbound_call` |
 | Staff create appointments directly in the CRM without availability checks (deliberate double booking possible) | CONFIRMED, kept | `BusinessForms.jsx`, `BusinessMore.jsx`, `BookingPanel.jsx` |
@@ -35,8 +36,10 @@ expire) and staff may deliberately double-book in the CRM. Identical consequenti
 
 **Every tool call answered.** Brain Tools is now built by `n8n/src/build.mjs` (it was hand-edited JSON outside the
 tests): one item per tool call, each with its own `toolCallId`, collected into one `{ results: [...] }`. Failures use
-Vapi's `error` field; unknown tools still get an answer and do nothing; every answer is one line. The `voice-rules`
-edge function does the same for `call_rules`.
+Vapi's `error` field; unknown tools still get an answer and do nothing; every answer is one line. The same holds for
+Voice Rules, Assistant Tools and Appointment Booking in n8n, and for `call_rules` in the `voice-rules` edge function.
+Appointment Booking now uses the Brain Tools code limited to its five tools, so it goes through `zella_ai_tool`
+(confirmation, retry protection, result check, audit). Its Vapi tools need the boolean `confirmed` added.
 
 **Transfers.** The model is never given the number. When Vapi asks (`transfer-destination-request`), `voice-rules`
 answers with `zella_transfer_destination`: the business comes from the call record or registered number only, and
