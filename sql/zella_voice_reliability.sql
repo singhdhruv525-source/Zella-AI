@@ -12,6 +12,9 @@
 --      Identical AI tool requests that are still running are serialised too (zella_ai_tool), so a retry gets the
 --      first result instead of "that time is taken".
 --      Staff bookings made directly in the CRM are not changed: staff may still deliberately double-book.
+--      (Phase 2) The AI tool gateway refuses every tool except report_emergency for a caller spam protection screened
+--      out (before, only the model was told), and says "booked" only for a confirmed booking: a time kept as a request
+--      is reported as a request.
 --   B/D. Call records. calls.external_call_id had no unique index and two writers did check-then-insert, so parallel
 --      tool calls could create two rows for one call. Now one row per provider call id, provider status updates
 --      (ringing, in-progress, forwarding, ended) are recorded in order and only once, and calls whose end-of-call
@@ -86,6 +89,23 @@ begin
   perform public.zella_patch_function('public.zella_ai_tool(text,uuid,text,jsonb,text)', 'zella_ai_tool_inflight',
     E'if v_key is not null then\n    select l.result into v_prev',
     E'if v_key is not null then\n    perform pg_advisory_xact_lock(hashtextextended(''zella_ai_tool:'' || v_biz::text || '':'' || v_key, 0)); -- zella_ai_tool_inflight\n    select l.result into v_prev');
+  -- a caller spam protection screened out gets no tools at all, decided here and not left to the model (the call ends
+  -- politely; a reported emergency still goes through). Without spam protection zella_caller_context has no screening.
+  perform public.zella_patch_function('public.zella_ai_tool(text,uuid,text,jsonb,text)', 'zella_ai_tool_screening',
+    E'if v_needs and coalesce(v_args ->> ''confirmed'', '''') <> ''true'' then',
+    E'if p_tool <> ''report_emergency'' and public.zella_digits(v_caller) is not null\n'
+    || E'     and (public.zella_caller_context(v_biz, v_caller) #>> ''{screening,decision}'') in (''blocked'', ''restricted'', ''screened'') then -- zella_ai_tool_screening\n'
+    || E'    return jsonb_build_object(''ok'', false, ''status'', ''screened'', ''say'', ''This caller cannot be helped by the assistant. Do not book, change or look anything up. End the call politely.'');\n'
+    || E'  end if;\n\n  if v_needs and coalesce(v_args ->> ''confirmed'', '''') <> ''true'' then');
+  -- "booked" only for a confirmed booking: a time kept as a request (spam protection's booking rule, or any other
+  -- reason) is told to the caller as a request the team will confirm
+  perform public.zella_patch_function('public.zella_ai_tool(text,uuid,text,jsonb,text)', 'zella_ai_tool_confirmed_only',
+    E'a.status in (''scheduled'', ''confirmed'')) into v_verified;\n        if not coalesce(v_verified, false) then',
+    E'a.status in (''scheduled'', ''confirmed'') and coalesce(a.booking_state, ''confirmed'') = ''confirmed'') into v_verified; -- zella_ai_tool_confirmed_only\n'
+    || E'        if not coalesce(v_verified, false) and exists (select 1 from public.appointments a where a.id = v_appt and a.business_id = v_biz and a.booking_state = ''requested'' and a.status in (''scheduled'', ''confirmed'')) then\n'
+    || E'          v_verified := true;\n'
+    || E'          v_res := jsonb_build_object(''ok'', true, ''status'', ''requested'', ''appointment_id'', v_appt, ''say'', ''The time is saved as a request for the team to confirm. Do not say it is booked. Tell the caller the team will confirm it with them.'');\n'
+    || E'        elsif not coalesce(v_verified, false) then');
 end $$;
 
 -- ---------------------------------------------------------------------------------------------------------------
@@ -307,6 +327,8 @@ language sql stable security definer set search_path = public as $$
     'reschedule_locked', pg_get_functiondef('public.zella_reschedule_appointment(uuid,timestamptz,uuid,text)'::regprocedure) like '%zella_booking_lock%',
     'ai_booking_locked', pg_get_functiondef('public.zella_ai_booking(text,uuid,text,jsonb)'::regprocedure) like '%zella_booking_lock%',
     'ai_tool_inflight', pg_get_functiondef('public.zella_ai_tool(text,uuid,text,jsonb,text)'::regprocedure) like '%zella_ai_tool_inflight%',
+    'ai_tool_screening', pg_get_functiondef('public.zella_ai_tool(text,uuid,text,jsonb,text)'::regprocedure) like '%zella_ai_tool_screening%',
+    'ai_tool_confirmed_only', pg_get_functiondef('public.zella_ai_tool(text,uuid,text,jsonb,text)'::regprocedure) like '%zella_ai_tool_confirmed_only%',
     'one_call_row_voice', pg_get_functiondef('public.zella_ai_voice(text,uuid,text,jsonb)'::regprocedure) like '%zella_one_call_row%',
     'one_call_row_report', pg_get_functiondef('public.zella_record_inbound_call(text,text,text,text,timestamptz,timestamptz,integer,text,text,text,text,boolean)'::regprocedure) like '%zella_one_call_row%',
     'server_transfer', pg_get_functiondef('public.zella_ai_voice(text,uuid,text,jsonb)'::regprocedure) like '%zella_server_transfer%',
