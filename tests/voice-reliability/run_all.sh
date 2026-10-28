@@ -35,6 +35,8 @@ q zvoice "insert into business_phone_numbers (business_id, e164, vapi_phone_numb
 echo "   before phase 4: that call became '$(q zvoice "select status from calls where external_call_id = 'pre-1'")' with $(q zvoice "select count(*) from callbacks b join calls c on c.id = b.call_id where c.external_call_id = 'pre-1'") missed-call callback(s)"
 for i in 1 2; do run zvoice < "$REPO/sql/zella_voice_assistant.sql" > "$WORK/va.log" 2>&1 || fail "assistant migration run $i: $(grep -m1 ERROR "$WORK/va.log")"; done
 [ "$(q zvoice "select count(*) from jsonb_each(zella_voice_assistant_status()) where value = 'true'::jsonb")" = 7 ] && pass "phase 4 migration applied twice; all 7 changes in place" || fail "phase 4 status: $(q zvoice "select zella_voice_assistant_status()")"
+for i in 1 2; do run zvoice < "$REPO/sql/zella_call_usage.sql" > "$WORK/cu.log" 2>&1 || fail "usage migration run $i: $(grep -m1 ERROR "$WORK/cu.log")"; done
+[ "$(q zvoice "select count(*) from jsonb_each(zella_call_usage_status()) where value = 'true'::jsonb")" = 6 ] && pass "calling-usage migration applied twice; all 6 parts in place" || fail "usage status: $(q zvoice "select zella_call_usage_status()")"
 echo "== Vapi request authentication (database check)"
 out=$(run zvoice < auth_test.sql 2>&1); echo "$out" | grep -o 'PASS.*'; echo "$out" | grep -q 'ERROR' && fail "auth_test: $(echo "$out" | grep ERROR | head -1)"
 
@@ -73,10 +75,17 @@ for DB in zbase zvoice; do
   if [ $DB = zbase ]; then echo "   before: 10 parallel first tool calls -> $n call rows"; else [ "$n" = 1 ] && pass "10 parallel first tool calls -> 1 call row" || fail "call rows $n"; fi
 done
 echo "== rules, lifecycle, transfer, phase 4 (assertions inside)"
-for t in rules_test lifecycle_test transfer_test phase4_test; do
+for t in rules_test lifecycle_test transfer_test phase4_test usage_test; do
   run zvoice < fixture.sql; run zvoice < phase4_reference.sql
   out=$(run zvoice < $t.sql 2>&1); echo "$out" | grep -o 'PASS.*' ; echo "$out" | grep -q 'ERROR' && fail "$t: $(echo "$out" | grep ERROR | head -1)"
 done
+echo "== calling usage: the same call processed by 10 sessions at the same instant"
+run zvoice < fixture.sql
+q zvoice "delete from usage_records; insert into calls (business_id, direction, status, external_call_id, started_at, ended_at, duration_seconds, ai_handled)
+  values ('aaaaaaaa-0000-4000-8000-000000000001', 'inbound', 'completed', 'race-u', now() - interval '1 hour', now() - interval '1 hour' + interval '42 seconds', 42, false);
+  update calls set ai_handled = true where external_call_id = 'race-u';" > /dev/null
+./race.sh zvoice 10 "select public.zella_process_call_usage((select id from calls where external_call_id = 'race-u'), 'race') ->> 'result';" > "$WORK/race.out" 2>&1
+[ "$(q zvoice "select count(*) from usage_records u join calls c on c.id = u.call_id where c.external_call_id = 'race-u'")" = 1 ] && pass "10 concurrent processings of one call -> 1 usage row ($(grep -c recorded "$WORK/race.out") recorded, the rest unchanged)" || fail "usage race: $(q zvoice "select count(*) from usage_records")"
 echo "== generated Vapi assistant against Vapi's own types (@vapi-ai/server-sdk 3.0.0, needs the npm registry)"
 run zvoice < fixture.sql; run zvoice < phase4_reference.sql
 q zvoice "update businesses set industry_id = (select id from industries where slug = 'dental') where id = 'aaaaaaaa-0000-4000-8000-000000000001';

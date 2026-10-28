@@ -19,12 +19,12 @@ python3 -I build_phase4.py "$REPO/sql" "$WORK/phase4.sql" > /dev/null || exit 1
   echo "create unique index callbacks_one_live_idx on public.callbacks (business_id, public.zella_digits(contact_number), reason) where contact_number is not null and status <> all (array['completed','cancelled','needs_review']);"
   cat spam_tables.sql "$WORK/spamfns.sql" "$WORK/phase4.sql"; } > "$WORK/staging.sql"
 chmod 644 "$WORK"/*.sql
-VR="$REPO/sql/zella_voice_reliability.sql"; AU="$REPO/sql/zella_vapi_auth.sql"; SP="$REPO/sql/zella_spam_protection.sql"; VA="$REPO/sql/zella_voice_assistant.sql"
+VR="$REPO/sql/zella_voice_reliability.sql"; AU="$REPO/sql/zella_vapi_auth.sql"; SP="$REPO/sql/zella_spam_protection.sql"; VA="$REPO/sql/zella_voice_assistant.sql"; CU="$REPO/sql/zella_call_usage.sql"
 apply() { run "$1" < "$2" > "$WORK/apply.log" 2>&1 || { fail "$1: $(basename "$2"): $(grep -m1 ERROR "$WORK/apply.log")"; return 1; }; }
 for DB in zsv zvs; do
   echo "drop database if exists $DB; create database $DB;" | su nobody -s /bin/bash -c "${ZPSQL/-v ON_ERROR_STOP=1/} -d postgres" >/dev/null 2>&1
   run $DB < "$WORK/staging.sql" > /dev/null || { echo "staging build failed"; exit 1; }
-  if [ $DB = zsv ]; then order="$SP $VR $AU $VA"; else order="$VR $AU $VA $SP"; fi
+  if [ $DB = zsv ]; then order="$SP $VR $AU $VA $CU"; else order="$VR $AU $VA $CU $SP"; fi
   ok=1; for i in 1 2; do for f in $order; do apply $DB "$f" || ok=0; done; done
   [ $ok = 1 ] && pass "$DB: $(for f in $order; do basename "$f" .sql; done | tr '\n' ' ')applied twice in this order without errors"
 done
@@ -36,7 +36,7 @@ for DB in zsv zvs; do
   run $DB < fixture.sql
   ./race.sh $DB 10 "select public.zella_ai_voice('vc-777', 'aaaaaaaa-0000-4000-8000-000000000001', 'rules', '{}'::jsonb) is not null;" > "$WORK/race.out" 2>&1
   [ "$(q $DB "select count(*) from calls where external_call_id = 'vc-777'")" = 1 ] && pass "$DB: 10 parallel first tool calls -> 1 call row (spam's call trigger in place)" || fail "$DB call rows"
-  for t in rules_test lifecycle_test transfer_test auth_test phase4_test spam_compat; do
+  for t in rules_test lifecycle_test transfer_test auth_test phase4_test usage_test spam_compat; do
     run $DB < fixture.sql; run $DB < phase4_reference.sql
     [ $t = spam_compat ] && q $DB "insert into business_phone_numbers (business_id, e164, vapi_phone_number_id) values ('aaaaaaaa-0000-4000-8000-000000000001', '+15550001000', 'pn-A')" > /dev/null
     out=$(run $DB < $t.sql 2>&1); n=$(echo "$out" | grep -c 'PASS')
