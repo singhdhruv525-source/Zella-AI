@@ -8,6 +8,7 @@ import { Icon } from "./BusinessUI";
 import { Banner, Loading } from "./settings/SettingsKit";
 import { AccountSecurityPanel, MyProfilePanel, SignOutPanel } from "./settings/PersonalPanels";
 import * as P from "./settings/AdminPanels";
+import { AdminCallingUsage } from "./settings/CallingUsagePanels";
 import { FailedEventsPanel, HealthPanel, IncidentsPanel } from "./PlatformMonitoring";
 import { MonitorTab, ReportsTab, RulesTab } from "./OffersPage";
 
@@ -61,6 +62,7 @@ function registry() {
       page("payments", "Payments", () => <P.Payments />, "transactions"),
       page("invoices", "Invoices", () => <P.Invoices />, "invoice tax"),
       page("refunds", "Refunds and adjustments", () => <P.Refunds />, "refund credit"),
+      page("calling-usage", "Calling usage", () => <AdminCallingUsage />, "calling minutes usage ledger reconciliation threshold retry discrepancy"),
       page("config", "Billing configuration", (c) => <P.BillingConfig me={c.me} />, "stripe grace retry tax"),
     ] },
     { key: "ai", label: "AI providers and agents", icon: "ai", items: [

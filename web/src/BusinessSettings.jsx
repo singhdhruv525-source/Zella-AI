@@ -20,6 +20,7 @@ import { AccountSecurityPanel, MyProfilePanel, SignOutPanel, uploadImage } from 
 import { Banner, Card, Confirm, Empty, Facts, Field, LinkRows, LoadState, Needs, Pill, SaveBar, Table, Toggle, useAsync, useForm, when, words } from "./settings/SettingsKit";
 import { usePlatformInfo } from "./platformInfo";
 import { BusinessModulesPanel } from "./settings/BusinessModulesPanel";
+import { BusinessCallingUsage } from "./settings/CallingUsagePanels";
 import { AssignmentSettings, BusinessOffersSettings, LeadQuestions, LeadRules, WebsiteForms, WebsiteSources } from "./settings/BusinessLeadPanels";
 
 // Business Settings: one Settings item in the CRM sidebar opens this workspace,
@@ -807,6 +808,7 @@ function registry(w) {
     { key: "billing", label: "Billing and subscription", icon: "credit_card", items: [
       page("plan", "Current plan", (c) => <CurrentPlan w={w} onReload={c.onReload} />, "plan renewal status"),
       page("usage", "Usage and charges", () => <VoiceUsage w={w} />, "usage sms voice charges"),
+      page("calling", "Calling usage", () => <BusinessCallingUsage w={w} />, "calling minutes calls call time usage history corrections allowance"),
       page("protection", "AI usage protection", () => <UsageProtection w={w} />, "top-up pay as you go spending limit 70 90 100"),
       page("rollover", "Rollover policy", () => <Rollover w={w} />, "reset remaining"),
       page("offers", "Offers and promo codes", () => <BusinessOffersSettings w={w} />, "offer promo code discount deal claim"),
