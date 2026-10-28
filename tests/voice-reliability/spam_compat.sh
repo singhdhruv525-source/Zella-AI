@@ -36,8 +36,8 @@ for DB in zsv zvs; do
   run $DB < fixture.sql
   ./race.sh $DB 10 "select public.zella_ai_voice('vc-777', 'aaaaaaaa-0000-4000-8000-000000000001', 'rules', '{}'::jsonb) is not null;" > "$WORK/race.out" 2>&1
   [ "$(q $DB "select count(*) from calls where external_call_id = 'vc-777'")" = 1 ] && pass "$DB: 10 parallel first tool calls -> 1 call row (spam's call trigger in place)" || fail "$DB call rows"
-  for t in rules_test lifecycle_test transfer_test auth_test spam_compat; do
-    run $DB < fixture.sql
+  for t in rules_test lifecycle_test transfer_test auth_test phase4_test spam_compat; do
+    run $DB < fixture.sql; run $DB < phase4_reference.sql
     [ $t = spam_compat ] && q $DB "insert into business_phone_numbers (business_id, e164, vapi_phone_number_id) values ('aaaaaaaa-0000-4000-8000-000000000001', '+15550001000', 'pn-A')" > /dev/null
     out=$(run $DB < $t.sql 2>&1); n=$(echo "$out" | grep -c 'PASS')
     if echo "$out" | grep -q 'ERROR'; then fail "$DB $t: $(echo "$out" | grep ERROR | head -1)"; else pass "$DB $t: $n checks"; fi

@@ -27,6 +27,12 @@ cat prod_md5.txt phase4_md5.txt | tr ' ' '\n' | grep . | sort > "$WORK/want.txt"
 for i in 1 2; do run zvoice < "$REPO/sql/zella_voice_reliability.sql" > /dev/null 2>&1 || fail "migration run $i"; done
 [ "$(q zvoice "select count(*) from jsonb_each(zella_voice_reliability_status()) where value = 'true'::jsonb")" = 12 ] && pass "migration applied twice; all 12 patches in place" || fail "patch status"
 for i in 1 2; do run zvoice < "$REPO/sql/zella_vapi_auth.sql" > /dev/null 2>&1 || fail "auth migration run $i"; done
+# before phase 4: a 95-second call whose "ended" status arrives before its report
+run zvoice < fixture.sql; run zvoice < phase4_reference.sql
+q zvoice "insert into business_phone_numbers (business_id, e164, vapi_phone_number_id) values ('aaaaaaaa-0000-4000-8000-000000000001', '+15550001000', 'pn-A');
+  select zella_record_call_status('pre-1', 'in-progress', '+15550001000', 'pn-A', '+15551230001', 'inbound', now() - interval '2 minutes', null);
+  select zella_record_call_status('pre-1', 'ended', '+15550001000', 'pn-A', '+15551230001', 'inbound', now() - interval '25 seconds', 'customer-ended-call');" > /dev/null
+echo "   before phase 4: that call became '$(q zvoice "select status from calls where external_call_id = 'pre-1'")' with $(q zvoice "select count(*) from callbacks b join calls c on c.id = b.call_id where c.external_call_id = 'pre-1'") missed-call callback(s)"
 for i in 1 2; do run zvoice < "$REPO/sql/zella_voice_assistant.sql" > "$WORK/va.log" 2>&1 || fail "assistant migration run $i: $(grep -m1 ERROR "$WORK/va.log")"; done
 [ "$(q zvoice "select count(*) from jsonb_each(zella_voice_assistant_status()) where value = 'true'::jsonb")" = 7 ] && pass "phase 4 migration applied twice; all 7 changes in place" || fail "phase 4 status: $(q zvoice "select zella_voice_assistant_status()")"
 echo "== Vapi request authentication (database check)"
@@ -66,9 +72,9 @@ for DB in zbase zvoice; do
   n=$(count $DB "select count(*) from calls where external_call_id = 'vc-777'")
   if [ $DB = zbase ]; then echo "   before: 10 parallel first tool calls -> $n call rows"; else [ "$n" = 1 ] && pass "10 parallel first tool calls -> 1 call row" || fail "call rows $n"; fi
 done
-echo "== rules, lifecycle, transfer (assertions inside)"
-for t in rules_test lifecycle_test transfer_test; do
-  run zvoice < fixture.sql
+echo "== rules, lifecycle, transfer, phase 4 (assertions inside)"
+for t in rules_test lifecycle_test transfer_test phase4_test; do
+  run zvoice < fixture.sql; run zvoice < phase4_reference.sql
   out=$(run zvoice < $t.sql 2>&1); echo "$out" | grep -o 'PASS.*' ; echo "$out" | grep -q 'ERROR' && fail "$t: $(echo "$out" | grep ERROR | head -1)"
 done
 echo "== Brain Tools code nodes against the patched functions"
