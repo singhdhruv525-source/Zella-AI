@@ -14,9 +14,10 @@ WORK=$(mktemp -d "${TMPDIR:-/tmp}/zella-spam.XXXX"); chmod 755 "$WORK"
 python3 -I build_functions.py prod_md5.txt "$REPO/sql" "$WORK/functions.sql" > /dev/null
 python3 -I rebuild_ai_voice.py "$REPO/sql" prod_md5.txt "$WORK/ai_voice.sql" || exit 1
 python3 -I build_functions.py spam_md5.txt "$REPO/sql" "$WORK/spamfns.sql" > /dev/null
+python3 -I build_phase4.py "$REPO/sql" "$WORK/phase4.sql" > /dev/null || exit 1
 { cat tables.sql "$WORK/functions.sql" live_two.sql "$WORK/ai_voice.sql"
   echo "create unique index callbacks_one_live_idx on public.callbacks (business_id, public.zella_digits(contact_number), reason) where contact_number is not null and status <> all (array['completed','cancelled','needs_review']);"
-  cat spam_tables.sql "$WORK/spamfns.sql"; } > "$WORK/staging.sql"
+  cat spam_tables.sql "$WORK/spamfns.sql" "$WORK/phase4.sql"; } > "$WORK/staging.sql"
 chmod 644 "$WORK"/*.sql
 VR="$REPO/sql/zella_voice_reliability.sql"; AU="$REPO/sql/zella_vapi_auth.sql"; SP="$REPO/sql/zella_spam_protection.sql"
 apply() { run "$1" < "$2" > "$WORK/apply.log" 2>&1 || { fail "$1: $(basename "$2"): $(grep -m1 ERROR "$WORK/apply.log")"; return 1; }; }

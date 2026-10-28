@@ -14,14 +14,16 @@ WORK=$(mktemp -d "${TMPDIR:-/tmp}/zella-voice.XXXX"); chmod 755 "$WORK"
 echo "== build the staging copy from the repo, checked against the live function checksums (prod_md5.txt)"
 python3 -I build_functions.py prod_md5.txt "$REPO/sql" "$WORK/functions.sql" | tail -1
 python3 -I rebuild_ai_voice.py "$REPO/sql" prod_md5.txt "$WORK/ai_voice.sql" || exit 1
-{ cat tables.sql "$WORK/functions.sql" live_two.sql "$WORK/ai_voice.sql"
+python3 -I build_phase4.py "$REPO/sql" "$WORK/phase4.sql" > /dev/null || exit 1
+{ cat tables.sql "$WORK/functions.sql" live_two.sql "$WORK/ai_voice.sql" "$WORK/phase4.sql"
   echo "create unique index callbacks_one_live_idx on public.callbacks (business_id, public.zella_digits(contact_number), reason) where contact_number is not null and status <> all (array['completed','cancelled','needs_review']);"; } > "$WORK/staging.sql"
 for DB in zbase zvoice; do
   echo "drop database if exists $DB; create database $DB;" | su nobody -s /bin/bash -c "${ZPSQL/-v ON_ERROR_STOP=1/} -d postgres" >/dev/null 2>&1
   run $DB < "$WORK/staging.sql" > /dev/null || { echo "staging build failed"; exit 1; }
 done
 q zvoice "select string_agg(p.proname || '=' || md5(p.prosrc), ' ' order by p.proname) from pg_proc p where p.pronamespace = 'public'::regnamespace and p.prokind = 'f' and p.proname like 'zella_%'" | tr ' ' '\n' | sort > "$WORK/l.txt"
-tr ' ' '\n' < prod_md5.txt | sort | diff - "$WORK/l.txt" > /dev/null && pass "staging copy reproduces all $(wc -l < "$WORK/l.txt") live function bodies exactly" || { fail "staging copy differs from production"; exit 1; }
+cat prod_md5.txt phase4_md5.txt | tr ' ' '\n' | grep . | sort > "$WORK/want.txt"
+[ -z "$(comm -23 "$WORK/want.txt" "$WORK/l.txt")" ] && pass "staging copy reproduces all $(wc -l < "$WORK/want.txt") live function bodies exactly (plus the live base prompt and production's call triggers)" || { fail "staging copy differs from production: $(comm -23 "$WORK/want.txt" "$WORK/l.txt" | head -3)"; exit 1; }
 for i in 1 2; do run zvoice < "$REPO/sql/zella_voice_reliability.sql" > /dev/null 2>&1 || fail "migration run $i"; done
 [ "$(q zvoice "select count(*) from jsonb_each(zella_voice_reliability_status()) where value = 'true'::jsonb")" = 12 ] && pass "migration applied twice; all 12 patches in place" || fail "patch status"
 for i in 1 2; do run zvoice < "$REPO/sql/zella_vapi_auth.sql" > /dev/null 2>&1 || fail "auth migration run $i"; done
