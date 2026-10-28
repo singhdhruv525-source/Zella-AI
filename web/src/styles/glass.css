@@ -1,13 +1,14 @@
 /* =========================================================
    Glass theme and sidebar dock (Settings > Appearance).
    Off unless <html data-zella-theme="glass"> / data-zella-sidebar="compact"
-   (set by src/appearance.js). It only re-points the shared tokens
+   (set by src/appearance.js), and only while the signed-in admin (.owner-app)
+   or CRM (.ba-root) is on the page: sign-in and public pages keep the standard look. It only re-points the shared tokens
    in tokens.css and adds a background picture with frosted panels,
    so every page of the admin and the CRM follows without changes.
    ========================================================= */
 
 /* ---------- 1. Tokens: dark frosted glass ---------- */
-html[data-zella-theme="glass"] {
+html[data-zella-theme="glass"]:has(.ba-root, .owner-app) {
   color-scheme: dark;
 
   --zella-bg: transparent;
@@ -59,29 +60,29 @@ html[data-zella-theme="glass"] {
 
 /* ---------- 2. The background picture, dimmed for reading ---------- */
 /* only <html> gets a colour: a body background would paint over the picture layers below */
-html[data-zella-theme="glass"] { background: var(--zella-glass-base, #1b1613); }
-html[data-zella-theme="glass"] body { background: transparent; }
-html[data-zella-theme="glass"] body::before,
-html[data-zella-theme="glass"] body::after {
+html[data-zella-theme="glass"]:has(.ba-root, .owner-app) { background: var(--zella-glass-base, #1b1613); }
+html[data-zella-theme="glass"]:has(.ba-root, .owner-app) body { background: transparent; }
+html[data-zella-theme="glass"]:has(.ba-root, .owner-app) body::before,
+html[data-zella-theme="glass"]:has(.ba-root, .owner-app) body::after {
   content: "";
   position: fixed;
   inset: 0;
   pointer-events: none;
 }
-html[data-zella-theme="glass"] body::before {
+html[data-zella-theme="glass"]:has(.ba-root, .owner-app) body::before {
   z-index: -2;
   background: var(--zella-wallpaper, none) center / cover no-repeat,
               radial-gradient(1200px 700px at 70% 20%, #4a3a4f 0%, transparent 60%),
               linear-gradient(160deg, #2a2230 0%, #1b1613 60%);
 }
-html[data-zella-theme="glass"] body::after {
+html[data-zella-theme="glass"]:has(.ba-root, .owner-app) body::after {
   z-index: -1;
   background: rgba(12, 9, 8, var(--zella-wallpaper-dim, 0.35));
 }
-html[data-zella-theme="glass"] #root { position: relative; z-index: 0; }
+html[data-zella-theme="glass"]:has(.ba-root, .owner-app) #root { position: relative; z-index: 0; }
 
 /* ---------- 3. Frosted surfaces ---------- */
-html[data-zella-theme="glass"] :is(
+html[data-zella-theme="glass"]:has(.ba-root, .owner-app) :is(
   .ba-sidebar, .owner-sidebar, .owner-topbar,
   .owner-panel, .owner-stat-card, .ba-panel, .ba-kpi, .ba-strip, .zs-card, .zs-nav, .cp-card, .pl-card,
   .owner-workspace, .ba-agent-card, .ba-user-card, .ba-item, .ba-lead, .ba-inbox, .bp-panel, .op-settings-nav,
@@ -91,57 +92,58 @@ html[data-zella-theme="glass"] :is(
   backdrop-filter: var(--glass-blur);
   box-shadow: var(--glass-edge), var(--zella-shadow-md);
 }
-html[data-zella-theme="glass"] .ba-header {
+html[data-zella-theme="glass"]:has(.ba-root, .owner-app) .ba-header {
   background: rgba(20, 16, 14, 0.35);
   -webkit-backdrop-filter: var(--glass-blur);
   backdrop-filter: var(--glass-blur);
 }
-html[data-zella-theme="glass"] .owner-topbar { background: rgba(20, 16, 14, 0.35); }
+html[data-zella-theme="glass"]:has(.ba-root, .owner-app) .owner-topbar { background: rgba(20, 16, 14, 0.35); }
 
 /* Entrance animations that keep their end state ("both") leave an effect on the element, and the browser then blurs
    only what is inside it, so the picture showed through sharp. Here they hold only their start state, then let go. */
-html[data-zella-theme="glass"] :is(.ba-content > *, .bp-section, .ba-banner) { animation-fill-mode: backwards; }
+html[data-zella-theme="glass"]:has(.ba-root, .owner-app) :is(.ba-content > *, .bp-section, .ba-banner) { animation-fill-mode: backwards; }
 
 /* menus, dialogs and the notification panel sit over other content: nearly solid */
-html[data-zella-theme="glass"] :is(.owner-modal, .ba-modal, .zs-dialog, .ba-bell-panel, .ba-menu, .ba-picklist, .zs-mobile, .ba-modal-head) {
+html[data-zella-theme="glass"]:has(.ba-root, .owner-app) :is(.owner-modal, .ba-modal, .zs-dialog, .ba-bell-panel, .ba-menu, .ba-picklist, .zs-mobile, .ba-modal-head) {
   background: var(--glass-solid);
   -webkit-backdrop-filter: var(--glass-blur);
   backdrop-filter: var(--glass-blur);
 }
 
 /* form fields: a darker well, so typing is easy to read */
-html[data-zella-theme="glass"] :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select, textarea) {
+html[data-zella-theme="glass"]:has(.ba-root, .owner-app) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select, textarea) {
   background-color: rgba(10, 8, 7, 0.38);
   color: var(--zella-text);
   border-color: var(--zella-border-strong);
 }
-html[data-zella-theme="glass"] :is(input, textarea)::placeholder { color: var(--zella-text-faint); }
-html[data-zella-theme="glass"] option { background: var(--zella-glass-base, #241e1b); color: var(--zella-text); }
+html[data-zella-theme="glass"]:has(.ba-root, .owner-app) :is(.ba-search, .owner-search, .zs-search) input { background-color: transparent; border: 0; }
+html[data-zella-theme="glass"]:has(.ba-root, .owner-app) :is(input, textarea)::placeholder { color: var(--zella-text-faint); }
+html[data-zella-theme="glass"]:has(.ba-root, .owner-app) option { background: var(--zella-glass-base, #241e1b); color: var(--zella-text); }
 
 /* places that print white on the brand colour: dark labels on light copper */
-html[data-zella-theme="glass"] :is(
+html[data-zella-theme="glass"]:has(.ba-root, .owner-app) :is(
   .ba-logo, .ba-avatar, .ba-btn.primary, .ba-pill.solid, .ba-mg-cell.today .ba-mg-day, .ba-switcher-logo,
   .td-tabs button.active, .rs-chip.on, .of-chip.on, .zs-btn.primary, .owner-brand-mark, .owner-workspace-icon
 ) { color: var(--zella-on-primary); }
-html[data-zella-theme="glass"] .td-star { color: #F2C66D; }
+html[data-zella-theme="glass"]:has(.ba-root, .owner-app) .td-star { color: #F2C66D; }
 
 /* The Zella logo keeps Zella's own colours, whatever palette the background picture gives everything else. */
-html[data-zella-theme="glass"] :is(.ba-logo, .owner-brand-mark, .owner-workspace-icon) { background: #DCA67F; color: #22170F; }
-html[data-zella-theme="glass"] .owner-brand-name span { color: #DCA67F; }
+html[data-zella-theme="glass"]:has(.ba-root, .owner-app) :is(.ba-logo, .owner-brand-mark, .owner-workspace-icon) { background: #DCA67F; color: #22170F; }
+html[data-zella-theme="glass"]:has(.ba-root, .owner-app) .owner-brand-name span { color: #DCA67F; }
 
 /* the light tables and lists keep their structure with faint rules */
-html[data-zella-theme="glass"] :is(table th) { background: rgba(255, 255, 255, 0.05); }
+html[data-zella-theme="glass"]:has(.ba-root, .owner-app) :is(table th) { background: rgba(255, 255, 255, 0.05); }
 
 /* ---------- 4. Floating layout ---------- */
 @media (min-width: 761px) {
-  html[data-zella-theme="glass"] .ba-sidebar {
+  html[data-zella-theme="glass"]:has(.ba-root, .owner-app) .ba-sidebar {
     top: 12px;
     height: calc(100vh - 24px);
     margin: 12px 0 12px 12px;
     border: 1px solid var(--zella-border);
     border-radius: 22px;
   }
-  html[data-zella-theme="glass"] .ba-header {
+  html[data-zella-theme="glass"]:has(.ba-root, .owner-app) .ba-header {
     top: 12px;
     margin: 12px 12px 0;
     padding: 10px 16px;
@@ -150,14 +152,14 @@ html[data-zella-theme="glass"] :is(table th) { background: rgba(255, 255, 255, 0
   }
 }
 @media (min-width: 601px) {
-  html[data-zella-theme="glass"] .owner-sidebar {
+  html[data-zella-theme="glass"]:has(.ba-root, .owner-app) .owner-sidebar {
     top: 12px;
     height: calc(100vh - 24px);
     margin: 12px 0 12px 12px;
     border: 1px solid var(--zella-border);
     border-radius: 22px;
   }
-  html[data-zella-theme="glass"] .owner-topbar {
+  html[data-zella-theme="glass"]:has(.ba-root, .owner-app) .owner-topbar {
     margin: 12px 12px 0;
     border: 1px solid var(--zella-border);
     border-radius: 18px;
@@ -166,10 +168,10 @@ html[data-zella-theme="glass"] :is(table th) { background: rgba(255, 255, 255, 0
 
 /* ---------- 5. Motion: cards lift a little under the pointer ---------- */
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
-  html[data-zella-theme="glass"] :is(.ba-kpi, .owner-stat-card, .td-card, .vq-stat) {
+  html[data-zella-theme="glass"]:has(.ba-root, .owner-app) :is(.ba-kpi, .owner-stat-card, .td-card, .vq-stat) {
     transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
   }
-  html[data-zella-theme="glass"] :is(.ba-kpi, .owner-stat-card, .td-card, .vq-stat):hover {
+  html[data-zella-theme="glass"]:has(.ba-root, .owner-app) :is(.ba-kpi, .owner-stat-card, .td-card, .vq-stat):hover {
     transform: translateY(-4px);
     border-color: var(--zella-border-strong);
     box-shadow: var(--glass-edge), 0 18px 40px -16px rgba(0, 0, 0, 0.6);
@@ -179,11 +181,11 @@ html[data-zella-theme="glass"] :is(table th) { background: rgba(255, 255, 255, 0
 /* ---------- 6. Accessibility ---------- */
 /* People who ask their device for less transparency get solid panels. */
 @media (prefers-reduced-transparency: reduce) {
-  html[data-zella-theme="glass"] {
+  html[data-zella-theme="glass"]:has(.ba-root, .owner-app) {
     --zella-card: #2a2421;
     --zella-sidebar: #221d1a;
   }
-  html[data-zella-theme="glass"] body::after { background: rgba(12, 9, 8, 0.8); }
+  html[data-zella-theme="glass"]:has(.ba-root, .owner-app) body::after { background: rgba(12, 9, 8, 0.8); }
 }
 
 /* =========================================================
@@ -235,10 +237,10 @@ html[data-zella-theme="glass"] :is(table th) { background: rgba(255, 255, 255, 0
 }
 /* the dock in Glass is a rounded pill, like a dock */
 @media (min-width: 761px) {
-  html[data-zella-theme="glass"][data-zella-sidebar="compact"] .ba-sidebar { border-radius: 999px; padding: 18px 10px; }
+  html[data-zella-theme="glass"][data-zella-sidebar="compact"]:has(.ba-root, .owner-app) .ba-sidebar { border-radius: 999px; padding: 18px 10px; }
 }
 @media (min-width: 601px) {
-  html[data-zella-theme="glass"][data-zella-sidebar="compact"] .owner-sidebar { border-radius: 999px; padding: 20px 10px; }
+  html[data-zella-theme="glass"][data-zella-sidebar="compact"]:has(.ba-root, .owner-app) .owner-sidebar { border-radius: 999px; padding: 20px 10px; }
 }
 /* the toggle only makes sense where the sidebar is shown beside the page */
 @media (max-width: 760px) { .ba-sidebar .zella-dock-toggle { display: none; } }

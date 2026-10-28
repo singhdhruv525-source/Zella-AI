@@ -306,6 +306,10 @@ useEffect(() => {
             >
               <Icon name="notifications" />
             </button>
+            <button className="owner-icon-button" type="button" aria-label="Appearance and theme" title="Appearance and theme"
+              onClick={() => navigate("/settings/profile/appearance")}>
+              <Icon name="palette" />
+            </button>
             <div className="owner-avatar" title={[email, me?.roleLabel].filter(Boolean).join(" · ") || "Platform admin"}>
               {(email || "A").slice(0, 1).toUpperCase()}
             </div>

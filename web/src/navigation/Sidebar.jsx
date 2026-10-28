@@ -194,6 +194,9 @@ export function ProfileMenu({ email, name, role, onGo, onSignOut }) {
           <button type="button" role="menuitem" className="ba-menu-item" onClick={() => { menu.setOpen(false); onGo("settings/notifications/preferences"); }}>
             <Icon name="notifications" size="sm" /><span>My notifications</span>
           </button>
+          <button type="button" role="menuitem" className="ba-menu-item" onClick={() => { menu.setOpen(false); onGo("settings/me/appearance"); }}>
+            <Icon name="palette" size="sm" /><span>Appearance and theme</span>
+          </button>
           <div className="ba-menu-sep" />
           <button type="button" role="menuitem" className="ba-menu-item" onClick={() => { menu.setOpen(false); onSignOut(); }}>
             <Icon name="logout" size="sm" /><span>Sign out</span>

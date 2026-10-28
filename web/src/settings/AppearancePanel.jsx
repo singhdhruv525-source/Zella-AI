@@ -1,14 +1,15 @@
 import { useRef, useState } from "react";
 import { supabase } from "../supabase";
 import {
-  activePalette, BACKGROUNDS, DEFAULT_APPEARANCE, prepareBackground, removeUploadedBackground, resetAppearance, sidebarMode, updateAppearance,
+  activePalette, APP_SCOPE, BACKGROUNDS, DEFAULT_APPEARANCE, prepareBackground, removeUploadedBackground, resetAppearance, sidebarMode, updateAppearance,
   useAppearance, wallpaperUrl,
 } from "../appearance";
 import { uploadImage } from "./PersonalPanels";
 import { Banner, Card, Field, Toggle } from "./SettingsKit";
 
-// Settings > Personal > Appearance (admin and CRM). Personal only: it changes how Zella looks for the person signed
-// in, on every device, and never for anyone else. Every change applies at once and is saved to their account.
+// Settings > Personal > Appearance (admin and CRM). Personal only: it changes how this app (admin or CRM, each kept
+// apart) looks for the person signed in, on every device, and never for anyone else. Sign-in pages are not themed.
+// Every change applies at once and is saved to their account.
 
 const THEMES = [
   { key: "classic", label: "Classic", text: "Light and calm. The standard Zella look." },
@@ -75,7 +76,10 @@ export function AppearancePanel() {
 
   return (
     <>
-      <Banner>These settings change how Zella looks for you only, on every device you sign in on. Changes apply straight away.</Banner>
+      <Banner>
+        These settings change how {APP_SCOPE === "crm" ? "the CRM" : "the admin dashboard"} looks for you only, on every device you sign in on.
+        {APP_SCOPE === "crm" ? " The admin dashboard" : " The CRM"} has its own setting, and everyone else keeps their own look. Changes apply straight away.
+      </Banner>
 
       <Card title="Theme">
         <div className="zs-look-grid" role="radiogroup" aria-label="Theme">

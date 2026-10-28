@@ -1,11 +1,13 @@
 import { useSyncExternalStore } from "react";
 import { supabase } from "./supabase";
 
-// Personal look of Zella (both the admin and the CRM): theme, background picture, how much the picture is dimmed,
-// whether the colours follow the picture, and whether the sidebar is a slim dock or the full list. It belongs to the
-// person, not the business, so it is kept on their own sign-in account (auth user metadata, `zella_appearance`) and
-// follows them to any device, with a copy in this browser so the page opens in the right look before sign-in
-// finishes. Nothing here needs a database table.
+// Personal look of Zella: theme, background picture, how much the picture is dimmed, whether the colours follow the
+// picture, and whether the sidebar is a slim dock or the full list. Each person has their own, and the admin dashboard
+// and the CRM each have their own (changing one never changes the other). It is kept on the person's sign-in account
+// (auth user metadata, `zella_appearance: { admin, crm }`) so it follows them to any device, with a copy in this
+// browser, tagged with who it belongs to, so the page opens in the right look before sign-in finishes; when someone
+// else signs in on the same browser they get their own look (or the default), never the previous person's.
+// Nothing here needs a database table.
 //
 // Applied as attributes on <html> (data-zella-theme, data-zella-sidebar), two CSS variables (--zella-wallpaper,
 // --zella-wallpaper-dim) and, with Glass and "match colours to the picture", the picture's palette as the shared
@@ -19,14 +21,18 @@ export const BACKGROUNDS = [
 ];
 
 export const DEFAULT_APPEARANCE = { theme: "classic", background: "lounge", customUrl: null, dim: 35, sidebar: null, matchPicture: true, palette: null };
-const STORE_KEY = "zella.appearance";
+// Which app this page is: the CRM lives under /app (and /welcome); everything else is the admin dashboard.
+export const APP_SCOPE = typeof window !== "undefined" && /^\/(app|welcome)(\/|$)/.test(window.location.pathname) ? "crm" : "admin";
+const STORE_KEY = `zella.appearance.${APP_SCOPE}`;
 // The colour tokens a picture's palette may set (everything else stays as glass.css has it).
 const PALETTE_VARS = ["--zella-primary", "--zella-primary-hover", "--zella-primary-soft", "--zella-primary-border", "--zella-primary-ring",
   "--zella-on-primary", "--zella-nav-active", "--zella-card", "--zella-sidebar", "--zella-subtle", "--glass-solid", "--zella-glass-base",
   "--zella-text", "--zella-text-2", "--zella-text-secondary", "--zella-text-faint", "--zella-border", "--zella-border-strong"];
 const COLOUR = /^hsla?\(\s*[0-9.]+(deg)?\s*,\s*[0-9.]+%\s*,\s*[0-9.]+%\s*(,\s*[0-9.]+\s*)?\)$/;
 const listeners = new Set();
-let current = normalise(readLocal());
+const local = readLocal();
+let owner = local?.user ?? null;   // whose look this is (a user id), once sign-in is known
+let current = normalise(local?.pref);
 
 function normalisePalette(p) {
   if (!p || typeof p !== "object" || typeof p.for !== "string") return null;
@@ -54,10 +60,22 @@ function normalise(p) {
 }
 
 function readLocal() {
-  try { return JSON.parse(window.localStorage.getItem(STORE_KEY) ?? "null"); } catch { return null; }
+  try {
+    window.localStorage.removeItem("zella.appearance");   // the first version's copy, shared by both apps and every person
+    const v = JSON.parse(window.localStorage.getItem(STORE_KEY) ?? "null");
+    return v && typeof v === "object" && "pref" in v ? v : null;
+  } catch { return null; }
 }
 function writeLocal(p) {
-  try { window.localStorage.setItem(STORE_KEY, JSON.stringify(p)); } catch { /* private window: the account copy still works */ }
+  try { window.localStorage.setItem(STORE_KEY, JSON.stringify({ user: owner, pref: p })); } catch { /* private window: the account copy still works */ }
+}
+
+// This app's part of what the account holds. The first version kept one look for both apps: it is the starting point
+// for each until the person changes that app's look.
+function scopedFromAccount(saved) {
+  if (!saved || typeof saved !== "object") return null;
+  if ("admin" in saved || "crm" in saved) return saved[APP_SCOPE] ?? null;
+  return "theme" in saved ? saved : null;
 }
 
 // The sidebar follows the theme unless the person chose: a dock with Glass, the full list with Classic.
@@ -82,10 +100,13 @@ function apply(p) {
   const url = wallpaperUrl(p);
   root.style.setProperty("--zella-wallpaper", url ? `url("${url.replace(/"/g, "%22")}")` : "none");
   root.style.setProperty("--zella-wallpaper-dim", String(p.dim / 100));
+  // the picture's colours, as a rule scoped like the rest of the Glass theme (only inside the signed-in apps)
   const pal = activePalette(p);
-  for (const k of PALETTE_VARS) {
-    if (pal) root.style.setProperty(k, pal.vars[k]); else root.style.removeProperty(k);
-  }
+  let tag = document.getElementById("zella-palette");
+  if (!tag) { tag = document.createElement("style"); tag.id = "zella-palette"; document.head.appendChild(tag); }
+  tag.textContent = pal
+    ? `html[data-zella-theme="glass"]:has(.ba-root, .owner-app) {\n${PALETTE_VARS.map((k) => `  ${k}: ${pal.vars[k]};`).join("\n")}\n}`
+    : "";
   root.dataset.zellaPalette = pal ? "picture" : "standard";
 }
 
@@ -99,13 +120,24 @@ function set(next, { save = true } = {}) {
 }
 
 let saveTimer = null;
-function saveToAccount(p) {
+// The account keeps the choices only. The palette is worked out again on each device (it is kept in this browser),
+// because everything in the account copy travels inside the sign-in token with every request.
+function saveToAccount(full) {
+  const p = { ...full };
+  delete p.palette;
   clearTimeout(saveTimer);
   // a slider sends many changes: only the last one is saved
   saveTimer = setTimeout(async () => {
     const { data } = await supabase.auth.getSession();
-    if (!data.session) return;
-    const { error } = await supabase.auth.updateUser({ data: { zella_appearance: p } });
+    const user = data.session?.user;
+    if (!user || user.id !== owner) return;   // only ever the signed-in person's own look
+    const saved = user.user_metadata?.zella_appearance;
+    const strip = (v) => { const c = { ...v }; delete c.palette; return c; };
+    // the other app's look is written back unchanged (from the first version's single look if that is all there is)
+    const both = saved && ("admin" in saved || "crm" in saved) ? { ...saved }
+      : saved && "theme" in saved ? { admin: strip(saved), crm: strip(saved) } : {};
+    both[APP_SCOPE] = p;
+    const { error } = await supabase.auth.updateUser({ data: { zella_appearance: both } });
     if (error) console.warn("Appearance not saved to the account:", error.message);
   }, 600);
 }
@@ -132,15 +164,34 @@ export function useAppearance() {
   return useSyncExternalStore((l) => { listeners.add(l); return () => listeners.delete(l); }, () => current, () => current);
 }
 
-// Called once at start-up: the browser's copy first, then the account's copy whenever someone signs in.
+// Called once at start-up: the browser's copy first, then the signed-in person's own look from their account.
 export function startAppearance() {
   apply(current);
   ensurePalette();
   supabase.auth.onAuthStateChange((event, session) => {
-    const saved = session?.user?.user_metadata?.zella_appearance;
-    if (saved && JSON.stringify(normalise(saved)) !== JSON.stringify(current)) set(saved, { save: false });
-    if (event === "SIGNED_OUT") set({ ...DEFAULT_APPEARANCE }, { save: false });
+    if (event === "SIGNED_OUT") { owner = null; set({ ...DEFAULT_APPEARANCE }, { save: false }); return; }
+    const user = session?.user;
+    if (!user) return;
+    const mine = scopedFromAccount(user.user_metadata?.zella_appearance);
+    if (user.id !== owner) {
+      // someone else (or the first time this browser learns who it is): their own look, or the default
+      owner = user.id;
+      set(mine ?? { ...DEFAULT_APPEARANCE }, { save: false });
+      return;
+    }
+    // the same person, maybe changed on another device: the account's choices, with this browser's palette
+    const next = mine && normalise({ ...mine, palette: current.palette });
+    if (next && JSON.stringify(next) !== JSON.stringify(current)) set(next, { save: false });
   });
+}
+
+// A picture the other app (or the first version's shared look) still shows is never deleted.
+async function pictureUsedElsewhere(url) {
+  const { data } = await supabase.auth.getSession();
+  const saved = data.session?.user?.user_metadata?.zella_appearance;
+  if (!saved || typeof saved !== "object") return false;
+  const other = "admin" in saved || "crm" in saved ? saved[APP_SCOPE === "crm" ? "admin" : "crm"] : saved;
+  return other?.customUrl === url;
 }
 
 // ---------- The picture's palette ----------
@@ -251,5 +302,7 @@ export async function prepareBackground(file) {
 // Removes an earlier uploaded background from storage (best effort: an orphaned file is harmless).
 export async function removeUploadedBackground(url) {
   const m = /\/storage\/v1\/object\/public\/brand-assets\/(user\/.+)$/.exec(url ?? "");
-  if (m) await supabase.storage.from("brand-assets").remove([decodeURIComponent(m[1])]);
+  if (!m || await pictureUsedElsewhere(url)) return;
+  const { error } = await supabase.storage.from("brand-assets").remove([decodeURIComponent(m[1])]);
+  if (error) console.warn("Old background picture not removed:", error.message);
 }
