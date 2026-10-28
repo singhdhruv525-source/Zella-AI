@@ -86,7 +86,7 @@ export const NAV_ITEMS = [
     ],
   },
   { id: "integrations", group: "management", order: 20, label: "Integrations", icon: "extension", page: "integrations" },
-  { id: "notifications", group: "management", order: 30, label: "Notifications", icon: "notifications", settings: "notifications/preferences" },
+  { id: "notifications", group: "management", order: 30, label: "Notifications", icon: "notifications", settings: "notifications/history" },
   { id: "settings", group: "management", order: 40, label: "Settings", icon: "settings", page: "settings" },
 ];
 

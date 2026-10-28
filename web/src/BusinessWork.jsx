@@ -476,7 +476,6 @@ export function NotificationsBell({ workspace, onGo }) {
               })}
             </ul>
           )}
-          <div className="ba-bell-foot"><button type="button" className="ba-link" onClick={() => { setOpen(false); onGo("settings/notifications/preferences"); }}>Notification settings</button></div>
         </div>
       )}
       <NoteToasts toasts={toasts} workspace={workspace} onOpen={go} onClose={closeToast} />

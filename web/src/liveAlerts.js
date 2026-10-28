@@ -1,6 +1,6 @@
-// How new notifications announce themselves on this device: a pop-up in the corner (on by default), a soft sound
-// and a desktop notification (both off until the person switches them on). Kept in this browser only; these are
-// per-device conveniences, not account settings. Storage can be unavailable (private windows): defaults are used.
+// How new notifications announce themselves: a pop-up in the corner. Sound and desktop notifications are built in but
+// off (there is no settings page for them); a stored per-browser choice is still honoured if one exists.
+// Storage can be unavailable (private windows): defaults are used.
 
 const KEY = "zella.alerts.device";
 export const DEVICE_DEFAULTS = { popups: true, sound: false, desktop: false };
@@ -8,12 +8,6 @@ export const DEVICE_DEFAULTS = { popups: true, sound: false, desktop: false };
 export function deviceAlerts() {
   try { return { ...DEVICE_DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) || "{}") }; } catch { return { ...DEVICE_DEFAULTS }; }
 }
-export function setDeviceAlerts(next) {
-  const value = { ...deviceAlerts(), ...next };
-  try { localStorage.setItem(KEY, JSON.stringify(value)); } catch { /* not saved; still applies this session */ }
-  return value;
-}
-
 // A short chime made in the browser (no sound file). Urgent: two firm notes. Celebration: a little rising run.
 let audio = null;
 export function chime(tone = "info") {
@@ -38,11 +32,6 @@ export function chime(tone = "info") {
 
 export function desktopSupported() {
   return typeof window !== "undefined" && "Notification" in window;
-}
-export async function askDesktopPermission() {
-  if (!desktopSupported()) return "unsupported";
-  if (Notification.permission !== "default") return Notification.permission;
-  try { return await Notification.requestPermission(); } catch { return "denied"; }
 }
 // Only when the tab is in the background; clicking it brings Zella forward.
 export function desktopAlert(title, body, onClick) {

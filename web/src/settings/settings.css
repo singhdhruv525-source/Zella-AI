@@ -212,5 +212,3 @@
 .zs-chip:disabled { opacity: 0.45; cursor: not-allowed; }
 .zs-ideas { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; color: var(--zs-text-2); font-size: 13px; }
 .zs-plain-list { margin: 0; padding-left: 18px; color: var(--zs-text-2); font-size: 13.5px; line-height: 1.6; }
-.zs-pref-group + .zs-pref-group { margin-top: 14px; }
-.zs-pref-group h4 { margin: 0 0 4px; color: var(--zs-muted); font-size: 11.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }

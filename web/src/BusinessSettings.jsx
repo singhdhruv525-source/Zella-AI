@@ -15,13 +15,12 @@ import { IntegrationsPage, LeadSourcesPage, ReportsPage } from "./BusinessMore";
 import { AutomationsPage } from "./BusinessControls";
 import { ReceptionistEditor } from "./BusinessReceptionist";
 import { LanguagePanel } from "./settings/LanguagePanel";
-import { askDesktopPermission, chime, desktopSupported, deviceAlerts, setDeviceAlerts } from "./liveAlerts";
 import { CrossSellPanel } from "./settings/CrossSellPanel";
 import { InboxPage } from "./BusinessInbox";
 import SettingsWorkspace from "./settings/SettingsWorkspace";
 import { AccountSecurityPanel, MyProfilePanel, SignOutPanel, uploadImage } from "./settings/PersonalPanels";
 import { AppearancePanel } from "./settings/AppearancePanel";
-import { Banner, Card, Confirm, Empty, Facts, Field, LinkRows, LoadState, Needs, Pill, SaveBar, Table, Toggle, useAsync, useForm, when, words } from "./settings/SettingsKit";
+import { Banner, Card, Confirm, Empty, Facts, Field, LinkRows, LoadState, Needs, Pill, SaveBar, Table, useAsync, useForm, when, words } from "./settings/SettingsKit";
 import { usePlatformInfo } from "./platformInfo";
 import { BusinessModulesPanel } from "./settings/BusinessModulesPanel";
 import { BusinessCallingUsage } from "./settings/CallingUsagePanels";
@@ -600,82 +599,6 @@ function IndustryProfile({ w }) {
 
 /* ---------- 12. Notifications ---------- */
 
-// Grouped so the list stays readable. The third value is the default: emails go out for summaries and for
-// warning/urgent alerts unless switched off (sql/zella_owner_emails.sql); everything else is in the app only.
-const KIND_GROUPS = [
-  ["Summaries", [["daily_summary", "Daily summary", true], ["weekly_review", "Weekly review", true], ["team_scorecard", "Monday team check-in", false]]],
-  ["Leads and callers", [["new_lead", "New lead", false], ["lead_assigned", "Lead given to me", false], ["lead_overdue", "Lead not followed up", true],
-    ["callback_assigned", "Callback assigned to me", false], ["callback_overdue", "Callback overdue", true], ["emergency_call", "Emergency call", true]]],
-  ["Bookings", [["appointment_new", "New appointment", false], ["appointment_cancelled", "Appointment cancelled", false], ["appointment_rescheduled", "Appointment moved", false],
-    ["customer_arrived", "Customer checked in", false], ["on_call_starting", "Someone is on call tonight", false]]],
-  ["Reviews and reputation", [["low_review", "1 or 2-star review", true], ["five_star_review", "5-star review", false], ["review_reply_failed", "Review reply couldn't post", true]]],
-  ["Team and work", [["staff_joined", "Someone joined the team", false], ["task_escalated", "Task needs a hand", true], ["approval_requested", "Approval needed", true]]],
-  ["Account and connections", [["usage_threshold", "AI minutes running low", true], ["reconnect_reminder", "Connection needs fixing", true], ["email_bounced", "Email bounced", false],
-    ["spam_high_risk", "Suspicious contact blocked", true], ["data_rights_request", "Customer data request", true]]],
-  ["Celebrations", [["milestone", "Milestones (100 calls, first AI booking…)", false], ["best_week", "Record week", false]]],
-];
-
-// "On this device": pop-ups, sound and desktop alerts for this browser only.
-function DeviceAlerts() {
-  const [prefs, setPrefs] = useState(() => deviceAlerts());
-  const [note, setNote] = useState("");
-  const supported = desktopSupported();
-  const permission = supported ? Notification.permission : "unsupported";
-  async function set(key, on) {
-    if (key === "desktop" && on) {
-      const answer = await askDesktopPermission();
-      if (answer !== "granted") { setNote(answer === "denied" ? "Your browser is blocking notifications from Zella. Allow them in the browser's site settings, then try again." : "Desktop notifications aren't available in this browser."); return; }
-    }
-    setNote("");
-    setPrefs(setDeviceAlerts({ [key]: on }));
-    if (key === "sound" && on) chime("celebrate");
-  }
-  const rows = [
-    ["popups", "Pop-ups", "A card in the corner when something new arrives."],
-    ["sound", "Sound", "A soft chime. Urgent alerts sound different."],
-    ["desktop", "Desktop notifications", supported ? (permission === "denied" ? "Blocked in this browser's settings." : "When Zella is in a background tab.") : "Not available in this browser."],
-  ];
-  return (
-    <Card title="On this device" sub="Just for this browser. Your email and text choices above stay the same everywhere.">
-      <Banner tone="warn">{note}</Banner>
-      <ul className="zs-rows">{rows.map(([k, label, hint]) => (
-        <li key={k}><div><strong>{label}</strong><small>{hint}</small></div>
-          <Toggle on={prefs[k]} label={label} disabled={k === "desktop" && (!supported || permission === "denied") && !prefs.desktop} onChange={(v) => set(k, v)} /></li>
-      ))}</ul>
-    </Card>
-  );
-}
-
-function NotificationPrefs({ w }) {
-  const state = useAsync(() => Promise.all([rpc("zella_my_notification_prefs", { p_business_id: w.id }), settingsOf(w)]), [w.id]);
-  const [error, setError] = useState("");
-  return (
-    <LoadState state={state}>{([prefs, s]) => (
-      <>
-        <Card title="Email me about" sub="Everything also appears in the bell. Defaults: summaries and warnings by email, the rest in the app only.">
-          <Banner tone="error">{error}</Banner>
-          {KIND_GROUPS.map(([group, kinds]) => (
-            <div key={group} className="zs-pref-group">
-              <h4>{group}</h4>
-              <ul className="zs-rows">{kinds.map(([k, label, dflt]) => {
-                const on = prefs[k] ?? dflt;
-                return <li key={k}><div><strong>{label}</strong><small>{prefs[k] === undefined ? "Default" : "Your choice"}</small></div>
-                  <Toggle on={on} label={`Email: ${label}`} onChange={async (v) => { try { await rpc("zella_set_my_notification_pref", { p_business_id: w.id, p_kind: k, p_email: v }); state.reload(); } catch (err) { setError(err.message); } }} /></li>;
-              })}</ul>
-            </div>
-          ))}
-        </Card>
-        <DeviceAlerts />
-        <Card title="Text me urgent alerts" sub={s.me?.phone ? `To ${s.me.phone}, for this workspace.` : "Add your mobile number in Personal profile first."}>
-          <Toggle on={Boolean(s.me?.sms_alerts)} disabled={!s.me?.phone && !s.me?.sms_alerts} label="Text me urgent alerts"
-            onChange={async (v) => { try { await rpc("zella_set_my_sms_alerts", { p_business_id: w.id, p_enabled: v }); state.reload(); } catch (err) { setError(err.message); } }} />
-        </Card>
-        <Needs title="Phone push notifications aren't available" have="The bell, pop-ups, sound and desktop notifications on this device, email and urgent texts.">Push to a phone needs the Zella phone app.</Needs>
-      </>
-    )}</LoadState>
-  );
-}
-
 function TeamNotificationRules({ onGo }) {
   return (
     <>
@@ -914,7 +837,6 @@ function registry(w) {
       page("history", "Delivery history", (c) => <InboxPage workspace={w} refreshKey={0} onNotice={c.onNotice} onOpenPerson={c.onOpenPerson} />, "delivered failed"),
     ] },
     { key: "notifications", label: "Notifications", icon: "notifications", items: [
-      page("preferences", "Notification preferences", () => <NotificationPrefs w={w} />, "email sms in-app alerts"),
       page("team", "Team notification rules", (c) => <TeamNotificationRules onGo={c.onGo} />, "roles escalation"),
       page("usage", "Usage notifications", (c) => <UsageNotifications w={w} onGo={c.onGo} />, "70 90 100"),
       page("history", "Notification history", () => <NotificationHistory w={w} />, "read delivered"),
@@ -941,7 +863,6 @@ function registry(w) {
     { key: "me", label: "Personal profile", icon: "person", items: [
       page("profile", "My profile", (c) => <MyProfilePanel email={c.email} />, "name picture"),
       page("security", "Personal security", (c) => <AccountSecurityPanel email={c.email} />, "password mfa"),
-      page("preferences", "Personal preferences", () => <NotificationPrefs w={w} />, "notifications"),
       page("appearance", "Appearance", () => <AppearancePanel />, "theme glass dark background wallpaper picture sidebar dock look"),
       page("logout", "Sign out", (c) => <SignOutPanel who="you" onSignOut={c.onSignOut} />, "logout"),
     ] },
