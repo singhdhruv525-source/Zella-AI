@@ -115,7 +115,8 @@ begin
   select name into v from pg_timezone_names where name ~ '^[A-Z][a-z]+/[A-Za-z_]+$' and extract(hour from now() at time zone name) between 1 and 4 order by name limit 1;
   update businesses set timezone = v where id = B;
   insert into callbacks (id, business_id, reason, status, contact_number, due_at, auto_call, created_by) values ('c1000000-0000-4000-8000-000000000005', B, 'missed_call', 'scheduled', '+15551230003', now() - interval '1 minute', true, 'system');
-  assert jsonb_array_length(zella_claim_callbacks(10)) = 0 and (select due_at > now() from callbacks where id = 'c1000000-0000-4000-8000-000000000005'), 'hours';
+  r := zella_claim_callbacks(10);
+  assert jsonb_array_length(r) = 0 and (select due_at > now() from callbacks where id = 'c1000000-0000-4000-8000-000000000005'), 'hours ' || r::text || ' ' || (select status || ' ' || due_at from callbacks where id = 'c1000000-0000-4000-8000-000000000005');
   raise notice 'PASS outside calling hours (3 a.m. in %): not dialled, moved to the next opening', v;
   -- the call Zella places can never create another callback (no loops)
   insert into calls (business_id, direction, status, from_number, external_call_id, started_at, ended_at, duration_seconds) values (A, 'outbound', 'missed', '+15551230001', 'p4-out', now(), now(), 0);
@@ -126,40 +127,41 @@ end $$;
 -- ---- 5. the Vapi assistant configuration
 do $$
 declare A uuid := 'aaaaaaaa-0000-4000-8000-000000000001'; B uuid := 'bbbbbbbb-0000-4000-8000-000000000002';
-        r jsonb; a jsonb; t jsonb; names text[]; p text; n int := 0; ind record; bid uuid;
+        r jsonb; cfg jsonb; t jsonb; names text[]; p text; n int := 0; ind record; bid uuid;
         url text := 'https://pffqxlumqhjdbzvvoszm.supabase.co/functions/v1/voice-rules';
 begin
   update businesses set timezone = 'America/New_York' where id in (A, B);
+  update businesses set industry_id = (select id from industries where slug = 'dental') where id = A;
   r := zella_assistant_config(A);
   assert r ->> 'ready_to_send' = 'false' and r -> 'problems' @> '["vapi_server_url is not set"]' and (r ->> 'problems') like '%vapi_credential_id is not set%'
      and (r ->> 'problems') like '%claude-sonnet-5-5 is not in Vapi%', 'unconfigured ' || (r -> 'problems')::text;
   raise notice 'PASS not configured: not ready to send, with the reasons (no server URL, no credential, model % not in Vapi''s list)', zella_setting('voice_llm_model', '"claude-sonnet-5-5"'::jsonb);
   insert into platform_settings (key, value) values ('vapi_server_url', to_jsonb(url)), ('vapi_credential_id', '"cred-test-123"'), ('voice_llm_model', '"claude-sonnet-5"')
     on conflict (key) do update set value = excluded.value;
-  r := zella_assistant_config(A); a := r -> 'assistant';
+  r := zella_assistant_config(A); cfg := r -> 'assistant';
   assert r ->> 'ready_to_send' = 'true' and jsonb_array_length(r -> 'problems') = 0, 'ready ' || (r -> 'problems')::text;
-  assert a -> 'server' = jsonb_build_object('url', url, 'credentialId', 'cred-test-123', 'timeoutSeconds', 20) and not (a ? 'tools')
-     and a -> 'serverMessages' = '["tool-calls", "transfer-destination-request", "status-update", "end-of-call-report"]', 'assistant server';
-  select array_agg(coalesce(x #>> '{function,name}', x ->> 'type') order by 1) into names from jsonb_array_elements(a #> '{model,tools}') x;
-  assert names = array['book_appointment', 'call_rules', 'cancel_appointment', 'check_availability', 'check_open_hours', 'find_my_appointments', 'lookup_caller',
-    'reschedule_appointment', 'report_emergency', 'report_unanswered_question', 'request_follow_up', 'search_knowledge', 'take_message', 'transferCall', 'transfer_to_human', 'update_caller'], 'tools ' || names::text;
-  for t in select x from jsonb_array_elements(a #> '{model,tools}') x where x ->> 'type' = 'function' loop
-    assert t -> 'server' = a -> 'server' and t ->> 'async' = 'false', 'tool server ' || (t #>> '{function,name}');
+  assert cfg -> 'server' = jsonb_build_object('url', url, 'credentialId', 'cred-test-123', 'timeoutSeconds', 20) and not (cfg ? 'tools')
+     and cfg -> 'serverMessages' = '["tool-calls", "transfer-destination-request", "status-update", "end-of-call-report"]', 'assistant server';
+  select array_agg(y order by y collate "C") into names from (select coalesce(x #>> '{function,name}', x ->> 'type') y from jsonb_array_elements(cfg #> '{model,tools}') x) z;
+  assert names = (select array_agg(y order by y collate "C") from unnest(array['book_appointment', 'call_rules', 'cancel_appointment', 'check_availability', 'check_open_hours', 'find_my_appointments', 'lookup_caller',
+    'reschedule_appointment', 'report_emergency', 'report_unanswered_question', 'request_follow_up', 'search_knowledge', 'take_message', 'transferCall', 'transfer_to_human', 'update_caller']) y), 'tools ' || names::text;
+  for t in select x from jsonb_array_elements(cfg #> '{model,tools}') x where x ->> 'type' = 'function' loop
+    assert t -> 'server' = cfg -> 'server' and t ->> 'async' = 'false', 'tool server ' || (t #>> '{function,name}');
   end loop;
-  assert (select x #> '{function,parameters,required}' from jsonb_array_elements(a #> '{model,tools}') x where x #>> '{function,name}' = 'book_appointment') ? 'confirmed'
-     and (select x #> '{function,parameters,required}' from jsonb_array_elements(a #> '{model,tools}') x where x #>> '{function,name}' = 'cancel_appointment') ? 'confirmed'
-     and (select x #> '{function,parameters,required}' from jsonb_array_elements(a #> '{model,tools}') x where x #>> '{function,name}' = 'reschedule_appointment') ? 'confirmed', 'confirmed';
-  assert (select x from jsonb_array_elements(a #> '{model,tools}') x where x ->> 'type' = 'transferCall') = '{"type": "transferCall"}', 'transfer tool';
-  assert (select x #> '{function,parameters,properties,action,enum}' from jsonb_array_elements(a #> '{model,tools}') x where x #>> '{function,name}' = 'call_rules') = '["rules"]', 'call_rules';
+  assert (select x #> '{function,parameters,required}' from jsonb_array_elements(cfg #> '{model,tools}') x where x #>> '{function,name}' = 'book_appointment') ? 'confirmed'
+     and (select x #> '{function,parameters,required}' from jsonb_array_elements(cfg #> '{model,tools}') x where x #>> '{function,name}' = 'cancel_appointment') ? 'confirmed'
+     and (select x #> '{function,parameters,required}' from jsonb_array_elements(cfg #> '{model,tools}') x where x #>> '{function,name}' = 'reschedule_appointment') ? 'confirmed', 'confirmed';
+  assert (select x from jsonb_array_elements(cfg #> '{model,tools}') x where x ->> 'type' = 'transferCall') = '{"type": "transferCall"}', 'transfer tool';
+  assert (select x #> '{function,parameters,properties,action,enum}' from jsonb_array_elements(cfg #> '{model,tools}') x where x #>> '{function,name}' = 'call_rules') = '["rules"]', 'call_rules';
   raise notice 'PASS ready: assistant and every one of the 15 function tools use the voice-rules URL with the credential, synchronously; book/move/cancel require confirmed; transfer tool has no fixed number';
-  p := a #>> '{model,messages,0,content}';
+  p := cfg #>> '{model,messages,0,content}';
   assert p like 'You are Ava, the phone receptionist for Bright Smile Dental%' and p like '%America/New_York%' and p like '%RULES THAT DO NOT CHANGE%' and p like '%WHAT YOU SAY HAPPENED%'
-     and p like '%transferCall%' and p like '%cannot confirm that%' and p like '%You are not a clinician%' and position('+15550101111' in a::text) = 0 and position('Other Business' in a::text) = 0, 'prompt';
+     and p like '%transferCall%' and p like '%cannot confirm that%' and p like '%You are not a clinician%' and position('+15550101111' in cfg::text) = 0 and position('Other Business' in cfg::text) = 0, 'prompt';
   raise notice 'PASS prompt: this business only, its time zone, truthful-outcome and unknown-answer rules, injection rules, dental safety; no transfer number anywhere in the config';
   -- what the business switched off is not offered; transfers off = no transfer tool
   update ai_agent_configs set business_context = '{"disabled_tools": ["update_caller", "book_appointment"]}' where agent_id = 'a0000000-0000-4000-8000-00000000000a';
-  a := zella_assistant_config(A) -> 'assistant';
-  assert not exists (select 1 from jsonb_array_elements(a #> '{model,tools}') x where x #>> '{function,name}' in ('update_caller', 'book_appointment')), 'disabled';
+  cfg := zella_assistant_config(A) -> 'assistant';
+  assert not exists (select 1 from jsonb_array_elements(cfg #> '{model,tools}') x where x #>> '{function,name}' in ('update_caller', 'book_appointment')), 'disabled';
   assert not exists (select 1 from jsonb_array_elements(zella_assistant_config(B) #> '{assistant,model,tools}') x where x ->> 'type' = 'transferCall'), 'B transfer';
   update ai_agent_configs set business_context = '{}' where agent_id = 'a0000000-0000-4000-8000-00000000000a';
   raise notice 'PASS tools the business switched off are not offered; a business with transfers off gets no transfer tool';

@@ -137,12 +137,12 @@ begin
   -- zella_assistant_config_v2
   -- every request Vapi sends must carry the HMAC credential (phase 2); the edge function answers within 12 s, so 20 s
   v_server := jsonb_strip_nulls(jsonb_build_object('url', v_url, 'credentialId', v_cred, 'timeoutSeconds', 20));
-  if v_url is null then v_problems := v_problems || 'vapi_server_url is not set';
-  elsif v_url !~ '^https://[a-z0-9.-]+(:[0-9]+)?/' then v_problems := v_problems || 'vapi_server_url must be an https URL'; end if;
-  if v_cred is null then v_problems := v_problems || 'vapi_credential_id is not set (create the HMAC credential in Vapi first)'; end if;
-  if v_provider <> 'anthropic' then v_problems := v_problems || ('voice_llm_provider ' || v_provider || ' has not been checked against Vapi');
-  elsif v_model is null or not (v_model = any (v_vapi_models)) then v_problems := v_problems || ('voice_llm_model ' || coalesce(v_model, 'null') || ' is not in Vapi''s Anthropic model list'); end if;
-  if jsonb_array_length(c -> 'tools') = 0 then v_problems := v_problems || 'every assistant tool is switched off for this business'; end if;
+  if v_url is null then v_problems := v_problems || 'vapi_server_url is not set'::text;
+  elsif v_url !~ '^https://[a-z0-9.-]+(:[0-9]+)?/' then v_problems := v_problems || 'vapi_server_url must be an https URL'::text; end if;
+  if v_cred is null then v_problems := v_problems || 'vapi_credential_id is not set (create the HMAC credential in Vapi first)'::text; end if;
+  if v_provider <> 'anthropic' then v_problems := v_problems || ('voice_llm_provider ' || v_provider || ' has not been checked against Vapi')::text;
+  elsif v_model is null or not (v_model = any (v_vapi_models)) then v_problems := v_problems || ('voice_llm_model ' || coalesce(v_model, 'null') || ' is not in Vapi''s Anthropic model list')::text; end if;
+  if jsonb_array_length(c -> 'tools') = 0 then v_problems := v_problems || 'every assistant tool is switched off for this business'::text; end if;
   v_transfer := coalesce((c #>> '{agent,escalation,transfer_enabled}')::boolean, true);
 
   -- the Receptionist Brain tools the business uses, each answered by voice-rules, synchronously, with the credential;
