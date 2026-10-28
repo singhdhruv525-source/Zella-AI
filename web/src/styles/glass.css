@@ -59,7 +59,7 @@ html[data-zella-theme="glass"] {
 
 /* ---------- 2. The background picture, dimmed for reading ---------- */
 /* only <html> gets a colour: a body background would paint over the picture layers below */
-html[data-zella-theme="glass"] { background: #1b1613; }
+html[data-zella-theme="glass"] { background: var(--zella-glass-base, #1b1613); }
 html[data-zella-theme="glass"] body { background: transparent; }
 html[data-zella-theme="glass"] body::before,
 html[data-zella-theme="glass"] body::after {
@@ -116,7 +116,7 @@ html[data-zella-theme="glass"] :is(input:not([type="checkbox"]):not([type="radio
   border-color: var(--zella-border-strong);
 }
 html[data-zella-theme="glass"] :is(input, textarea)::placeholder { color: var(--zella-text-faint); }
-html[data-zella-theme="glass"] option { background: #241e1b; color: var(--zella-text); }
+html[data-zella-theme="glass"] option { background: var(--zella-glass-base, #241e1b); color: var(--zella-text); }
 
 /* places that print white on the brand colour: dark labels on light copper */
 html[data-zella-theme="glass"] :is(
@@ -124,6 +124,10 @@ html[data-zella-theme="glass"] :is(
   .td-tabs button.active, .rs-chip.on, .of-chip.on, .zs-btn.primary, .owner-brand-mark, .owner-workspace-icon
 ) { color: var(--zella-on-primary); }
 html[data-zella-theme="glass"] .td-star { color: #F2C66D; }
+
+/* The Zella logo keeps Zella's own colours, whatever palette the background picture gives everything else. */
+html[data-zella-theme="glass"] :is(.ba-logo, .owner-brand-mark, .owner-workspace-icon) { background: #DCA67F; color: #22170F; }
+html[data-zella-theme="glass"] .owner-brand-name span { color: #DCA67F; }
 
 /* the light tables and lists keep their structure with faint rules */
 html[data-zella-theme="glass"] :is(table th) { background: rgba(255, 255, 255, 0.05); }

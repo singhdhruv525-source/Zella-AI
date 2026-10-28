@@ -1,10 +1,11 @@
 import { useRef, useState } from "react";
 import { supabase } from "../supabase";
 import {
-  BACKGROUNDS, DEFAULT_APPEARANCE, prepareBackground, removeUploadedBackground, resetAppearance, sidebarMode, updateAppearance, useAppearance,
+  activePalette, BACKGROUNDS, DEFAULT_APPEARANCE, prepareBackground, removeUploadedBackground, resetAppearance, sidebarMode, updateAppearance,
+  useAppearance, wallpaperUrl,
 } from "../appearance";
 import { uploadImage } from "./PersonalPanels";
-import { Banner, Card, Field } from "./SettingsKit";
+import { Banner, Card, Field, Toggle } from "./SettingsKit";
 
 // Settings > Personal > Appearance (admin and CRM). Personal only: it changes how Zella looks for the person signed
 // in, on every device, and never for anyone else. Every change applies at once and is saved to their account.
@@ -18,6 +19,32 @@ const SIDEBAR = [
   { key: "full", label: "Always full", text: "Icons with their names." },
   { key: "compact", label: "Always a dock", text: "Icons only; names appear when you point at one." },
 ];
+
+// Colours from the picture: buttons, links, highlights, panels and text take on the picture's palette (Glass only).
+function MatchColours({ look }) {
+  const pal = activePalette(look);
+  const url = wallpaperUrl(look);
+  const status = !look.matchPicture ? "Standard Zella colours."
+    : look.theme !== "glass" ? "Applies with the Glass theme."
+    : !url ? "The Plain background has no picture to take colours from."
+    : look.palette?.for === url && look.palette.none ? "This picture has almost no colour, so the standard Zella colours are kept."
+    : pal ? "Buttons, links, highlights, panels and text now use the picture's colours. The Zella logo keeps its own."
+    : "Reading the picture's colours…";
+  return (
+    <div className="zs-match">
+      <div className="zs-match-row">
+        <Toggle on={look.matchPicture} onChange={(on) => updateAppearance({ matchPicture: on })} label="Match colours to the picture" />
+        <strong>Match colours to the picture</strong>
+      </div>
+      <p className="zs-hint">{status}</p>
+      {pal && (
+        <div className="zs-swatches" aria-label="Colours taken from the picture">
+          {pal.swatches.map((c, i) => <span key={i} style={{ background: c }} title={c} />)}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function AppearancePanel() {
   const look = useAppearance();
@@ -94,6 +121,7 @@ export function AppearancePanel() {
         {pic.error && <Banner tone="error">{pic.error}</Banner>}
         <p className="zs-hint">PNG, JPEG or WebP. Large photos are made smaller automatically. Stored with your Zella account; anyone with its
           exact link could open it, so don't use a private photo.</p>
+        <MatchColours look={look} />
         <Field label={`Dim the picture: ${look.dim}%`} hint="More dimming makes text easier to read.">
           <input type="range" min="0" max="80" step="5" value={look.dim} onChange={(e) => updateAppearance({ dim: Number(e.target.value) })} />
         </Field>

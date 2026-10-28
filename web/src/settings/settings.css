@@ -198,3 +198,8 @@
 .zs-bg > span:last-child { padding: 0 4px 2px; }
 .zs-bg-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 12px; }
 .zs-bg-actions .zs-hint { margin: 0; }
+.zs-match { margin: 14px 0 6px; padding: 12px; border: 1px solid var(--zs-border); border-radius: 12px; }
+.zs-match .zs-hint { margin: 6px 0 0; }
+.zs-swatches { display: flex; gap: 6px; margin-top: 10px; }
+.zs-swatches span { width: 34px; height: 22px; border-radius: 7px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18); }
+.zs-match-row { display: flex; align-items: center; gap: 10px; }
