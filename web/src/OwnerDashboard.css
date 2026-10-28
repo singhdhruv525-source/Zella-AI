@@ -1533,3 +1533,33 @@
 .owner-nav-group { display: flex; flex-direction: column; gap: 2px; }
 .owner-nav-group .owner-nav-label { padding: 6px 11px 4px; }
 .owner-nav-group .owner-nav-item { min-height: 38px; }
+
+/* Admin bell: platform alerts */
+.owner-bell { position: relative; }
+.owner-bell .owner-icon-button { position: relative; }
+.owner-bell-count { position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 5px; display: grid; place-items: center;
+  border-radius: 999px; background: var(--status-warning); color: #fff; font-size: 10.5px; font-weight: 700; }
+.owner-bell-count.urgent { background: var(--status-danger); }
+.owner-bell-panel { position: absolute; right: 0; top: calc(100% + 8px); z-index: 60; width: min(400px, calc(100vw - 32px)); max-height: 70vh; overflow: auto;
+  border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); background: var(--bg-surface); box-shadow: var(--shadow-card, 0 12px 32px rgba(0,0,0,.14));
+  animation: owner-bell-in 0.16s cubic-bezier(0.2, 0.8, 0.2, 1) both; transform-origin: top right; }
+@keyframes owner-bell-in { from { opacity: 0; transform: scale(0.97) translateY(-4px); } to { opacity: 1; transform: none; } }
+.owner-bell-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--border-subtle); }
+.owner-bell-head span { color: var(--text-muted); font-size: 12.5px; }
+.owner-bell-panel ul { margin: 0; padding: 0; list-style: none; }
+.owner-bell-panel li { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: start; padding: 11px 14px; border-top: 1px solid var(--border-subtle); }
+.owner-bell-panel li:first-child { border-top: 0; }
+.owner-bell-panel li.urgent { box-shadow: inset 3px 0 0 var(--status-danger); }
+.owner-bell-panel li div { display: grid; gap: 2px; min-width: 0; }
+.owner-bell-panel li strong { font-size: 13.5px; }
+.owner-bell-panel li small { color: var(--text-muted); font-size: 12px; overflow-wrap: anywhere; }
+.owner-bell-icon { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: var(--bg-surface-alt); color: var(--text-secondary); }
+li.urgent .owner-bell-icon { background: var(--status-danger-bg); color: var(--status-danger); }
+li.warning .owner-bell-icon { background: var(--status-warning-bg); color: var(--status-warning); }
+.owner-bell-ack { height: 28px; padding: 0 10px; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--bg-surface); color: var(--text-primary); font: inherit; font-size: 12.5px; cursor: pointer; }
+.owner-bell-ack:hover:not(:disabled) { border-color: var(--border-strong); }
+.owner-bell-empty { display: flex; gap: 8px; align-items: center; margin: 0; padding: 18px 14px; color: var(--text-secondary); font-size: 13.5px; }
+.owner-bell-error { margin: 8px 14px 0; color: var(--status-danger); font-size: 12.5px; }
+.owner-bell-foot { padding: 10px 14px; border-top: 1px solid var(--border-subtle); text-align: right; }
+.owner-bell-foot button { border: 0; background: none; color: var(--color-primary); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+@media (prefers-reduced-motion: reduce) { .owner-bell-panel { animation: none; } }

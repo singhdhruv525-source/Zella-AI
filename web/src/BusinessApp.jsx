@@ -252,7 +252,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
               </button>
             )}
             <NotificationsBell workspace={workspace} onGo={(key) => {
-              if (canGo(key)) setPage(key);
+              if (canGo(key) || key?.startsWith("settings/")) setPage(key);
               else if (key) setNotice("That page isn't available with your access. Ask an owner or admin if you need it.");
             }} />
             <button type="button" className="ba-btn primary" onClick={() => setModal("lead")}>

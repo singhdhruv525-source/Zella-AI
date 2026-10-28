@@ -102,10 +102,13 @@ calendar, messaging status, navigation, no-show rebook, spam protection):
 4. `sql/zella_cross_sell.sql` - "You might also need". Marketing: also needs `sms_marketing_allowed` for texts.
 5. `sql/zella_scorecards.sql` - read-only.
 6. `sql/zella_status.sql` - public status page `/status` and the uptime check.
-7. Re-run ONLY the function sections of `sql/zella_dispatcher.sql` (review-replies lane, cross_sell kind, zella_check_uptime),
+6b. `sql/zella_notification_extras.sql` - celebrations (milestones, record week), on-call reminders, the Monday team check-in and
+   acknowledging alerts from the admin bell. Patches `zella_mark_staff_sms` (one line: the on-call person's own reminder can be texted when they opted in).
+7. Re-run ONLY the function sections of `sql/zella_dispatcher.sql` (review-replies lane, cross_sell kind, zella_check_uptime,
+   zella_check_milestones, zella_on_call_reminders, zella_team_scorecard_nudge),
    not its `cron.schedule` lines, then confirm every job except zella_usage_thresholds is still inactive.
 n8n (done 2026-10-28, all unpublished): Follow-up Texts and Follow-up Emails send `cross_sell`; "Zella - Review Replies"
 (`CrWVtn3AHmVYtPox`) created and tested with pinned data. By hand before publishing it: a Google OAuth2 credential
 (scope `business.manage`, the Google account added as a manager of each business's profile) on "Get Google reviews" and
 "Post reply on Google", and the Anthropic key on "Ask AI". Google's v4 review endpoints are untested against the real API.
-Tests: `tests/features/run.sh` (staging only, 59 checks).
+Tests: `tests/features/run.sh` (staging only, 67 checks).

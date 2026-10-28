@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { supabase } from "./supabase";
 import { Field, Icon, Modal, Pill, initials, personName } from "./BusinessUI";
 import { formatDay, formatTime, timeAgo, todayInput, zonedDateTime } from "./businessTime";
 import { PhoneField } from "./formFields";
 import { validatePhone } from "./formValidation";
-import { pickQuiet, voiceTitle } from "./zellaVoice";
+import { noteIcon, pickQuiet, voiceTitle } from "./zellaVoice";
+import { chime, desktopAlert, deviceAlerts, tabCount } from "./liveAlerts";
 import { Empty, Notice, PageHead, Segment, explain, loadPeople, orThrow, plural, useLoad } from "./BusinessShared";
 
 /* ------------------------------------------------------------------ */
@@ -361,27 +363,75 @@ export function WaitlistPage({ workspace, term, refreshKey, onNotice, onOpenPers
 /* ------------------------------------------------------------------ */
 
 const NOTE_TONE = { urgent: "danger", warning: "warning", info: "" };
+const POLL_MS = 20000;
+
+// Pop-ups for notifications that arrive while the CRM is open (urgent ones stay until closed).
+function NoteToasts({ toasts, workspace, onOpen, onClose }) {
+  useEffect(() => {
+    const timers = toasts.filter((t) => t.severity !== "urgent").map((t) => setTimeout(() => onClose(t.id), 7000));
+    return () => timers.forEach(clearTimeout);
+  }, [toasts, onClose]);
+  if (!toasts.length) return null;
+  const host = document.querySelector(".ba-root") ?? document.body;
+  return createPortal(
+    <div className="ba-toasts" role="region" aria-label="New notifications" aria-live="polite">
+      {toasts.map((n) => {
+        const { icon, tone } = noteIcon(n);
+        return (
+          <div key={n.id} className={`ba-toast ${tone}`} role={n.severity === "urgent" ? "alert" : "status"}>
+            {tone === "celebrate" && <span className="ba-confetti" aria-hidden="true">{Array.from({ length: 10 }, (_, i) => <i key={i} />)}</span>}
+            <span className="ba-toast-icon"><Icon name={icon} size="sm" /></span>
+            <button type="button" className="ba-toast-main" onClick={() => onOpen(n)}>
+              <strong>{voiceTitle(n, workspace)}</strong>
+              {n.body && <small>{n.body}</small>}
+            </button>
+            <button type="button" className="ba-btn ghost sm" aria-label="Dismiss" onClick={() => onClose(n.id)}><Icon name="close" size="sm" /></button>
+          </div>
+        );
+      })}
+    </div>, host);
+}
 
 export function NotificationsBell({ workspace, onGo }) {
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState([]);
   const [missing, setMissing] = useState(false);
+  const [toasts, setToasts] = useState([]);
   const [quiet] = useState(() => pickQuiet());
+  const seen = useRef(null);
 
   async function load() {
     const { data, error } = await supabase.from("staff_notifications").select("*").eq("business_id", workspace.id).order("created_at", { ascending: false }).limit(30);
     if (error) { setMissing(true); return; }
     setMissing(false);
-    setRows(data ?? []);
+    const list = data ?? [];
+    // Anything new since the last look (not on the first load) announces itself.
+    if (seen.current) {
+      const fresh = list.filter((n) => !seen.current.has(n.id) && !n.read_at && Date.now() - new Date(n.created_at).getTime() < 15 * 60000);
+      if (fresh.length) {
+        const prefs = deviceAlerts();
+        if (prefs.popups) setToasts((t) => [...fresh.slice(0, 3).reverse(), ...t].slice(0, 3));
+        const top = fresh.find((n) => n.severity === "urgent") ?? fresh[0];
+        const { tone } = noteIcon(top);
+        if (prefs.sound) chime(tone);
+        if (prefs.desktop) desktopAlert(voiceTitle(top, workspace), fresh.length > 1 ? `and ${fresh.length - 1} more` : top.body, () => go(top));
+      }
+    }
+    seen.current = new Set(list.map((n) => n.id));
+    setRows(list);
   }
   useEffect(() => {
+    seen.current = null;
     load();
-    const timer = setInterval(load, 60000);
-    return () => clearInterval(timer);
+    const timer = setInterval(load, POLL_MS);
+    const onFocus = () => load();
+    window.addEventListener("focus", onFocus);
+    return () => { clearInterval(timer); window.removeEventListener("focus", onFocus); tabCount(0); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspace.id]);
 
   const unread = rows.filter((r) => !r.read_at);
+  useEffect(() => { tabCount(unread.length); }, [unread.length]);
   async function markAll() {
     const ids = unread.map((r) => r.id);
     if (!ids.length) return;
@@ -389,16 +439,18 @@ export function NotificationsBell({ workspace, onGo }) {
     load();
   }
   async function go(note) {
+    setToasts((t) => t.filter((x) => x.id !== note.id));
     if (!note.read_at) await supabase.rpc("zella_mark_notifications_read", { p_ids: [note.id] });
     setOpen(false);
     if (note.page_key) onGo(note.page_key);
     load();
   }
+  const closeToast = useMemo(() => (id) => setToasts((t) => t.filter((x) => x.id !== id)), []);
   if (missing) return null;
 
   return (
     <div className="ba-bell">
-      <button type="button" className="ba-btn icon" aria-label={unread.length ? `${unread.length} unread notifications` : "Notifications"} aria-expanded={open} onClick={() => { setOpen(!open); if (!open) load(); }}>
+      <button type="button" className={`ba-btn icon ${toasts.length ? "ringing" : ""}`} aria-label={unread.length ? `${unread.length} unread notifications` : "Notifications"} aria-expanded={open} onClick={() => { setOpen(!open); if (!open) load(); }}>
         <Icon name="notifications" />
         {unread.length > 0 && <span className={`ba-count ${unread.some((n) => n.severity === "urgent") ? "urgent" : ""}`}>{unread.length > 9 ? "9+" : unread.length}</span>}
       </button>
@@ -407,19 +459,27 @@ export function NotificationsBell({ workspace, onGo }) {
           <div className="ba-bell-head"><strong>Notifications</strong>{unread.length > 0 && <button type="button" className="ba-link" onClick={markAll}>Mark all read</button>}</div>
           {!rows.length ? <p className="ba-muted pad">{quiet}</p> : (
             <ul>
-              {rows.map((n) => (
-                <li key={n.id} className={`${n.read_at ? "" : "unread"} ${n.severity === "urgent" ? "urgent" : ""}`}>
-                  <button type="button" onClick={() => go(n)}>
-                    <span className="ba-kn-head"><strong>{voiceTitle(n, workspace)}</strong>{n.severity !== "info" && <Pill tone={NOTE_TONE[n.severity]}>{n.severity === "urgent" ? "Urgent" : "Heads up"}</Pill>}</span>
-                    {n.body && <small>{n.body}</small>}
-                    <small>{timeAgo(n.created_at)}</small>
-                  </button>
-                </li>
-              ))}
+              {rows.map((n) => {
+                const { icon, tone } = noteIcon(n);
+                return (
+                  <li key={n.id} className={`${n.read_at ? "" : "unread"} ${n.severity === "urgent" ? "urgent" : ""}`}>
+                    <button type="button" onClick={() => go(n)}>
+                      <span className={`ba-note-icon ${tone}`}><Icon name={icon} size="sm" /></span>
+                      <span className="ba-note-text">
+                        <span className="ba-kn-head"><strong>{voiceTitle(n, workspace)}</strong>{n.severity !== "info" && <Pill tone={NOTE_TONE[n.severity]}>{n.severity === "urgent" ? "Urgent" : "Heads up"}</Pill>}</span>
+                        {n.body && <small>{n.body}</small>}
+                        <small>{timeAgo(n.created_at)}</small>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           )}
+          <div className="ba-bell-foot"><button type="button" className="ba-link" onClick={() => { setOpen(false); onGo("settings/notifications/preferences"); }}>Notification settings</button></div>
         </div>
       )}
+      <NoteToasts toasts={toasts} workspace={workspace} onOpen={go} onClose={closeToast} />
     </div>
   );
 }

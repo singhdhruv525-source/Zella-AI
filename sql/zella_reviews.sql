@@ -4,7 +4,7 @@
 -- Every new review gets a reply draft straight away (a short template by star rating that never repeats details from
 -- the review: no health, legal or money details, nothing that confirms someone is a patient or client). If AI drafts
 -- are switched on (review_ai_live), the AI rewrites it from the review text. Nothing is ever posted without an owner,
--- admin or manager approving the exact words. 1-2 star reviews alert the owners.
+-- admin or manager approving the exact words. 1-2 star reviews alert the owners; 5-star ones are celebrated.
 -- Reviews come from Google (the n8n workflow "Zella - Review Replies" reads each connected Google Business Profile
 -- location and posts approved replies) or are added by hand from any site; a hand-added review's approved reply is
 -- copied and posted by the owner.
@@ -115,6 +115,11 @@ begin
     begin
       perform public.zella_notify_owners(new.business_id, 'low_review', new.rating || '-star review',
         left(coalesce(new.author_name, 'A customer') || ' left a ' || new.rating || '-star review. A reply draft is ready for you to check.', 300), 'warning', 'reviews');
+    exception when others then null; end;
+  elsif new.rating = 5 and new.status in ('drafted', 'replied_elsewhere') then
+    begin
+      perform public.zella_notify(new.business_id, 'five_star_review', '5-star review from ' || coalesce(split_part(new.author_name, ' ', 1), 'a customer'),
+        left(coalesce(new.body, 'Five stars, no words needed.'), 300), 'info', 'reviews', new.id);
     exception when others then null; end;
   end if;
   return new;

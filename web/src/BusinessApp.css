@@ -1917,3 +1917,46 @@ html[data-zella-theme="glass"] .td-week li.on .td-week-bar::after { background: 
 .rv-reply textarea { padding: 9px 11px; font-size: 13.5px; line-height: 1.5; }
 .rv-reply textarea:focus { outline: none; border-color: var(--ba-primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ba-primary) 15%, transparent); }
 .rv-summary .rv-source { justify-content: flex-start; color: var(--ba-text-2); font-size: 13px; }
+
+/* Notifications: icons, live pop-ups, celebrations */
+.ba-bell-panel li button { grid-template-columns: auto 1fr; align-items: start; column-gap: 10px; }
+.ba-note-text { display: grid; gap: 3px; min-width: 0; }
+.ba-note-icon { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: var(--ba-subtle); color: var(--ba-text-2); }
+.ba-note-icon.urgent { background: var(--ba-danger-bg); color: var(--ba-danger); }
+.ba-note-icon.warning { background: var(--ba-warning-bg); color: var(--ba-warning); }
+.ba-note-icon.celebrate { background: color-mix(in srgb, #E0A21B 18%, transparent); color: #B7791F; }
+.ba-note-icon.info { background: color-mix(in srgb, var(--ba-primary) 12%, transparent); color: var(--ba-primary); }
+.ba-bell-foot { padding: 10px 14px; border-top: 1px solid var(--ba-border); text-align: right; }
+.ba-btn.icon.ringing .ba-icon { animation: ba-ring 0.9s ease-in-out 2; transform-origin: 50% 10%; }
+@keyframes ba-ring { 0%, 100% { transform: rotate(0); } 15% { transform: rotate(14deg); } 30% { transform: rotate(-12deg); } 45% { transform: rotate(8deg); } 60% { transform: rotate(-5deg); } 75% { transform: rotate(2deg); } }
+
+.ba-toasts { position: fixed; right: 20px; bottom: 20px; z-index: 80; display: grid; gap: 10px; width: min(380px, calc(100vw - 32px)); }
+.ba-toast { position: relative; display: grid; grid-template-columns: auto 1fr auto; align-items: start; gap: 10px; padding: 12px 10px 12px 12px; overflow: hidden;
+  border: 1px solid var(--ba-border); border-radius: var(--ba-radius-lg, 14px); background: var(--ba-surface); box-shadow: 0 12px 32px rgba(20, 14, 8, 0.18);
+  animation: ba-toast-in 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.ba-toast.urgent { border-color: var(--ba-danger-border, var(--ba-danger)); box-shadow: inset 4px 0 0 var(--ba-danger), 0 12px 32px rgba(20, 14, 8, 0.18); }
+.ba-toast.warning { box-shadow: inset 4px 0 0 var(--ba-warning), 0 12px 32px rgba(20, 14, 8, 0.18); }
+.ba-toast.celebrate { background: linear-gradient(135deg, color-mix(in srgb, #E0A21B 14%, var(--ba-surface)), var(--ba-surface) 60%); }
+.ba-toast-icon { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; background: var(--ba-subtle); color: var(--ba-primary); }
+.ba-toast.urgent .ba-toast-icon { background: var(--ba-danger-bg); color: var(--ba-danger); }
+.ba-toast.warning .ba-toast-icon { background: var(--ba-warning-bg); color: var(--ba-warning); }
+.ba-toast.celebrate .ba-toast-icon { background: color-mix(in srgb, #E0A21B 22%, transparent); color: #B7791F; }
+.ba-toast-main { display: grid; gap: 3px; padding: 0; border: 0; background: none; color: var(--ba-text); font: inherit; text-align: left; cursor: pointer; min-width: 0; }
+.ba-toast-main strong { font-size: 13.5px; line-height: 1.35; }
+.ba-toast-main small { color: var(--ba-muted); font-size: 12.5px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+@keyframes ba-toast-in { from { opacity: 0; transform: translateY(14px) scale(0.98); } to { opacity: 1; transform: none; } }
+
+.ba-confetti { position: absolute; inset: 0; pointer-events: none; }
+.ba-confetti i { position: absolute; top: -8px; width: 6px; height: 10px; border-radius: 2px; opacity: 0; animation: ba-confetti 1.6s ease-out forwards; }
+.ba-confetti i:nth-child(5n + 1) { background: #E0A21B; } .ba-confetti i:nth-child(5n + 2) { background: #DCA67F; } .ba-confetti i:nth-child(5n + 3) { background: #15803D; }
+.ba-confetti i:nth-child(5n + 4) { background: #7C3AED; } .ba-confetti i:nth-child(5n + 5) { background: #DB2777; }
+.ba-confetti i:nth-child(1) { left: 8%; animation-delay: 0s; } .ba-confetti i:nth-child(2) { left: 18%; animation-delay: 0.1s; } .ba-confetti i:nth-child(3) { left: 28%; animation-delay: 0.05s; }
+.ba-confetti i:nth-child(4) { left: 38%; animation-delay: 0.15s; } .ba-confetti i:nth-child(5) { left: 48%; animation-delay: 0.02s; } .ba-confetti i:nth-child(6) { left: 58%; animation-delay: 0.12s; }
+.ba-confetti i:nth-child(7) { left: 68%; animation-delay: 0.07s; } .ba-confetti i:nth-child(8) { left: 78%; animation-delay: 0.18s; } .ba-confetti i:nth-child(9) { left: 88%; animation-delay: 0.04s; }
+.ba-confetti i:nth-child(10) { left: 95%; animation-delay: 0.1s; }
+@keyframes ba-confetti { 0% { opacity: 1; transform: translateY(0) rotate(0); } 100% { opacity: 0; transform: translateY(90px) rotate(260deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .ba-toast, .ba-btn.icon.ringing .ba-icon { animation: none; }
+  .ba-confetti { display: none; }
+}
+@media (max-width: 600px) { .ba-toasts { right: 16px; left: 16px; bottom: 16px; width: auto; } }

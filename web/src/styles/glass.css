@@ -104,7 +104,7 @@ html[data-zella-theme="glass"]:has(.ba-root, .owner-app) .owner-topbar { backgro
 html[data-zella-theme="glass"]:has(.ba-root, .owner-app) :is(.ba-content > *, .bp-section, .ba-banner) { animation-fill-mode: backwards; }
 
 /* menus, dialogs and the notification panel sit over other content: nearly solid */
-html[data-zella-theme="glass"]:has(.ba-root, .owner-app) :is(.owner-modal, .ba-modal, .zs-dialog, .ba-bell-panel, .ba-menu, .ba-picklist, .zs-mobile, .ba-modal-head) {
+html[data-zella-theme="glass"]:has(.ba-root, .owner-app) :is(.owner-modal, .ba-modal, .zs-dialog, .ba-bell-panel, .ba-toast, .owner-bell-panel, .ba-menu, .ba-picklist, .zs-mobile, .ba-modal-head) {
   background: var(--glass-solid);
   -webkit-backdrop-filter: var(--glass-blur);
   backdrop-filter: var(--glass-blur);

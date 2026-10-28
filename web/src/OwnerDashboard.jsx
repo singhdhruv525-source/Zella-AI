@@ -18,6 +18,7 @@ import ModulesPage from "./ModulesPage";
 import OffersPage from "./OffersPage";
 import VerificationQueue from "./VerificationQueue";
 import SecurityAbuse from "./SecurityAbuse";
+import AdminAlertsBell from "./AdminAlertsBell";
 import { supabase } from "./supabase";
 import { Pill } from "./OwnerOverview";
 import { businessState } from "./ownerFormat";
@@ -297,15 +298,7 @@ useEffect(() => {
               />
               <kbd>⌘ K</kbd>
             </div>
-            <button
-              className="owner-icon-button"
-              type="button"
-              aria-label="Needs attention"
-              title="Needs attention (Overview)"
-              onClick={() => goTo("Overview")}
-            >
-              <Icon name="notifications" />
-            </button>
+            <AdminAlertsBell onOpenMonitoring={() => goTo("Platform Operations")} />
             <button className="owner-icon-button" type="button" aria-label="Appearance and theme" title="Appearance and theme"
               onClick={() => navigate("/settings/profile/appearance")}>
               <Icon name="palette" />

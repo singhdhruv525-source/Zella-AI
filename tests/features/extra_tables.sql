@@ -165,3 +165,22 @@ begin
   get diagnostics n = row_count; return n;
 end $function$
 ;
+
+-- production's zella_mark_staff_sms (sql/zella_notify_via.sql), body verbatim, and its trigger
+create or replace function public.zella_mark_staff_sms() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare v_via text := coalesce(nullif(current_setting('zella.notify_via', true), ''), 'both'); v_ok boolean;
+begin
+  select exists (select 1 from public.business_members m where m.business_id = new.business_id and m.status = 'active' and m.sms_alerts
+                  and (new.user_id is null and m.role in ('owner', 'admin') or m.user_id = new.user_id)) into v_ok;
+  if v_via = 'sms' then
+    if v_ok then new.sms_status := 'pending'; new.delivery_status := 'skipped'; end if;
+  elsif v_via = 'email' then
+    new.sms_status := null;
+  elsif new.severity = 'urgent' and v_ok then
+    new.sms_status := 'pending';
+  end if;
+  return new;
+end $$;
+drop trigger if exists zella_mark_staff_sms_trg on public.staff_notifications;
+create trigger zella_mark_staff_sms_trg before insert on public.staff_notifications for each row execute function public.zella_mark_staff_sms();

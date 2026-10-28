@@ -130,6 +130,76 @@ const TITLES = {
   shift_handover: ["Work was handed to you. Your team is counting on you!", "A handover just landed on your desk. Welcome to the next leg.", "Baton passed! Some work is yours now."],
 };
 
+// The rest of the kinds the database sends (2026-10-28), so nothing in the bell reads like a log line.
+// Kinds whose title carries the facts (a name, a number) keep it: the function gets the original notification.
+Object.assign(TITLES, {
+  // account and plan
+  account_cancelled: ["Your Zella plan has been cancelled. We're sorry to see you go."],
+  account_reactivated: ["Welcome back! Your workspace is active again.", "You're back! Everything is switched on again."],
+  account_suspended: ["Your workspace is paused. Let's get it sorted together."],
+  subscription_cancelled: ["Your subscription was cancelled. Your records are safe for now."],
+  cancellation_coming: ["Your plan is ending soon. Want to keep Zella answering?"],
+  trial_ended: ["Your trial has ended. We'd love to keep helping you."],
+  usage_threshold: (n) => [`Minutes check-in: ${n.title}`, `Heads up on your minutes: ${n.title}`],
+  // calls, callbacks and the AI receptionist
+  agent_failures: ["Your AI receptionist hit a few bumps. Worth a look."],
+  agent_sync_failed: ["An update didn't reach your AI receptionist yet. We'll try again."],
+  callback_digest: ["Your callback round-up is ready."],
+  callback_escalated: ["A callback needs someone senior. Can you step in?"],
+  callback_review: ["A callback needs a quick check before anyone calls."],
+  transfer_failures: ["Calls couldn't be passed to a person a few times. Let's check the number."],
+  transfer_fallback_applied: ["Calls are now going to your backup number. Nobody gets left hanging."],
+  wrong_answer_reported: ["Someone flagged an answer from your AI receptionist. Let's fix it together."],
+  spot_check: ["A few AI conversations are ready for a quick spot check."],
+  on_call_starting: (n) => /^You're on call/.test(n.title)
+    ? [`${n.title}. Phone charged? You've got this.`, `${n.title}. After-hours calls will come to you.`]
+    : [`${n.title}. After-hours calls are covered.`, `Tonight's cover: ${n.title.replace(/^(.+) is on call/, "$1, on call")}.`],
+  // leads, work and the team
+  lead_assigned: ["A new lead has your name on it. Say hello!", "You've got a lead! A quick hello goes a long way."],
+  task_escalated: ["A task needs a hand. Can you help it over the line?"],
+  appointment_request: ["Someone asked for an appointment. Pick a time that suits.", "A booking request is waiting for your yes."],
+  appointments_need_outcome: ["A few visits need marking as done or no-show.", "Quick tidy-up: a few bookings need an outcome."],
+  customer_request_overdue: ["A customer's request is still waiting. Let's close the loop."],
+  team_scorecard: ["A few things are waiting from last week.", "Monday check-in: a little catching up to do."],
+  duplicate_scan: ["We found some records that may be the same person."],
+  calendar_sync_owner: ["Your calendar sync needs a look."],
+  // messages and email
+  email_complaint: ["Someone marked an email as spam. We've stopped emailing them."],
+  email_unsubscribed: ["A customer unsubscribed from emails. We'll respect that."],
+  kpi_message_failures: ["More messages than usual didn't get through. Let's check why."],
+  kpi_missed_calls: ["More calls than usual went unanswered. Let's look together."],
+  kpi_no_shows: ["No-shows are a little higher than usual. Reminders may help."],
+  // knowledge and the website
+  knowledge_gap: ["Callers asked something your AI couldn't answer. Teach it once, it remembers.", "A new question came up. A quick answer helps every caller after."],
+  knowledge_repeat: ["The same question keeps coming up. Worth adding to Knowledge?"],
+  knowledge_conflict: ["Two answers in Knowledge disagree. Which one is right?"],
+  knowledge_failed: ["A knowledge update didn't go through. Let's try again."],
+  integration_reminder: ["One small connection would make Zella even more helpful."],
+  reconnect_reminder: ["A connection is still waiting to be reconnected."],
+  data_rights_due: ["A privacy request is due soon. Please take a look."],
+  website_review: ["New pages from your website are ready for a look."],
+  website_new_pages: ["We spotted new pages on your website."],
+  website_page_broken: ["A page on your website isn't loading. Worth a check."],
+  website_page_removed: ["A page disappeared from your website. We've kept your AI up to date."],
+  // social, spam and reviews
+  social_comment: ["Someone commented on your social post!", "A new comment is waiting on social."],
+  social_handoff: ["A social conversation needs a person. Over to you!"],
+  meta_disconnected: ["Facebook or Instagram got disconnected. Let's reconnect it."],
+  meta_lead_failed: ["A lead from Facebook didn't come through. Let's take a look."],
+  meta_lead_incomplete: ["A Facebook lead arrived with missing details."],
+  meta_permissions_missing: ["Facebook needs a little more permission to keep things running."],
+  spam_high_risk: ["Zella blocked something suspicious. Have a quick look."],
+  spam_unreviewed: ["A few suspicious contacts are waiting for your call on them."],
+  spam_weekly_report: ["Your spam protection week in review is ready."],
+  low_review: (n) => [`${n.title}. A kind reply can turn it around.`, `${n.title}. Your reply draft is ready.`],
+  review_reply_failed: ["A review reply couldn't be posted. Let's try again."],
+  reviews_disconnected: ["Google reviews stopped syncing. Let's reconnect."],
+  // celebrations: the facts are in the title
+  milestone: (n) => [`${n.title}! 🎉`, `Milestone: ${n.title.charAt(0).toLowerCase()}${n.title.slice(1)}!`, `${n.title}. Here's to the next one!`],
+  five_star_review: (n) => [`${n.title}! ⭐`, `Five stars! ${n.title.replace(/^5-star review from /, "From ")}.`, `${n.title}. Your team earned this one.`],
+  best_week: ["Your best week in three months! 🎉", "Record week! Your busiest in three months."],
+});
+
 // More ways to say the same thing, so the bell never feels like a template. Only the wording changes, never the facts.
 const EXTRA = {
   website_lead: ["A visitor liked your website enough to say hi!", "Your website just did its job. A new enquiry is in."],
@@ -209,3 +279,37 @@ export const ALL_QUIET = [
   "Nothing new. We'll tap you on the shoulder if that changes.",
 ];
 export const pickQuiet = () => roll(ALL_QUIET);
+
+// Icon and tone for each kind in the bell and pop-ups. Unknown kinds get a plain bell.
+const ICONS = {
+  new_lead: "person_add", lead_assigned: "person_add", website_lead: "language", social_lead: "share", lead_escalated: "front_hand", lead_overdue: "hourglass_bottom",
+  callback: "phone_callback", callback_assigned: "phone_callback", callback_soon: "alarm", callback_overdue: "phone_missed", callback_escalated: "phone_forwarded",
+  callback_digest: "summarize", callback_review: "fact_check", emergency_call: "emergency", transfer_failures: "phone_disabled", transfer_fallback_applied: "call_split",
+  appointment_cancelled: "event_busy", appointment_cancelled_mine: "event_busy", appointment_rescheduled: "event_repeat", appointment_moved_mine: "event_repeat",
+  appointment_request: "event_available", appointments_need_outcome: "event_note", customer_arrived: "waving_hand", on_call_starting: "support_agent",
+  customer_reply: "chat", customer_email: "mail", customer_request: "assignment", customer_request_overdue: "assignment_late", social_message: "forum",
+  social_comment: "comment", social_handoff: "forum", social_booking: "event_available", slow_reply: "schedule",
+  task_overdue: "task_alt", task_escalated: "task_alt", unassigned_work: "assignment_ind", work_reassigned: "swap_horiz", shift_handover: "swap_horiz",
+  team_scorecard: "leaderboard", staff_joined: "group_add", staff_unavailable: "event_busy", time_off_request: "beach_access", time_off_decision: "beach_access",
+  approval_requested: "verified_user", approval_waiting: "verified_user", draft_ready: "edit_note", call_insight: "insights",
+  knowledge_gap: "help", knowledge_repeat: "repeat", knowledge_conflict: "rule", knowledge_failed: "error", knowledge_report: "menu_book",
+  wrong_answer_reported: "report", spot_check: "fact_check", agent_config_published: "auto_awesome", agent_failures: "error", agent_sync_failed: "sync_problem",
+  daily_summary: "today", weekly_review: "date_range", team_summary: "groups", kpi_missed_calls: "trending_down", kpi_no_shows: "trending_down", kpi_message_failures: "trending_down",
+  email_bounced: "unsubscribe", email_complaint: "report", email_unsubscribed: "unsubscribe", sms_not_delivered: "sms_failed", messages_failed: "sms_failed", reminder_failed: "notifications_off",
+  integration_down: "link_off", integration_reconnect: "link", integration_reminder: "extension", reconnect_reminder: "link", calendar_disconnected: "event_busy", calendar_sync_owner: "sync",
+  meta_disconnected: "link_off", meta_lead_failed: "error", meta_lead_incomplete: "help", meta_permissions_missing: "lock",
+  website_review: "language", website_new_pages: "language", website_page_broken: "link_off", website_page_removed: "delete",
+  spam_high_risk: "gpp_maybe", spam_unreviewed: "gpp_maybe", spam_weekly_report: "shield",
+  low_review: "reviews", five_star_review: "star", review_reply_failed: "error", reviews_disconnected: "link_off",
+  escalation_unacknowledged: "front_hand", milestone: "celebration", best_week: "emoji_events", went_live: "rocket_launch", business_welcome: "waving_hand",
+  payment_failed: "credit_card_off", payment_overdue: "credit_card", payment_received: "paid", renewal_upcoming: "autorenew", trial_ending: "hourglass_bottom", trial_ended: "hourglass_empty",
+  usage_threshold: "timer", account_cancelled: "cancel", account_reactivated: "check_circle", account_suspended: "pause_circle", subscription_cancelled: "cancel", cancellation_coming: "event",
+  setup_incomplete: "checklist", setup_reminder: "checklist", incident_open: "warning", incident_resolved: "check_circle",
+  data_rights_request: "privacy_tip", data_rights_due: "privacy_tip", duplicate: "content_copy", duplicate_scan: "content_copy", industry_alert: "campaign",
+};
+export const CELEBRATE = new Set(["milestone", "five_star_review", "best_week", "went_live", "payment_received"]);
+export function noteIcon(n) {
+  const icon = ICONS[n?.kind] ?? "notifications";
+  const tone = n?.severity === "urgent" ? "urgent" : CELEBRATE.has(n?.kind) ? "celebrate" : n?.severity === "warning" ? "warning" : "info";
+  return { icon, tone };
+}
