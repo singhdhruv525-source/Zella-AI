@@ -282,7 +282,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  width: min(320px, 30vw);
+  flex: 0 1 min(320px, 30vw);   /* gives way to the header buttons instead of running under them */
+  min-width: 120px;
   height: 36px;
   padding: 0 10px;
   border: 1px solid var(--ba-border);
@@ -306,6 +307,7 @@
 
 .ba-header-actions {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   gap: 8px;
   margin-left: auto;
@@ -1836,3 +1838,18 @@
 .sp-followup li { display: flex; align-items: center; gap: 8px; }
 .sp-ai { display: grid; gap: 4px; margin-top: 10px; padding: 10px 12px; border: 1px dashed var(--border-subtle, #ddd); border-radius: 10px; font-size: 13px; }
 .sp-ai small { font-size: 12px; }
+
+/* Today: calls this week (bars glow in the Glass theme) */
+.td-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 10px; height: 180px; margin: 6px 0 0; padding: 0; list-style: none; }
+.td-week li { display: grid; grid-template-rows: auto 1fr auto; justify-items: center; gap: 6px; min-width: 0; }
+.td-week-n { color: var(--ba-muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.td-week-bar { position: relative; width: min(28px, 100%); height: 100%; border-radius: 999px; background: var(--ba-subtle); overflow: hidden; }
+.td-week-bar::after { content: ""; position: absolute; inset: auto 0 0; height: var(--h, 0%); min-height: 6px; border-radius: inherit; background: var(--ba-primary-border); transition: height .5s ease; }
+.td-week li.on .td-week-bar::after { background: var(--ba-primary); }
+.td-week li.on .td-week-n, .td-week li.on .td-week-day { color: var(--ba-text); font-weight: 600; }
+.td-week-day { color: var(--ba-muted); font-size: 12px; }
+.td-week-sum { margin: 12px 2px 0; color: var(--ba-muted); font-size: 12.5px; }
+html[data-zella-theme="glass"] .td-week-bar { background: rgba(255, 255, 255, 0.06); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08); }
+html[data-zella-theme="glass"] .td-week-bar::after { background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.12)); }
+html[data-zella-theme="glass"] .td-week li.on .td-week-bar::after { background: linear-gradient(180deg, #9cc9ff, #4f8ff0); box-shadow: 0 0 18px rgba(90, 160, 255, 0.75); }
+@media (prefers-reduced-motion: reduce) { .td-week-bar::after { transition: none; } }

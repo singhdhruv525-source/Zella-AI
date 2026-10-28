@@ -18,6 +18,7 @@ import { CheckInsPage } from "./BusinessCheckIns";
 import {
   AttentionPage, IntegrationsPage, LeadSourcesPage, ReportsPage,
 } from "./BusinessMore";
+import { DockToggle } from "./navigation/DockToggle";
 import "./BusinessApp.css";
 import SpamPage from "./SpamPage";
 import { supabase } from "./supabase";
@@ -217,6 +218,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
 
         <div className="ba-sidebar-foot">
           <ReceptionistCard workspace={workspace} agent={agent} term={term} onTest={() => setModal("test-voice")} />
+          <DockToggle />
         </div>
       </aside>
 

@@ -17,6 +17,7 @@ import { ReceptionistEditor } from "./BusinessReceptionist";
 import { InboxPage } from "./BusinessInbox";
 import SettingsWorkspace from "./settings/SettingsWorkspace";
 import { AccountSecurityPanel, MyProfilePanel, SignOutPanel, uploadImage } from "./settings/PersonalPanels";
+import { AppearancePanel } from "./settings/AppearancePanel";
 import { Banner, Card, Confirm, Empty, Facts, Field, LinkRows, LoadState, Needs, Pill, SaveBar, Table, Toggle, useAsync, useForm, when, words } from "./settings/SettingsKit";
 import { usePlatformInfo } from "./platformInfo";
 import { BusinessModulesPanel } from "./settings/BusinessModulesPanel";
@@ -890,6 +891,7 @@ function registry(w) {
       page("profile", "My profile", (c) => <MyProfilePanel email={c.email} />, "name picture"),
       page("security", "Personal security", (c) => <AccountSecurityPanel email={c.email} />, "password mfa"),
       page("preferences", "Personal preferences", () => <NotificationPrefs w={w} />, "notifications"),
+      page("appearance", "Appearance", () => <AppearancePanel />, "theme glass dark background wallpaper picture sidebar dock look"),
       page("logout", "Sign out", (c) => <SignOutPanel who="you" onSignOut={c.onSignOut} />, "logout"),
     ] },
   ];

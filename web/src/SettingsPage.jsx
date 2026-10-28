@@ -7,6 +7,7 @@ import SettingsWorkspace from "./settings/SettingsWorkspace";
 import { Icon } from "./BusinessUI";
 import { Banner, Loading } from "./settings/SettingsKit";
 import { AccountSecurityPanel, MyProfilePanel, SignOutPanel } from "./settings/PersonalPanels";
+import { AppearancePanel } from "./settings/AppearancePanel";
 import * as P from "./settings/AdminPanels";
 import { AdminCallingUsage } from "./settings/CallingUsagePanels";
 import { FailedEventsPanel, HealthPanel, IncidentsPanel } from "./PlatformMonitoring";
@@ -129,6 +130,7 @@ function registry() {
       page("me", "My profile", (c) => <MyProfilePanel email={c.email} />, "name picture"),
       page("security", "Account security", (c) => <AccountSecurityPanel email={c.email} />, "password mfa sessions revoke devices login history"),
       page("notifications", "Personal notifications", () => <P.AdminNotifications />, "email alerts digest admin notifications"),
+      page("appearance", "Appearance", () => <AppearancePanel />, "theme glass dark background wallpaper picture sidebar dock look"),
       page("signout", "Sign out", (c) => <SignOutPanel who="you" onSignOut={c.onSignOut} />, "logout"),
     ] },
   ];

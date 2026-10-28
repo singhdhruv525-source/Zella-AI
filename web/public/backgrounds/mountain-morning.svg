@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+  <!-- Zella background: mountains and a lake in the morning. Original artwork. -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5f8fc4"/><stop offset=".5" stop-color="#a9c6e3"/><stop offset=".8" stop-color="#f1d6bc"/><stop offset="1" stop-color="#f7e3cc"/>
+    </linearGradient>
+    <linearGradient id="lake" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#cfd9e3"/><stop offset="1" stop-color="#3f5a73"/>
+    </linearGradient>
+    <filter id="mist" x="-20%" y="-200%" width="140%" height="500%"><feGaussianBlur stdDeviation="28"/></filter>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#sky)"/>
+  <circle cx="1420" cy="420" r="70" fill="#fff4dc" opacity=".9"/>
+  <path fill="#8ea6c0" d="M0 560 L200 380 L330 470 L520 300 L700 470 L880 360 L1040 480 L1240 330 L1420 460 L1600 350 L1780 450 L1920 400 L1920 700 L0 700Z"/>
+  <path fill="#5f7a95" d="M0 640 L160 540 L320 600 L500 500 L690 610 L860 540 L1060 620 L1250 530 L1440 610 L1620 545 L1800 600 L1920 570 L1920 740 L0 740Z"/>
+  <ellipse cx="960" cy="660" rx="1100" ry="46" fill="#ffffff" opacity=".45" filter="url(#mist)"/>
+  <path fill="#33485c" d="M0 720 L220 660 L420 700 L640 650 L880 710 L1100 670 L1340 715 L1560 660 L1780 705 L1920 680 L1920 760 L0 760Z"/>
+  <rect y="756" width="1920" height="324" fill="url(#lake)"/>
+  <path fill="#1f3040" d="M0 900 Q300 860 640 905 T1320 900 T1920 880 L1920 1080 L0 1080Z"/>
+</svg>

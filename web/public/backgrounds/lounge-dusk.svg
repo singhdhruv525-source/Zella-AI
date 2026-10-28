@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+  <!-- Zella default background: a lounge with tall windows onto mountains at dusk. Original artwork. -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2c2b4d"/><stop offset=".38" stop-color="#6d4d70"/>
+      <stop offset=".68" stop-color="#d48a62"/><stop offset=".84" stop-color="#f3bd7f"/><stop offset="1" stop-color="#f7d7a2"/>
+    </linearGradient>
+    <radialGradient id="sun" cx="1180" cy="575" r="420" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffe2a8" stop-opacity=".95"/><stop offset=".25" stop-color="#ffc47c" stop-opacity=".55"/><stop offset="1" stop-color="#ffb070" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="lake" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e7a874"/><stop offset=".5" stop-color="#8a6476"/><stop offset="1" stop-color="#3d3448"/>
+    </linearGradient>
+    <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a2b24"/><stop offset="1" stop-color="#140e0b"/>
+    </linearGradient>
+    <radialGradient id="floorglow" cx="1060" cy="790" r="700" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f0a86a" stop-opacity=".42"/><stop offset="1" stop-color="#f0a86a" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="sofa" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#d9cbbb"/><stop offset="1" stop-color="#8f8072"/>
+    </linearGradient>
+    <filter id="soft"><feGaussianBlur stdDeviation="3"/></filter>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#sky)"/>
+  <rect width="1920" height="1080" fill="url(#sun)"/>
+  <path fill="#8d6a80" opacity=".75" d="M0 600 L140 520 L260 560 L420 470 L560 545 L700 500 L860 560 L1010 495 L1160 555 L1320 480 L1480 540 L1640 470 L1800 530 L1920 500 L1920 640 L0 640Z"/>
+  <path fill="#5b4560" d="M0 640 L180 575 L330 610 L470 560 L640 620 L820 585 L980 630 L1130 590 L1290 625 L1450 575 L1620 620 L1780 590 L1920 615 L1920 680 L0 680Z"/>
+  <rect y="672" width="1920" height="96" fill="url(#lake)"/>
+  <rect x="1120" y="676" width="120" height="86" fill="#ffd9a0" opacity=".35" filter="url(#soft)"/>
+  <path fill="#3a2f3d" d="M0 700 Q240 676 520 694 T1100 700 T1920 690 L1920 768 L0 768Z" opacity=".55"/>
+  <!-- the room -->
+  <rect y="756" width="1920" height="324" fill="url(#floor)"/>
+  <rect y="756" width="1920" height="324" fill="url(#floorglow)"/>
+  <g fill="#18120f">
+    <rect x="0" y="0" width="1920" height="64"/>
+    <rect x="0" y="744" width="1920" height="22"/>
+    <rect x="0" y="0" width="70" height="766"/>
+    <rect x="454" y="40" width="24" height="726"/>
+    <rect x="946" y="40" width="24" height="726"/>
+    <rect x="1438" y="40" width="24" height="726"/>
+    <rect x="1880" y="0" width="40" height="766"/>
+    <rect x="70" y="220" width="1810" height="10" opacity=".85"/>
+  </g>
+  <ellipse cx="960" cy="930" rx="560" ry="92" fill="#6f5a4b" opacity=".35"/>
+  <!-- coffee table -->
+  <ellipse cx="930" cy="888" rx="250" ry="42" fill="#5a3b28"/>
+  <ellipse cx="930" cy="880" rx="250" ry="40" fill="#7a5238"/>
+  <path d="M800 905 L780 990 M1060 905 L1080 990 M930 920 L930 1000" stroke="#3b2618" stroke-width="16" stroke-linecap="round"/>
+  <ellipse cx="900" cy="868" rx="56" ry="12" fill="#2c211b" opacity=".7"/>
+  <!-- sofa, right -->
+  <rect x="1330" y="802" width="560" height="96" rx="34" fill="url(#sofa)"/>
+  <rect x="1300" y="860" width="620" height="118" rx="36" fill="#b9aa9a"/>
+  <rect x="1380" y="826" width="130" height="70" rx="22" fill="#8b6b4c" opacity=".85"/>
+  <rect x="1530" y="830" width="120" height="66" rx="22" fill="#cfc2b4"/>
+  <!-- lounge chair, left -->
+  <path d="M90 880 Q140 790 300 812 L330 900 Q200 930 110 930Z" fill="#d6c7b6"/>
+  <path d="M120 930 L100 1010 M300 905 L340 1000" stroke="#4a3426" stroke-width="12" stroke-linecap="round"/>
+  <!-- plant -->
+  <g fill="#2f4a2c">
+    <ellipse cx="1820" cy="640" rx="46" ry="110" transform="rotate(-18 1820 640)"/>
+    <ellipse cx="1868" cy="690" rx="38" ry="100" transform="rotate(22 1868 690)"/>
+    <ellipse cx="1790" cy="730" rx="34" ry="86" transform="rotate(-42 1790 730)"/>
+  </g>
+  <rect x="1800" y="760" width="90" height="90" rx="14" fill="#cfc4b6"/>
+</svg>

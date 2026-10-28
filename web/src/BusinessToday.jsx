@@ -125,6 +125,36 @@ function Card({ title, action, children, className = "", tabs }) {
   );
 }
 
+// Calls over the 7 days ending on the chosen day: one bar per day, the chosen day highlighted, from the call records.
+// (a calendar date's weekday doesn't depend on the time zone, so it is read at noon UTC)
+const weekday = (date) => new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" }).format(new Date(`${date}T12:00:00Z`));
+function WeekChart({ week, loading, selected, onOpen }) {
+  const total = (week ?? []).reduce((n, d) => n + d.total, 0);
+  const max = Math.max(1, ...(week ?? []).map((d) => d.total));
+  return (
+    <Card title="Calls this week" action={<button type="button" className="ba-btn sm" onClick={onOpen}>View calls</button>}>
+      {week && total > 0 ? (
+        <>
+          <ul className="td-week" aria-label="Calls per day for the last 7 days">
+            {week.map((d) => (
+              <li key={d.date} className={d.date === selected ? "on" : ""}>
+                <span className="td-week-n">{d.total}</span>
+                <span className="td-week-bar" style={{ "--h": `${Math.round((d.total / max) * 100)}%` }}
+                  role="img" aria-label={`${weekday(d.date)}: ${d.total} calls, ${d.ai} answered by AI, ${d.missed} missed`}
+                  title={`${d.total} calls · ${d.ai} by AI · ${d.missed} missed`} />
+                <span className="td-week-day">{weekday(d.date)}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="td-week-sum">{total} {total === 1 ? "call" : "calls"} · {week.reduce((n, d) => n + d.ai, 0)} answered by AI · {week.reduce((n, d) => n + d.missed, 0)} missed</p>
+        </>
+      ) : (
+        <Empty title={loading ? "Loading…" : "No calls in the last 7 days"}>{!loading && "Each day's calls appear here as a bar."}</Empty>
+      )}
+    </Card>
+  );
+}
+
 function Empty({ title, children }) {
   return <div className="ba-empty">{title && <strong>{title}</strong>}{children}</div>;
 }
@@ -181,10 +211,13 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
             .is("closed_at", null).is("archived_at", null).order("due_at", { ascending: true, nullsFirst: false }).limit(12)
           : Promise.resolve({ data: [] }),
         cfg.staffColumn ? supabase.from("staff_members").select("id, name").eq("business_id", id) : Promise.resolve({ data: [] }),
+        // the week chart: every call in the 7 days ending on the chosen day
+        supabase.from("calls_view").select("created_at, status, ai_handled").eq("business_id", id)
+          .gte("created_at", iso(dayBounds(addDays(day, -6), tz).start)).lt("created_at", iso(cur.end)).limit(5000),
       ]);
       const failed = results.find((r) => r.error);
       if (failed) throw failed.error;
-      const [appts, prevAppts, leads, , calls, prevCalls, recentCalls, convos, tasks, visits, upcoming, records, staff] = results.map((r) => r.data ?? []);
+      const [appts, prevAppts, leads, , calls, prevCalls, recentCalls, convos, tasks, visits, upcoming, records, staff, weekCalls] = results.map((r) => r.data ?? []);
       const prevLeadCount = results[3].count ?? 0;
 
       const visitCount = {};
@@ -220,6 +253,11 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
         upcoming: upcoming.map(withPerson),
         records: records.map(withPerson),
         staff: Object.fromEntries(staff.map((s) => [s.id, s.name])),
+        week: Array.from({ length: 7 }, (_, n) => {
+          const date = addDays(day, n - 6);
+          const rows = weekCalls.filter((c) => todayInput(tz, new Date(c.created_at)) === date);
+          return { date, total: rows.length, ai: rows.filter((c) => c.ai_handled).length, missed: rows.filter((c) => c.status === "missed").length };
+        }),
       });
     } catch (err) {
       setError(friendly(err));
@@ -386,6 +424,8 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
             <Empty title={loading && !data ? "Loading…" : "No activity yet"}>{!loading && (agent.live ? "Calls and messages your receptionist handles appear here." : "Starts once your AI receptionist is live.")}</Empty>
           )}
         </Card>
+
+        <WeekChart week={data?.week} loading={loading && !data} selected={day} onOpen={() => onGo("calls")} />
 
         {opsTypes.map((t) => {
           const recs = (data?.records ?? []).filter((r) => r.type_key === t.key).slice(0, 5);

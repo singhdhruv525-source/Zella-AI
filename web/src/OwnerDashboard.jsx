@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon, loadBusinessFonts } from "./BusinessUI";
+import { DockToggle } from "./navigation/DockToggle";
 import "./OwnerDashboard.css";
 import CreateBusinessWizard, { callOwnerFunction } from "./CreateBusinessWizard";
 import OwnerOverview from "./OwnerOverview";
@@ -245,6 +246,7 @@ useEffect(() => {
                     type="button"
                     className={`owner-nav-item ${isCurrent(item) ? "active" : ""}`}
                     onClick={() => goTo(item.label)}
+                    title={item.label}
                     aria-current={isCurrent(item) ? "page" : undefined}
                   >
                     <span className="owner-nav-icon"><Icon name={item.icon} /></span>
@@ -263,6 +265,7 @@ useEffect(() => {
             <span>View system health</span>
           </div>
         </button>
+        <DockToggle />
       </aside>
 
       <main className="owner-main">
