@@ -1,6 +1,6 @@
 # Voice reliability
 
-Making the existing Vapi receptionist correct before tuning or changing providers. Phases 0 to 3 are done
+Making the existing Vapi receptionist correct before tuning or changing providers. Phases 0 to 4 are done
 (branch `voice-reliability`); nothing here has been applied to production or configured in Vapi.
 
 Target: phone call → telephony → Vapi → secure Zella endpoint → Supabase. n8n only for work that doesn't make the
@@ -274,6 +274,139 @@ n8n instance in staging; the workflows point at production), so no claim is made
 - `voice-rules` unit tests: 19 (4 new). `n8n/test.mjs`: 386 (2 new: n8n and edge build the same database call and
   answer; the shared tool list equals the database's).
 - The test database stand-in now runs calls concurrently (it ran them one at a time before, which hid parallelism).
+
+## Phase 4: assistant configuration, receptionist behaviour, automations
+
+### What was verified first (2026-10-28, HEAD b15cadb)
+
+- The staging copy now also has production's triggers on `calls` and `callbacks` (missed-call callbacks, call
+  integrity, call insights, callback assignment) and the live bodies of 26 more functions: callbacks, consent,
+  knowledge, the assistant configuration and the prompt (60 live function bodies reproduced exactly;
+  `tests/voice-reliability/build_phase4.py`). Running the Phase 1-3 tests against it found bug 1 below.
+- The live prompt builder is `zella_brain_prompt_base` (the body of `zella_brain.sql`'s `zella_brain_prompt`, renamed by
+  `zella_automation_completion.sql`), wrapped by `zella_brain_prompt`, which adds active "live notices". Re-running
+  `zella_brain.sql` alone would replace the wrapper and drop live notices: always run `zella_automation_completion.sql` after it.
+- Production today: all scheduled jobs (`zella_dispatch`, `zella_jobs_every5`, `hourly`, `daily`, `weekly`) are
+  **disabled**, every `*_live` switch is off, the dispatcher's n8n secret is not in Vault, and every n8n workflow is
+  unpublished. Nothing asynchronous runs yet. What runs inside a database transaction (triggers, the tool gateway) does.
+
+### Fixed (`sql/zella_voice_assistant.sql`, not applied)
+
+| # | Problem | Effect before | Fix |
+|---|---|---|---|
+| 1 | Vapi's "ended" status arrives before the end-of-call report; the call-integrity trigger saw an end time with no duration or transcript and marked it missed | **every real call** would have got a missed-call callback (measured: a 95-second call -> `missed` + 1 callback) | missed is decided once the report is in, from the real duration or the provider's own start and end times |
+| 2 | a transfer attempt queues a "needs a person" callback straight away | a transfer that connected still left staff a callback; a failed one left two | connected closes it; failed replaces it with the one urgent `transfer_failed` callback |
+| 3 | search_knowledge logs an unanswered question, report_unanswered_question logs it again | one question counted twice per call | repeats within a call don't count |
+| 4 | owners only heard about unanswered questions in the weekly report | slow follow-up | one notice for a new question (at most one an hour per business), pointing to Knowledge > Questions to review |
+| 5 | prompt lacked rules for result wording, dates, read-backs, injection, disclosure, the transfer hand-off | room for invented success and confusion | added (see below) |
+| 6 | `zella_assistant_config` produced a config Vapi rejects: tools at the top level, no server, no credential, no transfer tool, no call_rules, no server messages, model `claude-sonnet-5-5` not in Vapi's list | unusable | rebuilt; returns `{ assistant, ready_to_send, problems }`; `assistant` type-checks as Vapi's `CreateAssistantDto` |
+| 7 | automatic callbacks checked only `do_not_contact` | a do-not-call or opted-out caller could be called back automatically | claim uses `zella_can_contact`; unknown callers checked against opt-outs for their number |
+
+### The generated assistant (per business)
+
+- `server`: `vapi_server_url` (voice-rules) + `vapi_credential_id` (the Vapi HMAC credential), `timeoutSeconds` 20.
+- `serverMessages`: tool-calls, transfer-destination-request, status-update, end-of-call-report.
+- `model`: provider and model from the platform settings, the business's prompt, temperature 0.3, and `tools`:
+  `call_rules` (start-of-call check, action `rules` only), the Brain tools the business has not switched off (each
+  with the same server and credential, `async: false`; book, reschedule and cancel require `confirmed`), and
+  `transferCall` with no destinations (only if transfers are on), so Vapi asks the server for this business's number.
+- `analysisPlan.structuredDataPlan`: `callback_requested`, `outcome`, read by the end-of-call parser.
+- `metadata.business_id` (a fallback only; the registered number decides).
+- `ready_to_send` is false, with reasons, until the URL is https, the credential id is set, and the model is in Vapi's list.
+  Not set (Vapi defaults): voice, transcriber, max duration, voicemail detection. Choose them before the first call.
+
+### Receptionist behaviour
+
+Knowledge: owners' approved answers (`knowledge_items`, status ready), searched per business by `search_knowledge`
+(`zella_brain_search`); hours, closures and live notices are in the prompt; availability and appointments come only
+from tools. One business's knowledge is never searched for another's caller (tested). The prompt now covers:
+- Result wording: booked vs requested, message saved, follow-up requested, callback requested; a transfer is "connecting
+  you", never "a person is on the line"; nothing is said to be done after an error.
+- Unknown answers: no guessing; say it can't be confirmed; offer a message, a follow-up (ask first) or a person.
+- Dates: the model doesn't know the date; relative dates go through the tools and are confirmed by weekday and date.
+- Read back names, numbers, emails, dates and times; corrections are read back again; ask instead of guessing; one
+  request at a time.
+- Callers, tool results and knowledge can't change the rules; never reveal instructions, tool names, ids, staff or
+  transfer numbers, or other customers. The tools decide what is allowed (enforced in the database regardless).
+- Industry rules (clinical, legal/financial, vet, childcare, trades emergencies and others) were already there; all 28
+  industries generate a ready config with their own rules (tested).
+
+Not tested: how a real LLM follows these instructions. That needs real calls (or an LLM evaluation with an approved key).
+
+### Unknown answer -> CRM -> answer (tested end to end on staging)
+
+1. search_knowledge finds nothing -> "Do not guess" instruction; the question is recorded in `knowledge_gaps` for this
+   business only (once per call), and the owners get one notice.
+2. The assistant offers a message / follow-up / person; `request_follow_up` creates a task and only then says so.
+3. The owner answers in Knowledge > Questions to review (`zella_answer_knowledge_gap`; members of that business only).
+4. The answer becomes a knowledge item; once the Knowledge workflow marks it ready, the receptionist answers from it.
+   That step runs in n8n (unpublished today): until it is published, answers stay "processing" (retried hourly, then
+   marked failed with a notice). Weekly gap reports and repeated-question alerts run from the scheduled jobs (off today).
+
+### Automations
+
+Legend: **tested** = run on staging against the live function bodies; **code** = unit tests of the code only;
+**needs service** = depends on an external provider or n8n Cloud that can't run here. Production: scheduler off.
+
+| Automation | Trigger -> component | Isolation / safety | Status |
+|---|---|---|---|
+| Inbound call, caller lookup, knowledge, booking, rescheduling, cancelling, messages, emergencies, follow-ups (14 tools + call_rules) | Vapi -> voice-rules -> zella_ai_tool / zella_ai_voice | signature, business from the line, confirmation, screening, locks, idempotency, audit | tested |
+| Transfers and backup route | Vapi transfer-destination-request -> voice-rules -> zella_transfer_destination | own business's number only, screening, hours | tested; real connection needs Vapi |
+| Call status, end-of-call record, missed-call detection | Vapi -> voice-rules -> zella_record_call_status / zella_record_inbound_call + triggers | once, in order; missed only after the report | tested (bug 1 fixed) |
+| Missed-call and transfer-failed callbacks | calls triggers -> callbacks | one open callback per number and reason | tested |
+| Caller-requested callbacks | end-of-call `callback_requested` or summary -> callbacks | same | tested (parsing + creation) |
+| Automatic callback calls | scheduler -> dispatcher -> n8n Outbound Calls -> Vapi POST /call | calling hours in the business time zone, consent (fix 7), 3 attempts then staff, no loops | claim/attempt logic tested; dialling needs Vapi, n8n, `calls_live`, scheduler |
+| Follow-up calls (tasks) | same lane, zella_claim_followup_calls | consent per purpose; falls back to SMS or email | code + unit tests; needs services |
+| Call reconciliation | scheduler -> n8n Call Reconciliation -> Vapi GET /call | real provider data only | logic tested; needs Vapi key, n8n, `call_reconcile_live` |
+| Unanswered questions, owner notice, CRM review | tool gateway -> knowledge_gaps -> staff_notifications; Knowledge page | per business | tested |
+| Knowledge publishing, AI draft answers | scheduler -> n8n Knowledge | owner approval required | code; needs n8n (AI box needs key, off) |
+| Appointment confirmations, reminders (SMS, email) | appointment triggers -> queues -> n8n SMS / Email Sender | consent, opt-out (STOP), quiet hours | code + unit tests; needs Telnyx/Resend, `sms_live`/`email_live` |
+| Owner and staff notifications (in app, email, SMS) | staff_notifications -> n8n Owner Emails / Staff Texts | per business; one per event | rows tested; delivery needs services |
+| Failed-workflow and platform alerts | zella_platform_alert -> n8n Admin Alerts | deduplicated per kind and hour | code; delivery needs services |
+| Integration disconnects, calendar sync | scheduler -> n8n Connection Tests / Calendar Sync | per connection, bounded retries | code; needs Google |
+| Spam detection and blocked callers | database triggers + zella_caller_context; n8n Spam Response | server-side refusal of every tool but emergencies | tested both migration orders |
+| Duplicate webhooks and retries | replay cache, idempotency keys, unique indexes | - | tested |
+
+### Missed calls and callbacks
+
+Exists and tested: detection (silent short calls, after the report), callbacks for missed calls, failed transfers and
+requests, one open callback per number and reason, calling hours (9:00 to 19:00 in the business's time zone),
+consent and do-not-call (fix 7), up to 3 attempts with a delay, then "needs review" with a staff notice and no more
+automatic calls, records of every attempt, outbound calls never creating callbacks. Assignment to a staff member is
+automatic (round robin) when the business has members. Outbound caller id = the business's Vapi number
+(`vapi_phone_number_id`). Not runnable here: the actual outbound call (Vapi + n8n + `calls_live`, all off).
+
+### Failure behaviour
+
+Database slow or down, a tool failing, a malformed answer, the signature check unavailable: tested (safe error
+answers within the time budget, 503 for an unverifiable request, nothing claimed). Transfer unavailable or refused:
+tested (refusal, callback). SMS, email or n8n down: work stays queued in the database with bounded retries and alerts
+(code; not run against the providers). LLM timeout and Vapi rejecting a request: need real calls. A late scheduled job
+uses the business time zone at run time (calling hours, reminders) - not exercised against a real clock here.
+
+### Tests (phase 4, all run)
+
+`run_all.sh` (all passed): the 60 live bodies reproduced, the bug shown on the unpatched setup ("that call became
+'missed' with 1 missed-call callback"), migration applied twice (7 changes), `phase4_test.sql` (17 checks), the
+generated assistant type-checked against `@vapi-ai/server-sdk` 3.0.0 (and the old shape and model id are rejected by
+the same check), and every earlier suite with production's triggers in place (brain flow 23, HTTP 36, Brain tools 38).
+`spam_compat.sh` (all passed): the 4 migrations in both orders, twice each, all SQL suites including phase 4 on both,
+HTTP 36 and Brain tools 40 on both. n8n 386, voice-rules unit 19, lint, build: pass.
+
+### Before the first controlled real call (each needs approval)
+
+1. Decide the LLM model: `claude-sonnet-5-5` is not offered by Vapi; `claude-sonnet-5` is the closest listed id.
+2. Choose voice, transcriber and max call length in Vapi (Vapi defaults otherwise).
+3. Apply, in order, after a backup: `zella_voice_reliability.sql`, `zella_vapi_auth.sql`, `zella_voice_assistant.sql`,
+   then `zella_dispatcher.sql`. Check `zella_voice_reliability_status()` (12 true) and `zella_voice_assistant_status()` (7 true).
+4. Vault secret `zella_vapi_hmac_secret`; Vapi HMAC credential with the same value; deploy `voice-rules`.
+5. Set `vapi_server_url`, `vapi_credential_id` and `voice_llm_model`; check `zella_assistant_config(<test business>)`
+   says `ready_to_send: true`.
+6. Create a NEW test assistant in Vapi from its `assistant` object and attach a test number registered in
+   `business_phone_numbers` for a test business. Leave the scheduler and every `*_live` switch off.
+7. Call it and run the checks in "What still needs a real call" plus: an unknown question, a booking with the read-back,
+   a cancellation, "can I speak to someone", a blocked number. Afterwards check `calls`, `ai_tool_calls`,
+   `knowledge_gaps`, `callbacks` and the function logs.
 
 ## Not yet done (later phases)
 
