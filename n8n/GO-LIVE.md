@@ -73,7 +73,12 @@ Nothing below has been done yet on purpose: all n8n workflows are unpublished an
 - Turn on the `zella_spam_hourly` job (fallback alerts, reminders, retention): `update cron.job set active = true where jobname = 'zella_spam_hourly';`
 - Re-import "Zella - Voice Rules" from the repo if it stays in use (its reply now passes the screening instruction on).
 
-## Voice reliability (phases 1 and 2; nothing applied yet). In this order, each step needs approval
+## Voice reliability and calling usage. In this order, each step needs approval
+Applied to production on 2026-10-28 (after a backup of every function and setting they touch): steps 1, 3 and 6, plus
+`sql/zella_call_usage.sql`. `zella_dispatcher.sql` was NOT re-run as a whole (its `cron.schedule` lines would switch the
+disabled timers back on): only its three functions were updated. Status: reliability 12/12, assistant 7/7, usage 6/6;
+every function body matches the repo. `voice-rules` answers 401 to unsigned requests. Next: steps 4, 5, 8 (needs a
+voice id), 9 and 10.
 1. Back up the database (Supabase dashboard > Database > Backups, or `pg_dump`). Check there are no duplicate call ids: `select external_call_id from calls where external_call_id is not null group by 1 having count(*) > 1;` (must be empty).
 2. Spam protection first if it is going live too (section above). Both orders were tested; this one is the one documented.
 3. Run `sql/zella_voice_reliability.sql` (after the files it patches), then `sql/zella_vapi_auth.sql`, then `sql/zella_voice_assistant.sql`, then re-run `sql/zella_dispatcher.sql`. Check `select zella_voice_reliability_status();` (12 true) and `select zella_voice_assistant_status();` (7 true).

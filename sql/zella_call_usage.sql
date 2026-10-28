@@ -271,8 +271,7 @@ begin
   end;
   return new;
 end $$;
-drop trigger if exists zella_calls_usage on public.calls;
-create trigger zella_calls_usage after insert or update on public.calls for each row execute function public.zella_calls_usage_trg();
+create or replace trigger zella_calls_usage after insert or update on public.calls for each row execute function public.zella_calls_usage_trg();
 
 -- ---------------------------------------------------------------------------------------------------------------
 -- 4. Summaries (authoritative: computed from the ledger)

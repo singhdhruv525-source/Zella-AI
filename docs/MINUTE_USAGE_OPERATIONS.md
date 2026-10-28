@@ -25,7 +25,7 @@ Escalated issues raise a platform alert once a day (`usage_processing_failed`, `
 Update the platform setting `call_usage_policy` (increment, rounding, minimum, ignore-under). It applies to calls
 recorded afterwards; existing rows keep the policy stored with them. Category rules: `call_usage_rules`.
 
-## Deployment (needs approval; not done)
+## Deployment (applied to production 2026-10-28; dispatcher functions only, timers unchanged)
 
 After the voice-reliability migrations: `sql/zella_call_usage.sql`, then re-run `sql/zella_dispatcher.sql` (adds the
 reconciliation job; production's dispatcher is older than the repo's). Check `zella_call_usage_status()`. Rollback:

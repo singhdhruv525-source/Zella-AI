@@ -1,4 +1,4 @@
--- Zella - voice reliability, phase 1 (2026-10-27). Safe to re-run. NOT applied to production yet: back up first.
+-- Zella - voice reliability, phase 1 (2026-10-27). Safe to re-run. Applied to production 2026-10-28.
 -- Needs: zella_workflows.sql (booking functions), zella_ai_booking.sql, zella_brain.sql, zella_voice_rules.sql,
 -- zella_inbound_calls.sql, zella_phone_numbers.sql. Run AFTER them: re-running any of those files replaces a patched
 -- function with its unpatched version; zella_voice_reliability_status() shows what is in place.

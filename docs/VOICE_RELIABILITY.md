@@ -290,7 +290,7 @@ n8n instance in staging; the workflows point at production), so no claim is made
   **disabled**, every `*_live` switch is off, the dispatcher's n8n secret is not in Vault, and every n8n workflow is
   unpublished. Nothing asynchronous runs yet. What runs inside a database transaction (triggers, the tool gateway) does.
 
-### Fixed (`sql/zella_voice_assistant.sql`, not applied)
+### Fixed (`sql/zella_voice_assistant.sql`, applied to production 2026-10-28)
 
 | # | Problem | Effect before | Fix |
 |---|---|---|---|

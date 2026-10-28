@@ -1,6 +1,6 @@
 # Calling minutes: design
 
-Source: `sql/zella_call_usage.sql` (not applied to production). Plan-agnostic: no plans, prices, allowances, overage
+Source: `sql/zella_call_usage.sql` (applied to production 2026-10-28). Plan-agnostic: no plans, prices, allowances, overage
 charges or minute packs are created or assumed.
 
 ## Components reused
