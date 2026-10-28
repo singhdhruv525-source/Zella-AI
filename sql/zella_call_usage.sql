@@ -46,9 +46,10 @@ do $$ begin
   alter table public.usage_records add constraint usage_records_reconciliation_check check (reconciliation_status in ('ok', 'adjusted', 'discrepancy'));
 exception when duplicate_object then null; end $$;
 do $$ begin
-  -- an AI-call usage row says what it measured: raw seconds, the billable seconds under its policy, and the minutes
+  -- an AI-call usage row says what it measured: the provider call, raw seconds, billable seconds under its policy.
+  -- call_id may become null: the ledger outlives a deleted (e.g. erased) call
   alter table public.usage_records add constraint usage_records_ai_call_check check (usage_type <> 'ai_call'
-    or (call_id is not null and provider_call_id is not null and duration_seconds is not null and billable_seconds is not null and policy is not null));
+    or (provider_call_id is not null and duration_seconds is not null and billable_seconds is not null and policy is not null));
 exception when duplicate_object then null; end $$;
 -- one usage row per call; one row per idempotency key; one row per provider event
 create unique index if not exists usage_records_one_call_idx on public.usage_records (usage_type, call_id) where entry_kind = 'usage' and call_id is not null;
@@ -312,7 +313,8 @@ create or replace function public.zella_call_usage_summary(p_business_id uuid, p
 language plpgsql stable security definer set search_path = public as $$
 declare s public.subscriptions; v_from timestamptz := p_from; v_to timestamptz := p_to; v_src text := 'range';
 begin
-  if not (public.zella_is_member(p_business_id) or public.zella_admin_can('billing.view')) then raise exception 'NOT_ALLOWED'; end if;
+  -- a signed-in user must belong to the business (or be a billing admin); no user = the server (anon can't execute this)
+  if auth.uid() is not null and not (public.zella_is_member(p_business_id) or public.zella_admin_can('billing.view')) then raise exception 'NOT_ALLOWED'; end if;
   if v_from is null or v_to is null then
     s := public.zella_current_subscription(p_business_id);
     if s.current_period_start is null or s.current_period_end is null then
@@ -336,7 +338,8 @@ end $$;
 create or replace function public.zella_call_usage_records(p_business_id uuid, p_from timestamptz, p_to timestamptz, p_limit integer default 25, p_offset integer default 0) returns jsonb
 language plpgsql stable security definer set search_path = public as $$
 begin
-  if not (public.zella_is_member(p_business_id) or public.zella_admin_can('billing.view')) then raise exception 'NOT_ALLOWED'; end if;
+  -- a signed-in user must belong to the business (or be a billing admin); no user = the server (anon can't execute this)
+  if auth.uid() is not null and not (public.zella_is_member(p_business_id) or public.zella_admin_can('billing.view')) then raise exception 'NOT_ALLOWED'; end if;
   return jsonb_build_object('total', (select count(*) from public.usage_records u where u.business_id = p_business_id and u.usage_type = 'ai_call' and u.occurred_at >= p_from and u.occurred_at < p_to),
     'rows', coalesce((select jsonb_agg(x order by x ->> 'occurred_at' desc, x ->> 'created_at' desc) from (
       select jsonb_build_object('id', u.id, 'occurred_at', u.occurred_at, 'created_at', u.created_at, 'kind', u.entry_kind, 'category', u.usage_category,
