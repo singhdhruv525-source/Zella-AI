@@ -1096,3 +1096,21 @@
 .sa-h2 { font-size: 15px; margin: 18px 0 10px; }
 .sa-list li .owner-secondary-button { flex: none; }
 .sa-stack { display: flex; flex-direction: column; gap: 2px; }
+
+/* Public status page */
+.stp-card { max-width: 560px; }
+.stp-overall { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; padding: 12px 14px; border-radius: var(--radius-md); background: var(--bg-surface-alt); font-size: 15px; }
+.stp-overall.ok { background: var(--status-success-bg); color: var(--status-success); }
+.stp-overall.warn { background: var(--status-warning-bg); color: var(--status-warning); }
+.stp-overall.down { background: var(--status-danger-bg); color: var(--status-danger); }
+.stp-dot { width: 9px; height: 9px; flex: none; border-radius: 50%; background: currentColor; }
+.stp-list, .stp-incidents { margin: 0 0 18px; padding: 0; list-style: none; }
+.stp-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--border-subtle); font-size: 14px; }
+.stp-state { display: inline-flex; align-items: center; gap: 7px; color: var(--text-muted); font-size: 13px; white-space: nowrap; }
+.stp-state.ok { color: var(--status-success); }
+.stp-state.warn { color: var(--status-warning); }
+.stp-state.down { color: var(--status-danger); }
+.stp-h2 { margin: 6px 0 10px; font-size: 15px; }
+.stp-incidents li { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; padding: 10px 0; border-bottom: 1px solid var(--border-subtle); }
+.stp-incidents li p { grid-column: 1 / -1; margin: 0 !important; }
+.stp-incidents small { grid-column: 1 / -1; color: var(--text-muted); font-size: 12px; }

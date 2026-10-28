@@ -119,3 +119,49 @@ $function$
 
 create table if not exists public.profiles (id uuid primary key, first_name text, last_name text, phone text, avatar_url text,
   created_at timestamptz not null default now(), updated_at timestamptz not null default now(), portal_id text);
+
+create table if not exists public.provider_health (provider text primary key, ok boolean, detail text, checked_at timestamptz, claimed_at timestamptz,
+  consecutive_failures integer not null default 0, last_ok_at timestamptz);
+create table if not exists public.platform_incidents (id uuid primary key default gen_random_uuid(), title text not null, detail text,
+  status text not null default 'open' check (status = any (array['open', 'resolved'])), notified_businesses integer not null default 0, created_by uuid,
+  resolution_note text, created_at timestamptz not null default now(), resolved_at timestamptz);
+create table if not exists public.n8n_dispatch_state (workflow text primary key, last_triggered_at timestamptz, last_count integer not null default 0,
+  consecutive_same integer not null default 0, triggers_total bigint not null default 0);
+
+CREATE OR REPLACE FUNCTION public.is_platform_admin()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+    SELECT EXISTS (
+        SELECT 1
+        FROM public.platform_admins AS pa
+        WHERE pa.user_id = (SELECT auth.uid())
+          AND pa.is_active = true
+          AND pa.role IN ('zella_owner', 'super_admin')
+    );
+$function$
+;
+CREATE OR REPLACE FUNCTION public.zella_provider_checks_live()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select coalesce(public.zella_setting('provider_checks_live', 'false'::jsonb) = 'true'::jsonb, false);
+$function$
+;
+CREATE OR REPLACE FUNCTION public.zella_resolve_platform_alerts(p_kind text, p_business_id uuid, p_dedupe_key text DEFAULT NULL::text, p_note text DEFAULT NULL::text)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare n integer;
+begin
+  update public.platform_alerts set status = 'resolved', resolved_at = now(), resolution_note = left(p_note, 300)
+   where kind = p_kind and business_id is not distinct from p_business_id and status <> 'resolved' and (p_dedupe_key is null or dedupe_key = p_dedupe_key);
+  get diagnostics n = row_count; return n;
+end $function$
+;

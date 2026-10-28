@@ -171,9 +171,12 @@ export function OnCallPanel({ workspace, refreshKey, onNotice }) {
         {error && <div className="ba-banner error"><span>{error}</span><button type="button" className="ba-btn sm" onClick={reload}>Try again</button></div>}
         {data && (
           <div className="ba-oncall-now">
-            <Pill tone={settings.enabled && data.now ? "success" : ""} dot={settings.enabled && Boolean(data.now)} pulse>
-              {!settings.enabled ? "Off" : data.now ? `On call now: ${data.now.name}` : "Nobody on call right now"}
-            </Pill>
+            <span className="ba-oncall-who">
+              <Pill tone={settings.enabled && data.now ? "success" : ""} dot={settings.enabled && Boolean(data.now)} pulse>
+                {!settings.enabled ? "Off" : data.now ? "On call" : "Nobody"}
+              </Pill>
+              {settings.enabled && <strong>{data.now ? data.now.name : "No one is on call right now"}</strong>}
+            </span>
             {canEdit ? (
               <div className="ba-oncall-controls">
                 <label className="ba-check"><input type="checkbox" checked={settings.enabled} disabled={busy} onChange={(e) => saveSettings({ ...settings, enabled: e.target.checked })} /><span>Put after-hours calls through to whoever is on call</span></label>

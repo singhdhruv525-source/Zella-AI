@@ -15,7 +15,7 @@ echo "drop database if exists $DB; create database $DB template zvoice;" | su no
   || { echo "could not copy zvoice (run tests/voice-reliability/run_all.sh first)"; exit 1; }
 run $DB < support.sql > /dev/null || exit 1
 [ -f extra_tables.sql ] && { run $DB < extra_tables.sql > /dev/null || { echo "extra tables failed"; exit 1; }; }
-for f in ${FEATURES:-on_call languages reviews cross_sell scorecards}; do
+for f in ${FEATURES:-on_call languages reviews cross_sell scorecards status}; do
   for i in 1 2; do out=$(run $DB < "$REPO/sql/zella_$f.sql" 2>&1) || fail "zella_$f.sql run $i: $(echo "$out" | grep -m1 ERROR)"; done
   [ $FAILS = 0 ] && pass "sql/zella_$f.sql applied twice"
   out=$(run $DB < "${f}_test.sql" 2>&1); echo "$out" | grep -o 'PASS.*'

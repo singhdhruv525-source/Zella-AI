@@ -11,8 +11,8 @@ import { formatDay, timeAgo } from "./businessTime";
 
 const TABS = [["drafted", "To reply"], ["approved", "Approved"], ["posted", "Posted"], ["skipped", "Skipped"], ["all", "All"]];
 const STATUS = {
-  drafted: ["warning", "Needs a reply"], approved: ["info", "Approved"], posting: ["info", "Posting"], posted: ["success", "Posted"],
-  skipped: ["", "Skipped"], failed: ["danger", "Couldn't post"], replied_elsewhere: ["success", "Already answered"],
+  drafted: ["warning", "New"], approved: ["info", "Approved"], posting: ["info", "Posting"], posted: ["success", "Posted"],
+  skipped: ["", "Skipped"], failed: ["danger", "Failed"], replied_elsewhere: ["success", "Answered"],
 };
 const CODES = {
   ALREADY_DECIDED: "Someone already decided this one. The list has been refreshed.",

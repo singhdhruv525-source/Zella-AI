@@ -14,6 +14,8 @@ const CODES = {
   NOT_RETRYABLE: "This event was already retried or is no longer failed.",
   TITLE_REQUIRED: "Give the incident a title of at least 3 characters.",
   ALREADY_RESOLVED: "This incident is already resolved.",
+  PUBLIC_MESSAGE_REQUIRED: "Write at least 10 characters for the public status page.",
+  PUBLIC_MESSAGE_TOO_LONG: "Keep the public message under 500 characters.",
 };
 const say = (error) => {
   const message = error?.message ?? String(error);
@@ -109,13 +111,16 @@ export function FailedEventsPanel({ onOpenBusiness }) {
   );
 }
 
+const INCIDENT_COLUMNS = "id, title, detail, status, notified_businesses, resolution_note, created_at, resolved_at";
 const loadIncidents = async () => {
-  const { data, error } = await supabase.from("platform_incidents")
-    .select("id, title, detail, status, notified_businesses, resolution_note, created_at, resolved_at")
+  // is_public / public_message / component come with sql/zella_status.sql; without it the list still loads
+  let result = await supabase.from("platform_incidents").select(`${INCIDENT_COLUMNS}, is_public, public_message, component`)
     .order("created_at", { ascending: false }).limit(20);
-  if (error) throw error;
-  return data ?? [];
+  if (result.error) result = await supabase.from("platform_incidents").select(INCIDENT_COLUMNS).order("created_at", { ascending: false }).limit(20);
+  if (result.error) throw result.error;
+  return result.data ?? [];
 };
+const STATUS_PARTS = [["", "No specific part"], ["phone", "Phone assistant"], ["texts", "Text messages"], ["email", "Email"], ["automations", "Reminders and follow-ups"], ["app", "Zella app"]];
 
 export function IncidentsPanel() {
   const { data, error, loading, reload } = useAsync(loadIncidents);
@@ -133,6 +138,23 @@ export function IncidentsPanel() {
     if (e) return setNotice({ text: "", error: say(e) });
     setForm({ title: "", detail: "" });
     setNotice({ text: id ? "Incident opened and owners notified." : "", error: "" });
+    reload();
+  }
+
+  const [parts, setParts] = useState({});
+  async function publish(incident, on) {
+    let message = incident.public_message ?? "";
+    if (on) {
+      message = window.prompt("What should the public status page say? (10 to 500 characters, no internal details)", message || incident.detail || "");
+      if (message === null) return;
+    }
+    setBusy(true);
+    const { error: e } = await supabase.rpc("zella_set_incident_public", {
+      p_incident_id: incident.id, p_public: on, p_message: on ? message : null, p_component: on ? (parts[incident.id] ?? incident.component ?? "") || null : null,
+    });
+    setBusy(false);
+    if (e) return setNotice({ text: "", error: say(e) });
+    setNotice({ text: on ? "Shown on the public status page (/status)." : "Taken off the status page.", error: "" });
     reload();
   }
 
@@ -169,6 +191,18 @@ export function IncidentsPanel() {
               <span>Opened {formatDateTime(i.created_at)} · {i.notified_businesses} businesses told{i.resolved_at ? ` · resolved ${formatDateTime(i.resolved_at)}` : ""}</span>
               {i.detail && <span>{i.detail}</span>}
               {i.resolution_note && <span>Fix: {i.resolution_note}</span>}
+              {"is_public" in i && (
+                <span className="op-inline">
+                  {i.is_public ? <><Pill tone="info">On status page</Pill>{i.public_message && <em>“{i.public_message}”</em>}
+                    <button type="button" className="owner-secondary-button op-small" disabled={busy} onClick={() => publish(i, false)}>Remove</button></>
+                    : <>
+                      <select className="owner-input" value={parts[i.id] ?? ""} onChange={(e) => setParts({ ...parts, [i.id]: e.target.value })} aria-label="Affected part">
+                        {STATUS_PARTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                      </select>
+                      <button type="button" className="owner-secondary-button op-small" disabled={busy} onClick={() => publish(i, true)}>Show on status page</button>
+                    </>}
+                </span>
+              )}
             </div>
             {i.status === "open" ? (
               <div className="op-inline">

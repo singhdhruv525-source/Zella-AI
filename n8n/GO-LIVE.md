@@ -89,3 +89,23 @@ voice id), 9 and 10.
 8. Set `vapi_server_url`, `vapi_credential_id` and a `voice_llm_model` Vapi lists (decision needed: `claude-sonnet-5-5` is not offered). `select zella_assistant_config('<business id>')` must say `ready_to_send: true`; its `assistant` object is the whole Vapi assistant (server, credential, server messages, tools, transfer tool). Otherwise, by hand on a TEST assistant first (not the live one): server URL `https://pffqxlumqhjdbzvvoszm.supabase.co/functions/v1/voice-rules` with the credential from step 5; server messages `tool-calls`, `transfer-destination-request`, `status-update`, `end-of-call-report`; tool `call_rules` and the 14 brain tools with no own server (they use the assistant's, i.e. `voice-rules`) or, per tool, server URL `.../functions/v1/voice-rules` with the credential from step 5 (phase 3; switch read-only tools first, see `docs/VOICE_RELIABILITY.md`). Rollback for a tool: its server URL back to `<n8n>/webhook/zella/vapi-brain` (credential plus `X-Zella-Secret` header); `zella_assistant_config` does not add the credential yet (phase 4), so don't send its output to Vapi unchanged; every tool synchronous (`async` off); a transfer tool with no destinations; book, reschedule and cancel with the boolean `confirmed`. Leave retries off (`backoffPlan` unset).
 9. Test calls on the test assistant (section "What still needs a real call" in `docs/VOICE_RELIABILITY.md`), checking `calls`, `ai_tool_calls` and the edge function logs. Only then point the live assistant and phone numbers at the same settings.
 10. Set `call_reconcile_live` to `true` once real calls are coming in.
+
+## Features added 2026-10-28 (built and tested on staging; not applied to production yet)
+Apply after a backup, each file twice is safe, in this order (with the files still missing from production: onboarding,
+calendar, messaging status, navigation, no-show rebook, spam protection):
+1. `sql/zella_on_call.sql` - on-call rota. Patches `zella_ai_voice` and replaces `zella_transfer_destination`; check
+   `select zella_on_call_status();` (3 true). Also stops refusing an emergency transfer the assistant already promised.
+2. `sql/zella_languages.sql` - languages per business. Patches `zella_assistant_config`; check `select zella_languages_status();`.
+   Before a business uses a non-English language: set `voice_stt_model_multilingual` to a Deepgram model that supports it
+   (no default, nothing is guessed), then test-call each language on the TEST assistant.
+3. `sql/zella_reviews.sql` - review replies. Switches `reviews_live` and `review_ai_live` stay false until approved.
+4. `sql/zella_cross_sell.sql` - "You might also need". Marketing: also needs `sms_marketing_allowed` for texts.
+5. `sql/zella_scorecards.sql` - read-only.
+6. `sql/zella_status.sql` - public status page `/status` and the uptime check.
+7. Re-run ONLY the function sections of `sql/zella_dispatcher.sql` (review-replies lane, cross_sell kind, zella_check_uptime),
+   not its `cron.schedule` lines, then confirm every job except zella_usage_thresholds is still inactive.
+n8n (done 2026-10-28, all unpublished): Follow-up Texts and Follow-up Emails send `cross_sell`; "Zella - Review Replies"
+(`CrWVtn3AHmVYtPox`) created and tested with pinned data. By hand before publishing it: a Google OAuth2 credential
+(scope `business.manage`, the Google account added as a manager of each business's profile) on "Get Google reviews" and
+"Post reply on Google", and the Anthropic key on "Ask AI". Google's v4 review endpoints are untested against the real API.
+Tests: `tests/features/run.sh` (staging only, 59 checks).

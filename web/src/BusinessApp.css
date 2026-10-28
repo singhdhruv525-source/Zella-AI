@@ -1909,3 +1909,11 @@ html[data-zella-theme="glass"] .td-week li.on .td-week-bar::after { background: 
 .sc-table th[scope="row"] small { display: block; color: var(--ba-muted); font-weight: 400; text-transform: capitalize; }
 .sc-table td.warn { color: var(--ba-warning); font-weight: 600; }
 .sc-table tbody tr:last-child th, .sc-table tbody tr:last-child td { border-bottom: 0; }
+.ba-oncall-who { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; }
+.ba-oncall-controls select, .rv-reply textarea {
+  border: 1px solid var(--ba-border); border-radius: var(--ba-radius-md); background: var(--ba-surface); color: var(--ba-text); font: inherit;
+}
+.ba-oncall-controls select { height: 32px; padding: 0 8px; font-size: 13px; }
+.rv-reply textarea { padding: 9px 11px; font-size: 13.5px; line-height: 1.5; }
+.rv-reply textarea:focus { outline: none; border-color: var(--ba-primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ba-primary) 15%, transparent); }
+.rv-summary .rv-source { justify-content: flex-start; color: var(--ba-text-2); font-size: 13px; }

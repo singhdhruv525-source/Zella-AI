@@ -5,6 +5,7 @@ import OwnerDashboard from "./OwnerDashboard";
 import ContinuePlan from "./ContinuePlan";
 import Reschedule from "./Reschedule";
 import Unsubscribe from "./Unsubscribe";
+import StatusPage from "./StatusPage";
 import WaitlistOffer from "./WaitlistOffer";
 import BusinessApp from "./BusinessApp";
 import { checkEmail, passwordProblems } from "./formValidation";
@@ -30,6 +31,10 @@ export default function App() {
   // Reschedule button from appointment texts and emails (customers, not signed in).
   if (/^\/r\/[0-9a-fA-F]{64}\/?$/.test(window.location.pathname)) {
     return <Reschedule />;
+  }
+  // Public status page: is Zella working right now (anyone, not signed in).
+  if (/^\/status\/?$/.test(window.location.pathname)) {
+    return <StatusPage />;
   }
   // Unsubscribe link at the bottom of marketing emails (customers, not signed in).
   if (/^\/u\/[0-9a-fA-F]{32}\/?$/.test(window.location.pathname)) {
