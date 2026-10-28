@@ -243,7 +243,9 @@ begin
       policy, period_source, reconciliation_status, processed_by)
   values (v_rec.business_id, v_rec.subscription_id, 'ai_call', round(v_delta_bill / 60.0, 4), 'minute', v_rec.period_start, v_rec.period_end, c.id,
       jsonb_build_object('previous_seconds', v_current, 'new_seconds', c.duration_seconds, 'ended_at_source', c.metadata ->> 'ended_at_source'),
-      c.id, c.external_call_id, 'ai_call:' || c.external_call_id || ':adj:' || v_current || '>' || c.duration_seconds, 'adjustment', v_rec.id,
+      -- numbered per call: the same state retried gives the same key (no duplicate); a new change gets the next number
+      c.id, c.external_call_id, 'ai_call:' || c.external_call_id || ':adj' || (select count(*) + 1 from public.usage_records a where a.adjusts_record_id = v_rec.id)
+                                 || ':' || v_current || '>' || c.duration_seconds, 'adjustment', v_rec.id,
       v_rec.usage_category, v_rec.occurred_at, v_delta, v_delta_bill, v_rec.policy, v_rec.period_source, 'adjusted', left(coalesce(p_source, 'event'), 40))
   on conflict do nothing returning id into v_id;
   update public.usage_records set reconciliation_status = 'adjusted', updated_at = now() where id = v_rec.id;
@@ -502,13 +504,13 @@ begin
                                         'warning', r.business_id, 'usage-duration:' || to_char(now(), 'YYYY-MM-DD'));
     n_esc := n_esc + 1;
   end loop;
-  -- d. ledger vs calls over the last 35 days, per business (one open issue per business until it matches again)
+  -- d. ledger vs calls over the last 35 days, per business, for calls that have usage recorded (calls with none are
+  --    handled by a.; calls with an issue are tracked one by one): one open issue per business until it matches again
   for r in select c.business_id, sum(c.duration_seconds) as call_secs,
-                  (select coalesce(sum(u.duration_seconds), 0) from public.usage_records u where u.business_id = c.business_id and u.usage_type = 'ai_call' and u.status = 'recorded'
-                     and u.call_id in (select c2.id from public.calls c2 where c2.business_id = c.business_id and c2.ai_handled and c2.ended_at >= now() - interval '35 days' and c2.ended_at < now() - interval '1 hour')) as ledger_secs
+                  sum((select coalesce(sum(u.duration_seconds), 0) from public.usage_records u where u.usage_type = 'ai_call' and u.status = 'recorded' and u.call_id = c.id)) as ledger_secs
              from public.calls c
             where c.ai_handled and c.ended_at >= now() - interval '35 days' and c.ended_at < now() - interval '1 hour' and c.duration_seconds is not null
-              and (public.zella_call_usage_category(c) ->> 'counted')::boolean
+              and exists (select 1 from public.usage_records u where u.usage_type = 'ai_call' and u.call_id = c.id and u.entry_kind = 'usage')
             group by c.business_id loop
     if r.call_secs is distinct from r.ledger_secs then
       perform public.zella_usage_open_issue(r.business_id, null, 'summary_mismatch', 'Calls total ' || r.call_secs || ' s, ledger ' || r.ledger_secs || ' s (last 35 days).',

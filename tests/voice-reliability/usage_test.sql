@@ -114,7 +114,7 @@ begin
   assert r #>> '{period,source}' = 'subscription' and r #>> '{allowance,configured}' = 'true', 'sub period';
   raise notice 'PASS 17 active entitlement (test fixture, 10 min): within allowance, would permit, not enforced; summary uses the subscription''s own period';
   insert into calls (business_id, direction, status, external_call_id, started_at, ended_at, duration_seconds, ai_handled)
-  values (A, 'inbound', 'completed', 'u-19', now() - interval '1 hour', now() - interval '1 hour' + interval '330 seconds', 330, true);
+  values (A, 'inbound', 'completed', 'u-19', now() - interval '1 hour', now() - interval '1 hour' + interval '160 seconds', 160, true);   -- 4.5 min used before + 2.67 = 71.7%
   assert (select count(*) from usage_threshold_events where business_id = A) = 1 and (select event_type from usage_threshold_events where business_id = A) = 'approaching'
      and (select count(*) from staff_notifications where business_id = A and kind = 'usage_threshold') = 1, 'threshold ' || (select count(*) from usage_threshold_events)::text;
   perform zella_check_usage_thresholds(); perform zella_evaluate_call_usage_thresholds(A);
@@ -149,16 +149,20 @@ begin
   delete from usage_records where call_id = c2;
   r := zella_reconcile_call_usage();
   assert (r ->> 'recorded')::int >= 1 and (select count(*) from usage_records where call_id = c2) = 1, 'reconcile recorded ' || r::text;
-  update usage_records set duration_seconds = duration_seconds + 7 where call_id = c2;   -- a ledger edited behind the system's back
-  update calls set ended_at = ended_at where id = c2;
+  -- a ledger edited behind the system's back: the next reconciliation records a correcting adjustment (audited, not overwritten)
+  update usage_records set duration_seconds = duration_seconds + 7 where call_id = c2 and entry_kind = 'usage';
   perform zella_reconcile_call_usage();
-  assert exists (select 1 from usage_processing_issues where business_id = A and kind = 'summary_mismatch' and status = 'open'), 'mismatch';
+  assert (select sum(duration_seconds) from usage_records where call_id = c2) = 30 and exists (select 1 from usage_records where call_id = c2 and entry_kind = 'adjustment' and duration_seconds = -7), 'corrected';
+  -- a call that reconciliation must leave alone (escalated): the business-level check flags the disagreement, once
+  update usage_records set duration_seconds = duration_seconds + 7 where call_id = c2 and entry_kind = 'usage';
+  insert into usage_processing_issues (business_id, call_id, kind, status) values (A, c2, 'processing_failed', 'escalated');
+  perform zella_reconcile_call_usage(); perform zella_reconcile_call_usage();
+  assert (select count(*) from usage_processing_issues where business_id = A and call_id is null and kind = 'summary_mismatch' and status <> 'resolved') = 1, 'mismatch once';
+  update usage_processing_issues set status = 'resolved' where call_id = c2 and kind = 'processing_failed';
   perform zella_reconcile_call_usage();
-  assert (select count(*) from usage_processing_issues where business_id = A and kind = 'summary_mismatch' and status <> 'resolved') = 1, 'one mismatch';
-  update usage_records set duration_seconds = duration_seconds - 7 where call_id = c2;
-  perform zella_reconcile_call_usage();
-  assert not exists (select 1 from usage_processing_issues where business_id = A and kind = 'summary_mismatch' and status <> 'resolved'), 'mismatch resolved';
-  raise notice 'PASS 23 Billing > Usage reads the ledger; reconciliation records a call that lost its usage, flags a ledger that disagrees (once) and clears it when it matches';
+  assert not exists (select 1 from usage_processing_issues where business_id = A and call_id is null and kind = 'summary_mismatch' and status <> 'resolved')
+     and (select sum(duration_seconds) from usage_records where call_id = c2) = 30, 'mismatch resolved';
+  raise notice 'PASS 23 Billing > Usage reads the ledger; reconciliation re-records a call that lost its usage, corrects a changed ledger with an audited adjustment, flags a disagreement it may not fix (once) and clears it when fixed';
 
   -- 24: every industry uses the same ledger; an explicit industry rule can leave a category out, and it is recorded
   update businesses set industry_id = (select id from industries where slug = 'dental') where id = B;
