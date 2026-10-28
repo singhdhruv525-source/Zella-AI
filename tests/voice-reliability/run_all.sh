@@ -28,7 +28,7 @@ for i in 1 2; do run zvoice < "$REPO/sql/zella_voice_reliability.sql" > /dev/nul
 [ "$(q zvoice "select count(*) from jsonb_each(zella_voice_reliability_status()) where value = 'true'::jsonb")" = 12 ] && pass "migration applied twice; all 12 patches in place" || fail "patch status"
 for i in 1 2; do run zvoice < "$REPO/sql/zella_vapi_auth.sql" > /dev/null 2>&1 || fail "auth migration run $i"; done
 for i in 1 2; do run zvoice < "$REPO/sql/zella_voice_assistant.sql" > "$WORK/va.log" 2>&1 || fail "assistant migration run $i: $(grep -m1 ERROR "$WORK/va.log")"; done
-[ "$(q zvoice "select count(*) from jsonb_each(zella_voice_assistant_status()) where value = 'true'::jsonb")" = 6 ] && pass "phase 4 migration applied twice; all 6 changes in place" || fail "phase 4 status: $(q zvoice "select zella_voice_assistant_status()")"
+[ "$(q zvoice "select count(*) from jsonb_each(zella_voice_assistant_status()) where value = 'true'::jsonb")" = 7 ] && pass "phase 4 migration applied twice; all 7 changes in place" || fail "phase 4 status: $(q zvoice "select zella_voice_assistant_status()")"
 echo "== Vapi request authentication (database check)"
 out=$(run zvoice < auth_test.sql 2>&1); echo "$out" | grep -o 'PASS.*'; echo "$out" | grep -q 'ERROR' && fail "auth_test: $(echo "$out" | grep ERROR | head -1)"
 
