@@ -77,6 +77,18 @@ for t in rules_test lifecycle_test transfer_test phase4_test; do
   run zvoice < fixture.sql; run zvoice < phase4_reference.sql
   out=$(run zvoice < $t.sql 2>&1); echo "$out" | grep -o 'PASS.*' ; echo "$out" | grep -q 'ERROR' && fail "$t: $(echo "$out" | grep ERROR | head -1)"
 done
+echo "== generated Vapi assistant against Vapi's own types (@vapi-ai/server-sdk 3.0.0, needs the npm registry)"
+run zvoice < fixture.sql; run zvoice < phase4_reference.sql
+q zvoice "update businesses set industry_id = (select id from industries where slug = 'dental') where id = 'aaaaaaaa-0000-4000-8000-000000000001';
+  insert into platform_settings (key, value) values ('vapi_server_url', '\"https://pffqxlumqhjdbzvvoszm.supabase.co/functions/v1/voice-rules\"'), ('vapi_credential_id', '\"cred-test-123\"'), ('voice_llm_model', '\"claude-sonnet-5\"')
+  on conflict (key) do update set value = excluded.value" > /dev/null
+for B in aaaaaaaa-0000-4000-8000-000000000001 bbbbbbbb-0000-4000-8000-000000000002; do
+  printf 'import type { Vapi } from "npm:@vapi-ai/server-sdk@3.0.0";\nexport const assistant: Vapi.CreateAssistantDto = %s;\n' "$(q zvoice "select zella_assistant_config('$B') -> 'assistant'")" > "$WORK/assistant_$B.ts"
+done
+if out=$(cd "$WORK" && "$DENO" check assistant_*.ts 2>&1); then pass "both generated assistants type-check as Vapi CreateAssistantDto (tools in model.tools, server + credential, transfer tool, model id)"
+elif echo "$out" | grep -q "TS[0-9]"; then fail "generated assistant does not match Vapi's types: $(echo "$out" | grep -m1 TS)"
+else echo "skip  Vapi type check (npm registry not reachable)"; fi
+q zvoice "delete from platform_settings where key in ('vapi_server_url', 'vapi_credential_id', 'voice_llm_model')" > /dev/null
 echo "== Brain Tools code nodes against the patched functions"
 run zvoice < fixture.sql
 q zvoice "insert into business_phone_numbers (business_id, e164, vapi_phone_number_id) values ('aaaaaaaa-0000-4000-8000-000000000001', '+15550001000', 'pn-A'), ('bbbbbbbb-0000-4000-8000-000000000002', '+15550002000', 'pn-B')" > /dev/null
