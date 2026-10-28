@@ -863,7 +863,7 @@ function registry(w) {
     { key: "me", label: "Personal profile", icon: "person", items: [
       page("profile", "My profile", (c) => <MyProfilePanel email={c.email} />, "name picture"),
       page("security", "Personal security", (c) => <AccountSecurityPanel email={c.email} />, "password mfa"),
-      page("appearance", "Appearance", () => <AppearancePanel />, "theme glass dark background wallpaper picture sidebar dock look"),
+      page("appearance", "Appearance", () => <AppearancePanel />, "theme glass dark background wallpaper picture sidebar dock look notification sound chime"),
       page("logout", "Sign out", (c) => <SignOutPanel who="you" onSignOut={c.onSignOut} />, "logout"),
     ] },
   ];

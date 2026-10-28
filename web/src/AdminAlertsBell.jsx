@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "./BusinessUI";
 import { supabase } from "./supabase";
-import { chime, deviceAlerts, desktopAlert, tabCount } from "./liveAlerts";
+import { chime, deviceAlerts, desktopAlert, tabCount, unlockAlerts } from "./liveAlerts";
 
 // The Zella admin dashboard's bell: open platform alerts (provider down, queues stuck, failed jobs...), newest and most
 // severe first. Acknowledge takes one off the list (zella_admin_acknowledge_alert); Monitoring has the full picture.
@@ -43,6 +43,7 @@ export default function AdminAlertsBell({ onOpenMonitoring }) {
     setRows(list);
   }
   useEffect(() => {
+    unlockAlerts();
     load();
     const timer = setInterval(load, 30000);
     return () => { clearInterval(timer); tabCount(0); };

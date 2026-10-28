@@ -1,13 +1,20 @@
-// How new notifications announce themselves: a pop-up in the corner. Sound and desktop notifications are built in but
-// off (there is no settings page for them); a stored per-browser choice is still honoured if one exists.
-// Storage can be unavailable (private windows): defaults are used.
+// How new notifications announce themselves: a pop-up in the corner, a soft chime and a desktop notification when Zella
+// is in a background tab. All on by default. Browsers only allow sound and the desktop-notification question after the
+// person clicks something, so both are unlocked on the first click (unlockAlerts). A stored per-browser choice is
+// still honoured if one exists; the sound is switched in Settings > Appearance > Notification sound. Storage can be unavailable (private windows): defaults are used.
 
 const KEY = "zella.alerts.device";
-export const DEVICE_DEFAULTS = { popups: true, sound: false, desktop: false };
+export const DEVICE_DEFAULTS = { popups: true, sound: true, desktop: true };
 
 export function deviceAlerts() {
   try { return { ...DEVICE_DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) || "{}") }; } catch { return { ...DEVICE_DEFAULTS }; }
 }
+export function setDeviceAlerts(next) {
+  const value = { ...deviceAlerts(), ...next };
+  try { localStorage.setItem(KEY, JSON.stringify(value)); } catch { /* not saved; still applies this session */ }
+  return value;
+}
+
 // A short chime made in the browser (no sound file). Urgent: two firm notes. Celebration: a little rising run.
 let audio = null;
 export function chime(tone = "info") {
@@ -28,6 +35,24 @@ export function chime(tone = "info") {
       osc.stop(start + 0.3);
     }
   } catch { /* sound is optional */ }
+}
+
+// On the first click anywhere: wake the audio (so later chimes can play) and, once, ask whether Zella may show
+// desktop notifications. Nothing is asked again after the person answers.
+let unlocked = false;
+export function unlockAlerts() {
+  if (unlocked || typeof document === "undefined") return;
+  unlocked = true;
+  const once = () => {
+    document.removeEventListener("pointerdown", once, true);
+    document.removeEventListener("keydown", once, true);
+    try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); if (audio.state === "suspended") audio.resume(); } catch { /* no sound */ }
+    if (deviceAlerts().desktop && desktopSupported() && Notification.permission === "default") {
+      try { Notification.requestPermission().catch(() => {}); } catch { /* older browsers */ }
+    }
+  };
+  document.addEventListener("pointerdown", once, true);
+  document.addEventListener("keydown", once, true);
 }
 
 export function desktopSupported() {

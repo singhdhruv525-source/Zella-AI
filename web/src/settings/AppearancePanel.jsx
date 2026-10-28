@@ -6,6 +6,7 @@ import {
 } from "../appearance";
 import { uploadImage } from "./PersonalPanels";
 import { Banner, Card, Field, Toggle } from "./SettingsKit";
+import { chime, deviceAlerts, setDeviceAlerts } from "../liveAlerts";
 
 // Settings > Personal > Appearance (admin and CRM). Personal only: it changes how this app (admin or CRM, each kept
 // apart) looks for the person signed in, on every device, and never for anyone else. Sign-in pages are not themed.
@@ -44,6 +45,17 @@ function MatchColours({ look }) {
         </div>
       )}
     </div>
+  );
+}
+
+// The one notification choice: the chime when something new arrives (on by default, saved for this browser).
+function NotificationSound() {
+  const [on, setOn] = useState(() => deviceAlerts().sound);
+  return (
+    <Card title="Notification sound">
+      <ul className="zs-rows"><li><div><strong>Play a sound for new notifications</strong><small>A soft chime. Urgent alerts sound different.</small></div>
+        <Toggle on={on} label="Notification sound" onChange={(v) => { setOn(setDeviceAlerts({ sound: v }).sound); if (v) chime("info"); }} /></li></ul>
+    </Card>
   );
 }
 
@@ -142,6 +154,8 @@ export function AppearancePanel() {
           ))}
         </div>
       </Card>
+
+      <NotificationSound />
 
       <Card title="Start again">
         <div className="zs-bg-actions">

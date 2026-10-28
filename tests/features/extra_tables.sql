@@ -184,3 +184,27 @@ begin
 end $$;
 drop trigger if exists zella_mark_staff_sms_trg on public.staff_notifications;
 create trigger zella_mark_staff_sms_trg before insert on public.staff_notifications for each row execute function public.zella_mark_staff_sms();
+
+-- production's zella_save_my_profile (sql/zella_business_settings.sql), verbatim
+CREATE OR REPLACE FUNCTION public.zella_save_my_profile(p_first_name text, p_last_name text, p_phone text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_first text := nullif(left(trim(coalesce(p_first_name, '')), 100), '');
+  v_last text := nullif(left(trim(coalesce(p_last_name, '')), 100), '');
+  v_phone text := nullif(regexp_replace(coalesce(p_phone, ''), '[\s()-]', '', 'g'), '');
+begin
+  if auth.uid() is null then raise exception 'NOT_SIGNED_IN'; end if;
+  if v_phone is not null and v_phone !~ '^\+[1-9][0-9]{7,14}$' then raise exception 'BAD_PHONE'; end if;
+  update public.profiles set first_name = v_first, last_name = v_last, phone = v_phone where id = auth.uid();
+  if not found then
+    insert into public.profiles (id, first_name, last_name, phone) values (auth.uid(), v_first, v_last, v_phone);
+  end if;
+  -- Text alerts need a number; switch them off everywhere if it was removed.
+  if v_phone is null then update public.business_members set sms_alerts = false where user_id = auth.uid() and sms_alerts; end if;
+  return jsonb_build_object('first_name', v_first, 'last_name', v_last, 'phone', v_phone);
+end $function$
+;

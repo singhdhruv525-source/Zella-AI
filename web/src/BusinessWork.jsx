@@ -6,7 +6,7 @@ import { formatDay, formatTime, timeAgo, todayInput, zonedDateTime } from "./bus
 import { PhoneField } from "./formFields";
 import { validatePhone } from "./formValidation";
 import { noteIcon, pickQuiet, voiceTitle } from "./zellaVoice";
-import { chime, desktopAlert, deviceAlerts, tabCount } from "./liveAlerts";
+import { chime, desktopAlert, deviceAlerts, tabCount, unlockAlerts } from "./liveAlerts";
 import { Empty, Notice, PageHead, Segment, explain, loadPeople, orThrow, plural, useLoad } from "./BusinessShared";
 
 /* ------------------------------------------------------------------ */
@@ -421,6 +421,7 @@ export function NotificationsBell({ workspace, onGo }) {
     setRows(list);
   }
   useEffect(() => {
+    unlockAlerts();
     seen.current = null;
     load();
     const timer = setInterval(load, POLL_MS);

@@ -3,6 +3,7 @@
 delete from public.staff_notifications; delete from public.zella_milestones; delete from public.on_call_reminders_sent; delete from public.on_call_shifts;
 delete from public.on_call_settings; delete from public.business_members; delete from public.profiles; delete from public.reviews; delete from public.callbacks; delete from public.crm_tasks;
 delete from public.platform_alerts; delete from public.platform_admins; delete from public.ai_tool_calls;
+-- the one-time switch-on already ran when the file was applied; these rows are inserted after it
 insert into profiles (id, first_name, last_name, phone) values ('0aaaaaaa-0000-4000-8000-000000000001', 'Olivia', 'Owner', null), ('0aaaaaaa-0000-4000-8000-000000000002', 'Sam', 'Rivera', '+1 (555) 020-0001');
 insert into business_members (business_id, user_id, role, status, sms_alerts) values
   ('aaaaaaaa-0000-4000-8000-000000000001', '0aaaaaaa-0000-4000-8000-000000000001', 'owner', 'active', false),
@@ -79,4 +80,20 @@ begin
   assert (select status from platform_alerts where id = v) = 'acknowledged';
   perform set_config('request.jwt.claim.sub', '', true);
   raise notice 'PASS a Zella admin can acknowledge an alert from the bell; a business owner cannot';
+end $$;
+
+-- urgent text alerts on by default
+do $$
+begin
+  insert into business_members (business_id, user_id, role, status) values ('bbbbbbbb-0000-4000-8000-000000000002', '0bbbbbbb-0000-4000-8000-000000000009', 'staff', 'active');
+  assert (select sms_alerts from business_members where user_id = '0bbbbbbb-0000-4000-8000-000000000009');
+  assert (select value = 'true'::jsonb from platform_settings where key = 'sms_alerts_default_on');
+  raise notice 'PASS new team members get urgent text alerts by default';
+  perform set_config('request.jwt.claim.sub', '0aaaaaaa-0000-4000-8000-000000000002', true);
+  update business_members set sms_alerts = true where user_id = '0aaaaaaa-0000-4000-8000-000000000002';
+  perform zella_save_my_profile('Sam', 'Rivera', null);
+  assert (select sms_alerts from business_members where user_id = '0aaaaaaa-0000-4000-8000-000000000002'), 'removing the number switched alerts off';
+  perform zella_save_my_profile('Sam', 'Rivera', '+15550200001');
+  perform set_config('request.jwt.claim.sub', '', true);
+  raise notice 'PASS removing a phone number no longer switches alerts off for good; adding it back resumes them';
 end $$;

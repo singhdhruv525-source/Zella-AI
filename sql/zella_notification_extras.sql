@@ -12,6 +12,7 @@
 -- 3. Team scorecard nudge (kind 'team_scorecard'): on Monday mornings the owners and managers get one line about who has
 --    overdue callbacks or tasks, linking to Scorecards. Nothing when nobody is behind.
 -- 4. Admin bell: a Zella admin can acknowledge a platform alert from the dashboard (zella_admin_acknowledge_alert).
+-- 5. Urgent text alerts on by default for every team member (turned off per person in My profile).
 -- Rollback: drop table public.zella_milestones, public.on_call_reminders_sent; drop the functions below; re-run
 --   sql/zella_notify_via.sql (zella_mark_staff_sms).
 
@@ -180,3 +181,22 @@ revoke all on function public.zella_admin_acknowledge_alert(uuid) from public, a
 grant execute on function public.zella_admin_acknowledge_alert(uuid) to authenticated;
 
 grant execute on function public.zella_check_milestones(), public.zella_on_call_reminders(), public.zella_team_scorecard_nudge(timestamptz) to service_role;
+
+-- 5. Urgent text alerts are on by default (2026-10-28 decision): every team member gets them, owners and admins for
+--    business-wide alerts, anyone for alerts meant for them. A person turns them off in My profile
+--    (zella_set_my_sms_alerts). Texts still only go out once sms_live is on, to people with a mobile number on their
+--    profile, at most 5 per business per hour.
+alter table public.business_members alter column sms_alerts set default true;
+-- one time: switch them on for existing members (texting has never been live, so nobody turned them off on purpose)
+do $$
+begin
+  if not exists (select 1 from public.platform_settings where key = 'sms_alerts_default_on') then
+    update public.business_members set sms_alerts = true where not sms_alerts;
+    insert into public.platform_settings (key, value) values ('sms_alerts_default_on', 'true'::jsonb);
+  end if;
+end $$;
+-- removing a phone number no longer switches alerts off for good: without a number nothing can be sent anyway, and
+-- adding one back resumes them (zella_save_my_profile, sql/zella_business_settings.sql)
+select public.zella_patch_function('public.zella_save_my_profile(text,text,text)', 'zella_sms_stays_on',
+  E'  -- Text alerts need a number; switch them off everywhere if it was removed.\n  if v_phone is null then update public.business_members set sms_alerts = false where user_id = auth.uid() and sms_alerts; end if;\n',
+  E'  -- zella_sms_stays_on: text alerts stay as the person chose; without a number nothing is sent\n');
