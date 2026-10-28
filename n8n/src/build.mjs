@@ -254,7 +254,7 @@ const ownerEmails = wf('Zella - Owner Emails', [
   'Restore result': { main: [[link('Finish notification')]] },
 });
 
-export const FOLLOWUP_EMAIL_KINDS = ['no_show_follow_up', 'post_appointment_follow_up', 'quote_follow_up', 'lead_reactivation', 'callback_sms', 'welcome_new_customer', 'feedback_request', 'cancellation_confirmation', 'record_status_update', 'service_due', 'no_response_follow_up', 'reschedule_confirmation', 'booking_follow_up', 'service_completed', 'lead_follow_up', 'lead_final_follow_up'];
+export const FOLLOWUP_EMAIL_KINDS = ['no_show_follow_up', 'post_appointment_follow_up', 'quote_follow_up', 'lead_reactivation', 'callback_sms', 'welcome_new_customer', 'feedback_request', 'cancellation_confirmation', 'record_status_update', 'service_due', 'no_response_follow_up', 'reschedule_confirmation', 'booking_follow_up', 'service_completed', 'lead_follow_up', 'lead_final_follow_up', 'cross_sell'];
 // Texts also send the quick replies to HELP and waitlist offers (the database queues them).
 export const FOLLOWUP_KINDS = [...FOLLOWUP_EMAIL_KINDS, 'reply_confirmed', 'reply_reschedule', 'reply_help', 'reply_after_hours', 'waitlist_offer'];
 // Follow-up emails: the same kinds as the follow-up texts, for tasks whose channel is email (a task moves to
@@ -927,6 +927,60 @@ const spamResponse = wf('Zella - Spam Response', [
 });
 writeFileSync(join(out, 'zella-spam-response.json'), JSON.stringify(spamResponse, null, 2) + '\n');
 
+// Review replies: (1) read each connected Google Business Profile location's reviews every 6 hours, (2) AI rewrites of
+// the standard reply draft (only when review_ai_live is on), (3) post the replies an owner approved. Started by the
+// dispatcher only when something is waiting (nothing is claimed until reviews_live / review_ai_live are on).
+// The two Google boxes ship with NO credential: add the Google OAuth2 credential (scope business.manage) of the Google
+// account that manages the businesses' profiles by hand. The AI box ships with no credential either (Anthropic key).
+const googleBox = (name, pos, method, extra = {}) => node(name, 'n8n-nodes-base.httpRequest', 4.2, pos, {
+  method, url: '={{ $json.url }}', authentication: 'none', ...extra,
+  options: { response: { response: { fullResponse: true, neverError: true, responseFormat: 'json' } } },
+});
+const reviewReplies = wf('Zella - Review Replies', [
+  runTrigger('review-replies'),
+  rpcNode('Claim locations', [240, 0], 'zella_review_claim_fetch', '={{ JSON.stringify({ p_limit: 10 }) }}'),
+  code('Plan fetch', [480, 0], 'review-fetch-plan.js'),
+  ifBool('Can fetch', [720, 0], '={{ !$json.skip }}'),
+  googleBox('Get Google reviews', [960, -100], 'GET'),
+  code('Read reviews', [1200, -100], 'review-fetch-read.js'),
+  rpcNode('Save reviews', [1440, -100], 'zella_review_ingest', '={{ JSON.stringify($json.record) }}', { full: true }),
+  rpcNode('Claim drafts', [240, 300], 'zella_review_claim_ai', '={{ JSON.stringify({ p_limit: 5 }) }}'),
+  code('Draft plan', [480, 300], 'review-draft-plan.js'),
+  ifBool('Has request', [720, 300], '={{ !!$json.request }}'),
+  node('Ask AI', 'n8n-nodes-base.httpRequest', 4.2, [960, 200], {
+    method: 'POST', url: 'https://api.anthropic.com/v1/messages', authentication: 'none',
+    sendHeaders: true, headerParameters: { parameters: [{ name: 'anthropic-version', value: '2023-06-01' }] },
+    sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify($json.request) }}',
+    options: { response: { response: { fullResponse: true, neverError: true, responseFormat: 'json' } } },
+  }),
+  code('Read draft', [1200, 200], 'review-draft-read.js'),
+  rpcNode('Save draft', [1440, 200], 'zella_review_save_ai_draft', '={{ JSON.stringify($json.record) }}', { full: true }),
+  rpcNode('Claim replies', [240, 600], 'zella_review_claim_posts', '={{ JSON.stringify({ p_limit: 10 }) }}'),
+  code('Plan post', [480, 600], 'review-post-plan.js'),
+  ifBool('Can post', [720, 600], '={{ !$json.skip }}'),
+  googleBox('Post reply on Google', [960, 500], 'PUT', { sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify($json.body) }}' }),
+  code('Read result', [1200, 500], 'review-post-read.js'),
+  rpcNode('Save result', [1440, 500], 'zella_review_post_result', '={{ JSON.stringify($json.record) }}', { full: true }),
+], {
+  'Run now': { main: [[link('Claim locations'), link('Claim drafts'), link('Claim replies')]] },
+  'Claim locations': { main: [[link('Plan fetch')]] },
+  'Plan fetch': { main: [[link('Can fetch')]] },
+  'Can fetch': { main: [[link('Get Google reviews')], []] },
+  'Get Google reviews': { main: [[link('Read reviews')]] },
+  'Read reviews': { main: [[link('Save reviews')]] },
+  'Claim drafts': { main: [[link('Draft plan')]] },
+  'Draft plan': { main: [[link('Has request')]] },
+  'Has request': { main: [[link('Ask AI')], []] },
+  'Ask AI': { main: [[link('Read draft')]] },
+  'Read draft': { main: [[link('Save draft')]] },
+  'Claim replies': { main: [[link('Plan post')]] },
+  'Plan post': { main: [[link('Can post')]] },
+  'Can post': { main: [[link('Post reply on Google')], []] },
+  'Post reply on Google': { main: [[link('Read result')]] },
+  'Read result': { main: [[link('Save result')]] },
+});
+writeFileSync(join(out, 'zella-review-replies.json'), JSON.stringify(reviewReplies, null, 2) + '\n');
+
 writeFileSync(join(out, 'zella-sms-sender.json'), JSON.stringify(smsSender, null, 2) + '\n');
 writeFileSync(join(out, 'zella-email-sender.json'), JSON.stringify(emailSender, null, 2) + '\n');
 writeFileSync(join(out, 'zella-owner-emails.json'), JSON.stringify(ownerEmails, null, 2) + '\n');
@@ -950,4 +1004,4 @@ writeFileSync(join(out, 'zella-email-events.json'), JSON.stringify(emailEvents, 
 writeFileSync(join(out, 'zella-calendar-sync.json'), JSON.stringify(calendarSync, null, 2) + '\n');
 writeFileSync(join(out, 'zella-connection-tests.json'), JSON.stringify(connectionTests, null, 2) + '\n');
 writeFileSync(join(out, 'zella-call-results.json'), JSON.stringify(callResults, null, 2) + '\n');
-console.log('Built', [gateway, router, smsSender, followupSender, emailSender, followupEmails, ownerEmails, outboundCalls, callResults, knowledge, assistantTools, voiceRules, inboundEmail, metaWebhook, metaLeads, metaSender, metaHealth, aiBooking, emailEvents, calendarSync, connectionTests, websiteCrawler, staffTexts, adminAlerts, spamResponse, brainTools, callReconcile].map((w) => w.name + ' (' + w.nodes.length + ')').join(', '));
+console.log('Built', [gateway, router, smsSender, followupSender, emailSender, followupEmails, ownerEmails, outboundCalls, callResults, knowledge, assistantTools, voiceRules, inboundEmail, metaWebhook, metaLeads, metaSender, metaHealth, aiBooking, emailEvents, calendarSync, connectionTests, websiteCrawler, staffTexts, adminAlerts, spamResponse, brainTools, callReconcile, reviewReplies].map((w) => w.name + ' (' + w.nodes.length + ')').join(', '));

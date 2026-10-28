@@ -34,7 +34,7 @@ begin
                    'zella_queue_quote_followups', 'zella_post_daily_summaries', 'zella_queue_lead_reactivation',
                    'zella_check_setup_incomplete', 'zella_check_trials', 'zella_apply_payment_policy', 'zella_post_weekly_reviews',
                    'zella_flag_overdue_callbacks', 'zella_sweep_stuck_calls', 'zella_check_engine_health', 'zella_schedule_calendar_pulls',
-                   'zella_rebalance_assignments', 'zella_check_unassigned_work', 'zella_check_customer_requests', 'zella_queue_customer_touches', 'zella_check_kpis', 'zella_check_escalation_acks', 'zella_recover_orphaned_work', 'zella_check_renewals', 'zella_post_callback_digests', 'zella_check_connections', 'zella_post_team_summaries', 'zella_sample_ai_responses', 'zella_reconcile', 'zella_retention_scan', 'zella_recover_failed_texts', 'zella_detect_knowledge_conflicts', 'zella_check_overdue_tasks', 'zella_run_tenant_check', 'zella_notify_message_failures', 'zella_remind_integrations', 'zella_check_data_rights_due', 'zella_remind_upcoming_callbacks', 'zella_detect_repeated_questions', 'zella_send_gap_reports', 'zella_scan_duplicates', 'zella_flag_unrecorded_appointments', 'zella_check_response_times', 'zella_remind_reconnects', 'zella_apply_scheduled_cancellations', 'zella_recover_provisioning', 'zella_run_permission_check', 'zella_sweep_approvals', 'zella_run_industry_timers', 'zella_sweep_open_calls', 'zella_verify_calls', 'zella_recover_knowledge', 'zella_offers_tick', 'zella_reconcile_call_usage') then
+                   'zella_rebalance_assignments', 'zella_check_unassigned_work', 'zella_check_customer_requests', 'zella_queue_customer_touches', 'zella_check_kpis', 'zella_check_escalation_acks', 'zella_recover_orphaned_work', 'zella_check_renewals', 'zella_post_callback_digests', 'zella_check_connections', 'zella_post_team_summaries', 'zella_sample_ai_responses', 'zella_reconcile', 'zella_retention_scan', 'zella_recover_failed_texts', 'zella_detect_knowledge_conflicts', 'zella_check_overdue_tasks', 'zella_run_tenant_check', 'zella_notify_message_failures', 'zella_remind_integrations', 'zella_check_data_rights_due', 'zella_remind_upcoming_callbacks', 'zella_detect_repeated_questions', 'zella_send_gap_reports', 'zella_scan_duplicates', 'zella_flag_unrecorded_appointments', 'zella_check_response_times', 'zella_remind_reconnects', 'zella_apply_scheduled_cancellations', 'zella_recover_provisioning', 'zella_run_permission_check', 'zella_sweep_approvals', 'zella_run_industry_timers', 'zella_sweep_open_calls', 'zella_verify_calls', 'zella_recover_knowledge', 'zella_offers_tick', 'zella_reconcile_call_usage', 'zella_check_uptime') then
     return 'not_allowed';
   end if;
   begin
@@ -53,7 +53,7 @@ declare j text; r jsonb := '{}'::jsonb;
 begin
   for j in select unnest(case p_group
       when 'every5'  then array['zella_flag_overdue_leads', 'zella_expire_holds', 'zella_expire_waitlist_offers', 'zella_detect_transfer_failures', 'zella_flag_overdue_callbacks', 'zella_sweep_stuck_calls', 'zella_check_engine_health', 'zella_rebalance_assignments', 'zella_check_unassigned_work', 'zella_check_escalation_acks', 'zella_remind_upcoming_callbacks', 'zella_sweep_open_calls', 'zella_offers_tick']
-      when 'every15' then array['zella_queue_quote_followups', 'zella_recover_orphaned_work', 'zella_check_response_times', 'zella_reconcile_call_usage']
+      when 'every15' then array['zella_queue_quote_followups', 'zella_recover_orphaned_work', 'zella_check_response_times', 'zella_reconcile_call_usage', 'zella_check_uptime']
       when 'hourly'  then array['zella_post_daily_summaries', 'zella_schedule_calendar_pulls', 'zella_check_customer_requests', 'zella_post_callback_digests', 'zella_post_team_summaries', 'zella_recover_failed_texts', 'zella_check_overdue_tasks', 'zella_detect_repeated_questions', 'zella_flag_unrecorded_appointments', 'zella_recover_provisioning', 'zella_sweep_approvals', 'zella_run_industry_timers', 'zella_verify_calls', 'zella_recover_knowledge']
       when 'daily'   then array['zella_queue_lead_reactivation', 'zella_check_setup_incomplete', 'zella_check_trials', 'zella_apply_payment_policy', 'zella_queue_customer_touches', 'zella_check_kpis', 'zella_check_renewals', 'zella_check_connections', 'zella_sample_ai_responses', 'zella_reconcile', 'zella_retention_scan', 'zella_detect_knowledge_conflicts', 'zella_run_tenant_check', 'zella_notify_message_failures', 'zella_check_data_rights_due', 'zella_scan_duplicates', 'zella_remind_reconnects', 'zella_apply_scheduled_cancellations', 'zella_run_permission_check']
       when 'weekly'  then array['zella_post_weekly_reviews', 'zella_remind_integrations', 'zella_send_gap_reports']
@@ -70,9 +70,9 @@ returns jsonb language plpgsql security definer set search_path = public as $$
 declare
   v_base text := nullif(trim(public.zella_setting('n8n_base_url', '""'::jsonb) #>> '{}'), '');
   v_on boolean := coalesce(public.zella_setting('n8n_dispatch_enabled', 'true'::jsonb) = 'true'::jsonb, true);
-  v_secret text; w record; n integer; st public.n8n_dispatch_state; v_same integer; v_res jsonb := '{}'::jsonb; v_spam integer := 0; v_reconcile integer := 0;
-  v_text_kinds text[] := array['no_show_follow_up', 'post_appointment_follow_up', 'quote_follow_up', 'lead_reactivation', 'callback_sms', 'welcome_new_customer', 'feedback_request', 'cancellation_confirmation', 'record_status_update', 'service_due', 'no_response_follow_up', 'reschedule_confirmation', 'booking_follow_up', 'service_completed', 'lead_follow_up', 'lead_final_follow_up', 'reply_confirmed', 'reply_reschedule', 'reply_help', 'waitlist_offer'];
-  v_email_kinds text[] := array['no_show_follow_up', 'post_appointment_follow_up', 'quote_follow_up', 'lead_reactivation', 'callback_sms', 'welcome_new_customer', 'feedback_request', 'cancellation_confirmation', 'record_status_update', 'service_due', 'no_response_follow_up', 'reschedule_confirmation', 'booking_follow_up', 'service_completed', 'lead_follow_up', 'lead_final_follow_up'];
+  v_secret text; w record; n integer; st public.n8n_dispatch_state; v_same integer; v_res jsonb := '{}'::jsonb; v_spam integer := 0; v_reconcile integer := 0; v_reviews integer := 0;
+  v_text_kinds text[] := array['no_show_follow_up', 'post_appointment_follow_up', 'quote_follow_up', 'lead_reactivation', 'callback_sms', 'welcome_new_customer', 'feedback_request', 'cancellation_confirmation', 'record_status_update', 'service_due', 'no_response_follow_up', 'reschedule_confirmation', 'booking_follow_up', 'service_completed', 'lead_follow_up', 'lead_final_follow_up', 'reply_confirmed', 'reply_reschedule', 'reply_help', 'waitlist_offer', 'cross_sell'];
+  v_email_kinds text[] := array['no_show_follow_up', 'post_appointment_follow_up', 'quote_follow_up', 'lead_reactivation', 'callback_sms', 'welcome_new_customer', 'feedback_request', 'cancellation_confirmation', 'record_status_update', 'service_due', 'no_response_follow_up', 'reschedule_confirmation', 'booking_follow_up', 'service_completed', 'lead_follow_up', 'lead_final_follow_up', 'cross_sell'];
 begin
   if not v_on then return jsonb_build_object('skipped', 'switched_off'); end if;
   if v_base is null then return jsonb_build_object('skipped', 'no_base_url'); end if;
@@ -87,7 +87,12 @@ begin
     begin execute 'select public.zella_call_reconcile_waiting()' into v_reconcile; exception when others then v_reconcile := 0; end;
   end if;
 
-  for w in select * from (values ('event-router'), ('sms-sender'), ('email-sender'), ('followup-texts'), ('followup-emails'), ('owner-emails'), ('outbound-calls'), ('knowledge-sync'), ('calendar-sync'), ('connection-tests'), ('meta-leads'), ('meta-sender'), ('meta-health'), ('website-crawl'), ('staff-sms'), ('call-intel'), ('admin-alerts'), ('spam-response'), ('call-reconcile')) as t(name) loop
+  -- review-replies lane: counted by zella_reviews.sql (0 when not applied or reviews_live / review_ai_live are off)
+  if to_regprocedure('public.zella_review_work_waiting()') is not null then
+    begin execute 'select public.zella_review_work_waiting()' into v_reviews; exception when others then v_reviews := 0; end;
+  end if;
+
+  for w in select * from (values ('event-router'), ('sms-sender'), ('email-sender'), ('followup-texts'), ('followup-emails'), ('owner-emails'), ('outbound-calls'), ('knowledge-sync'), ('calendar-sync'), ('connection-tests'), ('meta-leads'), ('meta-sender'), ('meta-health'), ('website-crawl'), ('staff-sms'), ('call-intel'), ('admin-alerts'), ('spam-response'), ('call-reconcile'), ('review-replies')) as t(name) loop
     n := case w.name
       when 'event-router' then (select count(*) from public.automation_events
          where (status = 'received' and coalesce(next_attempt_at, now()) <= now()) or (status = 'processing' and claimed_at < now() - interval '10 minutes'))
@@ -125,6 +130,7 @@ begin
          then (select count(*) from public.platform_alerts where notified_at is null and status = 'open') else 0 end
       when 'spam-response' then coalesce(v_spam, 0)
       when 'call-reconcile' then coalesce(v_reconcile, 0)
+      when 'review-replies' then coalesce(v_reviews, 0)
       when 'owner-emails' then (select count(*) from public.staff_notifications s join public.businesses b on b.id = s.business_id
          where b.suspended_at is null and b.cancelled_at is null
            and (s.delivery_status = 'pending' or (s.delivery_status = 'sending' and s.claimed_at < now() - interval '30 minutes')))

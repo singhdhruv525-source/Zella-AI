@@ -14,6 +14,8 @@ import { RecordSettingsPage } from "./BusinessRecords";
 import { IntegrationsPage, LeadSourcesPage, ReportsPage } from "./BusinessMore";
 import { AutomationsPage } from "./BusinessControls";
 import { ReceptionistEditor } from "./BusinessReceptionist";
+import { LanguagePanel } from "./settings/LanguagePanel";
+import { CrossSellPanel } from "./settings/CrossSellPanel";
 import { InboxPage } from "./BusinessInbox";
 import SettingsWorkspace from "./settings/SettingsWorkspace";
 import { AccountSecurityPanel, MyProfilePanel, SignOutPanel, uploadImage } from "./settings/PersonalPanels";
@@ -229,7 +231,7 @@ function ReceptionistEdit({ w, onNotice }) {
   return (
     <LoadState state={state}>{(d) => (d.agent
       ? <><ReceptionistEditor workspace={w} agent={d.agent} onNotice={onNotice} />
-        <Needs title="Voice choice, speaking speed and languages aren't editable here yet" have="The greeting, instructions, personality, tone, after-hours, hand-over and emergency settings above are.">They live in the voice provider's settings (voice_config) and need a list of the voices and languages Vapi supports for your number.</Needs></>
+        <Needs title="Voice choice and speaking speed aren't editable here yet" have="The greeting, instructions, personality, tone, after-hours, hand-over and emergency settings above are, and languages are under AI receptionist > Languages.">They live in the voice provider's settings and need a list of the voices Vapi supports for your number.</Needs></>
       : <Empty title="No receptionist yet" />)}</LoadState>
   );
 }
@@ -790,6 +792,7 @@ function registry(w) {
     { key: "receptionist", label: "AI receptionist", icon: "record_voice_over", items: [
       page("overview", "Receptionist overview", () => <ReceptionistOverview w={w} />, "status phone version"),
       page("voice", "Voice and personality", (c) => only(lead, <ReceptionistEdit w={w} onNotice={c.onNotice} />), "greeting tone personality instructions voice language"),
+      page("languages", "Languages", () => <LanguagePanel w={w} />, "language spanish hindi french multilingual greeting"),
       page("knowledge", "Business knowledge", (c) => <KnowledgePage workspace={w} refreshKey={0} onNotice={c.onNotice} />, "services faq policies prices"),
       page("website", "Website knowledge sources", () => <WebsiteSources w={w} />, "website crawl sitemap pages read approve"),
       page("calls", "Call handling", (c) => <ConfigFacts w={w} onGo={c.onGo} pick={(r) => callHandling(r)} />, "after hours transfer message callback missed"),
@@ -848,6 +851,7 @@ function registry(w) {
       page("library", "Automation library", (c) => <AutomationsPage workspace={w} refreshKey={0} onNotice={c.onNotice} />, "templates active disabled"),
       page("events", "Event-based automations", () => <Card title="What starts an automation"><Facts rows={[["New lead", "Fast callback, follow-ups"], ["Missed call", "Callback and text when allowed"], ["Appointment booked or moved", "Confirmation and reminders"], ["Appointment cancelled", "Waitlist offer"], ["Follow-up due", "Quote and lead follow-ups"], ["Status changes", "Industry rules"]]} /></Card>, "trigger event"),
       page("history", "Automation history", (c) => <AutomationsPage workspace={w} refreshKey={0} onNotice={c.onNotice} />, "runs executions"),
+      page("suggestions", "You might also need", () => <CrossSellPanel w={w} />, "cross-sell upsell suggest offer after service follow-up"),
       page("recovery", "Failure recovery", (c) => only(lead, <FailedWorkPage workspace={w} refreshKey={0} onNotice={c.onNotice} />), "failed retry"),
     ] },
     { key: "integrations", label: "Integrations", icon: "extension", items: [

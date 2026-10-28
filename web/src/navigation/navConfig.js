@@ -20,7 +20,7 @@
 //   children  sub-items, shown under the item when it is opened
 //
 // Only pages that exist and work are listed. Not built yet, so not shown: Voicemails, AI agents (beyond the
-// receptionist), Marketing campaigns, Reviews inbox. The Leads page holds the Pipeline view.
+// receptionist), Marketing campaigns. The Leads page holds the Pipeline view.
 
 export const LEAD_ROLES = ["owner", "admin", "manager"];
 export const MANAGE_ROLES = ["owner", "admin"];
@@ -72,12 +72,14 @@ export const NAV_ITEMS = [
   { id: "automations", group: "ai", order: 20, label: "Automations", icon: "bolt", page: "automations", module: "automations" },
 
   { id: "lead-sources", group: "growth", order: 10, label: "Lead sources", icon: "hub", page: "lead-sources" },
+  { id: "reviews", group: "growth", order: 15, label: "Reviews", icon: "rate_review", page: "reviews", roles: LEAD_ROLES },
   { id: "reports", group: "growth", order: 20, label: "Reports & Analytics", icon: "monitoring", page: "reports" },
 
   {
     id: "team-staff", group: "management", order: 10, label: "Team & Staff", icon: "badge",
     children: [
       { id: "team", label: (term) => term("staff_plural"), icon: "groups", page: "team" },
+      { id: "scorecards", label: "Scorecards", icon: "leaderboard", page: "scorecards" },
       { id: "access", label: "Team access", icon: "admin_panel_settings", page: "access", roles: MANAGE_ROLES },
       { id: "approvals", label: "Approvals", icon: "verified_user", page: "approvals", roles: MANAGE_ROLES },
       { id: "security", label: "Security log", icon: "history", page: "security", roles: MANAGE_ROLES },

@@ -1853,3 +1853,59 @@ html[data-zella-theme="glass"] .td-week-bar { background: rgba(255, 255, 255, 0.
 html[data-zella-theme="glass"] .td-week-bar::after { background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.12)); }
 html[data-zella-theme="glass"] .td-week li.on .td-week-bar::after { background: linear-gradient(180deg, var(--zella-primary-hover), var(--zella-primary)); box-shadow: 0 0 18px color-mix(in srgb, var(--zella-primary) 75%, transparent); }
 @media (prefers-reduced-motion: reduce) { .td-week-bar::after { transition: none; } }
+
+/* On call (Team page) */
+.ba-oncall-now { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin-bottom: 12px; }
+.ba-oncall-now > small { color: var(--ba-muted); }
+.ba-oncall-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.ba-oncall-controls .ba-check { white-space: normal; }
+.ba-oncall-controls select { min-width: 0; max-width: 100%; }
+.ba-day-picks { display: flex; flex-wrap: wrap; gap: 6px; }
+.ba-segment.full { display: flex; width: 100%; }
+.ba-segment.full button { flex: 1; }
+
+/* Reviews */
+.rv-summary { display: grid; grid-template-columns: repeat(3, minmax(90px, auto)) 1fr; gap: 10px; margin-bottom: 14px; }
+.rv-summary > div { display: flex; flex-direction: column; justify-content: center; gap: 2px; padding: 12px 14px; border: 1px solid var(--ba-border); border-radius: var(--ba-radius-md); background: var(--ba-surface); }
+.rv-summary strong { font-size: 20px; line-height: 1.1; }
+.rv-summary span { color: var(--ba-muted); font-size: 12.5px; }
+.rv-summary .rv-source { flex-direction: row; align-items: center; gap: 8px; }
+.rv-list { margin: 0; padding: 0; list-style: none; }
+.rv-card { padding: 16px 18px; border-bottom: 1px solid var(--ba-border); }
+.rv-card:last-child { border-bottom: 0; }
+.rv-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.rv-head small { color: var(--ba-muted); }
+.rv-head .ba-pill { margin-left: auto; }
+.rv-stars { color: var(--ba-border-strong); letter-spacing: 1px; font-size: 15px; }
+.rv-stars .on { color: #E0A21B; }
+.rv-body { margin: 8px 0 0; color: var(--ba-text); line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.rv-body.muted { color: var(--ba-muted); font-style: italic; }
+.rv-existing { display: flex; gap: 8px; margin-top: 8px; padding: 8px 10px; border-radius: var(--ba-radius-md); background: var(--ba-subtle); color: var(--ba-text-2); font-size: 13px; }
+.rv-reply { margin-top: 12px; }
+.rv-reply label { display: flex; flex-direction: column; gap: 6px; }
+.rv-reply label > span { display: flex; align-items: center; gap: 8px; color: var(--ba-text-2); font-size: 12.5px; font-weight: 600; }
+.rv-reply label > span small { font-weight: 400; color: var(--ba-muted); }
+.rv-reply textarea { width: 100%; min-height: 72px; resize: vertical; }
+.rv-reply textarea[readonly] { background: var(--ba-subtle); }
+.rv-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+.rv-actions small { color: var(--ba-muted); }
+.rv-error { color: var(--ba-danger); }
+@media (max-width: 720px) {
+  .rv-summary { grid-template-columns: repeat(3, 1fr); }
+  .rv-summary .rv-source { grid-column: 1 / -1; }
+  .rv-head .ba-pill { margin-left: 0; }
+}
+
+/* Scorecards */
+.sc-note { margin: 10px 0 0; }
+.sc-foot { margin: 0; padding: 10px 18px 14px; font-size: 12.5px; }
+.sc-table-wrap { overflow-x: auto; }
+.sc-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.sc-table th, .sc-table td { padding: 9px 12px; border-bottom: 1px solid var(--ba-border); text-align: right; white-space: nowrap; }
+.sc-table thead th { color: var(--ba-muted); font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+.sc-table thead tr:first-child th[colspan] { text-align: center; border-bottom-color: transparent; }
+.sc-table th[scope="row"], .sc-table thead th:first-child { text-align: left; }
+.sc-table th[scope="row"] { font-weight: 600; color: var(--ba-text); }
+.sc-table th[scope="row"] small { display: block; color: var(--ba-muted); font-weight: 400; text-transform: capitalize; }
+.sc-table td.warn { color: var(--ba-warning); font-weight: 600; }
+.sc-table tbody tr:last-child th, .sc-table tbody tr:last-child td { border-bottom: 0; }

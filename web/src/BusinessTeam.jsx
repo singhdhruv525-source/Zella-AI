@@ -8,11 +8,12 @@ import {
 } from "./BusinessShared";
 import { BlockTimeModal } from "./BusinessPages";
 import { EmailField, PhoneField } from "./formFields";
+import { OnCallPanel } from "./BusinessOnCall";
 import { checkEmail, validatePhone } from "./formValidation";
 
 // Team: the people customers book with (stylists, dentists, servers,
 // technicians... the words follow the industry), their weekly hours and
-// breaks, and who is away. Sign-in accounts are listed underneath.
+// breaks, who is away and who is on call after hours. Sign-in accounts are listed underneath.
 
 const COLORS = ["#6F4E37", "#6B5B95", "#15803D", "#D97706", "#DC2626", "#7C3AED", "#DB2777", "#0F766E"];
 
@@ -202,6 +203,8 @@ export function TeamPage({ workspace, email, refreshKey, onNotice }) {
           </ul>
         )}
       </section>
+
+      <OnCallPanel workspace={workspace} refreshKey={`${refreshKey}-${staff.length}`} onNotice={onNotice} />
 
       <section className="ba-panel ba-gap">
         <div className="ba-panel-head">

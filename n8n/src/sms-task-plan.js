@@ -9,6 +9,8 @@ const kinds = {
   post_appointment_follow_up: { key: 'post_appointment_follow_up', purpose: 'transactional' },
   quote_follow_up: { key: 'quote_follow_up', purpose: 'transactional' },
   lead_reactivation: { key: 'lead_reactivation', purpose: 'marketing' },
+  // "You might also need" (sql/zella_cross_sell.sql): marketing, so only to people who opted in.
+  cross_sell: { key: 'cross_sell', purpose: 'marketing' },
   welcome_new_customer: { key: 'welcome_new_customer', purpose: 'transactional' },
   feedback_request: { key: 'feedback_request', purpose: 'transactional' },
   cancellation_confirmation: { key: 'cancellation_confirmation', purpose: 'transactional' },
