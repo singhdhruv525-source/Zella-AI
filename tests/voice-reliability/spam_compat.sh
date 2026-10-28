@@ -19,12 +19,12 @@ python3 -I build_phase4.py "$REPO/sql" "$WORK/phase4.sql" > /dev/null || exit 1
   echo "create unique index callbacks_one_live_idx on public.callbacks (business_id, public.zella_digits(contact_number), reason) where contact_number is not null and status <> all (array['completed','cancelled','needs_review']);"
   cat spam_tables.sql "$WORK/spamfns.sql" "$WORK/phase4.sql"; } > "$WORK/staging.sql"
 chmod 644 "$WORK"/*.sql
-VR="$REPO/sql/zella_voice_reliability.sql"; AU="$REPO/sql/zella_vapi_auth.sql"; SP="$REPO/sql/zella_spam_protection.sql"
+VR="$REPO/sql/zella_voice_reliability.sql"; AU="$REPO/sql/zella_vapi_auth.sql"; SP="$REPO/sql/zella_spam_protection.sql"; VA="$REPO/sql/zella_voice_assistant.sql"
 apply() { run "$1" < "$2" > "$WORK/apply.log" 2>&1 || { fail "$1: $(basename "$2"): $(grep -m1 ERROR "$WORK/apply.log")"; return 1; }; }
 for DB in zsv zvs; do
   echo "drop database if exists $DB; create database $DB;" | su nobody -s /bin/bash -c "${ZPSQL/-v ON_ERROR_STOP=1/} -d postgres" >/dev/null 2>&1
   run $DB < "$WORK/staging.sql" > /dev/null || { echo "staging build failed"; exit 1; }
-  if [ $DB = zsv ]; then order="$SP $VR $AU"; else order="$VR $AU $SP"; fi
+  if [ $DB = zsv ]; then order="$SP $VR $AU $VA"; else order="$VR $AU $VA $SP"; fi
   ok=1; for i in 1 2; do for f in $order; do apply $DB "$f" || ok=0; done; done
   [ $ok = 1 ] && pass "$DB: $(for f in $order; do basename "$f" .sql; done | tr '\n' ' ')applied twice in this order without errors"
 done

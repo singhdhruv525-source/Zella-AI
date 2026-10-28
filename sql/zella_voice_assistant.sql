@@ -63,11 +63,12 @@ begin
     '  returning id into v_id;',
     $a$  returning id into v_id;
   -- zella_gap_notice: a question asked for the first time tells the owners (at most one notice an hour per business)
-  if (select g.times_asked = 1 and g.created_at > now() - interval '1 minute' from public.knowledge_gaps g where g.id = v_id)
+  if (select g.times_asked = 1 and g.notified_at is null and g.first_asked_at > now() - interval '1 minute' from public.knowledge_gaps g where g.id = v_id)
      and not exists (select 1 from public.staff_notifications n where n.business_id = p_business_id and n.kind = 'knowledge_gap' and n.created_at > now() - interval '1 hour') then
     begin
       perform public.zella_notify_owners(p_business_id, 'knowledge_gap', 'A caller asked something the assistant could not answer',
         '"' || left(regexp_replace(trim(p_question), '\s+', ' ', 'g'), 160) || '" Open Knowledge > Questions to review to add an answer.', 'info', 'knowledge');
+      update public.knowledge_gaps set notified_at = now() where id = v_id;
     exception when others then null;   -- a notice problem never loses the question
     end;
   end if;$a$);
@@ -78,10 +79,10 @@ do $$
 begin
   perform public.zella_patch_function('public.zella_brain_prompt_base(uuid)', 'zella_prompt_v4_unknown',
     $a$- Facts about the business (services, prices, policies) come ONLY from the search_knowledge tool. If it finds nothing, do not guess: say you will pass the question to the team, and use report_unanswered_question.\n$a$,
-    $a$- Facts about the business (services and services it does not offer, prices, policies, service area, address) come ONLY from the search_knowledge tool and the other tools. If search_knowledge finds nothing, or only part of the answer, do not guess and do not fill in from general knowledge: say you cannot confirm that, then offer a next step: take a message, a follow-up from the team (ask if they would like one, then request_follow_up), or a person when one is available (transfer_to_human). search_knowledge already passes an unanswered question to the team; use report_unanswered_question only for a question you could not answer without searching.\n$a$);
+    $a$- Facts about the business (services and services it does not offer, prices, policies, service area, address) come ONLY from the search_knowledge tool and the other tools. If search_knowledge finds nothing, or only part of the answer, do not guess and do not fill in from general knowledge: say you cannot confirm that, then offer a next step: take a message, a follow-up from the team (ask if they would like one, then request_follow_up), or a person when one is available (transfer_to_human). search_knowledge already passes an unanswered question to the team; use report_unanswered_question only for a question you could not answer without searching.\n' /* zella_prompt_v4_unknown */ || E'$a$);
   perform public.zella_patch_function('public.zella_brain_prompt_base(uuid)', 'zella_prompt_v4_transfer',
     $a$- If the caller asks for a person, is upset, or you cannot help, use transfer_to_human. If a tool fails, apologise briefly and offer a callback (request_follow_up or take_message).\n$a$,
-    $a$- If the caller asks for a person, is upset, or you cannot help, use transfer_to_human. If its result says use_transfer_tool, use the transferCall tool to connect them; if it says no one is available, offer a callback instead.\n- At the very start of the call use call_rules once (action rules) and follow its instruction, including any instruction to end the call politely.\n$a$);
+    $a$- If the caller asks for a person, is upset, or you cannot help, use transfer_to_human. If its result says use_transfer_tool, use the transferCall tool to connect them; if it says no one is available, offer a callback instead.\n- At the very start of the call use call_rules once (action rules) and follow its instruction, including any instruction to end the call politely.\n' /* zella_prompt_v4_transfer */ || E'$a$);
   perform public.zella_patch_function('public.zella_brain_prompt_base(uuid)', 'zella_prompt_v4_rules',
     $a$|| E'SAFETY\n'$a$,
     $a$|| E'WHAT YOU SAY HAPPENED\n'
