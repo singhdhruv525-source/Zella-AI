@@ -132,14 +132,25 @@ declare A uuid := 'aaaaaaaa-0000-4000-8000-000000000001'; B uuid := 'bbbbbbbb-00
 begin
   update businesses set timezone = 'America/New_York' where id in (A, B);
   update businesses set industry_id = (select id from industries where slug = 'dental') where id = A;
+  insert into platform_settings (key, value) values ('voice_llm_model', '"claude-sonnet-5-5"') on conflict (key) do update set value = excluded.value;
   r := zella_assistant_config(A);
   assert r ->> 'ready_to_send' = 'false' and r -> 'problems' @> '["vapi_server_url is not set"]' and (r ->> 'problems') like '%vapi_credential_id is not set%'
-     and (r ->> 'problems') like '%claude-sonnet-5-5 is not in Vapi%', 'unconfigured ' || (r -> 'problems')::text;
-  raise notice 'PASS not configured: not ready to send, with the reasons (no server URL, no credential, model % not in Vapi''s list)', zella_setting('voice_llm_model', '"claude-sonnet-5-5"'::jsonb);
-  insert into platform_settings (key, value) values ('vapi_server_url', to_jsonb(url)), ('vapi_credential_id', '"cred-test-123"'), ('voice_llm_model', '"claude-sonnet-5"')
+     and (r ->> 'problems') like '%claude-sonnet-5-5 is not in Vapi%' and (r ->> 'problems') like '%voice_tts_voice_id is not set%'
+     and not (r -> 'assistant' ? 'voice'), 'unconfigured ' || (r -> 'problems')::text;
+  raise notice 'PASS not configured: not ready, with every reason (no server URL, no credential, model claude-sonnet-5-5 not in Vapi''s list, no voice chosen); no voice is guessed';
+  insert into platform_settings (key, value) values ('voice_stt_model', '"nova-9-imaginary"'), ('voice_max_call_seconds', '99999'), ('voice_tts_provider', '"playht"')
     on conflict (key) do update set value = excluded.value;
+  r := zella_assistant_config(A);
+  assert (r ->> 'problems') like '%nova-9-imaginary is not a Deepgram model Vapi lists%' and (r ->> 'problems') like '%voice_max_call_seconds 99999%'
+     and (r ->> 'problems') like '%voice_tts_provider playht has not been checked%', 'bad settings ' || (r -> 'problems')::text;
+  delete from platform_settings where key in ('voice_stt_model', 'voice_max_call_seconds', 'voice_tts_provider');
+  raise notice 'PASS unsupported transcriber model, call length or voice provider: reported, not accepted';
+  insert into platform_settings (key, value) values ('vapi_server_url', to_jsonb(url)), ('vapi_credential_id', '"cred-test-123"'), ('voice_llm_model', '"claude-sonnet-5"'),
+    ('voice_tts_voice_id', '"test-voice-id"') on conflict (key) do update set value = excluded.value;
   r := zella_assistant_config(A); cfg := r -> 'assistant';
   assert r ->> 'ready_to_send' = 'true' and jsonb_array_length(r -> 'problems') = 0, 'ready ' || (r -> 'problems')::text;
+  assert cfg -> 'voice' = '{"provider": "11labs", "voiceId": "test-voice-id"}' and cfg -> 'transcriber' = '{"model": "nova-2-phonecall", "language": "en-US", "provider": "deepgram"}'
+     and (cfg ->> 'maxDurationSeconds')::int = 600 and cfg #>> '{model,model}' = 'claude-sonnet-5' and cfg #>> '{model,provider}' = 'anthropic', 'voice/transcriber/model';
   assert cfg -> 'server' = jsonb_build_object('url', url, 'credentialId', 'cred-test-123', 'timeoutSeconds', 20) and not (cfg ? 'tools')
      and cfg -> 'serverMessages' = '["tool-calls", "transfer-destination-request", "status-update", "end-of-call-report"]', 'assistant server';
   select array_agg(y order by y collate "C") into names from (select coalesce(x #>> '{function,name}', x ->> 'type') y from jsonb_array_elements(cfg #> '{model,tools}') x) z;

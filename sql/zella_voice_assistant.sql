@@ -127,11 +127,25 @@ declare
   v_url text := nullif(coalesce(nullif(public.zella_setting('vapi_server_url', 'null'::jsonb) #>> '{}', ''), nullif(public.zella_setting('brain_tools_url', 'null'::jsonb) #>> '{}', '')), 'null');
   v_cred text := nullif(nullif(public.zella_setting('vapi_credential_id', 'null'::jsonb) #>> '{}', ''), 'null');
   v_provider text := coalesce(public.zella_setting('voice_llm_provider', '"anthropic"'::jsonb) #>> '{}', 'anthropic');
-  v_model text := public.zella_setting('voice_llm_model', '"claude-sonnet-5-5"'::jsonb) #>> '{}';
+  v_model text := public.zella_setting('voice_llm_model', '"claude-sonnet-5"'::jsonb) #>> '{}';
   -- Vapi's Anthropic model list in @vapi-ai/server-sdk 3.0.0 (AnthropicModelModel), checked 2026-10-27
   v_vapi_models text[] := array['claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307', 'claude-3-5-sonnet-20240620',
     'claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022', 'claude-3-7-sonnet-20250219', 'claude-opus-4-20250514', 'claude-opus-4-5-20251101',
     'claude-opus-4-6', 'claude-sonnet-4-20250514', 'claude-sonnet-4-5-20250929', 'claude-sonnet-4-6', 'claude-sonnet-5', 'claude-haiku-4-5-20251001'];
+  -- voice, transcriber and call length (platform settings; checked against the same SDK lists)
+  v_tts_provider text := coalesce(public.zella_setting('voice_tts_provider', '"11labs"'::jsonb) #>> '{}', '11labs');
+  v_tts_voice text := nullif(nullif(public.zella_setting('voice_tts_voice_id', 'null'::jsonb) #>> '{}', ''), 'null');
+  v_stt_provider text := coalesce(public.zella_setting('voice_stt_provider', '"deepgram"'::jsonb) #>> '{}', 'deepgram');
+  v_stt_model text := public.zella_setting('voice_stt_model', '"nova-2-phonecall"'::jsonb) #>> '{}';
+  v_stt_language text := public.zella_setting('voice_stt_language', '"en-US"'::jsonb) #>> '{}';
+  v_max_seconds text := public.zella_setting('voice_max_call_seconds', '600'::jsonb) #>> '{}';
+  -- DeepgramTranscriberModel and DeepgramTranscriberLanguage (English) in @vapi-ai/server-sdk 3.0.0
+  v_deepgram_models text[] := array['flux-general-en', 'nova-3', 'nova-3-general', 'nova-3-medical', 'nova-2', 'nova-2-general', 'nova-2-meeting', 'nova-2-phonecall',
+    'nova-2-finance', 'nova-2-conversationalai', 'nova-2-voicemail', 'nova-2-video', 'nova-2-medical', 'nova-2-drivethru', 'nova-2-automotive', 'nova', 'nova-general',
+    'nova-phonecall', 'nova-medical', 'enhanced', 'enhanced-general', 'enhanced-meeting', 'enhanced-phonecall', 'enhanced-finance', 'base', 'base-general', 'base-meeting',
+    'base-phonecall', 'base-finance', 'base-conversationalai', 'base-voicemail', 'base-video', 'whisper'];
+  v_deepgram_langs text[] := array['en', 'en-AU', 'en-GB', 'en-IN', 'en-NZ', 'en-US'];
+  v_voice jsonb; v_transcriber jsonb; v_max integer;
   v_server jsonb; v_problems text[] := '{}'; v_tools jsonb; v_transfer boolean;
 begin
   -- zella_assistant_config_v2
@@ -143,6 +157,18 @@ begin
   if v_provider <> 'anthropic' then v_problems := v_problems || ('voice_llm_provider ' || v_provider || ' has not been checked against Vapi')::text;
   elsif v_model is null or not (v_model = any (v_vapi_models)) then v_problems := v_problems || ('voice_llm_model ' || coalesce(v_model, 'null') || ' is not in Vapi''s Anthropic model list')::text; end if;
   if jsonb_array_length(c -> 'tools') = 0 then v_problems := v_problems || 'every assistant tool is switched off for this business'::text; end if;
+  -- voice: ElevenLabs only (the one provider decided and checked); the id must be one confirmed in the Vapi / ElevenLabs
+  -- voice library, so there is no default and nothing is guessed
+  if v_tts_provider <> '11labs' then v_problems := v_problems || ('voice_tts_provider ' || v_tts_provider || ' has not been checked against Vapi')::text;
+  elsif v_tts_voice is null then v_problems := v_problems || 'voice_tts_voice_id is not set (choose a voice confirmed in the Vapi voice library)'::text;
+  elsif v_tts_voice !~ '^[A-Za-z0-9_-]{2,64}$' then v_problems := v_problems || 'voice_tts_voice_id does not look like a voice id'::text; end if;
+  if v_stt_provider <> 'deepgram' then v_problems := v_problems || ('voice_stt_provider ' || v_stt_provider || ' has not been checked against Vapi')::text;
+  elsif v_stt_model is null or not (v_stt_model = any (v_deepgram_models)) then v_problems := v_problems || ('voice_stt_model ' || coalesce(v_stt_model, 'null') || ' is not a Deepgram model Vapi lists')::text;
+  elsif v_stt_language is null or not (v_stt_language = any (v_deepgram_langs)) then v_problems := v_problems || ('voice_stt_language ' || coalesce(v_stt_language, 'null') || ' is not an English language Vapi lists for Deepgram')::text; end if;
+  if v_max_seconds ~ '^[0-9]{1,5}$' and v_max_seconds::int between 60 and 3600 then v_max := v_max_seconds::int;
+  else v_problems := v_problems || ('voice_max_call_seconds ' || coalesce(v_max_seconds, 'null') || ' must be a whole number from 60 to 3600')::text; end if;
+  v_voice := case when v_tts_voice is not null then jsonb_build_object('provider', v_tts_provider, 'voiceId', v_tts_voice) end;
+  v_transcriber := case when v_stt_model is not null then jsonb_build_object('provider', v_stt_provider, 'model', v_stt_model, 'language', v_stt_language) end;
   v_transfer := coalesce((c #>> '{agent,escalation,transfer_enabled}')::boolean, true);
 
   -- the Receptionist Brain tools the business uses, each answered by voice-rules, synchronously, with the credential;
@@ -162,9 +188,10 @@ begin
   ) x;
 
   return jsonb_build_object(
-    'assistant', jsonb_build_object(
+    'assistant', jsonb_strip_nulls(jsonb_build_object(
       'name', left((c #>> '{business,name}') || ' receptionist', 40),
       'firstMessage', 'Thank you for calling ' || (c #>> '{business,name}') || '. How can I help you?',
+      'voice', v_voice, 'transcriber', v_transcriber, 'maxDurationSeconds', v_max,
       'model', jsonb_build_object('provider', v_provider, 'model', v_model,
                                   'messages', jsonb_build_array(jsonb_build_object('role', 'system', 'content', public.zella_brain_prompt(p_business_id))),
                                   'temperature', 0.3, 'tools', v_tools),
@@ -174,7 +201,7 @@ begin
       'analysisPlan', jsonb_build_object('structuredDataPlan', jsonb_build_object('enabled', true, 'schema', jsonb_build_object('type', 'object', 'properties', jsonb_build_object(
         'callback_requested', jsonb_build_object('type', 'boolean', 'description', 'true only if the caller asked to be called back'),
         'outcome', jsonb_build_object('type', 'string', 'enum', jsonb_build_array('rescheduled', 'wants_callback', 'declined'), 'description', 'For follow-up calls only'))))),
-      'metadata', jsonb_build_object('business_id', p_business_id)),
+      'metadata', jsonb_build_object('business_id', p_business_id))),
     'ready_to_send', cardinality(v_problems) = 0,
     'problems', to_jsonb(v_problems));
 end $$;
@@ -195,4 +222,9 @@ $$;
 revoke execute on function public.zella_voice_assistant_status() from public, anon, authenticated;
 grant execute on function public.zella_voice_assistant_status() to service_role;
 
-insert into public.platform_settings (key, value) values ('vapi_server_url', 'null'::jsonb), ('vapi_credential_id', 'null'::jsonb) on conflict (key) do nothing;
+insert into public.platform_settings (key, value) values ('vapi_server_url', 'null'::jsonb), ('vapi_credential_id', 'null'::jsonb),
+  ('voice_tts_provider', '"11labs"'::jsonb), ('voice_tts_voice_id', 'null'::jsonb), ('voice_stt_provider', '"deepgram"'::jsonb),
+  ('voice_stt_model', '"nova-2-phonecall"'::jsonb), ('voice_stt_language', '"en-US"'::jsonb), ('voice_max_call_seconds', '600'::jsonb)
+  on conflict (key) do nothing;
+-- the model decision of 2026-10-28: claude-sonnet-5 (the configured claude-sonnet-5-5 is not offered by Vapi); only replaces that exact value
+update public.platform_settings set value = '"claude-sonnet-5"'::jsonb where key = 'voice_llm_model' and value = '"claude-sonnet-5-5"'::jsonb;
