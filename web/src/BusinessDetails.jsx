@@ -1,3 +1,4 @@
+import { VoicePanel } from "./settings/VoicePanel";
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import "./OwnerPages.css";
@@ -609,6 +610,8 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup }) {
               ]} />
             </Card>
           </div>
+
+          <div className="zs ao-embed"><VoicePanel businessId={businessId} /></div>
 
           <Card title={term("services")} description={`${kb.services?.length || 0} added`}>
             {kb.services?.length ? (

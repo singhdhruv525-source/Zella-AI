@@ -15,6 +15,7 @@ import { IntegrationsPage, LeadSourcesPage, ReportsPage } from "./BusinessMore";
 import { AutomationsPage } from "./BusinessControls";
 import { ReceptionistEditor } from "./BusinessReceptionist";
 import { LanguagePanel } from "./settings/LanguagePanel";
+import { VoicePanel } from "./settings/VoicePanel";
 import { CrossSellPanel } from "./settings/CrossSellPanel";
 import { InboxPage } from "./BusinessInbox";
 import SettingsWorkspace from "./settings/SettingsWorkspace";
@@ -231,7 +232,7 @@ function ReceptionistEdit({ w, onNotice }) {
   return (
     <LoadState state={state}>{(d) => (d.agent
       ? <><ReceptionistEditor workspace={w} agent={d.agent} onNotice={onNotice} />
-        <Needs title="Voice choice and speaking speed aren't editable here yet" have="The greeting, instructions, personality, tone, after-hours, hand-over and emergency settings above are, and languages are under AI receptionist > Languages.">They live in the voice provider's settings and need a list of the voices Vapi supports for your number.</Needs></>
+        <VoicePanel businessId={w.id} /></>
       : <Empty title="No receptionist yet" />)}</LoadState>
   );
 }
