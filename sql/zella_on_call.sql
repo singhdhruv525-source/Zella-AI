@@ -43,6 +43,7 @@ create table if not exists public.on_call_shifts (
         and weekday is null and starts is null and ends is null))
 );
 create index if not exists on_call_shifts_business_idx on public.on_call_shifts (business_id, kind);
+create index if not exists on_call_shifts_staff_idx on public.on_call_shifts (staff_id);
 
 alter table public.on_call_settings enable row level security;
 alter table public.on_call_shifts enable row level security;

@@ -126,6 +126,8 @@ begin
 end $$;
 drop trigger if exists zella_review_after_insert on public.reviews;
 create trigger zella_review_after_insert after insert on public.reviews for each row execute function public.zella_review_after_insert();
+-- Trigger functions run only as triggers; nobody calls them directly.
+revoke all on function public.zella_review_before_insert(), public.zella_review_after_insert() from public, anon, authenticated;
 
 -- ---------------------------------------------------------------- owner screens
 create or replace function public.zella_reviews_list(p_business_id uuid, p_status text default null)

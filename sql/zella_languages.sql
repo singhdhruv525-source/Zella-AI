@@ -31,7 +31,7 @@ revoke insert, update, delete on public.business_languages from anon, authentica
 -- The languages offered, each a DeepgramTranscriberLanguage code. The greeting is the default first sentence;
 -- {name} becomes the business name. A business can write its own instead.
 create or replace function public.zella_language_catalog() returns jsonb
-language sql immutable as $$
+language sql immutable set search_path = '' as $$
   select jsonb_build_array(
     jsonb_build_object('code', 'en-US', 'label', 'English (US)', 'english', true, 'greeting', 'Thank you for calling {name}. How can I help you?'),
     jsonb_build_object('code', 'en-GB', 'label', 'English (UK)', 'english', true, 'greeting', 'Thank you for calling {name}. How can I help you?'),

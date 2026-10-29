@@ -315,6 +315,12 @@ export function BookAppointmentModal({ workspace, term, onClose, onSaved, initia
           <Field label="Notes" full><textarea value={form.description} onChange={set("description")} /></Field>
         </div>
         {error && <div className="ba-error">{error}</div>}
+        {conflict && (
+          <label className="ba-check">
+            <input type="checkbox" checked={force} onChange={(e) => setForce(e.target.checked)} />
+            <span>Book it anyway</span>
+          </label>
+        )}
       </form>
     </Modal>
   );

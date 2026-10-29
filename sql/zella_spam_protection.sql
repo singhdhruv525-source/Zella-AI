@@ -68,6 +68,7 @@ create table if not exists public.spam_list_entries (
 create unique index if not exists spam_list_entries_live_uq on public.spam_list_entries
   (coalesce(business_id, '00000000-0000-0000-0000-000000000000'::uuid), list, channel, value_type, value) where removed_at is null;
 create index if not exists spam_list_entries_lookup_idx on public.spam_list_entries (value) where removed_at is null;
+create index if not exists spam_list_entries_business_idx on public.spam_list_entries (business_id);
 
 create table if not exists public.spam_incidents (
   id uuid primary key default gen_random_uuid(),
@@ -112,6 +113,7 @@ create table if not exists public.spam_incident_events (
   created_at timestamptz not null default now()
 );
 create index if not exists spam_incident_events_incident_idx on public.spam_incident_events (incident_id, created_at);
+create index if not exists spam_incident_events_business_idx on public.spam_incident_events (business_id);
 -- Each source record (one call, text, email or booking) is counted once, however many times its webhook arrives.
 create unique index if not exists spam_incident_events_source_uq on public.spam_incident_events (source_table, source_id)
   where kind in ('detected', 'occurrence') and source_id is not null;

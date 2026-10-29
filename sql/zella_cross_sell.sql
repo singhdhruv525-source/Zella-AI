@@ -40,7 +40,7 @@ where not exists (select 1 from public.message_templates t where t.business_id i
 -- Starter ideas per industry (shown in the settings screen; nothing is created until the business adds one).
 -- Health, legal and money industries get none: promotional follow-ups there need more care than a template.
 create or replace function public.zella_cross_sell_ideas(p_industry_slug text) returns jsonb
-language sql immutable as $$
+language sql immutable set search_path = '' as $$
   select coalesce(ideas.v -> p_industry_slug, '[]'::jsonb) from (select '{
     "dental": [{"after_service": "cleaning", "suggestion": "teeth whitening", "delay_days": 14}],
     "beauty-salon": [{"after_service": "colour", "suggestion": "deep conditioning treatment", "delay_days": 21},
@@ -113,6 +113,8 @@ exception when others then
 end $$;
 drop trigger if exists zella_cross_sell_booked on public.appointments;
 create trigger zella_cross_sell_booked after insert on public.appointments for each row execute function public.zella_cross_sell_booked();
+-- Trigger functions run only as triggers; nobody calls them directly.
+revoke all on function public.zella_cross_sell_completed(), public.zella_cross_sell_booked() from public, anon, authenticated;
 
 -- ---------------------------------------------------------------- settings screen
 create or replace function public.zella_cross_sell_list(p_business_id uuid) returns jsonb
