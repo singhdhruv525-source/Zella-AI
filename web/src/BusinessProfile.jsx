@@ -9,7 +9,7 @@ import { EmailField, PhoneField } from "./formFields";
 import { checkEmail, validatePhone } from "./formValidation";
 import { formatDay, formatTime, timeAgo } from "./businessTime";
 import {
-  APPT_LABEL, APPT_TONE, clock, friendly, orThrow, sourceLabel, transcriptLines, useLoad,
+  APPT_LABEL, APPT_TONE, changed, clock, friendly, orThrow, sourceLabel, transcriptLines, useLoad,
 } from "./BusinessShared";
 
 // One place for everything about a person: their details, every call with the
@@ -210,7 +210,7 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
       do_not_call: form.do_not_call, do_not_sms: form.do_not_sms, do_not_email: form.do_not_email,
       updated_at: new Date().toISOString(),
     };
-    const { error: updateError } = await supabase.from("customers").update(values).eq("id", personId);
+    const { error: updateError } = await changed(supabase.from("customers").update(values).eq("id", personId));
     setBusy(false);
     if (updateError) return setError(friendly(updateError));
     onNotice?.("Details saved.");
@@ -219,7 +219,7 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
 
   async function markContacted() {
     setBusy(true);
-    const { error: updateError } = await supabase.from("customers").update({ last_contacted_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", personId);
+    const { error: updateError } = await changed(supabase.from("customers").update({ last_contacted_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", personId));
     setBusy(false);
     if (updateError) return setError(friendly(updateError));
     onNotice?.("Marked as contacted.");

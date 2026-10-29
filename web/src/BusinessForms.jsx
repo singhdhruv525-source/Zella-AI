@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "./supabase";
 import { Field, Modal, personName } from "./BusinessUI";
 import { todayInput, zonedDateTime } from "./businessTime";
-import { findConflict, friendly } from "./BusinessShared";
+import { changed, findConflict, friendly } from "./BusinessShared";
 import { EmailField, PhoneField } from "./formFields";
 import { checkEmail, validatePhone } from "./formValidation";
 
@@ -376,7 +376,7 @@ export function RescheduleModal({ workspace, term, appt, person, onClose, onSave
 
     const was = `${start0.toLocaleDateString("en-US", { timeZone: tz, month: "short", day: "numeric" })}, ${start0.toLocaleTimeString("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" })}`;
     const note = `Rescheduled from ${was}.`;
-    const { error: updateError } = await supabase.from("appointments").update({
+    const { error: updateError } = await changed(supabase.from("appointments").update({
       start_time: start.toISOString(),
       end_time: end.toISOString(),
       status: "scheduled",
@@ -384,7 +384,7 @@ export function RescheduleModal({ workspace, term, appt, person, onClose, onSave
       ...(form.staffId !== (appt.staff_id ?? "") ? { staff_id: form.staffId || null } : {}),
       description: appt.description ? `${appt.description}\n${note}` : note,
       updated_at: new Date().toISOString(),
-    }).eq("id", appt.id);
+    }).eq("id", appt.id));
     setBusy(false);
     if (updateError) return setError(friendly(updateError));
     onSaved(`${appt.title} moved${personName(person) ? ` for ${personName(person)}` : ""}.`);

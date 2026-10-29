@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { supabase } from "./supabase";
 import { Field, Icon, Pill, personName } from "./BusinessUI";
 import { formatLongDate, formatTime, timeAgo, todayInput, zonedDateTime } from "./businessTime";
-import { APPT_LABEL, APPT_TONE, availabilityAt, explain, friendly, noShowNotice, setCheckIn } from "./BusinessShared";
+import { APPT_LABEL, APPT_TONE, availabilityAt, changed, explain, friendly, noShowNotice, setCheckIn } from "./BusinessShared";
 import { RescheduleModal } from "./BusinessForms";
 import { BookingMessages } from "./BookingMessages";
 import { bookingFields, fieldValue, todayConfig } from "./todayConfig";
@@ -80,11 +80,11 @@ export function BookingPanel({ workspace, industry, appt, person, staff, blocks,
   }
   const setStatus = async (status) => {
     if (status === "no_show") {
-      const ok = await run(() => supabase.from("appointments").update({ status, updated_at: new Date().toISOString() }).eq("id", appt.id));
+      const ok = await run(() => changed(supabase.from("appointments").update({ status, updated_at: new Date().toISOString() }).eq("id", appt.id)));
       if (ok) onNotice(await noShowNotice(appt.id, name ?? appt.title, tz));
       return;
     }
-    run(() => supabase.from("appointments").update({ status, updated_at: new Date().toISOString(), ...(status === "cancelled" ? { cancelled_at: new Date().toISOString() } : {}) }).eq("id", appt.id),
+    run(() => changed(supabase.from("appointments").update({ status, updated_at: new Date().toISOString(), ...(status === "cancelled" ? { cancelled_at: new Date().toISOString() } : {}) }).eq("id", appt.id)),
       `${appt.title} ${status === "cancelled" ? "cancelled" : `marked ${APPT_LABEL[status].toLowerCase()}`}.`);
   };
   async function confirmRequest(event) {
@@ -207,7 +207,7 @@ export function BookingPanel({ workspace, industry, appt, person, staff, blocks,
 
           {editing && <EditBooking appt={appt} staff={staff} cfg={cfg} industry={industry} term={term} busy={busy}
             onCancel={() => setEditing(false)}
-            onSave={(row) => run(() => supabase.from("appointments").update({ ...row, updated_at: new Date().toISOString() }).eq("id", appt.id), `${oneWord} updated.`).then((ok) => ok && setEditing(false))} />}
+            onSave={(row) => run(() => changed(supabase.from("appointments").update({ ...row, updated_at: new Date().toISOString() }).eq("id", appt.id)), `${oneWord} updated.`).then((ok) => ok && setEditing(false))} />}
         </div>
 
         {canWrite ? (

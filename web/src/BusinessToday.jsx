@@ -5,7 +5,7 @@ import { makeTerm, receptionistState } from "./businessWorkspace";
 import { useRoster } from "./BusinessLeads";
 import { CountUp } from "./CrmMotion";
 import { formatLongDate, formatTime, greeting, timeAgo, todayInput, zonedDateTime } from "./businessTime";
-import { friendly, noShowNotice, setCheckIn } from "./BusinessShared";
+import { changed, friendly, noShowNotice, setCheckIn } from "./BusinessShared";
 import { RescheduleModal } from "./BusinessForms";
 import { CONNECT, todayConfig } from "./todayConfig";
 
@@ -279,14 +279,14 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
   }
   async function markNoShow(a) {
     setWorking(`appt-${a.id}`);
-    const { error: e } = await supabase.from("appointments").update({ status: "no_show", updated_at: new Date().toISOString() }).eq("id", a.id);
+    const { error: e } = await changed(supabase.from("appointments").update({ status: "no_show", updated_at: new Date().toISOString() }).eq("id", a.id));
     if (e) { setWorking(null); setError(friendly(e)); return; }
     const message = await noShowNotice(a.id, personName(a.customer) ?? a.title, tz);
     setWorking(null);
     onNotice(message);
     load();
   }
-  const setStatus = (a, status, done) => act(`appt-${a.id}`, () => supabase.from("appointments").update({ status, updated_at: new Date().toISOString() }).eq("id", a.id), done);
+  const setStatus = (a, status, done) => act(`appt-${a.id}`, () => changed(supabase.from("appointments").update({ status, updated_at: new Date().toISOString() }).eq("id", a.id)), done);
   const checkIn = (a) => act(`appt-${a.id}`, () => setCheckIn(a.id, !a.checked_in_at), a.checked_in_at ? "Undone." : `${personName(a.customer) ?? a.title}: ${cfg.arrived.toLowerCase()}.`);
   const completeTask = (t) => act(`task-${t.id}`, () => supabase.rpc("zella_complete_task", { p_task_id: t.id }), "Task done.");
   const person = (id, label) => (id && onOpenPerson ? <button type="button" className="ba-namebtn" onClick={() => onOpenPerson(id)}>{label}</button> : <span>{label}</span>);

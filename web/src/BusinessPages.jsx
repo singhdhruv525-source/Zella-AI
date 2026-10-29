@@ -4,7 +4,7 @@ import { Field, Icon, Modal, Pill, initials, personName } from "./BusinessUI";
 import { makeTerm, receptionistState } from "./businessWorkspace";
 import { dayRange, formatDay, formatLongDate, formatTime, timeAgo, zonedDateTime } from "./businessTime";
 import {
-  APPT_LABEL, APPT_TONE, Empty, Notice, PAGE_SIZE, PageHead, Pager, Segment, clock, friendly, loadPeople,
+  APPT_LABEL, APPT_TONE, Empty, Notice, PAGE_SIZE, PageHead, Pager, Segment, changed, clock, friendly, loadPeople,
   availabilityAt, findConflict, orThrow, sourceLabel, useLoad,
 } from "./BusinessShared";
 import { AddCustomerModal, BookAppointmentModal } from "./BusinessForms";
@@ -248,7 +248,7 @@ function BlockDetail({ block, who, tz, onClose, onChanged, onNotice }) {
   const [error, setError] = useState("");
   async function remove() {
     setBusy(true);
-    const { error: deleteError } = await supabase.from("blocked_times").delete().eq("id", block.id);
+    const { error: deleteError } = await changed(supabase.from("blocked_times").delete().eq("id", block.id));
     setBusy(false);
     if (deleteError) return setError(friendly(deleteError));
     onNotice("Block removed. The time is open again.");
@@ -465,7 +465,7 @@ export function CalendarPage({ workspace, industry, refreshKey, onNotice, onOpen
     const { appt, start, end, staffId } = move;
     const was = `${new Date(appt.start_time).toLocaleDateString("en-US", { timeZone: tz, month: "short", day: "numeric" })}, ${formatTime(appt.start_time, tz)}`;
     const note = `Rescheduled from ${was}.`;
-    const { error: updateError } = await supabase.from("appointments").update({
+    const { error: updateError } = await changed(supabase.from("appointments").update({
       start_time: start.toISOString(),
       end_time: end.toISOString(),
       status: "scheduled",
@@ -473,7 +473,7 @@ export function CalendarPage({ workspace, industry, refreshKey, onNotice, onOpen
       ...(staffId !== (appt.staff_id ?? "") ? { staff_id: staffId || null } : {}),
       description: appt.description ? `${appt.description}\n${note}` : note,
       updated_at: new Date().toISOString(),
-    }).eq("id", appt.id);
+    }).eq("id", appt.id));
     setMoving(false);
     setPending(null);
     if (updateError) { onNotice(friendly(updateError)); return; }

@@ -123,7 +123,16 @@ const CODES = {
   REASON_REQUIRED: "Pick a reason first.",
   BAD_INPUT: "Something in the form isn't valid. Check it and try again.",
   APPROVAL_REQUIRED: "A second owner or admin must approve this first. A request has been sent to them.",
+  NOT_CHANGED: "Nothing was changed. Your role may not allow this, or it was removed meanwhile.",
 };
+
+// An update or delete that row-level security refuses comes back with no error and no rows changed. Ask for the
+// changed rows and report "none" as a refusal, so the screen never says it saved when it didn't.
+export async function changed(query) {
+  const result = await query.select("id");
+  if (!result.error && Array.isArray(result.data) && result.data.length === 0) return { ...result, error: { message: "NOT_CHANGED" } };
+  return result;
+}
 export const friendly = (error) => {
   const message = error?.message ?? String(error);
   if (/does not exist|schema cache|Could not find the/i.test(message)) return NEEDS_UPDATE;
@@ -133,9 +142,9 @@ export const friendly = (error) => {
 
 // Check a person in (they have arrived) or undo it.
 export function setCheckIn(appointmentId, checkedIn) {
-  return supabase.from("appointments")
+  return changed(supabase.from("appointments")
     .update({ checked_in_at: checkedIn ? new Date().toISOString() : null, updated_at: new Date().toISOString() })
-    .eq("id", appointmentId);
+    .eq("id", appointmentId));
 }
 
 /* ---------- Team availability ---------- */

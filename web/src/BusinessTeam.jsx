@@ -4,7 +4,7 @@ import { Field, Icon, Modal, Pill, initials } from "./BusinessUI";
 import { makeTerm } from "./businessWorkspace";
 import { formatDay, formatTime, timeAgo, todayInput } from "./businessTime";
 import {
-  DAYS, Empty, Notice, PageHead, availabilityAt, defaultHours, friendly, orThrow, plural, useLoad,
+  DAYS, Empty, Notice, PageHead, availabilityAt, changed, defaultHours, friendly, orThrow, plural, useLoad,
 } from "./BusinessShared";
 import { BlockTimeModal } from "./BusinessPages";
 import { EmailField, PhoneField } from "./formFields";
@@ -53,7 +53,7 @@ function StaffModal({ workspace, member, count, onClose, onSaved }) {
       is_active: form.is_active, working_hours: hours, updated_at: new Date().toISOString(),
     };
     const result = editing
-      ? await supabase.from("staff_members").update(values).eq("id", member.id)
+      ? await changed(supabase.from("staff_members").update(values).eq("id", member.id))
       : await supabase.from("staff_members").insert({ ...values, business_id: workspace.id, sort_order: count });
     setBusy(false);
     if (result.error) return setError(friendly(result.error));
@@ -153,7 +153,7 @@ export function TeamPage({ workspace, email, refreshKey, onNotice }) {
   void tick;
 
   async function removeBlock(block) {
-    const { error: deleteError } = await supabase.from("blocked_times").delete().eq("id", block.id);
+    const { error: deleteError } = await changed(supabase.from("blocked_times").delete().eq("id", block.id));
     if (deleteError) return onNotice(friendly(deleteError));
     onNotice("Removed. The time is open again.");
     reload();

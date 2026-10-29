@@ -2,7 +2,7 @@ import { useState } from "react";
 import { supabase } from "./supabase";
 import { Field, Icon, Modal, Pill } from "./BusinessUI";
 import { timeAgo } from "./businessTime";
-import { Empty, Notice, PageHead, Segment, friendly, orThrow, plural, useLoad } from "./BusinessShared";
+import { Empty, Notice, PageHead, Segment, changed, friendly, orThrow, plural, useLoad } from "./BusinessShared";
 
 // What the AI receptionist is allowed to say. An answer is only used once it
 // says "Ready": every change is checked and sent to your assistant first.
@@ -134,8 +134,8 @@ export function KnowledgePage({ workspace, refreshKey, onNotice }) {
   const editItem = (item) => setModal({
     kind: "edit", item,
     submit: async (v) => {
-      const { error: failure } = await supabase.from("knowledge_items")
-        .update({ title: v.title, kind: v.kind, question: v.question || null, answer: v.answer }).eq("id", item.id);
+      const { error: failure } = await changed(supabase.from("knowledge_items")
+        .update({ title: v.title, kind: v.kind, question: v.question || null, answer: v.answer }).eq("id", item.id));
       if (failure) return friendly(failure);
       setModal(null);
       onNotice?.("Saved. Zella keeps using nothing for this until the new version is checked.");
@@ -144,8 +144,8 @@ export function KnowledgePage({ workspace, refreshKey, onNotice }) {
     },
   });
 
-  const retry = (item) => run(`r-${item.id}`, () => supabase.from("knowledge_items").update({ status: "processing" }).eq("id", item.id), "Checking again.");
-  const archive = (item) => run(`a-${item.id}`, () => supabase.from("knowledge_items").update({ status: "archived" }).eq("id", item.id), "Removed. Zella will stop using it.");
+  const retry = (item) => run(`r-${item.id}`, () => changed(supabase.from("knowledge_items").update({ status: "processing" }).eq("id", item.id)), "Checking again.");
+  const archive = (item) => run(`a-${item.id}`, () => changed(supabase.from("knowledge_items").update({ status: "archived" }).eq("id", item.id)), "Removed. Zella will stop using it.");
 
   return (
     <>
