@@ -156,36 +156,6 @@ function useSettingsContext({ onNavigate, onOpenBusiness, onOpenSetup, onSignOut
   return { me, error, context };
 }
 
-// A sidebar page built from one Settings category: a heading and a tab per page, without the Settings tree.
-// Address: <base>/<page key>. `only` limits it to some of the category's pages.
-export function CategoryPage({ category, only, sub, base, title, description, ...handlers }) {
-  const { error, context } = useSettingsContext(handlers);
-  const cat = REGISTRY.find((c) => c.key === category);
-  const items = cat.items.filter((i) => !only || only.includes(i.key));
-  const current = items.find((i) => i.key === sub) ?? items[0];
-  return (
-    <section className="owner-page zs">
-      <div className="owner-page-heading">
-        <div>
-          <h1>{title}</h1>
-          <p>{description}</p>
-        </div>
-      </div>
-      <div className="op-tabs" role="tablist">
-        {items.map((i) => (
-          <button key={i.key} type="button" role="tab" aria-selected={i.key === current.key}
-            className={i.key === current.key ? "active" : ""} onClick={() => navigate(`${base}/${i.key}`)}>
-            {i.label}
-          </button>
-        ))}
-      </div>
-      {error ? <Banner tone="error">Couldn't load this page: {error}</Banner>
-        : !context ? <Loading />
-        : <div className="zs-body" key={current.key}>{current.render(context)}</div>}
-    </section>
-  );
-}
-
 export default function SettingsPage({ section, sub, ...handlers }) {
   const { me, error, context } = useSettingsContext(handlers);
   if (error) return <section className="owner-page"><Banner tone="error">Couldn't load Settings: {error}</Banner></section>;

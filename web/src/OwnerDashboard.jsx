@@ -13,7 +13,10 @@ import IntegrationsPage from "./IntegrationsPage";
 import SupportTickets from "./SupportTickets";
 import PlansPage from "./PlansPage";
 import PlatformOperations from "./PlatformOperations";
-import SettingsPage, { CategoryPage } from "./SettingsPage";
+import SettingsPage from "./SettingsPage";
+import VoiceNumbersPage from "./admin/VoiceNumbersPage";
+import MessagingPage from "./admin/MessagingPage";
+import AutomationsPage from "./admin/AutomationsPage";
 import ModulesPage from "./ModulesPage";
 import OffersPage from "./OffersPage";
 import VerificationQueue from "./VerificationQueue";
@@ -49,8 +52,7 @@ const INVITE_TONE = { accepted: "success", sent: "warning", pending: "warning", 
 const words = (s) => String(s ?? "").replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
 
 // The admin sidebar. Each page lists the permission it needs (the same one the server checks for its data), so an
-// admin with a restricted role only sees pages they can use. Items with `category` show one Settings category as
-// their own page, with a tab per setting (address: <path>/<setting>).
+// admin with a restricted role only sees pages they can use. Items with `tabs` take a tab in the address (<path>/<tab>).
 const NAVIGATION = [
   { label: "Overview", icon: "space_dashboard", path: "/", group: null, perm: "businesses.view" },
   { label: "Businesses", icon: "storefront", path: "/businesses", group: "Businesses", perm: "businesses.view" },
@@ -60,13 +62,10 @@ const NAVIGATION = [
   { label: "Plans & Subscriptions", icon: "credit_card", path: "/plans", group: "Configuration", perm: "billing.view" },
   { label: "Offers & Promotions", icon: "sell", path: "/offers", group: "Configuration", perm: "billing.view" },
   { label: "AI Agents", icon: "smart_toy", path: "/agents", group: "AI & communications", perm: "businesses.view" },
-  { label: "Voice & numbers", icon: "call", path: "/voice", category: "voice", group: "AI & communications", perm: "businesses.view",
-    description: "Phone providers, the numbers each business uses, call minutes and their costs." },
-  { label: "Messaging", icon: "forum", path: "/messaging", category: "comms", group: "AI & communications", perm: "businesses.view",
-    description: "Texts and emails: senders, templates and how well they are delivered." },
+  { label: "Voice & numbers", icon: "call", path: "/voice", tabs: true, group: "AI & communications", perm: "businesses.view" },
+  { label: "Messaging", icon: "forum", path: "/messaging", tabs: true, group: "AI & communications", perm: "businesses.view" },
   { label: "Platform Operations", icon: "monitor_heart", path: "/operations", group: "Operations", perm: "businesses.view" },
-  { label: "Automations", icon: "bolt", path: "/automations", category: "integrations", only: ["n8n", "monitoring", "webhooks"], group: "Operations", perm: "businesses.view",
-    description: "The automation engine (n8n), what it has run and the webhooks it listens on." },
+  { label: "Automations", icon: "bolt", path: "/automations", tabs: true, group: "Operations", perm: "businesses.view" },
   { label: "Integrations", icon: "hub", path: "/integrations", group: "Operations", perm: "businesses.view" },
   { label: "Support", icon: "support_agent", path: "/support", group: "Operations", perm: "support.manage" },
   { label: "Security & Abuse", icon: "gpp_maybe", path: "/security-abuse", group: "Operations", perm: "security.view" },
@@ -97,7 +96,7 @@ function readRoute(path) {
   } else if (item.label === "Settings" && second) {
     route.section = second;
     route.sub = third ?? null;
-  } else if (item.category && second && !third) {
+  } else if (item.tabs && second && !third) {
     route.sub = second;
   } else if (second) {
     route.activePage = null;
@@ -368,12 +367,13 @@ useEffect(() => {
             <OffersPage onOpenBusiness={setDetailId} />
           ) : activePage === "Platform Operations" ? (
             <PlatformOperations onNavigate={goTo} onOpenBusiness={setDetailId} />
-          ) : NAVIGATION.find((n) => n.category && n.label === activePage) ? (() => {
-            const item = NAVIGATION.find((n) => n.label === activePage);
-            return <CategoryPage key={item.path} category={item.category} only={item.only} sub={sub} base={item.path} title={item.label}
-              description={item.description} onNavigate={goTo} onSignOut={onSignOut} onOpenBusiness={setDetailId}
-              onOpenSetup={(id) => setWizard({ businessId: id })} />;
-          })() : activePage === "Settings" ? (
+          ) : activePage === "Voice & numbers" ? (
+            <VoiceNumbersPage me={me} sub={sub} onOpenBusiness={setDetailId} />
+          ) : activePage === "Messaging" ? (
+            <MessagingPage me={me} sub={sub} onOpenBusiness={setDetailId} />
+          ) : activePage === "Automations" ? (
+            <AutomationsPage me={me} sub={sub} onOpenBusiness={setDetailId} />
+          ) : activePage === "Settings" ? (
             <SettingsPage onNavigate={goTo} section={section} sub={sub} onSignOut={onSignOut}
               onOpenBusiness={setDetailId} onOpenSetup={(id) => setWizard({ businessId: id })} />
           ) : isBusinesses ? (
