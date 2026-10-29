@@ -18,3 +18,18 @@ begin
     'if v_voice is not null then v_voice := v_voice || jsonb_build_object(''model'', ''eleven_multilingual_v2''); end if;',
     'if v_voice is not null and v_tts_provider = ''11labs'' then v_voice := v_voice || jsonb_build_object(''model'', ''eleven_multilingual_v2''); end if;');
 end $$;
+
+-- Optional ElevenLabs voice model (platform setting voice_tts_model, one of Vapi's ElevenLabsVoiceModel values);
+-- unset = Vapi's default. Applied as migration zella_voice_tts_model with voice "burt" and model "eleven_v4_turbo".
+do $$
+declare sig text := 'public.zella_assistant_config(uuid)';
+begin
+  perform public.zella_patch_function(sig, 'voice_tts_model',
+    ' || case when v_tts_provider = ''vapi'' then jsonb_build_object(''version'', ''2'') else ''{}''::jsonb end end;',
+    ' || case when v_tts_provider = ''vapi'' then jsonb_build_object(''version'', ''2'') else ''{}''::jsonb end end;'
+    || E'\n  -- ElevenLabs voice model chosen in Vapi (VapiVoice ElevenLabsVoiceModel list, @vapi-ai/server-sdk 3.0.0); none = Vapi''s default'
+    || E'\n  if v_voice is not null and v_tts_provider = ''11labs'' and coalesce(public.zella_setting(''voice_tts_model'', ''null''::jsonb) #>> ''{}'', '''') = any (array[''eleven_multilingual_v2'', ''eleven_turbo_v2'', ''eleven_turbo_v2_5'', ''eleven_flash_v2'', ''eleven_flash_v2_5'', ''eleven_monolingual_v1'', ''eleven_v3'', ''eleven_v4_turbo'']) then'
+    || E'\n    v_voice := v_voice || jsonb_build_object(''model'', public.zella_setting(''voice_tts_model'', ''null''::jsonb) #>> ''{}'');'
+    || E'\n  end if;');
+end $$;
+insert into public.platform_settings (key, value) values ('voice_tts_model', 'null'::jsonb) on conflict (key) do nothing;
