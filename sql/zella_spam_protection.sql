@@ -839,7 +839,7 @@ begin
     execute $q$select exists (select 1 from cron.job where jobname = 'zella_spam_hourly')$q$ into v_have;
     if not v_have then
       execute $q$select cron.schedule('zella_spam_hourly', '17 * * * *', 'select public.zella_spam_hourly()')$q$;
-      execute $q$update cron.job set active = false where jobname = 'zella_spam_hourly'$q$;
+      execute $q$select cron.alter_job((select jobid from cron.job where jobname = 'zella_spam_hourly'), active := false)$q$;
     end if;
   end if;
 end $$;
