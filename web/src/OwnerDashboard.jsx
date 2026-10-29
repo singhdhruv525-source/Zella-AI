@@ -13,7 +13,7 @@ import IntegrationsPage from "./IntegrationsPage";
 import SupportTickets from "./SupportTickets";
 import PlansPage from "./PlansPage";
 import PlatformOperations from "./PlatformOperations";
-import SettingsPage from "./SettingsPage";
+import SettingsPage, { CategoryPage } from "./SettingsPage";
 import ModulesPage from "./ModulesPage";
 import OffersPage from "./OffersPage";
 import VerificationQueue from "./VerificationQueue";
@@ -49,7 +49,8 @@ const INVITE_TONE = { accepted: "success", sent: "warning", pending: "warning", 
 const words = (s) => String(s ?? "").replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
 
 // The admin sidebar. Each page lists the permission it needs (the same one the server checks for its data), so an
-// admin with a restricted role only sees pages they can use. Items with `settings` open a Settings page directly.
+// admin with a restricted role only sees pages they can use. Items with `category` show one Settings category as
+// their own page, with a tab per setting (address: <path>/<setting>).
 const NAVIGATION = [
   { label: "Overview", icon: "space_dashboard", path: "/", group: null, perm: "businesses.view" },
   { label: "Businesses", icon: "storefront", path: "/businesses", group: "Businesses", perm: "businesses.view" },
@@ -59,10 +60,13 @@ const NAVIGATION = [
   { label: "Plans & Subscriptions", icon: "credit_card", path: "/plans", group: "Configuration", perm: "billing.view" },
   { label: "Offers & Promotions", icon: "sell", path: "/offers", group: "Configuration", perm: "billing.view" },
   { label: "AI Agents", icon: "smart_toy", path: "/agents", group: "AI & communications", perm: "businesses.view" },
-  { label: "Voice & numbers", icon: "call", settings: "voice/numbers", group: "AI & communications", perm: "businesses.view" },
-  { label: "Messaging", icon: "forum", settings: "comms/sms", group: "AI & communications", perm: "businesses.view" },
+  { label: "Voice & numbers", icon: "call", path: "/voice", category: "voice", group: "AI & communications", perm: "businesses.view",
+    description: "Phone providers, the numbers each business uses, call minutes and their costs." },
+  { label: "Messaging", icon: "forum", path: "/messaging", category: "comms", group: "AI & communications", perm: "businesses.view",
+    description: "Texts and emails: senders, templates and how well they are delivered." },
   { label: "Platform Operations", icon: "monitor_heart", path: "/operations", group: "Operations", perm: "businesses.view" },
-  { label: "Automations", icon: "bolt", settings: "integrations/n8n", group: "Operations", perm: "businesses.view" },
+  { label: "Automations", icon: "bolt", path: "/automations", category: "integrations", only: ["n8n", "monitoring", "webhooks"], group: "Operations", perm: "businesses.view",
+    description: "The automation engine (n8n), what it has run and the webhooks it listens on." },
   { label: "Integrations", icon: "hub", path: "/integrations", group: "Operations", perm: "businesses.view" },
   { label: "Support", icon: "support_agent", path: "/support", group: "Operations", perm: "support.manage" },
   { label: "Security & Abuse", icon: "gpp_maybe", path: "/security-abuse", group: "Operations", perm: "security.view" },
@@ -93,6 +97,8 @@ function readRoute(path) {
   } else if (item.label === "Settings" && second) {
     route.section = second;
     route.sub = third ?? null;
+  } else if (item.category && second && !third) {
+    route.sub = second;
   } else if (second) {
     route.activePage = null;
   }
@@ -174,8 +180,7 @@ useEffect(() => {
   });
 
   function goTo(page) {
-    const item = NAVIGATION.find((n) => n.label === page);
-    navigate(item?.settings ? `/settings/${item.settings}` : pathFor(page));
+    navigate(pathFor(page));
   }
 
   // Who is signed in: their role and permissions decide which pages the sidebar offers. The server checks the same
@@ -190,9 +195,7 @@ useEffect(() => {
     return () => { live = false; };
   }, []);
   const allowed = (item) => !item.perm || meFailed || Boolean(me?.permissions?.includes(item.perm));
-  const isCurrent = (item) => item.settings
-    ? activePage === "Settings" && `${section}/${sub}` === item.settings
-    : activePage === item.label && !(item.label === "Settings" && NAVIGATION.some((n) => n.settings === `${section}/${sub}`));
+  const isCurrent = (item) => activePage === item.label;
 
   // ⌘K / Ctrl+K jumps to the business search, as the hint in the search box says.
   const searchBox = useRef(null);
@@ -278,7 +281,7 @@ useEffect(() => {
           <div className="owner-breadcrumb">
             <span>Platform</span>
             <span>/</span>
-            <strong>{NAVIGATION.find((n) => n.settings && isCurrent(n))?.label ?? activePage ?? "Page not found"}</strong>
+            <strong>{activePage ?? "Page not found"}</strong>
           </div>
 
           <div className="owner-top-actions">
@@ -365,7 +368,12 @@ useEffect(() => {
             <OffersPage onOpenBusiness={setDetailId} />
           ) : activePage === "Platform Operations" ? (
             <PlatformOperations onNavigate={goTo} onOpenBusiness={setDetailId} />
-          ) : activePage === "Settings" ? (
+          ) : NAVIGATION.find((n) => n.category && n.label === activePage) ? (() => {
+            const item = NAVIGATION.find((n) => n.label === activePage);
+            return <CategoryPage key={item.path} category={item.category} only={item.only} sub={sub} base={item.path} title={item.label}
+              description={item.description} onNavigate={goTo} onSignOut={onSignOut} onOpenBusiness={setDetailId}
+              onOpenSetup={(id) => setWizard({ businessId: id })} />;
+          })() : activePage === "Settings" ? (
             <SettingsPage onNavigate={goTo} section={section} sub={sub} onSignOut={onSignOut}
               onOpenBusiness={setDetailId} onOpenSetup={(id) => setWizard({ businessId: id })} />
           ) : isBusinesses ? (

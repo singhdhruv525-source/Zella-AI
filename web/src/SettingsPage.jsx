@@ -138,7 +138,8 @@ function registry() {
 
 const REGISTRY = registry();
 
-export default function SettingsPage({ onNavigate, onOpenBusiness, onOpenSetup, onSignOut, section, sub }) {
+// The signed-in admin and what every settings panel is given.
+function useSettingsContext({ onNavigate, onOpenBusiness, onOpenSetup, onSignOut }) {
   const [me, setMe] = useState(null);
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
@@ -148,12 +149,47 @@ export default function SettingsPage({ onNavigate, onOpenBusiness, onOpenSetup, 
     supabase.auth.getUser().then(({ data }) => live && setEmail(data?.user?.email ?? ""));
     return () => { live = false; };
   }, []);
-  if (error) return <section className="owner-page"><Banner tone="error">Couldn't load Settings: {error}</Banner></section>;
-  if (!me) return <section className="owner-page"><Loading /></section>;
-  const context = {
+  const context = me && {
     me, email, onNavigate, onSignOut, openBusiness: onOpenBusiness, openSetup: onOpenSetup,
     onGo: (path) => navigate(`/settings/${path}`),
   };
+  return { me, error, context };
+}
+
+// A sidebar page built from one Settings category: a heading and a tab per page, without the Settings tree.
+// Address: <base>/<page key>. `only` limits it to some of the category's pages.
+export function CategoryPage({ category, only, sub, base, title, description, ...handlers }) {
+  const { error, context } = useSettingsContext(handlers);
+  const cat = REGISTRY.find((c) => c.key === category);
+  const items = cat.items.filter((i) => !only || only.includes(i.key));
+  const current = items.find((i) => i.key === sub) ?? items[0];
+  return (
+    <section className="owner-page zs">
+      <div className="owner-page-heading">
+        <div>
+          <h1>{title}</h1>
+          <p>{description}</p>
+        </div>
+      </div>
+      <div className="op-tabs" role="tablist">
+        {items.map((i) => (
+          <button key={i.key} type="button" role="tab" aria-selected={i.key === current.key}
+            className={i.key === current.key ? "active" : ""} onClick={() => navigate(`${base}/${i.key}`)}>
+            {i.label}
+          </button>
+        ))}
+      </div>
+      {error ? <Banner tone="error">Couldn't load this page: {error}</Banner>
+        : !context ? <Loading />
+        : <div className="zs-body" key={current.key}>{current.render(context)}</div>}
+    </section>
+  );
+}
+
+export default function SettingsPage({ section, sub, ...handlers }) {
+  const { me, error, context } = useSettingsContext(handlers);
+  if (error) return <section className="owner-page"><Banner tone="error">Couldn't load Settings: {error}</Banner></section>;
+  if (!me) return <section className="owner-page"><Loading /></section>;
   return (
     <SettingsWorkspace
       description={`Platform administration · signed in as ${me.roleLabel}${me.mfa ? " with two-step sign-in" : ""}`}
