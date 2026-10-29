@@ -174,6 +174,7 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [actionError, setActionError] = useState("");
   const [working, setWorking] = useState(null);
   const [moving, setMoving] = useState(null);
   const opsKeys = useMemo(() => operations.filter((t) => t.enabled).slice(0, 2).map((t) => t.key), [operations]);
@@ -270,17 +271,17 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
 
   async function act(key, run, message) {
     setWorking(key);
-    setError("");
+    setActionError("");
     const { error: e } = await run();
     setWorking(null);
-    if (e) { setError(friendly(e)); return; }
+    if (e) { setActionError(friendly(e)); return; }
     if (message) onNotice(message);
     load();
   }
   async function markNoShow(a) {
     setWorking(`appt-${a.id}`);
     const { error: e } = await changed(supabase.from("appointments").update({ status: "no_show", updated_at: new Date().toISOString() }).eq("id", a.id));
-    if (e) { setWorking(null); setError(friendly(e)); return; }
+    if (e) { setWorking(null); setActionError(friendly(e)); return; }
     const message = await noShowNotice(a.id, personName(a.customer) ?? a.title, tz);
     setWorking(null);
     onNotice(message);
@@ -331,6 +332,7 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
       </div>
 
       {error && <div className="ba-banner error">Couldn't load everything: {error} <button type="button" className="ba-link" onClick={load}>Try again</button></div>}
+      {actionError && <div className="ba-banner error" role="alert">{actionError}</div>}
 
       <div className="td-kpis">
         <Kpi icon="event" tone="rose" label={`${bookingWord} ${isToday ? "today" : ""}`.trim()} value={active.length} loading={loading && !data} change={p && trend(active.length, p.bookings)} />
