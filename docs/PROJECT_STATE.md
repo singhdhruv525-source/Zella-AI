@@ -70,17 +70,15 @@ Two kinds of email:
    Next: test each address from Gmail, then switch Dhruv's super-admin login from Gmail to `dhruv@zellavoice.com`
    (Supabase > Authentication > Users > change email; admin rights follow the user id). Zella's automatic emails
    will use reply-to `support@zellavoice.com`.
-2. **Automatic emails (Resend):** sign-in codes, verification, password reset, invites, reminders. Sent from
-   `no-reply@zellavoice.com`, with replies going to `support@zellavoice.com`. *Step 2:*
-   - the owner verifies `zellavoice.com` in Resend by adding Resend's DNS records in GoDaddy (extra records
-     only; existing MX stays);
-   - add a DMARC record;
-   - creates an API key and keeps it private.
-
-   *Step 3:*
-   - the owner enters Resend SMTP in Supabase > Authentication > SMTP;
-   - then set `email_from_address`;
-   - add branded sign-in/reset templates.
+2. **Automatic emails (Resend):** workspace "zellavoice", signed up with dhruv@zellavoice.com. Domain
+   `zellavoice.com` **verified** 30 Oct (us-east-1, auto-configured through GoDaddy): TXT `resend._domainkey`,
+   CNAMEs `send` and `rsend` (to `*.forge.rmta.net`). Receiving OFF (root MX stays GoDaddy), click/open tracking
+   OFF (would break sign-in links). GoDaddy's own email records unchanged.
+   Next:
+   - the owner creates a "Sending access" API key for zellavoice.com and enters it in Supabase > Authentication >
+     Emails > SMTP: host `smtp.resend.com`, port 465, user `resend`, sender `Zella <no-reply@zellavoice.com>`;
+   - check it, then test by signing in as the owner only;
+   - then set `email_from_address`, reply-to support@, and branded templates.
 
    `email_live` stays off until approved.
 
