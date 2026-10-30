@@ -42,7 +42,13 @@ Last updated: 30 October 2026.
   sent no signature on real calls. Same credential id, now `authenticationPlan.type = bearer`
   (`tests/vapi/switch-credential-to-bearer.mjs`); token in vault `zella_vapi_bearer_token`; setting
   `vapi_auth_mode` = "bearer" (set it back to "hmac" to undo). Database check passes (right token ok, wrong refused,
-  missing refused). Next: a real test call to confirm.
+  missing refused). A test call after that was still refused: Vapi sent no Authorization header at all, so it
+  doesn't apply the linked credential. Fix: the loader now puts the token straight into each server's headers
+  (`ZELLA_VAPI_TOKEN=... node tests/vapi/load-test-assistant.mjs <id>`); test assistant
+  `edd2c398-deed-453f-8832-dc69517054a3` reloaded 30 Oct with the token on all 16 servers.
+  **Next (owner, 31 Oct):** Talk to the test assistant, ask "Are you open tomorrow?" (don't book), then check
+  voice-rules logs for 200s. If they pass, real assistants need the same headers: send them from the server side
+  (token from vault) instead of the test loader.
 
 ## Knowledge base
 
@@ -83,6 +89,13 @@ Two kinds of email:
      and reply-to support@ for Zella's own emails.
 
    `email_live` stays off until approved.
+
+## Waiting on the owner's answers
+
+- What's missing in the app (they chose "something missing" without details).
+- Call transcripts/recordings: owners and managers only, or all staff (M-4).
+- Suspended businesses: keep read-only access (L-5)?
+- Remove the never-used typo super admin abhidakshmurya@gmail.com?
 
 ## Still to do later
 
