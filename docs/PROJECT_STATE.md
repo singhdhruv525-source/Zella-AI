@@ -75,10 +75,10 @@ Two kinds of email:
    CNAMEs `send` and `rsend` (to `*.forge.rmta.net`). Receiving OFF (root MX stays GoDaddy), click/open tracking
    OFF (would break sign-in links). GoDaddy's own email records unchanged.
    Next:
-   - the owner creates a "Sending access" API key for zellavoice.com and enters it in Supabase > Authentication >
-     Emails > SMTP: host `smtp.resend.com`, port 465, user `resend`, sender `Zella AI <no-reply@zellavoice.com>`;
-   - check it, then test by signing in as the owner only;
-   - then set `email_from_address`, reply-to support@, and branded templates.
+   - DONE 30 Oct: Supabase custom SMTP set to Resend (`smtp.resend.com`, 465, user `resend`, sender
+     `Zella AI <no-reply@zellavoice.com>`); test magic link to the owner's Gmail arrived in the inbox.
+   - Next: owner pastes the branded templates from `docs/EMAIL_TEMPLATES.md`; later set `email_from_address`
+     and reply-to support@ for Zella's own emails.
 
    `email_live` stays off until approved.
 
