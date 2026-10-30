@@ -35,7 +35,7 @@ export default function StatusPage() {
   return (
     <main className="cp-page">
       <section className="cp-card stp-card">
-        <div className="cp-brand"><span>Zella<span className="cp-ai">AI</span> status</span></div>
+        <div className="cp-brand"><span>Zella <span className="cp-ai">Voice</span> status</span></div>
         {state.loading && <p>Checking…</p>}
         {(d || state.error) && (
           <div className={`stp-overall ${STATES[overall]?.[0] ?? ""}`} role="status">

@@ -24,7 +24,7 @@ export function PlatformProfile({ me }) {
 
 function ProfileForm({ initial, canEdit }) {
   const form = useForm({
-    display_name: initial.display_name ?? "Zella AI", legal_name: initial.legal_name ?? "", support_email: initial.support_email ?? "",
+    display_name: initial.display_name ?? "Zella Voice", legal_name: initial.legal_name ?? "", support_email: initial.support_email ?? "",
     support_phone: initial.support_phone ?? "", website: initial.website ?? "", address: initial.address ?? "",
     country: initial.country ?? "US", timezone: initial.timezone ?? "America/New_York", currency: initial.currency ?? "USD",
   });
@@ -95,7 +95,7 @@ function BrandingForm({ initial, canEdit }) {
         </div>
         <div className="zs-card" style={{ padding: 16, textAlign: "center" }}>
           <small className="zs-muted">Preview</small>
-          <div style={{ marginTop: 8 }}>{form.values.logo_url ? <img src={form.values.logo_url} alt="Logo preview" style={{ maxHeight: 56, maxWidth: "100%" }} /> : <strong>zella ai</strong>}</div>
+          <div style={{ marginTop: 8 }}>{form.values.logo_url ? <img src={form.values.logo_url} alt="Logo preview" style={{ maxHeight: 56, maxWidth: "100%" }} /> : <strong>zella voice</strong>}</div>
           {form.values.login_headline && <p className="zs-muted">{form.values.login_headline}</p>}
         </div>
       </div>

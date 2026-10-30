@@ -318,7 +318,7 @@ function AdminApp() {
         <div className="brand-panel">
           <div className="brand">
             <div className="brand-mark">Z</div>
-            <span>Zella <span className="brand-ai">AI</span></span>
+            <span>Zella <span className="brand-ai">Voice</span></span>
           </div>
 
           <div className="brand-message">
@@ -334,7 +334,7 @@ function AdminApp() {
               platform.
             </h1>
             <p>
-              Your central command for managing Zella AI businesses,
+              Your central command for managing Zella Voice businesses,
               AI receptionists, subscriptions and operations.
             </p>
 
@@ -364,21 +364,21 @@ function AdminApp() {
           </div>
 
           <div className="brand-footer">
-            <span>© 2026 Zella AI</span>
+            <span>© 2026 Zella Voice</span>
             <span>Platform administration</span>
           </div>
         </div>
 
         <div className="form-panel">
           <div className="mobile-brand">
-            {platform.logo_url ? <img src={platform.logo_url} alt={platform.display_name ?? "Zella AI"} style={{ maxHeight: 36 }} /> : <>
+            {platform.logo_url ? <img src={platform.logo_url} alt={platform.display_name ?? "Zella Voice"} style={{ maxHeight: 36 }} /> : <>
             <div className="brand-mark">Z</div>
-            <span>Zella <span className="brand-ai">AI</span></span></>}
+            <span>Zella <span className="brand-ai">Voice</span></span></>}
           </div>
 
           <div className="form-content">
             {maintenanceText(platform) && <div className="login-message error" role="status">{maintenanceText(platform)}</div>}
-            {platform.logo_url ? <img src={platform.logo_url} alt={platform.display_name ?? "Zella AI"} style={{ maxHeight: 48, marginBottom: 12 }} /> : <div className="form-symbol"><Icon name="login" /></div>}
+            {platform.logo_url ? <img src={platform.logo_url} alt={platform.display_name ?? "Zella Voice"} style={{ maxHeight: 48, marginBottom: 12 }} /> : <div className="form-symbol"><Icon name="login" /></div>}
             <div className="form-eyebrow">Owner access</div>
             <h2>{mode === "reset" ? "Reset your password" : mode === "setpassword" ? "Choose your password" : mode === "mfa" ? "Enter your code" : "Welcome back"}</h2>
             <p className="form-description">

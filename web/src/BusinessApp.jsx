@@ -74,7 +74,7 @@ function Blocked({ workspace, onSignOut }) {
       <section className="ba-auth-card">
         <div className="ba-brand">
           <div className="ba-logo">Z</div>
-          <div className="ba-brand-name">Zella AI</div>
+          <div className="ba-brand-name">Zella Voice</div>
         </div>
         <div className="ba-eyebrow">{workspace.name}</div>
         <h1>{cancelled ? "This plan has ended" : "This workspace is paused"}</h1>
@@ -209,7 +209,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
         <div className="ba-brand">
           <div className="ba-logo">Z</div>
           <div>
-            <div className="ba-brand-name">Zella AI</div>
+            <div className="ba-brand-name">Zella Voice</div>
             <div className="ba-brand-sub">{nav.data?.industry?.name ?? workspace.industry ?? "Business"} CRM</div>
           </div>
         </div>
@@ -467,7 +467,7 @@ function BusinessHome() {
         <section className="ba-auth-card">
           <div className="ba-brand">
             <div className="ba-logo">Z</div>
-            <div className="ba-brand-name">Zella AI</div>
+            <div className="ba-brand-name">Zella Voice</div>
           </div>
           <h1>{isAdmin ? "You're a Zella admin" : "No workspace yet"}</h1>
           <p className="ba-auth-description">
@@ -542,7 +542,7 @@ function Preview() {
       workspace={PREVIEW_WORKSPACE}
       workspaces={[PREVIEW_WORKSPACE]}
       onSwitch={() => {}}
-      email="preview@zella.ai"
+      email="preview@zellavoice.com"
       base="/app/preview"
       onSignOut={() => { window.location.href = "/app"; }}
       onReload={() => {}}

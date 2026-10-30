@@ -203,7 +203,7 @@ export function settingsHandlers(admin: SupabaseClient, fields: Json, ctx: { use
         const tz = k.text(v.timezone, 64) || "America/New_York";
         if (!k.validTimezone(tz)) throw new k.InputError("Choose a valid time zone");
         const value = {
-          display_name: k.text(v.display_name, 80) || "Zella AI", legal_name: k.text(v.legal_name, 200) || null,
+          display_name: k.text(v.display_name, 80) || "Zella Voice", legal_name: k.text(v.legal_name, 200) || null,
           support_email: email || null, support_phone: phone || null, website: httpsUrl(v.website, "Website", k),
           address: k.text(v.address, 300) || null, country: (k.text(v.country, 2) || "US").toUpperCase(), timezone: tz,
           currency: CURRENCIES.includes(k.text(v.currency, 3)) ? k.text(v.currency, 3) : "USD",

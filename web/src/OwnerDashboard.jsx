@@ -223,7 +223,7 @@ useEffect(() => {
         <div className="owner-brand">
           <div className="owner-brand-mark">Z</div>
           <div>
-            <div className="owner-brand-name">Zella <span>AI</span></div>
+            <div className="owner-brand-name">Zella <span>Voice</span></div>
             <div className="owner-brand-caption">Platform control</div>
           </div>
         </div>

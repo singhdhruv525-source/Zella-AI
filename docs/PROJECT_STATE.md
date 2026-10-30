@@ -92,7 +92,9 @@ Two kinds of email:
 - Telnyx SMS (`sms_from_number`), Stripe billing webhook secret, provider health checks.
 - Anthropic key for knowledge AI drafting when budget allows.
 - Trademark check for the name "Zella".
-- Rebrand "Zella AI" to "Zella Voice" later (owner's decision, 30 Oct): app titles, emails, receptionist
-  greeting. Emails and the SMTP sender already say Zella Voice (30 Oct).
+- Rebrand to "Zella Voice": done 30 Oct in the app (titles, logos, sign-in pages, status page), emails, SMTP sender
+  and new receptionists' default name (`sql/zella_rebrand_voice.sql`). Left: the owner function's default
+  platform name in `owner-provision-business/settings.ts` is changed in the repo but goes live with the next deploy
+  of that function. The receptionist's own prompt never named Zella, so calls are unaffected.
 - Audit follow-ups M-3, M-4, M-5, L-1 to L-5: see `docs/ZELLA_REMEDIATION_CHECKLIST.md`
   (full audit in `docs/ZELLA_END_TO_END_AUDIT.md`).

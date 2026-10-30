@@ -29,7 +29,7 @@ function AuthCard({ eyebrow, title, description, children }) {
           <div className="ba-brand">
             {platform.logo_url ? <img src={platform.logo_url} alt="" style={{ maxHeight: 36 }} /> : <div className="ba-logo">Z</div>}
             <div>
-              <div className="ba-brand-name">{platform.display_name ?? "Zella AI"}</div>
+              <div className="ba-brand-name">{platform.display_name ?? "Zella Voice"}</div>
               <div className="ba-brand-sub">{platform.login_headline || "Hands full. Phone handled."}</div>
             </div>
           </div>

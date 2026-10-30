@@ -67,7 +67,7 @@ export function desktopAlert(title, body, onClick) {
   } catch { /* some browsers only allow this from a service worker */ }
 }
 
-// "(3) Zella AI": the unread count in the browser tab.
+// "(3) Zella Voice": the unread count in the browser tab.
 let baseTitle = null;
 export function tabCount(count) {
   if (typeof document === "undefined") return;
