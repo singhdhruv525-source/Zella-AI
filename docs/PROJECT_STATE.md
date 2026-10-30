@@ -76,7 +76,7 @@ Two kinds of email:
    OFF (would break sign-in links). GoDaddy's own email records unchanged.
    Next:
    - DONE 30 Oct: Supabase custom SMTP set to Resend (`smtp.resend.com`, 465, user `resend`, sender
-     `Zella AI <no-reply@zellavoice.com>`); test magic link to the owner's Gmail arrived in the inbox.
+     `Zella Voice <no-reply@zellavoice.com>` (renamed from Zella AI, owner to change in Supabase)); test magic link to the owner's Gmail arrived in the inbox.
    - Next: owner pastes the branded templates from `docs/EMAIL_TEMPLATES.md`; later set `email_from_address`
      and reply-to support@ for Zella's own emails.
 
@@ -93,6 +93,6 @@ Two kinds of email:
 - Anthropic key for knowledge AI drafting when budget allows.
 - Trademark check for the name "Zella".
 - Rebrand "Zella AI" to "Zella Voice" later (owner's decision, 30 Oct): app titles, emails, receptionist
-  greeting, SMTP sender name.
+  greeting. Emails and the SMTP sender already say Zella Voice (30 Oct).
 - Audit follow-ups M-3, M-4, M-5, L-1 to L-5: see `docs/ZELLA_REMEDIATION_CHECKLIST.md`
   (full audit in `docs/ZELLA_END_TO_END_AUDIT.md`).
