@@ -3,6 +3,7 @@ import "./OwnerPages.css";
 import { callOwnerFunction } from "./CreateBusinessWizard";
 import { Pill } from "./OwnerOverview";
 import { stageLabel, timeAgo } from "./ownerFormat";
+import { friendlyError } from "./admin/adminOps";
 
 const CHECKS = [
   ["knowledge", "Knowledge", "Services or FAQs added"],
@@ -43,7 +44,7 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
     try {
       setData(await callOwnerFunction("agents_list"));
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setLoading(false);
     }

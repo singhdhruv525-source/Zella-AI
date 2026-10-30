@@ -50,7 +50,7 @@ export default function SpamPage({ workspace, onNotice, onOpenPerson }) {
   if (overview.missing) {
     return (
       <>
-        <PageHead crumb="Calls & Messages / Spam protection" title="Spam protection" />
+        <PageHead crumb="Calls & messages / Spam protection" title="Spam protection" />
         <Empty icon="gpp_maybe" title="Spam protection isn't set up yet">The Zella team needs to apply its latest database update. Nothing is being missed: until then, calls, texts and emails work as usual.</Empty>
       </>
     );
@@ -58,7 +58,7 @@ export default function SpamPage({ workspace, onNotice, onOpenPerson }) {
 
   return (
     <>
-      <PageHead crumb="Calls & Messages / Spam protection" title="Spam protection" sub="Suspicious calls, texts, emails and bookings in one place, with why each was flagged.">
+      <PageHead crumb="Calls & messages / Spam protection" title="Spam protection" sub="Suspicious calls, texts, emails and bookings in one place, with why each was flagged.">
         <div className="ba-segment" role="group" aria-label="Date range">
           {RANGES.map(([v, label]) => <button key={v} type="button" className={range === v ? "active" : ""} aria-pressed={range === v} onClick={() => setRange(v)}>{label}</button>)}
         </div>

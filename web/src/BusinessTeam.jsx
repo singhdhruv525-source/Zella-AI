@@ -75,8 +75,8 @@ function StaffModal({ workspace, member, count, onClose, onSaved }) {
         <Field label="Phone" bare><PhoneField value={form.phone} onChange={(phone) => setForm((f) => ({ ...f, phone }))} showErrors={showErrors} label="Phone" /></Field>
         <Field label="Email" bare><EmailField value={form.email} onChange={(email) => setForm((f) => ({ ...f, email }))} showErrors={showErrors} /></Field>
         <div className="full">
-          <span className="ba-label">Calendar colour</span>
-          <div className="ba-swatches" role="radiogroup" aria-label="Calendar colour">
+          <span className="ba-label">Calendar color</span>
+          <div className="ba-swatches" role="radiogroup" aria-label="Calendar color">
             {COLORS.map((c) => (
               <button key={c} type="button" role="radio" aria-checked={form.color === c} aria-label={c}
                 className={form.color === c ? "on" : ""} style={{ background: c }} onClick={() => setForm({ ...form, color: c })} />
@@ -162,7 +162,7 @@ export function TeamPage({ workspace, email, refreshKey, onNotice }) {
   return (
     <>
       <PageHead
-        crumb="Team & Staff"
+        crumb="Team & staff"
         title="Team"
         sub={`${term("staff_plural")}, their hours and breaks, and who is away. Your AI receptionist only books people who are available.`}
       >

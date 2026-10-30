@@ -12,7 +12,7 @@ import { WalkInModal } from "./BusinessMore";
 
 const LATE_MIN = 10;
 const NO_SHOW_REASONS = ["Didn't come and didn't call", "Called to say they weren't coming", "Came too late to be seen", "Other"];
-const CANCEL_REASONS = ["Cancelled by the customer", "Cancelled by us", "Wants to reschedule", "Unwell", "Other"];
+const CANCEL_REASONS = ["Canceled by the customer", "Canceled by us", "Wants to reschedule", "Unwell", "Other"];
 
 // Where an appointment is in the day. Cancelled, no-show and completed are final.
 export function attendanceStage(a) {
@@ -36,7 +36,7 @@ function ReasonForm({ kind, onSubmit, onCancel, busy }) {
   const [more, setMore] = useState("");
   return (
     <form className="ba-reason" onSubmit={(e) => { e.preventDefault(); onSubmit(choice === "Other" && !more.trim() ? "" : [choice === "Other" ? null : choice, more.trim()].filter(Boolean).join(": ")); }}>
-      <Field label={kind === "no_show" ? "Why a no-show?" : "Why cancelled?"}>
+      <Field label={kind === "no_show" ? "Why a no-show?" : "Why canceled?"}>
         <select value={choice} onChange={(e) => setChoice(e.target.value)}>{options.map((o) => <option key={o}>{o}</option>)}</select>
       </Field>
       <Field label="Note"><input value={more} onChange={(e) => setMore(e.target.value)} placeholder={choice === "Other" ? "Required" : "Optional"} /></Field>

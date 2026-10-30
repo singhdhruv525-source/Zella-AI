@@ -7,6 +7,8 @@ import "./CreateBusinessWizard.css";
 import { supabase } from "./supabase";
 import { Icon } from "./BusinessUI";
 import { DOCUMENT_KINDS, DOCUMENT_MAX_BYTES, DOCUMENT_TYPES, LENGTH_OPTIONS, missingDetails, onboardingFor } from "./onboardingConfig";
+import { humanize } from "./copy/labels";
+import { friendlyError } from "./admin/adminOps";
 
 // ---------------------------------------------------------------------------
 // Server calls
@@ -433,7 +435,7 @@ function CheckGrid({ options, values, onChange }) {
 
 function Badge({ tone = "neutral", children }) {
   // Sentence case: "Preferred for this business", "Sent". Plain status words from the server start lower case.
-  const text = typeof children === "string" ? children.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()) : children;
+  const text = typeof children === "string" ? humanize(children) : children;
   return <span className={`wiz-badge wiz-badge-${tone}`}>{text}</span>;
 }
 
@@ -1725,7 +1727,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
     if (!initialBusinessId) return;
     let active = true;
     reload(initialBusinessId, true)
-      .catch((err) => active && setError(err.message))
+      .catch((err) => active && setError(friendlyError(err)))
       .finally(() => active && setLoading(false));
     return () => { active = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1895,7 +1897,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
       await saveCurrentStep();
       after();
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setSaving(false);
     }
@@ -1908,7 +1910,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
       const data = await callOwnerFunction("setup_finish", { businessId });
       setResult(data);
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setSaving(false);
     }

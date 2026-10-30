@@ -177,7 +177,7 @@ export function AutomationsPage({ workspace, refreshKey, onNotice }) {
 
   return (
     <>
-      <PageHead crumb="AI & Automation / Automations" title="Automations"
+      <PageHead crumb="AI & automation / Automations" title="Automations"
         sub={canManage ? "See what's running, what happened, and fix what failed. Changes apply straight away." : "Follow-ups, reminders and check-ins that run for you."}>
         <OwnRuleButton workspace={workspace} onNotice={onNotice} onSaved={reload} />
       </PageHead>

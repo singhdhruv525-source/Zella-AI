@@ -3,6 +3,8 @@ import "./OwnerPages.css";
 import { callOwnerFunction } from "./CreateBusinessWizard";
 import { Pill } from "./OwnerOverview";
 import { formatDateTime } from "./ownerFormat";
+import { friendlyError } from "./admin/adminOps";
+import { humanize } from "./copy/labels";
 
 const PHONE_LABELS = { new_number: "New number", call_forwarding: "Forwarding", existing_number: "Forwarding" };
 const LEAD_LABELS = { meta: "Meta", website: "Website", google: "Google" };
@@ -28,7 +30,7 @@ export default function IntegrationsPage({ onOpenBusiness }) {
     try {
       setData(await callOwnerFunction("integrations_overview"));
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setLoading(false);
     }
@@ -119,7 +121,7 @@ export default function IntegrationsPage({ onOpenBusiness }) {
                   <td><button type="button" className="op-name" onClick={() => onOpenBusiness(c.business_id)}>{c.business_name}</button></td>
                   <td className="op-cap">{c.provider}</td>
                   <td>{c.integration_type}</td>
-                  <td><Pill tone={c.status === "active" ? "success" : c.status === "error" ? "danger" : "neutral"}>{c.status}</Pill></td>
+                  <td><Pill tone={c.status === "active" ? "success" : c.status === "error" ? "danger" : "neutral"}>{humanize(c.status)}</Pill></td>
                   <td>{formatDateTime(c.last_synced_at)}</td>
                   <td className="op-muted">{c.error_message || "—"}</td>
                 </tr>

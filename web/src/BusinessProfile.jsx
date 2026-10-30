@@ -8,9 +8,8 @@ import { useRoster } from "./BusinessLeads";
 import { EmailField, PhoneField } from "./formFields";
 import { checkEmail, validatePhone } from "./formValidation";
 import { formatDay, formatTime, timeAgo } from "./businessTime";
-import {
-  APPT_LABEL, APPT_TONE, changed, clock, friendly, orThrow, sourceLabel, transcriptLines, useLoad,
-} from "./BusinessShared";
+import { APPT_LABEL, APPT_TONE, changed, clock, friendly, orThrow, sourceLabel, transcriptLines, useLoad, callResult, isAnswered } from "./BusinessShared";
+import { humanize } from "./copy/labels";
 
 // One place for everything about a person: their details, every call with the
 // full transcript, appointments and conversations in one timeline, and any
@@ -64,7 +63,7 @@ export function EscalationControls({ call, onChanged, onNotice, compact }) {
             {ESCALATION_REASONS.map((r) => <option key={r}>{r}</option>)}
           </select>
           <button type="button" className="ba-btn sm danger-outline" disabled={busy} onClick={flag}>
-            <Icon name="support_agent" size="sm" />Needs a human
+            <Icon name="support_agent" size="sm" />Needs a person
           </button>
         </>
       )}
@@ -102,8 +101,8 @@ export function CallCard({ call, tz, defaultOpen, onChanged, onNotice }) {
           <span>{formatDay(call.created_at, tz)} · {formatTime(call.created_at, tz)}</span>
         </div>
         <div className="ba-item-meta">
-          {flagged && <Pill tone="danger">Needs a human</Pill>}
-          <Pill tone={missed ? "danger" : "success"}>{missed ? "Missed" : "Answered"}</Pill>
+          {flagged && <Pill tone="danger">Needs a person</Pill>}
+          <Pill tone={callResult(call.status).tone}>{callResult(call.status).label}</Pill>
           <span>{call.ai_handled ? "AI" : "Team"} · {clock(call.duration_seconds)}</span>
           <Icon name={open ? "expand_less" : "expand_more"} size="sm" />
         </div>
@@ -125,7 +124,7 @@ function followLabel(f) {
   const tries = `${f.attempts ?? 0} of ${f.max_attempts ?? 2} tries`;
   if (f.status === "pending") return "Zella will call to offer a new time";
   if (f.status === "in_progress") return "Zella is calling to offer a new time";
-  if (f.status === "cancelled") return "Follow-up call cancelled";
+  if (f.status === "cancelled") return "Follow-up call canceled";
   const o = { rescheduled: "Rebooked after the follow-up call", wants_callback: "Asked for a call from the team", declined: "Declined a new time", no_answer: `No answer after ${tries}`, voicemail: `Voicemail after ${tries}`, failed: `Call failed after ${tries}`, sms_sent: "Text sent offering a new time" };
   return o[f.outcome] ?? "Follow-up finished";
 }
@@ -271,7 +270,7 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
             {openCalls.length > 0 && (
               <div className="ba-banner alert" role="alert">
                 <span>
-                  <strong>Needs a human.</strong>{" "}
+                  <strong>Needs a person.</strong>{" "}
                   {openCalls[0].escalation_reason || "The AI receptionist handed this over."}{" "}
                   {openCalls.length > 1 ? `(${openCalls.length} open hand-offs)` : ""}
                 </span>
@@ -347,21 +346,21 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
                       <span className="ba-tl-dot"><Icon size="sm" name={e.kind === "srv-text" ? "sms" : e.kind === "srv-email" ? "mail" : e.kind === "srv-change" ? "edit" : e.kind === "call" ? "call" : e.kind === "appt" ? "event" : e.kind === "convo" ? "chat" : e.kind === "follow" || e.kind === "cb" ? "phone_callback" : e.kind === "task" ? "task_alt" : "person_add"} /></span>
                       <div>
                         <strong>
-                          {e.kind === "call" && `${e.call.status === "missed" ? "Missed call" : e.call.ai_handled ? "Call answered by the AI receptionist" : "Call answered by the team"}`}
+                          {e.kind === "call" && `${e.call.status === "missed" ? "Missed call" : !isAnswered(e.call.status) ? `Call: ${callResult(e.call.status).label.toLowerCase()}` : e.call.ai_handled ? "Call answered by the AI receptionist" : "Call answered by the team"}`}
                           {e.kind === "appt" && `${e.appt.title} · ${APPT_LABEL[e.appt.status] ?? e.appt.status}${e.appt.attendance_note || e.appt.cancel_reason ? ` (${e.appt.attendance_note || e.appt.cancel_reason})` : ""}`}
-                          {e.kind === "convo" && `${e.convo.channel ?? "Message"} conversation${e.convo.subject ? `: ${e.convo.subject}` : ""}`}
+                          {e.kind === "convo" && `${e.convo.channel ? humanize(e.convo.channel) : "Message"} conversation${e.convo.subject ? `: ${e.convo.subject}` : ""}`}
                           {e.kind === "follow" && followLabel(e.follow)}
                           {e.kind === "cb" && `${CB_REASON[e.cb.reason] ?? "Callback"}${CB_CLOSED.includes(e.cb.status) ? " · done" : ` · due ${formatDay(e.cb.due_at, tz)}`}`}
                           {e.kind === "task" && `${e.task.title}${e.task.status === "open" ? "" : " · done"}`}
                           {e.kind === "added" && `Added to your ${term("customers").toLowerCase()}`}
-                          {e.srv && `${e.srv.title}${e.srv.status ? ` · ${String(e.srv.status).replace(/_/g, " ")}` : ""}`}
+                          {e.srv && `${e.srv.title}${e.srv.status ? ` · ${humanize(e.srv.status)}` : ""}`}
                         </strong>
                         <small>
                           {formatDay(e.at, tz)} · {formatTime(e.at, tz)}
                           {e.kind === "call" && ` · ${clock(e.call.duration_seconds)}`}
                           {e.kind === "appt" && e.appt.checked_in_at && ` · checked in ${formatTime(e.appt.checked_in_at, tz)}`}
                         </small>
-                        {e.kind === "call" && isOpenEscalation(e.call) && <Pill tone="danger">Needs a human</Pill>}
+                        {e.kind === "call" && isOpenEscalation(e.call) && <Pill tone="danger">Needs a person</Pill>}
                         {e.kind === "call" && e.call.summary && <p className="ba-item-text">{e.call.summary}</p>}
                         {e.srv?.detail && e.srv.type !== "change" && <p className="ba-item-text">{e.srv.detail}</p>}
                       </div>
@@ -405,7 +404,7 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
               data.convos.length ? data.convos.map((c) => (
                 <div key={c.id} className="ba-mini">
                   <span>{c.subject || `${c.channel ?? "Message"} conversation`}<small>{c.channel ?? "Message"} · last message {c.last_message_at ? timeAgo(c.last_message_at) : "never"}{c.ai_handled ? " · AI handling" : ""}</small></span>
-                  <Pill tone={c.status === "open" ? "warning" : ""}>{c.status}</Pill>
+                  <Pill tone={c.status === "open" ? "warning" : ""}>{humanize(c.status)}</Pill>
                 </div>
               )) : <p className="ba-muted">No messages yet.</p>
             )}

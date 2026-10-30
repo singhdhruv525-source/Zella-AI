@@ -97,7 +97,7 @@ function Rules({ w, data, reload }) {
         <ul className="zs-plain-list">
           <li>Only customers who agreed to receive offers by text or email. Nobody else is ever sent one.</li>
           <li>At most one suggestion per visit, the same one at most every 90 days, and any suggestion at most every 14 days.</li>
-          <li>Not if they already have the suggested service booked; a waiting suggestion is cancelled if they book it.</li>
+          <li>Not if they already have the suggested service booked; a waiting suggestion is canceled if they book it.</li>
           <li>Never at night, and STOP or unsubscribe stops them for good.</li>
         </ul>
         {!data.marketing_texts_allowed && <p><Pill tone="warning">Texts paused</Pill> Offer texts are switched off for all of Zella right now; email suggestions still go to people who opted in.</p>}

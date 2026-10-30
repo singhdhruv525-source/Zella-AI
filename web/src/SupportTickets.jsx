@@ -3,6 +3,7 @@ import "./OwnerPages.css";
 import { callOwnerFunction } from "./CreateBusinessWizard";
 import { Pill } from "./OwnerOverview";
 import { formatDateTime, timeAgo } from "./ownerFormat";
+import { friendlyError } from "./admin/adminOps";
 
 const STATUSES = [["open", "Open"], ["in_progress", "In progress"], ["resolved", "Resolved"], ["closed", "Closed"]];
 const PRIORITIES = [["low", "Low"], ["normal", "Normal"], ["high", "High"], ["urgent", "Urgent"]];
@@ -29,7 +30,7 @@ export default function SupportTickets({ onOpenBusiness }) {
     try {
       setData(await callOwnerFunction("tickets_list"));
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setLoading(false);
     }
@@ -52,7 +53,7 @@ export default function SupportTickets({ onOpenBusiness }) {
       if (payload.note) setNote("");
       await load();
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setBusy(false);
     }
@@ -69,7 +70,7 @@ export default function SupportTickets({ onOpenBusiness }) {
       await load();
       setSelectedId(result.ticketId);
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setBusy(false);
     }

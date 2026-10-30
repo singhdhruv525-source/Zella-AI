@@ -66,7 +66,7 @@ export function BusinessModulesPanel({ w, onGo }) {
               ["Record", (t) => t.plural], ["State", (t) => (t.enabled ? <Pill tone="success">In the menu</Pill> : <Pill>Off</Pill>)],
               ["From", (t) => (t.preset ? "Your industry's starting set" : "Added by your team")]]} />
             {["owner", "admin", "manager"].includes(n.role) && (
-              <LinkRows rows={[{ title: "Switch records on or off, or add your own", detail: "Customise records", onClick: () => onGo("record-settings") }]} />
+              <LinkRows rows={[{ title: "Switch records on or off, or add your own", detail: "Customize records", onClick: () => onGo("record-settings") }]} />
             )}
           </Card>
           <Needs title="Switching shared modules here isn't available" have="Ask the Zella team (Help and support) and they'll change it for your plan.">

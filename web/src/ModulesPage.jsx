@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import "./OwnerPages.css";
 import { callOwnerFunction } from "./CreateBusinessWizard";
 import { Pill } from "./OwnerOverview";
+import { friendlyError } from "./admin/adminOps";
 
 export default function ModulesPage({ onNavigate }) {
   const [data, setData] = useState(null);
@@ -14,7 +15,7 @@ export default function ModulesPage({ onNavigate }) {
     try {
       setData(await callOwnerFunction("modules_overview"));
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setLoading(false);
     }

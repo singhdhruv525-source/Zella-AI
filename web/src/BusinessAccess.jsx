@@ -3,6 +3,7 @@ import { supabase } from "./supabase";
 import { Field, Icon, Modal, Pill, initials } from "./BusinessUI";
 import { timeAgo } from "./businessTime";
 import { Empty, Notice, PageHead, friendly, orThrow, plural, useLoad } from "./BusinessShared";
+import { humanize } from "./copy/labels";
 
 // Approvals, Team access, Failed work and the Security log.
 // Every action goes through a Supabase function that checks the person's role itself.
@@ -16,7 +17,7 @@ const ERRORS = {
   ONLY_OWNER_CAN_INVITE_ADMIN: "Only the owner can invite an admin.",
   LAST_OWNER: "This is the only owner. Make someone else an owner first.",
   TARGET_NOT_ACTIVE: "Choose someone who currently has access.",
-  NOT_RETRYABLE: "This can't be retried any more.",
+  NOT_RETRYABLE: "This can't be retried anymore. It may already have been retried, or the appointment has passed.",
   CANNOT_CANCEL: "This invitation is already closed.",
   CANNOT_RESEND: "This invitation is already closed.",
 };
@@ -38,7 +39,7 @@ const sentMessage = (email, result) => result.existingAccount
   ? `${email} already has a Zella account. They'll see this workspace the next time they sign in.`
   : `Invitation emailed to ${email}. The link works once and the invitation is valid for 14 days.`;
 
-const words = (s) => String(s ?? "").replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+const words = humanize;
 const ROLES = [["staff", "Staff"], ["manager", "Manager"], ["viewer", "View only"], ["admin", "Admin"]];
 
 /* ---------- Approvals ---------- */
@@ -61,7 +62,7 @@ export function ApprovalsPage({ workspace, refreshKey, onNotice }) {
 
   return (
     <>
-      <PageHead crumb="Team & Staff / Approvals" title="Approvals" sub="Sensitive actions wait here until a second person says yes." />
+      <PageHead crumb="Team & staff / Approvals" title="Approvals" sub="Sensitive actions wait here until a second person says yes." />
       <Notice error={error} onRetry={reload} />
       <section className="ba-panel">
         {!data?.length ? (
@@ -143,7 +144,7 @@ function RemoveModal({ workspace, member, others, onClose, onDone }) {
     onDone(`${member.name || "That person"} no longer has access.${to ? " Their open work was handed over." : " Their open work is now unassigned."}`);
   }
   return (
-    <Modal icon="person_remove" tone="danger" title={`Remove ${member.name || "this person"}?`} description="They can't sign in to this workspace any more. Their history stays." onClose={onClose} busy={busy}
+    <Modal icon="person_remove" tone="danger" title={`Remove ${member.name || "this person"}?`} description="They can't sign in to this workspace anymore. Their history stays." onClose={onClose} busy={busy}
       footer={<><button type="button" className="ba-btn" onClick={onClose} disabled={busy}>Keep access</button>
         <button type="button" className="ba-btn primary" onClick={save} disabled={busy}>{busy ? "Removing…" : "Remove access"}</button></>}>
       <div className="ba-form">
@@ -227,7 +228,7 @@ export function AccessPage({ workspace, refreshKey, onNotice, userId }) {
 
   return (
     <>
-      <PageHead crumb="Team & Staff / Team access" title="Team access" sub="Who can sign in, what they can do, and who is waiting to join.">
+      <PageHead crumb="Team & staff / Team access" title="Team access" sub="Who can sign in, what they can do, and who is waiting to join.">
         <button type="button" className="ba-btn" onClick={() => setModal({ kind: "handover" })}><Icon name="swap_horiz" size="sm" /><span>Hand over work</span></button>
         {canAdmin && <button type="button" className="ba-btn primary" onClick={() => setModal({ kind: "invite" })}><Icon name="person_add" size="sm" /><span>Invite someone</span></button>}
       </PageHead>
@@ -264,7 +265,7 @@ export function AccessPage({ workspace, refreshKey, onNotice, userId }) {
                   <div><strong>{i.email}</strong><small>{words(i.role)} · invited {timeAgo(i.invited_at)}{i.status === "expired" ? " · expired" : ""}{i.last_error ? ` · ${i.last_error}` : ""}</small></div>
                   <div className="ba-thread-meta">
                     <button type="button" className="ba-btn sm" onClick={() => resend(i)}>Send again</button>
-                    <button type="button" className="ba-btn sm" onClick={() => act("zella_cancel_invitation", { p_invitation_id: i.id }, "Invitation cancelled.")}>Cancel</button>
+                    <button type="button" className="ba-btn sm" onClick={() => act("zella_cancel_invitation", { p_invitation_id: i.id }, "Invitation canceled.")}>Cancel</button>
                   </div>
                 </li>
               ))}
@@ -294,24 +295,24 @@ export function FailedWorkPage({ workspace, refreshKey, onNotice }) {
   async function retry(row) {
     const { error: e } = await supabase.rpc("zella_retry_failed", { p_business_id: workspace.id, p_kind: row.kind, p_id: row.id });
     if (e) return onNotice(say(e));
-    onNotice("Queued to send again.");
+    onNotice("Queued to send again. It goes out on the next sending run.");
     reload();
   }
 
   return (
     <>
-      <PageHead crumb="Calls & Messages / Didn't send" title="Messages that didn't send" sub="Anything that failed in the last 7 days. Try again once the cause is fixed, such as a reconnected account." />
+      <PageHead crumb="Calls & messages / Sending failed" title="Sending failed" sub="Follow-ups, appointment reminders and social messages that Zella tried to send in the last 7 days but couldn't. Fix the cause first (for example, reconnect the account), then retry." />
       <Notice error={error} onRetry={reload} />
       <section className="ba-panel">
         {!rows.length ? (
-          <div className="ba-panel-body"><Empty title={loading ? "Loading…" : "Nothing has failed"}>Messages and reminders are going out as expected.</Empty></div>
+          <div className="ba-panel-body"><Empty title={loading ? "Loading…" : "No failed messages"}>Nothing failed to send in the last 7 days.</Empty></div>
         ) : (
           <ul className="ba-threads">
             {rows.map((r) => (
               <li key={`${r.kind}-${r.id}`}>
                 <span className="ba-thread-icon"><Icon name="error" size="sm" /></span>
-                <div><strong>{r.label}{r.channel ? ` by ${r.channel}` : ""}</strong><small>{words(r.outcome || r.error || r.kind)} · {timeAgo(r.at || r.due_at)}</small></div>
-                <div className="ba-thread-meta"><button type="button" className="ba-btn sm" onClick={() => retry(r)}>Try again</button></div>
+                <div><strong>{r.label}{r.channel ? ` by ${humanize(r.channel).toLowerCase()}` : ""}</strong><small>{words(r.outcome || r.error || r.kind)} · {timeAgo(r.at || r.due_at)}</small></div>
+                <div className="ba-thread-meta"><button type="button" className="ba-btn sm" onClick={() => retry(r)}>Retry sending</button></div>
               </li>
             ))}
           </ul>
@@ -330,7 +331,7 @@ export function SecurityLogPage({ workspace, refreshKey }) {
   }, [workspace.id, refreshKey]);
   return (
     <>
-      <PageHead crumb="Team & Staff / Security log" title="Security log" sub="Who changed what in this workspace. The last 100 changes." />
+      <PageHead crumb="Team & staff / Security log" title="Security log" sub="Who changed what in this workspace. The last 100 changes." />
       <Notice error={error} onRetry={reload} />
       <section className="ba-panel">
         {!data?.length ? (

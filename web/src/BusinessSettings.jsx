@@ -165,7 +165,7 @@ function Branding({ w, onGo }) {
         <Facts rows={[["Brand name", w.name], ["Text messages", `Sent as ${w.name}`], ["Emails", `Sent with ${w.name} as the sender name`], ["Logo", "Business information"]]} />
       </Card>
       <LinkRows rows={[{ title: "Change the logo or name", detail: "Business information", onClick: () => onGo("settings/profile/info") }]} />
-      <Needs title="Brand colours and branded emails aren't available yet" have="Your name and logo are used. Zella's own branding never replaces yours.">They need an email template and booking pages that read your colours.</Needs>
+      <Needs title="Brand colors and branded emails aren't available yet" have="Your name and logo are used. Zella's own branding never replaces yours.">They need an email template and booking pages that read your colors.</Needs>
     </>
   );
 }
@@ -727,7 +727,7 @@ function LegalDocs({ w }) {
         <Banner tone="error">{error}</Banner>
         <Table rows={docs} empty="No policies published yet." columns={[["Policy", (d) => d.title], ["Version", (d) => d.version], ["Effective", (d) => when(d.effective_at)],
           ["Accepted for this business", (d) => (d.requires_acceptance ? (accepted.has(d.id) ? <Pill tone="success">Accepted</Pill> : roleIn(w, MANAGE)
-            ? <button type="button" className="zs-btn sm primary" onClick={async () => { try { await rpc("zella_accept_legal_document", { p_document_id: d.id, p_business_id: w.id }); state.reload(); } catch (err) { setError(err.message); } }}>Read and accept</button>
+            ? <button type="button" className="zs-btn sm primary" onClick={async () => { try { await rpc("zella_accept_legal_document", { p_document_id: d.id, p_business_id: w.id }); state.reload(); } catch (err) { setError(friendly(err)); } }}>Read and accept</button>
             : <Pill tone="warning">Waiting for an owner</Pill>) : "Not required")],
           ["", (d) => <button type="button" className="zs-btn sm" onClick={() => setOpen(open === d.id ? null : d.id)}>{open === d.id ? "Hide" : "Read"}</button>]]} />
         {open && <div className="zs-card" style={{ padding: 14, marginTop: 10, whiteSpace: "pre-wrap", maxHeight: 360, overflow: "auto" }}>{docs.find((d) => d.id === open)?.body}</div>}
@@ -750,7 +750,7 @@ function registry(w) {
       page("address", "Business address", () => <BusinessAddress w={w} />, "street suite city state zip country service area"),
       page("hours", "Business hours", () => <BusinessHours w={w} />, "open close holidays breaks special emergency"),
       page("locale", "Time zone and locale", () => <TimezoneLocale w={w} />, "timezone date time format language currency"),
-      page("branding", "Branding", (c) => <Branding w={w} onGo={c.onGo} />, "logo colours brand email"),
+      page("branding", "Branding", (c) => <Branding w={w} onGo={c.onGo} />, "logo colors brand email"),
     ] },
     { key: "team", label: "Team and access", icon: "badge", items: [
       page("members", "Team members", (c) => only(manage, <AccessPage workspace={w} userId={c.userId} refreshKey={0} onNotice={c.onNotice} />), "invite remove role status"),
@@ -820,7 +820,7 @@ function registry(w) {
     ] },
     { key: "automations", label: "Automations", icon: "bolt", items: [
       page("library", "Automation library", (c) => <AutomationsPage workspace={w} refreshKey={0} onNotice={c.onNotice} />, "templates active disabled"),
-      page("events", "Event-based automations", () => <Card title="What starts an automation"><Facts rows={[["New lead", "Fast callback, follow-ups"], ["Missed call", "Callback and text when allowed"], ["Appointment booked or moved", "Confirmation and reminders"], ["Appointment cancelled", "Waitlist offer"], ["Follow-up due", "Quote and lead follow-ups"], ["Status changes", "Industry rules"]]} /></Card>, "trigger event"),
+      page("events", "Event-based automations", () => <Card title="What starts an automation"><Facts rows={[["New lead", "Fast callback, follow-ups"], ["Missed call", "Callback and text when allowed"], ["Appointment booked or moved", "Confirmation and reminders"], ["Appointment canceled", "Waitlist offer"], ["Follow-up due", "Quote and lead follow-ups"], ["Status changes", "Industry rules"]]} /></Card>, "trigger event"),
       page("history", "Automation history", (c) => <AutomationsPage workspace={w} refreshKey={0} onNotice={c.onNotice} />, "runs executions"),
       page("suggestions", "You might also need", () => <CrossSellPanel w={w} />, "cross-sell upsell suggest offer after service follow-up"),
       page("recovery", "Failure recovery", (c) => only(lead, <FailedWorkPage workspace={w} refreshKey={0} onNotice={c.onNotice} />), "failed retry"),

@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { callOwnerFunction } from "./CreateBusinessWizard";
 import { Pill } from "./OwnerOverview";
 import { Icon } from "./BusinessUI";
+import { humanize } from "./copy/labels";
+import { friendlyError } from "./admin/adminOps";
 
 // Admin control over one business's CRM: which of its industry's modules it has, and which of its industry record
 // types (tables, recalls, vehicles ...) are switched on. Module dependencies are checked by the server; switching a
@@ -45,7 +47,7 @@ export function BusinessModulesCard({ businessId, modules, onSaved }) {
       setNotice("Modules saved. The business sees the change the next time its CRM loads.");
       await onSaved?.();
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setSaving(false);
     }
@@ -96,7 +98,7 @@ export function BusinessRecordsCard({ businessId }) {
       setData(d);
       setDraft(Object.fromEntries(d.types.map((t) => [t.key, t.enabled])));
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setLoading(false);
     }
@@ -115,7 +117,7 @@ export function BusinessRecordsCard({ businessId }) {
       setNotice(r.changes.length ? `${r.changes.length} record type${r.changes.length === 1 ? "" : "s"} updated.` : "Nothing changed.");
       await load();
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setSaving(false);
     }
@@ -140,7 +142,7 @@ export function BusinessRecordsCard({ businessId }) {
               <strong>{t.plural}</strong>
               <small>{t.records} record{t.records === 1 ? "" : "s"}{!draft[t.key] && t.records ? " · kept while hidden" : ""}</small>
             </div>
-            {t.preset_key && <Pill>{t.preset_key.replace(/_/g, " ")}</Pill>}
+            {t.preset_key && <Pill>{humanize(t.preset_key)}</Pill>}
             <Switch on={Boolean(draft[t.key])} label={t.plural} disabled={saving} onChange={(on) => setDraft({ ...draft, [t.key]: on })} />
           </div>
         ))}

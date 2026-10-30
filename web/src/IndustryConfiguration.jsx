@@ -4,6 +4,7 @@ import { callOwnerFunction } from "./CreateBusinessWizard";
 import { Pill } from "./OwnerOverview";
 import { formatDate } from "./ownerFormat";
 import IndustryRecords from "./IndustryRecords";
+import { friendlyError } from "./admin/adminOps";
 
 const TERM_ROWS = [
   { singular: "customer", plural: "customers", label: "Customers", hint: "People the business serves" },
@@ -103,7 +104,7 @@ export default function IndustryConfiguration() {
       setSelectedId(next?.id ?? null);
       setDraft(next ? toDraft(next) : null);
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setLoading(false);
     }
@@ -166,7 +167,7 @@ export default function IndustryConfiguration() {
       setNotice(`${selected.name} saved.`);
       await load(selectedId);
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setSaving(false);
     }
@@ -183,7 +184,7 @@ export default function IndustryConfiguration() {
       setNotice(`${data.name} created${data.modules ? ` with ${data.modules} modules` : ""}.`);
       await load(data.industryId);
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setSaving(false);
     }
@@ -331,7 +332,7 @@ export default function IndustryConfiguration() {
               {selected.businessCount > 0 && (
                 <div className="wiz-note">
                   <strong>How changes apply:</strong> terminology changes show up straight away for businesses in this
-                  industry that haven't customised that word. Words a business has customised stay as they are.
+                  industry that haven't customized that word. Words a business has customized stay as they are.
                   Module changes only affect what's offered during setup; businesses keep the modules they already have.
                 </div>
               )}

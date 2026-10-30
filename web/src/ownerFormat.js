@@ -26,7 +26,7 @@ export const ACTION_LABELS = {
   "business.reactivated": "Reactivated business",
   "business.cancellation_scheduled": "Scheduled cancellation",
   "business.cancellation_undone": "Undid cancellation",
-  "business.cancelled": "Business cancelled (end of month)",
+  "business.cancelled": "Business canceled (end of month)",
   "invitation.resent": "Resent owner invitation",
   "business.continued_by_owner": "Owner continued their plan (email link)",
 };
@@ -49,7 +49,7 @@ export const STAGE_LABELS = {
   paused: "Paused",
   failed: "Failed",
   suspended: "Suspended",
-  cancelled: "Cancelled",
+  cancelled: "Canceled",
 };
 
 export function stageLabel(status) {
@@ -109,7 +109,7 @@ export function formatDuration(seconds) {
 // over the setup stage.
 export function businessState(business) {
   if (business.cancelled_at) {
-    return { key: "cancelled", label: "Cancelled", tone: "neutral", done: false };
+    return { key: "cancelled", label: "Canceled", tone: "neutral", done: false };
   }
   if (business.suspended_at) {
     return { key: "suspended", label: "Suspended", tone: "danger", done: false };

@@ -26,21 +26,21 @@ const SIDEBAR = [
 function MatchColours({ look }) {
   const pal = activePalette(look);
   const url = wallpaperUrl(look);
-  const status = !look.matchPicture ? "Standard Zella colours."
+  const status = !look.matchPicture ? "Standard Zella colors."
     : look.theme !== "glass" ? "Applies with the Glass theme."
-    : !url ? "The Plain background has no picture to take colours from."
-    : look.palette?.for === url && look.palette.none ? "This picture has almost no colour, so the standard Zella colours are kept."
-    : pal ? "Buttons, links, highlights, panels and text now use the picture's colours. The Zella logo keeps its own."
-    : "Reading the picture's colours…";
+    : !url ? "The Plain background has no picture to take colors from."
+    : look.palette?.for === url && look.palette.none ? "This picture has almost no color, so the standard Zella colors are kept."
+    : pal ? "Buttons, links, highlights, panels and text now use the picture's colors. The Zella logo keeps its own."
+    : "Reading the picture's colors…";
   return (
     <div className="zs-match">
       <div className="zs-match-row">
-        <Toggle on={look.matchPicture} onChange={(on) => updateAppearance({ matchPicture: on })} label="Match colours to the picture" />
-        <strong>Match colours to the picture</strong>
+        <Toggle on={look.matchPicture} onChange={(on) => updateAppearance({ matchPicture: on })} label="Match colors to the picture" />
+        <strong>Match colors to the picture</strong>
       </div>
       <p className="zs-hint">{status}</p>
       {pal && (
-        <div className="zs-swatches" aria-label="Colours taken from the picture">
+        <div className="zs-swatches" aria-label="Colors taken from the picture">
           {pal.swatches.map((c, i) => <span key={i} style={{ background: c }} title={c} />)}
         </div>
       )}

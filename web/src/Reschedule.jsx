@@ -31,7 +31,7 @@ const PROBLEMS = {
   },
   not_available: {
     title: "This appointment can't be changed here",
-    body: "It may have been cancelled or already finished. Please contact the business to book a new time.",
+    body: "It may have been canceled or already finished. Please contact the business to book a new time.",
   },
   past: {
     title: "This appointment has already passed",

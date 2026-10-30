@@ -5,6 +5,7 @@ import { supabase } from "./supabase";
 import { callOwnerFunction } from "./CreateBusinessWizard";
 import { Pill } from "./OwnerOverview";
 import { formatDate, formatDateTime, timeAgo } from "./ownerFormat";
+import { humanize } from "./copy/labels";
 
 // Offers & Promotions. Every rule (eligibility, limits, approvals, start and end) is enforced in the
 // database; this page only asks for changes and shows what the database decided.
@@ -66,7 +67,7 @@ const RULE_FIELDS = {
 const SIMPLE_VALUES = {
   business_size: [["small", "Small"], ["medium", "Medium"], ["large", "Large"]],
   customer_status: [["new", "New (never subscribed)"], ["existing", "Existing subscriber"], ["former", "Former subscriber"]],
-  subscription_status: [["none", "No subscription"], ["trial", "Trial"], ["active", "Active"], ["past_due", "Past due"], ["cancelled", "Cancelled"], ["expired", "Expired"]],
+  subscription_status: [["none", "No subscription"], ["trial", "Trial"], ["active", "Active"], ["past_due", "Past due"], ["cancelled", "Canceled"], ["expired", "Expired"]],
   billing_interval: [["monthly", "Monthly"], ["yearly", "Yearly"]],
 };
 
@@ -85,7 +86,7 @@ const ERRORS = {
   HAS_REDEMPTIONS: "Businesses have already claimed this offer, so it can't go back to draft. End it instead.",
   RULE_UNAVAILABLE: "This rule needs a connection that isn't set up yet.",
   BAD_CONFIG: "One of the settings isn't a valid whole number.",
-  NOT_PENDING: "Only a claim that is still waiting for payment can be cancelled.",
+  NOT_PENDING: "Only a claim that is still waiting for payment can be canceled.",
   NOT_CONFIRMED: "Only a paid claim can be reversed.",
   OFFER_NOT_FOUND: "This offer no longer exists.",
 };
@@ -602,12 +603,12 @@ const EVENT_TEXT = {
   pause: "Paused", resume: "Resumed", back_to_draft: "Moved back to draft", archive: "Archived", end_now: "Ended early",
   activated: "Went live", expired: "Ended", activation_failed: "Could not go live", activation_error: "Error while going live",
   expiry_warning: "Ending-soon alert sent", claimed: "Claimed", claim_rejected: "Claim refused", claim_confirmed: "Paid",
-  claim_reversed: "Refunded or disputed", claim_cancelled: "Claim cancelled", claim_lapsed: "Claim released (not paid in time)",
+  claim_reversed: "Refunded or disputed", claim_cancelled: "Claim canceled", claim_lapsed: "Claim released (not paid in time)",
   code_rejected: "Code refused",
 };
 const REDEMPTION = {
   pending: ["Waiting for payment", "warning"], confirmed: ["Paid", "success"], reversed: ["Refunded", "danger"],
-  cancelled: ["Cancelled", "neutral"], lapsed: ["Released", "neutral"], failed: ["Failed", "danger"],
+  cancelled: ["Canceled", "neutral"], lapsed: ["Released", "neutral"], failed: ["Failed", "danger"],
 };
 
 function OfferDetail({ offerId, me, isOwner, lookups, onClose, onEdit, onChanged, onOpenBusiness }) {
@@ -674,7 +675,7 @@ function OfferDetail({ offerId, me, isOwner, lookups, onClose, onEdit, onChanged
   }
 
   async function changeClaim(id, status) {
-    const why = window.prompt(status === "cancelled" ? "Why are you cancelling this claim?" : "Why is this paid claim being reversed?");
+    const why = window.prompt(status === "cancelled" ? "Why are you canceling this claim?" : "Why is this paid claim being reversed?");
     if (!why || !why.trim()) return;
     setBusy(true);
     setError("");
@@ -826,7 +827,7 @@ function OfferDetail({ offerId, me, isOwner, lookups, onClose, onEdit, onChanged
         <ul className="of-history">
           {data.events.map((e) => (
             <li key={e.id}>
-              <span>{EVENT_TEXT[e.kind] ?? e.kind}{e.business ? ` · ${e.business}` : ""}{e.detail?.reason ? ` (${String(e.detail.reason).replace(/_/g, " ")})` : ""}{e.detail?.note ? `: ${e.detail.note}` : ""}</span>
+              <span>{EVENT_TEXT[e.kind] ?? e.kind}{e.business ? ` · ${e.business}` : ""}{e.detail?.reason ? ` (${humanize(e.detail.reason)})` : ""}{e.detail?.note ? `: ${e.detail.note}` : ""}</span>
               <span className="op-muted">{e.actor ?? "Zella"} · {timeAgo(e.created_at)}</span>
               {e.detail?.problems && <span className="of-problem-line">{e.detail.problems.join(" ")}</span>}
             </li>

@@ -5,9 +5,10 @@ import { makeTerm, receptionistState } from "./businessWorkspace";
 import { useRoster } from "./BusinessLeads";
 import { CountUp } from "./CrmMotion";
 import { formatLongDate, formatTime, greeting, timeAgo, todayInput, zonedDateTime } from "./businessTime";
-import { changed, friendly, noShowNotice, setCheckIn } from "./BusinessShared";
+import { changed, friendly, noShowNotice, setCheckIn, callResult, isAnswered } from "./BusinessShared";
 import { RescheduleModal } from "./BusinessForms";
 import { CONNECT, todayConfig } from "./todayConfig";
+import { humanize } from "./copy/labels";
 
 // Today dashboard, built only from this business's real records, read with the member's own session so row level
 // security returns this business's data only. Words follow the industry (Reservations, Patients, Technicians ...)
@@ -300,9 +301,9 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
   const showStaff = cfg.staffColumn && appts.some((a) => a.staff_id);
   const TABS = [["all", "All", appts.length], ["upcoming", "Upcoming", appts.filter((a) => ["upcoming", "late"].includes(a.stage)).length],
     ["arrived", cfg.arrived, appts.filter((a) => a.stage === "arrived").length], ["completed", "Completed", appts.filter((a) => a.stage === "completed").length],
-    ["cancelled", "Cancelled", appts.filter((a) => ["cancelled", "no_show"].includes(a.stage)).length]];
+    ["cancelled", "Canceled", appts.filter((a) => ["cancelled", "no_show"].includes(a.stage)).length]];
   const rows = appts.filter((a) => tab === "all" || (tab === "upcoming" ? ["upcoming", "late"].includes(a.stage) : tab === "cancelled" ? ["cancelled", "no_show"].includes(a.stage) : a.stage === tab));
-  const STAGE = { upcoming: ["Upcoming", "info"], late: ["Running late", "danger"], arrived: [cfg.arrived, "success"], completed: ["Completed", ""], cancelled: ["Cancelled", ""], no_show: ["No-show", "danger"] };
+  const STAGE = { upcoming: ["Upcoming", "info"], late: ["Running late", "danger"], arrived: [cfg.arrived, "success"], completed: ["Completed", ""], cancelled: ["Canceled", ""], no_show: ["No-show", "danger"] };
   const isToday = day === today;
   const dayLabel = isToday ? "today" : formatLongDate(dayBounds(day, tz).start, tz);
   const p = data?.prev;
@@ -412,7 +413,7 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
                   ? ["sms", "violet", `Replied by ${x.channel === "email" ? "email" : "text"} to ${who}`, x.subject]
                   : x.status === "missed" ? ["phone_missed", "rose", `Missed call from ${who}`, x.metadata?.followed_up_at ? "Followed up" : "Waiting for a call back"]
                     : x.needs_human ? ["support_agent", "amber", `Handed ${who} to a person`, x.summary]
-                      : ["call", "green", `${x.ai_handled ? "Answered" : "Call with"} ${who}`, x.summary || x.outcome];
+                      : !isAnswered(x.status) ? ["call", "", `Call with ${who}: ${callResult(x.status).label.toLowerCase()}`, x.summary || x.outcome] : ["call", "green", `${x.ai_handled ? "Answered" : "Call with"} ${who}`, x.summary || x.outcome];
                 return (
                   <li key={`${x.kind}-${x.id}`}>
                     <span className={`ba-kpi-icon ${tone}`}><Icon name={icon} size="sm" /></span>
@@ -438,7 +439,7 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
                   {recs.map((r) => (
                     <li key={r.id}>
                       <div><strong>{r.title}</strong><small>{personName(r.customer) ?? (r.due_at ? `Due ${formatLongDate(r.due_at, tz)}` : `Updated ${timeAgo(r.updated_at)}`)}</small></div>
-                      <Pill>{String(r.status).replace(/_/g, " ")}</Pill>
+                      <Pill>{humanize(r.status)}</Pill>
                     </li>
                   ))}
                 </ul>
@@ -461,7 +462,7 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
           ) : <Empty title={loading && !data ? "Loading…" : "No completed visits yet"}>{!loading && `Ranked by completed ${bookingWord.toLowerCase()} in the last 90 days.`}</Empty>}
         </Card>
 
-        <Card title="Tasks & Follow-ups" action={<button type="button" className="ba-btn sm" onClick={() => onGo("tasks")}>View all</button>}>
+        <Card title="Tasks & follow-ups" action={<button type="button" className="ba-btn sm" onClick={() => onGo("tasks")}>View all</button>}>
           {data?.tasks.length ? (
             <ul className="td-list">
               {data.tasks.map((t) => {

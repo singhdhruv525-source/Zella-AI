@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "./supabase";
 import { Field, Icon, Pill, initials, personName } from "./BusinessUI";
 import { formatDay, formatTime, timeAgo, todayInput, zonedDateTime } from "./businessTime";
-import { Empty, Notice, PageHead, Segment, clock, explain, loadPeople, orThrow, plural, useLoad } from "./BusinessShared";
+import { Empty, Notice, PageHead, Segment, clock, explain, loadPeople, orThrow, plural, useLoad, callResult, isAnswered } from "./BusinessShared";
 import { EscalationControls, Transcript, isOpenEscalation } from "./BusinessProfile";
 import { Assignee, useRoster } from "./BusinessLeads";
 
@@ -220,7 +220,7 @@ function CallPane({ item, person, workspace, onChanged, onNotice, onOpenPerson, 
           <small><Icon name={missed ? "phone_missed" : "call"} size="sm" />{missed ? "Missed call" : `${call.ai_handled ? "AI answered" : "Team answered"} · ${clock(call.duration_seconds)}`} · {formatDay(item.at, tz)} · {formatTime(item.at, tz)}</small>
         </div>
         <div className="ba-kn-head">
-          {isOpenEscalation(call) && <Pill tone="danger">Needs a human</Pill>}
+          {isOpenEscalation(call) && <Pill tone="danger">Needs a person</Pill>}
           {phone && <a className="ba-btn sm" href={`tel:${phone}`}><Icon name="call" size="sm" />Call</a>}
           <button type="button" className="ba-btn sm" onClick={() => setCb({ date: todayInput(tz), time: "10:00" })}>Schedule callback</button>
           {person && <button type="button" className="ba-btn sm" onClick={() => onOpenPerson(person.id)}>Open profile</button>}
@@ -243,7 +243,7 @@ function CallPane({ item, person, workspace, onChanged, onNotice, onOpenPerson, 
   );
 }
 
-const FILTERS = [["all", "All"], ["unread", "Unread"], ["calls", "Calls"], ["sms", "Texts"], ["email", "Email"], ["missed", "Missed calls"], ["human", "Human handover"]];
+const FILTERS = [["all", "All"], ["unread", "Unread"], ["calls", "Calls"], ["sms", "Texts"], ["email", "Email"], ["missed", "Missed calls"], ["human", "Needs a person"]];
 
 export function InboxPage({ workspace, refreshKey, onNotice, onOpenPerson }) {
   const tz = workspace.timezone;
@@ -286,7 +286,7 @@ export function InboxPage({ workspace, refreshKey, onNotice, onOpenPerson }) {
 
   return (
     <>
-      <PageHead crumb="Calls & Messages / Conversations" title="Unified inbox"
+      <PageHead crumb="Calls & messages / Inbox" title="Inbox"
         sub={unreadCount ? `${plural(unreadCount, "conversation")} unread.` : "Every call, text and email in one place."} />
       <Notice error={error} onRetry={reload} />
       <div className="ba-inbox-filters">
@@ -310,7 +310,7 @@ export function InboxPage({ workspace, refreshKey, onNotice, onOpenPerson }) {
                 <span className={`ba-thread-icon ${missed ? "bad" : ""}`}><Icon name={missed ? "phone_missed" : (CHANNEL[ch] ?? CHANNEL.other)[0]} size="sm" /></span>
                 <span className="ba-inbox-text">
                   <span className="ba-inbox-line"><strong>{label}</strong><time title={`${formatDay(i.at, tz)} ${formatTime(i.at, tz)}`}>{timeAgo(i.at)}</time></span>
-                  <small>{isCall ? (missed ? "Missed call" : i.call.summary || `${i.call.ai_handled ? "AI answered" : "Team answered"} · ${clock(i.call.duration_seconds)}`) : i.snippet || i.convo.subject || `${(CHANNEL[ch] ?? CHANNEL.other)[1]} conversation`}</small>
+                  <small>{isCall ? (missed ? "Missed call" : i.call.summary || (isAnswered(i.call.status) ? `${i.call.ai_handled ? "AI answered" : "Team answered"} · ${clock(i.call.duration_seconds)}` : `Call ${callResult(i.call.status).label.toLowerCase()}`)) : i.snippet || i.convo.subject || `${(CHANNEL[ch] ?? CHANNEL.other)[1]} conversation`}</small>
                   <span className="ba-inbox-tags">
                     {unread && <i className="ba-dot" aria-label="Unread" />}
                     {needsHuman(i) && <Pill tone="danger">Needs a person</Pill>}

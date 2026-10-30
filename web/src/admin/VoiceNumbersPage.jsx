@@ -112,14 +112,14 @@ function Numbers({ me, options, onAssign, onOpenCalls, say, onOpenBusiness }) {
           ["Number", (r) => <strong>{r.e164}</strong>], ["Business", (r) => r.business_name], ["Label", (r) => r.label ?? "—"],
           ["Receptionist", (r) => r.agent?.name ?? <Pill tone="warning">None</Pill>],
           ["Vapi", (r) => (r.vapi_linked ? <Pill tone="success">Linked</Pill> : <Pill tone="warning">Not linked</Pill>)],
-          ["Status", (r) => <Pill tone={statusTone(r.status)}>{r.status}</Pill>], ["Calls (30 days)", (r) => num(r.calls_30d)], ["Last call", (r) => when(r.last_call_at)],
+          ["Status", (r) => <Pill tone={statusTone(r.status)}>{words(r.status)}</Pill>], ["Calls (30 days)", (r) => num(r.calls_30d)], ["Last call", (r) => when(r.last_call_at)],
         ]} />
       <Pager total={list.data?.total} offset={f.offset} onChange={(o) => setF((x) => ({ ...x, offset: o }))} />
 
       {open && (
         <Drawer title={open.e164} icon="call" onClose={() => setOpen(null)}>
           <Facts rows={[["Business", <button key="b" type="button" className="ao-link" onClick={() => onOpenBusiness(open.business_id)}>{open.business_name}</button>],
-            ["Business state", words(open.business_state)], ["Label", open.label], ["Country code", open.country_code], ["Status", <Pill key="s" tone={statusTone(open.status)}>{open.status}</Pill>],
+            ["Business state", words(open.business_state)], ["Label", open.label], ["Country code", open.country_code], ["Status", <Pill key="s" tone={statusTone(open.status)}>{words(open.status)}</Pill>],
             ["Receptionist", open.agent ? `${open.agent.name} (${words(open.agent.status)})` : "None — calls can't be answered"],
             ["Vapi phone number id", open.vapi_phone_number_id ? <code key="v">{open.vapi_phone_number_id}</code> : "Not linked"],
             ["Calls, last 30 days", num(open.calls_30d)], ["Last call", when(open.last_call_at)], ["Added", when(open.created_at)]]} />
@@ -208,7 +208,7 @@ function Calls({ me, options, initial, onOpenBusiness }) {
       <DataTable loading={list.loading} rows={list.data?.rows} onRow={(r) => setOpen(r.id)} empty="No calls in this period match these filters."
         columns={[
           ["When", (r) => when(r.created_at)], ["Business", (r) => r.business_name], ["Direction", (r) => words(r.direction)], ["Caller", (r) => r.caller ?? "Unknown"],
-          ["Number", (r) => r.number ?? "—"], ["Status", (r) => <Pill tone={statusTone(r.status)}>{r.status}</Pill>], ["Length", (r) => duration(r.duration_seconds)],
+          ["Number", (r) => r.number ?? "—"], ["Status", (r) => <Pill tone={statusTone(r.status)}>{words(r.status)}</Pill>], ["Length", (r) => duration(r.duration_seconds)],
           ["Outcome", (r) => (r.outcome ? words(r.outcome) : "—")],
           ["", (r) => <span className="ao-flags">{r.needs_human && <Pill tone="warning">Needs a person</Pill>}{r.failure_reason && <Pill tone="danger">Error</Pill>}
             {["failed", "no_one_available"].includes(r.transfer_status) && <Pill tone="warning">Transfer failed</Pill>}</span>],
@@ -229,7 +229,7 @@ function CallDrawer({ id, onClose, onOpenBusiness }) {
       {!c ? <p className="op-muted">Loading…</p> : (
         <>
           <Facts rows={[["Business", <button key="b" type="button" className="ao-link" onClick={() => onOpenBusiness(c.business_id)}>{c.business_name}</button>],
-            ["Direction", words(c.direction)], ["From", c.from], ["To", c.to], ["Status", <Pill key="s" tone={statusTone(c.status)}>{c.status}</Pill>],
+            ["Direction", words(c.direction)], ["From", c.from], ["To", c.to], ["Status", <Pill key="s" tone={statusTone(c.status)}>{words(c.status)}</Pill>],
             ["Answered by AI", c.ai_handled ? "Yes" : "No"], ["Outcome", c.outcome ? words(c.outcome) : null], ["Outcome note", c.outcome_note],
             ["Transfer", c.transfer_status ? words(c.transfer_status) : null], ["Length", duration(c.duration_seconds)],
             c.needs_human ? ["Needs a person", c.escalation_reason ?? "Yes"] : null, c.escalation_resolved_at ? ["Resolved", when(c.escalation_resolved_at)] : null,

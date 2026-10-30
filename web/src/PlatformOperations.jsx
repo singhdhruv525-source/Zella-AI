@@ -4,6 +4,7 @@ import { callOwnerFunction } from "./CreateBusinessWizard";
 import { Pill } from "./OwnerOverview";
 import { formatDateTime } from "./ownerFormat";
 import PlatformMonitoring from "./PlatformMonitoring";
+import { friendlyError } from "./admin/adminOps";
 
 export default function PlatformOperations({ onNavigate, onOpenBusiness }) {
   const [data, setData] = useState(null);
@@ -16,7 +17,7 @@ export default function PlatformOperations({ onNavigate, onOpenBusiness }) {
     try {
       setData(await callOwnerFunction("platform_status"));
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setLoading(false);
     }

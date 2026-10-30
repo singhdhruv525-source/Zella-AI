@@ -154,7 +154,7 @@ function CallbackDetail({ cb, person, last, roster, workspace, startFinishing, o
               <button type="button" className="ba-btn sm" disabled={busy || cb.status === "in_progress"} onClick={() => update("in_progress", "Marked as in progress.")}>I'm calling now</button>
               <button type="button" className="ba-btn sm" disabled={busy} onClick={() => update("waiting_on_customer", "Waiting on the customer.")}>Waiting on them</button>
               <button type="button" className="ba-btn sm" disabled={busy || cb.status === "escalated"} onClick={() => update("escalated", "Escalated to a person.")}>Escalate</button>
-              <button type="button" className="ba-btn sm danger-outline" disabled={busy} onClick={() => update("cancelled", "Callback cancelled.")}>Cancel callback</button>
+              <button type="button" className="ba-btn sm danger-outline" disabled={busy} onClick={() => update("cancelled", "Callback canceled.")}>Cancel callback</button>
             </div>
 
             {finishing && (
@@ -229,7 +229,7 @@ export function CallbacksPage({ workspace, refreshKey, onNotice, onOpenPerson, o
 
   return (
     <>
-      <PageHead crumb="Calls & Messages / Callbacks" title="Callbacks"
+      <PageHead crumb="Calls & messages / Callbacks" title="Callbacks"
         sub={needPerson ? `${needPerson === 1 ? "1 callback needs" : `${needPerson} callbacks need`} a person. Zella has stopped calling.` : "People waiting for a call back, and what happened on each try."}>
         <button type="button" className="ba-btn primary" onClick={() => setAdding(true)}><Icon name="add_call" size="sm" />Add callback</button>
       </PageHead>

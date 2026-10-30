@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { supabase } from "./supabase";
 import { Field, Icon, Pill, personName } from "./BusinessUI";
 import { formatLongDate, formatTime, timeAgo, todayInput, zonedDateTime } from "./businessTime";
-import { APPT_LABEL, APPT_TONE, availabilityAt, changed, explain, friendly, noShowNotice, setCheckIn } from "./BusinessShared";
+import { APPT_LABEL, APPT_TONE, availabilityAt, changed, explain, friendly, noShowNotice, setCheckIn, callResult, isAnswered } from "./BusinessShared";
 import { RescheduleModal } from "./BusinessForms";
 import { BookingMessages } from "./BookingMessages";
 import { bookingFields, fieldValue, todayConfig } from "./todayConfig";
@@ -112,7 +112,7 @@ export function BookingPanel({ workspace, industry, appt, person, staff, blocks,
     [appt.created_at, byAi ? "Booked by Zella" : appt.metadata?.source === "staff" ? "Booked by the team" : "Booked"],
     appt.original_start_time && [appt.rescheduled_at, `Moved from ${formatLongDate(appt.original_start_time, tz)} ${formatTime(appt.original_start_time, tz)}${appt.reschedule_requested_by === "ai" ? " (asked by phone)" : ""}`],
     appt.checked_in_at && [appt.checked_in_at, cfg.arrived],
-    appt.cancelled_at && [appt.cancelled_at, `Cancelled${appt.cancel_reason ? `: ${appt.cancel_reason}` : ""}`],
+    appt.cancelled_at && [appt.cancelled_at, `Canceled${appt.cancel_reason ? `: ${appt.cancel_reason}` : ""}`],
     appt.status === "completed" && [appt.updated_at, "Completed"],
     appt.status === "no_show" && [appt.updated_at, "No-show"],
   ].filter((x) => x && x[0]).sort((a, b) => new Date(a[0]) - new Date(b[0]));
@@ -192,7 +192,7 @@ export function BookingPanel({ workspace, industry, appt, person, staff, blocks,
             <ul className="bp-feed">
               {(activity?.calls ?? []).map((c) => (
                 <li key={`c${c.id}`}><Icon name={c.status === "missed" ? "phone_missed" : "call"} size="sm" />
-                  <span>{c.status === "missed" ? "Missed call" : c.ai_handled ? "Call answered by AI" : "Call"}{c.summary ? `: ${c.summary.slice(0, 80)}` : ""}</span><time>{timeAgo(c.created_at)}</time></li>
+                  <span>{c.status === "missed" ? "Missed call" : !isAnswered(c.status) ? `Call: ${callResult(c.status).label.toLowerCase()}` : c.ai_handled ? "Call answered by AI" : "Call"}{c.summary ? `: ${c.summary.slice(0, 80)}` : ""}</span><time>{timeAgo(c.created_at)}</time></li>
               ))}
               {(activity?.convos ?? []).map((c) => (
                 <li key={`m${c.id}`}><Icon name={c.channel === "email" ? "mail" : "sms"} size="sm" />

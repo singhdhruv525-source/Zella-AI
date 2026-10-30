@@ -31,8 +31,8 @@ export const NAV_GROUPS = [
   { id: "crm", label: "CRM" },
   { id: "operations", label: null }, // named by the industry configuration
   { id: "communications", label: "Communications" },
-  { id: "ai", label: "AI & Automation" },
-  { id: "growth", label: "Business Growth" },
+  { id: "ai", label: "AI & automation" },
+  { id: "growth", label: "Business growth" },
   { id: "management", label: "Management" },
 ];
 
@@ -41,21 +41,21 @@ export const NAV_ITEMS = [
   { id: "calendar", group: "workspace", order: 20, label: "Calendar", icon: "calendar_today", page: "calendar" },
   { id: "checkins", group: "workspace", order: 30, label: "Check-ins", icon: "how_to_reg", page: "checkins" },
   { id: "waitlist", group: "workspace", order: 40, label: "Waitlist", icon: "hourglass_top", page: "waitlist", module: "calendar" },
-  { id: "tasks", group: "workspace", order: 50, label: "Tasks & Follow-ups", icon: "task_alt", page: "tasks" },
+  { id: "tasks", group: "workspace", order: 50, label: "Tasks & follow-ups", icon: "task_alt", page: "tasks" },
 
   { id: "leads", group: "crm", order: 10, label: "Leads", icon: "filter_alt", page: "leads" },
   { id: "customers", group: "crm", order: 20, label: (term) => term("customers"), icon: "group", page: "customers" },
 
   {
-    id: "calls-messages", group: "communications", order: 10, label: "Calls & Messages", icon: "forum", badge: "attention",
+    id: "calls-messages", group: "communications", order: 10, label: "Calls & messages", icon: "forum", badge: "attention",
     children: [
       { id: "attention", label: "Needs attention", icon: "support_agent", page: "attention", badge: "attention" },
-      { id: "inbox", label: "Conversations", icon: "inbox", page: "inbox" },
+      { id: "inbox", label: "Inbox", icon: "inbox", page: "inbox" },
       { id: "messages", label: "Messages", icon: "chat", page: "messages" },
       { id: "calls", label: "Calls", icon: "call", page: "calls", module: "calls" },
       { id: "callbacks", label: "Callbacks", icon: "phone_callback", page: "callbacks" },
       { id: "drafts", label: "Suggested messages", icon: "mark_email_unread", page: "drafts", roles: WORK_ROLES },
-      { id: "failed", label: "Didn't send", icon: "error", page: "failed", roles: LEAD_ROLES },
+      { id: "failed", label: "Sending failed", icon: "error", page: "failed", roles: LEAD_ROLES },
       { id: "spam", label: "Spam protection", icon: "gpp_maybe", page: "spam", roles: LEAD_ROLES },
     ],
   },
@@ -73,10 +73,10 @@ export const NAV_ITEMS = [
 
   { id: "lead-sources", group: "growth", order: 10, label: "Lead sources", icon: "hub", page: "lead-sources" },
   { id: "reviews", group: "growth", order: 15, label: "Reviews", icon: "rate_review", page: "reviews", roles: LEAD_ROLES },
-  { id: "reports", group: "growth", order: 20, label: "Reports & Analytics", icon: "monitoring", page: "reports" },
+  { id: "reports", group: "growth", order: 20, label: "Reports & analytics", icon: "monitoring", page: "reports" },
 
   {
-    id: "team-staff", group: "management", order: 10, label: "Team & Staff", icon: "badge",
+    id: "team-staff", group: "management", order: 10, label: "Team & staff", icon: "badge",
     children: [
       { id: "team", label: (term) => term("staff_plural"), icon: "groups", page: "team" },
       { id: "scorecards", label: "Scorecards", icon: "leaderboard", page: "scorecards" },
@@ -108,7 +108,7 @@ export function buildNavigation(access, term) {
   const operations = (access.recordTypes ?? []).filter((t) => t.enabled)
     .map((t, n) => ({ id: `rec:${t.key}`, group: "operations", order: n, label: t.plural, icon: t.icon || "folder", page: `rec:${t.key}` }));
   if (LEAD_ROLES.includes(access.role) && (operations.length || access.configured)) {
-    operations.push({ id: "record-settings", group: "operations", order: 999, label: "Customise records", icon: "tune", page: "record-settings" });
+    operations.push({ id: "record-settings", group: "operations", order: 999, label: "Customize records", icon: "tune", page: "record-settings" });
   }
 
   return NAV_GROUPS.map((g) => {

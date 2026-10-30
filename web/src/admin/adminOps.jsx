@@ -4,6 +4,7 @@ import "../OwnerPages.css";
 import { supabase } from "../supabase";
 import { Icon } from "../BusinessUI";
 import { Pill } from "../OwnerOverview";
+import { humanize } from "../copy/labels";
 
 // Shared pieces for the admin Voice & numbers, Messaging and Automations pages. Everything is read and changed
 // through the zella_admin_* database functions (sql/zella_admin_ops.sql), which check the admin's permission,
@@ -23,7 +24,7 @@ const ERRORS = {
   INVALID_FALLBACK_NUMBER: "Enter the fallback number with its country code, like +15551234567.",
   FALLBACK_NEEDS_NUMBER: "Add a fallback number before routing calls to it.",
   BUSINESS_NOT_LIVE: "This business isn't live yet. Its automations start when it goes live.",
-  BUSINESS_NOT_AVAILABLE: "This business is suspended or cancelled.",
+  BUSINESS_NOT_AVAILABLE: "This business is suspended or canceled.",
   BUSINESS_TEMPLATE: "Business templates are changed by that business, not here.",
   BODY_LENGTH: "The message must be 1 to 1,600 characters.",
   SUBJECT_REQUIRED: "Emails need a subject.",
@@ -41,7 +42,8 @@ export function friendlyError(error) {
   }
   if (/could not find the function|PGRST202/i.test(raw)) return "This page needs a database update (sql/zella_admin_ops.sql).";
   if (/failed to fetch|network/i.test(raw)) return "Couldn't reach the server. Check your connection and try again.";
-  return raw || "Something went wrong.";
+  if (/^[A-Z][A-Z0-9_]{2,}$/.test(raw.trim())) return `That didn't work (code ${raw.trim()}). Try again, or check the audit log.`;
+  return raw || "Something went wrong. Try again.";
 }
 
 export async function rpc(name, args = {}) {
@@ -66,7 +68,7 @@ export function useLoad(loader, deps) {
 }
 
 export const when = (v) => (v ? new Date(v).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "—");
-export const words = (s) => String(s ?? "").replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+export const words = humanize;
 export const num = (n) => (n === null || n === undefined ? "—" : Number(n).toLocaleString());
 export const pct = (n) => (n === null || n === undefined ? "—" : `${n}%`);
 export function duration(s) {

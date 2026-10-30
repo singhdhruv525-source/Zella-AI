@@ -3,13 +3,11 @@ import { supabase } from "./supabase";
 import { Field, Icon, Modal, Pill, initials, personName } from "./BusinessUI";
 import { makeTerm } from "./businessWorkspace";
 import { dayRange, formatDay, formatTime, timeAgo } from "./businessTime";
-import {
-  APPT_LABEL, APPT_TONE, Empty, Notice, PageHead, Segment, SOURCE_LABELS, clock, friendly, loadPeople, noShowNotice,
-  explain, orThrow, plural, setCheckIn, sourceLabel, useLoad,
-} from "./BusinessShared";
+import { APPT_LABEL, APPT_TONE, Empty, Notice, PageHead, Segment, SOURCE_LABELS, clock, friendly, loadPeople, noShowNotice, explain, orThrow, plural, setCheckIn, sourceLabel, useLoad, isAnswered } from "./BusinessShared";
 import { CallCard, isOpenEscalation } from "./BusinessProfile";
 import { RescheduleModal } from "./BusinessForms";
 import { MoreReports } from "./BusinessReports";
+import { humanize } from "./copy/labels";
 
 // Needs attention, Check-ins, Unified Inbox, Lead sources, Reports and
 // Integrations. Everything is calculated from the business's own records.
@@ -42,7 +40,7 @@ export function AttentionPage({ workspace, refreshKey, onNotice, onOpenPerson, o
   return (
     <>
       <PageHead
-        crumb="Calls & Messages / Needs attention"
+        crumb="Calls & messages / Needs attention"
         title="Needs attention"
         sub={open.length ? `${plural(open.length, "caller")} waiting for a person. Your AI receptionist handed these over.` : "Nothing is waiting. Anything your AI receptionist can't handle shows up here."}
       >
@@ -188,7 +186,7 @@ export function LeadSourcesPage({ workspace, refreshKey }) {
 
   return (
     <>
-      <PageHead crumb="Business Growth / Lead sources" title="Lead sources" sub={`Where new ${term("customers").toLowerCase()} come from, and how many became bookings.`}>
+      <PageHead crumb="Business growth / Lead sources" title="Lead sources" sub={`Where new ${term("customers").toLowerCase()} come from, and how many became bookings.`}>
         <Segment label="Date range" value={range} onChange={setRange} options={RANGES} />
       </PageHead>
       <Notice error={error} onRetry={reload} />
@@ -258,7 +256,7 @@ export function ReportsPage({ workspace, refreshKey }) {
 
   const r = useMemo(() => {
     if (!data) return null;
-    const answered = data.calls.filter((c) => c.status !== "missed");
+    const answered = data.calls.filter((c) => isAnswered(c.status));
     const ai = data.calls.filter((c) => c.ai_handled);
     const missed = data.calls.filter((c) => c.status === "missed");
     const timed = answered.filter((c) => c.duration_seconds);
@@ -284,7 +282,7 @@ export function ReportsPage({ workspace, refreshKey }) {
   const peak = Math.max(1, ...(r?.perDay ?? []).map((d) => d.n));
   return (
     <>
-      <PageHead crumb="Business Growth / Reports & Analytics" title="Reports" sub={`How ${workspace.name} is doing. Every figure comes from your own records.`}>
+      <PageHead crumb="Business growth / Reports & analytics" title="Reports" sub={`How ${workspace.name} is doing. Every figure comes from your own records.`}>
         <Segment label="Date range" value={range} onChange={setRange} options={RANGES} />
       </PageHead>
       <Notice error={error} onRetry={reload} />
@@ -369,7 +367,7 @@ function IntegrationCard({ item, row, canManage, loading, onNotice, onChanged, w
         <span className="ba-thread-icon"><Icon name={item.icon} size="sm" /></span>
         <div><strong>{item.name}</strong><small>{item.text}</small></div>
         <Pill tone={row ? STATUS_TONE[row.status] : ""} dot={row?.status === "active"}>
-          {loading ? "…" : row ? STATUS_TEXT[row.status] ?? row.status.replace(/_/g, " ") : "Not connected"}
+          {loading ? "…" : row ? STATUS_TEXT[row.status] ?? humanize(row.status) : "Not connected"}
         </Pill>
       </div>
       {row?.account_email && <small className="ba-integration-account">{row.account_email}</small>}

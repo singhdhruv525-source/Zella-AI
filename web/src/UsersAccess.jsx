@@ -5,6 +5,7 @@ import { EmailField } from "./formFields";
 import { checkEmail } from "./formValidation";
 import { Pill } from "./OwnerOverview";
 import { formatDate, timeAgo } from "./ownerFormat";
+import { friendlyError } from "./admin/adminOps";
 
 const ROLE_LABELS = {
   zella_owner: "Zella owner", super_admin: "Super admin", platform_operations: "Platform operations",
@@ -29,7 +30,7 @@ export default function UsersAccess() {
     try {
       setData(await callOwnerFunction("admins_list"));
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setLoading(false);
     }
@@ -52,7 +53,7 @@ export default function UsersAccess() {
       await load();
       return true;
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
       return false;
     } finally {
       setBusy(false);

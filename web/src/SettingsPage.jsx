@@ -12,6 +12,7 @@ import * as P from "./settings/AdminPanels";
 import { AdminCallingUsage } from "./settings/CallingUsagePanels";
 import { FailedEventsPanel, HealthPanel, IncidentsPanel } from "./PlatformMonitoring";
 import { MonitorTab, ReportsTab, RulesTab } from "./OffersPage";
+import { friendlyError } from "./admin/adminOps";
 
 // Admin Settings: one Settings item in the main sidebar opens this workspace,
 // with 17 categories and their pages at /settings/<category>/<page>.
@@ -26,7 +27,7 @@ function registry() {
   return [
     { key: "general", label: "General platform settings", icon: "general", items: [
       page("profile", "Platform profile", (c) => <P.PlatformProfile me={c.me} />, "name legal support email phone website address country timezone currency"),
-      page("branding", "Branding and appearance", (c) => <P.Branding me={c.me} />, "logo favicon theme colour color login email"),
+      page("branding", "Branding and appearance", (c) => <P.Branding me={c.me} />, "logo favicon theme color login email"),
       page("localization", "Localization", () => <P.Localization />, "language date time currency format locale"),
       page("maintenance", "Platform maintenance", (c) => <P.Maintenance me={c.me} />, "maintenance announcement downtime read-only"),
       page("operations", "Operational rules", (c) => <P.OperationalRules me={c.me} />, "response time task overdue escalate summary missed call transfer invitation reminder setup incomplete trial notice sample low confidence knowledge threshold"),
@@ -48,7 +49,7 @@ function registry() {
     { key: "plans", label: "Plans, subscriptions and entitlements", icon: "plans", items: [
       page("plans", "Plan management", (c) => <P.PlanManagement me={c.me} onNavigate={c.onNavigate} />, "create edit archive price"),
       page("entitlements", "Plan entitlements", (c) => <P.PlanEntitlements me={c.me} />, "allowance minutes sms seats numbers limits"),
-      page("subscriptions", "Subscription management", () => <P.Subscriptions />, "trial past due cancelled renewal"),
+      page("subscriptions", "Subscription management", () => <P.Subscriptions />, "trial past due canceled renewal"),
       page("promotions", "Trials and promotions", (c) => <P.TrialsPromotions onNavigate={c.onNavigate} onGo={c.onGo} />, "promo code discount trial"),
       page("enforcement", "Entitlement enforcement", () => <P.EntitlementEnforcement />, "limits enforced"),
     ] },
@@ -145,7 +146,7 @@ function useSettingsContext({ onNavigate, onOpenBusiness, onOpenSetup, onSignOut
   const [error, setError] = useState("");
   useEffect(() => {
     let live = true;
-    callOwnerFunction("me_admin").then((m) => live && setMe(m)).catch((err) => live && setError(err.message));
+    callOwnerFunction("me_admin").then((m) => live && setMe(m)).catch((err) => live && setError(friendlyError(err)));
     supabase.auth.getUser().then(({ data }) => live && setEmail(data?.user?.email ?? ""));
     return () => { live = false; };
   }, []);

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { addLeaveGuard } from "../router";
 import { Icon } from "../BusinessUI";
+import { humanize } from "../copy/labels";
 
 // Building blocks for settings pages in both apps. Styling comes from
 // settings.css, which maps to each app's own colour tokens.
@@ -215,6 +216,6 @@ export function LinkRows({ rows }) {
   );
 }
 
-export const words = (s) => String(s ?? "").replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+export const words = humanize;
 export const when = (v) => (v ? new Date(v).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "—");
 export const money = (n, currency = "USD") => (n === null || n === undefined ? "—" : Number(n).toLocaleString("en-US", { style: "currency", currency: currency || "USD" }));

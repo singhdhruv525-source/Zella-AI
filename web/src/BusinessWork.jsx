@@ -84,7 +84,7 @@ export const CB_REASON = {
 export const CB_STATUS = {
   new: ["New", ""], scheduled: ["Scheduled", "warning"], due: ["Due", "warning"], in_progress: ["In progress", "info"], contacted: ["Reached", "success"],
   reschedule_requested: ["Reschedule requested", "warning"], retry_scheduled: ["Will retry", "warning"], waiting_on_customer: ["Waiting on them", ""],
-  completed: ["Done", "success"], cancelled: ["Cancelled", ""], escalated: ["Escalated", "danger"], needs_review: ["Needs a person", "danger"],
+  completed: ["Done", "success"], cancelled: ["Canceled", ""], escalated: ["Escalated", "danger"], needs_review: ["Needs a person", "danger"],
 };
 export const CB_CLOSED = ["completed", "cancelled"];
 export const ATTEMPT_LABEL = { connected: "Reached them", no_answer: "No answer", busy: "Busy", voicemail: "Voicemail", invalid_number: "Number not working", failed_connection: "Call failed", declined: "Declined" };
@@ -194,7 +194,7 @@ export function TasksPage({ workspace, refreshKey, onNotice, onOpenPerson, onCha
 
   return (
     <>
-      <PageHead crumb="Workspace / Tasks & Follow-ups" title="Tasks" sub={open.length ? `${plural(open.length, "thing")} to do.` : "Nothing waiting. Zella adds tasks when a lead needs contacting, a quote is open or a booking needs rearranging."}>
+      <PageHead crumb="Workspace / Tasks & follow-ups" title="Tasks" sub={open.length ? `${plural(open.length, "thing")} to do.` : "Nothing waiting. Zella adds tasks when a lead needs contacting, a quote is open or a booking needs rearranging."}>
         <button type="button" className="ba-btn primary" onClick={() => setAdding(true)}><Icon name="add_task" size="sm" />Add task</button>
         <Segment label="Task filter" value={filter} onChange={setFilter} options={[["open", `To do (${open.length})`], ["done", "Done"]]} />
       </PageHead>
@@ -242,7 +242,7 @@ export function TasksPage({ workspace, refreshKey, onNotice, onOpenPerson, onCha
                   </div>
                   {t.body && <p className="ba-item-text">{t.body}</p>}
                   <p className="ba-muted">
-                    {t.status === "open" ? (t.due_at ? `Due ${when(t.due_at, tz)}` : "No due time") : `${t.status === "done" ? "Done" : "Cancelled"} ${timeAgo(t.completed_at ?? t.created_at)}`}
+                    {t.status === "open" ? (t.due_at ? `Due ${when(t.due_at, tz)}` : "No due time") : `${t.status === "done" ? "Done" : "Canceled"} ${timeAgo(t.completed_at ?? t.created_at)}`}
                     {person && <> · <button type="button" className="ba-link" onClick={() => onOpenPerson(person.id)}>{personName(person)}</button></>}
                   </p>
                   {t.status === "open" && (

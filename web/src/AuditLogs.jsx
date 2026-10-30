@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useState } from "react";
 import "./OwnerPages.css";
 import { callOwnerFunction } from "./CreateBusinessWizard";
 import { ACTION_LABELS, actionLabel, formatDateTime, timeAgo } from "./ownerFormat";
+import { friendlyError } from "./admin/adminOps";
 
 export default function AuditLogs({ onOpenBusiness }) {
   const [logs, setLogs] = useState([]);
@@ -22,7 +23,7 @@ export default function AuditLogs({ onOpenBusiness }) {
       setCursor(data.nextCursor);
       if (data.businesses) setBusinesses(data.businesses);
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setLoading(false);
     }

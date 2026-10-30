@@ -3,6 +3,7 @@ import { supabase } from "../supabase";
 import { passwordProblems } from "../formValidation";
 import { finishMfaEnrollment, mfaStatus, removeMfaFactor, startMfaEnrollment } from "../mfa";
 import { Banner, Card, Confirm, Facts, Field, LoadState, SaveBar, Table, useAsync, useForm, when } from "./SettingsKit";
+import { friendly } from "../BusinessShared";
 
 // Personal settings shared by admins and business users: they only ever touch
 // the signed-in person's own account.
@@ -142,7 +143,7 @@ function MfaCard() {
   const step = async (fn) => {
     setBusy(true);
     setError("");
-    try { await fn(); } catch (err) { setError(err.message); } finally { setBusy(false); }
+    try { await fn(); } catch (err) { setError(friendly(err)); } finally { setBusy(false); }
   };
   return (
     <Card title="Two-step sign-in" sub="After your password, enter a code from an authenticator app (Google Authenticator, 1Password, Authy and similar).">
@@ -196,7 +197,7 @@ function SessionsCard() {
   async function revoke(s) {
     try {
       await rpc("zella_revoke_my_session", { p_session_id: s.id });
-      setNotice({ text: "Signed out of that device. It can't refresh its sign-in any more; an open page there stops working within the hour.", error: "" });
+      setNotice({ text: "Signed out of that device. It can't refresh its sign-in anymore; an open page there stops working within the hour.", error: "" });
       state.reload();
     } catch (err) { setNotice({ text: "", error: err.message }); }
   }

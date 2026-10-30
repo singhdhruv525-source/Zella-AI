@@ -3,7 +3,7 @@ import { supabase } from "./supabase";
 import { Field, Icon, Modal, Pill, initials, personName } from "./BusinessUI";
 import { formatDay, formatTime, timeAgo, todayInput, zonedDateTime } from "./businessTime";
 import { makeTerm } from "./businessWorkspace";
-import { Empty, Notice, PAGE_SIZE, PageHead, Pager, Segment, clock, explain, orThrow, useLoad } from "./BusinessShared";
+import { Empty, Notice, PAGE_SIZE, PageHead, Pager, Segment, clock, explain, orThrow, useLoad, callResult, isAnswered } from "./BusinessShared";
 
 /* The lead pipeline: a board by status, or a list, with who owns each lead and
    when the next follow-up is due. Details open in a panel so this page stays calm. */
@@ -377,11 +377,11 @@ function LeadPanel({ person, workspace, roster, onClose, onChanged, onNotice, on
               <li key={c.id}>
                 <span className="ba-thread-icon"><Icon name={c.status === "missed" ? "phone_missed" : "call"} size="sm" /></span>
                 <div>
-                  <strong>{c.status === "missed" ? "Missed call" : c.ai_handled ? "Answered by the AI receptionist" : "Answered by the team"}</strong>
+                  <strong>{c.status === "missed" ? "Missed call" : !isAnswered(c.status) ? `Call: ${callResult(c.status).label.toLowerCase()}` : c.ai_handled ? "Answered by the AI receptionist" : "Answered by the team"}</strong>
                   <small>{when(c.started_at ?? c.created_at, tz)} · {clock(c.duration_seconds)}</small>
                   {c.summary && <small>{c.summary}</small>}
                 </div>
-                {c.needs_human && <Pill tone="danger">Needs a human</Pill>}
+                {c.needs_human && <Pill tone="danger">Needs a person</Pill>}
               </li>
             ))}
           </ul>

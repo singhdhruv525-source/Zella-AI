@@ -171,7 +171,7 @@ export default function ReviewsPage({ workspace, onNotice }) {
   }, [workspace.id, tab]);
 
   const head = (
-    <PageHead crumb="Business Growth / Reviews" title="Reviews"
+    <PageHead crumb="Business growth / Reviews" title="Reviews"
       sub="Reply to every review in a minute. Each one gets a draft; nothing is posted until you approve the words.">
       {canConnect && !data?.missing && <button type="button" className="ba-btn" onClick={() => setModal("google")}><Icon name="storefront" size="sm" /><span>{data?.source ? "Google settings" : "Connect Google"}</span></button>}
       {!data?.missing && <button type="button" className="ba-btn primary" onClick={() => setModal("add")}><Icon name="add" size="sm" /><span>Add a review</span></button>}

@@ -253,7 +253,7 @@ export function BookAppointmentModal({ workspace, term, onClose, onSaved, initia
   return (
     <Modal
       icon="event_available"
-      title={`Book ${term("appointment").toLowerCase()}`}
+      title={`New ${term("appointment").toLowerCase()}`}
       description={`Times are in ${workspace.name}'s time zone (${tz.replace("_", " ")}).`}
       onClose={onClose}
       busy={busy}

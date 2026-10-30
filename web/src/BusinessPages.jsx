@@ -13,6 +13,7 @@ import { ActivationCard } from "./BusinessWork";
 import { ReceptionistEditor } from "./BusinessReceptionist";
 import { BookingPanel } from "./BookingPanel";
 import { todayConfig } from "./todayConfig";
+import { humanize } from "./copy/labels";
 
 // The rest of the business app: Leads, People (Patients / Customers / Clients…),
 // Calendar, Calls, Messages, AI Receptionist, Automations, Team and Settings.
@@ -65,7 +66,7 @@ function PeoplePage({ mode, workspace, query, refreshKey, onOpenPerson }) {
   return (
     <>
       <PageHead
-        crumb={`Core / ${isLeads ? "Leads" : term("customers")}`}
+        crumb={`CRM / ${isLeads ? "Leads" : term("customers")}`}
         title={isLeads ? "Leads" : term("customers")}
         sub={isLeads
           ? "People who reached out in the last 30 days. Follow up with anyone you haven't contacted yet."
@@ -274,7 +275,7 @@ function BlockDetail({ block, who, tz, onClose, onChanged, onNotice }) {
 const VIEWS = [["day", "Day"], ["week", "Week"], ["month", "Month"], ["agenda", "Agenda"], ["staff", "Staff"]];
 const AGENDA_DAYS = 14;
 // Filters by where a booking stands. "Awaiting" = not confirmed yet (scheduled, held or requested).
-const STATUS_FILTERS = [["all", "All"], ["awaiting", "Awaiting confirmation"], ["confirmed", "Confirmed"], ["completed", "Completed"], ["cancelled", "Cancelled or no-show"]];
+const STATUS_FILTERS = [["all", "All"], ["awaiting", "Awaiting confirmation"], ["confirmed", "Confirmed"], ["completed", "Completed"], ["cancelled", "Canceled or no-show"]];
 const awaiting = (x) => x.status === "scheduled" || x.booking_state === "requested" || x.booking_state === "tentative";
 const matchesStatus = (x, f) => f === "all" || (f === "awaiting" ? awaiting(x) && x.status !== "cancelled"
   : f === "cancelled" ? ["cancelled", "no_show"].includes(x.status) : x.status === f);
@@ -287,7 +288,7 @@ function CalendarSummary({ appts, staff, cfg, term, period, loading }) {
     ["event", "rose", `${term("appointments")} ${period}`, live.length],
     ["check_circle", "green", "Confirmed", appts.filter((x) => x.status === "confirmed").length],
     ["pending", "amber", "Awaiting confirmation", appts.filter((x) => awaiting(x) && x.status !== "cancelled").length],
-    ["event_busy", "", "Cancelled", appts.filter((x) => x.status === "cancelled" || x.status === "no_show").length],
+    ["event_busy", "", "Canceled", appts.filter((x) => x.status === "cancelled" || x.status === "no_show").length],
   ];
   if (cfg.guests) cards.push(["groups", "indigo", `Expected ${term("customers").toLowerCase()}`, live.reduce((n, x) => n + (x.party_size ?? 0), 0)]);
   else if (cfg.arrived === "On site" && staff.length) cards.push(["person_alert", "blue", "Unassigned", live.filter((x) => !x.staff_id).length]);
@@ -671,9 +672,9 @@ export function MessagesPage({ workspace, refreshKey, onOpenPerson }) {
   const rows = (data?.rows ?? []).filter((r) => filter === "all" || r.channel === filter);
   return (
     <>
-      <PageHead crumb="Calls & Messages / Messages" title="Messages" sub="Conversations by text and email. Your AI receptionist answers the routine ones.">
+      <PageHead crumb="Calls & messages / Messages" title="Messages" sub="Conversations by text and email. Your AI receptionist answers the routine ones.">
         {channels.length > 1 && (
-          <Segment label="Channel" value={filter} onChange={setFilter} options={[["all", "All"], ...channels.map((c) => [c, c.toUpperCase() === c ? c : c[0].toUpperCase() + c.slice(1)])]} />
+          <Segment label="Channel" value={filter} onChange={setFilter} options={[["all", "All"], ...channels.map((c) => [c, humanize(c)])]} />
         )}
       </PageHead>
       <Notice error={error} onRetry={reload} />
@@ -689,11 +690,11 @@ export function MessagesPage({ workspace, refreshKey, onOpenPerson }) {
                   <span className="ba-thread-icon"><Icon name={CHANNEL_ICON[r.channel] ?? "forum"} size="sm" /></span>
                   <div>
                     {r.customer_id ? <button type="button" className="ba-namebtn strong" onClick={() => onOpenPerson(r.customer_id)}>{name}</button> : <strong>{name}</strong>}
-                    <small>{r.subject || `${r.channel ?? "Message"} conversation`}</small>
+                    <small>{r.subject || (r.channel ? `${humanize(r.channel)} conversation` : "Conversation")}</small>
                   </div>
                   <div className="ba-thread-meta">
                     {r.ai_handled && <Pill tone="indigo">AI</Pill>}
-                    <Pill tone={r.status === "open" ? "warning" : r.status === "pending" ? "info" : ""}>{r.status}</Pill>
+                    <Pill tone={r.status === "open" ? "warning" : r.status === "pending" ? "info" : ""}>{humanize(r.status)}</Pill>
                     <span>{r.last_message_at ? timeAgo(r.last_message_at) : "—"}</span>
                   </div>
                 </li>
@@ -762,7 +763,7 @@ export function ReceptionistPage({ workspace, onNotice, onReload }) {
           </dl>
           {primary?.description && <p className="ba-note pad">{primary.description}</p>}
           {primary?.channels?.length > 0 && (
-            <p className="ba-note pad">Works on: {primary.channels.map((c) => c.replace(/_/g, " ")).join(", ")}</p>
+            <p className="ba-note pad">Works on: {primary.channels.map(humanize).join(", ")}</p>
           )}
         </section>
       </div>

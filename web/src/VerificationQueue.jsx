@@ -4,6 +4,8 @@ import "./OwnerPages.css";
 import { callOwnerFunction } from "./CreateBusinessWizard";
 import { Pill } from "./OwnerOverview";
 import { Icon } from "./BusinessUI";
+import { humanize } from "./copy/labels";
+import { friendlyError } from "./admin/adminOps";
 
 // Every business's verification documents in one place: the business registration and the owner's photo ID
 // collected in the Create Business wizard. Files are private; "View" asks the server for a link that works for one
@@ -14,7 +16,7 @@ const KIND = {
   business_registration: "Business registration",
   owner_identity: "Owner's photo ID",
   tax_registration: "Tax registration",
-  professional_license: "Professional licence",
+  professional_license: "Professional license",
 };
 const STATUS = {
   pending_review: ["warning", "Waiting for review"],
@@ -40,7 +42,7 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
     try {
       setData(await callOwnerFunction("documents_queue", { status }));
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setLoading(false);
     }
@@ -54,7 +56,7 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
       const { url } = await callOwnerFunction("document_view", { documentId: doc.id });
       window.open(url, "_blank", "noopener,noreferrer");
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     }
   }
 
@@ -68,7 +70,7 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
       setReason("");
       await load();
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setBusy("");
     }
@@ -128,7 +130,7 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
                         <td>
                           <div className="owner-business-cell">
                             <button type="button" className="vq-link" onClick={() => onOpenBusiness(doc.business_id)}>{doc.business_name}</button>
-                            <span>{doc.business_status ? doc.business_status.replace(/_/g, " ") : ""}</span>
+                            <span>{doc.business_status ? humanize(doc.business_status) : ""}</span>
                           </div>
                         </td>
                         <td>

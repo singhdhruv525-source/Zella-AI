@@ -58,12 +58,12 @@ export function Branding({ me }) {
   return (
     <>
       <LoadState state={state}>{(d) => <BrandingForm initial={d.branding} canEdit={can(me, "platform.configure")} />}</LoadState>
-      <Needs title="Themes, accent colour, typography, density and dashboard layout aren't adjustable yet"
+      <Needs title="Themes, accent color, typography, density and dashboard layout aren't adjustable yet"
         have="Zella uses one fixed theme (Oat & Slate). Making it adjustable needs a theme layer that reads saved settings instead of fixed CSS. Each business's branding stays its own either way.">
         These would change the look for every admin and business, so they need that theme layer first.
       </Needs>
       <Needs title="Email branding isn't adjustable yet" have="Emails are plain text with a simple layout (sql/zella_owner_emails.sql).">
-        Branded emails need an HTML template that reads the platform logo and colours.
+        Branded emails need an HTML template that reads the platform logo and colors.
       </Needs>
     </>
   );
@@ -179,8 +179,8 @@ function MaintenanceForm({ initial, allowed, reload }) {
 
 /* ---------------- 2. Businesses ---------------- */
 
-const STATUS_OPTIONS = [["", "Any status"], ["live", "Live"], ["setup", "In setup"], ["suspended", "Suspended"], ["cancelling", "Cancelling"], ["cancelled", "Cancelled"]];
-const businessState = (b) => b.cancelled_at ? ["Cancelled", "danger"] : b.suspended_at ? ["Suspended", "danger"] : b.cancel_at ? ["Cancelling", "warning"] : b.onboarding_status === "active" ? ["Live", "success"] : ["In setup", "accent"];
+const STATUS_OPTIONS = [["", "Any status"], ["live", "Live"], ["setup", "In setup"], ["suspended", "Suspended"], ["cancelling", "Canceling"], ["cancelled", "Canceled"]];
+const businessState = (b) => b.cancelled_at ? ["Canceled", "danger"] : b.suspended_at ? ["Suspended", "danger"] : b.cancel_at ? ["Canceling", "warning"] : b.onboarding_status === "active" ? ["Live", "success"] : ["In setup", "accent"];
 
 export function AllBusinesses({ openBusiness }) {
   const [filters, setFilters] = useState({ q: "", industryId: "", planId: "", status: "", onboarding: "", createdFrom: "", createdTo: "", page: 0 });
@@ -308,8 +308,8 @@ export function Lifecycle({ openBusiness }) {
   return (
     <>
       <Card title="How status changes work" sub="Suspend, reactivate, cancel and undo cancel are on each business's page. Each one asks for confirmation and is written to the audit log.">
-        <Facts rows={[["Suspended", "Workspace and AI receptionist stop; nothing is deleted"], ["Cancelling", "Ends on the scheduled date; can be undone"],
-          ["Cancelled", "Stopped; records kept for the retention period (Data lifecycle)"]]} />
+        <Facts rows={[["Suspended", "Workspace and AI receptionist stop; nothing is deleted"], ["Canceling", "Ends on the scheduled date; can be undone"],
+          ["Canceled", "Stopped; records kept for the retention period (Data lifecycle)"]]} />
       </Card>
       <LoadState state={state}>{([s, c, x]) => (
         <Card title="Businesses not live">
@@ -320,7 +320,7 @@ export function Lifecycle({ openBusiness }) {
           ]} />
         </Card>
       )}</LoadState>
-      <Needs title="Deactivation and deletion requests aren't separate states yet" have="Cancelled businesses are kept until their retention date; nothing is deleted automatically from the admin dashboard.">
+      <Needs title="Deactivation and deletion requests aren't separate states yet" have="Canceled businesses are kept until their retention date; nothing is deleted automatically from the admin dashboard.">
         Pending deletion and deletion requested need a deletion request record, a second-person approval and a deletion job that can be stopped.
       </Needs>
     </>
@@ -376,14 +376,14 @@ export function DataLifecycle({ me }) {
   return (
     <LoadState state={state}>{([p, c]) => (
       <>
-        <SettingNumber me={me} keyName="retention_days" label="Days a cancelled business's records are kept" current={p.retentionDays} />
-        <Card title="Cancelled businesses" sub="Their records stay until the retention date.">
-          <Table rows={c.rows} empty="No cancelled businesses." columns={[["Business", (b) => b.name], ["Cancelled", (b) => when(b.cancelled_at)]]} />
+        <SettingNumber me={me} keyName="retention_days" label="Days a canceled business's records are kept" current={p.retentionDays} />
+        <Card title="Canceled businesses" sub="Their records stay until the retention date.">
+          <Table rows={c.rows} empty="No canceled businesses." columns={[["Business", (b) => b.name], ["Canceled", (b) => when(b.cancelled_at)]]} />
         </Card>
         <Card title="Customer data requests across businesses" sub="Counts only. Each business handles its own requests.">
           <Facts rows={[["Open", p.requests.open], ["Overdue", p.requests.overdue], ...Object.entries(p.requests.byKind).map(([k, v]) => [words(k), v])]} />
         </Card>
-        <Needs title="Whole-business export and deletion jobs aren't built" have="Each business can export or erase individual customers (with a second approval). Cancelled businesses are kept, never deleted automatically.">
+        <Needs title="Whole-business export and deletion jobs aren't built" have="Each business can export or erase individual customers (with a second approval). Canceled businesses are kept, never deleted automatically.">
           Exporting or deleting a whole business needs a job that runs in the background, records its progress, and can be approved and stopped.
         </Needs>
       </>
@@ -590,7 +590,7 @@ export function Subscriptions() {
           <Table rows={d.rows} empty="No subscriptions yet. They appear when billing is connected." columns={[
             ["Business", (s) => s.business_name ?? "—"], ["Plan", (s) => s.plan ?? "—"], ["Status", (s) => words(s.status)], ["Billing", (s) => words(s.billing_interval)],
             ["Renews", (s) => when(s.current_period_end)], ["Trial ends", (s) => when(s.trial_end_at)], ["Grace ends", (s) => when(s.grace_period_end_at)],
-            ["Cancelled", (s) => (s.cancelled_at ? `${when(s.cancelled_at)}${s.cancellation_reason ? ` · ${s.cancellation_reason}` : ""}` : "—")],
+            ["Canceled", (s) => (s.cancelled_at ? `${when(s.cancelled_at)}${s.cancellation_reason ? ` · ${s.cancellation_reason}` : ""}` : "—")],
           ]} />
           <Pager page={d.page} size={d.size} total={d.total} onPage={setPage} />
         </>
@@ -1173,7 +1173,7 @@ export function Retention({ me }) {
   return (
     <LoadState state={state}>{(p) => (
       <>
-        <SettingNumber me={me} keyName="retention_days" label="Days a cancelled business's records are kept" current={p.retentionDays} />
+        <SettingNumber me={me} keyName="retention_days" label="Days a canceled business's records are kept" current={p.retentionDays} />
         <Card title="Other records">
           <Facts rows={[["Customer erasure", "Per customer, with a second approval when a business has two owners or admins"], ["Audit log", "Kept; no automatic deletion"],
             ["Call recordings and transcripts", "Kept with the call until the customer is erased"]]} />
@@ -1279,8 +1279,8 @@ export function GlobalAnalytics() {
           <Table rowKey={(m) => m.month} rows={a.months} columns={[["Month", (m) => m.month], ["New businesses", (m) => m.businesses], ["New subscriptions", (m) => m.subscriptions], ["AI-answered calls", (m) => m.aiCalls]]} />
         </Card>
         <Card title="Now">
-          <Facts rows={[["Businesses", a.businesses.total], ["Cancelled", a.businesses.cancelled],
-            ["Customer retention", a.businesses.total ? `${Math.round(((a.businesses.total - a.businesses.cancelled) / a.businesses.total) * 100)}% not cancelled` : "—"],
+          <Facts rows={[["Businesses", a.businesses.total], ["Canceled", a.businesses.cancelled],
+            ["Customer retention", a.businesses.total ? `${Math.round(((a.businesses.total - a.businesses.cancelled) / a.businesses.total) * 100)}% not canceled` : "—"],
             ["Automation success (30 days)", a.automation30d.total ? `${Math.round((a.automation30d.succeeded / a.automation30d.total) * 100)}% of ${a.automation30d.total} runs` : "No runs"],
             ["Integrations failing", `${a.integrations.failing} of ${a.integrations.total}`]]} />
         </Card>
@@ -1438,7 +1438,7 @@ const OPERATIONAL = [
   ["Calls", [
     ["missed_call_max_seconds", "Calls shorter than this count as missed and get a callback."],
     ["transfer_failure_threshold", "Failed transfers to a person, in a day, before Zella flags the business."],
-    ["call_intel_monthly_limit", "Calls per business per month that the AI summarises."],
+    ["call_intel_monthly_limit", "Calls per business per month that the AI summarizes."],
   ]],
   ["AI quality and knowledge", [
     ["ai_low_confidence_questions", "Unsure answers in one call before the call is flagged for review."],

@@ -103,7 +103,7 @@ const FIELD = {
     f("emergency_service", "24/7 emergency call-outs", "yesno", { required: true }),
     f("call_out_fee", "Call-out or diagnostic fee", "text", { placeholder: "e.g. $89, waived if the job goes ahead" }),
     f("free_estimates", "Free estimates", "yesno"),
-    f("license_number", "Licence number", "text", { placeholder: "Shown to customers who ask" }),
+    f("license_number", "License number", "text", { placeholder: "Shown to customers who ask" }),
   ],
   faqPrompts: ["Do you charge for estimates?", "Can you come today?", "Are you licensed and insured?"],
 };
@@ -117,10 +117,10 @@ const BEAUTY = {
   defaultLength: 45,
   details: [
     f("walk_ins", "Walk-ins welcome", "yesno"),
-    f("deposit_policy", "Deposit", "text", { placeholder: "e.g. $20 deposit for colour appointments" }),
+    f("deposit_policy", "Deposit", "text", { placeholder: "e.g. $20 deposit for color appointments" }),
     f("cancellation_notice_hours", "Cancellation notice needed (hours)", "number", { min: 0, max: 168 }),
   ],
-  faqPrompts: ["How long does a colour take?", "Do you do bridal packages?", "Which products do you use?"],
+  faqPrompts: ["How long does a color take?", "Do you do bridal packages?", "Which products do you use?"],
 };
 
 const FITNESS = {
@@ -147,7 +147,7 @@ const PROPERTY = {
   details: [
     f("areas_covered", "Areas covered", "list", { required: true, placeholder: "e.g. Downtown, Riverside, Eastwood" }),
     f("property_types", "Property types", "list", { placeholder: "e.g. houses, condos, commercial" }),
-    f("license_number", "Licence or registration number", "text"),
+    f("license_number", "License or registration number", "text"),
   ],
   faqPrompts: ["Can I book a viewing this weekend?", "How do I get a valuation?", "What are your fees?"],
 };
@@ -173,7 +173,7 @@ const ADVISORY = {
   details: [
     f("practice_areas", "Practice areas", "list", { required: true, placeholder: "e.g. family law, estate planning" }),
     f("free_consultation", "Free first consultation", "yesno"),
-    f("license_number", "Licence or registration number", "text"),
+    f("license_number", "License or registration number", "text"),
   ],
   faqPrompts: ["Is the first consultation free?", "Do you offer virtual meetings?", "What documents should I bring?"],
 };
@@ -182,7 +182,7 @@ const EDUCATION = {
   ...GENERAL,
   kind: "education",
   teamHint: "Add the instructors students book sessions with.",
-  servicesHint: "Courses, subjects or programmes.",
+  servicesHint: "Courses, subjects or programs.",
   defaultLength: 60,
   details: [
     f("subjects", "Subjects or courses", "list", { required: true }),
@@ -196,12 +196,12 @@ const CHILDCARE = {
   ...GENERAL,
   kind: "childcare",
   teamHint: "Optional. Add staff who give tours to parents.",
-  servicesHint: "Programmes and age groups (infant, toddler, pre-K, after-school).",
+  servicesHint: "Programs and age groups (infant, toddler, pre-K, after-school).",
   defaultLength: 30,
   details: [
     f("age_range", "Ages cared for", "text", { required: true, placeholder: "e.g. 6 weeks to 5 years" }),
     f("capacity", "Places", "number", { min: 1, max: 2000 }),
-    f("license_number", "Childcare licence number", "text", { required: true }),
+    f("license_number", "Childcare license number", "text", { required: true }),
     f("waitlist_open", "Waitlist open", "yesno"),
   ],
   faqPrompts: ["Do you have places available?", "What are the drop-off times?", "Are meals included?"],
@@ -258,7 +258,7 @@ const TRAVEL = {
   servicesHint: "Trip types and services.",
   details: [
     f("destinations", "Destinations", "list", { required: true }),
-    f("license_number", "Licence or registration number", "text"),
+    f("license_number", "License or registration number", "text"),
   ],
   faqPrompts: ["Can you arrange visas?", "Do you offer travel insurance?"],
 };
@@ -282,11 +282,11 @@ export const LENGTH_OPTIONS = LENGTHS;
 // Documents an admin collects to verify the business and the person registering it.
 export const DOCUMENT_KINDS = [
   { kind: "business_registration", label: "Business registration", required: true,
-    hint: "Certificate of incorporation, business licence, or another official record showing the business exists." },
+    hint: "Certificate of incorporation, business license, or another official record showing the business exists." },
   { kind: "owner_identity", label: "Owner's photo ID", required: true,
-    hint: "Passport, driving licence or national ID of the person registering the business." },
+    hint: "Passport, driver's license or national ID of the person registering the business." },
   { kind: "tax_registration", label: "Tax registration", required: false, hint: "EIN letter, VAT or GST certificate. Optional." },
-  { kind: "professional_license", label: "Professional or trade licence", required: false, hint: "For licensed trades and professions. Optional." },
+  { kind: "professional_license", label: "Professional or trade license", required: false, hint: "For licensed trades and professions. Optional." },
 ];
 export const DOCUMENT_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/webp", "image/heic"];
 export const DOCUMENT_MAX_BYTES = 10 * 1024 * 1024;

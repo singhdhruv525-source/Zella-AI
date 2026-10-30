@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "./supabase";
 import { Icon } from "./BusinessUI";
+import { humanize } from "./copy/labels";
 
 // Small pieces shared by the business app pages and the person profile.
 
@@ -9,10 +10,12 @@ export const SOURCE_LABELS = {
   meta: "Meta", referral: "Referral", call: "Call", voice: "Voice AI", other: "Other",
 };
 export const APPT_TONE = { scheduled: "warning", confirmed: "success", completed: "info", cancelled: "", no_show: "danger" };
-export const APPT_LABEL = { scheduled: "Scheduled", confirmed: "Confirmed", completed: "Completed", cancelled: "Cancelled", no_show: "No-show" };
+export const APPT_LABEL = { scheduled: "Scheduled", confirmed: "Confirmed", completed: "Completed", cancelled: "Canceled", no_show: "No-show" };
 export const PAGE_SIZE = 25;
 
-export const sourceLabel = (s) => SOURCE_LABELS[s] ?? (s ? s.replace(/_/g, " ") : "Other");
+export { callResult, isAnswered } from "./copy/labels";
+
+export const sourceLabel = (s) => SOURCE_LABELS[s] ?? (s ? humanize(s) : "Other");
 export const plural = (n, word, many) => `${n} ${n === 1 ? word : many ?? `${word}s`}`;
 export const clock = (seconds) =>
   seconds || seconds === 0 ? `${Math.floor(seconds / 60)}:${String(Math.round(seconds % 60)).padStart(2, "0")}` : "—";
@@ -71,7 +74,7 @@ export function useLoad(loader, deps) {
       const data = await loader();
       setState({ data, error: "", loading: false });
     } catch (err) {
-      setState((s) => ({ ...s, error: err.message || String(err), loading: false }));
+      setState((s) => ({ ...s, error: friendly(err), loading: false }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
@@ -137,7 +140,11 @@ export const friendly = (error) => {
   const message = error?.message ?? String(error);
   if (/does not exist|schema cache|Could not find the/i.test(message)) return NEEDS_UPDATE;
   if (/JWT expired|invalid JWT|refresh token/i.test(message)) return CODES.NOT_SIGNED_IN;
-  return CODES[message.trim()] ?? message;
+  if (/failed to fetch|network|load failed/i.test(message)) return "Couldn't reach Zella. Check your internet connection and try again.";
+  if (CODES[message.trim()]) return CODES[message.trim()];
+  // an internal code no screen explains yet: say what happened and keep the code for support
+  if (/^[A-Z][A-Z0-9_]{2,}$/.test(message.trim())) return `That didn't work (code ${message.trim()}). Try again, or contact Zella support if it keeps happening.`;
+  return message;
 };
 
 // Check a person in (they have arrived) or undo it.

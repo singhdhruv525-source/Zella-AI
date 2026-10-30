@@ -4,6 +4,8 @@ import "./OwnerPages.css";
 import { callOwnerFunction } from "./CreateBusinessWizard";
 import { Pill } from "./OwnerOverview";
 import { Icon } from "./BusinessUI";
+import { humanize } from "./copy/labels";
+import { friendlyError } from "./admin/adminOps";
 
 // Admin > Security & Abuse. Spam and abuse across every business: totals, where it's coming from, which businesses
 // have protection on, the platform defaults new businesses start with, and platform-wide block rules.
@@ -69,7 +71,7 @@ export default function SecurityAbuse({ permissions, onOpenBusiness }) {
     try {
       setData(await callOwnerFunction("spam_admin_overview", { days }));
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setLoading(false);
     }
@@ -207,7 +209,7 @@ function Incidents({ days, onOpenBusiness }) {
     setError("");
     callOwnerFunction("spam_admin_incidents", { days, page, ...filters })
       .then((r) => live && setRes(r))
-      .catch((err) => live && setError(err.message));
+      .catch((err) => live && setError(friendlyError(err)));
     return () => { live = false; };
   }, [days, page, filters]);
 
@@ -276,7 +278,7 @@ function IncidentDrawer({ id, onClose, onOpenBusiness }) {
   const [res, setRes] = useState(null);
   const [error, setError] = useState("");
   useEffect(() => {
-    callOwnerFunction("spam_admin_incident", { incidentId: id }).then(setRes).catch((err) => setError(err.message));
+    callOwnerFunction("spam_admin_incident", { incidentId: id }).then(setRes).catch((err) => setError(friendlyError(err)));
   }, [id]);
   const inc = res?.incident;
   return createPortal(
@@ -350,7 +352,7 @@ function Coverage({ rows, onOpenBusiness }) {
                 <td>
                   <div className="owner-business-cell">
                     <button type="button" className="vq-link" onClick={() => onOpenBusiness(r.business_id)}>{r.name}</button>
-                    <span>{r.suspended ? "Suspended" : r.status ? String(r.status).replace(/_/g, " ") : ""}</span>
+                    <span>{r.suspended ? "Suspended" : r.status ? humanize(r.status) : ""}</span>
                   </div>
                 </td>
                 <td><Pill tone={r.protection === "off" ? "danger" : "success"}>{r.protection === "off" ? "Off" : r.protection === "on" ? "On" : "On by default"}</Pill></td>
@@ -381,7 +383,7 @@ function Policy({ policy, canSave, onSaved }) {
       await callOwnerFunction("spam_admin_policy_save", { policy: out });
       onSaved("Platform defaults saved. Businesses that haven't changed their own spam settings use them straight away.");
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setBusy(false);
     }
@@ -425,7 +427,7 @@ function Rules({ canManage, onChanged }) {
   const [removing, setRemoving] = useState(null);
 
   const load = useCallback(() => {
-    callOwnerFunction("spam_admin_rules").then((r) => setRules(r.rules ?? [])).catch((err) => setError(err.message));
+    callOwnerFunction("spam_admin_rules").then((r) => setRules(r.rules ?? [])).catch((err) => setError(friendlyError(err)));
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -439,7 +441,7 @@ function Rules({ canManage, onChanged }) {
       setForm({ value: "", channel: "all", reason: "", hours: "" });
       load();
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setBusy(false);
     }
@@ -454,7 +456,7 @@ function Rules({ canManage, onChanged }) {
       setRemoving(null);
       load();
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setBusy(false);
     }
@@ -546,7 +548,7 @@ function Automation({ info, canSave, onSaved }) {
       setConfirmAi(false);
       onSaved(message);
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setBusy(false);
     }

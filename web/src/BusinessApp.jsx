@@ -33,6 +33,7 @@ import BusinessToday from "./BusinessToday";
 import { AddLeadModal, BookAppointmentModal } from "./BusinessForms";
 import { Icon, loadBusinessFonts } from "./BusinessUI";
 import { formatLongDate } from "./businessTime";
+import { friendly } from "./BusinessShared";
 import { makeTerm, receptionistState } from "./businessWorkspace";
 import { navigate, segments, usePath } from "./router";
 import { buildNavigation, flatten } from "./navigation/navConfig";
@@ -68,7 +69,7 @@ const pageUrl = (base, key) =>
 const SEARCHABLE = (key) => key === "customers" || key === "leads" || key.startsWith("rec:");
 
 function Blocked({ workspace, onSignOut }) {
-  const cancelled = Boolean(workspace.cancelled_at);
+  const canceled = Boolean(workspace.cancelled_at);
   return (
     <main className="ba-auth">
       <section className="ba-auth-card">
@@ -77,9 +78,9 @@ function Blocked({ workspace, onSignOut }) {
           <div className="ba-brand-name">Zella Voice</div>
         </div>
         <div className="ba-eyebrow">{workspace.name}</div>
-        <h1>{cancelled ? "This plan has ended" : "This workspace is paused"}</h1>
+        <h1>{canceled ? "This plan has ended" : "This workspace is paused"}</h1>
         <p className="ba-auth-description">
-          {cancelled
+          {canceled
             ? "Your Zella membership has ended, so your workspace and AI receptionist are off. Your information is kept. Contact the Zella team to start again."
             : "Your workspace and AI receptionist are paused for now. Please contact the Zella team to get it running again."}
         </p>
@@ -155,7 +156,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
       setNotice("Your plan will continue. Thanks for staying with Zella.");
       await onReload();
     } catch (err) {
-      setError(err.message);
+      setError(friendly(err));
     } finally {
       setBusy(false);
     }
@@ -259,7 +260,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
               <Icon name="person_add" /><span>Add lead</span>
             </button>
             <button type="button" className="ba-btn" onClick={() => openBooking()}>
-              <Icon name="event" /><span>Book {term("appointment").toLowerCase()}</span>
+              <Icon name="event" /><span>New {term("appointment").toLowerCase()}</span>
             </button>
             <ProfileMenu email={email} name={myName} role={workspace.role} onGo={(path) => navigate(`${base}/${path}`)} onSignOut={onSignOut} />
           </div>

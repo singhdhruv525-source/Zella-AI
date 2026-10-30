@@ -3,6 +3,7 @@ import { supabase } from "./supabase";
 import { Icon, Pill } from "./BusinessUI";
 import { formatDay, formatTime, timeAgo } from "./businessTime";
 import { friendly } from "./BusinessShared";
+import { humanize } from "./copy/labels";
 
 // The messages Zella sends for one booking: its confirmation and reminders (appointment_reminders) and its follow-ups
 // (followup_tasks: no-show, thank-you). Every line shows what really happened, as the sending workflows recorded it.
@@ -17,7 +18,7 @@ const TASK_LABEL = {
   review_request: "Review request", reschedule_offer: "Offer to rebook", appointment_followup: "Follow-up",
 };
 const CHANNEL = { sms: ["sms", "Text"], email: ["mail", "Email"], call: ["call", "Call"], voice: ["call", "Call"] };
-const words = (s) => String(s ?? "").replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+const words = humanize;
 
 // What one reminder or task line says, from its recorded status and reason.
 function outcome(row, status, oneWord) {
@@ -75,7 +76,7 @@ export function BookingMessages({ workspace, appt, tz, term }) {
     const { error: e } = await supabase.rpc("zella_retry_failed", { p_business_id: workspace.id, p_kind: row.retryKind, p_id: row.id });
     setBusyId(null);
     if (e) {
-      setError(String(e.message).includes("NOT_RETRYABLE") ? "This one can't be retried any more (it already went, or the time has passed)." : friendly(e));
+      setError(String(e.message).includes("NOT_RETRYABLE") ? "This one can't be retried anymore. It already went out, or the time has passed." : friendly(e));
       return;
     }
     load();

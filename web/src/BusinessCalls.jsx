@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "./supabase";
 import { Field, Icon, Modal, Pill, initials, personName } from "./BusinessUI";
 import { formatDay, formatTime, timeAgo, todayInput, zonedDateTime } from "./businessTime";
-import { Empty, Notice, PAGE_SIZE, PageHead, Pager, Segment, clock, explain, loadPeople, orThrow, plural, useLoad } from "./BusinessShared";
+import { Empty, Notice, PAGE_SIZE, PageHead, Pager, Segment, clock, explain, loadPeople, orThrow, plural, useLoad, callResult, isAnswered } from "./BusinessShared";
 import { EscalationControls, Transcript, isOpenEscalation } from "./BusinessProfile";
 import { Assignee, useRoster } from "./BusinessLeads";
 import { CB_CLOSED, CB_REASON, when } from "./BusinessWork";
@@ -64,10 +64,10 @@ function CallDetail({ call, person, followUps, roster, workspace, onClose, onCha
       description={`${call.direction === "outbound" ? "Outgoing" : "Incoming"} call · ${formatDay(call.created_at, tz)} · ${formatTime(call.created_at, tz)}`}>
       <div className="ba-modal-body">
         {error && <p className="ba-error" role="alert">{error}</p>}
-        {isOpenEscalation(call) && <div className="ba-banner alert" role="alert"><span><strong>Needs a human.</strong> {call.escalation_reason || "The AI receptionist handed this call over."}</span></div>}
+        {isOpenEscalation(call) && <div className="ba-banner alert" role="alert"><span><strong>Needs a person.</strong> {call.escalation_reason || "The AI receptionist handed this call over."}</span></div>}
 
         <div className="ba-kn-head">
-          <Pill tone={missed ? "danger" : "success"}>{missed ? "Missed" : "Answered"}</Pill>
+          <Pill tone={callResult(call.status).tone}>{callResult(call.status).label}</Pill>
           <Pill>{call.ai_handled ? "AI receptionist" : "Team"}</Pill>
           <Pill>{clock(call.duration_seconds)}</Pill>
           {call.outcome && <Pill tone={OUTCOME_TONE[call.outcome]}>{OUTCOMES[call.outcome]}</Pill>}
@@ -190,7 +190,7 @@ function CallSuggestions({ workspace, refreshKey, onNotice }) {
   );
 }
 
-const FILTERS = [["all", "All"], ["answered", "Answered"], ["missed", "Missed"], ["ai", "AI handled"], ["human", "Needs a human"], ["recorded", "Recordings"]];
+const FILTERS = [["all", "All"], ["answered", "Answered"], ["missed", "Missed"], ["ai", "Handled by AI"], ["human", "Needs a person"], ["recorded", "Recordings"]];
 
 export function CallsPage({ workspace, refreshKey, onNotice, onOpenPerson, transcriptsOnly }) {
   const tz = workspace.timezone;
@@ -214,7 +214,7 @@ export function CallsPage({ workspace, refreshKey, onNotice, onOpenPerson, trans
 
   const all = useMemo(() => (data?.calls ?? []).filter((c) => !transcriptsOnly || c.transcript || recordingAllowed(c)), [data, transcriptsOnly]);
   const rows = all.filter((c) =>
-    filter === "missed" ? c.status === "missed" : filter === "ai" ? c.ai_handled : filter === "answered" ? c.status !== "missed"
+    filter === "missed" ? c.status === "missed" : filter === "ai" ? c.ai_handled : filter === "answered" ? isAnswered(c.status)
       : filter === "human" ? isOpenEscalation(c) : filter === "recorded" ? recordingAllowed(c) : true);
   useEffect(() => setPage(0), [filter]);
   const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
@@ -225,7 +225,7 @@ export function CallsPage({ workspace, refreshKey, onNotice, onOpenPerson, trans
   return (
     <>
       <PageHead
-        crumb={transcriptsOnly ? "AI & Intelligence / Transcripts" : "Communications / Calls"}
+        crumb={transcriptsOnly ? "AI Receptionist / Transcripts" : "Calls & messages / Calls"}
         title={transcriptsOnly ? "Transcripts and recordings" : "Calls"}
         sub={transcriptsOnly ? "What callers said and how your AI receptionist answered." : missedOpen ? `${plural(missedOpen, "missed call")} still waiting for a follow-up.` : "Every call, what came of it, and who is following up."}
       >
@@ -253,13 +253,13 @@ export function CallsPage({ workspace, refreshKey, onNotice, onOpenPerson, trans
                       <tr key={c.id} onClick={() => setOpenId(c.id)} tabIndex={0} onKeyDown={(e) => e.key === "Enter" && setOpenId(c.id)}>
                         <td><div className="ba-person"><div className="ba-avatar sm">{initials(name)}</div><div><strong>{name}</strong><small>{person ? c.from_number ?? "" : "Not in your list yet"}</small></div></div></td>
                         <td><span title={`${formatDay(c.created_at, tz)} ${formatTime(c.created_at, tz)}`}>{timeAgo(c.created_at)}</span></td>
-                        <td><Pill tone={missed ? "danger" : "success"}>{missed ? (c.metadata?.followed_up_at ? "Missed, followed up" : "Missed") : "Answered"}</Pill></td>
+                        <td><Pill tone={callResult(c.status).tone}>{missed && c.metadata?.followed_up_at ? "Missed, followed up" : callResult(c.status).label}</Pill></td>
                         <td>{c.ai_handled ? "AI receptionist" : "Team"}</td>
                         <td>{clock(c.duration_seconds)}</td>
                         <td>{c.outcome ? <Pill tone={OUTCOME_TONE[c.outcome]}>{OUTCOMES[c.outcome]}</Pill> : <span className="ba-muted">—</span>}</td>
                         <td><Assignee id={c.assigned_to} nameOf={roster.nameOf} /></td>
                         <td className="ba-actions">
-                          {isOpenEscalation(c) && <Pill tone="danger">Needs a human</Pill>}
+                          {isOpenEscalation(c) && <Pill tone="danger">Needs a person</Pill>}
                           {openLinks > 0 && <Pill tone="info" >Follow-up set</Pill>}
                           {recordingAllowed(c) && <Icon name="graphic_eq" size="sm" />}
                           {c.transcript && <Icon name="subject" size="sm" />}

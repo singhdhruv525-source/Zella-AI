@@ -12,7 +12,7 @@ const key = (name) => String(name ?? "").toLowerCase().replace(/[^a-z]/g, "");
 const BY_INDUSTRY = {
   restaurant: {
     industry_alert: (n) => [`Kitchen-side heads up: ${n.title}`, `Front of house, take a look: ${n.title}`, `Zella spotted something: ${n.title}`],
-    appointment_cancelled: ["A reservation was cancelled. A table just opened up.", "One cancellation. That table is free again."],
+    appointment_cancelled: ["A reservation was canceled. A table just opened up.", "One cancellation. That table is free again."],
     appointment_rescheduled: ["A guest picked a different time. Reservations are updated."],
     customer_arrived: (n) => [`${n.title}. Time to show them to their table!`, `${n.title}. A warm welcome awaits.`],
     new_lead: () => ["A new guest is asking about a table!", "Someone new wants to dine with you. Say hello!"],
@@ -21,13 +21,13 @@ const BY_INDUSTRY = {
     customer_request: ["A guest has a special request. Let's make it happen."],
   },
   hospitality: {
-    appointment_cancelled: ["A reservation was cancelled. That space is free again."],
+    appointment_cancelled: ["A reservation was canceled. That space is free again."],
     customer_arrived: (n) => [`${n.title}. Welcome them in!`],
     new_lead: () => ["A new guest is asking about a stay!"],
   },
   childcare: {
     new_lead: () => ["A new family is getting in touch. Say hello!"],
-    appointment_cancelled: ["A tour was cancelled. That time is free again."],
+    appointment_cancelled: ["A tour was canceled. That time is free again."],
   },
   dental: {
     new_lead: () => ["A new patient is getting in touch. Say hello!"],
@@ -46,7 +46,7 @@ function industryVoice(k) {
   return {
     new_lead: () => [`${a} new ${P} is getting in touch. Say hello!`, `Someone new wants to become ${a.toLowerCase()} ${P}. Say hello!`, `A new ${P} enquiry just arrived.`],
     callback: [`${a} ${P} is waiting for your call.`, `${a} ${P} would love a call back.`],
-    appointment_cancelled: [`A ${B} was cancelled. That time is free again.`, `One ${B} cancelled. Your calendar has room.`],
+    appointment_cancelled: [`A ${B} was canceled. That time is free again.`, `One ${B} canceled. Your calendar has room.`],
     customer_arrived: (x) => [`${x.title}. Time to welcome them in!`, `${x.title}. Your ${P} is here!`],
     customer_reply: [`${a} ${P} wrote back!`, `New reply from ${a.toLowerCase()} ${P}. The conversation is moving.`],
     customer_request: [`${a} ${P} has a request. Let's make it happen.`],
@@ -75,9 +75,9 @@ const TITLES = {
   callback_assigned: ["A callback was handed to you. Over to you!", "You've got a callback. A warm voice will go a long way."],
   callback_soon: ["A callback is coming up soon. Almost time!", "Heads up: a callback is due shortly."],
   callback_overdue: ["Someone is still waiting on that callback.", "A callback is running late. A quick call will make their day."],
-  appointment_cancelled: ["Plans changed. A slot just opened up.", "One cancellation. That time is yours again.", "A booking was cancelled. Your calendar has room."],
+  appointment_cancelled: ["Plans changed. A slot just opened up.", "One cancellation. That time is yours again.", "A booking was canceled. Your calendar has room."],
   appointment_rescheduled: ["Someone found a better time. Calendar updated!", "A booking moved. We've already updated your calendar."],
-  appointment_cancelled_mine: ["One of your bookings was cancelled. Time for a breather?", "A booking of yours was cancelled. Your calendar has room."],
+  appointment_cancelled_mine: ["One of your bookings was canceled. Time for a breather?", "A booking of yours was canceled. Your calendar has room."],
   appointment_moved_mine: ["One of your bookings moved. We've updated everything."],
   customer_arrived: (n) => [`${n.title}. Time to say hello!`, `${n.title}. Someone's here to see you!`, `Doorbell! ${n.title}.`],
   customer_reply: ["A customer wrote back!", "You've got a reply. Someone's talking to you.", "New reply. The conversation is moving."],
@@ -134,10 +134,10 @@ const TITLES = {
 // Kinds whose title carries the facts (a name, a number) keep it: the function gets the original notification.
 Object.assign(TITLES, {
   // account and plan
-  account_cancelled: ["Your Zella plan has been cancelled. We're sorry to see you go."],
+  account_cancelled: ["Your Zella plan has been canceled. We're sorry to see you go."],
   account_reactivated: ["Welcome back! Your workspace is active again.", "You're back! Everything is switched on again."],
   account_suspended: ["Your workspace is paused. Let's get it sorted together."],
-  subscription_cancelled: ["Your subscription was cancelled. Your records are safe for now."],
+  subscription_cancelled: ["Your subscription was canceled. Your records are safe for now."],
   cancellation_coming: ["Your plan is ending soon. Want to keep Zella answering?"],
   trial_ended: ["Your trial has ended. We'd love to keep helping you."],
   usage_threshold: (n) => [`Minutes check-in: ${n.title}`, `Heads up on your minutes: ${n.title}`],

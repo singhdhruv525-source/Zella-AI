@@ -11,6 +11,7 @@ import { BusinessModulesCard, BusinessRecordsCard } from "./BusinessAdminControl
 import {
   actionLabel, businessState, formatDate, formatDateTime, timeAgo, formatDuration,
 } from "./ownerFormat";
+import { friendlyError } from "./admin/adminOps";
 
 const TABS = [
   "Overview", "Configuration", "People", "AI receptionist",
@@ -164,7 +165,7 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup }) {
     try {
       setData(await callOwnerFunction("business_detail", { businessId }));
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setLoading(false);
     }
@@ -195,7 +196,7 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup }) {
       setReason("");
       await load();
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setBusy(false);
     }
@@ -248,12 +249,12 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup }) {
     },
     cancel: {
       title: "Cancel this business's membership?",
-      body: "Nothing changes until the end of their current month. The owner is emailed a link to continue their plan. If they don't, on that date the workspace is deactivated, the AI receptionist is turned off, automations stop and any subscription is cancelled. You can undo this until then.",
+      body: "Nothing changes until the end of their current month. The owner is emailed a link to continue their plan. If they don't, on that date the workspace is deactivated, the AI receptionist is turned off, automations stop and any subscription is canceled. You can undo this until then.",
       button: "Cancel at end of month",
       danger: true,
       reason: true,
       run: () => runAction("business_cancel", (r) =>
-        `${b.name} will be cancelled on ${formatDate(r.cancelAt)}. ` +
+        `${b.name} will be canceled on ${formatDate(r.cancelAt)}. ` +
         (r.emailSent
           ? `The "continue my plan" email was handed to n8n for ${invitation?.email ?? "the owner"}.`
           : `The owner was not emailed: ${r.emailError}.`)
@@ -341,7 +342,7 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup }) {
       )}
       {isCancelled && (
         <div className="wiz-note op-gap">
-          Cancelled on {formatDate(b.cancelled_at)}{b.cancellation_reason ? `: ${b.cancellation_reason}` : ""}.
+          Canceled on {formatDate(b.cancelled_at)}{b.cancellation_reason ? `: ${b.cancellation_reason}` : ""}.
           This business's data is kept, but its workspace, receptionist and automations are off.
         </div>
       )}

@@ -3,6 +3,7 @@ import { supabase } from "./supabase";
 import { Icon, Pill } from "./BusinessUI";
 import { formatDay, formatTime, timeAgo } from "./businessTime";
 import { explain } from "./BusinessShared";
+import { humanize } from "./copy/labels";
 
 /* What each automation does in plain words, and what has actually happened when it ran. */
 
@@ -12,7 +13,7 @@ const minsText = (m) => (m === 0 ? "straight away" : m >= 60 ? `${m / 60} hour${
 
 
 // Industry automations (records, reminders, check-ins) carry their steps in the saved rule.
-const label = (v) => String(v ?? "").replace(/_/g, " ");
+const label = humanize;
 function ruleActions(rule = {}) {
   const parts = [];
   if (rule.message) parts.push(rule.mode === "draft" ? "write a message for a person to check and send" : "send a message");
@@ -97,7 +98,7 @@ export function describe(type, cfg = {}) {
       actions: `Reach out by ${ch} to win them back.`,
     },
     waitlist_offer: {
-      trigger: "A booking is cancelled or a slot opens",
+      trigger: "A booking is canceled or a slot opens",
       conditions: "Someone is on the waitlist.",
       actions: `Offer the slot to up to ${cfg.offers ?? 3} people, each for ${cfg.offer_minutes ?? 30} minutes, by ${ch}.`,
     },
@@ -111,7 +112,7 @@ export function describe(type, cfg = {}) {
 }
 
 export const RUN_TONE = { completed: "success", failed: "danger", running: "info", queued: "warning", waiting: "warning", cancelled: "" };
-export const RUN_LABEL = { completed: "Done", failed: "Failed", running: "Running", queued: "Waiting to run", waiting: "Waiting", cancelled: "Cancelled" };
+export const RUN_LABEL = { completed: "Done", failed: "Failed", running: "Running", queued: "Waiting to run", waiting: "Waiting", cancelled: "Canceled" };
 
 const AUDIT_LABEL = {
   "automation.changed": "Settings or on/off changed",
@@ -120,7 +121,7 @@ const AUDIT_LABEL = {
 
 export function failureReason(run) {
   if (run.error_message) return run.error_message;
-  if (run.last_action_status && run.last_action_status !== "ok") return String(run.last_action_status).replace(/_/g, " ");
+  if (run.last_action_status && run.last_action_status !== "ok") return humanize(run.last_action_status);
   return "No reason was recorded.";
 }
 

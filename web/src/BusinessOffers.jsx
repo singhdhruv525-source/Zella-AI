@@ -64,7 +64,7 @@ export function OffersPanel({ workspace }) {
     const { error: e } = await supabase.rpc("zella_offer_cancel_claim", { p_redemption_id: claimed.id });
     setBusy("");
     if (e) return setMessage(friendly(e));
-    setMessage("Claim cancelled.");
+    setMessage("Claim canceled.");
     reload();
   }
 

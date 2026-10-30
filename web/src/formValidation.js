@@ -111,7 +111,7 @@ export function checkPhone(text, iso, { required = false } = {}) {
     if (raw.replace(/^\s*(\+|00)/, "").trim() === "") return { error: "Enter the number after the country code.", value: "" };
     digits = digitsOf(raw.replace(/^\s*(\+|00)/, ""));
     const dial = dialPrefix(digits);
-    if (!dial) return { error: "That country code isn't recognised. Check the digits after the +.", value: "" };
+    if (!dial) return { error: "That country code isn't recognized. Check the digits after the +.", value: "" };
     if (dial !== country.dial) {
       const other = countryForDial(dial, null);
       return { error: `This number starts with +${dial} (${countryName(other.iso)}), but the country is set to ${name} (+${country.dial}). Change the country or fix the number.`, value: "" };

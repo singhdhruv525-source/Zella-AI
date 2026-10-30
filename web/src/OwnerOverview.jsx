@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import "./OwnerPages.css";
 import { callOwnerFunction } from "./CreateBusinessWizard";
 import { actionLabel, stageLabel, stageTone, timeAgo, formatDate } from "./ownerFormat";
+import { humanize } from "./copy/labels";
+import { friendlyError } from "./admin/adminOps";
 
 const ATTENTION_LABELS = {
   invitation_failed: "Invitation failed",
@@ -37,7 +39,7 @@ function Panel({ title, description, action, children }) {
 
 export function Pill({ tone = "neutral", children }) {
   // Sentence case for plain status words ("past_due" -> "Past due"); anything else is shown as given.
-  const text = typeof children === "string" ? children.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()) : children;
+  const text = typeof children === "string" ? humanize(children) : children;
   return <span className={`op-pill op-pill-${tone}`}>{text}</span>;
 }
 
@@ -52,7 +54,7 @@ export default function OwnerOverview({ onCreateBusiness, onOpenBusiness, onCont
     try {
       setData(await callOwnerFunction("overview_data"));
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setLoading(false);
     }
@@ -102,7 +104,7 @@ export default function OwnerOverview({ onCreateBusiness, onOpenBusiness, onCont
         <Metric label="Calls (30 days)" value={show(s?.callsLast30Days)} note={`${show(s?.aiCallsLast30Days)} handled by AI`} />
         <Metric label="Open support tickets" value={show(s?.openTickets)} note="Open or in progress" />
         <Metric label="Needs attention" value={show(data?.attention?.length)} note="Failed invites, errors" />
-        <Metric label="Suspended / cancelling" value={loading && !data ? "…" : `${s?.suspended ?? 0} / ${s?.cancelling ?? 0}`} note={`${show(s?.cancelled)} cancelled`} />
+        <Metric label="Suspended / canceling" value={loading && !data ? "…" : `${s?.suspended ?? 0} / ${s?.cancelling ?? 0}`} note={`${show(s?.cancelled)} canceled`} />
       </div>
 
       <div className="op-grid">

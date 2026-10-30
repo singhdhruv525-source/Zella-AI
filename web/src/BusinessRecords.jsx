@@ -368,18 +368,18 @@ export function RecordSettingsPage({ workspace, types, canManage, onNotice, onCh
   if (!canManage) {
     return (
       <>
-        <PageHead crumb="Business operations / Customise records" title="Customise records" sub="Only owners and managers can change how records look." />
+        <PageHead crumb="Business operations / Customize records" title="Customize records" sub="Only owners and managers can change how records look." />
         <Empty title="Ask an owner or manager">They can rename records, change statuses and add fields.</Empty>
       </>
     );
   }
   return (
     <>
-      <PageHead crumb="Business operations / Customise records" title="Customise records" sub="Rename what you track, change its statuses, and add the fields your team needs. Other businesses are not affected.">
+      <PageHead crumb="Business operations / Customize records" title="Customize records" sub="Rename what you track, change its statuses, and add the fields your team needs. Other businesses are not affected.">
         <button type="button" className="ba-btn primary" onClick={() => setEditing("new")}><Icon name="add" size="sm" /> Add a type of record</button>
       </PageHead>
       <section className="ba-panel">
-        {types.length === 0 ? <div className="ba-panel-body"><Empty title="Nothing to customise yet">Your records appear here once your industry is set up.</Empty></div> : (
+        {types.length === 0 ? <div className="ba-panel-body"><Empty title="Nothing to customize yet">Your records appear here once your industry is set up.</Empty></div> : (
           <div className="ba-table-wrap">
             <table className="ba-table">
               <thead><tr><th>Record</th><th>Statuses</th><th>Fields</th><th>Menu</th><th /></tr></thead>

@@ -3,6 +3,8 @@ import "./OwnerPages.css";
 import { callOwnerFunction } from "./CreateBusinessWizard";
 import { Pill } from "./OwnerOverview";
 import { formatDate } from "./ownerFormat";
+import { humanize } from "./copy/labels";
+import { friendlyError } from "./admin/adminOps";
 
 const SUB_TONE = {
   trial: "info", active: "success", renewal_due: "warning", past_due: "danger",
@@ -32,7 +34,7 @@ export default function PlansPage({ onOpenBusiness }) {
     try {
       setData(await callOwnerFunction("plans_list"));
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setLoading(false);
     }
@@ -51,7 +53,7 @@ export default function PlansPage({ onOpenBusiness }) {
       setEditing(null);
       await load();
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setBusy(false);
     }
@@ -154,7 +156,7 @@ export default function PlansPage({ onOpenBusiness }) {
                 <tr key={s.id}>
                   <td><button type="button" className="op-name" onClick={() => onOpenBusiness(s.business_id)}>{s.business_name}</button></td>
                   <td>{s.plan_name}</td>
-                  <td><Pill tone={SUB_TONE[s.status] ?? "neutral"}>{String(s.status ?? "").replace(/_/g, " ")}</Pill></td>
+                  <td><Pill tone={SUB_TONE[s.status] ?? "neutral"}>{humanize(s.status)}</Pill></td>
                   <td className="op-cap">{s.billing_interval ?? "—"}</td>
                   <td>{formatDate(s.created_at)}</td>
                 </tr>

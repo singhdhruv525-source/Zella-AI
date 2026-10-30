@@ -27,15 +27,16 @@ import { Pill } from "./OwnerOverview";
 import { businessState } from "./ownerFormat";
 import { navigate, segments, usePath } from "./router";
 import { maintenanceText, usePlatformInfo } from "./platformInfo";
+import { humanize } from "./copy/labels";
 
 const STATE_FILTERS = [
   ["all", "All businesses"],
   ["draft", "Draft"],
   ["complete", "Setup complete"],
   ["live", "Live"],
-  ["cancelling", "Cancelling"],
+  ["cancelling", "Canceling"],
   ["suspended", "Suspended"],
-  ["cancelled", "Cancelled"],
+  ["cancelled", "Canceled"],
 ];
 
 function matchesState(business, filter) {
@@ -49,7 +50,7 @@ loadBusinessFonts();
 
 // Invitation states as badges: the label says it, the colour backs it up.
 const INVITE_TONE = { accepted: "success", sent: "warning", pending: "warning", failed: "danger", expired: "danger", revoked: "neutral" };
-const words = (s) => String(s ?? "").replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+const words = humanize;
 
 // The admin sidebar. Each page lists the permission it needs (the same one the server checks for its data), so an
 // admin with a restricted role only sees pages they can use. Items with `tabs` take a tab in the address (<path>/<tab>).

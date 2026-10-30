@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { callOwnerFunction } from "./CreateBusinessWizard";
 import { Pill } from "./OwnerOverview";
 import { Icon } from "./BusinessUI";
+import { friendlyError } from "./admin/adminOps";
 
 // Industry records: the record types a business in this industry gets in its CRM, beyond customers and bookings
 // (a restaurant's tables and events, a dental practice's recalls, a garage's vehicles). Kept per industry in
@@ -51,7 +52,7 @@ export default function IndustryRecords({ industryId, industryName }) {
       setData(d);
       setTypes(withEditState(d.types));
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setLoading(false);
     }
@@ -74,7 +75,7 @@ export default function IndustryRecords({ industryId, industryName }) {
       setNotice(r.created ? `${industryName} now has its own record types.` : "Record types saved.");
       await load();
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setSaving(false);
     }
@@ -147,7 +148,7 @@ export default function IndustryRecords({ industryId, industryName }) {
                       {t.statuses.map((s, j) => (
                         <div key={j} className="ir-row">
                           <input aria-label="Status label" value={s.label} placeholder="Label" onChange={(e) => setStatus(i, j, { label: e.target.value })} />
-                          <select aria-label="Colour" value={s.tone} onChange={(e) => setStatus(i, j, { tone: e.target.value })}>
+                          <select aria-label="Color" value={s.tone} onChange={(e) => setStatus(i, j, { tone: e.target.value })}>
                             {TONES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                           </select>
                           <span className="op-muted ir-key">{s.key || keyFrom(s.label) || "—"}</span>

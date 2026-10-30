@@ -1,12 +1,13 @@
 import { supabase } from "./supabase";
 import { Icon, Pill } from "./BusinessUI";
 import { Empty, Notice, useLoad } from "./BusinessShared";
+import { humanize } from "./copy/labels";
 
 // Reports and banners computed by the database from real records
 // (sql/zella_monitoring.sql, sql/zella_security_extras.sql, sql/zella_reconnect.sql).
 // Each function checks the person's membership or role itself.
 
-const words = (s) => String(s ?? "").replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+const words = humanize;
 const pct = (n, d) => (d ? `${Math.round((n / d) * 100)}%` : "—");
 
 async function rpc(name, args) {

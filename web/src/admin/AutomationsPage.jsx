@@ -147,7 +147,7 @@ function AutomationDrawer({ id, onClose, onOpenBusiness, onChanged }) {
           <Facts rows={[["Follow-ups", queue(d.data.queue.followups)], d.data.queue.reminders !== null ? ["Reminders", queue(d.data.queue.reminders)] : null]} />
           <h3 className="ao-h3">Recent runs</h3>
           {d.data.runs.length ? (
-            <ol className="ao-timeline">{d.data.runs.map((r) => <li key={r.id}><strong><Pill tone={tone(r.status)}>{r.status}</Pill> {when(r.created_at)}</strong><span>{r.error ?? (r.completed_at ? `Finished ${when(r.completed_at)}` : "")}</span></li>)}</ol>
+            <ol className="ao-timeline">{d.data.runs.map((r) => <li key={r.id}><strong><Pill tone={tone(r.status)}>{words(r.status)}</Pill> {when(r.created_at)}</strong><span>{r.error ?? (r.completed_at ? `Finished ${when(r.completed_at)}` : "")}</span></li>)}</ol>
           ) : <p className="op-muted">No runs recorded. Reminders and follow-ups are sent from the queue above rather than as runs.</p>}
           <h3 className="ao-h3">Changes</h3>
           {d.data.history.length ? (
@@ -186,7 +186,7 @@ function Runs({ failed, me, options, say, onOpenBusiness }) {
       <Filters>
         <Search value={f.q} onChange={setQ} placeholder="Workflow or error" />
         <Select label="Period" value={String(f.days)} any={null} onChange={(v) => set("days")(Number(v))} options={PERIODS.map(([d, l]) => [String(d), l])} />
-        {!failed && <Select label="Status" value={f.status} onChange={set("status")} options={[["running", "Running"], ["succeeded", "Succeeded"], ["failed", "Failed"], ["cancelled", "Cancelled"]]} />}
+        {!failed && <Select label="Status" value={f.status} onChange={set("status")} options={[["running", "Running"], ["succeeded", "Succeeded"], ["failed", "Failed"], ["cancelled", "Canceled"]]} />}
         <Select label="Business" value={f.business} onChange={set("business")} options={(options?.businesses ?? []).map((b) => [b.id, b.name])} />
       </Filters>
       <ErrorNote error={list.error} onRetry={list.reload} />
@@ -194,7 +194,7 @@ function Runs({ failed, me, options, say, onOpenBusiness }) {
         empty={failed ? "No failed runs in this period." : "No runs recorded in this period."}
         columns={[
           ["Started", (r) => when(r.started_at)], ["Workflow", (r) => <strong>{r.name}</strong>], ["Business", (r) => r.business_name ?? "Platform"],
-          ["Status", (r) => <span className="ao-flags"><Pill tone={tone(r.status)}>{r.status}</Pill>{r.needs_manual && <Pill tone="warning">Needs a person</Pill>}</span>],
+          ["Status", (r) => <span className="ao-flags"><Pill tone={tone(r.status)}>{words(r.status)}</Pill>{r.needs_manual && <Pill tone="warning">Needs a person</Pill>}</span>],
           ["Time", (r) => duration(r.duration_seconds)], ["Tries", (r) => r.attempts ?? 0],
           ["Error", (r) => (r.error ? `${r.failed_step ? `${r.failed_step}: ` : ""}${r.error}` : "—")],
         ]} />
@@ -215,7 +215,7 @@ function RunDrawer({ row, me, onClose, onOpenBusiness, onChanged }) {
       {!r ? <p className="op-muted">Loading…</p> : (
         <>
           <Facts rows={[["Business", r.business_id ? <button key="b" type="button" className="ao-link" onClick={() => onOpenBusiness(r.business_id)}>{r.business_name}</button> : "Platform"],
-            ["Status", <Pill key="s" tone={tone(r.status)}>{r.status}</Pill>], r.version ? ["Workflow version", r.version] : null,
+            ["Status", <Pill key="s" tone={tone(r.status)}>{words(r.status)}</Pill>], r.version ? ["Workflow version", r.version] : null,
             ["Started", when(r.started_at)], ["Finished", when(r.finished_at)], ["Tries", r.attempts ?? 0],
             r.current_step ? ["Step", String(r.current_step)] : null, r.error_category ? ["Error type", words(r.error_category)] : null, r.error ? ["Error", r.error] : null,
             r.next_run_at ? ["Next try", when(r.next_run_at)] : null, r.providers_called?.length ? ["Providers called", r.providers_called.join(", ")] : null,
@@ -297,7 +297,7 @@ function Infrastructure() {
         <ErrorNote error={h.error} onRetry={h.reload} />
         {s && <DataTable rows={s.jobs} rowKey={(j) => j.name} empty="No Zella jobs found."
           columns={[["Job", (j) => <code>{j.name}</code>], ["Schedule", (j) => <code>{j.schedule}</code>], ["State", (j) => <Pill tone={j.active ? "success" : "neutral"}>{j.active ? "Running" : "Off"}</Pill>],
-            ["Last run", (j) => (j.last_run ? <span><Pill tone={j.last_run.status === "succeeded" ? "success" : "danger"}>{j.last_run.status}</Pill> {when(j.last_run.at)}</span> : "Never")],
+            ["Last run", (j) => (j.last_run ? <span><Pill tone={j.last_run.status === "succeeded" ? "success" : "danger"}>{words(j.last_run.status)}</Pill> {when(j.last_run.at)}</span> : "Never")],
             ["Last success", (j) => when(j.last_success)], ["Failures (24 h)", (j) => (j.failures_24h ? <Pill tone="danger">{j.failures_24h}</Pill> : 0)]]} />}
         <p className="op-muted">Jobs are switched on at go-live (n8n/GO-LIVE.md), not from this page, so a click can't start sending to customers.</p>
       </Panel>
