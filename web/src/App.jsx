@@ -25,6 +25,12 @@ export default function App() {
     window.location.replace(`/welcome${window.location.search}`);
     return null;
   }
+  // app.<domain> is the business CRM: its front page opens the CRM, so customers never land on the admin sign-in.
+  // admin.<domain> (or any other address) keeps the admin dashboard at "/". Every other path works on both.
+  if (/^app\./i.test(window.location.hostname) && window.location.pathname === "/") {
+    window.location.replace(`/app${window.location.search}${window.location.hash}`);
+    return null;
+  }
   if (window.location.pathname.startsWith("/continue-plan")) {
     return <ContinuePlan />;
   }
