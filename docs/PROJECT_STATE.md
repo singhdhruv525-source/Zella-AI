@@ -76,7 +76,7 @@ Two kinds of email:
    OFF (would break sign-in links). GoDaddy's own email records unchanged.
    Next:
    - the owner creates a "Sending access" API key for zellavoice.com and enters it in Supabase > Authentication >
-     Emails > SMTP: host `smtp.resend.com`, port 465, user `resend`, sender `Zella <no-reply@zellavoice.com>`;
+     Emails > SMTP: host `smtp.resend.com`, port 465, user `resend`, sender `Zella AI <no-reply@zellavoice.com>`;
    - check it, then test by signing in as the owner only;
    - then set `email_from_address`, reply-to support@, and branded templates.
 
@@ -92,5 +92,7 @@ Two kinds of email:
 - Telnyx SMS (`sms_from_number`), Stripe billing webhook secret, provider health checks.
 - Anthropic key for knowledge AI drafting when budget allows.
 - Trademark check for the name "Zella".
+- Rebrand "Zella AI" to "Zella Voice" later (owner's decision, 30 Oct): app titles, emails, receptionist
+  greeting, SMTP sender name.
 - Audit follow-ups M-3, M-4, M-5, L-1 to L-5: see `docs/ZELLA_REMEDIATION_CHECKLIST.md`
   (full audit in `docs/ZELLA_END_TO_END_AUDIT.md`).
