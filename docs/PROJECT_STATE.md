@@ -23,6 +23,10 @@ Last updated: 30 October 2026.
   business CRM at `/app`.
 - Domains (GoDaddy, with GoDaddy email): **zellavoice.com** (main) and **zellaai.in** (spare; forward or leave).
   Keep DNS at GoDaddy; don't change nameservers or delete the email MX records.
+  Status 30 Oct: zellavoice.com paid (domain, Full Domain Protection, Professional Email Pro Light) but still in
+  GoDaddy's "fulfillment" (support chat confirmed; visible within a few hours). Until it shows in Domains >
+  Portfolio, don't add DNS records by hand and don't buy it again. Once it shows, finish the Email setup (GoDaddy
+  should add the email records itself), then hosting.
 
 ## Voice (Vapi)
 
