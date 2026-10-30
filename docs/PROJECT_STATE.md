@@ -60,9 +60,12 @@ After it's live, set:
 ## Email (in progress)
 
 Two kinds of email:
-1. **People inboxes (GoDaddy email):** one mailbox `hello@zellavoice.com`, with aliases or forwards `support@`,
-   `info@`, `billing@`. *Step 1, owner doing now.* Next: owner reports "inbox working" and the plan
-   (Microsoft 365 or Professional Email).
+1. **People inboxes (GoDaddy email):** mailbox `dhruv@zellavoice.com` (Dhruv's own, also his future admin
+   login), with aliases or forwards `hello@`, `support@`, `info@`, `billing@` while he works alone. Move the
+   shared aliases to their own mailbox when support staff join. *Step 1, owner doing now.* Next: owner reports
+   "inbox working" and the plan (Microsoft 365 or Professional Email).
+   Then switch Dhruv's super-admin login from his Gmail to `dhruv@zellavoice.com` (Supabase > Authentication >
+   Users > change email; admin rights follow the user id).
 2. **Automatic emails (Resend):** sign-in codes, verification, password reset, invites, reminders. Sent from
    `no-reply@zellavoice.com`, with replies going to `support@zellavoice.com`. *Step 2:*
    - the owner verifies `zellavoice.com` in Resend by adding Resend's DNS records in GoDaddy (extra records
@@ -78,6 +81,9 @@ Two kinds of email:
    `email_live` stays off until approved.
 
 ## Still to do later
+
+- Super admins: three `zella_owner` accounts. One (abhidakshmurya@…) has never signed in and looks like a typo
+  of abhidakshmaurya@…; remove it only if the owner says yes.
 
 - Assign phone numbers to businesses (Admin > Voice & numbers).
 - n8n: vault secret `zella_n8n_secret`, publish workflows, `zella_dispatch` job on (see `n8n/GO-LIVE.md`).
