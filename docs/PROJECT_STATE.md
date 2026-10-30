@@ -64,12 +64,12 @@ After it's live, set:
 ## Email (in progress)
 
 Two kinds of email:
-1. **People inboxes (GoDaddy email):** mailbox `dhruv@zellavoice.com` (Dhruv's own, also his future admin
-   login), with aliases or forwards `hello@`, `support@`, `info@`, `billing@` while he works alone. Move the
-   shared aliases to their own mailbox when support staff join. *Step 1, owner doing now.* Next: owner reports
-   "inbox working" and the plan (Microsoft 365 or Professional Email).
-   Then switch Dhruv's super-admin login from his Gmail to `dhruv@zellavoice.com` (Supabase > Authentication >
-   Users > change email; admin rights follow the user id).
+1. **People inboxes (GoDaddy Professional Email Pro Light, 3 mailboxes; DNS records added by GoDaddy and checked):**
+   mailboxes `dhruv@zellavoice.com` and `abhishek@zellavoice.com` (both GoDaddy email admins), one mailbox free.
+   Aliases (reply "From" the alias): `info@`, `support@` on abhishek@; `billing@`, `hello@` on dhruv@.
+   Next: test each address from Gmail, then switch Dhruv's super-admin login from Gmail to `dhruv@zellavoice.com`
+   (Supabase > Authentication > Users > change email; admin rights follow the user id). Zella's automatic emails
+   will use reply-to `support@zellavoice.com`.
 2. **Automatic emails (Resend):** sign-in codes, verification, password reset, invites, reminders. Sent from
    `no-reply@zellavoice.com`, with replies going to `support@zellavoice.com`. *Step 2:*
    - the owner verifies `zellavoice.com` in Resend by adding Resend's DNS records in GoDaddy (extra records
