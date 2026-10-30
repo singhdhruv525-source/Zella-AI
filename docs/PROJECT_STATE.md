@@ -38,9 +38,11 @@ Last updated: 30 October 2026.
   managers or a Zella admin can change it: business Settings > Receptionist, or Admin > business > AI receptionist
   (`sql/zella_business_voice.sql`, `web/src/settings/VoicePanel.jsx`).
 - Test assistant "test saloon receptionist" loaded with the generated config; it answers.
-- **Open issue:** real Vapi requests to `voice-rules` get 401 (`refused_unauthenticated`) because they arrive
-  without the `x-signature`/`x-timestamp` headers. Next: check the Vapi credential's HMAC settings
-  (GET the credential, secret hidden) and whether web "Talk" test calls are signed.
+- Auth switched 30 Oct from HMAC to a Bearer token: Vapi kept the HMAC credential and every tool linked to it, but
+  sent no signature on real calls. Same credential id, now `authenticationPlan.type = bearer`
+  (`tests/vapi/switch-credential-to-bearer.mjs`); token in vault `zella_vapi_bearer_token`; setting
+  `vapi_auth_mode` = "bearer" (set it back to "hmac" to undo). Database check passes (right token ok, wrong refused,
+  missing refused). Next: a real test call to confirm.
 
 ## Knowledge base
 
