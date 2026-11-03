@@ -228,3 +228,81 @@ insert into public.platform_settings (key, value) values ('vapi_server_url', 'nu
   on conflict (key) do nothing;
 -- the model decision of 2026-10-28: claude-sonnet-5 (the configured claude-sonnet-5-5 is not offered by Vapi); only replaces that exact value
 update public.platform_settings set value = '"claude-sonnet-5"'::jsonb where key = 'voice_llm_model' and value = '"claude-sonnet-5-5"'::jsonb;
+
+-- Services and address the receptionist knows before any call (added 3 Nov 2026).
+-- Services live in the default receptionist's ai_agent_configs.knowledge_base.services (the create-business wizard
+-- already saves them there): [{ name, description, price, duration_minutes }] (older rows may carry a text "duration").
+-- zella_business_services_get / _save: every member can read; owners, admins and managers, or a Zella admin with
+-- ai.configure, can change them. Changes are audited. The prompt lists them, with the business address, so the
+-- receptionist can name services, ask which one the caller wants and book it with the right length.
+
+create or replace function public.zella_business_services_get(p_business_id uuid) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare v_svc jsonb;
+begin
+  if auth.uid() is null or not (public.zella_is_member(p_business_id) or public.zella_admin_can('businesses.view')) then raise exception 'NOT_ALLOWED'; end if;
+  select coalesce(c.knowledge_base -> 'services', '[]'::jsonb) into v_svc
+    from public.ai_agents a join public.ai_agent_configs c on c.agent_id = a.id
+   where a.business_id = p_business_id and a.is_default order by c.updated_at desc nulls last limit 1;
+  return jsonb_build_object('services', coalesce(v_svc, '[]'::jsonb),
+    'can_edit', public.zella_can_manage(p_business_id) or public.zella_admin_can('ai.configure'));
+end $$;
+revoke all on function public.zella_business_services_get(uuid) from public, anon;
+grant execute on function public.zella_business_services_get(uuid) to authenticated;
+
+create or replace function public.zella_business_services_save(p_business_id uuid, p_services jsonb) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare v_cfg uuid; v_old jsonb; v_new jsonb := '[]'::jsonb; s jsonb; v_name text; v_min int;
+begin
+  if auth.uid() is null or not (public.zella_can_manage(p_business_id) or public.zella_admin_can('ai.configure')) then raise exception 'NOT_ALLOWED'; end if;
+  if jsonb_typeof(p_services) is distinct from 'array' or jsonb_array_length(p_services) > 100 then raise exception 'BAD_INPUT'; end if;
+  for s in select * from jsonb_array_elements(p_services) loop
+    v_name := left(regexp_replace(trim(coalesce(s ->> 'name', '')), '\s+', ' ', 'g'), 120);
+    if v_name = '' then continue; end if;
+    v_min := case when (s ->> 'duration_minutes') ~ '^\d{1,3}$' then (s ->> 'duration_minutes')::int end;
+    if v_min is not null and (v_min < 5 or v_min > 480) then raise exception 'BAD_DURATION'; end if;
+    v_new := v_new || jsonb_build_array(jsonb_strip_nulls(jsonb_build_object('name', v_name,
+      'description', nullif(left(trim(coalesce(s ->> 'description', '')), 600), ''),
+      'price', nullif(left(trim(coalesce(s ->> 'price', '')), 60), ''),
+      'duration_minutes', v_min)));
+  end loop;
+  select c.id, coalesce(c.knowledge_base -> 'services', '[]'::jsonb) into v_cfg, v_old
+    from public.ai_agents a join public.ai_agent_configs c on c.agent_id = a.id
+   where a.business_id = p_business_id and a.is_default order by c.updated_at desc nulls last limit 1;
+  if v_cfg is null then raise exception 'NO_RECEPTIONIST'; end if;
+  update public.ai_agent_configs set knowledge_base = jsonb_set(coalesce(knowledge_base, '{}'::jsonb), '{services}', v_new), updated_at = now() where id = v_cfg;
+  insert into public.audit_logs (business_id, user_id, action, entity_type, entity_id, old_data, new_data)
+  values (p_business_id, auth.uid(), 'receptionist.services_changed', 'business', p_business_id,
+          jsonb_build_object('count', jsonb_array_length(v_old)), jsonb_build_object('count', jsonb_array_length(v_new)));
+  return public.zella_business_services_get(p_business_id);
+end $$;
+revoke all on function public.zella_business_services_save(uuid, jsonb) from public, anon;
+grant execute on function public.zella_business_services_save(uuid, jsonb) to authenticated;
+
+do $$
+declare sig text := 'public.zella_brain_prompt_base(uuid)';
+begin
+  perform public.zella_patch_function(sig, 'v_services text',
+    $a$h record; v_lines text := '';$a$,
+    $b$h record; v_lines text := ''; v_services text := ''; v_address text;$b$);
+  perform public.zella_patch_function(sig, 'v_svc_rows',
+    $a$  t := 'You are ' ||$a$,
+    $b$  -- v_svc_rows: the receptionist's services and the business address (approved facts it may say)
+  select coalesce(string_agg('- ' || (x ->> 'name')
+           || coalesce(' (' || nullif(concat_ws(', ', coalesce((x ->> 'duration_minutes') || ' min', nullif(x ->> 'duration', '')), nullif(x ->> 'price', '')), '') || ')', '')
+           || coalesce(': ' || left(nullif(x ->> 'description', ''), 160), '') || E'\n', ''), '')
+    into v_services
+    from public.ai_agents a join public.ai_agent_configs cfg on cfg.agent_id = a.id,
+         jsonb_array_elements(case when jsonb_typeof(cfg.knowledge_base -> 'services') = 'array' then cfg.knowledge_base -> 'services' else '[]'::jsonb end) x
+   where a.business_id = p_business_id and a.is_default and coalesce(x ->> 'name', '') <> '';
+  select nullif(concat_ws(', ', nullif(b.address_line_1, ''), nullif(b.address_line_2, ''), nullif(b.city, ''), nullif(b.state, ''), nullif(b.postal_code, ''), nullif(b.country, '')), '')
+    into v_address from public.businesses b where b.id = p_business_id
+     and (nullif(b.address_line_1, '') is not null or nullif(b.city, '') is not null);  -- street or city given, else no address
+  t := 'You are ' ||$b$);
+  perform public.zella_patch_function(sig, 'SERVICES (the only',
+    $a$E'- not set; use check_open_hours\n')$a$,
+    $b$E'- not set; use check_open_hours\n')
+    || coalesce(E'- Address: ' || v_address || E' (you may give this to callers)\n', '')
+    || case when v_services <> '' then E'\nSERVICES (the only services you may offer; quote a price only where one is given)\n' || v_services
+         || E'- When the caller wants to book, ask which service they want unless they already said it. Use that service''s length as duration_minutes for check_availability and book_appointment, and its name as the title.\n' else '' end$b$);
+end $$;

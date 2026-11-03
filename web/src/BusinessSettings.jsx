@@ -42,6 +42,7 @@ const SAY = {
   BAD_COUNTRY: "Choose a country.", BAD_TIMEZONE: "Choose a time zone from the list.", SUBJECT_REQUIRED: "Write a short subject.",
   SPEND_LIMIT_REQUIRED: "Set a spending limit to allow paid usage.", BAD_LOGO_URL: "Upload the logo here so it's stored with your workspace.",
   BAD_INPUT: "Something in the form isn't valid.", NO_PHONE: "Add your mobile number under Personal profile first.",
+  BAD_DURATION: "Service length must be between 5 and 480 minutes.", NO_RECEPTIONIST: "This business has no AI receptionist yet, so services can't be saved.",
 };
 const say = (e) => { const m = e?.message ?? String(e); const k = Object.keys(SAY).find((c) => m.includes(c)); return k ? SAY[k] : friendly(e); };
 async function rpc(name, args) {
@@ -141,6 +142,51 @@ function BusinessHours({ w }) {
         <Facts rows={[["Break periods", "Add a second time range on the same day, for example 9–12 and 1–5"], ["Emergency calls", "AI receptionist > Escalation and fallback decides who is alerted at once"]]} />
       </Card>
     </>
+  );
+}
+
+/* ---------- Services the AI receptionist offers ---------- */
+// Read and saved with zella_business_services_get / _save (sql/zella_voice_assistant.sql). The receptionist lists
+// them on calls, asks which one the caller wants and books it with its length; a price is only quoted when given.
+const blankService = () => ({ name: "", duration_minutes: "", price: "", description: "" });
+const asRow = (s) => ({ name: s.name ?? "", duration_minutes: s.duration_minutes ? String(s.duration_minutes) : "", price: s.price ?? "", description: s.description ?? "" });
+
+function ServicesPanel({ w }) {
+  const state = useAsync(() => rpc("zella_business_services_get", { p_business_id: w.id }), [w.id]);
+  return <LoadState state={state}>{(d) => <ServicesEditor key={JSON.stringify(d.services)} w={w} data={d} />}</LoadState>;
+}
+
+function ServicesEditor({ w, data }) {
+  const form = useForm({ rows: (data.services ?? []).map(asRow) });
+  const rows = form.values.rows;
+  const edit = data.can_edit;
+  const setRow = (i, key) => (e) => form.setValues((v) => ({ rows: v.rows.map((r, j) => (j === i ? { ...r, [key]: e.target.value } : r)) }));
+  const badLength = (r) => r.duration_minutes !== "" && !(/^\d{1,3}$/.test(r.duration_minutes) && Number(r.duration_minutes) >= 5 && Number(r.duration_minutes) <= 480);
+  const invalid = rows.some(badLength) || rows.some((r) => !r.name.trim() && (r.price || r.description || r.duration_minutes));
+  async function save() {
+    await form.save(async (v) => {
+      const next = await rpc("zella_business_services_save", { p_business_id: w.id, p_services: v.rows.filter((r) => r.name.trim()).map((r) => ({
+        name: r.name.trim(), duration_minutes: r.duration_minutes ? Number(r.duration_minutes) : null, price: r.price.trim(), description: r.description.trim(),
+      })) });
+      return { rows: (next.services ?? []).map(asRow) };
+    }, "Saved. The receptionist uses these the next time its settings are sent to the phone line.");
+  }
+  return (
+    <Card title="Services" sub="What callers can ask about and book. Your AI receptionist names these services, asks which one the caller wants, and books it for the right length. It quotes a price only when you enter one.">
+      {!edit && <Banner tone="warn">Only owners, admins and managers can change services. You can see them.</Banner>}
+      {rows.length === 0 && <Empty title="No services yet">Add the services callers can book, like "Haircut, 30 minutes".</Empty>}
+      {rows.map((r, i) => (
+        <div key={i} className="zs-grid" style={{ marginBottom: 12, paddingBottom: 12, borderBottom: "1px solid var(--zs-line, rgba(0,0,0,.08))" }}>
+          <Field label="Service name"><input value={r.name} onChange={setRow(i, "name")} maxLength={120} disabled={!edit} placeholder={i === 0 ? "Haircut" : ""} /></Field>
+          <Field label="Length (minutes)" error={badLength(r) ? "Between 5 and 480." : ""}><input value={r.duration_minutes} onChange={setRow(i, "duration_minutes")} inputMode="numeric" maxLength={3} disabled={!edit} placeholder={i === 0 ? "30" : ""} /></Field>
+          <Field label="Price (optional)" hint="Leave empty if the receptionist shouldn't quote one."><input value={r.price} onChange={setRow(i, "price")} maxLength={60} disabled={!edit} placeholder={i === 0 ? "$25" : ""} /></Field>
+          <Field full label="Description (optional)"><input value={r.description} onChange={setRow(i, "description")} maxLength={600} disabled={!edit} placeholder={i === 0 ? "Wash, cut and style" : ""} /></Field>
+          {edit && <div className="zs-actions"><button type="button" className="zs-btn sm danger-outline" onClick={() => form.setValues((v) => ({ rows: v.rows.filter((_, j) => j !== i) }))}>Remove service</button></div>}
+        </div>
+      ))}
+      {edit && rows.length < 100 && <div className="zs-actions" style={{ marginBottom: 10 }}><button type="button" className="zs-btn" onClick={() => form.setValues((v) => ({ rows: [...v.rows, blankService()] }))}>Add a service</button></div>}
+      {edit && <SaveBar form={form} onSave={save} disabled={invalid} />}
+    </Card>
   );
 }
 
@@ -764,7 +810,8 @@ function registry(w) {
       page("overview", "Receptionist overview", () => <ReceptionistOverview w={w} />, "status phone version"),
       page("voice", "Voice and personality", (c) => only(lead, <ReceptionistEdit w={w} onNotice={c.onNotice} />), "greeting tone personality instructions voice language"),
       page("languages", "Languages", () => <LanguagePanel w={w} />, "language spanish hindi french multilingual greeting"),
-      page("knowledge", "Business knowledge", (c) => <KnowledgePage workspace={w} refreshKey={0} onNotice={c.onNotice} />, "services faq policies prices"),
+      page("services", "Services", () => <ServicesPanel w={w} />, "services prices duration length menu treatments book"),
+      page("knowledge", "Business knowledge", (c) => <KnowledgePage workspace={w} refreshKey={0} onNotice={c.onNotice} />, "faq policies questions answers"),
       page("website", "Website knowledge sources", () => <WebsiteSources w={w} />, "website crawl sitemap pages read approve"),
       page("calls", "Call handling", (c) => <ConfigFacts w={w} onGo={c.onGo} pick={(r) => callHandling(r)} />, "after hours transfer message callback missed"),
       page("escalation", "Escalation and fallback", (c) => <ConfigFacts w={w} onGo={c.onGo} pick={(r) => escalation(r)} />, "emergency human handoff voicemail fallback"),
@@ -815,7 +862,7 @@ function registry(w) {
       page("terminology", "Terminology", (c) => <Terminology w={w} onReload={c.onReload} />, "words patients customers jobs"),
       page("fields", "Industry fields", (c) => <RecordSettingsPage workspace={w} types={c.records.types} canManage={lead} onNotice={c.onNotice} onChanged={c.records.reload} />, "fields"),
       page("workflows", "Workflow rules", (c) => <AutomationsPage workspace={w} refreshKey={0} onNotice={c.onNotice} />, "rules status follow-up"),
-      page("services", "Service catalog", (c) => <KnowledgePage workspace={w} refreshKey={0} onNotice={c.onNotice} />, "services prices"),
+      page("services", "Service catalog", () => <ServicesPanel w={w} />, "services prices duration"),
       page("modules", "Modules", (c) => <BusinessModulesPanel w={w} onGo={c.onGo} />, "modules industry enabled disabled available operations records"),
     ] },
     { key: "automations", label: "Automations", icon: "bolt", items: [
