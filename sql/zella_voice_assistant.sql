@@ -88,7 +88,7 @@ begin
     $a$- Facts about the business (services and services it does not offer, prices, policies, service area, address) come ONLY from the search_knowledge tool and the other tools. If search_knowledge finds nothing, or only part of the answer, do not guess and do not fill in from general knowledge: say you cannot confirm that, then offer a next step: take a message, a follow-up from the team (ask if they would like one, then request_follow_up), or a person when one is available (transfer_to_human). search_knowledge already passes an unanswered question to the team; use report_unanswered_question only for a question you could not answer without searching.\n' /* zella_prompt_v4_unknown */ || E'$a$);
   perform public.zella_patch_function('public.zella_brain_prompt_base(uuid)', 'zella_prompt_v4_transfer',
     $a$- If the caller asks for a person, is upset, or you cannot help, use transfer_to_human. If a tool fails, apologise briefly and offer a callback (request_follow_up or take_message).\n$a$,
-    $a$- If the caller asks for a person, is upset, or you cannot help, use transfer_to_human. If its result says use_transfer_tool, use the transferCall tool to connect them; if it says no one is available, offer a callback instead.\n- At the very start of the call use call_rules once (action rules) and follow its instruction, including any instruction to end the call politely.\n' /* zella_prompt_v4_transfer */ || E'$a$);
+    $a$- If the caller asks for a person, is upset, or you cannot help, use transfer_to_human. If its result says use_transfer_tool, use the transferCall tool to connect them; if it says no one is available, offer a callback instead.\n- Greet the caller with your first message only. As soon as the caller first speaks, use call_rules once (action rules) before you answer, and follow its instruction, including any instruction to end the call politely.\n- Never mention your tools, rules, guidelines, checks or systems to the caller (do not say you are checking guidelines or rules), and do not add your own waiting phrases before using a tool.\n' /* zella_prompt_v4_transfer */ || E'$a$);
   perform public.zella_patch_function('public.zella_brain_prompt_base(uuid)', 'zella_prompt_v4_rules',
     $a$|| E'SAFETY\n'$a$,
     $a$|| E'WHAT YOU SAY HAPPENED\n'
@@ -176,7 +176,7 @@ begin
   select coalesce(jsonb_agg(t order by ord, t #>> '{function,name}'), '[]'::jsonb) into v_tools from (
     select 0 as ord, jsonb_build_object('type', 'function', 'async', false, 'server', v_server, 'function', jsonb_build_object(
              'name', 'call_rules',
-             'description', 'Call once at the very start of the call, before anything else. Says whether the business is open now and how to treat this caller. Follow its instruction.',
+             'description', 'Call once right after the caller first speaks, before your first answer. Says whether the business is open now and how to treat this caller. Follow its instruction and never mention it to the caller.',
              'parameters', jsonb_build_object('type', 'object', 'properties', jsonb_build_object('action', jsonb_build_object('type', 'string', 'enum', jsonb_build_array('rules')))))) as t
     union all
     select 1, jsonb_build_object('type', 'function', 'async', false, 'server', v_server,

@@ -5,7 +5,8 @@
 --   * a time is only booked if the calendar accepts it (working hours, breaks, time off, other bookings)
 --   * if the time was just taken, the caller is offered other times
 --   * if anything unexpected happens, a REQUEST is saved and staff finish it - never a half booking
---   * reminders and the confirmation message come from the normal booking rules (nothing extra here)
+--   * reminders and the confirmation message come from the normal booking rules (nothing extra here); the caller is
+--     only promised a confirmation while texts or emails are live (sms_live / email_live)
 -- The business comes from the call when Zella knows it, otherwise from the business id the call carries.
 
 create or replace function public.zella_ai_booking(p_provider_call_id text, p_business_id uuid, p_action text, p_args jsonb default '{}'::jsonb)
@@ -86,7 +87,7 @@ begin
 
   begin
     v_appt := public.zella_book_appointment(v_biz, v_cust, v_title, v_start, v_dur, null, null, v_notes);
-    return jsonb_build_object('ok', true, 'status', 'booked', 'appointment_id', v_appt, 'say', 'Booked for ' || v_when || '. Tell the caller they are all set and will get a confirmation message.');
+    return jsonb_build_object('ok', true, 'status', 'booked', 'appointment_id', v_appt, 'say', 'Booked for ' || v_when || '. Tell the caller they are all set' || case when (public.zella_setting('sms_live', 'false'::jsonb) = 'true'::jsonb or public.zella_setting('email_live', 'false'::jsonb) = 'true'::jsonb) then ' and will get a confirmation message.' else '. Do not promise a text or email confirmation.' end);
   exception when others then
     v_err := sqlerrm;
     if v_err = 'SLOT_TAKEN' or v_err = 'BAD_TIME' then
@@ -166,7 +167,7 @@ begin
   v_when := to_char(v_start at time zone v_tz, 'FMDay, FMMonth FMDD "at" FMHH12:MI AM');
   begin
     perform public.zella_reschedule_appointment(v_appt.id, v_start, null, 'ai');
-    return jsonb_build_object('ok', true, 'status', 'rescheduled', 'say', 'Moved to ' || v_when || '. Tell the caller they are all set and will get a new confirmation message.');
+    return jsonb_build_object('ok', true, 'status', 'rescheduled', 'say', 'Moved to ' || v_when || '. Tell the caller they are all set' || case when (public.zella_setting('sms_live', 'false'::jsonb) = 'true'::jsonb or public.zella_setting('email_live', 'false'::jsonb) = 'true'::jsonb) then ' and will get a new confirmation message.' else '. Do not promise a text or email confirmation.' end);
   exception when others then
     v_err := sqlerrm;
     if v_err in ('SLOT_TAKEN', 'BAD_TIME') then

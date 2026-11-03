@@ -71,7 +71,13 @@ Deno.serve(async (req: Request) => {
   const db = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
   const auth = await timed(t, "auth", () => call(db, "zella_vapi_authenticate", { p_raw: raw, p_headers: authHeaders(req.headers) }));
   if (auth.error) return respond({ error: "Unavailable" }, 503, t, started, "auth_unavailable");   // can't check: refuse, never guess
-  if (auth.data !== AUTH_OK) return respond({ error: "Unauthorized" }, 401, t, started, "refused_" + String(auth.data).slice(0, 20));
+  if (auth.data !== AUTH_OK) {
+    // which kind of message was refused and which auth header names it carried (names only, never values or content)
+    let type = "unknown";
+    try { const m = JSON.parse(raw)?.message; if (typeof m?.type === "string") type = m.type.slice(0, 40); } catch { /* not JSON */ }
+    console.log(JSON.stringify({ voice_refused: type, headers: Object.keys(authHeaders(req.headers)) }));
+    return respond({ error: "Unauthorized" }, 401, t, started, "refused_" + String(auth.data).slice(0, 20));
+  }
 
   let body: unknown;
   try { body = JSON.parse(raw); } catch { return respond({ error: "Bad request" }, 400, t, started, "bad_json"); }
