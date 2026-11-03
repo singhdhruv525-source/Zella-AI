@@ -1,6 +1,6 @@
 // Shows how ONE Vapi assistant reaches Zella: its server URL and credential, and each tool's. Read-only.
 // Usage: VAPI_KEY=... node tests/vapi/check-test-assistant.mjs <assistant id>
-// Prints no secrets: only URLs, credential ids and names.
+// Prints no secrets: only URLs, credential ids, header names (never their values) and names.
 
 const [assistantId] = process.argv.slice(2);
 const key = (process.env.VAPI_KEY ?? "").trim();
@@ -11,8 +11,8 @@ const res = await fetch(`https://api.vapi.ai/assistant/${assistantId}`, { header
 const a = await res.json().catch(() => ({}));
 if (!res.ok) { console.log(`Vapi said ${res.status}: ${JSON.stringify(a.message ?? a)}`); process.exit(1); }
 
-const where = (s) => s ? `${s.url ?? "(no url)"} | credential: ${s.credentialId ?? "NONE"}` : "(none)";
-console.log(`Assistant "${a.name}"`);
+const where = (s) => s ? `${s.url ?? "(no url)"} | credential: ${s.credentialId ?? "NONE"} | headers: ${Object.keys(s.headers ?? {}).join(", ") || "NONE"}` : "(none)";
+console.log(`Assistant "${a.name}"  first message: ${JSON.stringify(a.firstMessage ?? null)}  mode: ${a.firstMessageMode ?? "default"}`);
 console.log(`  server: ${where(a.server)}`);
 console.log(`  serverUrl (old field): ${a.serverUrl ?? "(none)"}`);
 console.log(`  credentialIds: ${JSON.stringify(a.credentialIds ?? null)}`);
