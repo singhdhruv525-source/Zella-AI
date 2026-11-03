@@ -181,7 +181,7 @@ begin
         when v_open ->> 'reason' = 'holiday' then coalesce(v_name, 'The business') || ' is closed today (' || coalesce(v_open ->> 'label', 'holiday') || ').' || coalesce(' They open again ' || v_next || '.', '')
         else coalesce(v_name, 'The business') || ' is closed right now.' || coalesce(' They open again ' || v_next || '.', '') end
         || case when v_is_open then ''
-             when v_mode = 'take_message' then ' Offer to take a message and call_rules with action "message".'
+             when v_mode = 'take_message' then ' Offer to take a message and call_rules with action "message". If the caller wants an appointment, you can still book one for a time when the business is open.'
              when v_mode = 'book_only' then ' You can book an appointment, but do not promise a person right now.'
              else ' Give general information only and say the team will be back at opening time.' end
         || case when v_em_on and cardinality(v_keywords) > 0 then ' If the caller describes an emergency, use action "emergency" straight away.' else '' end);
