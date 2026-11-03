@@ -15,7 +15,7 @@ Last updated: 30 October 2026.
 - Don't switch on `sms_live`, `email_live`, `calls_live`, schedulers, the `zella_dispatch` job or n8n workflows,
   and don't send real SMS/email or place calls, without the owner's approval.
 - Don't create plans or prices. Don't invent voice IDs or model names.
-- Work on branch `voice-reliability`; commit and push there.
+- Work directly on `main` (owner, 3 Nov): no new branches, no other Codespaces. `voice-reliability` was merged into `main` on 3 Nov.
 
 ## Accounts and setup
 
@@ -58,7 +58,7 @@ Last updated: 30 October 2026.
 ## Hosting (in progress, owner's steps)
 
 Cloudflare Pages:
-- project settings: root `web`, build `npm run build`, output `dist`, production branch `voice-reliability`;
+- project settings: root `web`, build `npm run build`, output `dist`, production branch `main`;
 - env vars `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` (both public);
 - custom domains `app.zellavoice.com` (opens the CRM) and `admin.zellavoice.com`, via CNAME records in
   GoDaddy DNS to the `.pages.dev` address.
