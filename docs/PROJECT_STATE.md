@@ -90,10 +90,10 @@ Two kinds of email:
 
    `email_live` stays off until approved.
 
-## Security review 2026-11-04 (not deployed)
+## Security review 2026-11-04 (deployed except owner-provision-business)
 
-Fixes for invitations, billing, currency, MFA, navigation and invitation errors are in the repo, with tests, but are
-not applied live. See `docs/SECURITY_REVIEW_2026-11-04.md` for the findings, test results and the order to apply them
+Fixes for invitations, billing, currency, MFA, navigation and invitation errors are applied live (SQL, staff-invite,
+billing-webhook). owner-provision-business still needs a CLI deploy; the web app goes live with hosting. See `docs/SECURITY_REVIEW_2026-11-04.md` for the findings, test results and the order to apply them
 (needs the owner's approval).
 
 ## Waiting on the owner's answers

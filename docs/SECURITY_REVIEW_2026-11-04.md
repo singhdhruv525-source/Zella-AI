@@ -1,7 +1,26 @@
 # Security review, 2026-11-04
 
-What was checked, what was fixed, what was tested, and what is still open. Nothing here is deployed: every
-database and function change is in the repo only and needs the owner's approval to go live (order at the end).
+What was checked, what was fixed, what was tested, and what is still open.
+
+## Deployed 2026-11-04 (owner approved "fix all the things")
+
+| Change | Live |
+|---|---|
+| `zella_invitation_hardening` (finalize/fail, email-link acceptance for staff and owner seats) | Applied |
+| `zella_platform_admin_email_check` trigger (admin only for a confirmed email or a fresh invitation) | Applied |
+| `staff-invite` edge function | Deployed (version 3) |
+| `zella_billing_hardening` + cron `zella_billing_reconcile` every 15 min | Applied |
+| `billing-webhook` edge function | Deployed (version 5) |
+| `zella_mfa_enforcement` (pre-request check + 131 table policies + storage.objects) | Applied |
+| `owner-provision-business` edge function | **Not deployed**: 223 KB, too large to send through the deploy tool, and this container can't reach the Supabase API for the CLI. Its admin-invite check is enforced by the database trigger above instead. Still waiting to go live with its next deploy: the rebrand default name and the voice-metadata change. Deploy with `npx supabase functions deploy owner-provision-business`. |
+| Web app (invitation banner, error boundaries, router) | In the repo; goes live when the app is hosted |
+
+Checked live after applying (each test in a transaction that was rolled back, so nothing kept):
+- Live sessions record `otp` for email-link sign-ins, which the fix accepts, and `password`, which it refuses.
+- Billing: an unmatched event is stored as `pending`, and a redelivery stays pending. JPY 1500 comes out as 1500 and KWD 1234 as 1.234.
+- A real member, simulated: passes the request check and sees their workspace and customers. Acceptance answers normally.
+- Policies are on 131/131 tables plus storage, the pre-request setting is present, and there are no new database errors in the logs.
+- The live HTTP API could not be called from this container, so the first real page load is the end-to-end check.
 
 Live checks were **read-only** SQL against the Supabase project. Tests ran on an **isolated Postgres 16** restored
 from the schema baseline (no customer data) and with **mocked** providers. No email, text or call was sent.
@@ -120,7 +139,7 @@ from the schema baseline (no customer data) and with **mocked** providers. No em
 - **Hosting:** no host or SPA rewrite config exists in the repo yet. The rewrite must send every path, malformed ones included, to `index.html`. Vite's dev server answers `/app/%` with a 404 itself.
 - **Vapi:** call status and end-of-call messages still arrive without auth headers (401). Still open.
 
-## To apply (needs approval, in this order)
+## Apply order (done above, except owner-provision-business)
 
 1. **Invitations.**
    1. Apply `sql/zella_invitation_hardening.sql`.

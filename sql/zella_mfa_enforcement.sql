@@ -46,11 +46,15 @@ begin
   for t in select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
             where n.nspname = 'public' and c.relkind in ('r', 'p') and c.relrowsecurity loop
     execute format('drop policy if exists zella_mfa_required on public.%I', t.relname);
-    execute format('create policy zella_mfa_required on public.%I as restrictive for all to authenticated using (public.zella_mfa_satisfied()) with check (public.zella_mfa_satisfied())', t.relname);
+    execute format('create policy zella_mfa_required on public.%I as restrictive for all to authenticated using ((select public.zella_mfa_satisfied())) with check ((select public.zella_mfa_satisfied()))', t.relname);
   end loop;
   if to_regclass('storage.objects') is not null then
-    execute 'drop policy if exists zella_mfa_required on storage.objects';
-    execute 'create policy zella_mfa_required on storage.objects as restrictive for all to authenticated using (public.zella_mfa_satisfied()) with check (public.zella_mfa_satisfied())';
+    begin
+      execute 'drop policy if exists zella_mfa_required on storage.objects';
+      execute 'create policy zella_mfa_required on storage.objects as restrictive for all to authenticated using ((select public.zella_mfa_satisfied())) with check ((select public.zella_mfa_satisfied()))';
+    exception when insufficient_privilege then
+      raise warning 'storage.objects policy not added (not the owner of storage.objects); file access still needs layer 1 for API calls';
+    end;
   end if;
 end $$;
 

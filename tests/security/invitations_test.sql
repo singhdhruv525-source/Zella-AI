@@ -199,3 +199,19 @@ do $$ declare n int; r jsonb; begin
   assert (select status from public.business_invitations where business_id = 'b3000000-0000-0000-0000-000000000001') = 'accepted';
   raise notice 'PASS owner seats: password session refused and reported as waiting; invite link activates only the unexpired invitation';
 end $$;
+
+-- Platform admins need a confirmed email (or a fresh, never-used invitation)
+reset role;
+insert into auth.users (id, email, email_confirmed_at, last_sign_in_at) values
+  ('f1000000-0000-0000-0000-000000000001', 'squatter@x.test', null, now()),
+  ('f1000000-0000-0000-0000-000000000002', 'fresh@x.test', null, null),
+  ('f1000000-0000-0000-0000-000000000003', 'real@x.test', now(), now());
+do $$ begin
+  begin insert into public.platform_admins (user_id, role, is_active) values ('f1000000-0000-0000-0000-000000000001', 'super_admin', true);
+    assert false, 'unconfirmed signed-in account was made admin';
+  exception when insufficient_privilege then null; end;
+  insert into public.platform_admins (user_id, role, is_active) values ('f1000000-0000-0000-0000-000000000002', 'super_admin', true);
+  insert into public.platform_admins (user_id, role, is_active) values ('f1000000-0000-0000-0000-000000000003', 'super_admin', false);
+  update public.platform_admins set is_active = true where user_id = 'f1000000-0000-0000-0000-000000000003';
+  raise notice 'PASS platform admins: unconfirmed signed-in account refused; fresh invite and confirmed account allowed';
+end $$;

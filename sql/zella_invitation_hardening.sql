@@ -176,3 +176,26 @@ begin
 end $$;
 revoke execute on function public.zella_accept_my_invitations() from public, anon;
 grant execute on function public.zella_accept_my_invitations() to authenticated, service_role;
+
+-- Platform admins (2026-11-04). owner-provision-business (adminInvite) granted admin straight to an existing account
+-- that had signed in, without checking that the account ever proved its address. Enforced here so every path is
+-- covered: admin access is granted (or reactivated) only to an account that confirmed its email, or to one that was
+-- just invited and has never signed in (it can only be used through the invitation link, which proves the address).
+create or replace function public.zella_platform_admin_email_check() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare u record;
+begin
+  if not new.is_active then return new; end if;
+  if tg_op = 'UPDATE' and old.is_active and old.user_id = new.user_id then return new; end if;   -- unchanged grant
+  select email_confirmed_at, last_sign_in_at into u from auth.users where id = new.user_id;
+  if not found then raise exception 'ADMIN_ACCOUNT_NOT_FOUND' using errcode = '23503'; end if;
+  if u.email_confirmed_at is null and u.last_sign_in_at is not null then
+    raise exception 'ADMIN_EMAIL_NOT_CONFIRMED' using errcode = '42501',
+      hint = 'This account''s email address was never confirmed, so it can''t be made an admin.';
+  end if;
+  return new;
+end $$;
+revoke execute on function public.zella_platform_admin_email_check() from public, anon, authenticated;
+drop trigger if exists zella_platform_admin_email_check on public.platform_admins;
+create trigger zella_platform_admin_email_check before insert or update of is_active, user_id on public.platform_admins
+  for each row execute function public.zella_platform_admin_email_check();
