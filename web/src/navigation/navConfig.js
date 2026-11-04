@@ -47,6 +47,7 @@ export const NAV_ITEMS = [
 
   { id: "leads", group: "crm", order: 10, label: "Leads", icon: "filter_alt", page: "leads" },
   { id: "customers", group: "crm", order: 20, label: (term) => term("customers"), icon: "group", page: "customers" },
+  { id: "money", group: "crm", order: 30, label: "Money", icon: "payments", page: "money", capability: "money", roles: WORK_ROLES },
 
   {
     id: "calls-messages", group: "communications", order: 10, label: "Calls & messages", icon: "forum", badge: "attention",

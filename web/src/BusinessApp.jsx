@@ -31,6 +31,7 @@ import { maintenanceText, usePlatformInfo } from "./platformInfo";
 import "./CrmMotion.css";
 import { warm } from "./zellaVoice";
 import BusinessToday from "./BusinessToday";
+import { MoneyPage } from "./BusinessMoney";
 import { AddLeadModal, BookAppointmentModal } from "./BusinessForms";
 import { AppearanceSaveNotice } from "./AppearanceSaveNotice";
 import { ErrorBoundary, Icon, loadBusinessFonts } from "./BusinessUI";
@@ -53,7 +54,7 @@ loadBusinessFonts();
 const KNOWN_PAGES = new Set([
   "today", "leads", "customers", "calendar", "checkins", "waitlist", "tasks", "drafts", "attention", "callbacks",
   "inbox", "messages", "calls", "lead-sources", "receptionist", "transcripts", "automations", "knowledge", "team",
-  "access", "approvals", "failed", "security", "reports", "record-settings", "integrations", "settings", "spam", "reviews", "scorecards",
+  "access", "approvals", "failed", "security", "reports", "record-settings", "integrations", "settings", "spam", "reviews", "scorecards", "money",
 ]);
 
 // Address <-> page:  /app = Today, /app/<key>, /app/records/<type>, /app/settings/<section>.
@@ -347,6 +348,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
             />
           )}
           {current.key === "leads" && <LeadsPage workspace={workspace} query={search} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} />}
+          {current.key === "money" && <MoneyPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} />}
           {current.key === "customers" && <CustomersPage workspace={workspace} query={search} refreshKey={refreshKey} onOpenPerson={openPerson} />}
           {current.key === "calendar" && <CalendarPage workspace={workspace} industry={nav.data?.industry?.slug} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} />}
           {current.key === "calls" && <CallsPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} />}
