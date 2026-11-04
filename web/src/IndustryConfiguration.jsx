@@ -81,6 +81,7 @@ function ModuleRow({ module, onChange, onRemove }) {
 
 export default function IndustryConfiguration() {
   const [industries, setIndustries] = useState([]);
+  const [loadFailed, setLoadFailed] = useState(false);   // the list didn't load: not the same as "no industries"
   const [selectedId, setSelectedId] = useState(null);
   const [draft, setDraft] = useState(null);
   const [pendingId, setPendingId] = useState(null);
@@ -99,12 +100,14 @@ export default function IndustryConfiguration() {
     setError("");
     try {
       const data = await callOwnerFunction("industries_list");
-      setIndustries(data.industries);
-      const next = data.industries.find((i) => i.id === keepId) || data.industries[0] || null;
+      setIndustries(data.industries ?? []);
+      setLoadFailed(false);
+      const next = (data.industries ?? []).find((i) => i.id === keepId) || data.industries[0] || null;
       setSelectedId(next?.id ?? null);
       setDraft(next ? toDraft(next) : null);
     } catch (err) {
       setError(friendlyError(err));
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -251,7 +254,7 @@ export default function IndustryConfiguration() {
               ))}
             </ul>
           ) : (
-            <div className="op-empty">{industries.length ? "No matching industries." : "No industries yet."}</div>
+            <div className="op-empty">{loadFailed ? "Couldn't load the industries. Reload the page to try again." : industries.length ? "No matching industries." : "No industries yet."}</div>
           )}
         </aside>
 
@@ -316,7 +319,7 @@ export default function IndustryConfiguration() {
               </div>
             </form>
           ) : !selected || !draft ? (
-            <div className="owner-panel"><div className="op-empty">{loading ? "Loading..." : "Select an industry."}</div></div>
+            <div className="owner-panel"><div className="op-empty">{loading ? "Loading..." : loadFailed ? "Industries didn't load." : "Select an industry."}</div></div>
           ) : (
             <>
               <div className="ic-head">

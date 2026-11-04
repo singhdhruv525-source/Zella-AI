@@ -1,4 +1,5 @@
 import { latestOwnerInvitation, moveOwnerInvitation } from "./ownerInvitation.ts";
+import { FinishError, finishSetupWith } from "./owner_invite.ts";
 import { withCors } from "../_shared/cors.ts";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { PERMISSIONS, RESTRICTED_ROLES, settingsHandlers } from "./settings.ts";
@@ -912,130 +913,72 @@ async function saveAutomations(
   return { businessId };
 }
 
+// Finishing setup: decisions and order in owner_invite.ts (finishSetupWith), tested with fakes. Wired here to the
+// owner-only lookups of ownerInvitation.ts. Order: required setup from saved data -> the owner's invitation decides ->
+// an open invitation is claimed (open -> sent) BEFORE the email, so a second click or window can't send another ->
+// the workspace becomes active only once the email went out (or the invitation was already sent / accepted).
 async function finishSetup(admin: SupabaseClient, fields: Json) {
   const businessId = requireId(fields.businessId);
   const business = await getBusiness(admin, businessId);
-
-  const { data: invitation, error: invitationError } = await latestOwnerInvitation(admin, businessId, "id, email, owner_name, status");
-  if (invitationError) throw invitationError;
-
-  if (!invitation) {
-    throw new InputError("Add the business owner before finishing setup");
-  }
-
-  const documents = await documentsReady(admin, businessId);
-  if (!documents.ready) {
-    throw new InputError("Upload the business registration document and the owner's photo ID before finishing setup");
-  }
-
-  // The wizard's Review step checks these too, but only the server's view of what was saved counts.
-  if (!String(business.name ?? "").trim() || !business.industry_id) {
-    throw new InputError("Save the business name and industry before finishing setup");
-  }
-  const { count: openHours, error: hoursError } = await admin
-    .from("business_hours").select("business_id", { count: "exact", head: true }).eq("business_id", businessId);
-  if (hoursError) throw hoursError;
-  if (!openHours) {
-    throw new InputError("Save the opening hours (Hours & services step) before finishing setup");
-  }
-
-  const now = new Date().toISOString();
-
-  // Workspace becomes active; the AI receptionist stays disabled until the
-  // phone number and voice agent are connected and tested.
-  const { error: activateError } = await admin
-    .from("businesses")
-    .update({ is_active: true, updated_at: now })
-    .eq("id", businessId);
-  if (activateError) throw activateError;
-
-  await advance(admin, businessId, "testing");
-
-  if (invitation.status === "sent" || invitation.status === "accepted") {
-    return { businessId, invitationStatus: invitation.status };
-  }
-
-  const appUrl = Deno.env.get("ZELLA_APP_URL");
-  const { data: invited, error: inviteError } =
-    await admin.auth.admin.inviteUserByEmail(invitation.email, {
-      data: { full_name: invitation.owner_name, business_id: businessId },
-      ...(appUrl ? { redirectTo: ownerWelcomeUrl(appUrl) } : {}),
-    });
-
-  if (inviteError || !invited?.user) {
-    const reason = inviteError?.message ?? "Invitation email could not be sent";
-    console.error("Owner invitation failed", inviteError);
-
-    await moveOwnerInvitation(admin, invitation.id, { status: "failed", last_error: reason, updated_at: now });
-
-    return {
-      businessId,
-      businessName: business.name,
-      invitationStatus: "failed",
-      invitationError: /already|registered|exists/i.test(reason)
-        ? "This email already has a Zella account"
-        : reason,
-    };
-  }
-
-  let sentError: { message: string } | null = null;
+  const iso = () => new Date().toISOString();
   try {
-    const moved = await moveOwnerInvitation(admin, invitation.id, {
-      status: "sent",
-      auth_user_id: invited.user.id,
-      invited_at: now,
-      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-      last_error: null,
-      updated_at: now,
+    const result = await finishSetupWith({
+      business: () => Promise.resolve(business),
+      async ownerInvitation() {
+        const { data, error } = await latestOwnerInvitation(admin, businessId, "id, email, owner_name, status, expires_at, auth_user_id");
+        if (error) throw error;
+        return data;
+      },
+      documents: () => documentsReady(admin, businessId),
+      async openDays() {
+        const { data, error } = await admin.from("business_hours").select("weekday").eq("business_id", businessId);
+        if (error) throw error;
+        return new Set((data ?? []).map((h) => h.weekday)).size;
+      },
+      claim: (id) => moveOwnerInvitation(admin, id, { status: "sent", last_error: null, updated_at: iso() }),
+      async sendInvite(email, name) {
+        const appUrl = Deno.env.get("ZELLA_APP_URL");
+        const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
+          data: { full_name: name, business_id: businessId },
+          ...(appUrl ? { redirectTo: ownerWelcomeUrl(appUrl) } : {}),
+        });
+        if (error || !data?.user) { console.error("Owner invitation failed", error); return { error: error?.message ?? "Invitation email could not be sent" }; }
+        return { userId: data.user.id };
+      },
+      async release(id, reason) {
+        // only our own claim (still 'sent', no account yet) goes back to 'failed', so Retry can send it
+        await admin.from("business_invitations").update({ status: "failed", last_error: reason, updated_at: iso() })
+          .eq("id", id).eq("role", "owner").eq("status", "sent").is("auth_user_id", null);
+      },
+      async recordSent(id, userId) {
+        const { data: rows, error: sentError } = await admin.from("business_invitations").update({
+          auth_user_id: userId, invited_at: iso(), expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          last_error: null, updated_at: iso(),
+        }).eq("id", id).eq("role", "owner").eq("status", "sent").select("id");
+        if (!sentError && !rows?.length) return "closed";   // cancelled while the email was going out
+        const { data: member, error: lookupError } = await admin.from("business_members")
+          .select("id").eq("business_id", businessId).eq("user_id", userId).maybeSingle();
+        const { error: memberError } = lookupError ? { error: lookupError } : member ? { error: null }
+          : await admin.from("business_members").insert({ business_id: businessId, user_id: userId, role: "owner", status: "invited" });
+        const problem = sentError ?? memberError;
+        if (!problem) return null;
+        console.error("Invitation bookkeeping failed", problem);
+        await admin.from("business_invitations").update({ last_error: problem.message, updated_at: iso() }).eq("id", id);
+        return problem.message;
+      },
+      async activate() {
+        // the AI receptionist stays disabled until the phone number and voice agent are connected and tested
+        const { error } = await admin.from("businesses").update({ is_active: true, updated_at: iso() }).eq("id", businessId);
+        if (error) throw error;
+        await advance(admin, businessId, "testing");
+      },
+      now: () => new Date(),
     });
-    if (!moved) {
-      // Cancelled or accepted while the email was going out: don't link a seat or report a fresh invitation.
-      return {
-        businessId,
-        businessName: business.name,
-        invitationStatus: "closed",
-        invitationError: "The owner invitation was cancelled or accepted while it was being sent. Check the invitation before sending another.",
-      };
-    }
-  } catch (error) {
-    sentError = error as { message: string };
+    return { businessId, businessName: business.name, ...result };
+  } catch (e) {
+    if (e instanceof FinishError) throw new InputError(e.message, e.status);
+    throw e;
   }
-
-  const { data: member, error: memberLookupError } = await admin
-    .from("business_members")
-    .select("id")
-    .eq("business_id", businessId)
-    .eq("user_id", invited.user.id)
-    .maybeSingle();
-
-  const { error: memberError } = memberLookupError
-    ? { error: memberLookupError }
-    : member
-    ? { error: null }
-    : await admin.from("business_members").insert({
-      business_id: businessId,
-      user_id: invited.user.id,
-      role: "owner",
-      status: "invited",
-    });
-
-  const followUpError = sentError ?? memberError;
-  if (followUpError) {
-    console.error("Invitation bookkeeping failed", followUpError);
-    await admin
-      .from("business_invitations")
-      .update({ last_error: followUpError.message, updated_at: now })
-      .eq("id", invitation.id);
-  }
-
-  return {
-    businessId,
-    businessName: business.name,
-    invitationStatus: "sent",
-    warning: followUpError
-      ? "The invitation was sent, but the owner could not be linked to the business. Check the invitation record."
-      : undefined,
-  };
 }
 
 // ---------------------------------------------------------------------------

@@ -1969,3 +1969,30 @@ html[data-zella-theme="glass"] .td-week li.on .td-week-bar::after { background: 
 /* A checkbox with a long sentence in a form wraps onto more lines rather than widening the page (narrow screens). */
 .ba-form-grid .ba-check { white-space: normal; min-width: 0; align-items: flex-start; }
 .ba-form-grid .ba-check input { flex-shrink: 0; margin-top: 2px; }
+/* ---------- Header and icon sidebar fit (checked in the browser at 1366, 820 and 390 wide) ---------- */
+/* A long email or name never pushes the header past the window: it shortens with "…" (full text on hover). */
+.ba-profile-text { min-width: 0; max-width: 180px; }
+.ba-profile-text strong, .ba-profile-text small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Below 1440 the header buttons show their icon only (their names stay as accessible labels and tooltips). */
+@media (max-width: 1440px) {
+  .ba-header-actions .ba-btn span:not(.ba-icon) { display: block; position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .ba-header-actions .ba-btn { padding-inline: 10px; }
+}
+@media (max-width: 1100px) {
+  .ba-profile-text { display: none; }
+}
+/* Tablet icon sidebar: group headings and counts don't fit 68px; hide them (a later rule had shown them again). */
+@media (min-width: 761px) and (max-width: 1100px) {
+  .ba-sidebar .ba-nav-group, .ba-sidebar .ba-nav-notice, .ba-sidebar .ba-nav-item .ba-count { display: none; }
+  .ba-sidebar .ba-nav-section.folded .ba-nav { display: flex; }
+  .ba-sidebar .ba-nav-section + .ba-nav-section { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--ba-border); }
+}
+/* No icon font (blocked or offline): the icon-only header buttons show their names again instead of blank boxes. */
+html:not([data-zella-icons="ready"]) .ba-header-actions .ba-btn span:not(.ba-icon) { position: static; width: auto; height: auto; clip-path: none; }
+html:not([data-zella-icons="ready"]) .ba-header-actions { flex-wrap: wrap; flex-shrink: 1; min-width: 0; }
+/* Tablet: the business switcher and the search give way, so the profile button stays inside the window. */
+@media (max-width: 1100px) {
+  .ba-switcher-btn, .ba-switcher { max-width: 220px; min-width: 0; }
+  .ba-search { min-width: 0; flex-basis: 140px; }
+  .ba-header { gap: 8px; }
+}

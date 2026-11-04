@@ -210,13 +210,13 @@ export default function UsersAccess() {
                 </tr>
               ))}
               {!data?.admins?.length && (
-                <tr><td colSpan={6}><div className="op-empty">{loading ? "Loading admins..." : "No platform admins found."}</div></td></tr>
+                <tr><td colSpan={6}><div className="op-empty">{loading ? "Loading admins..." : !data ? "Couldn't load this list. Try again with Refresh, or reload the page." : "No platform admins found."}</div></td></tr>
               )}
             </tbody>
           </table>
         </div>
         <div className="owner-panel-footer">
-          <span>{data?.admins?.filter((a) => a.is_active).length ?? 0} active admins</span>
+          <span>{data ? `${data.admins?.filter((a) => a.is_active).length ?? 0} active admins` : "Admins not loaded"}</span>
           <span>Zella always keeps at least one active owner, and nobody can change their own access.</span>
         </div>
       </section>

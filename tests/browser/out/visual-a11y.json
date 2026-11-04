@@ -1,0 +1,843 @@
+[
+ {
+  "page": "crm-today",
+  "theme": "zella",
+  "width": 1366,
+  "shot": "crm-today-zella-1366.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "crm-calls",
+  "theme": "zella",
+  "width": 1366,
+  "shot": "crm-calls-zella-1366.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "crm-settings",
+  "theme": "zella",
+  "width": 1366,
+  "shot": "crm-settings-zella-1366.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "crm-appearance",
+  "theme": "zella",
+  "width": 1366,
+  "shot": "crm-appearance-zella-1366.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "admin-overview",
+  "theme": "zella",
+  "width": 1366,
+  "shot": "admin-overview-zella-1366.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "admin-businesses",
+  "theme": "zella",
+  "width": 1366,
+  "shot": "admin-businesses-zella-1366.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "admin-appearance",
+  "theme": "zella",
+  "width": 1366,
+  "shot": "admin-appearance-zella-1366.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "crm-sign-in",
+  "theme": "zella",
+  "width": 1366,
+  "shot": "crm-sign-in-zella-1366.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "public-reschedule",
+  "theme": "zella",
+  "width": 1366,
+  "shot": "public-reschedule-zella-1366.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "crm-today",
+  "theme": "zella",
+  "width": 820,
+  "shot": "crm-today-zella-820.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "crm-calls",
+  "theme": "zella",
+  "width": 820,
+  "shot": "crm-calls-zella-820.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "crm-settings",
+  "theme": "zella",
+  "width": 820,
+  "shot": "crm-settings-zella-820.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "crm-appearance",
+  "theme": "zella",
+  "width": 820,
+  "shot": "crm-appearance-zella-820.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "admin-overview",
+  "theme": "zella",
+  "width": 820,
+  "shot": "admin-overview-zella-820.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "admin-businesses",
+  "theme": "zella",
+  "width": 820,
+  "shot": "admin-businesses-zella-820.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "admin-appearance",
+  "theme": "zella",
+  "width": 820,
+  "shot": "admin-appearance-zella-820.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "crm-sign-in",
+  "theme": "zella",
+  "width": 820,
+  "shot": "crm-sign-in-zella-820.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "public-reschedule",
+  "theme": "zella",
+  "width": 820,
+  "shot": "public-reschedule-zella-820.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "crm-today",
+  "theme": "zella",
+  "width": 390,
+  "shot": "crm-today-zella-390.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": [
+   {
+    "el": "input",
+    "name": "Search customers",
+    "visible": false
+   }
+  ]
+ },
+ {
+  "page": "crm-calls",
+  "theme": "zella",
+  "width": 390,
+  "shot": "crm-calls-zella-390.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": [
+   {
+    "el": "input",
+    "name": "Search customers",
+    "visible": false
+   }
+  ]
+ },
+ {
+  "page": "crm-settings",
+  "theme": "zella",
+  "width": 390,
+  "shot": "crm-settings-zella-390.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": [
+   {
+    "el": "input",
+    "name": "Search customers",
+    "visible": false
+   }
+  ]
+ },
+ {
+  "page": "crm-appearance",
+  "theme": "zella",
+  "width": 390,
+  "shot": "crm-appearance-zella-390.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": [
+   {
+    "el": "input",
+    "name": "Search customers",
+    "visible": false
+   }
+  ]
+ },
+ {
+  "page": "admin-overview",
+  "theme": "zella",
+  "width": 390,
+  "shot": "admin-overview-zella-390.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "admin-businesses",
+  "theme": "zella",
+  "width": 390,
+  "shot": "admin-businesses-zella-390.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "admin-appearance",
+  "theme": "zella",
+  "width": 390,
+  "shot": "admin-appearance-zella-390.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "crm-sign-in",
+  "theme": "zella",
+  "width": 390,
+  "shot": "crm-sign-in-zella-390.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "public-reschedule",
+  "theme": "zella",
+  "width": 390,
+  "shot": "public-reschedule-zella-390.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "crm-today",
+  "theme": "classic",
+  "width": 1366,
+  "shot": "crm-today-classic-1366.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "crm-calls",
+  "theme": "classic",
+  "width": 1366,
+  "shot": "crm-calls-classic-1366.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "crm-settings",
+  "theme": "classic",
+  "width": 1366,
+  "shot": "crm-settings-classic-1366.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "crm-appearance",
+  "theme": "classic",
+  "width": 1366,
+  "shot": "crm-appearance-classic-1366.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "admin-overview",
+  "theme": "classic",
+  "width": 1366,
+  "shot": "admin-overview-classic-1366.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "admin-businesses",
+  "theme": "classic",
+  "width": 1366,
+  "shot": "admin-businesses-classic-1366.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "admin-appearance",
+  "theme": "classic",
+  "width": 1366,
+  "shot": "admin-appearance-classic-1366.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "crm-sign-in",
+  "theme": "classic",
+  "width": 1366,
+  "shot": "crm-sign-in-classic-1366.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "public-reschedule",
+  "theme": "classic",
+  "width": 1366,
+  "shot": "public-reschedule-classic-1366.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "crm-today",
+  "theme": "classic",
+  "width": 820,
+  "shot": "crm-today-classic-820.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "crm-calls",
+  "theme": "classic",
+  "width": 820,
+  "shot": "crm-calls-classic-820.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "crm-settings",
+  "theme": "classic",
+  "width": 820,
+  "shot": "crm-settings-classic-820.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "crm-appearance",
+  "theme": "classic",
+  "width": 820,
+  "shot": "crm-appearance-classic-820.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "admin-overview",
+  "theme": "classic",
+  "width": 820,
+  "shot": "admin-overview-classic-820.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "admin-businesses",
+  "theme": "classic",
+  "width": 820,
+  "shot": "admin-businesses-classic-820.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "admin-appearance",
+  "theme": "classic",
+  "width": 820,
+  "shot": "admin-appearance-classic-820.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "crm-sign-in",
+  "theme": "classic",
+  "width": 820,
+  "shot": "crm-sign-in-classic-820.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "public-reschedule",
+  "theme": "classic",
+  "width": 820,
+  "shot": "public-reschedule-classic-820.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "crm-today",
+  "theme": "classic",
+  "width": 390,
+  "shot": "crm-today-classic-390.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": [
+   {
+    "el": "input",
+    "name": "Search customers",
+    "visible": false
+   }
+  ]
+ },
+ {
+  "page": "crm-calls",
+  "theme": "classic",
+  "width": 390,
+  "shot": "crm-calls-classic-390.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": [
+   {
+    "el": "input",
+    "name": "Search customers",
+    "visible": false
+   }
+  ]
+ },
+ {
+  "page": "crm-settings",
+  "theme": "classic",
+  "width": 390,
+  "shot": "crm-settings-classic-390.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": [
+   {
+    "el": "input",
+    "name": "Search customers",
+    "visible": false
+   }
+  ]
+ },
+ {
+  "page": "crm-appearance",
+  "theme": "classic",
+  "width": 390,
+  "shot": "crm-appearance-classic-390.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": [
+   {
+    "el": "input",
+    "name": "Search customers",
+    "visible": false
+   }
+  ]
+ },
+ {
+  "page": "admin-overview",
+  "theme": "classic",
+  "width": 390,
+  "shot": "admin-overview-classic-390.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "admin-businesses",
+  "theme": "classic",
+  "width": 390,
+  "shot": "admin-businesses-classic-390.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "admin-appearance",
+  "theme": "classic",
+  "width": 390,
+  "shot": "admin-appearance-classic-390.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "crm-sign-in",
+  "theme": "classic",
+  "width": 390,
+  "shot": "crm-sign-in-classic-390.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "public-reschedule",
+  "theme": "classic",
+  "width": 390,
+  "shot": "public-reschedule-classic-390.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "crm-today",
+  "theme": "glass",
+  "width": 1366,
+  "shot": "crm-today-glass-1366.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "crm-calls",
+  "theme": "glass",
+  "width": 1366,
+  "shot": "crm-calls-glass-1366.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "crm-settings",
+  "theme": "glass",
+  "width": 1366,
+  "shot": "crm-settings-glass-1366.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "crm-appearance",
+  "theme": "glass",
+  "width": 1366,
+  "shot": "crm-appearance-glass-1366.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "admin-overview",
+  "theme": "glass",
+  "width": 1366,
+  "shot": "admin-overview-glass-1366.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "admin-businesses",
+  "theme": "glass",
+  "width": 1366,
+  "shot": "admin-businesses-glass-1366.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "admin-appearance",
+  "theme": "glass",
+  "width": 1366,
+  "shot": "admin-appearance-glass-1366.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "crm-today",
+  "theme": "glass",
+  "width": 820,
+  "shot": "crm-today-glass-820.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "crm-calls",
+  "theme": "glass",
+  "width": 820,
+  "shot": "crm-calls-glass-820.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "crm-settings",
+  "theme": "glass",
+  "width": 820,
+  "shot": "crm-settings-glass-820.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "crm-appearance",
+  "theme": "glass",
+  "width": 820,
+  "shot": "crm-appearance-glass-820.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "admin-overview",
+  "theme": "glass",
+  "width": 820,
+  "shot": "admin-overview-glass-820.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "admin-businesses",
+  "theme": "glass",
+  "width": 820,
+  "shot": "admin-businesses-glass-820.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "admin-appearance",
+  "theme": "glass",
+  "width": 820,
+  "shot": "admin-appearance-glass-820.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "crm-today",
+  "theme": "glass",
+  "width": 390,
+  "shot": "crm-today-glass-390.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": [
+   {
+    "el": "input",
+    "name": "Search customers",
+    "visible": false
+   }
+  ]
+ },
+ {
+  "page": "crm-calls",
+  "theme": "glass",
+  "width": 390,
+  "shot": "crm-calls-glass-390.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": [
+   {
+    "el": "input",
+    "name": "Search customers",
+    "visible": false
+   }
+  ]
+ },
+ {
+  "page": "crm-settings",
+  "theme": "glass",
+  "width": 390,
+  "shot": "crm-settings-glass-390.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": [
+   {
+    "el": "input",
+    "name": "Search customers",
+    "visible": false
+   }
+  ]
+ },
+ {
+  "page": "crm-appearance",
+  "theme": "glass",
+  "width": 390,
+  "shot": "crm-appearance-glass-390.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": [
+   {
+    "el": "input",
+    "name": "Search customers",
+    "visible": false
+   }
+  ]
+ },
+ {
+  "page": "admin-overview",
+  "theme": "glass",
+  "width": 390,
+  "shot": "admin-overview-glass-390.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "admin-businesses",
+  "theme": "glass",
+  "width": 390,
+  "shot": "admin-businesses-glass-390.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "admin-appearance",
+  "theme": "glass",
+  "width": 390,
+  "shot": "admin-appearance-glass-390.png",
+  "errors": [],
+  "overflow": 0,
+  "axe": [],
+  "noFocusRing": []
+ },
+ {
+  "page": "crm-today (Google Fonts blocked)",
+  "icons": 54,
+  "iconFont": true,
+  "visibleAsText": 0,
+  "bodyFont": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif"
+ },
+ {
+  "page": "admin-overview (Google Fonts blocked)",
+  "icons": 22,
+  "iconFont": true,
+  "visibleAsText": 0,
+  "bodyFont": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif"
+ },
+ {
+  "page": "reduced motion (CRM Today, Glass)",
+  "runningAnimations": [],
+  "count": 0
+ }
+]

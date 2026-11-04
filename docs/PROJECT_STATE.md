@@ -117,6 +117,13 @@ Fixed in the web app, which ships with hosting:
 
 Browser tests can now run against a local real-schema backend: see `tests/browser/README.md`.
 
+## Second admin/CRM pass 2026-11-04 (repo only, not deployed)
+
+On top of the parallel review: setup completion claims the owner invitation before emailing and activates only after
+the email went out (needs a new owner-provision-business deploy; live is version 11); honest wizard result; direct links
+to admin pages a role lacks say so; customer links cut short never show the admin sign-in; failed loads no longer look
+empty; header and tablet sidebar fit; lifecycle tests. Details: `docs/ADMIN_CRM_REVIEW_2026-11-04.md`.
+
 ## Waiting on the owner's answers
 
 - What's missing in the app (they chose "something missing" without details).

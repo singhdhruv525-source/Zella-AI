@@ -18,15 +18,16 @@ const toInputDateTime = (value) => {
 };
 
 export function useRecordTypes(workspace, refreshKey) {
-  const [state, setState] = useState({ types: [], loaded: false });
+  const [state, setState] = useState({ types: [], loaded: false, error: "" });
   const [version, setVersion] = useState(0);
   useEffect(() => {
     let live = true;
     (async () => {
       // Copies the industry's starting set the first time; never overwrites a business's own settings.
       await supabase.rpc("zella_ensure_crm_types", { p_business_id: workspace.id });
-      const { data } = await supabase.from("crm_record_types").select("*").eq("business_id", workspace.id).order("position");
-      if (live) setState({ types: data ?? [], loaded: true });
+      const { data, error } = await supabase.from("crm_record_types").select("*").eq("business_id", workspace.id).order("position");
+      // a failed load is kept apart from "no record types", so the page can say so instead of "nothing yet"
+      if (live) setState({ types: data ?? [], loaded: true, error: error ? "Couldn't load your record types." : "" });
     })();
     return () => { live = false; };
   }, [workspace.id, refreshKey, version]);
@@ -363,7 +364,7 @@ function TypeEditor({ workspace, type, onClose, onSaved }) {
   );
 }
 
-export function RecordSettingsPage({ workspace, types, canManage, onNotice, onChanged }) {
+export function RecordSettingsPage({ workspace, types, canManage, onNotice, onChanged, loadError }) {
   const [editing, setEditing] = useState(null); // type, or "new"
   if (!canManage) {
     return (
@@ -379,7 +380,8 @@ export function RecordSettingsPage({ workspace, types, canManage, onNotice, onCh
         <button type="button" className="ba-btn primary" onClick={() => setEditing("new")}><Icon name="add" size="sm" /> Add a type of record</button>
       </PageHead>
       <section className="ba-panel">
-        {types.length === 0 ? <div className="ba-panel-body"><Empty title="Nothing to customize yet">Your records appear here once your industry is set up.</Empty></div> : (
+        {loadError ? <div className="ba-panel-body"><Empty title={loadError}>Check your connection, then <button type="button" className="ba-btn sm" onClick={onChanged}>Try again</button></Empty></div>
+          : types.length === 0 ? <div className="ba-panel-body"><Empty title="Nothing to customize yet">Your records appear here once your industry is set up.</Empty></div> : (
           <div className="ba-table-wrap" tabIndex={0}>
             <table className="ba-table">
               <thead><tr><th>Record</th><th>Statuses</th><th>Fields</th><th>Menu</th><th /></tr></thead>

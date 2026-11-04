@@ -1,0 +1,202 @@
+[
+ {
+  "app": "public",
+  "mode": "empty",
+  "page": "reschedule link",
+  "url": "/r/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "crash": null,
+  "adminSignIn": false,
+  "errorShown": false,
+  "text": "! This link isn't valid Please open the full link from your message, or contact the business."
+ },
+ {
+  "app": "public",
+  "mode": "empty",
+  "page": "broken reschedule link",
+  "url": "/r/notatoken",
+  "crash": null,
+  "adminSignIn": false,
+  "errorShown": false,
+  "text": "Z Zella Voice This link isn't complete Part of the link seems to be missing. Open the full link from your text or email (it may have been sp"
+ },
+ {
+  "app": "public",
+  "mode": "empty",
+  "page": "unsubscribe link",
+  "url": "/u/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "crash": null,
+  "adminSignIn": false,
+  "errorShown": false,
+  "text": "! This link isn't valid Please open the full link from your email, or reply to the email and ask to be removed."
+ },
+ {
+  "app": "public",
+  "mode": "empty",
+  "page": "broken unsubscribe link",
+  "url": "/u/bad",
+  "crash": null,
+  "adminSignIn": false,
+  "errorShown": false,
+  "text": "Z Zella Voice This link isn't complete Part of the link seems to be missing. Open the full link from your text or email (it may have been sp"
+ },
+ {
+  "app": "public",
+  "mode": "empty",
+  "page": "waitlist offer link",
+  "url": "/w/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "crash": null,
+  "adminSignIn": false,
+  "errorShown": false,
+  "text": "! This link isn't valid Please open the full link from your message, or contact the business."
+ },
+ {
+  "app": "public",
+  "mode": "empty",
+  "page": "broken waitlist link",
+  "url": "/w/123",
+  "crash": null,
+  "adminSignIn": false,
+  "errorShown": false,
+  "text": "Z Zella Voice This link isn't complete Part of the link seems to be missing. Open the full link from your text or email (it may have been sp"
+ },
+ {
+  "app": "public",
+  "mode": "empty",
+  "page": "status page",
+  "url": "/status",
+  "crash": null,
+  "adminSignIn": false,
+  "errorShown": false,
+  "text": "Zella Voice status"
+ },
+ {
+  "app": "public",
+  "mode": "empty",
+  "page": "welcome without a code",
+  "url": "/welcome",
+  "crash": null,
+  "adminSignIn": false,
+  "errorShown": false,
+  "text": "Z Zella Voice Hands full. Phone handled. This link can't be used Ask the person who invited you to send a new invitation, or reset your pass"
+ },
+ {
+  "app": "public",
+  "mode": "empty",
+  "page": "expired email link",
+  "url": "/welcome#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired",
+  "crash": null,
+  "adminSignIn": false,
+  "errorShown": true,
+  "text": "Z Zella Voice Hands full. Phone handled. This link can't be used This link has expired or was already used. Email links work only once, and "
+ },
+ {
+  "app": "public",
+  "mode": "empty",
+  "page": "continue plan without a code",
+  "url": "/continue-plan",
+  "crash": null,
+  "adminSignIn": false,
+  "errorShown": false,
+  "text": "Z Zella Voice ! This link isn't valid Please check you opened the full link from your email, or contact the Zella team."
+ },
+ {
+  "app": "public",
+  "mode": "error",
+  "page": "reschedule link",
+  "url": "/r/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "crash": null,
+  "adminSignIn": false,
+  "errorShown": true,
+  "text": "Something went wrong This link can't be used right now. Please contact the business."
+ },
+ {
+  "app": "public",
+  "mode": "error",
+  "page": "broken reschedule link",
+  "url": "/r/notatoken",
+  "crash": null,
+  "adminSignIn": false,
+  "errorShown": false,
+  "text": "Z Zella Voice This link isn't complete Part of the link seems to be missing. Open the full link from your text or email (it may have been sp"
+ },
+ {
+  "app": "public",
+  "mode": "error",
+  "page": "unsubscribe link",
+  "url": "/u/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "crash": null,
+  "adminSignIn": false,
+  "errorShown": true,
+  "text": "We can't reach Zella right now Your link looks fine. Please try again in a few minutes, or reply to the email and ask to be removed. Try aga"
+ },
+ {
+  "app": "public",
+  "mode": "error",
+  "page": "broken unsubscribe link",
+  "url": "/u/bad",
+  "crash": null,
+  "adminSignIn": false,
+  "errorShown": false,
+  "text": "Z Zella Voice This link isn't complete Part of the link seems to be missing. Open the full link from your text or email (it may have been sp"
+ },
+ {
+  "app": "public",
+  "mode": "error",
+  "page": "waitlist offer link",
+  "url": "/w/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "crash": null,
+  "adminSignIn": false,
+  "errorShown": true,
+  "text": "Something went wrong This link can't be used right now. Please contact the business."
+ },
+ {
+  "app": "public",
+  "mode": "error",
+  "page": "broken waitlist link",
+  "url": "/w/123",
+  "crash": null,
+  "adminSignIn": false,
+  "errorShown": false,
+  "text": "Z Zella Voice This link isn't complete Part of the link seems to be missing. Open the full link from your text or email (it may have been sp"
+ },
+ {
+  "app": "public",
+  "mode": "error",
+  "page": "status page",
+  "url": "/status",
+  "crash": null,
+  "adminSignIn": false,
+  "errorShown": false,
+  "text": "Zella Voice status We can't reach Zella right now The app or its database isn't answering. This page checks again every minute."
+ },
+ {
+  "app": "public",
+  "mode": "error",
+  "page": "welcome without a code",
+  "url": "/welcome",
+  "crash": null,
+  "adminSignIn": false,
+  "errorShown": false,
+  "text": "Z Zella Voice Hands full. Phone handled. This link can't be used Ask the person who invited you to send a new invitation, or reset your pass"
+ },
+ {
+  "app": "public",
+  "mode": "error",
+  "page": "expired email link",
+  "url": "/welcome#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired",
+  "crash": null,
+  "adminSignIn": false,
+  "errorShown": true,
+  "text": "Z Zella Voice Hands full. Phone handled. This link can't be used This link has expired or was already used. Email links work only once, and "
+ },
+ {
+  "app": "public",
+  "mode": "error",
+  "page": "continue plan without a code",
+  "url": "/continue-plan",
+  "crash": null,
+  "adminSignIn": false,
+  "errorShown": false,
+  "text": "Z Zella Voice ! This link isn't valid Please check you opened the full link from your email, or contact the Zella team."
+ }
+]

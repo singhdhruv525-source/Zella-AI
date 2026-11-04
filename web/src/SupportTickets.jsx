@@ -125,7 +125,7 @@ export default function SupportTickets({ onOpenBusiness }) {
                   </tr>
                 ))}
                 {!tickets.length && (
-                  <tr><td colSpan={5}><div className="op-empty">{loading && !data ? "Loading tickets..." : "No tickets here."}</div></td></tr>
+                  <tr><td colSpan={5}><div className="op-empty">{loading && !data ? "Loading tickets..." : !data ? "Couldn't load this list. Try again with Refresh, or reload the page." : "No tickets here."}</div></td></tr>
                 )}
               </tbody>
             </table>

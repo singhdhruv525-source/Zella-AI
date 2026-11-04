@@ -600,7 +600,7 @@ function CustomerRecords({ w, records, onNotice }) {
       <Card title="Duplicate detection" sub="Built in, not a setting.">
         <Facts rows={[["Same phone or email", "Linked to the existing person"], ["Similar but not certain", "A check is added to Tasks for a person to decide"]]} />
       </Card>
-      <RecordSettingsPage workspace={w} types={records.types} canManage={roleIn(w, LEAD)} onNotice={onNotice} onChanged={records.reload} />
+      <RecordSettingsPage workspace={w} types={records.types} canManage={roleIn(w, LEAD)} onNotice={onNotice} onChanged={records.reload} loadError={records.error} />
     </>
   );
 }
@@ -854,14 +854,14 @@ function registry(w) {
       page("assignment", "Lead assignment rules", () => <LeadRules w={w} />, "assign route priority urgent keyword source rule"),
       page("questions", "Qualifying questions", () => <LeadQuestions w={w} />, "qualify qualification questions required answer"),
       page("pipeline", "Pipeline", lazyNeeds("Pipeline stages aren't editable yet", "Leads move through the fixed stages on the Leads page; changing stage never changes the customer's details.", "Custom stages need a stage list per business that the Leads page and automations read.")),
-      page("fields", "Custom fields", (c) => <RecordSettingsPage workspace={w} types={c.records.types} canManage={lead} onNotice={c.onNotice} onChanged={c.records.reload} />, "field type required"),
+      page("fields", "Custom fields", (c) => <RecordSettingsPage workspace={w} types={c.records.types} canManage={lead} onNotice={c.onNotice} onChanged={c.records.reload} loadError={c.records.error} />, "field type required"),
       page("export", "Import and export", () => <><DataExport w={w} /><BillingNeeds title="Importing isn't available yet" have="Add people one at a time, or ask Zella to import a file for you.">Importing needs a file upload with field mapping, a preview and duplicate checks.</BillingNeeds></>, "csv import export"),
       page("communication", "Customer communication", () => <Communication w={w} />, "consent unsubscribe opt-out"),
     ] },
     { key: "industry", label: "Industry and workflows", icon: "tune", items: [
       page("profile", "Industry profile", () => <IndustryProfile w={w} />, "industry modules"),
       page("terminology", "Terminology", (c) => <Terminology w={w} onReload={c.onReload} />, "words patients customers jobs"),
-      page("fields", "Industry fields", (c) => <RecordSettingsPage workspace={w} types={c.records.types} canManage={lead} onNotice={c.onNotice} onChanged={c.records.reload} />, "fields"),
+      page("fields", "Industry fields", (c) => <RecordSettingsPage workspace={w} types={c.records.types} canManage={lead} onNotice={c.onNotice} onChanged={c.records.reload} loadError={c.records.error} />, "fields"),
       page("workflows", "Workflow rules", (c) => <AutomationsPage workspace={w} refreshKey={0} onNotice={c.onNotice} />, "rules status follow-up"),
       page("services", "Service catalog", () => <ServicesPanel w={w} />, "services prices duration"),
       page("modules", "Modules", (c) => <BusinessModulesPanel w={w} onGo={c.onGo} />, "modules industry enabled disabled available operations records"),

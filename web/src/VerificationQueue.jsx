@@ -156,7 +156,7 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
                     );
                   })}
                   {!docs.length && (
-                    <tr><td colSpan={5}><div className="op-empty">{loading ? "Loading documents..." : status === "pending_review" ? "Nothing waiting for review." : "No documents here."}</div></td></tr>
+                    <tr><td colSpan={5}><div className="op-empty">{loading ? "Loading documents..." : !data ? "Couldn't load this list. Try again with Refresh, or reload the page." : status === "pending_review" ? "Nothing waiting for review." : "No documents here."}</div></td></tr>
                   )}
                 </tbody>
               </table>

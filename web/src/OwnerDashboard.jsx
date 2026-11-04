@@ -1,5 +1,6 @@
 import { SidebarBrand } from "./navigation/SidebarBrand";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AppearanceSaveNotice } from "./AppearanceSaveNotice";
 import { ErrorBoundary, Icon, loadBusinessFonts } from "./BusinessUI";
 import { DockToggle } from "./navigation/DockToggle";
 import "./OwnerDashboard.css";
@@ -197,6 +198,10 @@ useEffect(() => {
   }, []);
   const allowed = (item) => !item.perm || meFailed || Boolean(me?.permissions?.includes(item.perm));
   const isCurrent = (item) => activePage === item.label;
+  // A direct link to a page this role can't use says so, instead of drawing a page whose every action would fail.
+  const can = (perm) => !me || meFailed || Boolean(me.permissions?.includes(perm));
+  const currentItem = NAVIGATION.find((n) => n.label === activePage);
+  const blocked = (wizard && !can("businesses.manage")) || (!wizard && currentItem && !allowed(currentItem) && Boolean(me));
 
   // ⌘K / Ctrl+K jumps to the business search, as the hint in the search box says.
   const searchBox = useRef(null);
@@ -312,9 +317,15 @@ useEffect(() => {
         </header>
 
         <div className="owner-content">
+          <AppearanceSaveNotice />
           <ErrorBoundary resetKey={path}>
           {notice && <div className="owner-form-error op-gap" role="status">{notice}</div>}
-          {wizard ? (
+          {blocked ? (
+            <div className="owner-empty-state" role="status">
+              <strong>This page isn't available</strong>
+              <p>Your admin role ({me?.roleLabel ?? "restricted"}) doesn't include it. Ask a Zella owner if you need access.</p>
+            </div>
+          ) : wizard ? (
             <CreateBusinessWizard
               key={wizard.businessId || "new"}
               businessId={wizard.businessId}

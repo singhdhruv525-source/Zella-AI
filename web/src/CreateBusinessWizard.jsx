@@ -2021,14 +2021,19 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
 
   if (result) {
     const sent = result.invitationStatus === "sent" || result.invitationStatus === "accepted";
+    // completed is false when the owner's email couldn't go out (or the invitation was cancelled meanwhile): the
+    // server then leaves the workspace inactive, so nothing here may say it's set up.
+    const completed = result.completed !== false;
     return (
       <section className="wiz">
-        <div className="wiz-done">
-          <div className={`wiz-done-icon ${sent ? "" : "warn"}`}>{sent ? "✓" : "!"}</div>
-          <h2>{setup.business.name} is set up</h2>
-          <p>The workspace is active. The AI receptionist stays off until its phone number and voice agent are connected.</p>
+        <div className="wiz-done" role="status">
+          <div className={`wiz-done-icon ${completed && sent ? "" : "warn"}`}>{completed && sent ? "✓" : "!"}</div>
+          <h2>{completed ? `${setup.business.name} is set up` : `${setup.business.name} isn't finished yet`}</h2>
+          <p>{completed
+            ? "The workspace is active. The AI receptionist stays off until its phone number and voice agent are connected."
+            : "The owner's invitation couldn't be sent, so the workspace was not activated. Everything you entered is saved. Fix the problem below and choose Try again."}</p>
           <div className="wiz-done-grid">
-            <div><span>Workspace</span><Badge tone="success">Active</Badge></div>
+            <div><span>Workspace</span><Badge tone={completed ? "success" : "neutral"}>{completed ? "Active" : "Not active yet"}</Badge></div>
             <div><span>Owner invitation</span><Badge tone={sent ? "success" : "danger"}>{result.invitationStatus}</Badge></div>
             <div><span>AI receptionist</span><Badge>Off until connected</Badge></div>
             <div><span>Automations</span><Badge>Paused until go-live</Badge></div>
@@ -2038,7 +2043,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
           <div className="wiz-done-actions">
             {!sent && (
               <button type="button" className="owner-secondary-button" onClick={finish} disabled={saving}>
-                {saving ? "Retrying..." : "Retry invitation"}
+                {saving ? "Trying again..." : completed ? "Retry invitation" : "Try again"}
               </button>
             )}
             <button type="button" className="owner-primary-button" onClick={() => onClose(true)}>

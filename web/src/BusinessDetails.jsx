@@ -561,12 +561,13 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup }) {
             {data.invitations.length ? (
               <div className="owner-table-wrap" tabIndex={0}>
                 <table className="owner-table">
-                  <thead><tr><th>Owner</th><th>Email</th><th>Status</th><th>Sent</th><th>Expires</th><th>Last error</th></tr></thead>
+                  <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Sent</th><th>Expires</th><th>Last error</th></tr></thead>
                   <tbody>
                     {data.invitations.map((i) => (
                       <tr key={i.id}>
                         <td>{i.owner_name}</td>
                         <td>{i.email}</td>
+                        <td>{i.role === "owner" || !i.role ? "Owner" : i.role[0].toUpperCase() + i.role.slice(1)}</td>
                         <td>
                           <Pill tone={i.status === "accepted" ? "success" : i.status === "failed" || i.status === "expired" ? "danger" : "neutral"}>
                             {i.status}

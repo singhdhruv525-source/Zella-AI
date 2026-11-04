@@ -140,7 +140,7 @@ export default function PlansPage({ onOpenBusiness }) {
           );
         })}
         {!data?.plans?.length && (
-          <div className="owner-panel"><div className="op-empty">{loading ? "Loading plans..." : "No plans yet."}</div></div>
+          <div className="owner-panel"><div className="op-empty">{loading ? "Loading plans..." : !data ? "Couldn't load this list. Try again with Refresh, or reload the page." : "No plans yet."}</div></div>
         )}
       </div>
 
@@ -162,7 +162,7 @@ export default function PlansPage({ onOpenBusiness }) {
                 </tr>
               ))}
               {!data?.subscriptions?.length && (
-                <tr><td colSpan={5}><div className="op-empty">{loading ? "Loading..." : "No subscriptions yet."}</div></td></tr>
+                <tr><td colSpan={5}><div className="op-empty">{loading ? "Loading..." : !data ? "Couldn't load this list. Try again with Refresh, or reload the page." : "No subscriptions yet."}</div></td></tr>
               )}
             </tbody>
           </table>

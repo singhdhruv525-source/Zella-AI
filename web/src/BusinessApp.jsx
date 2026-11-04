@@ -32,6 +32,7 @@ import "./CrmMotion.css";
 import { warm } from "./zellaVoice";
 import BusinessToday from "./BusinessToday";
 import { AddLeadModal, BookAppointmentModal } from "./BusinessForms";
+import { AppearanceSaveNotice } from "./AppearanceSaveNotice";
 import { ErrorBoundary, Icon, loadBusinessFonts } from "./BusinessUI";
 import { formatLongDate } from "./businessTime";
 import { friendly } from "./BusinessShared";
@@ -251,10 +252,10 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
               if (canGo(key) || key?.startsWith("settings/")) setPage(key);
               else if (key) setNotice("That page isn't available with your access. Ask an owner or admin if you need it.");
             }} />
-            <button type="button" className="ba-btn primary" onClick={() => setModal("lead")}>
+            <button type="button" className="ba-btn primary" onClick={() => setModal("lead")} title="Add lead">
               <Icon name="person_add" /><span>Add lead</span>
             </button>
-            <button type="button" className="ba-btn" onClick={() => openBooking()}>
+            <button type="button" className="ba-btn" onClick={() => openBooking()} title={`New ${term("appointment").toLowerCase()}`}>
               <Icon name="event" /><span>New {term("appointment").toLowerCase()}</span>
             </button>
             <ProfileMenu email={email} name={myName} role={workspace.role} onGo={(path) => navigate(`${base}/${path}`)} onSignOut={onSignOut} />
@@ -262,6 +263,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
         </header>
 
         <main className="ba-content">
+          <AppearanceSaveNotice />
           <ErrorBoundary resetKey={`${workspace.id}:${path}`}>
           {maintenance && <div className="ba-banner" role="status"><span>{maintenance}</span></div>}
           {workspace.cancel_at && !workspace.cancelled_at && (
@@ -354,7 +356,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
               canManage={["owner", "admin", "manager"].includes(workspace.role)} onNotice={setNotice} onOpenPerson={openPerson} />
           )}
           {current.key === "record-settings" && (
-            <RecordSettingsPage workspace={workspace} types={records.types} canManage={["owner", "admin", "manager"].includes(workspace.role)} onNotice={setNotice} onChanged={records.reload} />
+            <RecordSettingsPage workspace={workspace} types={records.types} canManage={["owner", "admin", "manager"].includes(workspace.role)} onNotice={setNotice} onChanged={records.reload} loadError={records.error} />
           )}
           {current.key === "team" && <TeamPage workspace={workspace} email={email} refreshKey={refreshKey} onNotice={setNotice} />}
           {current.key === "drafts" && <DraftsPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}

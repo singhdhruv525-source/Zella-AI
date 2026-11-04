@@ -88,7 +88,7 @@ export default function ContinuePlan() {
       <section className="cp-card">
         <div className="cp-brand">
           <div className="owner-brand-mark">Z</div>
-          <span>zella<span className="cp-ai">ai</span></span>
+          <span>Zella <span className="cp-ai">Voice</span></span>
         </div>
 
         {state.status === "loading" && <p className="op-muted">Checking your link...</p>}

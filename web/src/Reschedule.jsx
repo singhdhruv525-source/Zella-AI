@@ -11,9 +11,12 @@ async function call(token, action, extra = {}) {
     body: { token, action, ...extra },
   });
   if (error) {
-    // Too many tries in a minute (the link's rate limit) gets its own plain message.
+    // Too many tries in a minute (the link's rate limit) gets its own plain message; otherwise the function's own
+    // customer-facing message when it sent one (for example "This link can't be used right now").
     const status = error.context?.status;
-    throw new Error(status === 429 ? "Too many tries. Please wait a minute and try again." : "Something went wrong. Please try again.");
+    if (status === 429) throw new Error("Too many tries. Please wait a minute and try again.");
+    const body = await error.context?.json?.().catch(() => null);
+    throw new Error(typeof body?.error === "string" && body.error.length < 200 ? body.error : "Something went wrong. Please try again.");
   }
   return data;
 }

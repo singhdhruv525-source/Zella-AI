@@ -1,4 +1,5 @@
 
+import BrokenLink from "./BrokenLink";
 import { useEffect, useState } from "react";
 import { supabase } from "./supabase";
 import OwnerDashboard from "./OwnerDashboard";
@@ -35,6 +36,10 @@ export default function App() {
     return <ContinuePlan />;
   }
   // Reschedule button from appointment texts and emails (customers, not signed in).
+  // A customer link that was cut short or mistyped (/r/, /u/, /w/) is a customer's page, never the admin sign-in.
+  if (/^\/(r|u|w)(\/|$)/.test(window.location.pathname) && !/^\/(r|w)\/[0-9a-fA-F]{64}\/?$|^\/u\/[0-9a-fA-F]{32}\/?$/.test(window.location.pathname)) {
+    return <BrokenLink />;
+  }
   if (/^\/r\/[0-9a-fA-F]{64}\/?$/.test(window.location.pathname)) {
     return <Reschedule />;
   }
