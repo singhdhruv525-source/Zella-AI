@@ -206,11 +206,13 @@ begin
     def := replace(def, $a$if p_action not in ('arrived', 'checked_in', 'in_service', 'completed', 'no_show', 'cancelled', 'undo', 'assign') then raise exception 'BAD_ACTION'; end if;$a$,
       $a$if p_action not in ('arrived', 'checked_in', 'in_service', 'completed', 'no_show', 'cancelled', 'undo', 'assign') then raise exception 'BAD_ACTION'; end if;
   /* zella_capability_checkins */ if p_action in ('arrived', 'checked_in', 'in_service') then perform public.zella_require_capability(a.business_id, 'checkins'); end if;$a$);
+    if position('zella_capability_checkins' in def) = 0 then raise exception 'zella_set_attendance has changed; review this patch'; end if;
     execute def;
   end if;
   for def in select pg_get_functiondef(p.oid) from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname = 'zella_join_waitlist' loop
     if position('zella_capability_waitlist' in def) = 0 then
       def := regexp_replace(def, E'\\nbegin\\n', E'\nbegin\n  /* zella_capability_waitlist */ perform public.zella_require_capability(p_business_id, ''waitlist'');\n');
+      if position('zella_capability_waitlist' in def) = 0 then raise exception 'zella_join_waitlist has changed; review this patch'; end if;
       execute def;
     end if;
   end loop;
@@ -224,6 +226,7 @@ begin
   if position('''capabilities''' in def) = 0 then
     def := replace(def, $a$'location', nullif($a$, $a$'capabilities', public.zella_capabilities(b.id),
     'location', nullif($a$);
+    if position('''capabilities''' in def) = 0 then raise exception 'zella_workspace_navigation has changed; review this patch'; end if;
     execute def;
   end if;
 end $$;
