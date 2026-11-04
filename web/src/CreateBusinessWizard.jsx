@@ -12,6 +12,8 @@ import { friendlyError } from "./admin/adminOps";
 import { addLeaveGuard } from "./router";
 import { hoursList } from "./automationOptions";
 import { hasUnsavedChanges, stepProgress } from "./wizardProgress";
+import { CapabilitiesPanel } from "./settings/CapabilitiesPanel";
+import "./settings/settings.css";
 
 // ---------------------------------------------------------------------------
 // Server calls
@@ -1535,13 +1537,20 @@ function AutomationsCombinedStep(props) {
   );
 }
 
-function CrmSetupStep({ terminology, onTerminology, modules, onModules }) {
+function CrmSetupStep({ businessId, terminology, onTerminology, modules, onModules }) {
   const changed = Object.keys(terminology.overrides || {}).length;
   return (
     <>
       <div className="wiz-note">
         This business already has its industry's modules and words. Change them only if it works differently.
       </div>
+      {businessId && (
+        <details className="wiz-advanced" open>
+          <summary><span>What this business does</span><small>Bookings, check-ins, dispatch, classes, orders, money, access codes</small></summary>
+          {/* Saved straight away (zella_set_capability, audited). Starts from the industry; never deletes records. */}
+          <CapabilitiesPanel w={{ id: businessId, role: "admin" }} />
+        </details>
+      )}
       <details className="wiz-advanced">
         <summary><span>Modules</span><small>{modules.filter((m) => m.enabled).length} of {modules.length} switched on</small></summary>
         <ModulesStep modules={modules} onChange={onModules} />
@@ -1669,7 +1678,45 @@ function reviewRows(setup, industries, config, docsReady) {
   return { rows, verified };
 }
 
-function ReviewStep({ setup, industries, goTo, config, docsReady }) {
+// Readiness from the server (zella_business_readiness): each rung only when everything below it passes.
+const RUNGS = [["saved", "Saved"], ["setup_complete", "Setup complete"], ["integrations_verified", "Integrations verified"], ["ready", "Ready"], ["live", "Live"]];
+function Readiness({ businessId }) {
+  const [data, setData] = useState(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    if (!businessId) return undefined;
+    let live = true;
+    supabase.rpc("zella_business_readiness", { p_business_id: businessId }).then(({ data: d, error: e }) => {
+      if (!live) return;
+      if (e) setError(/could not find the function/i.test(e.message) ? "Readiness needs the latest Zella update." : e.message);
+      else setData(d);
+    });
+    return () => { live = false; };
+  }, [businessId]);
+  if (!businessId) return null;
+  if (error) return <div className="wiz-note">{error}</div>;
+  if (!data) return <div className="wiz-note">Checking readiness…</div>;
+  const at = RUNGS.findIndex(([k]) => k === data.state);
+  return (
+    <Section title="Readiness" description="Read from the business's real records. A step is reached only when every check before it passes.">
+      <ol className="wiz-ladder" aria-label="Readiness">
+        {RUNGS.map(([k, label], i) => (
+          <li key={k} className={i <= at ? "done" : ""} aria-current={i === at ? "step" : undefined}>{i <= at ? "✓ " : ""}{label}</li>
+        ))}
+      </ol>
+      <div className="wiz-review">
+        {data.checks.filter((c) => !c.ok).map((c) => (
+          <div key={c.key} className="wiz-review-row">
+            <span className="wiz-review-dot later">–</span>
+            <div><strong>{RUNGS.find(([k]) => k === c.rung)?.[1]}</strong><span>{c.detail}</span></div>
+          </div>
+        ))}
+      </div>
+    </Section>
+  );
+}
+
+function ReviewStep({ businessId, setup, industries, goTo, config, docsReady }) {
   const { rows, verified } = reviewRows(setup, industries, config, docsReady);
   const blocking = rows.filter((row) => row.required && !row.ok);
 
@@ -1692,6 +1739,7 @@ function ReviewStep({ setup, industries, goTo, config, docsReady }) {
           ))}
         </div>
       </Section>
+      <Readiness businessId={businessId} />
       <div className="wiz-note">
         Finishing makes the workspace active with its industry's modules and words, and emails the owner their invitation.
         {setup.documentsAvailable && !verified && <> The documents stay <strong>waiting for review</strong> until an admin marks them verified.</>}
@@ -2123,8 +2171,8 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
           </>
         )}
         {STEPS[step].key === "automations" && <AutomationsCombinedStep value={setup.automations} onChange={update("automations")} rules={setup.industryRules} onRules={update("industryRules")} terminology={terminology} industryName={industry?.name} />}
-        {STEPS[step].key === "crm" && <CrmSetupStep terminology={terminology} onTerminology={update("terminology")} modules={setup.modules} onModules={update("modules")} />}
-        {STEPS[step].key === "review" && <ReviewStep setup={persisted} industries={industries} goTo={request} config={persistedConfig} docsReady={docsReady} />}
+        {STEPS[step].key === "crm" && <CrmSetupStep businessId={businessId} terminology={terminology} onTerminology={update("terminology")} modules={setup.modules} onModules={update("modules")} />}
+        {STEPS[step].key === "review" && <ReviewStep businessId={businessId} setup={persisted} industries={industries} goTo={request} config={persistedConfig} docsReady={docsReady} />}
       </div>
 
       {error && <div className="owner-form-error wiz-error" role="alert">{error}</div>}

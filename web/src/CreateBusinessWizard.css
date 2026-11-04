@@ -1040,3 +1040,8 @@ button.wiz-chip:hover { border-color: var(--color-primary); color: var(--color-p
 .wiz-unsaved-dialog .owner-modal-actions {
   margin: 20px 0 0;
 }
+
+/* Readiness ladder (Review step) */
+.wiz-ladder { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 0 0 12px; padding: 0; }
+.wiz-ladder li { padding: 4px 10px; border: 1px solid var(--zella-border, #d9d6cf); border-radius: 999px; font-size: 13px; color: var(--zella-muted, #6b6b6b); }
+.wiz-ladder li.done { background: var(--zella-success-soft, #e7f4ea); border-color: transparent; color: var(--zella-success, #1f6b3a); font-weight: 600; }

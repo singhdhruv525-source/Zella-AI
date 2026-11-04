@@ -3,7 +3,7 @@
 # never point this at production). Applies presets v2, automation presets v2 and receptionist rules twice, checks the
 # invariants below, and prints the capability / workflow matrix as Markdown.
 #   * every industry has capability defaults and an industry key; insurance and cleaning have their own presets
-#   * no record type's title repeats one of its field labels; every link points at a type in the same preset
+#   * no record type's title repeats one of its field labels, and no two fields in a type share a label; every link points at a type in the same preset
 #   * every industry except "other" gets at least one industry-specific receptionist safety line
 #   * private fields hold no plain values in record data
 # Usage: tests/industry/presets_v2_check.sh [source db, default zella_ui]
@@ -22,6 +22,7 @@ check() { local n; n=$($P -c "$2"); if [ "$n" != "0" ]; then echo "FAIL $1: $n";
 check "every industry has capability defaults" "select count(*) from industries i left join industry_configurations c on c.industry_id = i.id where not coalesce(c.features ? 'capabilities', false)"
 check "insurance and cleaning have their own presets" "select 2 - count(*) from industry_crm_presets where key in ('insurance', 'cleaning')"
 check "no title repeats a field label (presets)" "select count(*) from industry_crm_presets p, jsonb_array_elements(p.config -> 'types') t, jsonb_array_elements(t -> 'fields') f where lower(f ->> 'label') = lower(coalesce(t ->> 'title_label', 'Name'))"
+check "no two fields in a type share a label" "select count(*) from (select 1 from industry_crm_presets p, jsonb_array_elements(p.config -> 'types') t, jsonb_array_elements(t -> 'fields') f group by p.key, t ->> 'key', lower(f ->> 'label') having count(*) > 1) d"
 check "every link targets a type in the same preset" "select count(*) from industry_crm_presets p, jsonb_array_elements(p.config -> 'types') t, jsonb_array_elements(t -> 'fields') f where f ->> 'type' = 'record' and not exists (select 1 from jsonb_array_elements(p.config -> 'types') x where x ->> 'key' = f ->> 'target')"
 check "private fields hold no plain values" "select count(*) from crm_record_types t join crm_records r on r.business_id = t.business_id and r.type_key = t.key, jsonb_array_elements(t.fields) f where coalesce((f ->> 'sensitive')::boolean, false) and r.data ? (f ->> 'key')"
 check "industry safety line for every test business but other" "select count(*) from businesses b join industries i on i.id = b.industry_id where b.id::text like 'c0%' and i.slug <> 'other' and (select count(*) from regexp_split_to_table(substring(public.zella_brain_prompt_base(b.id) from 'SAFETY\n(.*?)(\nBUSINESS-SPECIFIC|\nUpcoming|$)'), '\n') l where l like '- %') < 3"

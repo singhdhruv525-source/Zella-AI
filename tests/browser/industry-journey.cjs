@@ -16,6 +16,7 @@ const PG = ["-h", process.env.ZPG_HOST ?? "/var/lib/postgresql/zella-sec", "-p",
 const sql = (q) => execFileSync("psql", [...PG, q]).toString().trim();
 const json = (q) => JSON.parse(sql(q) || "null");
 const [worker = 0, workers = 1] = process.argv.slice(2).map(Number);
+const RUN = (process.env.RUN ?? Date.now().toString(36).slice(-4)).replace(/[^a-z0-9]/gi, "");
 const OWNER = "a0000000-0000-0000-0000-000000000002", VIEWER = "a0000000-0000-0000-0000-000000000004";
 
 // What automations and the system produced for one business (counts per kind)
@@ -83,14 +84,15 @@ async function settle(p) {
 
     // 1. add a lead
     let before = counts(biz.id);
-    const first = "Jamie", last = `Rivera${biz.slug.replace(/[^a-z]/g, "").slice(0, 6)}`;
+    // unique per run, so a re-run never finds the previous run's records under the same name
+    const first = "Jamie", last = `Rivera${biz.slug.replace(/[^a-z]/g, "").slice(0, 6)}${RUN}`;
     await p.goto(APP + "/app/today"); await settle(p);
     await p.getByRole("button", { name: "Add lead" }).first().click();
     const lead = p.locator("section.ba-modal");
     await lead.getByLabel("First name").fill(first);
     await lead.getByLabel("Last name").fill(last);
     await lead.locator('input[type="tel"]').fill(`(512) 555-${String(1000 + Math.floor(Math.random() * 8999))}`);
-    await lead.locator('input[type="email"]').fill(`jamie.${biz.slug}@example.test`);
+    await lead.locator('input[type="email"]').fill(`jamie.${biz.slug}.${RUN}@example.test`);
     await lead.locator("textarea").fill("Called asking about prices and availability next week.");
     await lead.getByRole("button", { name: "Add lead" }).click();
     await p.waitForTimeout(1500);
@@ -98,10 +100,22 @@ async function settle(p) {
     let after = counts(biz.id);
     step("add a lead through Add lead", Boolean(cust), { note: cust ? `stage ${cust.lead_stage ?? "-"}, assigned ${cust.assigned_to ? "yes" : "no"}` : "not saved", produced: delta(before, after) });
 
-    // 2. book them
+    // 2. book them, where this business takes bookings (zella_capabilities); where it doesn't, there's no booking button
+    //    and the server refuses one
     before = after;
     await p.goto(APP + "/app/today"); await settle(p);
     const bookLabel = new RegExp(`^New ${(term.appointment ?? "appointment").toLowerCase()}`, "i");
+    const caps = json(`select public.zella_capabilities('${biz.id}')`);
+    R.capabilities = Object.fromEntries(Object.entries(caps).map(([k, v]) => [k, v.state]));
+    const schedulingOn = caps.scheduling?.enabled;
+    if (!schedulingOn) {
+      const buttons = await p.getByRole("button", { name: bookLabel }).count();
+      const nav = await p.locator("#ba-sidebar").innerText();
+      let refused = "";
+      try { sql(`insert into appointments (business_id, title, start_time, end_time) values ('${biz.id}', 'x', now(), now() + interval '1 hour')`); } catch (e) { refused = String(e.stderr ?? e.message); }
+      step("no bookings where this business doesn't take them", buttons === 0 && !/Calendar|Check-ins|Waitlist/.test(nav) && /CAPABILITY_OFF:scheduling/.test(refused),
+        { note: `booking buttons ${buttons}; calendar/check-ins/waitlist in menu: ${/Calendar|Check-ins|Waitlist/.test(nav)}; server: ${refused.match(/CAPABILITY_OFF:\w+/)?.[0] ?? "accepted"}` });
+    } else {
     await p.getByRole("button", { name: bookLabel }).first().click();
     const book = p.locator("section.ba-modal");
     await book.getByPlaceholder(/^Find a /).fill(last);
@@ -119,6 +133,23 @@ async function settle(p) {
     step(`book a ${term.appointment ?? "appointment"}`, Boolean(appt?.linked), { note: appt ? `linked to the lead: ${appt.linked}` : `not booked ${bookErr}`, produced: delta(before, after) });
     const reminders = json(`select coalesce(json_agg(kind || ' ' || hours_before || 'h ' || status), '[]') from appointment_reminders where business_id = '${biz.id}'`);
     R.reminders = reminders;
+    }
+    // where check-ins are off, the page isn't in the menu and the server refuses an arrival
+    if (schedulingOn && !caps.checkins?.enabled) {
+      const nav = await p.locator("#ba-sidebar").innerText();
+      const a = sql(`select id from appointments where business_id = '${biz.id}' order by created_at desc limit 1`);
+      let refused = "";
+      if (a) try { sql(`select public.zella_set_attendance('${a}', 'arrived')`); } catch (e) { refused = String(e.stderr ?? e.message); }
+      step("no front-desk check-ins where they don't fit", !/Check-ins/.test(nav) && (!a || /CAPABILITY_OFF:checkins/.test(refused)), { note: `in menu: ${/Check-ins/.test(nav)}; server: ${refused.match(/CAPABILITY_OFF:\w+/)?.[0] ?? (a ? "accepted" : "no booking")}` });
+    }
+
+    // 2b. the owner switches on the industry's new record types (Customize records), as they would after an update
+    const offTypes = json(`select coalesce(json_agg(key), '[]') from crm_record_types where business_id = '${biz.id}' and not enabled and preset_key = public.zella_industry_key_for('${biz.id}')`);
+    for (const k of offTypes) {
+      const r = await rpc(ownerTok, "zella_save_record_type", { p_business_id: biz.id, p_key: k, p_patch: { enabled: true } });
+      if (r.status >= 300) step(`switch on ${k}`, false, { note: r.body.slice(0, 160) });
+    }
+    if (offTypes.length) step("owner switches on the new record types", true, { note: offTypes.join(", ") });
 
     // 3. every industry record type: add one, then walk it through every status
     const types = json(`select coalesce(json_agg(json_build_object('key', key, 'singular', singular, 'plural', plural, 'fields', fields, 'statuses', statuses, 'link_person', link_person, 'title_label', title_label) order by position), '[]') from crm_record_types where business_id = '${biz.id}' and enabled`);
@@ -141,7 +172,9 @@ async function settle(p) {
         const esc = f.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         const box = m.locator("label.ba-field").filter({ has: p.locator("span", { hasText: new RegExp(`^${esc}$`) }) }).first();
         try {
-          if (f.type === "select") await box.locator("select").selectOption({ index: 1 });
+          if (f.type === "record") await box.locator("select option").nth(1).waitFor({ state: "attached", timeout: 4000 }).catch(() => {}); // links load their choices
+          if (f.sensitive) await box.locator("textarea, input").first().fill(`Private ${f.label.toLowerCase()}`);
+          else if (f.type === "select" || f.type === "record") { if (await box.locator("select option").count() > 1) await box.locator("select").selectOption({ index: f.type === "record" ? (await box.locator("select option").count()) - 1 : 1 }); }
           else if (f.type === "bool") await box.locator('input[type="checkbox"]').check();
           else if (f.type === "longtext") await box.locator("textarea").fill(`Notes about ${f.label.toLowerCase()}`);
           else if (f.type === "number") await box.locator("input").fill("3");
@@ -159,7 +192,10 @@ async function settle(p) {
       await p.waitForTimeout(1500);
       const addErr = await m.locator(".ba-error").innerText().catch(() => "");
       const rec = json(`select row_to_json(r) from (select id, status, customer_id is not null as linked, data from crm_records where business_id = '${biz.id}' and type_key = '${t.key}' and title = $t$${title}$t$ limit 1) r`);
-      const filled = rec ? t.fields.filter((f) => rec.data?.[f.key] !== undefined && rec.data[f.key] !== "").length : 0;
+      const secretKeys = rec ? json(`select coalesce(json_agg(field_key), '[]') from crm_record_secrets where record_id = '${rec.id}'`) : [];
+      const filled = rec ? t.fields.filter((f) => (rec.data?.[f.key] !== undefined && rec.data[f.key] !== "") || secretKeys.includes(f.key)).length : 0;
+      const leaked = rec ? t.fields.filter((f) => f.sensitive && rec.data?.[f.key] !== undefined).length : 0;
+      if (t.fields.some((f) => f.sensitive)) step(`${t.singular}: private fields kept out of record data`, leaked === 0 && secretKeys.length > 0, { note: `${secretKeys.length} stored privately, ${leaked} in record data` });
       const tr = { type: t.key, label: t.plural, added: Boolean(rec), linked: rec?.linked ?? false, fieldsFilled: `${filled}/${t.fields.length}`, error: addErr || undefined, statuses: [] };
       step(`add ${t.singular}`, Boolean(rec), { note: rec ? `fields ${filled}/${t.fields.length}, linked ${rec.linked}` : addErr });
       // statuses, in order
@@ -188,6 +224,28 @@ async function settle(p) {
       }
       tr.produced = delta(before, counts(biz.id));
       R.recordTypes.push(tr);
+    }
+
+    // 3b. money: add an invoice through the Money page and record part of it as paid (nothing is charged)
+    if (caps.money?.enabled) {
+      await p.goto(APP + "/app/money"); await settle(p);
+      try {
+        await p.getByRole("button", { name: /^add$/i }).first().click({ timeout: 6000 });
+        const mm = p.locator("section.ba-modal");
+        await mm.locator("input[inputmode=decimal]").fill("120.50");
+        await mm.locator("input").nth(1).fill(`Work for ${first} ${last}`);
+        await mm.getByRole("button", { name: /^Add$/ }).click();
+        await p.waitForTimeout(1500);
+        await p.locator("tr", { hasText: `Work for ${first} ${last}` }).first().click();
+        await p.waitForTimeout(1200);
+        const dm = p.locator("section.ba-modal");
+        await dm.locator("input[inputmode=decimal]").fill("20");
+        await dm.getByRole("button", { name: "Record" }).click();
+        await p.waitForTimeout(1500);
+        await p.keyboard.press("Escape").catch(() => {});
+      } catch (e) { R.moneyError = e.message.split("\n")[0].slice(0, 120); }
+      const ch = json(`select row_to_json(c) from (select c.status, c.amount_minor, (public.zella_charge_balance(c.id) ->> 'balance_minor')::int as left from customer_charges c where business_id = '${biz.id}' and description = $t$Work for ${first} ${last}$t$ order by created_at desc limit 1) c`);
+      step("money: invoice added and part paid", ch?.status === "partially_paid" && ch.left === 10050, { note: ch ? `${ch.status}, ${ch.left} cents left` : R.moneyError ?? "not saved" });
     }
 
     // 4. the person's profile shows what was done

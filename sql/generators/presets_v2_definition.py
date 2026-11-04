@@ -142,7 +142,7 @@ P["pest_control"] = {"types": [
 P["automotive"] = {"types": [
   EXT("vehicles", [F("vin", "VIN"), F("plate", "Plate number"), F("plate_state", "Plate state or territory"), F("recall_checked_on", "Recall check", "date")], relabel={"registration": "Registration (rego)"}),
   EXT("repair_orders", [LINK("vehicle_record", "Vehicle record", "vehicles"), F("declined_work", "Declined work", "longtext"), F("remind_declined_on", "Remind about declined work", "date"),
-                        F("labour", "Labour", "number"), F("parts", "Parts", "number")]),
+                        F("labour", "Labour cost", "number"), F("parts", "Parts cost", "number")]),
   T("loaners", "Loaner car", "Loaner cars", "car_rental", "Car",
     S(("available", "Available", "success"), ("out", "Out", "warning"), ("returned", "Returned", "")), ["returned"],
     [F("out_at", "Out", "datetime"), F("due_back", "Due back", "datetime"), SEL("fuel_out", "Fuel when out", ["Full", "3/4", "1/2", "1/4", "Empty"])]),
@@ -207,7 +207,7 @@ P["insurance"] = {"new": True, "match": ["insurance", "insuranceagency", "insura
     [SEL("kind", "Request", ["Certificate of insurance", "Policy change", "Cancellation", "Billing", "Other"], required=True), LINK("policy", "Policy", "policies"), F("details", "Details", "longtext")]),
 ]}
 P["professional_services"] = {"types": [
-  EXT("opportunities", [F("proposal_amount", "Proposal amount", "number"), SEL("proposal_status", "Proposal", ["Not sent", "Sent", "Accepted", "Declined"])]),
+  EXT("opportunities", [F("proposal_amount", "Proposal amount", "number"), SEL("proposal_status", "Proposal status", ["Not sent", "Sent", "Accepted", "Declined"])]),
   EXT("projects", [F("retainer_value", "Retainer value", "number"), F("hours_used", "Hours used", "number")]),
 ]}
 P["restaurant"] = {"types": [

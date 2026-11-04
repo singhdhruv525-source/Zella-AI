@@ -50,6 +50,9 @@ begin
         for f in select * from jsonb_array_elements(t -> 'add_fields') loop
           if not exists (select 1 from jsonb_array_elements(cur -> 'fields') x where x ->> 'key' = f ->> 'key') then
             cur := jsonb_set(cur, '{fields}', (cur -> 'fields') || jsonb_build_array(f));
+          else -- the preset's own definition is refreshed (labels, options); businesses' fields are never relabelled
+            cur := jsonb_set(cur, '{fields}', (select jsonb_agg(case when x ->> 'key' = f ->> 'key' then x || f else x end order by o)
+                                               from jsonb_array_elements(cur -> 'fields') with ordinality e(x, o)));
           end if;
         end loop;
         if t ? 'sensitive' then
