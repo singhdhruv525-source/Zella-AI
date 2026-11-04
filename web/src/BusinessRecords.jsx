@@ -35,9 +35,10 @@ export function useRecordTypes(workspace, refreshKey) {
   return { ...state, reload: () => setVersion((v) => v + 1) };
 }
 
-export function showValue(field, value, tz) {
+export function showValue(field, value, tz, titles) {
   if (field.sensitive) return "Hidden";
   if (value === undefined || value === null || value === "") return "—";
+  if (field.type === "record") return titles?.[value] ?? "Linked record";
   if (field.type === "bool") return value ? "Yes" : "No";
   if (field.type === "date") return formatDay(value, tz);
   if (field.type === "datetime") return `${formatDay(value, tz)} · ${formatTime(value, tz)}`;
@@ -259,6 +260,11 @@ export function RecordsPage({ workspace, type, query, refreshKey, canManage, onN
   const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const visible = rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   const cols = type.columns.map((k) => type.fields.find((f) => f.key === k)).filter(Boolean);
+  // titles of linked records shown in the table (this business's own records only, read under row security)
+  const linkIds = useMemo(() => [...new Set((data ?? []).flatMap((r) => cols.filter((c) => c.type === "record").map((c) => r.data?.[c.key])).filter(Boolean))].slice(0, 300), [data, cols]);
+  const linked = useLoad(async () => (linkIds.length
+    ? Object.fromEntries((orThrow(await supabase.from("crm_records").select("id, title").in("id", linkIds)) ?? []).map((x) => [x.id, x.title]))
+    : {}), [linkIds.join(",")]);
   const statusOf = (key) => type.statuses.find((s) => s.key === key) ?? { label: key, tone: "" };
 
   function saved(message) {
@@ -306,7 +312,7 @@ export function RecordsPage({ workspace, type, query, refreshKey, canManage, onN
                     <tr key={r.id} onClick={() => setModal({ record: r })} tabIndex={0} onKeyDown={(e) => e.key === "Enter" && setModal({ record: r })}>
                       <td><strong>{r.title}</strong></td>
                       <td><Pill tone={statusOf(r.status).tone}>{statusOf(r.status).label}</Pill></td>
-                      {cols.map((c) => <td key={c.key}>{showValue(c, r.data?.[c.key], tz)}</td>)}
+                      {cols.map((c) => <td key={c.key}>{showValue(c, r.data?.[c.key], tz, linked.data)}</td>)}
                       {type.link_person && <td>{personName(r.customers) ?? "—"}</td>}
                       <td>{timeAgo(r.updated_at)}</td>
                     </tr>

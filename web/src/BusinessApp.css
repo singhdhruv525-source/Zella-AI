@@ -1996,3 +1996,10 @@ html:not([data-zella-icons="ready"]) .ba-header-actions { flex-wrap: wrap; flex-
   .ba-search { min-width: 0; flex-basis: 140px; }
   .ba-header { gap: 8px; }
 }
+/* Phone: the business switcher button shrinks with its slot (the name shortens with "…") instead of sliding under the
+   header buttons. */
+@media (max-width: 760px) {
+  .ba-switcher-btn { width: 100%; max-width: 100%; min-width: 0; }
+  .ba-switcher-text { overflow: hidden; }
+  .ba-switcher-text > * { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}

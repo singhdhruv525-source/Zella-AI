@@ -16,7 +16,8 @@
 //   settings  instead of a page: a Settings address, "<category>/<page>"
 //   module    module slug that must be available and switched on (industry_modules / business_modules)
 //   capability a kind of work that must be on for this business (zella_capabilities: scheduling, checkins, waitlist,
-//             dispatch, classes, orders, money, access_vault). Without capability data (older database) it shows.
+//             dispatch, classes, orders, money, access_vault). Without capability data (older database) it shows,
+//             unless capabilityRequired: then it's hidden until the database reports the capability.
 //   roles     roles allowed to see it; omitted = every member
 //   badge     live counter shown beside it ("attention")
 //   children  sub-items, shown under the item when it is opened
@@ -47,7 +48,7 @@ export const NAV_ITEMS = [
 
   { id: "leads", group: "crm", order: 10, label: "Leads", icon: "filter_alt", page: "leads" },
   { id: "customers", group: "crm", order: 20, label: (term) => term("customers"), icon: "group", page: "customers" },
-  { id: "money", group: "crm", order: 30, label: "Money", icon: "payments", page: "money", capability: "money", roles: WORK_ROLES },
+  { id: "money", group: "crm", order: 30, label: "Money", icon: "payments", page: "money", capability: "money", capabilityRequired: true, roles: WORK_ROLES },
 
   {
     id: "calls-messages", group: "communications", order: 10, label: "Calls & messages", icon: "forum", badge: "attention",
@@ -100,7 +101,9 @@ export const NAV_ITEMS = [
 export function buildNavigation(access, term) {
   const allowed = (item) =>
     (!item.module || access.modules.has(item.module)) && (!item.roles || item.roles.includes(access.role))
-    && capabilityOn(access.capabilities, item.capability);
+    && capabilityOn(access.capabilities, item.capability)
+    // pages that only exist once the capabilities update is applied (Money's tables come with it)
+    && (!item.capabilityRequired || Boolean(access.capabilities?.[item.capability]));
   const shape = (item) => ({ ...item, label: typeof item.label === "function" ? item.label(term) : item.label });
 
   const items = NAV_ITEMS.filter(allowed).map((item) => {
