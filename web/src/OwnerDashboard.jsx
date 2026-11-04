@@ -1,3 +1,4 @@
+import { SidebarBrand } from "./navigation/SidebarBrand";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ErrorBoundary, Icon, loadBusinessFonts } from "./BusinessUI";
 import { DockToggle } from "./navigation/DockToggle";
@@ -221,13 +222,7 @@ useEffect(() => {
     <div className="owner-app">
       {navOpen && <button type="button" className="zella-nav-backdrop" aria-label="Close menu" onClick={() => setNavOpenAt(null)} />}
       <aside id="owner-sidebar" className={`owner-sidebar ${navOpen ? "open" : ""}`} aria-label="Main navigation">
-        <div className="owner-brand">
-          <div className="owner-brand-mark">Z</div>
-          <div>
-            <div className="owner-brand-name">Zella <span>Voice</span></div>
-            <div className="owner-brand-caption">Platform control</div>
-          </div>
-        </div>
+        <SidebarBrand caption="Platform control" />
 
         <div className="owner-workspace">
           <div className="owner-workspace-icon">Z</div>

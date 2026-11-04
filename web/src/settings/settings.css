@@ -187,6 +187,10 @@
 .zs-look-preview { display: flex; gap: 5px; height: 54px; margin-bottom: 6px; padding: 8px; border-radius: 9px; }
 .zs-look-preview i { flex: 1; border-radius: 6px; }
 .zs-look-preview i:first-child { flex: 0 0 14px; border-radius: 99px; }
+.zs-look-preview.zella { background: #FAFAF7; border: 1px solid #D9DCE1; }
+.zs-look-preview.zella i { background: #FFFFFF; border: 1px solid #D9DCE1; }
+.zs-look-preview.zella i:first-child { background: #FF4F2E; border-color: #FF4F2E; }
+.zs-look-preview.zella i:nth-child(2) { border-top: 3px solid #0B0F1A; }
 .zs-look-preview.classic { background: #F7F4EF; border: 1px solid #E9E2D9; }
 .zs-look-preview.classic i { background: #FFFFFF; border: 1px solid #E9E2D9; }
 .zs-look-preview.glass { background: url("/backgrounds/lounge-dusk.svg") center / cover; }

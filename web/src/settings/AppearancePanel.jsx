@@ -13,11 +13,12 @@ import { chime, deviceAlerts, setDeviceAlerts } from "../liveAlerts";
 // Every change applies at once and is saved to their account.
 
 const THEMES = [
-  { key: "classic", label: "Classic", text: "Light and calm. The standard Zella look." },
+  { key: "zella", label: "Zella Voice", text: "Paper, midnight and coral. The official Zella Voice look." },
+  { key: "classic", label: "Classic", text: "Warm cream and copper. The earlier Zella look." },
   { key: "glass", label: "Glass", text: "Frosted panels over a background picture of your choice." },
 ];
 const SIDEBAR = [
-  { key: null, label: "Automatic", text: "A slim dock with Glass, the full list with Classic." },
+  { key: null, label: "Automatic", text: "A slim dock with Glass, the full list with the other themes." },
   { key: "full", label: "Always full", text: "Icons with their names." },
   { key: "compact", label: "Always a dock", text: "Icons only; names appear when you point at one." },
 ];
@@ -178,7 +179,7 @@ export function AppearancePanel() {
           <button type="button" className="zs-btn" onClick={() => { forgetPictureLater(look.customUrl); resetAppearance(); }}>
             Back to the default look
           </button>
-          <small className="zs-hint">Classic theme, the default picture for Glass, automatic sidebar. Removes your uploaded picture.</small>
+          <small className="zs-hint">Zella Voice theme, the default picture for Glass, automatic sidebar. Removes your uploaded picture.</small>
         </div>
       </Card>
     </>

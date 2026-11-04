@@ -6,6 +6,9 @@ import App from './App.jsx'
 import './styles/components.css'
 // The optional Glass theme (Settings > Appearance); only active when <html data-zella-theme="glass">.
 import './styles/glass.css'
+// The Zella Voice theme (the default look) and the sidebar logo.
+import './styles/zella-theme.css'
+import './styles/brand.css'
 import { startAppearance } from './appearance'
 import { ErrorBoundary } from './BusinessUI'
 

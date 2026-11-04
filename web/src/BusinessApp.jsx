@@ -1,3 +1,4 @@
+import { SidebarBrand } from "./navigation/SidebarBrand";
 import { useCallback, useEffect, useState } from "react";
 import {
   AutomationsPage, CalendarPage, CallsPage, CustomersPage, LeadsPage,
@@ -207,13 +208,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
     <div className="ba-root">
       {navOpen && <button type="button" className="zella-nav-backdrop" aria-label="Close menu" onClick={() => setNavOpenAt(null)} />}
       <aside id="ba-sidebar" className={`ba-sidebar ${navOpen ? "open" : ""}`} aria-label="Main navigation">
-        <div className="ba-brand">
-          <div className="ba-logo">Z</div>
-          <div>
-            <div className="ba-brand-name">Zella Voice</div>
-            <div className="ba-brand-sub">{nav.data?.industry?.name ?? workspace.industry ?? "Business"} CRM</div>
-          </div>
-        </div>
+        <SidebarBrand caption={`${nav.data?.industry?.name ?? workspace.industry ?? "Business"} CRM`} />
 
         {nav.status === "ready"
           ? <SidebarNav groups={groups} isActive={isActive} onOpen={openItem} badges={{ attention }} />

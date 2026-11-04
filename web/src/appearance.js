@@ -20,7 +20,7 @@ export const BACKGROUNDS = [
   { key: "plain", label: "Plain", src: null },
 ];
 
-export const DEFAULT_APPEARANCE = { theme: "classic", background: "lounge", customUrl: null, dim: 35, sidebar: null, matchPicture: true, palette: null };
+export const DEFAULT_APPEARANCE = { theme: "zella", background: "lounge", customUrl: null, dim: 35, sidebar: null, matchPicture: true, palette: null };
 // Which app this page is: the CRM lives under /app (and /welcome); everything else is the admin dashboard.
 export const APP_SCOPE = typeof window !== "undefined" && /^\/(app|welcome)(\/|$)/.test(window.location.pathname) ? "crm" : "admin";
 const STORE_KEY = `zella.appearance.${APP_SCOPE}`;
@@ -51,7 +51,7 @@ function normalisePalette(p) {
 
 function normalise(p) {
   const v = { ...DEFAULT_APPEARANCE, ...(p && typeof p === "object" ? p : {}) };
-  if (!["classic", "glass"].includes(v.theme)) v.theme = DEFAULT_APPEARANCE.theme;
+  if (!["zella", "classic", "glass"].includes(v.theme)) v.theme = DEFAULT_APPEARANCE.theme;
   if (v.background !== "custom" && !BACKGROUNDS.some((b) => b.key === v.background)) v.background = DEFAULT_APPEARANCE.background;
   // only a picture uploaded to Zella's own storage is used as a background
   if (typeof v.customUrl !== "string" || !/^https:\/\/[^/]+\.supabase\.co\/storage\/v1\/object\/public\/brand-assets\/user\//.test(v.customUrl)) v.customUrl = null;
