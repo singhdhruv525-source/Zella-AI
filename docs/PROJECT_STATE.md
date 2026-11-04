@@ -90,10 +90,10 @@ Two kinds of email:
 
    `email_live` stays off until approved.
 
-## Security review 2026-11-04 (deployed except owner-provision-business)
+## Security review 2026-11-04 (deployed)
 
 Fixes for invitations, billing, currency, MFA, navigation and invitation errors are applied live (SQL, staff-invite,
-billing-webhook). owner-provision-business deployed 2026-11-04 (version 11); the web app goes live with hosting. See `docs/SECURITY_REVIEW_2026-11-04.md` for the findings, test results and the order to apply them
+billing-webhook). owner-provision-business deployed 2026-11-04 (now version 13, which includes the second admin/CRM pass); the web app goes live with hosting. See `docs/SECURITY_REVIEW_2026-11-04.md` for the findings, test results and the order to apply them
 (needs the owner's approval).
 
 ## Full review 2026-11-04 (second pass): fixes in the repo, approvals pending
@@ -120,7 +120,7 @@ Browser tests can now run against a local real-schema backend: see `tests/browse
 ## Second admin/CRM pass 2026-11-04 (repo only, not deployed)
 
 On top of the parallel review: setup completion claims the owner invitation before emailing and activates only after
-the email went out (needs a new owner-provision-business deploy; live is version 11); honest wizard result; direct links
+the email went out (deployed 2026-11-04 as owner-provision-business version 13); honest wizard result; direct links
 to admin pages a role lacks say so; customer links cut short never show the admin sign-in; failed loads no longer look
 empty; header and tablet sidebar fit; lifecycle tests. Details: `docs/ADMIN_CRM_REVIEW_2026-11-04.md`.
 
@@ -143,7 +143,7 @@ empty; header and tablet sidebar fit; lifecycle tests. Details: `docs/ADMIN_CRM_
 - Trademark check for the name "Zella".
 - Rebrand to "Zella Voice": done 30 Oct in the app (titles, logos, sign-in pages, status page), emails, SMTP sender
   and new receptionists' default name (`sql/zella_rebrand_voice.sql`). Left: the owner function's default
-  platform name in `owner-provision-business/settings.ts` is changed in the repo but goes live with the next deploy
+  platform name in `owner-provision-business/settings.ts` is live since the 2026-11-04 deploy
   of that function. The receptionist's own prompt never named Zella, so calls are unaffected.
 - Audit follow-ups M-3, M-4, M-5, L-1 to L-5: see `docs/ZELLA_REMEDIATION_CHECKLIST.md`
   (full audit in `docs/ZELLA_END_TO_END_AUDIT.md`).
