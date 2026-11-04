@@ -142,7 +142,7 @@ function buildTimeline(person, calls, appts, convos, follows = [], cbs = [], tas
   return events.sort((a, b) => new Date(b.at) - new Date(a.at));
 }
 
-const TABS = [["overview", "Overview"], ["appointments", "Appointments"], ["timeline", "Timeline"], ["calls", "Calls"], ["messages", "Messages"], ["followups", "Follow-ups"], ["lead", "Lead & quotes"], ["privacy", "Privacy"]];
+const TABS = [["overview", "Overview"], ["appointments", "Appointments"], ["records", "Records"], ["timeline", "Timeline"], ["calls", "Calls"], ["messages", "Messages"], ["followups", "Follow-ups"], ["lead", "Lead & quotes"], ["privacy", "Privacy"]];
 
 export default function PersonProfile({ personId, workspace, onClose, onChanged, onNotice }) {
   const tz = workspace.timezone;
@@ -166,11 +166,17 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
     const cbRes = await supabase.from("callbacks").select("*").eq("customer_id", personId).order("created_at", { ascending: false }).limit(30);
     const taskRes = await supabase.from("crm_tasks").select("*").eq("customer_id", personId).order("created_at", { ascending: false }).limit(30);
     const staffRes = await supabase.from("staff_members").select("id, name").eq("business_id", workspace.id);
+    // This person's industry records (their vehicles, pets, recalls, matters...), with each type's names and statuses.
+    const [recRes, typeRes] = await Promise.all([
+      supabase.from("crm_records").select("id, type_key, title, status, updated_at").eq("business_id", workspace.id).eq("customer_id", personId).is("archived_at", null).order("updated_at", { ascending: false }).limit(100),
+      supabase.from("crm_record_types").select("key, singular, plural, statuses, closed_statuses, icon").eq("business_id", workspace.id).order("position"),
+    ]);
     // Texts, emails and record changes come from the server timeline (calls, appointments and the rest are loaded above).
     const tlRes = await supabase.rpc("zella_customer_timeline", { p_business_id: workspace.id, p_customer_id: personId, p_limit: 100 });
     return {
       person: row, calls: orThrow(calls), appts: orThrow(appts), convos: orThrow(convos), follows: followRes.error ? [] : (followRes.data ?? []),
       cbs: cbRes.error ? [] : cbRes.data ?? [], tasks: taskRes.error ? [] : taskRes.data ?? [], staff: staffRes.error ? [] : staffRes.data ?? [],
+      records: recRes.error ? [] : recRes.data ?? [], recordTypes: typeRes.error ? [] : typeRes.data ?? [], recordsFailed: Boolean(recRes.error),
       server: tlRes.error ? [] : (tlRes.data ?? []).filter((e) => ["text", "email", "change"].includes(e.type)),
     };
   }, [personId]);
@@ -303,7 +309,7 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
             <div className="ba-segment" role="tablist" aria-label="Profile sections">
               {TABS.filter(([key]) => key !== "privacy" || DATA_RIGHTS_ROLES.includes(workspace.role)).map(([key, label]) => (
                 <button key={key} type="button" role="tab" aria-selected={tab === key} className={tab === key ? "active" : ""} onClick={() => setTab(key)}>
-                  {label}{key === "calls" ? ` (${data.calls.length})` : key === "appointments" ? ` (${data.appts.length})` : key === "messages" ? ` (${data.convos.length})` : key === "followups" ? ` (${data.cbs.length + data.tasks.length + data.follows.length})` : ""}
+                  {label}{key === "calls" ? ` (${data.calls.length})` : key === "appointments" ? ` (${data.appts.length})` : key === "records" ? ` (${data.records.length})` : key === "messages" ? ` (${data.convos.length})` : key === "followups" ? ` (${data.cbs.length + data.tasks.length + data.follows.length})` : ""}
                 </button>
               ))}
             </div>
@@ -398,6 +404,25 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
                   {previous.length ? previous.map(row) : <p className="ba-muted">No past {term("appointments").toLowerCase()}.</p>}
                 </>
               ) : <p className="ba-muted">No {term("appointments").toLowerCase()} yet.</p>;
+            })()}
+
+            {tab === "records" && (() => {
+              if (data.recordsFailed) return <p className="ba-error" role="alert">Their records couldn't be loaded. Close and open this profile to try again.</p>;
+              const groups = data.recordTypes.map((t) => ({ t, rows: data.records.filter((r) => r.type_key === t.key) })).filter((g) => g.rows.length);
+              return groups.length ? groups.map(({ t, rows }) => (
+                <div key={t.key}>
+                  <h3 className="ba-sub">{t.plural}</h3>
+                  {rows.map((r) => {
+                    const st = (t.statuses ?? []).find((x) => x.key === r.status);
+                    return (
+                      <div key={r.id} className="ba-mini">
+                        <span><Icon name={t.icon || "folder"} size="sm" /> {r.title}<small>Updated {timeAgo(r.updated_at)}</small></span>
+                        <Pill tone={(t.closed_statuses ?? []).includes(r.status) ? "success" : "warning"}>{st?.label ?? humanize(r.status)}</Pill>
+                      </div>
+                    );
+                  })}
+                </div>
+              )) : <p className="ba-muted">No records for this {term("customer").toLowerCase()} yet. Records you link to them (for example from {data.recordTypes[0]?.plural?.toLowerCase() ?? "your records"}) appear here.</p>;
             })()}
 
             {tab === "messages" && (

@@ -1,6 +1,71 @@
 # What each industry's CRM needs: an owner's-eye review, 2026-11-04
 
-## How this was done
+## Part 1: the working check, as the owner of every business (`tests/browser/industry-journey.cjs`)
+
+**Setup.** For each of the 28 industries, a test business on the isolated database (test data only, nothing sent). Acting as its owner in a real browser, the run did the following:
+
+1. switched on reminders, confirmations and new-lead callbacks;
+2. added a lead with "Add lead";
+3. booked them with "New <appointment>";
+4. for every record type, added one through its form (every field filled, linked to the person) and moved it through every status;
+5. opened the person's profile;
+6. checked the key pages at phone width;
+7. checked that a view-only member can't change records;
+8. read the AI receptionist's instructions.
+
+After each step it read the database to see what really happened. That's 314 steps.
+
+### What works in every industry
+- Leads, bookings (linked to the person) and every record type save with all their fields.
+  - Every status change applies and is logged.
+  - The server refuses bad values, for example text in a date-and-time field.
+- **Industry automations fire on status changes** and create the right follow-ups or tasks. Examples:
+  - Automotive: estimate sent → approval chase; ready → pickup reminder.
+  - Childcare: tour booked → follow-up.
+  - E-commerce: issue → task and alert.
+  - Travel: documents → task.
+  - Restaurant: walk-in notified → follow-up; no-show → task.
+- Bookings queue a 24h and a 2h reminder (and a confirmation where switched on). The team is notified.
+- **The AI receptionist gets industry-specific safety rules.** Examples:
+  - Gas, flooding and sparks for the trades.
+  - Never confirm a child attends (childcare).
+  - Never say a dish is allergen-free (restaurant).
+  - Never diagnose (dental and health).
+  - No legal or financial advice (legal and finance).
+- Phone width: no page scrolls sideways in any industry. No page errors in any industry.
+
+### Found and fixed during the check
+| # | Finding | Fix | Status |
+|---|---|---|---|
+| 1 | **View-only members could change business data.** Team settings promises they can't "add and edit customers and appointments". But 35 database functions only checked membership, so a viewer could change record statuses, add notes, create records and customers, book, change lead stages and update callbacks. Production has the same functions; 0 viewers live today. | `sql/zella_viewer_read_only.sql`: those functions now need staff or above. Personal actions (own notifications, own away status) stay open. Test: `tests/security/viewer_test.sql`, which fails before the fix and passes after. | **Migration needs your approval** |
+| 2 | **"Add lead" skipped the lead pipeline.** A lead typed into the CRM got no lead stage, no contact deadline, no duplicate check, no "Contact them" task, no new-lead callback and no notification. Leads from calls and the website get all of these. | `sql/zella_staff_add_lead.sql` (a staff-facing wrapper around the existing pipeline), and the "Add lead" form now uses it. It falls back to the old behaviour until the migration is applied. Verified in the browser: stage "new", assigned, task, callback, notification. | **Migration needs your approval**; app fix in repo |
+| 3 | **The customer profile didn't show their industry records** (their vehicle, pet, recall, matter...). | A **Records** tab on the profile, grouped by record type with status. Verified in the browser. | Fixed in the app |
+| 4 | "Customize records" said "Nothing to customize yet" while loading. | Shows "Loading your records…". | Fixed in the app |
+
+### Found, not yet changed (needs your decision)
+- **Two boxes with the same label in 11 record forms across 10 industries.** The record's title and one of its fields have the same name:
+  - "Plan" (cleaning, home services, landscaping, pest control, plumbing);
+  - "Request" (financial services, insurance, property management, restaurant);
+  - "Document" (legal);
+  - "Viewing" (real estate);
+  - "Package" (spa).
+
+  An owner can't tell which box is which. The fix is to rename the title label (for example "Plan name", "Request summary") in the industry presets and in existing businesses' record types. It's a data change.
+- **20 of 64 record types have no automation on any status.** Fine for reference lists (vehicles, pets, properties, tables), but not for working lists:
+  - dental and healthcare enquiries;
+  - e-commerce support cases;
+  - hospitality guest requests and group enquiries;
+  - professional services projects;
+  - property management leases;
+  - real estate deals.
+
+  These should get at least a "still open after N days" chase. Some industries already have time-based rules for that; check each.
+- **E-commerce:** "New order support request" books a calendar slot and sends no reminders. The concept doesn't fit a shop (see Part 2).
+- **Insurance:** the receptionist gets the generic "no financial advice" line, but nothing about claims or confirming coverage.
+
+## Part 2: what each owner needs that isn't there
+
+### How the page check was done
 
 **Test setup.** One test business was set up for each of the 28 industries on the isolated test database (test data only). Every CRM page was opened as its owner in a real browser: 876 page loads, using `tests/browser/industry-review.cjs`.
 

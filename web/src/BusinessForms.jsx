@@ -97,6 +97,24 @@ export function AddLeadModal({ workspace, term, onClose, onSaved }) {
 
     setBusy(true);
     setError("");
+    // Through the lead pipeline (duplicate check, lead stage, contact deadline, task, new-lead callback): the same path
+    // leads from calls and the website take. Until sql/zella_staff_add_lead.sql is applied, fall back to a plain add.
+    const viaPipeline = await supabase.rpc("zella_staff_add_lead", {
+      p_business_id: workspace.id, p_first_name: values.first_name || null, p_last_name: values.last_name || null,
+      p_phone: values.phone || null, p_email: values.email ? values.email.toLowerCase() : null, p_source: values.source, p_notes: values.notes || null,
+    });
+    if (!viaPipeline.error) {
+      setBusy(false);
+      const r = viaPipeline.data ?? {};
+      const who = [values.first_name, values.last_name].filter(Boolean).join(" ") || "New lead";
+      return onSaved(r.result === "matched" ? `${who} is already in your list. The notes were added to their profile.`
+        : r.result === "needs_review" ? `${who} may already be in your list. Check Tasks to review the possible duplicate.`
+        : `${who} was added.`);
+    }
+    if (!/zella_staff_add_lead|schema cache|Could not find|does not exist/i.test(viaPipeline.error.message ?? "")) {
+      setBusy(false);
+      return setError(friendly(viaPipeline.error));
+    }
     const { data, error: insertError } = await supabase
       .from("customers")
       .insert({
