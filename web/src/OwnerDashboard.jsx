@@ -227,7 +227,7 @@ useEffect(() => {
     <div className="owner-app">
       {navOpen && <button type="button" className="zella-nav-backdrop" aria-label="Close menu" onClick={() => setNavOpenAt(null)} />}
       <aside id="owner-sidebar" className={`owner-sidebar ${navOpen ? "open" : ""}`} aria-label="Main navigation">
-        <SidebarBrand caption="Platform control" />
+        <SidebarBrand caption="Platform control" toggle={<DockToggle />} />
 
         <div className="owner-workspace">
           <div className="owner-workspace-icon">Z</div>
@@ -270,7 +270,6 @@ useEffect(() => {
             <span>View system health</span>
           </div>
         </button>
-        <DockToggle />
       </aside>
 
       <main className="owner-main">

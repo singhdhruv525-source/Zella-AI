@@ -16,14 +16,18 @@
   --zv-w: calc(var(--zv-h) * 4.90476);            /* logo width */
   --zv-mark-h: calc(var(--zv-h) * 0.980952);
   --zv-mark-w: calc(var(--zv-mark-h) * 0.50505);
+  --zv-pt: 6px;                                   /* padding: top, sides, bottom */
+  --zv-px: 8px;
+  --zv-pb: 18px;
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 7px;
   flex-shrink: 0;
   min-width: 0;
+  padding: var(--zv-pt) var(--zv-px) var(--zv-pb);
 }
-.ba-sidebar .zv-brand { padding: 6px 8px 18px; }
-.owner-sidebar .zv-brand { padding: 2px 10px 24px; }
+.owner-sidebar .zv-brand { --zv-pt: 2px; --zv-px: 10px; --zv-pb: 24px; }
 
 .zv-brand-logo {
   position: relative;
@@ -66,11 +70,41 @@ html[data-zella-theme="glass"]:has(.ba-root, .owner-app) .zv-brand-dark { displa
   text-overflow: ellipsis;
 }
 
+/* The shrink / expand arrow: top right, level with the logo. Collapsed, it sits centred under the bars (in the
+   space the caption leaves), pointing the other way. Just the arrow: no frame, no text. */
+.zv-dock {
+  position: absolute;
+  top: calc(var(--zv-pt) + (var(--zv-h) - 26px) / 2);
+  left: calc(100% - var(--zv-px) - 26px);
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--zella-text-secondary);
+  cursor: pointer;
+}
+.zv-dock:hover { background: var(--zella-nav-hover); color: var(--zella-text); }
+.zv-dock:focus-visible { outline: none; box-shadow: var(--zella-focus); }
+.zv-dock .ba-icon { font-size: 20px; }
+/* where the sidebar is narrow anyway (tablets) or a drawer (phones) there is nothing to switch */
+@media (max-width: 1100px) { .ba-sidebar .zv-dock { display: none; } }
+@media (max-width: 900px) { .owner-sidebar .zv-dock { display: none; } }
+
+/* The sidebars scroll without showing a scrollbar (mouse wheel, touch and keyboard still scroll them) */
+.ba-sidebar, .owner-sidebar, .owner-sidebar .owner-nav { scrollbar-width: none; -ms-overflow-style: none; }
+:is(.ba-sidebar, .owner-sidebar, .owner-sidebar .owner-nav)::-webkit-scrollbar { display: none; width: 0; height: 0; }
+
 /* ---------- Collapsed: the bars alone, centred ---------- */
 @media (min-width: 761px) {
   html[data-zella-sidebar="compact"] .ba-sidebar:not(.open) .zv-brand { padding-left: 0; padding-right: 0; }
   html[data-zella-sidebar="compact"] .ba-sidebar:not(.open) :is(.zv-brand-full, .zv-brand-caption) { opacity: 0; transform: translateX(-6px); }
   html[data-zella-sidebar="compact"] .ba-sidebar:not(.open) .zv-brand-mark { left: calc(50% - var(--zv-mark-w) / 2); }
+  html[data-zella-sidebar="compact"] .ba-sidebar:not(.open) .zv-dock { top: calc(var(--zv-pt) + var(--zv-h) + 4px); left: calc(50% - 13px); }
+  html[data-zella-sidebar="compact"] .ba-sidebar:not(.open) .zv-dock .ba-icon { transform: rotate(180deg); }
 }
 @media (min-width: 761px) and (max-width: 1100px) {
   .ba-sidebar:not(.open) .zv-brand { padding-left: 0; padding-right: 0; }
@@ -81,6 +115,8 @@ html[data-zella-theme="glass"]:has(.ba-root, .owner-app) .zv-brand-dark { displa
   html[data-zella-sidebar="compact"] .owner-sidebar:not(.open) .zv-brand { padding-left: 0; padding-right: 0; }
   html[data-zella-sidebar="compact"] .owner-sidebar:not(.open) :is(.zv-brand-full, .zv-brand-caption) { opacity: 0; transform: translateX(-6px); }
   html[data-zella-sidebar="compact"] .owner-sidebar:not(.open) .zv-brand-mark { left: calc(50% - var(--zv-mark-w) / 2); }
+  html[data-zella-sidebar="compact"] .owner-sidebar:not(.open) .zv-dock { top: calc(var(--zv-pt) + var(--zv-h) + 4px); left: calc(50% - 13px); }
+  html[data-zella-sidebar="compact"] .owner-sidebar:not(.open) .zv-dock .ba-icon { transform: rotate(180deg); }
 }
 @media (min-width: 601px) and (max-width: 900px) {
   .owner-sidebar:not(.open) .zv-brand { padding-left: 0; padding-right: 0; }
@@ -95,6 +131,8 @@ html[data-zella-theme="glass"]:has(.ba-root, .owner-app) .zv-brand-dark { displa
 @media (prefers-reduced-motion: no-preference) {
   .zv-brand { transition: padding 240ms cubic-bezier(0.2, 0.8, 0.2, 1); }
   .zv-brand-mark { transition: left 240ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+  .zv-dock { transition: left 240ms cubic-bezier(0.2, 0.8, 0.2, 1), top 240ms cubic-bezier(0.2, 0.8, 0.2, 1), background-color 160ms ease; }
+  .zv-dock .ba-icon { transition: transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1); }
   .zv-brand-full, .zv-brand-caption {
     transition: opacity 160ms ease-out 110ms, transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1) 70ms;
   }

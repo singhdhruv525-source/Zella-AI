@@ -54,6 +54,10 @@ const measure = (p, side) => p.evaluate((side) => {
     label: logo.getAttribute("aria-label"), role: logo.getAttribute("role"),
     scrollX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
     duration: getComputedStyle(mark).transitionDuration,
+    dock: (() => { const d = b.querySelector(".zv-dock"); if (!d || getComputedStyle(d).display === "none") return null;
+      const x = d.getBoundingClientRect(); return { x: x.x, y: x.y, w: x.width, h: x.height, text: d.innerText.replace(/chevron_left/g, "").trim(), label: d.getAttribute("aria-label") }; })(),
+    scrollbars: [s, s.querySelector(".owner-nav")].filter(Boolean).map((e) => e.offsetWidth - e.clientWidth - parseFloat(getComputedStyle(e).borderLeftWidth) - parseFloat(getComputedStyle(e).borderRightWidth)),
+    scrolls: s.scrollHeight > s.clientHeight || Boolean(s.querySelector(".owner-nav") && s.querySelector(".owner-nav").scrollHeight > s.querySelector(".owner-nav").clientHeight),
   };
 }, side);
 
@@ -75,8 +79,8 @@ function collapsedOk(m, tag, markH) {
 (async () => {
   const browser = await chromium.launch();
   const apps = [
-    { name: "admin", email: "admin@zella.test", side: ".owner-sidebar", route: "/", tablet: 850, toggle: ".owner-sidebar .zella-dock-toggle" },
-    { name: "crm", email: "owner@glow.test", side: ".ba-sidebar", route: "/app/today", tablet: 1000, toggle: ".ba-sidebar .zella-dock-toggle" },
+    { name: "admin", email: "admin@zella.test", side: ".owner-sidebar", route: "/", tablet: 850, toggle: ".owner-sidebar .zv-dock" },
+    { name: "crm", email: "owner@glow.test", side: ".ba-sidebar", route: "/app/today", tablet: 1000, toggle: ".ba-sidebar .zv-dock" },
   ];
   for (const a of apps) {
     // default theme (no saved look) and sidebar states
@@ -87,6 +91,9 @@ function collapsedOk(m, tag, markH) {
     check(`${a.name}: colour logo on the light sidebar`, m.fullSrc.endsWith("zella-voice-logo-sidebar.png"));
     expandedOk(m, `${a.name} expanded`);
     const markH = m.mark.h;
+    check(`${a.name}: shrink arrow at the top, level with the logo, in the default theme`, m.dock && Math.abs((m.dock.y + m.dock.h / 2) - (m.full.y + m.full.h / 2)) < 1 && m.dock.x > m.full.r, JSON.stringify(m.dock));
+    check(`${a.name}: the arrow is just an arrow (no text), with a name`, m.dock && m.dock.text === "" && m.dock.label === "Shrink the sidebar to icons", JSON.stringify(m.dock));
+    check(`${a.name}: no scrollbar shown on the sidebar`, m.scrollbars.every((w) => w <= 0.5), JSON.stringify(m.scrollbars));
     await p.screenshot({ path: path.join(OUT, `brand-${a.name}-expanded.png`), clip: { x: 0, y: 0, width: 420, height: 320 } });
 
     // collapse, sampling frames during the transition
@@ -96,6 +103,8 @@ function collapsedOk(m, tag, markH) {
     await p.waitForTimeout(400);
     m = await measure(p, a.side);
     collapsedOk(m, `${a.name} collapsed`, markH);
+    check(`${a.name} collapsed: arrow centred under the bars, named Expand`, m.dock && Math.abs((m.dock.x + m.dock.w / 2) - (m.mark.x + m.mark.w / 2)) < 1.5 && m.dock.y > m.mark.y + m.mark.h && m.dock.label === "Expand the sidebar", JSON.stringify(m.dock));
+    check(`${a.name} collapsed: no scrollbar`, m.scrollbars.every((w) => w <= 0.5) , JSON.stringify(m.scrollbars));
     await p.locator(a.side).evaluate((e) => e.scrollTo(0, 0));
     await p.screenshot({ path: path.join(OUT, `brand-${a.name}-collapsed.png`), clip: { x: 0, y: 0, width: 420, height: 320 } });
     const bad = frames.filter((f) => Math.abs(f.mark.h - markH) > 0.3 || (f.fullOpacity > 0.05 && f.full.r > f.side.r + 0.5) || f.scrollX > 0);
@@ -119,7 +128,9 @@ function collapsedOk(m, tag, markH) {
     // tablet rail: collapsed without the dock
     {
       const { ctx, p } = await open(browser, a.email, a.route, { width: a.tablet });
-      collapsedOk(await measure(p, a.side), `${a.name} tablet rail (${a.tablet}px)`, markH);
+      const t = await measure(p, a.side);
+      collapsedOk(t, `${a.name} tablet rail (${a.tablet}px)`, markH);
+      check(`${a.name} tablet rail: no arrow (the sidebar is narrow anyway)`, t.dock === null);
       await ctx.close();
     }
     // phone drawer: expanded
@@ -130,6 +141,13 @@ function collapsedOk(m, tag, markH) {
       const d = await measure(p, a.side);
       expandedOk(d, `${a.name} phone drawer`);
       await p.locator(a.side).screenshot({ path: path.join(OUT, `brand-${a.name}-phone.png`) });
+      await ctx.close();
+    }
+    // a short window: the sidebar scrolls, still with no scrollbar
+    {
+      const { ctx, p } = await open(browser, a.email, a.route, { height: 480 });
+      const q = await measure(p, a.side);
+      check(`${a.name} short window: sidebar scrolls without a scrollbar`, q.scrolls && q.scrollbars.every((w) => w <= 0.5), JSON.stringify(q.scrollbars));
       await ctx.close();
     }
     // reduced motion: no movement

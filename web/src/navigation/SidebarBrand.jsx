@@ -5,7 +5,8 @@
 // bars, centred. The bars are one stable layer (zella-two-bars.svg, the same proportions as the bars inside the full
 // logo) that sits exactly on the logo's own bars when expanded and slides to the centre when collapsed, while the
 // wordmark fades and slides in or out around it. See styles/brand.css. The name is always there for screen readers.
-export function SidebarBrand({ caption }) {
+// toggle: the shrink/expand arrow, shown at the top right of the logo (below the bars when collapsed).
+export function SidebarBrand({ caption, toggle }) {
   return (
     <div className="zv-brand">
       <span className="zv-brand-logo" role="img" aria-label="Zella Voice">
@@ -14,6 +15,7 @@ export function SidebarBrand({ caption }) {
         <img className="zv-brand-mark" src="/brand/zella-two-bars.svg" alt="" draggable="false" />
       </span>
       {caption && <span className="zv-brand-caption">{caption}</span>}
+      {toggle}
     </div>
   );
 }
