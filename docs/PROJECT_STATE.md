@@ -111,7 +111,7 @@ Fixed in the web app, which ships with hosting:
 
 **Waiting for approval (not applied):**
 
-- `sql/zella_platform_alerts_policy_fix.sql`: the admin alerts bell fails on production today.
+- ~~`sql/zella_platform_alerts_policy_fix.sql`~~: applied 2026-11-04 (admin alerts bell).
 - `sql/zella_platform_roles_fix.sql`: the restricted platform roles are blocked by an old trigger.
 - Deploying `owner-provision-business`: owner invitation fixes and server-side finish checks.
 
