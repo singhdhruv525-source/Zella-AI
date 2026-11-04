@@ -211,9 +211,12 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
       <aside id="ba-sidebar" className={`ba-sidebar ${navOpen ? "open" : ""}`} aria-label="Main navigation">
         <SidebarBrand caption={`${nav.data?.industry?.name ?? workspace.industry ?? "Business"} CRM`} toggle={<DockToggle />} />
 
-        {nav.status === "ready"
-          ? <SidebarNav groups={groups} isActive={isActive} onOpen={openItem} badges={{ attention }} />
-          : <SidebarState status={nav.status} error={nav.error} onRetry={nav.retry} />}
+        {/* Only the menu scrolls: the logo stays at the top and the footer at the bottom */}
+        <div className="ba-sidebar-scroll">
+          {nav.status === "ready"
+            ? <SidebarNav groups={groups} isActive={isActive} onOpen={openItem} badges={{ attention }} />
+            : <SidebarState status={nav.status} error={nav.error} onRetry={nav.retry} />}
+        </div>
 
         <div className="ba-sidebar-foot">
           <ReceptionistCard workspace={workspace} agent={agent} term={term} onTest={() => setModal("test-voice")} />

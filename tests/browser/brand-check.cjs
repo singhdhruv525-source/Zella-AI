@@ -143,11 +143,25 @@ function collapsedOk(m, tag, markH) {
       await p.locator(a.side).screenshot({ path: path.join(OUT, `brand-${a.name}-phone.png`) });
       await ctx.close();
     }
-    // a short window: the sidebar scrolls, still with no scrollbar
-    {
-      const { ctx, p } = await open(browser, a.email, a.route, { height: 480 });
-      const q = await measure(p, a.side);
-      check(`${a.name} short window: sidebar scrolls without a scrollbar`, q.scrolls && q.scrollbars.every((w) => w <= 0.5), JSON.stringify(q.scrollbars));
+    // a short window: the menu scrolls without a scrollbar, and the logo stays where it is
+    for (const [w, h, phone] of [[1280, 520, false], [390, 600, true]]) {
+      const { ctx, p } = await open(browser, a.email, a.route, { width: w, height: h });
+      if (phone) { await p.locator(a.name === "admin" ? ".owner-menu-btn" : ".ba-menu-btn").first().click(); await p.waitForTimeout(500); }
+      const before = await measure(p, a.side);
+      const moved = await p.evaluate((side) => {
+        const s = document.querySelector(side);
+        const box = [s.querySelector(".ba-sidebar-scroll"), s.querySelector(".owner-nav"), s].find((e) => e && e.scrollHeight > e.clientHeight + 1);
+        if (!box) return { scrolled: 0 };
+        box.scrollTop = box.scrollHeight;
+        const sb = box.offsetWidth - box.clientWidth;
+        return { scrolled: box.scrollTop, sb };
+      }, a.side);
+      await p.waitForTimeout(200);
+      const after = await measure(p, a.side);
+      const tag = `${a.name} ${phone ? "phone menu" : "short window"}`;
+      check(`${tag}: the menu scrolls, with no scrollbar`, moved.scrolled > 0 && moved.sb <= 0.5, JSON.stringify(moved));
+      check(`${tag}: the logo stays put while the menu scrolls`, Math.abs(after.mark.y - before.mark.y) < 0.5 && after.mark.y >= after.side.y, `logo y ${before.mark.y.toFixed(1)} -> ${after.mark.y.toFixed(1)}`);
+      if (!phone) await p.screenshot({ path: path.join(OUT, `brand-${a.name}-scrolled.png`), clip: { x: 0, y: 0, width: 300, height: h } });
       await ctx.close();
     }
     // reduced motion: no movement
