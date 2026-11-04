@@ -38,7 +38,7 @@ import { formatLongDate } from "./businessTime";
 import { friendly } from "./BusinessShared";
 import { makeTerm, receptionistState } from "./businessWorkspace";
 import { navigate, segments, usePath } from "./router";
-import { buildNavigation, flatten } from "./navigation/navConfig";
+import { buildNavigation, capabilityOn, flatten } from "./navigation/navConfig";
 import { useWorkspaceNavigation } from "./navigation/useWorkspaceNavigation";
 import { BusinessSwitcher, ProfileMenu, ReceptionistCard, SidebarNav, SidebarState, TestVoiceModal } from "./navigation/Sidebar";
 
@@ -135,7 +135,11 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
     recordTypes: records.types,
     operationsLabel: nav.data.operations_label,
     configured: nav.data.configured,
+    capabilities: nav.data.capabilities,
   }, term) : [];
+  // Kinds of work this business does (zella_capabilities). Booking actions only where it takes bookings.
+  const caps = nav.status === "ready" ? nav.data.capabilities : undefined;
+  const canBook = nav.status === "ready" && capabilityOn(caps, "scheduling") && workspace.role !== "viewer";
   const [myName, setMyName] = useState("");
   useEffect(() => {
     if (navPreview) return undefined;
@@ -254,12 +258,14 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
               if (canGo(key) || key?.startsWith("settings/")) setPage(key);
               else if (key) setNotice("That page isn't available with your access. Ask an owner or admin if you need it.");
             }} />
-            <button type="button" className="ba-btn primary" onClick={() => setModal("lead")} title="Add lead">
-              <Icon name="person_add" /><span>Add lead</span>
-            </button>
-            <button type="button" className="ba-btn" onClick={() => openBooking()} title={`New ${term("appointment").toLowerCase()}`}>
+            {workspace.role !== "viewer" && (
+              <button type="button" className="ba-btn primary" onClick={() => setModal("lead")} title="Add lead">
+                <Icon name="person_add" /><span>Add lead</span>
+              </button>
+            )}
+            {canBook && <button type="button" className="ba-btn" onClick={() => openBooking()} title={`New ${term("appointment").toLowerCase()}`}>
               <Icon name="event" /><span>New {term("appointment").toLowerCase()}</span>
-            </button>
+            </button>}
             <ProfileMenu email={email} name={myName} role={workspace.role} onGo={(path) => navigate(`${base}/${path}`)} onSignOut={onSignOut} />
           </div>
         </header>
@@ -331,6 +337,8 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
               fallbackName={myName || fallbackName}
               industry={nav.data?.industry?.slug}
               operations={records.types}
+              capabilities={caps}
+              canEdit={workspace.role !== "viewer"}
               onAddLead={() => setModal("lead")}
               onBook={(opts) => openBooking(opts)}
               onGo={(key) => (key.startsWith("settings/") ? navigate(`${base}/${key}`) : setPage(key))}

@@ -67,7 +67,7 @@ export function AttentionPage({ workspace, refreshKey, onNotice, onOpenPerson, o
                   </div>
                   {(person?.phone || c.from_number) && <a className="ba-btn primary sm" href={`tel:${person?.phone ?? c.from_number}`}><Icon name="call" size="sm" />Call now</a>}
                 </div>
-                <div className="ba-panel-body"><CallCard call={c} tz={tz} defaultOpen onChanged={changed} onNotice={onNotice} /></div>
+                <div className="ba-panel-body"><CallCard call={c} tz={tz} role={workspace.role} defaultOpen onChanged={changed} onNotice={onNotice} /></div>
               </section>
             );
           })}

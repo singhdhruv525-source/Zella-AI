@@ -25,6 +25,7 @@ import { AppearancePanel } from "./settings/AppearancePanel";
 import { Banner, Card, Confirm, Empty, Facts, Field, LinkRows, LoadState, Needs, Pill, SaveBar, Table, useAsync, useForm, when, words } from "./settings/SettingsKit";
 import { usePlatformInfo } from "./platformInfo";
 import { BusinessModulesPanel } from "./settings/BusinessModulesPanel";
+import { CallContentAccess, CapabilitiesPanel } from "./settings/CapabilitiesPanel";
 import { BusinessCallingUsage } from "./settings/CallingUsagePanels";
 import { AssignmentSettings, BusinessOffersSettings, LeadQuestions, LeadRules, WebsiteForms, WebsiteSources } from "./settings/BusinessLeadPanels";
 
@@ -222,7 +223,7 @@ function Branding({ w, onGo }) {
 const ROLE_ROWS = [
   ["See customers, calendar, calls", ["owner", "admin", "manager", "staff", "viewer"]],
   ["Add and edit customers and appointments", ["owner", "admin", "manager", "staff"]],
-  ["Listen to recordings, read transcripts", ["owner", "admin", "manager"]],
+  ["Listen to recordings, read transcripts", ["owner", "admin", "manager"]], // staff too where the owner allows it (Call recording and privacy)
   ["Change automations, hours, receptionist", ["owner", "admin", "manager"]],
   ["Business profile, logo, words", ["owner", "admin"]],
   ["Invite people and change roles", ["owner", "admin"]],
@@ -384,8 +385,9 @@ function Recording({ w }) {
   return (
     <>
       <Card title="Recordings and transcripts">
-        <Facts rows={[["Who can listen and read", "Owners, admins and managers (checked by the database)"], ["Kept", "With the call, until the customer is erased"], ["Your role", words(w.role)]]} />
+        <Facts rows={[["Who can listen and read", "Owners, admins and managers, and staff if you allow it below (checked by the database)"], ["Kept", "With the call, until the customer is erased"], ["Your role", words(w.role)]]} />
       </Card>
+      <CallContentAccess w={w} />
       <Needs title="Turning recording off and the spoken disclosure aren't settings yet" have="Recording follows the voice provider's setting for your number.">Laws on recording calls differ by state; some need everyone's consent. Check what applies to you. A switch here needs the phone assistant to read it at the start of every call and say the disclosure.</Needs>
     </>
   );
@@ -860,6 +862,7 @@ function registry(w) {
     ] },
     { key: "industry", label: "Industry and workflows", icon: "tune", items: [
       page("profile", "Industry profile", () => <IndustryProfile w={w} />, "industry modules"),
+      page("capabilities", "What your business does", (c) => <CapabilitiesPanel w={w} onReload={c.onReload} />, "capabilities bookings scheduling check-ins waitlist dispatch classes orders estimates invoices deposits access codes"),
       page("terminology", "Terminology", (c) => <Terminology w={w} onReload={c.onReload} />, "words patients customers jobs"),
       page("fields", "Industry fields", (c) => <RecordSettingsPage workspace={w} types={c.records.types} canManage={lead} onNotice={c.onNotice} onChanged={c.records.reload} loadError={c.records.error} />, "fields"),
       page("workflows", "Workflow rules", (c) => <AutomationsPage workspace={w} refreshKey={0} onNotice={c.onNotice} />, "rules status follow-up"),

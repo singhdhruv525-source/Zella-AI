@@ -15,6 +15,8 @@
 //   page      the CRM page key it opens (routes: /app/<page>)
 //   settings  instead of a page: a Settings address, "<category>/<page>"
 //   module    module slug that must be available and switched on (industry_modules / business_modules)
+//   capability a kind of work that must be on for this business (zella_capabilities: scheduling, checkins, waitlist,
+//             dispatch, classes, orders, money, access_vault). Without capability data (older database) it shows.
 //   roles     roles allowed to see it; omitted = every member
 //   badge     live counter shown beside it ("attention")
 //   children  sub-items, shown under the item when it is opened
@@ -38,9 +40,9 @@ export const NAV_GROUPS = [
 
 export const NAV_ITEMS = [
   { id: "today", group: "workspace", order: 10, label: "Today", icon: "dashboard", page: "today" },
-  { id: "calendar", group: "workspace", order: 20, label: "Calendar", icon: "calendar_today", page: "calendar" },
-  { id: "checkins", group: "workspace", order: 30, label: "Check-ins", icon: "how_to_reg", page: "checkins" },
-  { id: "waitlist", group: "workspace", order: 40, label: "Waitlist", icon: "hourglass_top", page: "waitlist", module: "calendar" },
+  { id: "calendar", group: "workspace", order: 20, label: "Calendar", icon: "calendar_today", page: "calendar", capability: "scheduling" },
+  { id: "checkins", group: "workspace", order: 30, label: "Check-ins", icon: "how_to_reg", page: "checkins", capability: "checkins" },
+  { id: "waitlist", group: "workspace", order: 40, label: "Waitlist", icon: "hourglass_top", page: "waitlist", module: "calendar", capability: "waitlist" },
   { id: "tasks", group: "workspace", order: 50, label: "Tasks & follow-ups", icon: "task_alt", page: "tasks" },
 
   { id: "leads", group: "crm", order: 10, label: "Leads", icon: "filter_alt", page: "leads" },
@@ -91,11 +93,13 @@ export const NAV_ITEMS = [
 ];
 
 // Turns the configuration into the sidebar for one business and one person.
-//   access: { role, modules: Set of enabled module slugs, recordTypes: [...], operationsLabel, configured }
+//   access: { role, modules: Set of enabled module slugs, recordTypes: [...], operationsLabel, configured,
+//             capabilities: zella_capabilities() result or undefined }
 //   term:   the business's words (makeTerm)
 export function buildNavigation(access, term) {
   const allowed = (item) =>
-    (!item.module || access.modules.has(item.module)) && (!item.roles || item.roles.includes(access.role));
+    (!item.module || access.modules.has(item.module)) && (!item.roles || item.roles.includes(access.role))
+    && capabilityOn(access.capabilities, item.capability);
   const shape = (item) => ({ ...item, label: typeof item.label === "function" ? item.label(term) : item.label });
 
   const items = NAV_ITEMS.filter(allowed).map((item) => {
@@ -123,3 +127,10 @@ export function buildNavigation(access, term) {
 
 // Every item, sub-items included, for "is this page allowed?" and the selected state.
 export const flatten = (groups) => groups.flatMap((g) => g.items.flatMap((i) => (i.children ? [i, ...i.children] : [i])));
+
+// Is a kind of work on for this business? Unknown (no capability data yet) counts as on, so an older database keeps
+// today's menu. The server refuses the work itself when it is off; this only decides what is shown.
+export function capabilityOn(capabilities, key) {
+  if (!key || !capabilities || !capabilities[key]) return true;
+  return Boolean(capabilities[key].enabled);
+}

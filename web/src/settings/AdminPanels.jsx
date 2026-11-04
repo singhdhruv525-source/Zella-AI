@@ -1381,7 +1381,7 @@ export function PolicyConfig({ onGo }) {
     <>
       <LinkRows rows={[{ title: "Retention", detail: "Security & privacy > Data retention", onClick: () => onGo("security/retention") },
         { title: "Recording and consent text", detail: "Publish it as the Recording and consent document", onClick: () => onGo("legal/documents") }]} />
-      <Needs title="A recording on/off policy per business isn't built" have="Recordings come from the voice provider's settings. Playing one in the app is for managers and above, but every member role, staff and viewers included, can still read a call's recording link and transcript. Who should see them is an open decision.">It needs a recording switch the phone assistant reads at the start of each call, and a disclosure line it says when recording is on.</Needs>
+      <Needs title="A recording on/off policy per business isn't built" have="Recordings come from the voice provider's settings. Recordings and transcripts are readable by owners, admins and managers; staff only where the business owner allows it and never in health, legal, financial, insurance or childcare businesses (zella_call_content_privacy.sql, once applied).">It needs a recording switch the phone assistant reads at the start of each call, and a disclosure line it says when recording is on.</Needs>
     </>
   );
 }

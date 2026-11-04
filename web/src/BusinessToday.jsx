@@ -9,6 +9,7 @@ import { changed, friendly, noShowNotice, setCheckIn, callResult, isAnswered } f
 import { RescheduleModal } from "./BusinessForms";
 import { CONNECT, todayConfig } from "./todayConfig";
 import { humanize } from "./copy/labels";
+import { capabilityOn } from "./navigation/navConfig";
 
 // Today dashboard, built only from this business's real records, read with the member's own session so row level
 // security returns this business's data only. Words follow the industry (Reservations, Patients, Technicians ...)
@@ -156,11 +157,41 @@ function WeekChart({ week, loading, selected, onOpen }) {
   );
 }
 
+// Open work across this business's own record types: open, overdue and due today, each opening its list.
+function WorkCard({ work, operations, loading, wide, onGo }) {
+  const rows = work ?? [];
+  return (
+    <Card title="Open work" className={wide ? "td-span2" : ""}>
+      {rows.length ? (
+        <ul className="td-list">
+          {rows.map((w) => (
+            <li key={w.key}>
+              <span className="ba-kpi-icon indigo"><Icon name={w.icon || "folder"} size="sm" /></span>
+              <div>
+                <button type="button" className="ba-namebtn" onClick={() => onGo(`rec:${w.key}`)}>{w.plural}</button>
+                <small>{w.open} open{w.due_today ? ` · ${w.due_today} due today` : ""}{w.unassigned ? ` · ${w.unassigned} unassigned` : ""}</small>
+              </div>
+              {w.overdue > 0 && <Pill tone="danger">{w.overdue} overdue</Pill>}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <Empty title={loading ? "Loading…" : work === null ? "Open work isn't available yet" : operations.some((t) => t.enabled) ? "Nothing open" : "No records set up yet"}>
+          {!loading && work !== null && !operations.some((t) => t.enabled) && "Your record types appear here once your industry setup is done."}
+        </Empty>
+      )}
+    </Card>
+  );
+}
+
 function Empty({ title, children }) {
   return <div className="ba-empty">{title && <strong>{title}</strong>}{children}</div>;
 }
 
-export default function BusinessToday({ workspace, userId, fallbackName, industry, operations = [], onAddLead, onBook, onGo, onNotice, onOpenPerson }) {
+export default function BusinessToday({ workspace, userId, fallbackName, industry, operations = [], capabilities, canEdit = true, onAddLead, onBook, onGo, onNotice, onOpenPerson }) {
+  // What this business does (zella_capabilities). A shop or a firm without bookings gets no booking cards or buttons.
+  const scheduling = capabilityOn(capabilities, "scheduling");
+  const checkinsOn = scheduling && capabilityOn(capabilities, "checkins");
   const tz = workspace.timezone;
   const term = makeTerm(workspace);
   const cfg = todayConfig(industry);
@@ -221,6 +252,9 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
       if (failed) throw failed.error;
       const [appts, prevAppts, leads, , calls, prevCalls, recentCalls, convos, tasks, visits, upcoming, records, staff, weekCalls] = results.map((r) => r.data ?? []);
       const prevLeadCount = results[3].count ?? 0;
+      // Open work per enabled record type (zella_today_operations). Before that update is applied: none.
+      const ops = await supabase.rpc("zella_today_operations", { p_business_id: id });
+      const work = ops.error ? null : ops.data ?? [];
 
       const visitCount = {};
       for (const v of visits) visitCount[v.customer_id] = (visitCount[v.customer_id] ?? 0) + 1;
@@ -254,6 +288,7 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
         top: top.map(([cid, n]) => ({ customer: people[cid], id: cid, visits: n })).filter((t) => t.customer),
         upcoming: upcoming.map(withPerson),
         records: records.map(withPerson),
+        work,
         staff: Object.fromEntries(staff.map((s) => [s.id, s.name])),
         week: Array.from({ length: 7 }, (_, n) => {
           const date = addDays(day, n - 6);
@@ -324,10 +359,10 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
             <input type="date" value={day} onChange={(e) => e.target.value && setDay(e.target.value)} aria-label="Day to show" />
           </label>
           {!isToday && <button type="button" className="ba-btn" onClick={() => setDay(today)}>Today</button>}
-          <button type="button" className="ba-btn primary" onClick={() => onBook()}><Icon name="add" size="sm" />New {oneBooking}</button>
-          {cfg.walkIn
+          {canEdit && scheduling && <button type="button" className="ba-btn primary" onClick={() => onBook()}><Icon name="add" size="sm" />New {oneBooking}</button>}
+          {canEdit && (scheduling && cfg.walkIn
             ? <button type="button" className="ba-btn" onClick={() => onBook({ walkIn: true })}><Icon name="directions_walk" size="sm" />Walk-in</button>
-            : <button type="button" className="ba-btn" onClick={onAddLead}><Icon name="person_add" size="sm" />Add lead</button>}
+            : <button type="button" className={`ba-btn ${scheduling ? "" : "primary"}`} onClick={onAddLead}><Icon name="person_add" size="sm" />Add lead</button>)}
           <button type="button" className="ba-btn ghost" onClick={load} disabled={loading} aria-label="Refresh"><Icon name="refresh" size="sm" /></button>
         </div>
       </div>
@@ -336,8 +371,9 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
       {actionError && <div className="ba-banner error" role="alert">{actionError}</div>}
 
       <div className="td-kpis">
-        <Kpi icon="event" tone="rose" label={`${bookingWord} ${isToday ? "today" : ""}`.trim()} value={active.length} loading={loading && !data} change={p && trend(active.length, p.bookings)} />
-        {showGuests && <Kpi icon="groups" tone="indigo" label={`Total ${term("customers").toLowerCase()}`} value={guests} loading={loading && !data} change={p && trend(guests, p.guests)} />}
+        {scheduling && <Kpi icon="event" tone="rose" label={`${bookingWord} ${isToday ? "today" : ""}`.trim()} value={active.length} loading={loading && !data} change={p && trend(active.length, p.bookings)} />}
+        {!scheduling && <Kpi icon="pending_actions" tone="rose" label="Open work" value={(data?.work ?? []).reduce((n, w) => n + w.open, 0)} loading={loading && !data} />}
+        {scheduling && showGuests && <Kpi icon="groups" tone="indigo" label={`Total ${term("customers").toLowerCase()}`} value={guests} loading={loading && !data} change={p && trend(guests, p.guests)} />}
         <Kpi icon="person_add" tone="amber" label="New leads" value={data?.leads.length ?? 0} loading={loading && !data} change={p && trend(data.leads.length, p.leads)} />
         <Kpi icon="smart_toy" tone="green" label="AI-answered calls" value={data?.aiCalls ?? 0} loading={loading && !data} change={p && trend(data.aiCalls, p.aiCalls)} />
         <Kpi icon="phone_missed" tone="rose" label="Missed calls" value={data?.missed ?? 0} loading={loading && !data} change={p && trend(data.missed, p.missed, false)} />
@@ -345,7 +381,8 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
       </div>
 
       <div className="td-grid">
-        <Card className="td-span2" title={`${isToday ? "Today's" : ""} ${bookingWord}`.trim()}
+        {!scheduling && <WorkCard work={data?.work} operations={operations} loading={loading && !data} wide onGo={onGo} />}
+        {scheduling && <Card className="td-span2" title={`${isToday ? "Today's" : ""} ${bookingWord}`.trim()}
           action={<button type="button" className="ba-btn sm" onClick={() => onGo("calendar")}>View calendar</button>}
           tabs={
             <div className="td-tabs" role="tablist" aria-label={`${bookingWord} by status`}>
@@ -383,12 +420,12 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
                             {a.customer?.phone && <a className="ba-btn ghost sm" href={`tel:${a.customer.phone}`} aria-label={`Call ${personName(a.customer) ?? ""}`} title="Call"><Icon name="call" size="sm" /></a>}
                             {/* Up to four actions, by state: upcoming = confirm, arrived, reschedule; late = arrived, no-show;
                                 arrived = completed, undo. */}
-                            {a.stage === "upcoming" && a.status === "scheduled" && <button type="button" className="ba-btn ghost sm" disabled={busy} onClick={() => setStatus(a, "confirmed", `${oneBooking} confirmed.`)} title="Confirm" aria-label="Confirm"><Icon name="check" size="sm" /></button>}
-                            {["upcoming", "late"].includes(a.stage) && <button type="button" className="ba-btn ghost sm" disabled={busy} onClick={() => checkIn(a)} title={cfg.arrived} aria-label={`Mark ${cfg.arrived.toLowerCase()}`}><Icon name="how_to_reg" size="sm" /></button>}
-                            {a.stage === "upcoming" && <button type="button" className="ba-btn ghost sm" disabled={busy} onClick={() => setMoving(a)} title="Reschedule" aria-label="Reschedule"><Icon name="event_repeat" size="sm" /></button>}
-                            {a.stage === "late" && <button type="button" className="ba-btn ghost sm" disabled={busy} onClick={() => markNoShow(a)} title="No-show" aria-label="Mark no-show"><Icon name="person_off" size="sm" /></button>}
-                            {a.stage === "arrived" && <button type="button" className="ba-btn ghost sm" disabled={busy} onClick={() => setStatus(a, "completed", `${oneBooking} completed.`)} title="Mark completed" aria-label="Mark completed"><Icon name="task_alt" size="sm" /></button>}
-                            {a.stage === "arrived" && a.checked_in_at && <button type="button" className="ba-btn ghost sm" disabled={busy} onClick={() => checkIn(a)} title="Undo" aria-label={`Undo ${cfg.arrived.toLowerCase()}`}><Icon name="undo" size="sm" /></button>}
+                            {canEdit && a.stage === "upcoming" && a.status === "scheduled" && <button type="button" className="ba-btn ghost sm" disabled={busy} onClick={() => setStatus(a, "confirmed", `${oneBooking} confirmed.`)} title="Confirm" aria-label="Confirm"><Icon name="check" size="sm" /></button>}
+                            {canEdit && checkinsOn && ["upcoming", "late"].includes(a.stage) && <button type="button" className="ba-btn ghost sm" disabled={busy} onClick={() => checkIn(a)} title={cfg.arrived} aria-label={`Mark ${cfg.arrived.toLowerCase()}`}><Icon name="how_to_reg" size="sm" /></button>}
+                            {canEdit && a.stage === "upcoming" && <button type="button" className="ba-btn ghost sm" disabled={busy} onClick={() => setMoving(a)} title="Reschedule" aria-label="Reschedule"><Icon name="event_repeat" size="sm" /></button>}
+                            {canEdit && a.stage === "late" && <button type="button" className="ba-btn ghost sm" disabled={busy} onClick={() => markNoShow(a)} title="No-show" aria-label="Mark no-show"><Icon name="person_off" size="sm" /></button>}
+                            {canEdit && a.stage === "arrived" && <button type="button" className="ba-btn ghost sm" disabled={busy} onClick={() => setStatus(a, "completed", `${oneBooking} completed.`)} title="Mark completed" aria-label="Mark completed"><Icon name="task_alt" size="sm" /></button>}
+                            {canEdit && checkinsOn && a.stage === "arrived" && a.checked_in_at && <button type="button" className="ba-btn ghost sm" disabled={busy} onClick={() => checkIn(a)} title="Undo" aria-label={`Undo ${cfg.arrived.toLowerCase()}`}><Icon name="undo" size="sm" /></button>}
                           </div>
                         </td>
                       </tr>
@@ -399,10 +436,10 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
             </div>
           ) : (
             <Empty title={loading && !data ? "Loading…" : `No ${bookingWord.toLowerCase()} ${tab === "all" ? dayLabel : "here"}`}>
-              {!loading && tab === "all" && `Book one with New ${oneBooking.toLowerCase()}.`}
+              {!loading && tab === "all" && canEdit && `Book one with New ${oneBooking.toLowerCase()}.`}
             </Empty>
           )}
-        </Card>
+        </Card>}
 
         <Card title="AI Receptionist Activity" action={<Pill tone={agent.tone} dot={agent.live} pulse={agent.live}>{agent.live ? "Live" : agent.label}</Pill>}>
           {data?.activity.length ? (
@@ -430,6 +467,8 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
 
         <WeekChart week={data?.week} loading={loading && !data} selected={day} onOpen={() => onGo("calls")} />
 
+        {scheduling && <WorkCard work={data?.work} operations={operations} loading={loading && !data} onGo={onGo} />}
+
         {opsTypes.map((t) => {
           const recs = (data?.records ?? []).filter((r) => r.type_key === t.key).slice(0, 5);
           return (
@@ -448,7 +487,7 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
           );
         })}
 
-        <Card title={`Top ${term("customers").toLowerCase()}`} action={<button type="button" className="ba-btn sm" onClick={() => onGo("customers")}>View all</button>}>
+        {scheduling && <Card title={`Top ${term("customers").toLowerCase()}`} action={<button type="button" className="ba-btn sm" onClick={() => onGo("customers")}>View all</button>}>
           {data?.top.length ? (
             <ul className="td-list">
               {data.top.map((t, n) => (
@@ -460,7 +499,7 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
               ))}
             </ul>
           ) : <Empty title={loading && !data ? "Loading…" : "No completed visits yet"}>{!loading && `Ranked by completed ${bookingWord.toLowerCase()} in the last 90 days.`}</Empty>}
-        </Card>
+        </Card>}
 
         <Card title="Tasks & follow-ups" action={<button type="button" className="ba-btn sm" onClick={() => onGo("tasks")}>View all</button>}>
           {data?.tasks.length ? (
@@ -469,7 +508,7 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
                 const overdue = t.due_at && new Date(t.due_at).getTime() < now;
                 return (
                   <li key={t.id}>
-                    <input type="checkbox" aria-label={`Mark "${t.title}" done`} disabled={working === `task-${t.id}`} onChange={() => completeTask(t)} />
+                    <input type="checkbox" disabled={!canEdit || working === `task-${t.id}`} aria-label={`Mark "${t.title}" done`} onChange={() => completeTask(t)} />
                     <div><strong>{t.title}</strong><small>{personName(t.customer) ?? t.body ?? ""}</small></div>
                     <div className="td-right">
                       {t.priority && t.priority !== "normal" && <Pill tone={PRIORITY_TONE[t.priority]}>{t.priority === "urgent" ? "Urgent" : "High"}</Pill>}
@@ -482,7 +521,7 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
           ) : <Empty title={loading && !data ? "Loading…" : "Nothing to follow up"}>{!loading && "Tasks from calls, leads and your team appear here."}</Empty>}
         </Card>
 
-        <Card title={`Upcoming ${bookingWord.toLowerCase()}`} action={<button type="button" className="ba-btn sm" onClick={() => onGo("calendar")}>View all</button>}>
+        {scheduling && <Card title={`Upcoming ${bookingWord.toLowerCase()}`} action={<button type="button" className="ba-btn sm" onClick={() => onGo("calendar")}>View all</button>}>
           {data?.upcoming.length ? (
             <ul className="td-list">
               {data.upcoming.map((a) => (
@@ -493,7 +532,7 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
               ))}
             </ul>
           ) : <Empty title={loading && !data ? "Loading…" : "Nothing in the next 7 days"} />}
-        </Card>
+        </Card>}
 
         {cfg.connect.map((key) => {
           const c = CONNECT[key];

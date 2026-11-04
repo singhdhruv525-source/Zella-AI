@@ -71,9 +71,16 @@ export function EscalationControls({ call, onChanged, onNotice, compact }) {
   );
 }
 
-export function Transcript({ transcript }) {
+// Staff and view-only members don't receive transcripts unless the owner allowed it (calls_view), so an empty one
+// for them says who can read it instead of claiming none was saved.
+export const CONTENT_ROLES = ["owner", "admin", "manager"];
+export function Transcript({ transcript, role }) {
   const lines = transcriptLines(transcript);
-  if (!lines.length) return <p className="ba-muted">No transcript was saved for this call.</p>;
+  if (!lines.length) {
+    return <p className="ba-muted">{role && !CONTENT_ROLES.includes(role)
+      ? "Transcripts and recordings are shown to owners, admins and managers (and to staff if the owner allows it)."
+      : "No transcript was saved for this call."}</p>;
+  }
   return (
     <div className="ba-transcript">
       {lines.map((l, i) => {
@@ -89,7 +96,7 @@ export function Transcript({ transcript }) {
   );
 }
 
-export function CallCard({ call, tz, defaultOpen, onChanged, onNotice }) {
+export function CallCard({ call, tz, role, defaultOpen, onChanged, onNotice }) {
   const [open, setOpen] = useState(Boolean(defaultOpen));
   const missed = call.status === "missed";
   const flagged = isOpenEscalation(call);
@@ -114,7 +121,7 @@ export function CallCard({ call, tz, defaultOpen, onChanged, onNotice }) {
           <a href={call.recording_url}>Listen to the recording</a>
         </audio>
       )}
-      {open && <Transcript transcript={call.transcript} />}
+      {open && <Transcript transcript={call.transcript} role={role} />}
       <EscalationControls call={call} onChanged={onChanged} onNotice={onNotice} compact />
     </article>
   );
@@ -378,7 +385,7 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
 
             {tab === "calls" && (
               data.calls.length ? data.calls.map((c, i) => (
-                <CallCard key={c.id} call={c} tz={tz} defaultOpen={i === 0 && Boolean(c.transcript)} onChanged={refresh} onNotice={onNotice} />
+                <CallCard key={c.id} call={c} tz={tz} role={workspace.role} defaultOpen={i === 0 && Boolean(c.transcript)} onChanged={refresh} onNotice={onNotice} />
               )) : <p className="ba-muted">No calls from this {term("customer").toLowerCase()} yet.</p>
             )}
 

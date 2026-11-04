@@ -134,7 +134,7 @@ function CallDetail({ call, person, followUps, roster, workspace, onClose, onCha
           </section>
         )}
         {call.recording_url && !recordingAllowed(call) && <p className="ba-muted">A recording exists but is hidden because the caller didn't agree to be recorded.</p>}
-        <section><h3 className="ba-sub">Transcript</h3><Transcript transcript={call.transcript} /></section>
+        <section><h3 className="ba-sub">Transcript</h3><Transcript transcript={call.transcript} role={workspace.role} /></section>
         <section><h3 className="ba-sub">Hand-off</h3><EscalationControls call={call} onChanged={onChanged} onNotice={onNotice} /></section>
       </div>
     </Modal>
