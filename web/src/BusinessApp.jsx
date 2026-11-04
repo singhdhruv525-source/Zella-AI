@@ -358,7 +358,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
               canManage={["owner", "admin", "manager"].includes(workspace.role)} onNotice={setNotice} onOpenPerson={openPerson} />
           )}
           {current.key === "record-settings" && (
-            <RecordSettingsPage workspace={workspace} types={records.types} canManage={["owner", "admin", "manager"].includes(workspace.role)} onNotice={setNotice} onChanged={records.reload} loadError={records.error} />
+            <RecordSettingsPage workspace={workspace} types={records.types} loaded={records.loaded} canManage={["owner", "admin", "manager"].includes(workspace.role)} onNotice={setNotice} onChanged={records.reload} loadError={records.error} />
           )}
           {current.key === "team" && <TeamPage workspace={workspace} email={email} refreshKey={refreshKey} onNotice={setNotice} />}
           {current.key === "drafts" && <DraftsPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}

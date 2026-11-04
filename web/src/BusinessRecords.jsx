@@ -364,7 +364,7 @@ function TypeEditor({ workspace, type, onClose, onSaved }) {
   );
 }
 
-export function RecordSettingsPage({ workspace, types, canManage, onNotice, onChanged, loadError }) {
+export function RecordSettingsPage({ workspace, types, loaded = true, canManage, onNotice, onChanged, loadError }) {
   const [editing, setEditing] = useState(null); // type, or "new"
   if (!canManage) {
     return (
@@ -381,6 +381,7 @@ export function RecordSettingsPage({ workspace, types, canManage, onNotice, onCh
       </PageHead>
       <section className="ba-panel">
         {loadError ? <div className="ba-panel-body"><Empty title={loadError}>Check your connection, then <button type="button" className="ba-btn sm" onClick={onChanged}>Try again</button></Empty></div>
+          : !loaded ? <div className="ba-panel-body"><Empty title="Loading your records…" icon="hourglass_top" /></div>
           : types.length === 0 ? <div className="ba-panel-body"><Empty title="Nothing to customize yet">Your records appear here once your industry is set up.</Empty></div> : (
           <div className="ba-table-wrap" tabIndex={0}>
             <table className="ba-table">
