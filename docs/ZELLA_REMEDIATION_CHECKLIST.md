@@ -43,7 +43,7 @@ settings, never in chat):
 
 ## Small follow-ups (can be done any time)
 
-- [ ] `staff-invite`: check the caller's sign-in before the configuration (L-2).
+- [x] `staff-invite`: check the caller's sign-in before the configuration (L-2). Fixed in the repo 2026-11-04, not deployed.
 - [ ] Hide `businesses.inbound_email_token` from view-only members (L-4).
 - [ ] After hosting, re-run the browser tests against the live address and the SQL suites (`tests/features/run.sh`,
       `tests/voice-reliability/run_all.sh`).

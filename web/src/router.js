@@ -64,5 +64,7 @@ export function usePath() {
   return path;
 }
 
-// "/app/settings/team/" -> ["app", "settings", "team"]
-export const segments = (path) => path.split("/").filter(Boolean).map(decodeURIComponent);
+// "/app/settings/team/" -> ["app", "settings", "team"]. A badly encoded part (like "%" or "%E0%A4%A") is kept as
+// typed instead of throwing, so the address simply matches no page and shows "Page not found".
+const safeDecode = (part) => { try { return decodeURIComponent(part); } catch { return part; } };
+export const segments = (path) => String(path ?? "").split("/").filter(Boolean).map(safeDecode);

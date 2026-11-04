@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { Component, useEffect } from "react";
 import { createPortal } from "react-dom";
 
 // Shared building blocks for the business app (Stitch design).
@@ -92,4 +92,27 @@ export function personName(person) {
 
 export function initials(name) {
   return (name || "?").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
+}
+
+// Catches a crash in the part of the screen it wraps and shows a way out instead of a blank page. resetKey (for
+// example the address) clears the error when it changes, so moving to another page recovers.
+export class ErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { error: null, key: props.resetKey }; }
+  static getDerivedStateFromError(error) { return { error }; }
+  static getDerivedStateFromProps(props, state) { return props.resetKey !== state.key ? { error: null, key: props.resetKey } : null; }
+  componentDidCatch(error, info) { console.error("Screen error", error, info?.componentStack); }
+  render() {
+    if (!this.state.error) return this.props.children;
+    if (this.props.fallback) return this.props.fallback(() => this.setState({ error: null }));
+    return (
+      <section className="ba-panel" role="alert" style={{ margin: 16 }}>
+        <div className="ba-panel-body">
+          <h2>Something went wrong on this page</h2>
+          <p className="ba-muted">Nothing you saved was lost. Try again, or go to another page.</p>
+          <button type="button" className="ba-btn primary" onClick={() => this.setState({ error: null })}>Try again</button>{" "}
+          <button type="button" className="ba-btn" onClick={() => window.location.reload()}>Reload</button>
+        </div>
+      </section>
+    );
+  }
 }

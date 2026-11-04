@@ -7,11 +7,20 @@ import './styles/components.css'
 // The optional Glass theme (Settings > Appearance); only active when <html data-zella-theme="glass">.
 import './styles/glass.css'
 import { startAppearance } from './appearance'
+import { ErrorBoundary } from './BusinessUI'
 
 startAppearance()
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <App />
+    <ErrorBoundary fallback={() => (
+      <main style={{ maxWidth: 520, margin: '15vh auto', padding: 24, fontFamily: 'system-ui, sans-serif', textAlign: 'center' }}>
+        <h1 style={{ fontSize: 22 }}>Something went wrong</h1>
+        <p>Zella couldn't show this page. Nothing you saved was lost.</p>
+        <p><button type="button" onClick={() => window.location.reload()}>Reload</button>{' '}<a href="/">Go to the start</a></p>
+      </main>
+    )}>
+      <App />
+    </ErrorBoundary>
   </StrictMode>,
 )

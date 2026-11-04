@@ -1941,6 +1941,14 @@ async function adminInvite(admin: SupabaseClient, fields: Json, userId: string) 
   // Someone invited earlier who has not accepted yet: send a fresh link.
   // (Email links work once and expire, so a resend is often needed.)
   const neverAccepted = Boolean(target && !target.last_sign_in_at);
+  // Admin access goes straight to an existing account, so that account must have proved it owns the address.
+  // Signing in alone is not proof: with email confirmation off, anyone can register an address and sign in.
+  if (target && !neverAccepted && !target.email_confirmed_at) {
+    throw new InputError(
+      "An account with this email exists but its address was never confirmed, so it can't be made an admin. Ask the person to confirm their email (or reset their password from the sign-in page), then invite them again.",
+      409,
+    );
+  }
 
   if (!target || neverAccepted) {
     const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {

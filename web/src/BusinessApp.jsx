@@ -24,14 +24,14 @@ import SpamPage from "./SpamPage";
 import ReviewsPage from "./ReviewsPage";
 import ScorecardsPage from "./ScorecardsPage";
 import { supabase } from "./supabase";
-import { BusinessSignIn, MfaCodeCard, Welcome, acceptInvitations } from "./BusinessAuth";
+import { BusinessSignIn, MfaCodeCard, Welcome, acceptInvitations, emailMeSignInLink } from "./BusinessAuth";
 import { useMfaGate } from "./mfa";
 import { maintenanceText, usePlatformInfo } from "./platformInfo";
 import "./CrmMotion.css";
 import { warm } from "./zellaVoice";
 import BusinessToday from "./BusinessToday";
 import { AddLeadModal, BookAppointmentModal } from "./BusinessForms";
-import { Icon, loadBusinessFonts } from "./BusinessUI";
+import { ErrorBoundary, Icon, loadBusinessFonts } from "./BusinessUI";
 import { formatLongDate } from "./businessTime";
 import { friendly } from "./BusinessShared";
 import { makeTerm, receptionistState } from "./businessWorkspace";
@@ -90,7 +90,7 @@ function Blocked({ workspace, onSignOut }) {
   );
 }
 
-function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackName, onSignOut, onReload, base = "/app", navPreview }) {
+function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackName, onSignOut, onReload, base = "/app", navPreview, invites }) {
   const path = usePath();
   const route = readPage(path, base);
   const page = route.key;
@@ -267,6 +267,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
         </header>
 
         <main className="ba-content">
+          <ErrorBoundary resetKey={`${workspace.id}:${path}`}>
           {maintenance && <div className="ba-banner" role="status"><span>{maintenance}</span></div>}
           {workspace.cancel_at && !workspace.cancelled_at && (
             <div className="ba-banner">
@@ -298,6 +299,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
             </div>
           )}
           {error && <div className="ba-banner error">{error}</div>}
+          <InviteBanner status={invites} email={email} onRetry={onReload} />
 
           {missing === "loading" && <p className="ba-muted">Loading…</p>}
           {missing === "config-error" && (
@@ -372,6 +374,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
           {current.key === "reports" && <ReportsPage workspace={workspace} refreshKey={refreshKey} />}
           {current.key === "integrations" && <IntegrationsPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
           {current.key === "settings" && <BusinessSettingsPage workspace={workspace} email={email} userId={userId} records={records} onSignOut={onSignOut} section={route.section} sub={route.sub} onGo={setPage} onReload={onReload} onOpenPerson={openPerson} onNotice={setNotice} />}
+          </ErrorBoundary>
         </main>
       </div>
 
@@ -400,6 +403,33 @@ function Loading({ text }) {
   );
 }
 
+// What happened to this person's invitations at sign-in. Never blocks the workspaces they already have.
+function InviteBanner({ status, email, onRetry }) {
+  const [sent, setSent] = useState("");
+  const [busy, setBusy] = useState(false);
+  if (!status || (!status.failed && !status.needsEmailLink && !status.problems.length)) return null;
+  async function sendLink() {
+    setBusy(true); setSent("");
+    try { await emailMeSignInLink(email); setSent(`We sent a sign-in link to ${email}. Open it on this device to join.`); }
+    catch (err) { setSent(err.message); }
+    finally { setBusy(false); }
+  }
+  return (
+    <div className="ba-banner" role="status">
+      <span>
+        {status.failed && "We couldn't finish adding you to a team you were invited to. "}
+        {status.needsEmailLink > 0 && `${status.needsEmailLink === 1 ? "A team invitation is" : `${status.needsEmailLink} team invitations are`} waiting for you. To accept, sign in from the link in your invitation email, or get a new sign-in link. `}
+        {status.problems.map((p, i) => <span key={i}>An invitation couldn't be accepted: {p}. </span>)}
+        {sent && <strong>{sent}</strong>}
+      </span>
+      <span style={{ display: "inline-flex", gap: 8 }}>
+        {status.needsEmailLink > 0 && <button type="button" className="ba-btn primary sm" disabled={busy} onClick={sendLink}>{busy ? "Sending…" : "Email me a sign-in link"}</button>}
+        {status.failed && <button type="button" className="ba-btn sm" onClick={onRetry}>Try again</button>}
+      </span>
+    </div>
+  );
+}
+
 function BusinessHome() {
   const [session, setSession] = useState(undefined);
   const [workspaces, setWorkspaces] = useState(null);
@@ -413,11 +443,13 @@ function BusinessHome() {
   });
   const [error, setError] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
+  const [invites, setInvites] = useState(null);
 
   const loadWorkspaces = useCallback(async () => {
     setError("");
-    // Activates any invitation this person hasn't accepted yet (safe to repeat).
-    await acceptInvitations();
+    // Activates any invitation this person hasn't accepted yet (safe to repeat); problems are shown, not hidden.
+    try { setInvites(await acceptInvitations()); }
+    catch (err) { console.error("Accepting invitations failed:", err); setInvites({ accepted: 0, needsEmailLink: 0, problems: [], failed: true }); }
 
     const { data, error: loadError } = await supabase.rpc("zella_my_workspaces");
     if (loadError) {
@@ -478,6 +510,7 @@ function BusinessHome() {
                 ? `${session.user.email} manages Zella from the admin dashboard and isn't linked to a business here.`
                 : `${session.user.email} isn't linked to a Zella business yet. If you were invited, open the link in your invitation email first, or ask the Zella team to resend it.`}
           </p>
+          <InviteBanner status={invites} email={session.user.email} onRetry={loadWorkspaces} />
           {isAdmin && <a className="ba-btn primary block" href="/">Open the admin dashboard</a>}
           <button type="button" className="ba-btn block" onClick={signOut}>Sign out</button>
         </section>
@@ -499,6 +532,7 @@ function BusinessHome() {
       fallbackName={session.user.user_metadata?.full_name ?? session.user.user_metadata?.name ?? ""}
       onSignOut={signOut}
       onReload={loadWorkspaces}
+      invites={invites}
     />
   );
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Icon, loadBusinessFonts } from "./BusinessUI";
+import { ErrorBoundary, Icon, loadBusinessFonts } from "./BusinessUI";
 import { DockToggle } from "./navigation/DockToggle";
 import "./OwnerDashboard.css";
 import CreateBusinessWizard, { callOwnerFunction } from "./CreateBusinessWizard";
@@ -316,6 +316,7 @@ useEffect(() => {
         </header>
 
         <div className="owner-content">
+          <ErrorBoundary resetKey={path}>
           {notice && <div className="owner-form-error op-gap" role="status">{notice}</div>}
           {wizard ? (
             <CreateBusinessWizard
@@ -637,6 +638,7 @@ useEffect(() => {
               </div>
             </section>
           )}
+          </ErrorBoundary>
         </div>
       </main>
 

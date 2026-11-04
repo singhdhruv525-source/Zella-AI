@@ -1,5 +1,10 @@
 # Database: what the repo can and can't rebuild
 
+**Update 2026-11-04:** a schema-only baseline of the live project is now in `sql/baseline/`, captured read-only and
+checked for secrets: 131 tables, 663 functions, 170 policies, 91 triggers, plus grants and storage policies.
+`sql/baseline/restore.sh <db>` restores it into an isolated Postgres in a known order; a clean restore was verified.
+`tests/security/run.sh` uses it. The sections below describe the state before the baseline.
+
 Checked on 2026-10-26 against the 99 files in `sql/`, and against the live project (read-only) once the Supabase connector was available. The live Supabase project was not connected
 during this check, so anything below marked "live only" could not be verified.
 

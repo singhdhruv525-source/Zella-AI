@@ -13,12 +13,47 @@ import { maintenanceText, usePlatformInfo } from "./platformInfo";
 // (zella_accept_my_invitations) and team members invited from Team access
 // (zella_accept_staff_invitations). Both are safe to repeat. A failure here never
 // blocks sign-in; the workspace list simply stays as it was.
+// Accepts this person's waiting invitations and says what happened, so the app can show it (it never blocks the
+// workspaces they already have). { accepted, needsEmailLink, problems: [text], failed: boolean }
+// Team invitations are only accepted from a session signed in through an email link (sql/zella_invitation_hardening.sql);
+// otherwise they wait and the app offers to email a sign-in link.
+const INVITE_PROBLEMS = {
+  TEAM_LIMIT_REACHED: "the team is full on its current plan. Ask the owner to make room or upgrade",
+  EMAIL_CHANGED: "your account's email address changed after you were invited. Ask for a new invitation",
+  BUSINESS_CLOSED: "that workspace is closed",
+};
+const missingFunction = (e) => /could not find the function|schema cache|PGRST202/i.test(e?.message ?? "");
 export async function acceptInvitations() {
-  const results = await Promise.all([
+  const out = { accepted: 0, needsEmailLink: 0, problems: [], failed: false };
+  const [owner, staffV2] = await Promise.all([
     supabase.rpc("zella_accept_my_invitations"),
-    supabase.rpc("zella_accept_staff_invitations"),
+    supabase.rpc("zella_accept_staff_invitations_v2"),
   ]);
-  for (const { error } of results) if (error) console.error("Accepting invitations failed:", error.message);
+  if (owner.error) { console.error("Accepting owner invitations failed:", owner.error.message); out.failed = true; }
+  else out.accepted += Number(owner.data) || 0;
+  let staff = staffV2;
+  if (staff.error && missingFunction(staff.error)) {
+    // database not updated yet: the previous function answers with a count only
+    const old = await supabase.rpc("zella_accept_staff_invitations");
+    staff = old.error ? old : { data: { accepted: Number(old.data) || 0 } };
+  }
+  if (staff.error) { console.error("Accepting team invitations failed:", staff.error.message); out.failed = true; }
+  else {
+    out.accepted += Number(staff.data?.accepted) || 0;
+    out.needsEmailLink = Number(staff.data?.needs_email_link) || 0;
+    for (const p of staff.data?.errors ?? []) {
+      const code = String(p?.reason ?? "");
+      const key = Object.keys(INVITE_PROBLEMS).find((k) => code.includes(k));
+      out.problems.push(key ? INVITE_PROBLEMS[key] : "it couldn't be applied right now");
+    }
+  }
+  return out;
+}
+
+// Emails this person a sign-in link to their own address (no new account is created). Used to accept invitations.
+export async function emailMeSignInLink(email) {
+  const { error } = await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: false, emailRedirectTo: `${window.location.origin}/welcome` } });
+  if (error) throw new Error(friendlyAuthError(error));
 }
 
 function AuthCard({ eyebrow, title, description, children }) {

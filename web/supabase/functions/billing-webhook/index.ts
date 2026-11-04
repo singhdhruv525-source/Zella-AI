@@ -1,31 +1,10 @@
 // Zella - billing webhook (Stripe-style events). Checks the provider's signature, turns the event into a plain type and
-// hands it to the database, which applies each event once. Stays switched off (503) until STRIPE_WEBHOOK_SECRET is set.
+// hands it to the database (zella_process_billing_event, sql/zella_billing_hardening.sql), which applies each event
+// once, keeps events it can't match yet and applies them later, and never moves a subscription or payment backwards.
+// Stays switched off (503) until STRIPE_WEBHOOK_SECRET is set. Deploy the SQL first.
 // verify_jwt is off because the provider cannot send a login token; the signature is the proof instead.
-// Replays: events older than 5 minutes are refused, and the database applies each event id only once.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-
-const enc = new TextEncoder();
-const hex = (b: ArrayBuffer) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
-
-async function verify(raw: string, header: string | null, secret: string): Promise<boolean> {
-  if (!header) return false;
-  const parts = Object.fromEntries(header.split(",").map((p) => p.split("=") as [string, string]));
-  const t = Number(parts["t"]);
-  if (!t || Math.abs(Date.now() / 1000 - t) > 300) return false;   // reject old or replayed requests
-  const key = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  const mac = hex(await crypto.subtle.sign("HMAC", key, enc.encode(`${t}.${raw}`)));
-  return header.split(",").some((p) => p.startsWith("v1=") && sameText(p.slice(3), mac));
-}
-
-// Compares two signatures in constant time, so the time taken gives nothing away.
-function sameText(a: string, b: string): boolean {
-  const x = enc.encode(a), y = enc.encode(b);
-  let diff = x.length ^ y.length;
-  for (let i = 0; i < Math.max(x.length, y.length); i++) diff |= (x[i] ?? 0) ^ (y[i] ?? 0);
-  return diff === 0;
-}
-
-const iso = (s: unknown) => (typeof s === "number" ? new Date(s * 1000).toISOString() : null);
+import { httpStatusFor, mapEvent, verifySignature } from "./logic.ts";
 
 Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return new Response("method not allowed", { status: 405 });
@@ -33,41 +12,25 @@ Deno.serve(async (req: Request) => {
   const serverKey = Deno.env.get("ZELLA_SERVER_SECRET_KEY");
   if (!secret || !serverKey) return new Response("billing webhook not configured", { status: 503 });
   const raw = await req.text();
-  if (raw.length > 500000 || !(await verify(raw, req.headers.get("stripe-signature"), secret))) return new Response("bad signature", { status: 400 });
+  if (raw.length > 500000 || !(await verifySignature(raw, req.headers.get("stripe-signature"), secret))) return new Response("bad signature", { status: 400 });
 
-  let ev;
+  let ev: Record<string, unknown>;
   try { ev = JSON.parse(raw); } catch { return new Response("bad json", { status: 400 }); }
   if (typeof ev?.id !== "string" || typeof ev?.type !== "string") return new Response("bad event", { status: 400 });
-  const o = ev?.data?.object ?? {};
-  let args: Record<string, unknown> | null = null;
-  switch (ev.type) {
-    case "invoice.payment_succeeded":
-      args = { p_type: "payment_succeeded", p_external_subscription_id: o.subscription, p_amount: (o.amount_paid ?? 0) / 100, p_currency: o.currency,
-               p_external_payment_id: o.payment_intent ?? o.id, p_period_start: iso(o.lines?.data?.[0]?.period?.start), p_period_end: iso(o.lines?.data?.[0]?.period?.end) };
-      break;
-    case "invoice.payment_failed":
-      args = { p_type: "payment_failed", p_external_subscription_id: o.subscription, p_amount: (o.amount_due ?? 0) / 100, p_currency: o.currency,
-               p_external_payment_id: o.payment_intent ?? o.id, p_reason: "The card was declined or the payment could not be completed" };
-      break;
-    case "customer.subscription.deleted":
-      args = { p_type: "subscription_cancelled", p_external_subscription_id: o.id };
-      break;
-    case "customer.subscription.updated":
-      if (o.status === "active") args = { p_type: "subscription_renewed", p_external_subscription_id: o.id, p_period_start: iso(o.current_period_start), p_period_end: iso(o.current_period_end) };
-      break;
-    case "charge.refunded":
-    case "charge.dispute.created":
-      args = { p_type: "payment_reversed", p_external_payment_id: o.payment_intent, p_reason: ev.type === "charge.refunded" ? "Refund" : "Dispute opened" };
-      break;
+
+  const mapped = mapEvent(ev);
+  if ("ignore" in mapped) return new Response("ignored", { status: 200 });   // an event Zella does not use
+  if ("invalid" in mapped) {
+    console.error("billing event not understood", ev.type, mapped.invalid);
+    return new Response("unprocessable", { status: 422 });
   }
-  if (!args) return new Response("ignored", { status: 200 });   // an event type Zella does not use
 
   const res = await fetch(`${Deno.env.get("SUPABASE_URL")}/rest/v1/rpc/zella_process_billing_event`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", apikey: serverKey },
-    body: JSON.stringify({ p_provider: "stripe", p_event_id: ev.id, ...args }),
-  });
-  if (!res.ok) return new Response("error", { status: 500 });
-  const out = await res.json();
-  return new Response(String(out), { status: out === "failed" ? 500 : 200 });   // 500 makes the provider retry
+    headers: { "Content-Type": "application/json", apikey: serverKey, Authorization: `Bearer ${serverKey}` },
+    body: JSON.stringify({ p_provider: "stripe", p_event_id: ev.id, ...mapped.args }),
+  }).catch(() => null);
+  if (!res?.ok) return new Response("error", { status: 500 });   // the provider retries
+  const out = String(await res.json());
+  return new Response(out, { status: httpStatusFor(out) });
 });
