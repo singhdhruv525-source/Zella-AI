@@ -124,10 +124,32 @@ the email went out (deployed 2026-11-04 as owner-provision-business version 13);
 to admin pages a role lacks say so; customer links cut short never show the admin sign-in; failed loads no longer look
 empty; header and tablet sidebar fit; lifecycle tests. Details: `docs/ADMIN_CRM_REVIEW_2026-11-04.md`.
 
+## Industry CRM work 2026-11-04 (repo only, NOT applied to production)
+
+This covers all 28 industries:
+- capabilities (bookings, check-ins, waitlist, dispatch, classes, orders, money, access codes), with server refusal;
+- call transcripts closed to staff;
+- record links;
+- private fields (access codes, member IDs, children's details);
+- class capacity;
+- money records (no card handling);
+- industry records v2, including the new insurance and cleaning presets;
+- receptionist safety lines;
+- setup readiness.
+
+Ten migrations wait for approval, in this order. The table, rollback and test results are in
+`docs/INDUSTRY_WORK_2026-11-04.md`. `zella_viewer_read_only.sql` must go first.
+`zella_receptionist_industry_rules.sql` changes every receptionist's instructions from its next call.
+
+Tests:
+- the security suite passes;
+- the 28-industry check passes 7/7;
+- the owner journey passes 480/480 steps.
+
 ## Waiting on the owner's answers
 
 - What's missing in the app (they chose "something missing" without details).
-- Call transcripts/recordings: owners and managers only, or all staff (M-4).
+- Call transcripts/recordings (M-4): implemented as managers and above, staff only by owner opt-in, never in sensitive industries; confirm.
 - Suspended businesses: keep read-only access (L-5)?
 - Remove the never-used typo super admin abhidakshmurya@gmail.com?
 
