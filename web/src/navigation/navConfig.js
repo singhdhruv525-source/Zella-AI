@@ -110,7 +110,7 @@ export function buildNavigation(access, term) {
   }).filter(Boolean);
 
   // Business Operations: this business's own industry records (crm_record_types), never another industry's.
-  const operations = (access.recordTypes ?? []).filter((t) => t.enabled)
+  const operations = (access.recordTypes ?? []).filter((t) => t.enabled && capabilityOn(access.capabilities, t.capability))
     .map((t, n) => ({ id: `rec:${t.key}`, group: "operations", order: n, label: t.plural, icon: t.icon || "folder", page: `rec:${t.key}` }));
   if (LEAD_ROLES.includes(access.role) && (operations.length || access.configured)) {
     operations.push({ id: "record-settings", group: "operations", order: 999, label: "Customize records", icon: "tune", page: "record-settings" });

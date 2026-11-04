@@ -209,7 +209,7 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
   const [actionError, setActionError] = useState("");
   const [working, setWorking] = useState(null);
   const [moving, setMoving] = useState(null);
-  const opsKeys = useMemo(() => operations.filter((t) => t.enabled).slice(0, 2).map((t) => t.key), [operations]);
+  const opsKeys = useMemo(() => operations.filter((t) => t.enabled && capabilityOn(capabilities, t.capability)).slice(0, 2).map((t) => t.key), [operations, capabilities]);
 
   const load = useCallback(async () => {
     setLoading(true);
