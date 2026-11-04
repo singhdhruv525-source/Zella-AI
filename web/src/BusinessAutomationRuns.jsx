@@ -4,6 +4,7 @@ import { Icon, Pill } from "./BusinessUI";
 import { formatDay, formatTime, timeAgo } from "./businessTime";
 import { explain } from "./BusinessShared";
 import { humanize } from "./copy/labels";
+import { hoursList } from "./automationOptions";
 
 /* What each automation does in plain words, and what has actually happened when it ran. */
 
@@ -60,12 +61,12 @@ export function describe(type, cfg = {}) {
     appointment_reminder: {
       trigger: "An appointment is coming up",
       conditions: `The appointment is booked. ${optOut}`,
-      actions: `Send a ${ch} reminder ${(cfg.hours_before ?? [24]).map((h) => `${hoursText(h)} before`).join(" and ")}.`,
+      actions: `Send a ${ch} reminder ${hoursList(cfg.hours_before).map((h) => `${hoursText(h)} before`).join(" and ")}.`,
     },
     appointment_confirmation: {
       trigger: "An appointment is coming up",
       conditions: `The appointment isn't confirmed yet. ${optOut}`,
-      actions: `Ask them to confirm by ${ch}, ${hoursText(cfg.hours_before ?? 24)} before.`,
+      actions: `Ask them to confirm by ${ch}, ${hoursText(hoursList(cfg.hours_before)[0])} before.`,
     },
     no_show_follow_up: {
       trigger: "Someone is marked as a no-show",

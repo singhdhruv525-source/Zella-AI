@@ -52,3 +52,11 @@ export const AUTOMATION_OPTIONS = {
     { key: "channel", label: "Notify by", options: SMS_CALL },
   ],
 };
+
+// Reminder times as saved. Reminders keep a list ([24, 2]); confirmations, and some industry presets, keep one number
+// (24). Either shape gives a list of whole hours; anything else falls back to the given default.
+export function hoursList(value, fallback = [24]) {
+  const list = (Array.isArray(value) ? value : value === null || value === undefined || value === "" ? [] : [value])
+    .map(Number).filter((n) => Number.isFinite(n) && n > 0);
+  return list.length ? list : fallback;
+}

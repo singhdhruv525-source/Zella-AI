@@ -94,7 +94,8 @@ export function PhoneField({ value, onChange, required = false, disabled = false
 
 /* ---------------------------------------------------------------- Email */
 
-export function EmailField({ value, onChange, required = false, disabled = false, showErrors = false, placeholder = "name@business.com", id, autoComplete = "email" }) {
+// label: the accessible name, for when the visible caption isn't a <label> around the field (a "bare" field).
+export function EmailField({ value, onChange, required = false, disabled = false, showErrors = false, placeholder = "name@business.com", id, autoComplete = "email", label }) {
   const errId = useId("ff-email-err");
   const [touched, setTouched] = useState(false);
   const error = touched || showErrors ? checkEmail(value, { required }) : "";
@@ -102,6 +103,7 @@ export function EmailField({ value, onChange, required = false, disabled = false
     <div className={`ff ${error ? "has-error" : ""}`}>
       <input
         id={id}
+        aria-label={id ? undefined : label}
         type="email"
         inputMode="email"
         autoComplete={autoComplete}
@@ -120,7 +122,7 @@ export function EmailField({ value, onChange, required = false, disabled = false
   );
 }
 
-export function UrlField({ value, onChange, required = false, disabled = false, showErrors = false, placeholder = "https://", id }) {
+export function UrlField({ value, onChange, required = false, disabled = false, showErrors = false, placeholder = "https://", id, label }) {
   const errId = useId("ff-url-err");
   const [touched, setTouched] = useState(false);
   const error = touched || showErrors ? checkUrl(value, { required }) : "";
@@ -128,6 +130,7 @@ export function UrlField({ value, onChange, required = false, disabled = false, 
     <div className={`ff ${error ? "has-error" : ""}`}>
       <input
         id={id}
+        aria-label={id ? undefined : label}
         type="url"
         inputMode="url"
         autoComplete="url"
@@ -148,7 +151,7 @@ export function UrlField({ value, onChange, required = false, disabled = false, 
 
 /* ------------------------------------------------------------- Timezone */
 
-export function TimeZoneSelect({ value, onChange, disabled = false, id }) {
+export function TimeZoneSelect({ value, onChange, disabled = false, id, label = "Time zone" }) {
   const groups = useMemo(() => timeZoneGroups([value]), [value]);
   const [query, setQuery] = useState("");
   const q = query.trim().toLowerCase().replace(/\s+/g, "_");
@@ -170,7 +173,7 @@ export function TimeZoneSelect({ value, onChange, disabled = false, id }) {
         aria-label="Search time zones"
         onChange={(e) => setQuery(e.target.value)}
       />
-      <select id={id} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
+      <select id={id} aria-label={id ? undefined : label} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
         {shown.map((g) => (
           <optgroup key={g.region} label={g.region}>
             {g.items.map((i) => <option key={i.zone} value={i.zone}>{i.label}</option>)}

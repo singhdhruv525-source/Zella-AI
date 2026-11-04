@@ -206,7 +206,7 @@ function Inbox({ workspace, from, onChanged, onNotice, onOpenPerson }) {
 
       <Notice error={state.error} onRetry={load} />
       {state.rows.length ? (
-        <div className="ba-table-wrap">
+        <div className="ba-table-wrap" tabIndex={0}>
           <table className="ba-table sp-table">
             <thead><tr>
               <th className="sp-check"><input type="checkbox" aria-label="Select all on this page" checked={allOnPage} onChange={(e) => setPicked(e.target.checked ? state.rows.map((r) => r.id) : [])} /></th>
@@ -528,7 +528,7 @@ function Lists({ workspace, onNotice }) {
       <p className="ba-muted sp-small">Blocking is per channel: blocking a number for texts doesn't block its calls unless you choose all channels. Zella's own platform rules also apply and aren't listed here.</p>
       <Notice error={error} onRetry={load} />
       {live.length ? (
-        <div className="ba-table-wrap">
+        <div className="ba-table-wrap" tabIndex={0}>
           <table className="ba-table static">
             <thead><tr><th>List</th><th>Sender</th><th>Channel</th><th>Added</th><th>Until</th><th>Reason</th><th><span className="ba-sr">Actions</span></th></tr></thead>
             <tbody>

@@ -192,7 +192,7 @@ export function Confirm({ title, children, confirmLabel = "Confirm", danger, wor
 export function Table({ columns, rows, empty = "Nothing here yet.", rowKey = (r) => r.id }) {
   if (!rows?.length) return <Empty>{empty}</Empty>;
   return (
-    <div className="zs-table-wrap">
+    <div className="zs-table-wrap" tabIndex={0}>
       <table className="zs-table">
         <thead><tr>{columns.map(([label]) => <th key={label}>{label}</th>)}</tr></thead>
         <tbody>{rows.map((r, n) => <tr key={rowKey(r) ?? n}>{columns.map(([label, cell]) => <td key={label}>{cell(r)}</td>)}</tr>)}</tbody>

@@ -224,7 +224,7 @@ export default function OwnerOverview({ onCreateBusiness, onOpenBusiness, onCont
 
       <Panel title="Recently added businesses">
         {data?.recentBusinesses?.length ? (
-          <div className="owner-table-wrap">
+          <div className="owner-table-wrap" tabIndex={0}>
             <table className="owner-table">
               <thead>
                 <tr><th>Business</th><th>Industry</th><th>Stage</th><th>Created</th><th /></tr>

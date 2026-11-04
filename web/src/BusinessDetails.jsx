@@ -491,7 +491,7 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup }) {
       {tab === "Configuration" && (
         <div className="op-grid">
           <Card title="Terminology" description="How this business's CRM names things.">
-            <div className="owner-table-wrap">
+            <div className="owner-table-wrap" tabIndex={0}>
               <table className="owner-table">
                 <thead><tr><th>Term</th><th>Used here</th><th>Industry default</th></tr></thead>
                 <tbody>
@@ -527,7 +527,7 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup }) {
         <div className="op-stack">
           <Card title="Members" description="People with access to this business's workspace.">
             {data.members.length ? (
-              <div className="owner-table-wrap">
+              <div className="owner-table-wrap" tabIndex={0}>
                 <table className="owner-table">
                   <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Added</th></tr></thead>
                   <tbody>
@@ -559,7 +559,7 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup }) {
             }
           >
             {data.invitations.length ? (
-              <div className="owner-table-wrap">
+              <div className="owner-table-wrap" tabIndex={0}>
                 <table className="owner-table">
                   <thead><tr><th>Owner</th><th>Email</th><th>Status</th><th>Sent</th><th>Expires</th><th>Last error</th></tr></thead>
                   <tbody>
@@ -616,7 +616,7 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup }) {
 
           <Card title={term("services")} description={`${kb.services?.length || 0} added`}>
             {kb.services?.length ? (
-              <div className="owner-table-wrap">
+              <div className="owner-table-wrap" tabIndex={0}>
                 <table className="owner-table">
                   <thead><tr><th>Name</th><th>Price</th><th>Duration</th><th>Description</th></tr></thead>
                   <tbody>
@@ -698,7 +698,7 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup }) {
 
           <Card title="Live connections" description="Services actually connected and verified for this business.">
             {data.integrations.length ? (
-              <div className="owner-table-wrap">
+              <div className="owner-table-wrap" tabIndex={0}>
                 <table className="owner-table">
                   <thead><tr><th>Provider</th><th>Type</th><th>Status</th><th>Account</th><th>Last sync</th><th>Error</th></tr></thead>
                   <tbody>
@@ -730,7 +730,7 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup }) {
       {tab === "Calls" && (
         <Card title="Recent calls" description={`${data.callCount} calls recorded`}>
           {data.calls.length ? (
-            <div className="owner-table-wrap">
+            <div className="owner-table-wrap" tabIndex={0}>
               <table className="owner-table">
                 <thead><tr><th>When</th><th>Direction</th><th>From</th><th>To</th><th>Duration</th><th>Handled by</th><th>Status</th></tr></thead>
                 <tbody>

@@ -108,7 +108,7 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
           />
         </div>
 
-        <div className="owner-table-wrap">
+        <div className="owner-table-wrap" tabIndex={0}>
           <table className="owner-table">
             <thead>
               <tr>

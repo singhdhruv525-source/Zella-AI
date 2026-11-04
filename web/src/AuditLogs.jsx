@@ -66,7 +66,7 @@ export default function AuditLogs({ onOpenBusiness }) {
       {error && <div className="owner-form-error op-gap">Could not load audit logs: {error}</div>}
 
       <section className="owner-panel">
-        <div className="owner-table-wrap">
+        <div className="owner-table-wrap" tabIndex={0}>
           <table className="owner-table">
             <thead>
               <tr><th>When</th><th>Action</th><th>Business</th><th>By</th><th /></tr>

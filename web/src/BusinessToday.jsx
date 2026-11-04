@@ -357,7 +357,7 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
             </div>
           }>
           {rows.length ? (
-            <div className="ba-table-wrap">
+            <div className="ba-table-wrap" tabIndex={0}>
               <table className="ba-table static td-table">
                 <thead><tr>
                   <th>Time</th><th>{term("customer")}</th>{showGuests && <th>{term("customers")}</th>}{showStaff && <th>{term("staff")}</th>}

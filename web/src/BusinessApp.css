@@ -86,6 +86,9 @@
   flex-shrink: 0;
 }
 
+/* The icon font hasn't loaded (yet, or at all): keep the space, hide the word. See watchIconFont. */
+html:not([data-zella-icons="ready"]) .ba-icon { color: transparent !important; }
+
 .ba-icon.sm { font-size: 16px; }
 .ba-icon.lg { font-size: 22px; }
 
@@ -763,6 +766,7 @@
 .ba-field {
   display: flex;
   flex-direction: column;
+  min-width: 0;   /* never wider than its column: long hints wrap instead of pushing the page sideways */
   gap: 6px;
   font-size: 12.5px;
   font-weight: 600;
@@ -972,13 +976,14 @@
   .ba-sidebar { display: none; }
   .ba-header { flex-wrap: wrap; padding: 10px 16px; }
   .ba-search { order: 3; width: 100%; }
-  .ba-header-actions .ba-btn span:not(.ba-icon) { display: none; }
+  /* hidden from sight, still the button\'s name for screen readers */
+  .ba-header-actions .ba-btn span:not(.ba-icon) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
   .ba-content { padding: 18px 16px 32px; }
   .ba-kpis, .ba-columns { grid-template-columns: 1fr; }
   .ba-columns > :last-child { grid-column: auto; }
   .ba-page-head h1 { font-size: 22px; }
   .ba-kpi-value { font-size: 28px; }
-  .ba-form-grid { grid-template-columns: 1fr; }
+  .ba-form-grid { grid-template-columns: minmax(0, 1fr); }
   .ba-modal-backdrop { align-items: flex-end; padding: 0; }
   .ba-modal { border-radius: var(--ba-radius-card) var(--ba-radius-card) 0 0; max-height: 92vh; }
 }
@@ -1960,3 +1965,7 @@ html[data-zella-theme="glass"] .td-week li.on .td-week-bar::after { background: 
   .ba-confetti { display: none; }
 }
 @media (max-width: 600px) { .ba-toasts { right: 16px; left: 16px; bottom: 16px; width: auto; } }
+
+/* A checkbox with a long sentence in a form wraps onto more lines rather than widening the page (narrow screens). */
+.ba-form-grid .ba-check { white-space: normal; min-width: 0; align-items: flex-start; }
+.ba-form-grid .ba-check input { flex-shrink: 0; margin-top: 2px; }

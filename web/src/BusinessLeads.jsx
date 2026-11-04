@@ -170,7 +170,7 @@ export function LeadsPage({ workspace, query, refreshKey, onNotice, onOpenPerson
         </div>
       ) : (
         <section className="ba-panel">
-          <div className="ba-table-wrap">
+          <div className="ba-table-wrap" tabIndex={0}>
             <table className="ba-table">
               <thead><tr><th>Name</th><th>Status</th><th>Source</th><th>Assigned to</th><th>Next follow-up</th><th>Last contact</th><th>Priority</th></tr></thead>
               <tbody>

@@ -148,7 +148,7 @@ export default function PlansPage({ onOpenBusiness }) {
         <div className="owner-panel-heading">
           <div><h2>Subscriptions</h2><p>Which plan each business is on. Subscription status is separate from setup status.</p></div>
         </div>
-        <div className="owner-table-wrap">
+        <div className="owner-table-wrap" tabIndex={0}>
           <table className="owner-table">
             <thead><tr><th>Business</th><th>Plan</th><th>Status</th><th>Billing</th><th>Started</th></tr></thead>
             <tbody>

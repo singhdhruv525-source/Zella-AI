@@ -32,6 +32,9 @@ const COLOUR = /^hsla?\(\s*[0-9.]+(deg)?\s*,\s*[0-9.]+%\s*,\s*[0-9.]+%\s*(,\s*[0
 const listeners = new Set();
 const local = readLocal();
 let owner = local?.user ?? null;   // whose look this is (a user id), once sign-in is known
+// The look in this browser has changes the account hasn't confirmed yet (a save waiting, failed, or cut off by a
+// reload). Kept with the local copy, so the next page load sends it instead of taking the account's older one.
+let unsynced = local?.unsynced === true;
 let current = normalise(local?.pref);
 
 function normalisePalette(p) {
@@ -67,7 +70,7 @@ function readLocal() {
   } catch { return null; }
 }
 function writeLocal(p) {
-  try { window.localStorage.setItem(STORE_KEY, JSON.stringify({ user: owner, pref: p })); } catch { /* private window: the account copy still works */ }
+  try { window.localStorage.setItem(STORE_KEY, JSON.stringify({ user: owner, pref: p, unsynced })); } catch { /* private window: the account copy still works */ }
 }
 
 // This app's part of what the account holds. The first version kept one look for both apps: it is the starting point
@@ -111,26 +114,61 @@ function apply(p) {
 }
 
 function set(next, { save = true } = {}) {
+  const choices = (p) => JSON.stringify({ ...p, palette: undefined });
+  const changed = choices(normalise(next)) !== choices(current);
   current = normalise(next);
   writeLocal(current);
   apply(current);
   listeners.forEach((l) => l());
-  if (save) saveToAccount(current);
+  // The palette stays in this browser, so working it out never needs an account save.
+  if (save && changed) saveToAccount(current);
   ensurePalette();
 }
 
+// Whether the look on screen is saved to the account: "saved" (or nothing changed yet), "pending" (waiting for the
+// last change of a slider), "saving", or "failed" with the reason. The settings page shows it, with a retry.
+let saveState = { status: "saved", error: "" };
+const saveListeners = new Set();
+function setSaveState(next) { saveState = next; saveListeners.forEach((l) => l()); }
+export function useAppearanceSave() {
+  return useSyncExternalStore((l) => { saveListeners.add(l); return () => saveListeners.delete(l); }, () => saveState, () => saveState);
+}
+
+// Uploaded pictures that were replaced. Each is deleted only after the account no longer refers to it in either app,
+// so a failed save never leaves the account pointing at a deleted picture.
+const replacedPictures = new Set();
+export function forgetPictureLater(url) { if (url) replacedPictures.add(url); }
+
 let saveTimer = null;
+let saveRun = 0;
 // The account keeps the choices only. The palette is worked out again on each device (it is kept in this browser),
 // because everything in the account copy travels inside the sign-in token with every request.
-function saveToAccount(full) {
+function saveToAccount(full, { now = false } = {}) {
   const p = { ...full };
   delete p.palette;
   clearTimeout(saveTimer);
+  if (!owner) return;   // not signed in yet: only this browser keeps it
+  unsynced = true;
+  writeLocal(current);
+  setSaveState({ status: "pending", error: "" });
   // a slider sends many changes: only the last one is saved
-  saveTimer = setTimeout(async () => {
-    const { data } = await supabase.auth.getSession();
-    const user = data.session?.user;
-    if (!user || user.id !== owner) return;   // only ever the signed-in person's own look
+  saveTimer = setTimeout(() => writeAccount(p), now ? 0 : 600);
+}
+
+async function writeAccount(p) {
+  const run = ++saveRun;
+  saveTimer = null;
+  setSaveState({ status: "saving", error: "" });
+  try {
+    // The account's current copy, fresh from the server (not this tab's cached one): the other app may have just
+    // saved its own look in another tab, and that must be written back unchanged.
+    const { data, error: readError } = await supabase.auth.getUser();
+    if (readError) throw readError;
+    const user = data.user;
+    if (!user || user.id !== owner) {   // signed out or someone else signed in meanwhile: never save into their account
+      if (run === saveRun) setSaveState({ status: "saved", error: "" });
+      return;
+    }
     const saved = user.user_metadata?.zella_appearance;
     const strip = (v) => { const c = { ...v }; delete c.palette; return c; };
     // the other app's look is written back unchanged (from the first version's single look if that is all there is)
@@ -138,8 +176,30 @@ function saveToAccount(full) {
       : saved && "theme" in saved ? { admin: strip(saved), crm: strip(saved) } : {};
     both[APP_SCOPE] = p;
     const { error } = await supabase.auth.updateUser({ data: { zella_appearance: both } });
-    if (error) console.warn("Appearance not saved to the account:", error.message);
-  }, 600);
+    if (error) throw error;
+    if (run !== saveRun) return;   // a newer change is on its way; it reports for itself
+    unsynced = false;
+    writeLocal(current);
+    setSaveState({ status: "saved", error: "" });
+    for (const url of [...replacedPictures]) {
+      if (url === both.admin?.customUrl || url === both.crm?.customUrl || url === current.customUrl) { replacedPictures.delete(url); continue; }
+      replacedPictures.delete(url);
+      removeUploadedBackground(url).catch(() => {});
+    }
+  } catch (err) {
+    if (run !== saveRun) return;
+    setSaveState({ status: "failed", error: err?.message || "The connection failed." });
+  }
+}
+
+// Saves the look on screen again after a failure.
+export function retryAppearanceSave() { saveToAccount(current, { now: true }); }
+
+// Leaving the page while a slider change waits: save it now rather than lose it.
+if (typeof document !== "undefined") {
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden" && saveTimer) saveToAccount(current, { now: true });
+  });
 }
 
 // Works out the palette of the picture in use when there isn't one yet (once per picture; it is then saved).
@@ -169,17 +229,26 @@ export function startAppearance() {
   apply(current);
   ensurePalette();
   supabase.auth.onAuthStateChange((event, session) => {
-    if (event === "SIGNED_OUT") { owner = null; set({ ...DEFAULT_APPEARANCE }, { save: false }); return; }
+    if (event === "SIGNED_OUT") {
+      clearTimeout(saveTimer); saveTimer = null; saveRun++; replacedPictures.clear(); unsynced = false;
+      owner = null; set({ ...DEFAULT_APPEARANCE }, { save: false }); setSaveState({ status: "saved", error: "" }); return;
+    }
     const user = session?.user;
     if (!user) return;
     const mine = scopedFromAccount(user.user_metadata?.zella_appearance);
     if (user.id !== owner) {
       // someone else (or the first time this browser learns who it is): their own look, or the default
+      clearTimeout(saveTimer); saveTimer = null; saveRun++; replacedPictures.clear(); unsynced = false;
       owner = user.id;
       set(mine ?? { ...DEFAULT_APPEARANCE }, { save: false });
+      setSaveState({ status: "saved", error: "" });
       return;
     }
     // the same person, maybe changed on another device: the account's choices, with this browser's palette
+    // A change still waiting to be saved here wins over the account's older copy; one left over from the last visit
+    // (cut off by a reload, or failed) is sent now.
+    if (saveTimer || saveState.status === "saving" || saveState.status === "failed") return;
+    if (unsynced) { saveToAccount(current, { now: true }); return; }
     const next = mine && normalise({ ...mine, palette: current.palette });
     if (next && JSON.stringify(next) !== JSON.stringify(current)) set(next, { save: false });
   });
@@ -187,8 +256,9 @@ export function startAppearance() {
 
 // A picture the other app (or the first version's shared look) still shows is never deleted.
 async function pictureUsedElsewhere(url) {
-  const { data } = await supabase.auth.getSession();
-  const saved = data.session?.user?.user_metadata?.zella_appearance;
+  const { data, error } = await supabase.auth.getUser();
+  if (error) return true;   // can't tell: keep it
+  const saved = data.user?.user_metadata?.zella_appearance;
   if (!saved || typeof saved !== "object") return false;
   const other = "admin" in saved || "crm" in saved ? saved[APP_SCOPE === "crm" ? "admin" : "crm"] : saved;
   return other?.customUrl === url;

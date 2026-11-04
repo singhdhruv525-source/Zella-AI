@@ -194,7 +194,7 @@ export function LeadSourcesPage({ workspace, refreshKey }) {
         {loading && !data ? <div className="ba-panel-body"><p className="ba-muted">Loading…</p></div> : !rows.length ? (
           <div className="ba-panel-body"><Empty title="No new leads in this period">Leads from calls, your website and the team are counted here.</Empty></div>
         ) : (
-          <div className="ba-table-wrap">
+          <div className="ba-table-wrap" tabIndex={0}>
             <table className="ba-table static">
               <thead><tr><th>Source</th><th>New leads</th><th>Share</th><th>Contacted</th><th>Booked</th><th>Booked rate</th></tr></thead>
               <tbody>
@@ -202,7 +202,7 @@ export function LeadSourcesPage({ workspace, refreshKey }) {
                   <tr key={r.source}>
                     <td><strong>{SOURCE_LABELS[r.source] ?? sourceLabel(r.source)}</strong></td>
                     <td>{r.leads}</td>
-                    <td><div className="ba-meter" aria-label={pct(r.leads, total)}><span style={{ width: pct(r.leads, total) }} /></div><small>{pct(r.leads, total)}</small></td>
+                    <td><div className="ba-meter" aria-hidden="true"><span style={{ width: pct(r.leads, total) }} /></div><small>{pct(r.leads, total)}</small></td>
                     <td>{r.contacted} <small>({pct(r.contacted, r.leads)})</small></td>
                     <td>{r.booked}</td>
                     <td>{pct(r.booked, r.leads)}</td>

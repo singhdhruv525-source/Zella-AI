@@ -239,7 +239,7 @@ export function CallsPage({ workspace, refreshKey, onNotice, onOpenPerson, trans
           <div className="ba-panel-body"><Empty title={filter === "all" ? "No calls yet" : "No calls match"}>{filter === "all" ? "Calls appear here once your phone line is live." : "Try another filter."}</Empty></div>
         ) : (
           <>
-            <div className="ba-table-wrap">
+            <div className="ba-table-wrap" tabIndex={0}>
               <table className="ba-table">
                 <thead><tr><th>Caller</th><th>When</th><th>Result</th><th>Handled by</th><th>Length</th><th>Outcome</th><th>Assigned to</th><th /></tr></thead>
                 <tbody>

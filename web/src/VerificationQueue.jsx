@@ -119,7 +119,7 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
           </div>
 
           <section className="owner-panel">
-            <div className="owner-table-wrap">
+            <div className="owner-table-wrap" tabIndex={0}>
               <table className="owner-table">
                 <thead><tr><th>Business</th><th>Document</th><th>Uploaded</th><th>Status</th><th aria-label="Actions" /></tr></thead>
                 <tbody>

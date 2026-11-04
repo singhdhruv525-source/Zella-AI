@@ -246,7 +246,7 @@ export function CallbacksPage({ workspace, refreshKey, onNotice, onOpenPerson, o
         </Empty>
       ) : (
         <section className="ba-panel">
-          <div className="ba-table-wrap">
+          <div className="ba-table-wrap" tabIndex={0}>
             <table className="ba-table ba-queue">
               <thead><tr><th>Who</th><th>Reason</th><th>{active === "done" ? "Closed" : "Call at"}</th><th>Tries</th><th>Assigned to</th><th /></tr></thead>
               <tbody>

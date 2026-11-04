@@ -135,7 +135,7 @@ function RecordModal({ workspace, type, record, canManage, onClose, onSaved, onO
           ))}
         </div>
         {type.link_person && (
-          <PersonPicker label={workspace.terminology?.customer ?? "Person"} value={person} onChange={setPerson} hint="Optional. Links this to someone you already have." />
+          <PersonPicker businessId={workspace.id} label={workspace.terminology?.customer ?? "Person"} value={person} onChange={setPerson} hint="Optional. Links this to someone you already have." />
         )}
         {!isNew && person && onOpenPerson && <button type="button" className="ba-btn sm" onClick={() => onOpenPerson(person.id)}>Open {personName(person) ?? "profile"}</button>}
       </form>
@@ -231,7 +231,7 @@ export function RecordsPage({ workspace, type, query, refreshKey, canManage, onN
           </div>
         ) : (
           <>
-            <div className="ba-table-wrap">
+            <div className="ba-table-wrap" tabIndex={0}>
               <table className="ba-table">
                 <thead><tr><th>{type.title_label}</th><th>Status</th>{cols.map((c) => <th key={c.key}>{c.label}</th>)}{type.link_person && <th>{workspace.terminology?.customer ?? "Person"}</th>}<th>Updated</th></tr></thead>
                 <tbody>
@@ -380,7 +380,7 @@ export function RecordSettingsPage({ workspace, types, canManage, onNotice, onCh
       </PageHead>
       <section className="ba-panel">
         {types.length === 0 ? <div className="ba-panel-body"><Empty title="Nothing to customize yet">Your records appear here once your industry is set up.</Empty></div> : (
-          <div className="ba-table-wrap">
+          <div className="ba-table-wrap" tabIndex={0}>
             <table className="ba-table">
               <thead><tr><th>Record</th><th>Statuses</th><th>Fields</th><th>Menu</th><th /></tr></thead>
               <tbody>

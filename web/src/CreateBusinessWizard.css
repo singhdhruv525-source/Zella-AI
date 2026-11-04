@@ -1008,3 +1008,35 @@ button.wiz-chip:hover { border-color: var(--color-primary); color: var(--color-p
   .wiz-spam-row { flex-wrap: wrap; }
   .wiz-spam-row select { max-width: 100%; width: 100%; }
 }
+
+/* Unsaved changes on the current step */
+.wiz-unsaved {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--status-warning);
+  border-radius: var(--radius-sm, 8px);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.wiz-unsaved-dialog {
+  max-width: 460px;
+  padding: 22px 24px;
+}
+
+.wiz-unsaved-dialog h3 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.wiz-unsaved-dialog p {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.wiz-unsaved-dialog .owner-modal-actions {
+  margin: 20px 0 0;
+}

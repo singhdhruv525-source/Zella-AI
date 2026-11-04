@@ -243,7 +243,7 @@ export default function OffersPage({ onOpenBusiness }) {
               <p>Create an offer to reward a group of businesses, or apply a negotiated deal to one business.</p>
             </div>
           ) : (
-            <div className="owner-table-wrap op-gap">
+            <div className="owner-table-wrap op-gap" tabIndex={0}>
               <table className="owner-table">
                 <thead>
                   <tr><th>Offer</th><th>Status</th><th>Runs</th><th>Claims</th><th>Where</th><th /></tr>
@@ -798,7 +798,7 @@ function OfferDetail({ offerId, me, isOwner, lookups, onClose, onEdit, onChanged
 
         <h3 className="of-h3">Claims ({data.redemptions.length})</h3>
         {data.redemptions.length === 0 ? <p className="op-muted">No business has claimed this offer yet.</p> : (
-          <div className="owner-table-wrap">
+          <div className="owner-table-wrap" tabIndex={0}>
             <table className="owner-table">
               <thead><tr><th>Business</th><th>Status</th><th>Claimed</th><th>How</th><th /></tr></thead>
               <tbody>
@@ -1036,7 +1036,7 @@ export function MonitorTab({ onOpenOffer }) {
             </div>
           )}
 
-          <div className="owner-table-wrap op-gap">
+          <div className="owner-table-wrap op-gap" tabIndex={0}>
             <table className="owner-table">
               <thead><tr><th>Job</th><th>Started by</th><th>When</th><th>Status</th><th>Changed</th><th>Problem</th></tr></thead>
               <tbody>

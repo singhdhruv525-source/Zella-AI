@@ -106,7 +106,7 @@ export default function SupportTickets({ onOpenBusiness }) {
 
       <div className={`st-layout ${selected || creating ? "with-detail" : ""}`}>
         <section className="owner-panel">
-          <div className="owner-table-wrap">
+          <div className="owner-table-wrap" tabIndex={0}>
             <table className="owner-table">
               <thead><tr><th>Ticket</th><th>Business</th><th>Priority</th><th>Status</th><th>Assigned</th></tr></thead>
               <tbody>

@@ -1,8 +1,8 @@
 import { useRef, useState } from "react";
 import { supabase } from "../supabase";
 import {
-  activePalette, APP_SCOPE, BACKGROUNDS, DEFAULT_APPEARANCE, prepareBackground, removeUploadedBackground, resetAppearance, sidebarMode, updateAppearance,
-  useAppearance, wallpaperUrl,
+  activePalette, APP_SCOPE, BACKGROUNDS, DEFAULT_APPEARANCE, forgetPictureLater, prepareBackground, resetAppearance, retryAppearanceSave, sidebarMode,
+  updateAppearance, useAppearance, useAppearanceSave, wallpaperUrl,
 } from "../appearance";
 import { uploadImage } from "./PersonalPanels";
 import { Banner, Card, Field, Toggle } from "./SettingsKit";
@@ -59,6 +59,21 @@ function NotificationSound() {
   );
 }
 
+// Shown changes are only on this device until the account confirms the save.
+function SaveStatus() {
+  const save = useAppearanceSave();
+  if (save.status === "failed") {
+    return (
+      <Banner tone="error">
+        Your look is showing on this device but wasn't saved to your account ({save.error}). Other devices won't see it yet.{" "}
+        <button type="button" className="zs-link" onClick={retryAppearanceSave}>Try again</button>
+      </Banner>
+    );
+  }
+  const text = save.status === "saved" ? "Saved to your account." : "Saving to your account…";
+  return <p className="zs-hint" role="status" aria-live="polite">{text}</p>;
+}
+
 export function AppearancePanel() {
   const look = useAppearance();
   const fileInput = useRef(null);
@@ -73,25 +88,26 @@ export function AppearancePanel() {
       const small = await prepareBackground(file);
       const url = await uploadImage(`user/${user.id}/background`, small);
       const old = look.customUrl;
+      if (old && old !== url) forgetPictureLater(old);   // deleted once the account has saved the new picture
       updateAppearance({ theme: "glass", background: "custom", customUrl: url });
-      if (old && old !== url) removeUploadedBackground(old).catch(() => {});
       setPic({ busy: false, error: "" });
     } catch (err) {
       setPic({ busy: false, error: err.message });
     }
   }
   async function removePicture() {
-    const old = look.customUrl;
+    forgetPictureLater(look.customUrl);
     updateAppearance({ background: DEFAULT_APPEARANCE.background, customUrl: null });
-    if (old) removeUploadedBackground(old).catch(() => {});
   }
 
   return (
     <>
       <Banner>
         These settings change how {APP_SCOPE === "crm" ? "the CRM" : "the admin dashboard"} looks for you only, on every device you sign in on.
-        {APP_SCOPE === "crm" ? " The admin dashboard" : " The CRM"} has its own setting, and everyone else keeps their own look. Changes apply straight away.
+        {APP_SCOPE === "crm" ? " The admin dashboard" : " The CRM"} has its own setting, and everyone else keeps their own look. Changes show here
+        straight away and are then saved to your account.
       </Banner>
+      <SaveStatus />
 
       <Card title="Theme">
         <div className="zs-look-grid" role="radiogroup" aria-label="Theme">
@@ -159,7 +175,7 @@ export function AppearancePanel() {
 
       <Card title="Start again">
         <div className="zs-bg-actions">
-          <button type="button" className="zs-btn" onClick={() => { const old = look.customUrl; resetAppearance(); if (old) removeUploadedBackground(old).catch(() => {}); }}>
+          <button type="button" className="zs-btn" onClick={() => { forgetPictureLater(look.customUrl); resetAppearance(); }}>
             Back to the default look
           </button>
           <small className="zs-hint">Classic theme, the default picture for Glass, automatic sidebar. Removes your uploaded picture.</small>

@@ -120,10 +120,11 @@ html[data-zella-theme="glass"]:has(.ba-root, .owner-app) :is(.ba-search, .owner-
 html[data-zella-theme="glass"]:has(.ba-root, .owner-app) :is(input, textarea)::placeholder { color: var(--zella-text-faint); }
 html[data-zella-theme="glass"]:has(.ba-root, .owner-app) option { background: var(--zella-glass-base, #241e1b); color: var(--zella-text); }
 
-/* places that print white on the brand colour: dark labels on light copper */
+/* places that print white on the brand colour: dark labels on light copper. (Avatars and offer chips sit on the soft
+   tint, not the solid colour, so they keep the brand-coloured text from components.css.) */
 html[data-zella-theme="glass"]:has(.ba-root, .owner-app) :is(
-  .ba-logo, .ba-avatar, .ba-btn.primary, .ba-pill.solid, .ba-mg-cell.today .ba-mg-day, .ba-switcher-logo,
-  .td-tabs button.active, .rs-chip.on, .of-chip.on, .zs-btn.primary, .owner-brand-mark, .owner-workspace-icon
+  .ba-logo, .ba-btn.primary, .ba-pill.solid, .ba-mg-cell.today .ba-mg-day, .ba-switcher-logo,
+  .td-tabs button.active, .rs-chip.on, .zs-btn.primary, .owner-brand-mark, .owner-workspace-icon
 ) { color: var(--zella-on-primary); }
 html[data-zella-theme="glass"]:has(.ba-root, .owner-app) .td-star { color: #F2C66D; }
 

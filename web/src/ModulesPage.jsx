@@ -53,7 +53,7 @@ export default function ModulesPage({ onNavigate }) {
       {error && <div className="owner-form-error op-gap">Could not load modules: {error}</div>}
 
       <section className="owner-panel">
-        <div className="owner-table-wrap">
+        <div className="owner-table-wrap" tabIndex={0}>
           <table className="owner-table">
             <thead><tr><th>Module</th><th>Offered in</th><th>Needs</th><th>Businesses using it</th></tr></thead>
             <tbody>

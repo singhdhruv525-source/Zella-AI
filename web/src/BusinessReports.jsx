@@ -92,7 +92,7 @@ function MessageResults({ workspace, days, refreshKey }) {
           {data && !data.length && <Empty title="No follow-ups yet">They appear here once automations start sending.</Empty>}
         </div>
       ) : (
-        <div className="ba-table-wrap">
+        <div className="ba-table-wrap" tabIndex={0}>
           <table className="ba-table">
             <thead><tr><th>Follow-up</th><th>By</th><th>Sent</th><th>Failed</th><th>Skipped</th><th>Booked within 7 days</th></tr></thead>
             <tbody>

@@ -206,7 +206,7 @@ export function DataTable({ columns, rows, empty, onRow, loading, rowKey = (r) =
   if (loading && !rows) return <p className="op-muted">Loading…</p>;
   if (!rows?.length) return <div className="op-empty">{empty}</div>;
   return (
-    <div className="owner-table-wrap">
+    <div className="owner-table-wrap" tabIndex={0}>
       <table className="owner-table ao-table">
         <thead><tr>{columns.map(([h], i) => <th key={i}>{h}</th>)}</tr></thead>
         <tbody>

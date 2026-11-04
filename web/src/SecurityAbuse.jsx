@@ -238,7 +238,7 @@ function Incidents({ days, onOpenBusiness }) {
         )}
       </div>
       {error && <div className="owner-form-error" role="alert">{error}</div>}
-      <div className="owner-table-wrap">
+      <div className="owner-table-wrap" tabIndex={0}>
         <table className="owner-table">
           <thead><tr><th>Business</th><th>Channel</th><th>Sender</th><th>Risk</th><th>Action</th><th>Status</th><th>Last seen</th></tr></thead>
           <tbody>
@@ -343,7 +343,7 @@ function Coverage({ rows, onOpenBusiness }) {
         </select>
         <span className="op-muted">"On by default" means the business hasn't changed its spam settings and uses the platform defaults.</span>
       </div>
-      <div className="owner-table-wrap">
+      <div className="owner-table-wrap" tabIndex={0}>
         <table className="owner-table">
           <thead><tr><th>Business</th><th>Protection</th><th>Suspicious callers</th><th>Last changed</th></tr></thead>
           <tbody>
@@ -491,7 +491,7 @@ function Rules({ canManage, onChanged }) {
         </form>
       )}
       {error && <div className="owner-form-error" role="alert">{error}</div>}
-      <div className="owner-table-wrap">
+      <div className="owner-table-wrap" tabIndex={0}>
         <table className="owner-table">
           <thead><tr><th>Value</th><th>Channel</th><th>Reason</th><th>Expires</th><th>Added</th><th aria-label="Actions" /></tr></thead>
           <tbody>

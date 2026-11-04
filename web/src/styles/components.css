@@ -872,3 +872,9 @@
 @keyframes zella-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes zella-pop { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
 @keyframes zella-sheet { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: none; } }
+
+/* Wide tables scroll sideways inside their box; the box takes keyboard focus so it can be scrolled without a mouse. */
+:is(.owner-table-wrap, .zs-table-wrap, .ba-table-wrap, .sc-table-wrap, .ba-tg):focus-visible {
+  outline: 2px solid var(--zella-primary);
+  outline-offset: 2px;
+}

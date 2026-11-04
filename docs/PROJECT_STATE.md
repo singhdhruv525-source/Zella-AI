@@ -96,6 +96,27 @@ Fixes for invitations, billing, currency, MFA, navigation and invitation errors 
 billing-webhook). owner-provision-business still needs a CLI deploy; the web app goes live with hosting. See `docs/SECURITY_REVIEW_2026-11-04.md` for the findings, test results and the order to apply them
 (needs the owner's approval).
 
+## Full review 2026-11-04 (second pass): fixes in the repo, approvals pending
+
+`docs/REVIEW_2026-11-04_FULL.md` has the findings, the page-by-page coverage and the test results.
+
+Fixed in the web app, which ships with hosting:
+
+- five CRM pages crashing on live automation data;
+- template and customer-search scoping across businesses;
+- setup wizard: unsaved-changes guard, honest checkmarks, double-submit;
+- appearance save status, retry and safe picture clean-up;
+- contrast (Classic and Glass), icon-font fallback, Inter weights, accessibility labels, mobile overflow;
+- status copy that claimed things it couldn't know.
+
+**Waiting for approval (not applied):**
+
+- `sql/zella_platform_alerts_policy_fix.sql`: the admin alerts bell fails on production today.
+- `sql/zella_platform_roles_fix.sql`: the restricted platform roles are blocked by an old trigger.
+- Deploying `owner-provision-business`: owner invitation fixes and server-side finish checks.
+
+Browser tests can now run against a local real-schema backend: see `tests/browser/README.md`.
+
 ## Waiting on the owner's answers
 
 - What's missing in the app (they chose "something missing" without details).

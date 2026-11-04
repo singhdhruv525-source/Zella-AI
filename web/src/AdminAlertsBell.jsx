@@ -22,13 +22,15 @@ export default function AdminAlertsBell({ onOpenMonitoring }) {
   const [rows, setRows] = useState(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);   // never shown as "all calm" when alerts couldn't be read
   const seen = useRef(null);
   const box = useRef(null);
 
   async function load() {
     const { data, error: e } = await supabase.from("platform_alerts").select("id, kind, severity, title, detail, occurrences, last_seen_at, business_id")
       .eq("status", "open").order("last_seen_at", { ascending: false }).limit(40);
-    if (e) { setRows([]); return; }
+    if (e) { setLoadFailed(true); return; }   // keep the last list we had
+    setLoadFailed(false);
     const list = (data ?? []).sort((a, b) => (RANK[a.severity] ?? 3) - (RANK[b.severity] ?? 3) || new Date(b.last_seen_at) - new Date(a.last_seen_at));
     if (seen.current) {
       const fresh = list.filter((a) => !seen.current.has(a.id));
@@ -72,7 +74,7 @@ export default function AdminAlertsBell({ onOpenMonitoring }) {
   const urgent = list.some((a) => a.severity === "urgent");
   return (
     <div className="owner-bell" ref={box}>
-      <button type="button" className="owner-icon-button" aria-label={loud ? `${loud} platform alerts` : "Platform alerts"} aria-expanded={open} title="Platform alerts" onClick={() => setOpen(!open)}>
+      <button type="button" className="owner-icon-button" aria-label={loadFailed ? "Platform alerts (couldn't load)" : loud ? `${loud} platform alerts` : "Platform alerts"} aria-expanded={open} title="Platform alerts" onClick={() => setOpen(!open)}>
         <Icon name="notifications" />
         {loud > 0 && <span className={`owner-bell-count ${urgent ? "urgent" : ""}`}>{loud > 9 ? "9+" : loud}</span>}
       </button>
@@ -80,7 +82,11 @@ export default function AdminAlertsBell({ onOpenMonitoring }) {
         <div className="owner-bell-panel" role="dialog" aria-label="Platform alerts">
           <div className="owner-bell-head"><strong>Platform alerts</strong><span>{list.length ? `${list.length} open` : ""}</span></div>
           {error && <p className="owner-bell-error" role="alert">{error}</p>}
-          {!list.length ? (
+          {loadFailed && <p className="owner-bell-error" role="alert">Alerts couldn't be loaded, so this list may be out of date.{" "}
+            <button type="button" className="owner-bell-ack" onClick={load}>Try again</button></p>}
+          {rows === null && !loadFailed ? (
+            <p className="owner-bell-empty">Loading alerts…</p>
+          ) : !list.length && loadFailed ? null : !list.length ? (
             <p className="owner-bell-empty"><Icon name="verified" /> All systems calm. Nothing needs you right now.</p>
           ) : (
             <ul>

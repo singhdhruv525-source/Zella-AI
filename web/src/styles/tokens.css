@@ -27,8 +27,8 @@
   /* Text */
   --zella-text: #252321;
   --zella-text-2: #4A4540;        /* body copy that needs a little less weight */
-  --zella-text-secondary: #77716B;
-  --zella-text-faint: #A39C95;
+  --zella-text-secondary: #615B55;   /* 4.8:1 or more on every Classic surface (WCAG AA) */
+  --zella-text-faint: #6C6660;       /* 4.5:1 or more where it is used for text: times, labels, placeholders */
 
   /* Lines */
   --zella-border: #E9E2D9;

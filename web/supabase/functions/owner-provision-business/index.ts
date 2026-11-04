@@ -1,3 +1,4 @@
+import { latestOwnerInvitation, moveOwnerInvitation } from "./ownerInvitation.ts";
 import { withCors } from "../_shared/cors.ts";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { PERMISSIONS, RESTRICTED_ROLES, settingsHandlers } from "./settings.ts";
@@ -391,6 +392,8 @@ async function loadSetup(admin: SupabaseClient, businessId: string) {
         .from("business_invitations")
         .select("id, email, owner_name, status, invited_at, accepted_at, last_error")
         .eq("business_id", businessId)
+        .eq("role", "owner")
+        .neq("status", "revoked")
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle(),
@@ -535,13 +538,7 @@ async function saveOwner(admin: SupabaseClient, fields: Json, adminUserId: strin
 
   await getBusiness(admin, businessId);
 
-  const { data: current, error: currentError } = await admin
-    .from("business_invitations")
-    .select("id, email, status")
-    .eq("business_id", businessId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const { data: current, error: currentError } = await latestOwnerInvitation(admin, businessId, "id, email, status");
   if (currentError) throw currentError;
 
   const alreadySent = current && ["sent", "accepted"].includes(current.status);
@@ -557,6 +554,7 @@ async function saveOwner(admin: SupabaseClient, fields: Json, adminUserId: strin
     .from("business_invitations")
     .select("id")
     .eq("email", ownerEmail)
+    .eq("role", "owner")
     .neq("business_id", businessId)
     .in("status", ["pending", "sent"])
     .limit(1);
@@ -596,6 +594,7 @@ async function saveOwner(admin: SupabaseClient, fields: Json, adminUserId: strin
       owner_name: ownerName,
       invited_by: adminUserId,
       status: "pending",
+      role: "owner",
     });
     if (error) throw error;
   }
@@ -917,13 +916,7 @@ async function finishSetup(admin: SupabaseClient, fields: Json) {
   const businessId = requireId(fields.businessId);
   const business = await getBusiness(admin, businessId);
 
-  const { data: invitation, error: invitationError } = await admin
-    .from("business_invitations")
-    .select("id, email, owner_name, status")
-    .eq("business_id", businessId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const { data: invitation, error: invitationError } = await latestOwnerInvitation(admin, businessId, "id, email, owner_name, status");
   if (invitationError) throw invitationError;
 
   if (!invitation) {
@@ -933,6 +926,17 @@ async function finishSetup(admin: SupabaseClient, fields: Json) {
   const documents = await documentsReady(admin, businessId);
   if (!documents.ready) {
     throw new InputError("Upload the business registration document and the owner's photo ID before finishing setup");
+  }
+
+  // The wizard's Review step checks these too, but only the server's view of what was saved counts.
+  if (!String(business.name ?? "").trim() || !business.industry_id) {
+    throw new InputError("Save the business name and industry before finishing setup");
+  }
+  const { count: openHours, error: hoursError } = await admin
+    .from("business_hours").select("business_id", { count: "exact", head: true }).eq("business_id", businessId);
+  if (hoursError) throw hoursError;
+  if (!openHours) {
+    throw new InputError("Save the opening hours (Hours & services step) before finishing setup");
   }
 
   const now = new Date().toISOString();
@@ -962,10 +966,7 @@ async function finishSetup(admin: SupabaseClient, fields: Json) {
     const reason = inviteError?.message ?? "Invitation email could not be sent";
     console.error("Owner invitation failed", inviteError);
 
-    await admin
-      .from("business_invitations")
-      .update({ status: "failed", last_error: reason, updated_at: now })
-      .eq("id", invitation.id);
+    await moveOwnerInvitation(admin, invitation.id, { status: "failed", last_error: reason, updated_at: now });
 
     return {
       businessId,
@@ -977,17 +978,28 @@ async function finishSetup(admin: SupabaseClient, fields: Json) {
     };
   }
 
-  const { error: sentError } = await admin
-    .from("business_invitations")
-    .update({
+  let sentError: { message: string } | null = null;
+  try {
+    const moved = await moveOwnerInvitation(admin, invitation.id, {
       status: "sent",
       auth_user_id: invited.user.id,
       invited_at: now,
       expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       last_error: null,
       updated_at: now,
-    })
-    .eq("id", invitation.id);
+    });
+    if (!moved) {
+      // Cancelled or accepted while the email was going out: don't link a seat or report a fresh invitation.
+      return {
+        businessId,
+        businessName: business.name,
+        invitationStatus: "closed",
+        invitationError: "The owner invitation was cancelled or accepted while it was being sent. Check the invitation before sending another.",
+      };
+    }
+  } catch (error) {
+    sentError = error as { message: string };
+  }
 
   const { data: member, error: memberLookupError } = await admin
     .from("business_members")
@@ -2533,13 +2545,7 @@ async function sendToN8n(event: string, payload: Json) {
 }
 
 async function ownerContact(admin: SupabaseClient, businessId: string) {
-  const { data, error } = await admin
-    .from("business_invitations")
-    .select("email, owner_name, status")
-    .eq("business_id", businessId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const { data, error } = await latestOwnerInvitation(admin, businessId, "email, owner_name, status");
   if (error) throw error;
   return data ? { email: data.email, name: data.owner_name } : null;
 }
@@ -2660,16 +2666,15 @@ async function invitationResend(admin: SupabaseClient, fields: Json) {
   const business = await getBusiness(admin, businessId);
   if (business.cancelled_at) throw new InputError("This business has been cancelled", 409);
 
-  const { data: invitation, error: invitationError } = await admin
-    .from("business_invitations")
-    .select("id, email, owner_name, status")
-    .eq("business_id", businessId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const { data: invitation, error: invitationError } = await latestOwnerInvitation(admin, businessId, "id, email, owner_name, status");
   if (invitationError) throw invitationError;
   if (!invitation) throw new InputError("This business has no owner invitation yet");
   if (invitation.status === "accepted") throw new InputError("The owner has already accepted the invitation", 409);
+  if (invitation.status === "sent") {
+    // Re-open it so the guarded write below applies; a cancel in between still wins.
+    await admin.from("business_invitations").update({ status: "pending", updated_at: new Date().toISOString() })
+      .eq("id", invitation.id).eq("status", "sent");
+  }
 
   const now = new Date().toISOString();
   const appUrl = Deno.env.get("ZELLA_APP_URL");
@@ -2680,9 +2685,7 @@ async function invitationResend(admin: SupabaseClient, fields: Json) {
 
   if (error || !invited?.user) {
     const reason = error?.message ?? "Invitation email could not be sent";
-    await admin.from("business_invitations")
-      .update({ status: "failed", last_error: reason, updated_at: now })
-      .eq("id", invitation.id);
+    await moveOwnerInvitation(admin, invitation.id, { status: "failed", last_error: reason, updated_at: now });
     return {
       businessId,
       email: invitation.email,
@@ -2693,14 +2696,22 @@ async function invitationResend(admin: SupabaseClient, fields: Json) {
     };
   }
 
-  await admin.from("business_invitations").update({
+  const moved = await moveOwnerInvitation(admin, invitation.id, {
     status: "sent",
     auth_user_id: invited.user.id,
     invited_at: now,
     expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
     last_error: null,
     updated_at: now,
-  }).eq("id", invitation.id);
+  });
+  if (!moved) {
+    return {
+      businessId,
+      email: invitation.email,
+      invitationStatus: "closed",
+      invitationError: "The owner invitation was cancelled or accepted while it was being sent.",
+    };
+  }
 
   const { data: member } = await admin
     .from("business_members")
@@ -2997,6 +3008,7 @@ Deno.serve(withCors(async (req: Request) => {
           .select(
             "id, business_id, email, owner_name, status, invited_at, expires_at, created_at",
           )
+          .eq("role", "owner")
           .order("created_at", { ascending: false }),
 
         adminClient

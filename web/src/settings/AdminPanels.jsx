@@ -44,7 +44,7 @@ function ProfileForm({ initial, canEdit }) {
           <Field label="Default currency">
             <select value={f.currency} onChange={form.set("currency")}>{["USD", "CAD", "GBP", "EUR", "AUD"].map((c) => <option key={c}>{c}</option>)}</select>
           </Field>
-          <div className="zs-field full"><span>Default platform time zone</span><TimeZoneSelect value={f.timezone} onChange={form.set("timezone")} /></div>
+          <div className="zs-field full"><span>Default platform time zone</span><TimeZoneSelect label="Default platform time zone" value={f.timezone} onChange={form.set("timezone")} /></div>
         </div>
       </fieldset>
       <Facts rows={[["Date format", "US, for example Oct 26, 2026"], ["Time format", "12-hour, for example 3:04 PM"], ["Default language", "English (US)"]]} />
@@ -437,7 +437,7 @@ function RoleMatrix({ data, reload, canEdit }) {
   return (
     <Card title="Permission matrix" sub="Zella owner and super admin are fixed. The five restricted roles only get what is ticked. Checked on the server for every action.">
       {!canEdit && <Banner tone="warn">Only a Zella owner can change role permissions.</Banner>}
-      <div className="zs-table-wrap">
+      <div className="zs-table-wrap" tabIndex={0}>
         <table className="zs-matrix">
           <thead><tr><th>Permission</th>{data.roles.map((r) => <th key={r.key}>{r.label}<br /><small className="zs-muted">{r.admins} admin{r.admins === 1 ? "" : "s"}</small></th>)}</tr></thead>
           <tbody>{data.catalog.map(([perm, label]) => (
@@ -493,7 +493,7 @@ export function AuthPolicies() {
         )}</LoadState>
       </Card>
       <Needs title="Session length, sign-up policy, leaked-password checks and failed sign-in monitoring are set in Supabase, not here"
-        have="Supabase dashboard > Authentication. The security advisor reports leaked-password protection is currently off; turning it on is recommended.">
+        have="Check them in the Supabase dashboard > Authentication. Zella can't see their current state, so it isn't shown here. Recommended: turn leaked-password protection on.">
         Supabase doesn't let the app read or change these settings, and sign-in attempt logs aren't stored in the database for this project.
         Showing them here would need the Supabase Management API with a server-side token.
       </Needs>
@@ -1381,7 +1381,7 @@ export function PolicyConfig({ onGo }) {
     <>
       <LinkRows rows={[{ title: "Retention", detail: "Security & privacy > Data retention", onClick: () => onGo("security/retention") },
         { title: "Recording and consent text", detail: "Publish it as the Recording and consent document", onClick: () => onGo("legal/documents") }]} />
-      <Needs title="A recording on/off policy per business isn't built" have="Recordings come from the voice provider's settings; access is limited to managers and above.">It needs a recording switch the phone assistant reads at the start of each call, and a disclosure line it says when recording is on.</Needs>
+      <Needs title="A recording on/off policy per business isn't built" have="Recordings come from the voice provider's settings. Playing one in the app is for managers and above, but every member role, staff and viewers included, can still read a call's recording link and transcript. Who should see them is an open decision.">It needs a recording switch the phone assistant reads at the start of each call, and a disclosure line it says when recording is on.</Needs>
     </>
   );
 }

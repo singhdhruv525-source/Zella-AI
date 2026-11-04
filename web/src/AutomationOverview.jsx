@@ -14,7 +14,7 @@ export default function AutomationOverview({ rows, industryName, appointmentWord
   const order = orderTypes(items.map((i) => i.type), industryName);
   items.sort((a, b) => (isPreferred(b.type, industryName) - isPreferred(a.type, industryName)) || (order.indexOf(a.type) - order.indexOf(b.type)));
   return (
-    <div className="owner-table-wrap">
+    <div className="owner-table-wrap" tabIndex={0}>
       <table className="owner-table">
         <thead><tr><th>Automation</th><th>Status</th><th>Tells owner by</th><th>Settings</th></tr></thead>
         <tbody>

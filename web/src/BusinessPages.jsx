@@ -118,7 +118,7 @@ function PeoplePage({ mode, workspace, query, refreshKey, onOpenPerson }) {
           </div>
         ) : (
           <>
-            <div className="ba-table-wrap">
+            <div className="ba-table-wrap" tabIndex={0}>
               <table className="ba-table">
                 <thead>
                   <tr><th>Name</th><th>Phone</th><th>Source</th><th>Added</th><th>Last contacted</th><th /></tr>

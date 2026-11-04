@@ -262,7 +262,8 @@ useEffect(() => {
           })}
         </nav>
 
-        <button type="button" className="owner-sidebar-bottom op-status-link" onClick={() => goTo("Platform Operations")}>
+        <button type="button" className="owner-sidebar-bottom op-status-link" onClick={() => goTo("Platform Operations")}
+          aria-label="Platform status: view system health" title="Platform status">
           <div className="owner-status-dot" />
           <div>
             <strong>Platform status</strong>
@@ -468,7 +469,7 @@ useEffect(() => {
                   </div>
                 </div>
 
-               <div className="owner-table-wrap">
+               <div className="owner-table-wrap" tabIndex={0}>
   <table className="owner-table">
     <thead>
       <tr>

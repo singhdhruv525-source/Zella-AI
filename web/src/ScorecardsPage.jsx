@@ -41,7 +41,7 @@ export default function ScorecardsPage({ workspace }) {
         {loading && !data ? <div className="ba-panel-body"><p className="ba-muted">Loading…</p></div> : !people.length ? (
           <div className="ba-panel-body"><Empty icon="groups" title="No one to show">People appear here once they're part of the team.</Empty></div>
         ) : (
-          <div className="sc-table-wrap">
+          <div className="sc-table-wrap" tabIndex={0}>
             <table className="sc-table">
               <thead>
                 <tr><th rowSpan={2}>Person</th><th colSpan={4}>Callbacks</th><th colSpan={4}>Leads</th><th colSpan={2}>Tasks</th></tr>
@@ -76,7 +76,7 @@ export default function ScorecardsPage({ workspace }) {
           {!bookable.length ? (
             <div className="ba-panel-body"><Empty icon="event" title="No bookable team members">Add the people customers book with on the Team page.</Empty></div>
           ) : (
-            <div className="sc-table-wrap">
+            <div className="sc-table-wrap" tabIndex={0}>
               <table className="sc-table">
                 <thead><tr><th>Team member</th><th>Booked</th><th>Done</th><th>No-shows</th><th>No-show rate</th><th>Canceled</th></tr></thead>
                 <tbody>

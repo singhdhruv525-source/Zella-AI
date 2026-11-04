@@ -136,7 +136,7 @@ export function TimeGrid({
   const nowM = now ? minutesInto(now, columns.find((c) => c.today)?.dayStart ?? new Date()) : null;
 
   return (
-    <div className="ba-tg" role="grid" aria-label="Calendar">
+    <div className="ba-tg" role="region" aria-label="Calendar" tabIndex={0}>
       <div className="ba-tg-head" style={{ gridTemplateColumns: `52px repeat(${columns.length}, minmax(112px, 1fr))`, minWidth: 52 + columns.length * 112 }}>
         <span />
         {columns.map((c) => (

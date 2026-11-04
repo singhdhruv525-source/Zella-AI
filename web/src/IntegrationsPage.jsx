@@ -75,7 +75,7 @@ export default function IntegrationsPage({ onOpenBusiness }) {
             <p>From each business's Phone & integrations setup step.</p>
           </div>
         </div>
-        <div className="owner-table-wrap">
+        <div className="owner-table-wrap" tabIndex={0}>
           <table className="owner-table">
             <thead><tr><th>Business</th><th>Phone (Telnyx)</th><th>Voice (Vapi)</th><th>Calendar</th><th>Email</th><th>Lead sources</th></tr></thead>
             <tbody>
@@ -112,7 +112,7 @@ export default function IntegrationsPage({ onOpenBusiness }) {
             <p>Services connected and verified for client businesses.</p>
           </div>
         </div>
-        <div className="owner-table-wrap">
+        <div className="owner-table-wrap" tabIndex={0}>
           <table className="owner-table">
             <thead><tr><th>Business</th><th>Provider</th><th>Type</th><th>Status</th><th>Last sync</th><th>Error</th></tr></thead>
             <tbody>

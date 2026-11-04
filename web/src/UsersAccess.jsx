@@ -140,7 +140,7 @@ export default function UsersAccess() {
       )}
 
       <section className="owner-panel">
-        <div className="owner-table-wrap">
+        <div className="owner-table-wrap" tabIndex={0}>
           <table className="owner-table">
             <thead>
               <tr><th>Admin</th><th>Role</th><th>Status</th><th>Last sign-in</th><th>Added</th><th /></tr>

@@ -9,6 +9,9 @@ import { Icon } from "./BusinessUI";
 import { DOCUMENT_KINDS, DOCUMENT_MAX_BYTES, DOCUMENT_TYPES, LENGTH_OPTIONS, missingDetails, onboardingFor } from "./onboardingConfig";
 import { humanize } from "./copy/labels";
 import { friendlyError } from "./admin/adminOps";
+import { addLeaveGuard } from "./router";
+import { hoursList } from "./automationOptions";
+import { hasUnsavedChanges, stepProgress } from "./wizardProgress";
 
 // ---------------------------------------------------------------------------
 // Server calls
@@ -496,16 +499,16 @@ function BusinessStep({ value, onChange, industries, isExisting, locked, showErr
             </select>
           </Field>
           <Field label="Timezone" required bare>
-            <TimeZoneSelect value={value.timezone} onChange={(timezone) => onChange({ ...value, timezone })} />
+            <TimeZoneSelect label="Time zone" value={value.timezone} onChange={(timezone) => onChange({ ...value, timezone })} />
           </Field>
           <Field label="Business email" bare>
-            <EmailField value={value.email} onChange={(email) => onChange({ ...value, email })} placeholder="hello@business.com" showErrors={showErrors} />
+            <EmailField label="Business email" value={value.email} onChange={(email) => onChange({ ...value, email })} placeholder="hello@business.com" showErrors={showErrors} />
           </Field>
           <Field label="Business phone" hint="The number customers know today" bare>
             <PhoneField value={value.phone} onChange={(phone) => onChange({ ...value, phone })} showErrors={showErrors} label="Business phone" />
           </Field>
           <Field label="Website" full bare>
-            <UrlField value={value.website} onChange={(website) => onChange({ ...value, website })} showErrors={showErrors} />
+            <UrlField label="Website" value={value.website} onChange={(website) => onChange({ ...value, website })} showErrors={showErrors} />
           </Field>
         </div>
       </Section>
@@ -547,7 +550,7 @@ function OwnerStep({ value, onChange, invitation, showErrors }) {
           <input value={value.name} onChange={set("name")} placeholder="Full name" />
         </Field>
         <Field label="Owner email / login" required bare hint={sent ? "Already invited, so the email can't be changed here." : undefined}>
-          <EmailField value={value.email} onChange={(email) => onChange({ ...value, email })} placeholder="owner@business.com" disabled={sent} required showErrors={showErrors} />
+          <EmailField label="Owner email" value={value.email} onChange={(email) => onChange({ ...value, email })} placeholder="owner@business.com" disabled={sent} required showErrors={showErrors} />
         </Field>
         <Field label="Owner phone" bare>
           <PhoneField value={value.phone} onChange={(phone) => onChange({ ...value, phone })} showErrors={showErrors} label="Owner phone" />
@@ -1060,7 +1063,7 @@ function AutomationsStep({ value, onChange, terminology, industryName }) {
     set(type, { settings: { ...value[type].settings, [key]: v } });
 
 
-  const reminderHours = value.appointment_reminder.settings.hours_before || [];
+  const reminderHours = hoursList(value.appointment_reminder.settings.hours_before, []);
 
   const cards = [
     {
@@ -1502,7 +1505,7 @@ function TeamStep({ value, onChange, config, terminology, showErrors }) {
               <Field label="Name" required><input value={m.name} onChange={(e) => set(i, { name: e.target.value })} /></Field>
               <Field label="Role"><input value={m.title} placeholder={`e.g. ${staffWord}`} onChange={(e) => set(i, { title: e.target.value })} /></Field>
               <Field label="Phone" bare><PhoneField value={m.phone} onChange={(phone) => set(i, { phone })} showErrors={showErrors} label={`${m.name || "Team member"} phone`} /></Field>
-              <Field label="Email" bare><EmailField value={m.email} onChange={(email) => set(i, { email })} showErrors={showErrors} placeholder="name@business.com" /></Field>
+              <Field label="Email" bare><EmailField label={`${m.name || "Team member"} email`} value={m.email} onChange={(email) => set(i, { email })} showErrors={showErrors} placeholder="name@business.com" /></Field>
             </div>
             <button type="button" className="wiz-link-danger" onClick={() => onChange(value.filter((_, n) => n !== i))}>Remove</button>
           </div>
@@ -1628,12 +1631,13 @@ function SpamSection({ value, onChange, modules, config, available }) {
   );
 }
 
-function ReviewStep({ setup, industries, goTo, config, docsReady }) {
+// One row per thing to set up, from the given (saved) setup. Used by the Review step and the step checkmarks.
+function reviewRows(setup, industries, config, docsReady) {
   const r = setup.receptionist;
   const o = setup.operations;
-  const industry = industries.find((i) => i.id === setup.business.industryId);
   const enabledModules = setup.modules.filter((m) => m.enabled);
   const enabledAutomations = Object.values(setup.automations).filter((a) => a.enabled).length + setup.industryRules.filter((x) => x.enabled).length;
+  const industry = industries.find((i) => i.id === setup.business.industryId);
   const leads = Object.entries(setup.integrations.leadSources).filter(([, on]) => on).map(([k]) => ({ meta: "Meta", website: "Website", google: "Google" })[k]);
   const openDays = DAYS.filter(([day]) => !o.hours[day].closed && o.hours[day].open).length;
   const missing = missingDetails(config, o.details);
@@ -1662,6 +1666,11 @@ function ReviewStep({ setup, industries, goTo, config, docsReady }) {
     { key: "crm", title: "CRM setup", ok: enabledModules.length > 0,
       detail: `${enabledModules.length} modules · ${termFor(setup.terminology, "customers")}, ${termFor(setup.terminology, "appointments")}` },
   ];
+  return { rows, verified };
+}
+
+function ReviewStep({ setup, industries, goTo, config, docsReady }) {
+  const { rows, verified } = reviewRows(setup, industries, config, docsReady);
   const blocking = rows.filter((row) => row.required && !row.ok);
 
   return (
@@ -1697,6 +1706,38 @@ function ReviewStep({ setup, industries, goTo, config, docsReady }) {
 // Wizard
 // ---------------------------------------------------------------------------
 
+// Asked before leaving a step that has unsaved changes. Focus stays inside; Escape means stay.
+function UnsavedDialog({ stepLabel, closing, onSave, onDiscard, onStay }) {
+  const box = useRef(null);
+  useEffect(() => {
+    const before = document.activeElement;
+    box.current?.querySelector("button")?.focus();
+    const onKey = (event) => {
+      if (event.key === "Escape") { event.preventDefault(); onStay(); return; }
+      if (event.key !== "Tab") return;
+      const buttons = [...box.current.querySelectorAll("button")];
+      const first = buttons[0], last = buttons[buttons.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("keydown", onKey); before?.focus?.(); };
+  }, [onStay]);
+  return (
+    <div className="owner-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && onStay()}>
+      <div className="owner-modal wiz-unsaved-dialog" role="dialog" aria-modal="true" aria-labelledby="wiz-unsaved-title" aria-describedby="wiz-unsaved-body" ref={box}>
+        <h3 id="wiz-unsaved-title">Save changes to {stepLabel}?</h3>
+        <p id="wiz-unsaved-body">You changed this step but haven't saved it. {closing ? "Closing" : "Moving to another step"} without saving loses those changes.</p>
+        <div className="owner-modal-actions">
+          <button type="button" className="owner-primary-button" onClick={onSave}>Save changes</button>
+          <button type="button" className="owner-secondary-button" onClick={onDiscard}>Discard changes</button>
+          <button type="button" className="owner-secondary-button" onClick={onStay}>Stay on this step</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function CreateBusinessWizard({ businessId: initialBusinessId, industries, onClose }) {
   const [setup, setSetup] = useState(emptySetup);
   const [businessId, setBusinessId] = useState(initialBusinessId || null);
@@ -1706,6 +1747,16 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
   const [error, setError] = useState("");
   const [showErrors, setShowErrors] = useState(false);
   const [result, setResult] = useState(null);
+  // What was last saved (loaded from or written to the server). The screen is compared with it for unsaved changes,
+  // and the step checkmarks and the Review step are worked out from it.
+  const [saved, setSaved] = useState(() => (initialBusinessId ? null : emptySetup()));
+  const [savedKeys, setSavedKeys] = useState(() => new Set());
+  const [pending, setPending] = useState(null); // { to: stepIndex | "close" } while asking about unsaved changes
+  const busy = useRef(false); // a second click before the first save finishes does nothing
+  const dirty = hasUnsavedChanges(setup, saved);
+  const dirtyRef = useRef(false);
+  dirtyRef.current = dirty;
+  useEffect(() => addLeaveGuard(() => dirtyRef.current), []);
 
   const locked = ["testing", "ready", "active"].includes(setup.onboardingStatus);
   const top = useRef(null);
@@ -1719,6 +1770,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
     const data = await callOwnerFunction("setup_load", { businessId: id });
     const next = fromServer(data, industries);
     setSetup(next);
+    setSaved(next);
     if (jump) setStep(RESUME_STEP[next.onboardingStatus] ?? 0);
     return next;
   }
@@ -1883,6 +1935,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
   }
 
   async function run(after) {
+    if (busy.current) return;
     const problem = validate();
     if (problem) {
       setError(problem);
@@ -1891,27 +1944,39 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
     }
     setShowErrors(false);
 
+    busy.current = true;
     setSaving(true);
     setError("");
+    const onScreen = setup;
+    const key = STEPS[step].key;
     try {
+      const reloaded = ["business", "owner", "team"].includes(key);
       await saveCurrentStep();
+      if (!reloaded) setSaved(onScreen);
+      setSavedKeys((keys) => new Set(keys).add(key));
+      dirtyRef.current = false;
       after();
     } catch (err) {
       setError(friendlyError(err));
     } finally {
+      busy.current = false;
       setSaving(false);
     }
   }
 
   async function finish() {
+    if (busy.current) return;
+    busy.current = true;
     setSaving(true);
     setError("");
     try {
       const data = await callOwnerFunction("setup_finish", { businessId });
       setResult(data);
+      setSavedKeys((keys) => new Set(keys).add("review"));
     } catch (err) {
       setError(friendlyError(err));
     } finally {
+      busy.current = false;
       setSaving(false);
     }
   }
@@ -1921,6 +1986,29 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
     setError("");
     setStep(index);
     setShowErrors(false);
+  };
+
+  // Moving to another step or closing with unsaved changes asks first: save, discard or stay.
+  const leaveTo = (to) => (to === "close" ? onClose(Boolean(businessId)) : goTo(to));
+  const request = (to) => {
+    if (to === step || saving) return;
+    if (to !== "close" && to > 0 && !businessId) return;
+    if (dirty) setPending({ to });
+    else leaveTo(to);
+  };
+  const discardAndLeave = () => {
+    const to = pending.to;
+    setPending(null);
+    setSetup(saved);
+    setError("");
+    dirtyRef.current = false;
+    leaveTo(to);
+  };
+  const saveAndLeave = () => {
+    const to = pending.to;
+    setPending(null);
+    // A new business gets its id from the first save; "close" then goes back to the list.
+    run(() => leaveTo(to));
   };
 
   if (loading) {
@@ -1964,6 +2052,11 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
 
   const isLast = step === STEPS.length - 1;
   const terminology = setup.terminology;
+  const persisted = saved ?? setup;
+  const persistedConfig = onboardingFor(industries.find((i) => i.id === persisted.business.industryId)?.slug);
+  const progress = businessId
+    ? stepProgress(STEPS, reviewRows(persisted, industries, persistedConfig, docsReady).rows, persisted.onboardingStatus, savedKeys)
+    : {};
 
   return (
     <section className="wiz" ref={top}>
@@ -1973,7 +2066,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
           <h1>{setup.business.name || "Create a business"}</h1>
           <p>Set up the CRM, AI receptionist, integrations and automations for this client.</p>
         </div>
-        <button type="button" className="owner-secondary-button" onClick={() => onClose(Boolean(businessId))} disabled={saving}>
+        <button type="button" className="owner-secondary-button" onClick={() => request("close")} disabled={saving}>
           Close
         </button>
       </div>
@@ -1984,19 +2077,25 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
       </div>
 
       <ol className="wiz-stepper">
-        {STEPS.map((item, index) => (
-          <li key={item.key}>
-            <button
-              type="button"
-              className={`${index === step ? "current" : ""} ${index < step ? "done" : ""}`}
-              onClick={() => goTo(index)}
-              disabled={saving || (index > 0 && !businessId)}
-            >
-              <span className="wiz-step-num">{index < step ? "✓" : index + 1}</span>
-              <span className="wiz-step-label">{item.label}</span>
-            </button>
-          </li>
-        ))}
+        {STEPS.map((item, index) => {
+          const state = progress[item.key];
+          const said = state === "done" ? "saved and complete" : state === "optional" ? "optional, not set up" : "not complete";
+          return (
+            <li key={item.key}>
+              <button
+                type="button"
+                className={`${index === step ? "current" : ""} ${state === "done" ? "done" : ""}`}
+                onClick={() => request(index)}
+                disabled={saving || (index > 0 && !businessId)}
+                aria-current={index === step ? "step" : undefined}
+                aria-label={`${item.label}: ${said}`}
+              >
+                <span className="wiz-step-num" aria-hidden="true">{state === "done" ? "✓" : index + 1}</span>
+                <span className="wiz-step-label">{item.label}</span>
+              </button>
+            </li>
+          );
+        })}
       </ol>
 
       <div className="wiz-body" key={step}>
@@ -2020,13 +2119,18 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
         )}
         {STEPS[step].key === "automations" && <AutomationsCombinedStep value={setup.automations} onChange={update("automations")} rules={setup.industryRules} onRules={update("industryRules")} terminology={terminology} industryName={industry?.name} />}
         {STEPS[step].key === "crm" && <CrmSetupStep terminology={terminology} onTerminology={update("terminology")} modules={setup.modules} onModules={update("modules")} />}
-        {STEPS[step].key === "review" && <ReviewStep setup={setup} industries={industries} goTo={goTo} config={config} docsReady={docsReady} />}
+        {STEPS[step].key === "review" && <ReviewStep setup={persisted} industries={industries} goTo={request} config={persistedConfig} docsReady={docsReady} />}
       </div>
 
       {error && <div className="owner-form-error wiz-error" role="alert">{error}</div>}
+      {dirty && !error && <div className="wiz-unsaved" role="status">Unsaved changes on this step. Save them before moving on, or they're lost.</div>}
+      {pending && (
+        <UnsavedDialog stepLabel={STEPS[step].label} closing={pending.to === "close"}
+          onSave={saveAndLeave} onDiscard={discardAndLeave} onStay={() => setPending(null)} />
+      )}
 
       <div className="wiz-footer">
-        <button type="button" className="owner-secondary-button" onClick={() => goTo(step - 1)} disabled={saving || step === 0}>
+        <button type="button" className="owner-secondary-button" onClick={() => request(step - 1)} disabled={saving || step === 0}>
           ← Back
         </button>
         <div className="wiz-footer-right">
@@ -2040,7 +2144,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
               type="button"
               className="owner-primary-button"
               onClick={finish}
-              disabled={saving || !setup.owner.email || !docsReady}
+              disabled={saving || !persisted.owner.email || !docsReady || dirty}
             >
               {saving ? "Finishing..." : setup.invitation?.status === "sent" || setup.invitation?.status === "accepted" ? "Save & finish" : "Finish & send invitation"}
             </button>

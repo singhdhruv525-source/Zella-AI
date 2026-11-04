@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { templatesForBusiness } from "./templatePrecedence.js";
 import { supabase } from "./supabase";
 import { Icon } from "./BusinessUI";
 import { friendly, orThrow } from "./BusinessShared";
@@ -196,7 +197,7 @@ function TimezoneLocale({ w }) {
     <LoadState state={state}>{(s) => (
       <>
         <ProfileForm w={w} initial={s.business} title="Time zone" sub="Appointments, hours, reminders and reports all use this time zone." fields={["timezone"]}
-          render={(f) => <div className="zs-field"><span>Business time zone</span><TimeZoneSelect value={f.values.timezone || w.timezone} onChange={f.set("timezone")} /></div>} />
+          render={(f) => <div className="zs-field"><span>Business time zone</span><TimeZoneSelect label="Business time zone" value={f.values.timezone || w.timezone} onChange={f.set("timezone")} /></div>} />
         <Card title="Formats"><Facts rows={[["Date format", "Oct 26, 2026"], ["Time format", "3:04 PM"], ["Language", "English (US)"], ["Currency", "USD"]]} /></Card>
         <Needs title="Other languages, formats and currencies aren't available yet" have="Everything is in US English and US formats.">They need translated text and a format setting that every screen and message reads.</Needs>
       </>
@@ -234,7 +235,7 @@ function RolesPermissions() {
   return (
     <>
       <Card title="What each role can do" sub="Checked by the database on every change, not just hidden in the app. These are business roles; Zella's own admin roles are separate.">
-        <div className="zs-table-wrap"><table className="zs-matrix">
+        <div className="zs-table-wrap" tabIndex={0}><table className="zs-matrix">
           <thead><tr><th>Can…</th>{roles.map((r) => <th key={r}>{words(r === "viewer" ? "view only" : r)}</th>)}</tr></thead>
           <tbody>{ROLE_ROWS.map(([label, who]) => <tr key={label}><td>{label}</td>{roles.map((r) => <td key={r}>{who.includes(r) ? "✓" : "—"}</td>)}</tr>)}</tbody>
         </table></div>
@@ -878,7 +879,7 @@ function registry(w) {
       page("health", "Integration health", () => <PhoneTroubleshooting w={w} />, "errors sync"),
     ] },
     { key: "messages", label: "SMS, email and messages", icon: "forum", items: [
-      page("config", "Messaging setup", () => <Card title="Messaging"><Facts rows={[["Texts", w.phone_connected ? "From your Zella number" : "Start once your number is connected"], ["Email", "Sent with your business name"], ["Marketing texts", "Off"], ["Quiet hours", "Texts wait until morning"]]} /></Card>, "provider sender"),
+      page("config", "Messaging setup", () => <MessagingSetup w={w} />, "provider sender"),
       page("templates", "Message templates", () => <Templates w={w} />, "sms email templates"),
       page("rules", "Communication rules", () => <Card title="Rules every message follows"><Facts rows={[["Consent", "Checked before every text and email"], ["Opt-out", "STOP, unsubscribe links"], ["Quiet hours", "No texts late at night, business time"], ["Duplicates", "The same message isn't sent twice"]]} /></Card>, "consent quiet hours"),
       page("reviews", "Review link", (c) => <><ReviewLinkPanel workspace={w} /><LinkRows rows={[{ title: "Offers and promo codes", detail: "Billing and subscription", onClick: () => c.onGo("settings/billing/offers") }]} /></>, "review link google offers"),
@@ -917,14 +918,40 @@ function registry(w) {
   ];
 }
 
+// What really happens to texts and emails for this business, from the server (zella_messaging_status), not a fixed
+// description: until sending is switched on for Zella, messages are recorded but not sent.
+function MessagingSetup({ w }) {
+  const state = useAsync(() => supabase.rpc("zella_messaging_status", { p_business_id: w.id }).then(orThrow), [w.id]);
+  return (
+    <LoadState state={state}>{(m) => (
+      <Card title="Messaging">
+        <Facts rows={[
+          ["Texts", !w.phone_connected ? "Start once your number is connected"
+            : m?.texts ? "Sent from your Zella number" : "Not sent yet: Zella hasn't switched text sending on. Each text is recorded so you can see what would go out."],
+          ["Email", m?.emails ? "Sent with your business name" : "Not sent yet: Zella hasn't switched email sending on. Each email is recorded."],
+          ["Marketing texts", "Off"],
+          ["Quiet hours", "Texts wait until morning"],
+        ]} />
+      </Card>
+    )}</LoadState>
+  );
+}
+
 function Templates({ w }) {
-  const state = useAsync(() => supabase.from("message_templates").select("id, business_id, key, channel, purpose, subject, body, version, status").order("key").then(orThrow), [w.id]);
+  const state = useAsync(async () => {
+    const [business, rows] = await Promise.all([
+      supabase.from("businesses").select("industry_id").eq("id", w.id).maybeSingle().then(orThrow),
+      supabase.from("message_templates").select("id, business_id, industry_id, key, channel, locale, purpose, subject, body, version, status")
+        .or(`business_id.eq.${w.id},business_id.is.null`).order("key").then(orThrow),
+    ]);
+    return templatesForBusiness(rows, w.id, business?.industry_id ?? null);
+  }, [w.id]);
   const [open, setOpen] = useState(null);
   return (
     <>
       <LoadState state={state}>{(rows) => (
-        <Card title="Templates" sub="Your own versions first, then Zella's starting templates.">
-          <Table rows={rows} empty="No templates." columns={[["Message", (t) => words(t.key)], ["Channel", (t) => words(t.channel)], ["Source", (t) => (t.business_id ? "Yours" : "Zella")],
+        <Card title="Templates" sub={`Templates for ${w.name}. Where you have your own version, it's the one in use.`}>
+          <Table rows={rows} empty="No templates." columns={[["Message", (t) => words(t.key)], ["Channel", (t) => words(t.channel)], ["Source", (t) => t.source], ["In use", (t) => (t.inUse ? "Yes" : "No")],
             ["Status", (t) => words(t.status)], ["", (t) => <button type="button" className="zs-btn sm" onClick={() => setOpen(open === t.id ? null : t.id)}>{open === t.id ? "Hide" : "Preview"}</button>]]} />
           {open && (() => { const t = rows.find((x) => x.id === open); return <div className="zs-card" style={{ padding: 12, marginTop: 10 }}>{t.subject && <strong>{t.subject}</strong>}<p style={{ whiteSpace: "pre-wrap" }}>{t.body}</p></div>; })()}
         </Card>

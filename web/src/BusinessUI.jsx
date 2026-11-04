@@ -11,6 +11,23 @@ export function loadBusinessFonts() {
   link.href = "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,400,0..1,0&display=block";
   link.id = "ba-fonts";
   document.head.appendChild(link);
+  watchIconFont(link);
+}
+
+// Icons are words drawn by the icon font ("dashboard", "settings"). Until the font has really loaded (and for good
+// if it is blocked or never arrives) the words are hidden, so no half-word ever shows where an icon belongs. Icons
+// are decorative (aria-hidden): buttons carry their own names, so nothing is lost for screen readers.
+function watchIconFont(link) {
+  const root = document.documentElement;
+  if (!document.fonts?.load) { root.dataset.zellaIcons = "ready"; return; }
+  root.dataset.zellaIcons = "loading";
+  let settled = false;
+  const done = (state) => { if (!settled) { settled = true; root.dataset.zellaIcons = state; } };
+  const check = () => document.fonts.load('20px "Material Symbols Outlined"', "home")
+    .then((faces) => done(faces.length ? "ready" : "failed"), () => done("failed"));
+  link?.addEventListener("load", check);
+  link?.addEventListener("error", () => done("failed"));
+  setTimeout(() => done(document.fonts.check?.('20px "Material Symbols Outlined"', "home") ? "ready" : "failed"), 10000);
 }
 
 export function Icon({ name, size, className = "" }) {

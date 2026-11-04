@@ -16,21 +16,27 @@ import { Empty, Notice, PageHead, Segment, explain, loadPeople, orThrow, plural,
 export const PRIORITY_TONE = { urgent: "danger", high: "warning", normal: "" };
 export const when = (value, tz) => (value ? `${formatDay(value, tz)} · ${formatTime(value, tz)}` : "—");
 
-export function PersonPicker({ label = "Person", value, onChange, hint }) {
+// Search is limited to the business being worked in: someone who belongs to several businesses can read all of
+// their customers, and picking one from another business would link it to the wrong place.
+export function PersonPicker({ businessId, label = "Person", value, onChange, hint }) {
   const [query, setQuery] = useState("");
   const [rows, setRows] = useState([]);
+  const [failed, setFailed] = useState(false);
   useEffect(() => {
     const text = query.trim();
-    if (text.length < 2) { setRows([]); return undefined; }
+    if (text.length < 2 || !businessId) { setRows([]); return undefined; }
     let live = true;
     const safe = text.replace(/[%,()*]/g, " ");
     const timer = setTimeout(async () => {
-      const { data } = await supabase.from("customers").select("id, first_name, last_name, company_name, phone, email")
+      const { data, error } = await supabase.from("customers").select("id, first_name, last_name, company_name, phone, email")
+        .eq("business_id", businessId)
         .or(`first_name.ilike.*${safe}*,last_name.ilike.*${safe}*,phone.ilike.*${safe}*,email.ilike.*${safe}*`).limit(6);
-      if (live) setRows(data ?? []);
+      if (!live) return;
+      setFailed(Boolean(error));
+      setRows(error ? [] : data ?? []);
     }, 250);
     return () => { live = false; clearTimeout(timer); };
-  }, [query]);
+  }, [query, businessId]);
 
   if (value) {
     return (
@@ -45,6 +51,7 @@ export function PersonPicker({ label = "Person", value, onChange, hint }) {
   return (
     <Field label={label} hint={hint ?? "Search by name, phone or email."}>
       <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Start typing…" />
+      {failed && query.trim().length >= 2 && <small className="ba-error" role="alert">Search didn't load. Keep typing to try again.</small>}
       {rows.length > 0 && (
         <ul className="ba-picklist">
           {rows.map((p) => (
@@ -120,7 +127,7 @@ export function NewCallbackModal({ workspace, onClose, onSaved }) {
         <button type="submit" form="ba-new-callback" className="ba-btn primary" disabled={busy}>{busy ? "Saving…" : "Add callback"}</button></>}>
       <form id="ba-new-callback" className="ba-modal-body" onSubmit={save}>
         {error && <p className="ba-error" role="alert">{error}</p>}
-        <PersonPicker label="Who" value={person} onChange={setPerson} hint="Optional. Or type a number below." />
+        <PersonPicker businessId={workspace.id} label="Who" value={person} onChange={setPerson} hint="Optional. Or type a number below." />
         <div className="ba-form-grid">
           {!person && <Field label="Phone" bare><PhoneField value={form.phone} onChange={(phone) => setForm((f) => ({ ...f, phone }))} required showErrors={showErrors} label="Phone" /></Field>}
           <Field label="Priority"><select value={form.priority} onChange={set("priority")}><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select></Field>
@@ -169,7 +176,7 @@ function NewTaskModal({ workspace, onClose, onSaved }) {
           <Field label="Time"><input type="time" value={form.time} onChange={set("time")} /></Field>
           <Field label="Priority"><select value={form.priority} onChange={set("priority")}><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select></Field>
         </div>
-        <PersonPicker label="About (optional)" value={person} onChange={setPerson} />
+        <PersonPicker businessId={workspace.id} label="About (optional)" value={person} onChange={setPerson} />
       </form>
     </Modal>
   );
@@ -291,7 +298,7 @@ function JoinWaitlistModal({ workspace, term, onClose, onSaved }) {
       footer={<><button type="button" className="ba-btn" onClick={onClose} disabled={busy}>Cancel</button><button type="submit" form="ba-waitlist" className="ba-btn primary" disabled={busy}>{busy ? "Saving…" : "Add to waitlist"}</button></>}>
       <form id="ba-waitlist" className="ba-modal-body" onSubmit={save}>
         {error && <p className="ba-error" role="alert">{error}</p>}
-        <PersonPicker label={term("customer")} value={person} onChange={setPerson} />
+        <PersonPicker businessId={workspace.id} label={term("customer")} value={person} onChange={setPerson} />
         <div className="ba-form-grid">
           <Field label="For what?"><input value={form.title} onChange={set("title")} placeholder="e.g. Cleaning" /></Field>
           <Field label="How long (minutes)"><input type="number" min="5" step="5" value={form.minutes} onChange={set("minutes")} /></Field>
@@ -615,8 +622,12 @@ export function ActivationCard({ workspace, onNotice, onReload }) {
 
   return (
     <section className="ba-panel">
-      <div className="ba-panel-head"><div className="ba-panel-title"><div><h2>{live ? "You're live" : "Before you go live"}</h2>
-        <p className="ba-muted">{live ? "Your AI receptionist is answering calls." : "Zella goes live only when everything below is done and a test call has passed."}</p></div></div></div>
+      <div className="ba-panel-head"><div className="ba-panel-title"><div>
+        {/* "Answering calls" only when it's live AND every check still passes (a number can be disconnected later). */}
+        <h2>{live && data?.ready ? "You're live" : live ? "Live, but something needs attention" : "Before you go live"}</h2>
+        <p className="ba-muted">{live && data?.ready ? "Your AI receptionist is answering calls."
+          : live ? "Some items below aren't in place, so calls may not be answered. Fix them, then check again."
+          : "Zella goes live only when everything below is done and a test call has passed."}</p></div></div></div>
       <div className="ba-panel-body">
         <Notice error={error} onRetry={reload} />
         {problem && <p className="ba-error" role="alert">{problem}</p>}
@@ -626,6 +637,9 @@ export function ActivationCard({ workspace, onNotice, onReload }) {
               <li key={c.key} className={c.ok ? "ok" : ""}><Icon name={c.ok ? "check_circle" : "radio_button_unchecked"} size="sm" /><span>{c.label}</span></li>
             ))}
           </ul>
+        )}
+        {live && !data?.ready && (
+          <div className="ba-form-actions"><button type="button" className="ba-btn" onClick={reload}>Check again</button></div>
         )}
         {!live && (
           <div className="ba-form-actions">
