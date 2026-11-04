@@ -4,6 +4,7 @@ import { Field, Icon, Modal, Pill, personName } from "./BusinessUI";
 import { formatDay, formatTime, timeAgo } from "./businessTime";
 import { Empty, Notice, PAGE_SIZE, PageHead, Pager, explain, orThrow, useLoad } from "./BusinessShared";
 import { PersonPicker } from "./BusinessWork";
+import { useRoster } from "./BusinessLeads";
 
 // One set of screens for every industry. The business's record types
 // (fields, statuses, names) come from crm_record_types.
@@ -35,11 +36,36 @@ export function useRecordTypes(workspace, refreshKey) {
 }
 
 export function showValue(field, value, tz) {
+  if (field.sensitive) return "Hidden";
   if (value === undefined || value === null || value === "") return "—";
   if (field.type === "bool") return value ? "Yes" : "No";
   if (field.type === "date") return formatDay(value, tz);
   if (field.type === "datetime") return `${formatDay(value, tz)} · ${formatTime(value, tz)}`;
   return String(value);
+}
+
+// A link to another record of this business (a job's property, a booking's class). The server checks it again.
+function RecordLinkInput({ workspace, field, value, onChange }) {
+  const { data } = useLoad(async () => orThrow(await supabase.from("crm_records").select("id, title, status")
+    .eq("business_id", workspace.id).eq("type_key", field.target).is("archived_at", null).order("title").limit(500)), [workspace.id, field.target]);
+  const rows = data ?? [];
+  return (
+    <select value={value ?? ""} onChange={(e) => onChange(e.target.value)}>
+      <option value="">None</option>
+      {value && !rows.some((r) => r.id === value) && <option value={value}>Linked record</option>}
+      {rows.map((r) => <option key={r.id} value={r.id}>{r.title}</option>)}
+    </select>
+  );
+}
+
+// Access codes and other sensitive values: never in the record's normal data. Shown only on request, to people the
+// server allows (managers and above, or staff assigned to a current job there); every look is recorded.
+function SensitiveInput({ field, isNew, secrets, canChange, edited, value, onReveal, onChange }) {
+  const known = secrets?.values?.[field.key];
+  if (!isNew && !secrets) return <button type="button" className="ba-btn sm" onClick={onReveal}><Icon name="visibility" size="sm" />Show</button>;
+  if (secrets && !secrets.allowed) return <p className="ba-muted">{(secrets.keys ?? []).includes(field.key) ? "Saved. Shown to managers and the person assigned to a current job." : "Not set."}</p>;
+  if (!canChange) return <p className="ba-secret">{known ?? "Not set."}</p>;
+  return <input value={edited ? value ?? "" : known ?? ""} onChange={(e) => onChange(e.target.value)} autoComplete="off" placeholder={isNew ? "" : "Empty clears it"} />;
 }
 
 function FieldInput({ field, value, onChange }) {
@@ -74,6 +100,22 @@ function RecordModal({ workspace, type, record, canManage, onClose, onSaved, onO
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [duplicateId, setDuplicateId] = useState(null);
+  const [assignee, setAssignee] = useState(record?.assigned_to ?? "");
+  const [due, setDue] = useState(toInputDateTime(record?.due_at));
+  const [secrets, setSecrets] = useState(null);
+  const [secretEdits, setSecretEdits] = useState({});
+  const roster = useRoster(workspace);
+  const canChangeSecrets = ["owner", "admin", "manager"].includes(workspace.role);
+  const related = useLoad(async () => {
+    if (isNew) return [];
+    const res = await supabase.rpc("zella_record_related", { p_record_id: record.id });
+    return res.error ? [] : res.data ?? [];
+  }, [record?.id]);
+  async function reveal() {
+    const res = await supabase.rpc("zella_record_secrets", { p_record_id: record.id });
+    if (res.error) { setError(explain(res.error)); return; }
+    setSecrets(res.data);
+  }
   const events = useLoad(async () => (isNew ? [] : orThrow(await supabase.from("crm_record_events").select("*").eq("record_id", record.id).order("created_at", { ascending: false }).limit(40))), [record?.id]);
 
   function fail(failure) {
@@ -87,13 +129,16 @@ function RecordModal({ workspace, type, record, canManage, onClose, onSaved, onO
     setBusy(true);
     setError("");
     setDuplicateId(null);
-    const { error: failure } = await supabase.rpc("zella_save_record", {
+    const { data: saved, error: failure } = await supabase.rpc("zella_save_record", {
       p_business_id: workspace.id, p_type_key: type.key, p_id: record?.id ?? null, p_title: title, p_status: status,
-      p_customer_id: type.link_person ? person?.id ?? null : null, p_data: data,
+      p_customer_id: type.link_person ? person?.id ?? null : null, p_assigned_to: assignee || null,
+      p_due_at: due ? new Date(due).toISOString() : null,
+      // sensitive values only when they were typed here (absent = unchanged on the server)
+      p_data: { ...data, ...secretEdits },
     });
     setBusy(false);
     if (failure) return fail(failure);
-    onSaved(isNew ? `${type.singular} added.` : `${type.singular} saved.`);
+    onSaved(saved?.waitlisted ? `Full, so this ${type.singular.toLowerCase()} went on the waitlist.` : isNew ? `${type.singular} added.` : `${type.singular} saved.`);
   }
 
   async function run(work, message) {
@@ -130,10 +175,23 @@ function RecordModal({ workspace, type, record, canManage, onClose, onSaved, onO
             </select>
           </Field>
           {type.fields.map((f) => (
-            <Field key={f.key} label={f.required ? f.label : `${f.label}`} full={f.type === "longtext"} hint={f.unique ? "Used to spot duplicates." : undefined}>
-              <FieldInput field={f} value={data[f.key]} onChange={(val) => setData({ ...data, [f.key]: val })} />
+            <Field key={f.key} label={f.required ? f.label : `${f.label}`} full={f.type === "longtext" || f.sensitive} hint={f.unique ? "Used to spot duplicates." : f.sensitive ? "Kept apart from the record. Every view is logged." : undefined}>
+              {f.sensitive
+                ? <SensitiveInput field={f} isNew={isNew} secrets={isNew ? { allowed: true, values: {} } : secrets} canChange={canChangeSecrets} edited={f.key in secretEdits}
+                    value={secretEdits[f.key]} onReveal={reveal} onChange={(val) => setSecretEdits({ ...secretEdits, [f.key]: val })} />
+                : f.type === "record"
+                  ? <RecordLinkInput workspace={workspace} field={f} value={data[f.key]} onChange={(val) => setData({ ...data, [f.key]: val })} />
+                  : <FieldInput field={f} value={data[f.key]} onChange={(val) => setData({ ...data, [f.key]: val })} />}
             </Field>
           ))}
+          <Field label="Assigned to">
+            <select value={assignee} onChange={(e) => setAssignee(e.target.value)}>
+              <option value="">Nobody</option>
+              {assignee && !roster.list.some((m) => m.user_id === assignee) && <option value={assignee}>Team member</option>}
+              {roster.list.filter((m) => m.role !== "viewer").map((m) => <option key={m.user_id} value={m.user_id}>{m.name}</option>)}
+            </select>
+          </Field>
+          <Field label="Due"><input type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} /></Field>
         </div>
         {type.link_person && (
           <PersonPicker businessId={workspace.id} label={workspace.terminology?.customer ?? "Person"} value={person} onChange={setPerson} hint="Optional. Links this to someone you already have." />
@@ -148,11 +206,19 @@ function RecordModal({ workspace, type, record, canManage, onClose, onSaved, onO
             <button type="button" className="ba-btn sm" disabled={busy || !note.trim()}
               onClick={async () => { const text = note; setNote(""); await run(() => supabase.rpc("zella_add_record_note", { p_id: record.id, p_note: text }), "Note added."); }}>Add note</button>
           </div>
+          {(related.data ?? []).length > 0 && (
+            <>
+              <h3 className="ba-h3">Linked</h3>
+              <ul className="ba-history">
+                {related.data.map((r) => <li key={`${r.direction}-${r.id}`}><strong>{r.title}</strong> · {r.direction === "to" ? r.field : `links here as ${r.field.toLowerCase()}`}<small>{r.status}</small></li>)}
+              </ul>
+            </>
+          )}
           {closed && <p className="ba-muted">This one is {type.statuses.find((s) => s.key === record.status)?.label.toLowerCase()}.</p>}
           {(events.data ?? []).length === 0 ? <p className="ba-muted">Nothing yet.</p> : (
             <ul className="ba-history">
               {events.data.map((e) => (
-                <li key={e.id}><strong>{{ created: "Added", edited: "Edited", status: "Status changed", note: "Note", archived: "Archived" }[e.kind] ?? e.kind}</strong>{e.detail ? ` · ${e.detail}` : ""}<small>{timeAgo(e.created_at)}</small></li>
+                <li key={e.id}><strong>{{ created: "Added", edited: "Edited", status: "Status changed", note: "Note", archived: "Archived", secret_viewed: "Private details viewed", secret_changed: "Private details changed" }[e.kind] ?? e.kind}</strong>{e.detail ? ` · ${e.detail}` : ""}<small>{timeAgo(e.created_at)}</small></li>
               ))}
             </ul>
           )}
@@ -261,15 +327,15 @@ export function RecordsPage({ workspace, type, query, refreshKey, canManage, onN
 /* Owners tailor their records                                         */
 /* ------------------------------------------------------------------ */
 
-const FIELD_TYPES = [["text", "Short text"], ["longtext", "Long text"], ["select", "Choice list"], ["date", "Date"], ["datetime", "Date and time"], ["number", "Number"], ["phone", "Phone"], ["email", "Email"], ["bool", "Yes / No"]];
+const FIELD_TYPES = [["text", "Short text"], ["longtext", "Long text"], ["select", "Choice list"], ["date", "Date"], ["datetime", "Date and time"], ["number", "Number"], ["phone", "Phone"], ["email", "Email"], ["bool", "Yes / No"], ["record", "Link to another record"]];
 
-function TypeEditor({ workspace, type, onClose, onSaved }) {
+function TypeEditor({ workspace, type, types = [], onClose, onSaved }) {
   const isNew = !type;
   const [singular, setSingular] = useState(type?.singular ?? "");
   const [plural, setPlural] = useState(type?.plural ?? "");
   const [enabled, setEnabled] = useState(type?.enabled ?? true);
   const [statuses, setStatuses] = useState((type?.statuses ?? [{ key: "open", label: "Open", tone: "warning" }, { key: "done", label: "Done", tone: "success" }]).map((s) => ({ ...s, closed: type ? type.closed_statuses.includes(s.key) : s.key === "done", existing: Boolean(type) })));
-  const [fields, setFields] = useState((type?.fields ?? [{ key: "details", label: "Details", type: "longtext" }]).map((f) => ({ ...f, existing: Boolean(type), optionsText: (f.options ?? []).join(", ") })));
+  const [fields, setFields] = useState((type?.fields ?? [{ key: "details", label: "Details", type: "longtext" }]).map((f) => ({ ...f, existing: Boolean(type), wasSensitive: Boolean(f.sensitive), optionsText: (f.options ?? []).join(", ") })));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -296,8 +362,13 @@ function TypeEditor({ workspace, type, onClose, onSaved }) {
         out.options = f.optionsText.split(",").map((t) => t.trim()).filter(Boolean);
         if (!out.options.length) return setError(`Add choices for "${f.label}", separated by commas.`);
       }
+      if (f.type === "record") {
+        if (!f.target) return setError(`Choose what "${f.label}" links to.`);
+        out.target = f.target;
+      }
       if (f.unique) out.unique = true;
       if (f.required) out.required = true;
+      if (f.sensitive) out.sensitive = true;
       outFields.push(out);
     }
     const key = type?.key ?? (slug(singular) || "records");
@@ -350,6 +421,18 @@ function TypeEditor({ workspace, type, onClose, onSaved }) {
               <select value={f.type} disabled={f.existing} onChange={(e) => setFields(fields.map((x, j) => (j === i ? { ...x, type: e.target.value } : x)))} aria-label="Field type">
                 {FIELD_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
               </select>
+              {f.type === "record" && (
+                <select value={f.target ?? ""} disabled={f.existing} onChange={(e) => setFields(fields.map((x, j) => (j === i ? { ...x, target: e.target.value } : x)))} aria-label="Links to">
+                  <option value="">Links to…</option>
+                  {types.map((t) => <option key={t.key} value={t.key}>{t.plural}</option>)}
+                </select>
+              )}
+              {!["record", "bool", "select"].includes(f.type) && (
+                <label className="ba-check" title="Kept apart from the record, shown only to managers and the person assigned. Can't be undone.">
+                  <input type="checkbox" checked={Boolean(f.sensitive)} disabled={f.existing && f.wasSensitive}
+                    onChange={(e) => setFields(fields.map((x, j) => (j === i ? { ...x, sensitive: e.target.checked } : x)))} /> Private
+                </label>
+              )}
               {f.type === "select" && <input value={f.optionsText} onChange={(e) => setFields(fields.map((x, j) => (j === i ? { ...x, optionsText: e.target.value } : x)))} placeholder="Choices, separated by commas" aria-label="Choices" />}
               <label className="ba-check"><input type="checkbox" checked={Boolean(f.required)} onChange={(e) => setFields(fields.map((x, j) => (j === i ? { ...x, required: e.target.checked } : x)))} /> Required</label>
               <button type="button" className="ba-btn sm ghost" onClick={() => move(fields, setFields, i, -1)} aria-label="Move up"><Icon name="arrow_upward" size="sm" /></button>
@@ -401,7 +484,7 @@ export function RecordSettingsPage({ workspace, types, loaded = true, canManage,
           </div>
         )}
       </section>
-      {editing && <TypeEditor workspace={workspace} type={editing === "new" ? null : editing} onClose={() => setEditing(null)} onSaved={(m) => { setEditing(null); onNotice(m); onChanged(); }} />}
+      {editing && <TypeEditor workspace={workspace} types={types} type={editing === "new" ? null : editing} onClose={() => setEditing(null)} onSaved={(m) => { setEditing(null); onNotice(m); onChanged(); }} />}
     </>
   );
 }
