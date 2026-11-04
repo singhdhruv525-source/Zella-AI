@@ -93,7 +93,7 @@ Two kinds of email:
 ## Security review 2026-11-04 (deployed except owner-provision-business)
 
 Fixes for invitations, billing, currency, MFA, navigation and invitation errors are applied live (SQL, staff-invite,
-billing-webhook). owner-provision-business still needs a CLI deploy; the web app goes live with hosting. See `docs/SECURITY_REVIEW_2026-11-04.md` for the findings, test results and the order to apply them
+billing-webhook). owner-provision-business deployed 2026-11-04 (version 11); the web app goes live with hosting. See `docs/SECURITY_REVIEW_2026-11-04.md` for the findings, test results and the order to apply them
 (needs the owner's approval).
 
 ## Full review 2026-11-04 (second pass): fixes in the repo, approvals pending
@@ -113,7 +113,7 @@ Fixed in the web app, which ships with hosting:
 
 - ~~`sql/zella_platform_alerts_policy_fix.sql`~~: applied 2026-11-04 (admin alerts bell).
 - `sql/zella_platform_roles_fix.sql`: the restricted platform roles are blocked by an old trigger.
-- Deploying `owner-provision-business`: owner invitation fixes and server-side finish checks.
+- ~~Deploying `owner-provision-business`~~: deployed 2026-11-04 (version 11), with the owner invitation fixes, server-side finish checks, admin-invite email check and rebrand default name.
 
 Browser tests can now run against a local real-schema backend: see `tests/browser/README.md`.
 
