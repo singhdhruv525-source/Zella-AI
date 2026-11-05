@@ -1,14 +1,26 @@
 // The AI's lookup_order tool: the caller's order from the business's Shopify store. Pure helpers (unit-tested in
-// orders_test.ts) and one function that does the lookup. Only status and tracking are ever said; never the address,
-// items or amounts. The caller must be calling from the number on the order, or give the email used for the order;
-// otherwise the answer is the same whether or not the order exists.
+// orders_test.ts) and one function that does the lookup. Policy: docs/ORDER_LOOKUP_ASSURANCE_2026-11-05.md (revised).
+//
+// Neither caller ID (it can be spoofed, and a number can be shared by a household or an office) nor an email address
+// (others may know it) proves who is calling. So nothing a caller hears depends on one of them alone being "proof":
+//   none        no check matches             the same answer as for an order that doesn't exist
+//   recipient   calling from the shipping    whether it has shipped (a gift's recipient may ask that), nothing else
+//               phone only
+//   one_factor  the buyer's phone OR the     whether it has shipped, or was cancelled
+//               order's email
+//   two_factor  the buyer's phone AND the    that, plus the day it was placed and the carrier
+//               order's email
+// Never said at any level: tracking numbers (not even part of one: a tracking number opens the carrier's page with the
+// delivery address), payment, amounts, items, addresses, names, or anything about other orders. Tracking details go only
+// to the phone or email ON THE ORDER, sent by the team (a trusted channel) - the assistant offers to take that message.
+// Payment status and tracking numbers are not even fetched from the store.
 export const SHOPIFY_API_VERSION = "2026-07";
 type Json = Record<string, unknown>;
 
 export const ORDER_QUERY = `query Order($q: String!) { orders(first: 1, query: $q) { nodes {
-  name createdAt cancelledAt displayFinancialStatus displayFulfillmentStatus phone email
+  name createdAt cancelledAt displayFulfillmentStatus phone email
   customer { phone email } shippingAddress { phone }
-  fulfillments(first: 5) { status trackingInfo(first: 3) { company number url } } } } }`;
+  fulfillments(first: 5) { status trackingInfo(first: 1) { company } } } } }`;
 
 export const orderSearch = (orderNumber: string) => `name:#${orderNumber.replace(/^#/, "")}`;
 const digits = (v: unknown) => (typeof v === "string" ? v.replace(/\D/g, "") : "");
@@ -23,60 +35,73 @@ export function samePhone(a: unknown, b: unknown): boolean {
   return da.slice(-10) === db.slice(-10);
 }
 
-// May this caller hear about this order, and on what grounds? "caller_id": calling from a number on the order (the
-// phone network's number, never what is said); "email": gave the order's email. Either is one weak check, so only
-// status and tracking are ever said. null: neither.
-export type Assurance = "caller_id" | "email";
-export function callerAssurance(order: Json, callerNumber: string | null, email: string | null): Assurance | null {
-  const o = order as { phone?: string; email?: string; customer?: { phone?: string; email?: string }; shippingAddress?: { phone?: string } };
-  if (callerNumber && [o.phone, o.customer?.phone, o.shippingAddress?.phone].some((p) => samePhone(p, callerNumber))) return "caller_id";
+export type Level = "none" | "recipient" | "one_factor" | "two_factor";
+type OrderShape = { name?: string; createdAt?: string; cancelledAt?: string | null; displayFulfillmentStatus?: string; phone?: string; email?: string;
+  customer?: { phone?: string; email?: string }; shippingAddress?: { phone?: string }; fulfillments?: { status?: string; trackingInfo?: { company?: string }[] }[] };
+
+// Which checks match: the buyer's phone (order or customer), the shipping phone, the order's email.
+export function assess(order: Json, callerNumber: string | null, email: string | null): { level: Level; buyerPhone: boolean; recipientPhone: boolean; email: boolean } {
+  const o = order as OrderShape;
+  const buyerPhone = !!callerNumber && [o.phone, o.customer?.phone].some((p) => samePhone(p, callerNumber));
+  const recipientPhone = !buyerPhone && !!callerNumber && samePhone(o.shippingAddress?.phone, callerNumber);
   const e = (email ?? "").trim().toLowerCase();
-  if (e.includes("@") && [o.email, o.customer?.email].some((x) => typeof x === "string" && x.trim().toLowerCase() === e)) return "email";
-  return null;
+  const mail = e.includes("@") && [o.email, o.customer?.email].some((x) => typeof x === "string" && x.trim().toLowerCase() === e);
+  const level: Level = buyerPhone && mail ? "two_factor" : buyerPhone || mail ? "one_factor" : recipientPhone ? "recipient" : "none";
+  return { level, buyerPhone, recipientPhone, email: mail };
 }
-export const callerMatches = (order: Json, callerNumber: string | null, email: string | null) => callerAssurance(order, callerNumber, email) !== null;
+export const callerMatches = (order: Json, callerNumber: string | null, email: string | null) => assess(order, callerNumber, email).level !== "none";
 
-const words = (s: unknown) => (typeof s === "string" ? s.toLowerCase().replace(/_/g, " ") : "unknown");
 const day = (iso: unknown) => (typeof iso === "string" ? new Date(iso).toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "UTC" }) : "");
+const shipped = (o: OrderShape) => o.displayFulfillmentStatus === "FULFILLED" ? "has shipped" : o.displayFulfillmentStatus === "PARTIALLY_FULFILLED" ? "has partly shipped" : "hasn't shipped yet";
+const TRUSTED = " If they want tracking details, offer to take a message so the team sends them to the phone number or email on the order (never anywhere else). For anything else (address, items, payment, refunds, changes), take a message for the team.";
 
-// what the assistant may say: status and tracking only
-export function orderSummary(order: Json): { say: string; status: Json } {
-  const o = order as { name?: string; createdAt?: string; cancelledAt?: string | null; displayFinancialStatus?: string; displayFulfillmentStatus?: string;
-    fulfillments?: { status?: string; trackingInfo?: { company?: string; number?: string; url?: string }[] }[] };
-  const tracking = (o.fulfillments ?? []).flatMap((f) => f.trackingInfo ?? []).filter((t) => t && (t.company || t.number))[0];
-  const status = { order: o.name, placed: o.createdAt, cancelled: !!o.cancelledAt, payment: words(o.displayFinancialStatus), fulfillment: words(o.displayFulfillmentStatus),
-    carrier: tracking?.company ?? null, tracking_ending: tracking?.number ? tracking.number.slice(-4) : null };
-  let say = `Order ${o.name} was placed on ${day(o.createdAt)}.`;
-  if (o.cancelledAt) say += " It was cancelled.";
-  else {
-    say += ` Payment: ${status.payment}. Shipping: ${status.fulfillment}.`;
-    if (tracking) say += ` It was shipped${tracking.company ? ` with ${tracking.company}` : ""}${status.tracking_ending ? `, tracking number ending ${status.tracking_ending}` : ""}.`;
+// What the assistant may say at each level. Returned fields are the only order facts the assistant ever receives.
+export function disclosure(order: Json, level: Level): { say: string; facts: Json } | null {
+  const o = order as OrderShape;
+  if (level === "none") return null;
+  if (level === "recipient") {
+    const s = o.cancelledAt ? "hasn't shipped" : shipped(o);   // a recipient isn't told about a cancellation: that is the buyer's
+    return { say: `The order ${s}. That is all that can be shared with the person it is being sent to; the buyer can call for more, or take a message.`, facts: { shipping: s } };
   }
-  return { say: say + " Only share this status; for anything else (address, items, refunds, changes), take a message for the team.", status };
+  const state = o.cancelledAt ? "was cancelled" : shipped(o);
+  if (level === "one_factor") return { say: `Order ${o.name} ${state}.${TRUSTED}`, facts: { order: o.name, state } };
+  const carrier = o.cancelledAt ? null : (o.fulfillments ?? []).flatMap((f) => f.trackingInfo ?? []).map((t) => t?.company).find(Boolean) ?? null;
+  return { say: `Order ${o.name} was placed on ${day(o.createdAt)} and ${state}${carrier ? `, with ${carrier}` : ""}.${TRUSTED}`,
+    facts: { order: o.name, state, placed: day(o.createdAt), carrier } };
 }
 
-// after this many lookups that didn't match, in one call or from one number in a day, no more are tried (so order
-// numbers or emails can't be guessed); zella_store_lookup_context counts them
-export const MAX_FAILED_PER_CALL = 3, MAX_FAILED_PER_NUMBER_DAY = 6;
-const LIMITED = { ok: true, status: "unverified", say: "I can't check more orders on this call. Take a message with the order number and say the team will get back to them. Don't say whether any order exists." };
+// Lookups that didn't match (no order, or no check matched), counted by zella_store_lookup_context; past any limit no
+// more are tried and the store isn't asked. Per call and per caller number: guessing from one phone. Per order number:
+// guessing emails against one order from many phones. Per business: many phones guessing many order numbers.
+export const MAX_FAILED_PER_CALL = 3, MAX_FAILED_PER_NUMBER_DAY = 6, MAX_FAILED_PER_ORDER_DAY = 5, MAX_FAILED_BUSINESS_HOUR = 30;
+const LIMITED = { ok: true, status: "unverified", say: "I can't check orders on this call right now. Take a message with the order number and say the team will get back to them. Don't say whether any order exists." };
 const UNVERIFIED = { ok: true, status: "unverified", say: "I couldn't confirm that order with the details I have. Ask for the email address used for the order, or take a message with the order number for the team. Don't say whether the order exists." };
 
+// the order number as counted (never stored as given): the same for #1001 and 1001, per business
+export async function orderRef(businessId: string, orderNumber: string): Promise<string> {
+  const data = new TextEncoder().encode(`${businessId}:${orderNumber.replace(/^#/, "").trim().toLowerCase()}`);
+  return Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", data))).map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 32);
+}
+
 type Rpc = (fn: string, args: Json) => Promise<{ data: unknown; error: unknown }>;
-// one lookup, end to end; never throws, never returns the token or order content beyond the summary
+// one lookup, end to end; never throws, never returns the token or order content beyond the disclosure
 export async function lookupOrder(rpc: Rpc, businessId: string | null, providerCallId: string | null, args: Json, fetcher: typeof fetch = fetch, ms = 4000): Promise<Json> {
   const orderNumber = typeof args.order_number === "string" ? args.order_number : "";
   if (!orderNumber) return { ok: false, status: "need_info", say: "Ask for the order number." };
-  const ctx = await rpc("zella_store_lookup_context", { p_provider_call_id: providerCallId, p_business_id: businessId });
+  const ref = await orderRef(businessId ?? "", orderNumber);
+  const ctx = await rpc("zella_store_lookup_context", { p_provider_call_id: providerCallId, p_business_id: businessId, p_order_ref: ref });
   const c = (ctx.data ?? {}) as Json;
   if (ctx.error || c.ok !== true) {
     return { ok: false, status: c.status === "not_available" ? "not_available" : "no_store",
       say: "Order status can't be checked right now. Take a message with the order number and say the team will get back to them." };
   }
-  if (Number(c.failed_this_call ?? 0) >= MAX_FAILED_PER_CALL || Number(c.failed_this_number_day ?? 0) >= MAX_FAILED_PER_NUMBER_DAY) {
-    await rpc("zella_store_lookup_log", { p_business_id: businessId, p_provider_call_id: providerCallId, p_integration_id: null, p_result: "limited", p_verified: false });
+  const log = (result: string, verified: boolean, integration: unknown = c.integration_id) =>
+    rpc("zella_store_lookup_log", { p_business_id: businessId, p_provider_call_id: providerCallId, p_integration_id: integration, p_result: result, p_verified: verified, p_order_ref: ref });
+  if (Number(c.failed_this_call ?? 0) >= MAX_FAILED_PER_CALL || Number(c.failed_this_number_day ?? 0) >= MAX_FAILED_PER_NUMBER_DAY
+      || Number(c.failed_this_order_day ?? 0) >= MAX_FAILED_PER_ORDER_DAY || Number(c.failed_business_hour ?? 0) >= MAX_FAILED_BUSINESS_HOUR) {
+    await log("limited", false, null);
     return LIMITED;   // Shopify is not asked
   }
-  const log = (result: string, verified: boolean) => rpc("zella_store_lookup_log", { p_business_id: businessId, p_provider_call_id: providerCallId, p_integration_id: c.integration_id, p_result: result, p_verified: verified });
   let res: Response | null = null;
   try {
     res = await fetcher(`https://${c.shop_domain}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`, {
@@ -91,14 +116,14 @@ export async function lookupOrder(rpc: Rpc, businessId: string | null, providerC
   const body = await res.json().catch(() => ({})) as { data?: { orders?: { nodes?: Json[] } }; errors?: unknown };
   const order = body?.data?.orders?.nodes?.[0];
   if (body.errors && !order) { await log("store_error", false); return { ok: false, status: "store_unavailable", say: "The store couldn't be checked. Take a message with the order number." }; }
-  // not found and not matching get the same answer, so a caller can't probe for order numbers
-  const caller = typeof c.caller_number === "string" ? c.caller_number : typeof args.caller_number === "string" ? args.caller_number : null; // the phone network's number, never what is said
-  const assurance = order ? callerAssurance(order, caller, typeof args.email === "string" ? args.email : null) : null;
-  if (!order || !assurance) {
+  // the caller's number is the phone network's, never what is said (the assistant can't pass one: vapi-brain-tools.js)
+  const caller = typeof c.caller_number === "string" ? c.caller_number : typeof args.caller_number === "string" ? args.caller_number : null;
+  const a = order ? assess(order, caller, typeof args.email === "string" ? args.email : null) : null;
+  const d = order && a ? disclosure(order, a.level) : null;
+  if (!order || !a || !d) {   // not found and not matching: the same answer, so order numbers can't be probed
     await log(order ? "unverified" : "not_found", false);
     return UNVERIFIED;
   }
-  await log(`found_${assurance}`, true);   // found_caller_id or found_email: which check let the caller hear it
-  const summary = orderSummary(order);
-  return { ok: true, status: "found", verified_by: assurance, say: summary.say, order: summary.status };
+  await log(`found_${a.level}`, true);   // found_recipient / found_one_factor / found_two_factor
+  return { ok: true, status: "found", level: a.level, say: d.say, order: d.facts };
 }

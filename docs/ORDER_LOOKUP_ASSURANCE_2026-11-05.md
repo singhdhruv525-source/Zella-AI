@@ -1,52 +1,101 @@
-# Order lookup: assurance levels and audit (5 Nov 2026)
+# Order lookup: assurance and disclosure policy (5 Nov 2026, revised)
 
-The AI receptionist's `lookup_order` tool (e-commerce) tells a caller the status of an order from the business's
-Shopify store. Code: `web/supabase/functions/voice-rules/orders.ts` (lookup and checks), `index.ts` (wiring),
-`web/supabase/functions/_shared/vapi-brain-tools.js` (argument checks), `sql/zella_store_orders.sql` (one of the 17
-pending migrations: store connection, lookup context, log). **Nothing of this is live**: production has no Shopify
-integration, no lookup records and no `zella_store_lookup_context` (read only, 5 Nov).
+The AI receptionist's `lookup_order` tool (e-commerce) answers "where is my order?" from the business's Shopify store.
+Code: `web/supabase/functions/voice-rules/orders.ts`; database: `sql/zella_store_orders.sql`,
+`sql/zella_order_lookup_assurance.sql` (both applied to production 5 Nov), `sql/zella_order_lookup_v2.sql` (not applied).
 
-## Assurance levels
+**Revision.** The first version of this document called caller ID or the order's email "an assurance level" that
+allowed status, carrier, date, payment status and the last 4 digits of tracking. That was wrong: neither identifies
+the caller. This revision replaces it.
 
-| Level | What the caller showed | What they hear |
+## What the checks are worth
+
+| Check | What it shows | Why it is weak |
 | --- | --- | --- |
-| None | Order number only, or details that don't match | The same answer whether or not the order exists ("couldn't confirm that order"); offered a message to the team |
-| Caller ID (`found_caller_id`) | Calls from a phone number on the order (order, customer or shipping phone) | Status only: order name, date placed, payment and shipping status, cancelled or not, carrier and the last 4 digits of tracking |
-| Email (`found_email`) | Gives the email address on the order (order or customer email) | The same status only |
-| Above that | Not offered | Address, items, amounts, refunds, cancelling or changing an order: never said or done; the assistant takes a message |
+| Caller ID matches a phone on the order | the call came from, or claims to come from, that number | caller ID can be spoofed; a number is often shared (household, office, reception line); we have no attestation (STIR/SHAKEN) from the phone provider to rely on |
+| Email matches the order | the caller knows the address | email addresses are widely known; they are on receipts, forwarded emails and shared mailboxes |
+| Both | the caller has the number **and** the address | harder to fake together, still not identity proof |
 
-Both levels are one weak check (caller ID can be spoofed; an email address may be known to others), comparable to a
-store's own "order number + email" status page. That is why both give the same, status-only answer, and why nothing
-that changes an order or reveals personal details exists on the call.
+Nothing here is strong identity verification, so the policy keeps every spoken disclosure to what is low-harm if the
+caller is not the buyer, and sends anything more only to contact details that are already on the order.
 
-## What was checked
+## Permitted disclosures
 
-| Check | Result |
-| --- | --- |
-| The caller's number comes from the phone network, never from what is said | OK: from the call record (`calls.from_number`), else Vapi's signed `call.customer.number`; `caller_number` is not an argument the assistant can pass (`vapi-brain-tools.js` keeps only listed fields and sets it itself) |
-| Not found and not matching sound the same | OK (unit test) |
-| Only status and tracking leave the function | OK: address, items, amounts, phones and emails are read from Shopify for the check but never returned; tracking is cut to the last 4 digits |
-| The store token never reaches the assistant or the log | OK: server-only context function, sent only to the store's own `*.myshopify.com` address (checked when connecting) |
-| Orders off, no store, store down or token refused | OK: a message is taken, nothing guessed; a refused token marks the integration as in error so lookups stop until reconnected |
-| Withheld numbers | OK: no number, so the email is needed |
-| **O1** Phone match | **Fixed**: compared only the last 10 digits, so +91 98765 43210 on an order matched a caller from +1 987-654-3210. Now both whole numbers are compared when both carry a country code; the last 10 digits only when the store saved a number without one |
-| **O2** Record of what was given out | **Fixed**: the log said only "found". Now `found_caller_id` or `found_email`, and owners and admins can read daily counts per level (`zella_order_lookup_report`; counts only, no order numbers or callers) |
-| **O3** Guessing | **Fixed**: only the general limit of 30 tool calls a minute applied, so one call could try many order numbers against an email it knew. Now after 3 lookups that didn't match in one call, or 6 from one number in a day, no more are tried and the store isn't asked (`limited`); the answer still doesn't say whether any order exists |
-| Shipping phone counts as caller ID | Kept: the person an order is shipped to may hear its status. Remove `shippingAddress.phone` from the check if the business prefers buyer-only |
-| The log's `arg_keys` always says `order_number` even when an email was given | Minor, left: the result (`found_email`) now says which check was used |
+| Level | When | The assistant may say | Never |
+| --- | --- | --- | --- |
+| none | no check matches, or no such order | the same sentence in both cases (no order is confirmed or denied) | anything about the order |
+| recipient | calling from the shipping phone only | whether it has shipped (a cancellation is said as "hasn't shipped") | the order number, dates, carrier, cancellation, anything else |
+| one_factor | the buyer's phone **or** the order's email | the order number and whether it has shipped, partly shipped, or was cancelled | dates, carrier |
+| two_factor | the buyer's phone **and** the order's email | that, plus the day it was placed and the carrier | tracking number, payment |
+| any | | | tracking numbers or any part of one (it opens the carrier's page with the delivery address), tracking links, payment status, amounts, items, addresses, names, other orders |
 
-## Change and tests
+Data minimisation: the store is no longer asked for payment status, tracking numbers or tracking links at all
+(`ORDER_QUERY`), so they cannot reach the assistant even by mistake.
 
-- `web/supabase/functions/voice-rules/orders.ts` (**not deployed**): `samePhone`, `callerAssurance` (and
-  `callerMatches` kept), the attempt limit, `found_<level>` in the log, `verified_by` in the tool result.
-  `orders_test.ts`: 14 tests (new: levels, numbers abroad, the limit, the email level); all 33 voice-rules tests pass;
-  `deno check` and `deno lint` clean.
-- `sql/zella_order_lookup_assurance.sql` (class V, **not applied**; after `sql/zella_store_orders.sql`; safe to run
-  twice; either it or the function can go first). Rollback:
-  `sql/rollback/zella_order_lookup_assurance_rollback.sql` (`python3 -I tests/setup/make_rollback.py orders`).
-- `tests/orders/run.sh` on an isolated copy with the 17 pending migrations and the two other fixes of today:
-  - with the fix: failed lookups counted per call and per number for a day (not across callers, not counting found
-    ones); a `limited` lookup leaves the store's health alone; the owner's report gives the counts per level and no
-    call details; someone outside the business can't read it; no signed-in user can reach the lookup context; anon
-    can't run the report; the rollback restores both functions exactly (md5) and the fix applies again.
-  - `WITHOUT_FIX=1`: fails at the first check (no counts in the lookup context), as expected.
+## Trusted channel
+
+Tracking details, and anything beyond the table, go only to the phone number or email **on the order**, never to a
+number or address the caller gives. On the call, the assistant offers to take a message so the team sends them. An
+automatic text or email with the tracking link is not built: it needs customer messaging, which is off in production.
+Until then this is a team step, recorded as a message.
+
+## Shipping recipients
+
+A gift's recipient may ask whether it is on its way. Calling from the shipping phone gives the recipient level only.
+Giving the buyer's email from that phone counts as one factor (the email), never two: the recipient's phone is not a
+buyer factor.
+
+## Attempt limits and enumeration protection
+
+- "Not found" and "doesn't match" give the identical answer.
+- A lookup that doesn't match counts against four limits. Past any of them, nothing more is looked up and the store
+  isn't asked; the answer is still neutral.
+  - 3 per call;
+  - 6 per caller number per day;
+  - 5 per order number per day, across all phones (guessing emails against one order). The order number is counted by
+    a reference: 32 characters of SHA-256 of the business and the number, never stored as given. Short sequential
+    order numbers can still be guessed from it, so it is a counter key, not a secret.
+  - 30 per business per hour (many phones guessing many order numbers).
+- The caller's number checked is the phone network's (`calls.from_number`, else Vapi's signed `call.customer.number`).
+  The assistant cannot pass one (`vapi-brain-tools.js` keeps only listed fields and sets `caller_number` itself).
+- Every lookup is recorded without content as `found_recipient`, `found_one_factor`, `found_two_factor`, `unverified`,
+  `not_found`, `limited` or a store error. Owners and admins see daily counts per level (`zella_order_lookup_report`).
+
+## Tests
+
+`orders_test.ts` (17 tests, with Shopify and the database mocked) covers:
+- an unauthorised caller (identical to "no such order");
+- a shared or spoofed caller ID (the buyer's number, no email: order number and shipped state only);
+- email alone;
+- two factors (date and carrier, still no tracking);
+- the shipping recipient (shipped state only, no cancellation, no order number);
+- tracking, payment and contact details never appearing at any level, even when the store returns them;
+- all four limits stopping the lookup before the store is asked;
+- order numbers never sent to the database as given;
+- the caller being unable to supply the number that is checked.
+
+All 36 voice-rules tests pass.
+
+The same cases run against the earlier code (git HEAD before this change) disclosed the date, payment status, carrier
+and the last 4 digits of tracking on caller ID alone, including to the shipping phone. That code was never deployed:
+production's voice-rules (v4) has no order lookup, and production has no store connected (read only, 5 Nov). So
+nothing was disclosed to anyone.
+
+`tests/orders/run_v2.sh` (isolated database) covers:
+- the per-order and per-business counts;
+- the old two-argument functions, which the deployed function uses, still working;
+- the report by level;
+- the updated tool description;
+- the new functions being server-only;
+- the rollback restoring the functions exactly.
+
+**Not tested:** a real Shopify store. Nothing has called Shopify; the query shape is the one the other session wrote,
+minus the removed fields. Before connecting a real store, run one lookup against a development store.
+
+## Deploy order
+
+1. `sql/zella_order_lookup_v2.sql` (new overloads; the deployed function is unaffected).
+2. The voice-rules function (it calls the new overloads).
+3. A development-store check.
+
+Rollback: `sql/rollback/zella_order_lookup_v2_rollback.sql`, after rolling the function back.
