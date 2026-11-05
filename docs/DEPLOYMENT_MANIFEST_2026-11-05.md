@@ -113,7 +113,7 @@ sending.
 
 ## Addendum (5 Nov, late): Zella Voice requirements, still pending
 
-**Nothing below is applied, deployed or published.** #1–#7 above are applied. These four come next, in this order;
+**#8–#11 were applied on 5 Nov, late (docs/PRODUCTION_APPLY_2026-11-05.md, third apply). The edge functions and web are not deployed or published.** These four come next, in this order;
 each is safe to run twice and has a rollback (roll back newest first).
 
 | # | File | Version | Fixes | Notes |

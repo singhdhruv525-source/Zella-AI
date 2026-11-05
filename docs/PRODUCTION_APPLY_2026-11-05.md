@@ -97,3 +97,28 @@ Assistant wording reaches Vapi only by a manual update (K3).
 
 Still needs approval: deploying voice-rules and owner-provision-business, publishing the web build (after #25; done),
 and the per-business config migration (preview first).
+
+## Third apply (5 Nov, late): manifest #8–#11
+
+Applied in order, each with the md5 guard (the text runs only if its md5 matches the file):
+
+| # | File | md5 |
+| --- | --- | --- |
+| 8 | zella_report_schedules | 572c1c714e7466aa56250451e9b4a985 |
+| 9 | zella_knowledge_learning | 550799e2654656b4aea255b2cf6c5c90 |
+| 10 | zella_assistant_delivery | f91528483f428bff637d670f81046f7c |
+| 11 | zella_plan_languages | 2d254aeed7c30fe4270f1fffbeac920e |
+
+- **Before:** the 6 functions these files replace were compared with the copy the rollbacks were built from. All 6
+  matched, so the rollbacks restore production exactly.
+- **After:** production has 773 functions, with normalised hash 9379369bd7b3136821e22e475917f5f4. That is identical to
+  a staging build of the baseline plus all 11 files.
+- **Data:** 0 report schedules, 0 assistant deliveries, and all four migrations are recorded.
+- **Effect today:**
+  - No daily report is sent, because no business has chosen a time.
+  - Viewers can no longer answer or dismiss callers' questions.
+  - Per-call delivery is unused until a Vapi number is switched; 0 numbers are registered (PR1).
+  - Plan languages have no effect, because there are 0 plans.
+- **Not done:** voice-rules and owner-provision-business are not deployed, and the web build is not published.
+- **Rollback**, newest first: sql/rollback/zella_plan_languages_rollback.sql, zella_assistant_delivery_rollback.sql,
+  zella_knowledge_learning_rollback.sql, zella_report_schedules_rollback.sql.
