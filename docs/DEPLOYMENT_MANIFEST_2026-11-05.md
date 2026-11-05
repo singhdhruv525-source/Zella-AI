@@ -110,3 +110,43 @@ sending.
 4. Run the config migration for the 2 stale businesses (preview first).
 5. K3 decision and Vapi key.
 6. Later: sending.
+
+## Addendum (5 Nov, late): Zella Voice requirements, still pending
+
+**Nothing below is applied, deployed or published.** #1–#7 above are applied. These four come next, in this order;
+each is safe to run twice and has a rollback (roll back newest first).
+
+| # | File | Version | Fixes | Notes |
+| --- | --- | --- | --- | --- |
+| 8 | zella_report_schedules | 572c1c714e74 | R6-1 | replaces the fixed 8 AM daily report; businesses get one only after a time is chosen (production has 0 active businesses) |
+| 9 | zella_knowledge_learning | 550799e26546 | K4 | |
+| 10 | zella_assistant_delivery | f91528483f42 | K3 | harmless until a Vapi number is switched to assistant-request |
+| 11 | zella_plan_languages | 2d254aeed7c3 | P2 | no effect until plans exist (production: 0 plans, 0 subscriptions) |
+
+Edge functions and web, after #8–#11:
+- **voice-rules:** assistant-request handling, on top of the order lookup v2 changes listed above.
+- **owner-provision-business:** daily report save and load; W2.
+- **web:**
+  - the wizard's Daily report card and W2;
+  - Settings > Reporting preferences;
+  - receptionist version states;
+  - the language plan message.
+
+**Switching calls to per-call delivery (K3) is a separate provider change and needs approval.** In this order:
+1. Register each live number in `business_phone_numbers`, with its Vapi phone number id. Production has 0 today (PR1).
+   Without this, every call is refused.
+2. Optionally set `assistant_fallback_id` to the assistant the numbers use today, as a standby.
+3. On one test number: remove the fixed assistant, set the server URL to voice-rules, and make one real call.
+4. Only then switch the other numbers.
+
+To undo: put the fixed assistant back on each number, then roll back #10.
+
+Full sequence: `tests/deploy/run_all.sh` passed, run on an isolated copy and never against production:
+- all 11 pending files applied twice;
+- 12 suites;
+- 28 industries × 2 businesses through the current voice-rules: 391/391, including 56 assistant-requests;
+- the deployed-era voice-rules: 335/335;
+- unit tests: voice-rules 38 and owner-provision-business 13;
+- deno checks and the web build;
+- an exact rollback of all 11 files, newest first;
+- a re-apply after the rollback.

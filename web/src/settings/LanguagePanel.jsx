@@ -8,6 +8,7 @@ const CODES = {
   NOT_ALLOWED: "Only owners, admins and managers can change languages.",
   UNKNOWN_LANGUAGE: "Pick languages from the list.",
   TOO_MANY_LANGUAGES: "Up to three extra languages.",
+  PLAN_LANGUAGES: "Your plan includes fewer languages than this. Remove one, or ask the Zella team about your plan.",
   GREETING_LENGTH: "The greeting needs 5 to 200 characters.",
   GREETING_TEXT: "The greeting can't contain links, brackets or placeholders other than {name}.",
 };

@@ -82,3 +82,20 @@ earlier, and D3b, D5 and D7 since (as B1, D5 and D7). Some of the fixes are not 
 | E1 | emergencies must not depend on handover ticks | decision taken: they follow the emergency setting | zella_escalation_rules.sql | [local] |
 | A1 | advisor: mutable search_path on two functions; a trigger function callable by anon | pending | zella_booking_buffers.sql | [config] advisor |
 | P1 | restricted platform roles refused by an old trigger | pending (earlier session) | zella_platform_roles_fix.sql | [config] trigger differs from the fix |
+
+## Update (5 Nov, late)
+
+**Applied since the tables above were written** (second apply, docs/PRODUCTION_APPLY_2026-11-05.md): the database
+side of B1/D3b, B2, A1, C1/M5, D5, D7, E1, K1, K2, O4–O6, CM1 (the functions only; the per-business migration has not
+been run) and P1. Their edge-function and web parts are still not deployed.
+
+New since then (none applied; all tested only on isolated copies):
+
+| ID | Issue | Status | Where | Evidence |
+| --- | --- | --- | --- | --- |
+| R6-1 | the daily report went out at a fixed 8 AM to every active business; no choice of time, recipients or period, no record of runs | pending | zella_report_schedules.sql; wizard; Settings > Reporting | [local] tests/reports; [config] 0 active businesses in production, so no report was ever due |
+| K3 | (above) assistant settings never delivered to Vapi | **built**, pending: per-call assistant-request | zella_assistant_delivery.sql; voice-rules | [local] tests/assistant, matrix 56 assistant-requests; not tested with Vapi |
+| K4 | a viewer could publish or dismiss answers to callers' questions (bypassing the read-only role and MFA) | pending | zella_knowledge_learning.sql | [local] tests/knowledge (fails without the fix); [config] 2 open questions in production (test saloon), so a viewer there could have answered them |
+| W2 | the wizard offered email for "team member unavailable", saved as text without saying | pending (web + owner-provision-business) | CreateBusinessWizard.jsx; index.ts | code review |
+| P2 | the plan was never consulted for languages | pending (no effect until plans exist: production has none) | zella_plan_languages.sql | [local] tests/plans with test-only plan rows |
+| PR1 | per-call delivery finds the business by the called number, and production has **0** numbers in business_phone_numbers: every assistant-request would get "unknown number" and the caller would hear the refusal | open (register each number, with its Vapi id, before switching any number) | business_phone_numbers | [config] read 5 Nov: 0 numbers; the assistant settings themselves are sendable for all 4 businesses (ready_to_send true) |
