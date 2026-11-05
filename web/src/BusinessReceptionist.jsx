@@ -29,12 +29,27 @@ const say = (error) => {
   return code ? SAY[code] : friendly(error);
 };
 
+// When the receptionist may pass a call to a person. The server enforces these once saved (sql/zella_escalation_rules.sql);
+// emergencies follow the emergency setting below, never these.
+const HANDOVER = [
+  ["customer_requests_human", "The caller asks for a person"], ["unknown_answer", "It can't answer and the caller wants more help"],
+  ["upset_customer", "The caller is upset"], ["sensitive_issue", "A sensitive or private matter"],
+  ["complex_request", "A request too complex for it"], ["billing_question", "A billing or payment question"],
+];
+const DEFAULT_HANDOVER = ["customer_requests_human", "unknown_answer", "upset_customer"];   // what it did before reasons could be chosen
+const num = (v, lo, hi) => { const n = Number(v); return Number.isInteger(n) && n >= lo && n <= hi ? n : null; };
+
 function Editor({ agent, base, onSaved }) {
   const rules = base.escalation_rules ?? {};
   const [form, setForm] = useState({
     system_prompt: base.system_prompt ?? "", personality: base.personality ?? "", tone: base.tone ?? "",
     transfer_enabled: rules.transfer_enabled !== false && Boolean(rules.transfer_number), transfer_number: rules.transfer_number ?? "",
     after_hours_mode: rules.after_hours_mode ?? "take_message", emergency_enabled: rules.emergency_enabled !== false,
+    triggers: Array.isArray(rules.triggers) ? rules.triggers.filter((t) => t !== "emergency") : DEFAULT_HANDOVER,
+    restrictions: (Array.isArray(base.knowledge_base?.restrictions) ? base.knowledge_base.restrictions : []).join("\n"),
+    booking_notes: base.appointment_rules?.notes ?? "",
+    default_minutes: base.appointment_rules?.default_minutes ?? "", min_notice_hours: base.appointment_rules?.min_notice_hours ?? "",
+    max_days_ahead: base.appointment_rules?.max_days_ahead ?? "", buffer_minutes: base.appointment_rules?.buffer_minutes ?? "",
   });
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null); // { versionId, errors }
@@ -56,6 +71,13 @@ function Editor({ agent, base, onSaved }) {
         escalation_rules: {
           ...rules, transfer_enabled: form.transfer_enabled, transfer_number: form.transfer_enabled ? form.transfer_number : rules.transfer_number ?? null,
           after_hours_mode: form.after_hours_mode, emergency_enabled: form.emergency_enabled,
+          triggers: form.triggers,
+        },
+        knowledge_base: { ...(base.knowledge_base ?? {}), restrictions: form.restrictions.split("\n").map((l) => l.trim()).filter(Boolean).slice(0, 50) },
+        appointment_rules: {
+          ...(base.appointment_rules ?? {}), notes: form.booking_notes.trim(),
+          default_minutes: num(form.default_minutes, 5, 480), min_notice_hours: num(form.min_notice_hours, 0, 720),
+          max_days_ahead: num(form.max_days_ahead, 1, 365), buffer_minutes: num(form.buffer_minutes, 0, 120),
         },
       };
       const versionId = orThrow(await supabase.rpc("zella_save_agent_config_draft", { p_agent_id: agent.id, p_config: config }));
@@ -100,6 +122,32 @@ function Editor({ agent, base, onSaved }) {
             <Field label="Pass calls to" bare full><PhoneField value={form.transfer_number} onChange={set("transfer_number")} label="Transfer number" /></Field>
           )}
           <label className="ba-check full"><input type="checkbox" checked={form.emergency_enabled} onChange={set("emergency_enabled")} /><span>Treat emergencies as urgent (flag the call and alert the owners at once)</span></label>
+          {form.transfer_enabled && (
+            <fieldset className="ba-fieldset full">
+              <legend>Pass a call to a person only when</legend>
+              <p className="ba-muted">Zella checks this on every call: other calls get a message or a callback instead. Emergencies follow the setting above.</p>
+              {HANDOVER.map(([k, label]) => (
+                <label key={k} className="ba-check"><input type="checkbox" checked={form.triggers.includes(k)}
+                  onChange={(e) => setForm({ ...form, triggers: e.target.checked ? [...form.triggers, k] : form.triggers.filter((t) => t !== k) })} /><span>{label}</span></label>
+              ))}
+            </fieldset>
+          )}
+          <Field label="Things it must never say or do" hint="One per line. The receptionist follows these as instructions; Zella can't check them on its own, so keep anything that must be enforced in the booking rules below." full>
+            <textarea rows={4} value={form.restrictions} onChange={set("restrictions")} maxLength={15000} placeholder={"Never give medical advice\nNever promise a same-day appointment"} />
+          </Field>
+          <fieldset className="ba-fieldset full">
+            <legend>Booking rules (Zella enforces these)</legend>
+            <p className="ba-muted">Times offered, bookings and moves always keep to these. Leave a box empty for no limit.</p>
+            <div className="ba-form-grid">
+              <Field label="Usual length (minutes)"><input type="number" min={5} max={480} value={form.default_minutes} onChange={set("default_minutes")} /></Field>
+              <Field label="Gap between bookings (minutes)"><input type="number" min={0} max={120} value={form.buffer_minutes} onChange={set("buffer_minutes")} /></Field>
+              <Field label="Minimum notice (hours)"><input type="number" min={0} max={720} value={form.min_notice_hours} onChange={set("min_notice_hours")} /></Field>
+              <Field label="Book up to (days ahead)"><input type="number" min={1} max={365} value={form.max_days_ahead} onChange={set("max_days_ahead")} /></Field>
+            </div>
+          </fieldset>
+          <Field label="Booking notes (information for callers)" hint="What the receptionist may tell callers about booking. Notes never change what can be booked: use the rules above for that." full>
+            <textarea rows={3} value={form.booking_notes} onChange={set("booking_notes")} maxLength={2000} placeholder="New clients: please arrive 10 minutes early." />
+          </Field>
         </div>
         {problem && <div className="ba-banner error" role="alert"><span>{problem}</span></div>}
         {result && (result.errors.length ? (

@@ -2029,3 +2029,8 @@ html:not([data-zella-icons="ready"]) .ba-header-actions { flex-wrap: wrap; flex-
   .ba-switcher-btn .ba-switcher-text, .ba-switcher-btn > .ba-icon { display: none; }
   .ba-switcher-btn { justify-content: center; overflow: hidden; }
 }
+
+/* receptionist editor: grouped settings (handover reasons, booking rules) */
+.ba-fieldset { border: 1px solid var(--ba-border, rgba(0, 0, 0, 0.12)); border-radius: 10px; padding: 10px 12px; margin: 0; display: grid; gap: 6px; }
+.ba-fieldset legend { font-weight: 600; padding: 0 4px; }
+.ba-fieldset .ba-muted { margin: 0; }
