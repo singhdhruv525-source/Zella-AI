@@ -90,7 +90,7 @@ ok("schedule", "confirmation now, reminders 24 h and 2 h before", JSON.stringify
 ok("schedule", "the team is told about the booking", Number(q(`select count(*) from public.staff_notifications where business_id = '${B}' and title ilike '%appointment%' and created_at > now() - interval '5 minutes'`)) > 0);
 const deposit = JSON.parse(as(STAFF, `select public.zella_create_charge('${B}', 'deposit', 2500, 'Colour deposit', '${cust.id}', null, '${apptId}', null, null, 'dep-${apptId}')`));
 const tasks = j(`select json_object_agg(kind, status || coalesce(':' || outcome, '')) from public.followup_tasks where customer_id = '${cust.id}'`) ?? {};
-ok("schedule", "one booking message: no repeat \"you are booked\" text", !("booking_follow_up" in tasks), JSON.stringify(tasks));
+ok("schedule", "one booking message: no repeat \"you are booked\" text (held back by the salon policy, visible as skipped)", !("booking_follow_up" in tasks) || tasks.booking_follow_up === "skipped:policy", JSON.stringify(tasks));
 ok("schedule", "the welcome text gives way to the booking confirmation (closed with the reason)", tasks.welcome_new_customer === "skipped:superseded", tasks.welcome_new_customer);
 ok("schedule", "a deposit is asked for (recorded, not charged)", q(`select status from public.customer_charges where id = '${deposit.id}'`) === "open");
 
@@ -178,17 +178,18 @@ q(`update public.followup_tasks set due_at = now() - interval '1 minute' where c
 run = smsPipeline(`select public.zella_claim_followup_texts(25)`, TASKS, (tel) => { n++; return { statusCode: 200, body: { data: { id: `provider-msg-${n}` } } }; });
 const after = messages.filter((m) => m.live && m !== sent[0] && m.customer === cust.id);
 ok("completion", "after the visit Maria gets one check-in, in plain words", after.length === 1 && /Maria/.test(after[0].text) && !/\{\{/.test(after[0].text), after.map((m) => `${m.kind}: ${m.text}`).join(" | "));
-ok("completion", "the other after-visit notes are held back (no repeats)", Number(q(`select count(*) from public.followup_tasks where customer_id = '${cust.id}' and (kind = 'feedback_request' or (kind = 'record_status_update' and vars ->> 'record_title' = 'your visit'))`)) === 1);
+ok("completion", "the other after-visit notes are held back (no repeats)", Number(q(`select count(*) from public.followup_tasks where customer_id = '${cust.id}' and status <> 'skipped' and (kind = 'feedback_request' or (kind = 'record_status_update' and vars ->> 'record_title' = 'your visit' and not coalesce((vars ->> 'review')::boolean, false)))`)) === 1
+  && Number(q(`select count(*) from public.followup_tasks where customer_id = '${cust.id}' and status = 'skipped' and outcome = 'policy' and outcome_notes is not null`)) >= 1);
 ok("completion", "a rebooking reminder is planned (service due)", Number(q(`select count(*) from public.automations where business_id = '${B}' and trigger_type = 'service_due' and status = 'active'`)) > 0);
 ok("completion", "nothing is left open for this visit", q(`select count(*) from public.appointment_reminders where appointment_id = '${apptId}' and status = 'pending'`) === "0");
 
 // ---------- 6. recovery ----------
 // the provider refuses a text: it shows in "Sending failed" and can be retried
-q(`insert into public.followup_tasks (business_id, customer_id, kind, channel, due_at, max_attempts, vars) values ('${B}', '${cust.id}', 'service_completed', 'sms', now() - interval '1 minute', 2, '{}')`);
+q(`insert into public.followup_tasks (business_id, customer_id, kind, channel, due_at, max_attempts, vars) values ('${B}', '${cust.id}', 'service_due', 'sms', now() - interval '1 minute', 2, '{"service": "colour"}')`);
 run = smsPipeline(`select public.zella_claim_followup_texts(25)`, TASKS, () => ({ statusCode: 422, body: { errors: [{ code: "40310" }] } }));
 const failedMsg = j(`select row_to_json(m) from (select id, status, metadata ->> 'error' error from public.sms_messages where business_id = '${B}' and status = 'failed' order by created_at desc limit 1) m`);
 ok("recovery", "a provider refusal is recorded as failed, with the provider's code only", failedMsg?.status === "failed" && /40310/.test(failedMsg?.error ?? ""), failedMsg?.error);
-const failedTask = q(`select id from public.followup_tasks where customer_id = '${cust.id}' and kind = 'service_completed' order by created_at desc limit 1`);
+const failedTask = q(`select id from public.followup_tasks where customer_id = '${cust.id}' and kind = 'service_due' order by created_at desc limit 1`);
 ok("recovery", "first refusal: retried automatically later (task back to pending, due in the future)",
   q(`select status || ':' || (due_at > now())::text from public.followup_tasks where id = '${failedTask}'`) === "pending:true");
 q(`update public.followup_tasks set due_at = now() - interval '1 minute' where id = '${failedTask}'`);
@@ -204,11 +205,11 @@ try { as(STAFF, `select public.zella_retry_failed('${B}', 'task', '${failedTask}
 ok("recovery", "a stylist can't retry or resend", /NOT_ALLOWED/.test(staffRetry));
 // an opted-out customer is never texted, and the reason is visible
 q(`update public.customers set do_not_sms = true where id = '${cust.id}'`);
-q(`insert into public.followup_tasks (business_id, customer_id, kind, channel, due_at, max_attempts, vars) values ('${B}', '${cust.id}', 'feedback_request', 'sms', now() - interval '1 minute', 2, '{}')`);
+q(`insert into public.followup_tasks (business_id, customer_id, kind, channel, due_at, max_attempts, vars) values ('${B}', '${cust.id}', 'no_response_follow_up', 'sms', now() - interval '1 minute', 2, '{}')`);
 const before = messages.length;
 run = smsPipeline(`select public.zella_claim_followup_texts(25)`, TASKS, noProvider);
 ok("recovery", "an opted-out customer is never texted; the task is skipped with a reason", messages.length === before
-  && /consent|do_not_contact|opt/.test(q(`select coalesce(outcome_notes, outcome, status) from public.followup_tasks where customer_id = '${cust.id}' and kind = 'feedback_request' order by created_at desc limit 1`) || ""));
+  && /consent|do_not_contact|opt/.test(q(`select coalesce(outcome_notes, outcome, status) from public.followup_tasks where customer_id = '${cust.id}' and kind = 'no_response_follow_up' order by created_at desc limit 1`) || ""));
 q(`update public.customers set do_not_sms = false where id = '${cust.id}'`);
 // a caller hangs up before booking: a callback is created and assigned
 q(`insert into public.calls (business_id, direction, status, from_number, external_call_id, ai_handled, started_at) values ('${B}', 'inbound', 'answered', '+15125550999', 'launch-call-3', true, now() - interval '2 minutes')`);

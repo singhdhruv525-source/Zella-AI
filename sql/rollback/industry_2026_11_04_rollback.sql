@@ -82,14 +82,21 @@ drop policy if exists record_files_select on storage.objects;
 drop policy if exists record_files_delete on storage.objects;
 delete from storage.buckets b where b.id = 'record-files' and not exists (select 1 from storage.objects o where o.bucket_id = b.id);
 
+-- 8. message policy (zella_message_courtesy.sql): the industry defaults table holds only reference settings and is
+--    dropped; an owner's own choices stay in businesses.setup_data.message_policy (ignored by the earlier code, and
+--    back in force if the migration is applied again). Messages already held back stay on record as skipped.
+drop table if exists public.industry_message_policy cascade;
+
 
 -- ---------- schema (generated) ----------
 drop trigger if exists zella_welcome_superseded on public.appointment_reminders;
 drop trigger if exists zella_appointment_record on public.appointments;
 drop trigger if exists zella_appointment_record_event on public.appointments;
 drop trigger if exists zella_appointment_record_match on public.appointments;
+drop trigger if exists zella_booking_messages_withdrawn on public.appointments;
 drop trigger if exists zella_capability_appointment on public.appointments;
 drop trigger if exists zella_record_type_defaults on public.crm_record_types;
+drop trigger if exists zella_message_policy on public.followup_tasks;
 drop policy if exists business_capabilities_read on public.business_capabilities;
 drop policy if exists crm_record_files_read on public.crm_record_files;
 drop policy if exists zella_mfa_required on public.crm_record_files;
@@ -98,6 +105,7 @@ drop policy if exists customer_charge_payments_read on public.customer_charge_pa
 drop policy if exists zella_mfa_required on public.customer_charge_payments;
 drop policy if exists customer_charges_read on public.customer_charges;
 drop policy if exists zella_mfa_required on public.customer_charges;
+drop policy if exists industry_message_policy_read on public.industry_message_policy;
 drop view if exists public.calls_view;
 create view public.calls_view with (security_invoker=true) as
  SELECT id,
@@ -1109,6 +1117,50 @@ begin
 end $function$;
 revoke all on function public.zella_crm_write_record(uuid,text,uuid,text,uuid,text,text,uuid,uuid,timestamp with time zone,jsonb) from public, anon, authenticated, service_role;
 grant execute on function public.zella_crm_write_record(uuid,text,uuid,text,uuid,text,text,uuid,uuid,timestamp with time zone,jsonb) to service_role;
+CREATE OR REPLACE FUNCTION public.zella_industry_act(p_biz uuid, p_rule jsonb, p_cust uuid, p_entity uuid, p_title text, p_status text, p_assigned uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare v_line text; v_raw text; v_link text; t jsonb; nt jsonb;
+begin
+  if p_rule ? 'message' and p_cust is not null then
+    v_raw := p_rule ->> 'message';
+    v_link := null;
+    if v_raw like '%{review_link}%' then
+      select nullif(b.setup_data ->> 'review_link', '') into v_link from public.businesses b where b.id = p_biz;
+      if v_link is null then v_raw := null; end if;
+    end if;
+    if v_raw is not null then
+      v_line := left(replace(replace(replace(v_raw, '{title}', coalesce(p_title, '')), '{status}', coalesce(p_status, '')), '{review_link}', coalesce(v_link, '')), 300);
+      if coalesce(p_rule ->> 'mode', '') = 'draft' then
+        if not exists (select 1 from public.message_drafts where business_id = p_biz and customer_id = p_cust and status = 'pending' and entity_id is not distinct from p_entity and body = v_line) then
+          insert into public.message_drafts (business_id, customer_id, body, reason, entity_id)
+          values (p_biz, p_cust, v_line, left(coalesce(nullif(p_title, ''), 'Follow-up'), 120), p_entity);
+          perform public.zella_notify_owners(p_biz, 'draft_ready', 'A message is ready to review', 'Check it and send it, or dismiss it.', 'info', 'drafts');
+        end if;
+      else
+        perform public.zella_queue_customer_message(p_biz, p_cust, 'record_status_update',
+          jsonb_build_object('status_line', v_line, 'status', p_status, 'record_title', p_title),
+          make_interval(mins => greatest(1, coalesce((p_rule ->> 'delay_minutes')::int, 1))), null, interval '0');
+      end if;
+    end if;
+  end if;
+  if p_rule ? 'task' then
+    t := p_rule -> 'task';
+    perform public.zella_create_task(p_biz, p_cust, 'industry', left(replace(replace(t ->> 'title', '{title}', coalesce(p_title, '')), '{status}', coalesce(p_status, '')), 200),
+      left(replace(replace(t ->> 'body', '{title}', coalesce(p_title, '')), '{status}', coalesce(p_status, '')), 500),
+      coalesce(nullif(t ->> 'priority', ''), 'normal'), now() + make_interval(hours => greatest(0, coalesce((t ->> 'due_hours')::int, 24))), p_assigned, 'automation', p_entity);
+  end if;
+  if p_rule ? 'notify' then
+    nt := p_rule -> 'notify';
+    perform public.zella_notify_owners(p_biz, 'industry_alert', left(replace(replace(nt ->> 'title', '{title}', coalesce(p_title, '')), '{status}', coalesce(p_status, '')), 150),
+      left(replace(replace(nt ->> 'body', '{title}', coalesce(p_title, '')), '{status}', coalesce(p_status, '')), 300), coalesce(nullif(nt ->> 'severity', ''), 'warning'), 'records');
+  end if;
+end $function$;
+revoke all on function public.zella_industry_act(uuid,jsonb,uuid,uuid,text,text,uuid) from public, anon, authenticated, service_role;
+grant execute on function public.zella_industry_act(uuid,jsonb,uuid,uuid,text,text,uuid) to service_role;
 CREATE OR REPLACE FUNCTION public.zella_issue_quote(p_customer_id uuid, p_title text, p_expires_in_days integer DEFAULT 30)
  RETURNS uuid
  LANGUAGE plpgsql
@@ -1150,40 +1202,6 @@ end $function$;
 revoke all on function public.zella_join_waitlist(uuid,uuid,text,integer,timestamp with time zone,timestamp with time zone,uuid,text) from public, anon, authenticated, service_role;
 grant execute on function public.zella_join_waitlist(uuid,uuid,text,integer,timestamp with time zone,timestamp with time zone,uuid,text) to authenticated;
 grant execute on function public.zella_join_waitlist(uuid,uuid,text,integer,timestamp with time zone,timestamp with time zone,uuid,text) to service_role;
-CREATE OR REPLACE FUNCTION public.zella_queue_customer_message(p_business_id uuid, p_customer_id uuid, p_kind text, p_vars jsonb DEFAULT '{}'::jsonb, p_delay interval DEFAULT '00:00:00'::interval, p_appointment_id uuid DEFAULT NULL::uuid, p_dedupe interval DEFAULT '30 days'::interval)
- RETURNS uuid
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-declare
-  c record; v_channel text; v_id uuid;
-begin
-  if p_kind not in ('welcome_new_customer','feedback_request','cancellation_confirmation','record_status_update','service_due','no_response_follow_up','reschedule_confirmation','booking_follow_up','service_completed','lead_follow_up','lead_final_follow_up') then
-    raise exception 'BAD_KIND';
-  end if;
-  if coalesce(public.zella_setting('customer_touches', '{}'::jsonb) -> p_kind, 'true'::jsonb) = 'false'::jsonb then return null; end if;
-  select x.id, x.phone, x.email, coalesce(x.do_not_contact,false) dnc, coalesce(x.do_not_sms,false) dns, coalesce(x.do_not_email,false) dne, x.preferred_channel pref
-    into c from public.customers x where x.id = p_customer_id and x.business_id = p_business_id;
-  if c.id is null or c.dnc then return null; end if;
-  if c.pref = 'email' and public.zella_valid_email(c.email) and not c.dne then v_channel := 'email';
-  elsif public.zella_digits(c.phone) is not null and not c.dns then v_channel := 'sms';
-  elsif public.zella_valid_email(c.email) and not c.dne then v_channel := 'email';
-  else return null; end if;
-  if p_kind <> 'record_status_update' and exists (
-       select 1 from public.followup_tasks f where f.customer_id = p_customer_id and f.kind = p_kind
-          and (f.status in ('pending','in_progress') or f.created_at > now() - p_dedupe)
-          and (p_appointment_id is null or f.appointment_id is not distinct from p_appointment_id)) then
-    return null;
-  end if;
-  insert into public.followup_tasks (business_id, customer_id, appointment_id, kind, channel, due_at, max_attempts, vars)
-  values (p_business_id, p_customer_id, p_appointment_id, p_kind, v_channel, now() + p_delay, 2, coalesce(p_vars, '{}'::jsonb))
-  on conflict do nothing
-  returning id into v_id;
-  return v_id;
-end $function$;
-revoke all on function public.zella_queue_customer_message(uuid,uuid,text,jsonb,interval,uuid,interval) from public, anon, authenticated, service_role;
-grant execute on function public.zella_queue_customer_message(uuid,uuid,text,jsonb,interval,uuid,interval) to service_role;
 CREATE OR REPLACE FUNCTION public.zella_record_callback_attempt(p_callback_id uuid, p_outcome text, p_provider_ref text DEFAULT NULL::text, p_error text DEFAULT NULL::text, p_notes text DEFAULT NULL::text)
  RETURNS text
  LANGUAGE plpgsql
@@ -1893,6 +1911,7 @@ drop function if exists public.zella_appointment_record_trg() cascade;
 drop function if exists public.zella_appointments_needing_record(uuid,integer) cascade;
 drop function if exists public.zella_asset_type_keys() cascade;
 drop function if exists public.zella_begin_record_file(uuid,text,text,bigint,text,boolean) cascade;
+drop function if exists public.zella_booking_messages_withdrawn_trg() cascade;
 drop function if exists public.zella_business_currency(uuid) cascade;
 drop function if exists public.zella_business_readiness(uuid) cascade;
 drop function if exists public.zella_can_edit(uuid) cascade;
@@ -1913,6 +1932,9 @@ drop function if exists public.zella_finish_record_file(uuid) cascade;
 drop function if exists public.zella_google_lead_key_create(uuid) cascade;
 drop function if exists public.zella_google_lead_key_revoke(uuid) cascade;
 drop function if exists public.zella_google_lead_status(uuid) cascade;
+drop function if exists public.zella_message_policy(uuid) cascade;
+drop function if exists public.zella_message_policy_for(uuid) cascade;
+drop function if exists public.zella_message_policy_trg() cascade;
 drop function if exists public.zella_move_sensitive_values(uuid) cascade;
 drop function if exists public.zella_preset_v2_merge(jsonb) cascade;
 drop function if exists public.zella_provider_charge_payment(uuid,text,bigint,text) cascade;
@@ -1932,6 +1954,7 @@ drop function if exists public.zella_set_appointment_record(uuid,uuid) cascade;
 drop function if exists public.zella_set_call_content_access(uuid,boolean) cascade;
 drop function if exists public.zella_set_capability(uuid,text,boolean) cascade;
 drop function if exists public.zella_set_charge_status(uuid,text,text) cascade;
+drop function if exists public.zella_set_message_policy(uuid,jsonb) cascade;
 drop function if exists public.zella_staff_add_lead(uuid,text,text,text,text,text,text) cascade;
 drop function if exists public.zella_today_operations(uuid) cascade;
 drop function if exists public.zella_welcome_superseded_trg() cascade;
@@ -1951,5 +1974,6 @@ select pg_temp.zella_rb_retire_table('customer_charge_payments');
 select pg_temp.zella_rb_retire_table('customer_charges');
 select pg_temp.zella_rb_retire_table('google_lead_events');
 select pg_temp.zella_rb_retire_table('google_lead_keys');
+select pg_temp.zella_rb_retire_table('industry_message_policy');
 
 commit;

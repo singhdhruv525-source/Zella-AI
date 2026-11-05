@@ -75,3 +75,8 @@ drop policy if exists record_files_insert on storage.objects;
 drop policy if exists record_files_select on storage.objects;
 drop policy if exists record_files_delete on storage.objects;
 delete from storage.buckets b where b.id = 'record-files' and not exists (select 1 from storage.objects o where o.bucket_id = b.id);
+
+-- 8. message policy (zella_message_courtesy.sql): the industry defaults table holds only reference settings and is
+--    dropped; an owner's own choices stay in businesses.setup_data.message_policy (ignored by the earlier code, and
+--    back in force if the migration is applied again). Messages already held back stay on record as skipped.
+drop table if exists public.industry_message_policy cascade;
