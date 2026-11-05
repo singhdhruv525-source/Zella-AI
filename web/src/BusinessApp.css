@@ -2016,3 +2016,14 @@ html:not([data-zella-icons="ready"]) .ba-header-actions { flex-wrap: wrap; flex-
    alone means white text on red, which together made the text invisible. */
 .ba-btn.ghost.danger { background: transparent; border-color: transparent; color: var(--ba-danger); }
 .ba-btn.ghost.danger:hover:not(:disabled) { background: var(--ba-danger-bg); border-color: var(--ba-danger-border); }
+/* The one-time key box (Google leads): copy fields that wrap instead of overflowing on a phone */
+.ba-keybox { margin: 8px 0; padding: 12px; border: 1px solid var(--ba-border); border-radius: 10px; background: var(--ba-surface-2, #f7f6f2); }
+.ba-keybox p { margin: 0 0 8px; }
+.ba-keybox label { display: block; margin: 8px 0; font-size: 12px; color: var(--ba-muted); }
+.ba-keybox label > span { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.ba-keybox code { flex: 1; min-width: 0; padding: 6px 8px; overflow-wrap: anywhere; border-radius: 6px; background: var(--ba-surface, #fff); color: var(--ba-text); font-size: 12px; }
+/* Narrow phones with every header button (owners): the business switcher becomes just its initials (still opens the list) */
+@media (max-width: 480px) {
+  .ba-switcher-btn .ba-switcher-text, .ba-switcher-btn > .ba-icon { display: none; }
+  .ba-switcher-btn { justify-content: center; overflow: hidden; }
+}

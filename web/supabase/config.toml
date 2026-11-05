@@ -434,6 +434,7 @@ entrypoint = "./functions/continue-plan/index.ts"
 # Public endpoints. Each one checks its own proof instead of a Supabase sign-in:
 #   reschedule-appointment  the 64-character private code in the customer's link (checked in the database)
 #   website-lead            the business's form key, allowed websites, spam and rate limits (checked in the database)
+#   google-lead             the business's Google key inside the lead (hash checked in the database), duplicates, rate limits
 #   billing-webhook         the payment provider's signature (STRIPE_WEBHOOK_SECRET), timestamp and event id
 #   voice-rules             Vapi's HMAC signature, checked by the database (zella_vapi_authenticate); Vapi's server URL
 # Without these lines a plain `supabase functions deploy` would turn sign-in checks on and every call would be refused.
@@ -453,6 +454,11 @@ entrypoint = "./functions/voice-rules/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/website-lead/index.ts"
+
+[functions.google-lead]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/google-lead/index.ts"
 
 [functions.billing-webhook]
 enabled = true

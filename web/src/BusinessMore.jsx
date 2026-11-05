@@ -401,6 +401,68 @@ function IntegrationCard({ item, row, canManage, loading, onNotice, onChanged, w
   );
 }
 
+// Google Ads lead forms (sql/zella_google_leads.sql): owners and admins create the key Google sends with each lead.
+// It is shown once; Zella keeps only a hash. Managers see whether leads are arriving.
+function GoogleLeadsCard({ workspace, onNotice }) {
+  const canSee = ["owner", "admin", "manager"].includes(workspace.role);
+  const canManage = ["owner", "admin"].includes(workspace.role);
+  const [version, setVersion] = useState(0);
+  const [fresh, setFresh] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState("");
+  const status = useLoad(async () => {
+    if (!canSee) return null;
+    const r = await supabase.rpc("zella_google_lead_status", { p_business_id: workspace.id });
+    if (r.error) return /could not find the function/i.test(r.error.message) ? { missing: true } : { error: explain(r.error) };
+    return r.data;
+  }, [workspace.id, version]);
+  const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-lead`;
+  async function create() {
+    if (status.data?.has_key && !window.confirm("Make a new key? Lead forms using the old key stop sending until you paste the new one.")) return;
+    setBusy(true); setProblem("");
+    const r = await supabase.rpc("zella_google_lead_key_create", { p_business_id: workspace.id });
+    setBusy(false);
+    if (r.error) return setProblem(explain(r.error));
+    setFresh(r.data.key); setVersion((v) => v + 1);
+  }
+  async function revoke() {
+    if (!window.confirm("Stop accepting Google leads? Forms keep collecting them in Google Ads; Zella refuses them until you make a new key.")) return;
+    const r = await supabase.rpc("zella_google_lead_key_revoke", { p_business_id: workspace.id });
+    if (r.error) return setProblem(explain(r.error));
+    setFresh(null); setVersion((v) => v + 1); onNotice("Google leads stopped.");
+  }
+  const copy = (text, what) => navigator.clipboard?.writeText(text).then(() => onNotice(`${what} copied.`), () => {});
+  if (!canSee || status.data?.missing) return null;
+  const st = status.data ?? {};
+  const live = st.has_key && st.enabled;
+  return (
+    <section className="ba-panel ba-integration ba-integration-controls">
+      <div className="ba-integration-row">
+        <span className="ba-thread-icon"><Icon name="ads_click" size="sm" /></span>
+        <div><strong>Google Ads lead forms</strong><small>New leads from your Google Ads forms arrive here, with a call-back task for the team.</small></div>
+        <Pill tone={live ? (st.last_lead_at || st.test_received_at ? "success" : "warning") : ""}>{live ? (st.last_lead_at ? "Receiving" : st.test_received_at ? "Test received" : "Waiting for Google") : "Not set up"}</Pill>
+      </div>
+      {problem && <p className="ba-error" role="alert">{problem}</p>}
+      {status.data?.error && <p className="ba-error" role="alert">{status.data.error}</p>}
+      {live && <small className="ba-integration-account">Key ending …{st.hint}. {st.leads_30d ?? 0} lead{st.leads_30d === 1 ? "" : "s"} in the last 30 days{st.last_lead_at ? `, last ${timeAgo(st.last_lead_at)}` : ""}.</small>}
+      {fresh && (
+        <div className="ba-keybox" role="status">
+          <p><strong>Copy these into each lead form in Google Ads</strong> (Lead form, Lead delivery, Webhook integration). The key is shown only now.</p>
+          <label>Webhook URL<span><code>{url}</code><button type="button" className="ba-btn sm" onClick={() => copy(url, "Webhook URL")}>Copy</button></span></label>
+          <label>Key<span><code>{fresh}</code><button type="button" className="ba-btn sm" onClick={() => copy(fresh, "Key")}>Copy</button></span></label>
+          <p className="ba-muted">Then press "Send test data" in Google Ads; this card shows "Test received".</p>
+        </div>
+      )}
+      {canManage ? (
+        <div className="ba-integration-actions">
+          <button type="button" className="ba-btn" disabled={busy} onClick={create}>{st.has_key ? "Make a new key" : "Set up Google leads"}</button>
+          {live && <button type="button" className="ba-btn danger-text" onClick={revoke}>Stop</button>}
+        </div>
+      ) : !live && <p className="ba-muted">An owner or admin can set this up.</p>}
+    </section>
+  );
+}
+
 export function IntegrationsPage({ workspace, refreshKey, onNotice }) {
   const canManage = ["owner", "admin", "manager"].includes(workspace.role);
   const { data, error, loading, reload } = useLoad(async () =>
@@ -415,6 +477,7 @@ export function IntegrationsPage({ workspace, refreshKey, onNotice }) {
         sub={canManage ? "Turn any connected service off, back on, or remove it." : "The services connected to your workspace."} />
       <Notice error={error} onRetry={reload} />
       <div className="ba-grid-2">
+        <GoogleLeadsCard workspace={workspace} onNotice={onNotice} />
         {CATALOG.map((item) => (
           <IntegrationCard key={item.name} item={item} row={rowFor(item)} canManage={canManage} loading={loading && !data}
             onNotice={onNotice} onChanged={reload} workspace={workspace} />

@@ -179,6 +179,20 @@ The owner journey (section 5) checks these for all 28. Industry specifics:
 | 9 | `sql/zella_receptionist_industry_rules.sql` | 4, 7 | **Changes every receptionist's instructions from its next call** | — | restore `zella_brain_prompt_base` from `sql/baseline/05_functions_*.sql` |
 | 10 | `sql/zella_readiness.sql` | 4 | One read-only function | — | drop function |
 
+**Added 5 Nov (same order, after 10):**
+
+| # | File | What it changes |
+|---|---|---|
+| 11 | `sql/zella_appointment_records.sql` | Appointments linked to the pet, vehicle, property or other record they're for. It links automatically when the customer has exactly one. Owners choose which types can be booked for. |
+| 12 | `sql/zella_record_files.sql` | Photos and files on records, in a private storage bucket with storage policies. History never shows a private file's name. |
+| 13 | `sql/zella_ai_caller_fixes.sql` | **Changes an AI receptionist tool from its next call.**<br>• Caller preferences: text, call and email all work.<br>• The live call is linked to the caller, and callbacks to new leads. |
+| 14 | `sql/zella_message_courtesy.sql` | **Changes what customers receive once texting is live.**<br>• One booking message.<br>• One after-visit check-in per 36 hours. |
+| 15 | `sql/zella_google_leads.sql` | Google Ads lead-form intake. It also needs the new edge function **`google-lead`** deployed (with `verify_jwt = false`, already set in `config.toml`). |
+
+Staging (`tests/staging/run.sh`) applies all 15 in order, twice. It checks that nothing is lost and that every record still saves, checks roles, and tests the generated rollback both just after deploy and after real use.
+
+The launch workflow test (`tests/workflows/salon_launch.mjs`) passes 48/48 on the result.
+
 **Tested rollback (5 Nov).** `sql/rollback/industry_2026_11_04_rollback.sql` undoes all ten in one transaction.
 - It is generated from a staging before/after pair and tested by `tests/staging/run.sh`.
 - It returns schema and every row to the pre-deploy state.
