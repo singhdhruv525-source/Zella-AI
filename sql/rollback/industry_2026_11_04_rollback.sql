@@ -84,6 +84,7 @@ delete from storage.buckets b where b.id = 'record-files' and not exists (select
 
 
 -- ---------- schema (generated) ----------
+drop trigger if exists zella_welcome_superseded on public.appointment_reminders;
 drop trigger if exists zella_appointment_record on public.appointments;
 drop trigger if exists zella_appointment_record_event on public.appointments;
 drop trigger if exists zella_capability_appointment on public.appointments;
@@ -501,6 +502,179 @@ end $function$;
 revoke all on function public.zella_add_record_note(uuid,text) from public, anon, authenticated, service_role;
 grant execute on function public.zella_add_record_note(uuid,text) to authenticated;
 grant execute on function public.zella_add_record_note(uuid,text) to service_role;
+CREATE OR REPLACE FUNCTION public.zella_ai_tool(p_provider_call_id text, p_business_id uuid, p_tool text, p_args jsonb DEFAULT '{}'::jsonb, p_idempotency_key text DEFAULT NULL::text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_args jsonb := case when jsonb_typeof(p_args) = 'object' then p_args else '{}'::jsonb end;
+  v_def jsonb; v_call_biz uuid; v_biz uuid; v_tz text; v_caller text; v_cust uuid; v_n integer;
+  v_cons boolean; v_needs boolean; v_key text; v_log uuid; v_prev jsonb; v_res jsonb; v_disabled jsonb; v_appt uuid;
+  v_sub text; v_ok boolean; v_verified boolean; v_status text; v_err text; v_hit jsonb; v_q text; v_first text; v_last text; v_email text; v_pref text; v_task uuid; v_due timestamptz;
+begin
+  select d into v_def from jsonb_array_elements(public.zella_brain_tool_defs()) d where d ->> 'name' = p_tool;
+  if v_def is null then return jsonb_build_object('ok', false, 'status', 'unknown_tool', 'say', 'That is not something you can do. Offer to take a message instead.'); end if;
+  v_cons := coalesce((v_def ->> 'consequential')::boolean, false);
+  v_needs := coalesce((v_def ->> 'needs_confirmation')::boolean, false);
+
+  if nullif(p_provider_call_id, '') is not null then
+    select c.business_id, c.from_number into v_call_biz, v_caller from public.calls c where c.external_call_id = p_provider_call_id limit 1;
+  end if;
+  v_biz := coalesce(v_call_biz, p_business_id);
+  select b.id, coalesce(b.timezone, 'America/New_York') into v_biz, v_tz from public.businesses b
+   where b.id = v_biz and b.suspended_at is null and b.cancelled_at is null and coalesce(b.is_active, true);
+  if v_biz is null then return jsonb_build_object('ok', false, 'status', 'unknown_business', 'say', 'This could not be completed. Say the team will call back.'); end if;
+  v_caller := coalesce(v_caller, nullif(v_args ->> 'caller_number', ''));
+
+  select coalesce(c.business_context -> 'disabled_tools', '[]'::jsonb) into v_disabled
+    from public.ai_agents a join public.ai_agent_configs c on c.agent_id = a.id where a.business_id = v_biz and a.is_default limit 1;
+  if v_disabled is not null and jsonb_typeof(v_disabled) = 'array' and v_disabled ? p_tool then
+    return jsonb_build_object('ok', false, 'status', 'not_available', 'say', 'This business does not use that. Offer to take a message instead.');
+  end if;
+
+  if p_tool <> 'report_emergency' and public.zella_digits(v_caller) is not null
+     and (public.zella_caller_context(v_biz, v_caller) #>> '{screening,decision}') in ('blocked', 'restricted', 'screened') then -- zella_ai_tool_screening
+    return jsonb_build_object('ok', false, 'status', 'screened', 'say', 'This caller cannot be helped by the assistant. Do not book, change or look anything up. End the call politely.');
+  end if;
+
+  if v_needs and coalesce(v_args ->> 'confirmed', '') <> 'true' then
+    return jsonb_build_object('ok', false, 'status', 'need_confirmation', 'say', 'Read the details back to the caller and ask them to confirm. Call this again with confirmed=true only after they say yes.');
+  end if;
+
+  v_key := case when v_cons then coalesce(nullif(p_idempotency_key, ''), md5(coalesce(p_provider_call_id, '') || '|' || p_tool || '|' || (v_args - 'confirmed' - 'caller_number')::text)) end;
+  if v_key is not null then
+    perform pg_advisory_xact_lock(hashtextextended('zella_ai_tool:' || v_biz::text || ':' || v_key, 0)); -- zella_ai_tool_inflight
+    select l.result into v_prev from public.ai_tool_calls l where l.business_id = v_biz and l.idempotency_key = v_key and l.status = 'done' limit 1;
+    if v_prev is not null then return v_prev || jsonb_build_object('repeated', true); end if;
+  end if;
+  insert into public.ai_tool_calls (business_id, provider_call_id, tool, idempotency_key, arg_keys)
+  values (v_biz, left(p_provider_call_id, 200), p_tool, v_key, array(select jsonb_object_keys(v_args))) returning id into v_log;
+
+  begin
+    if p_tool = 'search_knowledge' then
+      v_q := left(coalesce(v_args ->> 'query', ''), 300);
+      v_hit := public.zella_brain_search(v_biz, v_q, 3);
+      if v_hit ->> 'confidence' = 'none' then
+        begin perform public.zella_report_unanswered(p_provider_call_id, v_biz, v_q); exception when others then null; end;
+        v_res := jsonb_build_object('ok', true, 'status', 'no_information', 'say', 'There is no approved information about this. Do not guess. Say you will pass the question to the team and they will get back to the caller.');
+      else
+        v_res := jsonb_build_object('ok', true, 'status', v_hit ->> 'confidence', 'results', v_hit -> 'results',
+          'say', case when v_hit ->> 'confidence' = 'confirmed' then 'Answer ONLY from these results, in your own words. Do not add details that are not in them.'
+                      else 'These results may only partly answer the question. Use only what they say; for the rest say you will check with the team.' end);
+      end if;
+
+    elsif p_tool = 'check_open_hours' then
+      v_res := public.zella_ai_voice(p_provider_call_id, v_biz, 'rules', v_args);
+    elsif p_tool = 'take_message' then
+      v_res := public.zella_ai_voice(p_provider_call_id, v_biz, 'message', v_args);
+    elsif p_tool = 'report_emergency' then
+      v_res := public.zella_ai_voice(p_provider_call_id, v_biz, 'emergency', v_args);
+    elsif p_tool = 'transfer_to_human' then
+      v_res := public.zella_ai_voice(p_provider_call_id, v_biz, 'transfer', v_args);
+    elsif p_tool = 'report_unanswered_question' then
+      perform public.zella_report_unanswered(p_provider_call_id, v_biz, v_args ->> 'question');
+      v_res := jsonb_build_object('ok', true, 'status', 'logged', 'say', 'Tell the caller the team will get back to them with an answer.');
+
+    elsif p_tool in ('lookup_caller', 'update_caller', 'request_follow_up') then
+      v_cust := null; v_n := 0;
+      if public.zella_digits(v_caller) is not null then
+        select count(*), (array_agg(c.id))[1] into v_n, v_cust from public.customers c
+         where c.business_id = v_biz and public.zella_digits(c.phone) = public.zella_digits(v_caller);
+        if v_n <> 1 then v_cust := null; end if;
+      end if;
+
+      if p_tool = 'lookup_caller' then
+        if v_cust is null then
+          v_res := jsonb_build_object('ok', true, 'status', 'not_recognised', 'say', 'The caller is not recognised. Ask for their name. Do not guess who they are.');
+        else
+          select jsonb_build_object('ok', true, 'status', 'recognised', 'first_name', c.first_name,
+                   'upcoming_appointments', (select count(*) from public.appointments a where a.customer_id = c.id and a.status in ('scheduled', 'confirmed') and a.start_time > now()),
+                   'say', 'You may greet the caller by first name. Do not read out any other details about them.')
+            into v_res from public.customers c where c.id = v_cust;
+        end if;
+
+      elsif p_tool = 'update_caller' then
+        v_first := nullif(trim(left(coalesce(v_args ->> 'first_name', ''), 80)), '');
+        v_last := nullif(trim(left(coalesce(v_args ->> 'last_name', ''), 80)), '');
+        v_email := nullif(lower(trim(left(coalesce(v_args ->> 'email', ''), 200))), '');
+        v_pref := case when v_args ->> 'preferred_contact_method' in ('call', 'sms', 'email') then v_args ->> 'preferred_contact_method' end;
+        if v_email is not null and v_email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' then
+          v_res := jsonb_build_object('ok', false, 'status', 'need_info', 'say', 'The email address did not look right. Ask the caller to repeat it, or skip it.');
+        elsif v_cust is null then
+          if v_first is null then
+            v_res := jsonb_build_object('ok', false, 'status', 'need_info', 'say', 'Ask for the caller''s name first.');
+          else
+            perform public.zella_capture_lead(v_biz, v_first, v_last, coalesce(nullif(v_args ->> 'phone', ''), v_caller), v_email, 'phone_call', 'Saved by the phone assistant', null);
+            v_res := jsonb_build_object('ok', true, 'status', 'saved', 'say', 'Saved. Carry on helping the caller.');
+          end if;
+        else
+          update public.customers set
+                 first_name = case when nullif(first_name, '') is null then coalesce(v_first, first_name) else first_name end,
+                 last_name = case when nullif(last_name, '') is null then coalesce(v_last, last_name) else last_name end,
+                 email = coalesce(v_email, email),
+                 preferred_contact_method = coalesce(v_pref, preferred_contact_method), updated_at = now()
+           where id = v_cust and business_id = v_biz;
+          v_res := jsonb_build_object('ok', true, 'status', 'saved', 'say', 'Saved. Carry on helping the caller.');
+        end if;
+
+      else
+        v_q := left(regexp_replace(trim(coalesce(v_args ->> 'reason', '')), '\s+', ' ', 'g'), 400);
+        if length(v_q) < 3 then
+          v_res := jsonb_build_object('ok', false, 'status', 'need_info', 'say', 'Ask the caller what the follow-up is for.');
+        else
+          v_due := now() + interval '4 hours';
+          v_task := public.zella_create_task(v_biz, v_cust, 'follow_up', 'Phone assistant: follow up with caller', v_q || coalesce(E'\nCaller said: ' || nullif(left(v_args ->> 'when', 100), ''), '') || coalesce(E'\nNumber: ' || v_caller, ''),
+                                               'normal', v_due, null, 'ai', null);
+          v_res := jsonb_build_object('ok', true, 'status', 'requested', 'task_id', v_task, 'say', 'Tell the caller the team will follow up with them.');
+        end if;
+      end if;
+
+    elsif p_tool in ('check_availability', 'book_appointment') then
+      v_sub := case when p_tool = 'book_appointment' then 'book' else 'availability' end;
+      v_res := public.zella_ai_booking(p_provider_call_id, v_biz, v_sub, v_args);
+      if p_tool = 'book_appointment' and v_res ->> 'status' = 'booked' then
+        v_appt := nullif(v_res ->> 'appointment_id', '')::uuid;
+        select exists (select 1 from public.appointments a where a.id = v_appt and a.business_id = v_biz and a.status in ('scheduled', 'confirmed') and coalesce(a.booking_state, 'confirmed') = 'confirmed') into v_verified; -- zella_ai_tool_confirmed_only
+        if not coalesce(v_verified, false) and exists (select 1 from public.appointments a where a.id = v_appt and a.business_id = v_biz and a.booking_state = 'requested' and a.status in ('scheduled', 'confirmed')) then
+          v_verified := true;
+          v_res := jsonb_build_object('ok', true, 'status', 'requested', 'appointment_id', v_appt, 'say', 'The time is saved as a request for the team to confirm. Do not say it is booked. Tell the caller the team will confirm it with them.');
+        elsif not coalesce(v_verified, false) then
+          v_res := jsonb_build_object('ok', false, 'status', 'unverified', 'say', 'The booking could not be confirmed. Do not say it is booked. Tell the caller the team will call to confirm.');
+          perform public.zella_create_task(v_biz, null, 'follow_up', 'Booking could not be verified', 'A booking made by the phone assistant was not found afterwards. Caller: ' || coalesce(v_caller, 'unknown'), 'high', now() + interval '1 hour', null, 'ai', v_appt);
+        end if;
+      end if;
+
+    elsif p_tool in ('find_my_appointments', 'reschedule_appointment', 'cancel_appointment') then
+      v_sub := case p_tool when 'find_my_appointments' then 'find' when 'reschedule_appointment' then 'reschedule' else 'cancel' end;
+      v_res := public.zella_ai_manage_booking(p_provider_call_id, v_biz, v_sub, v_args || jsonb_build_object('caller_number', v_caller));
+      begin v_appt := nullif(v_args ->> 'appointment_id', '')::uuid; exception when others then v_appt := null; end;
+      if v_res ->> 'status' = 'cancelled' then
+        select exists (select 1 from public.appointments a where a.id = v_appt and a.business_id = v_biz and a.status = 'cancelled') into v_verified;
+      elsif v_res ->> 'status' = 'rescheduled' then
+        select exists (select 1 from public.appointments a where a.id = v_appt and a.business_id = v_biz and a.status in ('scheduled', 'confirmed')
+                          and abs(extract(epoch from (a.start_time - nullif(v_args ->> 'start', '')::timestamptz))) < 60) into v_verified;
+      end if;
+      if v_verified is not null and not v_verified then
+        v_res := jsonb_build_object('ok', false, 'status', 'unverified', 'say', 'The change could not be confirmed. Do not say it is done. Tell the caller the team will call to confirm.');
+        perform public.zella_create_task(v_biz, null, 'follow_up', 'Appointment change could not be verified', 'A change made by the phone assistant was not found afterwards. Caller: ' || coalesce(v_caller, 'unknown'), 'high', now() + interval '1 hour', null, 'ai', v_appt);
+      end if;
+    end if;
+
+    v_status := coalesce(v_res ->> 'status', 'done');
+    v_ok := coalesce((v_res ->> 'ok')::boolean, false);
+    update public.ai_tool_calls set status = case when v_ok then 'done' else 'failed' end,
+           result_status = v_status, verified = v_verified, result = case when v_cons then v_res end, finished_at = now() where id = v_log;
+    return v_res;
+  exception when others then
+    get stacked diagnostics v_err = message_text;
+    update public.ai_tool_calls set status = 'failed', result_status = 'error', error = left(v_err, 300), finished_at = now() where id = v_log;
+    return jsonb_build_object('ok', false, 'status', 'error', 'say', 'This could not be completed right now. Tell the caller the team will call them back. Do not say it was done.');
+  end;
+end $function$;
+revoke all on function public.zella_ai_tool(text,uuid,text,jsonb,text) from public, anon, authenticated, service_role;
+grant execute on function public.zella_ai_tool(text,uuid,text,jsonb,text) to service_role;
 CREATE OR REPLACE FUNCTION public.zella_apply_crm_preset(p_business_id uuid)
  RETURNS integer
  LANGUAGE plpgsql
@@ -975,6 +1149,40 @@ end $function$;
 revoke all on function public.zella_join_waitlist(uuid,uuid,text,integer,timestamp with time zone,timestamp with time zone,uuid,text) from public, anon, authenticated, service_role;
 grant execute on function public.zella_join_waitlist(uuid,uuid,text,integer,timestamp with time zone,timestamp with time zone,uuid,text) to authenticated;
 grant execute on function public.zella_join_waitlist(uuid,uuid,text,integer,timestamp with time zone,timestamp with time zone,uuid,text) to service_role;
+CREATE OR REPLACE FUNCTION public.zella_queue_customer_message(p_business_id uuid, p_customer_id uuid, p_kind text, p_vars jsonb DEFAULT '{}'::jsonb, p_delay interval DEFAULT '00:00:00'::interval, p_appointment_id uuid DEFAULT NULL::uuid, p_dedupe interval DEFAULT '30 days'::interval)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  c record; v_channel text; v_id uuid;
+begin
+  if p_kind not in ('welcome_new_customer','feedback_request','cancellation_confirmation','record_status_update','service_due','no_response_follow_up','reschedule_confirmation','booking_follow_up','service_completed','lead_follow_up','lead_final_follow_up') then
+    raise exception 'BAD_KIND';
+  end if;
+  if coalesce(public.zella_setting('customer_touches', '{}'::jsonb) -> p_kind, 'true'::jsonb) = 'false'::jsonb then return null; end if;
+  select x.id, x.phone, x.email, coalesce(x.do_not_contact,false) dnc, coalesce(x.do_not_sms,false) dns, coalesce(x.do_not_email,false) dne, x.preferred_channel pref
+    into c from public.customers x where x.id = p_customer_id and x.business_id = p_business_id;
+  if c.id is null or c.dnc then return null; end if;
+  if c.pref = 'email' and public.zella_valid_email(c.email) and not c.dne then v_channel := 'email';
+  elsif public.zella_digits(c.phone) is not null and not c.dns then v_channel := 'sms';
+  elsif public.zella_valid_email(c.email) and not c.dne then v_channel := 'email';
+  else return null; end if;
+  if p_kind <> 'record_status_update' and exists (
+       select 1 from public.followup_tasks f where f.customer_id = p_customer_id and f.kind = p_kind
+          and (f.status in ('pending','in_progress') or f.created_at > now() - p_dedupe)
+          and (p_appointment_id is null or f.appointment_id is not distinct from p_appointment_id)) then
+    return null;
+  end if;
+  insert into public.followup_tasks (business_id, customer_id, appointment_id, kind, channel, due_at, max_attempts, vars)
+  values (p_business_id, p_customer_id, p_appointment_id, p_kind, v_channel, now() + p_delay, 2, coalesce(p_vars, '{}'::jsonb))
+  on conflict do nothing
+  returning id into v_id;
+  return v_id;
+end $function$;
+revoke all on function public.zella_queue_customer_message(uuid,uuid,text,jsonb,interval,uuid,interval) from public, anon, authenticated, service_role;
+grant execute on function public.zella_queue_customer_message(uuid,uuid,text,jsonb,interval,uuid,interval) to service_role;
 CREATE OR REPLACE FUNCTION public.zella_record_callback_attempt(p_callback_id uuid, p_outcome text, p_provider_ref text DEFAULT NULL::text, p_error text DEFAULT NULL::text, p_notes text DEFAULT NULL::text)
  RETURNS text
  LANGUAGE plpgsql
@@ -1073,6 +1281,82 @@ end $function$;
 revoke all on function public.zella_record_consent(uuid,text,text,text,uuid,text,text,text,text,jsonb) from public, anon, authenticated, service_role;
 grant execute on function public.zella_record_consent(uuid,text,text,text,uuid,text,text,text,text,jsonb) to authenticated;
 grant execute on function public.zella_record_consent(uuid,text,text,text,uuid,text,text,text,text,jsonb) to service_role;
+CREATE OR REPLACE FUNCTION public.zella_record_inbound_call(p_provider_call_id text, p_called_number text, p_vapi_phone_number_id text, p_from_number text, p_started_at timestamp with time zone, p_ended_at timestamp with time zone, p_seconds integer, p_reason text, p_summary text, p_recording_url text, p_transcript text, p_wants_callback boolean DEFAULT false)
+ RETURNS text
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  c public.calls; v_biz uuid; v_cust uuid; v_out text; v_note text; v_secs integer := greatest(coalesce(p_seconds, 0), 0);
+  v_phone text := nullif(left(coalesce(p_from_number, ''), 30), '');
+  v_booked boolean := false; v_msg boolean := false; v_cb boolean := false; v_lead jsonb;
+begin
+  if nullif(p_provider_call_id, '') is null then return 'ignored'; end if;
+  select * into c from public.calls where external_call_id = p_provider_call_id for update;
+  if found and c.outcome_at is not null and c.ended_at is not null then return 'ignored'; end if;
+  v_biz := c.business_id;
+  if v_biz is null then v_biz := public.zella_business_for_number(p_called_number, p_vapi_phone_number_id, null); end if;
+  if v_biz is null then return 'unknown_business'; end if;
+  if not found then
+    insert into public.calls (business_id, direction, status, from_number, to_number, external_call_id, started_at, ai_handled)
+    values (v_biz, 'inbound', 'answered', v_phone, left(p_called_number, 30), p_provider_call_id, coalesce(p_started_at, now() - make_interval(secs => v_secs)), true)
+    on conflict (external_call_id) where external_call_id is not null do nothing -- zella_one_call_row
+    returning * into c;
+    if c.id is null then select * into c from public.calls where external_call_id = p_provider_call_id for update; end if;
+  end if;
+  v_phone := coalesce(v_phone, c.from_number);
+
+  v_cust := c.customer_id;
+  if v_cust is null and public.zella_digits(v_phone) is not null then
+    begin select m.customer_id into v_cust from public.zella_match_customer(v_biz, v_phone, null) m where m.certainty = 'exact' limit 1;
+    exception when others then v_cust := null; end;
+  end if;
+
+  v_msg := exists (select 1 from public.call_messages where call_id = c.id);
+  v_cb := exists (select 1 from public.callbacks where call_id = c.id);
+  v_booked := v_cust is not null and exists (select 1 from public.appointments a where a.customer_id = v_cust and a.business_id = v_biz
+                 and a.created_at between coalesce(c.started_at, now() - interval '3 hours') - interval '1 minute' and coalesce(p_ended_at, now()) + interval '3 minutes' and a.status <> 'cancelled');
+
+  if coalesce(p_wants_callback, false) and not v_cb and public.zella_digits(v_phone) is not null then
+    perform public.zella_create_callback(v_biz, v_phone, 'requested', 'normal', left(coalesce(nullif(trim(p_summary), ''), 'Caller asked for a call back.'), 500), null, v_cust, c.id, null, 'phone_assistant', null);
+    v_cb := true;
+  end if;
+
+  if c.outcome is null then
+    v_out := case
+      when v_booked then 'booked'
+      when v_msg then 'left_message'
+      when v_cb or c.needs_human then 'callback_needed'
+      when v_secs < 6 then 'other'
+      when nullif(trim(p_summary), '') is not null then 'resolved'
+      else 'other' end;
+    v_note := case v_out when 'booked' then 'Booked during the call.' when 'left_message' then 'The caller left a message.' when 'callback_needed' then 'Needs a call back.'
+                         when 'resolved' then 'Handled on the call.' else case when v_secs < 6 then 'Caller hung up quickly.' else 'No summary was returned.' end end;
+  end if;
+
+  if v_cust is null and v_out in ('booked', 'left_message', 'callback_needed') and public.zella_digits(v_phone) is not null then
+    v_lead := public.zella_capture_lead(v_biz, null, null, v_phone, null, 'phone_call', left(p_summary, 500), null);
+    v_cust := nullif(v_lead ->> 'customer_id', '')::uuid;
+  end if;
+
+  update public.calls set
+      status = case when v_secs = 0 and p_reason ~* 'did-not-answer|no-answer|busy' then 'missed' else 'completed' end,
+      customer_id = coalesce(customer_id, v_cust), to_number = coalesce(to_number, left(p_called_number, 30)), from_number = coalesce(from_number, v_phone),
+      ended_at = coalesce(p_ended_at, ended_at, now()), duration_seconds = case when p_seconds is null then duration_seconds else v_secs end, -- zella_real_times
+      transfer_status = case when p_reason = 'assistant-forwarded-call' then 'connected' when transfer_status = 'attempted' then 'failed' else transfer_status end,
+      summary = coalesce(nullif(left(trim(p_summary), 1500), ''), summary),
+      transcript = coalesce(nullif(left(p_transcript, 60000), ''), transcript),
+      recording_url = coalesce(nullif(left(p_recording_url, 1000), ''), recording_url),
+      metadata = coalesce(metadata, '{}'::jsonb) || jsonb_build_object('ended_reason', left(p_reason, 80), 'ended_at_source', case when p_ended_at is not null then 'provider' when ended_at is not null then 'status_update' else 'received_time' end, 'awaiting_report', false),
+      outcome = coalesce(outcome, v_out), outcome_note = coalesce(outcome_note, v_note), outcome_at = coalesce(outcome_at, case when v_out is not null then now() end),
+      updated_at = now()
+   where id = c.id;
+  if v_cust is not null then update public.customers set last_contacted_at = greatest(coalesce(last_contacted_at, '-infinity'), coalesce(p_ended_at, now())) where id = v_cust; end if;
+  return 'recorded';
+end $function$;
+revoke all on function public.zella_record_inbound_call(text,text,text,text,timestamp with time zone,timestamp with time zone,integer,text,text,text,text,boolean) from public, anon, authenticated, service_role;
+grant execute on function public.zella_record_inbound_call(text,text,text,text,timestamp with time zone,timestamp with time zone,integer,text,text,text,text,boolean) to service_role;
 CREATE OR REPLACE FUNCTION public.zella_remove_waitlist_entry(p_id uuid)
  RETURNS boolean
  LANGUAGE plpgsql
@@ -1638,6 +1922,7 @@ drop function if exists public.zella_set_capability(uuid,text,boolean) cascade;
 drop function if exists public.zella_set_charge_status(uuid,text,text) cascade;
 drop function if exists public.zella_staff_add_lead(uuid,text,text,text,text,text,text) cascade;
 drop function if exists public.zella_today_operations(uuid) cascade;
+drop function if exists public.zella_welcome_superseded_trg() cascade;
 drop index if exists public.appointments_record;
 drop index if exists public.crm_records_data_gin;
 alter table public.appointments drop column if exists record_id;

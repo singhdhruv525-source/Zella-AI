@@ -7,7 +7,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"; REPO="$(cd "$HERE/../.." && pwd)"
 export ZPG_HOST=${ZPG_HOST:-/var/lib/postgresql/zella-sec} ZPG_PORT=${ZPG_PORT:-55433}
 PSQL="psql -h $ZPG_HOST -p $ZPG_PORT -U postgres -X -q -v ON_ERROR_STOP=1"
 FAILS=0; fail() { echo "FAIL $*"; FAILS=$((FAILS + 1)); }
-MIGRATIONS=(${MIGRATIONS:-zella_invitation_hardening zella_billing_hardening zella_mfa_enforcement zella_platform_roles_fix zella_platform_alerts_policy_fix zella_viewer_read_only zella_staff_add_lead zella_call_content_privacy zella_capabilities zella_record_links_secrets zella_money zella_presets_v2 zella_automation_presets_v2 zella_receptionist_industry_rules zella_readiness zella_appointment_records zella_record_files})
+MIGRATIONS=(${MIGRATIONS:-zella_invitation_hardening zella_billing_hardening zella_mfa_enforcement zella_platform_roles_fix zella_platform_alerts_policy_fix zella_viewer_read_only zella_staff_add_lead zella_call_content_privacy zella_capabilities zella_record_links_secrets zella_money zella_presets_v2 zella_automation_presets_v2 zella_receptionist_industry_rules zella_readiness zella_appointment_records zella_record_files zella_ai_caller_fixes zella_message_courtesy})
 
 for t in "$HERE"/*_test.sql; do
   name=$(basename "$t" _test.sql); db="zsec_$name"

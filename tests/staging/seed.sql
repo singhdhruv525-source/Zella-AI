@@ -81,6 +81,8 @@ begin
       insert into public.crm_records (business_id, type_key, title, status, data, archived_at) values (b, t.key, t.singular || ' archived', t.statuses -> 0 ->> 'key', '{}', now());
     end loop;
   end loop;
+  -- every signed-up user has a profile (Supabase creates it on sign-up; the stand-in auth doesn't)
+  insert into public.profiles (id, first_name) select u.id, split_part(u.email, '@', 1) from auth.users u where u.email like '%@staging.test' on conflict (id) do nothing;
   -- as in production (5 Nov): every business has all of its industry's modules switched on
   insert into public.business_modules (business_id, module_id, enabled)
   select x.id, im.id, true from public.businesses x join public.industry_modules im on im.industry_id = x.industry_id
