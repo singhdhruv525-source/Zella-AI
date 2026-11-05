@@ -4,7 +4,7 @@ This is the single deployment review for everything still pending from both sess
 in `docs/DEPLOYMENT_REVIEW_2026-11-05.md`: those 17 migrations and today's 3 fixes are applied
 (`docs/PRODUCTION_APPLY_2026-11-05.md`).
 
-**Nothing here is applied or deployed. Sending is not enabled.**
+**Database #1–#7 were applied on 5 Nov evening (docs/PRODUCTION_APPLY_2026-11-05.md, second apply); production matches staging for all 764 functions. Edge functions and web are not deployed. Sending is not enabled.**
 
 ## Production today (read only, 5 Nov)
 

@@ -58,3 +58,42 @@ Statements here about production are one of:
 None comes from a provider test: no real Vapi call, Shopify store, SMS, email or Google request was made. "Changes no
 existing row" or "no customer affected" means within that configuration and history, not a proof about earlier
 states that left no record. Per-issue labels and statuses: `docs/DEFECT_INVENTORY_2026-11-05.md`.
+
+## Second apply, 5 Nov evening (approved: "you apply the 7 database files", "apply remaining six")
+
+Database only. Still no edge function deployed, no web build published, no sending enabled.
+
+| # | Migration | md5 (guarded) |
+| --- | --- | --- |
+| 21 | zella_platform_roles_fix | 1269fe0daafc36ffe4f2014023902fbf |
+| 22 | zella_booking_buffers | 53f55d010a3b43a80c8339902a5499c5 (the first attempt timed out at the approval prompt; nothing was applied, checked; sent again) |
+| 23 | zella_channel_review | 1b4b30d2dce3c4d5eee7b4141b9351ed |
+| 24 | zella_escalation_rules | bcbee4474fb1e7ce1da46b3792d8014b |
+| 25 | zella_knowledge_live | 659c9ebec09e30cabc95185e7903bd9a |
+| 26 | zella_order_lookup_v2 | 4bb97245c12f3ca337b144571038e240 |
+| 27 | zella_config_migration | b11f5a76296e4e068737636f95102d1a |
+
+Before: production matched staging (745 functions; comments and spacing ignored). After: all 764 public functions are
+identical to a fresh isolated copy built from the same files (`tests/lib/build_full.sh` + the 7). 27 migrations are
+recorded today.
+
+Checks after (read only):
+- 0 channel reviews opened (no automation used an AI-call channel), and 0 review notices.
+- The overlap guard, knowledge check and channel-review triggers are present.
+- 2 pending reminders are unchanged (texts; sending is off).
+- 0 config-migration snapshots: the per-business migration has not been run.
+
+Security advisor, new items: `config_migration_snapshots` has row security but no policy (server-only by design), and
+`zella_appointment_holds_time` has a mutable search_path (immutable; reads no table). The two hygiene items from the
+first apply are gone.
+
+Behaviour that changed from the next call (the server reads it live):
+- the booking gap and overlap guard;
+- handover reasons for the two businesses that saved them;
+- knowledge going live on save;
+- order lookup limits (no store is connected).
+
+Assistant wording reaches Vapi only by a manual update (K3).
+
+Still needs approval: deploying voice-rules and owner-provision-business, publishing the web build (after #25; done),
+and the per-business config migration (preview first).

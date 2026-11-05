@@ -2,7 +2,7 @@
 
 One ID per issue, with an explicit status. Status values:
 - **applied**: in production since 5 Nov;
-- **pending**: fixed and tested in the repository, not applied or deployed;
+- **pending**: fixed and tested in the repository, not applied or deployed. Update, 5 Nov evening: every database file marked pending below is now applied (docs/PRODUCTION_APPLY_2026-11-05.md); the edge-function and web parts are still pending;
 - **partly applied**: the database part is live and the edge-function or web part is not deployed;
 - **decision**: needs the owner's choice;
 - **open**: not fixed.
