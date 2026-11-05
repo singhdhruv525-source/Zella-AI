@@ -46,3 +46,15 @@ prompt (nothing applied, checked) and was sent again.
 `sql/rollback/zella_order_lookup_assurance_rollback.sql`, `zella_message_settings_fix_rollback.sql`,
 `zella_setup_enforcement_rollback.sql` (each reverses only its own file), then `sql/rollback/industry_2026_11_04_rollback.sql`
 for the 17 (needs the backups above).
+
+## Evidence note (added 5 Nov, evening)
+
+Statements here about production are one of:
+- **current configuration** read on 5 Nov;
+- **retained history**: the audit log since 22 Oct and reminders since 23 Oct, which show every reminder ever queued
+  was a text and no automation change mentioned an AI-call channel;
+- **local tests** on isolated copies.
+
+None comes from a provider test: no real Vapi call, Shopify store, SMS, email or Google request was made. "Changes no
+existing row" or "no customer affected" means within that configuration and history, not a proof about earlier
+states that left no record. Per-issue labels and statuses: `docs/DEFECT_INVENTORY_2026-11-05.md`.

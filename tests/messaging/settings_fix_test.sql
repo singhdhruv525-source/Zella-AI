@@ -18,8 +18,19 @@ do $$ declare v_appt uuid; r record; begin
   values ('e7000000-0000-0000-0000-000000000001', 'e5000000-0000-0000-0000-000000000001', 'e6000000-0000-0000-0000-000000000001', 'Cut', now() + interval '3 days', now() + interval '3 days 1 hour', 'scheduled');
   perform public.zella_replace_reminders('e7000000-0000-0000-0000-000000000001', true, 'booked');
   assert not exists (select 1 from appointment_reminders where appointment_id = 'e7000000-0000-0000-0000-000000000001' and channel not in ('sms', 'email')), 'a call reminder was queued';
-  assert (select count(*) from appointment_reminders where appointment_id = 'e7000000-0000-0000-0000-000000000001' and kind = 'reminder' and status = 'pending') = 1, 'reminder not queued';
-  raise notice 'PASS M3 reminders and confirmations saved as "by AI call" are queued as texts, so they are sent';
+  if to_regclass('public.automation_channel_reviews') is null then
+    -- sql/zella_message_settings_fix.sql alone (production on 5 Nov): queued as a text
+    assert (select count(*) from appointment_reminders where appointment_id = 'e7000000-0000-0000-0000-000000000001' and kind = 'reminder' and status = 'pending') = 1, 'reminder not queued';
+    raise notice 'PASS M3 reminders and confirmations saved as "by AI call" are queued as texts, so they are sent';
+  else
+    -- with sql/zella_channel_review.sql, which supersedes that: nothing is sent until the owner chooses
+    assert not exists (select 1 from appointment_reminders where appointment_id = 'e7000000-0000-0000-0000-000000000001' and status = 'pending'), 'an AI-call reminder was queued while held';
+    raise notice 'PASS M3 (superseded by the channel review) reminders saved as "by AI call" are held for the owner, never texted silently';
+    -- the M4 checks below need the reminder automation on a channel that can be sent: the owner chooses text
+    update automations set trigger_config = trigger_config || '{"channel":"sms"}' where business_id = 'e5000000-0000-0000-0000-000000000001' and trigger_type in ('appointment_reminder', 'appointment_confirmation');
+    update automation_channel_reviews set status = 'resolved', choice = 'sms', consent_confirmed = true where business_id = 'e5000000-0000-0000-0000-000000000001';
+    perform public.zella_replace_reminders('e7000000-0000-0000-0000-000000000001', true, 'booked');
+  end if;
 end $$;
 
 -- M4: changing the reminder automation re-plans waiting reminders; off withdraws them; the sender skips if off
@@ -34,7 +45,7 @@ do $$ declare v_due timestamptz; r jsonb; begin
   insert into appointment_reminders (business_id, appointment_id, customer_id, kind, hours_before, reason, due_at, channel)
   values ('e5000000-0000-0000-0000-000000000001', 'e7000000-0000-0000-0000-000000000001', 'e6000000-0000-0000-0000-000000000001', 'reminder', 1, 'test', now() - interval '1 minute', 'sms');
   r := public.zella_claim_reminders(25, 'sms');
-  assert (select error from appointment_reminders where reason = 'test') = 'automation_off', 'sender sent a reminder of a paused automation: ' || r;
+  assert (select error from appointment_reminders where reason = 'test' and business_id = 'e5000000-0000-0000-0000-000000000001') = 'automation_off', 'sender sent a reminder of a paused automation: ' || r;
   update automations set status = 'paused' where business_id = 'e5000000-0000-0000-0000-000000000001' and trigger_type = 'appointment_confirmation';
   assert not exists (select 1 from appointment_reminders where appointment_id = 'e7000000-0000-0000-0000-000000000001' and kind = 'confirmation' and status = 'pending'), 'confirmations off: still waiting';
   raise notice 'PASS M4 a reminder timing change re-plans waiting reminders (confirmation kept); switching off withdraws them; the sender skips reminders whose automation is off';

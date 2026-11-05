@@ -16,7 +16,8 @@
 --   * a business with active staff: bookings of the same staff member; an unassigned booking claims no one;
 --   * a business without staff: every booking holds the business's single calendar;
 --   * holding a time: scheduled or confirmed bookings that are not "requested" and not an expired hold.
--- Changing only the status, notes or customer of an existing booking is never refused (old overlaps stay as they are).
+-- Changing only the status, notes or customer of an existing booking is never refused (old overlaps stay as they are),
+-- and a booking that has already ended (history, imports) is never refused.
 
 create or replace function public.zella_booking_buffer(p_business_id uuid) returns integer
 language sql stable security definer set search_path = '' as $$
@@ -55,6 +56,7 @@ language plpgsql security definer set search_path = public as $$
 declare v_buf interval; v_has_staff boolean; v_override boolean; v_clash uuid;
 begin
   if not public.zella_appointment_holds_time(new.status, new.booking_state, new.hold_expires_at) then return new; end if;
+  if new.end_time <= now() then return new; end if;   -- recording a visit that is already over (history, imports) never clashes
   if tg_op = 'UPDATE' and new.start_time = old.start_time and new.end_time = old.end_time and new.staff_id is not distinct from old.staff_id
      and public.zella_appointment_holds_time(old.status, old.booking_state, old.hold_expires_at) then
     return new;   -- nothing about its time changed

@@ -80,3 +80,15 @@ and the restore is exact.
 5. Undo with `select public.zella_config_migration_restore('<snapshot_id>')`.
 
 This replaces the "one-time catch-up" comment in `sql/zella_setup_enforcement.sql`.
+
+## Evidence note (added 5 Nov, evening)
+
+Statements here about production are one of:
+- **current configuration** read on 5 Nov;
+- **retained history**: the audit log since 22 Oct and reminders since 23 Oct, which show every reminder ever queued
+  was a text and no automation change mentioned an AI-call channel;
+- **local tests** on isolated copies.
+
+None comes from a provider test: no real Vapi call, Shopify store, SMS, email or Google request was made. "Changes no
+existing row" or "no customer affected" means within that configuration and history, not a proof about earlier
+states that left no record. Per-issue labels and statuses: `docs/DEFECT_INVENTORY_2026-11-05.md`.

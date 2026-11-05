@@ -156,6 +156,28 @@ end $$;
 revoke execute on function public.zella_channel_reviews(uuid), public.zella_resolve_channel_review(uuid, text, boolean) from public, anon;
 grant execute on function public.zella_channel_reviews(uuid), public.zella_resolve_channel_review(uuid, text, boolean) to authenticated, service_role;
 
+-- any later write with an unsupported channel (a path that skips the check above) also opens a review, so nothing is
+-- ever held without the owner being told
+create or replace function public.zella_channel_review_trg() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if new.trigger_type in ('appointment_reminder', 'appointment_confirmation', 'waitlist_offer')
+     and not public.zella_channel_supported(new.trigger_type, new.trigger_config ->> 'channel')
+     and not exists (select 1 from public.automation_channel_reviews r where r.automation_id = new.id and r.status = 'needs_review') then
+    insert into public.automation_channel_reviews (automation_id, business_id, trigger_type, requested_channel)
+    values (new.id, new.business_id, new.trigger_type, new.trigger_config ->> 'channel')
+    on conflict (automation_id) do update set status = 'needs_review', requested_channel = excluded.requested_channel, choice = null,
+      consent_confirmed = null, resolved_by = null, resolved_at = null, created_at = now();
+    perform public.zella_notify(new.business_id, 'automation_review', 'Choose how "' || new.name || '" is sent',
+      'It is set to a channel that isn''t available yet, so nothing is sent for it. Choose text, email or off in Settings > Automations.', 'warning', 'automations', new.id, null);
+  end if;
+  return null;
+end $$;
+revoke execute on function public.zella_channel_review_trg() from public, anon, authenticated;
+drop trigger if exists zella_channel_review_trg on public.automations;
+create trigger zella_channel_review_trg after insert or update of trigger_config on public.automations
+  for each row execute function public.zella_channel_review_trg();
+
 -- existing automations saved with an unsupported channel (including the ones M3 switched to text)
 do $$
 declare x record; v_req text; n integer := 0;

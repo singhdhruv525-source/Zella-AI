@@ -104,3 +104,11 @@ do $$ declare d timestamptz := (select d from t_day); begin
   update ai_agent_configs set appointment_rules = '{"buffer_minutes": 15}' where agent_id = 'eb100000-0000-0000-0000-00000000000a';
   raise notice 'PASS with no buffer, back-to-back bookings are allowed (and existing ones are untouched when the buffer changes)';
 end $$;
+
+-- history: two visits that are already over may overlap (recorded afterwards, or imported)
+do $$ begin
+  insert into appointments (business_id, title, start_time, end_time, timezone, status) values
+    ('eb000000-0000-0000-0000-00000000000a', 'Past 1', now() - interval '3 hours', now() - interval '2 hours', 'UTC', 'scheduled'),
+    ('eb000000-0000-0000-0000-00000000000a', 'Past 2', now() - interval '3 hours', now() - interval '2 hours', 'UTC', 'scheduled');
+  raise notice 'PASS visits that are already over are never refused (history and imports)';
+end $$;

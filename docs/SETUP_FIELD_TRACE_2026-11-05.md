@@ -27,16 +27,16 @@ How this was checked:
 | About the business, service area, industry details | `knowledge_base.about / service_area / business_details`, `setup_data.operations` | **nothing on calls**. The prompt says facts come only from `search_knowledge`, which searches `knowledge_items` only | no | **D2** |
 | Booking: default length | `appointment_rules.default_minutes` | **nothing**. `zella_ai_booking` uses 30 minutes when no length is given | no | **D3** |
 | Booking: minimum notice, how far ahead | `appointment_rules.min_notice_hours / max_days_ahead` | **nothing**. Times are offered from now, and booking allows up to a year ahead | no | **D3** |
-| Booking: buffer between appointments | `appointment_rules.buffer_minutes` | **nothing** | no | **D3b** (documented, not fixed here) |
+| Booking: buffer between appointments | `appointment_rules.buffer_minutes` | **nothing** | no | **D3b** (now fixed as B1 in zella_booking_buffers.sql, pending) |
 | **Team** members | `staff_members` | `zella_available_slots` (who can be booked), CRM | yes | OK |
 | **AI receptionist**: name, personality, instructions (saved as `tone`) | `ai_agents.name`, `ai_agent_configs.personality / tone` | prompt | n/a | OK |
 | Greeting, language ("English and Spanish") | `ai_agent_configs.voice_config.greeting / language` | **nothing**. The live assistant reads `business_languages` (Settings > Languages). Production: the salon in testing chose English + Spanish and a greeting in setup and has no `business_languages` row, so it answers in English with the default greeting | no | **D6** |
 | FAQs, policies (cancellation, refund, payment, emergency, appointment, other) | `knowledge_base.faqs / policies` | **nothing on calls** (same as D2). The CRM Knowledge page says "No approved answers yet" for a business whose FAQs were entered in setup | no | **D2** |
 | Abilities: book, reschedule, cancel appointments | `capabilities` + `appointment_rules.can_book / can_reschedule / can_cancel` | **nothing**. No function reads `can_*`; the booking tools are offered and work. Production: one business (`4478f7be…`, in setup) has "book" switched off and would still book | no | **D1** |
 | Abilities: answer questions, answer calls, texts, emails, collect details, follow up leads, take messages | `capabilities` | the versioned agent config (draft, check, publish) | no (the tools don't read them) | documented; the channel abilities depend on texting and email being live |
-| Escalation triggers (asks for a person, upset, unknown answer, emergency…) | `escalation_rules.triggers` | only "emergency" (`zella_ai_voice`); the prompt always transfers on request, upset or "can't help" | partly | **D5** (documented: the prompt's fixed rule is the safer default) |
+| Escalation triggers (asks for a person, upset, unknown answer, emergency…) | `escalation_rules.triggers` | only "emergency" (`zella_ai_voice`); the prompt always transfers on request, upset or "can't help" | partly | **D5** (now fixed in zella_escalation_rules.sql, pending) |
 | Transfer to (owner, manager, team member, phone number) + phone | `escalation_rules.transfer_to` | `zella_transfer_destination` uses `transfer_to.phone` only | yes, when a phone is typed | **D4** when no phone is typed |
-| Restrictions ("don't discuss…"), booking notes | `knowledge_base.restrictions`, `appointment_rules.notes` | **nothing** | no | **D7** (documented: needs a decision on wording the AI is held to) |
+| Restrictions ("don't discuss…"), booking notes | `knowledge_base.restrictions`, `appointment_rules.notes` | **nothing** | no | **D7** (now fixed in zella_escalation_rules.sql, pending; delivery to Vapi is K3) |
 | **Phone & integrations**: number choice, area code, forwarding | `setup_data.integrations.phone` | Zella team (admin Voice & numbers); not automatic | n/a | OK (admin task by design) |
 | Call transfer number | `setup_data.integrations.transfer_number` | **nothing**. Transfers read `escalation_rules.transfer_number` | no | **D4** |
 | Calendar, email provider, lead sources | `setup_data.integrations` | admin view; calendar now has its own connection (pending migration 16) | n/a | OK (intent only) |
@@ -65,6 +65,18 @@ How this was checked:
   validation as Settings > Languages applies.
 
 Not fixed (documented, need a decision):
-- **D3b:** the buffer.
-- **D5:** escalation triggers.
-- **D7:** restrictions and booking notes.
+- **D3b:** the buffer (since fixed as B1, pending; see docs/DEFECT_INVENTORY_2026-11-05.md).
+- **D5:** escalation triggers (since fixed, pending).
+- **D7:** restrictions and booking notes (since fixed, pending; delivery to Vapi is K3).
+
+## Evidence note (added 5 Nov, evening)
+
+Statements here about production are one of:
+- **current configuration** read on 5 Nov;
+- **retained history**: the audit log since 22 Oct and reminders since 23 Oct, which show every reminder ever queued
+  was a text and no automation change mentioned an AI-call channel;
+- **local tests** on isolated copies.
+
+None comes from a provider test: no real Vapi call, Shopify store, SMS, email or Google request was made. "Changes no
+existing row" or "no customer affected" means within that configuration and history, not a proof about earlier
+states that left no record. Per-issue labels and statuses: `docs/DEFECT_INVENTORY_2026-11-05.md`.
