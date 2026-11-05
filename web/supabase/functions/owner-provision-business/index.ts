@@ -1,5 +1,6 @@
 import { latestOwnerInvitation, moveOwnerInvitation } from "./ownerInvitation.ts";
 import { FinishError, finishSetupWith } from "./owner_invite.ts";
+import { transferPatch } from "./setup_sync.ts";
 import { withCors } from "../_shared/cors.ts";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { PERMISSIONS, RESTRICTED_ROLES, settingsHandlers } from "./settings.ts";
@@ -602,6 +603,7 @@ async function saveOwner(admin: SupabaseClient, fields: Json, adminUserId: strin
 
   await mergeSetupData(admin, businessId, "owner", { phone: ownerPhone });
   await advance(admin, businessId, "owner_setup");
+  await syncSetupToLive(admin, businessId);   // its transfer number may be the one calls use (D4)
   return { businessId };
 }
 
@@ -763,7 +765,9 @@ async function saveReceptionist(admin: SupabaseClient, fields: Json) {
       policies,
       restrictions,
     },
+    // other keys (transfer_number, fallback, transfer_enabled, emergency keywords) belong to admin call routing: kept
     escalation_rules: {
+      ...obj(config?.escalation_rules),
       triggers,
       transfer_to: {
         type: oneOf(transferInput.type, TRANSFER_TYPES, "owner"),
@@ -798,7 +802,48 @@ async function saveReceptionist(admin: SupabaseClient, fields: Json) {
   if (configError) throw configError;
 
   await advance(admin, businessId, "ai_setup");
-  return { businessId, services: services.length, faqs: faqs.length };
+  const live = await syncSetupToLive(admin, businessId);
+  return { businessId, services: services.length, faqs: faqs.length, ...live };
+}
+
+// Setup answers that the live receptionist reads from somewhere else (docs/SETUP_FIELD_TRACE_2026-11-05.md):
+// the transfer number (D4) and the language and greeting (D6). Never fails a save: a problem is returned as a warning.
+async function syncSetupToLive(admin: SupabaseClient, businessId: string) {
+  const warnings: string[] = [];
+  try {
+    const business = await getBusiness(admin, businessId);
+    const { config } = await getReceptionist(admin, businessId);
+    if (config) {
+      const rules = obj(config.escalation_rules);
+      const setupData = obj(business.setup_data);
+      const patch = transferPatch({
+        transferType: typeof obj(rules.transfer_to).type === "string" ? obj(rules.transfer_to).type as string : null,
+        transferPhone: (obj(rules.transfer_to).phone as string) ?? null,
+        integrationsNumber: (obj(setupData.integrations).transfer_number as string) ?? null,
+        ownerPhone: (obj(setupData.owner).phone as string) ?? null,
+        currentNumber: (rules.transfer_number as string) ?? null,
+        currentSource: (rules.transfer_number_source as string) ?? null,
+      });
+      if (patch) {
+        const { error } = await admin.from("ai_agent_configs")
+          .update({ escalation_rules: { ...rules, ...patch }, updated_at: new Date().toISOString() }).eq("id", config.id as string);
+        if (error) warnings.push(`transfer number: ${error.message}`);
+      }
+      const voice = obj(config.voice_config);
+      if (typeof voice.language === "string") {
+        const { data, error } = await admin.rpc("zella_setup_language_apply", {
+          p_business_id: businessId, p_language: voice.language, p_greeting: typeof voice.greeting === "string" ? voice.greeting : null,
+        });
+        // before sql/zella_setup_enforcement.sql is applied the function doesn't exist: the language step is simply skipped
+        if (error && !/zella_setup_language_apply|PGRST202|schema cache/i.test(`${error.code} ${error.message}`)) warnings.push(`language: ${error.message}`);
+        else if (data && (data as Json).ok === false) warnings.push(`language: ${(data as Json).reason}`);
+      }
+    }
+  } catch (e) {
+    warnings.push(e instanceof Error ? e.message : String(e));
+  }
+  if (warnings.length) console.error("setup sync", businessId, warnings.join("; "));
+  return warnings.length ? { liveSyncWarning: "Saved. Some answers didn't reach the live receptionist yet; save this step again or check Settings." } : {};
 }
 
 async function saveIntegrations(admin: SupabaseClient, fields: Json) {
@@ -845,6 +890,7 @@ async function saveIntegrations(admin: SupabaseClient, fields: Json) {
 
   await mergeSetupData(admin, businessId, "integrations", choices);
   await advance(admin, businessId, "communications_setup");
+  await syncSetupToLive(admin, businessId);   // its transfer number may be the one calls use (D4)
   return { businessId };
 }
 
