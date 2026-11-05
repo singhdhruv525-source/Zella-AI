@@ -10,8 +10,8 @@ export ZPG_HOST=${ZPG_HOST:-/var/lib/postgresql/zella-sec} ZPG_PORT=${ZPG_PORT:-
 P="psql -h $ZPG_HOST -p $ZPG_PORT -U postgres -qtAX -v ON_ERROR_STOP=1"
 SCR=${SCRATCH:-/tmp/zella-deploy}; mkdir -p "$SCR"
 PENDING=(zella_platform_roles_fix zella_booking_buffers zella_channel_review zella_escalation_rules zella_knowledge_live zella_order_lookup_v2 zella_config_migration
-  zella_report_schedules zella_knowledge_learning)
-ROLLBACK=(zella_knowledge_learning_rollback zella_report_schedules_rollback zella_config_migration_rollback zella_order_lookup_v2_rollback zella_knowledge_live_rollback zella_escalation_rules_rollback zella_channel_review_rollback
+  zella_report_schedules zella_knowledge_learning zella_assistant_delivery)
+ROLLBACK=(zella_assistant_delivery_rollback zella_knowledge_learning_rollback zella_report_schedules_rollback zella_config_migration_rollback zella_order_lookup_v2_rollback zella_knowledge_live_rollback zella_escalation_rules_rollback zella_channel_review_rollback
   zella_booking_buffers_rollback zella_platform_roles_fix_rollback)
 fails=0; ok() { echo "PASS $*"; }; bad() { echo "FAIL $*"; fails=$((fails + 1)); }
 ITEMS="select x from (
@@ -34,7 +34,8 @@ after=$($P -d $DB -c "$STATE")
 
 # 3. every suite's checks on the one database (each fixture uses its own ids)
 for t in tests/setup/setup_enforcement_test.sql tests/booking/buffers_test.sql tests/channel/channel_review_test.sql tests/escalation/escalation_test.sql \
-         tests/orders/v2_test.sql tests/crm_updates/updates_test.sql tests/config_migration/migration_test.sql tests/reports/report_test.sql tests/knowledge/learning_test.sql; do
+         tests/orders/v2_test.sql tests/crm_updates/updates_test.sql tests/config_migration/migration_test.sql tests/reports/report_test.sql tests/knowledge/learning_test.sql \
+         tests/assistant/delivery_test.sql; do
   out=$($P -d $DB -f "$REPO/$t" 2>&1) && ok "$t: $(echo "$out" | grep -c 'PASS ') checks" || bad "$t: $(echo "$out" | grep -m2 -E 'ERROR|CONTEXT' | tr '\n' ' ')"
 done
 # tests/messaging M3 checks the channel review's behaviour when that file is applied (AI-call reminders held, not texted)
@@ -48,11 +49,11 @@ run_matrix() {  # $1 = functions dir root, $2 = label
     SUPABASE_SERVICE_ROLE_KEY=sb_secret_local_test_only deno run -A --no-lock --config "$1/web/supabase/functions/voice-rules/deno.json" \
     "$1/tests/browser/run-function.ts" voice-rules 54406 > "$SCR/vr.log" 2>&1 &
   for i in $(seq 1 40); do curl -s -o /dev/null http://localhost:54321/ && grep -q "voice-rules on" "$SCR/vr.log" && break; sleep 1; done
-  out=$(node "$REPO/tests/calls/contrast_matrix.mjs" 2>&1); code=$?
+  out=$(ZMATRIX_ASSISTANT=${3:-0} node "$REPO/tests/calls/contrast_matrix.mjs" 2>&1); code=$?
   [ $code -eq 0 ] && ok "$2: $(echo "$out" | tail -1)" || bad "$2: $(echo "$out" | grep -m3 FAIL | tr '\n' ' ')"
   pkill -f "local-backend.mjs"; pkill -f "run-function.ts voice-rules"
 }
-run_matrix "$REPO" "28 industries x 2 businesses through the current voice-rules"
+run_matrix "$REPO" "28 industries x 2 businesses through the current voice-rules (incl. assistant-request)" 1
 OLD=98f120a^
 rm -rf "$SCR/old" && git -C "$REPO" worktree add -f --detach "$SCR/old" $OLD > /dev/null 2>&1 && cp "$REPO/tests/browser/run-function.ts" "$SCR/old/tests/browser/run-function.ts"
 [ -d "$SCR/old/web" ] && run_matrix "$SCR/old" "the same through the voice-rules before order lookup ($(git -C "$REPO" rev-parse --short $OLD), the deployed-era code)" || bad "old voice-rules checkout"

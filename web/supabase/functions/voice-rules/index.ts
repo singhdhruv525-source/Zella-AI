@@ -1,6 +1,8 @@
 // Zella: the Vapi server endpoint (assistant server URL and every tool's server URL). Answers, without n8n:
 //   tool-calls                         every tool call in the request, each under its own toolCallId:
 //                                        call_rules -> zella_ai_voice; the 14 Receptionist Brain tools -> zella_ai_tool
+//   assistant-request                  the assistant for this call, built from the business's current settings
+//                                        (zella_assistant_for_call), so CRM changes reach the next call with no sync
 //   transfer-destination-request       the number this call's own business authorised, or a refusal (zella_transfer_destination)
 //   status-update                      the call's status, once and in order (zella_record_call_status)
 //   end-of-call-report                 the call's record (zella_record_inbound_call / zella_record_call_result)
@@ -16,7 +18,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { lookupOrder } from "./orders.ts";
-import { AUTH_OK, authHeaders, brainInvalidReply, brainToolReply, plan, type ToolCall, toolResult, transferReply, unsupported } from "./logic.ts";
+import { assistantReply, AUTH_OK, authHeaders, brainInvalidReply, brainToolReply, plan, type ToolCall, toolResult, transferReply, unsupported } from "./logic.ts";
 
 const json = (data: unknown, status = 200) => Response.json(data, { status });
 const MAX_BODY = 256 * 1024;
@@ -90,6 +92,14 @@ Deno.serve(async (req: Request) => {
     // Vapi does not use the answer; a failure is logged and the call is picked up by reconciliation later
     await timed(t, "db", () => call(db, p.kind === "status" ? "zella_record_call_status" : p.rpc, p.record, left()));
     return respond({}, 200, t, started, p.kind);
+  }
+
+  if (p.kind === "assistant") {
+    const r = await timed(t, "db", () => call(db, "zella_assistant_for_call", {
+      p_called_number: p.calledNumber, p_vapi_phone_number_id: p.vapiNumberId, p_provider_call_id: p.providerCallId,
+    }, left()));
+    const reply = assistantReply(!r.error, r.data);
+    return respond(reply, 200, t, started, "assistant" in reply ? "assistant" : "assistantId" in reply ? "assistant_fallback" : "assistant_refused");
   }
 
   if (p.kind === "transfer") {

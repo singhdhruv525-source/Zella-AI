@@ -16,7 +16,9 @@ const AFTER_HOURS = [
   ["book_only", "Only book appointments"],
   ["info_only", "Only answer questions"],
 ];
-const SYNC = { none: ["Not synced", ""], pending: ["Syncing", "warning"], live: ["Live", "success"], failed: ["Sync failed", "danger"] };
+// Set when a call fetches the receptionist (sql/zella_assistant_delivery.sql): "live" once a call has used this version,
+// "failed" when the settings couldn't be sent (the reason is shown). Rules the server checks apply from the next call either way.
+const SYNC = { none: ["Not used yet", ""], pending: ["Waiting for the next call", "warning"], live: ["Live on calls", "success"], failed: ["Calls can't use it", "danger"] };
 const STATUS = { draft: "Draft", valid: "Checked", invalid: "Needs fixes", published: "Published", superseded: "Earlier version" };
 const SAY = {
   NOT_ALLOWED: "Only an owner, admin or manager can change the receptionist.",
@@ -236,7 +238,7 @@ export function ReceptionistEditor({ workspace, agent, onNotice }) {
             if (published) onNotice?.(`Version ${version} published. Rules apply from the next call; wording changes wait for the assistant update.`);
             reload();
           }} />
-          <Versions workspace={workspace} versions={data.versions} onRestored={(version) => { onNotice?.(`Brought back as version ${version}. It goes live once it has synced.`); reload(); }} />
+          <Versions workspace={workspace} versions={data.versions} onRestored={(version) => { onNotice?.(`Brought back as version ${version}. Rules apply from the next call; wording changes wait for the assistant update.`); reload(); }} />
         </div>
       )}
     </>

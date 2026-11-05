@@ -1,4 +1,4 @@
-import { authHeaders, brainInvalidReply, brainToolReply, FAILED, plan, toolResult, transferReply, UNSUPPORTED, unsupported } from "./logic.ts";
+import { assistantReply, authHeaders, CANT_TAKE, brainInvalidReply, brainToolReply, FAILED, plan, toolResult, transferReply, UNSUPPORTED, unsupported } from "./logic.ts";
 import { eventTime, planCallEvent } from "../_shared/vapi-call-events.js";
 
 function eq(a: unknown, b: unknown, m: string) { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(m + ": " + JSON.stringify(a) + " !== " + JSON.stringify(b)); }
@@ -134,4 +134,19 @@ Deno.test("Brain tools: replies keep the id and name, hide the transfer number, 
   eq(JSON.parse(brainToolReply("lookup_caller", "s", true, { status: "screened", say: "End politely." }).result as string).status, "screened", "screened");
   for (const body of [null, [], "x", { status: "ok" }, { say: 5 }]) eq("error" in brainToolReply("n", "f", true, body), true, "malformed: " + JSON.stringify(body));
   eq("error" in brainToolReply("n", "f", false, { say: "x" }), true, "database error");
+});
+
+Deno.test("assistant-request is planned with the called line only (no business id from the request)", () => {
+  const p = plan({ message: { type: "assistant-request", call: { id: "c-1", phoneNumberId: "pn-1", customer: { number: "+15125550100" }, metadata: { business_id: "11111111-1111-1111-1111-111111111111" } }, phoneNumber: { number: "+15125550000" } } });
+  eq(p, { kind: "assistant", providerCallId: "c-1", calledNumber: "+15125550000", vapiNumberId: "pn-1" }, "assistant");
+});
+
+Deno.test("assistant-request answers: current settings, standby assistant, or a spoken refusal", () => {
+  const a = { name: "Salon receptionist", firstMessage: "Hello" };
+  eq(assistantReply(true, { ok: true, assistant: a }), { assistant: a }, "assistant");
+  eq(assistantReply(true, { ok: false, outcome: "not_ready", fallback_assistant_id: "0a1b2c3d-0000-4000-8000-000000000001" }), { assistantId: "0a1b2c3d-0000-4000-8000-000000000001" }, "assistant");
+  eq(assistantReply(true, { ok: false, outcome: "unknown_number", fallback_assistant_id: null }), { error: CANT_TAKE }, "assistant");
+  eq(assistantReply(true, { ok: false, fallback_assistant_id: "not-a-uuid" }), { error: CANT_TAKE }, "assistant");
+  eq(assistantReply(false, null), { error: CANT_TAKE }, "assistant");   // database down or too slow
+  eq(assistantReply(true, { ok: true, assistant: [] }), { error: CANT_TAKE }, "assistant");
 });

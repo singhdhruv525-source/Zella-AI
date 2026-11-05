@@ -36,6 +36,13 @@ async function tool(callId, name, args) {
 }
 
 sql(`delete from vault.decrypted_secrets where name = 'zella_vapi_hmac_secret'; insert into vault.decrypted_secrets (id, name, decrypted_secret) values (gen_random_uuid(), 'zella_vapi_hmac_secret', '${VAPI}')`);
+// K3 (sql/zella_assistant_delivery.sql): with that file and a voice-rules that answers assistant-request
+// (ZMATRIX_ASSISTANT=1), every business's call also fetches its assistant through voice-rules. Test platform settings
+// make the assistant sendable; they are removed at the end.
+const ASSISTANT = process.env.ZMATRIX_ASSISTANT === "1" && sql(`select to_regprocedure('public.zella_assistant_for_call(text,text,text)') is not null`) === "t";
+const TEST_SETTINGS = ["vapi_server_url", "vapi_credential_id", "voice_llm_provider", "voice_llm_model", "voice_tts_provider", "voice_tts_voice_id", "voice_stt_model_multilingual"];
+if (ASSISTANT) sql(`insert into platform_settings (key, value) values ('vapi_server_url', '"https://example.test/functions/v1/voice-rules"'), ('vapi_credential_id', '"cred-test"'),
+  ('voice_llm_provider', '"anthropic"'), ('voice_llm_model', '"claude-sonnet-5"'), ('voice_tts_provider', '"11labs"'), ('voice_tts_voice_id', '"testvoice01"'), ('voice_stt_model_multilingual', '"nova-3"') on conflict (key) do update set value = excluded.value`);
 const industries = sql(`select json_agg(json_build_object('id', id, 'slug', slug, 'name', name) order by slug) from industries where is_active`);
 const list = JSON.parse(industries);
 const results = []; let fails = 0, passes = 0;
@@ -103,8 +110,19 @@ for (const [k, ind] of list.entries()) {
   check(ind.slug, "A", "the assistant opens with the setup greeting", /Hello from A/.test(first(cfgA)), first(cfgA) || JSON.stringify(cfgA).slice(0, 200));
   check(ind.slug, "A", "and is set up for English and Spanish", /es|multi|spanish/i.test(JSON.stringify(cfgA?.assistant?.transcriber ?? cfgA?.transcriber ?? cfgA)), JSON.stringify(cfgA?.assistant?.transcriber ?? cfgA?.transcriber ?? {}).slice(0, 200));
   check(ind.slug, "B", "the assistant's tools leave out booking, rescheduling and cancelling", !/book_appointment|check_availability|reschedule_appointment|cancel_appointment/.test(toolsOf(cfgB)) && /search_knowledge|take_message/.test(toolsOf(cfgB)), toolsOf(cfgB).slice(0, 200));
+  if (ASSISTANT) {
+    for (const v of ["A", "B"]) {
+      const num = `+1512556${String(k).padStart(2, "0")}0${v === "A" ? 1 : 2}`;
+      sql(`insert into business_phone_numbers (business_id, e164, vapi_phone_number_id) select '${ids[v]}', '${num}', 'vpn-${ids[v]}' where not exists (select 1 from business_phone_numbers where e164 = '${num}')`);
+    }
+    const a = await vapi({ type: "assistant-request", call: { id: `ar-${ids.A}`, phoneNumberId: `vpn-${ids.A}`, customer: { number: "+15125550001" } }, phoneNumber: { number: `+1512556${String(k).padStart(2, "0")}01` } });
+    const b = await vapi({ type: "assistant-request", call: { id: `ar-${ids.B}`, phoneNumberId: `vpn-${ids.B}`, customer: { number: "+15125550002" } }, phoneNumber: { number: `+1512556${String(k).padStart(2, "0")}02` } });
+    check(ind.slug, "A", "a call fetches A's own current assistant through voice-rules (greeting, its business)", a.status === 200 && /Hello from A/.test(a.json?.assistant?.firstMessage ?? "") && a.json?.assistant?.metadata?.business_id === ids.A, a.text.slice(0, 200));
+    check(ind.slug, "B", "a call fetches B's assistant, without booking tools", b.status === 200 && b.json?.assistant?.metadata?.business_id === ids.B && !/book_appointment|cancel_appointment/.test(JSON.stringify(b.json?.assistant?.model?.tools ?? "x")), b.text.slice(0, 200));
+  }
   console.log(`${ind.slug.padEnd(24)} ${results.filter((x) => x.industry === ind.slug && !x.pass).length ? "FAILED" : "ok"}`);
 }
+if (ASSISTANT) sql(`delete from platform_settings where key in (${TEST_SETTINGS.map((x) => `'${x}'`).join(", ")})`);
 mkdirSync(new URL("./out/", import.meta.url), { recursive: true });
 writeFileSync(new URL("./out/matrix.json", import.meta.url), JSON.stringify(results, null, 1));
 console.log(`\n${list.length} industries, ${list.length * 2} businesses, ${passes + fails} checks: ${passes} passed, ${fails} failed`);

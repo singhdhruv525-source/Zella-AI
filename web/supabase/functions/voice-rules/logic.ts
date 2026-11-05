@@ -21,6 +21,7 @@ export type Plan =
   | { kind: "invalid" }
   | { kind: "ignore"; reply: Json }
   | { kind: "tools"; providerCallId: string | null; calls: ToolCall[]; lookup: Json }
+  | { kind: "assistant"; providerCallId: string | null; calledNumber: string | null; vapiNumberId: string | null }
   | { kind: "transfer"; providerCallId: string | null; calledNumber: string | null; vapiNumberId: string | null; callerNumber: string | null }
   | { kind: "status"; record: Json }
   | { kind: "report"; rpc: "zella_record_call_result" | "zella_record_inbound_call"; record: Json };
@@ -34,6 +35,11 @@ export function plan(body: unknown): Plan {
   if (!raw || typeof raw !== "object" || Array.isArray(raw) || typeof (raw as Json).type !== "string") return { kind: "invalid" };
   const m = obj(raw);
   const ctx = vapiCallContext(m);
+
+  // the start of an inbound call: Vapi asks which assistant to use; it is built from the business's current settings
+  if (m.type === "assistant-request") {
+    return { kind: "assistant", providerCallId: ctx.callId, calledNumber: ctx.calledNumber, vapiNumberId: ctx.vapiNumberId };
+  }
 
   if (m.type === "transfer-destination-request") {
     return { kind: "transfer", providerCallId: ctx.callId, calledNumber: ctx.calledNumber, vapiNumberId: ctx.vapiNumberId, callerNumber: ctx.callerNumber };
@@ -113,6 +119,18 @@ export function transferReply(ok: boolean, d: Json | null): Json {
     return { destination: { type: "number", number: r.number, message: line(typeof r.message === "string" ? r.message : "Please hold while I connect you.", 200) } };
   }
   return { error: line(typeof r.message === "string" ? r.message : "Transfer is not available right now.", 200) };
+}
+
+// Answer to Vapi's assistant-request (ServerMessageResponseAssistantRequest, @vapi-ai/server-sdk 3.0.0): the transient
+// assistant built from the business's current settings, or the standby assistant the platform set, or an error, which
+// Vapi speaks to the caller before ending the call. Nothing about a business is returned for a number that isn't its.
+export const CANT_TAKE = "Sorry, we can't take your call right now. Please call again a little later.";
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+export function assistantReply(ok: boolean, d: unknown): Json {
+  const r = obj(d);
+  if (ok && r.ok === true && r.assistant && typeof r.assistant === "object" && !Array.isArray(r.assistant)) return { assistant: r.assistant };
+  if (ok && typeof r.fallback_assistant_id === "string" && UUID.test(r.fallback_assistant_id)) return { assistantId: r.fallback_assistant_id };
+  return { error: CANT_TAKE };
 }
 
 // Headers handed to the database's signature check: only the ones it reads, lower-cased, short.
