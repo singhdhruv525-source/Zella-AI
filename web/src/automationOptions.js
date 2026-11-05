@@ -7,11 +7,11 @@ const TRIES = [[1, "1 try"], [2, "2 tries"], [3, "3 tries"]];
 export const AUTOMATION_OPTIONS = {
   appointment_reminder: [
     { key: "hours_before", label: "Remind them", kind: "chips", options: [[48, "2 days before"], [24, "1 day before"], [4, "4 hours before"], [2, "2 hours before"], [1, "1 hour before"], [0.5, "30 minutes before"], [0.25, "15 minutes before"]] },
-    { key: "channel", label: "Send by", options: [["sms", "Text"], ["call", "AI call"], ["sms_and_call", "Text and AI call"]] },
+    // Sent by text (or email when the customer prefers email). AI reminder calls aren't built yet, so they aren't offered
+    // (they used to be, and such reminders were never sent: sql/zella_message_settings_fix.sql).
   ],
   appointment_confirmation: [
     { key: "hours_before", label: "Ask them to confirm", options: [[24, "1 day before"], [48, "2 days before"], [72, "3 days before"]] },
-    { key: "channel", label: "Send by", options: SMS_CALL },
   ],
   no_show_follow_up: [
     { key: "minutes_after", label: "Reach out after", options: [[10, "10 minutes"], [15, "15 minutes"], [30, "30 minutes"], [60, "1 hour"]] },

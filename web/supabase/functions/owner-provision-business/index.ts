@@ -134,7 +134,8 @@ const AUTOMATIONS = {
       hours_before: list(s.hours_before, 7)
         .map(Number)
         .filter((n) => [0.25, 0.5, 1, 2, 4, 24, 48].includes(n)),
-      channel: oneOf(s.channel, ["sms", "call", "sms_and_call"] as const, "sms"),
+      // by text: AI reminder calls aren't built (a call was never sent; sql/zella_message_settings_fix.sql)
+      channel: "sms" as const,
     }),
   },
   appointment_confirmation: {
@@ -143,7 +144,7 @@ const AUTOMATIONS = {
     actions: [{ type: "request_confirmation" }],
     settings: (s: Json) => ({
       hours_before: numberIn(s.hours_before, [24, 48, 72], 24),
-      channel: oneOf(s.channel, ["sms", "call"] as const, "sms"),
+      channel: "sms" as const,   // by text (see appointment_reminder)
     }),
   },
   no_show_follow_up: {

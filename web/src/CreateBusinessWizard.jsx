@@ -1090,7 +1090,8 @@ function AutomationsStep({ value, onChange, terminology, industryName }) {
               </label>
             ))}
           </div>
-          <label className="wiz-inline">Send by <AutoSelect item={value.appointment_reminder} onSet={(k, v) => setSetting("appointment_reminder", k, v)} setting="channel" numeric={false} options={[["sms", "Text"], ["call", "AI call"], ["sms_and_call", "Text and AI call"]]} /></label>
+          {/* by text (or email when the customer prefers it); AI reminder calls aren't built yet */}
+          <p className="wiz-inline">Sent by text, or by email when the customer prefers email.</p>
         </>
       ),
     },
@@ -1100,8 +1101,7 @@ function AutomationsStep({ value, onChange, terminology, industryName }) {
       description: `Ask customers to confirm their ${appt}.`,
       body: (
         <label className="wiz-inline">
-          Ask <AutoSelect item={value.appointment_confirmation} onSet={(k, v) => setSetting("appointment_confirmation", k, v)} setting="hours_before" options={[[24, "1 day"], [48, "2 days"], [72, "3 days"]]} /> before by
-          <AutoSelect item={value.appointment_confirmation} onSet={(k, v) => setSetting("appointment_confirmation", k, v)} setting="channel" numeric={false} options={[["sms", "text"], ["call", "AI call"]]} />
+          Ask <AutoSelect item={value.appointment_confirmation} onSet={(k, v) => setSetting("appointment_confirmation", k, v)} setting="hours_before" options={[[24, "1 day"], [48, "2 days"], [72, "3 days"]]} /> before, by text
         </label>
       ),
     },
