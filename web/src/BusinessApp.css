@@ -2003,3 +2003,16 @@ html:not([data-zella-icons="ready"]) .ba-header-actions { flex-wrap: wrap; flex-
   .ba-switcher-text { overflow: hidden; }
   .ba-switcher-text > * { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
+/* Photos and files on a record */
+.ba-files { list-style: none; margin: 0 0 10px; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.ba-files li { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 8px; border: 1px solid var(--ba-border); border-radius: 10px; }
+.ba-files li > div { min-width: 0; flex: 1; }
+.ba-files li strong, .ba-files li small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ba-file { flex-shrink: 0; width: 56px; height: 56px; display: grid; place-items: center; overflow: hidden; padding: 0; border: 1px solid var(--ba-border); border-radius: 8px; background: var(--ba-surface-2, #f4f3ef); cursor: pointer; }
+.ba-file img { width: 100%; height: 100%; object-fit: cover; }
+.ba-file-add { flex-wrap: wrap; align-items: center; }
+.ba-btn.disabled { opacity: .6; pointer-events: none; }
+/* A quiet destructive button (Archive, Remove): red text on no background. "ghost" removes the background and "danger"
+   alone means white text on red, which together made the text invisible. */
+.ba-btn.ghost.danger { background: transparent; border-color: transparent; color: var(--ba-danger); }
+.ba-btn.ghost.danger:hover:not(:disabled) { background: var(--ba-danger-bg); border-color: var(--ba-danger-border); }

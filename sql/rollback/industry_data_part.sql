@@ -67,3 +67,11 @@ with v(industry_key, name) as (values ('legal', 'Deadline in 30 days'), ('legal'
 , gone as (delete from public.industry_automation_presets p using v where p.industry_key = v.industry_key and p.name = v.name returning p.name)
 delete from public.automations a where a.name in (select name from v)
    and not exists (select 1 from public.industry_automation_runs r where r.automation_id = a.id);
+
+-- 7. photos and files (zella_record_files.sql): the storage policies go, so signed-in users can no longer reach the
+--    bucket; the bucket and any files already in it are kept (nothing a customer uploaded is deleted). The file list
+--    table is retired like the other new tables (kept, renamed, when it holds rows).
+drop policy if exists record_files_insert on storage.objects;
+drop policy if exists record_files_select on storage.objects;
+drop policy if exists record_files_delete on storage.objects;
+delete from storage.buckets b where b.id = 'record-files' and not exists (select 1 from storage.objects o where o.bucket_id = b.id);

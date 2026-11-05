@@ -14,6 +14,8 @@ select json_build_object(
    'functions', (select json_object_agg(p.oid::regprocedure::text, md5(pg_get_functiondef(p.oid)) || ':' || coalesce((select string_agg(x::text, ',' order by x::text) from unnest(p.proacl) x), 'default')) from pg_proc p where p.pronamespace = 'public'::regnamespace),
    'triggers', (select coalesce(json_object_agg(c.relname || '.' || t.tgname, md5(pg_get_triggerdef(t.oid))), '{}') from pg_trigger t join pg_class c on c.oid = t.tgrelid where not t.tgisinternal and c.relnamespace = 'public'::regnamespace),
    'policies', (select coalesce(json_object_agg(tablename || '.' || policyname, md5(cmd || roles::text || permissive || coalesce(qual, '') || coalesce(with_check, ''))), '{}') from pg_policies where schemaname = 'public'),
+   'storage_policies', (select coalesce(json_object_agg(policyname, md5(cmd || roles::text || permissive || coalesce(qual, '') || coalesce(with_check, ''))), '{}') from pg_policies where schemaname = 'storage'),
+   'buckets', (select md5(coalesce(string_agg(id || public::text || coalesce(file_size_limit::text, '') || coalesce(allowed_mime_types::text, ''), '|' order by id), '')) from storage.buckets),
    'views', (select coalesce(json_object_agg(c.relname, md5(pg_get_viewdef(c.oid) || coalesce(c.reloptions::text, ''))), '{}') from pg_class c where c.relnamespace = 'public'::regnamespace and c.relkind = 'v'),
    -- grants compared as a set: the same grants in another order are the same
    'tables', (select md5(string_agg(c.relname || coalesce((select string_agg(x::text, ',' order by x::text) from unnest(c.relacl) x), ''), '|' order by c.relname)) from pg_class c where c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'v')),

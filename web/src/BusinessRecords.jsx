@@ -90,6 +90,98 @@ function FieldInput({ field, value, onChange }) {
 /* One record: create, edit, change status, add notes                    */
 /* ------------------------------------------------------------------ */
 
+// Photos and files on a record (zella_record_files.sql). Stored privately; opened through short-lived signed links that
+// storage gives only to people allowed to see the file. Staff and above add; managers (or the uploader, within a day)
+// remove. Private files are seen by managers and the staff assigned.
+const FILE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "application/pdf"];
+const FILE_ERRORS = { BAD_FILE_TYPE: "Only photos (JPEG, PNG, WEBP, HEIC) and PDFs can be added.", FILE_TOO_BIG: "Files must be 10 MB or smaller.",
+  TOO_MANY_FILES: "A record can hold 50 files. Remove some first.", UPLOAD_MISSING: "The upload didn't finish. Try again." };
+function RecordFiles({ workspace, record }) {
+  const canAdd = workspace.role !== "viewer";
+  const canRemoveAny = ["owner", "admin", "manager"].includes(workspace.role);
+  const [version, setVersion] = useState(0);
+  const [caption, setCaption] = useState("");
+  const [priv, setPriv] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState("");
+  const list = useLoad(async () => {
+    const res = await supabase.from("crm_record_files").select("id, path, file_name, mime_type, kind, caption, private, uploaded_by, created_at")
+      .eq("record_id", record.id).eq("status", "ready").order("created_at", { ascending: false });
+    if (res.error) return { rows: [], missing: /crm_record_files|relation|does not exist/i.test(res.error.message) };
+    const rows = res.data ?? [];
+    const shown = rows.filter((f) => f.kind === "photo" && f.mime_type !== "image/heic").map((f) => f.path);
+    const urls = shown.length ? await supabase.storage.from("record-files").createSignedUrls(shown, 300) : { data: [] };
+    const byPath = Object.fromEntries((urls.data ?? []).filter((u) => u.signedUrl).map((u) => [u.path, u.signedUrl]));
+    return { rows: rows.map((f) => ({ ...f, thumb: byPath[f.path] })) };
+  }, [record.id, version]);
+  const me = useLoad(async () => (await supabase.auth.getUser()).data?.user?.id ?? null, []);
+
+  async function add(fileList) {
+    setProblem("");
+    const chosen = [...(fileList ?? [])];
+    if (!chosen.length) return;
+    setBusy(true);
+    for (const file of chosen) {
+      if (!FILE_TYPES.includes(file.type)) { setProblem(`${file.name}: ${FILE_ERRORS.BAD_FILE_TYPE}`); continue; }
+      if (file.size > 10485760) { setProblem(`${file.name}: ${FILE_ERRORS.FILE_TOO_BIG}`); continue; }
+      const begin = await supabase.rpc("zella_begin_record_file", { p_record_id: record.id, p_file_name: file.name, p_mime_type: file.type,
+        p_size_bytes: file.size, p_caption: caption || null, p_private: priv });
+      if (begin.error) { setProblem(`${file.name}: ${FILE_ERRORS[Object.keys(FILE_ERRORS).find((k) => begin.error.message.includes(k))] ?? explain(begin.error)}`); continue; }
+      const up = await supabase.storage.from("record-files").upload(begin.data.path, file, { contentType: file.type, upsert: false });
+      if (up.error) { setProblem(`${file.name}: the upload didn't finish (${up.error.message}).`); continue; }
+      const fin = await supabase.rpc("zella_finish_record_file", { p_file_id: begin.data.id });
+      if (fin.error) setProblem(`${file.name}: ${FILE_ERRORS[Object.keys(FILE_ERRORS).find((k) => fin.error.message.includes(k))] ?? explain(fin.error)}`);
+    }
+    setBusy(false); setCaption(""); setVersion((v) => v + 1);
+  }
+  async function open(f) {
+    const res = await supabase.storage.from("record-files").createSignedUrl(f.path, 300);
+    if (res.error || !res.data?.signedUrl) return setProblem("That file can't be opened. You may not have access to it.");
+    window.open(res.data.signedUrl, "_blank", "noopener,noreferrer");
+  }
+  async function remove(f) {
+    if (!window.confirm(`Remove ${f.file_name}? It disappears from this record for everyone.`)) return;
+    const res = await supabase.rpc("zella_remove_record_file", { p_file_id: f.id });
+    if (res.error) return setProblem(explain(res.error));
+    await supabase.storage.from("record-files").remove([f.path]);
+    setVersion((v) => v + 1);
+  }
+
+  const rows = list.data?.rows ?? [];
+  if (list.data?.missing) return null; // before the update that adds files
+  return (
+    <>
+      <h3 className="ba-h3">Photos and files</h3>
+      {problem && <p className="ba-error" role="alert">{problem}</p>}
+      {rows.length === 0 ? <p className="ba-muted">{list.loading ? "Loading…" : "None yet."}</p> : (
+        <ul className="ba-files">
+          {rows.map((f) => (
+            <li key={f.id}>
+              <button type="button" className="ba-file" onClick={() => open(f)} title={`Open ${f.file_name}`}>
+                {f.thumb ? <img src={f.thumb} alt={f.caption || f.file_name} loading="lazy" /> : <Icon name={f.kind === "photo" ? "image" : "description"} />}
+              </button>
+              <div><strong>{f.caption || f.file_name}</strong><small>{timeAgo(f.created_at)}{f.private ? " · private" : ""}</small></div>
+              {(canRemoveAny || (f.uploaded_by === me.data && Date.now() - new Date(f.created_at).getTime() < 864e5)) && (
+                <button type="button" className="ba-btn ghost sm" onClick={() => remove(f)} aria-label={`Remove ${f.file_name}`}><Icon name="delete" size="sm" /></button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {canAdd && (
+        <div className="ba-inline-form ba-file-add">
+          <input value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Caption (optional)" maxLength={300} aria-label="Caption" />
+          <label className="ba-check"><input type="checkbox" checked={priv} onChange={(e) => setPriv(e.target.checked)} /> Private</label>
+          <label className={`ba-btn sm ${busy ? "disabled" : ""}`}>
+            <Icon name="add_a_photo" size="sm" />{busy ? "Adding…" : "Add photos or files"}
+            <input type="file" multiple accept={FILE_TYPES.join(",")} hidden disabled={busy} onChange={(e) => { add(e.target.files); e.target.value = ""; }} />
+          </label>
+        </div>
+      )}
+    </>
+  );
+}
+
 function RecordModal({ workspace, type, record, canManage, onBook, onClose, onSaved, onOpenExisting, onOpenPerson }) {
   const tz = workspace.timezone;
   const isNew = !record;
@@ -214,6 +306,7 @@ function RecordModal({ workspace, type, record, canManage, onBook, onClose, onSa
             <button type="button" className="ba-btn sm" disabled={busy || !note.trim()}
               onClick={async () => { const text = note; setNote(""); await run(() => supabase.rpc("zella_add_record_note", { p_id: record.id, p_note: text }), "Note added."); }}>Add note</button>
           </div>
+          <RecordFiles workspace={workspace} record={record} />
           {type.appointment_link && (
             <>
               <h3 className="ba-h3">Appointments</h3>
@@ -238,7 +331,7 @@ function RecordModal({ workspace, type, record, canManage, onBook, onClose, onSa
           {(events.data ?? []).length === 0 ? <p className="ba-muted">Nothing yet.</p> : (
             <ul className="ba-history">
               {events.data.map((e) => (
-                <li key={e.id}><strong>{{ created: "Added", edited: "Edited", status: "Status changed", note: "Note", archived: "Archived", secret_viewed: "Private details viewed", secret_changed: "Private details changed", appointment: "Booked" }[e.kind] ?? e.kind}</strong>{e.detail ? ` · ${e.detail}` : ""}<small>{timeAgo(e.created_at)}</small></li>
+                <li key={e.id}><strong>{{ created: "Added", edited: "Edited", status: "Status changed", note: "Note", archived: "Archived", secret_viewed: "Private details viewed", secret_changed: "Private details changed", appointment: "Booked", file_added: "File added", file_removed: "File removed" }[e.kind] ?? e.kind}</strong>{e.detail ? ` · ${e.detail}` : ""}<small>{timeAgo(e.created_at)}</small></li>
               ))}
             </ul>
           )}

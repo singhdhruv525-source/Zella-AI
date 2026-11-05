@@ -332,8 +332,77 @@ async function auth(req, url, claims, body) {
 
 // Storage: kept in memory; enough for uploads to succeed and public URLs to load.
 const files = new Map();
-async function storage(req, url, body) {
+// Private buckets with row security (record-files) behave like Supabase Storage: every upload, signed link and delete
+// runs as the caller against storage.objects, so the bucket's policies decide; bucket size and type limits apply.
+const POLICY_BUCKETS = { "record-files": { max: 10485760, types: ["image/jpeg", "image/png", "image/webp", "image/heic", "application/pdf"] } };
+const signed = new Map(); // token -> "bucket/path"
+function multipartFile(raw, ctype) {
+  const m = /boundary=(?:"([^"]+)"|([^;]+))/.exec(ctype ?? "");
+  if (!m || !raw) return { bytes: raw, type: ctype };
+  const boundary = Buffer.from(`--${m[1] ?? m[2]}`);
+  let at = raw.indexOf(boundary), out = null;
+  while (at !== -1) {
+    const next = raw.indexOf(boundary, at + boundary.length);
+    if (next === -1) break;
+    const part = raw.subarray(at + boundary.length + 2, next - 2);
+    const split = part.indexOf("\r\n\r\n");
+    const head = part.subarray(0, split).toString();
+    if (/filename=|name=""/.test(head)) out = { bytes: part.subarray(split + 4), type: /content-type:\s*([^\r\n]+)/i.exec(head)?.[1]?.trim() };
+    at = next;
+  }
+  return out ?? { bytes: raw, type: ctype };
+}
+async function policyStorage(req, url, claims, raw) {
   const path = url.pathname.replace(/^\/storage\/v1/, "");
+  const deny = (msg, status = 403) => ({ status, json: { statusCode: String(status), error: "Unauthorized", message: msg } });
+  let m;
+  if (req.method === "DELETE" && (m = /^\/object\/([^/]+)$/.exec(path))) {
+    const names = JSON.parse(raw?.toString() || "{}").prefixes ?? [];
+    const r = await asCaller(claims, `select coalesce(json_agg(name), '[]') from (delete from storage.objects where bucket_id = ${lit(m[1])} and name = any(${lit(`{${names.map((n) => `"${n}"`).join(",")}}`)}::text[]) returning name) d`);
+    if (r.error) return deny(r.error.message);
+    const gone = JSON.parse(r.text || "[]"); gone.forEach((n) => files.delete(`${m[1]}/${n}`));
+    return { status: 200, json: gone.map((name) => ({ name })) };
+  }
+  if (req.method === "POST" && (m = /^\/object\/sign\/([^/]+)$/.exec(path))) {
+    const { paths = [] } = JSON.parse(raw?.toString() || "{}");
+    const out = [];
+    for (const p of paths) {
+      const r = await asCaller(claims, `select count(*) from storage.objects where bucket_id = ${lit(m[1])} and name = ${lit(p)}`);
+      if (!r.error && r.text.trim() === "1") { const t = crypto.randomUUID(); signed.set(t, `${m[1]}/${p}`); out.push({ path: p, signedURL: `/object/sign/${m[1]}/${p}?token=${t}`, error: null }); }
+      else out.push({ path: p, signedURL: null, error: "Object not found" });
+    }
+    return { status: 200, json: out };
+  }
+  if ((m = /^\/object\/sign\/([^/]+)\/(.+)$/.exec(path))) {
+    const key = `${m[1]}/${decodeURIComponent(m[2])}`;
+    if (req.method === "GET") {
+      const t = url.searchParams.get("token");
+      if (signed.get(t) !== key || !files.has(key)) return deny("Invalid signature", 400);
+      const f = files.get(key); return { status: 200, raw: f.body, type: f.type };
+    }
+    const r = await asCaller(claims, `select count(*) from storage.objects where bucket_id = ${lit(m[1])} and name = ${lit(decodeURIComponent(m[2]))}`);
+    if (r.error || r.text.trim() !== "1") return deny("Object not found", 400);
+    const t = crypto.randomUUID(); signed.set(t, key);
+    return { status: 200, json: { signedURL: `/object/sign/${key}?token=${t}` } };
+  }
+  if ((req.method === "POST" || req.method === "PUT") && (m = /^\/object\/([^/]+)\/(.+)$/.exec(path))) {
+    const rule = POLICY_BUCKETS[m[1]], name = decodeURIComponent(m[2]);
+    const file = multipartFile(raw, req.headers["content-type"]);
+    if (!file.bytes?.length) return deny("Empty file", 400);
+    if (file.bytes.length > rule.max) return deny("The object exceeded the maximum allowed size", 413);
+    if (!rule.types.includes(file.type)) return deny(`mime type ${file.type} is not supported`, 415);
+    const meta = JSON.stringify({ mimetype: file.type, size: file.bytes.length });
+    const r = await asCaller(claims, `insert into storage.objects (bucket_id, name, owner, metadata) values (${lit(m[1])}, ${lit(name)}, auth.uid(), ${lit(meta)}::jsonb)`);
+    if (r.error) return deny(`new row violates row-level security policy (${r.error.message})`);
+    files.set(`${m[1]}/${name}`, { body: file.bytes, type: file.type });
+    return { status: 200, json: { Key: `${m[1]}/${name}`, Id: crypto.randomUUID() } };
+  }
+  return { status: 404, json: { message: "storage path not in the local stand-in" } };
+}
+async function storage(req, url, body, claims, raw) {
+  const path = url.pathname.replace(/^\/storage\/v1/, "");
+  const bucket = /^\/object\/(?:sign\/|public\/|authenticated\/)?([^/?]+)/.exec(path)?.[1];
+  if (bucket && POLICY_BUCKETS[bucket]) return policyStorage(req, url, claims, raw);
   const obj = /^\/object\/(?:public\/|sign\/|authenticated\/)?([^/]+)\/(.+)$/.exec(path);
   if (req.method === "POST" && path.startsWith("/object/list/")) return { status: 200, json: [] };
   if (req.method === "POST" && path.startsWith("/object/sign/")) return { status: 200, json: { signedURL: `/storage/v1${path.replace("/sign/", "/public/")}` } };
@@ -373,7 +442,7 @@ const server = http.createServer(async (req, res) => {
     let out;
     if (url.pathname.startsWith("/rest/v1/")) out = await rest(req, url, claims, body);
     else if (url.pathname.startsWith("/auth/v1/")) out = await auth(req, url, claims, body);
-    else if (url.pathname.startsWith("/storage/v1/")) out = await storage(req, url, body);
+    else if (url.pathname.startsWith("/storage/v1/")) out = await storage(req, url, body, claims, raw);
     else out = { status: 404, json: { message: "not found" } };
     log.push({ at: Date.now(), method: req.method, path: url.pathname, status: out.status, error: out.status >= 400 ? out.json : undefined });
     if (process.env.ZLOG && out.status >= 400) console.log(out.status, req.method, url.pathname + url.search, JSON.stringify(out.json).slice(0, 300));

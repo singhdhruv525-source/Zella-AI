@@ -74,6 +74,14 @@ with v(industry_key, name) as (values ('legal', 'Deadline in 30 days'), ('legal'
 delete from public.automations a where a.name in (select name from v)
    and not exists (select 1 from public.industry_automation_runs r where r.automation_id = a.id);
 
+-- 7. photos and files (zella_record_files.sql): the storage policies go, so signed-in users can no longer reach the
+--    bucket; the bucket and any files already in it are kept (nothing a customer uploaded is deleted). The file list
+--    table is retired like the other new tables (kept, renamed, when it holds rows).
+drop policy if exists record_files_insert on storage.objects;
+drop policy if exists record_files_select on storage.objects;
+drop policy if exists record_files_delete on storage.objects;
+delete from storage.buckets b where b.id = 'record-files' and not exists (select 1 from storage.objects o where o.bucket_id = b.id);
+
 
 -- ---------- schema (generated) ----------
 drop trigger if exists zella_appointment_record on public.appointments;
@@ -81,6 +89,8 @@ drop trigger if exists zella_appointment_record_event on public.appointments;
 drop trigger if exists zella_capability_appointment on public.appointments;
 drop trigger if exists zella_record_type_defaults on public.crm_record_types;
 drop policy if exists business_capabilities_read on public.business_capabilities;
+drop policy if exists crm_record_files_read on public.crm_record_files;
+drop policy if exists zella_mfa_required on public.crm_record_files;
 drop policy if exists zella_mfa_required on public.crm_record_secrets;
 drop policy if exists customer_charge_payments_read on public.customer_charge_payments;
 drop policy if exists zella_mfa_required on public.customer_charge_payments;
@@ -1594,11 +1604,13 @@ grant execute on function public.zella_workspace_navigation(uuid) to authenticat
 grant execute on function public.zella_workspace_navigation(uuid) to service_role;
 drop function if exists public.zella_appointment_record_event_trg() cascade;
 drop function if exists public.zella_appointment_record_trg() cascade;
+drop function if exists public.zella_begin_record_file(uuid,text,text,bigint,text,boolean) cascade;
 drop function if exists public.zella_business_currency(uuid) cascade;
 drop function if exists public.zella_business_readiness(uuid) cascade;
 drop function if exists public.zella_can_edit(uuid) cascade;
 drop function if exists public.zella_can_read_call_content(uuid) cascade;
 drop function if exists public.zella_can_read_record_secrets(uuid) cascade;
+drop function if exists public.zella_can_see_record_file(crm_record_files) cascade;
 drop function if exists public.zella_capabilities(uuid) cascade;
 drop function if exists public.zella_capability_appointment_trg() cascade;
 drop function if exists public.zella_capability_catalog() cascade;
@@ -1607,13 +1619,16 @@ drop function if exists public.zella_charge_balance(uuid) cascade;
 drop function if exists public.zella_charge_payment_write(uuid,text,uuid,text,bigint,text,text,text,text) cascade;
 drop function if exists public.zella_charge_refresh_status(uuid) cascade;
 drop function if exists public.zella_create_charge(uuid,text,bigint,text,uuid,uuid,uuid,date,text,text) cascade;
+drop function if exists public.zella_finish_record_file(uuid) cascade;
 drop function if exists public.zella_move_sensitive_values(uuid) cascade;
 drop function if exists public.zella_preset_v2_merge(jsonb) cascade;
 drop function if exists public.zella_provider_charge_payment(uuid,text,bigint,text) cascade;
 drop function if exists public.zella_record_charge_payment(uuid,text,bigint,text,text,text) cascade;
+drop function if exists public.zella_record_file_storage_ok(text,text) cascade;
 drop function if exists public.zella_record_related(uuid) cascade;
 drop function if exists public.zella_record_secrets(uuid) cascade;
 drop function if exists public.zella_record_type_defaults_trg() cascade;
+drop function if exists public.zella_remove_record_file(uuid) cascade;
 drop function if exists public.zella_require_capability(uuid,text) cascade;
 drop function if exists public.zella_seed_capability_defaults() cascade;
 drop function if exists public.zella_sensitive_industry(uuid) cascade;
@@ -1632,6 +1647,7 @@ alter table public.crm_record_types drop column if exists capacity;
 alter table public.crm_record_types drop column if exists fields_seen;
 grant select on public.calls to authenticated;
 select pg_temp.zella_rb_retire_table('business_capabilities');
+select pg_temp.zella_rb_retire_table('crm_record_files');
 select pg_temp.zella_rb_retire_table('crm_record_secrets');
 select pg_temp.zella_rb_retire_table('customer_charge_payments');
 select pg_temp.zella_rb_retire_table('customer_charges');
