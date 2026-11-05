@@ -43,7 +43,8 @@ const SAY = {
   BAD_PHONE: "Enter phone numbers with the country code, for example +1 555 123 4567.", BAD_WEBSITE: "The website must start with https:// (or http://).",
   BAD_COUNTRY: "Choose a country.", BAD_TIMEZONE: "Choose a time zone from the list.", SUBJECT_REQUIRED: "Write a short subject.",
   SPEND_LIMIT_REQUIRED: "Set a spending limit to allow paid usage.", BAD_LOGO_URL: "Upload the logo here so it's stored with your workspace.",
-  BAD_INPUT: "Something in the form isn't valid.", NO_PHONE: "Add your mobile number under Personal profile first.",
+  BAD_INPUT: "Something in the form isn't valid.", HOUR_REQUIRED: "Choose the time the report is sent.",
+  BAD_HOUR: "Choose a time between midnight and 11 pm.", BAD_RECIPIENTS: "Choose who receives the report.", BAD_PERIOD: "Choose the period the report covers.", NO_PHONE: "Add your mobile number under Personal profile first.",
   BAD_DURATION: "Service length must be between 5 and 480 minutes.", NO_RECEPTIONIST: "This business has no AI receptionist yet, so services can't be saved.",
 };
 const say = (e) => { const m = e?.message ?? String(e); const k = Object.keys(SAY).find((c) => m.includes(c)); return k ? SAY[k] : friendly(e); };
@@ -55,6 +56,68 @@ async function rpc(name, args) {
 const settingsOf = (w) => rpc("zella_business_settings", { p_business_id: w.id });
 const entitlementsOf = (w) => rpc("zella_business_entitlements", { p_business_id: w.id });
 const noRole = (who = "an owner or admin") => <Banner tone="warn">Only {who} can change this. You can see it.</Banner>;
+
+/* ---------- Daily report schedule (sql/zella_report_schedules.sql) ---------- */
+
+const HOURS_OF_DAY = Array.from({ length: 24 }, (_, h) => [h, new Date(2000, 0, 1, h).toLocaleTimeString([], { hour: "numeric" })]);
+const REPORT_STATUS = { sent: "Sent", nothing_to_report: "Nothing to report", failed: "Failed", missed: "Missed (Zella was not running at that time)" };
+
+function ReportSchedule({ w }) {
+  const state = useAsync(() => rpc("zella_report_schedules", { p_business_id: w.id }), [w.id]);
+  return (
+    <LoadState state={state}>{(rows) => <ReportScheduleForm w={w} row={(rows ?? []).find((r) => r.kind === "daily_summary")} onSaved={state.reload} />}</LoadState>
+  );
+}
+
+function ReportScheduleForm({ w, row, onSaved }) {
+  const canEdit = roleIn(w, MANAGE);
+  const form = useForm({
+    enabled: row?.enabled === true,
+    hour: Number.isInteger(row?.local_hour) ? String(row.local_hour) : "",
+    roles: row?.recipient_roles ?? ["owner"],
+    period: row?.period ?? "yesterday",
+  });
+  const v = form.values;
+  const toggleRole = (role) => form.setValues((f) => ({ ...f, roles: f.roles.includes(role) ? f.roles.filter((r) => r !== role) : [...f.roles, role] }));
+  const fmtWhen = (t) => t ? new Date(t).toLocaleString([], { timeZone: row?.timezone, dateStyle: "medium", timeStyle: "short" }) : "";
+  return (
+    <Card title="Daily report" sub={`Sent in the CRM once a day at the time you choose, in your business time zone${row?.timezone ? ` (${row.timezone})` : ""}.`}>
+      {!canEdit && noRole()}
+      <fieldset disabled={!canEdit} style={{ border: 0, padding: 0, margin: 0 }}>
+        <div className="zs-grid">
+          <Field label="Send the daily report"><label><input type="checkbox" checked={v.enabled} onChange={form.set("enabled")} /> On</label></Field>
+          <Field label="Time" hint={v.enabled && v.hour === "" ? "Choose a time to switch it on." : "Business time."}>
+            <select value={v.hour} onChange={form.set("hour")}>
+              <option value="">Choose a time</option>
+              {HOURS_OF_DAY.map(([h, label]) => <option key={h} value={String(h)}>{label}</option>)}
+            </select>
+          </Field>
+          <Field label="Covers">
+            <select value={v.period} onChange={form.set("period")}>
+              <option value="yesterday">The previous day</option>
+              <option value="last_24_hours">The last 24 hours</option>
+            </select>
+          </Field>
+          <Field label="Who receives it" full>
+            {[["owner", "Owners"], ["admin", "Admins"], ["manager", "Managers"]].map(([role, label]) => (
+              <label key={role} style={{ marginRight: 14 }}><input type="checkbox" checked={v.roles.includes(role)} onChange={() => toggleRole(role)} /> {label}</label>
+            ))}
+          </Field>
+        </div>
+      </fieldset>
+      <Facts rows={[
+        ["Next report", row?.enabled && row?.next_run_at ? fmtWhen(row.next_run_at) : "Not scheduled"],
+        ["Last report", row?.last_run ? `${REPORT_STATUS[row.last_run.status] ?? row.last_run.status}, ${row.last_run.date}${row.last_run.error ? ` (${row.last_run.error})` : ""}` : "None yet"],
+      ]} />
+      {canEdit && <SaveBar form={form} disabled={(v.enabled && v.hour === "") || !v.roles.length} onSave={() => form.save(async (x) => {
+        const patch = { enabled: x.enabled, recipient_roles: x.roles, period: x.period };
+        if (x.hour !== "") patch.local_hour = Number(x.hour);
+        await rpc("zella_set_report_schedule", { p_business_id: w.id, p_kind: "daily_summary", p_patch: patch });
+        onSaved();
+      })} />}
+    </Card>
+  );
+}
 
 /* ---------- 1. Business profile ---------- */
 
@@ -945,7 +1008,7 @@ function registry(w) {
     ] },
     { key: "reports", label: "Reports and preferences", icon: "monitoring", items: [
       page("dashboard", "Dashboard preferences", lazyNeeds("Dashboard preferences aren't saved yet", "Today opens first; each report remembers its period while you're on it.", "Saving them needs a per-person preferences record.")),
-      page("reporting", "Reporting preferences", lazyNeeds("Scheduled reports aren't available yet", "Owners get the daily summary and weekly review (Notifications).", "Custom recipients and schedules need a report schedule table.")),
+      page("reporting", "Reporting preferences", () => <ReportSchedule w={w} />, "daily report summary time recipients schedule"),
       page("performance", "Business performance", () => <ReportsPage workspace={w} refreshKey={0} />, "calls leads appointments"),
       page("export", "Data export", () => <DataExport w={w} />, "csv"),
     ] },

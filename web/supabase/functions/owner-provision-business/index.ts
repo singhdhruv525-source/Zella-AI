@@ -224,10 +224,17 @@ const AUTOMATIONS = {
     description: "Helps customers rebook when their staff member becomes unavailable.",
     actions: [{ type: "staff_unavailable_outreach" }],
     settings: (s: Json) => ({
-      channel: oneOf(s.channel, ["sms", "call"] as const, "sms"),
+      // text or AI call, as zella_handle_staff_unavailable queues it. Anything else (the wizard used to offer "email",
+      // which was saved as text without saying) is refused rather than changed.
+      channel: s.channel === undefined ? "sms" as const : staffChannel(s.channel),
     }),
   },
 } as const;
+
+function staffChannel(value: unknown): "sms" | "call" {
+  if (value !== "sms" && value !== "call") throw new InputError("Team member unavailable: choose text or AI call.");
+  return value;
+}
 
 type AutomationType = keyof typeof AUTOMATIONS;
 const AUTOMATION_TYPES = Object.keys(AUTOMATIONS) as AutomationType[];
@@ -413,6 +420,11 @@ async function loadSetup(admin: SupabaseClient, businessId: string) {
     enabledResult.error ?? invitationResult.error ?? automationsResult.error;
   if (queryError) throw queryError;
 
+  // the daily report's schedule, chosen during setup (sql/zella_report_schedules.sql; absent before that file)
+  const reportResult = await admin.from("business_report_schedules")
+    .select("enabled, local_hour, recipient_roles, period").eq("business_id", businessId).eq("kind", "daily_summary").maybeSingle();
+  const dailyReport = reportResult.error ? null : reportResult.data ?? null;
+
   const { agent, config } = await getReceptionist(admin, businessId);
   const enabled = new Set(
     (enabledResult.data ?? []).filter((row) => row.enabled).map((row) => row.module_id),
@@ -442,6 +454,7 @@ async function loadSetup(admin: SupabaseClient, businessId: string) {
       voiceConfig: obj(config?.voice_config),
     },
     automations: automationsResult.data ?? [],
+    dailyReport,
     industryRules: await industryRuleList(admin, businessId),
     ...(await loadOnboarding(admin, businessId, obj(business.setup_data))),
   };
@@ -956,10 +969,32 @@ async function saveAutomations(
   }
 
   await saveIndustryRules(admin, businessId, fields.industryRules, business.is_active === true);
+  await saveDailyReport(admin, businessId, input.daily_report);
 
   // The early on/off step passes early: true, so it doesn't move setup progress forward.
   if (fields.early !== true) await advance(admin, businessId, "automation_setup");
   return { businessId };
+}
+
+// The daily report: sent at the hour chosen here (business time), never at an assumed one. Nothing is saved when the
+// request doesn't carry the choice (older wizards); "off" switches an existing schedule off.
+async function saveDailyReport(admin: SupabaseClient, businessId: string, raw: unknown) {
+  if (raw === undefined) return;
+  const r = obj(raw);
+  const enabled = bool(r.enabled, false);
+  const hour = Number(r.hour);
+  const roles = list(r.roles, 3).filter((x): x is string => ["owner", "admin", "manager"].includes(String(x)));
+  if (enabled) {
+    if (!Number.isInteger(hour) || hour < 0 || hour > 23) throw new InputError("Choose the hour the daily report is sent.");
+    const { error } = await admin.rpc("zella_set_report_schedule", {
+      p_business_id: businessId, p_kind: "daily_summary",
+      p_patch: { enabled: true, local_hour: hour, recipient_roles: roles.length ? roles : ["owner"], period: oneOf(r.period, ["yesterday", "last_24_hours"] as const, "yesterday") },
+    });
+    if (error && !/does not exist|schema cache/i.test(error.message ?? "")) throw error;
+  } else {
+    const { error } = await admin.rpc("zella_set_report_schedule", { p_business_id: businessId, p_kind: "daily_summary", p_patch: { enabled: false } });
+    if (error && !/HOUR_REQUIRED|does not exist|schema cache/i.test(error.message ?? "")) throw error;   // no schedule yet: nothing to switch off
+  }
 }
 
 // Finishing setup: decisions and order in owner_invite.ts (finishSetupWith), tested with fakes. Wired here to the

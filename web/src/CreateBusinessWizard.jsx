@@ -217,6 +217,7 @@ function emptySetup() {
       leadSources: { meta: false, website: false, google: false },
     },
     automations: structuredClone(DEFAULT_AUTOMATIONS),
+    dailyReport: { enabled: false, hour: "", roles: ["owner"], period: "yesterday" },
     industryRules: [],
     onboardingStatus: "started",
     savedSteps: {},
@@ -309,6 +310,14 @@ function fromServer(data, industries = []) {
   setup.automations = automationDefaultsFor(industryName);
   setup.automationsFromIndustry = industryName || "";
   setup.industryRules = data.industryRules || [];
+  if (data.dailyReport) {
+    setup.dailyReport = {
+      enabled: data.dailyReport.enabled === true,
+      hour: Number.isInteger(data.dailyReport.local_hour) ? String(data.dailyReport.local_hour) : "",
+      roles: data.dailyReport.recipient_roles?.length ? data.dailyReport.recipient_roles : ["owner"],
+      period: data.dailyReport.period || "yesterday",
+    };
+  }
   for (const row of data.automations || []) {
     if (setup.automations[row.trigger_type]) {
       setup.automations[row.trigger_type] = {
@@ -1201,7 +1210,7 @@ function AutomationsStep({ value, onChange, terminology, industryName }) {
       description: `Tell customers and offer another time when their ${appt} can't go ahead.`,
       body: (
         <label className="wiz-inline">
-          Notify by <AutoSelect item={value.staff_unavailable} onSet={(k, v) => setSetting("staff_unavailable", k, v)} setting="channel" numeric={false} options={[["sms", "text"], ["email", "email"]]} />
+          Notify by <AutoSelect item={value.staff_unavailable} onSet={(k, v) => setSetting("staff_unavailable", k, v)} setting="channel" numeric={false} options={[["sms", "text"], ["call", "AI call"]]} />
         </label>
       ),
     },
@@ -1524,6 +1533,54 @@ function TeamStep({ value, onChange, config, terminology, showErrors }) {
 // ---------------------------------------------------------------------------
 // Automations (on/off, then optional fine-tuning) and CRM setup (optional)
 // ---------------------------------------------------------------------------
+
+// The daily report: sent once a day at the hour chosen here, in the business's own time zone. Nothing is preset; the
+// server refuses to switch it on without an hour (sql/zella_report_schedules.sql).
+const REPORT_HOURS = Array.from({ length: 24 }, (_, h) => [h, new Date(2000, 0, 1, h).toLocaleTimeString([], { hour: "numeric" })]);
+const REPORT_ROLES = [["owner", "Owners"], ["admin", "Admins"], ["manager", "Managers"]];
+
+function DailyReportStep({ value, onChange, timezone, showErrors }) {
+  const set = (patch) => onChange({ ...value, ...patch });
+  const needsHour = value.enabled && value.hour === "";
+  return (
+    <div className="wiz-automation-list">
+     <div className={`wiz-automation ${value.enabled ? "on" : ""}`}>
+      <div className="wiz-module-top">
+        <div>
+          <strong>Daily report</strong>
+          <p>A summary of calls, bookings and follow-ups, sent in the CRM once a day at the time you choose.</p>
+        </div>
+        <Toggle checked={value.enabled} label="Daily report" onChange={(enabled) => set({ enabled })} />
+      </div>
+      {value.enabled && (
+        <div className="wiz-automation-body">
+          <label className="wiz-inline">
+            Send at{" "}
+            <select value={value.hour} aria-invalid={showErrors && needsHour} onChange={(e) => set({ hour: e.target.value })}>
+              <option value="">Choose a time</option>
+              {REPORT_HOURS.map(([h, label]) => <option key={h} value={String(h)}>{label}</option>)}
+            </select>{" "}
+            business time{timezone ? ` (${timezone})` : ""}, covering{" "}
+            <select value={value.period} onChange={(e) => set({ period: e.target.value })}>
+              <option value="yesterday">the previous day</option>
+              <option value="last_24_hours">the last 24 hours</option>
+            </select>
+          </label>
+          <div className="wiz-chip-row">
+            {REPORT_ROLES.map(([role, label]) => (
+              <label key={role} className={`wiz-chip ${value.roles.includes(role) ? "on" : ""}`}>
+                <input type="checkbox" checked={value.roles.includes(role)}
+                  onChange={(e) => set({ roles: e.target.checked ? [...value.roles, role] : value.roles.filter((r) => r !== role) })} />
+                {label}
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+     </div>
+    </div>
+  );
+}
 
 function AutomationsCombinedStep(props) {
   return (
@@ -1894,6 +1951,10 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
         if (validatePhone(m.phone)) return `${m.name || "Team member"} phone: ${validatePhone(m.phone)}`;
       }
     }
+    if (key === "automations" && setup.dailyReport.enabled) {
+      if (setup.dailyReport.hour === "") return "Daily report: choose the time it is sent.";
+      if (!setup.dailyReport.roles.length) return "Daily report: choose who receives it.";
+    }
     if (key === "receptionist") {
       if (validatePhone(setup.receptionist.escalation.transferTo.phone)) return `Transfer phone number: ${validatePhone(setup.receptionist.escalation.transferTo.phone)}`;
       if (setup.receptionist.faqs.some((f) => f.question.trim() && !f.answer.trim())) return "Answer every FAQ, or remove the ones without an answer.";
@@ -1978,7 +2039,11 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
     }
 
     if (key === "automations") {
-      await callOwnerFunction("setup_save_automations", { businessId, automations: setup.automations, industryRules: setup.industryRules });
+      const report = setup.dailyReport;
+      await callOwnerFunction("setup_save_automations", {
+        businessId, industryRules: setup.industryRules,
+        automations: { ...setup.automations, daily_report: { enabled: report.enabled, hour: report.enabled ? Number(report.hour) : null, roles: report.roles, period: report.period } },
+      });
     }
   }
 
@@ -2170,7 +2235,12 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
             <SpamSection value={setup.spam} onChange={update("spam")} modules={setup.modules} config={config} available={setup.spamAvailable} />
           </>
         )}
-        {STEPS[step].key === "automations" && <AutomationsCombinedStep value={setup.automations} onChange={update("automations")} rules={setup.industryRules} onRules={update("industryRules")} terminology={terminology} industryName={industry?.name} />}
+        {STEPS[step].key === "automations" && (
+          <>
+            <AutomationsCombinedStep value={setup.automations} onChange={update("automations")} rules={setup.industryRules} onRules={update("industryRules")} terminology={terminology} industryName={industry?.name} />
+            <DailyReportStep value={setup.dailyReport} onChange={update("dailyReport")} timezone={setup.business.timezone} showErrors={showErrors} />
+          </>
+        )}
         {STEPS[step].key === "crm" && <CrmSetupStep businessId={businessId} terminology={terminology} onTerminology={update("terminology")} modules={setup.modules} onModules={update("modules")} />}
         {STEPS[step].key === "review" && <ReviewStep businessId={businessId} setup={persisted} industries={industries} goTo={request} config={persistedConfig} docsReady={docsReady} />}
       </div>
