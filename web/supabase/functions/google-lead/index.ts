@@ -7,7 +7,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 const json = (body: unknown, status: number) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
-Deno.serve(async (req: Request) => {
+export async function handle(req: Request): Promise<Response> {
   if (req.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405);
   const serverKey = Deno.env.get("ZELLA_SERVER_SECRET_KEY");
   if (!serverKey) return json({ ok: false, error: "try_again" }, 503);
@@ -29,4 +29,6 @@ Deno.serve(async (req: Request) => {
   const status = out.ok ? 200 : out.error === "bad_key" ? 401 : out.error === "too_many_requests" ? 429
     : out.error === "bad_payload" ? 400 : out.error === "business_unavailable" ? 410 : 503;
   return json({ ok: Boolean(out.ok), ...(out.duplicate ? { duplicate: true } : {}), ...(out.test ? { test: true } : {}), ...(out.ok ? {} : { error: out.error }) }, status);
-});
+}
+
+if (import.meta.main) Deno.serve(handle);
