@@ -176,7 +176,10 @@ export function BookAppointmentModal({ workspace, term, onClose, onSaved, initia
   const tz = workspace.timezone;
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
-  const [customer, setCustomer] = useState(null);
+  const [customer, setCustomer] = useState(initial?.customer ?? null);
+  // what the booking is for: a pet, vehicle, property ... of this customer (zella_appointment_records.sql)
+  const [things, setThings] = useState([]);
+  const [recordId, setRecordId] = useState(initial?.record?.id ?? "");
   const [form, setForm] = useState({
     title: "",
     date: initial?.date || todayInput(tz),
@@ -205,6 +208,29 @@ export function BookAppointmentModal({ workspace, term, onClose, onSaved, initia
       .then(({ data, error: staffError }) => { if (active && !staffError) setStaff(data ?? []); });
     return () => { active = false; };
   }, [workspace.id]);
+
+  // The customer's records a booking can be for. Exactly one pet, vehicle, property ... is picked for them.
+  useEffect(() => {
+    let active = true;
+    if (!customer) { setThings(initial?.record ? [initial.record] : []); return undefined; }
+    (async () => {
+      const types = await supabase.from("crm_record_types").select("key, singular, appointment_link").eq("business_id", workspace.id).eq("enabled", true).eq("appointment_link", true);
+      if (!active || types.error || !(types.data ?? []).length) { if (active) setThings(initial?.record ? [initial.record] : []); return; }
+      const label = Object.fromEntries(types.data.map((t) => [t.key, t.singular]));
+      const recs = await supabase.from("crm_records").select("id, title, type_key").eq("business_id", workspace.id).eq("customer_id", customer.id)
+        .in("type_key", types.data.map((t) => t.key)).is("archived_at", null).is("closed_at", null).order("title").limit(50);
+      if (!active || recs.error) return;
+      const list = (recs.data ?? []).map((r) => ({ ...r, singular: label[r.type_key] }));
+      // the record the booking was started from is always offered, even when it's closed
+      if (initial?.record && !list.some((r) => r.id === initial.record.id)) list.unshift(initial.record);
+      setThings(list);
+      const assets = list.filter((r) => ["pets", "vehicles", "properties", "sites", "units", "equipment", "children"].includes(r.type_key));
+      setRecordId((cur) => cur || (assets.length === 1 ? assets[0].id : ""));
+    })();
+    return () => { active = false; };
+    // initial is fixed for this modal
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customer, workspace.id]);
 
   // Find an existing customer by name, phone or email.
   useEffect(() => {
@@ -254,6 +280,7 @@ export function BookAppointmentModal({ workspace, term, onClose, onSaved, initia
       ...(form.partySize ? { party_size: Number(form.partySize) } : {}),
       business_id: workspace.id,
       customer_id: customer?.id ?? null,
+      ...(recordId ? { record_id: recordId } : {}),
       title: form.title.trim(),
       start_time: start.toISOString(),
       end_time: end.toISOString(),
@@ -264,7 +291,10 @@ export function BookAppointmentModal({ workspace, term, onClose, onSaved, initia
     });
     setBusy(false);
 
-    if (insertError) return setError(friendly(insertError));
+    if (insertError) {
+      return setError(/RECORD_OTHER_CUSTOMER/.test(insertError.message ?? "") ? "That belongs to another customer. Pick theirs, or change the customer."
+        : /BAD_RECORD/.test(insertError.message ?? "") ? "That record can't be booked for. Pick another, or none." : friendly(insertError));
+    }
     onSaved(`${term("appointment")} booked${customer ? ` for ${personName(customer)}` : ""}.`);
   }
 
@@ -289,7 +319,7 @@ export function BookAppointmentModal({ workspace, term, onClose, onSaved, initia
           {customer ? (
             <div className="ba-status-row">
               <strong>{personName(customer) ?? customer.phone}</strong>
-              <button type="button" className="ba-link" onClick={() => { setCustomer(null); setQuery(""); }}>Change</button>
+              <button type="button" className="ba-link" onClick={() => { setCustomer(null); setQuery(""); setRecordId(""); }}>Change</button>
             </div>
           ) : (
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={`Find a ${term("customer").toLowerCase()}`} />
@@ -304,6 +334,14 @@ export function BookAppointmentModal({ workspace, term, onClose, onSaved, initia
               </button>
             ))}
           </div>
+        )}
+        {things.length > 0 && (
+          <Field label="For" hint="What this booking is for. Shown on the record and on Today.">
+            <select value={recordId} onChange={(e) => setRecordId(e.target.value)}>
+              <option value="">Nothing in particular</option>
+              {things.map((r) => <option key={r.id} value={r.id}>{r.title}{r.singular ? ` (${r.singular.toLowerCase()})` : ""}</option>)}
+            </select>
+          </Field>
         )}
         <div className="ba-form-grid">
           <Field label="Title" full>

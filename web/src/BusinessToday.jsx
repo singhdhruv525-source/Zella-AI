@@ -261,6 +261,10 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
       const top = Object.entries(visitCount).sort((a, b) => b[1] - a[1]).slice(0, 5);
 
       const ids = [...new Set([...appts, ...recentCalls, ...convos, ...tasks, ...upcoming, ...records].map((r) => r.customer_id).concat(top.map(([cid]) => cid)).filter(Boolean))];
+      // what each booking is for (pet, vehicle, property ...), where linked
+      const forIds = [...new Set(appts.map((a) => a.record_id).filter(Boolean))];
+      const forRes = forIds.length ? await supabase.from("crm_records").select("id, title").in("id", forIds) : { data: [] };
+      const forTitle = Object.fromEntries((forRes.data ?? []).map((r) => [r.id, r.title]));
       let people = {};
       if (ids.length) {
         const { data: rows, error: e } = await supabase.from("customers").select("id, first_name, last_name, company_name, phone, source").in("id", ids);
@@ -271,7 +275,7 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
       const missedOpen = (rows) => rows.filter((c) => c.status === "missed" && !c.metadata?.followed_up_at).length;
 
       setData({
-        appts: appts.map(withPerson),
+        appts: appts.map((a) => ({ ...withPerson(a), forTitle: forTitle[a.record_id] })),
         prev: {
           bookings: prevAppts.length, guests: prevAppts.reduce((n, a) => n + (a.party_size ?? 0), 0), leads: prevLeadCount,
           aiCalls: prevCalls.filter((c) => c.ai_handled).length, missed: prevCalls.filter((c) => c.status === "missed").length,
@@ -410,7 +414,7 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
                       <tr key={a.id}>
                         <td className="td-time">{formatTime(a.start_time, tz)}{mins ? <small>{mins} min</small> : null}</td>
                         <td>{person(a.customer?.id, personName(a.customer) ?? a.title)}
-                          <small className="td-sub">{srcIcon && <Icon name={srcIcon} size="sm" />} {src !== "—" ? src : ""}{src !== "—" && personName(a.customer) && a.title ? " · " : ""}{personName(a.customer) ? a.title : ""}</small></td>
+                          <small className="td-sub">{srcIcon && <Icon name={srcIcon} size="sm" />} {src !== "—" ? src : ""}{src !== "—" && personName(a.customer) && a.title ? " · " : ""}{personName(a.customer) ? a.title : ""}{a.forTitle ? ` · for ${a.forTitle}` : ""}</small></td>
                         {showGuests && <td>{a.party_size ?? "—"}</td>}
                         {showStaff && <td>{data.staff[a.staff_id] ?? "—"}</td>}
                         <td><Pill tone={tone}>{stageLabel}</Pill>{a.booking_state === "requested" && <small className="td-sub">Request, not booked</small>}</td>

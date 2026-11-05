@@ -90,7 +90,7 @@ function FieldInput({ field, value, onChange }) {
 /* One record: create, edit, change status, add notes                    */
 /* ------------------------------------------------------------------ */
 
-function RecordModal({ workspace, type, record, canManage, onClose, onSaved, onOpenExisting, onOpenPerson }) {
+function RecordModal({ workspace, type, record, canManage, onBook, onClose, onSaved, onOpenExisting, onOpenPerson }) {
   const tz = workspace.timezone;
   const isNew = !record;
   const [title, setTitle] = useState(record?.title ?? "");
@@ -110,6 +110,13 @@ function RecordModal({ workspace, type, record, canManage, onClose, onSaved, onO
   const related = useLoad(async () => {
     if (isNew) return [];
     const res = await supabase.rpc("zella_record_related", { p_record_id: record.id });
+    return res.error ? [] : res.data ?? [];
+  }, [record?.id]);
+  // appointments booked for this record (newest first)
+  const visits = useLoad(async () => {
+    if (isNew || !type.appointment_link) return [];
+    const res = await supabase.from("appointments").select("id, title, start_time, status").eq("business_id", workspace.id).eq("record_id", record.id)
+      .order("start_time", { ascending: false }).limit(20);
     return res.error ? [] : res.data ?? [];
   }, [record?.id]);
   async function reveal() {
@@ -207,6 +214,18 @@ function RecordModal({ workspace, type, record, canManage, onClose, onSaved, onO
             <button type="button" className="ba-btn sm" disabled={busy || !note.trim()}
               onClick={async () => { const text = note; setNote(""); await run(() => supabase.rpc("zella_add_record_note", { p_id: record.id, p_note: text }), "Note added."); }}>Add note</button>
           </div>
+          {type.appointment_link && (
+            <>
+              <h3 className="ba-h3">Appointments</h3>
+              {(visits.data ?? []).length === 0 ? <p className="ba-muted">None booked for this {type.singular.toLowerCase()} yet.</p> : (
+                <ul className="ba-history">
+                  {visits.data.map((v) => <li key={v.id}><strong>{v.title}</strong> · {formatDay(v.start_time, tz)} {formatTime(v.start_time, tz)}<small>{v.status}</small></li>)}
+                </ul>
+              )}
+              {onBook && <button type="button" className="ba-btn sm" onClick={() => { onClose(); onBook({ id: record.id, title: record.title, singular: type.singular }, record.customers ?? null); }}>
+                <Icon name="event" size="sm" />Book for this {type.singular.toLowerCase()}</button>}
+            </>
+          )}
           {(related.data ?? []).length > 0 && (
             <>
               <h3 className="ba-h3">Linked</h3>
@@ -219,7 +238,7 @@ function RecordModal({ workspace, type, record, canManage, onClose, onSaved, onO
           {(events.data ?? []).length === 0 ? <p className="ba-muted">Nothing yet.</p> : (
             <ul className="ba-history">
               {events.data.map((e) => (
-                <li key={e.id}><strong>{{ created: "Added", edited: "Edited", status: "Status changed", note: "Note", archived: "Archived", secret_viewed: "Private details viewed", secret_changed: "Private details changed" }[e.kind] ?? e.kind}</strong>{e.detail ? ` · ${e.detail}` : ""}<small>{timeAgo(e.created_at)}</small></li>
+                <li key={e.id}><strong>{{ created: "Added", edited: "Edited", status: "Status changed", note: "Note", archived: "Archived", secret_viewed: "Private details viewed", secret_changed: "Private details changed", appointment: "Booked" }[e.kind] ?? e.kind}</strong>{e.detail ? ` · ${e.detail}` : ""}<small>{timeAgo(e.created_at)}</small></li>
               ))}
             </ul>
           )}
@@ -233,7 +252,7 @@ function RecordModal({ workspace, type, record, canManage, onClose, onSaved, onO
 /* The list page                                                       */
 /* ------------------------------------------------------------------ */
 
-export function RecordsPage({ workspace, type, query, refreshKey, canManage, onNotice, onOpenPerson }) {
+export function RecordsPage({ workspace, type, query, refreshKey, canManage, onNotice, onOpenPerson, onBook }) {
   const tz = workspace.timezone;
   const [filter, setFilter] = useState("open");
   const [page, setPage] = useState(0);
@@ -324,7 +343,7 @@ export function RecordsPage({ workspace, type, query, refreshKey, canManage, onN
           </>
         )}
       </section>
-      {modal && <RecordModal workspace={workspace} type={type} record={modal.record} canManage={canManage} onClose={() => setModal(null)} onSaved={saved} onOpenExisting={openExisting} onOpenPerson={onOpenPerson} />}
+      {modal && <RecordModal workspace={workspace} type={type} record={modal.record} canManage={canManage} onBook={onBook} onClose={() => setModal(null)} onSaved={saved} onOpenExisting={openExisting} onOpenPerson={onOpenPerson} />}
     </>
   );
 }
@@ -340,6 +359,7 @@ function TypeEditor({ workspace, type, types = [], onClose, onSaved }) {
   const [singular, setSingular] = useState(type?.singular ?? "");
   const [plural, setPlural] = useState(type?.plural ?? "");
   const [enabled, setEnabled] = useState(type?.enabled ?? true);
+  const [bookable, setBookable] = useState(type?.appointment_link ?? false);
   const [statuses, setStatuses] = useState((type?.statuses ?? [{ key: "open", label: "Open", tone: "warning" }, { key: "done", label: "Done", tone: "success" }]).map((s) => ({ ...s, closed: type ? type.closed_statuses.includes(s.key) : s.key === "done", existing: Boolean(type) })));
   const [fields, setFields] = useState((type?.fields ?? [{ key: "details", label: "Details", type: "longtext" }]).map((f) => ({ ...f, existing: Boolean(type), wasSensitive: Boolean(f.sensitive), optionsText: (f.options ?? []).join(", ") })));
   const [busy, setBusy] = useState(false);
@@ -382,7 +402,7 @@ function TypeEditor({ workspace, type, types = [], onClose, onSaved }) {
     const { error: failure } = await supabase.rpc("zella_save_record_type", {
       p_business_id: workspace.id, p_key: key,
       p_patch: {
-        singular: singular.trim(), plural: plural.trim(), enabled,
+        singular: singular.trim(), plural: plural.trim(), enabled, appointment_link: bookable,
         statuses: outStatuses.map(({ closed, ...s }) => s), closed_statuses: outStatuses.filter((s) => s.closed).map((s) => s.key),
         fields: outFields, ...(isNew ? {} : {}),
       },
@@ -402,6 +422,7 @@ function TypeEditor({ workspace, type, types = [], onClose, onSaved }) {
           <Field label="Name (one)"><input value={singular} onChange={(e) => setSingular(e.target.value)} required maxLength={60} placeholder="Job" /></Field>
           <Field label="Name (many)"><input value={plural} onChange={(e) => setPlural(e.target.value)} required maxLength={60} placeholder="Jobs" /></Field>
           <Field label="Show in the menu" full><label className="ba-check"><input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} /> Yes. Hiding it keeps all its records.</label></Field>
+          <Field label="Can be booked for" full><label className="ba-check"><input type="checkbox" checked={bookable} onChange={(e) => setBookable(e.target.checked)} /> Yes. Bookings can say which {(singular || "record").toLowerCase()} they are for.</label></Field>
         </div>
 
         <h3 className="ba-h3">Statuses</h3>

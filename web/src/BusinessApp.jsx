@@ -115,7 +115,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
       const [date, time] = new Intl.DateTimeFormat("en-CA", { timeZone: workspace.timezone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
         .format(new Date()).split(", ");
       setBookInitial({ date, time });
-    } else setBookInitial(null);
+    } else setBookInitial(opts?.record ? { record: opts.record, customer: opts.customer } : null);
     setModal("book");
   };
   const [refreshKey, setRefreshKey] = useState(0);
@@ -365,7 +365,8 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
           {current.key === "knowledge" && <KnowledgePage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
           {current.key.startsWith("rec:") && records.types.find((t) => `rec:${t.key}` === current.key) && (
             <RecordsPage workspace={workspace} type={records.types.find((t) => `rec:${t.key}` === current.key)} query={search} refreshKey={refreshKey}
-              canManage={["owner", "admin", "manager"].includes(workspace.role)} onNotice={setNotice} onOpenPerson={openPerson} />
+              canManage={["owner", "admin", "manager"].includes(workspace.role)} onNotice={setNotice} onOpenPerson={openPerson}
+              onBook={canBook ? (record, customer) => openBooking({ record, customer }) : undefined} />
           )}
           {current.key === "record-settings" && (
             <RecordSettingsPage workspace={workspace} types={records.types} loaded={records.loaded} canManage={["owner", "admin", "manager"].includes(workspace.role)} onNotice={setNotice} onChanged={records.reload} loadError={records.error} />

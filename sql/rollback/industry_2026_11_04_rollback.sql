@@ -76,7 +76,10 @@ delete from public.automations a where a.name in (select name from v)
 
 
 -- ---------- schema (generated) ----------
+drop trigger if exists zella_appointment_record on public.appointments;
+drop trigger if exists zella_appointment_record_event on public.appointments;
 drop trigger if exists zella_capability_appointment on public.appointments;
+drop trigger if exists zella_record_type_defaults on public.crm_record_types;
 drop policy if exists business_capabilities_read on public.business_capabilities;
 drop policy if exists zella_mfa_required on public.crm_record_secrets;
 drop policy if exists customer_charge_payments_read on public.customer_charge_payments;
@@ -1589,6 +1592,8 @@ end $function$;
 revoke all on function public.zella_workspace_navigation(uuid) from public, anon, authenticated, service_role;
 grant execute on function public.zella_workspace_navigation(uuid) to authenticated;
 grant execute on function public.zella_workspace_navigation(uuid) to service_role;
+drop function if exists public.zella_appointment_record_event_trg() cascade;
+drop function if exists public.zella_appointment_record_trg() cascade;
 drop function if exists public.zella_business_currency(uuid) cascade;
 drop function if exists public.zella_business_readiness(uuid) cascade;
 drop function if exists public.zella_can_edit(uuid) cascade;
@@ -1608,15 +1613,20 @@ drop function if exists public.zella_provider_charge_payment(uuid,text,bigint,te
 drop function if exists public.zella_record_charge_payment(uuid,text,bigint,text,text,text) cascade;
 drop function if exists public.zella_record_related(uuid) cascade;
 drop function if exists public.zella_record_secrets(uuid) cascade;
+drop function if exists public.zella_record_type_defaults_trg() cascade;
 drop function if exists public.zella_require_capability(uuid,text) cascade;
 drop function if exists public.zella_seed_capability_defaults() cascade;
 drop function if exists public.zella_sensitive_industry(uuid) cascade;
+drop function if exists public.zella_set_appointment_record(uuid,uuid) cascade;
 drop function if exists public.zella_set_call_content_access(uuid,boolean) cascade;
 drop function if exists public.zella_set_capability(uuid,text,boolean) cascade;
 drop function if exists public.zella_set_charge_status(uuid,text,text) cascade;
 drop function if exists public.zella_staff_add_lead(uuid,text,text,text,text,text,text) cascade;
 drop function if exists public.zella_today_operations(uuid) cascade;
+drop index if exists public.appointments_record;
 drop index if exists public.crm_records_data_gin;
+alter table public.appointments drop column if exists record_id;
+alter table public.crm_record_types drop column if exists appointment_link;
 alter table public.crm_record_types drop column if exists capability;
 alter table public.crm_record_types drop column if exists capacity;
 alter table public.crm_record_types drop column if exists fields_seen;
