@@ -117,15 +117,19 @@ export function KnowledgePage({ workspace, refreshKey, onNotice }) {
 
   const dismissGap = (gap) => run(`d-${gap.id}`, () => supabase.rpc("zella_dismiss_knowledge_gap", { p_gap_id: gap.id }), "Question dismissed.");
 
+  // the database checks an answer as it is saved (sql/zella_knowledge_live.sql)
+  const CHECK = { KNOWLEDGE_TITLE_EMPTY: "Give it a title.", KNOWLEDGE_ANSWER_EMPTY: "Write the answer.", KNOWLEDGE_ANSWER_TOO_LONG: "Keep the answer under 4,000 characters." };
+  const checked = (failure) => CHECK[Object.keys(CHECK).find((k) => (failure?.message ?? "").includes(k))] ?? friendly(failure);
+
   const addItem = () => setModal({
     kind: "add",
     submit: async (v) => {
       const { error: failure } = await supabase.from("knowledge_items").insert({
         business_id: workspace.id, kind: v.kind, title: v.title, question: v.question || null, answer: v.answer, status: "processing",
       });
-      if (failure) return friendly(failure);
+      if (failure) return checked(failure);
       setModal(null);
-      onNotice?.("Added. Zella will use it once it has been checked.");
+      onNotice?.("Added. Zella uses it from the next call.");
       reload();
       return "";
     },
@@ -136,9 +140,9 @@ export function KnowledgePage({ workspace, refreshKey, onNotice }) {
     submit: async (v) => {
       const { error: failure } = await changed(supabase.from("knowledge_items")
         .update({ title: v.title, kind: v.kind, question: v.question || null, answer: v.answer }).eq("id", item.id));
-      if (failure) return friendly(failure);
+      if (failure) return checked(failure);
       setModal(null);
-      onNotice?.("Saved. Zella keeps using nothing for this until the new version is checked.");
+      onNotice?.("Saved. Zella uses the new version from the next call.");
       reload();
       return "";
     },

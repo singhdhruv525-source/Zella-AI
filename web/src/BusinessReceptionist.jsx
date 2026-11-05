@@ -92,7 +92,7 @@ function Editor({ agent, base, onSaved }) {
   }
 
   async function publish() {
-    if (!window.confirm("Publish these changes? Your receptionist uses them on calls once they've synced, usually within a few minutes.")) return;
+    if (!window.confirm("Publish these changes? Booking, handover and knowledge rules apply from the next call. Changes to what it says (instructions, greeting, owner's rules) reach the phone line once the assistant is updated, which Zella support does for now.")) return;
     setBusy(true);
     setProblem("");
     const { data, error } = await supabase.rpc("zella_publish_agent_config", { p_version_id: result.versionId });
@@ -233,7 +233,7 @@ export function ReceptionistEditor({ workspace, agent, onNotice }) {
       {data && (
         <div className="ba-grid-2" style={{ marginTop: 16 }}>
           <Editor key={data.versions.find((v) => v.status === "published")?.id ?? "none"} agent={agent} base={data.base} onSaved={(published, version) => {
-            if (published) onNotice?.(`Version ${version} published. It goes live once it has synced.`);
+            if (published) onNotice?.(`Version ${version} published. Rules apply from the next call; wording changes wait for the assistant update.`);
             reload();
           }} />
           <Versions workspace={workspace} versions={data.versions} onRestored={(version) => { onNotice?.(`Brought back as version ${version}. It goes live once it has synced.`); reload(); }} />
