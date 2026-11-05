@@ -403,6 +403,67 @@ function IntegrationCard({ item, row, canManage, loading, onNotice, onChanged, w
 
 // Google Ads lead forms (sql/zella_google_leads.sql): owners and admins create the key Google sends with each lead.
 // It is shown once; Zella keeps only a hash. Managers see whether leads are arriving.
+// Shopify store for order status (e-commerce): owners and admins paste the store address and a read-only custom app
+// token; the store-connect function checks it with Shopify before it is stored (server-only). The token is never shown.
+const STORE_ERRORS = { bad_shop_domain: "Enter the store's address ending in .myshopify.com.", bad_token: "That doesn't look like an Admin API access token.",
+  token_refused: "Shopify didn't accept that token. Copy it again from the custom app.", store_not_found: "No store answers at that address.",
+  missing_scopes: "The custom app needs read access to orders and customers (read_orders, read_customers).", not_allowed: "Only owners and admins can connect the store.",
+  store_unreachable: "Shopify couldn't be reached. Try again in a minute." };
+function StoreCard({ workspace, onNotice }) {
+  const canManage = ["owner", "admin"].includes(workspace.role);
+  const [version, setVersion] = useState(0);
+  const [shop, setShop] = useState("");
+  const [token, setToken] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState("");
+  const state = useLoad(async () => {
+    const caps = await supabase.rpc("zella_capabilities", { p_business_id: workspace.id });
+    const orders = caps.data?.orders;
+    if (caps.error || !orders || orders.state === "unsupported") return { hidden: true };
+    const row = await supabase.from("integrations").select("id, provider, status, external_account_id, last_error, last_checked_at").eq("business_id", workspace.id).eq("integration_type", "store").neq("status", "disconnected").maybeSingle();
+    return { store: row.data ?? null };
+  }, [workspace.id, version]);
+  if (state.data?.hidden || !state.data) return null;
+  const st = state.data.store;
+  async function connect(e) {
+    e.preventDefault(); setBusy(true); setProblem("");
+    const { data, error } = await supabase.functions.invoke("store-connect", { body: { action: "connect", business_id: workspace.id, shop_domain: shop, access_token: token } });
+    setBusy(false);
+    if (error || !data?.ok) {
+      let answer = data; try { answer = (await error?.context?.json?.()) ?? data; } catch { /* not JSON */ }
+      return setProblem(STORE_ERRORS[answer?.error] ?? "The store couldn't be connected. Try again.");
+    }
+    setToken(""); setShop(""); setVersion((v) => v + 1);
+    onNotice(`Store connected: ${data.shop_name ?? data.shop}.${data.more_access_than_needed?.length ? " The token can also change things in your store; Zella only reads orders, so a read-only token is safer." : ""}`);
+  }
+  async function disconnect() {
+    if (!window.confirm("Disconnect the store? The assistant stops checking order status and takes messages instead. The access token is deleted.")) return;
+    const r = await supabase.rpc("zella_store_disconnect", { p_business_id: workspace.id });
+    if (r.error) return setProblem(explain(r.error));
+    setVersion((v) => v + 1); onNotice("Store disconnected.");
+  }
+  return (
+    <section className="ba-panel ba-integration ba-integration-controls">
+      <div className="ba-integration-row">
+        <span className="ba-thread-icon"><Icon name="storefront" size="sm" /></span>
+        <div><strong>Shopify store</strong><small>The assistant tells callers their order status and tracking, only when they call from the number on the order or give its email.</small></div>
+        <Pill tone={st ? (st.status === "active" ? "success" : "warning") : ""}>{st ? (st.status === "active" ? "Connected" : "Needs attention") : "Not connected"}</Pill>
+      </div>
+      {problem && <p className="ba-error" role="alert">{problem}</p>}
+      {st && <small className="ba-integration-account">{st.external_account_id}{st.last_error === "store_unauthorized" ? ". Shopify stopped accepting the token: connect it again with a new one." : ""}</small>}
+      {canManage && !st && (
+        <form className="ba-inline-form" onSubmit={connect}>
+          <input value={shop} onChange={(e) => setShop(e.target.value)} placeholder="your-store.myshopify.com" aria-label="Store address" required />
+          <input value={token} onChange={(e) => setToken(e.target.value)} type="password" autoComplete="off" placeholder="Admin API access token" aria-label="Admin API access token" required />
+          <button type="submit" className="ba-btn sm" disabled={busy}>{busy ? "Checking with Shopify…" : "Connect"}</button>
+        </form>
+      )}
+      {canManage && !st && <small className="ba-muted">In Shopify: Settings, Apps and sales channels, Develop apps, create an app with read_orders and read_customers, install it, and copy its Admin API access token.</small>}
+      {canManage && st && <button type="button" className="ba-btn ghost sm" onClick={disconnect}>Disconnect</button>}
+    </section>
+  );
+}
+
 function GoogleLeadsCard({ workspace, onNotice }) {
   const canSee = ["owner", "admin", "manager"].includes(workspace.role);
   const canManage = ["owner", "admin"].includes(workspace.role);
@@ -477,6 +538,7 @@ export function IntegrationsPage({ workspace, refreshKey, onNotice }) {
         sub={canManage ? "Turn any connected service off, back on, or remove it." : "The services connected to your workspace."} />
       <Notice error={error} onRetry={reload} />
       <div className="ba-grid-2">
+        <StoreCard workspace={workspace} onNotice={onNotice} />
         <GoogleLeadsCard workspace={workspace} onNotice={onNotice} />
         {CATALOG.map((item) => (
           <IntegrationCard key={item.name} item={item} row={rowFor(item)} canManage={canManage} loading={loading && !data}

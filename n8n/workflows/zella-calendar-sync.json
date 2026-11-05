@@ -56,7 +56,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Zella - Calendar Sync: turn one queued booking change into a Google Calendar request. Nothing is sent from here.\n// The refresh token only lives in this run's data; it is never logged or stored.\nconst it = $json;\nconst none = { json: { queue_id: it && it.queue_id ? it.queue_id : null, needs_google: false, token_form: null, google: null, skip_ok: false } };\nif (!it || !it.queue_id || !it.refresh_token || !it.calendar_id) return none;\nconst cal = encodeURIComponent(String(it.calendar_id));\nconst base = 'https://www.googleapis.com/calendar/v3/calendars/' + cal + '/events';\nconst tokenForm = { refresh_token: String(it.refresh_token) };\nif (it.action === 'delete') {\n  if (!it.event_id) return { json: { queue_id: it.queue_id, needs_google: false, token_form: null, google: null, skip_ok: true } };\n  return { json: { queue_id: it.queue_id, needs_google: true, token_form: tokenForm, skip_ok: false,\n    google: { action: 'delete', method: 'DELETE', url: base + '/' + encodeURIComponent(String(it.event_id)), body: null } } };\n}\nif (it.action !== 'upsert' || !it.event || !it.event.start || !it.event.end) return none;\nconst e = it.event;\nconst body = {\n  summary: String(e.summary || 'Appointment').slice(0, 200),\n  description: String(e.description || '').slice(0, 1000),\n  start: { dateTime: e.start, timeZone: e.timezone || 'America/New_York' },\n  end: { dateTime: e.end, timeZone: e.timezone || 'America/New_York' },\n  extendedProperties: { private: { zella_appointment_id: String(it.appointment_id || '') } },\n};\nconst update = !!it.event_id;\nreturn { json: { queue_id: it.queue_id, needs_google: true, token_form: tokenForm, skip_ok: false,\n  google: { action: 'upsert', method: update ? 'PATCH' : 'POST', url: update ? base + '/' + encodeURIComponent(String(it.event_id)) : base, body } } };\n"
+        "jsCode": "// Zella - Calendar Sync: turn one queued booking change into a request to the business's calendar provider\n// (Google Calendar, or Outlook / Microsoft 365 through Microsoft Graph). Nothing is sent from here.\n// The refresh token only lives in this run's data; it is never logged or stored.\nconst it = $json;\nconst provider = it && it.provider === 'outlook' ? 'outlook' : 'google';\n// Zella's marker on events it created (so busy-time reading leaves them out and edits find them)\nconst MS_PROP = 'String {6f1d2c9a-3b7e-4a51-9c0d-8e2f4b6a1c35} Name zella_appointment_id';\nconst none = { json: { queue_id: it && it.queue_id ? it.queue_id : null, provider, needs_google: false, token_form: null, google: null, skip_ok: false } };\nif (!it || !it.queue_id || !it.refresh_token || !it.calendar_id) return none;\nconst tokenForm = { refresh_token: String(it.refresh_token) };\nconst ask = (google) => ({ json: { queue_id: it.queue_id, provider, needs_google: true, token_form: tokenForm, skip_ok: false, google } });\nlet base;\nif (provider === 'outlook') {\n  base = String(it.calendar_id) === 'primary' ? 'https://graph.microsoft.com/v1.0/me/events'\n    : 'https://graph.microsoft.com/v1.0/me/calendars/' + encodeURIComponent(String(it.calendar_id)) + '/events';\n} else {\n  base = 'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(String(it.calendar_id)) + '/events';\n}\n// Graph addresses an event by id alone, whichever calendar holds it\nconst eventUrl = (id) => provider === 'outlook' ? 'https://graph.microsoft.com/v1.0/me/events/' + encodeURIComponent(String(id)) : base + '/' + encodeURIComponent(String(id));\nif (it.action === 'delete') {\n  if (!it.event_id) return { json: { queue_id: it.queue_id, provider, needs_google: false, token_form: null, google: null, skip_ok: true } };\n  return ask({ action: 'delete', method: 'DELETE', url: eventUrl(it.event_id), body: null });\n}\nif (it.action !== 'upsert' || !it.event || !it.event.start || !it.event.end) return none;\nconst e = it.event;\nconst update = !!it.event_id;\nlet body;\nif (provider === 'outlook') {\n  const utc = (s) => new Date(s).toISOString().slice(0, 19); // Graph: a local date-time plus its time zone\n  body = {\n    subject: String(e.summary || 'Appointment').slice(0, 200),\n    body: { contentType: 'text', content: String(e.description || '').slice(0, 1000) },\n    start: { dateTime: utc(e.start), timeZone: 'UTC' },\n    end: { dateTime: utc(e.end), timeZone: 'UTC' },\n    singleValueExtendedProperties: [{ id: MS_PROP, value: String(it.appointment_id || '') }],\n  };\n} else {\n  body = {\n    summary: String(e.summary || 'Appointment').slice(0, 200),\n    description: String(e.description || '').slice(0, 1000),\n    start: { dateTime: e.start, timeZone: e.timezone || 'America/New_York' },\n    end: { dateTime: e.end, timeZone: e.timezone || 'America/New_York' },\n    extendedProperties: { private: { zella_appointment_id: String(it.appointment_id || '') } },\n  };\n}\nreturn ask({ action: 'upsert', method: update ? 'PATCH' : 'POST', url: update ? eventUrl(it.event_id) : base, body });\n"
       },
       "id": "5c2780ea-75f8-4ada-8343-1c82543a0f17",
       "name": "Plan sync",
@@ -98,6 +98,39 @@
       "position": [
         720,
         100
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "872a6291-ae3e-4b36-81df-05e3ee0ea4e8",
+              "leftValue": "={{ $('Plan sync').item.json.provider === 'outlook' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "98508e8a-ff33-427f-8f3a-cbb818316671",
+      "name": "Is Outlook",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        840,
+        0
       ]
     },
     {
@@ -145,6 +178,57 @@
       "position": [
         960,
         0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+        "authentication": "none",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "grant_type",
+              "value": "refresh_token"
+            },
+            {
+              "name": "refresh_token",
+              "value": "={{ $('Plan sync').item.json.token_form.refresh_token }}"
+            },
+            {
+              "name": "client_id",
+              "value": "PASTE_MICROSOFT_CLIENT_ID"
+            },
+            {
+              "name": "client_secret",
+              "value": "PASTE_MICROSOFT_CLIENT_SECRET"
+            },
+            {
+              "name": "scope",
+              "value": "offline_access Calendars.ReadWrite"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "5c7249f1-16da-4895-8937-2c51d8f44e53",
+      "name": "Get Microsoft token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        -120
       ]
     },
     {
@@ -287,7 +371,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Zella - Calendar Sync: read Google's answer and report it back to the database (which retries or raises an alert).\n// Only a short error name is kept; Google's response text is never stored.\nconst plan = $('Plan sync').item.json;\nconst rec = (ok, eventId, error) => ({ json: { record: { p_queue_id: plan.queue_id, p_ok: ok, p_event_id: eventId || null, p_error: ok ? null : String(error).slice(0, 80) } } });\nif (!plan.queue_id) return { json: { record: null } };\nif (!plan.needs_google) return plan.skip_ok ? rec(true, null) : rec(false, null, 'bad_queue_item');\nlet tok = null;\ntry { tok = $('Get Google token').item.json; } catch (e) { tok = null; }\nconst tb = tok && tok.body && typeof tok.body === 'object' ? tok.body : {};\nif (!tb.access_token) return rec(false, null, 'google_token_' + (typeof tb.error === 'string' ? tb.error.replace(/[^a-z_]/gi, '').slice(0, 30) : 'failed'));\nconst status = Number($json.statusCode);\nconst b = $json.body && typeof $json.body === 'object' ? $json.body : {};\nif (plan.google.action === 'delete') return (status >= 200 && status < 300) || status === 404 || status === 410 ? rec(true, null) : rec(false, null, 'google_' + (status || 'no_answer'));\nif (status >= 200 && status < 300 && typeof b.id === 'string') return rec(true, b.id);\nreturn rec(false, null, 'google_' + (status || 'no_answer'));\n"
+        "jsCode": "// Zella - Calendar Sync: read the calendar provider's answer and report it back to the database (which retries or\n// raises an alert). Only a short error name is kept; the provider's response text is never stored.\nconst plan = $('Plan sync').item.json;\nconst name = plan.provider === 'outlook' ? 'microsoft' : 'google';\nconst rec = (ok, eventId, error) => ({ json: { record: { p_queue_id: plan.queue_id, p_ok: ok, p_event_id: eventId || null, p_error: ok ? null : String(error).slice(0, 80) } } });\nif (!plan.queue_id) return { json: { record: null } };\nif (!plan.needs_google) return plan.skip_ok ? rec(true, null) : rec(false, null, 'bad_queue_item');\nlet tok = null;\ntry { tok = $(plan.provider === 'outlook' ? 'Get Microsoft token' : 'Get Google token').item.json; } catch (e) { tok = null; }\nconst tb = tok && tok.body && typeof tok.body === 'object' ? tok.body : {};\nif (!tb.access_token) return rec(false, null, name + '_token_' + (typeof tb.error === 'string' ? tb.error.replace(/[^a-z_]/gi, '').slice(0, 30) : 'failed'));\nconst status = Number($json.statusCode);\nconst b = $json.body && typeof $json.body === 'object' ? $json.body : {};\nif (plan.google.action === 'delete') return (status >= 200 && status < 300) || status === 404 || status === 410 ? rec(true, null) : rec(false, null, name + '_' + (status || 'no_answer'));\nif (status >= 200 && status < 300 && typeof b.id === 'string') return rec(true, b.id);\nreturn rec(false, null, name + '_' + (status || 'no_answer'));\n"
       },
       "id": "4c6d268d-614a-4f2c-88a7-3ba8dafbadc2",
       "name": "Read result",
@@ -397,7 +481,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Zella - Calendar Sync: build the request that lists one business calendar's upcoming events.\nconst c = $json;\nif (!c || !c.connection_id || !c.refresh_token || !c.calendar_id) return { json: { connection_id: c && c.connection_id ? c.connection_id : null, token_form: null, url: null } };\nconst q = new URLSearchParams({ timeMin: c.from, timeMax: c.to, singleEvents: 'true', orderBy: 'startTime', maxResults: '250',\n  fields: 'items(id,status,transparency,start,end,extendedProperties)' });\nreturn { json: { connection_id: c.connection_id, token_form: { refresh_token: String(c.refresh_token) },\n  url: 'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(String(c.calendar_id)) + '/events?' + q.toString() } };\n"
+        "jsCode": "// Zella - Calendar Sync: build the request that lists one business calendar's upcoming events (Google or Outlook).\nconst c = $json;\nconst provider = c && c.provider === 'outlook' ? 'outlook' : 'google';\nif (!c || !c.connection_id || !c.refresh_token || !c.calendar_id) return { json: { connection_id: c && c.connection_id ? c.connection_id : null, provider, token_form: null, url: null, prefer: '' } };\nif (provider === 'outlook') {\n  const MS_PROP = 'String {6f1d2c9a-3b7e-4a51-9c0d-8e2f4b6a1c35} Name zella_appointment_id';\n  const where = String(c.calendar_id) === 'primary' ? 'me/calendarView' : 'me/calendars/' + encodeURIComponent(String(c.calendar_id)) + '/calendarView';\n  const q = new URLSearchParams({ startDateTime: c.from, endDateTime: c.to, $top: '250', $select: 'id,showAs,isCancelled,isAllDay,start,end',\n    $expand: \"singleValueExtendedProperties($filter=id eq '\" + MS_PROP + \"')\" });\n  return { json: { connection_id: c.connection_id, provider, token_form: { refresh_token: String(c.refresh_token) },\n    url: 'https://graph.microsoft.com/v1.0/' + where + '?' + q.toString(), prefer: 'outlook.timezone=\"UTC\"' } };\n}\nconst q = new URLSearchParams({ timeMin: c.from, timeMax: c.to, singleEvents: 'true', orderBy: 'startTime', maxResults: '250',\n  fields: 'items(id,status,transparency,start,end,extendedProperties)' });\nreturn { json: { connection_id: c.connection_id, provider, token_form: { refresh_token: String(c.refresh_token) },\n  url: 'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(String(c.calendar_id)) + '/events?' + q.toString(), prefer: '' } };\n"
       },
       "id": "babecd1f-ff3f-49bd-8efc-df3bd4f85019",
       "name": "Plan pull",
@@ -405,6 +489,39 @@
       "typeVersion": 2,
       "position": [
         480,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "a4d07be3-0d40-422c-8e47-c85446161f22",
+              "leftValue": "={{ $json.provider === 'outlook' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "0eb0adec-949d-486b-8184-5cbd88667943",
+      "name": "Pull is Outlook",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        600,
         500
       ]
     },
@@ -423,7 +540,7 @@
             },
             {
               "name": "refresh_token",
-              "value": "={{ $json.token_form ? $json.token_form.refresh_token : '' }}"
+              "value": "={{ $('Plan pull').item.json.token_form ? $('Plan pull').item.json.token_form.refresh_token : '' }}"
             },
             {
               "name": "client_id",
@@ -453,6 +570,57 @@
       "position": [
         720,
         500
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+        "authentication": "none",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "grant_type",
+              "value": "refresh_token"
+            },
+            {
+              "name": "refresh_token",
+              "value": "={{ $('Plan pull').item.json.token_form ? $('Plan pull').item.json.token_form.refresh_token : '' }}"
+            },
+            {
+              "name": "client_id",
+              "value": "PASTE_MICROSOFT_CLIENT_ID"
+            },
+            {
+              "name": "client_secret",
+              "value": "PASTE_MICROSOFT_CLIENT_SECRET"
+            },
+            {
+              "name": "scope",
+              "value": "offline_access Calendars.ReadWrite"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "2740e20e-4e1a-4d33-8b13-7515561bf1dd",
+      "name": "Get Microsoft pull token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        380
       ]
     },
     {
@@ -499,6 +667,10 @@
             {
               "name": "Authorization",
               "value": "=Bearer {{ $json.body.access_token }}"
+            },
+            {
+              "name": "Prefer",
+              "value": "={{ $('Plan pull').item.json.prefer || 'return=representation' }}"
             }
           ]
         },
@@ -525,7 +697,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Zella - Calendar Sync: turn the calendar's events into busy blocks. Cancelled, \"free\" and Zella-made events are left out.\nconst plan = $('Plan pull').item.json;\nconst fail = (error, fatal) => ({ json: { events: null, error: { p_connection_id: plan.connection_id, p_error: String(error).slice(0, 80), p_fatal: !!fatal } } });\nif (!plan.connection_id || !plan.url) return { json: { events: null, error: null } };\nlet tok = null;\ntry { tok = $('Get pull token').item.json; } catch (e) { tok = null; }\nconst tb = tok && tok.body && typeof tok.body === 'object' ? tok.body : {};\nif (!tb.access_token) { const err = typeof tb.error === 'string' ? tb.error.replace(/[^a-z_]/gi, '').slice(0, 30) : 'failed'; return fail('google_token_' + err, err === 'invalid_grant'); }\nconst status = Number($json.statusCode);\nconst b = $json.body && typeof $json.body === 'object' ? $json.body : {};\nif (!(status >= 200 && status < 300) || !Array.isArray(b.items)) return fail('google_' + (status || 'no_answer'), status === 404);\nconst events = [];\nfor (const e of b.items) {\n  if (!e || typeof e.id !== 'string' || e.status === 'cancelled' || e.transparency === 'transparent') continue;\n  if (e.extendedProperties && e.extendedProperties.private && e.extendedProperties.private.zella_appointment_id) continue;\n  if (e.start && e.start.dateTime && e.end && e.end.dateTime) events.push({ id: e.id, start: e.start.dateTime, end: e.end.dateTime, all_day: false });\n  else if (e.start && e.start.date && e.end && e.end.date) events.push({ id: e.id, start: e.start.date + 'T00:00:00Z', end: e.end.date + 'T00:00:00Z', all_day: true });\n}\nreturn { json: { events: { p_connection_id: plan.connection_id, p_events: events }, error: null } };\n"
+        "jsCode": "// Zella - Calendar Sync: turn the calendar's events into busy blocks. Cancelled, \"free\" and Zella-made events are left out.\nconst plan = $('Plan pull').item.json;\nconst outlook = plan.provider === 'outlook';\nconst name = outlook ? 'microsoft' : 'google';\nconst fail = (error, fatal) => ({ json: { events: null, error: { p_connection_id: plan.connection_id, p_error: String(error).slice(0, 80), p_fatal: !!fatal } } });\nif (!plan.connection_id || !plan.url) return { json: { events: null, error: null } };\nlet tok = null;\nfor (const node of outlook ? ['Get Microsoft pull token'] : ['Get pull token']) { try { tok = $(node).item.json; } catch (e) { tok = null; } }\nconst tb = tok && tok.body && typeof tok.body === 'object' ? tok.body : {};\nif (!tb.access_token) { const err = typeof tb.error === 'string' ? tb.error.replace(/[^a-z_]/gi, '').slice(0, 30) : 'failed'; return fail(name + '_token_' + err, err === 'invalid_grant'); }\nconst status = Number($json.statusCode);\nconst b = $json.body && typeof $json.body === 'object' ? $json.body : {};\nconst list = outlook ? b.value : b.items;\nif (!(status >= 200 && status < 300) || !Array.isArray(list)) return fail(name + '_' + (status || 'no_answer'), status === 404);\nconst events = [];\nfor (const e of list) {\n  if (!e || typeof e.id !== 'string') continue;\n  if (outlook) {\n    if (e.isCancelled || e.showAs === 'free') continue;\n    if (Array.isArray(e.singleValueExtendedProperties) && e.singleValueExtendedProperties.some((p) => p && p.value)) continue;\n    if (!e.start || !e.end || typeof e.start.dateTime !== 'string' || typeof e.end.dateTime !== 'string') continue;\n    // with Prefer: outlook.timezone=\"UTC\" the times come back in UTC, without a zone suffix\n    events.push({ id: e.id, start: e.start.dateTime.slice(0, 19) + 'Z', end: e.end.dateTime.slice(0, 19) + 'Z', all_day: !!e.isAllDay });\n    continue;\n  }\n  if (e.status === 'cancelled' || e.transparency === 'transparent') continue;\n  if (e.extendedProperties && e.extendedProperties.private && e.extendedProperties.private.zella_appointment_id) continue;\n  if (e.start && e.start.dateTime && e.end && e.end.dateTime) events.push({ id: e.id, start: e.start.dateTime, end: e.end.dateTime, all_day: false });\n  else if (e.start && e.start.date && e.end && e.end.date) events.push({ id: e.id, start: e.start.date + 'T00:00:00Z', end: e.end.date + 'T00:00:00Z', all_day: true });\n}\nreturn { json: { events: { p_connection_id: plan.connection_id, p_events: events }, error: null } };\n"
       },
       "id": "1acc5142-4008-49f1-8cc5-dc8b9e246036",
       "name": "Map busy",
@@ -716,7 +888,7 @@
       "main": [
         [
           {
-            "node": "Get Google token",
+            "node": "Is Outlook",
             "type": "main",
             "index": 0
           }
@@ -730,7 +902,36 @@
         ]
       ]
     },
+    "Is Outlook": {
+      "main": [
+        [
+          {
+            "node": "Get Microsoft token",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Google token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Get Google token": {
+      "main": [
+        [
+          {
+            "node": "Token ok",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Microsoft token": {
       "main": [
         [
           {
@@ -837,6 +1038,24 @@
       "main": [
         [
           {
+            "node": "Pull is Outlook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pull is Outlook": {
+      "main": [
+        [
+          {
+            "node": "Get Microsoft pull token",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
             "node": "Get pull token",
             "type": "main",
             "index": 0
@@ -845,6 +1064,17 @@
       ]
     },
     "Get pull token": {
+      "main": [
+        [
+          {
+            "node": "Pull token ok",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Microsoft pull token": {
       "main": [
         [
           {

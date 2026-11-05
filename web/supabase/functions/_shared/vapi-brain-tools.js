@@ -7,12 +7,13 @@
 
 // The tools the database defines (zella_brain_tool_defs). Anything else is answered "not something you can do".
 const TOOLS = ['search_knowledge', 'check_open_hours', 'lookup_caller', 'update_caller', 'check_availability', 'book_appointment', 'find_my_appointments',
-  'reschedule_appointment', 'cancel_appointment', 'take_message', 'report_emergency', 'transfer_to_human', 'request_follow_up', 'report_unanswered_question'];
+  'reschedule_appointment', 'cancel_appointment', 'take_message', 'report_emergency', 'transfer_to_human', 'request_follow_up', 'report_unanswered_question',
+  'lookup_order'];
 export const BRAIN_TOOLS = TOOLS;
 export const BOOKING_TOOLS = ['check_availability', 'book_appointment', 'find_my_appointments', 'reschedule_appointment', 'cancel_appointment'];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const STRINGS = ['query', 'appointment_id', 'date', 'start', 'first_name', 'last_name', 'phone', 'email', 'title', 'notes', 'name', 'message',
-  'preferred_contact_method', 'reason', 'when', 'summary', 'question'];
+  'preferred_contact_method', 'reason', 'when', 'summary', 'question', 'order_number'];
 const NUMBERS = ['days', 'duration_minutes'];
 const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 const o = (v) => (isObj(v) ? v : {});
@@ -57,6 +58,7 @@ function invalidField(clean) {
   if (clean.duration_minutes !== undefined && !(Number.isInteger(clean.duration_minutes) && clean.duration_minutes >= 5 && clean.duration_minutes <= 480)) return 'duration_minutes must be a whole number from 5 to 480';
   if (clean.preferred_contact_method !== undefined && !['call', 'sms', 'email'].includes(clean.preferred_contact_method)) return 'preferred_contact_method must be call, sms or email';
   if (clean.email !== undefined && clean.email.length > 200) return 'email is too long';
+  if (clean.order_number !== undefined && !/^#?[A-Za-z0-9-]{1,30}$/.test(clean.order_number)) return 'order_number must be the order number only, e.g. 1001';
   return null;
 }
 

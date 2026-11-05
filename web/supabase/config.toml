@@ -473,6 +473,20 @@ enabled = true
 verify_jwt = false
 entrypoint = "./functions/record-files/index.ts"
 
+# Calendar sign-in (Google, Outlook). "start" is checked with the owner's or admin's own sign-in through the database;
+# the provider's redirect back carries no Supabase sign-in, so the gateway check must stay off. The redirect is trusted
+# only with a valid signed state, and the database checks the person's role again when the token is stored.
+[functions.calendar-connect]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/calendar-connect/index.ts"
+
+# Connects a business's Shopify store (owners and admins; checked through the database, like staff-invite).
+[functions.store-connect]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/store-connect/index.ts"
+
 # Sends team invitation emails from the business app. Checks the caller's sign-in itself.
 [functions.staff-invite]
 enabled = true

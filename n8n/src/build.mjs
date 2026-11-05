@@ -499,7 +499,7 @@ const emailEvents = wf('Zella - Email Events', [
   'Build reply': { main: [[link('Reply')]] },
 });
 
-// Calendar Sync: copies bookings to the business's Google Calendar and reads its busy times back into Zella.
+// Calendar Sync: copies bookings to the business's Google Calendar or Outlook calendar and reads its busy times back into Zella.
 // Started by the dispatcher only when a booking change or a refresh is waiting (and calendar_sync_live is true).
 // The two Google token boxes ship with NO credential; the Google client id and secret are pasted by hand at go-live.
 const googleToken = (name, pos, tokenExpr) => node(name, 'n8n-nodes-base.httpRequest', 4.2, pos, {
@@ -513,13 +513,29 @@ const googleToken = (name, pos, tokenExpr) => node(name, 'n8n-nodes-base.httpReq
   ] },
   options: { response: { response: { fullResponse: true, neverError: true, responseFormat: 'json' } } },
 });
+// Outlook / Microsoft 365 through Microsoft Graph: the same flow with Microsoft's token box (client id and secret of the
+// Zella app registration in Microsoft Entra ID, pasted by hand at go-live like Google's).
+const microsoftToken = (name, pos, tokenExpr) => node(name, 'n8n-nodes-base.httpRequest', 4.2, pos, {
+  method: 'POST', url: 'https://login.microsoftonline.com/common/oauth2/v2.0/token', authentication: 'none',
+  sendBody: true, contentType: 'form-urlencoded',
+  bodyParameters: { parameters: [
+    { name: 'grant_type', value: 'refresh_token' },
+    { name: 'refresh_token', value: tokenExpr },
+    { name: 'client_id', value: 'PASTE_MICROSOFT_CLIENT_ID' },
+    { name: 'client_secret', value: 'PASTE_MICROSOFT_CLIENT_SECRET' },
+    { name: 'scope', value: 'offline_access Calendars.ReadWrite' },
+  ] },
+  options: { response: { response: { fullResponse: true, neverError: true, responseFormat: 'json' } } },
+});
 const googleAuthHeader = { sendHeaders: true, headerParameters: { parameters: [{ name: 'Authorization', value: '=Bearer {{ $json.body.access_token }}' }] } };
 const calendarSync = wf('Zella - Calendar Sync', [
   runTrigger('calendar-sync'),
   rpcNode('Claim sync items', [240, 100], 'zella_claim_calendar_sync', '={{ JSON.stringify({ p_limit: 10 }) }}'),
   code('Plan sync', [480, 100], 'calendar-sync-plan.js'),
   ifBool('Needs Google', [720, 100], '={{ $json.needs_google }}'),
+  ifBool('Is Outlook', [840, 0], "={{ $('Plan sync').item.json.provider === 'outlook' }}"),
   googleToken('Get Google token', [960, 0], "={{ $('Plan sync').item.json.token_form.refresh_token }}"),
+  microsoftToken('Get Microsoft token', [960, -120], "={{ $('Plan sync').item.json.token_form.refresh_token }}"),
   ifBool('Token ok', [1200, 0], '={{ !!$json.body && !!$json.body.access_token }}'),
   ifBool('Is delete', [1440, -60], "={{ $('Plan sync').item.json.google.method === 'DELETE' }}"),
   node('Google call', 'n8n-nodes-base.httpRequest', 4.2, [1680, -140], {
@@ -538,10 +554,14 @@ const calendarSync = wf('Zella - Calendar Sync', [
   rpcNode('Finish sync', [2160, 0], 'zella_finish_calendar_sync', '={{ JSON.stringify($json.record) }}', { full: true }),
   rpcNode('Claim refreshes', [240, 500], 'zella_claim_calendar_pulls', '={{ JSON.stringify({ p_limit: 10 }) }}'),
   code('Plan pull', [480, 500], 'calendar-pull-plan.js'),
-  googleToken('Get pull token', [720, 500], "={{ $json.token_form ? $json.token_form.refresh_token : '' }}"),
+  ifBool('Pull is Outlook', [600, 500], "={{ $json.provider === 'outlook' }}"),
+  googleToken('Get pull token', [720, 500], "={{ $('Plan pull').item.json.token_form ? $('Plan pull').item.json.token_form.refresh_token : '' }}"),
+  microsoftToken('Get Microsoft pull token', [720, 380], "={{ $('Plan pull').item.json.token_form ? $('Plan pull').item.json.token_form.refresh_token : '' }}"),
   ifBool('Pull token ok', [960, 500], '={{ !!$json.body && !!$json.body.access_token }}'),
   node('List events', 'n8n-nodes-base.httpRequest', 4.2, [1200, 400], {
-    method: 'GET', url: "={{ $('Plan pull').item.json.url }}", authentication: 'none', ...googleAuthHeader,
+    method: 'GET', url: "={{ $('Plan pull').item.json.url }}", authentication: 'none',
+    sendHeaders: true, headerParameters: { parameters: [{ name: 'Authorization', value: '=Bearer {{ $json.body.access_token }}' },
+      { name: 'Prefer', value: "={{ $('Plan pull').item.json.prefer || 'return=representation' }}" }] },
     options: { response: { response: { fullResponse: true, neverError: true, responseFormat: 'json' } } },
   }),
   code('Map busy', [1440, 500], 'calendar-pull-map.js'),
@@ -553,8 +573,10 @@ const calendarSync = wf('Zella - Calendar Sync', [
   'Run now': { main: [[link('Claim sync items'), link('Claim refreshes')]] },
   'Claim sync items': { main: [[link('Plan sync')]] },
   'Plan sync': { main: [[link('Needs Google')]] },
-  'Needs Google': { main: [[link('Get Google token')], [link('Read result')]] },
+  'Needs Google': { main: [[link('Is Outlook')], [link('Read result')]] },
+  'Is Outlook': { main: [[link('Get Microsoft token')], [link('Get Google token')]] },
   'Get Google token': { main: [[link('Token ok')]] },
+  'Get Microsoft token': { main: [[link('Token ok')]] },
   'Token ok': { main: [[link('Is delete')], [link('Read result')]] },
   'Is delete': { main: [[link('Google delete')], [link('Google call')]] },
   'Google delete': { main: [[link('Read result')]] },
@@ -562,8 +584,10 @@ const calendarSync = wf('Zella - Calendar Sync', [
   'Read result': { main: [[link('Has result')]] },
   'Has result': { main: [[link('Finish sync')], []] },
   'Claim refreshes': { main: [[link('Plan pull')]] },
-  'Plan pull': { main: [[link('Get pull token')]] },
+  'Plan pull': { main: [[link('Pull is Outlook')]] },
+  'Pull is Outlook': { main: [[link('Get Microsoft pull token')], [link('Get pull token')]] },
   'Get pull token': { main: [[link('Pull token ok')]] },
+  'Get Microsoft pull token': { main: [[link('Pull token ok')]] },
   'Pull token ok': { main: [[link('List events')], [link('Map busy')]] },
   'List events': { main: [[link('Map busy')]] },
   'Map busy': { main: [[link('Has events')]] },

@@ -18,7 +18,7 @@ OUT=${OUT:-$HERE/out}; mkdir -p "$OUT"
 FAILS=0; fail() { echo "FAIL $*"; FAILS=$((FAILS + 1)); }; pass() { echo "PASS $*"; }
 LIVE=(zella_invitation_hardening zella_billing_hardening zella_mfa_enforcement zella_platform_alerts_policy_fix)
 TEN=(zella_viewer_read_only zella_staff_add_lead zella_call_content_privacy zella_capabilities zella_record_links_secrets zella_money
-     zella_presets_v2 zella_automation_presets_v2 zella_receptionist_industry_rules zella_readiness zella_appointment_records zella_record_files zella_ai_caller_fixes zella_message_courtesy zella_google_leads)
+     zella_presets_v2 zella_automation_presets_v2 zella_receptionist_industry_rules zella_readiness zella_appointment_records zella_record_files zella_ai_caller_fixes zella_message_courtesy zella_google_leads zella_calendar_providers zella_store_orders)
 
 # 1. build
 extra=(); for m in "${LIVE[@]}"; do extra+=("$REPO/sql/$m.sql"); done
@@ -79,13 +79,17 @@ select public.zella_set_capability(md5('stg-s-plumbing')::uuid, 'access_vault', 
 select public.zella_create_charge(md5('stg-s-plumbing')::uuid, 'invoice', 12345, 'after deploy');
 select public.zella_save_record(md5('stg-s-plumbing')::uuid, 'properties', id, title, status, customer_id, assigned_to, due_at, data || '{"access": "New code 9876"}')
   from public.crm_records where business_id = md5('stg-s-plumbing')::uuid and type_key = 'properties' and title = 'Property 1';
+reset role;
+select public.zella_calendar_connect_provider(md5('stg-s-plumbing')::uuid, 'outlook', md5('stg-s-plumbing-owner')::uuid, 'owner@plumbing.test', 'rt-staging-outlook');
 SQL
 ) || fail "using the new features: $(echo "$out" | grep -m1 ERROR)"
 out=$($PSQL -d zstg_used -f "$REPO/sql/rollback/industry_2026_11_04_rollback.sql" 2>&1) || fail "rollback after use: $(echo "$out" | grep -m1 ERROR)"
 r=$($PSQL -d zstg_used -c "select (select data ->> 'access' from public.crm_records where business_id = md5('stg-s-plumbing')::uuid and type_key = 'properties' and title = 'Property 1')
   || '|' || (select count(*) from public.customer_charges_rolled_back_20261104) || '|' || (select count(*) from public.business_capabilities_rolled_back_20261104)
-  || '|' || (to_regclass('public.crm_record_secrets') is null)")
-[ "$r" = "New code 9876|1|1|true" ] && pass "rollback after use keeps what customers recorded: the new access code back in the record, invoice and capability choice kept in renamed tables" || fail "rollback after use: $r"
+  || '|' || (to_regclass('public.crm_record_secrets') is null)
+  || '|' || (select count(*) from public.calendar_connections_outlook_rolled_back_20261104) || '|' || (select count(*) from vault.secrets where name = 'zella_cal_outlook_' || md5('stg-s-plumbing')::uuid)
+  || '|' || (select pg_get_constraintdef(oid) from pg_constraint where conname = 'calendar_connections_provider_check')")
+[ "$r" = "New code 9876|1|1|true|1|1|CHECK ((provider = 'google'::text))" ] && pass "rollback after use keeps what customers recorded: the new access code back in the record, invoice, capability choice and Outlook calendar connection (with its key) kept" || fail "rollback after use: $r"
 
 # rollback without backups is refused
 out=$($PSQL -d zstg_before -f "$REPO/sql/rollback/industry_2026_11_04_rollback.sql" 2>&1) && fail "rollback ran without backups" || { echo "$out" | grep -q ROLLBACK_NEEDS_BACKUPS && pass "rollback refuses to run without the pre-deploy backups" || fail "rollback without backups: $(echo "$out" | grep -m1 ERROR)"; }

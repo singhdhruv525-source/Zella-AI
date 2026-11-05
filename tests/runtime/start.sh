@@ -7,7 +7,9 @@ REPO=$(cd "$(dirname "$0")/../.." && pwd); OUT=${OUT:-$REPO/tests/runtime/out}; 
 docker rm -f zedge >/dev/null 2>&1
 args=(-e SUPABASE_URL=http://localhost:54321 -e SUPABASE_ANON_KEY=sb_publishable_local_test_only -e SUPABASE_PUBLISHABLE_KEY=sb_publishable_local_test_only
       -e ZELLA_SERVER_SECRET_KEY=sb_secret_local_test_only -e ZELLA_APP_URL=http://localhost:5199
-      -e ZELLA_LINK_SECRET=local-link-secret-test-only-0123456789abcdef -e STRIPE_WEBHOOK_SECRET=whsec_local_test_only -e NO_PROXY=localhost,127.0.0.1)
+      -e ZELLA_LINK_SECRET=local-link-secret-test-only-0123456789abcdef -e STRIPE_WEBHOOK_SECRET=whsec_local_test_only -e NO_PROXY=localhost,127.0.0.1
+      -e GOOGLE_CALENDAR_CLIENT_ID=google-client-test-only -e GOOGLE_CALENDAR_CLIENT_SECRET=google-secret-test-only
+      -e MICROSOFT_CALENDAR_CLIENT_ID=microsoft-client-test-only -e MICROSOFT_CALENDAR_CLIENT_SECRET=microsoft-secret-test-only)
 # behind an HTTPS proxy (jsr: and npm: imports are fetched when a function first starts)
 [ -n "${HTTPS_PROXY:-}" ] && args+=(-e HTTPS_PROXY="$HTTPS_PROXY" -e HTTP_PROXY="${HTTP_PROXY:-$HTTPS_PROXY}")
 [ -f /root/.ccr/ca-bundle.crt ] && args+=(-v /root/.ccr/ca-bundle.crt:/etc/ssl/certs/proxy-ca.crt:ro -e DENO_CERT=/etc/ssl/certs/proxy-ca.crt -e SSL_CERT_FILE=/etc/ssl/certs/proxy-ca.crt)

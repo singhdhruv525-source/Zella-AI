@@ -15,6 +15,7 @@
 // whole request after BUDGET_MS, answering with a safe failure (assistant takes no action; transfer refused).
 
 import { createClient } from "@supabase/supabase-js";
+import { lookupOrder } from "./orders.ts";
 import { AUTH_OK, authHeaders, brainInvalidReply, brainToolReply, plan, type ToolCall, toolResult, transferReply, unsupported } from "./logic.ts";
 
 const json = (data: unknown, status = 200) => Response.json(data, { status });
@@ -127,6 +128,12 @@ Deno.serve(async (req: Request) => {
     if (c.kind === "rules") {
       const r = await call(db, "zella_ai_voice", { p_provider_call_id: p.providerCallId, p_business_id: businessId, p_action: c.action, p_args: c.args }, left());
       return toolResult(c.toolCallId, !r.error, r.data as Record<string, unknown>, c.name);
+    }
+    if (c.name === "lookup_order") {
+      // the store lookup happens here (the database can't call Shopify); the database gives the store and records the outcome
+      const args = (c.record?.p_args ?? {}) as Record<string, unknown>;
+      const out = await lookupOrder((fn, a) => call(db, fn, a, left()), businessId, p.providerCallId, args, fetch, Math.max(500, left() - 300));
+      return brainToolReply(c.name, c.toolCallId, true, out);
     }
     const r = await call(db, "zella_ai_tool", { ...c.record, p_business_id: businessId }, left());
     return brainToolReply(c.name, c.toolCallId, !r.error, r.data);

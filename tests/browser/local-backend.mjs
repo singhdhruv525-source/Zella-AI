@@ -442,9 +442,10 @@ const server = http.createServer(async (req, res) => {
       // serves every function from one port by its folder name)
       const [fport, ...fname] = String(port).split("/");
       const r = await fetch(`http://127.0.0.1:${fport}${fname.length ? `/${fname.join("/")}` : ""}${url.pathname.replace(`/functions/v1/${fn[1]}`, "") || (fname.length ? "" : "/")}${url.search}`, {
-        method: req.method, headers: Object.fromEntries(Object.entries(req.headers).filter(([k]) => !["host", "content-length", "connection"].includes(k))), body: ["GET", "HEAD"].includes(req.method) ? undefined : raw });
+        method: req.method, headers: Object.fromEntries(Object.entries(req.headers).filter(([k]) => !["host", "content-length", "connection"].includes(k))), body: ["GET", "HEAD"].includes(req.method) ? undefined : raw,
+        redirect: "manual" }); // a function's redirect goes back to the browser, as on Supabase
       const text = Buffer.from(await r.arrayBuffer());
-      res.writeHead(r.status, { ...cors, "content-type": r.headers.get("content-type") ?? "application/json" });
+      res.writeHead(r.status, { ...cors, "content-type": r.headers.get("content-type") ?? "application/json", ...(r.headers.get("location") ? { location: r.headers.get("location") } : {}) });
       return res.end(text);
     }
     const bearer = String(req.headers.authorization ?? "").replace(/^Bearer\s+/i, "");

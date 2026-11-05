@@ -769,6 +769,58 @@ test('calendar sql: the token lives only in the vault, nothing runs until calend
   assert.ok(calSql.includes('zella_calendar_mark_error'));
 });
 
+// ---------------- calendar sync: Outlook / Microsoft 365 (Microsoft Graph)
+const OSI = { ...CSI, provider: 'outlook' };
+const MS_PROP = 'String {6f1d2c9a-3b7e-4a51-9c0d-8e2f4b6a1c35} Name zella_appointment_id';
+test('outlook: a new booking is created in the default calendar in UTC, marked as Zella\'s; edits and deletes address the event', () => {
+  const c = csPlan(OSI); assert.equal(c.provider, 'outlook'); assert.equal(c.google.method, 'POST'); assert.equal(c.google.url, 'https://graph.microsoft.com/v1.0/me/events');
+  assert.deepEqual(c.google.body.start, { dateTime: '2026-11-02T15:00:00', timeZone: 'UTC' }); assert.equal(c.google.body.subject, 'Haircut - Ana');
+  assert.deepEqual(c.google.body.singleValueExtendedProperties, [{ id: MS_PROP, value: 'ap1' }]);
+  const u = csPlan({ ...OSI, event_id: 'AAMk=/x' }); assert.equal(u.google.method, 'PATCH'); assert.equal(u.google.url, 'https://graph.microsoft.com/v1.0/me/events/AAMk%3D%2Fx');
+  const d = csPlan({ ...OSI, action: 'delete', event_id: 'AAMk' }); assert.equal(d.google.method, 'DELETE');
+  assert.ok(csPlan({ ...OSI, calendar_id: 'AQMk group' }).google.url.startsWith('https://graph.microsoft.com/v1.0/me/calendars/AQMk%20group/events'));
+});
+test('outlook: Graph answers are read with Microsoft\'s token; failures keep a short code only', () => {
+  const after = (plan, res, token = { body: { access_token: 't' } }) => runCode('calendar-sync-after.js', { json: res, nodes: { 'Plan sync': plan, 'Get Microsoft token': token } }).json.record;
+  const p = csPlan(OSI);
+  assert.equal(after(p, { statusCode: 201, body: { id: 'AAMk1' } }).p_event_id, 'AAMk1');
+  assert.equal(after(p, { statusCode: 403, body: { error: { message: 'PRIVATE' } } }).p_error, 'microsoft_403');
+  assert.equal(after(p, {}, { body: { error: 'invalid_grant' } }).p_error, 'microsoft_token_invalid_grant');
+  const d = csPlan({ ...OSI, action: 'delete', event_id: 'x' });
+  for (const s of [204, 404]) assert.equal(after(d, { statusCode: s, body: '' }).p_ok, true);
+});
+test('outlook: the refresh lists the calendar view for the window, in UTC, with Zella\'s marker', () => {
+  const p = cpPlan({ ...CPC, provider: 'outlook' });
+  assert.ok(p.url.startsWith('https://graph.microsoft.com/v1.0/me/calendarView?') && p.url.includes('startDateTime=2026-10-23') && p.url.includes('%24top=250'));
+  assert.equal(p.prefer, 'outlook.timezone="UTC"');
+  assert.equal(cpPlan(CPC).prefer, '');
+});
+test('outlook: busy times skip cancelled, free and Zella-made events; refused tokens are named', () => {
+  const p = cpPlan({ ...CPC, provider: 'outlook' });
+  const map = (res, token = { body: { access_token: 't' } }) => runCode('calendar-pull-map.js', { json: res, nodes: { 'Plan pull': p, 'Get Microsoft pull token': token } }).json;
+  const r = map({ statusCode: 200, body: { value: [
+    { id: 'a', showAs: 'busy', isCancelled: false, start: { dateTime: '2026-11-03T14:00:00.0000000' }, end: { dateTime: '2026-11-03T15:00:00.0000000' } },
+    { id: 'b', showAs: 'free', start: { dateTime: '2026-11-03T16:00:00' }, end: { dateTime: '2026-11-03T17:00:00' } },
+    { id: 'c', isCancelled: true, showAs: 'busy', start: { dateTime: '2026-11-03T16:00:00' }, end: { dateTime: '2026-11-03T17:00:00' } },
+    { id: 'd', showAs: 'busy', singleValueExtendedProperties: [{ id: MS_PROP, value: 'ap1' }], start: { dateTime: '2026-11-03T18:00:00' }, end: { dateTime: '2026-11-03T19:00:00' } },
+    { id: 'e', showAs: 'oof', isAllDay: true, start: { dateTime: '2026-11-04T00:00:00.0000000' }, end: { dateTime: '2026-11-05T00:00:00.0000000' } },
+  ] } });
+  assert.deepEqual(r.events.p_events, [{ id: 'a', start: '2026-11-03T14:00:00Z', end: '2026-11-03T15:00:00Z', all_day: false }, { id: 'e', start: '2026-11-04T00:00:00Z', end: '2026-11-05T00:00:00Z', all_day: true }]);
+  assert.equal(map({}, { body: { error: 'invalid_grant' } }).error.p_error, 'microsoft_token_invalid_grant');
+  assert.equal(map({}, { body: { error: 'invalid_grant' } }).error.p_fatal, true);
+  assert.equal(map({ statusCode: 401, body: {} }).error.p_error, 'microsoft_401');
+});
+test('outlook: the workflow sends Microsoft items to Microsoft\'s token box and Google\'s to Google\'s', () => {
+  const w = JSON.parse(readFileSync(new URL('./workflows/zella-calendar-sync.json', import.meta.url), 'utf8'));
+  const names = w.nodes.map((n) => n.name);
+  for (const n of ['Is Outlook', 'Get Microsoft token', 'Pull is Outlook', 'Get Microsoft pull token']) assert.ok(names.includes(n), n);
+  assert.deepEqual(w.connections['Is Outlook'].main.map((b) => b[0].node), ['Get Microsoft token', 'Get Google token']);
+  assert.equal(w.connections['Get Microsoft token'].main[0][0].node, 'Token ok');
+  const ms = w.nodes.find((n) => n.name === 'Get Microsoft token');
+  assert.equal(ms.parameters.url, 'https://login.microsoftonline.com/common/oauth2/v2.0/token');
+  assert.equal(JSON.stringify(w).includes('PASTE_MICROSOFT_CLIENT_SECRET'), true); // no real secret in the file
+});
+
 // ---------------- phone number to business link
 const phoneSql = readFileSync(new URL('../sql/zella_phone_numbers.sql', import.meta.url), 'utf8');
 const vapiMsg = (name, args, call) => ({ body: { message: { type: 'tool-calls', toolCallList: [{ id: 'tc1', name, arguments: args }], call: { id: 'call-1', ...call } } } });
@@ -1334,7 +1386,9 @@ test('rule list: general rules are plain check-ins, no marketing', () => {
 
 
 // --- receptionist brain (zella_brain.sql + zella-brain-tools.json)
-const brainSql = readFileSync(new URL('../sql/zella_brain.sql', import.meta.url), 'utf8');
+const brainSql = readFileSync(new URL('../sql/zella_brain.sql', import.meta.url), 'utf8')
+  // tools added to zella_brain_tool_defs by later migrations
+  + readFileSync(new URL('../sql/zella_store_orders.sql', import.meta.url), 'utf8');
 const brainWf = wfJson('zella-brain-tools.json');
 const planCode = brainWf.nodes.find((n) => n.name === 'Plan').parameters.jsCode;
 const runPlan = (message) => runCodeAll('brain-tool-plan.js', { items: [{ json: { body: { message } } }] })[0].json;

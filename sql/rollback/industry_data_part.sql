@@ -80,3 +80,19 @@ delete from storage.buckets b where b.id = 'record-files' and not exists (select
 --    dropped; an owner's own choices stay in businesses.setup_data.message_policy (ignored by the earlier code, and
 --    back in force if the migration is applied again). Messages already held back stay on record as skipped.
 drop table if exists public.industry_message_policy cascade;
+
+-- 9. calendar connections (zella_calendar_providers.sql): the earlier schema allows Google only. Outlook connections
+--    made since are kept, with their Vault keys, in calendar_connections_outlook_rolled_back_20261104 (nothing a business
+--    connected is lost; reconnecting works again once the migration is re-applied), and their future busy times are
+--    removed so they don't block bookings without a sync. Google connections, including ones made through the new
+--    sign-in, keep working.
+do $$ begin
+  if exists (select 1 from public.calendar_connections where provider <> 'google') then
+    create table if not exists public.calendar_connections_outlook_rolled_back_20261104 as select * from public.calendar_connections where false;
+    insert into public.calendar_connections_outlook_rolled_back_20261104 select * from public.calendar_connections where provider <> 'google';
+    delete from public.blocked_times where connection_id in (select id from public.calendar_connections where provider <> 'google') and end_time > now();
+    delete from public.calendar_connections where provider <> 'google';
+  end if;
+end $$;
+alter table public.calendar_connections drop constraint if exists calendar_connections_provider_check;
+alter table public.calendar_connections add constraint calendar_connections_provider_check check (provider = 'google');

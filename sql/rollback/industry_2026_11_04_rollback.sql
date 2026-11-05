@@ -87,6 +87,22 @@ delete from storage.buckets b where b.id = 'record-files' and not exists (select
 --    back in force if the migration is applied again). Messages already held back stay on record as skipped.
 drop table if exists public.industry_message_policy cascade;
 
+-- 9. calendar connections (zella_calendar_providers.sql): the earlier schema allows Google only. Outlook connections
+--    made since are kept, with their Vault keys, in calendar_connections_outlook_rolled_back_20261104 (nothing a business
+--    connected is lost; reconnecting works again once the migration is re-applied), and their future busy times are
+--    removed so they don't block bookings without a sync. Google connections, including ones made through the new
+--    sign-in, keep working.
+do $$ begin
+  if exists (select 1 from public.calendar_connections where provider <> 'google') then
+    create table if not exists public.calendar_connections_outlook_rolled_back_20261104 as select * from public.calendar_connections where false;
+    insert into public.calendar_connections_outlook_rolled_back_20261104 select * from public.calendar_connections where provider <> 'google';
+    delete from public.blocked_times where connection_id in (select id from public.calendar_connections where provider <> 'google') and end_time > now();
+    delete from public.calendar_connections where provider <> 'google';
+  end if;
+end $$;
+alter table public.calendar_connections drop constraint if exists calendar_connections_provider_check;
+alter table public.calendar_connections add constraint calendar_connections_provider_check check (provider = 'google');
+
 
 -- ---------- schema (generated) ----------
 drop trigger if exists zella_welcome_superseded on public.appointment_reminders;
@@ -878,6 +894,69 @@ begin
 end $function$;
 revoke all on function public.zella_brain_prompt_base(uuid) from public, anon, authenticated, service_role;
 grant execute on function public.zella_brain_prompt_base(uuid) to service_role;
+CREATE OR REPLACE FUNCTION public.zella_brain_tool_defs()
+ RETURNS jsonb
+ LANGUAGE sql
+ IMMUTABLE
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+select jsonb_build_array(
+  jsonb_build_object('name', 'search_knowledge', 'consequential', false,
+    'description', 'Look up approved information about this business (services, policies, prices if supplied, FAQs). Use before answering any factual question about the business. Never answer business facts from memory.',
+    'parameters', jsonb_build_object('type', 'object', 'required', jsonb_build_array('query'), 'properties', jsonb_build_object('query', jsonb_build_object('type', 'string', 'description', 'The caller''s question in a few words')))),
+  jsonb_build_object('name', 'check_open_hours', 'consequential', false,
+    'description', 'Find out whether the business is open right now, today''s hours, and any holiday closure.',
+    'parameters', jsonb_build_object('type', 'object', 'properties', jsonb_build_object())),
+  jsonb_build_object('name', 'lookup_caller', 'consequential', false,
+    'description', 'Recognise the caller by the number they are calling from. Returns their first name and number of upcoming appointments, or says the caller is not recognised.',
+    'parameters', jsonb_build_object('type', 'object', 'properties', jsonb_build_object())),
+  jsonb_build_object('name', 'update_caller', 'consequential', true, 'needs_confirmation', false,
+    'description', 'Save the caller''s name, email or preferred way to be contacted (call, text or email) after they have said it. Creates a record if the caller is new.',
+    'parameters', jsonb_build_object('type', 'object', 'properties', jsonb_build_object('first_name', jsonb_build_object('type', 'string'), 'last_name', jsonb_build_object('type', 'string'),
+      'email', jsonb_build_object('type', 'string'), 'phone', jsonb_build_object('type', 'string'), 'preferred_contact_method', jsonb_build_object('type', 'string', 'enum', jsonb_build_array('call', 'sms', 'email'))))),
+  jsonb_build_object('name', 'check_availability', 'consequential', false,
+    'description', 'Get real open appointment times. Never offer a time that did not come from this tool.',
+    'parameters', jsonb_build_object('type', 'object', 'properties', jsonb_build_object('date', jsonb_build_object('type', 'string', 'description', 'YYYY-MM-DD, optional'),
+      'days', jsonb_build_object('type', 'integer'), 'duration_minutes', jsonb_build_object('type', 'integer')))),
+  jsonb_build_object('name', 'book_appointment', 'consequential', true, 'needs_confirmation', true,
+    'description', 'Book an appointment at a time returned by check_availability. First read the details back and ask the caller to confirm; only then call this with confirmed=true. Say it is booked ONLY if the result status is booked.',
+    'parameters', jsonb_build_object('type', 'object', 'required', jsonb_build_array('start', 'first_name', 'confirmed'), 'properties', jsonb_build_object('start', jsonb_build_object('type', 'string', 'description', 'Exactly as returned by check_availability'),
+      'first_name', jsonb_build_object('type', 'string'), 'last_name', jsonb_build_object('type', 'string'), 'phone', jsonb_build_object('type', 'string'), 'email', jsonb_build_object('type', 'string'),
+      'title', jsonb_build_object('type', 'string'), 'notes', jsonb_build_object('type', 'string'), 'duration_minutes', jsonb_build_object('type', 'integer'),
+      'confirmed', jsonb_build_object('type', 'boolean', 'description', 'true only after the caller said yes to the read-back')))),
+  jsonb_build_object('name', 'find_my_appointments', 'consequential', false,
+    'description', 'List the caller''s own upcoming appointments (matched by the number they are calling from).',
+    'parameters', jsonb_build_object('type', 'object', 'properties', jsonb_build_object())),
+  jsonb_build_object('name', 'reschedule_appointment', 'consequential', true, 'needs_confirmation', true,
+    'description', 'Move one of the caller''s appointments to a time from check_availability, after the caller confirms (confirmed=true).',
+    'parameters', jsonb_build_object('type', 'object', 'required', jsonb_build_array('appointment_id', 'start', 'confirmed'), 'properties', jsonb_build_object('appointment_id', jsonb_build_object('type', 'string'),
+      'start', jsonb_build_object('type', 'string'), 'confirmed', jsonb_build_object('type', 'boolean')))),
+  jsonb_build_object('name', 'cancel_appointment', 'consequential', true, 'needs_confirmation', true,
+    'description', 'Cancel one of the caller''s appointments after the caller confirms (confirmed=true).',
+    'parameters', jsonb_build_object('type', 'object', 'required', jsonb_build_array('appointment_id', 'confirmed'), 'properties', jsonb_build_object('appointment_id', jsonb_build_object('type', 'string'),
+      'confirmed', jsonb_build_object('type', 'boolean')))),
+  jsonb_build_object('name', 'take_message', 'consequential', true, 'needs_confirmation', false,
+    'description', 'Take a message for the team; they will call back.',
+    'parameters', jsonb_build_object('type', 'object', 'required', jsonb_build_array('message'), 'properties', jsonb_build_object('message', jsonb_build_object('type', 'string'),
+      'name', jsonb_build_object('type', 'string'), 'phone', jsonb_build_object('type', 'string')))),
+  jsonb_build_object('name', 'report_emergency', 'consequential', true, 'needs_confirmation', false,
+    'description', 'Flag an emergency to the team right away. For danger to life tell the caller to call 911 first.',
+    'parameters', jsonb_build_object('type', 'object', 'properties', jsonb_build_object('summary', jsonb_build_object('type', 'string')))),
+  jsonb_build_object('name', 'transfer_to_human', 'consequential', true, 'needs_confirmation', false,
+    'description', 'Hand the call to a person when the caller asks, or when you cannot help.',
+    'parameters', jsonb_build_object('type', 'object', 'properties', jsonb_build_object('reason', jsonb_build_object('type', 'string')))),
+  jsonb_build_object('name', 'request_follow_up', 'consequential', true, 'needs_confirmation', false,
+    'description', 'Ask the team to follow up with the caller (call back, send details, quote).',
+    'parameters', jsonb_build_object('type', 'object', 'required', jsonb_build_array('reason'), 'properties', jsonb_build_object('reason', jsonb_build_object('type', 'string'),
+      'when', jsonb_build_object('type', 'string', 'description', 'Optional, as the caller said it')))),
+  jsonb_build_object('name', 'report_unanswered_question', 'consequential', false,
+    'description', 'Log a question you could not answer from approved information, then tell the caller the team will get back to them.',
+    'parameters', jsonb_build_object('type', 'object', 'required', jsonb_build_array('question'), 'properties', jsonb_build_object('question', jsonb_build_object('type', 'string'))))
+);
+$function$;
+revoke all on function public.zella_brain_tool_defs() from public, anon, authenticated, service_role;
+grant execute on function public.zella_brain_tool_defs() to service_role;
+grant execute on function public.zella_brain_tool_defs() to public;
 CREATE OR REPLACE FUNCTION public.zella_call_create_lead(p_call_id uuid, p_first_name text DEFAULT NULL::text, p_last_name text DEFAULT NULL::text)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -985,6 +1064,66 @@ end $function$;
 revoke all on function public.zella_call_update(uuid,text,text,uuid,boolean,boolean) from public, anon, authenticated, service_role;
 grant execute on function public.zella_call_update(uuid,text,text,uuid,boolean,boolean) to authenticated;
 grant execute on function public.zella_call_update(uuid,text,text,uuid,boolean,boolean) to service_role;
+CREATE OR REPLACE FUNCTION public.zella_claim_calendar_pulls(p_limit integer DEFAULT 10)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'vault'
+AS $function$
+declare v_res jsonb := '[]'::jsonb; c record; v_token text;
+begin
+  if not public.zella_calendar_live() then return v_res; end if;
+  for c in select * from public.calendar_connections where status = 'active' and busy_refresh_due_at <= now()
+            order by busy_refresh_due_at limit greatest(1, least(coalesce(p_limit, 10), 50)) for update skip locked loop
+    select decrypted_secret into v_token from vault.decrypted_secrets where name = c.vault_secret_name limit 1;
+    if v_token is null then
+      update public.calendar_connections set status = 'error', last_error = 'The calendar needs to be connected again.', busy_refresh_due_at = null where id = c.id; continue;
+    end if;
+    update public.calendar_connections set busy_refresh_due_at = now() + interval '15 minutes' where id = c.id;
+    v_res := v_res || jsonb_build_array(jsonb_build_object('connection_id', c.id, 'business_id', c.business_id, 'calendar_id', c.calendar_id,
+      'refresh_token', v_token, 'from', now() - interval '1 day', 'to', now() + interval '60 days'));
+  end loop;
+  return v_res;
+end $function$;
+revoke all on function public.zella_claim_calendar_pulls(integer) from public, anon, authenticated, service_role;
+grant execute on function public.zella_claim_calendar_pulls(integer) to service_role;
+CREATE OR REPLACE FUNCTION public.zella_claim_calendar_sync(p_limit integer DEFAULT 10)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'vault'
+AS $function$
+declare v_res jsonb := '[]'::jsonb; q record; a record; c record; b record; cu record; v_token text;
+begin
+  if not public.zella_calendar_live() then return v_res; end if;
+  for q in select * from public.calendar_sync_queue where status = 'pending' and due_at <= now()
+            order by due_at limit greatest(1, least(coalesce(p_limit, 10), 50)) for update skip locked loop
+    select * into c from public.calendar_connections where business_id = q.business_id and status = 'active';
+    select * into a from public.appointments where id = q.appointment_id;
+    if c.id is null or a.id is null then
+      update public.calendar_sync_queue set status = 'skipped', error = 'no_active_connection_or_appointment', completed_at = now() where id = q.id; continue;
+    end if;
+    select decrypted_secret into v_token from vault.decrypted_secrets where name = c.vault_secret_name limit 1;
+    if v_token is null then
+      update public.calendar_sync_queue set status = 'failed', error = 'no_token', completed_at = now() where id = q.id;
+      update public.calendar_connections set status = 'error', last_error = 'The calendar needs to be connected again.' where id = c.id;
+      continue;
+    end if;
+    select coalesce(timezone, 'America/New_York') as tz, name into b from public.businesses where id = q.business_id;
+    select nullif(trim(coalesce(first_name, '') || ' ' || coalesce(last_name, '')), '') as nm, phone into cu from public.customers where id = a.customer_id;
+    update public.calendar_sync_queue set status = 'in_progress', attempts = attempts + 1, claimed_at = now() where id = q.id;
+    v_res := v_res || jsonb_build_array(jsonb_build_object(
+      'queue_id', q.id, 'action', q.action, 'appointment_id', a.id, 'event_id', a.external_event_id, 'attempt', q.attempts + 1,
+      'calendar_id', c.calendar_id, 'refresh_token', v_token,
+      'event', jsonb_build_object(
+        'summary', left(coalesce(nullif(trim(a.title), ''), 'Appointment') || coalesce(' - ' || cu.nm, ''), 200),
+        'description', left('Booked with Zella.' || coalesce(E'\nCustomer: ' || cu.nm, '') || coalesce(E'\nPhone: ' || cu.phone, '') || coalesce(E'\nNotes: ' || a.description, ''), 1000),
+        'start', a.start_time, 'end', a.end_time, 'timezone', b.tz)));
+  end loop;
+  return v_res;
+end $function$;
+revoke all on function public.zella_claim_calendar_sync(integer) from public, anon, authenticated, service_role;
+grant execute on function public.zella_claim_calendar_sync(integer) to service_role;
 CREATE OR REPLACE FUNCTION public.zella_complete_task(p_task_id uuid, p_cancel boolean DEFAULT false)
  RETURNS boolean
  LANGUAGE plpgsql
@@ -1949,6 +2088,9 @@ drop function if exists public.zella_begin_record_file(uuid,text,text,bigint,tex
 drop function if exists public.zella_booking_messages_withdrawn_trg() cascade;
 drop function if exists public.zella_business_currency(uuid) cascade;
 drop function if exists public.zella_business_readiness(uuid) cascade;
+drop function if exists public.zella_calendar_can_manage(uuid) cascade;
+drop function if exists public.zella_calendar_connect_provider(uuid,text,uuid,text,text,text) cascade;
+drop function if exists public.zella_calendar_disconnect(uuid) cascade;
 drop function if exists public.zella_can_edit(uuid) cascade;
 drop function if exists public.zella_can_read_call_content(uuid) cascade;
 drop function if exists public.zella_can_read_record_secrets(uuid) cascade;
@@ -1991,10 +2133,17 @@ drop function if exists public.zella_set_capability(uuid,text,boolean) cascade;
 drop function if exists public.zella_set_charge_status(uuid,text,text) cascade;
 drop function if exists public.zella_set_message_policy(uuid,jsonb) cascade;
 drop function if exists public.zella_staff_add_lead(uuid,text,text,text,text,text,text) cascade;
+drop function if exists public.zella_store_can_manage(uuid) cascade;
+drop function if exists public.zella_store_connect(uuid,uuid,text,text,text) cascade;
+drop function if exists public.zella_store_disconnect(uuid) cascade;
+drop function if exists public.zella_store_lookup_context(text,uuid) cascade;
+drop function if exists public.zella_store_lookup_log(uuid,text,uuid,text,boolean) cascade;
 drop function if exists public.zella_today_operations(uuid) cascade;
 drop function if exists public.zella_welcome_superseded_trg() cascade;
 drop index if exists public.appointments_record;
+drop index if exists public.calendar_connections_one_active;
 drop index if exists public.crm_records_data_gin;
+drop index if exists public.integrations_one_store;
 alter table public.appointments drop column if exists record_id;
 alter table public.appointments drop column if exists record_suggested_id;
 alter table public.crm_record_types drop column if exists appointment_link;

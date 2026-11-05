@@ -1,7 +1,8 @@
 // Every edge function served by the Supabase edge runtime (public.ecr.aws/supabase/edge-runtime, the runtime the hosted
 // platform uses), called over HTTP through the local Supabase stand-in (tests/browser/local-backend.mjs), so sign-in,
 // row security, grants and RPCs are the real ones. Synthetic data in the local database only; nothing is sent.
-// Covers: google-lead, website-lead, reschedule-appointment, staff-invite, continue-plan, billing-webhook, voice-rules.
+// Covers: google-lead, website-lead, reschedule-appointment, staff-invite, continue-plan, billing-webhook, voice-rules,
+// calendar-connect (start and return; the code exchange with Google / Microsoft is unit-tested, not called).
 // record-files: tests/browser/record-files-e2e.mjs. owner-provision-business: tests/browser/wizard-journey.cjs.
 // Usage: node tests/runtime/edge_functions.mjs    (stack: start-runtime-stack, see tests/runtime/README.md)
 import crypto from "node:crypto";
@@ -103,7 +104,37 @@ ok("voice-rules", "a wrong signature: 401", (await call("voice-rules", { raw: va
 ok("voice-rules", "an old timestamp: 401", (await call("voice-rules", { raw: vapiMsg, headers: signVapi(vapiMsg, String(Date.now() - 3600_000)) })).status === 401);
 ok("voice-rules", "unsigned: 401", (await call("voice-rules", { raw: vapiMsg })).status === 401);
 
+
+// ---------- calendar-connect ----------
+r = await call("calendar-connect", { body: { action: "start", business_id: BIZ, provider: "google" }, who: OWNER });
+const gUrl = r.json?.url ? new URL(r.json.url) : null;
+ok("calendar-connect", "the owner gets Google's sign-in address (offline access, calendar events only, signed state)", r.status === 200 && gUrl?.origin === "https://accounts.google.com"
+  && gUrl.searchParams.get("access_type") === "offline" && gUrl.searchParams.get("scope").includes("calendar.events") && (gUrl.searchParams.get("state") ?? "").includes("."), r.text);
+r = await call("calendar-connect", { body: { action: "start", business_id: BIZ, provider: "outlook" }, who: OWNER });
+ok("calendar-connect", "and Microsoft's for Outlook", r.status === 200 && new URL(r.json.url).origin === "https://login.microsoftonline.com", r.text);
+ok("calendar-connect", "a view-only member is refused", (await call("calendar-connect", { body: { action: "start", business_id: BIZ, provider: "google" }, who: VIEWER })).status === 403);
+ok("calendar-connect", "not signed in: refused", (await call("calendar-connect", { body: { action: "start", business_id: BIZ, provider: "google" } })).status === 401);
+const back = await fetch(`${API}/functions/v1/calendar-connect?code=x&state=forged.sig`, { redirect: "manual" });
+ok("calendar-connect", "a forged return is sent back to settings with an error, nothing exchanged", back.status === 302 && /calendar=error&reason=link_expired/.test(back.headers.get("location") ?? ""), `${back.status} ${back.headers.get("location")}`);
+const declined = await fetch(`${API}/functions/v1/calendar-connect?error=access_denied&state=${encodeURIComponent(gUrl?.searchParams.get("state") ?? "")}`, { redirect: "manual" });
+ok("calendar-connect", "the owner declining at Google comes back as cancelled", declined.status === 302 && /calendar=cancelled&reason=access_denied/.test(declined.headers.get("location") ?? ""), `${declined.status} ${declined.headers.get("location")}`);
+
+// ---------- store-connect (the paths that never reach Shopify; the Shopify check itself is unit-tested) ----------
+const SHOP_BIZ = "c0000000-0000-0000-0000-000000000006"; // Test E-commerce, owner@glow.test
+r = await call("store-connect", { body: { action: "connect", business_id: SHOP_BIZ, shop_domain: "evil.example.com", access_token: "test_store_token_not_real_0001" }, who: OWNER });
+ok("store-connect", "only *.myshopify.com addresses (no requests to other hosts)", r.status === 400 && r.json?.error === "bad_shop_domain", r.text);
+r = await call("store-connect", { body: { action: "connect", business_id: SHOP_BIZ, shop_domain: "demo.myshopify.com", access_token: "test_store_token_not_real_0001" }, who: VIEWER });
+ok("store-connect", "a view-only member is refused before Shopify is called", r.status === 403 || r.status === 401, `${r.status} ${r.text}`);
+ok("store-connect", "not signed in: refused", (await call("store-connect", { body: { action: "connect", business_id: SHOP_BIZ, shop_domain: "demo.myshopify.com", access_token: "test_store_token_not_real_0001" } })).status === 401);
+
+// ---------- voice-rules: the AI's lookup_order where no store is connected ----------
+sql(`insert into public.calls (business_id, direction, status, from_number, external_call_id, ai_handled) values ('${SHOP_BIZ}', 'inbound', 'answered', '+15125557101', 'rt-order-call', true) on conflict do nothing`);
+const orderMsg = JSON.stringify({ message: { type: "tool-calls", call: { id: "rt-order-call", customer: { number: "+15125557101" }, metadata: { business_id: SHOP_BIZ } },
+  toolCallList: [{ id: "tc-1", type: "function", function: { name: "lookup_order", arguments: { order_number: "1001" } } }] } });
+r = await call("voice-rules", { raw: orderMsg, headers: signVapi(orderMsg) });
+const said = JSON.stringify(r.json ?? {});
+ok("voice-rules", "lookup_order with no store connected: the assistant is told to take a message (nothing guessed)", r.status === 200 && /no_store|not_available/.test(said) && /message/i.test(said), `${r.status} ${said.slice(0, 200)}`);
 // tidy
-sql(`delete from vault.decrypted_secrets where name = 'zella_vapi_hmac_secret'; delete from public.website_forms where name = 'Runtime form';
+sql(`delete from public.calls where external_call_id = 'rt-order-call'; delete from vault.decrypted_secrets where name = 'zella_vapi_hmac_secret'; delete from public.website_forms where name = 'Runtime form';
      delete from public.appointment_reschedule_links where appointment_id = '${appt}'; delete from public.appointments where id = '${appt}'`);
 console.log(fails ? `\n${fails} FAILED` : "\nALL PASSED"); process.exit(fails ? 1 : 0);

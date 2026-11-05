@@ -47,8 +47,8 @@ the database then refused the booking mid-call. Fixed in `sql/zella_ai_caller_fi
 | Phone + AI voice (Vapi) | everywhere | built; live assistants unchanged | approval to update assistants after deploy (`calls_live`) |
 | SMS (Telnyx) | confirmations, reminders, follow-ups | built; `sms_live` off; dry runs recorded | A2P 10DLC registration; approval to switch `sms_live` on |
 | Email sending | email channel, invitations | built; `email_live` off | sending domain verification; approval |
-| Google Calendar sync | wizard "Calendar for bookings" | built (n8n); `calendar_sync_live` off | Google OAuth client; approval |
-| **Outlook Calendar sync** | wizard offers it | **not built** (next, item 6) | Microsoft app registration (Entra ID) |
+| Google Calendar sync | wizard "Calendar for bookings" | sync built (n8n); **the owner's own connect step was missing, built 5 Nov** (`calendar-connect`, Settings > Calendar connections); `calendar_sync_live` off | Google OAuth client (Google Cloud project, consent screen verification for the calendar.events scope); approval |
+| Outlook Calendar sync | wizard offers it | **built 5 Nov**: connect step plus Microsoft Graph sync both ways (n8n); not deployed | Microsoft app registration (Entra ID, Calendars.ReadWrite, offline_access) |
 | **Gmail / Outlook mailbox** | wizard "Email" | **only the choice is stored; nothing uses it** | decide: keep (build mailbox send/receive) or remove from the wizard |
 | Meta lead ads | wizard lead sources | built | Meta app review |
 | Google lead forms | wizard lead sources | built 5 Nov; not deployed | approval |
@@ -67,7 +67,7 @@ the launch promise. ⚙ = needs an external account or credentials. ⚖ = needs 
 | 3 | Childcare | enquiries, tours, enrolments, incident records, never confirm a child to a caller | enrolments, children (private details), incident reports | none required at launch | 44 | guardians as separate contacts; consents and medication authorizations; secure pickup changes ⚖ |
 | 4 | Cleaning Services | book and dispatch visits to properties with secure access details | properties (private access), visits, plans | none required | 53 | ⚙ none; recurring visit generation; checklist completion per visit; dispatch board |
 | 5 | Dental | new patients, recalls, treatment plans and coverage, discreet messaging | recalls, treatment plans, coverage (private member ID), forms | practice-management system | 57 | ⚖⚙ practice-management provider; ⚖ BAA with voice / SMS providers before real patient calls |
-| 6 | E-commerce | answer order questions without inventing status, record returns and cases | orders, returns, support cases; no bookings | **store (Shopify / WooCommerce)** | 39 | **⚙ store connection: not built yet (next, item 6)**; Shopify first, WooCommerce if needed ⚖ |
+| 6 | E-commerce | answer order questions without inventing status, record returns and cases | orders, returns, support cases; no bookings | **store (Shopify / WooCommerce)** | 39 | Shopify connection and AI order lookup **built 5 Nov** (status and tracking only, caller verified by number or order email); ⚙ each store creates a read-only custom app; WooCommerce if needed ⚖ |
 | 7 | Education | applications, courses, sessions with places and waitlist | applications, courses, sessions, session bookings | none required | 51 | guardians as separate contacts; tuition instalments |
 | 8 | Electrical | jobs at sites with access, permits and inspections | jobs, sites (private access), permits, plans | field-service / accounting (optional) | 56 | dispatch board; certificates ⚖ |
 | 9 | Financial Services | appointments, service requests, reviews, no advice by AI | opportunities, service requests, reviews; transcripts never to staff | none required | 43 | identity-verification status; ⚖ compliance review of call recording |
@@ -98,7 +98,7 @@ the launch promise. ⚙ = needs an external account or credentials. ⚖ = needs 
 3. **Health data:** BAAs with Vapi, Telnyx, Supabase and the email provider before healthcare or dental go live with real patients.
 4. **Calendars and mailboxes:** a Google OAuth client and a Microsoft app registration. Decide whether the wizard's Gmail / Outlook mailbox option stays.
 5. **Industry systems** (each one needs a provider choice, an account, and approval before connecting):
-   - store: Shopify or WooCommerce;
+   - store: Shopify built (each store's own custom-app token); WooCommerce or others on request;
    - hotel PMS;
    - restaurant reservations / POS;
    - property-management system;

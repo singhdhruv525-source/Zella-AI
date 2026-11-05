@@ -527,13 +527,56 @@ function Cancellation({ w }) {
 /* ---------- 6. Calendar ---------- */
 
 function CalendarConnections({ w }) {
-  const state = useAsync(() => supabase.from("calendar_connections").select("id, provider, status, account_email, connected_at, last_pushed_at, last_pulled_at, last_error").eq("business_id", w.id).then(orThrow), [w.id]);
+  const [version, setVersion] = useState(0);
+  const [busy, setBusy] = useState("");
+  const [problem, setProblem] = useState("");
+  const [asking, setAsking] = useState(false);
+  const state = useAsync(() => supabase.from("calendar_connections").select("id, provider, status, account_email, connected_at, last_pushed_at, last_pulled_at, last_error").eq("business_id", w.id).neq("status", "disconnected").then(orThrow), [w.id, version]);
+  const canManage = roleIn(w, ["owner", "admin"]);
+  // back from the provider's sign-in (calendar-connect sends the person here)
+  const back = new URLSearchParams(typeof window === "undefined" ? "" : window.location.search);
+  const outcome = back.get("calendar"), reason = back.get("reason");
+  const OUTCOME = { connected: ["success", "Calendar connected. Bookings will be copied to it and its busy times kept free once calendar sync is switched on."],
+    cancelled: ["warning", "The calendar wasn't connected: the sign-in was cancelled."],
+    error: ["error", `The calendar couldn't be connected (${(reason ?? "error").replace(/_/g, " ")}). Try again, or contact Zella support.`] };
+  async function connect(provider) {
+    setProblem(""); setBusy(provider);
+    const { data, error } = await supabase.functions.invoke("calendar-connect", { body: { action: "start", business_id: w.id, provider } });
+    if (error || !data?.url) {
+      let answer = null; try { answer = await error?.context?.json?.(); } catch { /* not JSON */ }
+      setBusy("");
+      return setProblem(answer?.error === "provider_not_configured" ? `${provider === "google" ? "Google" : "Outlook"} calendars can't be connected yet: Zella's app with ${provider === "google" ? "Google" : "Microsoft"} isn't set up. Contact Zella support.`
+        : answer?.error === "not_allowed" ? "Only owners and admins can connect a calendar." : "The calendar sign-in couldn't be started. Try again.");
+    }
+    window.location.assign(data.url); // the provider's own sign-in page; Zella never sees the password
+  }
+  async function disconnect() {
+    const { error } = await supabase.rpc("zella_calendar_disconnect", { p_business_id: w.id });
+    if (error) throw new Error(friendly(error));
+    setAsking(false); setVersion((v) => v + 1);
+  }
   return (
     <LoadState state={state}>{(rows) => (
-      <Card title="Connected calendars" sub="Only the status and account are shown; access keys stay on the server.">
-        <Table rows={rows} empty="No calendar connected. Google Calendar is connected by the Zella team during setup." columns={[["Calendar", (c) => words(c.provider)], ["Account", (c) => c.account_email ?? "—"],
-          ["Status", (c) => <Pill tone={c.status === "active" ? "success" : "warning"}>{words(c.status)}</Pill>], ["Last sync", (c) => when(c.last_pushed_at ?? c.last_pulled_at)], ["Problem", (c) => c.last_error ?? "—"]]} />
-      </Card>
+      <>
+        {outcome && OUTCOME[outcome] && <Banner tone={OUTCOME[outcome][0]}>{OUTCOME[outcome][1]}</Banner>}
+        <Banner tone="error">{problem}</Banner>
+        <Card title="Connected calendar" sub="One calendar per business: Google Calendar or Outlook (Microsoft 365). Only the status and account are shown; access keys stay on the server."
+          actions={canManage && (
+            <>
+              <button type="button" className="zs-btn sm" disabled={!!busy} onClick={() => connect("google")}>{busy === "google" ? "Opening Google…" : rows.some((c) => c.provider === "google") ? "Reconnect Google" : "Connect Google Calendar"}</button>
+              <button type="button" className="zs-btn sm" disabled={!!busy} onClick={() => connect("outlook")}>{busy === "outlook" ? "Opening Microsoft…" : rows.some((c) => c.provider === "outlook") ? "Reconnect Outlook" : "Connect Outlook"}</button>
+              {rows.length > 0 && <button type="button" className="zs-btn sm danger" onClick={() => setAsking(true)}>Disconnect</button>}
+            </>
+          )}>
+          <Table rows={rows} empty={canManage ? "No calendar connected." : "No calendar connected. An owner or admin can connect one."} columns={[["Calendar", (c) => (c.provider === "outlook" ? "Outlook" : "Google Calendar")], ["Account", (c) => c.account_email ?? "—"],
+            ["Status", (c) => <Pill tone={c.status === "active" ? "success" : "warning"}>{words(c.status)}</Pill>], ["Last sync", (c) => when(c.last_pushed_at ?? c.last_pulled_at)], ["Problem", (c) => c.last_error ?? "—"]]} />
+        </Card>
+        {asking && (
+          <Confirm title="Disconnect the calendar?" confirmLabel="Disconnect" danger onConfirm={disconnect} onClose={() => setAsking(false)}>
+            Zella stops copying bookings to it and stops reading its busy times. Bookings already copied stay in that calendar. Its access key is deleted.
+          </Confirm>
+        )}
+      </>
     )}</LoadState>
   );
 }
