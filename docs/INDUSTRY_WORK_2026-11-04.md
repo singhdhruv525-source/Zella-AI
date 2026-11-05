@@ -179,7 +179,14 @@ The owner journey (section 5) checks these for all 28. Industry specifics:
 | 9 | `sql/zella_receptionist_industry_rules.sql` | 4, 7 | **Changes every receptionist's instructions from its next call** | — | restore `zella_brain_prompt_base` from `sql/baseline/05_functions_*.sql` |
 | 10 | `sql/zella_readiness.sql` | 4 | One read-only function | — | drop function |
 
-**Rollback for private values.** This puts the values back into record data before going back:
+**Tested rollback (5 Nov).** `sql/rollback/industry_2026_11_04_rollback.sql` undoes all ten in one transaction.
+- It is generated from a staging before/after pair and tested by `tests/staging/run.sh`.
+- It returns schema and every row to the pre-deploy state.
+- After customers have used the new features, it keeps what they recorded: private values go back into records, and money and capability choices stay in renamed tables.
+- It refuses to run without the backups above.
+- The per-file rollback notes in the table remain as a guide.
+
+**Rollback for private values (manual, if needed).** This puts the values back into record data before going back:
 ```sql
 update crm_records r set data = r.data || s.v
   from (select record_id, jsonb_object_agg(field_key, value) v from crm_record_secrets group by record_id) s
