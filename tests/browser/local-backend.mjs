@@ -335,7 +335,7 @@ const files = new Map();
 // Private buckets with row security (record-files) behave like Supabase Storage: every upload, signed link and delete
 // runs as the caller against storage.objects, so the bucket's policies decide; bucket size and type limits apply.
 const POLICY_BUCKETS = { "record-files": { max: 10485760, types: ["image/jpeg", "image/png", "image/webp", "image/heic", "application/pdf"] } };
-const signed = new Map(); // token -> "bucket/path"
+const signed = new Map(); // token -> { key: "bucket/path", exp: ms } (links expire like Supabase signed URLs)
 function multipartFile(raw, ctype) {
   const m = /boundary=(?:"([^"]+)"|([^;]+))/.exec(ctype ?? "");
   if (!m || !raw) return { bytes: raw, type: ctype };
@@ -358,17 +358,17 @@ async function policyStorage(req, url, claims, raw) {
   let m;
   if (req.method === "DELETE" && (m = /^\/object\/([^/]+)$/.exec(path))) {
     const names = JSON.parse(raw?.toString() || "{}").prefixes ?? [];
-    const r = await asCaller(claims, `select coalesce(json_agg(name), '[]') from (delete from storage.objects where bucket_id = ${lit(m[1])} and name = any(${lit(`{${names.map((n) => `"${n}"`).join(",")}}`)}::text[]) returning name) d`);
+    const r = await asCaller(claims, `with d as (delete from storage.objects where bucket_id = ${lit(m[1])} and name = any(${lit(`{${names.map((n) => `"${n}"`).join(",")}}`)}::text[]) returning name) select coalesce(json_agg(name), '[]') from d`);
     if (r.error) return deny(r.error.message);
     const gone = JSON.parse(r.text || "[]"); gone.forEach((n) => files.delete(`${m[1]}/${n}`));
     return { status: 200, json: gone.map((name) => ({ name })) };
   }
   if (req.method === "POST" && (m = /^\/object\/sign\/([^/]+)$/.exec(path))) {
-    const { paths = [] } = JSON.parse(raw?.toString() || "{}");
+    const { paths = [], expiresIn = 60 } = JSON.parse(raw?.toString() || "{}");
     const out = [];
     for (const p of paths) {
       const r = await asCaller(claims, `select count(*) from storage.objects where bucket_id = ${lit(m[1])} and name = ${lit(p)}`);
-      if (!r.error && r.text.trim() === "1") { const t = crypto.randomUUID(); signed.set(t, `${m[1]}/${p}`); out.push({ path: p, signedURL: `/object/sign/${m[1]}/${p}?token=${t}`, error: null }); }
+      if (!r.error && r.text.trim() === "1") { const t = crypto.randomUUID(); signed.set(t, { key: `${m[1]}/${p}`, exp: Date.now() + expiresIn * 1000 }); out.push({ path: p, signedURL: `/object/sign/${m[1]}/${p}?token=${t}`, error: null }); }
       else out.push({ path: p, signedURL: null, error: "Object not found" });
     }
     return { status: 200, json: out };
@@ -377,13 +377,22 @@ async function policyStorage(req, url, claims, raw) {
     const key = `${m[1]}/${decodeURIComponent(m[2])}`;
     if (req.method === "GET") {
       const t = url.searchParams.get("token");
-      if (signed.get(t) !== key || !files.has(key)) return deny("Invalid signature", 400);
+      const s = signed.get(t);
+      if (!s || s.key !== key || !files.has(key)) return deny("Invalid signature", 400);
+      if (Date.now() > s.exp) return deny("Token has expired", 400);
       const f = files.get(key); return { status: 200, raw: f.body, type: f.type };
     }
     const r = await asCaller(claims, `select count(*) from storage.objects where bucket_id = ${lit(m[1])} and name = ${lit(decodeURIComponent(m[2]))}`);
     if (r.error || r.text.trim() !== "1") return deny("Object not found", 400);
-    const t = crypto.randomUUID(); signed.set(t, key);
+    const t = crypto.randomUUID(); signed.set(t, { key, exp: Date.now() + (JSON.parse(raw?.toString() || "{}").expiresIn ?? 60) * 1000 });
     return { status: 200, json: { signedURL: `/object/sign/${key}?token=${t}` } };
+  }
+  // download with a sign-in (the server key, or a member the bucket's policies allow)
+  if (req.method === "GET" && (m = /^\/object\/(?:authenticated\/)?([^/]+)\/(.+)$/.exec(path)) && !path.startsWith("/object/sign/")) {
+    const key = `${m[1]}/${decodeURIComponent(m[2])}`;
+    const r = await asCaller(claims, `select count(*) from storage.objects where bucket_id = ${lit(m[1])} and name = ${lit(decodeURIComponent(m[2]))}`);
+    if (r.error || r.text.trim() !== "1" || !files.has(key)) return deny("Object not found", 400);
+    const f = files.get(key); return { status: 200, raw: f.body, type: f.type };
   }
   if ((req.method === "POST" || req.method === "PUT") && (m = /^\/object\/([^/]+)\/(.+)$/.exec(path))) {
     const rule = POLICY_BUCKETS[m[1]], name = decodeURIComponent(m[2]);

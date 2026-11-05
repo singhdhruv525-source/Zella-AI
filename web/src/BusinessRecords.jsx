@@ -129,13 +129,21 @@ function RecordFiles({ workspace, record }) {
       if (begin.error) { setProblem(`${file.name}: ${FILE_ERRORS[Object.keys(FILE_ERRORS).find((k) => begin.error.message.includes(k))] ?? explain(begin.error)}`); continue; }
       const up = await supabase.storage.from("record-files").upload(begin.data.path, file, { contentType: file.type, upsert: false });
       if (up.error) { setProblem(`${file.name}: the upload didn't finish (${up.error.message}).`); continue; }
-      const fin = await supabase.rpc("zella_finish_record_file", { p_file_id: begin.data.id });
-      if (fin.error) setProblem(`${file.name}: ${FILE_ERRORS[Object.keys(FILE_ERRORS).find((k) => fin.error.message.includes(k))] ?? explain(fin.error)}`);
+      // the server checks what the file really is before anyone else can see it (record-files function)
+      const chk = await supabase.functions.invoke("record-files", { body: { action: "check", file_id: begin.data.id } });
+      if (chk.error) {
+        let answer = null;
+        try { answer = await chk.error.context?.json?.(); } catch { /* not JSON */ }
+        if (answer?.status === "rejected") setProblem(`${file.name} wasn't added: ${answer.reason}.`);
+        else if (answer?.error && FILE_ERRORS[answer.error]) setProblem(`${file.name}: ${FILE_ERRORS[answer.error]}`);
+        else setProblem(`${file.name} was uploaded but couldn't be checked yet. It will appear once it has been; try adding it again if it doesn't.`);
+      }
     }
     setBusy(false); setCaption(""); setVersion((v) => v + 1);
   }
   async function open(f) {
-    const res = await supabase.storage.from("record-files").createSignedUrl(f.path, 300);
+    // photos open in the browser; documents always download (a PDF is never shown inside the app's own address)
+    const res = await supabase.storage.from("record-files").createSignedUrl(f.path, 300, f.kind === "photo" ? undefined : { download: f.file_name });
     if (res.error || !res.data?.signedUrl) return setProblem("That file can't be opened. You may not have access to it.");
     window.open(res.data.signedUrl, "_blank", "noopener,noreferrer");
   }

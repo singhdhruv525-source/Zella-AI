@@ -465,6 +465,14 @@ enabled = true
 verify_jwt = false
 entrypoint = "./functions/billing-webhook/index.ts"
 
+# Files on records: checks each upload's contents for its uploader, and server-only cleanup. Checks the caller itself:
+# "check" passes the member's sign-in to the database (which verifies it and their permissions); "cleanup" accepts only
+# the server key, which is not a JWT, so the gateway's sign-in check must stay off.
+[functions.record-files]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/record-files/index.ts"
+
 # Sends team invitation emails from the business app. Checks the caller's sign-in itself.
 [functions.staff-invite]
 enabled = true
