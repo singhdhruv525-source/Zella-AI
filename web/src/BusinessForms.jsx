@@ -336,7 +336,7 @@ export function BookAppointmentModal({ workspace, term, onClose, onSaved, initia
           </div>
         )}
         {things.length > 0 && (
-          <Field label="For" hint="What this booking is for. Shown on the record and on Today.">
+          <Field label="For" hint={things.length === 1 && recordId === things[0].id && !initial?.record ? "Their only one on file. Check it's the right one, or pick Nothing in particular." : "What this booking is for. Shown on the record and on Today."}>
             <select value={recordId} onChange={(e) => setRecordId(e.target.value)}>
               <option value="">Nothing in particular</option>
               {things.map((r) => <option key={r.id} value={r.id}>{r.title}{r.singular ? ` (${r.singular.toLowerCase()})` : ""}</option>)}

@@ -26,6 +26,68 @@ function Row({ label, children }) {
   return <div className="bp-row"><dt>{label}</dt><dd>{children}</dd></div>;
 }
 
+// What a booking is for: the pet, vehicle, property ... (sql/zella_appointment_records.sql). A suggestion (when the
+// customer has exactly one) is never treated as the answer until someone confirms it.
+function BookingFor({ workspace, appt, canWrite, onChanged, onNotice }) {
+  const [choices, setChoices] = useState(null);
+  const [linked, setLinked] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState("");
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      const ids = [appt.record_id, appt.record_suggested_id].filter(Boolean);
+      const recs = ids.length ? await supabase.from("crm_records").select("id, title").in("id", ids) : { data: [] };
+      let list = [];
+      if (appt.customer_id) {
+        const types = await supabase.from("crm_record_types").select("key, singular").eq("business_id", workspace.id).eq("enabled", true).eq("appointment_link", true);
+        const keys = (types.data ?? []).map((t) => t.key);
+        if (keys.length) {
+          const r = await supabase.from("crm_records").select("id, title, type_key").eq("business_id", workspace.id).eq("customer_id", appt.customer_id)
+            .in("type_key", keys).is("archived_at", null).order("title");
+          const label = Object.fromEntries((types.data ?? []).map((t) => [t.key, t.singular]));
+          list = (r.data ?? []).map((x) => ({ ...x, singular: label[x.type_key] }));
+        }
+      }
+      if (live) { setLinked(Object.fromEntries((recs.data ?? []).map((x) => [x.id, x.title]))); setChoices(list); }
+    })();
+    return () => { live = false; };
+  }, [appt.id, appt.record_id, appt.record_suggested_id, appt.customer_id, workspace.id]);
+  if (choices === null || (!appt.record_id && !appt.record_suggested_id && choices.length === 0)) return null;
+  async function run(work, message) {
+    setBusy(true); setProblem("");
+    const { error } = await work();
+    setBusy(false);
+    if (error) return setProblem(/RECORD_OTHER_CUSTOMER/.test(error.message) ? "That belongs to another customer." : /BAD_RECORD/.test(error.message) ? "That can't be booked for." : explain(error));
+    onNotice(message); onChanged();
+  }
+  return (
+    <dl className="bp-rows">
+      {problem && <p className="ba-error" role="alert">{problem}</p>}
+      {appt.record_id ? (
+        <Row label="For"><strong>{linked?.[appt.record_id] ?? "Linked record"}</strong></Row>
+      ) : appt.record_suggested_id ? (
+        <Row label="For">
+          <span>{linked?.[appt.record_suggested_id] ?? "Suggested"}? <Pill tone="warning">Not confirmed</Pill></span>
+          {canWrite && <button type="button" className="ba-btn sm" disabled={busy} onClick={() => run(() => supabase.rpc("zella_confirm_appointment_record", { p_appointment_id: appt.id }), "Confirmed.")}>Confirm</button>}
+        </Row>
+      ) : (
+        <Row label="For"><Pill tone="warning">Not chosen</Pill></Row>
+      )}
+      {canWrite && choices.length > 0 && (
+        <Row label={appt.record_id ? "Change" : "Choose"}>
+          <select aria-label="What this booking is for" value="" disabled={busy}
+            onChange={(e) => e.target.value && run(() => supabase.rpc("zella_set_appointment_record", { p_appointment_id: appt.id, p_record_id: e.target.value === "none" ? null : e.target.value }), "Saved.")}>
+            <option value="">Pick…</option>
+            {choices.filter((c) => c.id !== appt.record_id).map((c) => <option key={c.id} value={c.id}>{c.title}{c.singular ? ` (${c.singular.toLowerCase()})` : ""}</option>)}
+            {appt.record_id && <option value="none">Nothing in particular</option>}
+          </select>
+        </Row>
+      )}
+    </dl>
+  );
+}
+
 export function BookingPanel({ workspace, industry, appt, person, staff, blocks, tz, term, onClose, onChanged, onNotice, onOpenPerson }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -162,6 +224,8 @@ export function BookingPanel({ workspace, industry, appt, person, staff, blocks,
               <Row label="Booked by">{byAi ? <><Icon name="smart_toy" size="sm" /> Zella (AI receptionist or online)</> : appt.metadata?.source === "staff" ? "Your team" : null}</Row>
             </dl>
           </Section>
+
+          <BookingFor workspace={workspace} appt={appt} canWrite={canWrite} onChanged={onChanged} onNotice={onNotice} />
 
           <Section title={term("customer")}>
             {person ? (

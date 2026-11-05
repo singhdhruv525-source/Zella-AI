@@ -184,6 +184,38 @@ function WorkCard({ work, operations, loading, wide, onGo }) {
   );
 }
 
+// Bookings that don't say yet which pet, vehicle, property ... they are for (zella_appointments_needing_record).
+// Suggestions are confirmed here; with several on file the booking is opened to choose.
+function NeedsRecordCard({ workspace, tz, canEdit, onGo, onNotice }) {
+  const [version, setVersion] = useState(0);
+  const [rows, setRows] = useState(null);
+  useEffect(() => {
+    let live = true;
+    supabase.rpc("zella_appointments_needing_record", { p_business_id: workspace.id, p_days: 14 }).then(({ data, error }) => { if (live) setRows(error ? null : data ?? []); });
+    return () => { live = false; };
+  }, [workspace.id, version]);
+  if (!rows?.length) return null;
+  async function confirm(id) {
+    const { error } = await supabase.rpc("zella_confirm_appointment_record", { p_appointment_id: id });
+    onNotice(error ? "Couldn't confirm. Open the booking to choose." : "Confirmed.");
+    setVersion((v) => v + 1);
+  }
+  const kind = rows[0]?.choices?.[0]?.type?.toLowerCase() ?? "record";
+  return (
+    <Card title={`Which ${kind}?`} action={<button type="button" className="ba-btn sm" onClick={() => onGo("calendar")}>Calendar</button>}>
+      <ul className="td-list">
+        {rows.slice(0, 6).map((r) => (
+          <li key={r.appointment_id}>
+            <div><strong>{r.title}</strong><small>{formatLongDate(r.start_time, tz)} · {formatTime(r.start_time, tz)}
+              {r.suggested ? ` · ${r.suggested.title}?` : ` · ${r.choices.length} on file`}</small></div>
+            {canEdit && r.suggested && <button type="button" className="ba-btn sm" onClick={() => confirm(r.appointment_id)}>Confirm</button>}
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
 function Empty({ title, children }) {
   return <div className="ba-empty">{title && <strong>{title}</strong>}{children}</div>;
 }
@@ -472,6 +504,7 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
         <WeekChart week={data?.week} loading={loading && !data} selected={day} onOpen={() => onGo("calls")} />
 
         {scheduling && <WorkCard work={data?.work} operations={operations} loading={loading && !data} onGo={onGo} />}
+        {scheduling && <NeedsRecordCard workspace={workspace} tz={tz} canEdit={canEdit} onGo={onGo} onNotice={onNotice} />}
 
         {opsTypes.map((t) => {
           const recs = (data?.records ?? []).filter((r) => r.type_key === t.key).slice(0, 5);
