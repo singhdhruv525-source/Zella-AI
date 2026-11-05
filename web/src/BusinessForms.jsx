@@ -3,6 +3,10 @@ import { supabase } from "./supabase";
 import { Field, Modal, personName } from "./BusinessUI";
 import { todayInput, zonedDateTime } from "./businessTime";
 import { changed, findConflict, friendly } from "./BusinessShared";
+
+// the database refuses overlapping bookings (gap included) on every path; staff can still book over one on purpose,
+// which the database records on the booking (sql/zella_booking_buffers.sql)
+const SLOT_TAKEN_MSG = "That time overlaps another booking, or the gap kept between bookings. Pick another time, or tick the box to book it anyway.";
 import { EmailField, PhoneField } from "./formFields";
 import { checkEmail, validatePhone } from "./formValidation";
 
@@ -288,10 +292,12 @@ export function BookAppointmentModal({ workspace, term, onClose, onSaved, initia
       status: "scheduled",
       location: form.location.trim() || null,
       description: form.description.trim() || null,
+      ...(force ? { metadata: { allow_overlap: true } } : {}),
     });
     setBusy(false);
 
     if (insertError) {
+      if (/SLOT_TAKEN/.test(insertError.message ?? "")) { setConflict(SLOT_TAKEN_MSG); return setError(SLOT_TAKEN_MSG); }
       return setError(/RECORD_OTHER_CUSTOMER/.test(insertError.message ?? "") ? "That belongs to another customer. Pick theirs, or change the customer."
         : /BAD_RECORD/.test(insertError.message ?? "") ? "That record can't be booked for. Pick another, or none." : friendly(insertError));
     }
@@ -439,9 +445,11 @@ export function RescheduleModal({ workspace, term, appt, person, onClose, onSave
       checked_in_at: null,
       ...(form.staffId !== (appt.staff_id ?? "") ? { staff_id: form.staffId || null } : {}),
       description: appt.description ? `${appt.description}\n${note}` : note,
+      ...(force ? { metadata: { ...(appt.metadata ?? {}), allow_overlap: true } } : {}),
       updated_at: new Date().toISOString(),
     }).eq("id", appt.id));
     setBusy(false);
+    if (updateError && /SLOT_TAKEN/.test(updateError.message ?? "")) { setConflict(SLOT_TAKEN_MSG); return setError(SLOT_TAKEN_MSG); }
     if (updateError) return setError(friendly(updateError));
     onSaved(`${appt.title} moved${personName(person) ? ` for ${personName(person)}` : ""}.`);
   }

@@ -214,7 +214,9 @@ const AUTOMATIONS = {
     settings: (s: Json) => ({
       offers: numberIn(s.offers, [1, 2, 3, 5], 3),
       offer_minutes: numberIn(s.offer_minutes, [15, 30, 60], 30),
-      channel: oneOf(s.channel, ["sms", "call"] as const, "sms"),
+      // offered by text: the only channel built for waitlist offers (the wizard says so; it used to offer email, which
+      // this saved as text without saying)
+      channel: "sms" as const,
     }),
   },
   staff_unavailable: {

@@ -23,7 +23,50 @@ function Switch({ on, onChange, label, disabled }) {
 
 const sameConfig = (a, b) => JSON.stringify(a ?? {}) === JSON.stringify(b ?? {});
 
-function AutomationCard({ row, live, canManage, recommended, runs, audits, people, nameOf, tz, onNotice, onChanged }) {
+// An automation saved with "AI call" before that channel was withdrawn: nothing is sent for it until the owner chooses
+// (sql/zella_channel_review.sql). Text or email needs the owner to confirm customers agreed to it.
+function ChannelReview({ row, canDecide, onNotice, onChanged }) {
+  const [review, setReview] = useState(null);
+  const [agreed, setAgreed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let live = true;
+    supabase.from("automation_channel_reviews").select("requested_channel, created_at").eq("automation_id", row.id).eq("status", "needs_review").maybeSingle()
+      .then(({ data }) => { if (live) setReview(data ?? null); });
+    return () => { live = false; };
+  }, [row.id, row.trigger_config, row.status]);
+  if (!review) return null;
+  const choices = row.trigger_type === "waitlist_offer" ? [["sms", "Send by text"]] : [["sms", "Send by text"], ["email", "Send by email"]];
+  async function decide(choice) {
+    setBusy(true); setError("");
+    const { error: failure } = await supabase.rpc("zella_resolve_channel_review", { p_automation_id: row.id, p_choice: choice, p_consent_confirmed: choice !== "off" && agreed });
+    setBusy(false);
+    if (failure) return setError(/CONSENT_NOT_CONFIRMED/.test(failure.message ?? "") ? "Tick the box first: customers must have agreed to be contacted this way." : explain(failure));
+    onNotice?.(choice === "off" ? `${row.name} is off.` : `${row.name} will be sent by ${choice === "sms" ? "text" : "email"}.`);
+    setReview(null); onChanged();
+  }
+  return (
+    <div className="ba-auto-review" role="alert">
+      <strong><Icon name="pause_circle" size="sm" /> Nothing is being sent for this</strong>
+      <p>It was set to {review.requested_channel === "sms_and_call" ? "text and AI call" : "AI call"}, which isn't available yet. Zella didn't switch it to text
+        for you, because your customers may only have agreed to calls. Choose how it should be sent, or turn it off.</p>
+      {canDecide ? (
+        <>
+          <label className="ba-check"><input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
+            <span>My customers agreed to be contacted by the channel I choose below</span></label>
+          <div className="ba-auto-links">
+            {choices.map(([c, label]) => <button key={c} type="button" className="ba-btn" disabled={busy || !agreed} onClick={() => decide(c)}>{label}</button>)}
+            <button type="button" className="ba-link" disabled={busy} onClick={() => decide("off")}>Turn it off</button>
+          </div>
+        </>
+      ) : <p className="ba-muted">Ask the owner or an admin to choose.</p>}
+      {error && <div className="ba-error">{error}</div>}
+    </div>
+  );
+}
+
+function AutomationCard({ row, role, live, canManage, recommended, runs, audits, people, nameOf, tz, onNotice, onChanged }) {
   const isBase = CATALOG.some(([t]) => t === row.trigger_type);
   const fields = [...(AUTOMATION_OPTIONS[row.trigger_type] ?? []), { key: "notify_via", label: "Tell the owner by", options: NOTIFY_OPTIONS }];
   const [draft, setDraft] = useState(row.trigger_config ?? {});
@@ -68,6 +111,7 @@ function AutomationCard({ row, live, canManage, recommended, runs, audits, peopl
           {canManage && <Switch on={on} disabled={busy} label={`${row.name} on or off`} onChange={(next) => call(next, null, `${row.name} is ${next ? "on" : "off"}.`)} />}
         </div>
       </div>
+      {canManage && <ChannelReview row={row} canDecide={["owner", "admin"].includes(role)} onNotice={onNotice} onChanged={onChanged} />}
       <dl className="ba-auto-facts">
         <div><dt>When</dt><dd>{info.trigger}</dd></div>
         <div><dt>Only if</dt><dd>{info.conditions}</dd></div>
@@ -203,7 +247,7 @@ export function AutomationsPage({ workspace, refreshKey, onNotice }) {
         ) : (
           <ul className="ba-autos">
             {shown.map((row) => (
-              <AutomationCard key={row.id} row={row} live={live} canManage={canManage} recommended={Boolean(workspace.industry) && isPreferred(row.trigger_type, workspace.industry)}
+              <AutomationCard key={row.id} row={row} role={workspace.role} live={live} canManage={canManage} recommended={Boolean(workspace.industry) && isPreferred(row.trigger_type, workspace.industry)}
                 runs={runsFor(row.id)} audits={auditsFor(row.id)} people={data.people} nameOf={roster.nameOf} tz={tz}
                 onNotice={onNotice} onChanged={reload} />
             ))}

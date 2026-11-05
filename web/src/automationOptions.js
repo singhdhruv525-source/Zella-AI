@@ -7,8 +7,8 @@ const TRIES = [[1, "1 try"], [2, "2 tries"], [3, "3 tries"]];
 export const AUTOMATION_OPTIONS = {
   appointment_reminder: [
     { key: "hours_before", label: "Remind them", kind: "chips", options: [[48, "2 days before"], [24, "1 day before"], [4, "4 hours before"], [2, "2 hours before"], [1, "1 hour before"], [0.5, "30 minutes before"], [0.25, "15 minutes before"]] },
-    // Sent by text (or email when the customer prefers email). AI reminder calls aren't built yet, so they aren't offered
-    // (they used to be, and such reminders were never sent: sql/zella_message_settings_fix.sql).
+    // Sent by text. AI reminder calls aren't built, so they aren't offered; an automation saved with them before is held
+    // until the owner chooses text, email or off (sql/zella_channel_review.sql) - never switched to text silently.
   ],
   appointment_confirmation: [
     { key: "hours_before", label: "Ask them to confirm", options: [[24, "1 day before"], [48, "2 days before"], [72, "3 days before"]] },
@@ -46,7 +46,7 @@ export const AUTOMATION_OPTIONS = {
   waitlist_offer: [
     { key: "offers", label: "Offer to", options: [[1, "1 person"], [2, "2 people"], [3, "3 people"], [5, "5 people"]] },
     { key: "offer_minutes", label: "Each person has", options: [[15, "15 minutes"], [30, "30 minutes"], [60, "1 hour"]] },
-    { key: "channel", label: "Send by", options: SMS_CALL },
+    // offered by text; AI waitlist calls aren't built (sql/zella_channel_review.sql holds any saved before for the owner)
   ],
   staff_unavailable: [
     { key: "channel", label: "Notify by", options: SMS_CALL },

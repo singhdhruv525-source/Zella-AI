@@ -1191,7 +1191,7 @@ function AutomationsStep({ value, onChange, terminology, industryName }) {
       description: `When ${/^[aeiou]/i.test(appt) ? "an" : "a"} ${appt} opens up, offer it to people waiting.`,
       body: (
         <label className="wiz-inline">
-          Offer to <AutoSelect item={value.waitlist_offer} onSet={(k, v) => setSetting("waitlist_offer", k, v)} setting="offers" options={[[1, "1"], [3, "3"], [5, "5"]]} /> people, each gets <AutoSelect item={value.waitlist_offer} onSet={(k, v) => setSetting("waitlist_offer", k, v)} setting="offer_minutes" options={[[15, "15 min"], [30, "30 min"], [60, "1 hour"]]} />, by <AutoSelect item={value.waitlist_offer} onSet={(k, v) => setSetting("waitlist_offer", k, v)} setting="channel" numeric={false} options={[["sms", "text"], ["email", "email"]]} />
+          Offer to <AutoSelect item={value.waitlist_offer} onSet={(k, v) => setSetting("waitlist_offer", k, v)} setting="offers" options={[[1, "1"], [3, "3"], [5, "5"]]} /> people, each gets <AutoSelect item={value.waitlist_offer} onSet={(k, v) => setSetting("waitlist_offer", k, v)} setting="offer_minutes" options={[[15, "15 min"], [30, "30 min"], [60, "1 hour"]]} />, by text
         </label>
       ),
     },
