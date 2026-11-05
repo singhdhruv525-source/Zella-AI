@@ -761,6 +761,41 @@ end $function$;
 revoke all on function public.zella_book_appointment(uuid,uuid,text,timestamp with time zone,integer,uuid,integer,text) from public, anon, authenticated, service_role;
 grant execute on function public.zella_book_appointment(uuid,uuid,text,timestamp with time zone,integer,uuid,integer,text) to authenticated;
 grant execute on function public.zella_book_appointment(uuid,uuid,text,timestamp with time zone,integer,uuid,integer,text) to service_role;
+CREATE OR REPLACE FUNCTION public.zella_brain_context(p_business_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare v_b record; v_ind text; v_term jsonb; v_cfg record; v_hours jsonb; v_closures jsonb; v_know jsonb; v_key text; v_disabled jsonb;
+begin
+  select b.* into v_b from public.businesses b where b.id = p_business_id and b.suspended_at is null and b.cancelled_at is null;
+  if v_b.id is null then raise exception 'UNKNOWN_BUSINESS'; end if;
+  select i.name into v_ind from public.industries i where i.id = v_b.industry_id;
+  select coalesce(ic.terminology, '{}'::jsonb) into v_term from public.industry_configurations ic where ic.industry_id = v_b.industry_id;
+  v_term := coalesce(v_term, '{}'::jsonb) || coalesce(v_b.terminology_overrides, '{}'::jsonb);
+  select a.name, c.* into v_cfg from public.ai_agents a left join public.ai_agent_configs c on c.agent_id = a.id where a.business_id = p_business_id and a.is_default limit 1;
+  select coalesce(jsonb_agg(jsonb_build_object('weekday', h.weekday, 'opens', h.opens, 'closes', h.closes) order by h.weekday, h.opens), '[]'::jsonb) into v_hours from public.business_hours h where h.business_id = p_business_id;
+  select coalesce(jsonb_agg(jsonb_build_object('from', x.starts_on, 'to', x.ends_on, 'label', x.label) order by x.starts_on), '[]'::jsonb) into v_closures
+    from public.business_closures x where x.business_id = p_business_id and x.ends_on >= current_date and x.starts_on <= current_date + 60;
+  select coalesce(jsonb_agg(jsonb_build_object('kind', k.kind, 'title', k.title) order by k.kind, k.title), '[]'::jsonb) into v_know
+    from (select kind, title from public.knowledge_items where business_id = p_business_id and status = 'ready' order by kind, title limit 60) k;
+  v_key := public.zella_industry_key_for(p_business_id);
+  v_disabled := coalesce(v_cfg.business_context -> 'disabled_tools', '[]'::jsonb);
+  return jsonb_build_object(
+    'business', jsonb_build_object('id', v_b.id, 'name', v_b.name, 'industry', coalesce(v_ind, 'Business'), 'industry_key', v_key, 'timezone', coalesce(v_b.timezone, 'America/New_York'),
+                                   'phone', v_b.phone, 'website', v_b.website, 'city', v_b.city, 'state', v_b.state),
+    'terminology', v_term,
+    'hours', v_hours, 'closures', v_closures,
+    'agent', jsonb_build_object('name', coalesce(v_cfg.name, 'the assistant'), 'personality', v_cfg.personality, 'tone', v_cfg.tone, 'goals', v_cfg.goals,
+                                'instructions', v_cfg.system_prompt, 'languages', coalesce(v_cfg.business_context -> 'languages', '["English"]'::jsonb),
+                                'escalation', coalesce(v_cfg.escalation_rules, '{}'::jsonb) - 'transfer_number' - 'fallback_number' - 'transfer_to',
+                                'appointment_rules', coalesce(v_cfg.appointment_rules, '{}'::jsonb)),
+    'knowledge_topics', v_know,
+    'tools', (select coalesce(jsonb_agg(d ->> 'name'), '[]'::jsonb) from jsonb_array_elements(public.zella_brain_tool_defs()) d where not (v_disabled ? (d ->> 'name'))));
+end $function$;
+revoke all on function public.zella_brain_context(uuid) from public, anon, authenticated, service_role;
+grant execute on function public.zella_brain_context(uuid) to service_role;
 CREATE OR REPLACE FUNCTION public.zella_brain_prompt_base(p_business_id uuid)
  RETURNS text
  LANGUAGE plpgsql

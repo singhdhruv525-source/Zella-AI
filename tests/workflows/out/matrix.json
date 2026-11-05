@@ -1,0 +1,6973 @@
+{
+ "automotive": [
+  {
+   "stage": "intake",
+   "what": "AI saves a new caller as a lead",
+   "pass": true
+  },
+  {
+   "stage": "intake",
+   "what": "the live call is linked to them",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "real free times offered",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booking needs the read-back first",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booked after the caller confirms",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the same time is refused for someone else",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the caller's booking is found",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "rescheduled by the caller",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "cancelled by the caller; reminders withdrawn",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "loaners: owner switches the type on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "vehicles: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "vehicles: the first record with a Registration is saved",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "vehicles: a second record with the same Registration is refused as a duplicate",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "vehicles: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "vehicles: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "vehicles: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "vehicles: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "vehicles: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "repair_orders: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "repair_orders: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "repair_orders: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "repair_orders: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "repair_orders: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "repair_orders: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "loaners: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "loaners: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "loaners: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "loaners: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "loaners: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "loaners: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "staff and viewer see Today",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff raise an invoice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff can't record a payment or refund",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a manager records the payment",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a repeated payment is not counted twice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "viewer can't raise one",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "messages",
+   "what": "feedback request queued",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "first provider failure: retried later",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "after the last attempt it stops",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner sees it under Sending failed",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "staff, viewer and other businesses can't retry",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner retries it",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "then it is sent",
+   "pass": true
+  }
+ ],
+ "beauty-salon": [
+  {
+   "stage": "intake",
+   "what": "AI saves a new caller as a lead",
+   "pass": true
+  },
+  {
+   "stage": "intake",
+   "what": "the live call is linked to them",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "real free times offered",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booking needs the read-back first",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booked after the caller confirms",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the same time is refused for someone else",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the caller's booking is found",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "rescheduled by the caller",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "cancelled by the caller; reminders withdrawn",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "colour_cards: owner switches the type on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "memberships: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "memberships: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "memberships: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "memberships: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "memberships: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "memberships: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "preferences: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "preferences: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "preferences: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "preferences: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "preferences: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "preferences: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "colour_cards: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "colour_cards: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "colour_cards: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "colour_cards: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "colour_cards: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "colour_cards: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "staff and viewer see Today",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff raise an invoice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff can't record a payment or refund",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a manager records the payment",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a repeated payment is not counted twice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "viewer can't raise one",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "messages",
+   "what": "feedback request queued",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "first provider failure: retried later",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "after the last attempt it stops",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner sees it under Sending failed",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "staff, viewer and other businesses can't retry",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner retries it",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "then it is sent",
+   "pass": true
+  }
+ ],
+ "childcare": [
+  {
+   "stage": "intake",
+   "what": "AI saves a new caller as a lead",
+   "pass": true
+  },
+  {
+   "stage": "intake",
+   "what": "the live call is linked to them",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "real free times offered",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booking needs the read-back first",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booked after the caller confirms",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the same time is refused for someone else",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the caller's booking is found",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "rescheduled by the caller",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "cancelled by the caller; reminders withdrawn",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "incidents: owner switches the type on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "children: owner switches the type on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "enrolments: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "enrolments: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "enrolments: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "enrolments: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "enrolments: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "enrolments: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "children: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "children: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "children: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "children: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "children: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "children: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "incidents: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "incidents: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "incidents: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "incidents: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "incidents: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "incidents: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "staff and viewer see Today",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff raise an invoice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff can't record a payment or refund",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a manager records the payment",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a repeated payment is not counted twice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "viewer can't raise one",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "messages",
+   "what": "feedback request queued",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "first provider failure: retried later",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "after the last attempt it stops",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner sees it under Sending failed",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "staff, viewer and other businesses can't retry",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner retries it",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "then it is sent",
+   "pass": true
+  }
+ ],
+ "cleaning-services": [
+  {
+   "stage": "intake",
+   "what": "AI saves a new caller as a lead",
+   "pass": true
+  },
+  {
+   "stage": "intake",
+   "what": "the live call is linked to them",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "real free times offered",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booking needs the read-back first",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booked after the caller confirms",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the same time is refused for someone else",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the caller's booking is found",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "rescheduled by the caller",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "cancelled by the caller; reminders withdrawn",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: the first record with a Address is saved",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: a second record with the same Address is refused as a duplicate",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "jobs: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "jobs: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "jobs: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "jobs: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "jobs: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "jobs: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "plans: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "plans: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "plans: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "plans: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "plans: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "plans: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "visits: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "visits: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "visits: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "visits: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "visits: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "visits: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "private",
+   "what": "managers read private values",
+   "pass": true
+  },
+  {
+   "stage": "private",
+   "what": "managers see the actual value",
+   "pass": true
+  },
+  {
+   "stage": "private",
+   "what": "the viewer and other businesses never get the value (at most that a private field exists)",
+   "pass": true
+  },
+  {
+   "stage": "private",
+   "what": "nor does the viewer find it in the record's data",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "staff and viewer see Today",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff raise an invoice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff can't record a payment or refund",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a manager records the payment",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a repeated payment is not counted twice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "viewer can't raise one",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "messages",
+   "what": "feedback request queued",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "first provider failure: retried later",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "after the last attempt it stops",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner sees it under Sending failed",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "staff, viewer and other businesses can't retry",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner retries it",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "then it is sent",
+   "pass": true
+  }
+ ],
+ "dental": [
+  {
+   "stage": "intake",
+   "what": "AI saves a new caller as a lead",
+   "pass": true
+  },
+  {
+   "stage": "intake",
+   "what": "the live call is linked to them",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "real free times offered",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booking needs the read-back first",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booked after the caller confirms",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the same time is refused for someone else",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the caller's booking is found",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "rescheduled by the caller",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "cancelled by the caller; reminders withdrawn",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "coverage: owner switches the type on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "forms: owner switches the type on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "treatment_plans: owner switches the type on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "recalls: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "recalls: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "recalls: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "recalls: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "recalls: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "recalls: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "enquiries: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "enquiries: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "enquiries: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "enquiries: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "enquiries: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "enquiries: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "treatment_plans: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "treatment_plans: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "treatment_plans: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "treatment_plans: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "treatment_plans: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "treatment_plans: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "coverage: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "coverage: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "coverage: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "coverage: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "coverage: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "coverage: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "forms: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "forms: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "forms: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "forms: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "forms: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "forms: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "staff and viewer see Today",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff raise an invoice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff can't record a payment or refund",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a manager records the payment",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a repeated payment is not counted twice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "viewer can't raise one",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "messages",
+   "what": "feedback request held back (policy off)",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "first provider failure: retried later",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "after the last attempt it stops",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner sees it under Sending failed",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "staff, viewer and other businesses can't retry",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner retries it",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "then it is sent",
+   "pass": true
+  }
+ ],
+ "ecommerce": [
+  {
+   "stage": "intake",
+   "what": "AI saves a new caller as a lead",
+   "pass": true
+  },
+  {
+   "stage": "intake",
+   "what": "the live call is linked to them",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "no bookings here: the AI doesn't offer times",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "no bookings here: the AI can't book, and says to take a message",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "no bookings here: booking tools are left out of the assistant's list",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "no bookings here: the database refuses new ones",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "orders: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "orders: the first record with a Order number is saved",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "orders: a second record with the same Order number is refused as a duplicate",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "orders: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "orders: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "orders: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "orders: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "orders: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "returns: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "returns: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "returns: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "returns: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "returns: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "returns: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "cases: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "cases: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "cases: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "cases: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "cases: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "cases: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "staff and viewer see Today",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff raise an invoice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff can't record a payment or refund",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a manager records the payment",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a repeated payment is not counted twice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "viewer can't raise one",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "first provider failure: retried later",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "after the last attempt it stops",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner sees it under Sending failed",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "staff, viewer and other businesses can't retry",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner retries it",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "then it is sent",
+   "pass": true
+  }
+ ],
+ "education": [
+  {
+   "stage": "intake",
+   "what": "AI saves a new caller as a lead",
+   "pass": true
+  },
+  {
+   "stage": "intake",
+   "what": "the live call is linked to them",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "real free times offered",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booking needs the read-back first",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booked after the caller confirms",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the same time is refused for someone else",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the caller's booking is found",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "rescheduled by the caller",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "cancelled by the caller; reminders withdrawn",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "sessions: owner switches the type on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "session_bookings: owner switches the type on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "applications: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "applications: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "applications: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "applications: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "applications: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "applications: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "courses: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "courses: the first record with a Code is saved",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "courses: a second record with the same Code is refused as a duplicate",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "courses: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "courses: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "courses: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "courses: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "courses: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "sessions: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "sessions: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "sessions: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "sessions: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "sessions: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "sessions: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "session_bookings: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "session_bookings: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "session_bookings: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "session_bookings: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "session_bookings: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "session_bookings: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "staff and viewer see Today",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff raise an invoice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff can't record a payment or refund",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a manager records the payment",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a repeated payment is not counted twice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "viewer can't raise one",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "messages",
+   "what": "feedback request queued",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "first provider failure: retried later",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "after the last attempt it stops",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner sees it under Sending failed",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "staff, viewer and other businesses can't retry",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner retries it",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "then it is sent",
+   "pass": true
+  }
+ ],
+ "electrical": [
+  {
+   "stage": "intake",
+   "what": "AI saves a new caller as a lead",
+   "pass": true
+  },
+  {
+   "stage": "intake",
+   "what": "the live call is linked to them",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "real free times offered",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booking needs the read-back first",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booked after the caller confirms",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the same time is refused for someone else",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the caller's booking is found",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "rescheduled by the caller",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "cancelled by the caller; reminders withdrawn",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "plans: owner switches the type on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "permits: owner switches the type on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "jobs: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "jobs: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "jobs: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "jobs: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "jobs: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "jobs: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "sites: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "sites: the first record with a Address is saved",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "sites: a second record with the same Address is refused as a duplicate",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "sites: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "sites: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "sites: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "sites: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "sites: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "permits: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "permits: the first record with a Permit number is saved",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "permits: a second record with the same Permit number is refused as a duplicate",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "permits: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "permits: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "permits: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "permits: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "permits: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "plans: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "plans: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "plans: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "plans: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "plans: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "plans: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "private",
+   "what": "managers read private values",
+   "pass": true
+  },
+  {
+   "stage": "private",
+   "what": "managers see the actual value",
+   "pass": true
+  },
+  {
+   "stage": "private",
+   "what": "the viewer and other businesses never get the value (at most that a private field exists)",
+   "pass": true
+  },
+  {
+   "stage": "private",
+   "what": "nor does the viewer find it in the record's data",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "staff and viewer see Today",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff raise an invoice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff can't record a payment or refund",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a manager records the payment",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a repeated payment is not counted twice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "viewer can't raise one",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "messages",
+   "what": "feedback request queued",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "first provider failure: retried later",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "after the last attempt it stops",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner sees it under Sending failed",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "staff, viewer and other businesses can't retry",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner retries it",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "then it is sent",
+   "pass": true
+  }
+ ],
+ "financial-services": [
+  {
+   "stage": "intake",
+   "what": "AI saves a new caller as a lead",
+   "pass": true
+  },
+  {
+   "stage": "intake",
+   "what": "the live call is linked to them",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "real free times offered",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booking needs the read-back first",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booked after the caller confirms",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the same time is refused for someone else",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the caller's booking is found",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "rescheduled by the caller",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "cancelled by the caller; reminders withdrawn",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "reviews: owner switches the type on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "opportunities: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "opportunities: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "opportunities: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "opportunities: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "opportunities: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "opportunities: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "requests: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "requests: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "requests: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "requests: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "requests: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "requests: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "reviews: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "reviews: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "reviews: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "reviews: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "reviews: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "reviews: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "staff and viewer see Today",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff raise an invoice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff can't record a payment or refund",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a manager records the payment",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a repeated payment is not counted twice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "viewer can't raise one",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "messages",
+   "what": "feedback request held back (policy off)",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "first provider failure: retried later",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "after the last attempt it stops",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner sees it under Sending failed",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "staff, viewer and other businesses can't retry",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner retries it",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "then it is sent",
+   "pass": true
+  }
+ ],
+ "fitness": [
+  {
+   "stage": "intake",
+   "what": "AI saves a new caller as a lead",
+   "pass": true
+  },
+  {
+   "stage": "intake",
+   "what": "the live call is linked to them",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "real free times offered",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booking needs the read-back first",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booked after the caller confirms",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the same time is refused for someone else",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the caller's booking is found",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "rescheduled by the caller",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "cancelled by the caller; reminders withdrawn",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "classes: owner switches the type on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "class_bookings: owner switches the type on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "freeze_requests: owner switches the type on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "memberships: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "memberships: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "memberships: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "memberships: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "memberships: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "memberships: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "trials: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "trials: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "trials: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "trials: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "trials: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "trials: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "classes: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "classes: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "classes: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "classes: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "classes: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "classes: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "freeze_requests: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "freeze_requests: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "freeze_requests: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "freeze_requests: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "freeze_requests: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "freeze_requests: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "class_bookings: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "class_bookings: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "class_bookings: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "class_bookings: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "class_bookings: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "class_bookings: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "staff and viewer see Today",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff raise an invoice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff can't record a payment or refund",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a manager records the payment",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a repeated payment is not counted twice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "viewer can't raise one",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "messages",
+   "what": "feedback request queued",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "first provider failure: retried later",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "after the last attempt it stops",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner sees it under Sending failed",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "staff, viewer and other businesses can't retry",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner retries it",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "then it is sent",
+   "pass": true
+  }
+ ],
+ "healthcare": [
+  {
+   "stage": "intake",
+   "what": "AI saves a new caller as a lead",
+   "pass": true
+  },
+  {
+   "stage": "intake",
+   "what": "the live call is linked to them",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "real free times offered",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booking needs the read-back first",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booked after the caller confirms",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the same time is refused for someone else",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the caller's booking is found",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "rescheduled by the caller",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "cancelled by the caller; reminders withdrawn",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "result_callbacks: owner switches the type on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "refill_requests: owner switches the type on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "prior_auths: owner switches the type on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "coverage: owner switches the type on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "referrals: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "referrals: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "referrals: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "referrals: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "referrals: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "referrals: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "enquiries: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "enquiries: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "enquiries: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "enquiries: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "enquiries: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "enquiries: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "refill_requests: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "refill_requests: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "refill_requests: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "refill_requests: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "refill_requests: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "refill_requests: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "prior_auths: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "prior_auths: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "prior_auths: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "prior_auths: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "prior_auths: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "prior_auths: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "result_callbacks: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "result_callbacks: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "result_callbacks: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "result_callbacks: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "result_callbacks: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "result_callbacks: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "coverage: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "coverage: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "coverage: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "coverage: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "coverage: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "coverage: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "staff and viewer see Today",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff raise an invoice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff can't record a payment or refund",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a manager records the payment",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a repeated payment is not counted twice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "viewer can't raise one",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "messages",
+   "what": "feedback request held back (policy off)",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "first provider failure: retried later",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "after the last attempt it stops",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner sees it under Sending failed",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "staff, viewer and other businesses can't retry",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner retries it",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "then it is sent",
+   "pass": true
+  }
+ ],
+ "home-services": [
+  {
+   "stage": "intake",
+   "what": "AI saves a new caller as a lead",
+   "pass": true
+  },
+  {
+   "stage": "intake",
+   "what": "the live call is linked to them",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "real free times offered",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booking needs the read-back first",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booked after the caller confirms",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the same time is refused for someone else",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the caller's booking is found",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "rescheduled by the caller",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "cancelled by the caller; reminders withdrawn",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: the first record with a Address is saved",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: a second record with the same Address is refused as a duplicate",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "jobs: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "jobs: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "jobs: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "jobs: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "jobs: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "jobs: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "plans: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "plans: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "plans: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "plans: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "plans: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "plans: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "private",
+   "what": "managers read private values",
+   "pass": true
+  },
+  {
+   "stage": "private",
+   "what": "managers see the actual value",
+   "pass": true
+  },
+  {
+   "stage": "private",
+   "what": "the viewer and other businesses never get the value (at most that a private field exists)",
+   "pass": true
+  },
+  {
+   "stage": "private",
+   "what": "nor does the viewer find it in the record's data",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "staff and viewer see Today",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff raise an invoice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff can't record a payment or refund",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a manager records the payment",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a repeated payment is not counted twice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "viewer can't raise one",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "messages",
+   "what": "feedback request queued",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "first provider failure: retried later",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "after the last attempt it stops",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner sees it under Sending failed",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "staff, viewer and other businesses can't retry",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner retries it",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "then it is sent",
+   "pass": true
+  }
+ ],
+ "hospitality": [
+  {
+   "stage": "intake",
+   "what": "AI saves a new caller as a lead",
+   "pass": true
+  },
+  {
+   "stage": "intake",
+   "what": "the live call is linked to them",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "real free times offered",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booking needs the read-back first",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booked after the caller confirms",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the same time is refused for someone else",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the caller's booking is found",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "rescheduled by the caller",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "cancelled by the caller; reminders withdrawn",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "room_types: owner switches the type on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "lost_found: owner switches the type on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "stays: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "stays: the first record with a Booking reference is saved",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "stays: a second record with the same Booking reference is refused as a duplicate",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "stays: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "stays: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "stays: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "stays: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "stays: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "guest_requests: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "guest_requests: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "guest_requests: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "guest_requests: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "guest_requests: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "guest_requests: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "groups: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "groups: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "groups: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "groups: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "groups: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "groups: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "room_types: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "room_types: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "room_types: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "room_types: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "room_types: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "room_types: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "lost_found: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "lost_found: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "lost_found: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "lost_found: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "lost_found: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "lost_found: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "staff and viewer see Today",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff raise an invoice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff can't record a payment or refund",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a manager records the payment",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a repeated payment is not counted twice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "viewer can't raise one",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "messages",
+   "what": "feedback request queued",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "first provider failure: retried later",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "after the last attempt it stops",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner sees it under Sending failed",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "staff, viewer and other businesses can't retry",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner retries it",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "then it is sent",
+   "pass": true
+  }
+ ],
+ "hvac": [
+  {
+   "stage": "intake",
+   "what": "AI saves a new caller as a lead",
+   "pass": true
+  },
+  {
+   "stage": "intake",
+   "what": "the live call is linked to them",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "real free times offered",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booking needs the read-back first",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booked after the caller confirms",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the same time is refused for someone else",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the caller's booking is found",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "rescheduled by the caller",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "cancelled by the caller; reminders withdrawn",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: owner switches the type on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "equipment: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "equipment: the first record with a Serial number is saved",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "equipment: a second record with the same Serial number is refused as a duplicate",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "equipment: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "equipment: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "equipment: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "equipment: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "equipment: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "jobs: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "jobs: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "jobs: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "jobs: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "jobs: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "jobs: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "agreements: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "agreements: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "agreements: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "agreements: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "agreements: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "agreements: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: the first record with a Address is saved",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: a second record with the same Address is refused as a duplicate",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "staff and viewer see Today",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff raise an invoice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff can't record a payment or refund",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a manager records the payment",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a repeated payment is not counted twice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "viewer can't raise one",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "messages",
+   "what": "feedback request queued",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "first provider failure: retried later",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "after the last attempt it stops",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner sees it under Sending failed",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "staff, viewer and other businesses can't retry",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner retries it",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "then it is sent",
+   "pass": true
+  }
+ ],
+ "insurance": [
+  {
+   "stage": "intake",
+   "what": "AI saves a new caller as a lead",
+   "pass": true
+  },
+  {
+   "stage": "intake",
+   "what": "the live call is linked to them",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "real free times offered",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booking needs the read-back first",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booked after the caller confirms",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the same time is refused for someone else",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the caller's booking is found",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "rescheduled by the caller",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "cancelled by the caller; reminders withdrawn",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "opportunities: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "opportunities: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "opportunities: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "opportunities: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "opportunities: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "opportunities: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "policies: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "policies: the first record with a Policy number is saved",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "policies: a second record with the same Policy number is refused as a duplicate",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "policies: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "policies: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "policies: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "policies: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "policies: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "requests: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "requests: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "requests: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "requests: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "requests: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "requests: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "claims: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "claims: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "claims: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "claims: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "claims: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "claims: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "quotes: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "quotes: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "quotes: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "quotes: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "quotes: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "quotes: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "service_requests: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "service_requests: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "service_requests: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "service_requests: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "service_requests: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "service_requests: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "staff and viewer see Today",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff raise an invoice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff can't record a payment or refund",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a manager records the payment",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a repeated payment is not counted twice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "viewer can't raise one",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "messages",
+   "what": "feedback request held back (policy off)",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "first provider failure: retried later",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "after the last attempt it stops",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner sees it under Sending failed",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "staff, viewer and other businesses can't retry",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner retries it",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "then it is sent",
+   "pass": true
+  }
+ ],
+ "landscaping-lawn-care": [
+  {
+   "stage": "intake",
+   "what": "AI saves a new caller as a lead",
+   "pass": true
+  },
+  {
+   "stage": "intake",
+   "what": "the live call is linked to them",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "real free times offered",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booking needs the read-back first",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booked after the caller confirms",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the same time is refused for someone else",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the caller's booking is found",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "rescheduled by the caller",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "cancelled by the caller; reminders withdrawn",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: owner switches the type on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "jobs: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "jobs: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "jobs: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "jobs: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "jobs: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "jobs: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "plans: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "plans: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "plans: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "plans: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "plans: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "plans: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: the first record with a Address is saved",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: a second record with the same Address is refused as a duplicate",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "staff and viewer see Today",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff raise an invoice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff can't record a payment or refund",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a manager records the payment",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a repeated payment is not counted twice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "viewer can't raise one",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "messages",
+   "what": "feedback request queued",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "first provider failure: retried later",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "after the last attempt it stops",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner sees it under Sending failed",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "staff, viewer and other businesses can't retry",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner retries it",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "then it is sent",
+   "pass": true
+  }
+ ],
+ "legal": [
+  {
+   "stage": "intake",
+   "what": "AI saves a new caller as a lead",
+   "pass": true
+  },
+  {
+   "stage": "intake",
+   "what": "the live call is linked to them",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "real free times offered",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booking needs the read-back first",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booked after the caller confirms",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the same time is refused for someone else",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the caller's booking is found",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "rescheduled by the caller",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "cancelled by the caller; reminders withdrawn",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "deadlines: owner switches the type on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "matters: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "matters: the first record with a Matter reference is saved",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "matters: a second record with the same Matter reference is refused as a duplicate",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "matters: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "matters: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "matters: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "matters: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "matters: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "document_requests: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "document_requests: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "document_requests: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "document_requests: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "document_requests: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "document_requests: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "deadlines: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "deadlines: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "deadlines: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "deadlines: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "deadlines: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "deadlines: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "staff and viewer see Today",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff raise an invoice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff can't record a payment or refund",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a manager records the payment",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a repeated payment is not counted twice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "viewer can't raise one",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "messages",
+   "what": "feedback request held back (policy off)",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "first provider failure: retried later",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "after the last attempt it stops",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner sees it under Sending failed",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "staff, viewer and other businesses can't retry",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner retries it",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "then it is sent",
+   "pass": true
+  }
+ ],
+ "other": [
+  {
+   "stage": "intake",
+   "what": "AI saves a new caller as a lead",
+   "pass": true
+  },
+  {
+   "stage": "intake",
+   "what": "the live call is linked to them",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "real free times offered",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booking needs the read-back first",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booked after the caller confirms",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the same time is refused for someone else",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the caller's booking is found",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "rescheduled by the caller",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "cancelled by the caller; reminders withdrawn",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "enquiries: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "enquiries: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "enquiries: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "enquiries: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "enquiries: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "enquiries: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "records: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "records: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "records: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "records: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "records: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "records: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "staff and viewer see Today",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff raise an invoice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff can't record a payment or refund",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a manager records the payment",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a repeated payment is not counted twice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "viewer can't raise one",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "messages",
+   "what": "feedback request queued",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "first provider failure: retried later",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "after the last attempt it stops",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner sees it under Sending failed",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "staff, viewer and other businesses can't retry",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner retries it",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "then it is sent",
+   "pass": true
+  }
+ ],
+ "pest-control": [
+  {
+   "stage": "intake",
+   "what": "AI saves a new caller as a lead",
+   "pass": true
+  },
+  {
+   "stage": "intake",
+   "what": "the live call is linked to them",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "real free times offered",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booking needs the read-back first",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booked after the caller confirms",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the same time is refused for someone else",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the caller's booking is found",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "rescheduled by the caller",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "cancelled by the caller; reminders withdrawn",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "applications: owner switches the type on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: owner switches the type on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "jobs: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "jobs: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "jobs: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "jobs: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "jobs: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "jobs: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "plans: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "plans: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "plans: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "plans: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "plans: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "plans: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: the first record with a Address is saved",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: a second record with the same Address is refused as a duplicate",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "applications: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "applications: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "applications: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "applications: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "applications: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "staff and viewer see Today",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff raise an invoice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff can't record a payment or refund",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a manager records the payment",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a repeated payment is not counted twice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "viewer can't raise one",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "messages",
+   "what": "feedback request queued",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "first provider failure: retried later",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "after the last attempt it stops",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner sees it under Sending failed",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "staff, viewer and other businesses can't retry",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner retries it",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "then it is sent",
+   "pass": true
+  }
+ ],
+ "pet-care-veterinary": [
+  {
+   "stage": "intake",
+   "what": "AI saves a new caller as a lead",
+   "pass": true
+  },
+  {
+   "stage": "intake",
+   "what": "the live call is linked to them",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "real free times offered",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booking needs the read-back first",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booked after the caller confirms",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the same time is refused for someone else",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the caller's booking is found",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "rescheduled by the caller",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "cancelled by the caller; reminders withdrawn",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "boarding: owner switches the type on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "pets: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "pets: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "pets: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "pets: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "pets: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "pets: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "reminders: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "reminders: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "reminders: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "reminders: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "reminders: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "reminders: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "boarding: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "boarding: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "boarding: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "boarding: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "boarding: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "boarding: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "staff and viewer see Today",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff raise an invoice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff can't record a payment or refund",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a manager records the payment",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a repeated payment is not counted twice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "viewer can't raise one",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "messages",
+   "what": "feedback request queued",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "first provider failure: retried later",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "after the last attempt it stops",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner sees it under Sending failed",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "staff, viewer and other businesses can't retry",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner retries it",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "then it is sent",
+   "pass": true
+  }
+ ],
+ "photography-events": [
+  {
+   "stage": "intake",
+   "what": "AI saves a new caller as a lead",
+   "pass": true
+  },
+  {
+   "stage": "intake",
+   "what": "the live call is linked to them",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "real free times offered",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booking needs the read-back first",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booked after the caller confirms",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the same time is refused for someone else",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the caller's booking is found",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "rescheduled by the caller",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "cancelled by the caller; reminders withdrawn",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "galleries: owner switches the type on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "bookings: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "bookings: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "bookings: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "bookings: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "bookings: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "bookings: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "galleries: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "galleries: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "galleries: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "galleries: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "galleries: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "galleries: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "staff and viewer see Today",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff raise an invoice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff can't record a payment or refund",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a manager records the payment",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a repeated payment is not counted twice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "viewer can't raise one",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "messages",
+   "what": "feedback request queued",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "first provider failure: retried later",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "after the last attempt it stops",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner sees it under Sending failed",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "staff, viewer and other businesses can't retry",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner retries it",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "then it is sent",
+   "pass": true
+  }
+ ],
+ "plumbing": [
+  {
+   "stage": "intake",
+   "what": "AI saves a new caller as a lead",
+   "pass": true
+  },
+  {
+   "stage": "intake",
+   "what": "the live call is linked to them",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "real free times offered",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booking needs the read-back first",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booked after the caller confirms",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the same time is refused for someone else",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the caller's booking is found",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "rescheduled by the caller",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "cancelled by the caller; reminders withdrawn",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "jobs: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "jobs: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "jobs: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "jobs: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "jobs: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "jobs: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: the first record with a Address is saved",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: a second record with the same Address is refused as a duplicate",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "plans: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "plans: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "plans: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "plans: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "plans: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "plans: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "private",
+   "what": "managers read private values",
+   "pass": true
+  },
+  {
+   "stage": "private",
+   "what": "managers see the actual value",
+   "pass": true
+  },
+  {
+   "stage": "private",
+   "what": "the viewer and other businesses never get the value (at most that a private field exists)",
+   "pass": true
+  },
+  {
+   "stage": "private",
+   "what": "nor does the viewer find it in the record's data",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "staff and viewer see Today",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff raise an invoice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff can't record a payment or refund",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a manager records the payment",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a repeated payment is not counted twice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "viewer can't raise one",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "messages",
+   "what": "feedback request queued",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "first provider failure: retried later",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "after the last attempt it stops",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner sees it under Sending failed",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "staff, viewer and other businesses can't retry",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner retries it",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "then it is sent",
+   "pass": true
+  }
+ ],
+ "professional-services": [
+  {
+   "stage": "intake",
+   "what": "AI saves a new caller as a lead",
+   "pass": true
+  },
+  {
+   "stage": "intake",
+   "what": "the live call is linked to them",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "real free times offered",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booking needs the read-back first",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booked after the caller confirms",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the same time is refused for someone else",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the caller's booking is found",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "rescheduled by the caller",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "cancelled by the caller; reminders withdrawn",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "opportunities: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "opportunities: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "opportunities: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "opportunities: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "opportunities: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "opportunities: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "projects: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "projects: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "projects: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "projects: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "projects: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "projects: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "staff and viewer see Today",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff raise an invoice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff can't record a payment or refund",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a manager records the payment",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a repeated payment is not counted twice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "viewer can't raise one",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "messages",
+   "what": "feedback request queued",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "first provider failure: retried later",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "after the last attempt it stops",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner sees it under Sending failed",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "staff, viewer and other businesses can't retry",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner retries it",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "then it is sent",
+   "pass": true
+  }
+ ],
+ "property-management": [
+  {
+   "stage": "intake",
+   "what": "AI saves a new caller as a lead",
+   "pass": true
+  },
+  {
+   "stage": "intake",
+   "what": "the live call is linked to them",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "real free times offered",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booking needs the read-back first",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booked after the caller confirms",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the same time is refused for someone else",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the caller's booking is found",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "rescheduled by the caller",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "cancelled by the caller; reminders withdrawn",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "vendors: owner switches the type on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "applications: owner switches the type on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "units: owner switches the type on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "requests: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "requests: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "requests: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "requests: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "requests: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "requests: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "leases: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "leases: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "leases: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "leases: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "leases: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "leases: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "units: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "units: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "units: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "units: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "units: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "units: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "vendors: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "vendors: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "vendors: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "vendors: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "vendors: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "vendors: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "applications: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "applications: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "applications: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "applications: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "applications: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "applications: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "staff and viewer see Today",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff raise an invoice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff can't record a payment or refund",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a manager records the payment",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a repeated payment is not counted twice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "viewer can't raise one",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "messages",
+   "what": "feedback request queued",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "first provider failure: retried later",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "after the last attempt it stops",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner sees it under Sending failed",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "staff, viewer and other businesses can't retry",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner retries it",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "then it is sent",
+   "pass": true
+  }
+ ],
+ "real-estate": [
+  {
+   "stage": "intake",
+   "what": "AI saves a new caller as a lead",
+   "pass": true
+  },
+  {
+   "stage": "intake",
+   "what": "the live call is linked to them",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "real free times offered",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booking needs the read-back first",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booked after the caller confirms",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the same time is refused for someone else",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the caller's booking is found",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "rescheduled by the caller",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "cancelled by the caller; reminders withdrawn",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "open_houses: owner switches the type on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "seller_leads: owner switches the type on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "requirements: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "requirements: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "requirements: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "requirements: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "requirements: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "requirements: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: the first record with a Listing reference is saved",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: a second record with the same Listing reference is refused as a duplicate",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "properties: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "viewings: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "viewings: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "viewings: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "viewings: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "viewings: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "viewings: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "deals: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "deals: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "deals: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "deals: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "deals: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "deals: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "open_houses: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "open_houses: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "open_houses: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "open_houses: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "open_houses: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "open_houses: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "seller_leads: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "seller_leads: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "seller_leads: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "seller_leads: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "seller_leads: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "seller_leads: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "staff and viewer see Today",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff raise an invoice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff can't record a payment or refund",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a manager records the payment",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a repeated payment is not counted twice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "viewer can't raise one",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "messages",
+   "what": "feedback request queued",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "first provider failure: retried later",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "after the last attempt it stops",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner sees it under Sending failed",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "staff, viewer and other businesses can't retry",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner retries it",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "then it is sent",
+   "pass": true
+  }
+ ],
+ "restaurant": [
+  {
+   "stage": "intake",
+   "what": "AI saves a new caller as a lead",
+   "pass": true
+  },
+  {
+   "stage": "intake",
+   "what": "the live call is linked to them",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "real free times offered",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booking needs the read-back first",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booked after the caller confirms",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the same time is refused for someone else",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the caller's booking is found",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "rescheduled by the caller",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "cancelled by the caller; reminders withdrawn",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "catering: owner switches the type on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "events: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "events: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "events: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "events: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "events: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "events: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "requests: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "requests: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "requests: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "requests: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "requests: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "requests: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "waitlist: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "waitlist: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "waitlist: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "waitlist: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "waitlist: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "waitlist: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "tables: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "tables: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "tables: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "tables: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "tables: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "tables: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "catering: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "catering: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "catering: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "catering: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "catering: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "catering: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "staff and viewer see Today",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff raise an invoice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff can't record a payment or refund",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a manager records the payment",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a repeated payment is not counted twice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "viewer can't raise one",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "messages",
+   "what": "feedback request queued",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "first provider failure: retried later",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "after the last attempt it stops",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner sees it under Sending failed",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "staff, viewer and other businesses can't retry",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner retries it",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "then it is sent",
+   "pass": true
+  }
+ ],
+ "spa-wellness": [
+  {
+   "stage": "intake",
+   "what": "AI saves a new caller as a lead",
+   "pass": true
+  },
+  {
+   "stage": "intake",
+   "what": "the live call is linked to them",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "real free times offered",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booking needs the read-back first",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booked after the caller confirms",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the same time is refused for someone else",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the caller's booking is found",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "rescheduled by the caller",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "cancelled by the caller; reminders withdrawn",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "intake: owner switches the type on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "packages: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "packages: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "packages: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "packages: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "packages: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "packages: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "memberships: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "memberships: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "memberships: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "memberships: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "memberships: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "memberships: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "intake: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "intake: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "intake: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "intake: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "intake: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "intake: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "staff and viewer see Today",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff raise an invoice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff can't record a payment or refund",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a manager records the payment",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a repeated payment is not counted twice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "viewer can't raise one",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "messages",
+   "what": "feedback request queued",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "first provider failure: retried later",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "after the last attempt it stops",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner sees it under Sending failed",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "staff, viewer and other businesses can't retry",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner retries it",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "then it is sent",
+   "pass": true
+  }
+ ],
+ "travel": [
+  {
+   "stage": "intake",
+   "what": "AI saves a new caller as a lead",
+   "pass": true
+  },
+  {
+   "stage": "intake",
+   "what": "the live call is linked to them",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "real free times offered",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booking needs the read-back first",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "booked after the caller confirms",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the same time is refused for someone else",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "the caller's booking is found",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "rescheduled by the caller",
+   "pass": true
+  },
+  {
+   "stage": "scheduling",
+   "what": "cancelled by the caller; reminders withdrawn",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "documents: owner switches the type on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "trips: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "trips: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "trips: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "trips: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "trips: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "trips: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "bookings: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "bookings: the first record with a Supplier reference is saved",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "bookings: a second record with the same Supplier reference is refused as a duplicate",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "bookings: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "bookings: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "bookings: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "bookings: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "bookings: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "documents: staff create",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "documents: staff move it on",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "documents: a status that doesn't exist is refused",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "documents: viewer reads",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "documents: viewer can't write",
+   "pass": true
+  },
+  {
+   "stage": "records",
+   "what": "documents: another business can't read or write",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "staff and viewer see Today",
+   "pass": true
+  },
+  {
+   "stage": "today",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff raise an invoice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "staff can't record a payment or refund",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a manager records the payment",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "a repeated payment is not counted twice",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "viewer can't raise one",
+   "pass": true
+  },
+  {
+   "stage": "money",
+   "what": "another business can't",
+   "pass": true
+  },
+  {
+   "stage": "messages",
+   "what": "feedback request queued",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "first provider failure: retried later",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "after the last attempt it stops",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner sees it under Sending failed",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "staff, viewer and other businesses can't retry",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "the owner retries it",
+   "pass": true
+  },
+  {
+   "stage": "recovery",
+   "what": "then it is sent",
+   "pass": true
+  }
+ ]
+}

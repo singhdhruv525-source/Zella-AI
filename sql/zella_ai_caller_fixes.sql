@@ -68,3 +68,37 @@ begin
   if position('zella_ai_caller_fixes_callback' in def) = 0 then raise exception 'zella_record_inbound_call has changed; review this patch'; end if;
   execute def;
 end $$;
+
+-- 6. A business that doesn't take bookings (e-commerce, or any business with Appointments switched off) still had the
+--    assistant offer times: the database then refused the booking mid-call and the caller heard it couldn't be
+--    confirmed. Found by the 28-industry launch checks (tests/workflows/industry_matrix.mjs). Now the scheduling tools
+--    are left out of the assistant's tool list and refused if called; finding and cancelling existing bookings still
+--    works (earlier bookings are kept when bookings are switched off).
+do $$
+declare def text;
+begin
+  def := pg_get_functiondef('public.zella_ai_tool(text, uuid, text, jsonb, text)'::regprocedure);
+  if position('zella_ai_caller_fixes_scheduling' in def) = 0 then
+    def := replace(def, $a$  if v_disabled is not null and jsonb_typeof(v_disabled) = 'array' and v_disabled ? p_tool then
+    return jsonb_build_object('ok', false, 'status', 'not_available', 'say', 'This business does not use that. Offer to take a message instead.');
+  end if;$a$, $a$  if v_disabled is not null and jsonb_typeof(v_disabled) = 'array' and v_disabled ? p_tool then
+    return jsonb_build_object('ok', false, 'status', 'not_available', 'say', 'This business does not use that. Offer to take a message instead.');
+  end if;
+  /* zella_ai_caller_fixes_scheduling */
+  if p_tool in ('check_availability', 'book_appointment', 'reschedule_appointment') and not public.zella_capability_on(v_biz, 'scheduling') then
+    return jsonb_build_object('ok', false, 'status', 'not_available', 'say', 'This business does not take bookings by phone. Offer to take a message for the team instead.');
+  end if;$a$);
+    if position('zella_ai_caller_fixes_scheduling' in def) = 0 then raise exception 'zella_ai_tool has changed; review this patch'; end if;
+    execute def;
+  end if;
+
+  def := pg_get_functiondef('public.zella_brain_context(uuid)'::regprocedure);
+  if position('zella_ai_caller_fixes_scheduling' in def) = 0 then
+    def := replace(def, $a$  v_disabled := coalesce(v_cfg.business_context -> 'disabled_tools', '[]'::jsonb);$a$,
+      $a$  v_disabled := coalesce(v_cfg.business_context -> 'disabled_tools', '[]'::jsonb);
+  /* zella_ai_caller_fixes_scheduling */
+  if not public.zella_capability_on(p_business_id, 'scheduling') then v_disabled := v_disabled || '["check_availability", "book_appointment", "reschedule_appointment"]'::jsonb; end if;$a$);
+    if position('zella_ai_caller_fixes_scheduling' in def) = 0 then raise exception 'zella_brain_context has changed; review this patch'; end if;
+    execute def;
+  end if;
+end $$;

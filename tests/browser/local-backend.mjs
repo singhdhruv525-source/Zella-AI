@@ -438,7 +438,10 @@ const server = http.createServer(async (req, res) => {
     if (fn) {
       const port = FUNCTIONS[fn[1]];
       if (!port) { res.writeHead(404, { ...cors, "content-type": "application/json" }); return res.end(JSON.stringify({ error: `function ${fn[1]} is not running locally` })); }
-      const r = await fetch(`http://127.0.0.1:${port}${url.pathname.replace(`/functions/v1/${fn[1]}`, "") || "/"}${url.search}`, {
+      // a function is either a port (one Deno process per function) or "port/name" (the Supabase edge runtime, which
+      // serves every function from one port by its folder name)
+      const [fport, ...fname] = String(port).split("/");
+      const r = await fetch(`http://127.0.0.1:${fport}${fname.length ? `/${fname.join("/")}` : ""}${url.pathname.replace(`/functions/v1/${fn[1]}`, "") || (fname.length ? "" : "/")}${url.search}`, {
         method: req.method, headers: Object.fromEntries(Object.entries(req.headers).filter(([k]) => !["host", "content-length", "connection"].includes(k))), body: ["GET", "HEAD"].includes(req.method) ? undefined : raw });
       const text = Buffer.from(await r.arrayBuffer());
       res.writeHead(r.status, { ...cors, "content-type": r.headers.get("content-type") ?? "application/json" });
