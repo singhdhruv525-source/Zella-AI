@@ -1,6 +1,6 @@
 // lookup_order with the database and Shopify mocked (synthetic orders only).
 import { assert, assertEquals } from "jsr:@std/assert@1";
-import { callerMatches, lookupOrder, orderSearch, orderSummary } from "./orders.ts";
+import { callerAssurance, callerMatches, lookupOrder, MAX_FAILED_PER_CALL, orderSearch, orderSummary, samePhone } from "./orders.ts";
 import { planBrainTool } from "../_shared/vapi-brain-tools.js";
 
 const ORDER = { name: "#1001", createdAt: "2026-11-02T15:00:00Z", cancelledAt: null, displayFinancialStatus: "PAID", displayFulfillmentStatus: "FULFILLED",
@@ -39,7 +39,8 @@ Deno.test("found and the caller matches: the summary; logged as found, without c
   assertEquals((seen[0].init!.headers as Record<string, string>)["X-Shopify-Access-Token"], ctx.access_token);
   assert(!JSON.stringify(r).includes(ctx.access_token));
   const log = d.calls.find((c) => c.fn === "zella_store_lookup_log")!;
-  assertEquals([log.args.p_result, log.args.p_verified], ["found", true]);
+  assertEquals([log.args.p_result, log.args.p_verified], ["found_caller_id", true]);
+  assertEquals(r.verified_by, "caller_id");
   assert(!JSON.stringify(log.args).includes("UPS"));
 });
 Deno.test("not matching and not found get the same answer (no probing for order numbers)", async () => {
@@ -75,4 +76,40 @@ Deno.test("the shared tool check: lookup_order is known, its order number must l
   assertEquals([ok.known, ok.invalid, ok.record.p_tool], [true, null, "lookup_order"]);
   const bad = planBrainTool({ id: "t2", name: "lookup_order", arguments: { order_number: "1001; drop" } }, ctxCall);
   assert(bad.invalid?.includes("order_number"));
+});
+
+Deno.test("assurance: which check let the caller hear it", () => {
+  assertEquals(callerAssurance(ORDER, "+15125550101", null), "caller_id");
+  assertEquals(callerAssurance(ORDER, "+15125550199", "ana@example.test"), "email");
+  assertEquals(callerAssurance(ORDER, "+15125550199", "ana@example.test.evil"), null);
+  assertEquals(callerAssurance(ORDER, null, null), null);
+});
+Deno.test("phone numbers: a number abroad never matches one at home with the same last 10 digits", () => {
+  assert(samePhone("+1 (512) 555-0101", "+15125550101"));
+  assert(samePhone("(512) 555-0101", "+15125550101"));            // store number saved without +1
+  assert(samePhone("+44 7700 900123", "+447700900123"));
+  assert(!samePhone("+91 98765 43210", "+19876543210"));           // same last 10, different country
+  assert(!samePhone("+44 7700 900123", "+17700900123"));
+  assert(!samePhone("555-0101", "+15125550101"));                  // too short to compare
+  assert(!samePhone(null, "+15125550101"));
+  const abroad = { ...ORDER, customer: { phone: "+91 98765 43210", email: "x@example.test" } };
+  assert(!callerMatches(abroad, "+19876543210", null));
+});
+Deno.test("after 3 lookups that didn't match in a call, no more are tried; the store is not asked", async () => {
+  let called = false; const never = (() => { called = true; return Promise.resolve(new Response("{}")); }) as unknown as typeof fetch;
+  const d = db({ ...ctx, failed_this_call: MAX_FAILED_PER_CALL });
+  const r = await lookupOrder(d.rpc, "b1", "c", { order_number: "1001", email: "ana@example.test" }, never);
+  assertEquals([r.status, called], ["unverified", false]);
+  const log = d.calls.find((c) => c.fn === "zella_store_lookup_log")!;
+  assertEquals([log.args.p_result, log.args.p_integration_id], ["limited", null]);
+  // and from one number over a day
+  const r2 = await lookupOrder(db({ ...ctx, failed_this_number_day: 6 }).rpc, "b1", "c", { order_number: "1001" }, never);
+  assertEquals([r2.status, called], ["unverified", false]);
+  // below the limit, or with an older database that gives no counts: looked up as before
+  assertEquals((await lookupOrder(db({ ...ctx, failed_this_call: 2 }).rpc, "b1", "c", { order_number: "1001" }, shop(200, { data: { orders: { nodes: [ORDER] } } }))).status, "found");
+});
+Deno.test("the email check gives found_email", async () => {
+  const d = db({ ...ctx, caller_number: null });
+  await lookupOrder(d.rpc, "b1", "c", { order_number: "1001", email: "ana@example.test" }, shop(200, { data: { orders: { nodes: [ORDER] } } }));
+  assertEquals(d.calls.find((c) => c.fn === "zella_store_lookup_log")!.args.p_result, "found_email");
 });

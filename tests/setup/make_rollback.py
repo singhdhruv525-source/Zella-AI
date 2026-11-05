@@ -1,6 +1,6 @@
 # Writes a rollback for a migration that patches functions with replace(def, $a$old$a$, $a$new$a$): each is undone as
 # replace(def, new, old), so only that file's additions go and other migrations' changes stay.
-#   python3 -I tests/setup/make_rollback.py [setup|messaging]
+#   python3 -I tests/setup/make_rollback.py [setup|messaging|orders]
 import re, sys
 which = sys.argv[1] if len(sys.argv) > 1 else "setup"
 CFG = {
@@ -19,6 +19,10 @@ CFG = {
     "-- the channel switch for reminders that asked for a call is kept (their old channel is in channel_requested): putting",
     "-- it back would leave those reminders unsent again"]),
 }
+CFG["orders"] = ("sql/zella_order_lookup_assurance.sql", "sql/rollback/zella_order_lookup_assurance_rollback.sql", [
+    "drop function if exists public.zella_order_lookup_report(uuid, integer);",
+    "drop index if exists public.ai_tool_calls_lookup_idx;",
+    "-- the lookup records keep their found_caller_id / found_email results (they are the audit trail)"])
 SRC, DST, DROPS = CFG[which]
 src = open(SRC).read()
 fns = re.findall(r"pg_get_functiondef\('([^']+)'::regprocedure\);\n  if position\('([a-z_]+)' in def\) = 0 then\n(.*?)\n    execute def;", src, re.S)

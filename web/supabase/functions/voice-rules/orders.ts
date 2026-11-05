@@ -11,17 +11,30 @@ export const ORDER_QUERY = `query Order($q: String!) { orders(first: 1, query: $
   fulfillments(first: 5) { status trackingInfo(first: 3) { company number url } } } } }`;
 
 export const orderSearch = (orderNumber: string) => `name:#${orderNumber.replace(/^#/, "")}`;
-const digits = (v: unknown) => (typeof v === "string" ? v.replace(/\D/g, "").slice(-10) : "");
+const digits = (v: unknown) => (typeof v === "string" ? v.replace(/\D/g, "") : "");
 
-// may this caller hear about this order?
-export function callerMatches(order: Json, callerNumber: string | null, email: string | null): boolean {
-  const o = order as { phone?: string; email?: string; customer?: { phone?: string; email?: string }; shippingAddress?: { phone?: string } };
-  const phones = [o.phone, o.customer?.phone, o.shippingAddress?.phone].map(digits).filter((d) => d.length === 10);
-  const c = digits(callerNumber);
-  if (c.length === 10 && phones.includes(c)) return true;
-  const e = (email ?? "").trim().toLowerCase();
-  return e.includes("@") && [o.email, o.customer?.email].some((x) => typeof x === "string" && x.trim().toLowerCase() === e);
+// The phone numbers are the same: both whole numbers when both carry a country code (+...), so a number abroad never
+// matches one at home that shares its last 10 digits; otherwise the last 10 digits (a store number saved without +1).
+export function samePhone(a: unknown, b: unknown): boolean {
+  const da = digits(a), db = digits(b);
+  if (da.length < 10 || db.length < 10) return false;
+  const intl = (v: unknown, d: string) => typeof v === "string" && v.trim().startsWith("+") && d.length > 10;
+  if (intl(a, da) && intl(b, db)) return da === db;
+  return da.slice(-10) === db.slice(-10);
 }
+
+// May this caller hear about this order, and on what grounds? "caller_id": calling from a number on the order (the
+// phone network's number, never what is said); "email": gave the order's email. Either is one weak check, so only
+// status and tracking are ever said. null: neither.
+export type Assurance = "caller_id" | "email";
+export function callerAssurance(order: Json, callerNumber: string | null, email: string | null): Assurance | null {
+  const o = order as { phone?: string; email?: string; customer?: { phone?: string; email?: string }; shippingAddress?: { phone?: string } };
+  if (callerNumber && [o.phone, o.customer?.phone, o.shippingAddress?.phone].some((p) => samePhone(p, callerNumber))) return "caller_id";
+  const e = (email ?? "").trim().toLowerCase();
+  if (e.includes("@") && [o.email, o.customer?.email].some((x) => typeof x === "string" && x.trim().toLowerCase() === e)) return "email";
+  return null;
+}
+export const callerMatches = (order: Json, callerNumber: string | null, email: string | null) => callerAssurance(order, callerNumber, email) !== null;
 
 const words = (s: unknown) => (typeof s === "string" ? s.toLowerCase().replace(/_/g, " ") : "unknown");
 const day = (iso: unknown) => (typeof iso === "string" ? new Date(iso).toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "UTC" }) : "");
@@ -42,6 +55,10 @@ export function orderSummary(order: Json): { say: string; status: Json } {
   return { say: say + " Only share this status; for anything else (address, items, refunds, changes), take a message for the team.", status };
 }
 
+// after this many lookups that didn't match, in one call or from one number in a day, no more are tried (so order
+// numbers or emails can't be guessed); zella_store_lookup_context counts them
+export const MAX_FAILED_PER_CALL = 3, MAX_FAILED_PER_NUMBER_DAY = 6;
+const LIMITED = { ok: true, status: "unverified", say: "I can't check more orders on this call. Take a message with the order number and say the team will get back to them. Don't say whether any order exists." };
 const UNVERIFIED = { ok: true, status: "unverified", say: "I couldn't confirm that order with the details I have. Ask for the email address used for the order, or take a message with the order number for the team. Don't say whether the order exists." };
 
 type Rpc = (fn: string, args: Json) => Promise<{ data: unknown; error: unknown }>;
@@ -54,6 +71,10 @@ export async function lookupOrder(rpc: Rpc, businessId: string | null, providerC
   if (ctx.error || c.ok !== true) {
     return { ok: false, status: c.status === "not_available" ? "not_available" : "no_store",
       say: "Order status can't be checked right now. Take a message with the order number and say the team will get back to them." };
+  }
+  if (Number(c.failed_this_call ?? 0) >= MAX_FAILED_PER_CALL || Number(c.failed_this_number_day ?? 0) >= MAX_FAILED_PER_NUMBER_DAY) {
+    await rpc("zella_store_lookup_log", { p_business_id: businessId, p_provider_call_id: providerCallId, p_integration_id: null, p_result: "limited", p_verified: false });
+    return LIMITED;   // Shopify is not asked
   }
   const log = (result: string, verified: boolean) => rpc("zella_store_lookup_log", { p_business_id: businessId, p_provider_call_id: providerCallId, p_integration_id: c.integration_id, p_result: result, p_verified: verified });
   let res: Response | null = null;
@@ -72,11 +93,12 @@ export async function lookupOrder(rpc: Rpc, businessId: string | null, providerC
   if (body.errors && !order) { await log("store_error", false); return { ok: false, status: "store_unavailable", say: "The store couldn't be checked. Take a message with the order number." }; }
   // not found and not matching get the same answer, so a caller can't probe for order numbers
   const caller = typeof c.caller_number === "string" ? c.caller_number : typeof args.caller_number === "string" ? args.caller_number : null; // the phone network's number, never what is said
-  if (!order || !callerMatches(order, caller, typeof args.email === "string" ? args.email : null)) {
+  const assurance = order ? callerAssurance(order, caller, typeof args.email === "string" ? args.email : null) : null;
+  if (!order || !assurance) {
     await log(order ? "unverified" : "not_found", false);
     return UNVERIFIED;
   }
-  await log("found", true);
+  await log(`found_${assurance}`, true);   // found_caller_id or found_email: which check let the caller hear it
   const summary = orderSummary(order);
-  return { ok: true, status: "found", say: summary.say, order: summary.status };
+  return { ok: true, status: "found", verified_by: assurance, say: summary.say, order: summary.status };
 }
