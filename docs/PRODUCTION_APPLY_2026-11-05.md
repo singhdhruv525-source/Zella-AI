@@ -142,3 +142,37 @@ What changes for callers now:
 **To undo voice-rules:** redeploy version 4's files, or the commit before c4cc392's voice-rules changes (98f120a^).
 **To undo the database files:** run sql/rollback/zella_delivery_evidence_rollback.sql, then
 zella_holiday_availability_rollback.sql.
+
+## State check and function deploy (6 Nov, afternoon; approved: "yes deploy first")
+
+**Database: nothing left to apply.** Every SQL file on `main` is in production. `zella_arrival_windows` and
+`zella_tables` were already live (applied without an entry in the migration history), although their commits say "not
+applied". Checked read-only: production and an isolated build of `main` with every file applied are identical,
+794 functions and 3,022 functions/columns/triggers/policies, normalised hash `0dfc7d20174530d6b2016591a6dadb3f`.
+Excluded from the comparison: the three `backup_20261104_*` tables (production only, by design) and Supabase's own
+auth / cron / realtime / storage triggers. No applied file was edited after it was applied.
+
+**Functions found live:** voice-rules is at **version 6** (deployed 6 Nov 11:21 UTC, not recorded above). Its code is
+identical to `main` (it includes the tables fields), owner-provision-business is at version 14.
+
+**Deployed now** (from `main` at edfdcab, verify_jwt off as in config.toml, unit tests and type checks passed first):
+
+| Function | Version | Smoke test (from the database, pg_net; requests refused before any work) |
+| --- | --- | --- |
+| record-files | 1 | empty request: 400 unknown_action (starts, settings present) |
+| google-lead | 1 | a payload without a key: 401 bad_key |
+| store-connect | 1 | no sign-in: 401 sign_in_required |
+| calendar-connect | 1 | **503 not_configured**: `ZELLA_APP_URL` or `ZELLA_LINK_SECRET` (32+ characters) is missing in production. The calendar screen says it can't be started until it is set (planned with the app's domain) |
+
+The production database functions these call exist with the expected grants (checked read-only).
+
+**Not done:**
+- **The web app is not confirmed published.** Cloudflare Pages builds `main` when connected, but `app.zellavoice.com`
+  can't be reached from this environment, so it wasn't checked.
+- **Not set:**
+  - `ZELLA_APP_URL`;
+  - the Google and Microsoft calendar client IDs and secrets;
+  - a schedule for the record-files cleanup.
+
+**To undo the functions:** delete record-files, google-lead, store-connect and calendar-connect in Supabase (no
+earlier versions exist). Nothing calls them except the new web screens, which then say the feature isn't available.
