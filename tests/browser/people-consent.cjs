@@ -96,10 +96,12 @@ const authorized = (perm) => sql(`select public.zella_is_authorized('${BIZ}', nu
     await page.waitForSelector("text=changed while you were looking");
     check("a link changed while the Verify form was open is not verified, and the screen says why",
       sql(`select count(*) from customer_relationships where business_id = '${BIZ}' and verified_at is not null`) === "0" && await page.isVisible("[data-relationship=unverified]"));
-    sql(`update customer_relationships set permissions = array['pickup'], valid_until = '2027-03-06' where business_id = '${BIZ}' and related_customer_id = '${GRACE}' and revoked_at is null`);
+    // an end date 40 days from the database's today (never in the past, whenever this runs), and the label it must show
+    const END = sql(`update customer_relationships set permissions = array['pickup'], valid_until = current_date + 40 where business_id = '${BIZ}' and related_customer_id = '${GRACE}' and revoked_at is null returning to_char(valid_until, 'YYYY-MM-DD')`);
+    const END_LABEL = new Date(`${END}T12:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", weekday: "short", month: "short", day: "numeric" });
     await page.close(); page = await ctx.newPage(); page.setDefaultTimeout(10000); page.on("pageerror", (e) => errors.push(e.message)); page.on("dialog", (d) => d.accept(d.type() === "prompt" ? "Test: no longer collects" : undefined));
     await openChild(page);
-    check("an end date shows on its own day in a business west of UTC (America/Chicago)", await page.isVisible("[data-relationship=unverified] >> text=until Sat, Mar 6"));
+    check("an end date shows on its own day in a business west of UTC (America/Chicago)", await page.isVisible(`[data-relationship=unverified] >> text=until ${END_LABEL}`), END_LABEL);
 
     await page.click("[data-relationship=unverified] >> text=Verify");
     const vf = page.locator("form[aria-label^='Verify']");

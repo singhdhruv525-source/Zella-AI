@@ -184,3 +184,8 @@ begin
 end $$;
 revoke execute on function public.zella_customer_timeline(uuid, uuid, integer) from public, anon;
 grant execute on function public.zella_customer_timeline(uuid, uuid, integer) to authenticated, service_role;
+-- if sql/zella_relationships.sql is applied, put its step back into the merge this file just redefined (a replay of
+-- this file must not drop it: authority would stay on the archived duplicate)
+do $$ begin
+  if to_regprocedure('public.zella_people_merge_install()') is not null then perform public.zella_people_merge_install(); end if;
+end $$;

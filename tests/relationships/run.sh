@@ -34,6 +34,15 @@ if res=$($P -d "$DB" -c "select count(*), coalesce(string_agg(p.proname, ',') fi
   IFS='|' read -r nfn anon <<< "$res"
   [ "$nfn" -ge 8 ] && [ -z "$anon" ] && echo "PASS the anonymous role can run none of the $nfn new functions" || { echo "FAIL anon: $nfn functions found, anon can run: ${anon:-none}"; fails=$((fails + 1)); }
 else echo "FAIL anon check could not run"; fails=$((fails + 1)); fi
+# replaying sql/zella_customer_records.sql (it redefines the merge) must keep the relationship step, then everything passes again
+merge_hooked=$($P -d "$DB" -c "select md5(pg_get_functiondef('public.zella_merge_customers(uuid,uuid,uuid)'::regprocedure))")
+if out=$($P -d "$DB" -f "$REPO/sql/zella_customer_records.sql" 2>&1); then
+  hook=$($P -d "$DB" -c "select position('zella_relationships_merge' in pg_get_functiondef('public.zella_merge_customers(uuid,uuid,uuid)'::regprocedure)) > 0")
+  replayed=$($P -d "$DB" -c "select md5(pg_get_functiondef('public.zella_merge_customers(uuid,uuid,uuid)'::regprocedure))")
+  if [ "$hook" = t ] && [ "$replayed" = "$merge_hooked" ] && out=$($P -d "$DB" -f "$HERE/test.sql" 2>&1); then
+    echo "PASS a replay of sql/zella_customer_records.sql keeps the relationship step in the merge (same definition), and all checks pass after it"
+  else echo "FAIL after replaying zella_customer_records.sql: hook $hook, same definition $([ "$replayed" = "$merge_hooked" ] && echo yes || echo no) $(echo "$out" | grep -m1 ERROR)"; fails=$((fails + 1)); fi
+else echo "FAIL replay of zella_customer_records.sql: $(echo "$out" | grep -m1 ERROR)"; fails=$((fails + 1)); fi
 # rollback keeps the data (renamed tables), removes the functions; a second apply works
 $P -d "$DB" -c "insert into public.businesses (id, name, timezone) values ('c7000000-0000-0000-0000-0000000000f1', 'R1 Rollback', 'UTC');
   insert into public.customers (id, business_id, first_name) values ('c7000000-0000-0000-0000-0000000001f1', 'c7000000-0000-0000-0000-0000000000f1', 'A'), ('c7000000-0000-0000-0000-0000000001f2', 'c7000000-0000-0000-0000-0000000000f1', 'B');

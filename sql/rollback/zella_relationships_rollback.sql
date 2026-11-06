@@ -17,6 +17,7 @@ begin
   end if;
 end $$;
 drop function if exists public.zella_people_merge(uuid, uuid, uuid);
+drop function if exists public.zella_people_merge_install();
 drop function if exists public.zella_people_panel(uuid, uuid, uuid);
 drop function if exists public.zella_consent_revoke(uuid, text);
 drop function if exists public.zella_consent_record(uuid, uuid, uuid, text, text, uuid, text, date, text);

@@ -293,6 +293,15 @@ insert into public.customer_relationships (id, business_id, customer_id, record_
  ('c7000000-0000-0000-0000-0000000005a2', 'c7000000-0000-0000-0000-0000000000a1', null, 'c7000000-0000-0000-0000-0000000004a1', 'c7000000-0000-0000-0000-0000000001a4', 'authorized_contact', '{pickup}', now(), 'id_checked'),
  ('c7000000-0000-0000-0000-0000000005a3', 'c7000000-0000-0000-0000-0000000000a1', null, 'c7000000-0000-0000-0000-0000000004a1', 'c7000000-0000-0000-0000-0000000001a4', 'guardian', '{pickup}', now(), 'id_checked'),
  ('c7000000-0000-0000-0000-0000000005a4', 'c7000000-0000-0000-0000-0000000000a1', 'c7000000-0000-0000-0000-0000000001a2', null, 'c7000000-0000-0000-0000-0000000001a4', 'household', '{discuss}', now(), 'known_to_team');
+-- collisions about the dropped Pat (a5) with links about the kept Pat (a1), both to Sam (a3):
+--   emergency contact: the moving link is verified, the existing one isn't -> the verified one survives
+--   proxy: the existing link is verified and grants more -> the moving one is the duplicate
+insert into public.customer_relationships (id, business_id, customer_id, related_customer_id, kind, permissions, verified_at, verification_method) values
+ ('c7000000-0000-0000-0000-0000000005b1', 'c7000000-0000-0000-0000-0000000000a1', 'c7000000-0000-0000-0000-0000000001a5', 'c7000000-0000-0000-0000-0000000001a3', 'emergency_contact', '{discuss}', now(), 'id_checked'),
+ ('c7000000-0000-0000-0000-0000000005b3', 'c7000000-0000-0000-0000-0000000000a1', 'c7000000-0000-0000-0000-0000000001a5', 'c7000000-0000-0000-0000-0000000001a3', 'proxy', '{discuss}', now(), 'id_checked'),
+ ('c7000000-0000-0000-0000-0000000005b4', 'c7000000-0000-0000-0000-0000000000a1', 'c7000000-0000-0000-0000-0000000001a1', 'c7000000-0000-0000-0000-0000000001a3', 'proxy', '{discuss,book}', now(), 'known_to_team');
+insert into public.customer_relationships (id, business_id, customer_id, related_customer_id, kind, permissions) values
+ ('c7000000-0000-0000-0000-0000000005b2', 'c7000000-0000-0000-0000-0000000000a1', 'c7000000-0000-0000-0000-0000000001a1', 'c7000000-0000-0000-0000-0000000001a3', 'emergency_contact', '{discuss}');
 insert into public.customer_consents (business_id, customer_id, kind, status, given_by_customer_id) values
  ('c7000000-0000-0000-0000-0000000000a1', 'c7000000-0000-0000-0000-0000000001a5', 'terms', 'granted', 'c7000000-0000-0000-0000-0000000001a5');
 set local role authenticated;
@@ -318,10 +327,20 @@ do $$ declare r record; begin
   select * into r from public.customer_relationships where id = 'c7000000-0000-0000-0000-0000000005a1';
   assert r.customer_id = 'c7000000-0000-0000-0000-0000000001a1' and r.verified_at is not null and r.revoked_at is null, 'subject moved, still verified';
   assert exists (select 1 from public.customer_consents where customer_id = 'c7000000-0000-0000-0000-0000000001a1' and kind = 'terms'), 'consent moved with its subject';
+  -- collisions keep the stronger link, and the related person keeps exactly the authority it carried
+  select * into r from public.customer_relationships where id = 'c7000000-0000-0000-0000-0000000005b1';
+  assert r.customer_id = 'c7000000-0000-0000-0000-0000000001a1' and r.verified_at is not null and r.revoked_at is null, 'the verified moving link survives a collision with an unverified one';
+  select * into r from public.customer_relationships where id = 'c7000000-0000-0000-0000-0000000005b2';
+  assert r.revoked_at is not null and r.revoke_reason = 'merged: replaced by a stronger link', 'the weaker existing link is revoked: ' || coalesce(r.revoke_reason, 'not revoked');
+  select * into r from public.customer_relationships where id = 'c7000000-0000-0000-0000-0000000005b3';
+  assert r.revoked_at is not null and r.revoke_reason like 'merged: duplicate%', 'a moving link no stronger than the existing one is the duplicate';
+  assert (select revoked_at is null and verified_at is not null from public.customer_relationships where id = 'c7000000-0000-0000-0000-0000000005b4'), 'the stronger existing link stays';
+  assert (select count(*) from public.customer_relationships where customer_id = 'c7000000-0000-0000-0000-0000000001a1' and related_customer_id = 'c7000000-0000-0000-0000-0000000001a3' and revoked_at is null and kind in ('emergency_contact', 'proxy')) = 2, 'one active link per kind after the merge';
+  assert public.zella_is_authorized('c7000000-0000-0000-0000-0000000000a1', 'c7000000-0000-0000-0000-0000000001a1', null, 'c7000000-0000-0000-0000-0000000001a3', 'book'), 'Sam keeps booking through the stronger proxy link';
   assert not exists (select 1 from public.customer_relationships where revoked_at is null and (customer_id in ('c7000000-0000-0000-0000-0000000001a4', 'c7000000-0000-0000-0000-0000000001a5')
                        or related_customer_id in ('c7000000-0000-0000-0000-0000000001a4', 'c7000000-0000-0000-0000-0000000001a5'))), 'nothing active is left on the archived duplicates';
 end $$;
-select 'PASS customer merge: links move to the kept person (authority they held must be verified again), duplicates and self-links are revoked, consents follow their subject, and no table is skipped';
+select 'PASS customer merge: links move to the kept person (authority they held must be verified again), duplicates and self-links are revoked, a collision keeps the stronger link, consents follow their subject, and no table is skipped';
 
 -- ===================================================== audit
 do $$ declare missing text; begin

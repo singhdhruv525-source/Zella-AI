@@ -302,19 +302,35 @@ end $$;
 -- Consents move with the generic step (their subject); who gave them stays as history.
 create or replace function public.zella_people_merge(p_business_id uuid, p_keep uuid, p_drop uuid) returns integer
 language plpgsql security definer set search_path = public as $$
-declare r public.customer_relationships; v_subject uuid; v_related uuid; n integer := 0;
+declare r public.customer_relationships; x public.customer_relationships; v_move boolean; v_subject uuid; v_related uuid; n integer := 0;
 begin
   for r in select * from public.customer_relationships
             where business_id = p_business_id and revoked_at is null and (customer_id = p_drop or related_customer_id = p_drop)
             order by created_at for update loop
     v_subject := case when r.customer_id = p_drop then p_keep else r.customer_id end;
     v_related := case when r.related_customer_id = p_drop then p_keep else r.related_customer_id end;
+    v_move := true;
     if v_subject is not null and v_subject = v_related then
       update public.customer_relationships set revoked_at = now(), revoked_by = auth.uid(), revoke_reason = 'merged: would link a person to themselves', updated_at = now() where id = r.id;
-    elsif exists (select 1 from public.customer_relationships x where x.id <> r.id and x.revoked_at is null and x.kind = r.kind
-                    and x.related_customer_id = v_related and x.customer_id is not distinct from v_subject and x.record_id is not distinct from r.record_id) then
-      update public.customer_relationships set revoked_at = now(), revoked_by = auth.uid(), revoke_reason = 'merged: duplicate of an existing link', updated_at = now() where id = r.id;
+      v_move := false;
     else
+      -- the same link already exists for the kept person: keep the stronger one. The moving link wins only if it would
+      -- still be in force after the move (it keeps its verification only when the dropped person was the subject) and
+      -- the existing one isn't, or grants strictly more. Otherwise the moving link is the duplicate.
+      select * into x from public.customer_relationships x0 where x0.id <> r.id and x0.revoked_at is null and x0.kind = r.kind
+         and x0.related_customer_id = v_related and x0.customer_id is not distinct from v_subject and x0.record_id is not distinct from r.record_id
+       for update;
+      if found then
+        if r.related_customer_id <> p_drop and public.zella_relationship_in_force(r)
+           and (not public.zella_relationship_in_force(x) or (r.permissions @> x.permissions and not x.permissions @> r.permissions)) then
+          update public.customer_relationships set revoked_at = now(), revoked_by = auth.uid(), revoke_reason = 'merged: replaced by a stronger link', updated_at = now() where id = x.id;
+        else
+          update public.customer_relationships set revoked_at = now(), revoked_by = auth.uid(), revoke_reason = 'merged: duplicate of an existing link', updated_at = now() where id = r.id;
+          v_move := false;
+        end if;
+      end if;
+    end if;
+    if v_move then
       update public.customer_relationships set customer_id = v_subject, related_customer_id = v_related, updated_at = now(),
              verified_at = case when r.related_customer_id = p_drop then null else verified_at end,
              verified_by = case when r.related_customer_id = p_drop then null else verified_by end,
@@ -331,8 +347,10 @@ end $$;
 revoke execute on function public.zella_people_merge(uuid, uuid, uuid) from public, anon, authenticated;
 grant execute on function public.zella_people_merge(uuid, uuid, uuid) to service_role;
 
--- hook it into the merge (patched in place, like other migrations; the rollback takes it out again)
-do $$
+-- hook it into the merge (patched in place, like other migrations; the rollback takes it out again). A function, not a
+-- one-off block, so that re-running sql/zella_customer_records.sql (which redefines the merge) puts the step back.
+-- Not callable by anon or signed-in users (it changes a function); only the migration owner runs it.
+create or replace function public.zella_people_merge_install() returns void language plpgsql set search_path = public as $$
 declare def text;
 begin
   if to_regprocedure('public.zella_merge_customers(uuid, uuid, uuid)') is null then return; end if;
@@ -348,6 +366,8 @@ begin
     execute def;
   end if;
 end $$;
+revoke execute on function public.zella_people_merge_install() from public, anon, authenticated, service_role;
+select public.zella_people_merge_install();
 
 revoke execute on function public.zella_people_can_edit(uuid), public.zella_people_can_verify(uuid), public.zella_people_subject_ok(uuid, uuid, uuid),
   public.zella_relationship_in_force(public.customer_relationships), public.zella_is_authorized(uuid, uuid, uuid, uuid, text),
