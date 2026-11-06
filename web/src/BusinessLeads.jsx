@@ -87,6 +87,11 @@ function LeadCard({ p, tz, nameOf, onOpen }) {
   );
 }
 
+/**
+ * Show server-filtered leads as a paged list or the newest leads in each pipeline column.
+ * Search settles before querying; a selected lead remains open when it leaves the page.
+ * Failed refreshes retain the last results with a retry notice.
+ */
 export function LeadsPage({ workspace, query, refreshKey, onNotice, onOpenPerson }) {
   const tz = workspace.timezone;
   const [view, setView] = useState("pipeline");

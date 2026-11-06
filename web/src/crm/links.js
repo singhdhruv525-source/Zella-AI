@@ -10,6 +10,11 @@ export function linkIdsOf(rows, cols) {
 }
 
 // what a link cell says: the title; "…" while loading; a clear word when it can't be read or no longer exists
+/**
+ * Accept either a plain ID-to-title map or { status, map }. A cached title takes
+ * precedence over loading or failure state. Missing plain-map entries use "Linked record";
+ * missing state-map entries distinguish loading, failure, and unavailable records.
+ */
 export function linkTitle(titles, id) {
   if (titles && typeof titles === "object" && "status" in titles && "map" in titles) {
     if (titles.map[id] !== undefined) return titles.map[id];

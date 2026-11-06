@@ -40,6 +40,10 @@ export function useRecordTypes(workspace, refreshKey) {
 
 // titles: { status: "loading" | "ok" | "failed", map } for the linked records on the page shown (B3-07), or a plain
 // id -> title map
+/**
+ * Format a field for display in tz, masking sensitive values before handling emptiness.
+ * Linked records accept a title map or lookup state; absent values display an em dash.
+ */
 export function showValue(field, value, tz, titles) {
   if (field.sensitive) return "Hidden";
   if (value === undefined || value === null || value === "") return "—";
@@ -399,6 +403,11 @@ function RecordModal({ workspace, type, record, canManage, onBook, onClose, onSa
 /* The list page                                                       */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Show server-filtered, non-archived records for one configured type and open their editor.
+ * Resolve linked titles for visible rows in batches, with distinct lookup failure states.
+ * Failed list refreshes retain the last results with a retry notice.
+ */
 export function RecordsPage({ workspace, type, query, refreshKey, canManage, onNotice, onOpenPerson, onBook }) {
   const tz = workspace.timezone;
   const [filter, setFilter] = useState("open");
@@ -433,6 +442,10 @@ export function RecordsPage({ workspace, type, query, refreshKey, canManage, onN
     reload();
   }
   // a duplicate found while saving may be on another page: read it on its own
+  /**
+   * Open a duplicate record from the visible page or fetch it within this business.
+   * Missing data and returned query errors leave the modal unchanged; rejected queries propagate.
+   */
   async function openExisting(id) {
     const row = visible.find((r) => r.id === id)
       ?? (await supabase.from("crm_records").select("*, customers(id, first_name, last_name, phone, email)").eq("business_id", workspace.id).eq("id", id).maybeSingle()).data;

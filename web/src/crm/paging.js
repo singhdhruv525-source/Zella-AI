@@ -6,6 +6,13 @@ import { PAGE_START, pageCount, pageCursor, pageReduce, pageRows, pageStatus } f
 // A list paged by the server (Batch 3). `fn` is one of the zella_*_page functions; `args` are its filters. Changing a
 // filter starts again from page 1; only the newest request may change what is shown (fast filter changes can't let
 // an older answer win); a failed refresh keeps the rows it had and says so (status "stale").
+/**
+ * Fetch a zella_*_page RPC using filters in args, overriding p_limit and p_after.
+ * Changes to the serialized function, filters, or page size reset paging. Returns
+ * rows, the raw response, totals, a zero-based page, request state, and navigation controls.
+ * RPC errors and rejected requests become a displayable error; previously received
+ * data is retained and marked stale on failure. Initial failures have status "failed".
+ */
 export function useServerPages(fn, args, pageSize) {
   const key = JSON.stringify([fn, args, pageSize]);
   const [state, dispatch] = useReducer(pageReduce, { ...PAGE_START, key });
@@ -49,6 +56,10 @@ export function useServerPages(fn, args, pageSize) {
 }
 
 // a value that settles: the search box asks the server once typing pauses, not on every key
+/**
+ * Return the initial value immediately, then publish changes after ms milliseconds
+ * without another value or delay change. Pending updates are canceled on unmount.
+ */
 export function useSettled(value, ms = 300) {
   const [settled, setSettled] = useState(value);
   useEffect(() => {
