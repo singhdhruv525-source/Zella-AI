@@ -3,6 +3,7 @@ import { supabase } from "./supabase";
 import { Field, Icon, Modal, Pill } from "./BusinessUI";
 import { formatTime } from "./businessTime";
 import { Empty, Notice, PageHead, Segment, explain, useLoad } from "./BusinessShared";
+import { FloorPlan, autoPlace } from "./FloorPlan";
 
 /* Tables: the live seating board for businesses with "Tables and seating" on (sql/zella_tables.sql).
    Everything here comes from the database's own engine: zella_table_board for what each table is doing now and
@@ -77,6 +78,7 @@ export function TablesPage({ workspace, refreshKey, onNotice, onBook }) {
   const [serviceKey, setServiceKey] = useState("all");
   const [section, setSection] = useState("all");
   const [view, setView] = useState("floor");
+  const [planSection, setPlanSection] = useState(null);
   const [selected, setSelected] = useState(null);
   const [modal, setModal] = useState(null);   // { kind, ... }
   const [working, setWorking] = useState(false);
@@ -150,7 +152,7 @@ export function TablesPage({ workspace, refreshKey, onNotice, onBook }) {
             </select>
           </Field>
         )}
-        <div className="tb-view"><Segment label="View" value={view} onChange={setView} options={[["floor", "Floor plan"], ["list", "List"]]} /></div>
+        <div className="tb-view"><Segment label="View" value={view} onChange={setView} options={[["floor", "Floor plan"], ["cards", "Cards"], ["list", "List"]]} /></div>
       </div>
 
       <Notice error={board.error} onRetry={board.reload} />
@@ -173,7 +175,17 @@ export function TablesPage({ workspace, refreshKey, onNotice, onBook }) {
 
           <div className="tb-layout">
             <section className="ba-panel tb-board" aria-label="Tables">
-              {view === "floor" ? (
+              {view === "floor" ? (() => {
+                const secs = [...new Set(tables.map((t) => t.section))];
+                const show = secs.includes(planSection) ? planSection : secs[0];
+                return (
+                  <>
+                    {secs.length > 1 && <div className="fp-tabs"><Segment label="Section" value={show} onChange={setPlanSection} options={secs.map((x) => [x, x])} /></div>}
+                    <FloorPlan tables={tables.filter((t) => t.section === show)} selectedId={selected} onSelect={(id) => setSelected(id === selected ? null : id)}
+                      label={`${show} floor plan`} tz={tz} formatTime={formatTime} />
+                  </>
+                );
+              })() : view === "cards" ? (
                 [...new Set(tables.map((t) => t.section))].map((sec) => (
                   <div key={sec} className="tb-section">
                     <h2 className="tb-section-title">{sec}</h2>
@@ -480,6 +492,17 @@ export function TableSetup({ workspace, onNotice }) {
   const comboList = combos ?? (data?.combinations ?? []).filter((c) => c.active);
   const setRow = (i, k, v) => setRows(list.map((r, j) => (j === i ? { ...r, [k]: v } : r)));
   const move = (i, d) => { const next = [...list]; const [x] = next.splice(i, 1); next.splice(i + d, 0, x); setRows(next); };
+  const [planSection, setPlanSection] = useState(null);
+  const sectionOf = (t) => (t.section || "Main dining room");
+  // every row with its drawn position: placed by the owner, or where the plan shows it until then
+  const placedRows = () => {
+    const out = list.map((t, i) => ({ ...t, _i: i, seats: Number(t.max_party) || 1 }));
+    for (const sec of [...new Set(out.map(sectionOf))]) {
+      autoPlace(out.filter((t) => sectionOf(t) === sec)).forEach((p) => { out[p._i] = { ...out[p._i], x: p.x, y: p.y }; });
+    }
+    return out;
+  };
+  const moveOnPlan = (key, x, y) => setRows(list.map((r, j) => ((r.id ?? `new-${j}`) === key ? { ...r, x, y } : r)));
 
   async function save(rpc, payload, message, reset) {
     setBusy(true); setProblem(null);
@@ -503,7 +526,7 @@ export function TableSetup({ workspace, onNotice }) {
           {problem.affected.length > 0 && <ul>{problem.affected.map((a) => <li key={a.appointment_id}>{new Date(a.at).toLocaleString([], { timeZone: workspace.timezone, dateStyle: "medium", timeStyle: "short" })} · party of {a.party} · {(a.tables ?? []).join(" + ")}</li>)}</ul>}</span></div>
       )}
       <section className="ba-panel">
-        <div className="ba-panel-head"><div><h2>Tables</h2><p>Order here is the order on the board. Tables you remove are switched off, never deleted.</p></div></div>
+        <div className="ba-panel-head"><div><h2>Tables</h2><p>Order here is the order on the board. Attributes are comma-separated (accessible, window, booth). Tables you remove are switched off, never deleted.</p></div></div>
         <div className="tb-setup-rows">
           {list.map((t, i) => (
             <div key={t.id ?? `new-${i}`} className="tb-setup-row">
@@ -511,7 +534,9 @@ export function TableSetup({ workspace, onNotice }) {
               <Field label="Section"><input value={t.section ?? ""} onChange={(e) => setRow(i, "section", e.target.value)} maxLength={40} placeholder="Main dining room" disabled={!canEdit} /></Field>
               <Field label="Smallest party"><input type="number" min={1} max={100} value={t.min_party} onChange={(e) => setRow(i, "min_party", e.target.value)} disabled={!canEdit} /></Field>
               <Field label="Seats"><input type="number" min={1} max={100} value={t.max_party} onChange={(e) => setRow(i, "max_party", e.target.value)} disabled={!canEdit} /></Field>
-              <Field label="Attributes" hint="Comma-separated, e.g. accessible, window, booth"><input value={t.attributes} onChange={(e) => setRow(i, "attributes", e.target.value)} disabled={!canEdit} /></Field>
+              <Field label="Shape"><select value={t.shape ?? "square"} onChange={(e) => setRow(i, "shape", e.target.value)} disabled={!canEdit}>
+                <option value="square">Square</option><option value="round">Round</option><option value="rect">Long</option></select></Field>
+              <Field label="Attributes"><input value={t.attributes} onChange={(e) => setRow(i, "attributes", e.target.value)} disabled={!canEdit} /></Field>
               {canEdit && <div className="tb-setup-move">
                 <button type="button" className="ba-icon-btn" aria-label={`Move ${t.name} up`} disabled={i === 0} onClick={() => move(i, -1)}><Icon name="arrow_upward" /></button>
                 <button type="button" className="ba-icon-btn" aria-label={`Move ${t.name} down`} disabled={i === list.length - 1} onClick={() => move(i, 1)}><Icon name="arrow_downward" /></button>
@@ -523,9 +548,28 @@ export function TableSetup({ workspace, onNotice }) {
         {canEdit && <div className="ba-form-actions">
           <button type="button" className="ba-btn" onClick={() => setRows([...list, { name: `T${String(list.length + 1).padStart(2, "0")}`, section: list.at(-1)?.section ?? "Main dining room", min_party: 1, max_party: 2, attributes: "" }])}><Icon name="add" size="sm" />Add table</button>
           <button type="button" className="ba-btn primary" disabled={busy || rows === null} onClick={() => save("zella_save_tables", {
-            p_tables: list.map((t) => ({ id: t.id, name: t.name, section: t.section, min_party: Number(t.min_party) || 1, max_party: Number(t.max_party), active: true,
+            p_tables: placedRows().map((t) => ({ id: t.id, name: t.name, section: t.section, min_party: Number(t.min_party) || 1, max_party: Number(t.max_party), active: true,
+              shape: t.shape ?? "square", x: t.x, y: t.y,
               attributes: String(t.attributes ?? "").split(",").map((x) => x.trim()).filter(Boolean) })) }, "Tables saved. The AI receptionist uses them from its next availability check.", () => setRows(null))}>Save tables</button>
         </div>}
+      </section>
+
+      <section className="ba-panel">
+        <div className="ba-panel-head"><div><h2>Floor plan</h2><p>Drag tables to where they are in the room, or select one and use the arrow keys (Shift moves further). Save tables to keep it.</p></div></div>
+        <div className="tb-plan-edit">
+          {(() => {
+            const rowsNow = placedRows();
+            const secs = [...new Set(rowsNow.map(sectionOf))];
+            const show = secs.includes(planSection) ? planSection : secs[0];
+            return (
+              <>
+                {secs.length > 1 && <div className="fp-tabs"><Segment label="Section" value={show} onChange={setPlanSection} options={secs.map((x) => [x, x])} /></div>}
+                <FloorPlan tables={rowsNow.filter((t) => sectionOf(t) === show).map((t) => ({ ...t, id: t.id ?? `new-${t._i}`, state: "available" }))}
+                  editable={canEdit} onMove={moveOnPlan} label={`${show ?? "Room"} layout editor`} />
+              </>
+            );
+          })()}
+        </div>
       </section>
 
       <section className="ba-panel">

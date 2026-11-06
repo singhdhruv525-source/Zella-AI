@@ -10,6 +10,7 @@ import { RescheduleModal } from "./BusinessForms";
 import { CONNECT, todayConfig } from "./todayConfig";
 import { humanize } from "./copy/labels";
 import { capabilityOn } from "./navigation/navConfig";
+import { FloorPlan } from "./FloorPlan";
 
 // Today dashboard, built only from this business's real records, read with the member's own session so row level
 // security returns this business's data only. Words follow the industry (Reservations, Patients, Technicians ...)
@@ -17,7 +18,7 @@ import { capabilityOn } from "./navigation/navConfig";
 // so plainly instead of showing numbers.
 
 const SOURCE = {
-  manual: ["Team", "person"], phone: ["Phone", "call"], call: ["Phone", "call"], voice: ["AI receptionist", "smart_toy"],
+  manual: ["Team", "person"], phone: ["Phone", "call"], call: ["Phone", "call"], phone_call: ["Phone", "call"], voice: ["AI receptionist", "smart_toy"], ai_call: ["AI receptionist", "smart_toy"],
   walk_in: ["Walk-in", "directions_walk"], website: ["Online", "language"], website_chat: ["Online chat", "chat"],
   google: ["Google", "travel_explore"], meta: ["Meta", "thumb_up"], referral: ["Referral", "group"], other: ["Other", "more_horiz"],
 };
@@ -114,6 +115,36 @@ function SpamKpi({ workspace, day, tz, onOpen }) {
         </div>
       </div>
     </button>
+  );
+}
+
+// Table layout (restaurants with "Tables and seating" on): the live seating board, drawn as the floor plan.
+// Its own load, so the rest of Today never waits for it; the same data as the Tables page (zella_table_board).
+function TableLayoutCard({ workspace, tz, refresh, onGo }) {
+  const [state, setState] = useState({ data: null, error: "" });
+  const [section, setSection] = useState(null);
+  useEffect(() => {
+    let live = true;
+    supabase.rpc("zella_table_board", { p_business_id: workspace.id }).then(({ data, error }) => {
+      if (live) setState({ data: error ? null : data, error: error ? friendly(error) : "" });
+    });
+    return () => { live = false; };
+  }, [workspace.id, refresh]);
+  const tables = state.data?.tables ?? [];
+  const secs = [...new Set(tables.map((t) => t.section))];
+  const show = secs.includes(section) ? section : secs[0];
+  return (
+    <Card className="td-layout" title="Table layout" action={<button type="button" className="ba-btn sm" onClick={() => onGo("tables")}>View full layout</button>}
+      tabs={secs.length > 1 ? (
+        <div className="td-tabs" role="tablist" aria-label="Sections">
+          {secs.map((x) => <button key={x} type="button" role="tab" aria-selected={show === x} className={show === x ? "active" : ""} onClick={() => setSection(x)}>{x}</button>)}
+        </div>
+      ) : null}>
+      {state.error ? <Empty title="Couldn't load the tables">{state.error}</Empty>
+        : !state.data ? <Empty title="Loading…" />
+        : !tables.length ? <Empty title="No tables yet">Add them in Settings → Tables and seating.</Empty>
+        : <FloorPlan compact tables={tables.filter((t) => t.section === show)} onSelect={() => onGo("tables")} label={`${show} floor plan`} tz={tz} formatTime={formatTime} />}
+    </Card>
   );
 }
 
@@ -224,6 +255,16 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
   // What this business does (zella_capabilities). A shop or a firm without bookings gets no booking cards or buttons.
   const scheduling = capabilityOn(capabilities, "scheduling");
   const checkinsOn = scheduling && capabilityOn(capabilities, "checkins");
+  const tablesOn = scheduling && capabilityOn(capabilities, "tables");
+  const [tableNames, setTableNames] = useState({});
+  useEffect(() => {
+    if (!tablesOn) return undefined;
+    let live = true;
+    supabase.from("restaurant_tables").select("id, name").eq("business_id", workspace.id).then(({ data }) => {
+      if (live) setTableNames(Object.fromEntries((data ?? []).map((t) => [t.id, t.name])));
+    });
+    return () => { live = false; };
+  }, [tablesOn, workspace.id]);
   const tz = workspace.timezone;
   const term = makeTerm(workspace);
   const cfg = todayConfig(industry);
@@ -433,7 +474,7 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
             <div className="ba-table-wrap" tabIndex={0}>
               <table className="ba-table static td-table">
                 <thead><tr>
-                  <th>Time</th><th>{term("customer")}</th>{showGuests && <th>{term("customers")}</th>}{showStaff && <th>{term("staff")}</th>}
+                  <th>Time</th><th>{term("customer")}</th>{showGuests && <th>{term("customers")}</th>}{tablesOn && <th>Table</th>}{showStaff && <th>{term("staff")}</th>}
                   <th>Status</th><th>Notes</th><th><span className="ba-sr">Actions</span></th>
                 </tr></thead>
                 <tbody>
@@ -448,6 +489,7 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
                         <td>{person(a.customer?.id, personName(a.customer) ?? a.title)}
                           <small className="td-sub">{srcIcon && <Icon name={srcIcon} size="sm" />} {src !== "—" ? src : ""}{src !== "—" && personName(a.customer) && a.title ? " · " : ""}{personName(a.customer) ? a.title : ""}{a.forTitle ? ` · for ${a.forTitle}` : ""}</small></td>
                         {showGuests && <td>{a.party_size ?? "—"}</td>}
+                        {tablesOn && <td>{(a.table_ids ?? []).map((id) => tableNames[id]).filter(Boolean).join(" + ") || "—"}</td>}
                         {showStaff && <td>{data.staff[a.staff_id] ?? "—"}</td>}
                         <td><Pill tone={tone}>{stageLabel}</Pill>{a.booking_state === "requested" && <small className="td-sub">Request, not booked</small>}</td>
                         <td className="td-notes">{a.description || a.internal_notes || a.location || ""}</td>
@@ -500,6 +542,8 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
             <Empty title={loading && !data ? "Loading…" : "No activity yet"}>{!loading && (agent.live ? "Calls and messages your receptionist handles appear here." : "Starts once your AI receptionist is live.")}</Empty>
           )}
         </Card>
+
+        {tablesOn && <TableLayoutCard workspace={workspace} tz={tz} refresh={data} onGo={onGo} />}
 
         <WeekChart week={data?.week} loading={loading && !data} selected={day} onOpen={() => onGo("calls")} />
 
@@ -571,7 +615,7 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
           ) : <Empty title={loading && !data ? "Loading…" : "Nothing in the next 7 days"} />}
         </Card>}
 
-        {cfg.connect.map((key) => {
+        {cfg.connect.filter((key) => !(key === "tables" && tablesOn)).map((key) => {   // the live layout replaces the placeholder
           const c = CONNECT[key];
           return (
             <Card key={key} title={c.title} className="td-connect">

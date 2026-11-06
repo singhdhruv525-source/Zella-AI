@@ -2114,3 +2114,64 @@ html:not([data-zella-icons="ready"]) .ba-header-actions { flex-wrap: wrap; flex-
 }
 .tb-setup-row.combo { grid-template-columns: minmax(0, 3fr) 0.7fr 0.7fr auto; }
 @media (max-width: 720px) { .tb-setup-row.combo { grid-template-columns: 1fr 1fr; } .tb-setup-row.combo .tb-pick { grid-column: 1 / -1; } }
+
+/* ---------- Floor plan (FloorPlan.jsx) ---------- */
+.fp { display: flex; flex-direction: column; gap: 10px; }
+.fp-room {
+  position: relative; width: 100%; aspect-ratio: 16 / 9; min-height: 300px; border-radius: var(--ba-radius-md);
+  border: 1px solid var(--ba-border); overflow: hidden;
+  background-color: var(--ba-subtle);
+  background-image: radial-gradient(circle, color-mix(in srgb, var(--ba-border-strong) 55%, transparent) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+.fp.compact .fp-room { min-height: 0; aspect-ratio: 4 / 3; background-size: 16px 16px; }
+.fp.compact .fp-name { font-size: 10.5px; }
+.fp.compact .fp-seats { font-size: 9px; }
+.fp.compact .fp-state .ba-icon { font-size: 10px; }
+.fp.compact .fp-chair { width: 9px; height: 6px; }
+.fp.compact .fp-chair.l, .fp.compact .fp-chair.r { width: 6px; height: 9px; }
+.fp.compact .fp-chair.round { width: 8px; height: 5px; }
+.fp.compact .fp-table { border-radius: 8px; border-width: 1.5px; }
+.fp.compact .fp-table.shape-round { border-radius: 50%; }
+.fp.compact .fp-legend { font-size: 11px; gap: 4px 10px; }
+.fp.compact .fp-legend .ba-icon { display: none; }
+.td-layout .td-tabs button { padding: 3px 10px; font-size: 12px; }
+.fp-empty { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; color: var(--ba-muted); font-size: 13px; }
+.fp-table {
+  position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  padding: 0; font: inherit; cursor: pointer; border-radius: 12px; border: 2px solid transparent; color: #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12); touch-action: none; user-select: none;
+}
+.fp-table.shape-round { border-radius: 50%; }
+.fp-table.shape-rect { border-radius: 10px; }
+.fp-table:focus-visible, .fp-table.selected { outline: 3px solid var(--ba-text); outline-offset: 4px; }
+.fp.editable .fp-table { cursor: grab; }
+.fp.editable .fp-table:active { cursor: grabbing; }
+.fp-name { font-weight: 700; font-size: 13px; line-height: 1.1; }
+.fp-seats { font-size: 11px; opacity: 0.9; }
+.fp-state { display: inline-flex; align-items: center; gap: 2px; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; opacity: 0.95; }
+.fp-state .ba-icon { font-size: 14px; }
+.fp-legend .ba-icon { font-size: 14px; }
+.fp-chair { position: absolute; width: 14px; height: 9px; border-radius: 5px; background: var(--ba-border-strong); transform: translate(-50%, -50%); pointer-events: none; }
+.fp-chair.l, .fp-chair.r { width: 9px; height: 14px; }
+.fp-chair.round { width: 12px; height: 8px; }
+.fp-table.st-seated { background: var(--ba-success); }
+.fp-table.st-reserved { background: var(--ba-info); }
+.fp-table.st-held { background: color-mix(in srgb, var(--ba-info) 55%, var(--ba-surface)); color: var(--ba-text); border: 2px dashed var(--ba-info); }
+.fp-table.st-available { background: var(--ba-surface); color: var(--ba-text); border-color: var(--ba-border-strong); }
+.fp-table.st-needs_clearing { background: var(--ba-warning); }
+.fp-table.st-unavailable { background: var(--ba-danger); }
+.fp-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; list-style: none; margin: 0; padding: 0; font-size: 12px; color: var(--ba-muted); }
+.fp-legend li { display: inline-flex; align-items: center; gap: 6px; }
+.fp-swatch { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
+.fp-swatch.st-seated { background: var(--ba-success); }
+.fp-swatch.st-reserved { background: var(--ba-info); }
+.fp-swatch.st-available { background: var(--ba-surface); border: 1.5px solid var(--ba-border-strong); }
+.fp-swatch.st-needs_clearing { background: var(--ba-warning); }
+.fp-swatch.st-unavailable { background: var(--ba-danger); }
+.fp-tabs { margin-bottom: 10px; }
+@media (max-width: 720px) {
+  .fp-room { aspect-ratio: 4 / 5; min-height: 360px; }
+}
+.tb-plan-edit { padding: 0 16px 16px; }
+.tb-setup-row { grid-template-columns: 1fr 1.2fr 0.7fr 0.6fr 0.8fr 1.5fr auto; }

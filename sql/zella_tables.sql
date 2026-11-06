@@ -39,6 +39,12 @@ create table if not exists public.restaurant_tables (
   check (min_party <= max_party),
   unique (business_id, name)
 );
+-- where each table sits on the floor plan (percent of the section's width and height) and its shape; drawn, never
+-- used for availability
+alter table public.restaurant_tables add column if not exists pos_x numeric(5,2) check (pos_x is null or pos_x between 0 and 100);
+alter table public.restaurant_tables add column if not exists pos_y numeric(5,2) check (pos_y is null or pos_y between 0 and 100);
+alter table public.restaurant_tables add column if not exists shape text not null default 'square' check (shape in ('square', 'round', 'rect'));
+
 create table if not exists public.table_combinations (
   id uuid primary key default gen_random_uuid(),
   business_id uuid not null references public.businesses(id) on delete cascade,
@@ -192,7 +198,7 @@ language plpgsql stable security definer set search_path = public as $$
 begin
   if not exists (select 1 from business_members m where m.business_id = p_business_id and m.user_id = auth.uid() and m.status = 'active') then raise exception 'NOT_ALLOWED'; end if;
   return jsonb_build_object('tables', coalesce((select jsonb_agg(jsonb_build_object('id', t.id, 'name', t.name, 'section', t.section, 'min_party', t.min_party, 'max_party', t.max_party,
-           'attributes', to_jsonb(t.attributes), 'active', t.active, 'position', t.position, 'notes', t.notes) order by t.position, t.name)
+           'attributes', to_jsonb(t.attributes), 'active', t.active, 'position', t.position, 'notes', t.notes, 'x', t.pos_x, 'y', t.pos_y, 'shape', t.shape) order by t.position, t.name)
            from restaurant_tables t where t.business_id = p_business_id), '[]'::jsonb),
          'combinations', coalesce((select jsonb_agg(jsonb_build_object('id', c.id, 'table_ids', to_jsonb(c.table_ids), 'min_party', c.min_party, 'max_party', c.max_party, 'active', c.active,
            'name', (select string_agg(x.name, ' + ' order by x.position, x.name) from restaurant_tables x where x.id = any (c.table_ids))) order by c.max_party, c.id)
@@ -221,13 +227,19 @@ begin
       update restaurant_tables set name = left(trim(t ->> 'name'), 40), section = coalesce(nullif(left(trim(coalesce(t ->> 'section', '')), 40), ''), 'Main dining room'),
              min_party = coalesce((t ->> 'min_party')::int, 1), max_party = (t ->> 'max_party')::int, attributes = v_attrs,
              active = coalesce((t ->> 'active')::boolean, true), position = i,
+             pos_x = case when (t ->> 'x') ~ '^\d{1,3}(\.\d+)?$' then least(100, greatest(0, (t ->> 'x')::numeric)) when t ? 'x' then null else pos_x end,
+             pos_y = case when (t ->> 'y') ~ '^\d{1,3}(\.\d+)?$' then least(100, greatest(0, (t ->> 'y')::numeric)) when t ? 'y' then null else pos_y end,
+             shape = case when t ->> 'shape' in ('square', 'round', 'rect') then t ->> 'shape' else shape end,
              notes = nullif(left(trim(coalesce(t ->> 'notes', '')), 200), ''), updated_at = now()
        where id = v_id;
     else
-      insert into restaurant_tables (business_id, name, section, min_party, max_party, attributes, active, position, notes)
+      insert into restaurant_tables (business_id, name, section, min_party, max_party, attributes, active, position, notes, pos_x, pos_y, shape)
       values (p_business_id, left(trim(t ->> 'name'), 40), coalesce(nullif(left(trim(coalesce(t ->> 'section', '')), 40), ''), 'Main dining room'), coalesce((t ->> 'min_party')::int, 1),
               (t ->> 'max_party')::int, v_attrs, coalesce((t ->> 'active')::boolean, true), i,
-              nullif(left(trim(coalesce(t ->> 'notes', '')), 200), ''))
+              nullif(left(trim(coalesce(t ->> 'notes', '')), 200), ''),
+              case when (t ->> 'x') ~ '^\d{1,3}(\.\d+)?$' then least(100, greatest(0, (t ->> 'x')::numeric)) end,
+              case when (t ->> 'y') ~ '^\d{1,3}(\.\d+)?$' then least(100, greatest(0, (t ->> 'y')::numeric)) end,
+              case when t ->> 'shape' in ('square', 'round', 'rect') then t ->> 'shape' else 'square' end)
       returning id into v_id;
     end if;
     v_keep := v_keep || v_id;
@@ -320,6 +332,7 @@ begin
     where x.business_id = p_business_id and x.active
   )
   select coalesce(jsonb_agg(jsonb_build_object('id', t.id, 'name', t.name, 'section', t.section, 'seats', t.max_party, 'min_party', t.min_party, 'attributes', to_jsonb(t.attributes),
+           'x', t.pos_x, 'y', t.pos_y, 'shape', t.shape, 'position', t.position,
            'state', case when t.block is not null then 'unavailable' when t.clearing is not null then 'needs_clearing' when t.se_id is not null then 'seated'
                          when t.he_id is not null then 'held' when t.nx_id is not null and t.nx_at <= p_at + interval '30 minutes' then 'reserved' else 'available' end,
            'block', t.block, 'clearing_since', t.clearing -> 'since',
