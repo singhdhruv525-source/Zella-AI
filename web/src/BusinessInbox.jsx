@@ -266,10 +266,9 @@ export function InboxPage({ workspace, refreshKey, onNotice, onOpenPerson }) {
   useEffect(() => { if (refreshKey) reload(); }, [refreshKey, reload]);
   const items = list.rows.map(inboxItem);
 
-  const current = selected ? items.find((i) => i.key === selected.key) ?? selected : null;
-
-  // B3-06: support data loads separately; contacts also include the retained selection.
+  // B3-06: what supports the list is loaded separately, for this page only; each can fail on its own and says so
   const convoIds = items.filter((i) => i.kind === "convo").map((i) => i.convo.id);
+  const current = selected ? items.find((i) => i.key === selected.key) ?? selected : null;
   const peopleIds = [...new Set([...items.map((i) => i.customer_id), current?.customer_id].filter(Boolean))].sort();
   const previews = useLoad(async () => {
     if (!convoIds.length) return {};

@@ -217,6 +217,48 @@ const isAttentionCount = (q) => q.url().includes("/rest/v1/calls_view") && q.url
   check(await s.p.locator(".ba-blocked button", { hasText: "Try again" }).count() === 0, "B3-06 Try again re-checks contact preferences");
   await s.ctx.close();
 
+  // A retained conversation still needs its contact after paging away, including consent checks.
+  for (const optedOut of [false, true]) {
+    s = await login(b, "own-a@b3.test", { path: "/app/inbox" });
+    await s.ctx.route("**/rest/v1/integrations?**", (route) => route.fulfill({ json: [{ provider: "telnyx", status: "active" }, { provider: "email", status: "active" }] }));
+    let contactName;
+    let failPeople = false;
+    const lookups = [];
+    await s.ctx.route("**/rest/v1/customers?**", async (route) => {
+      const q = route.request();
+      if (!q.url().includes("do_not_contact")) return route.fallback();
+      lookups.push(new URL(q.url()).searchParams.get("id"));
+      if (failPeople) return route.fulfill({ status: 500, json: { message: "injected contact failure" } });
+      const response = await fetch(q.url().replace("https://zlocal.supabase.co", BACKEND), { headers: q.headers() });
+      const rows = await response.json();
+      return route.fulfill({ json: rows.map((row) => ({ ...row, do_not_contact: optedOut, do_not_sms: false, do_not_email: false })) });
+    });
+    await go(s.p, "/app/inbox");
+    const row = s.p.locator(".ba-inbox-row", { hasText: /Message 5/ }).first();
+    const name = await row.locator("strong").innerText();
+    await row.click();
+    await s.p.waitForTimeout(1500);
+    contactName = await s.p.locator(".ba-inbox-head .ba-namebtn").innerText();
+    const replyCorrect = async () => optedOut
+      ? /asked not to be contacted/.test(await text(s.p, ".ba-blocked")) && await s.p.locator(".ba-composer textarea").count() === 0
+      : await s.p.locator(".ba-composer textarea").count() === 1;
+    check(contactName === name && await replyCorrect(), `retained contact: initial reply state (opt-out ${optedOut})`);
+    failPeople = true;
+    await s.p.locator(".ba-inbox-list .ba-table-foot button", { hasText: "Next" }).click();
+    await s.p.waitForTimeout(1500);
+    check(await s.p.locator(".ba-inbox-row strong", { hasText: name }).count() === 0
+      && /contact preferences/.test(await text(s.p, ".ba-blocked")) && await s.p.locator(".ba-composer textarea").count() === 0,
+      `retained contact: page change and failed lookup pause replies (opt-out ${optedOut})`);
+    failPeople = false;
+    await s.p.locator(".ba-blocked button", { hasText: "Try again" }).click();
+    await s.p.waitForTimeout(1800);
+    check(await text(s.p, ".ba-inbox-head .ba-namebtn") === name
+      && await s.p.locator(".ba-inbox-row strong", { hasText: new RegExp(`^${name}$`) }).count() === 0 && await replyCorrect(),
+      `retained contact: retry restores contact and respects opt-out ${optedOut}`, lookups.join(" | "));
+    check(s.errors.length === 0, "retained contact: no page errors", s.errors.join(" | "));
+    await s.ctx.close();
+  }
+
   // ---------------- phone: inbox list -> conversation -> back
   s = await login(b, "own-a@b3.test", { path: "/app/inbox", mobile: true });
   await go(s.p, "/app/inbox");
