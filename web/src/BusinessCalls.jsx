@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "./supabase";
 import { Field, Icon, Modal, Pill, initials, personName } from "./BusinessUI";
 import { formatDay, formatTime, timeAgo, todayInput, zonedDateTime } from "./businessTime";
-import { Empty, Notice, PAGE_SIZE, PageHead, Pager, Segment, clock, explain, loadPeople, orThrow, plural, useLoad, callResult, isAnswered } from "./BusinessShared";
+import { Empty, Notice, PAGE_SIZE, PageHead, Pager, Segment, clock, explain, loadPeople, plural, useLoad, callResult } from "./BusinessShared";
 import { EscalationControls, Transcript, isOpenEscalation } from "./BusinessProfile";
 import { Assignee, useRoster } from "./BusinessLeads";
-import { CB_CLOSED, CB_REASON, when } from "./BusinessWork";
+import { CB_REASON, when } from "./BusinessWork";
+import { useServerPages } from "./crm/paging";
 
 /* Every call, what came of it, and who is looking after it. */
 
@@ -15,8 +16,11 @@ export const OUTCOMES = {
 };
 const OUTCOME_TONE = { resolved: "success", booked: "success", callback_needed: "warning", left_message: "", wrong_number: "", spam: "", other: "" };
 
-// Recordings are shown unless the call was marked as not consented.
-export const recordingAllowed = (call) => Boolean(call.recording_url) && call.metadata?.recording_consent !== false;
+// Recordings are shown unless the call was marked as not consented. A list row (zella_calls_page) carries only
+// whether one may be shown (recording_allowed); the link itself comes with the full call, read when it is opened.
+export const recordingAllowed = (call) => call.recording_url !== undefined
+  ? Boolean(call.recording_url) && call.metadata?.recording_consent !== false
+  : Boolean(call.recording_allowed);
 
 function CallDetail({ call, person, followUps, roster, workspace, onClose, onChanged, onNotice, onOpenPerson }) {
   const tz = workspace.timezone;
@@ -195,32 +199,27 @@ const FILTERS = [["all", "All"], ["answered", "Answered"], ["missed", "Missed"],
 export function CallsPage({ workspace, refreshKey, onNotice, onOpenPerson, transcriptsOnly }) {
   const tz = workspace.timezone;
   const [filter, setFilter] = useState("all");
-  const [page, setPage] = useState(0);
   const [openId, setOpenId] = useState(null);
   const roster = useRoster(workspace);
-  const { data, error, loading, reload } = useLoad(async () => {
-    const calls = orThrow(await supabase.from("calls_view").select("*").eq("business_id", workspace.id).order("created_at", { ascending: false }).limit(300));
-    const ids = calls.map((c) => c.id);
-    // Follow-ups linked to these calls (optional: older workspaces just show none).
-    const [cbs, fus] = ids.length ? await Promise.all([
-      supabase.from("callbacks").select("id, call_id, status, reason, due_at").in("call_id", ids),
-      supabase.from("followup_tasks").select("id, call_id, status, due_at").in("call_id", ids),
-    ]) : [{ data: [] }, { data: [] }];
-    const links = {};
-    (cbs.data ?? []).forEach((c) => { (links[c.call_id] ||= []).push({ id: c.id, kind: "callback", reason: c.reason, due_at: c.due_at, done: CB_CLOSED.includes(c.status) }); });
-    (fus.data ?? []).forEach((f) => { (links[f.call_id] ||= []).push({ id: f.id, kind: "followup", due_at: f.due_at, done: ["completed", "cancelled"].includes(f.status) }); });
-    return { calls, links, people: await loadPeople(calls.map((c) => c.customer_id)) };
-  }, [workspace.id, refreshKey]);
-
-  const all = useMemo(() => (data?.calls ?? []).filter((c) => !transcriptsOnly || c.transcript || recordingAllowed(c)), [data, transcriptsOnly]);
-  const rows = all.filter((c) =>
-    filter === "missed" ? c.status === "missed" : filter === "ai" ? c.ai_handled : filter === "answered" ? isAnswered(c.status)
-      : filter === "human" ? isOpenEscalation(c) : filter === "recorded" ? recordingAllowed(c) : true);
-  useEffect(() => setPage(0), [filter]);
-  const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
-  const visible = rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
-  const missedOpen = all.filter((c) => c.status === "missed" && !c.metadata?.followed_up_at && !(data.links[c.id] ?? []).length).length;
-  const open = openId ? (data?.calls ?? []).find((c) => c.id === openId) : null;
+  // B3-05: filtered and paged by the server across the whole call history. The list carries no transcripts or
+  // recording links; the call that is opened is read in full from calls_view, under the same privacy rules.
+  const list = useServerPages("zella_calls_page", { p_business_id: workspace.id, p_filter: filter, p_transcripts_only: Boolean(transcriptsOnly) }, PAGE_SIZE);
+  const { reload } = list;
+  useEffect(() => { if (refreshKey) reload(); }, [refreshKey, reload]);
+  const visible = list.rows;
+  const peopleIds = visible.map((c) => c.customer_id).filter(Boolean);
+  const people = useLoad(async () => loadPeople(peopleIds), [[...new Set(peopleIds)].sort().join(",")]);
+  const data = { people: people.data ?? {} };
+  const error = list.status === "stale" ? `${list.error} Showing the last list loaded.` : list.error;
+  const missedOpen = Number(list.data?.missed_open) || 0;
+  const detail = useLoad(async () => {
+    if (!openId) return null;
+    const res = await supabase.from("calls_view").select("*").eq("business_id", workspace.id).eq("id", openId).maybeSingle();
+    if (res.error) throw res.error;
+    return res.data;
+  }, [workspace.id, openId, list.data]);
+  const open = openId && detail.data?.id === openId ? detail.data : null;
+  const openFollowUps = visible.find((c) => c.id === openId)?.follow_ups ?? [];
 
   return (
     <>
@@ -233,9 +232,11 @@ export function CallsPage({ workspace, refreshKey, onNotice, onOpenPerson, trans
       </PageHead>
 
       <Notice error={error} onRetry={reload} />
+      {people.error && <Notice error="Couldn't load the names for these calls. Numbers are shown instead." onRetry={people.reload} />}
+      {openId && detail.error && <Notice error={`Couldn't open that call. ${detail.error}`} onRetry={detail.reload} />}
       {!transcriptsOnly && <CallSuggestions workspace={workspace} refreshKey={refreshKey} onNotice={onNotice} />}
       <section className="ba-panel">
-        {loading && !data ? <div className="ba-panel-body"><p className="ba-muted">Loading…</p></div> : !rows.length ? (
+        {list.loading && !list.data ? <div className="ba-panel-body"><p className="ba-muted">Loading…</p></div> : list.status === "failed" ? null : !visible.length ? (
           <div className="ba-panel-body"><Empty title={filter === "all" ? "No calls yet" : "No calls match"}>{filter === "all" ? "Calls appear here once your phone line is live." : "Try another filter."}</Empty></div>
         ) : (
           <>
@@ -247,7 +248,7 @@ export function CallsPage({ workspace, refreshKey, onNotice, onOpenPerson, trans
                     const person = data.people[c.customer_id];
                     const name = personName(person) ?? c.from_number ?? "Unknown caller";
                     const missed = c.status === "missed";
-                    const links = data.links[c.id] ?? [];
+                    const links = c.follow_ups ?? [];
                     const openLinks = links.filter((l) => !l.done).length;
                     return (
                       <tr key={c.id} onClick={() => setOpenId(c.id)} tabIndex={0} onKeyDown={(e) => e.key === "Enter" && setOpenId(c.id)}>
@@ -262,7 +263,7 @@ export function CallsPage({ workspace, refreshKey, onNotice, onOpenPerson, trans
                           {isOpenEscalation(c) && <Pill tone="danger">Needs a person</Pill>}
                           {openLinks > 0 && <Pill tone="info" >Follow-up set</Pill>}
                           {recordingAllowed(c) && <Icon name="graphic_eq" size="sm" />}
-                          {c.transcript && <Icon name="subject" size="sm" />}
+                          {c.has_transcript && <Icon name="subject" size="sm" />}
                         </td>
                       </tr>
                     );
@@ -270,14 +271,15 @@ export function CallsPage({ workspace, refreshKey, onNotice, onOpenPerson, trans
                 </tbody>
               </table>
             </div>
-            <Pager page={page} pages={pages} total={rows.length} onPage={setPage} noun="call" />
+            <Pager page={list.page} pages={list.pages} total={list.total} hasNext={list.hasNext} busy={list.loading}
+              onPage={(n) => (n > list.page ? list.next() : list.prev())} noun="call" />
           </>
         )}
       </section>
 
       {open && (
         <CallDetail
-          key={open.id} call={open} person={data.people[open.customer_id]} followUps={data.links[open.id] ?? []} roster={roster} workspace={workspace}
+          key={open.id} call={open} person={data.people[open.customer_id]} followUps={openFollowUps} roster={roster} workspace={workspace}
           onClose={() => setOpenId(null)} onChanged={reload} onNotice={onNotice}
           onOpenPerson={(id) => { setOpenId(null); onOpenPerson(id); }}
         />
