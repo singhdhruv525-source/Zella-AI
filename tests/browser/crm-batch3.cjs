@@ -11,10 +11,12 @@ const check = (ok, name, extra = "") => { if (ok) { pass++; console.log("PASS " 
 async function login(b, email, { business = ALPHA, path = "/app", mobile = false, block = [] } = {}) {
   const ctx = await b.newContext(mobile ? { ...devices["iPhone 13"] } : { viewport: { width: 1440, height: 900 } });
   await ctx.addInitScript((id) => localStorage.setItem("zella.lastBusiness", id), business);
-  const blocked = { rules: block };
+  const blocked = { rules: block, slow: [] };   // slow: [{ match(request), ms }] answers late, to test races
   await ctx.route("https://zlocal.supabase.co/**", async (route) => {
     const q = route.request();
     if (blocked.rules.some((r) => r(q))) return route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ message: "injected failure" }) });
+    const lag = blocked.slow.find((x) => x.match(q));
+    if (lag) await new Promise((res) => setTimeout(res, lag.ms));
     const r = await fetch(q.url().replace("https://zlocal.supabase.co", BACKEND), { method: q.method(), headers: q.headers(), body: ["GET", "HEAD"].includes(q.method()) ? undefined : q.postDataBuffer() });
     await route.fulfill({ status: r.status, headers: Object.fromEntries(r.headers.entries()), body: Buffer.from(await r.arrayBuffer()) });
   });
@@ -147,6 +149,14 @@ const isAttentionCount = (q) => q.url().includes("/rest/v1/calls_view") && q.url
   await s.p.locator(".ba-table tbody tr").nth(4).click(); await s.p.waitForTimeout(1500);   // the 5th newest has a transcript (i % 5 = 0)
   check(/secret words 5/.test(await text(s.p, ".ba-modal")), "B3-05 the owner opens a call and reads its transcript");
   await shot(s.p, "b3-05-call");
+  // a late answer for the call opened first must not replace (or close) the call opened second
+  await s.p.keyboard.press("Escape"); await s.p.waitForTimeout(400);
+  s.blocked.slow.push({ match: (q) => q.url().includes("/rest/v1/calls_view") && q.url().includes("id=eq.") && !q.url().includes("needs_human") && !s.blocked.slowUsed && (s.blocked.slowUsed = true), ms: 2500 });
+  await s.p.locator(".ba-table tbody tr").nth(0).click(); await s.p.waitForTimeout(150);
+  await s.p.keyboard.press("Escape"); await s.p.waitForTimeout(150);
+  await s.p.locator(".ba-table tbody tr").nth(4).click();
+  await s.p.waitForTimeout(3500);
+  check(/secret words 5/.test(await text(s.p, ".ba-modal")) && await s.p.locator(".ba-modal").count() === 1, "B3-05 a late answer for an earlier call doesn't replace or close the call opened now");
   check(s.errors.length === 0, "B3-05 no page errors", s.errors.join(" | "));
   await s.ctx.close();
   s = await login(b, "staff-a@b3.test", { path: "/app/calls" });

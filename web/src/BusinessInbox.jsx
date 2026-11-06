@@ -268,7 +268,8 @@ export function InboxPage({ workspace, refreshKey, onNotice, onOpenPerson }) {
   const problems = supportProblems({ previews, people, integrations: ints });
   const retrySupport = () => { if (previews.error) previews.reload(); if (people.error) people.reload(); if (ints.error) ints.reload(); };
   const integrations = { status: ints.error ? "failed" : ints.loading && !ints.data ? "loading" : "ok", rows: ints.data ?? [] };
-  const personStatus = people.error ? "failed" : people.loading && !people.data ? "loading" : "ok";
+  // while this page's people are loading, an earlier page's map can't answer for them (no "not linked" flash)
+  const personStatus = people.error ? "failed" : people.loading ? "loading" : "ok";
   const peopleMap = people.data ?? {};
 
   const unreadCount = Number(list.data?.unread_total) || 0;

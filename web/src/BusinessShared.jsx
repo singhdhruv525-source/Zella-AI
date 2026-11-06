@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "./supabase";
 import { Icon } from "./BusinessUI";
 import { humanize } from "./copy/labels";
@@ -65,16 +65,19 @@ export function Notice({ error, onRetry }) {
   );
 }
 
-// Runs a loader and keeps rows, loading and error state together.
+// Runs a loader and keeps rows, loading and error state together. Only the newest run may write its answer or its
+// error: a run for earlier inputs (another page's ids, a call opened before this one) that finishes late is dropped.
 export function useLoad(loader, deps) {
   const [state, setState] = useState({ data: null, error: "", loading: true });
+  const latest = useRef(0);
   const run = useCallback(async () => {
+    const seq = ++latest.current;
     setState((s) => ({ ...s, loading: true, error: "" }));
     try {
       const data = await loader();
-      setState({ data, error: "", loading: false });
+      if (seq === latest.current) setState({ data, error: "", loading: false });
     } catch (err) {
-      setState((s) => ({ ...s, error: friendly(err), loading: false }));
+      if (seq === latest.current) setState((s) => ({ ...s, error: friendly(err), loading: false }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
