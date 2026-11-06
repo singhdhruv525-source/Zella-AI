@@ -46,7 +46,8 @@ end $$;
 
 -- B2: the last-line guard
 create or replace function public.zella_appointment_holds_time(p_status text, p_state text, p_hold_expires timestamptz) returns boolean
-language sql immutable as $$
+-- stable, not immutable: it reads now(). Fixed search path (only built-ins are used); see sql/zella_batch1_security.sql.
+language sql stable set search_path = '' as $$
   select p_status in ('scheduled', 'confirmed') and coalesce(p_state, 'confirmed') <> 'requested'
      and not (coalesce(p_state, '') = 'tentative' and coalesce(p_hold_expires, 'infinity'::timestamptz) < now());
 $$;

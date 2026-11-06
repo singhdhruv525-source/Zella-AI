@@ -5,6 +5,7 @@ import { formatDay, formatTime, timeAgo } from "./businessTime";
 import { Empty, Notice, PAGE_SIZE, PageHead, Pager, explain, orThrow, useLoad } from "./BusinessShared";
 import { PersonPicker } from "./BusinessWork";
 import { useRoster } from "./BusinessLeads";
+import { FILE_ERRORS, checkOutcome } from "./recordFileCheck";
 
 // One set of screens for every industry. The business's record types
 // (fields, statuses, names) come from crm_record_types.
@@ -94,8 +95,6 @@ function FieldInput({ field, value, onChange }) {
 // storage gives only to people allowed to see the file. Staff and above add; managers (or the uploader, within a day)
 // remove. Private files are seen by managers and the staff assigned.
 const FILE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "application/pdf"];
-const FILE_ERRORS = { BAD_FILE_TYPE: "Only photos (JPEG, PNG, WEBP, HEIC) and PDFs can be added.", FILE_TOO_BIG: "Files must be 10 MB or smaller.",
-  TOO_MANY_FILES: "A record can hold 50 files. Remove some first.", UPLOAD_MISSING: "The upload didn't finish. Try again." };
 function RecordFiles({ workspace, record }) {
   const canAdd = workspace.role !== "viewer";
   const canRemoveAny = ["owner", "admin", "manager"].includes(workspace.role);
@@ -105,14 +104,18 @@ function RecordFiles({ workspace, record }) {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState("");
   const list = useLoad(async () => {
-    const res = await supabase.from("crm_record_files").select("id, path, file_name, mime_type, kind, caption, private, uploaded_by, created_at")
-      .eq("record_id", record.id).eq("status", "ready").order("created_at", { ascending: false });
-    if (res.error) return { rows: [], missing: /crm_record_files|relation|does not exist/i.test(res.error.message) };
-    const rows = res.data ?? [];
+    // ready files, plus this person's own uploads still waiting for the content check (row security shows nobody
+    // else's unfinished uploads, and storage gives no link to them)
+    const res = await supabase.from("crm_record_files").select("id, path, file_name, mime_type, kind, caption, private, uploaded_by, created_at, status")
+      .eq("record_id", record.id).in("status", ["ready", "pending", "checking"]).order("created_at", { ascending: false });
+    if (res.error) return { rows: [], waiting: [], missing: /crm_record_files|relation|does not exist/i.test(res.error.message) };
+    const uid = (await supabase.auth.getUser()).data?.user?.id ?? null;
+    const waiting = (res.data ?? []).filter((f) => f.status !== "ready" && uid && f.uploaded_by === uid);
+    const rows = (res.data ?? []).filter((f) => f.status === "ready");
     const shown = rows.filter((f) => f.kind === "photo" && f.mime_type !== "image/heic").map((f) => f.path);
     const urls = shown.length ? await supabase.storage.from("record-files").createSignedUrls(shown, 300) : { data: [] };
     const byPath = Object.fromEntries((urls.data ?? []).filter((u) => u.signedUrl).map((u) => [u.path, u.signedUrl]));
-    return { rows: rows.map((f) => ({ ...f, thumb: byPath[f.path] })) };
+    return { rows: rows.map((f) => ({ ...f, thumb: byPath[f.path] })), waiting };
   }, [record.id, version]);
   const me = useLoad(async () => (await supabase.auth.getUser()).data?.user?.id ?? null, []);
 
@@ -128,18 +131,44 @@ function RecordFiles({ workspace, record }) {
         p_size_bytes: file.size, p_caption: caption || null, p_private: priv });
       if (begin.error) { setProblem(`${file.name}: ${FILE_ERRORS[Object.keys(FILE_ERRORS).find((k) => begin.error.message.includes(k))] ?? explain(begin.error)}`); continue; }
       const up = await supabase.storage.from("record-files").upload(begin.data.path, file, { contentType: file.type, upsert: false });
-      if (up.error) { setProblem(`${file.name}: the upload didn't finish (${up.error.message}).`); continue; }
-      // the server checks what the file really is before anyone else can see it (record-files function)
-      const chk = await supabase.functions.invoke("record-files", { body: { action: "check", file_id: begin.data.id } });
-      if (chk.error) {
-        let answer = null;
-        try { answer = await chk.error.context?.json?.(); } catch { /* not JSON */ }
-        if (answer?.status === "rejected") setProblem(`${file.name} wasn't added: ${answer.reason}.`);
-        else if (answer?.error && FILE_ERRORS[answer.error]) setProblem(`${file.name}: ${FILE_ERRORS[answer.error]}`);
-        else setProblem(`${file.name} was uploaded but couldn't be checked yet. It will appear once it has been; try adding it again if it doesn't.`);
+      if (up.error) {
+        // nothing arrived: let the reservation go so it doesn't count against the record
+        await supabase.rpc("zella_remove_record_file", { p_file_id: begin.data.id });
+        setProblem(`${file.name}: the upload didn't finish. Try adding it again.`);
+        continue;
       }
+      // the server checks what the file really is before anyone else can see it (record-files function)
+      const out = await runCheck({ id: begin.data.id, path: begin.data.path, file_name: file.name });
+      if (out.message) setProblem(out.message);
     }
     setBusy(false); setCaption(""); setVersion((v) => v + 1);
+  }
+  // Ask the server to check one upload (again). Safe to repeat: the file is uploaded once and checked until it passes
+  // or is refused. A file the check refuses outright is discarded, so nothing unchecked is left behind.
+  async function runCheck(f) {
+    const res = await supabase.functions.invoke("record-files", { body: { action: "check", file_id: f.id } });
+    const out = await checkOutcome(res, f.file_name);
+    if (out.state === "failed") await discardUpload(f);
+    return out;
+  }
+  async function discardUpload(f) {
+    const res = await supabase.rpc("zella_remove_record_file", { p_file_id: f.id });
+    if (!res.error) await supabase.storage.from("record-files").remove([f.path]);
+    return res;
+  }
+  async function checkAgain(f) {
+    setProblem(""); setBusy(true);
+    const out = await runCheck(f);
+    setBusy(false);
+    if (out.message) setProblem(out.message);
+    setVersion((v) => v + 1);
+  }
+  async function discard(f) {
+    setProblem(""); setBusy(true);
+    const res = await discardUpload(f);
+    setBusy(false);
+    if (res.error) setProblem(explain(res.error));
+    setVersion((v) => v + 1);
   }
   async function open(f) {
     // photos open in the browser; documents always download (a PDF is never shown inside the app's own address)
@@ -156,6 +185,7 @@ function RecordFiles({ workspace, record }) {
   }
 
   const rows = list.data?.rows ?? [];
+  const waiting = list.data?.waiting ?? [];
   if (list.data?.missing) return null; // before the update that adds files
   return (
     <>
@@ -172,6 +202,18 @@ function RecordFiles({ workspace, record }) {
               {(canRemoveAny || (f.uploaded_by === me.data && Date.now() - new Date(f.created_at).getTime() < 864e5)) && (
                 <button type="button" className="ba-btn ghost sm" onClick={() => remove(f)} aria-label={`Remove ${f.file_name}`}><Icon name="delete" size="sm" /></button>
               )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {waiting.length > 0 && (
+        <ul className="ba-files ba-files-waiting" aria-label="Your uploads waiting to be checked">
+          {waiting.map((f) => (
+            <li key={f.id}>
+              <span className="ba-file" aria-hidden="true"><Icon name="hourglass_empty" /></span>
+              <div><strong>{f.caption || f.file_name}</strong><small>Waiting for the file check · only you can see it</small></div>
+              <button type="button" className="ba-btn ghost sm" disabled={busy} onClick={() => checkAgain(f)}>Check again</button>
+              <button type="button" className="ba-btn ghost sm" disabled={busy} onClick={() => discard(f)} aria-label={`Discard ${f.file_name}`}>Discard</button>
             </li>
           ))}
         </ul>

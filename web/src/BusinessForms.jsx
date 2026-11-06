@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "./supabase";
 import { Field, Modal, personName } from "./BusinessUI";
 import { todayInput, zonedDateTime } from "./businessTime";
@@ -9,6 +9,7 @@ import { changed, findConflict, friendly } from "./BusinessShared";
 const SLOT_TAKEN_MSG = "That time overlaps another booking, or the gap kept between bookings. Pick another time, or tick the box to book it anyway.";
 import { EmailField, PhoneField } from "./formFields";
 import { checkEmail, validatePhone } from "./formValidation";
+import { addLead } from "./leadCreate";
 
 // Quick actions from the header: add a lead and book an appointment.
 // Both write with the signed-in member's session, so Row Level Security
@@ -88,6 +89,7 @@ export function AddLeadModal({ workspace, term, onClose, onSaved }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [showErrors, setShowErrors] = useState(false);
+  const inFlight = useRef(false);
   const set = (key) => (event) => setForm({ ...form, [key]: event.target.value });
 
   async function save(event) {
@@ -99,44 +101,17 @@ export function AddLeadModal({ workspace, term, onClose, onSaved }) {
     if (validatePhone(values.phone)) return setError(`Phone: ${validatePhone(values.phone)}`);
     if (checkEmail(values.email)) return setError(`Email: ${checkEmail(values.email)}`);
 
+    // One submission at a time: a second click or Enter while the first is still saving does nothing.
+    if (inFlight.current) return;
+    inFlight.current = true;
     setBusy(true);
     setError("");
-    // Through the lead pipeline (duplicate check, lead stage, contact deadline, task, new-lead callback): the same path
-    // leads from calls and the website take. Until sql/zella_staff_add_lead.sql is applied, fall back to a plain add.
-    const viaPipeline = await supabase.rpc("zella_staff_add_lead", {
-      p_business_id: workspace.id, p_first_name: values.first_name || null, p_last_name: values.last_name || null,
-      p_phone: values.phone || null, p_email: values.email ? values.email.toLowerCase() : null, p_source: values.source, p_notes: values.notes || null,
-    });
-    if (!viaPipeline.error) {
-      setBusy(false);
-      const r = viaPipeline.data ?? {};
-      const who = [values.first_name, values.last_name].filter(Boolean).join(" ") || "New lead";
-      return onSaved(r.result === "matched" ? `${who} is already in your list. The notes were added to their profile.`
-        : r.result === "needs_review" ? `${who} may already be in your list. Check Tasks to review the possible duplicate.`
-        : `${who} was added.`);
-    }
-    if (!/zella_staff_add_lead|schema cache|Could not find|does not exist/i.test(viaPipeline.error.message ?? "")) {
-      setBusy(false);
-      return setError(friendly(viaPipeline.error));
-    }
-    const { data, error: insertError } = await supabase
-      .from("customers")
-      .insert({
-        business_id: workspace.id,
-        first_name: values.first_name || null,
-        last_name: values.last_name || null,
-        phone: values.phone || null,
-        email: values.email ? values.email.toLowerCase() : null,
-        source: values.source,
-        notes: values.notes || null,
-        status: "active",
-      })
-      .select("id, first_name, last_name")
-      .single();
+    // Only through the lead pipeline (duplicate check, lead stage, contact deadline, task): never a direct insert.
+    const res = await addLead((fn, args) => supabase.rpc(fn, args), workspace.id, values);
+    inFlight.current = false;
     setBusy(false);
-
-    if (insertError) return setError(insertError.message);
-    onSaved(`${personName(data) ?? "New lead"} was added.`);
+    if (!res.ok) return setError(res.error);
+    onSaved(res.message);
   }
 
   return (

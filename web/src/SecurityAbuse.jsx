@@ -57,7 +57,8 @@ function NotSetUp() {
 }
 
 export default function SecurityAbuse({ permissions, onOpenBusiness }) {
-  const can = (p) => !permissions || permissions.includes(p);
+  // Only what the server said this admin may do; no list means nothing (the server checks every action again).
+  const can = (p) => Array.isArray(permissions) && permissions.includes(p);
   const [tab, setTab] = useState("overview");
   const [days, setDays] = useState(30);
   const [data, setData] = useState(null);

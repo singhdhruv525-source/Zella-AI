@@ -28,13 +28,16 @@ export async function callOwnerFunction(action, payload = {}) {
 
   if (error) {
     let message = fallback;
+    let code;
     try {
       const body = await error.context?.json();
       if (body?.error) message = body.error;
+      if (typeof body?.code === "string") code = body.code;
     } catch {
       // Keep the fallback message.
     }
-    throw new Error(message);
+    // The HTTP status and the server's code let callers tell "not allowed" from "couldn't reach the server".
+    throw Object.assign(new Error(message), { status: error.context?.status, code });
   }
 
   if (!data || data.error) throw new Error(data?.error || fallback);

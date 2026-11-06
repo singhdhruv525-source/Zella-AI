@@ -2998,7 +2998,9 @@ Deno.serve(withCors(async (req: Request) => {
     // Every action needs a permission; restricted roles only have what the owner gave them.
     const permission = PERMISSIONS[action] ?? ONBOARDING_PERMISSIONS[action] ?? PLATFORM_PERMISSIONS[action];
     if (!permission) return respond({ error: "Unknown action" }, 400);
-    let allowed = role === "zella_owner" || (role === "super_admin" && !["admins.manage", "roles.manage"].includes(permission));
+    // Every active admin may read their own role and permissions (me_admin): without it a restricted role that lacks
+    // businesses.view couldn't learn what it is allowed to do. It returns nothing about other people or businesses.
+    let allowed = action === "me_admin" || role === "zella_owner" || (role === "super_admin" && !["admins.manage", "roles.manage"].includes(permission));
     if (!allowed && RESTRICTED_ROLES.includes(role)) {
       const { data: grant } = await adminClient.from("platform_role_permissions").select("permission").eq("role", role).eq("permission", permission).maybeSingle();
       allowed = Boolean(grant);

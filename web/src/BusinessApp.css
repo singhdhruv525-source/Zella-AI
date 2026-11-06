@@ -2010,6 +2010,8 @@ html:not([data-zella-icons="ready"]) .ba-header-actions { flex-wrap: wrap; flex-
 .ba-files li { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 8px; border: 1px solid var(--ba-border); border-radius: 10px; }
 .ba-files li > div { min-width: 0; flex: 1; }
 .ba-files li strong, .ba-files li small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ba-files-waiting li { border-style: dashed; flex-wrap: wrap; }
+.ba-files-waiting .ba-file { display: grid; place-items: center; }
 .ba-file { flex-shrink: 0; width: 56px; height: 56px; display: grid; place-items: center; overflow: hidden; padding: 0; border: 1px solid var(--ba-border); border-radius: 8px; background: var(--ba-surface-2, #f4f3ef); cursor: pointer; }
 .ba-file img { width: 100%; height: 100%; object-fit: cover; }
 .ba-file-add { flex-wrap: wrap; align-items: center; }

@@ -30,6 +30,7 @@ import { businessState } from "./ownerFormat";
 import { navigate, segments, usePath } from "./router";
 import { maintenanceText, usePlatformInfo } from "./platformInfo";
 import { humanize } from "./copy/labels";
+import { ACCESS, hasPermission, useAdminAccess } from "./adminPermissions";
 
 const STATE_FILTERS = [
   ["all", "All businesses"],
@@ -107,10 +108,15 @@ function readRoute(path) {
   return route;
 }
 
+const loadAdminAccess = () => callOwnerFunction("me_admin");
 const pathFor = (label) => NAVIGATION.find((n) => n.label === label)?.path ?? "/";
 
 export default function OwnerDashboard({ onSignOut }) {
   const path = usePath();
+  // Permissions first: nothing below loads or shows protected data before they have (see the note further down).
+  const { access, retry: retryAccess } = useAdminAccess(loadAdminAccess, supabase.auth);
+  const me = access.me;
+  const authorized = access.state === ACCESS.AUTHORIZED;
   const notice = maintenanceText(usePlatformInfo());
   const { activePage, wizard, detailId, section, sub } = readRoute(path);
   const setActivePage = (label) => navigate(pathFor(label));
@@ -156,17 +162,17 @@ const loadDashboardData = useCallback(async () => {
 }, []);
 
 useEffect(() => {
-  if (activePage === "Businesses") {
+  if (activePage === "Businesses" && hasPermission(access, "businesses.view")) {
     loadDashboardData();
   }
-}, [activePage, loadDashboardData]);
+}, [activePage, loadDashboardData, access]);
 
 // The setup wizard needs the industry list even when opened from Overview.
 useEffect(() => {
-  if (wizard && industries.length === 0 && !loadingBusinesses && !businessError) {
+  if (wizard && hasPermission(access, "businesses.manage") && industries.length === 0 && !loadingBusinesses && !businessError) {
     loadDashboardData();
   }
-}, [wizard, industries.length, loadingBusinesses, businessError, loadDashboardData]);
+}, [wizard, access, industries.length, loadingBusinesses, businessError, loadDashboardData]);
 
 
   const isBusinesses = activePage === "Businesses";
@@ -186,22 +192,21 @@ useEffect(() => {
   }
 
   // Who is signed in: their role and permissions decide which pages the sidebar offers. The server checks the same
-  // permission for every action, so hiding a page is a convenience, never the protection.
-  const [me, setMe] = useState(null);
-  const [meFailed, setMeFailed] = useState(false);
+  // permission for every action, so hiding a page is a convenience, never the protection. Until the permissions have
+  // loaded, or if loading them fails, nothing protected is shown (adminPermissions.js).
   const [email, setEmail] = useState("");
   useEffect(() => {
     let live = true;
-    callOwnerFunction("me_admin").then((m) => live && setMe(m)).catch(() => live && setMeFailed(true));
     supabase.auth.getUser().then(({ data }) => live && setEmail(data?.user?.email ?? ""));
     return () => { live = false; };
-  }, []);
-  const allowed = (item) => !item.perm || meFailed || Boolean(me?.permissions?.includes(item.perm));
+  }, [me]);
+  const can = (perm) => hasPermission(access, perm);
+  const allowed = (item) => can(item.perm);
   const isCurrent = (item) => activePage === item.label;
   // A direct link to a page this role can't use says so, instead of drawing a page whose every action would fail.
-  const can = (perm) => !me || meFailed || Boolean(me.permissions?.includes(perm));
   const currentItem = NAVIGATION.find((n) => n.label === activePage);
-  const blocked = (wizard && !can("businesses.manage")) || (!wizard && currentItem && !allowed(currentItem) && Boolean(me));
+  const blocked = authorized && ((wizard && !can("businesses.manage")) || (!wizard && detailId && !can("businesses.view"))
+    || (!wizard && currentItem && !allowed(currentItem)));
 
   // ⌘K / Ctrl+K jumps to the business search, as the hint in the search box says.
   const searchBox = useRef(null);
@@ -233,7 +238,7 @@ useEffect(() => {
           <div className="owner-workspace-icon">Z</div>
           <div className="owner-workspace-copy">
             <strong>Zella Platform</strong>
-            <span>{me?.roleLabel ?? (meFailed ? "Platform admin" : "Loading role…")}</span>
+            <span>{me?.roleLabel ?? (access.state === ACCESS.LOADING ? "Loading role…" : "Role not loaded")}</span>
           </div>
         </div>
 
@@ -262,14 +267,14 @@ useEffect(() => {
           })}
         </nav>
 
-        <button type="button" className="owner-sidebar-bottom op-status-link" onClick={() => goTo("Platform Operations")}
+        {can("businesses.view") && <button type="button" className="owner-sidebar-bottom op-status-link" onClick={() => goTo("Platform Operations")}
           aria-label="Platform status: view system health" title="Platform status">
           <div className="owner-status-dot" />
           <div>
             <strong>Platform status</strong>
             <span>View system health</span>
           </div>
-        </button>
+        </button>}
       </aside>
 
       <main className="owner-main">
@@ -285,7 +290,7 @@ useEffect(() => {
           </div>
 
           <div className="owner-top-actions">
-            <div className="owner-search">
+            {can("businesses.view") && <div className="owner-search">
               <Icon name="search" size="sm" />
               <input
                 ref={searchBox}
@@ -300,8 +305,8 @@ useEffect(() => {
                 aria-label="Search businesses"
               />
               <kbd>⌘ K</kbd>
-            </div>
-            <AdminAlertsBell onOpenMonitoring={() => goTo("Platform Operations")} />
+            </div>}
+            {can("businesses.view") && <AdminAlertsBell onOpenMonitoring={() => goTo("Platform Operations")} />}
             <button className="owner-icon-button" type="button" aria-label="Appearance and theme" title="Appearance and theme"
               onClick={() => navigate("/settings/profile/appearance")}>
               <Icon name="palette" />
@@ -319,8 +324,26 @@ useEffect(() => {
           <AppearanceSaveNotice />
           <ErrorBoundary resetKey={path}>
           {notice && <div className="owner-form-error op-gap" role="status">{notice}</div>}
-          {blocked ? (
-            <div className="owner-empty-state" role="status">
+          {access.state === ACCESS.LOADING ? (
+            <div className="owner-empty-state" role="status" aria-busy="true" data-access="loading">
+              <strong>Checking your access…</strong>
+              <p>Your admin pages appear once your role has loaded.</p>
+            </div>
+          ) : access.state === ACCESS.FAILED ? (
+            <div className="owner-empty-state" role="alert" data-access="failed">
+              <strong>Your admin permissions couldn't be loaded</strong>
+              <p>Nothing is shown until they are. Check your connection and try again.</p>
+              <button type="button" className="owner-primary-button" onClick={retryAccess}>Retry</button>
+            </div>
+          ) : access.state === ACCESS.UNAUTHORIZED ? (
+            <div className="owner-empty-state" role="alert" data-access="unauthorized">
+              <strong>No admin access</strong>
+              <p>{access.reason === "MFA_REQUIRED" ? "Enter the code from your authenticator app: sign out and sign in again."
+                : "This account isn't allowed to use the Zella admin, or its access has changed. Sign out and sign in with an admin account, or ask a Zella owner."}</p>
+              <button type="button" className="owner-primary-button" onClick={onSignOut}>Sign out</button>
+            </div>
+          ) : blocked ? (
+            <div className="owner-empty-state" role="status" data-access="denied">
               <strong>This page isn't available</strong>
               <p>Your admin role ({me?.roleLabel ?? "restricted"}) doesn't include it. Ask a Zella owner if you need access.</p>
             </div>
@@ -351,7 +374,7 @@ useEffect(() => {
           ) : activePage === "Verification" ? (
             <VerificationQueue onOpenBusiness={setDetailId} onOpenSetup={(id) => setWizard({ businessId: id })} />
           ) : activePage === "Security & Abuse" ? (
-            <SecurityAbuse permissions={meFailed ? null : me?.permissions} onOpenBusiness={setDetailId} />
+            <SecurityAbuse permissions={me?.permissions ?? []} onOpenBusiness={setDetailId} />
           ) : activePage === "Audit Logs" ? (
             <AuditLogs onOpenBusiness={setDetailId} />
           ) : activePage === "Industry Configuration" ? (
