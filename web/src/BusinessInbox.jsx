@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "./supabase";
 import { Field, Icon, Pill, initials, personName } from "./BusinessUI";
 import { formatDay, formatTime, timeAgo, todayInput, zonedDateTime } from "./businessTime";
-import { Empty, Notice, PageHead, Segment, clock, explain, loadPeople, orThrow, plural, useLoad, callResult, isAnswered } from "./BusinessShared";
+import { Empty, Notice, PageHead, Pager, Segment, clock, explain, loadPeople, plural, useLoad, callResult, isAnswered } from "./BusinessShared";
+import { useServerPages } from "./crm/paging";
+import { inboxItem, replyBlock, supportProblems } from "./crm/inbox";
 import { EscalationControls, Transcript, isOpenEscalation } from "./BusinessProfile";
 import { Assignee, useRoster } from "./BusinessLeads";
 
@@ -17,22 +19,6 @@ export const needsHuman = (item) => item.kind === "call"
   ? isOpenEscalation(item.call)
   : !item.convo.ai_handled && Boolean(item.convo.handover_at) && item.convo.status !== "closed";
 
-export function buildItems(calls, convos, lastText) {
-  const callConvos = new Set(calls.map((c) => c.conversation_id).filter(Boolean));
-  return [
-    ...calls.map((x) => ({ key: `c${x.id}`, kind: "call", at: x.started_at ?? x.created_at, customer_id: x.customer_id, call: x })),
-    ...convos.filter((x) => x.channel !== "call" && !callConvos.has(x.id))
-      .map((x) => ({ key: `v${x.id}`, kind: "convo", at: x.last_message_at ?? x.created_at, customer_id: x.customer_id, convo: x, snippet: lastText[x.id] })),
-  ].filter((i) => i.at).sort((a, b) => new Date(b.at) - new Date(a.at));
-}
-
-function connected(integrations, channel) {
-  const rows = integrations.filter((i) => i.status === "active").map((i) => (i.provider ?? "").toLowerCase());
-  if (channel === "sms") return rows.some((p) => p.includes("telnyx"));
-  if (channel === "email") return rows.some((p) => /email|smtp|sendgrid|resend|gmail/.test(p));
-  return false;
-}
-
 function Bubble({ m, tz }) {
   if (m.sender_type === "system") return <p className="ba-msg-system">{m.content}</p>;
   const mine = m.sender_type !== "customer";
@@ -45,7 +31,13 @@ function Bubble({ m, tz }) {
   );
 }
 
-function ConversationPane({ item, person, workspace, roster, integrations, onChanged, onNotice, onOpenPerson, onBack }) {
+/**
+ * Display a conversation and its reply, assignment, and note controls; opening an unread
+ * conversation marks it read. Replies require contact and integration checks to allow them.
+ * Message reads fall back to provider records when no conversation messages are available;
+ * failures of all message sources show a retry notice, and note failures use an empty list.
+ */
+function ConversationPane({ item, person, personStatus, workspace, roster, integrations, onChanged, onNotice, onOpenPerson, onBack, onRetrySupport }) {
   const tz = workspace.timezone;
   const c = item.convo;
   const [body, setBody] = useState("");
@@ -54,13 +46,15 @@ function ConversationPane({ item, person, workspace, roster, integrations, onCha
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
 
-  const { data, reload } = useLoad(async () => {
+  const { data, error: threadError, reload } = useLoad(async () => {
     const [msgs, notes, sms, mail] = await Promise.all([
       supabase.from("conversation_messages").select("*").eq("conversation_id", c.id).order("created_at").limit(300),
       supabase.from("conversation_notes").select("*").eq("conversation_id", c.id).order("created_at").limit(100),
       supabase.from("sms_messages").select("*").eq("conversation_id", c.id).order("created_at").limit(300),
       supabase.from("email_messages").select("*").eq("conversation_id", c.id).order("created_at").limit(100),
     ]);
+    // B3-06: a thread that couldn't be read says so, instead of looking empty
+    if (msgs.error && sms.error && mail.error) throw msgs.error;
     let messages = msgs.error ? [] : msgs.data ?? [];
     if (!messages.length) {
       // Older conversations only have the provider-level records.
@@ -69,7 +63,7 @@ function ConversationPane({ item, person, workspace, roster, integrations, onCha
         ...(mail.error ? [] : mail.data ?? []).map((m) => ({ id: m.id, sender_type: m.direction === "inbound" ? "customer" : "agent", content: [m.subject, m.body_text].filter(Boolean).join("\n"), created_at: m.created_at })),
       ].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
     }
-    return { messages, notes: notes.error ? [] : notes.data ?? [] };
+    return { messages, notes: notes.error ? [] : notes.data ?? [], partial: Boolean(msgs.error || notes.error), notesFailed: Boolean(notes.error) };
   }, [c.id]);
 
   // Opening a conversation reads it.
@@ -93,17 +87,9 @@ function ConversationPane({ item, person, workspace, roster, integrations, onCha
   const update = (extra, message) => run("update", () => supabase.rpc("zella_inbox_update", { p_conversation_id: c.id, ...extra }), message);
 
   const channel = c.channel;
-  const optedOut = Boolean(person?.do_not_contact || (channel === "sms" && person?.do_not_sms) || (channel === "email" && person?.do_not_email));
-  const canReply = ["sms", "email"].includes(channel);
-  const isConnected = connected(integrations, channel);
-  const recipient = channel === "sms" ? person?.phone : person?.email;
-  let blockedWhy = "";
-  if (!canReply) blockedWhy = "Replies aren't available for this kind of conversation.";
-  else if (!person) blockedWhy = "This conversation isn't linked to a person yet.";
-  else if (optedOut) blockedWhy = "This person asked not to be contacted this way.";
-  else if (!recipient) blockedWhy = `Add ${channel === "sms" ? "a phone number" : "an email address"} to their profile first.`;
-  else if (!isConnected) blockedWhy = `${channel === "sms" ? "Text messaging" : "Email"} isn't connected yet. Connect it under Integrations to reply from here.`;
-
+  // B3-06: a reply needs the person's contact preferences and the channel's connection to be known. If either lookup
+  // failed, replying waits for a retry instead of guessing (the server refuses opted-out people in any case).
+  const blockedWhy = replyBlock({ channel, person, personStatus, integrations });
   const send = (event) => {
     event.preventDefault();
     if (!body.trim()) return;
@@ -134,6 +120,8 @@ function ConversationPane({ item, person, workspace, roster, integrations, onCha
         </div>
       </header>
       {error && <p className="ba-error" role="alert">{error}</p>}
+      {threadError && <Notice error={`Couldn't load this conversation's messages. ${threadError}`} onRetry={reload} />}
+      {data?.partial && <Notice error={data.notesFailed ? "Some messages or internal notes couldn't be loaded." : "Some messages couldn't be loaded."} onRetry={reload} />}
 
       <div className="ba-inbox-controls">
         <label className="ba-select"><span>Assigned to</span>
@@ -157,7 +145,8 @@ function ConversationPane({ item, person, workspace, roster, integrations, onCha
       </div>
 
       <div className="ba-thread">
-        {!data?.messages.length ? <p className="ba-muted">No messages yet.</p> : data.messages.map((m) => <Bubble key={m.id} m={m} tz={tz} />)}
+        {threadError && !data ? <p className="ba-muted">Messages unavailable.</p> : !data ? <p className="ba-muted">Loading…</p>
+          : !data.messages.length ? <p className="ba-muted">No messages yet.</p> : data.messages.map((m) => <Bubble key={m.id} m={m} tz={tz} />)}
       </div>
 
       {data?.notes.length > 0 && (
@@ -167,7 +156,9 @@ function ConversationPane({ item, person, workspace, roster, integrations, onCha
       )}
 
       <form className="ba-composer" onSubmit={send}>
-        {blockedWhy ? <p className="ba-muted ba-blocked">{blockedWhy}</p> : (
+        {blockedWhy ? (
+          <p className="ba-muted ba-blocked">{blockedWhy.text}{blockedWhy.retry && <> <button type="button" className="ba-btn sm" onClick={onRetrySupport}>Try again</button></>}</p>
+        ) : (
           <>
             {channel === "email" && <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder={c.subject ?? "Subject"} aria-label="Subject" />}
             <textarea rows={3} value={body} onChange={(e) => setBody(e.target.value)} placeholder={`Reply by ${channelName.toLowerCase()} to ${name}`} aria-label="Reply" />
@@ -186,9 +177,20 @@ function ConversationPane({ item, person, workspace, roster, integrations, onCha
   );
 }
 
+/**
+ * Display a selected call and callback controls, fetching its full details from calls_view.
+ * Retain the list row while details load or fail, and offer a retry for detail failures.
+ * Scheduled callback times are interpreted in the workspace timezone.
+ */
 function CallPane({ item, person, workspace, onChanged, onNotice, onOpenPerson, onBack }) {
   const tz = workspace.timezone;
-  const call = item.call;
+  // the list row has no transcript or recording link; the opened call is read in full, under calls_view's rules
+  const full = useLoad(async () => {
+    const res = await supabase.from("calls_view").select("*").eq("business_id", workspace.id).eq("id", item.call.id).maybeSingle();
+    if (res.error) throw res.error;
+    return res.data;
+  }, [workspace.id, item.call.id, item.call.updated_at]);
+  const call = full.data ?? item.call;
   const [cb, setCb] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -234,83 +236,93 @@ function CallPane({ item, person, workspace, onChanged, onNotice, onOpenPerson, 
           <div className="full ba-form-actions"><button type="submit" className="ba-btn primary sm" disabled={busy}>Schedule</button><button type="button" className="ba-btn sm" onClick={() => setCb(null)}>Cancel</button></div>
         </form>
       )}
+      {full.error && <Notice error={`Couldn't load this call's summary and transcript. ${full.error}`} onRetry={full.reload} />}
       {isOpenEscalation(call) && <EscalationControls call={call} onChanged={onChanged} onNotice={onNotice} />}
       {call.summary && <section><h3 className="ba-sub">Summary</h3><p className="ba-item-text">{call.summary}</p></section>}
       {call.recording_url && <section><h3 className="ba-sub">Recording</h3><audio controls preload="none" src={call.recording_url} style={{ width: "100%" }} /></section>}
       {call.transcript && <section><h3 className="ba-sub">Transcript</h3><Transcript transcript={call.transcript} /></section>}
-      {!call.summary && !call.transcript && <p className="ba-muted">No summary or transcript for this call.</p>}
+      {full.data && !call.summary && !call.transcript && <p className="ba-muted">No summary or transcript for this call.</p>}
     </div>
   );
 }
 
 const FILTERS = [["all", "All"], ["unread", "Unread"], ["calls", "Calls"], ["sms", "Texts"], ["email", "Email"], ["missed", "Missed calls"], ["human", "Needs a person"]];
+const INBOX_PAGE = 50;
 
+/**
+ * Show calls and conversations in one server-paged inbox, retaining the selected item
+ * across page changes. Previews, contacts, and integrations load separately and expose
+ * retryable failures; unavailable contact or integration checks pause replies.
+ */
 export function InboxPage({ workspace, refreshKey, onNotice, onOpenPerson }) {
   const tz = workspace.timezone;
   const [filter, setFilter] = useState("all");
-  const [selected, setSelected] = useState(null);
+  const [selected, setSelected] = useState(null);   // the open item; kept when the list moves to another page
   const roster = useRoster(workspace);
-  const { data, error, loading, reload } = useLoad(async () => {
-    const [calls, convos, ints] = await Promise.all([
-      supabase.from("calls_view").select("*").eq("business_id", workspace.id).order("created_at", { ascending: false }).limit(150),
-      supabase.from("conversations").select("*").eq("business_id", workspace.id).order("last_message_at", { ascending: false, nullsFirst: false }).limit(200),
-      supabase.from("integrations").select("provider, status").eq("business_id", workspace.id),
-    ]);
-    const c = orThrow(calls);
-    const v = orThrow(convos);
-    const ids = v.map((x) => x.id);
-    const msgs = ids.length ? await supabase.from("conversation_messages").select("conversation_id, content, created_at").in("conversation_id", ids).order("created_at", { ascending: false }).limit(600) : { data: [] };
-    const lastText = {};
-    (msgs.data ?? []).forEach((m) => { if (!lastText[m.conversation_id]) lastText[m.conversation_id] = m.content; });
-    const people = await loadPeople([...c, ...v].map((x) => x.customer_id));
-    const flagIds = [...new Set(v.map((x) => x.customer_id).filter(Boolean))];
-    const flags = flagIds.length ? await supabase.from("customers").select("id, do_not_contact, do_not_sms, do_not_email").in("id", flagIds) : { data: [] };
-    (flags.data ?? []).forEach((f) => { if (people[f.id]) Object.assign(people[f.id], f); });
-    return { items: buildItems(c, v, lastText), people, integrations: ints.error ? [] : ints.data ?? [] };
+
+  // B3-02: calls and conversations merged, filtered and paged by the server (zella_inbox_page), newest activity first
+  const list = useServerPages("zella_inbox_page", { p_business_id: workspace.id, p_filter: filter }, INBOX_PAGE);
+  const { reload } = list;
+  useEffect(() => { if (refreshKey) reload(); }, [refreshKey, reload]);
+  const items = list.rows.map(inboxItem);
+
+  // B3-06: what supports the list is loaded separately, for this page only; each can fail on its own and says so
+  const convoIds = items.filter((i) => i.kind === "convo").map((i) => i.convo.id);
+  const current = selected ? items.find((i) => i.key === selected.key) ?? selected : null;
+  const peopleIds = [...new Set([...items.map((i) => i.customer_id), current?.customer_id].filter(Boolean))].sort();
+  const previews = useLoad(async () => {
+    if (!convoIds.length) return {};
+    const res = await supabase.rpc("zella_inbox_previews", { p_business_id: workspace.id, p_conversation_ids: convoIds });
+    if (res.error) throw res.error;
+    return Object.fromEntries((res.data ?? []).map((r) => [r.conversation_id, r.preview]));
+  }, [workspace.id, convoIds.join(","), list.data]);
+  const people = useLoad(async () => loadPeople(peopleIds), [peopleIds.join(","), list.data]);
+  const ints = useLoad(async () => {
+    const res = await supabase.from("integrations").select("provider, status").eq("business_id", workspace.id);
+    if (res.error) throw res.error;
+    return res.data ?? [];
   }, [workspace.id, refreshKey]);
+  const problems = supportProblems({ previews, people, integrations: ints });
+  const retrySupport = () => { if (previews.error) previews.reload(); if (people.error) people.reload(); if (ints.error) ints.reload(); };
+  const integrations = { status: ints.error ? "failed" : ints.loading && !ints.data ? "loading" : "ok", rows: ints.data ?? [] };
+  // while this page's people are loading, an earlier page's map can't answer for them (no "not linked" flash)
+  const personStatus = people.error ? "failed" : people.loading ? "loading" : "ok";
+  const peopleMap = people.data ?? {};
 
-  const all = data?.items ?? [];
-  const unreadCount = all.filter((i) => i.kind === "convo" && isUnread(i.convo)).length;
-  const rows = useMemo(() => all.filter((i) => {
-    if (filter === "unread") return i.kind === "convo" && isUnread(i.convo);
-    if (filter === "calls") return i.kind === "call";
-    if (filter === "sms") return i.kind === "convo" && i.convo.channel === "sms";
-    if (filter === "email") return i.kind === "convo" && i.convo.channel === "email";
-    if (filter === "missed") return i.kind === "call" && i.call.status === "missed";
-    if (filter === "human") return needsHuman(i);
-    return true;
-  }), [all, filter]);
-
-  const current = selected ? all.find((i) => i.key === selected) : null;
-  const person = current ? data.people[current.customer_id] : null;
+  const unreadCount = Number(list.data?.unread_total) || 0;
+  const person = current ? peopleMap[current.customer_id] ?? null : null;
+  const listError = list.status === "stale" ? `${list.error} Showing the last list loaded.` : list.error;
 
   return (
     <>
       <PageHead crumb="Calls & messages / Inbox" title="Inbox"
         sub={unreadCount ? `${plural(unreadCount, "conversation")} unread.` : "Every call, text and email in one place."} />
-      <Notice error={error} onRetry={reload} />
+      <Notice error={listError} onRetry={reload} />
+      {problems && <div className="ba-banner" role="status" data-partial="inbox"><span>{problems}</span><button type="button" className="ba-btn sm" onClick={retrySupport}>Try again</button></div>}
       <div className="ba-inbox-filters">
         <Segment label="Inbox filter" value={filter} onChange={setFilter}
           options={FILTERS.map(([k, l]) => [k, k === "unread" && unreadCount ? `${l} (${unreadCount})` : l])} />
       </div>
       <div className={`ba-inbox ${current ? "has-open" : ""}`}>
         <aside className="ba-inbox-list" aria-label="Conversations">
-          {loading && !data ? <p className="ba-muted ba-pad">Loading…</p> : !rows.length ? (
+          {list.loading && !list.data ? <p className="ba-muted ba-pad">Loading…</p> : list.status === "failed" ? <p className="ba-muted ba-pad">The inbox couldn't be loaded.</p> : !items.length ? (
             <div className="ba-pad"><Empty title="Nothing here">{filter === "all" ? "Calls and messages appear as soon as your phone line and messaging are live." : "No conversations match this filter."}</Empty></div>
-          ) : rows.slice(0, 200).map((i) => {
-            const p = data.people[i.customer_id];
+          ) : items.map((i) => {
+            const p = peopleMap[i.customer_id];
             const isCall = i.kind === "call";
             const missed = isCall && i.call.status === "missed";
             const unread = !isCall && isUnread(i.convo);
             const ch = isCall ? "call" : i.convo.channel;
-            const label = personName(p) ?? (isCall ? i.call.from_number ?? "Unknown caller" : "Unknown contact");
+            const label = personName(p) ?? (isCall ? i.call.from_number ?? "Unknown caller" : people.error && i.customer_id ? "Name unavailable" : "Unknown contact");
             const priority = !isCall ? i.convo.priority : null;
+            const snippet = !isCall && previews.data ? previews.data[i.convo.id] : undefined;
             return (
-              <button key={i.key} type="button" className={`ba-inbox-row ${selected === i.key ? "active" : ""} ${unread ? "unread" : ""}`} onClick={() => setSelected(i.key)}>
+              <button key={i.key} type="button" className={`ba-inbox-row ${selected?.key === i.key ? "active" : ""} ${unread ? "unread" : ""}`} onClick={() => setSelected(i)}>
                 <span className={`ba-thread-icon ${missed ? "bad" : ""}`}><Icon name={missed ? "phone_missed" : (CHANNEL[ch] ?? CHANNEL.other)[0]} size="sm" /></span>
                 <span className="ba-inbox-text">
                   <span className="ba-inbox-line"><strong>{label}</strong><time title={`${formatDay(i.at, tz)} ${formatTime(i.at, tz)}`}>{timeAgo(i.at)}</time></span>
-                  <small>{isCall ? (missed ? "Missed call" : i.call.summary || (isAnswered(i.call.status) ? `${i.call.ai_handled ? "AI answered" : "Team answered"} · ${clock(i.call.duration_seconds)}` : `Call ${callResult(i.call.status).label.toLowerCase()}`)) : i.snippet || i.convo.subject || `${(CHANNEL[ch] ?? CHANNEL.other)[1]} conversation`}</small>
+                  <small>{isCall ? (missed ? "Missed call" : i.call.summary || (isAnswered(i.call.status) ? `${i.call.ai_handled ? "AI answered" : "Team answered"} · ${clock(i.call.duration_seconds)}` : `Call ${callResult(i.call.status).label.toLowerCase()}`))
+                    : snippet || (previews.error ? "Preview unavailable" : i.convo.subject || `${(CHANNEL[ch] ?? CHANNEL.other)[1]} conversation`)}</small>
                   <span className="ba-inbox-tags">
                     {unread && <i className="ba-dot" aria-label="Unread" />}
                     {needsHuman(i) && <Pill tone="danger">Needs a person</Pill>}
@@ -322,13 +334,17 @@ export function InboxPage({ workspace, refreshKey, onNotice, onOpenPerson }) {
               </button>
             );
           })}
+          {list.data && (list.total > INBOX_PAGE || list.page > 0) && (
+            <Pager page={list.page} pages={list.pages} total={list.total} hasNext={list.hasNext} busy={list.loading} size={INBOX_PAGE}
+              onPage={(n) => (n > list.page ? list.next() : list.prev())} noun="item" />
+          )}
         </aside>
         <section className="ba-inbox-detail">
           {!current ? <div className="ba-pad"><Empty title="Choose a conversation">Select one on the left to read it, reply, assign it or add a note.</Empty></div>
             : current.kind === "call"
               ? <CallPane key={current.key} item={current} person={person} workspace={workspace} onChanged={reload} onNotice={onNotice} onOpenPerson={onOpenPerson} onBack={() => setSelected(null)} />
-              : <ConversationPane key={current.key} item={current} person={person} workspace={workspace} roster={roster} integrations={data.integrations}
-                onChanged={reload} onNotice={onNotice} onOpenPerson={onOpenPerson} onBack={() => setSelected(null)} />}
+              : <ConversationPane key={current.key} item={current} person={person} personStatus={current.customer_id ? personStatus : "ok"} workspace={workspace} roster={roster} integrations={integrations}
+                onChanged={reload} onNotice={onNotice} onOpenPerson={onOpenPerson} onBack={() => setSelected(null)} onRetrySupport={retrySupport} />}
         </section>
       </div>
     </>

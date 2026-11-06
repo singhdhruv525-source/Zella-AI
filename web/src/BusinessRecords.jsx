@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "./supabase";
 import { Field, Icon, Modal, Pill, personName } from "./BusinessUI";
 import { formatDay, formatTime, timeAgo } from "./businessTime";
@@ -6,6 +6,8 @@ import { Empty, Notice, PAGE_SIZE, PageHead, Pager, explain, orThrow, useLoad } 
 import { PersonPicker } from "./BusinessWork";
 import { useRoster } from "./BusinessLeads";
 import { FILE_ERRORS, checkOutcome } from "./recordFileCheck";
+import { useServerPages, useSettled } from "./crm/paging";
+import { linkIdsOf, linkTitle, LINK_BATCH } from "./crm/links";
 
 // One set of screens for every industry. The business's record types
 // (fields, statuses, names) come from crm_record_types.
@@ -36,10 +38,16 @@ export function useRecordTypes(workspace, refreshKey) {
   return { ...state, reload: () => setVersion((v) => v + 1) };
 }
 
+// titles: { status: "loading" | "ok" | "failed", map } for the linked records on the page shown (B3-07), or a plain
+// id -> title map
+/**
+ * Format a field for display in tz, masking sensitive values before handling emptiness.
+ * Linked records accept a title map or lookup state; absent values display an em dash.
+ */
 export function showValue(field, value, tz, titles) {
   if (field.sensitive) return "Hidden";
   if (value === undefined || value === null || value === "") return "—";
-  if (field.type === "record") return titles?.[value] ?? "Linked record";
+  if (field.type === "record") return linkTitle(titles, value);
   if (field.type === "bool") return value ? "Yes" : "No";
   if (field.type === "date") return formatDay(value, tz);
   if (field.type === "datetime") return `${formatDay(value, tz)} · ${formatTime(value, tz)}`;
@@ -395,38 +403,37 @@ function RecordModal({ workspace, type, record, canManage, onBook, onClose, onSa
 /* The list page                                                       */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Show server-filtered, non-archived records for one configured type and open their editor.
+ * Resolve linked titles for visible rows in batches, with distinct lookup failure states.
+ * Failed list refreshes retain the last results with a retry notice.
+ */
 export function RecordsPage({ workspace, type, query, refreshKey, canManage, onNotice, onOpenPerson, onBook }) {
   const tz = workspace.timezone;
   const [filter, setFilter] = useState("open");
-  const [page, setPage] = useState(0);
   const [modal, setModal] = useState(null); // {record} or {new:true}
-  const { data, error, loading, reload } = useLoad(async () =>
-    orThrow(await supabase.from("crm_records").select("*, customers(id, first_name, last_name, phone, email)")
-      .eq("business_id", workspace.id).eq("type_key", type.key).is("archived_at", null).order("updated_at", { ascending: false }).limit(500)),
-  [workspace.id, type.key, refreshKey]);
+  // B3-04: filtered, searched and paged by the server across every record of this type (archived ones stay out)
+  const search = useSettled((query ?? "").trim());
+  const list = useServerPages("zella_records_page", { p_business_id: workspace.id, p_type_key: type.key, p_filter: filter, p_query: search || null }, PAGE_SIZE);
+  const { reload } = list;
+  useEffect(() => { if (refreshKey) reload(); }, [refreshKey, reload]);
+  const visible = list.rows;
+  const error = list.status === "stale" ? `${list.error} Showing the last list loaded.` : list.error;
 
-  useEffect(() => { setPage(0); setFilter("open"); }, [type.key]);
-
-  const rows = useMemo(() => {
-    const text = (query ?? "").trim().toLowerCase();
-    return (data ?? []).filter((r) => {
-      const closed = type.closed_statuses.includes(r.status);
-      if (filter === "open" && closed) return false;
-      if (filter === "closed" && !closed) return false;
-      if (!["open", "closed", "all"].includes(filter) && r.status !== filter) return false;
-      if (!text) return true;
-      return [r.title, personName(r.customers), ...Object.values(r.data ?? {}).map(String)].some((v) => (v ?? "").toLowerCase().includes(text));
-    });
-  }, [data, filter, query, type]);
-  useEffect(() => setPage(0), [filter, query]);
-  const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
-  const visible = rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  useEffect(() => { setFilter("open"); }, [type.key]);
   const cols = type.columns.map((k) => type.fields.find((f) => f.key === k)).filter(Boolean);
-  // titles of linked records shown in the table (this business's own records only, read under row security)
-  const linkIds = useMemo(() => [...new Set((data ?? []).flatMap((r) => cols.filter((c) => c.type === "record").map((c) => r.data?.[c.key])).filter(Boolean))].slice(0, 300), [data, cols]);
-  const linked = useLoad(async () => (linkIds.length
-    ? Object.fromEntries((orThrow(await supabase.from("crm_records").select("id, title").in("id", linkIds)) ?? []).map((x) => [x.id, x.title]))
-    : {}), [linkIds.join(",")]);
+  // B3-07: titles of the records linked from the rows on this page only (bounded by the page size), read under row
+  // security in batches, so another business's record, or one that was deleted, resolves to "unavailable"
+  const linkIds = linkIdsOf(visible, cols);
+  const linked = useLoad(async () => {
+    const map = {};
+    for (let i = 0; i < linkIds.length; i += LINK_BATCH) {
+      const rows = orThrow(await supabase.from("crm_records").select("id, title").eq("business_id", workspace.id).in("id", linkIds.slice(i, i + LINK_BATCH)));
+      for (const x of rows ?? []) map[x.id] = x.title;
+    }
+    return map;
+  }, [workspace.id, linkIds.join(",")]);
+  const titles = { status: linked.error ? "failed" : linked.loading ? "loading" : "ok", map: linked.data ?? {} };
   const statusOf = (key) => type.statuses.find((s) => s.key === key) ?? { label: key, tone: "" };
 
   function saved(message) {
@@ -434,8 +441,14 @@ export function RecordsPage({ workspace, type, query, refreshKey, canManage, onN
     onNotice(message);
     reload();
   }
+  // a duplicate found while saving may be on another page: read it on its own
+  /**
+   * Open a duplicate record from the visible page or fetch it within this business.
+   * Missing data and returned query errors leave the modal unchanged; rejected queries propagate.
+   */
   async function openExisting(id) {
-    const row = (data ?? []).find((r) => r.id === id);
+    const row = visible.find((r) => r.id === id)
+      ?? (await supabase.from("crm_records").select("*, customers(id, first_name, last_name, phone, email)").eq("business_id", workspace.id).eq("id", id).maybeSingle()).data;
     if (row) setModal({ record: row });
   }
 
@@ -458,7 +471,7 @@ export function RecordsPage({ workspace, type, query, refreshKey, canManage, onN
             </select>
           </label>
         </div>
-        {loading && !data ? <div className="ba-panel-body"><p className="ba-muted">Loading…</p></div> : !rows.length ? (
+        {list.loading && !list.data ? <div className="ba-panel-body"><p className="ba-muted">Loading…</p></div> : list.status === "failed" ? null : !visible.length ? (
           <div className="ba-panel-body">
             <Empty title={query || filter !== "open" ? "No matches" : `No ${type.plural.toLowerCase()} yet`}>
               {query || filter !== "open" ? "Try a different search or filter." : `Add the first ${type.singular.toLowerCase()}. Zella's AI receptionist can add them from calls too, once it's live.`}
@@ -474,7 +487,7 @@ export function RecordsPage({ workspace, type, query, refreshKey, canManage, onN
                     <tr key={r.id} onClick={() => setModal({ record: r })} tabIndex={0} onKeyDown={(e) => e.key === "Enter" && setModal({ record: r })}>
                       <td><strong>{r.title}</strong></td>
                       <td><Pill tone={statusOf(r.status).tone}>{statusOf(r.status).label}</Pill></td>
-                      {cols.map((c) => <td key={c.key}>{showValue(c, r.data?.[c.key], tz, linked.data)}</td>)}
+                      {cols.map((c) => <td key={c.key}>{showValue(c, r.data?.[c.key], tz, titles)}</td>)}
                       {type.link_person && <td>{personName(r.customers) ?? "—"}</td>}
                       <td>{timeAgo(r.updated_at)}</td>
                     </tr>
@@ -482,7 +495,8 @@ export function RecordsPage({ workspace, type, query, refreshKey, canManage, onN
                 </tbody>
               </table>
             </div>
-            <Pager page={page} pages={pages} total={rows.length} onPage={setPage} noun={type.singular.toLowerCase()} />
+            <Pager page={list.page} pages={list.pages} total={list.total} hasNext={list.hasNext} busy={list.loading}
+              onPage={(n) => (n > list.page ? list.next() : list.prev())} noun={type.singular.toLowerCase()} />
           </>
         )}
       </section>

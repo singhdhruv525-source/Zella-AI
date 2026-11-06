@@ -1,5 +1,6 @@
 import { SidebarBrand } from "./navigation/SidebarBrand";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ATTENTION_START, attentionCount, attentionReduce, attentionWarning } from "./crm/attention";
 import {
   AutomationsPage, CalendarPage, CallsPage, CustomersPage, LeadsPage,
   MessagesPage, ReceptionistPage,
@@ -94,6 +95,11 @@ function Blocked({ workspace, onSignOut }) {
   );
 }
 
+/**
+ * Render the business workspace, configured navigation, page content, and shared dialogs.
+ * Refresh the waiting-caller count on entry, refresh requests, and every minute;
+ * failed checks show an unavailable or stale-count notice with a retry action.
+ */
 function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackName, onSignOut, onReload, base = "/app", navPreview, invites }) {
   const path = usePath();
   const route = readPage(path, base);
@@ -125,7 +131,8 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
   const setNotice = (message) => setNoticeRaw(warm(message, workspace));
   const [search, setSearch] = useState("");
   const [profileId, setProfileId] = useState(null);
-  const [attention, setAttention] = useState(0);
+  const [attentionState, setAttentionState] = useState(() => ({ ...ATTENTION_START, businessId: workspace.id }));
+  const attention = attentionCount(attentionState);
   const [error, setError] = useState("");
   const term = makeTerm(workspace);
   const records = useRecordTypes(workspace, 0);
@@ -170,12 +177,26 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
     }
   }
 
-  // Callers waiting for a person. Quietly stays at 0 until the latest Zella update is applied.
+  // Callers waiting for a person (B3-01). A failed check never reads as "nobody is waiting": the last known count is
+  // kept and marked as possibly out of date, or, if no check has worked yet, no count is claimed. Only the newest
+  // check for this business may change the state (crm/attention.js).
+  const attentionSeq = useRef(0);
   const countAttention = useCallback(async () => {
-    const { count, error: countError } = await supabase
-      .from("calls_view").select("id", { count: "exact", head: true })
-      .eq("business_id", workspace.id).eq("needs_human", true).is("escalation_resolved_at", null);
-    setAttention(countError ? 0 : count ?? 0);
+    const seq = ++attentionSeq.current;
+    const businessId = workspace.id;
+    let event;
+    try {
+      const { count, error: countError } = await supabase
+        .from("calls_view").select("id", { count: "exact", head: true })
+        .eq("business_id", businessId).eq("needs_human", true).is("escalation_resolved_at", null);
+      event = countError ? { type: "fail", businessId } : { type: "ok", count, businessId };
+    } catch {
+      event = { type: "fail", businessId };
+    }
+    if (seq === attentionSeq.current) setAttentionState((s) => attentionReduce(s, event));
+  }, [workspace.id]);
+  useEffect(() => {
+    setAttentionState(attentionReduce(ATTENTION_START, { type: "reset", businessId: workspace.id }));
   }, [workspace.id]);
   useEffect(() => {
     countAttention();
@@ -291,6 +312,16 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
           )}
           <LiveNoticeBanner workspace={workspace} tick={refreshKey} canManage={["owner", "admin", "manager"].includes(workspace.role)} onNotice={setNotice} />
           {current.key !== "integrations" && <ReconnectBanner workspace={workspace} tick={refreshKey} onGo={setPage} />}
+          {attentionWarning(attentionState) && current.key !== "attention" && (
+            <div className="ba-banner" role="status" data-attention={attentionState.status}>
+              <span>
+                {attentionState.status === "stale"
+                  ? <>Couldn&apos;t refresh the callers waiting for a person. Showing the last count{attentionState.checkedAt ? ` from ${attentionState.checkedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}.</>
+                  : <>Couldn&apos;t check whether any callers are waiting for a person.</>}
+              </span>
+              <button type="button" className="ba-btn sm" onClick={countAttention}>Try again</button>
+            </div>
+          )}
           {attention > 0 && current.key !== "attention" && (
             <div className="ba-banner alert" role="alert">
               <span><strong>{attention === 1 ? "1 caller needs" : `${attention} callers need`} a person.</strong> Your AI receptionist handed them over.</span>

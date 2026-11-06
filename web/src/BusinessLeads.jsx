@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "./supabase";
 import { Field, Icon, Modal, Pill, initials, personName } from "./BusinessUI";
 import { formatDay, formatTime, timeAgo, todayInput, zonedDateTime } from "./businessTime";
 import { makeTerm } from "./businessWorkspace";
-import { Empty, Notice, PAGE_SIZE, PageHead, Pager, Segment, clock, explain, orThrow, useLoad, callResult, isAnswered } from "./BusinessShared";
+import { Empty, Notice, PAGE_SIZE, PageHead, Pager, Segment, clock, explain, useLoad, callResult, isAnswered } from "./BusinessShared";
+import { useServerPages, useSettled } from "./crm/paging";
 
 /* The lead pipeline: a board by status, or a list, with who owns each lead and
    when the next follow-up is due. Details open in a panel so this page stays calm. */
@@ -34,12 +35,14 @@ export function sourceGroup(source) {
 }
 const sourceName = (source) => SOURCE_GROUPS.find(([k]) => k === sourceGroup(source))[1];
 
-// A lead is anyone with a lead status, plus recent people who were never given one.
+// A lead is anyone with a lead status, plus recent people who were never given one. The same rules decide the list,
+// its filters and its counts on the server (zella_leads_page, sql/zella_batch3_pagination.sql).
 export function leadStage(p) {
   if (p.lead_stage) return p.lead_stage;
   return p.last_contacted_at ? "contacted" : "new";
 }
-const isLead = (p) => Boolean(p.lead_stage) || Date.now() - new Date(p.created_at).getTime() < 30 * 86400000;
+// newest of each pipeline column shown on the board; the column's header always shows its full count
+const BOARD_SIZE = 40;
 export function isOverdue(p, now = Date.now()) {
   const stage = leadStage(p);
   if (CLOSED.includes(stage)) return false;
@@ -84,41 +87,35 @@ function LeadCard({ p, tz, nameOf, onOpen }) {
   );
 }
 
+/**
+ * Show server-filtered leads as a paged list or the newest leads in each pipeline column.
+ * Search settles before querying; a selected lead remains open when it leaves the page.
+ * Failed refreshes retain the last results with a retry notice.
+ */
 export function LeadsPage({ workspace, query, refreshKey, onNotice, onOpenPerson }) {
   const tz = workspace.timezone;
   const [view, setView] = useState("pipeline");
   const [filter, setFilter] = useState("all");
   const [source, setSource] = useState("all");
   const [assignee, setAssignee] = useState("all");
-  const [openId, setOpenId] = useState(null);
-  const [page, setPage] = useState(0);
+  const [opened, setOpened] = useState(null);   // the lead whose panel is open (kept if it leaves the page)
   const roster = useRoster(workspace);
 
-  const { data, error, loading, reload } = useLoad(async () =>
-    orThrow(await supabase.from("customers").select("*").eq("business_id", workspace.id).order("created_at", { ascending: false }).limit(1000)),
-  [workspace.id, refreshKey]);
-
-  const [me, setMe] = useState(null);
-  useEffect(() => { supabase.auth.getUser().then(({ data: u }) => setMe(u?.user?.id ?? null)).catch(() => {}); }, []);
-
-  const leads = useMemo(() => {
-    const q = (query ?? "").trim().toLowerCase();
-    return (data ?? []).filter(isLead).filter((p) => {
-      const stage = leadStage(p);
-      if (filter === "follow" && (CLOSED.includes(stage) || !(stage === "new" || p.next_follow_up_at || isOverdue(p)))) return false;
-      if (filter === "overdue" && !isOverdue(p)) return false;
-      if (filter === "mine" && p.assigned_to !== me) return false;
-      if (source !== "all" && sourceGroup(p.source) !== source) return false;
-      if (assignee === "none" ? p.assigned_to : assignee !== "all" && p.assigned_to !== assignee) return false;
-      if (!q) return true;
-      return [personName(p), p.phone, p.email, p.company_name].some((v) => v && v.toLowerCase().includes(q));
-    });
-  }, [data, filter, source, assignee, query, me]);
-
-  const overdueCount = (data ?? []).filter(isLead).filter((p) => isOverdue(p)).length;
-  useEffect(() => setPage(0), [filter, source, assignee, query, view]);
-  const pages = Math.max(1, Math.ceil(leads.length / PAGE_SIZE));
-  const visible = leads.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  // B3-03: filtered, counted and paged by the server across every lead this person may see. The board shows the
+  // newest of each column; the list pages through all of them.
+  const search = useSettled((query ?? "").trim());
+  const list = useServerPages("zella_leads_page", {
+    p_business_id: workspace.id, p_filter: filter, p_source: source, p_assignee: assignee, p_query: search || null, p_view: view,
+  }, view === "pipeline" ? BOARD_SIZE : PAGE_SIZE);
+  const { reload } = list;
+  useEffect(() => { if (refreshKey) reload(); }, [refreshKey, reload]);
+  const leads = list.rows;
+  const data = list.data;
+  const error = list.error;
+  const overdueCount = Number(data?.overdue_total) || 0;
+  const columnCount = (key) => Number(data?.columns?.[key]) || 0;
+  const openId = opened?.id ?? null;
+  const setOpenId = (id) => setOpened(id ? leads.find((p) => p.id === id) ?? null : null);
   const changed = () => reload();
 
   return (
@@ -128,7 +125,7 @@ export function LeadsPage({ workspace, query, refreshKey, onNotice, onOpenPerson
         <Segment label="Lead view" value={view} onChange={setView} options={[["pipeline", "Pipeline"], ["list", "List"]]} />
       </PageHead>
 
-      <Notice error={error} onRetry={reload} />
+      <Notice error={list.status === "stale" ? `${error} Showing the last list loaded.` : error} onRetry={reload} />
       <div className="ba-toolbar ba-lead-tools">
         <Segment label="Lead filter" value={filter} onChange={setFilter}
           options={[["all", "All"], ["follow", "Needs follow-up"], ["overdue", `Overdue${overdueCount ? ` (${overdueCount})` : ""}`], ["mine", "Mine"]]} />
@@ -148,7 +145,7 @@ export function LeadsPage({ workspace, query, refreshKey, onNotice, onOpenPerson
         )}
       </div>
 
-      {loading && !data ? <p className="ba-muted">Loading…</p> : !leads.length ? (
+      {list.status === "loading" || (list.loading && !data) ? <p className="ba-muted">Loading…</p> : list.status === "failed" ? null : !leads.length ? (
         <Empty title={query || filter !== "all" || source !== "all" || assignee !== "all" ? "No matches" : "No leads yet"}>
           New leads from calls, your website and the team will appear here.
         </Empty>
@@ -156,12 +153,13 @@ export function LeadsPage({ workspace, query, refreshKey, onNotice, onOpenPerson
         <div className="ba-board" role="list">
           {COLUMNS.map((col) => {
             const items = leads.filter((p) => col.stages.includes(leadStage(p)));
+            const count = columnCount(col.key);
             return (
-              <section key={col.key} className="ba-board-col" role="listitem" aria-label={col.label}>
-                <header><strong>{col.label}</strong><span>{items.length}</span></header>
+              <section key={col.key} className="ba-board-col" role="listitem" aria-label={`${col.label}, ${count}`}>
+                <header><strong>{col.label}</strong><span>{count}</span></header>
                 <div className="ba-board-list">
-                  {items.slice(0, 40).map((p) => <LeadCard key={p.id} p={p} tz={tz} nameOf={roster.nameOf} onOpen={setOpenId} />)}
-                  {items.length > 40 && <p className="ba-muted">+{items.length - 40} more. Use a filter to narrow down.</p>}
+                  {items.map((p) => <LeadCard key={p.id} p={p} tz={tz} nameOf={roster.nameOf} onOpen={setOpenId} />)}
+                  {count > items.length && <p className="ba-muted">+{count - items.length} more. Switch to the list, or use a filter or search.</p>}
                   {!items.length && <p className="ba-muted ba-board-empty">None</p>}
                 </div>
               </section>
@@ -174,7 +172,7 @@ export function LeadsPage({ workspace, query, refreshKey, onNotice, onOpenPerson
             <table className="ba-table">
               <thead><tr><th>Name</th><th>Status</th><th>Source</th><th>Assigned to</th><th>Next follow-up</th><th>Last contact</th><th>Priority</th></tr></thead>
               <tbody>
-                {visible.map((p) => {
+                {leads.map((p) => {
                   const name = personName(p) ?? "Unnamed";
                   const stage = leadStage(p);
                   const col = COLUMNS.find((c) => c.stages.includes(stage)) ?? COLUMNS[0];
@@ -193,14 +191,15 @@ export function LeadsPage({ workspace, query, refreshKey, onNotice, onOpenPerson
               </tbody>
             </table>
           </div>
-          <Pager page={page} pages={pages} total={leads.length} onPage={setPage} noun="lead" />
+          <Pager page={list.page} pages={list.pages} total={list.total} hasNext={list.hasNext} busy={list.loading}
+            onPage={(n) => (n > list.page ? list.next() : list.prev())} noun="lead" />
         </section>
       )}
 
       {openId && (
         <LeadPanel
           key={openId}
-          person={(data ?? []).find((p) => p.id === openId)}
+          person={leads.find((p) => p.id === openId) ?? opened}
           workspace={workspace}
           roster={roster}
           onClose={() => setOpenId(null)}
