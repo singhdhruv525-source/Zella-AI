@@ -266,9 +266,11 @@ export function InboxPage({ workspace, refreshKey, onNotice, onOpenPerson }) {
   useEffect(() => { if (refreshKey) reload(); }, [refreshKey, reload]);
   const items = list.rows.map(inboxItem);
 
-  // B3-06: what supports the list is loaded separately, for this page only; each can fail on its own and says so
+  const current = selected ? items.find((i) => i.key === selected.key) ?? selected : null;
+
+  // B3-06: support data loads separately; contacts also include the retained selection.
   const convoIds = items.filter((i) => i.kind === "convo").map((i) => i.convo.id);
-  const peopleIds = [...new Set(items.map((i) => i.customer_id).filter(Boolean))].sort();
+  const peopleIds = [...new Set([...items.map((i) => i.customer_id), current?.customer_id].filter(Boolean))].sort();
   const previews = useLoad(async () => {
     if (!convoIds.length) return {};
     const res = await supabase.rpc("zella_inbox_previews", { p_business_id: workspace.id, p_conversation_ids: convoIds });
@@ -289,7 +291,6 @@ export function InboxPage({ workspace, refreshKey, onNotice, onOpenPerson }) {
   const peopleMap = people.data ?? {};
 
   const unreadCount = Number(list.data?.unread_total) || 0;
-  const current = selected ? items.find((i) => i.key === selected.key) ?? selected : null;
   const person = current ? peopleMap[current.customer_id] ?? null : null;
   const listError = list.status === "stale" ? `${list.error} Showing the last list loaded.` : list.error;
 
