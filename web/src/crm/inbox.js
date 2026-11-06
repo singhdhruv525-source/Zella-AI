@@ -47,3 +47,25 @@ export function supportProblems({ previews, people, integrations }) {
   const list = failed.length === 1 ? failed[0] : `${failed.slice(0, -1).join(", ")} and ${failed[failed.length - 1]}`;
   return `Some details couldn't be loaded: ${list}. The list is complete; replies wait until contact details can be checked.`;
 }
+
+// B3-06: one conversation's thread from its four lookups (each a Supabase { data, error }). A thread that couldn't be
+// read at all throws; one that was read only in part is marked partial, so the pane says so instead of looking
+// complete. Older conversations have only provider-level records (sms_messages, email_messages): when
+// conversation_messages has none, those are used, and a failure in either one makes the thread partial too.
+export function threadFrom({ msgs, notes, sms, mail }) {
+  if (msgs.error && sms.error && mail.error) throw msgs.error;
+  let messages = msgs.error ? [] : msgs.data ?? [];
+  const fallback = !messages.length;
+  if (fallback) {
+    messages = [
+      ...(sms.error ? [] : sms.data ?? []).map((m) => ({ id: m.id, sender_type: m.direction === "inbound" ? "customer" : "agent", content: m.message_body, created_at: m.created_at })),
+      ...(mail.error ? [] : mail.data ?? []).map((m) => ({ id: m.id, sender_type: m.direction === "inbound" ? "customer" : "agent", content: [m.subject, m.body_text].filter(Boolean).join("\n"), created_at: m.created_at })),
+    ].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  }
+  return {
+    messages,
+    notes: notes.error ? [] : notes.data ?? [],
+    partial: Boolean(msgs.error || notes.error || (fallback && (sms.error || mail.error))),
+    notesFailed: Boolean(notes.error),
+  };
+}
