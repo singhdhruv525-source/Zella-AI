@@ -198,6 +198,10 @@ const AUTO = (dispatchEnabled) => ({ json: { workflows: [], deadLetters: 0, disp
     const d = await txt(p, "[data-dialog=verify]");
     check(/Alpha Plumbing/.test(d) && /Business registration/.test(d) && /registration\.pdf/.test(d) && /Mark as verified/.test(d), "B2-06 Verify opens a confirmation with business, document, file and action");
     check(await p.evaluate(() => document.activeElement?.innerText) === "Cancel", "B2-06 focus starts on Cancel");
+    await p.keyboard.press("Shift+Tab");
+    check(await p.evaluate(() => document.activeElement?.textContent) === "Confirm: mark verified", "B2-06 reverse Tab stays in verification");
+    await p.keyboard.press("Tab");
+    check(await p.evaluate(() => document.activeElement?.textContent) === "Cancel", "B2-06 Tab wraps in verification");
     await p.click("[data-dialog=verify] >> text=Cancel");
     check(!(await p.isVisible("[data-dialog=verify]")) && !log.actions.includes("document_review"), "B2-06 Cancel makes no review request");
     await p.waitForTimeout(150);
@@ -207,10 +211,16 @@ const AUTO = (dispatchEnabled) => ({ json: { workflows: [], deadLetters: 0, disp
     check(!(await p.isVisible("[data-dialog=verify]")) && !log.actions.includes("document_review"), "B2-06 Escape closes without a request");
     const before = log.n.documents_queue;
     await p.click("tr:has-text('registration.pdf') >> button:has-text('Verify')"); await p.waitForSelector("[data-dialog=verify]");
-    await p.click("[data-dialog=verify] >> button:has-text('Confirm')"); await p.click("[data-dialog=verify] >> button:has-text('Verifying')", { force: true, timeout: 500 }).catch(() => {});
+    await p.evaluate(() => {
+      const confirm = document.querySelector('[data-dialog=verify] .owner-primary-button');
+      // Both events reach React before its disabled-state render commits.
+      confirm.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      confirm.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
     await p.waitForSelector("[data-dialog=verify]", { state: "detached" });
     check(log.n.document_review === 1, `B2-06 Confirm sends exactly one review request (got ${log.n.document_review})`);
     await p.waitForSelector("text=Nothing waiting for review.");
+    check(await p.evaluate(() => document.activeElement?.textContent) === "Verification", "B2-06 success focuses persistent heading");
     check(log.n.documents_queue > before && await p.isVisible("text=marked verified"), "B2-06 successful review refreshes the queue");
     await ctx.close(); }
   { const { ctx, p } = await open(b, { documents_queue: () => ({ json: { available: true, documents: [DOC], totals: { pending_review: 1 } } }), document_review: () => ({ status: 403, json: { error: "Your admin role doesn't allow this." } }) });
@@ -221,6 +231,13 @@ const AUTO = (dispatchEnabled) => ({ json: { workflows: [], deadLetters: 0, disp
     await ctx.close(); }
   { const { ctx, p, log } = await open(b, { documents_queue: () => ({ json: { available: true, documents: [DOC], totals: { pending_review: 1 } } }), document_review: () => ({ json: { ok: true } }) });
     await p.goto(BASE + "/verification"); await p.waitForSelector("text=registration.pdf");
+    await p.click("tr:has-text('registration.pdf') >> button:has-text('Reject')");
+    await p.keyboard.press("Shift+Tab");
+    check(await p.evaluate(() => document.activeElement?.textContent) === "Go back", "B2-06 reverse Tab stays in rejection with disabled submit");
+    await p.keyboard.press("Tab");
+    check(await p.evaluate(() => document.activeElement?.tagName) === "INPUT", "B2-06 Tab wraps in rejection");
+    await p.keyboard.press("Escape");
+    check(await p.evaluate(() => document.activeElement?.textContent) === "Reject", "B2-06 rejection cancellation restores opener");
     await p.click("tr:has-text('registration.pdf') >> button:has-text('Reject')");
     await p.fill(".owner-modal input", "Name doesn't match"); await p.click(".owner-modal >> button:has-text('Reject document')");
     await p.waitForSelector(".owner-modal", { state: "detached" });

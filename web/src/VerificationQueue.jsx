@@ -40,15 +40,27 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
   const [dialogError, setDialogError] = useState("");
   const inFlight = useRef(false);
   const returnFocus = useRef(null);
+  const heading = useRef(null);
   const openDialog = (setter, doc) => { returnFocus.current = document.activeElement; setDialogError(""); setter(doc); };
-  const closeDialog = useCallback(() => {
+  const closeDialog = useCallback((success = false) => {
     setVerifying(null); setRejecting(null); setDialogError("");
-    const el = returnFocus.current; returnFocus.current = null;
-    if (el && typeof el.focus === "function") setTimeout(() => el.focus(), 0);
+    const el = success === true ? heading.current : returnFocus.current; returnFocus.current = null;
+    if (el && typeof el.focus === "function") el.focus();
   }, []);
   useEffect(() => {
     if (!verifying && !rejecting) return undefined;
-    const onKey = (e) => { if (e.key === "Escape" && !inFlight.current) closeDialog(); };
+    // Keep the existing initial and cancellation focus behaviour; useDialogFocus also
+    // restores on cleanup, which would conflict with successful-review focus.
+    const onKey = (e) => {
+      if (e.key === "Escape" && !inFlight.current) closeDialog();
+      if (e.key !== "Tab") return;
+      const box = document.querySelector('[data-dialog]');
+      const controls = [...(box?.querySelectorAll('button:not([disabled]), input:not([disabled])') ?? [])];
+      const first = controls[0], last = controls[controls.length - 1];
+      if (!first) { e.preventDefault(); box?.focus(); }
+      else if (e.shiftKey && (document.activeElement === first || !controls.includes(document.activeElement))) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && (document.activeElement === last || !controls.includes(document.activeElement))) { e.preventDefault(); first.focus(); }
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [verifying, rejecting, closeDialog]);
@@ -89,7 +101,7 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
       setNotice(`${KIND[doc.kind] ?? doc.kind} for ${doc.business_name} marked ${next}.`);
       setReason("");
       inFlight.current = false;
-      closeDialog();
+      closeDialog(true);
       await load();
     } catch (err) {
       // the dialog stays open with the reason; the document's status is whatever the server still has
@@ -108,7 +120,7 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
       <div className="owner-page-heading">
         <div>
           <div className="owner-eyebrow">Businesses</div>
-          <h1>Verification</h1>
+          <h1 ref={heading} tabIndex={-1}>Verification</h1>
           <p>Documents that prove each business is real and that the person who registered it may act for it.</p>
         </div>
         <div className="op-heading-actions">
@@ -191,7 +203,7 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
 
       {rejecting && createPortal(
         <div className="owner-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && !busy && closeDialog()}>
-          <div className="bd-confirm owner-modal danger" role="dialog" aria-modal="true" aria-label="Reject document">
+          <div className="bd-confirm owner-modal danger" role="dialog" aria-modal="true" aria-label="Reject document" data-dialog="reject" tabIndex={-1}>
             <div className="zs-dialog-head">
               <span className="zs-dialog-icon"><Icon name="gpp_bad" /></span>
               <h3>Reject {KIND[rejecting.kind] ?? "document"}?</h3>
@@ -215,7 +227,7 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
 
       {verifying && createPortal(
         <div className="owner-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && !busy && closeDialog()}>
-          <div className="bd-confirm owner-modal" role="dialog" aria-modal="true" aria-labelledby="vq-verify-title" aria-describedby="vq-verify-body" data-dialog="verify">
+          <div className="bd-confirm owner-modal" role="dialog" aria-modal="true" aria-labelledby="vq-verify-title" aria-describedby="vq-verify-body" data-dialog="verify" tabIndex={-1}>
             <div className="zs-dialog-head">
               <span className="zs-dialog-icon"><Icon name="verified" /></span>
               <h3 id="vq-verify-title">Mark this document verified?</h3>

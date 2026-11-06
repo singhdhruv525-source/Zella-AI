@@ -17,7 +17,7 @@ const CHECKS = [
 const FILTERS = [
   ["all", "All"],
   ["live", "Live"],
-  ["off", "Off"],
+  ["off", "Not live"],
   ["missing", "Missing knowledge"],
   ["ready", "Ready to connect"],
 ];
