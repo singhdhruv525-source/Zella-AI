@@ -95,14 +95,16 @@ export async function loadPeople(ids) {
   return Object.fromEntries(rows.map((p) => [p.id, p]));
 }
 
-export function Pager({ page, pages, total, onPage, noun }) {
-  if (total <= PAGE_SIZE) return <div className="ba-table-foot"><span>{plural(total, noun)}</span></div>;
+// hasNext / busy: for lists paged by the server (Batch 3), where the server says whether another page exists
+export function Pager({ page, pages, total, onPage, noun, hasNext, busy = false, size = PAGE_SIZE }) {
+  const more = hasNext ?? page < pages - 1;
+  if (total <= size && page === 0 && !more) return <div className="ba-table-foot"><span>{plural(total, noun)}</span></div>;
   return (
     <div className="ba-table-foot">
-      <span>{plural(total, noun)} · page {page + 1} of {pages}</span>
+      <span>{plural(total, noun)} · page {page + 1} of {Math.max(pages, page + 1)}</span>
       <div className="ba-page-actions">
-        <button type="button" className="ba-btn sm" disabled={page === 0} onClick={() => onPage(page - 1)}>Previous</button>
-        <button type="button" className="ba-btn sm" disabled={page >= pages - 1} onClick={() => onPage(page + 1)}>Next</button>
+        <button type="button" className="ba-btn sm" disabled={page === 0 || busy} onClick={() => onPage(page - 1)}>Previous</button>
+        <button type="button" className="ba-btn sm" disabled={!more || busy} onClick={() => onPage(page + 1)}>Next</button>
       </div>
     </div>
   );
