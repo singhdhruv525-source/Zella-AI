@@ -268,7 +268,8 @@ export function InboxPage({ workspace, refreshKey, onNotice, onOpenPerson }) {
 
   // B3-06: what supports the list is loaded separately, for this page only; each can fail on its own and says so
   const convoIds = items.filter((i) => i.kind === "convo").map((i) => i.convo.id);
-  const peopleIds = [...new Set(items.map((i) => i.customer_id).filter(Boolean))].sort();
+  // the open conversation's person too: it stays open when the list moves to a page it isn't on
+  const peopleIds = [...new Set([...items.map((i) => i.customer_id), selected?.customer_id].filter(Boolean))].sort();
   const previews = useLoad(async () => {
     if (!convoIds.length) return {};
     const res = await supabase.rpc("zella_inbox_previews", { p_business_id: workspace.id, p_conversation_ids: convoIds });

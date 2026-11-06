@@ -183,6 +183,12 @@ const isAttentionCount = (q) => q.url().includes("/rest/v1/calls_view") && q.url
   await s.p.locator(".ba-segment button", { hasText: /^All/ }).click(); await s.p.waitForTimeout(1500);
   await s.p.locator(".ba-inbox-row", { hasText: /Message 5/ }).first().click(); await s.p.waitForTimeout(1500);
   check(await s.p.locator(".ba-thread .ba-msg").count() > 0, "B3-02 a conversation opens with its thread");
+  // the open conversation keeps its contact details when the list moves to a page it isn't on
+  const replyBefore = await text(s.p, ".ba-composer");
+  await s.p.locator(".ba-inbox-list .ba-table-foot button", { hasText: "Next" }).click(); await s.p.waitForTimeout(1800);
+  const replyAfter = await text(s.p, ".ba-composer");
+  check(!/isn't linked to a person/.test(replyAfter) && replyAfter === replyBefore, "B3-02 paging away keeps the open conversation's contact details", replyAfter.slice(0, 80));
+  await s.p.locator(".ba-inbox-list .ba-table-foot button", { hasText: "Previous" }).click(); await s.p.waitForTimeout(1200);
   await shot(s.p, "b3-02-inbox");
   check(s.errors.length === 0, "B3-02 no page errors", s.errors.join(" | "));
   await s.ctx.close();
