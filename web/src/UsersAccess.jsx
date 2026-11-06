@@ -81,7 +81,9 @@ export default function UsersAccess() {
     if (checkEmail(invite.email, { required: true })) return;
     const label = ROLE_LABELS[invite.role] ?? invite.role;
     const ok = await run("admin_invite", invite, (r) =>
-      r.invited
+      r.resent
+        ? `Invitation re-emailed to ${r.email}. The existing role was unchanged.`
+        : r.invited
         ? `Invitation emailed to ${r.email} as ${label}.`
         : `${r.email} already had a Zella login and can now use the admin dashboard as ${label}.`
     );
@@ -149,7 +151,7 @@ export default function UsersAccess() {
 
       {confirm && (
         <div className="ic-warning op-gap">
-          <span>{confirm.message}</span>
+          <span>{confirm.message} {confirm.role && roleExplanation(confirm.role, roles)}</span>
           <div>
             <button type="button" className="owner-secondary-button op-small" onClick={() => setConfirm(null)} disabled={busy}>Cancel</button>
             <button type="button" className="owner-primary-button op-small" onClick={confirm.run} disabled={busy}>
@@ -184,7 +186,8 @@ export default function UsersAccess() {
                         onChange={(e) => {
                           const role = e.target.value;
                           setConfirm({
-                            message: `Change ${a.email} to ${ROLE_LABELS[role]}? ${roleExplanation(role, roles)}`,
+                            message: `Change ${a.email} to ${ROLE_LABELS[role]}?`,
+                            role,
                             label: "Change role",
                             run: () => run("admin_update", { userId: a.user_id, role }, () => `${a.email} is now a ${ROLE_LABELS[role]}.`),
                           });

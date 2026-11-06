@@ -55,21 +55,19 @@ A failed refresh keeps the error showing until a refresh succeeds. Answers that 
 | `tests/browser/admin-batch2.cjs` (new) | browser tests for all eight fixes |
 | `tests/browser/admin-permissions.cjs` | Batch 1 account-switch test now waits for the new account's menu instead of reading it while permissions are still loading (a timing fix in the test, not a behavior change) |
 
-## 3. Tests
+## 3. Historical tests (reported by the original author)
 
 | Command | Kind | Result |
 |---|---|---|
 | `cd web && node --test tests/batch2_unit.test.mjs tests/batch1_unit.test.mjs` | unit | **15 / 15** (4 new + 11 Batch 1) |
-| `node tests/browser/admin-batch2.cjs` | Chromium, **stubbed backend** | **64 / 64**: B2-01 11, B2-02 13, B2-03 6, B2-04 8, B2-05 5, B2-06 10, B2-07 6, B2-08 6 |
+| `node tests/browser/admin-batch2.cjs` | Chromium, **stubbed backend** | **64 / 64** (historical total only; breakdown corrected): B2-01 11, B2-02 13, B2-03 6, B2-04 8, B2-05 5, B2-06 9, B2-07 6, B2-08 6 |
 | `node tests/browser/admin-permissions.cjs` (Batch 1) | stubbed backend | **49 / 49** (3 runs in a row) |
 | `node tests/browser/crm-batch1.cjs` (Batch 1) | stubbed backend | **13 / 13** |
 | `node tests/browser/security-journeys.cjs` (existing admin and CRM routes) | stubbed backend | **23 / 23** |
 | `node tests/browser/page-sweep.cjs admin` (existing, every admin page, every role) | stubbed backend, compared with a build of `main` | 301 page checks; **52 error-boundary pages on `main` and the same 52 on this branch: none new, none fixed** (Settings pages under the sweep's empty canned answers; existing, see risks) |
-| `node tests/browser/page-sweep.cjs crm` | stubbed backend, compared with `main` | see the result line added below |
 | `tests/security/batch1/run.sh` | isolated Postgres | all passed |
 | `tests/security/run.sh` (existing security suite) | isolated Postgres | all passed |
 | `tests/deploy/run_all.sh` (all suites, 28-industry call matrix, rollback, web build, function tests) | isolated Postgres plus local runtime | **25 / 25**; 28-industry matrix 391 / 391 (current voice-rules) and 335 / 335 (deployed-era) |
-| `node tests/workflows/industry_matrix.mjs`, `node tests/workflows/salon_launch.mjs` (28-industry CRM workflows) | isolated staging copy | see the result line added below |
 | `web/supabase/functions/check.sh` | type check | all 11 functions ok (no function changed) |
 | `npm run build` | build | ok |
 | `npx oxlint src` | lint | 0 errors; 183 warnings (185 on `main`) |
@@ -88,3 +86,9 @@ A failed refresh keeps the error showing until a refresh succeeds. Answers that 
 
 ## 6. Rollback
 Redeploy the previous Pages build, or revert this branch's commit on `main` (`git revert <commit>`), then let Pages rebuild. There is no data or schema to undo.
+
+## Review corrections
+
+The Off filter is now labeled Not live; its selection predicate is unchanged. Dashboard requests use a sequence as well as the authorization epoch. Invitation resends accurately preserve the existing role, and role confirmations read current definitions. Both review dialogs contain keyboard focus; cancellation restores the opener and success focuses the persistent Verification heading.
+
+Current review validation: Batch 2 and Batch 1 unit suites passed 15/15; the web build passed. Batch 2, admin-permissions and CRM Batch 1 browser suites were attempted but could not start because Playwright is not installed. Added browser assertions remain unverified. Request-ordering, resend-notice and delayed-role regression coverage remains outstanding. No database, edge-function, deployment or production operations were run.
