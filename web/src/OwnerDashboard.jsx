@@ -31,6 +31,8 @@ import { navigate, segments, usePath } from "./router";
 import { maintenanceText, usePlatformInfo } from "./platformInfo";
 import { humanize } from "./copy/labels";
 import { ACCESS, hasPermission, useAdminAccess } from "./adminPermissions";
+import { friendlyError } from "./admin/adminOps";
+import { isCount } from "./admin/loadStatus";
 
 const STATE_FILTERS = [
   ["all", "All businesses"],
@@ -128,38 +130,41 @@ export default function OwnerDashboard({ onSignOut }) {
   const [stateFilter, setStateFilter] = useState("all");
   const [businesses, setBusinesses] = useState([]);
   const [industries, setIndustries] = useState([]);
-  const [stats, setStats] = useState({
-    totalBusinesses: 0,
-    activeWorkspaces: 0,
-    pendingInvitations: 0,
-    provisioningIssues: 0,
-});
+  // null until loaded: a statistic the server didn't send shows "—", never a made-up 0
+  const [stats, setStats] = useState(null);
   const [loadingBusinesses, setLoadingBusinesses] = useState(false);
   const [businessError, setBusinessError] = useState("");
+  // when the list last loaded; with an error after that, the list on screen is the earlier one (stale)
+  const [businessesLoadedAt, setBusinessesLoadedAt] = useState(null);
+  // bumped whenever the signed-in admin's access goes away or changes, so an answer for the earlier session is dropped
+  const businessEpoch = useRef(0);
 const loadDashboardData = useCallback(async () => {
+  const epoch = businessEpoch.current;
   setLoadingBusinesses(true);
-  setBusinessError("");
 
   try {
     const data = await callOwnerFunction("dashboard_data");
-
-    setBusinesses(data.businesses ?? []);
-    setIndustries(data.industries ?? []);
-    setStats(data.stats ?? {
-      totalBusinesses: 0,
-      activeWorkspaces: 0,
-      pendingInvitations: 0,
-      provisioningIssues: 0,
-    });
+    if (epoch !== businessEpoch.current) return;
+    setBusinesses(Array.isArray(data.businesses) ? data.businesses : []);
+    setIndustries(Array.isArray(data.industries) ? data.industries : []);
+    setStats(data.stats && typeof data.stats === "object" ? data.stats : null);
+    setBusinessError("");
+    setBusinessesLoadedAt(new Date());
   } catch (error) {
+    if (epoch !== businessEpoch.current) return;
     console.error("Dashboard data loading failed:", error);
-    setBusinessError(
-      error.message || "Could not load businesses. Please try again."
-    );
+    setBusinessError(friendlyError(error) || "Could not load businesses. Please try again.");
   } finally {
-    setLoadingBusinesses(false);
+    if (epoch === businessEpoch.current) setLoadingBusinesses(false);
   }
 }, []);
+
+  // Signed out, switching account or re-checking access: drop every business loaded for the earlier session.
+  useEffect(() => {
+    if (authorized) return;
+    businessEpoch.current++;
+    setBusinesses([]); setIndustries([]); setStats(null); setBusinessError(""); setBusinessesLoadedAt(null); setLoadingBusinesses(false);
+  }, [authorized]);
 
 useEffect(() => {
   if (activePage === "Businesses" && hasPermission(access, "businesses.view")) {
@@ -176,6 +181,8 @@ useEffect(() => {
 
 
   const isBusinesses = activePage === "Businesses";
+  const businessesStale = Boolean(businessError && businessesLoadedAt);
+  const statValue = (v) => (!businessesLoadedAt ? (loadingBusinesses ? "..." : "—") : isCount(v) ? v : "—");
 
   const visibleBusinesses = businesses.filter((business) => {
     if (!matchesState(business, stateFilter)) return false;
@@ -439,31 +446,38 @@ useEffect(() => {
               </div>
 
 
+              {businessesStale && (
+                <div className="ic-warning op-gap" role="status" data-load="stale">
+                  <span>The latest refresh failed ({businessError}). Showing businesses from {businessesLoadedAt.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}; they may be out of date.</span>
+                  <div><button type="button" className="owner-secondary-button op-small" onClick={loadDashboardData} disabled={loadingBusinesses}>{loadingBusinesses ? "Retrying..." : "Retry"}</button></div>
+                </div>
+              )}
+
               <div className="owner-stat-grid">
   <StatCard
     label="Total businesses"
-    value={loadingBusinesses ? "..." : stats.totalBusinesses}
+    value={statValue(stats?.totalBusinesses)}
     note="Registered businesses"
     icon="storefront"
   />
 
   <StatCard
     label="Active workspaces"
-    value={loadingBusinesses ? "..." : stats.activeWorkspaces}
+    value={statValue(stats?.activeWorkspaces)}
     note="Currently active"
     icon="check_circle"
   />
 
   <StatCard
     label="Pending invitations"
-    value={loadingBusinesses ? "..." : stats.pendingInvitations}
+    value={statValue(stats?.pendingInvitations)}
     note="Awaiting acceptance"
     icon="mail"
   />
 
   <StatCard
     label="Provisioning issues"
-    value={loadingBusinesses ? "..." : stats.provisioningIssues}
+    value={statValue(stats?.provisioningIssues)}
     note="Failed invitations"
     icon="flag"
   />
@@ -486,6 +500,7 @@ useEffect(() => {
                         <option key={key} value={key}>{label}</option>
                       ))}
                     </select>
+                    {businessesLoadedAt && <span className="op-muted op-updated" data-load-updated>{businessesStale ? "Last updated" : "Updated"} {businessesLoadedAt.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</span>}
                     <button
                       className="owner-secondary-button"
                       type="button"
@@ -512,7 +527,7 @@ useEffect(() => {
     </thead>
 
     <tbody>
-      {businessError ? (
+      {businessError && !businessesLoadedAt ? (
         <tr>
           <td colSpan={7}>
             <div className="owner-empty-state">
@@ -528,7 +543,7 @@ useEffect(() => {
             </div>
           </td>
         </tr>
-      ) : loadingBusinesses && businesses.length === 0 ? (
+      ) : !businessesLoadedAt ? (
         <tr>
           <td colSpan={7}>
             <div className="owner-empty-state">
@@ -647,7 +662,8 @@ useEffect(() => {
   <span>
     {loadingBusinesses
       ? "Refreshing business records..."
-      : `${visibleBusinesses.length} of ${businesses.length} businesses shown`}
+      : !businessesLoadedAt ? "Businesses not loaded"
+      : `${visibleBusinesses.length} of ${businesses.length} businesses shown${businessesStale ? " (earlier result)" : ""}`}
   </span>
   <span>Business data is loaded through the secured server function.</span>
 </div>

@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import "./OwnerPages.css";
 import { callOwnerFunction } from "./CreateBusinessWizard";
 import { Pill } from "./OwnerOverview";
 import { stageLabel, timeAgo } from "./ownerFormat";
-import { friendlyError } from "./admin/adminOps";
+import { LoadNotice, UpdatedAt, useRefreshable } from "./admin/loadState";
+import { emptyText, metric } from "./admin/loadStatus";
 
 const CHECKS = [
   ["knowledge", "Knowledge", "Services or FAQs added"],
@@ -21,9 +22,13 @@ const FILTERS = [
   ["ready", "Ready to connect"],
 ];
 
+// Live only when the server reports it active AND its phone (Telnyx) and voice (Vapi) connections active. New agents
+// start "active" in the database before anything is connected, so status alone doesn't mean it answers calls.
+const isLive = (agent) => agent?.status === "active" && agent?.checks?.phone === true && agent?.checks?.voice === true;
+
 function matches(agent, filter) {
-  if (filter === "live") return agent.status === "active";
-  if (filter === "off") return agent.status !== "active";
+  if (filter === "live") return isLive(agent);
+  if (filter === "off") return !isLive(agent);
   if (filter === "missing") return !agent.checks.knowledge;
   if (filter === "ready") {
     return agent.checks.knowledge && agent.checks.hours && agent.checks.greeting && !agent.checks.phone;
@@ -31,35 +36,29 @@ function matches(agent, filter) {
   return true;
 }
 
+// The status the server reports (ai_agents.status: active, paused, disabled); anything else shows as unknown.
+const STATUS_PILL = { paused: ["warning", "Paused"], disabled: ["neutral", "Off"] };
+function agentPill(agent) {
+  if (isLive(agent)) return ["success", "Live"];
+  if (agent?.status === "active") return ["neutral", "Not connected"];
+  return STATUS_PILL[agent?.status] ?? ["neutral", "Unknown"];
+}
+const loadAgents = () => callOwnerFunction("agents_list");
+
 export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const state = useRefreshable(loadAgents);
+  const { data, loading } = state;
+  const load = state.reload;
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      setData(await callOwnerFunction("agents_list"));
-    } catch (err) {
-      setError(friendlyError(err));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
 
   const query = search.trim().toLowerCase();
   const agents = (data?.agents ?? []).filter(
     (a) => matches(a, filter) && (!query || `${a.businessName} ${a.industry} ${a.name}`.toLowerCase().includes(query))
   );
   const s = data?.stats;
-  const show = (v) => (loading && !data ? "…" : v ?? 0);
+  const show = (v) => metric(v, state);   // missing or not loaded: "—", never 0
+  const liveCount = Array.isArray(data?.agents) ? data.agents.filter(isLive).length : null;
 
   return (
     <section className="owner-page">
@@ -69,16 +68,19 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
           <h1>AI receptionists</h1>
           <p>Every client's receptionist, how complete its setup is, and whether it's connected and answering calls.</p>
         </div>
-        <button type="button" className="owner-secondary-button" onClick={load} disabled={loading}>
-          {loading ? "Loading..." : "↻ Refresh"}
-        </button>
+        <div className="op-heading-actions">
+          <UpdatedAt r={state} />
+          <button type="button" className="owner-secondary-button" onClick={load} disabled={loading}>
+            {loading ? "Loading..." : "↻ Refresh"}
+          </button>
+        </div>
       </div>
 
-      {error && <div className="owner-form-error op-gap">Could not load AI receptionists: {error}</div>}
+      <LoadNotice r={state} what="AI receptionists" />
 
       <div className="owner-stat-grid">
         <div className="owner-stat-card"><div className="owner-stat-top"><span>Receptionists</span></div><div className="owner-stat-value">{show(s?.total)}</div><div className="owner-stat-note">One per business</div></div>
-        <div className="owner-stat-card"><div className="owner-stat-top"><span>Live</span></div><div className="owner-stat-value">{show(s?.live)}</div><div className="owner-stat-note">Answering calls</div></div>
+        <div className="owner-stat-card"><div className="owner-stat-top"><span>Live</span></div><div className="owner-stat-value">{show(liveCount)}</div><div className="owner-stat-note">Active, with phone and voice connected</div></div>
         <div className="owner-stat-card"><div className="owner-stat-top"><span>Ready to connect</span></div><div className="owner-stat-value">{show(s?.readyToConnect)}</div><div className="owner-stat-note">Set up, phone not connected</div></div>
         <div className="owner-stat-card"><div className="owner-stat-top"><span>Missing knowledge</span></div><div className="owner-stat-value">{show(s?.missingKnowledge)}</div><div className="owner-stat-note">No services or FAQs</div></div>
       </div>
@@ -147,9 +149,8 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
                     </div>
                   </td>
                   <td>
-                    <Pill tone={a.status === "active" ? "success" : a.status === "paused" ? "warning" : "neutral"}>
-                      {a.status === "active" ? "Live" : a.status === "paused" ? "Paused" : "Off"}
-                    </Pill>
+                    {/* an unrecognised or missing status is shown as unknown, never as live or off */}
+                    <Pill tone={agentPill(a)[0]}>{agentPill(a)[1]}</Pill>
                   </td>
                   <td>
                     <div className="owner-business-cell">
@@ -168,11 +169,9 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
                 <tr>
                   <td colSpan={6}>
                     <div className="op-empty">
-                      {loading && !data
-                        ? "Loading AI receptionists..."
-                        : data?.agents?.length
+                      {data?.agents?.length
                         ? "No receptionists match this filter."
-                        : "No AI receptionists yet. One is created with each new business."}
+                        : emptyText(state, Array.isArray(data?.agents) ? "No AI receptionists yet. One is created with each new business." : "Not reported.", "AI receptionists")}
                     </div>
                   </td>
                 </tr>

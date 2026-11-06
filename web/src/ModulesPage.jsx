@@ -1,29 +1,15 @@
-import { useCallback, useEffect, useState } from "react";
 import "./OwnerPages.css";
 import { callOwnerFunction } from "./CreateBusinessWizard";
 import { Pill } from "./OwnerOverview";
-import { friendlyError } from "./admin/adminOps";
+import { LoadNotice, UpdatedAt, useRefreshable } from "./admin/loadState";
+import { emptyText } from "./admin/loadStatus";
+
+const loadModules = () => callOwnerFunction("modules_overview");
 
 export default function ModulesPage({ onNavigate }) {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      setData(await callOwnerFunction("modules_overview"));
-    } catch (err) {
-      setError(friendlyError(err));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  const state = useRefreshable(loadModules);
+  const { data, loading } = state;
+  const load = state.reload;
 
   const nameFor = (slug) => data?.modules?.find((m) => m.slug === slug)?.name ?? slug;
 
@@ -36,6 +22,7 @@ export default function ModulesPage({ onNavigate }) {
           <p>Every CRM module on Zella, which industries offer it, and how many businesses use it.</p>
         </div>
         <div className="op-heading-actions">
+          <UpdatedAt r={state} />
           <button type="button" className="owner-secondary-button" onClick={load} disabled={loading}>
             {loading ? "Loading..." : "↻ Refresh"}
           </button>
@@ -50,7 +37,7 @@ export default function ModulesPage({ onNavigate }) {
         Each business's own modules are chosen in its setup.
       </div>
 
-      {error && <div className="owner-form-error op-gap">Could not load modules: {error}</div>}
+      <LoadNotice r={state} what="the module catalog" />
 
       <section className="owner-panel">
         <div className="owner-table-wrap" tabIndex={0}>
@@ -78,7 +65,7 @@ export default function ModulesPage({ onNavigate }) {
                 </tr>
               ))}
               {!data?.modules?.length && (
-                <tr><td colSpan={4}><div className="op-empty">{loading ? "Loading modules..." : "No modules configured yet."}</div></td></tr>
+                <tr><td colSpan={4}><div className="op-empty">{emptyText(state, Array.isArray(data?.modules) ? "No modules configured yet." : "Not reported.", "the module catalog")}</div></td></tr>
               )}
             </tbody>
           </table>
