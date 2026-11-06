@@ -108,14 +108,14 @@ export function PeopleAndConsent({ workspace, subject, onNotice }) {
       ) : <p className="ba-muted">Nobody is linked yet.</p>}
       {p.can_edit && editing === null && <button type="button" className="ba-btn sm" onClick={() => setEditing("new")}><Icon name="person_add" size="sm" /> Link a person</button>}
 
-      {verifying && <VerifyForm rel={verifying} busy={busy} onCancel={() => setVerifying(null)}
+      {verifying && <VerifyForm key={verifying.id} rel={verifying} busy={busy} onCancel={() => setVerifying(null)}
         onSave={async (method) => { await run("zella_relationship_verify", {
           // exactly what the verifier is looking at; the server refuses if the link changed since (CHANGED)
           p_id: verifying.id, p_method: method, p_related_customer_id: verifying.person.id, p_kind: verifying.kind, p_permissions: verifying.permissions,
         }, `${personLabel(verifying.person)} is verified.`);
           setVerifying(null);   // on success, or to show the link as it is now (the panel reloads either way)
         }} />}
-      {editing && <RelationshipForm workspace={workspace} subject={subject} rel={editing === "new" ? null : editing} busy={busy}
+      {editing && <RelationshipForm key={editing === "new" ? "new" : editing.id} workspace={workspace} subject={subject} rel={editing === "new" ? null : editing} busy={busy}
         onCancel={() => setEditing(null)}
         onSave={async (form) => {
           const ok = await run("zella_relationship_save", {

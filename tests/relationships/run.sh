@@ -6,8 +6,12 @@
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"; REPO="$(cd "$HERE/../.." && pwd)"
 export ZPG_HOST=${ZPG_HOST:-/var/lib/postgresql/zella-sec} ZPG_PORT=${ZPG_PORT:-55433}; DB=${DB:-zrel}
+. "$REPO/tests/lib/isolated_guard.sh"; zella_require_isolated "$ZPG_HOST" "$ZPG_PORT" "$DB" || exit 1
 P="psql -h $ZPG_HOST -p $ZPG_PORT -U postgres -qtAX -v ON_ERROR_STOP=1"
-eval "$(grep -A3 '^PENDING=' "$REPO/tests/deploy/run_all.sh" | sed '/^ROLLBACK=/,$d')"
+# the pending list of run_all.sh, read as words (file names only), never run as shell code
+read -r -a PENDING <<< "$(sed -n '/^PENDING=(/,/)/p' "$REPO/tests/deploy/run_all.sh" | tr -d '()' | sed 's/^PENDING=//' | tr '\n' ' ')"
+for m in "${PENDING[@]}"; do [[ "$m" =~ ^zella_[a-z0-9_]+$ ]] || { echo "FAIL unexpected pending entry: $m"; exit 1; }; done
+[ "${#PENDING[@]}" -ge 10 ] || { echo "FAIL could not read the pending list"; exit 1; }
 "$REPO/tests/lib/build_full.sh" "$DB" "$REPO/tests/channel/fixture.sql" || exit 1
 for m in "${PENDING[@]}" zella_batch1_security zella_batch3_pagination; do
   [ -f "$REPO/sql/$m.sql" ] || continue
@@ -20,11 +24,16 @@ for i in 1 2; do out=$($P -d "$DB" -f "$REPO/sql/zella_relationships.sql" 2>&1) 
 out=$($P -d "$DB" -f "$HERE/test.sql" 2>&1); code=$?
 echo "$out" | grep -o 'PASS .*'
 [ $code -ne 0 ] && { echo "FAIL test.sql: $(echo "$out" | grep -m3 -E 'ERROR|CONTEXT' | tr '\n' ' ')"; fails=$((fails + 1)); }
-# no SECURITY DEFINER function without a fixed search path; nothing new for anon
-bad=$($P -d "$DB" -c "select string_agg(p.proname, ',') from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname ~ '^zella_(people|relationship|consent|is_authorized)' and p.prosecdef and p.proconfig is null")
-[ -z "$bad" ] && echo "PASS every new SECURITY DEFINER function has a fixed search path" || { echo "FAIL no search path: $bad"; fails=$((fails + 1)); }
-anon=$($P -d "$DB" -c "select string_agg(p.proname, ',') from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname ~ '^zella_(people|relationship|consent|is_authorized)' and has_function_privilege('anon', p.oid, 'execute')")
-[ -z "$anon" ] && echo "PASS the anonymous role can run none of the new functions" || { echo "FAIL anon can run: $anon"; fails=$((fails + 1)); }
+# every new SECURITY DEFINER function sets search_path; nothing new for anon (a failed query is a failure, never a pass)
+FN="p.pronamespace = 'public'::regnamespace and p.proname ~ '^zella_(people|relationship|consent|is_authorized)'"
+if res=$($P -d "$DB" -c "select count(*) filter (where p.prosecdef), count(*) filter (where p.prosecdef and not exists (select 1 from unnest(coalesce(p.proconfig, '{}')) c where c like 'search\_path=%')), coalesce(string_agg(p.proname, ',') filter (where p.prosecdef and not exists (select 1 from unnest(coalesce(p.proconfig, '{}')) c where c like 'search\_path=%')), '') from pg_proc p where $FN"); then
+  IFS='|' read -r ndef nbad badnames <<< "$res"
+  [ "$ndef" -ge 8 ] && [ "$nbad" = 0 ] && echo "PASS all $ndef new SECURITY DEFINER functions set a search path" || { echo "FAIL search path: $ndef definer functions found, without: ${badnames:-none}"; fails=$((fails + 1)); }
+else echo "FAIL search path check could not run"; fails=$((fails + 1)); fi
+if res=$($P -d "$DB" -c "select count(*), coalesce(string_agg(p.proname, ',') filter (where has_function_privilege('anon', p.oid, 'execute')), '') from pg_proc p where $FN"); then
+  IFS='|' read -r nfn anon <<< "$res"
+  [ "$nfn" -ge 8 ] && [ -z "$anon" ] && echo "PASS the anonymous role can run none of the $nfn new functions" || { echo "FAIL anon: $nfn functions found, anon can run: ${anon:-none}"; fails=$((fails + 1)); }
+else echo "FAIL anon check could not run"; fails=$((fails + 1)); fi
 # rollback keeps the data (renamed tables), removes the functions; a second apply works
 $P -d "$DB" -c "insert into public.businesses (id, name, timezone) values ('c7000000-0000-0000-0000-0000000000f1', 'R1 Rollback', 'UTC');
   insert into public.customers (id, business_id, first_name) values ('c7000000-0000-0000-0000-0000000001f1', 'c7000000-0000-0000-0000-0000000000f1', 'A'), ('c7000000-0000-0000-0000-0000000001f2', 'c7000000-0000-0000-0000-0000000000f1', 'B');

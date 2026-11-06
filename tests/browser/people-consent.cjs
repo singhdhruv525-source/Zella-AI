@@ -10,6 +10,17 @@ const APP = process.env.APP_URL ?? "http://localhost:5199";
 const BACKEND = process.env.BACKEND_URL ?? "http://localhost:54321";
 const PG = ["-h", process.env.ZPG_HOST ?? "/var/lib/postgresql/zella-sec", "-p", process.env.ZPG_PORT ?? "55433", "-U", "postgres", "-d", process.env.ZDB ?? "zrel_ui", "-AtqX", "-c"];
 const sql = (q) => execFileSync("psql", [...PG, q], { stdio: ["ignore", "pipe", "pipe"] }).toString().trim();
+// Refuse anything but the isolated local test server (same rule as tests/lib/isolated_guard.sh): a Unix socket, a test
+// database name, and a server whose data directory is under ZELLA_ISOLATED_DIR. Runs before any other SQL.
+function requireIsolated() {
+  const [host, port, db] = [PG[1], PG[3], PG[7]], dir = process.env.ZELLA_ISOLATED_DIR ?? "/var/lib/postgresql/zella-sec";
+  if (!host.startsWith("/")) throw new Error(`REFUSED: ${host} is not a local socket directory`);
+  if (!/^z[a-z0-9_]{1,40}$/.test(db)) throw new Error(`REFUSED: '${db}' is not a test database name (z..., lower case)`);
+  let data = "";
+  try { data = execFileSync("psql", ["-h", host, "-p", port, "-U", "postgres", "-d", "postgres", "-AtqX", "-c", "select current_setting('data_directory')"], { stdio: ["ignore", "pipe", "pipe"] }).toString().trim(); }
+  catch { throw new Error(`REFUSED: could not confirm the server at ${host}:${port} is the isolated test server`); }
+  if (!data.startsWith(dir + "/")) throw new Error(`REFUSED: the server keeps its data in '${data}', not under ${dir}`);
+}
 const BIZ = "c0000000-0000-0000-0000-000000000003";        // Test Childcare (a sensitive industry)
 const GRACE = "c7000000-0000-0000-0000-00000000aa01";
 const CHILD_TITLE = "Mia Test Child";
@@ -45,6 +56,7 @@ async function openChild(page) {
 const authorized = (perm) => sql(`select public.zella_is_authorized('${BIZ}', null, (select id from crm_records where title = '${CHILD_TITLE}' and business_id = '${BIZ}'), '${GRACE}', '${perm}')`);
 
 (async () => {
+  requireIsolated();
   sql(`delete from customer_consents where business_id = '${BIZ}'; delete from customer_relationships where business_id = '${BIZ}'`);
   // one child record with a unique name, so the browser and the database checks look at the same record
   sql(`insert into customers (id, business_id, first_name, last_name, phone) values ('${GRACE}', '${BIZ}', 'Grace', 'Gran', '+15125550401') on conflict (id) do nothing`);

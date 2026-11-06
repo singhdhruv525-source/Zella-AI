@@ -175,10 +175,11 @@ begin
   if cur.customer_id is distinct from p_customer_id or cur.record_id is distinct from p_record_id then raise exception 'NOT_VALID'; end if;
   update public.customer_relationships set related_customer_id = p_related_customer_id, kind = p_kind, permissions = v_perms,
          valid_until = p_valid_until, note = nullif(trim(coalesce(p_note, '')), ''), updated_at = now(),
-         -- a different person, kind or wider set of permissions has to be verified again
-         verified_at = case when cur.related_customer_id = p_related_customer_id and cur.kind = p_kind and v_perms <@ cur.permissions then cur.verified_at end,
-         verified_by = case when cur.related_customer_id = p_related_customer_id and cur.kind = p_kind and v_perms <@ cur.permissions then cur.verified_by end,
-         verification_method = case when cur.related_customer_id = p_related_customer_id and cur.kind = p_kind and v_perms <@ cur.permissions then cur.verification_method end
+         -- a different person, kind, wider set of permissions or a later (or removed) end date has to be verified again:
+         -- extending a link, an expired one included, never restores authority without a fresh verification
+         verified_at = case when cur.related_customer_id = p_related_customer_id and cur.kind = p_kind and v_perms <@ cur.permissions and coalesce(p_valid_until, 'infinity'::date) <= coalesce(cur.valid_until, 'infinity'::date) then cur.verified_at end,
+         verified_by = case when cur.related_customer_id = p_related_customer_id and cur.kind = p_kind and v_perms <@ cur.permissions and coalesce(p_valid_until, 'infinity'::date) <= coalesce(cur.valid_until, 'infinity'::date) then cur.verified_by end,
+         verification_method = case when cur.related_customer_id = p_related_customer_id and cur.kind = p_kind and v_perms <@ cur.permissions and coalesce(p_valid_until, 'infinity'::date) <= coalesce(cur.valid_until, 'infinity'::date) then cur.verification_method end
    where id = p_id;
   perform public.zella_people_audit(p_business_id, 'relationship_updated', 'customer_relationship', p_id,
     jsonb_build_object('kind', cur.kind, 'permissions', cur.permissions, 'related_customer_id', cur.related_customer_id, 'valid_until', cur.valid_until),

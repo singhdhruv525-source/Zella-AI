@@ -132,6 +132,13 @@ do $$ declare v uuid := (select v from ids where k = 'grandma'); p jsonb; begin
   p := public.zella_people_panel('c7000000-0000-0000-0000-0000000000a1', null, 'c7000000-0000-0000-0000-0000000004a1');
   assert p #>> '{relationships,0,state}' = 'expired', 'panel shows expired: ' || p::text;
   assert p #>> '{primary_contact,first_name}' = 'Pat', 'panel names the primary contact';
+  -- staff (childcare) extends the expired link: the old verification doesn't come back, so it grants nothing
+  perform public.zella_relationship_save('c7000000-0000-0000-0000-0000000000a1', v, null, 'c7000000-0000-0000-0000-0000000004a1',
+          'c7000000-0000-0000-0000-0000000001a2', (select kind from public.customer_relationships where id = v),
+          (select permissions from public.customer_relationships where id = v), current_date + 30, null);
+  assert (select verified_at is null and verification_method is null from public.customer_relationships where id = v), 'extending an expired link clears its verification';
+  assert not public.zella_is_authorized('c7000000-0000-0000-0000-0000000000a1', null, 'c7000000-0000-0000-0000-0000000004a1', 'c7000000-0000-0000-0000-0000000001a2', 'pickup'), 'extended but unverified link grants nothing';
+  assert (select state from jsonb_to_recordset(public.zella_people_panel('c7000000-0000-0000-0000-0000000000a1', null, 'c7000000-0000-0000-0000-0000000004a1') -> 'relationships') x(id uuid, state text) where id = v) = 'unverified', 'panel shows the extended link as not verified';
   perform public.zella_relationship_revoke(v, 'No longer collects');
   perform public.zella_relationship_revoke(v, 'twice is fine');
   assert (select revoked_at is not null and revoke_reason = 'No longer collects' from public.customer_relationships where id = v), 'revoked with its reason';
@@ -143,6 +150,22 @@ do $$ declare v uuid := (select v from ids where k = 'grandma'); p jsonb; begin
   assert jsonb_array_length(p -> 'authorized_for') = 1 and p #>> '{authorized_for,0,subject,name}' = 'Mia', 'a person''s panel lists what they are linked to: ' || p::text;
 end $$;
 select 'PASS an expired link grants nothing; revoking keeps the history (and is safe to repeat); the person''s own panel lists what they are linked to';
+reset role;
+do $$ begin update public.customer_relationships set verified_at = now(), verification_method = 'known_to_team', valid_until = current_date + 30
+  where record_id = 'c7000000-0000-0000-0000-0000000004a1' and revoked_at is null; end $$;
+set local role authenticated;
+select pg_temp.as_user('c7000000-0000-0000-0000-00000000000c');
+do $$ declare v uuid := (select id from public.customer_relationships where record_id = 'c7000000-0000-0000-0000-0000000004a1' and revoked_at is null); begin
+  perform public.zella_relationship_save('c7000000-0000-0000-0000-0000000000a1', v, null, 'c7000000-0000-0000-0000-0000000004a1',
+          'c7000000-0000-0000-0000-0000000001a2', 'guardian', array['pickup'], current_date + 10, null);
+  assert (select verified_at is not null from public.customer_relationships where id = v), 'an earlier end date keeps the verification';
+  assert public.zella_is_authorized('c7000000-0000-0000-0000-0000000000a1', null, 'c7000000-0000-0000-0000-0000000004a1', 'c7000000-0000-0000-0000-0000000001a2', 'pickup'), 'still in force after shortening';
+  perform public.zella_relationship_save('c7000000-0000-0000-0000-0000000000a1', v, null, 'c7000000-0000-0000-0000-0000000004a1',
+          'c7000000-0000-0000-0000-0000000001a2', 'guardian', array['pickup'], null, null);
+  assert (select verified_at is null from public.customer_relationships where id = v), 'removing the end date clears the verification';
+  assert not public.zella_is_authorized('c7000000-0000-0000-0000-0000000000a1', null, 'c7000000-0000-0000-0000-0000000004a1', 'c7000000-0000-0000-0000-0000000001a2', 'pickup'), 'open-ended again but unverified: nothing';
+end $$;
+select 'PASS end dates: extending a link (an expired one included) or removing its end date needs a fresh verification; an earlier end date keeps it';
 
 -- ===================================================== consents
 do $$ declare c uuid; p jsonb; begin

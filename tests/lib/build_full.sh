@@ -8,6 +8,7 @@ REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 export ZPG_HOST=${ZPG_HOST:-/var/lib/postgresql/zella-sec} ZPG_PORT=${ZPG_PORT:-55433}
 P="psql -h $ZPG_HOST -p $ZPG_PORT -U postgres -qtAX -v ON_ERROR_STOP=1"
 DB="$1"; shift
+. "$REPO/tests/lib/isolated_guard.sh"; zella_require_isolated "$ZPG_HOST" "$ZPG_PORT" "$DB" || exit 1
 # live fix files production has (zella_platform_roles_fix is NOT live: it is pending, see docs/DEPLOYMENT_MANIFEST_2026-11-05.md)
 LIVE=(zella_invitation_hardening zella_billing_hardening zella_mfa_enforcement zella_platform_alerts_policy_fix)
 APPLIED=(zella_viewer_read_only zella_staff_add_lead zella_call_content_privacy zella_capabilities zella_record_links_secrets zella_money
