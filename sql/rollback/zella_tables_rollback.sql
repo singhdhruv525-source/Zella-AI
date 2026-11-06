@@ -6,6 +6,22 @@ begin;
 do $$
 declare def text;
 begin
+  def := pg_get_functiondef('public.zella_capability_catalog()'::regprocedure);
+  if position('zella_tables_capability' in def) > 0 then
+    def := replace(def, $a$"access_vault": {"label": "Access codes and keys", "order": 8},
+    "tables":       {"label": "Tables and seating", "needs": "scheduling", "order": 9}$a$, $a$"access_vault": {"label": "Access codes and keys", "order": 8}$a$);
+    def := replace(def, $a$  select /* zella_tables_capability */ '{$a$, $a$  select '{$a$);
+    if position('zella_tables_capability' in def) > 0 then raise exception 'public.zella_capability_catalog(): could not remove this patch'; end if;
+    execute def;
+  end if;
+  def := pg_get_functiondef('public.zella_seed_capability_defaults()'::regprocedure);
+  if position('zella_tables_capability' in def) > 0 then
+    def := replace(def, $a$('restaurant',            '{"on": ["scheduling","checkins","waitlist","money","tables"], "optional": []}'),$a$, $a$('restaurant',            '{"on": ["scheduling","checkins","waitlist","money"], "optional": []}'),$a$);
+    def := replace(def, $a$('hospitality',           '{"on": ["scheduling","checkins","money"], "optional": ["waitlist","tables"]}'),$a$, $a$('hospitality',           '{"on": ["scheduling","checkins","money"], "optional": ["waitlist"]}'),$a$);
+    def := replace(def, $a$  with d(slug, caps) as (values   /* zella_tables_capability */$a$, $a$  with d(slug, caps) as (values$a$);
+    if position('zella_tables_capability' in def) > 0 then raise exception 'public.zella_seed_capability_defaults(): could not remove this patch'; end if;
+    execute def;
+  end if;
   def := pg_get_functiondef('public.zella_available_slots(uuid, timestamptz, timestamptz, integer, uuid, integer, integer, uuid)'::regprocedure);
   if position('zella_tables' in def) > 0 then
     def := replace(def, $a$          and a.start_time < r.t + v_duration + v_buffer and a.end_time + v_buffer > r.t
@@ -89,6 +105,11 @@ begin
     execute def;
   end if;
 end $$;
+update public.industry_configurations set features = jsonb_set(features, '{capabilities,on}', (features #> '{capabilities,on}') - 'tables') where features #> '{capabilities,on}' ? 'tables';
+update public.industry_configurations set features = jsonb_set(features, '{capabilities,optional}', (features #> '{capabilities,optional}') - 'tables') where features #> '{capabilities,optional}' ? 'tables';
+delete from public.business_capabilities where capability = 'tables';
+drop trigger if exists zella_table_clearing_trg on public.appointments;
+drop function if exists public.zella_table_clearing_trg();
 drop trigger if exists zella_appointment_conflict_guard on public.appointments;
 create trigger zella_appointment_conflict_guard before insert or update of start_time, end_time, staff_id, status, booking_state on public.appointments for each row execute function public.zella_appointment_conflict_guard();
 drop function if exists public.zella_book_appointment(uuid, uuid, text, timestamptz, integer, uuid, integer, text, jsonb);

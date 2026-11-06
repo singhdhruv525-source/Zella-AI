@@ -14,6 +14,7 @@ import { KnowledgePage } from "./BusinessKnowledge";
 import { RecordSettingsPage } from "./BusinessRecords";
 import { IntegrationsPage, LeadSourcesPage, ReportsPage } from "./BusinessMore";
 import { AutomationsPage } from "./BusinessControls";
+import { TableSetup } from "./BusinessTables";
 import { ReceptionistEditor } from "./BusinessReceptionist";
 import { LanguagePanel } from "./settings/LanguagePanel";
 import { VoicePanel } from "./settings/VoicePanel";
@@ -968,6 +969,7 @@ function registry(w) {
     ] },
     { key: "industry", label: "Industry and workflows", icon: "tune", items: [
       page("profile", "Industry profile", () => <IndustryProfile w={w} />, "industry modules"),
+      page("tables", "Tables and seating", (c) => <TableSetup workspace={w} onNotice={c.onNotice} />, "tables seating floor plan sections combinations restaurant party"),
       page("capabilities", "What your business does", (c) => <CapabilitiesPanel w={w} onReload={c.onReload} />, "capabilities bookings scheduling check-ins waitlist dispatch classes orders estimates invoices deposits access codes"),
       page("terminology", "Terminology", (c) => <Terminology w={w} onReload={c.onReload} />, "words patients customers jobs"),
       page("fields", "Industry fields", (c) => <RecordSettingsPage workspace={w} types={c.records.types} canManage={lead} onNotice={c.onNotice} onChanged={c.records.reload} loadError={c.records.error} />, "fields"),

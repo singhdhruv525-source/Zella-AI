@@ -88,9 +88,10 @@ alter table public.waitlist_entries add column if not exists party_size integer 
 alter table public.waitlist_entries add column if not exists preferences text check (preferences is null or length(preferences) <= 300);
 alter table public.waitlist_entries add column if not exists contact_ok boolean;
 
+-- seating applies when the business has the "Tables and seating" capability on and at least one active table
 create or replace function public.zella_table_mode(p_business_id uuid) returns boolean
 language sql stable security definer set search_path = public as $$
-  select exists (select 1 from public.restaurant_tables t where t.business_id = p_business_id and t.active)
+  select public.zella_capability_on(p_business_id, 'tables') and exists (select 1 from public.restaurant_tables t where t.business_id = p_business_id and t.active)
 $$;
 
 -- are all these tables free for this time: not in another reservation that holds time (a seated party until it has
@@ -464,6 +465,27 @@ grant execute on function public.zella_tables(uuid), public.zella_save_tables(uu
 do $$
 declare def text;
 begin
+  -- the capability: "Tables and seating", on for restaurants, optional for hospitality
+  def := pg_get_functiondef('public.zella_capability_catalog()'::regprocedure);
+  if position('zella_tables_capability' in def) = 0 then
+    def := replace(def, $a$  select '{$a$, $a$  select /* zella_tables_capability */ '{$a$);
+    def := replace(def, $a$"access_vault": {"label": "Access codes and keys", "order": 8}$a$,
+                        $a$"access_vault": {"label": "Access codes and keys", "order": 8},
+    "tables":       {"label": "Tables and seating", "needs": "scheduling", "order": 9}$a$);
+    if position('zella_tables_capability' in def) = 0 or position('"tables"' in def) = 0 then raise exception 'zella_capability_catalog has changed; review this patch'; end if;
+    execute def;
+  end if;
+  def := pg_get_functiondef('public.zella_seed_capability_defaults()'::regprocedure);
+  if position('zella_tables_capability' in def) = 0 then
+    def := replace(def, $a$  with d(slug, caps) as (values$a$, $a$  with d(slug, caps) as (values   /* zella_tables_capability */$a$);
+    def := replace(def, $a$('hospitality',           '{"on": ["scheduling","checkins","money"], "optional": ["waitlist"]}'),$a$,
+                        $a$('hospitality',           '{"on": ["scheduling","checkins","money"], "optional": ["waitlist","tables"]}'),$a$);
+    def := replace(def, $a$('restaurant',            '{"on": ["scheduling","checkins","waitlist","money"], "optional": []}'),$a$,
+                        $a$('restaurant',            '{"on": ["scheduling","checkins","waitlist","money","tables"], "optional": []}'),$a$);
+    if position('zella_tables_capability' in def) = 0 or position('"waitlist","money","tables"' in def) = 0 then raise exception 'zella_seed_capability_defaults has changed; review this patch'; end if;
+    execute def;
+  end if;
+
   if to_regprocedure('public.zella_booking_choices(uuid, timestamptz, timestamptz, integer, integer, integer)') is null then
     raise exception 'apply sql/zella_arrival_windows.sql first';
   end if;
@@ -603,3 +625,24 @@ grant execute on function public.zella_book_appointment(uuid, uuid, text, timest
 drop trigger if exists zella_appointment_conflict_guard on public.appointments;
 create trigger zella_appointment_conflict_guard before insert or update of start_time, end_time, staff_id, status, booking_state, table_ids, party_size
   on public.appointments for each row execute function public.zella_appointment_conflict_guard();
+
+-- the industries' current defaults (what zella_seed_capability_defaults now writes for them)
+update public.industry_configurations ic set features = jsonb_set(ic.features, '{capabilities,on}', (ic.features #> '{capabilities,on}') || '["tables"]'), updated_at = now()
+  from public.industries i where i.id = ic.industry_id and i.slug = 'restaurant' and not (ic.features #> '{capabilities,on}') ? 'tables';
+update public.industry_configurations ic set features = jsonb_set(ic.features, '{capabilities,optional}', (ic.features #> '{capabilities,optional}') || '["tables"]'), updated_at = now()
+  from public.industries i where i.id = ic.industry_id and i.slug = 'hospitality' and not (ic.features #> '{capabilities,optional}') ? 'tables';
+
+-- a party marked done anywhere (the seating board, Check-ins, an integration) leaves its tables waiting to be cleared
+create or replace function public.zella_table_clearing_trg() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if new.status = 'completed' and old.status is distinct from 'completed' and new.table_ids is not null and public.zella_table_mode(new.business_id) then
+    insert into public.table_states (table_id, business_id, state, appointment_id, by_user)
+    select x, new.business_id, 'needs_clearing', new.id, auth.uid() from unnest(new.table_ids) x
+    on conflict (table_id) do update set state = excluded.state, appointment_id = excluded.appointment_id, since = now(), by_user = excluded.by_user;
+  end if;
+  return new;
+end $$;
+revoke execute on function public.zella_table_clearing_trg() from public, anon, authenticated;
+drop trigger if exists zella_table_clearing_trg on public.appointments;
+create trigger zella_table_clearing_trg after update of status on public.appointments for each row execute function public.zella_table_clearing_trg();

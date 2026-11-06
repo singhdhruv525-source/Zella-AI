@@ -269,6 +269,8 @@ export function explain(error) {
   if (text.includes("DUPLICATE:")) return "This looks like a record you already have.";
   if ((m = text.match(/BAD_LINK:([^\n]+)/))) return `Choose "${m[1].trim()}" again. It must be one of this business's own records that isn't archived.`;
   if ((m = text.match(/NOT_ALLOWED:([^\n]+)/))) return `Only owners, admins and managers can change "${m[1].trim()}".`;
+  if (text.includes("PARTY_SIZE_REQUIRED")) return "Enter how many people the reservation is for: it decides which table they get.";
+  if (/SLOT_TAKEN/.test(text) && /no table for|those tables/.test(String(error?.details ?? ""))) return "No table that seats this party is free then. Pick another time, or add them to the waitlist.";
   if (/\bFULL\b/.test(text)) return "That's full. There's no waitlist for it.";
   if ((m = text.match(/CAPABILITY_OFF:(\w+)/))) return "Your business has this switched off. An owner or admin can turn it on in Settings > Industry and workflows > What your business does.";
   if (text.includes("STATUS_IN_USE")) return "Some records still use a status you removed. Move them first, or keep the status.";

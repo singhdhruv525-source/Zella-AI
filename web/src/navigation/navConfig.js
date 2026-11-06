@@ -42,6 +42,7 @@ export const NAV_GROUPS = [
 export const NAV_ITEMS = [
   { id: "today", group: "workspace", order: 10, label: "Today", icon: "dashboard", page: "today" },
   { id: "calendar", group: "workspace", order: 20, label: "Calendar", icon: "calendar_today", page: "calendar", capability: "scheduling" },
+  { id: "tables", group: "workspace", order: 25, label: "Tables", icon: "table_restaurant", page: "tables", capability: "tables" },
   { id: "checkins", group: "workspace", order: 30, label: "Check-ins", icon: "how_to_reg", page: "checkins", capability: "checkins" },
   { id: "waitlist", group: "workspace", order: 40, label: "Waitlist", icon: "hourglass_top", page: "waitlist", module: "calendar", capability: "waitlist" },
   { id: "tasks", group: "workspace", order: 50, label: "Tasks & follow-ups", icon: "task_alt", page: "tasks" },

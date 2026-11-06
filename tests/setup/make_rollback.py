@@ -66,6 +66,11 @@ CFG["windows"] = ("sql/zella_arrival_windows.sql", "sql/rollback/zella_arrival_w
     "drop function if exists public.zella_slot_say(timestamptz, text, integer);",
     "drop function if exists public.zella_booking_choices(uuid, timestamptz, timestamptz, integer, integer, integer);"])
 CFG["tables"] = ("sql/zella_tables.sql", "sql/rollback/zella_tables_rollback.sql", [
+    "update public.industry_configurations set features = jsonb_set(features, '{capabilities,on}', (features #> '{capabilities,on}') - 'tables') where features #> '{capabilities,on}' ? 'tables';",
+    "update public.industry_configurations set features = jsonb_set(features, '{capabilities,optional}', (features #> '{capabilities,optional}') - 'tables') where features #> '{capabilities,optional}' ? 'tables';",
+    "delete from public.business_capabilities where capability = 'tables';",
+    "drop trigger if exists zella_table_clearing_trg on public.appointments;",
+    "drop function if exists public.zella_table_clearing_trg();",
     "drop trigger if exists zella_appointment_conflict_guard on public.appointments;",
     "create trigger zella_appointment_conflict_guard before insert or update of start_time, end_time, staff_id, status, booking_state on public.appointments for each row execute function public.zella_appointment_conflict_guard();",
     "drop function if exists public.zella_book_appointment(uuid, uuid, text, timestamptz, integer, uuid, integer, text, jsonb);",
