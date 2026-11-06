@@ -4,7 +4,7 @@ import { Field, Icon, Pill, initials, personName } from "./BusinessUI";
 import { formatDay, formatTime, timeAgo, todayInput, zonedDateTime } from "./businessTime";
 import { Empty, Notice, PageHead, Pager, Segment, clock, explain, loadPeople, plural, useLoad, callResult, isAnswered } from "./BusinessShared";
 import { useServerPages } from "./crm/paging";
-import { inboxItem, replyBlock, supportProblems } from "./crm/inbox";
+import { inboxItem, replyBlock, supportProblems, threadFrom } from "./crm/inbox";
 import { EscalationControls, Transcript, isOpenEscalation } from "./BusinessProfile";
 import { Assignee, useRoster } from "./BusinessLeads";
 
@@ -53,17 +53,7 @@ function ConversationPane({ item, person, personStatus, workspace, roster, integ
       supabase.from("sms_messages").select("*").eq("conversation_id", c.id).order("created_at").limit(300),
       supabase.from("email_messages").select("*").eq("conversation_id", c.id).order("created_at").limit(100),
     ]);
-    // B3-06: a thread that couldn't be read says so, instead of looking empty
-    if (msgs.error && sms.error && mail.error) throw msgs.error;
-    let messages = msgs.error ? [] : msgs.data ?? [];
-    if (!messages.length) {
-      // Older conversations only have the provider-level records.
-      messages = [
-        ...(sms.error ? [] : sms.data ?? []).map((m) => ({ id: m.id, sender_type: m.direction === "inbound" ? "customer" : "agent", content: m.message_body, created_at: m.created_at })),
-        ...(mail.error ? [] : mail.data ?? []).map((m) => ({ id: m.id, sender_type: m.direction === "inbound" ? "customer" : "agent", content: [m.subject, m.body_text].filter(Boolean).join("\n"), created_at: m.created_at })),
-      ].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-    }
-    return { messages, notes: notes.error ? [] : notes.data ?? [], partial: Boolean(msgs.error || notes.error), notesFailed: Boolean(notes.error) };
+    return threadFrom({ msgs, notes, sms, mail });
   }, [c.id]);
 
   // Opening a conversation reads it.
