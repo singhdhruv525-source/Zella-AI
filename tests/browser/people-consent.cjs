@@ -11,18 +11,19 @@ const BACKEND = process.env.BACKEND_URL ?? "http://localhost:54321";
 const PG = ["-h", process.env.ZPG_HOST ?? "/var/lib/postgresql/zella-sec", "-p", process.env.ZPG_PORT ?? "55433", "-U", "postgres", "-d", process.env.ZDB ?? "zrel_ui", "-AtqX", "-c"];
 const sql = (q) => execFileSync("psql", [...PG, q], { stdio: ["ignore", "pipe", "pipe"] }).toString().trim();
 // Refuse anything but the isolated local test server (same rule as tests/lib/isolated_guard.sh): a Unix socket, a test
-// database name, and a server whose data directory is under ZELLA_ISOLATED_DIR. Runs before any other SQL.
+// database name, and a server whose data directory is exactly the throwaway cluster's (fixed; no setting widens it).
+// Runs before any other SQL.
 function requireIsolated() {
-  const [host, port, db] = [PG[1], PG[3], PG[7]], dir = process.env.ZELLA_ISOLATED_DIR ?? "/var/lib/postgresql/zella-sec";
+  const [host, port, db] = [PG[1], PG[3], PG[7]], WANT = "/var/lib/postgresql/zella-sec/data";
   if (!host.startsWith("/")) throw new Error(`REFUSED: ${host} is not a local socket directory`);
   if (!/^z[a-z0-9_]{1,40}$/.test(db)) throw new Error(`REFUSED: '${db}' is not a test database name (z..., lower case)`);
   let data = "";
   try { data = execFileSync("psql", ["-h", host, "-p", port, "-U", "postgres", "-d", "postgres", "-AtqX", "-c", "select current_setting('data_directory')"], { stdio: ["ignore", "pipe", "pipe"] }).toString().trim(); }
   catch { throw new Error(`REFUSED: could not confirm the server at ${host}:${port} is the isolated test server`); }
-  if (!data.startsWith(dir + "/")) throw new Error(`REFUSED: the server keeps its data in '${data}', not under ${dir}`);
+  if (data !== WANT) throw new Error(`REFUSED: the server keeps its data in '${data}', not in the isolated test cluster (${WANT})`);
 }
 const BIZ = "c0000000-0000-0000-0000-000000000003";        // Test Childcare (a sensitive industry)
-const GRACE = "c7000000-0000-0000-0000-00000000aa01";
+const GRACE = "c7000000-0000-0000-0000-00000000aa01", HAL = "c7000000-0000-0000-0000-00000000aa02";
 const CHILD_TITLE = "Mia Test Child";
 const CHANGE_BUTTONS = /(Link a person|Verify|Edit|Revoke|Record consent|Withdrawn)$/;   // button text ends with its label (an icon may come first)
 let fails = 0;
@@ -142,6 +143,29 @@ const authorized = (perm) => sql(`select public.zella_is_authorized('${BIZ}', nu
       (await page.locator("[data-people] button").filter({ hasText: CHANGE_BUTTONS }).count()) === 0);
     check("viewer is told why", await page.isVisible("text=You can view this. Changes need a staff member or above."));
     check("viewer: no page errors", errors.length === 0, errors.join("; "));
+    await ctx.close();
+  }
+  // switching between links: each form starts fresh for the link it was opened for
+  sql(`insert into customers (id, business_id, first_name, last_name, phone) values ('${HAL}', '${BIZ}', 'Hal', 'Helper', '+15125550402') on conflict (id) do nothing`);
+  sql(`insert into customer_relationships (business_id, record_id, related_customer_id, kind, permissions)
+       select '${BIZ}', id, p, 'emergency_contact', array['discuss'] from crm_records, unnest(array['${GRACE}', '${HAL}']::uuid[]) p where business_id = '${BIZ}' and title = '${CHILD_TITLE}'`);
+  {
+    const { ctx, page, errors } = await open(browser, "owner@glow.test");
+    await openChild(page);
+    const row = (who, kind) => page.locator("[data-people] li").filter({ hasText: who }).filter({ hasText: kind });
+    await row("Grace Gran", "Authorized contact").getByRole("button", { name: "Edit", exact: true }).click();
+    await row("Hal Helper", "Emergency contact").getByRole("button", { name: "Edit", exact: true }).click();
+    const ef = page.locator("form[aria-label='Edit link']");
+    check("Edit on another link shows that link (person and relationship), not the first one",
+      (await ef.count()) === 1 && /Hal Helper/.test(await ef.innerText()) && !/Grace Gran/.test(await ef.innerText()) && (await ef.locator("select").first().inputValue()) === "emergency_contact");
+    await ef.getByRole("button", { name: "Cancel" }).click();
+    await row("Grace Gran", "Emergency contact").getByRole("button", { name: "Verify" }).click();
+    await page.locator("form[aria-label='Verify Grace Gran'] select").selectOption("id_checked");
+    await row("Hal Helper", "Emergency contact").getByRole("button", { name: "Verify" }).click();
+    const vf = page.locator("form[aria-label^='Verify']");
+    check("Verify on another link starts fresh: that person, no method carried over",
+      (await vf.count()) === 1 && (await vf.getAttribute("aria-label")) === "Verify Hal Helper" && (await vf.locator("select").inputValue()) === "");
+    check("switching links: no page errors", errors.length === 0, errors.join("; "));
     await ctx.close();
   }
   for (const width of [1280, 390]) {
