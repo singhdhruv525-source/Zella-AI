@@ -9,6 +9,10 @@ export function inboxItem(r) {
 }
 
 // whether texting or email is connected; null when the lookup failed (unknown is not "not connected")
+/**
+ * Return whether an active provider matches SMS or email, or null unless the lookup
+ * status is "ok" (including while loading). Unsupported channels return false after a successful lookup.
+ */
 export function connected(integrations, channel) {
   if (!integrations || integrations.status !== "ok") return null;
   const rows = (integrations.rows ?? []).filter((i) => i.status === "active").map((i) => (i.provider ?? "").toLowerCase());

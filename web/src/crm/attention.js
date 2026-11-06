@@ -6,6 +6,11 @@
 //   unavailable  no check has ever succeeded for this business; no count is shown
 export const ATTENTION_START = { status: "loading", count: null, checkedAt: null, businessId: null };
 
+/**
+ * Update the waiting-caller count, ignoring results explicitly tagged for another business.
+ * Reset clears the count; invalid counts follow the failure path, retaining a previous
+ * count as stale or marking it unavailable. Successful checks use event.at or the current date.
+ */
 export function attentionReduce(state, event) {
   // a result for another business (a switch while a check was in flight) is dropped
   if (event.type !== "reset" && event.businessId !== undefined && state.businessId !== null && event.businessId !== state.businessId) return state;

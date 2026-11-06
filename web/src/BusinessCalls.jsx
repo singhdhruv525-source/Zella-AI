@@ -196,6 +196,11 @@ function CallSuggestions({ workspace, refreshKey, onNotice }) {
 
 const FILTERS = [["all", "All"], ["answered", "Answered"], ["missed", "Missed"], ["ai", "Handled by AI"], ["human", "Needs a person"], ["recorded", "Recordings"]];
 
+/**
+ * Show server-filtered call history and fetch full details only when a call is opened.
+ * transcriptsOnly includes calls with a transcript or an allowed recording.
+ * List, contact-name, and detail failures are displayed with separate retry actions.
+ */
 export function CallsPage({ workspace, refreshKey, onNotice, onOpenPerson, transcriptsOnly }) {
   const tz = workspace.timezone;
   const [filter, setFilter] = useState("all");

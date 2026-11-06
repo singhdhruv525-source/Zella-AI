@@ -66,6 +66,12 @@ export function Notice({ error, onRetry }) {
 }
 
 // Runs a loader and keeps rows, loading and error state together.
+/**
+ * Run loader on mount and when deps change, returning data, error, loading, and reload.
+ * Only the latest request can publish a result; cleanup discards pending results.
+ * New requests retain prior data and clear errors. Loader failures become friendly
+ * error text with prior data retained, rather than rejecting the reload promise.
+ */
 export function useLoad(loader, deps) {
   const [state, setState] = useState({ data: null, error: "", loading: true });
   const sequence = useRef(0);
@@ -103,6 +109,11 @@ export async function loadPeople(ids) {
 }
 
 // hasNext / busy: for lists paged by the server (Batch 3), where the server says whether another page exists
+/**
+ * Render adjacent-page controls using zero-based page indices in onPage.
+ * hasNext overrides the page-count estimate when supplied; busy disables navigation.
+ * size controls when a first page needs only a total with no controls.
+ */
 export function Pager({ page, pages, total, onPage, noun, hasNext, busy = false, size = PAGE_SIZE }) {
   const more = hasNext ?? page < pages - 1;
   if (total <= size && page === 0 && !more) return <div className="ba-table-foot"><span>{plural(total, noun)}</span></div>;

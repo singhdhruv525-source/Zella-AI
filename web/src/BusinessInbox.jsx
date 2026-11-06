@@ -31,6 +31,12 @@ function Bubble({ m, tz }) {
   );
 }
 
+/**
+ * Display a conversation and its reply, assignment, and note controls; opening an unread
+ * conversation marks it read. Replies require contact and integration checks to allow them.
+ * Message reads fall back to provider records when no conversation messages are available;
+ * failures of all message sources show a retry notice, and note failures use an empty list.
+ */
 function ConversationPane({ item, person, personStatus, workspace, roster, integrations, onChanged, onNotice, onOpenPerson, onBack, onRetrySupport }) {
   const tz = workspace.timezone;
   const c = item.convo;
@@ -171,6 +177,11 @@ function ConversationPane({ item, person, personStatus, workspace, roster, integ
   );
 }
 
+/**
+ * Display a selected call and callback controls, fetching its full details from calls_view.
+ * Retain the list row while details load or fail, and offer a retry for detail failures.
+ * Scheduled callback times are interpreted in the workspace timezone.
+ */
 function CallPane({ item, person, workspace, onChanged, onNotice, onOpenPerson, onBack }) {
   const tz = workspace.timezone;
   // the list row has no transcript or recording link; the opened call is read in full, under calls_view's rules
@@ -238,6 +249,11 @@ function CallPane({ item, person, workspace, onChanged, onNotice, onOpenPerson, 
 const FILTERS = [["all", "All"], ["unread", "Unread"], ["calls", "Calls"], ["sms", "Texts"], ["email", "Email"], ["missed", "Missed calls"], ["human", "Needs a person"]];
 const INBOX_PAGE = 50;
 
+/**
+ * Show calls and conversations in one server-paged inbox, retaining the selected item
+ * across page changes. Previews, contacts, and integrations load separately and expose
+ * retryable failures; unavailable contact or integration checks pause replies.
+ */
 export function InboxPage({ workspace, refreshKey, onNotice, onOpenPerson }) {
   const tz = workspace.timezone;
   const [filter, setFilter] = useState("all");

@@ -95,6 +95,11 @@ function Blocked({ workspace, onSignOut }) {
   );
 }
 
+/**
+ * Render the business workspace, configured navigation, page content, and shared dialogs.
+ * Refresh the waiting-caller count on entry, refresh requests, and every minute;
+ * failed checks show an unavailable or stale-count notice with a retry action.
+ */
 function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackName, onSignOut, onReload, base = "/app", navPreview, invites }) {
   const path = usePath();
   const route = readPage(path, base);
