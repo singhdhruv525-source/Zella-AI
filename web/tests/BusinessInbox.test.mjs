@@ -21,8 +21,10 @@ test("paging retains the selected conversation's contact and reply availability"
   const loads = [];
   const requests = [];
   let stateIndex, loadIndex, pending;
+  const refs = []; let refIndex;
   const context = vm.createContext({
     INBOX_PAGE: 50, inboxItem, supportProblems,
+    useRef(value) { const i = refIndex++; return refs[i] ??= { current: value }; },
     useState: () => {
       const index = stateIndex++;
       return [state[index], (value) => { state[index] = value; }];
@@ -44,12 +46,12 @@ test("paging retains the selected conversation's contact and reply availability"
     },
     supabase: {
       rpc: async () => ({ data: [] }),
-      from: () => ({ select: () => ({ eq: async () => ({ data: [{ provider: "telnyx", status: "active" }] }) }) }),
+      from: (table) => table === "conversations" ? { select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: async () => ({ data: state[1].convo }) }) }) }) } : ({ select: () => ({ eq: async () => ({ data: [{ provider: "telnyx", status: "active" }] }) }) }),
     },
   });
   const renderPage = vm.runInContext(`${body}\n return { current, person, personStatus, integrations };\n}\nInboxPage`, context);
   const render = () => {
-    stateIndex = loadIndex = 0;
+    stateIndex = loadIndex = refIndex = 0;
     pending = [];
     return renderPage({ workspace: { id: "business", timezone: "UTC" } });
   };
@@ -69,6 +71,12 @@ test("paging retains the selected conversation's contact and reply availability"
   assert.equal(after.personStatus, "ok");
   assert.equal(replyBlock({ channel: "sms", ...after }), null);
 
+  const version = "2026-11-06T12:00:00Z";
+  before.current.convo.updated_at = version;
+  list.rows = [{ ...row("1", "alice"), row: { ...before.current.convo, updated_at: "2026-11-06T11:00:00Z", ai_handled: false } }];
+  assert.equal((await settle()).current.convo.updated_at, version, "older page cannot replace the independent snapshot");
+  list.rows[0].row.updated_at = "2026-11-06T13:00:00Z";
+  assert.equal((await settle()).current.convo.ai_handled, false, "newer page snapshot is retained");
   list.rows = [];
   list.data = {};
   assert.equal((await settle()).person, alice, "an empty page also retains the contact");
