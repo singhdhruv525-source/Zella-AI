@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "./supabase";
 import { Icon } from "./BusinessUI";
 import { humanize } from "./copy/labels";
@@ -68,17 +68,24 @@ export function Notice({ error, onRetry }) {
 // Runs a loader and keeps rows, loading and error state together.
 export function useLoad(loader, deps) {
   const [state, setState] = useState({ data: null, error: "", loading: true });
+  const sequence = useRef(0);
   const run = useCallback(async () => {
+    const request = ++sequence.current;
     setState((s) => ({ ...s, loading: true, error: "" }));
     try {
       const data = await loader();
+      if (request !== sequence.current) return;
       setState({ data, error: "", loading: false });
     } catch (err) {
+      if (request !== sequence.current) return;
       setState((s) => ({ ...s, error: friendly(err), loading: false }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
-  useEffect(() => { run(); }, [run]);
+  useEffect(() => {
+    run();
+    return () => { sequence.current++; };
+  }, [run]);
   return { ...state, reload: run };
 }
 
