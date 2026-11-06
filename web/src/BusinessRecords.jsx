@@ -367,7 +367,7 @@ function RecordModal({ workspace, type, record, canManage, onBook, onClose, onSa
           </div>
           <RecordFiles workspace={workspace} record={record} />
           <h3 className="ba-h3">People &amp; consent</h3>
-          <PeopleAndConsent workspace={workspace} subject={{ recordId: record.id, typeKey: type.key, title: record.title }} />
+          <PeopleAndConsent key={`${workspace.id}:${record.id}`} workspace={workspace} subject={{ recordId: record.id, typeKey: type.key, title: record.title }} />
           {type.appointment_link && (
             <>
               <h3 className="ba-h3">Appointments</h3>

@@ -14,6 +14,7 @@ for m in "${PENDING[@]}" zella_batch1_security zella_batch3_pagination; do
   out=$($P -d "$DB" -f "$REPO/sql/$m.sql" 2>&1) || { echo "FAIL apply $m: $(echo "$out" | grep -m1 ERROR)"; exit 1; }
 done
 fails=0
+merge_before=$($P -d "$DB" -c "select md5(pg_get_functiondef('public.zella_merge_customers(uuid,uuid,uuid)'::regprocedure))")
 for i in 1 2; do out=$($P -d "$DB" -f "$REPO/sql/zella_relationships.sql" 2>&1) || { echo "FAIL migration run $i: $(echo "$out" | grep -m1 ERROR)"; fails=$((fails + 1)); }; done
 [ $fails = 0 ] && echo "PASS sql/zella_relationships.sql applies twice"
 out=$($P -d "$DB" -f "$HERE/test.sql" 2>&1); code=$?
@@ -32,6 +33,8 @@ before=$($P -d "$DB" -c "select count(*) from public.customer_relationships")
 out=$($P -d "$DB" -f "$REPO/sql/rollback/zella_relationships_rollback.sql" 2>&1) || { echo "FAIL rollback: $(echo "$out" | grep -m1 ERROR)"; fails=$((fails + 1)); }
 left=$($P -d "$DB" -c "select count(*) from pg_proc where pronamespace = 'public'::regnamespace and proname ~ '^zella_(people|relationship|consent|is_authorized)'")
 kept=$($P -d "$DB" -c "select count(*) from public.customer_relationships_rolled_back")
+merge_after=$($P -d "$DB" -c "select md5(pg_get_functiondef('public.zella_merge_customers(uuid,uuid,uuid)'::regprocedure))")
+[ "$merge_after" = "$merge_before" ] && echo "PASS rollback restores the customer merge function exactly" || { echo "FAIL rollback changed zella_merge_customers"; fails=$((fails + 1)); }
 [ "$left" = 0 ] && [ "$before" -ge 1 ] && [ "$kept" = "$before" ] && echo "PASS rollback removes the functions and keeps the $kept row(s) in customer_relationships_rolled_back" || { echo "FAIL rollback left $left functions, kept $kept of $before rows"; fails=$((fails + 1)); }
 out=$($P -d "$DB" -f "$REPO/sql/zella_relationships.sql" 2>&1) || { echo "FAIL re-apply: $(echo "$out" | grep -m1 ERROR)"; fails=$((fails + 1)); }
 idx=$($P -d "$DB" -c "select count(*) from pg_indexes where tablename = 'customer_relationships'")

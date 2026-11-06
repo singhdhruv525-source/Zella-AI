@@ -291,6 +291,63 @@ begin
     'sensitive', public.zella_sensitive_industry(p_business_id));
 end $$;
 
+-- Customer merge (zella_merge_customers, zella_customer_records.sql) moves every customer_id column generically. For
+-- relationships that would fail (one link per person, subject and kind; nobody linked to themselves), skip the whole
+-- table, and leave authority on the archived duplicate. So merges handle relationships here instead:
+--   * links about the dropped person move to the kept person (verification kept: the same authority over them);
+--   * links where the dropped person had authority move to the kept person but must be verified again (a merge is
+--     a decision about identity, not a verification of authority);
+--   * a link that would make someone their own contact, or duplicate an active link, is revoked ("merged").
+-- Consents move with the generic step (their subject); who gave them stays as history.
+create or replace function public.zella_people_merge(p_business_id uuid, p_keep uuid, p_drop uuid) returns integer
+language plpgsql security definer set search_path = public as $$
+declare r public.customer_relationships; v_subject uuid; v_related uuid; n integer := 0;
+begin
+  for r in select * from public.customer_relationships
+            where business_id = p_business_id and revoked_at is null and (customer_id = p_drop or related_customer_id = p_drop)
+            order by created_at for update loop
+    v_subject := case when r.customer_id = p_drop then p_keep else r.customer_id end;
+    v_related := case when r.related_customer_id = p_drop then p_keep else r.related_customer_id end;
+    if v_subject is not null and v_subject = v_related then
+      update public.customer_relationships set revoked_at = now(), revoked_by = auth.uid(), revoke_reason = 'merged: would link a person to themselves', updated_at = now() where id = r.id;
+    elsif exists (select 1 from public.customer_relationships x where x.id <> r.id and x.revoked_at is null and x.kind = r.kind
+                    and x.related_customer_id = v_related and x.customer_id is not distinct from v_subject and x.record_id is not distinct from r.record_id) then
+      update public.customer_relationships set revoked_at = now(), revoked_by = auth.uid(), revoke_reason = 'merged: duplicate of an existing link', updated_at = now() where id = r.id;
+    else
+      update public.customer_relationships set customer_id = v_subject, related_customer_id = v_related, updated_at = now(),
+             verified_at = case when r.related_customer_id = p_drop then null else verified_at end,
+             verified_by = case when r.related_customer_id = p_drop then null else verified_by end,
+             verification_method = case when r.related_customer_id = p_drop then null else verification_method end
+       where id = r.id;
+    end if;
+    perform public.zella_people_audit(p_business_id, 'relationship_merged', 'customer_relationship', r.id,
+      jsonb_build_object('customer_id', r.customer_id, 'related_customer_id', r.related_customer_id),
+      jsonb_build_object('customer_id', v_subject, 'related_customer_id', v_related, 'kept', p_keep, 'merged_from', p_drop));
+    n := n + 1;
+  end loop;
+  return n;
+end $$;
+revoke execute on function public.zella_people_merge(uuid, uuid, uuid) from public, anon, authenticated;
+grant execute on function public.zella_people_merge(uuid, uuid, uuid) to service_role;
+
+-- hook it into the merge (patched in place, like other migrations; the rollback takes it out again)
+do $$
+declare def text;
+begin
+  if to_regprocedure('public.zella_merge_customers(uuid, uuid, uuid)') is null then return; end if;
+  def := pg_get_functiondef('public.zella_merge_customers(uuid, uuid, uuid)'::regprocedure);
+  if position('zella_relationships_merge' in def) = 0 then
+    def := replace(def, $a$  if k.id is null or d.id is null then raise exception 'NOT_FOUND'; end if;$a$,
+      $a$  if k.id is null or d.id is null then raise exception 'NOT_FOUND'; end if;
+  perform public.zella_people_merge(p_business_id, p_keep, p_drop); /* zella_relationships_merge */$a$);
+    def := replace(def, $a$'contact_consents', 'data_rights_requests')$a$, $a$'contact_consents', 'data_rights_requests', 'customer_relationships')$a$);
+    if position('zella_relationships_merge' in def) = 0 or position($a$'data_rights_requests', 'customer_relationships')$a$ in def) = 0 then
+      raise exception 'zella_merge_customers has changed; review this patch';
+    end if;
+    execute def;
+  end if;
+end $$;
+
 revoke execute on function public.zella_people_can_edit(uuid), public.zella_people_can_verify(uuid), public.zella_people_subject_ok(uuid, uuid, uuid),
   public.zella_relationship_in_force(public.customer_relationships), public.zella_is_authorized(uuid, uuid, uuid, uuid, text),
   public.zella_people_audit(uuid, text, text, uuid, jsonb, jsonb),

@@ -4,14 +4,15 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { CONSENT_KINDS, KINDS, PERMISSIONS, consentGivers, peopleError, personLabel, suggestedKinds } from "../src/peopleLogic.js";
 
-test("kinds, permissions and consent kinds match the database's allowed values", () => {
+test("kinds, permissions and consent kinds are the expected UI values (the database's own checks are tested in tests/relationships)", () => {
   assert.deepEqual(KINDS.map(([k]) => k).sort(), ["authorized_contact", "emergency_contact", "guardian", "household", "other", "owner", "parent", "proxy", "representative", "tenant", "vendor"]);
   assert.deepEqual(PERMISSIONS.map(([k]) => k).sort(), ["approve", "book", "discuss", "documents", "pickup", "receive_updates"]);
   assert.deepEqual(CONSENT_KINDS.map(([k]) => k).sort(), ["data_sharing", "emergency_care", "medication", "other", "photo_media", "pickup_change", "recording", "terms", "treatment"]);
 });
 
 test("suggested kinds put the likely ones first and keep every kind", () => {
-  for (const [typeKey, first] of [["children", "parent"], ["pets", "owner"], ["units", "tenant"], ["policies", "authorized_contact"], [undefined, "household"]]) {
+  for (const [typeKey, first] of [["children", "parent"], ["pets", "owner"], ["units", "tenant"], ["leases", "tenant"], ["policies", "authorized_contact"], [undefined, "household"],
+    ["opportunities", "household"], ["community_events", "household"], ["carpet_jobs", "household"], ["pet_boarding", "owner"]]) {
     const list = suggestedKinds({ typeKey });
     assert.equal(list[0][0], first, String(typeKey));
     assert.equal(new Set(list.map(([k]) => k)).size, KINDS.length, "no duplicates, none missing");

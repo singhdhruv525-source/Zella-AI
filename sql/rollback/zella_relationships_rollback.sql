@@ -3,6 +3,20 @@
 -- relationship, verification or consent that was recorded is lost; re-applying the migration starts new, empty tables.
 \set ON_ERROR_STOP on
 begin;
+-- take the relationship step out of the customer merge again (exactly the text the migration added)
+do $$
+declare def text;
+begin
+  if to_regprocedure('public.zella_merge_customers(uuid, uuid, uuid)') is null then return; end if;
+  def := pg_get_functiondef('public.zella_merge_customers(uuid, uuid, uuid)'::regprocedure);
+  if position('zella_relationships_merge' in def) > 0 then
+    def := replace(def, E'\n  perform public.zella_people_merge(p_business_id, p_keep, p_drop); /* zella_relationships_merge */', '');
+    def := replace(def, $a$'contact_consents', 'data_rights_requests', 'customer_relationships')$a$, $a$'contact_consents', 'data_rights_requests')$a$);
+    if position('zella_relationships_merge' in def) > 0 then raise exception 'could not take the merge step out; review'; end if;
+    execute def;
+  end if;
+end $$;
+drop function if exists public.zella_people_merge(uuid, uuid, uuid);
 drop function if exists public.zella_people_panel(uuid, uuid, uuid);
 drop function if exists public.zella_consent_revoke(uuid, text);
 drop function if exists public.zella_consent_record(uuid, uuid, uuid, text, text, uuid, text, date, text);

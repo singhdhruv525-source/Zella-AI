@@ -21,6 +21,9 @@ insert into public.customers (id, business_id, first_name, last_name, phone) val
  ('c7000000-0000-0000-0000-0000000001a2', 'c7000000-0000-0000-0000-0000000000a1', 'Quinn', 'Grandma', '+15125550302'),
  ('c7000000-0000-0000-0000-0000000001a3', 'c7000000-0000-0000-0000-0000000000a1', 'Sam', 'Stranger', '+15125550303'),
  ('c7000000-0000-0000-0000-0000000001b1', 'c7000000-0000-0000-0000-0000000000b1', 'Xena', 'Elsewhere', '+15125550304'),
+ ('c7000000-0000-0000-0000-0000000001b2', 'c7000000-0000-0000-0000-0000000000b1', 'Yuri', 'Elsewhere', '+15125550307'),
+ ('c7000000-0000-0000-0000-0000000001a4', 'c7000000-0000-0000-0000-0000000000a1', 'Quinn', 'Grandma (duplicate)', '+15125550312'),
+ ('c7000000-0000-0000-0000-0000000001a5', 'c7000000-0000-0000-0000-0000000000a1', 'Pat', 'Parent (duplicate)', '+15125550311'),
  ('c7000000-0000-0000-0000-0000000001c1', 'c7000000-0000-0000-0000-0000000000c1', 'Cara', 'Client', '+15125550305'),
  ('c7000000-0000-0000-0000-0000000001c2', 'c7000000-0000-0000-0000-0000000000c1', 'Dan', 'Partner', '+15125550306');
 insert into public.crm_record_types (business_id, key, singular, plural, statuses) values
@@ -29,9 +32,17 @@ insert into public.crm_records (id, business_id, type_key, title, status, custom
  ('c7000000-0000-0000-0000-0000000004a1', 'c7000000-0000-0000-0000-0000000000a1', 'r1children', 'Mia', 'active', 'c7000000-0000-0000-0000-0000000001a1');
 create or replace function pg_temp.as_user(u text) returns void language sql as $$
   select set_config('request.jwt.claims', json_build_object('sub', u, 'role', 'authenticated', 'aal', 'aal1')::text, true) $$;
+-- run p_sql and require it to fail with p_code (in the message or as the SQLSTATE); success is a test failure
 create or replace function pg_temp.expect(p_sql text, p_code text) returns void language plpgsql as $$
-begin execute p_sql; raise exception 'expected % but it worked: %', p_code, p_sql;
-exception when others then if position(p_code in sqlerrm) = 0 and sqlstate <> p_code then raise; end if; end $$;
+begin
+  begin
+    execute p_sql;
+  exception when others then
+    if position(p_code in sqlerrm) = 0 and sqlstate <> p_code then raise; end if;
+    return;
+  end;
+  raise exception 'EXPECTED_FAILURE_DID_NOT_HAPPEN (%): %', p_code, p_sql;
+end $$;
 create temp table ids (k text primary key, v uuid) on commit drop;
 grant all on ids to authenticated, anon;
 
@@ -190,6 +201,29 @@ do $$ begin
           'c7000000-0000-0000-0000-0000000001a1', 'c7000000-0000-0000-0000-0000000001b1', 'household', '{discuss}'), 'NOT_VALID');   -- someone else's person as subject
   perform pg_temp.expect(format('select public.zella_relationship_revoke(%L)', (select v from ids where k = 'grandma')), 'NOT_ALLOWED');
 end $$;
+-- the same owner against Alpha's ACTIVE rows (looked up as the database owner, then attacked as the other business)
+reset role;
+insert into ids select 'active_rel', id from public.customer_relationships where record_id = 'c7000000-0000-0000-0000-0000000004a1' and revoked_at is null;
+insert into ids select 'active_consent', id from public.customer_consents where record_id = 'c7000000-0000-0000-0000-0000000004a1' and revoked_at is null and kind = 'emergency_care';
+set local role authenticated;
+select pg_temp.as_user('c7000000-0000-0000-0000-00000000000e');
+do $$ begin
+  assert (select v from ids where k = 'active_rel') is not null and (select v from ids where k = 'active_consent') is not null, 'foreign fixtures exist';
+  perform pg_temp.expect(format('select public.zella_relationship_verify(%L, %L, %L, %L, %L)', (select v from ids where k = 'active_rel'), 'id_checked',
+          'c7000000-0000-0000-0000-0000000001a2', 'guardian', '{approve,pickup}'), 'NOT_ALLOWED');
+  perform pg_temp.expect(format('select public.zella_consent_revoke(%L)', (select v from ids where k = 'active_consent')), 'NOT_ALLOWED');
+  -- their own business and people, but Alpha's relationship id: not theirs to change
+  perform pg_temp.expect(format('select public.zella_relationship_save(%L, %L, %L, null, %L, %L, %L, null, null)', 'c7000000-0000-0000-0000-0000000000b1',
+          (select v from ids where k = 'active_rel'), 'c7000000-0000-0000-0000-0000000001b1', 'c7000000-0000-0000-0000-0000000001b2', 'household', '{discuss}'), 'NOT_FOUND');
+end $$;
+reset role;
+do $$ begin
+  assert (select revoked_at is null and verified_at is not null and related_customer_id = 'c7000000-0000-0000-0000-0000000001a2'
+            from public.customer_relationships where id = (select v from ids where k = 'active_rel')), 'Alpha''s link untouched';
+  assert (select revoked_at is null from public.customer_consents where id = (select v from ids where k = 'active_consent')), 'Alpha''s consent untouched';
+end $$;
+set local role authenticated;
+select pg_temp.as_user('c7000000-0000-0000-0000-00000000000e');
 reset role;
 update public.businesses set suspended_at = now() where id = 'c7000000-0000-0000-0000-0000000000a1';
 set local role authenticated;
@@ -208,7 +242,7 @@ do $$ begin
   perform pg_temp.expect('select 1 from public.customer_relationships', '42501');
 end $$;
 reset role;
-select 'PASS viewers read but cannot change anything (functions or direct insert); another business sees and changes nothing; a paused business takes no changes; anon gets nothing';
+select 'PASS viewers read but cannot change anything (functions or direct insert); another business sees and changes nothing (including verifying, withdrawing or saving over our active rows); a paused business takes no changes; anon gets nothing';
 
 -- ===================================================== non-sensitive industry: staff verify; the server answers
 set local role authenticated;
@@ -229,14 +263,58 @@ end $$;
 reset role;
 select 'PASS outside sensitive industries staff verify; the server (for the AI receptionist later) gets the same answer';
 
+-- ===================================================== customer merge
+reset role;
+insert into public.customer_relationships (id, business_id, customer_id, record_id, related_customer_id, kind, permissions, verified_at, verification_method) values
+ ('c7000000-0000-0000-0000-0000000005a1', 'c7000000-0000-0000-0000-0000000000a1', 'c7000000-0000-0000-0000-0000000001a5', null, 'c7000000-0000-0000-0000-0000000001a3', 'household', '{discuss}', now(), 'known_to_team'),
+ ('c7000000-0000-0000-0000-0000000005a2', 'c7000000-0000-0000-0000-0000000000a1', null, 'c7000000-0000-0000-0000-0000000004a1', 'c7000000-0000-0000-0000-0000000001a4', 'authorized_contact', '{pickup}', now(), 'id_checked'),
+ ('c7000000-0000-0000-0000-0000000005a3', 'c7000000-0000-0000-0000-0000000000a1', null, 'c7000000-0000-0000-0000-0000000004a1', 'c7000000-0000-0000-0000-0000000001a4', 'guardian', '{pickup}', now(), 'id_checked'),
+ ('c7000000-0000-0000-0000-0000000005a4', 'c7000000-0000-0000-0000-0000000000a1', 'c7000000-0000-0000-0000-0000000001a2', null, 'c7000000-0000-0000-0000-0000000001a4', 'household', '{discuss}', now(), 'known_to_team');
+insert into public.customer_consents (business_id, customer_id, kind, status, given_by_customer_id) values
+ ('c7000000-0000-0000-0000-0000000000a1', 'c7000000-0000-0000-0000-0000000001a5', 'terms', 'granted', 'c7000000-0000-0000-0000-0000000001a5');
+set local role authenticated;
+select pg_temp.as_user('c7000000-0000-0000-0000-00000000000b');   -- manager merges the duplicate grandma into Quinn
+do $$ declare j jsonb; begin
+  j := public.zella_merge_customers('c7000000-0000-0000-0000-0000000000a1', 'c7000000-0000-0000-0000-0000000001a2', 'c7000000-0000-0000-0000-0000000001a4');
+  assert not (j -> 'tables_skipped') ? 'customer_relationships' and not (j -> 'tables_skipped') ? 'customer_consents', 'merge skipped a table: ' || j::text;
+  j := public.zella_merge_customers('c7000000-0000-0000-0000-0000000000a1', 'c7000000-0000-0000-0000-0000000001a1', 'c7000000-0000-0000-0000-0000000001a5');
+  assert not (j -> 'tables_skipped') ? 'customer_relationships' and not (j -> 'tables_skipped') ? 'customer_consents', 'merge skipped a table: ' || j::text;
+end $$;
+reset role;
+do $$ declare r record; begin
+  -- authority held by the dropped person moves to the kept person, unverified
+  select * into r from public.customer_relationships where id = 'c7000000-0000-0000-0000-0000000005a2';
+  assert r.related_customer_id = 'c7000000-0000-0000-0000-0000000001a2' and r.verified_at is null and r.revoked_at is null, 'authority moved, needs verifying again';
+  -- a duplicate of an active link is revoked
+  select * into r from public.customer_relationships where id = 'c7000000-0000-0000-0000-0000000005a3';
+  assert r.revoked_at is not null and r.revoke_reason like 'merged: duplicate%', 'duplicate revoked: ' || coalesce(r.revoke_reason, 'not revoked');
+  -- a link that would make Quinn her own household member is revoked
+  select * into r from public.customer_relationships where id = 'c7000000-0000-0000-0000-0000000005a4';
+  assert r.revoked_at is not null and r.revoke_reason like 'merged: would link%', 'self link revoked';
+  -- a link about the dropped person moves to the kept person and keeps its verification
+  select * into r from public.customer_relationships where id = 'c7000000-0000-0000-0000-0000000005a1';
+  assert r.customer_id = 'c7000000-0000-0000-0000-0000000001a1' and r.verified_at is not null and r.revoked_at is null, 'subject moved, still verified';
+  assert exists (select 1 from public.customer_consents where customer_id = 'c7000000-0000-0000-0000-0000000001a1' and kind = 'terms'), 'consent moved with its subject';
+  assert not exists (select 1 from public.customer_relationships where revoked_at is null and (customer_id in ('c7000000-0000-0000-0000-0000000001a4', 'c7000000-0000-0000-0000-0000000001a5')
+                       or related_customer_id in ('c7000000-0000-0000-0000-0000000001a4', 'c7000000-0000-0000-0000-0000000001a5'))), 'nothing active is left on the archived duplicates';
+end $$;
+select 'PASS customer merge: links move to the kept person (authority they held must be verified again), duplicates and self-links are revoked, consents follow their subject, and no table is skipped';
+
 -- ===================================================== audit
-do $$ declare n int; begin
-  select count(*) into n from public.audit_logs where entity_type in ('customer_relationship', 'customer_consent')
-    and business_id in ('c7000000-0000-0000-0000-0000000000a1', 'c7000000-0000-0000-0000-0000000000c1');
-  assert n >= 12, 'audit rows: ' || n;
+do $$ declare missing text; begin
+  select string_agg(e.action || ' (' || coalesce(n, 0) || ' of ' || e.min_count || ')', ', ') into missing
+    from (values ('relationship_added', 3), ('relationship_updated', 3), ('relationship_verified', 3), ('relationship_revoked', 1),
+                 ('relationship_merged', 4), ('consent_recorded', 3), ('consent_revoked', 1)) e(action, min_count)
+    left join (select action, count(*) n from public.audit_logs where business_id in ('c7000000-0000-0000-0000-0000000000a1', 'c7000000-0000-0000-0000-0000000000c1')
+               group by action) a on a.action = e.action
+   where coalesce(n, 0) < e.min_count;
+  assert missing is null, 'actions not audited often enough: ' || missing;
   assert not exists (select 1 from public.audit_logs where entity_type = 'customer_relationship' and (coalesce(new_data::text, '') || coalesce(old_data::text, '')) like '%Fridays%'),
     'note text is not copied into the audit log';
+  assert not exists (select 1 from public.audit_logs where entity_type = 'customer_consent'
+    and ((coalesce(new_data::text, '') || coalesce(old_data::text, '')) like '%Class photos only%' or (coalesce(new_data::text, '') || coalesce(old_data::text, '')) like '%Signed form, 6 Nov%')),
+    'consent scope and evidence are not copied into the audit log';
   assert exists (select 1 from public.audit_logs where action = 'relationship_verified' and new_data ->> 'method' = 'id_checked'), 'verification audited with its method';
 end $$;
-select 'PASS every change is audited (who, what kind, which permissions, how verified), without the note text';
+select 'PASS every kind of change is audited at least as often as it happened (who, kind, permissions, method), without note, scope or evidence text';
 rollback;

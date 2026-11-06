@@ -51,6 +51,10 @@ const authorized = (perm) => sql(`select public.zella_is_authorized('${BIZ}', nu
   const CHILD = sql(`update crm_records set title = '${CHILD_TITLE}', archived_at = null where id = (select id from crm_records where business_id = '${BIZ}' and type_key = 'children' and customer_id is not null order by created_at limit 1) returning id`);
   if (!CHILD) throw new Error('no child record to test with');
   const START = sql("select now()");
+  // a business west of UTC, so a date shown through its time zone would slip to the day before (the bug this guards)
+  sql(`update businesses set timezone = 'America/Chicago' where id = '${BIZ}'`);
+  if (sql(`select extract(timezone_hour from now() at time zone 'UTC' at time zone (select timezone from businesses where id = '${BIZ}'))::int < 0`) !== "t"
+      && sql(`select (select timezone from businesses where id = '${BIZ}') = 'America/Chicago'`) !== "t") throw new Error("test business must be west of UTC");
   const browser = await chromium.launch();
 
   // owner: link, verify, consent, revoke
@@ -83,7 +87,7 @@ const authorized = (perm) => sql(`select public.zella_is_authorized('${BIZ}', nu
     sql(`update customer_relationships set permissions = array['pickup'], valid_until = '2027-03-06' where business_id = '${BIZ}' and related_customer_id = '${GRACE}' and revoked_at is null`);
     await page.close(); page = await ctx.newPage(); page.setDefaultTimeout(10000); page.on("pageerror", (e) => errors.push(e.message)); page.on("dialog", (d) => d.accept(d.type() === "prompt" ? "Test: no longer collects" : undefined));
     await openChild(page);
-    check("an end date shows on its own day (no time-zone shift)", await page.isVisible("[data-relationship=unverified] >> text=until Sat, Mar 6"));
+    check("an end date shows on its own day in a business west of UTC (America/Chicago)", await page.isVisible("[data-relationship=unverified] >> text=until Sat, Mar 6"));
 
     await page.click("[data-relationship=unverified] >> text=Verify");
     const vf = page.locator("form[aria-label^='Verify']");

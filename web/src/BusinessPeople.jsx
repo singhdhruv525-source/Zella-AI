@@ -232,12 +232,19 @@ function VerifyForm({ rel, busy, onCancel, onSave }) {
 function ConsentForm({ givers, busy, onCancel, onSave }) {
   const [f, setF] = useState({ kind: "treatment", status: "granted", givenBy: givers[0]?.id ?? "", scope: "", expires: "", evidence: "" });
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }));
+  // the givers list reloads with the panel: a choice that is no longer eligible counts as no choice
+  const givenBy = givers.some((g) => g.id === f.givenBy) ? f.givenBy : "";
   return (
-    <form className="ba-people-form" aria-label="Record consent" onSubmit={(e) => { e.preventDefault(); if (f.givenBy && !busy) onSave(f); }}>
+    <form className="ba-people-form" aria-label="Record consent" onSubmit={(e) => { e.preventDefault(); if (givenBy && !busy) onSave({ ...f, givenBy }); }}>
       <Field label="Consent for"><select value={f.kind} onChange={set("kind")}>{CONSENT_KINDS.map(([k, label]) => <option key={k} value={k}>{label}</option>)}</select></Field>
       <Field label="Answer"><select value={f.status} onChange={set("status")}><option value="granted">Given</option><option value="refused">Refused</option></select></Field>
       <Field label="Given by">
-        {givers.length ? <select value={f.givenBy} onChange={set("givenBy")}>{givers.map((g) => <option key={g.id} value={g.id}>{g.label}</option>)}</select>
+        {givers.length ? (
+          <select value={givenBy} onChange={set("givenBy")}>
+            {!givenBy && <option value="" disabled>Choose…</option>}
+            {givers.map((g) => <option key={g.id} value={g.id}>{g.label}</option>)}
+          </select>
+        )
           : <p className="ba-muted ba-small">Nobody here can give consent yet: link and verify someone allowed to approve.</p>}
       </Field>
       <Field label="What exactly (optional)"><input value={f.scope} maxLength={300} onChange={set("scope")} placeholder="e.g. class photos only" /></Field>
@@ -245,7 +252,7 @@ function ConsentForm({ givers, busy, onCancel, onSave }) {
       <Field label="Evidence (optional)"><input value={f.evidence} maxLength={500} onChange={set("evidence")} placeholder="e.g. signed form, 6 Nov" /></Field>
       <div className="ba-form-actions">
         <button type="button" className="ba-btn" onClick={onCancel} disabled={busy}>Cancel</button>
-        <button type="submit" className="ba-btn primary" disabled={busy || !f.givenBy}>{busy ? "Saving…" : "Record"}</button>
+        <button type="submit" className="ba-btn primary" disabled={busy || !givenBy}>{busy ? "Saving…" : "Record"}</button>
       </div>
     </form>
   );

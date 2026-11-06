@@ -37,13 +37,17 @@ export const CONSENT_STATE = { active: ["success", "Given"], refused: ["danger",
 export const personLabel = (p) => (p ? [p.first_name, p.last_name].filter(Boolean).join(" ") || p.phone || p.email || "Unnamed" : "");
 
 // Suggested kinds first, by what the subject is (all kinds stay available).
+// whole words of the record type's key ("units", "pet_boarding"), so "opportunities" is never read as "unit"
+const KEY_GROUPS = [
+  [["child", "children", "student", "students", "enrolment", "enrolments", "enrollment", "enrollments", "pupil", "pupils"], ["parent", "guardian", "authorized_contact", "emergency_contact"]],
+  [["pet", "pets", "animal", "animals", "patient_pets"], ["owner", "authorized_contact", "emergency_contact"]],
+  [["unit", "units", "property", "properties", "lease", "leases", "tenancy", "tenancies"], ["tenant", "owner", "vendor", "authorized_contact"]],
+  [["policy", "policies", "claim", "claims", "matter", "matters", "account", "accounts"], ["authorized_contact", "representative", "household"]],
+];
 export function suggestedKinds(subject) {
-  const key = String(subject?.typeKey ?? "").toLowerCase();
-  const order = /child|student|enrol|pupil/.test(key) ? ["parent", "guardian", "authorized_contact", "emergency_contact"]
-    : /pet|animal/.test(key) ? ["owner", "authorized_contact", "emergency_contact"]
-    : /unit|propert|lease/.test(key) ? ["tenant", "owner", "vendor", "authorized_contact"]
-    : /polic|claim|matter|account/.test(key) ? ["authorized_contact", "representative", "household"]
-    : ["household", "parent", "guardian", "proxy", "emergency_contact", "authorized_contact"];
+  const words = String(subject?.typeKey ?? "").toLowerCase().split(/[^a-z]+/).filter(Boolean);
+  const hit = KEY_GROUPS.find(([keys]) => words.some((w) => keys.includes(w)));
+  const order = hit ? hit[1] : ["household", "parent", "guardian", "proxy", "emergency_contact", "authorized_contact"];
   return [...order.map((k) => [k, KIND_LABEL[k]]), ...KINDS.filter(([k]) => !order.includes(k))];
 }
 

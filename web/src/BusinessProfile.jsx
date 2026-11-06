@@ -348,7 +348,7 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
               </form>
             )}
 
-            {tab === "people" && <PeopleAndConsent workspace={workspace} subject={{ customer: person }} onNotice={onNotice} />}
+            {tab === "people" && <PeopleAndConsent key={`${workspace.id}:${person.id}`} workspace={workspace} subject={{ customer: person }} onNotice={onNotice} />}
 
             {tab === "privacy" && <PersonDataRights person={person} workspace={workspace} onChanged={refresh} onNotice={onNotice} />}
 
