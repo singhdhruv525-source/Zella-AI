@@ -1,0 +1,83 @@
+# CodeRabbit review settings for Zella Voice (AI receptionist + multi-tenant CRM on Supabase).
+# Every change reaches main through a pull request that CodeRabbit reviews first.
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: en-US
+
+reviews:
+  profile: assertive
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  auto_review:
+    enabled: true
+    drafts: false
+
+  # generated files and test output: nothing to review
+  path_filters:
+    - "!tests/browser/out/**"
+    - "!tests/workflows/out/**"
+    - "!tests/runtime/out/**"
+    - "!web/dist/**"
+    - "!**/package-lock.json"
+    - "!**/deno.lock"
+
+  path_instructions:
+    - path: "**/*"
+      instructions: >
+        Zella is a multi-tenant SaaS: every business's data must stay inside that business. Flag any code path that
+        could read or change another business's data. Never allow secrets, API keys or tokens in code, tests, fixtures
+        or logs (tests must use obviously fake values). No code may send real calls, texts or emails, switch on live
+        flags (sms_live, email_live, calls_live, n8n dispatch) or change live voice assistants. Card details are never
+        collected or stored.
+
+    - path: "sql/**/*.sql"
+      instructions: >
+        Supabase Postgres migrations. Flag: SECURITY DEFINER functions without a fixed search_path; functions that
+        don't check the caller's business membership and role; EXECUTE granted to anon or PUBLIC without a stated
+        public purpose; row security disabled or loosened; tables dropped or recreated; destructive changes to
+        existing data. Each migration must be safe to run twice, and a changed migration needs its undo in
+        sql/rollback/.
+
+    - path: "sql/rollback/**/*.sql"
+      instructions: >
+        Rollbacks must restore the previous definitions exactly, run in one transaction, and never delete customer
+        data.
+
+    - path: "web/supabase/functions/**/*.ts"
+      instructions: >
+        Deno edge functions. Flag: an action without an authorization check on the server; trusting identity or
+        business IDs from the request body; secrets in responses or logs; error messages that expose database
+        internals; any request to a real provider (Vapi, Telnyx, email, Stripe, Shopify, calendars) that isn't behind
+        an explicit setting.
+
+    - path: "web/src/**/*.{js,jsx}"
+      instructions: >
+        React app. Hiding a button is not authorization: the server must enforce it too. A failed or missing
+        response must never be shown as 0, an empty list or "all good"; show loading, error, stale or unavailable.
+        Admin permissions fail closed. Check dialogs for focus handling and labels, and guard against double
+        submission.
+
+    - path: "tests/**"
+      instructions: >
+        Tests run on isolated databases or stubbed backends only, never production. Flag weakened or skipped
+        assertions, and fixtures that look like real credentials or real customer data.
+
+    - path: "docs/**/*.md"
+      instructions: >
+        Reports must match the evidence: test counts, what ran against mocks versus a real backend, and what was
+        or wasn't deployed. Flag claims of legal or regulatory compliance.
+
+  tools:
+    gitleaks:
+      enabled: true
+    shellcheck:
+      enabled: true
+    markdownlint:
+      enabled: false
+
+  pre_merge_checks:
+    docstrings:
+      mode: "off"
+
+chat:
+  auto_reply: true
