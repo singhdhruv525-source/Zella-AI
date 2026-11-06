@@ -77,10 +77,10 @@ select 'PASS a manager verifies (method checked); then exactly the granted permi
 select pg_temp.as_user('c7000000-0000-0000-0000-00000000000c');   -- staff edits
 do $$ declare v uuid := (select v from ids where k = 'grandma'); begin
   perform public.zella_relationship_save('c7000000-0000-0000-0000-0000000000a1', v, null, 'c7000000-0000-0000-0000-0000000004a1',
-          'c7000000-0000-0000-0000-0000000001a2', 'guardian', array['pickup'], null, null);
+          'c7000000-0000-0000-0000-0000000001a2', 'guardian', array['pickup'], null, null, (select updated_at from public.customer_relationships where id = v));
   assert (select verified_at is not null from public.customer_relationships where id = v), 'narrowing keeps the verification';
   perform public.zella_relationship_save('c7000000-0000-0000-0000-0000000000a1', v, null, 'c7000000-0000-0000-0000-0000000004a1',
-          'c7000000-0000-0000-0000-0000000001a2', 'guardian', array['pickup', 'approve'], null, null);
+          'c7000000-0000-0000-0000-0000000001a2', 'guardian', array['pickup', 'approve'], null, null, (select updated_at from public.customer_relationships where id = v));
   assert (select verified_at is null from public.customer_relationships where id = v), 'widening clears the verification';
   assert not public.zella_is_authorized('c7000000-0000-0000-0000-0000000000a1', null, 'c7000000-0000-0000-0000-0000000004a1', 'c7000000-0000-0000-0000-0000000001a2', 'pickup'), 'and so grants nothing';
   perform pg_temp.expect(format('select public.zella_relationship_save(%L, null, null, %L, %L, %L, %L, %L, null)', 'c7000000-0000-0000-0000-0000000000a1',
@@ -102,7 +102,7 @@ do $$ begin update public.customer_relationships set permissions = array['pickup
 set local role authenticated;
 select pg_temp.as_user('c7000000-0000-0000-0000-00000000000c');   -- staff widens it
 do $$ begin perform public.zella_relationship_save('c7000000-0000-0000-0000-0000000000a1', (select v from ids where k = 'grandma'), null,
-  'c7000000-0000-0000-0000-0000000004a1', 'c7000000-0000-0000-0000-0000000001a2', 'guardian', array['pickup', 'approve'], null, null); end $$;
+  'c7000000-0000-0000-0000-0000000004a1', 'c7000000-0000-0000-0000-0000000001a2', 'guardian', array['pickup', 'approve'], null, null, (select updated_at from public.customer_relationships where id = (select v from ids where k = 'grandma'))); end $$;
 select pg_temp.as_user('c7000000-0000-0000-0000-00000000000b');   -- manager confirms what they were shown
 do $$ declare v uuid := (select v from ids where k = 'grandma'); begin
   perform pg_temp.expect(format('select public.zella_relationship_verify(%L, %L, %L, %L, %L)', v, 'id_checked',
@@ -122,6 +122,38 @@ select 'PASS a verification only applies to exactly what the verifier was shown:
 
 select 'PASS edits: narrowing keeps verification, widening clears it; duplicates, past end dates, the same person, unknown kinds and permissions, and people from another business are refused';
 
+-- stale forms: an edit or a verification made from an out-of-date screen changes nothing
+set local role authenticated;
+select pg_temp.as_user('c7000000-0000-0000-0000-00000000000b');   -- manager
+do $$ declare v uuid; t timestamptz; begin
+  v := public.zella_relationship_save('c7000000-0000-0000-0000-0000000000a1', null, 'c7000000-0000-0000-0000-0000000001a1', null,
+       'c7000000-0000-0000-0000-0000000001a3', 'representative', array['discuss', 'book'], current_date + 20, null);
+  t := (select updated_at from public.customer_relationships where id = v);   -- what both screens loaded
+  -- someone else narrows it to "discuss" (with what they loaded) ...
+  perform public.zella_relationship_save('c7000000-0000-0000-0000-0000000000a1', v, 'c7000000-0000-0000-0000-0000000001a1', null,
+       'c7000000-0000-0000-0000-0000000001a3', 'representative', array['discuss'], current_date + 20, null, t);
+  -- ... so a save from the older screen, which still shows "book", is refused and doesn't bring "book" back
+  perform pg_temp.expect(format('select public.zella_relationship_save(%L, %L, %L, null, %L, %L, %L, %L, null, %L)', 'c7000000-0000-0000-0000-0000000000a1', v,
+          'c7000000-0000-0000-0000-0000000001a1', 'c7000000-0000-0000-0000-0000000001a3', 'representative', '{discuss,book}', current_date + 20, t), 'CHANGED');
+  perform pg_temp.expect(format('select public.zella_relationship_save(%L, %L, %L, null, %L, %L, %L, %L, null)', 'c7000000-0000-0000-0000-0000000000a1', v,
+          'c7000000-0000-0000-0000-0000000001a1', 'c7000000-0000-0000-0000-0000000001a3', 'representative', '{discuss,book}', current_date + 20), 'CHANGED');
+  assert (select permissions = '{discuss}' from public.customer_relationships where id = v), 'stale saves changed nothing';
+  -- the end date is part of what the verifier saw: extended while the Verify form was open -> nothing verified
+  perform public.zella_relationship_save('c7000000-0000-0000-0000-0000000000a1', v, 'c7000000-0000-0000-0000-0000000001a1', null,
+       'c7000000-0000-0000-0000-0000000001a3', 'representative', array['discuss'], current_date + 300, null,
+       (select updated_at from public.customer_relationships where id = v));
+  perform pg_temp.expect(format('select public.zella_relationship_verify(%L, %L, %L, %L, %L, %L)', v, 'id_checked',
+          'c7000000-0000-0000-0000-0000000001a3', 'representative', '{discuss}', current_date + 20), 'CHANGED');
+  perform pg_temp.expect(format('select public.zella_relationship_verify(%L, %L, %L, %L, %L)', v, 'id_checked',
+          'c7000000-0000-0000-0000-0000000001a3', 'representative', '{discuss}'), 'CHANGED');
+  assert (select verified_at is null from public.customer_relationships where id = v), 'a verification of a different end date changed nothing';
+  perform public.zella_relationship_verify(v, 'id_checked', 'c7000000-0000-0000-0000-0000000001a3', 'representative', array['discuss'], current_date + 300);
+  assert public.zella_is_authorized('c7000000-0000-0000-0000-0000000000a1', 'c7000000-0000-0000-0000-0000000001a1', null, 'c7000000-0000-0000-0000-0000000001a3', 'discuss'), 'verifying what is current works';
+  perform public.zella_relationship_revoke(v, 'test done');
+end $$;
+reset role;
+select 'PASS stale screens: an edit from an out-of-date form (or without its version) and a verification of a different end date are refused (CHANGED) and change nothing';
+
 -- expiry and revocation
 reset role;
 do $$ begin update public.customer_relationships set verified_at = now(), valid_until = current_date - 1 where id = (select v from ids where k = 'grandma'); end $$;
@@ -135,7 +167,7 @@ do $$ declare v uuid := (select v from ids where k = 'grandma'); p jsonb; begin
   -- staff (childcare) extends the expired link: the old verification doesn't come back, so it grants nothing
   perform public.zella_relationship_save('c7000000-0000-0000-0000-0000000000a1', v, null, 'c7000000-0000-0000-0000-0000000004a1',
           'c7000000-0000-0000-0000-0000000001a2', (select kind from public.customer_relationships where id = v),
-          (select permissions from public.customer_relationships where id = v), current_date + 30, null);
+          (select permissions from public.customer_relationships where id = v), current_date + 30, null, (select updated_at from public.customer_relationships where id = v));
   assert (select verified_at is null and verification_method is null from public.customer_relationships where id = v), 'extending an expired link clears its verification';
   assert not public.zella_is_authorized('c7000000-0000-0000-0000-0000000000a1', null, 'c7000000-0000-0000-0000-0000000004a1', 'c7000000-0000-0000-0000-0000000001a2', 'pickup'), 'extended but unverified link grants nothing';
   assert (select state from jsonb_to_recordset(public.zella_people_panel('c7000000-0000-0000-0000-0000000000a1', null, 'c7000000-0000-0000-0000-0000000004a1') -> 'relationships') x(id uuid, state text) where id = v) = 'unverified', 'panel shows the extended link as not verified';
@@ -157,11 +189,11 @@ set local role authenticated;
 select pg_temp.as_user('c7000000-0000-0000-0000-00000000000c');
 do $$ declare v uuid := (select id from public.customer_relationships where record_id = 'c7000000-0000-0000-0000-0000000004a1' and revoked_at is null); begin
   perform public.zella_relationship_save('c7000000-0000-0000-0000-0000000000a1', v, null, 'c7000000-0000-0000-0000-0000000004a1',
-          'c7000000-0000-0000-0000-0000000001a2', 'guardian', array['pickup'], current_date + 10, null);
+          'c7000000-0000-0000-0000-0000000001a2', 'guardian', array['pickup'], current_date + 10, null, (select updated_at from public.customer_relationships where id = v));
   assert (select verified_at is not null from public.customer_relationships where id = v), 'an earlier end date keeps the verification';
   assert public.zella_is_authorized('c7000000-0000-0000-0000-0000000000a1', null, 'c7000000-0000-0000-0000-0000000004a1', 'c7000000-0000-0000-0000-0000000001a2', 'pickup'), 'still in force after shortening';
   perform public.zella_relationship_save('c7000000-0000-0000-0000-0000000000a1', v, null, 'c7000000-0000-0000-0000-0000000004a1',
-          'c7000000-0000-0000-0000-0000000001a2', 'guardian', array['pickup'], null, null);
+          'c7000000-0000-0000-0000-0000000001a2', 'guardian', array['pickup'], null, null, (select updated_at from public.customer_relationships where id = v));
   assert (select verified_at is null from public.customer_relationships where id = v), 'removing the end date clears the verification';
   assert not public.zella_is_authorized('c7000000-0000-0000-0000-0000000000a1', null, 'c7000000-0000-0000-0000-0000000004a1', 'c7000000-0000-0000-0000-0000000001a2', 'pickup'), 'open-ended again but unverified: nothing';
 end $$;

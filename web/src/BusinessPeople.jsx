@@ -38,12 +38,14 @@ export function PeopleAndConsent({ workspace, subject, onNotice }) {
   const inFlight = useRef(false);
 
   // one change at a time; the panel reloads from the server afterwards
+  const lastError = useRef(null);
   async function run(fn, args, done) {
     if (inFlight.current) return false;
     inFlight.current = true; setBusy(true); setProblem(""); setDone("");
     const res = await supabase.rpc(fn, args);
     inFlight.current = false; setBusy(false);
     // a refusal reloads the panel too, so it shows the current state (e.g. a link someone else just changed)
+    lastError.current = res.error ?? null;
     if (res.error) { setProblem(peopleError(res.error)); panel.reload(); return false; }
     setDone(done);
     onNotice?.(done);
@@ -112,6 +114,7 @@ export function PeopleAndConsent({ workspace, subject, onNotice }) {
         onSave={async (method) => { await run("zella_relationship_verify", {
           // exactly what the verifier is looking at; the server refuses if the link changed since (CHANGED)
           p_id: verifying.id, p_method: method, p_related_customer_id: verifying.person.id, p_kind: verifying.kind, p_permissions: verifying.permissions,
+          p_valid_until: verifying.valid_until ?? null,
         }, `${personLabel(verifying.person)} is verified.`);
           setVerifying(null);   // on success, or to show the link as it is now (the panel reloads either way)
         }} />}
@@ -122,8 +125,10 @@ export function PeopleAndConsent({ workspace, subject, onNotice }) {
             p_business_id: workspace.id, p_id: form.id ?? null, p_customer_id: customerId, p_record_id: recordId,
             p_related_customer_id: form.person?.id ?? null, p_kind: form.kind, p_permissions: form.permissions,
             p_valid_until: form.valid_until || null, p_note: form.note || null,
+            p_expected_updated_at: form.id ? form.updated_at ?? null : null,   // the version this form loaded; the server refuses a stale one (CHANGED)
           }, form.id ? "Link updated. If you widened what they may do, it needs verifying again." : "Person linked. Verify them before they can act.");
-          if (ok) setEditing(null);
+          // saved, or the link changed meanwhile: close the form so it's reopened from the link as it is now
+          if (ok || /\bCHANGED\b/.test(lastError.current?.message ?? "")) setEditing(null);
         }} />}
 
       {past.length > 0 && (
@@ -185,7 +190,7 @@ export function PeopleAndConsent({ workspace, subject, onNotice }) {
 
 function RelationshipForm({ workspace, subject, rel, busy, onCancel, onSave }) {
   const [form, setForm] = useState(() => ({ id: rel?.id, person: rel?.person ?? null, kind: rel?.kind ?? suggestedKinds(subject)[0][0],
-    permissions: rel?.permissions ?? ["discuss"], valid_until: rel?.valid_until ?? "", note: rel?.note ?? "" }));
+    permissions: rel?.permissions ?? ["discuss"], valid_until: rel?.valid_until ?? "", note: rel?.note ?? "", updated_at: rel?.updated_at }));
   const toggle = (perm) => setForm((f) => ({ ...f, permissions: f.permissions.includes(perm) ? f.permissions.filter((x) => x !== perm) : [...f.permissions, perm] }));
   return (
     <form className="ba-people-form" aria-label={rel ? "Edit link" : "Link a person"} onSubmit={(e) => { e.preventDefault(); if (form.person && !busy) onSave(form); }}>
@@ -214,7 +219,7 @@ function VerifyForm({ rel, busy, onCancel, onSave }) {
   const [method, setMethod] = useState("");
   return (
     <form className="ba-people-form" aria-label={`Verify ${personLabel(rel.person)}`} onSubmit={(e) => { e.preventDefault(); if (method && !busy) onSave(method); }}>
-      <p><strong>Verify {personLabel(rel.person)}</strong> as {(KIND_LABEL[rel.kind] ?? rel.kind).toLowerCase()}: {rel.permissions.map((x) => PERMISSION_LABEL[x] ?? x).join(", ") || "no permissions"}.</p>
+      <p><strong>Verify {personLabel(rel.person)}</strong> as {(KIND_LABEL[rel.kind] ?? rel.kind).toLowerCase()}: {rel.permissions.map((x) => PERMISSION_LABEL[x] ?? x).join(", ") || "no permissions"}{rel.valid_until ? `, until ${calendarDay(rel.valid_until)}` : ", with no end date"}.</p>
       <Field label="How did you verify them?">
         <select value={method} onChange={(e) => setMethod(e.target.value)} required>
           <option value="">Choose…</option>
