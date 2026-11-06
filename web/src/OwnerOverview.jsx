@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
 import "./OwnerPages.css";
 import { callOwnerFunction } from "./CreateBusinessWizard";
 import { actionLabel, stageLabel, stageTone, timeAgo, formatDate } from "./ownerFormat";
 import { humanize } from "./copy/labels";
-import { friendlyError } from "./admin/adminOps";
+import { LoadNotice, UpdatedAt, useRefreshable } from "./admin/loadState";
+import { emptyText, metric } from "./admin/loadStatus";
 
 const ATTENTION_LABELS = {
   invitation_failed: "Invitation failed",
@@ -43,29 +43,18 @@ export function Pill({ tone = "neutral", children }) {
   return <span className={`op-pill op-pill-${tone}`}>{text}</span>;
 }
 
+const loadOverview = () => callOwnerFunction("overview_data");
+
 export default function OwnerOverview({ onCreateBusiness, onOpenBusiness, onContinueSetup, onNavigate }) {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      setData(await callOwnerFunction("overview_data"));
-    } catch (err) {
-      setError(friendlyError(err));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  // the last good answer stays on screen when a refresh fails, marked as possibly out of date (admin/loadState.jsx)
+  const r = useRefreshable(loadOverview);
+  const { data, loading } = r;
+  const load = r.reload;
 
   const s = data?.stats;
-  const show = (value) => (loading && !data ? "…" : value ?? 0);
+  // a missing or unloaded number shows "—", never a made-up 0
+  const show = (value) => metric(value, r);
+  const list = (key) => (Array.isArray(data?.[key]) ? data[key] : null);
   const maxFunnel = Math.max(1, ...(data?.funnel ?? []).map((f) => f.count));
 
   return (
@@ -77,6 +66,7 @@ export default function OwnerOverview({ onCreateBusiness, onOpenBusiness, onCont
           <p>Every client business on Zella, where its setup stands, and what needs attention.</p>
         </div>
         <div className="op-heading-actions">
+          <UpdatedAt r={r} />
           <button type="button" className="owner-secondary-button" onClick={load} disabled={loading}>
             {loading ? "Loading..." : "↻ Refresh"}
           </button>
@@ -86,12 +76,7 @@ export default function OwnerOverview({ onCreateBusiness, onOpenBusiness, onCont
         </div>
       </div>
 
-      {error && (
-        <div className="owner-form-error op-gap">
-          Could not load the overview: {error}{" "}
-          <button type="button" className="op-link" onClick={load}>Try again</button>
-        </div>
-      )}
+      <LoadNotice r={r} what="the overview" />
 
       <div className="owner-stat-grid">
         <Metric label="Businesses" value={show(s?.totalBusinesses)} note={`${show(s?.live)} live`} />
@@ -103,8 +88,8 @@ export default function OwnerOverview({ onCreateBusiness, onOpenBusiness, onCont
       <div className="owner-stat-grid">
         <Metric label="Calls (30 days)" value={show(s?.callsLast30Days)} note={`${show(s?.aiCallsLast30Days)} handled by AI`} />
         <Metric label="Open support tickets" value={show(s?.openTickets)} note="Open or in progress" />
-        <Metric label="Needs attention" value={show(data?.attention?.length)} note="Failed invites, errors" />
-        <Metric label="Suspended / canceling" value={loading && !data ? "…" : `${s?.suspended ?? 0} / ${s?.cancelling ?? 0}`} note={`${show(s?.cancelled)} canceled`} />
+        <Metric label="Needs attention" value={show(list("attention")?.length)} note="Failed invites, errors" />
+        <Metric label="Suspended / canceling" value={r.status === "loading" ? "…" : `${show(s?.suspended)} / ${show(s?.cancelling)}`} note={`${show(s?.cancelled)} canceled`} />
       </div>
 
       <div className="op-grid">
@@ -128,7 +113,7 @@ export default function OwnerOverview({ onCreateBusiness, onOpenBusiness, onCont
               ))}
             </ul>
           ) : (
-            <div className="op-empty">{loading && !data ? "Loading..." : "Nothing needs attention right now."}</div>
+            <div className="op-empty">{emptyText(r, list("attention") ? "Nothing needs attention right now." : "Not reported.", "the overview")}</div>
           )}
         </Panel>
 
@@ -143,7 +128,7 @@ export default function OwnerOverview({ onCreateBusiness, onOpenBusiness, onCont
                 <strong>{stage.count}</strong>
               </div>
             ))}
-            {!data && <div className="op-empty">{loading ? "Loading..." : "No data"}</div>}
+            {!list("funnel") && <div className="op-empty">{emptyText(r, "Not reported.", "the overview")}</div>}
           </div>
         </Panel>
       </div>
@@ -173,7 +158,7 @@ export default function OwnerOverview({ onCreateBusiness, onOpenBusiness, onCont
               ))}
             </ul>
           ) : (
-            <div className="op-empty">{loading && !data ? "Loading..." : "No setups in progress."}</div>
+            <div className="op-empty">{emptyText(r, list("inProgress") ? "No setups in progress." : "Not reported.", "the overview")}</div>
           )}
         </Panel>
 
@@ -201,7 +186,7 @@ export default function OwnerOverview({ onCreateBusiness, onOpenBusiness, onCont
               ))}
             </ul>
           ) : (
-            <div className="op-empty">{loading && !data ? "Loading..." : "No activity recorded yet."}</div>
+            <div className="op-empty">{emptyText(r, list("activity") ? "No activity recorded yet." : "Not reported.", "the overview")}</div>
           )}
         </Panel>
       </div>
@@ -244,8 +229,9 @@ export default function OwnerOverview({ onCreateBusiness, onOpenBusiness, onCont
           </div>
         ) : (
           <div className="op-empty">
-            {loading && !data ? "Loading..." : "No businesses yet."}
-            {!loading && (
+            {emptyText(r, list("recentBusinesses") ? "No businesses yet." : "Not reported.", "the overview")}
+            {/* only after an answer that really lists no businesses */}
+            {list("recentBusinesses") && !list("recentBusinesses").length && (
               <button type="button" className="owner-primary-button op-gap-top" onClick={onCreateBusiness}>
                 ＋ Create your first business
               </button>

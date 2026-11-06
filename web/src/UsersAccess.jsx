@@ -14,6 +14,20 @@ const ROLE_LABELS = {
 // What each restricted role can do is set in Settings > Users, roles & access > Platform roles.
 const RESTRICTED = ["platform_operations", "billing_admin", "support_admin", "security_admin", "read_only_admin"];
 
+// What a role may do, in words, from the server's own role definitions (roles_get: the permission catalog and each
+// restricted role's permissions). The owner and super admin rules match the server's check in owner-provision-business.
+function roleExplanation(role, roles) {
+  if (role === "zella_owner") return "Full access to every client business and every admin page, and can add, change and remove platform admins and edit what restricted roles may do.";
+  if (role === "super_admin") return "Full access to every client business and every admin page, except adding or removing admins and changing roles.";
+  const def = roles?.roles?.find((r) => r.key === role);
+  if (!def) return "Only the permissions set for this role in Settings > Users, roles & access > Platform roles. (They couldn't be loaded just now.)";
+  const words = new Map((roles.catalog ?? []).map(([key, text]) => [key, text]));
+  const list = (def.permissions ?? []).map((p) => words.get(p) ?? p);
+  if (!list.length) return "No permissions yet: they can sign in, but see only Settings until a Zella owner gives this role permissions.";
+  return `Only: ${list.join("; ")}. Nothing else.`;
+}
+const loadRoles = () => callOwnerFunction("roles_get");
+
 export default function UsersAccess() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -23,6 +37,8 @@ export default function UsersAccess() {
   const [inviting, setInviting] = useState(false);
   const [invite, setInvite] = useState({ email: "", role: "super_admin" });
   const [confirm, setConfirm] = useState(null);
+  const [roles, setRoles] = useState(null);
+  useEffect(() => { let live = true; loadRoles().then((r) => live && setRoles(r)).catch(() => {}); return () => { live = false; }; }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -63,10 +79,11 @@ export default function UsersAccess() {
   async function submitInvite(event) {
     event.preventDefault();
     if (checkEmail(invite.email, { required: true })) return;
+    const label = ROLE_LABELS[invite.role] ?? invite.role;
     const ok = await run("admin_invite", invite, (r) =>
       r.invited
-        ? `Invitation emailed to ${r.email}.`
-        : `${r.email} already had a Zella login and can now use the admin dashboard.`
+        ? `Invitation emailed to ${r.email} as ${label}.`
+        : `${r.email} already had a Zella login and can now use the admin dashboard as ${label}.`
     );
     if (ok) {
       setInviting(false);
@@ -101,7 +118,7 @@ export default function UsersAccess() {
           <div className="wiz-section-head">
             <div>
               <h3>Add a platform admin</h3>
-              <p>They get full access to every client business. If they don't have a Zella login yet, they're emailed an invitation.</p>
+              <p>What they can do depends on the role you choose below. If they don't have a Zella login yet, they're emailed an invitation.</p>
             </div>
           </div>
           <div className="owner-form-grid">
@@ -118,6 +135,9 @@ export default function UsersAccess() {
               </select>
             </label>
           </div>
+          <p className="wiz-note op-gap" role="status" aria-live="polite" data-role-explanation>
+            <strong>{ROLE_LABELS[invite.role]}:</strong> {roleExplanation(invite.role, roles)}
+          </p>
           <div className="ic-actions">
             <button type="button" className="owner-secondary-button" onClick={() => setInviting(false)} disabled={busy}>Cancel</button>
             <button type="submit" className="owner-primary-button" disabled={busy || !invite.email.trim()}>
@@ -164,7 +184,7 @@ export default function UsersAccess() {
                         onChange={(e) => {
                           const role = e.target.value;
                           setConfirm({
-                            message: `Change ${a.email} to ${ROLE_LABELS[role]}?`,
+                            message: `Change ${a.email} to ${ROLE_LABELS[role]}? ${roleExplanation(role, roles)}`,
                             label: "Change role",
                             run: () => run("admin_update", { userId: a.user_id, role }, () => `${a.email} is now a ${ROLE_LABELS[role]}.`),
                           });

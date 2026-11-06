@@ -132,7 +132,9 @@ const text = (p) => p.evaluate(() => document.body.innerText);
     // what the sign-in library in another tab sends when a different account signs in there
     await other.evaluate((t) => { localStorage.setItem("sb-example-auth-token", JSON.stringify(t));
       new BroadcastChannel("sb-example-auth-token").postMessage({ event: "SIGNED_IN", session: t }); }, token(LIMITED));
-    await p.waitForFunction(() => ![...document.querySelectorAll(".owner-nav-item")].some((e) => e.innerText.includes("Audit Logs")), null, { timeout: 8000 }).catch(() => {});
+    // the old account's menu goes away, then (after the new account's permissions load) the new account's appears
+    await p.waitForFunction(() => { const items = [...document.querySelectorAll(".owner-nav-item")].map((e) => e.innerText);
+      return items.some((t) => t.includes("Security & Abuse")) && !items.some((t) => t.includes("Audit Logs")); }, null, { timeout: 8000 }).catch(() => {});
     const nav = await navLabels(p);
     check(!nav.includes("Audit Logs") && nav.includes("Security & Abuse"), `switch: restricted account's pages after the switch (${nav.join(", ")})`);
     await ctx.close(); }

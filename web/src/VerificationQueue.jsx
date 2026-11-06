@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import "./OwnerPages.css";
 import { callOwnerFunction } from "./CreateBusinessWizard";
@@ -35,6 +35,23 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
   const [notice, setNotice] = useState("");
   const [rejecting, setRejecting] = useState(null);
   const [reason, setReason] = useState("");
+  // Verify asks first (B2-06): business, document, file and what will happen; one request per confirmation.
+  const [verifying, setVerifying] = useState(null);
+  const [dialogError, setDialogError] = useState("");
+  const inFlight = useRef(false);
+  const returnFocus = useRef(null);
+  const openDialog = (setter, doc) => { returnFocus.current = document.activeElement; setDialogError(""); setter(doc); };
+  const closeDialog = useCallback(() => {
+    setVerifying(null); setRejecting(null); setDialogError("");
+    const el = returnFocus.current; returnFocus.current = null;
+    if (el && typeof el.focus === "function") setTimeout(() => el.focus(), 0);
+  }, []);
+  useEffect(() => {
+    if (!verifying && !rejecting) return undefined;
+    const onKey = (e) => { if (e.key === "Escape" && !inFlight.current) closeDialog(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [verifying, rejecting, closeDialog]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -61,17 +78,24 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
   }
 
   async function review(doc, next, note = "") {
+    if (inFlight.current) return;   // a second click while the first is still saving does nothing
+    inFlight.current = true;
     setBusy(doc.id);
     setError("");
+    setDialogError("");
+    setNotice("");
     try {
       await callOwnerFunction("document_review", { documentId: doc.id, status: next, note });
       setNotice(`${KIND[doc.kind] ?? doc.kind} for ${doc.business_name} marked ${next}.`);
-      setRejecting(null);
       setReason("");
+      inFlight.current = false;
+      closeDialog();
       await load();
     } catch (err) {
-      setError(friendlyError(err));
+      // the dialog stays open with the reason; the document's status is whatever the server still has
+      setDialogError(friendlyError(err));
     } finally {
+      inFlight.current = false;
       setBusy("");
     }
   }
@@ -147,8 +171,8 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
                         <td>
                           <div className="vq-actions">
                             <button type="button" className="owner-secondary-button" onClick={() => view(doc)}>View</button>
-                            {doc.status !== "verified" && <button type="button" className="owner-primary-button" disabled={busy === doc.id} onClick={() => review(doc, "verified")}>Verify</button>}
-                            {doc.status !== "rejected" && <button type="button" className="bd-danger-button" disabled={busy === doc.id} onClick={() => { setRejecting(doc); setReason(""); }}>Reject</button>}
+                            {doc.status !== "verified" && <button type="button" className="owner-primary-button" disabled={busy === doc.id} onClick={() => openDialog(setVerifying, doc)}>Verify</button>}
+                            {doc.status !== "rejected" && <button type="button" className="bd-danger-button" disabled={busy === doc.id} onClick={() => { openDialog(setRejecting, doc); setReason(""); }}>Reject</button>}
                             {doc.status === "rejected" && <button type="button" className="owner-secondary-button" onClick={() => onOpenSetup(doc.business_id)}>Ask for a new copy</button>}
                           </div>
                         </td>
@@ -166,21 +190,50 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
       )}
 
       {rejecting && createPortal(
-        <div className="owner-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && !busy && setRejecting(null)}>
+        <div className="owner-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && !busy && closeDialog()}>
           <div className="bd-confirm owner-modal danger" role="dialog" aria-modal="true" aria-label="Reject document">
             <div className="zs-dialog-head">
               <span className="zs-dialog-icon"><Icon name="gpp_bad" /></span>
               <h3>Reject {KIND[rejecting.kind] ?? "document"}?</h3>
             </div>
             <p>{rejecting.business_name} can't finish setup until a new copy is uploaded. Say what's wrong so it can be fixed.</p>
+            {dialogError && <div className="owner-form-error" role="alert">{dialogError}</div>}
             <label className="owner-field">
               <span>Reason (shown in setup, kept in the audit log)</span>
               <input value={reason} maxLength={500} onChange={(e) => setReason(e.target.value)} placeholder="e.g. The name doesn't match the business" autoFocus />
             </label>
             <div className="ic-actions">
-              <button type="button" className="owner-secondary-button" onClick={() => setRejecting(null)} disabled={Boolean(busy)}>Go back</button>
+              <button type="button" className="owner-secondary-button" onClick={closeDialog} disabled={Boolean(busy)}>Go back</button>
               <button type="button" className="bd-danger-button" disabled={!reason.trim() || Boolean(busy)} onClick={() => review(rejecting, "rejected", reason.trim())}>
                 {busy ? "Rejecting..." : "Reject document"}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {verifying && createPortal(
+        <div className="owner-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && !busy && closeDialog()}>
+          <div className="bd-confirm owner-modal" role="dialog" aria-modal="true" aria-labelledby="vq-verify-title" aria-describedby="vq-verify-body" data-dialog="verify">
+            <div className="zs-dialog-head">
+              <span className="zs-dialog-icon"><Icon name="verified" /></span>
+              <h3 id="vq-verify-title">Mark this document verified?</h3>
+            </div>
+            <div id="vq-verify-body">
+              <dl className="vq-confirm-facts">
+                <dt>Business</dt><dd>{verifying.business_name}</dd>
+                <dt>Document</dt><dd>{KIND[verifying.kind] ?? verifying.kind}</dd>
+                <dt>File</dt><dd>{verifying.file_name}</dd>
+                <dt>Action</dt><dd>Mark as verified{verifying.status === "rejected" ? " (replaces the earlier rejection)" : ""}</dd>
+              </dl>
+              <p className="op-muted">Only confirm after opening the file and checking it. This is recorded in the audit log.</p>
+            </div>
+            {dialogError && <div className="owner-form-error" role="alert">{dialogError}</div>}
+            <div className="ic-actions">
+              <button type="button" className="owner-secondary-button" onClick={closeDialog} disabled={Boolean(busy)} autoFocus>Cancel</button>
+              <button type="button" className="owner-primary-button" disabled={Boolean(busy)} onClick={() => review(verifying, "verified")}>
+                {busy ? "Verifying..." : "Confirm: mark verified"}
               </button>
             </div>
           </div>

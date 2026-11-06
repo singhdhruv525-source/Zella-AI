@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
 import "./OwnerPages.css";
 import { callOwnerFunction } from "./CreateBusinessWizard";
 import { Pill } from "./OwnerOverview";
 import { formatDateTime } from "./ownerFormat";
-import { friendlyError } from "./admin/adminOps";
+import { LoadNotice, UpdatedAt, useRefreshable } from "./admin/loadState";
+import { countOf, emptyText, metric } from "./admin/loadStatus";
 import { humanize } from "./copy/labels";
 
 const PHONE_LABELS = { new_number: "New number", call_forwarding: "Forwarding", existing_number: "Forwarding" };
@@ -19,32 +19,20 @@ function Need({ wanted, connected, label }) {
   );
 }
 
+// Read-only: this page only reads what the server reports; it never starts a provider sign-in or connection.
+const loadIntegrations = () => callOwnerFunction("integrations_overview");
+
 export default function IntegrationsPage({ onOpenBusiness }) {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const state = useRefreshable(loadIntegrations);
+  const { data, loading } = state;
+  const load = state.reload;
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      setData(await callOwnerFunction("integrations_overview"));
-    } catch (err) {
-      setError(friendlyError(err));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  const requests = (data?.requests ?? []).filter((r) => r.setupDone);
-  const waiting = requests.filter(
+  const connections = Array.isArray(data?.connections) ? data.connections : null;
+  const requests = Array.isArray(data?.requests) ? data.requests.filter((r) => r.setupDone) : null;
+  const waiting = countOf(requests,
     (r) => !r.phone.connected || !r.voice.connected || (r.calendar.wanted && !r.calendar.connected) || (r.email?.wanted && !r.email?.connected) ||
       r.leads.wanted.some((l) => !r.leads.connected.includes(l))
-  ).length;
+  );
 
   return (
     <section className="owner-page">
@@ -54,18 +42,21 @@ export default function IntegrationsPage({ onOpenBusiness }) {
           <h1>Integrations</h1>
           <p>What each client asked for during setup, and which services are actually connected.</p>
         </div>
-        <button type="button" className="owner-secondary-button" onClick={load} disabled={loading}>
-          {loading ? "Loading..." : "↻ Refresh"}
-        </button>
+        <div className="op-heading-actions">
+          <UpdatedAt r={state} />
+          <button type="button" className="owner-secondary-button" onClick={load} disabled={loading}>
+            {loading ? "Loading..." : "↻ Refresh"}
+          </button>
+        </div>
       </div>
 
-      {error && <div className="owner-form-error op-gap">Could not load integrations: {error}</div>}
+      <LoadNotice r={state} what="integrations" />
 
       <div className="owner-stat-grid">
-        <div className="owner-stat-card"><div className="owner-stat-top"><span>Connections</span></div><div className="owner-stat-value">{loading && !data ? "…" : data?.connections?.length ?? 0}</div><div className="owner-stat-note">Across all businesses</div></div>
-        <div className="owner-stat-card"><div className="owner-stat-top"><span>Active</span></div><div className="owner-stat-value">{loading && !data ? "…" : data?.connections?.filter((c) => c.status === "active").length ?? 0}</div><div className="owner-stat-note">Working</div></div>
-        <div className="owner-stat-card"><div className="owner-stat-top"><span>Problems</span></div><div className="owner-stat-value">{loading && !data ? "…" : data?.connections?.filter((c) => ["error", "disconnected"].includes(c.status)).length ?? 0}</div><div className="owner-stat-note">Error or disconnected</div></div>
-        <div className="owner-stat-card"><div className="owner-stat-top"><span>Waiting to connect</span></div><div className="owner-stat-value">{loading && !data ? "…" : waiting}</div><div className="owner-stat-note">Businesses with requests pending</div></div>
+        <div className="owner-stat-card"><div className="owner-stat-top"><span>Connections</span></div><div className="owner-stat-value">{metric(countOf(connections), state)}</div><div className="owner-stat-note">Across all businesses</div></div>
+        <div className="owner-stat-card"><div className="owner-stat-top"><span>Active</span></div><div className="owner-stat-value">{metric(countOf(connections, (c) => c.status === "active"), state)}</div><div className="owner-stat-note">Working</div></div>
+        <div className="owner-stat-card"><div className="owner-stat-top"><span>Problems</span></div><div className="owner-stat-value">{metric(countOf(connections, (c) => ["error", "disconnected"].includes(c.status)), state)}</div><div className="owner-stat-note">Error or disconnected</div></div>
+        <div className="owner-stat-card"><div className="owner-stat-top"><span>Waiting to connect</span></div><div className="owner-stat-value">{metric(waiting, state)}</div><div className="owner-stat-note">Businesses with requests pending</div></div>
       </div>
 
       <section className="owner-panel op-card">
@@ -79,7 +70,7 @@ export default function IntegrationsPage({ onOpenBusiness }) {
           <table className="owner-table">
             <thead><tr><th>Business</th><th>Phone (Telnyx)</th><th>Voice (Vapi)</th><th>Calendar</th><th>Email</th><th>Lead sources</th></tr></thead>
             <tbody>
-              {requests.map((r) => (
+              {(requests ?? []).map((r) => (
                 <tr key={r.businessId}>
                   <td><button type="button" className="op-name" onClick={() => onOpenBusiness(r.businessId)}>{r.businessName}</button></td>
                   <td><Need wanted={r.phone.wanted} connected={r.phone.connected} label={PHONE_LABELS[r.phone.wanted] ?? r.phone.wanted} /></td>
@@ -97,8 +88,8 @@ export default function IntegrationsPage({ onOpenBusiness }) {
                   </td>
                 </tr>
               ))}
-              {!requests.length && (
-                <tr><td colSpan={6}><div className="op-empty">{loading ? "Loading..." : "No business has completed the Phone & integrations step yet."}</div></td></tr>
+              {!requests?.length && (
+                <tr><td colSpan={6}><div className="op-empty">{emptyText(state, requests ? "No business has completed the Phone & integrations step yet." : "Not reported.", "integrations")}</div></td></tr>
               )}
             </tbody>
           </table>
@@ -116,7 +107,7 @@ export default function IntegrationsPage({ onOpenBusiness }) {
           <table className="owner-table">
             <thead><tr><th>Business</th><th>Provider</th><th>Type</th><th>Status</th><th>Last sync</th><th>Error</th></tr></thead>
             <tbody>
-              {(data?.connections ?? []).map((c) => (
+              {(connections ?? []).map((c) => (
                 <tr key={c.id}>
                   <td><button type="button" className="op-name" onClick={() => onOpenBusiness(c.business_id)}>{c.business_name}</button></td>
                   <td className="op-cap">{c.provider}</td>
@@ -126,8 +117,8 @@ export default function IntegrationsPage({ onOpenBusiness }) {
                   <td className="op-muted">{c.error_message || "—"}</td>
                 </tr>
               ))}
-              {!data?.connections?.length && (
-                <tr><td colSpan={6}><div className="op-empty">{loading ? "Loading..." : "Nothing connected yet. Connections are made when a business goes live."}</div></td></tr>
+              {!connections?.length && (
+                <tr><td colSpan={6}><div className="op-empty">{emptyText(state, connections ? "Nothing connected yet. Connections are made when a business goes live." : "Not reported.", "integrations")}</div></td></tr>
               )}
             </tbody>
           </table>

@@ -1187,3 +1187,10 @@
 .ao-panel > :first-child:not(.owner-panel-heading) { margin-top: 18px; }
 .ao-panel > .owner-table-wrap + * { margin-top: 12px; }
 @media (max-width: 860px) { .ao-panel > :not(.owner-panel-heading):not(.owner-table-wrap) { margin-left: 14px; margin-right: 14px; } }
+
+/* Batch 2: last-updated time, stale-data warning, verify confirmation */
+.op-updated { font-size: 12px; align-self: center; white-space: nowrap; }
+.op-stale > span { font-weight: 600; }
+.vq-confirm-facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 4px 0 12px; font-size: 13px; }
+.vq-confirm-facts dt { color: var(--text-muted); }
+.vq-confirm-facts dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
