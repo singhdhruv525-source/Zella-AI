@@ -122,3 +122,23 @@ Applied in order, each with the md5 guard (the text runs only if its md5 matches
 - **Not done:** voice-rules and owner-provision-business are not deployed, and the web build is not published.
 - **Rollback**, newest first: sql/rollback/zella_plan_languages_rollback.sql, zella_assistant_delivery_rollback.sql,
   zella_knowledge_learning_rollback.sql, zella_report_schedules_rollback.sql.
+
+## Fourth apply and first deploy (6 Nov)
+
+| What | Check | Result |
+| --- | --- | --- |
+| zella_holiday_availability (H1) | md5 b57ceb2404cb6f0f0b4ebebb72d03540; the patched function matched production before | applied |
+| zella_delivery_evidence (E2/E3) | md5 8f639a9aab746aab35739b938155b562; both functions matched production before | applied |
+| Production vs staging after | 773 functions, normalised hash bb0998beb057e687d4422b63d68ed149 | identical to the baseline plus all 13 files |
+| voice-rules | deployed from main (c4cc392): index.ts, logic.ts, orders.ts, deno.json and the shared vapi-brain-tools / vapi-call-events modules; verify_jwt off as before (its own HMAC check is the gate) | version 4 → **5**, active |
+| voice-rules smoke test | an unsigned request from the database (pg_net) | **401 Unauthorized**: the function boots and the signature check runs |
+| owner-provision-business | not deployed: about 241 KB, too large to send reliably through the deploy tool, and this session can't reach the Supabase API for the CLI | still version 13 |
+
+What changes for callers now:
+- **Nothing for any existing number.** No Vapi number was changed, and production has 0 numbers registered in Zella.
+- voice-rules answers `assistant-request` only for numbers switched to per-call delivery.
+- Tool calls now include order lookup v2, which needs a connected store; 0 stores are connected.
+
+**To undo voice-rules:** redeploy version 4's files, or the commit before c4cc392's voice-rules changes (98f120a^).
+**To undo the database files:** run sql/rollback/zella_delivery_evidence_rollback.sql, then
+zella_holiday_availability_rollback.sql.
