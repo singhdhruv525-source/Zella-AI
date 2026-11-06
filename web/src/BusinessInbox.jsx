@@ -139,7 +139,7 @@ function ConversationPane({ item, person, personStatus, workspace, roster, integ
 
       <div className="ba-thread">
         {threadError && !data ? <p className="ba-muted">Messages unavailable.</p> : !data ? <p className="ba-muted">Loading…</p>
-          : !data.messages.length ? <p className="ba-muted">No messages yet.</p> : data.messages.map((m) => <Bubble key={m.id} m={m} tz={tz} />)}
+          : !data.messages.length ? <p className="ba-muted">{data.partial ? "No messages to display." : "No messages yet."}</p> : data.messages.map((m) => <Bubble key={m.id} m={m} tz={tz} />)}
       </div>
 
       {data?.notes.length > 0 && (
