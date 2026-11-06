@@ -10,8 +10,9 @@ export ZPG_HOST=${ZPG_HOST:-/var/lib/postgresql/zella-sec} ZPG_PORT=${ZPG_PORT:-
 P="psql -h $ZPG_HOST -p $ZPG_PORT -U postgres -qtAX -v ON_ERROR_STOP=1"
 SCR=${SCRATCH:-/tmp/zella-deploy}; mkdir -p "$SCR"
 PENDING=(zella_platform_roles_fix zella_booking_buffers zella_channel_review zella_escalation_rules zella_knowledge_live zella_order_lookup_v2 zella_config_migration
-  zella_report_schedules zella_knowledge_learning zella_assistant_delivery zella_plan_languages)
-ROLLBACK=(zella_plan_languages_rollback zella_assistant_delivery_rollback zella_knowledge_learning_rollback zella_report_schedules_rollback zella_config_migration_rollback zella_order_lookup_v2_rollback zella_knowledge_live_rollback zella_escalation_rules_rollback zella_channel_review_rollback
+  zella_report_schedules zella_knowledge_learning zella_assistant_delivery zella_plan_languages
+  zella_holiday_availability zella_delivery_evidence)
+ROLLBACK=(zella_delivery_evidence_rollback zella_holiday_availability_rollback zella_plan_languages_rollback zella_assistant_delivery_rollback zella_knowledge_learning_rollback zella_report_schedules_rollback zella_config_migration_rollback zella_order_lookup_v2_rollback zella_knowledge_live_rollback zella_escalation_rules_rollback zella_channel_review_rollback
   zella_booking_buffers_rollback zella_platform_roles_fix_rollback)
 fails=0; ok() { echo "PASS $*"; }; bad() { echo "FAIL $*"; fails=$((fails + 1)); }
 ITEMS="select x from (

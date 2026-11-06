@@ -1,6 +1,6 @@
 # Writes a rollback for a migration that patches functions with replace(def, $a$old$a$, $a$new$a$): each is undone as
 # replace(def, new, old), so only that file's additions go and other migrations' changes stay.
-#   python3 -I tests/setup/make_rollback.py [setup|messaging|orders|buffers|channel|escalation|knowledge|configmig|planlang]
+#   python3 -I tests/setup/make_rollback.py [setup|messaging|orders|buffers|channel|escalation|knowledge|configmig|planlang|holiday]
 import re, sys
 which = sys.argv[1] if len(sys.argv) > 1 else "setup"
 CFG = {
@@ -60,6 +60,7 @@ CFG["configmig"] = ("sql/zella_config_migration.sql", "sql/rollback/zella_config
     "alter table if exists public.config_migration_snapshots rename to config_migration_snapshots_rolled_back;"])
 CFG["planlang"] = ("sql/zella_plan_languages.sql", "sql/rollback/zella_plan_languages_rollback.sql", [
     "drop function if exists public.zella_language_allowance(uuid);"])
+CFG["holiday"] = ("sql/zella_holiday_availability.sql", "sql/rollback/zella_holiday_availability_rollback.sql", [])
 SRC, DST, DROPS = CFG[which]
 src = open(SRC).read()
 fns = re.findall(r"pg_get_functiondef\('([^']+)'::regprocedure\);\n  if position\('([a-z_]+)' in def\) = 0 then\n(.*?)\n    execute def;", src, re.S)

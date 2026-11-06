@@ -1,0 +1,549 @@
+{
+ "run_at": "2026-11-06T09:16:32.054Z",
+ "database": "ze2e",
+ "provider": "none (local voice-rules; no Vapi call)",
+ "scenarios": [
+  {
+   "scenario": "0 number -> business",
+   "business_id": "5e000000-0000-0000-0000-00000000000a",
+   "business": "Maple Salon",
+   "pass": true,
+   "call_ids": [
+    "e2e-a-2",
+    "e2e-b-3",
+    "e2e-unknown"
+   ],
+   "delivered": [
+    "served:v-:5caff600",
+    "served:v-:14e5b2eb"
+   ],
+   "ms": [
+    81,
+    78
+   ],
+   "observed": {
+    "a": {
+     "business_id": "5e000000-0000-0000-0000-00000000000a"
+    },
+    "b": {
+     "business_id": "5e000000-0000-0000-0000-00000000000b"
+    },
+    "unknown": {
+     "error": "Sorry, we can't take your call right now. Please call again a little later."
+    }
+   },
+   "checks": [
+    {
+     "what": "A's number gets A",
+     "ok": true
+    },
+    {
+     "what": "B's number gets B",
+     "ok": true
+    },
+    {
+     "what": "no business's settings for an unknown number",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "scenario": "1 hours: 9-5 -> 10-2",
+   "business_id": "5e000000-0000-0000-0000-00000000000a",
+   "business": "Maple Salon",
+   "pass": true,
+   "call_ids": [
+    "e2e-a-4",
+    "e2e-a-6"
+   ],
+   "delivered": [
+    "served:v-:5caff600",
+    "served:v-:60524cde"
+   ],
+   "tool_results": {
+    "before": "{\"status\":\"closed_hours\",\"instruction\":\"Maple Salon is closed right now. They open again Friday at 9:00 AM. Offer to take a message and call_rules with action \\\"message\\\". If the caller wants an appointment, you can still book one for a time when the business is open. About this caller: This number ",
+    "after": "{\"status\":\"closed_hours\",\"instruction\":\"Maple Salon is closed right now. They open again Friday at 10:00 AM. Offer to take a message and call_rules with action \\\"message\\\". If the caller wants an appointment, you can still book one for a time when the business is open. About this caller: This number",
+    "availability": "{\"status\":\"slots\",\"instruction\":\"Offer the caller these times and let them choose.\",\"times\":[{\"say\":\"Friday, November 6 at 10:00 AM\",\"start\":\"2026-11-06T16:00:00+00:00\"},{\"say\":\"Friday, November 6 at 10:30 AM\",\"start\":\"2026-11-06T16:30:00+00:00\"},{\"say\":\"Friday, November 6 at 11:00 AM\",\"start\":\"2026"
+   },
+   "observed": {
+    "prompt_before": true,
+    "prompt_after": true
+   },
+   "checks": [
+    {
+     "what": "the next call's instructions carry the new hours",
+     "ok": true
+    },
+    {
+     "what": "offered times all inside 10:00-14:00",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "scenario": "2 price: Haircut $40 -> $45",
+   "business_id": "5e000000-0000-0000-0000-00000000000a",
+   "business": "Maple Salon",
+   "pass": true,
+   "call_ids": [
+    "e2e-a-9",
+    "e2e-a-10"
+   ],
+   "delivered": [
+    "served:v-:60524cde",
+    "served:v-:5e880cf8"
+   ],
+   "observed": {
+    "before": "Haircut (45 min, $40)",
+    "after": "Haircut (45 min, $45)"
+   },
+   "fingerprints": {
+    "before": "60524cde",
+    "after": "5e880cf8",
+    "after_again": "5e880cf8"
+   },
+   "checks": [
+    {
+     "what": "a new fingerprint for the changed settings, the same one while nothing changes",
+     "ok": true
+    },
+    {
+     "what": "before: $40",
+     "ok": true
+    },
+    {
+     "what": "after: $45 and never $40",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "scenario": "3-4 FAQ add / edit / refused edit / unpublish / republish / delete",
+   "business_id": "5e000000-0000-0000-0000-00000000000a",
+   "business": "Maple Salon",
+   "pass": true,
+   "call_ids": [
+    "e2e-a-12",
+    "e2e-a-15"
+   ],
+   "tool_results": {
+    "before": "{\"status\":\"no_information\",\"instruction\":\"There is no approved information about this. Do not guess. Say you will pass the question to the team and they will ge",
+    "added_mid_call": "{\"status\":\"confirmed\",\"instruction\":\"Answer ONLY from these results, in your own words. Do not add details that are not in them.\",\"results\":[{\"title\":\"Parking\",",
+    "added": "{\"status\":\"confirmed\",\"instruction\":\"Answer ONLY from these results, in your own words. Do not add details that are not in them.\",\"results\":[{\"title\":\"Parking\",",
+    "edited": "{\"status\":\"confirmed\",\"instruction\":\"Answer ONLY from these results, in your own words. Do not add details that are not in them.\",\"results\":[{\"title\":\"Parking\",",
+    "refused_edit": "KNOWLEDGE_ANSWER_EMPTY",
+    "after_refused": "{\"status\":\"confirmed\",\"instruction\":\"Answer ONLY from these results, in your own words. Do not add details that are not in them.\",\"results\":[{\"title\":\"Parking\",",
+    "unpublished": "{\"status\":\"no_information\",\"instruction\":\"There is no approved information about this. Do not guess. Say you will pass the question to the team and they will ge",
+    "republished": "{\"status\":\"confirmed\",\"instruction\":\"Answer ONLY from these results, in your own words. Do not add details that are not in them.\",\"results\":[{\"title\":\"Parking\",",
+    "deleted": "{\"status\":\"no_information\",\"instruction\":\"There is no approved information about this. Do not guess. Say you will pass the question to the team and they will ge",
+    "business_b": "{\"status\":\"confirmed\",\"instruction\":\"Answer ONLY from these results, in your own words. Do not add details that are not in them.\",\"results\":[{\"title\":\"Parking\","
+   },
+   "checks": [
+    {
+     "what": "nothing invented before",
+     "ok": true
+    },
+    {
+     "what": "an answer added mid-call is used by that call's next search",
+     "ok": true
+    },
+    {
+     "what": "added: used",
+     "ok": true
+    },
+    {
+     "what": "edited: new answer, old gone",
+     "ok": true
+    },
+    {
+     "what": "a bad edit is refused and the last good answer stays",
+     "ok": true
+    },
+    {
+     "what": "unpublished: not used",
+     "ok": true
+    },
+    {
+     "what": "republished: used",
+     "ok": true
+    },
+    {
+     "what": "deleted: not used",
+     "ok": true
+    },
+    {
+     "what": "B never gets A's answer",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "scenario": "5 greeting and language: English -> English + Spanish, new greeting",
+   "business_id": "5e000000-0000-0000-0000-00000000000a",
+   "business": "Maple Salon",
+   "pass": true,
+   "call_ids": [
+    "e2e-a-24",
+    "e2e-a-25"
+   ],
+   "delivered": [
+    "served:v-:5e880cf8",
+    "served:v-:633140b2"
+   ],
+   "observed": {
+    "first_before": "Thank you for calling Maple Salon. How can I help you?",
+    "first_after": "Hola and welcome to Maple Salon!",
+    "transcriber_after": {
+     "model": "nova-3",
+     "language": "multi",
+     "provider": "deepgram"
+    },
+    "voice_after": {
+     "model": "eleven_multilingual_v2",
+     "voiceId": "testvoice01",
+     "provider": "11labs"
+    }
+   },
+   "checks": [
+    {
+     "what": "the next call opens with the new greeting",
+     "ok": true
+    },
+    {
+     "what": "it listens for more than one language",
+     "ok": true
+    },
+    {
+     "what": "and is told to switch to Spanish",
+     "ok": true
+    },
+    {
+     "what": "the call before kept its own greeting",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "scenario": "6 transfer: closed -> refused; open: +15125550101 -> +15125550109",
+   "business_id": "5e000000-0000-0000-0000-00000000000a",
+   "business": "Maple Salon",
+   "pass": true,
+   "call_ids": [
+    "e2e-a-26",
+    "e2e-a-28",
+    "e2e-a-30"
+   ],
+   "version_published": "174e9757-a4a8-4a09-856d-1e0d5dd8921e",
+   "delivered": [
+    "served:v-:633140b2",
+    "served:v-:550435f7",
+    "served:v1:550435f7"
+   ],
+   "tool_results": {
+    "closed": "{\"status\":\"no_one_available\",\"instruction\":\"Nobody can take the call right now. Say sorry, tell the caller the team will call back when they open Friday at 10:00 AM, and offer to take a message.\"}",
+    "before": "{\"status\":\"transfer\",\"instruction\":\"Tell the caller you are connecting them to a person, then use the transfer tool. Do not say a number; the system chooses it.\",\"use_transfer_tool\":true}",
+    "after": "{\"status\":\"transfer\",\"instruction\":\"Tell the caller you are connecting them to a person, then use the transfer tool. Do not say a number; the system chooses it.\",\"use_transfer_tool\":true}"
+   },
+   "observed": {
+    "open_at_first": "false",
+    "destination_closed": {
+     "error": "I'm sorry, I can't connect you to someone right now. I can take a message and the team will call you back."
+    },
+    "destination_before": {
+     "destination": {
+      "type": "number",
+      "number": "+15125550101",
+      "message": "Please hold while I connect you."
+     }
+    },
+    "destination_after": {
+     "destination": {
+      "type": "number",
+      "number": "+15125550109",
+      "message": "Please hold while I connect you."
+     }
+    }
+   },
+   "checks": [
+    {
+     "what": "while closed: no number given, a message offered",
+     "ok": true
+    },
+    {
+     "what": "open, before: the old number",
+     "ok": true
+    },
+    {
+     "what": "open, after: the new number, never the old",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "scenario": "7 booking switched off",
+   "business_id": "5e000000-0000-0000-0000-00000000000a",
+   "business": "Maple Salon",
+   "pass": true,
+   "call_ids": [
+    "e2e-a-32",
+    "e2e-a-33"
+   ],
+   "version_published": "085759a4-90ee-421e-a103-2f883fad1605",
+   "delivered": [
+    "served:v1:550435f7",
+    "served:v2:56ddc30d"
+   ],
+   "observed": {
+    "tools_before": [
+     "call_rules",
+     "book_appointment",
+     "cancel_appointment",
+     "check_availability",
+     "check_open_hours",
+     "find_my_appointments",
+     "lookup_caller",
+     "report_emergency",
+     "report_unanswered_question",
+     "request_follow_up",
+     "reschedule_appointment",
+     "search_knowledge",
+     "take_message",
+     "transfer_to_human",
+     "update_caller"
+    ],
+    "tools_after": [
+     "call_rules",
+     "check_open_hours",
+     "find_my_appointments",
+     "lookup_caller",
+     "report_emergency",
+     "report_unanswered_question",
+     "request_follow_up",
+     "search_knowledge",
+     "take_message",
+     "transfer_to_human",
+     "update_caller"
+    ]
+   },
+   "tool_results": {
+    "availability": "{\"status\":\"not_available\",\"instruction\":\"The team handles bookings for this business. Offer to take a message so they can arrange a time.\"}",
+    "booking": "{\"status\":\"not_available\",\"instruction\":\"The team handles bookings for this business. Offer to take a message so they can arrange a time.\"}"
+   },
+   "checks": [
+    {
+     "what": "before: booking tools offered",
+     "ok": true
+    },
+    {
+     "what": "after: not offered",
+     "ok": true
+    },
+    {
+     "what": "and refused if called anyway",
+     "ok": true
+    },
+    {
+     "what": "nothing was booked",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "scenario": "8 holiday tomorrow",
+   "business_id": "5e000000-0000-0000-0000-00000000000a",
+   "business": "Maple Salon",
+   "pass": true,
+   "call_ids": [
+    "e2e-a-36",
+    "e2e-a-38"
+   ],
+   "tool_results": {
+    "before": "{\"status\":\"slots\",\"instruction\":\"Offer the caller these times and let them choose.\",\"times\":[{\"say\":\"Saturday, November 7 at 12:00 AM\",\"start\":\"2026-11-07T06:00:00+00:00\"},{\"say\":\"Saturday, November 7",
+    "after": "{\"status\":\"slots\",\"instruction\":\"Offer the caller these times and let them choose.\",\"times\":[{\"say\":\"Sunday, November 8 at 12:00 AM\",\"start\":\"2026-11-08T06:00:00+00:00\"}]}"
+   },
+   "observed": {
+    "times_that_day_before": 5,
+    "times_that_day_after": 0,
+    "told": true
+   },
+   "checks": [
+    {
+     "what": "before: times offered that day",
+     "ok": true
+    },
+    {
+     "what": "after: none offered that day",
+     "ok": true
+    },
+    {
+     "what": "and the call is told",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "scenario": "9 states and timing",
+   "business_id": "5e000000-0000-0000-0000-00000000000a",
+   "business": "Maple Salon",
+   "pass": true,
+   "call_ids": [
+    "e2e-a-40",
+    "e2e-a-41",
+    "e2e-a-42"
+   ],
+   "version_published": "63477986-e5a5-4b2e-811f-6184191a723a",
+   "observed": {
+    "after_publish": "4:published:pending",
+    "after_next_call": "4:published:live",
+    "settings_broken": "4:published:failed",
+    "reason": "voice_tts_voice_id is not set (choose a voice confirmed in the Vapi voice library)",
+    "fixed": "4:published:live",
+    "ms_to_build": 81,
+    "ms_from_publish_to_call_answer": 627,
+    "broken_reply": {
+     "error": "Sorry, we can't take your call right now. Please call again a little later."
+    }
+   },
+   "checks": [
+    {
+     "what": "published -> waiting for the next call",
+     "ok": true
+    },
+    {
+     "what": "the next call uses it -> live",
+     "ok": true
+    },
+    {
+     "what": "unsendable settings -> failed with the reason, caller hears the refusal",
+     "ok": true
+    },
+    {
+     "what": "fixed -> live again on the next call",
+     "ok": true
+    },
+    {
+     "what": "assistant built in under 2 s",
+     "ok": true
+    },
+    {
+     "what": "stages: an unpublished draft shows as draft",
+     "ok": true
+    },
+    {
+     "what": "stages: delivery configured and the last call got the current settings",
+     "ok": true
+    },
+    {
+     "what": "stages: no verified real call (none was made)",
+     "ok": true
+    }
+   ],
+   "stages": {
+    "draft": {
+     "id": "1bd6dc37-3eb7-4519-ab4b-fc32c85804d6",
+     "status": "draft",
+     "version": 5,
+     "saved_at": "2026-11-06T09:16:31.456714+00:00"
+    },
+    "version": {
+     "id": "63477986-e5a5-4b2e-811f-6184191a723a",
+     "version": 4,
+     "sync_error": null,
+     "sync_status": "live",
+     "published_at": "2026-11-06T09:16:30.8551+00:00"
+    },
+    "delivery": {
+     "configured": true,
+     "last_served": {
+      "at": "2026-11-06T09:16:31.355488+00:00",
+      "call_id": "e2e-a-42",
+      "is_current": true,
+      "config_hash": "d302ea18884243a0e169de58feab84d1"
+     },
+     "first_served_at": "2026-11-06T09:16:25.204155+00:00"
+    },
+    "last_problem": {
+     "at": "2026-11-06T09:16:31.146195+00:00",
+     "problems": [
+      "voice_tts_voice_id is not set (choose a voice confirmed in the Vapi voice library)"
+     ]
+    },
+    "verified_call": null,
+    "last_served_at": "2026-11-06T09:16:31.355488+00:00",
+    "current_config_hash": "d302ea18884243a0e169de58feab84d1"
+   }
+  },
+  {
+   "scenario": "10 B unchanged while A was edited",
+   "business_id": "5e000000-0000-0000-0000-00000000000b",
+   "business": "Oak Dental",
+   "pass": true,
+   "call_ids": [
+    "e2e-b-1",
+    "e2e-b-43"
+   ],
+   "observed": {
+    "assistant_before": "611fe07de494379a",
+    "assistant_after": "611fe07de494379a",
+    "transfer": "+15125550201"
+   },
+   "checks": [
+    {
+     "what": "B's assistant is byte-for-byte the same",
+     "ok": true
+    },
+    {
+     "what": "B's knowledge and transfer unchanged",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "scenario": "11 nothing private or secret in what the model receives",
+   "business_id": "5e000000-0000-0000-0000-00000000000a",
+   "business": "Maple Salon",
+   "pass": true,
+   "call_ids": [
+    "e2e-a-45"
+   ],
+   "observed": {
+    "server": {
+     "url": "https://example.test/functions/v1/voice-rules",
+     "credentialId": "cred-test",
+     "timeoutSeconds": 20
+    },
+    "size": 14062
+   },
+   "checks": [
+    {
+     "what": "no transfer numbers",
+     "ok": true
+    },
+    {
+     "what": "no the business email",
+     "ok": true
+    },
+    {
+     "what": "no staff contact details",
+     "ok": true
+    },
+    {
+     "what": "no the HMAC secret",
+     "ok": true
+    },
+    {
+     "what": "no the server key",
+     "ok": true
+    },
+    {
+     "what": "no business B",
+     "ok": true
+    },
+    {
+     "what": "the model text has no email address at all",
+     "ok": true
+    }
+   ]
+  }
+ ]
+}
