@@ -37,6 +37,8 @@ async function open(b, { lead = () => ({ json: { result: "created", customer_id:
     if (fn === "zella_workspace_navigation") return r.fulfill({ json: NAV });
     if (fn === "zella_staff_add_lead") { log.lead++; if (leadDelay) await new Promise((res) => setTimeout(res, leadDelay)); const a = lead(); return r.fulfill({ status: a.status ?? 200, json: a.json }); }
     if (fn === "zella_remove_record_file") { log.removes++; return r.fulfill({ json: { id: WAITING.id, path: WAITING.path, status: "removed" } }); }
+    // Batch 3: the records list is paged by the server
+    if (fn === "zella_records_page") return r.fulfill({ json: { rows: [RECORD], total: 1, next: null } });
     if (u.includes("/rest/v1/crm_record_types")) return r.fulfill({ json: [TYPE] });
     if (u.includes("/rest/v1/crm_record_files")) return r.fulfill({ json: files(log) });
     if (u.includes("/rest/v1/crm_records")) return r.fulfill({ json: [RECORD], headers: { "content-range": "0-0/1" } });
