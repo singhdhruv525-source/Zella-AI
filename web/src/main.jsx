@@ -9,6 +9,9 @@ import './styles/glass.css'
 // The Zella Voice theme (the default look) and the sidebar logo.
 import './styles/zella-theme.css'
 import './styles/brand.css'
+// Motion for every page in both apps: buttons, cards, tabs, rows and popups (off with reduced motion).
+import './styles/motion.css'
+import './styles/motion.js'
 import { startAppearance } from './appearance'
 import { ErrorBoundary } from './BusinessUI'
 
