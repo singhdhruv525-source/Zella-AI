@@ -84,3 +84,11 @@ unchanged here).
 BATCH 1 STATUS: **Completed** for tasks 1–6. Residual risks are listed above for a later batch.
 READY FOR ARCHITECT REVIEW: **Yes**
 READY FOR DEPLOYMENT: **No**, pending your approval of section 4. Nothing has been deployed.
+
+## 6. Deployment (6 Nov 2026, approved: "apply and deploy at the same time")
+
+| Step | State |
+|---|---|
+| Migration `zella_batch1_security` | **applied to production**. Checked live: `zella_appointment_holds_time` is STABLE with `search_path=""`, and gives the same answers (scheduled holds; expired hold and request free the time). Undo: `sql/rollback/zella_batch1_security_rollback.sql`. |
+| Web app | **published**: `main` fast-forwarded to this commit; Cloudflare Pages builds `main`. The live site can't be reached from this container, so the build is unconfirmed. |
+| `owner-provision-business` (`me_admin` gate) | **not deployed.** The container can't reach the Supabase API, so the MCP upload would need all nine files (about 240 KB) copied by hand, which is too risky for the admin backend. It isn't needed today: production's only active admins are the two Zella owners, who have every permission, so the new dashboard works with the live v14. It matters only once a restricted role without `businesses.view` is created. Live v14 also lacks `main`'s `onboarding.ts` arrival-window setting (from the arrival-windows work), which is a separate pending item. Deploy both with `supabase functions deploy owner-provision-business --project-ref pffqxlumqhjdbzvvoszm` from `web/`. |
