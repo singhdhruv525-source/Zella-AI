@@ -1,5 +1,5 @@
 {
- "run_at": "2026-11-06T09:16:32.054Z",
+ "run_at": "2026-11-06T09:55:21.518Z",
  "database": "ze2e",
  "provider": "none (local voice-rules; no Vapi call)",
  "scenarios": [
@@ -18,8 +18,8 @@
     "served:v-:14e5b2eb"
    ],
    "ms": [
-    81,
-    78
+    75,
+    85
    ],
    "observed": {
     "a": {
@@ -233,7 +233,7 @@
     "e2e-a-28",
     "e2e-a-30"
    ],
-   "version_published": "174e9757-a4a8-4a09-856d-1e0d5dd8921e",
+   "version_published": "11215680-05e7-49a3-9738-cd3366fb11a1",
    "delivered": [
     "served:v-:633140b2",
     "served:v-:550435f7",
@@ -288,7 +288,7 @@
     "e2e-a-32",
     "e2e-a-33"
    ],
-   "version_published": "085759a4-90ee-421e-a103-2f883fad1605",
+   "version_published": "57619c88-30d6-482a-b633-e98055f22ae3",
    "delivered": [
     "served:v1:550435f7",
     "served:v2:56ddc30d"
@@ -391,15 +391,15 @@
     "e2e-a-41",
     "e2e-a-42"
    ],
-   "version_published": "63477986-e5a5-4b2e-811f-6184191a723a",
+   "version_published": "9e8afa3b-11cd-4fca-9976-ef74eb60cca4",
    "observed": {
     "after_publish": "4:published:pending",
     "after_next_call": "4:published:live",
     "settings_broken": "4:published:failed",
     "reason": "voice_tts_voice_id is not set (choose a voice confirmed in the Vapi voice library)",
     "fixed": "4:published:live",
-    "ms_to_build": 81,
-    "ms_from_publish_to_call_answer": 627,
+    "ms_to_build": 80,
+    "ms_from_publish_to_call_answer": 694,
     "broken_reply": {
      "error": "Sorry, we can't take your call right now. Please call again a little later."
     }
@@ -440,36 +440,36 @@
    ],
    "stages": {
     "draft": {
-     "id": "1bd6dc37-3eb7-4519-ab4b-fc32c85804d6",
+     "id": "2140c088-6f65-4bc4-9998-4e6e8d966384",
      "status": "draft",
      "version": 5,
-     "saved_at": "2026-11-06T09:16:31.456714+00:00"
+     "saved_at": "2026-11-06T09:55:20.884857+00:00"
     },
     "version": {
-     "id": "63477986-e5a5-4b2e-811f-6184191a723a",
+     "id": "9e8afa3b-11cd-4fca-9976-ef74eb60cca4",
      "version": 4,
      "sync_error": null,
      "sync_status": "live",
-     "published_at": "2026-11-06T09:16:30.8551+00:00"
+     "published_at": "2026-11-06T09:55:20.232367+00:00"
     },
     "delivery": {
      "configured": true,
      "last_served": {
-      "at": "2026-11-06T09:16:31.355488+00:00",
+      "at": "2026-11-06T09:55:20.748157+00:00",
       "call_id": "e2e-a-42",
       "is_current": true,
       "config_hash": "d302ea18884243a0e169de58feab84d1"
      },
-     "first_served_at": "2026-11-06T09:16:25.204155+00:00"
+     "first_served_at": "2026-11-06T09:55:14.613157+00:00"
     },
     "last_problem": {
-     "at": "2026-11-06T09:16:31.146195+00:00",
+     "at": "2026-11-06T09:55:20.519113+00:00",
      "problems": [
       "voice_tts_voice_id is not set (choose a voice confirmed in the Vapi voice library)"
      ]
     },
     "verified_call": null,
-    "last_served_at": "2026-11-06T09:16:31.355488+00:00",
+    "last_served_at": "2026-11-06T09:55:20.748157+00:00",
     "current_config_hash": "d302ea18884243a0e169de58feab84d1"
    }
   },

@@ -98,6 +98,7 @@ const FIELD = {
   teamHint: "Add the technicians or crews who go out to jobs, so bookings go to someone who is working.",
   servicesHint: "Jobs the business does. Prices are optional; many trades quote on site.",
   defaultLength: 60,
+  arrivalWindow: 120,   // callers are offered "between 8 and 10" instead of an exact minute (sql/zella_arrival_windows.sql)
   details: [
     f("service_area", "Area served", "text", { required: true, placeholder: "e.g. Travis and Williamson County" }),
     f("emergency_service", "24/7 emergency call-outs", "yesno", { required: true }),
@@ -155,6 +156,7 @@ const PROPERTY = {
 const PROPERTY_MGMT = {
   ...PROPERTY,
   kind: "property-management",
+  arrivalWindow: 120,   // maintenance visits
   details: [
     f("areas_covered", "Areas covered", "list", { required: true }),
     f("units_managed", "Units managed", "number", { min: 0, max: 100000 }),
@@ -278,6 +280,8 @@ export const ONBOARDING_BY_INDUSTRY = {
 
 export const onboardingFor = (slug) => ONBOARDING_BY_INDUSTRY[slug] ?? GENERAL;
 export const LENGTH_OPTIONS = LENGTHS;
+// how times are offered to callers: an exact time, or an arrival window of this many minutes
+export const ARRIVAL_WINDOW_OPTIONS = [[0, "An exact time"], [60, "A 1-hour arrival window"], [120, "A 2-hour arrival window"], [180, "A 3-hour arrival window"], [240, "A 4-hour arrival window"]];
 
 // Documents an admin collects to verify the business and the person registering it.
 export const DOCUMENT_KINDS = [

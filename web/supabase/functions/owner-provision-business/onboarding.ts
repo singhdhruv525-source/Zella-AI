@@ -103,6 +103,8 @@ export function onboardingHandlers(admin: SupabaseClient, fields: Json, userId: 
       buffer_minutes: minutes(booking.bufferMinutes, 0, 120, 0),
       min_notice_hours: minutes(booking.minNoticeHours, 0, 168, 2),
       max_days_ahead: minutes(booking.maxDaysAhead, 1, 365, 60),
+      // 0 = exact times; otherwise callers are offered arrival windows of this length (sql/zella_arrival_windows.sql)
+      arrival_window_minutes: [0, 60, 120, 180, 240].includes(Number(booking.arrivalWindowMinutes)) ? Number(booking.arrivalWindowMinutes) : 0,
     } : null;
     const about = text(input.about, 3000);
     const area = details.find((d) => d.key === "service_area" || d.key === "areas_covered");

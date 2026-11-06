@@ -1,3 +1,4 @@
+import { ARRIVAL_WINDOW_OPTIONS } from "./onboardingConfig";
 import { useState } from "react";
 import { supabase } from "./supabase";
 import { Field, Pill } from "./BusinessUI";
@@ -52,6 +53,7 @@ function Editor({ agent, base, onSaved }) {
     booking_notes: base.appointment_rules?.notes ?? "",
     default_minutes: base.appointment_rules?.default_minutes ?? "", min_notice_hours: base.appointment_rules?.min_notice_hours ?? "",
     max_days_ahead: base.appointment_rules?.max_days_ahead ?? "", buffer_minutes: base.appointment_rules?.buffer_minutes ?? "",
+    arrival_window_minutes: String(base.appointment_rules?.arrival_window_minutes ?? 0),
   });
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null); // { versionId, errors }
@@ -80,6 +82,7 @@ function Editor({ agent, base, onSaved }) {
           ...(base.appointment_rules ?? {}), notes: form.booking_notes.trim(),
           default_minutes: num(form.default_minutes, 5, 480), min_notice_hours: num(form.min_notice_hours, 0, 720),
           max_days_ahead: num(form.max_days_ahead, 1, 365), buffer_minutes: num(form.buffer_minutes, 0, 120),
+          arrival_window_minutes: Number(form.arrival_window_minutes) || 0,
         },
       };
       const versionId = orThrow(await supabase.rpc("zella_save_agent_config_draft", { p_agent_id: agent.id, p_config: config }));
@@ -145,6 +148,11 @@ function Editor({ agent, base, onSaved }) {
               <Field label="Gap between bookings (minutes)"><input type="number" min={0} max={120} value={form.buffer_minutes} onChange={set("buffer_minutes")} /></Field>
               <Field label="Minimum notice (hours)"><input type="number" min={0} max={720} value={form.min_notice_hours} onChange={set("min_notice_hours")} /></Field>
               <Field label="Book up to (days ahead)"><input type="number" min={1} max={365} value={form.max_days_ahead} onChange={set("max_days_ahead")} /></Field>
+              <Field label="Callers are offered" hint="With a window, the whole window is held for one team member and callers hear the team arrives within it.">
+                <select value={form.arrival_window_minutes} onChange={set("arrival_window_minutes")}>
+                  {ARRIVAL_WINDOW_OPTIONS.map(([v, label]) => <option key={v} value={String(v)}>{label}</option>)}
+                </select>
+              </Field>
             </div>
           </fieldset>
           <Field label="Booking notes (information for callers)" hint="What the receptionist may tell callers about booking. Notes never change what can be booked: use the rules above for that." full>

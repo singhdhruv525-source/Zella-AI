@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import "./CreateBusinessWizard.css";
 import { supabase } from "./supabase";
 import { Icon } from "./BusinessUI";
-import { DOCUMENT_KINDS, DOCUMENT_MAX_BYTES, DOCUMENT_TYPES, LENGTH_OPTIONS, missingDetails, onboardingFor } from "./onboardingConfig";
+import { ARRIVAL_WINDOW_OPTIONS, DOCUMENT_KINDS, DOCUMENT_MAX_BYTES, DOCUMENT_TYPES, LENGTH_OPTIONS, missingDetails, onboardingFor } from "./onboardingConfig";
 import { humanize } from "./copy/labels";
 import { friendlyError } from "./admin/adminOps";
 import { addLeaveGuard } from "./router";
@@ -182,7 +182,7 @@ function emptySetup() {
     modules: [],
     operations: {
       hours: emptyHours(), about: "", services: [], details: {},
-      booking: { defaultMinutes: 30, bufferMinutes: 0, minNoticeHours: 2, maxDaysAhead: 60 },
+      booking: { defaultMinutes: 30, bufferMinutes: 0, minNoticeHours: 2, maxDaysAhead: 60, arrivalWindowMinutes: 0 },
     },
     team: [],
     documents: [],
@@ -353,6 +353,7 @@ function fromServer(data, industries = []) {
       bufferMinutes: saved.booking?.buffer_minutes ?? 0,
       minNoticeHours: saved.booking?.min_notice_hours ?? 2,
       maxDaysAhead: saved.booking?.max_days_ahead ?? 60,
+      arrivalWindowMinutes: saved.booking?.arrival_window_minutes ?? cfg.arrivalWindow ?? 0,
     },
   };
   if (!saved.details?.length && kb.service_area && cfg.details.some((d) => d.key === "service_area")) setup.operations.details.service_area = kb.service_area;
@@ -1461,6 +1462,11 @@ function OperationsStep({ value, onChange, config, terminology, industryName }) 
                 {[[0, "No minimum"], [1, "1 hour"], [2, "2 hours"], [4, "4 hours"], [24, "1 day"], [48, "2 days"]].map(([v, label]) => <option key={v} value={v}>{label}</option>)}
               </select>
             </Field>
+            <Field label="Callers are offered" hint={value.booking.arrivalWindowMinutes ? "The whole window is held for one team member, and callers hear that the team arrives within it." : undefined}>
+              <select value={value.booking.arrivalWindowMinutes ?? 0} onChange={(e) => setBooking("arrivalWindowMinutes", Number(e.target.value))}>
+                {ARRIVAL_WINDOW_OPTIONS.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+              </select>
+            </Field>
             <Field label="Book up to">
               <select value={value.booking.maxDaysAhead} onChange={(e) => setBooking("maxDaysAhead", Number(e.target.value))}>
                 {[[7, "1 week ahead"], [14, "2 weeks ahead"], [30, "1 month ahead"], [60, "2 months ahead"], [90, "3 months ahead"], [180, "6 months ahead"]].map(([v, label]) => <option key={v} value={v}>{label}</option>)}
@@ -1904,7 +1910,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
       // old industry's own questions no longer apply.
       return {
         ...current, business, automations: automationDefaultsFor(industry?.name), automationsFromIndustry: industry?.name || "",
-        operations: { ...current.operations, details: {}, booking: { ...current.operations.booking, defaultMinutes: cfg.defaultLength } },
+        operations: { ...current.operations, details: {}, booking: { ...current.operations.booking, defaultMinutes: cfg.defaultLength, arrivalWindowMinutes: cfg.arrivalWindow ?? 0 } },
         receptionist: { ...current.receptionist, capabilities: cfg.capabilities },
       };
     });

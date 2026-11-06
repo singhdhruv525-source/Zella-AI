@@ -5,8 +5,8 @@ set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"; REPO="$(cd "$HERE/../.." && pwd)"
 export ZPG_HOST=${ZPG_HOST:-/var/lib/postgresql/zella-sec} ZPG_PORT=${ZPG_PORT:-55433} ZDB=${ZDB:-ze2e}
 APPLIED=(zella_platform_roles_fix zella_booking_buffers zella_channel_review zella_escalation_rules zella_knowledge_live zella_order_lookup_v2 zella_config_migration
-  zella_report_schedules zella_knowledge_learning zella_assistant_delivery zella_plan_languages)
-PENDING=(zella_holiday_availability zella_delivery_evidence); [ "${WITHOUT_FIX:-}" = 1 ] && PENDING=()
+  zella_report_schedules zella_knowledge_learning zella_assistant_delivery zella_plan_languages zella_holiday_availability zella_delivery_evidence)
+PENDING=(zella_arrival_windows); [ "${WITHOUT_FIX:-}" = 1 ] && PENDING=()
 "$REPO/tests/lib/build_full.sh" "$ZDB" $(for m in "${APPLIED[@]}" "${PENDING[@]}"; do echo "$REPO/sql/$m.sql"; done) > /dev/null || { echo "build failed"; exit 1; }
 pkill -f "local-backend.mjs" 2>/dev/null; pkill -f "run-function.ts voice-rules" 2>/dev/null; sleep 1
 mkdir -p "$HERE/out"
