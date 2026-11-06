@@ -539,6 +539,7 @@ useEffect(() => {
                 type="button"
                 className="owner-primary-button"
                 onClick={loadDashboardData}
+                disabled={loadingBusinesses}
               >
                 Try again
               </button>
