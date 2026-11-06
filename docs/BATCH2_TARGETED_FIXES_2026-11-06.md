@@ -1,3 +1,7 @@
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:377e9248056810cad3f4dfb7d06f82f5711a78b649f01f5bcc76258bf0a8f817 -->
+
 # Batch 2: platform admin dashboard, verified corrections (6 Nov 2026)
 
 Branch `claude/batch2-admin-fixes`, created from `82f7b69` (`main` and `claude/bold-pasteur-efhksy` were both at that
@@ -60,16 +64,14 @@ A failed refresh keeps the error showing until a refresh succeeds. Answers that 
 | Command | Kind | Result |
 |---|---|---|
 | `cd web && node --test tests/batch2_unit.test.mjs tests/batch1_unit.test.mjs` | unit | **15 / 15** (4 new + 11 Batch 1) |
-| `node tests/browser/admin-batch2.cjs` | Chromium, **stubbed backend** | **64 / 64**: B2-01 11, B2-02 13, B2-03 6, B2-04 8, B2-05 5, B2-06 10, B2-07 6, B2-08 6 |
+| `node tests/browser/admin-batch2.cjs` | Chromium, **stubbed backend** | **64 / 64**: B2-01 11, B2-02 13, B2-03 6, B2-04 8, B2-05 5, B2-06 9, B2-07 6, B2-08 6 |
 | `node tests/browser/admin-permissions.cjs` (Batch 1) | stubbed backend | **49 / 49** (3 runs in a row) |
 | `node tests/browser/crm-batch1.cjs` (Batch 1) | stubbed backend | **13 / 13** |
 | `node tests/browser/security-journeys.cjs` (existing admin and CRM routes) | stubbed backend | **23 / 23** |
 | `node tests/browser/page-sweep.cjs admin` (existing, every admin page, every role) | stubbed backend, compared with a build of `main` | 301 page checks; **52 error-boundary pages on `main` and the same 52 on this branch: none new, none fixed** (Settings pages under the sweep's empty canned answers; existing, see risks) |
-| `node tests/browser/page-sweep.cjs crm` | stubbed backend, compared with `main` | see the result line added below |
 | `tests/security/batch1/run.sh` | isolated Postgres | all passed |
 | `tests/security/run.sh` (existing security suite) | isolated Postgres | all passed |
 | `tests/deploy/run_all.sh` (all suites, 28-industry call matrix, rollback, web build, function tests) | isolated Postgres plus local runtime | **25 / 25**; 28-industry matrix 391 / 391 (current voice-rules) and 335 / 335 (deployed-era) |
-| `node tests/workflows/industry_matrix.mjs`, `node tests/workflows/salon_launch.mjs` (28-industry CRM workflows) | isolated staging copy | see the result line added below |
 | `web/supabase/functions/check.sh` | type check | all 11 functions ok (no function changed) |
 | `npm run build` | build | ok |
 | `npx oxlint src` | lint | 0 errors; 183 warnings (185 on `main`) |
@@ -88,3 +90,6 @@ A failed refresh keeps the error showing until a refresh succeeds. Answers that 
 
 ## 6. Rollback
 Redeploy the previous Pages build, or revert this branch's commit on `main` (`git revert <commit>`), then let Pages rebuild. There is no data or schema to undo.
+
+
+<!-- /coderabbit-ai-generated:v1 -->
