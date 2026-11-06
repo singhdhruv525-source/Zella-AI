@@ -45,7 +45,7 @@ reviews:
         Rollbacks must restore the previous definitions exactly, run in one transaction, and never delete customer
         data.
 
-    - path: "web/supabase/functions/**/*.ts"
+    - path: "web/supabase/functions/**/*.{ts,js}"
       instructions: >
         Deno edge functions. Flag: an action without an authorization check on the server; trusting identity or
         business IDs from the request body; secrets in responses or logs; error messages that expose database
