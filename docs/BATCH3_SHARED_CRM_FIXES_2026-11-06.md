@@ -179,3 +179,16 @@ not reset the count. The `key` on `Workspace` hid it in practice.
 2. Then run `sql/rollback/zella_batch3_pagination_rollback.sql`.
 
 No data is changed by either step.
+
+## Production (6 Nov 2026)
+
+- **Web app:** PR 20 was merged to `main` at 19:37 UTC, and Cloudflare Pages builds from `main`. The database file was applied
+  afterwards, so the Leads, Records, Calls and Inbox pages couldn't load their lists until then.
+- **Database:** `sql/zella_batch3_pagination.sql` was applied to production about 19:50 UTC (approved: "yes apply"), as
+  migration `zella_batch3_pagination`. Checked afterwards:
+  - all 9 functions exist, each SECURITY INVOKER with a fixed search path;
+  - all 6 indexes exist;
+  - `anon` cannot execute the functions; `authenticated` can;
+  - a rolled-back call as a real business owner returned that business's totals for leads, calls and the inbox.
+- **Follow-ups (PR after 20):** the thread "partial" warning for older text and email records, and CodeRabbit's
+  independent refresh of the open conversation after a handover.

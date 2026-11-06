@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "./supabase";
 import { Field, Icon, Pill, initials, personName } from "./BusinessUI";
 import { formatDay, formatTime, timeAgo, todayInput, zonedDateTime } from "./businessTime";
 import { Empty, Notice, PageHead, Pager, Segment, clock, explain, loadPeople, plural, useLoad, callResult, isAnswered } from "./BusinessShared";
 import { useServerPages } from "./crm/paging";
-import { inboxItem, replyBlock, supportProblems } from "./crm/inbox";
+import { inboxItem, replyBlock, supportProblems, threadFrom } from "./crm/inbox";
 import { EscalationControls, Transcript, isOpenEscalation } from "./BusinessProfile";
 import { Assignee, useRoster } from "./BusinessLeads";
 
@@ -37,7 +37,7 @@ function Bubble({ m, tz }) {
  * Message reads fall back to provider records when no conversation messages are available;
  * failures of all message sources show a retry notice, and note failures use an empty list.
  */
-function ConversationPane({ item, person, personStatus, workspace, roster, integrations, onChanged, onNotice, onOpenPerson, onBack, onRetrySupport }) {
+function ConversationPane({ item, person, personStatus, workspace, roster, integrations, onChanged, onNotice, onOpenPerson, onBack, onRetrySupport, conversationReady, conversationError, onRetryConversation }) {
   const tz = workspace.timezone;
   const c = item.convo;
   const [body, setBody] = useState("");
@@ -53,17 +53,7 @@ function ConversationPane({ item, person, personStatus, workspace, roster, integ
       supabase.from("sms_messages").select("*").eq("conversation_id", c.id).order("created_at").limit(300),
       supabase.from("email_messages").select("*").eq("conversation_id", c.id).order("created_at").limit(100),
     ]);
-    // B3-06: a thread that couldn't be read says so, instead of looking empty
-    if (msgs.error && sms.error && mail.error) throw msgs.error;
-    let messages = msgs.error ? [] : msgs.data ?? [];
-    if (!messages.length) {
-      // Older conversations only have the provider-level records.
-      messages = [
-        ...(sms.error ? [] : sms.data ?? []).map((m) => ({ id: m.id, sender_type: m.direction === "inbound" ? "customer" : "agent", content: m.message_body, created_at: m.created_at })),
-        ...(mail.error ? [] : mail.data ?? []).map((m) => ({ id: m.id, sender_type: m.direction === "inbound" ? "customer" : "agent", content: [m.subject, m.body_text].filter(Boolean).join("\n"), created_at: m.created_at })),
-      ].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-    }
-    return { messages, notes: notes.error ? [] : notes.data ?? [], partial: Boolean(msgs.error || notes.error), notesFailed: Boolean(notes.error) };
+    return threadFrom({ msgs, notes, sms, mail });
   }, [c.id]);
 
   // Opening a conversation reads it.
@@ -73,13 +63,15 @@ function ConversationPane({ item, person, personStatus, workspace, roster, integ
   }, [c.id]);
 
   async function run(key, work, message, after) {
+    if (!conversationReady) return false;
     setBusy(key);
     setError("");
     const { error: failure } = await work();
-    setBusy("");
+    if (failure) setBusy("");
     if (failure) { setError(explain(failure)); return false; }
     if (message) onNotice(message);
-    onChanged();
+    await onChanged();
+    setBusy("");
     reload();
     after?.();
     return true;
@@ -89,7 +81,7 @@ function ConversationPane({ item, person, personStatus, workspace, roster, integ
   const channel = c.channel;
   // B3-06: a reply needs the person's contact preferences and the channel's connection to be known. If either lookup
   // failed, replying waits for a retry instead of guessing (the server refuses opted-out people in any case).
-  const blockedWhy = replyBlock({ channel, person, personStatus, integrations });
+  const blockedWhy = !conversationReady ? { text: "Conversation status unavailable. Replying is paused." } : replyBlock({ channel, person, personStatus, integrations });
   const send = (event) => {
     event.preventDefault();
     if (!body.trim()) return;
@@ -113,40 +105,41 @@ function ConversationPane({ item, person, personStatus, workspace, roster, integ
         </div>
         <div className="ba-kn-head">
           {c.ai_handled ? <Pill tone="indigo">AI is handling this</Pill> : <Pill tone="warning">A person is handling this</Pill>}
-          <button type="button" className="ba-btn sm" disabled={Boolean(busy)}
+          <button type="button" className="ba-btn sm" disabled={Boolean(busy) || !conversationReady}
             onClick={() => run("handover", () => supabase.rpc("zella_inbox_handover", { p_conversation_id: c.id, p_to_ai: !c.ai_handled }), c.ai_handled ? "You took over from the AI receptionist." : "Handed back to the AI receptionist.")}>
             {c.ai_handled ? "Take over from AI" : "Hand back to AI"}
           </button>
         </div>
       </header>
+      {!conversationReady && <Notice error={conversationError || "Checking conversation status…"} onRetry={onRetryConversation} />}
       {error && <p className="ba-error" role="alert">{error}</p>}
       {threadError && <Notice error={`Couldn't load this conversation's messages. ${threadError}`} onRetry={reload} />}
       {data?.partial && <Notice error={data.notesFailed ? "Some messages or internal notes couldn't be loaded." : "Some messages couldn't be loaded."} onRetry={reload} />}
 
       <div className="ba-inbox-controls">
         <label className="ba-select"><span>Assigned to</span>
-          <select value={c.assigned_to ?? ""} disabled={Boolean(busy)} onChange={(e) => update(e.target.value ? { p_assign_to: e.target.value } : { p_unassign: true }, "Assignment saved.")}>
+          <select value={c.assigned_to ?? ""} disabled={Boolean(busy) || !conversationReady} onChange={(e) => update(e.target.value ? { p_assign_to: e.target.value } : { p_unassign: true }, "Assignment saved.")}>
             <option value="">Unassigned</option>
             {roster.list.map((m) => <option key={m.user_id} value={m.user_id}>{m.name}</option>)}
           </select>
         </label>
         <label className="ba-select"><span>Priority</span>
-          <select value={c.priority ?? "normal"} disabled={Boolean(busy)} onChange={(e) => update({ p_priority: e.target.value }, "Priority saved.")}>
+          <select value={c.priority ?? "normal"} disabled={Boolean(busy) || !conversationReady} onChange={(e) => update({ p_priority: e.target.value }, "Priority saved.")}>
             <option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option>
           </select>
         </label>
         <label className="ba-select"><span>Status</span>
-          <select value={c.status} disabled={Boolean(busy)} onChange={(e) => update({ p_status: e.target.value }, "Status saved.")}>
+          <select value={c.status} disabled={Boolean(busy) || !conversationReady} onChange={(e) => update({ p_status: e.target.value }, "Status saved.")}>
             <option value="open">Open</option><option value="pending">Waiting on them</option><option value="closed">Closed</option>
           </select>
         </label>
-        <button type="button" className="ba-btn sm" disabled={Boolean(busy)}
+        <button type="button" className="ba-btn sm" disabled={Boolean(busy) || !conversationReady}
           onClick={() => run("unread", () => supabase.rpc("zella_inbox_mark_read", { p_conversation_id: c.id, p_read: false }), "Marked unread.")}>Mark unread</button>
       </div>
 
       <div className="ba-thread">
         {threadError && !data ? <p className="ba-muted">Messages unavailable.</p> : !data ? <p className="ba-muted">Loading…</p>
-          : !data.messages.length ? <p className="ba-muted">No messages yet.</p> : data.messages.map((m) => <Bubble key={m.id} m={m} tz={tz} />)}
+          : !data.messages.length ? <p className="ba-muted">{data.partial ? "No messages to display." : "No messages yet."}</p> : data.messages.map((m) => <Bubble key={m.id} m={m} tz={tz} />)}
       </div>
 
       {data?.notes.length > 0 && (
@@ -258,6 +251,7 @@ export function InboxPage({ workspace, refreshKey, onNotice, onOpenPerson }) {
   const tz = workspace.timezone;
   const [filter, setFilter] = useState("all");
   const [selected, setSelected] = useState(null);   // the open item; kept when the list moves to another page
+  useEffect(() => { setSelected(null); }, [workspace.id]);
   const roster = useRoster(workspace);
 
   // B3-02: calls and conversations merged, filtered and paged by the server (zella_inbox_page), newest activity first
@@ -268,7 +262,31 @@ export function InboxPage({ workspace, refreshKey, onNotice, onOpenPerson }) {
 
   // B3-06: what supports the list is loaded separately, for this page only; each can fail on its own and says so
   const convoIds = items.filter((i) => i.kind === "convo").map((i) => i.convo.id);
-  const current = selected ? items.find((i) => i.key === selected.key) ?? selected : null;
+  const selectionKey = `${workspace.id}:${selected?.key ?? ""}`;
+  const selectedVersion = useRef({ key: null, row: null });
+  const conversation = useLoad(async () => {
+    if (selected?.kind !== "convo") return null;
+    const res = await supabase.from("conversations").select("*").eq("business_id", workspace.id).eq("id", selected.convo.id).maybeSingle();
+    if (res.error) throw res.error;
+    if (!res.data) throw new Error("Conversation unavailable.");
+    return { key: selectionKey, row: res.data };
+  }, [selectionKey, refreshKey]);
+  if (selectedVersion.current.key !== selectionKey) selectedVersion.current = { key: selectionKey, row: null };
+  const pageItem = selected ? items.find((i) => i.key === selected.key) : null;
+  const authoritative = conversation.data?.key === selectionKey ? conversation.data.row : null;
+  // Only updated_at versions order snapshots. Equal or unknown versions favor
+  // the independent read; activity timestamps do not version handovers.
+  const newer = (a, b) => {
+    const at = Date.parse(a?.updated_at), bt = Date.parse(b?.updated_at);
+    return Number.isFinite(at) && Number.isFinite(bt) && at > bt;
+  };
+  if (authoritative && (!selectedVersion.current.row || !newer(selectedVersion.current.row, authoritative))) selectedVersion.current.row = authoritative;
+  if (authoritative && newer(pageItem?.convo, selectedVersion.current.row)) selectedVersion.current.row = pageItem.convo;
+  const current = selected?.kind === "convo"
+    ? { ...selected, convo: selectedVersion.current.row ?? selected.convo, customer_id: (selectedVersion.current.row ?? selected.convo).customer_id }
+    : pageItem ?? selected;
+  const conversationReady = !conversation.loading && !conversation.error && Boolean(authoritative);
+  const refreshConversation = async () => { reload(); await conversation.reload(); };
   const peopleIds = [...new Set([...items.map((i) => i.customer_id), current?.customer_id].filter(Boolean))].sort();
   const previews = useLoad(async () => {
     if (!convoIds.length) return {};
@@ -344,7 +362,7 @@ export function InboxPage({ workspace, refreshKey, onNotice, onOpenPerson }) {
             : current.kind === "call"
               ? <CallPane key={current.key} item={current} person={person} workspace={workspace} onChanged={reload} onNotice={onNotice} onOpenPerson={onOpenPerson} onBack={() => setSelected(null)} />
               : <ConversationPane key={current.key} item={current} person={person} personStatus={current.customer_id ? personStatus : "ok"} workspace={workspace} roster={roster} integrations={integrations}
-                onChanged={reload} onNotice={onNotice} onOpenPerson={onOpenPerson} onBack={() => setSelected(null)} onRetrySupport={retrySupport} />}
+                conversationReady={conversationReady} conversationError={conversation.error} onRetryConversation={conversation.reload} onChanged={refreshConversation} onNotice={onNotice} onOpenPerson={onOpenPerson} onBack={() => setSelected(null)} onRetrySupport={retrySupport} />}
         </section>
       </div>
     </>

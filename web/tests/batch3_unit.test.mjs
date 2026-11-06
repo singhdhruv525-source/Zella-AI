@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { ATTENTION_START, attentionCount, attentionReduce, attentionWarning } from "../src/crm/attention.js";
 import { PAGE_START, pageCursor, pageReduce, pageRows, pageStatus } from "../src/crm/pagingState.js";
 import { linkIdsOf, linkTitle } from "../src/crm/links.js";
-import { connected, inboxItem, replyBlock, supportProblems } from "../src/crm/inbox.js";
+import { connected, inboxItem, replyBlock, supportProblems, threadFrom } from "../src/crm/inbox.js";
 
 const A = "a0000000-0000-0000-0000-000000000001", B = "b0000000-0000-0000-0000-000000000002";
 const start = (id = A) => attentionReduce(ATTENTION_START, { type: "reset", businessId: id });
@@ -125,4 +125,20 @@ test("B3-02: inbox rows map to items with stable keys", () => {
   assert.deepEqual(inboxItem({ kind: "call", id: "1", at: "t", row: { id: "1", customer_id: "c" } }).key, "c1");
   const v = inboxItem({ kind: "convo", id: "2", at: "t", row: { id: "2" } });
   assert.equal(v.key, "v2"); assert.equal(v.kind, "convo"); assert.equal(v.customer_id, null);
+});
+
+test("B3-06: a thread read only in part says so, including the older provider records", () => {
+  const ok = (data) => ({ data, error: null }), bad = { data: null, error: { message: "boom" } };
+  const sms = ok([{ id: "s1", direction: "inbound", message_body: "hi", created_at: "2026-01-01T10:00:00Z" }]);
+  const mail = ok([{ id: "e1", direction: "outbound", subject: "Re", body_text: "hello", created_at: "2026-01-01T09:00:00Z" }]);
+  const full = threadFrom({ msgs: ok([]), notes: ok([]), sms, mail });
+  assert.deepEqual(full.messages.map((m) => m.id), ["e1", "s1"], "fallback merges both, oldest first");
+  assert.equal(full.partial, false);
+  const smsFailed = threadFrom({ msgs: ok([]), notes: ok([]), sms: bad, mail });
+  assert.deepEqual(smsFailed.messages.map((m) => m.id), ["e1"]);
+  assert.equal(smsFailed.partial, true, "empty conversation_messages + one failed provider lookup is partial");
+  assert.equal(threadFrom({ msgs: ok([]), notes: ok([]), sms, mail: bad }).partial, true);
+  assert.equal(threadFrom({ msgs: ok([{ id: "m1" }]), notes: ok([]), sms: bad, mail: bad }).partial, false, "provider lookups don't matter when conversation_messages has the thread");
+  assert.equal(threadFrom({ msgs: ok([{ id: "m1" }]), notes: bad, sms, mail }).notesFailed, true);
+  assert.throws(() => threadFrom({ msgs: bad, notes: ok([]), sms: bad, mail: bad }), "nothing readable at all is an error, not an empty thread");
 });
