@@ -132,7 +132,7 @@ Applied in order, each with the md5 guard (the text runs only if its md5 matches
 | Production vs staging after | 773 functions, normalised hash bb0998beb057e687d4422b63d68ed149 | identical to the baseline plus all 13 files |
 | voice-rules | deployed from main (c4cc392): index.ts, logic.ts, orders.ts, deno.json and the shared vapi-brain-tools / vapi-call-events modules; verify_jwt off as before (its own HMAC check is the gate) | version 4 → **5**, active |
 | voice-rules smoke test | an unsigned request from the database (pg_net) | **401 Unauthorized**: the function boots and the signature check runs |
-| owner-provision-business | not deployed: about 241 KB, too large to send reliably through the deploy tool, and this session can't reach the Supabase API for the CLI | still version 13 |
+| owner-provision-business | deployed by the owner with the Supabase CLI (`--use-api`, from main at 25a88b6; verify_jwt off as before) | version 13 → **14**, active; a request with no sign-in gets 401 "Please sign in first" |
 
 What changes for callers now:
 - **Nothing for any existing number.** No Vapi number was changed, and production has 0 numbers registered in Zella.
