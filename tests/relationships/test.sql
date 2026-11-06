@@ -46,14 +46,14 @@ do $$ declare v uuid; begin
   assert not public.zella_is_authorized('c7000000-0000-0000-0000-0000000000a1', null, 'c7000000-0000-0000-0000-0000000004a1', 'c7000000-0000-0000-0000-0000000001a2', 'pickup'),
     'an unverified guardian may not pick up';
   -- staff can't verify in a sensitive industry (childcare)
-  perform pg_temp.expect(format('select public.zella_relationship_verify(%L, %L)', v, 'id_checked'), 'NOT_ALLOWED');
+  perform pg_temp.expect(format('select public.zella_relationship_verify(%L, %L, %L, %L, %L)', v, 'id_checked', 'c7000000-0000-0000-0000-0000000001a2', 'guardian', '{discuss,pickup}'), 'NOT_ALLOWED');
 end $$;
 select 'PASS a new link grants nothing until verified; staff cannot verify in a sensitive industry';
 
 select pg_temp.as_user('c7000000-0000-0000-0000-00000000000b');   -- manager
 do $$ declare v uuid := (select v from ids where k = 'grandma'); begin
-  perform pg_temp.expect(format('select public.zella_relationship_verify(%L, %L)', v, 'telepathy'), 'BAD_METHOD');
-  perform public.zella_relationship_verify(v, 'id_checked');
+  perform pg_temp.expect(format('select public.zella_relationship_verify(%L, %L, %L, %L, %L)', v, 'telepathy', 'c7000000-0000-0000-0000-0000000001a2', 'guardian', '{discuss,pickup}'), 'BAD_METHOD');
+  perform public.zella_relationship_verify(v, 'id_checked', 'c7000000-0000-0000-0000-0000000001a2', 'guardian', array['discuss', 'pickup']);
   assert public.zella_is_authorized('c7000000-0000-0000-0000-0000000000a1', null, 'c7000000-0000-0000-0000-0000000004a1', 'c7000000-0000-0000-0000-0000000001a2', 'pickup'), 'verified guardian may pick up';
   assert not public.zella_is_authorized('c7000000-0000-0000-0000-0000000000a1', null, 'c7000000-0000-0000-0000-0000000004a1', 'c7000000-0000-0000-0000-0000000001a2', 'approve'), 'but not approve';
   assert not public.zella_is_authorized('c7000000-0000-0000-0000-0000000000a1', null, 'c7000000-0000-0000-0000-0000000004a1', 'c7000000-0000-0000-0000-0000000001a3', 'pickup'), 'a stranger may not';
@@ -85,6 +85,30 @@ do $$ declare v uuid := (select v from ids where k = 'grandma'); begin
   perform pg_temp.expect(format('select public.zella_relationship_save(%L, null, %L, null, %L, %L, %L, null, null)', 'c7000000-0000-0000-0000-0000000000a1',
           'c7000000-0000-0000-0000-0000000001a1', 'c7000000-0000-0000-0000-0000000001b1', 'household', '{discuss}'), 'NOT_VALID');   -- a person from another business
 end $$;
+-- a stale Verify: the manager saw "pickup", staff widened it to "pickup + approve" before the manager confirmed
+reset role;
+do $$ begin update public.customer_relationships set permissions = array['pickup'], verified_at = null where id = (select v from ids where k = 'grandma'); end $$;
+set local role authenticated;
+select pg_temp.as_user('c7000000-0000-0000-0000-00000000000c');   -- staff widens it
+do $$ begin perform public.zella_relationship_save('c7000000-0000-0000-0000-0000000000a1', (select v from ids where k = 'grandma'), null,
+  'c7000000-0000-0000-0000-0000000004a1', 'c7000000-0000-0000-0000-0000000001a2', 'guardian', array['pickup', 'approve'], null, null); end $$;
+select pg_temp.as_user('c7000000-0000-0000-0000-00000000000b');   -- manager confirms what they were shown
+do $$ declare v uuid := (select v from ids where k = 'grandma'); begin
+  perform pg_temp.expect(format('select public.zella_relationship_verify(%L, %L, %L, %L, %L)', v, 'id_checked',
+          'c7000000-0000-0000-0000-0000000001a2', 'guardian', '{pickup}'), 'CHANGED');
+  assert (select verified_at is null from public.customer_relationships where id = v), 'a stale verify changes nothing';
+  perform pg_temp.expect(format('select public.zella_relationship_verify(%L, %L, %L, %L, %L)', v, 'id_checked',
+          'c7000000-0000-0000-0000-0000000001a3', 'guardian', '{approve,pickup}'), 'CHANGED');   -- a different person shown
+  -- what is really there, in any order, verifies
+  perform public.zella_relationship_verify(v, 'id_checked', 'c7000000-0000-0000-0000-0000000001a2', 'guardian', array['pickup', 'approve']);
+  assert (select verified_at is not null from public.customer_relationships where id = v), 'verified as it really is';
+end $$;
+reset role;
+do $$ begin update public.customer_relationships set permissions = array['pickup'] where id = (select v from ids where k = 'grandma'); end $$;
+set local role authenticated;
+select pg_temp.as_user('c7000000-0000-0000-0000-00000000000c');
+select 'PASS a verification only applies to exactly what the verifier was shown: a link changed meanwhile (wider permissions, another person) is refused and stays unverified';
+
 select 'PASS edits: narrowing keeps verification, widening clears it; duplicates, past end dates, the same person, unknown kinds and permissions, and people from another business are refused';
 
 -- expiry and revocation
@@ -192,7 +216,7 @@ select pg_temp.as_user('c7000000-0000-0000-0000-00000000000f');   -- salon staff
 do $$ declare v uuid; begin
   v := public.zella_relationship_save('c7000000-0000-0000-0000-0000000000c1', null, 'c7000000-0000-0000-0000-0000000001c1', null,
        'c7000000-0000-0000-0000-0000000001c2', 'household', array['book'], null, null);
-  perform public.zella_relationship_verify(v, 'known_to_team');
+  perform public.zella_relationship_verify(v, 'known_to_team', 'c7000000-0000-0000-0000-0000000001c2', 'household', array['book']);
   assert public.zella_is_authorized('c7000000-0000-0000-0000-0000000000c1', 'c7000000-0000-0000-0000-0000000001c1', null, 'c7000000-0000-0000-0000-0000000001c2', 'book'), 'partner may book';
 end $$;
 reset role;

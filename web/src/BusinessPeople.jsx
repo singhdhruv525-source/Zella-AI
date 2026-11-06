@@ -13,6 +13,8 @@ import {
 } from "./peopleLogic";
 
 const today = () => new Date().toISOString().slice(0, 10);
+// end dates are calendar dates (no time): shown as stored, never shifted by a time zone
+const calendarDay = (d) => formatDay(`${d}T12:00:00Z`, "UTC");
 
 // subject: { customer } for a person, or { recordId, typeKey, title } for a record
 export function PeopleAndConsent({ workspace, subject, onNotice }) {
@@ -41,7 +43,8 @@ export function PeopleAndConsent({ workspace, subject, onNotice }) {
     inFlight.current = true; setBusy(true); setProblem(""); setDone("");
     const res = await supabase.rpc(fn, args);
     inFlight.current = false; setBusy(false);
-    if (res.error) { setProblem(peopleError(res.error)); return false; }
+    // a refusal reloads the panel too, so it shows the current state (e.g. a link someone else just changed)
+    if (res.error) { setProblem(peopleError(res.error)); panel.reload(); return false; }
     setDone(done);
     onNotice?.(done);
     panel.reload();
@@ -82,7 +85,7 @@ export function PeopleAndConsent({ workspace, subject, onNotice }) {
                   <strong>{personLabel(r.person)}</strong> · {KIND_LABEL[r.kind] ?? r.kind} <Pill tone={tone}>{label}</Pill>
                   <small>
                     {r.permissions.length ? r.permissions.map((x) => PERMISSION_LABEL[x] ?? x).join(" · ") : "No permissions"}
-                    {r.valid_until ? ` · until ${formatDay(r.valid_until, tz)}` : ""}
+                    {r.valid_until ? ` · until ${calendarDay(r.valid_until)}` : ""}
                     {r.state === "active" && r.verification_method ? ` · ${METHOD_LABEL[r.verification_method] ?? r.verification_method}` : ""}
                   </small>
                   {r.note && <small>{r.note}</small>}
@@ -106,7 +109,12 @@ export function PeopleAndConsent({ workspace, subject, onNotice }) {
       {p.can_edit && editing === null && <button type="button" className="ba-btn sm" onClick={() => setEditing("new")}><Icon name="person_add" size="sm" /> Link a person</button>}
 
       {verifying && <VerifyForm rel={verifying} busy={busy} onCancel={() => setVerifying(null)}
-        onSave={async (method) => { if (await run("zella_relationship_verify", { p_id: verifying.id, p_method: method }, `${personLabel(verifying.person)} is verified.`)) setVerifying(null); }} />}
+        onSave={async (method) => { await run("zella_relationship_verify", {
+          // exactly what the verifier is looking at; the server refuses if the link changed since (CHANGED)
+          p_id: verifying.id, p_method: method, p_related_customer_id: verifying.person.id, p_kind: verifying.kind, p_permissions: verifying.permissions,
+        }, `${personLabel(verifying.person)} is verified.`);
+          setVerifying(null);   // on success, or to show the link as it is now (the panel reloads either way)
+        }} />}
       {editing && <RelationshipForm workspace={workspace} subject={subject} rel={editing === "new" ? null : editing} busy={busy}
         onCancel={() => setEditing(null)}
         onSave={async (form) => {
@@ -145,7 +153,7 @@ export function PeopleAndConsent({ workspace, subject, onNotice }) {
               <li key={k.id} data-consent={k.state}>
                 <div>
                   <strong>{CONSENT_LABEL[k.kind] ?? k.kind}</strong>{k.scope ? `: ${k.scope}` : ""} <Pill tone={tone}>{label}</Pill>
-                  <small>By {personLabel(k.given_by)} · {formatDay(k.given_at, tz)}{k.expires_at ? ` · until ${formatDay(k.expires_at, tz)}` : ""}{k.evidence ? ` · ${k.evidence}` : ""}</small>
+                  <small>By {personLabel(k.given_by)} · {formatDay(k.given_at, tz)}{k.expires_at ? ` · until ${calendarDay(k.expires_at)}` : ""}{k.evidence ? ` · ${k.evidence}` : ""}</small>
                 </div>
                 {p.can_edit && k.state === "active" && (
                   <div className="ba-people-actions">

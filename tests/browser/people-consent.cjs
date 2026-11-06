@@ -55,7 +55,7 @@ const authorized = (perm) => sql(`select public.zella_is_authorized('${BIZ}', nu
 
   // owner: link, verify, consent, revoke
   {
-    const { ctx, page, errors } = await open(browser, "owner@glow.test");
+    let { ctx, page, errors } = await open(browser, "owner@glow.test");
     await openChild(page);
     check("record window shows People & consent with nobody linked", await page.isVisible("text=Nobody is linked yet."));
     check("owner sees the change buttons (the same check the viewer must fail)", (await page.locator("[data-people] button").filter({ hasText: CHANGE_BUTTONS }).count()) >= 2);
@@ -71,6 +71,19 @@ const authorized = (perm) => sql(`select public.zella_is_authorized('${BIZ}', nu
     await page.waitForSelector("[data-relationship=unverified]");
     check("new link shows 'Not verified: grants nothing yet'", await page.isVisible("text=Not verified: grants nothing yet"));
     check("database: an unverified guardian may not pick up", authorized("pickup") === "f", authorized("pickup"));
+
+    // someone widens the link while the Verify form is open: confirming must verify nothing
+    await page.click("[data-relationship=unverified] >> text=Verify");
+    sql(`update customer_relationships set permissions = array['approve', 'pickup'] where business_id = '${BIZ}' and related_customer_id = '${GRACE}' and revoked_at is null`);
+    await page.locator("form[aria-label^='Verify'] select").selectOption("id_checked");
+    await page.locator("form[aria-label^='Verify']").getByRole("button", { name: "Mark verified" }).click();
+    await page.waitForSelector("text=changed while you were looking");
+    check("a link changed while the Verify form was open is not verified, and the screen says why",
+      sql(`select count(*) from customer_relationships where business_id = '${BIZ}' and verified_at is not null`) === "0" && await page.isVisible("[data-relationship=unverified]"));
+    sql(`update customer_relationships set permissions = array['pickup'], valid_until = '2027-03-06' where business_id = '${BIZ}' and related_customer_id = '${GRACE}' and revoked_at is null`);
+    await page.close(); page = await ctx.newPage(); page.setDefaultTimeout(10000); page.on("pageerror", (e) => errors.push(e.message)); page.on("dialog", (d) => d.accept(d.type() === "prompt" ? "Test: no longer collects" : undefined));
+    await openChild(page);
+    check("an end date shows on its own day (no time-zone shift)", await page.isVisible("[data-relationship=unverified] >> text=until Sat, Mar 6"));
 
     await page.click("[data-relationship=unverified] >> text=Verify");
     const vf = page.locator("form[aria-label^='Verify']");

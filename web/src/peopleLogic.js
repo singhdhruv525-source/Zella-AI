@@ -63,6 +63,7 @@ export function consentGivers(panel, subject) {
 
 const ERRORS = [
   [/NOT_AUTHORIZED_GIVER/, "That person can't give consent here. Only the person themselves, the primary contact, or a verified contact allowed to approve can."],
+  [/CHANGED/, "This link was changed while you were looking at it, so nothing was verified. Check what it allows now and verify again."],
   [/SAME_PERSON/, "A person can't be linked to themselves."],
   [/BAD_DATE/, "The date can't be in the past."],
   [/BAD_METHOD/, "Choose how they were verified."],

@@ -186,16 +186,24 @@ begin
   return p_id;
 end $$;
 
-create or replace function public.zella_relationship_verify(p_id uuid, p_method text) returns void
-language plpgsql security definer set search_path = public as $$
-declare cur public.customer_relationships;
+-- Verify exactly what the verifier was shown: the person, the kind and the permissions on their screen. If the link
+-- changed after they opened it (someone widened the permissions, or changed the person), nothing is verified
+-- (CHANGED) and they look again. A row lock alone wouldn't catch a form opened before the change.
+drop function if exists public.zella_relationship_verify(uuid, text);
+create or replace function public.zella_relationship_verify(p_id uuid, p_method text, p_related_customer_id uuid, p_kind text, p_permissions text[])
+returns void language plpgsql security definer set search_path = public as $$
+declare cur public.customer_relationships; v_shown text[] := coalesce((select array_agg(distinct p order by p) from unnest(p_permissions) p), '{}');
 begin
   select * into cur from public.customer_relationships where id = p_id for update;
   if not found or not public.zella_people_can_verify(cur.business_id) then raise exception 'NOT_ALLOWED'; end if;
   if cur.revoked_at is not null then raise exception 'NOT_FOUND'; end if;
   if p_method is null or p_method not in ('id_checked', 'document_on_file', 'known_to_team', 'callback_verified', 'other') then raise exception 'BAD_METHOD'; end if;
+  if cur.related_customer_id is distinct from p_related_customer_id or cur.kind is distinct from p_kind or cur.permissions is distinct from v_shown then
+    raise exception 'CHANGED';
+  end if;
   update public.customer_relationships set verified_at = now(), verified_by = auth.uid(), verification_method = p_method, updated_at = now() where id = p_id;
-  perform public.zella_people_audit(cur.business_id, 'relationship_verified', 'customer_relationship', p_id, null, jsonb_build_object('method', p_method, 'kind', cur.kind));
+  perform public.zella_people_audit(cur.business_id, 'relationship_verified', 'customer_relationship', p_id, null,
+    jsonb_build_object('method', p_method, 'kind', cur.kind, 'permissions', cur.permissions));
 end $$;
 
 create or replace function public.zella_relationship_revoke(p_id uuid, p_reason text default null) returns void
@@ -286,13 +294,13 @@ end $$;
 revoke execute on function public.zella_people_can_edit(uuid), public.zella_people_can_verify(uuid), public.zella_people_subject_ok(uuid, uuid, uuid),
   public.zella_relationship_in_force(public.customer_relationships), public.zella_is_authorized(uuid, uuid, uuid, uuid, text),
   public.zella_people_audit(uuid, text, text, uuid, jsonb, jsonb),
-  public.zella_relationship_save(uuid, uuid, uuid, uuid, uuid, text, text[], date, text), public.zella_relationship_verify(uuid, text),
+  public.zella_relationship_save(uuid, uuid, uuid, uuid, uuid, text, text[], date, text), public.zella_relationship_verify(uuid, text, uuid, text, text[]),
   public.zella_relationship_revoke(uuid, text), public.zella_consent_record(uuid, uuid, uuid, text, text, uuid, text, date, text),
   public.zella_consent_revoke(uuid, text), public.zella_people_panel(uuid, uuid, uuid) from public, anon;
 revoke execute on function public.zella_people_audit(uuid, text, text, uuid, jsonb, jsonb), public.zella_people_subject_ok(uuid, uuid, uuid),
   public.zella_relationship_in_force(public.customer_relationships) from authenticated;
 grant execute on function public.zella_people_can_edit(uuid), public.zella_people_can_verify(uuid), public.zella_is_authorized(uuid, uuid, uuid, uuid, text),
-  public.zella_relationship_save(uuid, uuid, uuid, uuid, uuid, text, text[], date, text), public.zella_relationship_verify(uuid, text),
+  public.zella_relationship_save(uuid, uuid, uuid, uuid, uuid, text, text[], date, text), public.zella_relationship_verify(uuid, text, uuid, text, text[]),
   public.zella_relationship_revoke(uuid, text), public.zella_consent_record(uuid, uuid, uuid, text, text, uuid, text, date, text),
   public.zella_consent_revoke(uuid, text), public.zella_people_panel(uuid, uuid, uuid) to authenticated, service_role;
 grant execute on function public.zella_people_audit(uuid, text, text, uuid, jsonb, jsonb), public.zella_people_subject_ok(uuid, uuid, uuid),

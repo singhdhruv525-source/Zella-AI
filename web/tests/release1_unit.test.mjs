@@ -30,7 +30,7 @@ test("consent givers: self, primary contact and verified approvers only", () => 
 });
 
 test("errors are explained without database wording", () => {
-  for (const [message, want] of [["NOT_AUTHORIZED_GIVER", /can't give consent/], ["SAME_PERSON", /themselves/], ["BAD_DATE", /past/],
+  for (const [message, want] of [["NOT_AUTHORIZED_GIVER", /can't give consent/], ["SAME_PERSON", /themselves/], ["CHANGED", /changed while you were looking/], ["BAD_DATE", /past/],
     ['duplicate key value violates unique constraint "customer_relationships_one_active_record"', /already has an active link/],
     ["NOT_ALLOWED", /permission/], ["NOT_VALID", /isn't part of this business/], ["Could not find the function public.zella_people_panel", /isn't available/],
     ["TypeError: Failed to fetch", /Couldn't reach Zella/], ["weird internal thing", /didn't work/]]) {
