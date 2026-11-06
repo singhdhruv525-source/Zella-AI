@@ -1,6 +1,6 @@
 # Writes a rollback for a migration that patches functions with replace(def, $a$old$a$, $a$new$a$): each is undone as
 # replace(def, new, old), so only that file's additions go and other migrations' changes stay.
-#   python3 -I tests/setup/make_rollback.py [setup|messaging|orders|buffers|channel|escalation|knowledge|configmig|planlang|holiday|windows]
+#   python3 -I tests/setup/make_rollback.py [setup|messaging|orders|buffers|channel|escalation|knowledge|configmig|planlang|holiday|windows|tables]
 import re, sys
 which = sys.argv[1] if len(sys.argv) > 1 else "setup"
 CFG = {
@@ -65,6 +65,35 @@ CFG["windows"] = ("sql/zella_arrival_windows.sql", "sql/rollback/zella_arrival_w
     "drop function if exists public.zella_arrival_window(uuid);",
     "drop function if exists public.zella_slot_say(timestamptz, text, integer);",
     "drop function if exists public.zella_booking_choices(uuid, timestamptz, timestamptz, integer, integer, integer);"])
+CFG["tables"] = ("sql/zella_tables.sql", "sql/rollback/zella_tables_rollback.sql", [
+    "drop trigger if exists zella_appointment_conflict_guard on public.appointments;",
+    "create trigger zella_appointment_conflict_guard before insert or update of start_time, end_time, staff_id, status, booking_state on public.appointments for each row execute function public.zella_appointment_conflict_guard();",
+    "drop function if exists public.zella_book_appointment(uuid, uuid, text, timestamptz, integer, uuid, integer, text, jsonb);",
+    "drop function if exists public.zella_table_action(uuid, text, jsonb);",
+    "drop function if exists public.zella_save_combinations(uuid, jsonb);",
+    "drop function if exists public.zella_tables_check_bookings(uuid);",
+    "drop function if exists public.zella_tables_affected(uuid);",
+    "drop function if exists public.zella_table_board(uuid, timestamptz);",
+    "drop function if exists public.zella_save_tables(uuid, jsonb);",
+    "drop function if exists public.zella_tables(uuid);",
+    "drop function if exists public.zella_table_event(uuid, uuid, uuid, text, jsonb);",
+    "drop function if exists public.zella_max_party_ai(uuid);",
+    "drop function if exists public.zella_offer_times(boolean, integer, uuid, timestamptz, timestamptz, integer, integer, text);",
+    "drop function if exists public.zella_table_times(uuid, timestamptz, timestamptz, integer, integer, integer, text, text[]);",
+    "drop function if exists public.zella_seating_pref(uuid, text);",
+    "drop function if exists public.zella_pick_tables(uuid, integer, timestamptz, timestamptz, uuid, text, text[]);",
+    "drop function if exists public.zella_tables_fit(uuid, uuid[], integer, text, text[]);",
+    "drop function if exists public.zella_tables_free(uuid[], timestamptz, timestamptz, uuid);",
+    "drop function if exists public.zella_table_mode(uuid);",
+    "-- which tables each reservation had, and the waitlist's party sizes, are lost; the table list, blocks and history are kept (renamed)",
+    "drop index if exists public.appointments_table_ids_idx;",
+    "alter table public.appointments drop column if exists table_ids;",
+    "alter table public.waitlist_entries drop column if exists party_size, drop column if exists preferences, drop column if exists contact_ok;",
+    "drop table if exists public.table_states;",
+    "alter table if exists public.table_events rename to table_events_rolled_back;",
+    "alter table if exists public.table_blocks rename to table_blocks_rolled_back;",
+    "alter table if exists public.table_combinations rename to table_combinations_rolled_back;",
+    "alter table if exists public.restaurant_tables rename to restaurant_tables_rolled_back;"])
 SRC, DST, DROPS = CFG[which]
 src = open(SRC).read()
 fns = re.findall(r"pg_get_functiondef\('([^']+)'::regprocedure\);\n  if position\('([a-z_]+)' in def\) = 0 then\n(.*?)\n    execute def;", src, re.S)

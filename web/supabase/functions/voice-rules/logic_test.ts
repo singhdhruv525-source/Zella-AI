@@ -150,3 +150,14 @@ Deno.test("assistant-request answers: current settings, standby assistant, or a 
   eq(assistantReply(false, null), { error: CANT_TAKE }, "assistant");   // database down or too slow
   eq(assistantReply(true, { ok: true, assistant: [] }), { error: CANT_TAKE }, "assistant");
 });
+
+Deno.test("party size and seating reach the booking tools; bad values are refused before the database", () => {
+  const msg = (args: unknown) => ({ message: { type: "tool-calls", call: callObj, toolCallList: [{ id: "tc-p", type: "function", function: { name: "check_availability", arguments: args } }] } });
+  let p = plan(msg({ party_size: 6, seating: "patio", days: 1 }));
+  eq((p as unknown as { calls: { record: { p_args: Record<string, unknown> } }[] }).calls[0].record.p_args.party_size, 6, "party size kept");
+  eq((p as unknown as { calls: { record: { p_args: Record<string, unknown> } }[] }).calls[0].record.p_args.seating, "patio", "seating kept");
+  p = plan(msg({ party_size: 0 }));
+  eq((p as unknown as { calls: { kind: string }[] }).calls[0].kind, "invalid", "zero people refused");
+  p = plan(msg({ party_size: 2.5 }));
+  eq((p as unknown as { calls: { kind: string }[] }).calls[0].kind, "invalid", "half a person refused");
+});
