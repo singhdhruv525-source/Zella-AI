@@ -2177,3 +2177,15 @@ html:not([data-zella-icons="ready"]) .ba-header-actions { flex-wrap: wrap; flex-
 }
 .tb-plan-edit { padding: 0 16px 16px; }
 .tb-setup-row { grid-template-columns: 1fr 1.2fr 0.7fr 0.6fr 0.8fr 1.5fr auto; }
+
+/* Release 1: People & consent */
+.ba-people { display: grid; gap: 8px; }
+.ba-people-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.ba-people-list li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 10px; border: 1px solid var(--ba-border); border-radius: 10px; }
+.ba-people-list li > div:first-child { min-width: 0; flex: 1 1 240px; }
+.ba-people-list small { display: block; color: var(--ba-muted, inherit); overflow-wrap: anywhere; }
+.ba-people-list li[data-relationship="unverified"] { border-style: dashed; }
+.ba-people-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.ba-people-form { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--ba-border); border-radius: 10px; }
+.ba-people-past summary { cursor: pointer; }
+.ba-small { font-size: 12px; }
