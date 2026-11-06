@@ -161,6 +161,8 @@ const AUTO = (dispatchEnabled) => ({ json: { workflows: [], deadLetters: 0, disp
     await p.fill(".ag-search", "beta"); check(await p.isVisible("text=Beta Salon") && !(await p.isVisible("text=Alpha Plumbing")), "B2-04 search still works");
     await p.fill(".ag-search", ""); await p.click(".ag-filters >> text=Live");
     check(await p.isVisible("text=No receptionists match this filter."), "B2-04 Live filter matches the Live label");
+    await p.getByRole("tab", { name: "Not live", exact: true }).click();
+    check(await p.isVisible("text=Alpha Plumbing") && await p.isVisible("text=Beta Salon"), "B2-04 Not live includes disconnected and paused agents");
     await p.click(".ag-filters >> text=All"); check(await p.isVisible("text=Alpha Plumbing") && await p.isVisible("text=Beta Salon"), "B2-04 filters still work");
     await ctx.close(); }
   { const { ctx, p } = await open(b, { agents_list: () => ({ json: { agents: [agent({ checks: { knowledge: true, hours: true, greeting: true, phone: true, voice: true } })], stats: { total: 1 } } }) });
@@ -195,6 +197,10 @@ const AUTO = (dispatchEnabled) => ({ json: { workflows: [], deadLetters: 0, disp
     await p.goto(BASE + "/verification"); await p.waitForSelector("text=registration.pdf");
     await p.click("tr:has-text('registration.pdf') >> button:has-text('Verify')");
     await p.waitForSelector("[data-dialog=verify]");
+    await p.keyboard.press("Shift+Tab");
+    check(await p.evaluate(() => document.activeElement?.textContent) === "Confirm: mark verified", "B2-06 Verify Shift+Tab wraps to Confirm");
+    await p.keyboard.press("Tab");
+    check(await p.evaluate(() => document.activeElement?.textContent) === "Cancel", "B2-06 Verify Tab wraps to Cancel");
     const d = await txt(p, "[data-dialog=verify]");
     check(/Alpha Plumbing/.test(d) && /Business registration/.test(d) && /registration\.pdf/.test(d) && /Mark as verified/.test(d), "B2-06 Verify opens a confirmation with business, document, file and action");
     check(await p.evaluate(() => document.activeElement?.innerText) === "Cancel", "B2-06 focus starts on Cancel");
@@ -207,11 +213,15 @@ const AUTO = (dispatchEnabled) => ({ json: { workflows: [], deadLetters: 0, disp
     check(!(await p.isVisible("[data-dialog=verify]")) && !log.actions.includes("document_review"), "B2-06 Escape closes without a request");
     const before = log.n.documents_queue;
     await p.click("tr:has-text('registration.pdf') >> button:has-text('Verify')"); await p.waitForSelector("[data-dialog=verify]");
-    await p.click("[data-dialog=verify] >> button:has-text('Confirm')"); await p.click("[data-dialog=verify] >> button:has-text('Verifying')", { force: true, timeout: 500 }).catch(() => {});
+    await p.locator('[data-dialog=verify] button:has-text("Confirm")').evaluate((button) => {
+      button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
     await p.waitForSelector("[data-dialog=verify]", { state: "detached" });
     check(log.n.document_review === 1, `B2-06 Confirm sends exactly one review request (got ${log.n.document_review})`);
     await p.waitForSelector("text=Nothing waiting for review.");
     check(log.n.documents_queue > before && await p.isVisible("text=marked verified"), "B2-06 successful review refreshes the queue");
+    check(await p.evaluate(() => document.activeElement?.tagName === "H1" && document.activeElement.textContent === "Verification"), "B2-06 successful Verify focuses persistent heading");
     await ctx.close(); }
   { const { ctx, p } = await open(b, { documents_queue: () => ({ json: { available: true, documents: [DOC], totals: { pending_review: 1 } } }), document_review: () => ({ status: 403, json: { error: "Your admin role doesn't allow this." } }) });
     await p.goto(BASE + "/verification"); await p.waitForSelector("text=registration.pdf");
@@ -219,12 +229,24 @@ const AUTO = (dispatchEnabled) => ({ json: { workflows: [], deadLetters: 0, disp
     await p.waitForSelector("[data-dialog=verify] [role=alert]");
     check(/doesn't allow/.test(await txt(p, "[data-dialog=verify] [role=alert]")) && await p.isVisible("tr:has-text('registration.pdf') >> text=Waiting for review") && !(await p.isVisible("text=marked verified")), "B2-06 failure shows the error and the document isn't shown as verified");
     await ctx.close(); }
-  { const { ctx, p, log } = await open(b, { documents_queue: () => ({ json: { available: true, documents: [DOC], totals: { pending_review: 1 } } }), document_review: () => ({ json: { ok: true } }) });
+  { const { ctx, p, log } = await open(b, { documents_queue: () => ({ json: { available: true, documents: log?.n?.document_review ? [] : [DOC], totals: { pending_review: 1 } } }), document_review: () => ({ json: { ok: true } }) });
     await p.goto(BASE + "/verification"); await p.waitForSelector("text=registration.pdf");
+    await p.click("tr:has-text('registration.pdf') >> button:has-text('Reject')");
+    await p.fill(".owner-modal input", "Name doesn't match");
+    await p.keyboard.press("Shift+Tab");
+    check(await p.evaluate(() => document.activeElement?.textContent) === "Reject document", "B2-06 Reject Shift+Tab wraps to submit");
+    await p.keyboard.press("Tab");
+    check(await p.evaluate(() => document.activeElement?.tagName) === "INPUT", "B2-06 Reject Tab wraps to reason");
+    await p.keyboard.press("Escape");
+    await p.waitForFunction(() => document.activeElement?.textContent === "Reject");
+    check(!log.n.document_review, "B2-06 Reject Escape restores focus without reviewing");
     await p.click("tr:has-text('registration.pdf') >> button:has-text('Reject')");
     await p.fill(".owner-modal input", "Name doesn't match"); await p.click(".owner-modal >> button:has-text('Reject document')");
     await p.waitForSelector(".owner-modal", { state: "detached" });
     check(log.n.document_review === 1, "B2-06 rejection with a reason still works");
+    await p.waitForSelector("text=Nothing waiting for review.");
+    await p.waitForFunction(() => document.activeElement?.tagName === "H1");
+    check(await p.evaluate(() => document.activeElement?.textContent) === "Verification", "B2-06 successful Reject focuses persistent heading");
     await ctx.close(); }
 
   // ---------------- B2-07 Users & access ----------------
@@ -246,6 +268,25 @@ const AUTO = (dispatchEnabled) => ({ json: { workflows: [], deadLetters: 0, disp
     await p.fill(".wiz-section input[type=email], .wiz-section input", "new@zella.test"); await p.click(".wiz-section button[type=submit]");
     await p.waitForSelector(".ic-notice");
     check(log.n.admin_invite === 1 && /as Read-only admin/.test(await txt(p, ".ic-notice")), "B2-07 invitation unchanged (one request) and confirmation names the role");
+    await ctx.close(); }
+
+  { const { ctx, p } = await open(b, {
+      admins_list: () => ({ json: { me: { role: "zella_owner" }, admins: [{ user_id: "a2", email: "existing@zella.test", role: "super_admin", is_active: true }] } }),
+      roles_get: () => ({ delay: 2500, json: { catalog: [["support.manage", "Support tickets"]], roles: [{ key: "support_admin", permissions: ["support.manage"] }] } }),
+      admin_invite: (body) => ({ json: { invited: true, resent: true, email: body.email } }),
+    });
+    await p.goto(BASE + "/users");
+    await p.selectOption(".us-role", "support_admin");
+    check(/couldn't be loaded/.test(await txt(p, ".ic-warning")), "B2-07 confirmation initially explains unavailable definitions");
+    await p.waitForFunction(() => document.querySelector(".ic-warning")?.textContent.includes("Only: Support tickets"));
+    check(!/couldn't be loaded/.test(await txt(p, ".ic-warning")), "B2-07 open confirmation updates when definitions arrive");
+    await p.click(".ic-warning button:has-text('Cancel')");
+    await p.click("text=Add admin");
+    await p.fill(".wiz-section input", "existing@zella.test");
+    await p.click(".wiz-section button[type=submit]");
+    await p.waitForSelector(".ic-notice");
+    const notice = await txt(p, ".ic-notice");
+    check(/re-emailed/.test(notice) && /existing role was not changed/.test(notice) && !/as Super admin/.test(notice), "B2-07 resend notice preserves existing role");
     await ctx.close(); }
 
   // ---------------- B2-08 Businesses ----------------
@@ -276,6 +317,22 @@ const AUTO = (dispatchEnabled) => ({ json: { workflows: [], deadLetters: 0, disp
     await p.click(".owner-signout"); await p.waitForTimeout(600);
     check(!(await p.isVisible("text=Signed Out Biz")) && (await p.$$(".owner-nav-item")).length === 0, "B2-08 sign-out clears the business list");
     await ctx.close(); }
+
+  for (const olderFails of [false, true]) {
+    const { ctx, p, log } = await open(b, { dashboard_data: (_b, n) => n === 1 ? { json: BIZ("Initial Biz") } : n === 2
+      ? { delay: 1200, ...(olderFails ? FAIL500 : { json: BIZ("Obsolete Biz") }) }
+      : { delay: 2200, json: BIZ("Latest Biz") } });
+    await p.goto(BASE + "/businesses"); await p.waitForSelector("text=Initial Biz");
+    await p.click(".owner-panel-heading button:has-text('Refresh')");
+    await p.waitForFunction(() => document.querySelector(".owner-panel-heading")?.textContent.includes("Loading..."));
+    await p.click(".owner-nav-item:has-text('Overview')");
+    await p.click(".owner-nav-item:has-text('Businesses')");
+    await p.waitForTimeout(1500);
+    check(log.n.dashboard_data === 3 && await p.isVisible("text=Initial Biz") && !(await p.isVisible("text=Obsolete Biz")) && !(await p.isVisible("[data-load=stale]")) && await p.isDisabled(".owner-panel-heading button:has-text('Loading')"), `B2-08 older ${olderFails ? "error" : "success"} cannot apply state or end newer loading`);
+    await p.waitForSelector("text=Latest Biz");
+    check(!(await p.isVisible("[data-load=stale]")), "B2-08 latest overlapping request wins");
+    await ctx.close();
+  }
 
   await b.close();
   console.log(`\n${pass} passed, ${fail} failed`);

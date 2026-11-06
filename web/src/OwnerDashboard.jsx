@@ -138,24 +138,26 @@ export default function OwnerDashboard({ onSignOut }) {
   const [businessesLoadedAt, setBusinessesLoadedAt] = useState(null);
   // bumped whenever the signed-in admin's access goes away or changes, so an answer for the earlier session is dropped
   const businessEpoch = useRef(0);
+  const businessRequest = useRef(0);
 const loadDashboardData = useCallback(async () => {
   const epoch = businessEpoch.current;
+  const request = ++businessRequest.current;
   setLoadingBusinesses(true);
 
   try {
     const data = await callOwnerFunction("dashboard_data");
-    if (epoch !== businessEpoch.current) return;
+    if (epoch !== businessEpoch.current || request !== businessRequest.current) return;
     setBusinesses(Array.isArray(data.businesses) ? data.businesses : []);
     setIndustries(Array.isArray(data.industries) ? data.industries : []);
     setStats(data.stats && typeof data.stats === "object" ? data.stats : null);
     setBusinessError("");
     setBusinessesLoadedAt(new Date());
   } catch (error) {
-    if (epoch !== businessEpoch.current) return;
+    if (epoch !== businessEpoch.current || request !== businessRequest.current) return;
     console.error("Dashboard data loading failed:", error);
     setBusinessError(friendlyError(error) || "Could not load businesses. Please try again.");
   } finally {
-    if (epoch === businessEpoch.current) setLoadingBusinesses(false);
+    if (epoch === businessEpoch.current && request === businessRequest.current) setLoadingBusinesses(false);
   }
 }, []);
 

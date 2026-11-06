@@ -40,6 +40,8 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
   const [dialogError, setDialogError] = useState("");
   const inFlight = useRef(false);
   const returnFocus = useRef(null);
+  const heading = useRef(null);
+  const dialog = useRef(null);
   const openDialog = (setter, doc) => { returnFocus.current = document.activeElement; setDialogError(""); setter(doc); };
   const closeDialog = useCallback(() => {
     setVerifying(null); setRejecting(null); setDialogError("");
@@ -48,7 +50,19 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
   }, []);
   useEffect(() => {
     if (!verifying && !rejecting) return undefined;
-    const onKey = (e) => { if (e.key === "Escape" && !inFlight.current) closeDialog(); };
+    const onKey = (e) => {
+      if (e.key === "Escape" && !inFlight.current) closeDialog();
+      if (e.key !== "Tab" || !dialog.current) return;
+      const focusable = [...dialog.current.querySelectorAll('button:not(:disabled), input:not(:disabled), [tabindex="0"]')];
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!first) { e.preventDefault(); dialog.current.focus(); return; }
+      if (!dialog.current.contains(document.activeElement) ||
+          (e.shiftKey ? document.activeElement === first : document.activeElement === last)) {
+        e.preventDefault();
+        (e.shiftKey ? last : first).focus();
+      }
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [verifying, rejecting, closeDialog]);
@@ -89,6 +103,7 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
       setNotice(`${KIND[doc.kind] ?? doc.kind} for ${doc.business_name} marked ${next}.`);
       setReason("");
       inFlight.current = false;
+      returnFocus.current = heading.current;
       closeDialog();
       await load();
     } catch (err) {
@@ -108,7 +123,7 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
       <div className="owner-page-heading">
         <div>
           <div className="owner-eyebrow">Businesses</div>
-          <h1>Verification</h1>
+          <h1 ref={heading} tabIndex={-1}>Verification</h1>
           <p>Documents that prove each business is real and that the person who registered it may act for it.</p>
         </div>
         <div className="op-heading-actions">
@@ -191,7 +206,7 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
 
       {rejecting && createPortal(
         <div className="owner-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && !busy && closeDialog()}>
-          <div className="bd-confirm owner-modal danger" role="dialog" aria-modal="true" aria-label="Reject document">
+          <div className="bd-confirm owner-modal danger" ref={dialog} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Reject document">
             <div className="zs-dialog-head">
               <span className="zs-dialog-icon"><Icon name="gpp_bad" /></span>
               <h3>Reject {KIND[rejecting.kind] ?? "document"}?</h3>
@@ -215,7 +230,7 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
 
       {verifying && createPortal(
         <div className="owner-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && !busy && closeDialog()}>
-          <div className="bd-confirm owner-modal" role="dialog" aria-modal="true" aria-labelledby="vq-verify-title" aria-describedby="vq-verify-body" data-dialog="verify">
+          <div className="bd-confirm owner-modal" ref={dialog} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="vq-verify-title" aria-describedby="vq-verify-body" data-dialog="verify">
             <div className="zs-dialog-head">
               <span className="zs-dialog-icon"><Icon name="verified" /></span>
               <h3 id="vq-verify-title">Mark this document verified?</h3>
