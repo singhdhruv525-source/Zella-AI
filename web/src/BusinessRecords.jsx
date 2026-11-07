@@ -7,6 +7,8 @@ import { PersonPicker } from "./BusinessWork";
 import { useRoster } from "./BusinessLeads";
 import { FILE_ERRORS, checkOutcome } from "./recordFileCheck";
 import { PeopleAndConsent } from "./BusinessPeople";
+import { RecordWorkflow, WorkflowSettings } from "./RecordWorkflow";
+import { WORKFLOW_EVENT_LABELS } from "./workflowLogic";
 import { useServerPages, useSettled } from "./crm/paging";
 import { linkIdsOf, linkTitle, LINK_BATCH } from "./crm/links";
 
@@ -368,6 +370,7 @@ function RecordModal({ workspace, type, record, canManage, onBook, onClose, onSa
           <RecordFiles workspace={workspace} record={record} />
           <h3 className="ba-h3">People &amp; consent</h3>
           <PeopleAndConsent key={`${workspace.id}:${record.id}`} workspace={workspace} subject={{ recordId: record.id, typeKey: type.key, title: record.title }} />
+          <RecordWorkflow key={`wf:${workspace.id}:${record.id}`} workspace={workspace} type={type} record={record} onNotice={(message, moved) => (moved ? onSaved(message) : events.reload())} />
           {type.appointment_link && (
             <>
               <h3 className="ba-h3">Appointments</h3>
@@ -392,7 +395,7 @@ function RecordModal({ workspace, type, record, canManage, onBook, onClose, onSa
           {(events.data ?? []).length === 0 ? <p className="ba-muted">Nothing yet.</p> : (
             <ul className="ba-history">
               {events.data.map((e) => (
-                <li key={e.id}><strong>{{ created: "Added", edited: "Edited", status: "Status changed", note: "Note", archived: "Archived", secret_viewed: "Private details viewed", secret_changed: "Private details changed", appointment: "Booked", file_added: "File added", file_removed: "File removed" }[e.kind] ?? e.kind}</strong>{e.detail ? ` · ${e.detail}` : ""}<small>{timeAgo(e.created_at)}</small></li>
+                <li key={e.id}><strong>{{ created: "Added", edited: "Edited", status: "Status changed", note: "Note", archived: "Archived", secret_viewed: "Private details viewed", secret_changed: "Private details changed", appointment: "Booked", file_added: "File added", file_removed: "File removed", ...WORKFLOW_EVENT_LABELS }[e.kind] ?? e.kind}</strong>{e.detail ? ` · ${e.detail}` : ""}<small>{timeAgo(e.created_at)}</small></li>
               ))}
             </ul>
           )}
@@ -630,6 +633,11 @@ function TypeEditor({ workspace, type, types = [], onClose, onSaved }) {
         </ul>
         <button type="button" className="ba-btn sm" onClick={() => setFields([...fields, { key: "", label: "", type: "text", existing: false, optionsText: "" }])}>Add field</button>
       </form>
+      {!isNew && (
+        <div className="ba-modal-body">
+          <WorkflowSettings workspace={workspace} type={type} onSaved={(message) => onSaved(message)} />
+        </div>
+      )}
     </Modal>
   );
 }

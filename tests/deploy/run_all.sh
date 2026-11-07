@@ -11,8 +11,8 @@ P="psql -h $ZPG_HOST -p $ZPG_PORT -U postgres -qtAX -v ON_ERROR_STOP=1"
 SCR=${SCRATCH:-/tmp/zella-deploy}; mkdir -p "$SCR"
 PENDING=(zella_platform_roles_fix zella_booking_buffers zella_channel_review zella_escalation_rules zella_knowledge_live zella_order_lookup_v2 zella_config_migration
   zella_report_schedules zella_knowledge_learning zella_assistant_delivery zella_plan_languages
-  zella_holiday_availability zella_delivery_evidence zella_arrival_windows zella_tables zella_relationships zella_scheduling zella_slots_resource_blocks)
-ROLLBACK=(zella_slots_resource_blocks_rollback zella_scheduling_rollback zella_relationships_rollback zella_tables_rollback zella_arrival_windows_rollback zella_delivery_evidence_rollback zella_holiday_availability_rollback zella_plan_languages_rollback zella_assistant_delivery_rollback zella_knowledge_learning_rollback zella_report_schedules_rollback zella_config_migration_rollback zella_order_lookup_v2_rollback zella_knowledge_live_rollback zella_escalation_rules_rollback zella_channel_review_rollback
+  zella_holiday_availability zella_delivery_evidence zella_arrival_windows zella_tables zella_relationships zella_scheduling zella_slots_resource_blocks zella_record_workflows)
+ROLLBACK=(zella_record_workflows_rollback zella_slots_resource_blocks_rollback zella_scheduling_rollback zella_relationships_rollback zella_tables_rollback zella_arrival_windows_rollback zella_delivery_evidence_rollback zella_holiday_availability_rollback zella_plan_languages_rollback zella_assistant_delivery_rollback zella_knowledge_learning_rollback zella_report_schedules_rollback zella_config_migration_rollback zella_order_lookup_v2_rollback zella_knowledge_live_rollback zella_escalation_rules_rollback zella_channel_review_rollback
   zella_booking_buffers_rollback zella_platform_roles_fix_rollback)
 fails=0; ok() { echo "PASS $*"; }; bad() { echo "FAIL $*"; fails=$((fails + 1)); }
 ITEMS="select x from (
@@ -22,7 +22,7 @@ ITEMS="select x from (
   union all select 't:' || tgrelid::regclass::text || '.' || tgname from pg_trigger where not tgisinternal and tgrelid::regclass::text not like 'pg_%'
   union all select 'p:' || tablename || '.' || policyname from pg_policies where schemaname in ('public', 'storage')) s
   where x not like '%_rolled_back%'
-    and x not in ('c:appointments.resource_ids:ARRAY', 'c:appointments.crew_staff_ids:ARRAY', 'c:blocked_times.resource_id:uuid')"   # what a rollback keeps on purpose: renamed tables, and the Release 2 columns with their values
+    and x not in ('c:appointments.resource_ids:ARRAY', 'c:appointments.crew_staff_ids:ARRAY', 'c:blocked_times.resource_id:uuid', 'c:crm_record_types.workflow:jsonb')"   # what a rollback keeps on purpose: renamed tables, the Release 2 columns with their values, and each record type's Release 3 workflow setting
 STATE="select md5(string_agg(x, ',' order by x)) from ($ITEMS) y"
 
 # 1. production state, plus settings that existed before the pending files (they must find them)
@@ -38,7 +38,7 @@ after=$($P -d $DB -c "$STATE")
 for t in tests/setup/setup_enforcement_test.sql tests/booking/buffers_test.sql tests/channel/channel_review_test.sql tests/escalation/escalation_test.sql \
          tests/orders/v2_test.sql tests/crm_updates/updates_test.sql tests/config_migration/migration_test.sql tests/reports/report_test.sql tests/knowledge/learning_test.sql \
          tests/assistant/delivery_test.sql tests/plans/languages_test.sql tests/windows/windows_test.sql tests/tables/tables_test.sql tests/tables/seating_test.sql \
-         tests/relationships/test.sql tests/scheduling/test.sql tests/slotblocks/test.sql; do
+         tests/relationships/test.sql tests/scheduling/test.sql tests/slotblocks/test.sql tests/workflows/test.sql; do
   out=$($P -d $DB -f "$REPO/$t" 2>&1) && ok "$t: $(echo "$out" | grep -c 'PASS ') checks" || bad "$t: $(echo "$out" | grep -m2 -E 'ERROR|CONTEXT' | tr '\n' ' ')"
 done
 # tests/messaging M3 checks the channel review's behaviour when that file is applied (AI-call reminders held, not texted)

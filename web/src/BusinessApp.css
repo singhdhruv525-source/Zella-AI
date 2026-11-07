@@ -2209,3 +2209,12 @@ html:not([data-zella-icons="ready"]) .ba-header-actions { flex-wrap: wrap; flex-
 .ba-check-list .ba-check { white-space: normal; min-width: 0; overflow-wrap: anywhere; }
 .ba-check-list .ba-check span { min-width: 0; }
 .ba-check-list .ba-check input { flex-shrink: 0; }
+
+/* Release 3: workflow on records (RecordWorkflow.jsx) */
+.ba-workflow section { margin-top: 4px; }
+.ba-workflow .ba-history li { overflow-wrap: anywhere; }
+.ba-row-actions { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: 8px; vertical-align: middle; }
+.ba-follow-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); margin-top: 12px; }
+.ba-follow-grid .ba-panel { padding: 12px 14px; min-width: 0; }
+.ba-follow-grid .ba-history li { overflow-wrap: anywhere; }
+.ba-workflow-settings { display: grid; gap: 8px; }
