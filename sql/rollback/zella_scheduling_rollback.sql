@@ -4,7 +4,6 @@
 -- (appointments.resource_ids, appointments.crew_staff_ids, blocked_times.resource_id) stay with their values. The
 -- triggers and functions are removed, so bookings are checked exactly as before (staff and tables only).
 -- Applying the migration again starts new, empty tables.
-\set ON_ERROR_STOP on
 begin;
 drop trigger if exists zella_resource_guard on public.appointments;
 drop trigger if exists zella_resource_block_guard on public.blocked_times;

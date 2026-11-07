@@ -1,6 +1,5 @@
 -- Undoes sql/zella_order_lookup_v2.sql (hand-written; tests/orders/run_v2.sh checks it restores the functions exactly).
 -- The lookup records keep their found_<level> results and their order references are dropped with the column.
-\set ON_ERROR_STOP on
 begin;
 drop function if exists public.zella_store_lookup_context(text, uuid, text);
 drop function if exists public.zella_store_lookup_log(uuid, text, uuid, text, boolean, text);

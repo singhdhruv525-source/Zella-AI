@@ -1,7 +1,6 @@
 -- Rollback for sql/zella_report_schedules.sql (hand-written).
 -- Puts back the daily summary as it is in production on 5 Nov 2026 (sent at 8 AM business time to active businesses),
 -- and removes the schedule functions. The schedules and run history are kept (renamed) so the owners' choices are not lost.
-\set ON_ERROR_STOP on
 begin;
 CREATE OR REPLACE FUNCTION public.zella_post_daily_summaries()
  RETURNS integer

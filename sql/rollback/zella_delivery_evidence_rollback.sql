@@ -1,6 +1,5 @@
 -- Rollback for sql/zella_delivery_evidence.sql (hand-written): both functions as in production on 6 Nov 2026 (after #10).
 -- The config_hash column is kept (it is only evidence).
-\set ON_ERROR_STOP on
 begin;
 CREATE OR REPLACE FUNCTION public.zella_assistant_for_call(p_called_number text, p_vapi_phone_number_id text, p_provider_call_id text DEFAULT NULL::text)
  RETURNS jsonb
