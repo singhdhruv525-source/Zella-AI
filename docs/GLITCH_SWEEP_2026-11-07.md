@@ -1,7 +1,8 @@
 # Glitch sweep: every admin and CRM page (7 Nov 2026)
 
-Every page of the admin dashboard and the business CRM was opened in a real browser, per role, and the buttons
-that open things were clicked. Everything ran against the **local stand-in** (`tests/browser/local-backend.mjs`)
+At laptop width, every page of the admin dashboard and the business CRM was opened in a real browser for each
+role (in the default and the Glass theme); at phone width, the CRM and admin menu pages were opened (most Settings
+subpages weren't reached on a phone, see the results). Up to eight opening buttons per page were clicked. Everything ran against the **local stand-in** (`tests/browser/local-backend.mjs`)
 over an **isolated test database** (production state plus Batch 3, Releases 1–3 and the slot-search fix; test
 businesses only). Nothing touched production; nothing was sent.
 
@@ -10,7 +11,7 @@ businesses only). Nothing touched production; nothing was sent.
 | Tool | What it does |
 |---|---|
 | `tests/browser/glitch-sweep.cjs` | Signs in through the real sign-in page as each role and opens every page: the CRM and admin menus (from the app's own registries), every Settings subpage (all categories opened), every record type, and detail pages found by crawling. Per page it records crashes, the error screen, console errors, failed backend calls, "Page not found", pages stuck loading, sideways overflow (and the elements causing it), tables that need sideways scrolling at laptop width, cut-off buttons, broken images, raw values (`undefined`, `NaN`, `Invalid Date`), empty pages and axe-core accessibility problems (serious and critical, WCAG 2.1 AA), plus a screenshot. |
-| `tests/browser/glitch-interact.cjs` | On every page from a sweep, clicks each button that opens something (Add, New, Edit, Filter, More, Open, Block time…) and checks that a dialog, menu or drawer appears, nothing crashes, no backend call fails, the console stays clean, focus moves into it, it isn't off screen or wider than itself, and Escape closes it (the same dialog, menu and drawer selectors for both checks). Buttons whose label mentions deleting, canceling, sending, calling, paying, publishing, inviting, importing, connecting or signing out are never clicked. Both scripts refuse to run unless the backend is on localhost, and the sweep reads only a `z…` test database on a local socket. |
+| `tests/browser/glitch-interact.cjs` | On every page from a sweep, clicks up to eight buttons per page that open something (Add, New, Edit, Filter, More, Open, Block time…) and checks that a dialog, menu or drawer appears, nothing crashes, no backend call fails, the console stays clean, focus moves into it, it isn't off-screen or wider than itself, and Escape closes it (the same dialog, menu and drawer selectors for both checks). Buttons whose label mentions deleting, canceling, sending, calling, paying, publishing, inviting, importing, connecting or signing out are never clicked. Both scripts refuse to run unless the backend is on localhost, and the sweep reads only a `z…` test database on a local socket. |
 
 Roles: Zella owner and read-only admin (admin dashboard); owner, manager, staff and viewer (CRM). Views: laptop
 (1280 px) in the default theme, the Glass (dark) theme, and a phone (390 px). Screenshots were also reviewed by
@@ -46,11 +47,11 @@ Final run on the fixed build (isolated test database, local stand-in; not produc
 |---|---|---|
 | Laptop, default theme: owner, manager, staff, viewer (CRM) | 129 each | 0 |
 | Laptop, default theme: Zella owner (admin) | 95 | 1, Settings › All businesses needed sideways scrolling; fixed after the run (columns shortened, the Summary button is an icon) and re-measured: no scrolling |
-| Laptop, default theme: read-only admin | 57 of 95 when the report was written | the known read-only-admin refusals (see "Not changed") |
+| Laptop, default theme: read-only admin | 95 | 6: five are the known read-only-admin refusals (see "Not changed"); the sixth is the All businesses table, fixed as above |
 | Glass (dark) theme: owner (CRM) + Zella owner (admin) | 129 + 95 | 0 |
 | Phone (390 px): owner (CRM) | 43 (every menu page and record type; most Settings subpages weren't reached, because the crawler doesn't open the phone's Settings menu) | 0 |
 | Phone (390 px): Zella owner (admin) | 24 when the report was written | 2, buttons squeezed in panel headings (Overview, business page); fixed after the run and re-measured: none squeezed, no sideways overflow |
-| Click-through: owner, Zella owner, staff | every opening button on every page | no real problem left; the remaining reports were checked by hand: Filter, Edit, Details, Add hours and Add a service open inline; authenticator setup and picture upload open the system's own screens; Callbacks › More does move focus (the check reads it on a fixed delay) |
+| Click-through: owner, Zella owner, staff | up to eight opening buttons on every page | no real problem left; the remaining reports were checked by hand: Filter, Edit, Details, Add hours and Add a service open inline; authenticator setup and picture upload open the system's own screens; Callbacks › More does move focus (the check reads it on a fixed delay) |
 
 The web unit tests pass (53/53); `tests/browser/admin-permissions.cjs` passes (49/49) with the sentence-case
 sidebar; `deno check` passes for `owner-provision-business`; the production build passes.

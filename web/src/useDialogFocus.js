@@ -13,11 +13,14 @@ export function useDialogFocus(onClose, busy = false) {
   const ref = useRef(null);
   const close = useRef(onClose);
   const isBusy = useRef(busy);
+  // the control that opened the dialog, read on the first render: before an autoFocus inside the dialog moves focus
+  const openerRef = useRef(undefined);
+  if (openerRef.current === undefined) openerRef.current = typeof document !== "undefined" ? document.activeElement : null;
   close.current = onClose;
   isBusy.current = busy;
 
   useEffect(() => {
-    const opener = document.activeElement;
+    const opener = openerRef.current;
     const box = ref.current;
     const items = () => [...(box?.querySelectorAll(FOCUSABLE) ?? [])].filter((el) => el.offsetParent !== null || el === document.activeElement);
     (box?.querySelector("[data-autofocus]") ?? items()[0] ?? box)?.focus?.();
@@ -27,7 +30,12 @@ export function useDialogFocus(onClose, busy = false) {
     const onKey = (event) => {
       if (OPEN[OPEN.length - 1] !== me) return;   // another dialog is open on top of this one
       if (event.key === "Escape") {
-        if (!isBusy.current && close.current) { event.stopPropagation(); close.current(); }
+        // the top dialog owns Escape: while it is busy it stays open, and the key never reaches the page or a
+        // dialog underneath (which would close that one instead)
+        if (close.current) {
+          event.stopPropagation();
+          if (!isBusy.current) close.current();
+        }
         return;
       }
       if (event.key !== "Tab" || !box) return;

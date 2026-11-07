@@ -4,7 +4,6 @@ import { callOwnerFunction } from "../CreateBusinessWizard";
 import { TimeZoneSelect } from "../formFields";
 import { uploadImage } from "./PersonalPanels";
 import { Banner, Card, Confirm, Empty, Facts, Field, LinkRows, LoadState, Needs, Pill, SaveBar, Table, Toggle, money, useAsync, useForm, when, words } from "./SettingsKit";
-import { Icon } from "../BusinessUI";
 
 // Admin Settings content. Every panel reads and writes through the
 // owner-provision-business function, which checks the admin's role and
@@ -214,7 +213,7 @@ export function AllBusinesses({ openBusiness }) {
               ["Team", (b) => b.members],
               ["Apps", (b) => (b.integrations.total ? `${b.integrations.total}${b.integrations.failing ? ` · ${b.integrations.failing} failing` : ""}` : "None")],
               ["Created", (b) => (b.created_at ? <span title={when(b.created_at)} style={{ whiteSpace: "nowrap" }}>{new Date(b.created_at).toLocaleDateString([], { dateStyle: "medium" })}</span> : "—")],
-              ["", (b) => <button type="button" className="zs-btn sm" aria-expanded={expanded === b.id} aria-label={`${expanded === b.id ? "Hide" : "Show"} the summary for ${b.name}`} title="Summary" onClick={() => setExpanded(expanded === b.id ? null : b.id)}><Icon name={expanded === b.id ? "expand_less" : "expand_more"} size="sm" /></button>],
+              ["", (b) => <button type="button" className="zs-btn sm" aria-expanded={expanded === b.id} aria-label={`${expanded === b.id ? "Hide" : "Show"} the summary for ${b.name}`} onClick={() => setExpanded(expanded === b.id ? null : b.id)}>{expanded === b.id ? "Hide" : "Open"}</button>],
             ]} />
             {expanded && <TenantSummary businessId={expanded} />}
             <Pager page={r.page} size={r.size} total={r.total} onPage={(page) => setFilters({ ...filters, page })} />
