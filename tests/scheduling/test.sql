@@ -102,7 +102,7 @@ do $$ declare c1 uuid := (select val from ids where k = 'chair1'); c2 uuid := (s
   -- a past visit (history, an import) never clashes
   update public.appointments set start_time = now() - interval '3 hours', end_time = now() - interval '2 hours' where id = v;
   v := pg_temp.book('Old 2', now() - interval '3 hours', 30, array[c1]);
-  assert v is null or true, 'past visits are recorded whatever they overlap';
+  assert v is not null, 'past visits are recorded whatever they overlap';
 end $$;
 reset role;
 select 'PASS a resource takes one booking at a time, keeps its buffer free, and frees up when a booking is cancelled; moves are checked too; past visits never clash';
