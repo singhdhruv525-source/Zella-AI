@@ -88,7 +88,10 @@ test("an open workflow editor shows a newer saved setting, but keeps unsaved cha
   assert.deepEqual(reconcileWorkflowForm(workflowForm(before), before, after), workflowForm(after));
   // already shows what was saved (its own save): stays
   assert.deepEqual(reconcileWorkflowForm(workflowForm(after), before, after), workflowForm(after));
-  // unsaved changes: kept
+  // unsaved changes: kept, field by field; the fields left alone still follow the newer setting
   const edited = { ...workflowForm(before), inspect: true, items: "Tyres" };
-  assert.equal(reconcileWorkflowForm(edited, before, after), edited);
+  assert.deepEqual(reconcileWorkflowForm(edited, before, after),
+    { kinds: ["estimate", "change_order"], inspect: true, title: "Checklist", items: "Tyres", credits: true, unit: "visits" });
+  const changedApprovals = { ...workflowForm(before), kinds: ["refund"] };
+  assert.deepEqual(reconcileWorkflowForm(changedApprovals, before, after).kinds, ["refund"]);
 });

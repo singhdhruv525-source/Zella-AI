@@ -104,9 +104,11 @@ export function workflowForm(w) {
   };
 }
 
-// The saved setting changed from `before` to `after` under an open editor: show `after`, unless the form holds unsaved
-// changes (it matches neither), which are kept.
+// The saved setting changed from `before` to `after` under an open editor. Field by field: one the user hasn't changed
+// (it still matches `before`) shows `after`; one they have changed keeps their unsaved value.
 export function reconcileWorkflowForm(form, before, after) {
-  const now = JSON.stringify(form);
-  return now === JSON.stringify(workflowForm(before)) || now === JSON.stringify(workflowForm(after)) ? workflowForm(after) : form;
+  const was = workflowForm(before);
+  const now = workflowForm(after);
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  return Object.fromEntries(Object.keys(now).map((k) => [k, same(form[k], was[k]) ? now[k] : form[k]]));
 }
