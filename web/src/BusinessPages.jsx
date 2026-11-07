@@ -7,6 +7,7 @@ import {
   APPT_LABEL, APPT_TONE, Empty, Notice, PAGE_SIZE, PageHead, Pager, Segment, changed, clock, friendly, loadPeople,
   availabilityAt, findConflict, orThrow, sourceLabel, useLoad,
 } from "./BusinessShared";
+import { blockCovers } from "./schedulingLogic";
 import { AddCustomerModal, BookAppointmentModal } from "./BusinessForms";
 import { MonthGrid, TimeGrid, clockText, dayInfo, minutesInto } from "./BusinessCalendar";
 import { ActivationCard } from "./BusinessWork";
@@ -392,13 +393,13 @@ export function CalendarPage({ workspace, industry, refreshKey, onNotice, onOpen
   const matchesQuery = (x) => !q || [personName(people[x.customer_id]), people[x.customer_id]?.phone, x.title, x.appointment_type, x.location]
     .some((v) => String(v ?? "").toLowerCase().includes(q));
   const appts = (data?.appts ?? []).filter((x) => (who === "all" || x.staff_id === who) && matchesStatus(x, statusFilter) && matchesQuery(x));
-  const blocks = (data?.blocks ?? []).filter((b) => who === "all" || !b.staff_id || b.staff_id === who);
+  const blocks = (data?.blocks ?? []).filter((b) => who === "all" || blockCovers(b, who));
   const inDay = (list, d) => list.filter((x) => {
     const t = new Date(x.start_time).getTime();
     return t >= d.start.getTime() && t < d.end.getTime();
   });
   const blocksIn = (d, staffId) => blocks.filter((b) =>
-    new Date(b.start_time) < d.end && new Date(b.end_time) > d.start && (staffId === undefined || !b.staff_id || b.staff_id === (staffId || null)));
+    new Date(b.start_time) < d.end && new Date(b.end_time) > d.start && (staffId === undefined || blockCovers(b, staffId || null)));
 
   // Columns of the hour grid.
   const columns = (() => {

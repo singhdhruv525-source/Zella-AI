@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "./supabase";
 import { Icon } from "./BusinessUI";
 import { humanize } from "./copy/labels";
+import { blockCovers } from "./schedulingLogic";
 
 // Small pieces shared by the business app pages and the person profile.
 
@@ -202,7 +203,7 @@ export function availabilityAt(member, blocks, date, timeZone) {
   const hours = member.working_hours && Object.keys(member.working_hours).length ? member.working_hours : null;
   const t = date.getTime();
   const block = (blocks ?? []).find((b) =>
-    (!b.staff_id || b.staff_id === member.id) && new Date(b.start_time).getTime() <= t && new Date(b.end_time).getTime() > t);
+    blockCovers(b, member.id) && new Date(b.start_time).getTime() <= t && new Date(b.end_time).getTime() > t);
   if (block) return { state: "off", label: `${block.title}${block.all_day ? "" : ` until ${formatClock(block.end_time, timeZone)}`}`, block };
   if (!hours) return { state: "available", label: "Available" };
   const { day, minutes } = zonedClock(date, timeZone);
@@ -229,7 +230,7 @@ function formatClock(value, timeZone) {
 // Why a booking can't go ahead, or null if the slot is free for that person.
 export function findConflict({ staff, blocks, start, end, staffId, timeZone }) {
   const overlap = (blocks ?? []).find((b) =>
-    (!b.staff_id || b.staff_id === staffId) && new Date(b.start_time) < end && new Date(b.end_time) > start);
+    blockCovers(b, staffId) && new Date(b.start_time) < end && new Date(b.end_time) > start);
   if (overlap) {
     const who = overlap.staff_id ? (staff ?? []).find((m) => m.id === overlap.staff_id)?.name ?? "This team member" : "The business";
     return `${who} is unavailable then (${overlap.title}).`;

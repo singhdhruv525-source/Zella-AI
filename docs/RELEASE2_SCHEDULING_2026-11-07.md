@@ -48,10 +48,10 @@ per-industry defaults.
   chair or room that's full is still refused when it is written (the trigger), so nothing is double-booked, but the
   receptionist could offer a time and then hear it's taken. Making `zella_available_slots` resource-aware changes live
   assistant behaviour, so it needs your approval.
-- **A block on a resource (maintenance, cleaning) also closes slot search for the whole business at that time.** The
-  existing slot search treats a block with no person as business-wide, and it doesn't know about resources yet. No
-  screen creates resource blocks in this release, and the rollback keeps any that exist. Fixing it is part of the
-  resource-aware slot search above, which needs your approval.
+- **Fixed after the release (owner's approval, 7 Nov):** a block on a resource (maintenance, cleaning) closed slot
+  search for the whole business. `sql/zella_slots_resource_blocks.sql` changes that one rule in `zella_available_slots`
+  (only a block with neither a person nor a resource closes the business), and the app's own availability checks
+  follow the same rule. Tests: `tests/slotblocks/run.sh`. Undo: `sql/rollback/zella_slots_resource_blocks_rollback.sql`.
 - **No "on my way" texts** to customers when a technician sets off: sending messages needs your approval and the
   messaging switches.
 - **No automatic weekly generation.** Booking the next weeks is a button; running it on a schedule needs a scheduler,
