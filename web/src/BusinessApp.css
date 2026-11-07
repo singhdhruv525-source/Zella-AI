@@ -2189,3 +2189,19 @@ html:not([data-zella-icons="ready"]) .ba-header-actions { flex-wrap: wrap; flex-
 .ba-people-form { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--ba-border); border-radius: 10px; }
 .ba-people-past summary { cursor: pointer; }
 .ba-small { font-size: 12px; }
+
+/* Release 2: dispatch board, resources, recurring visits (BusinessScheduling.jsx) */
+.ba-day-nav { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.ba-dispatch-cols { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-top: 12px; }
+.ba-job-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+.ba-job { border: 1px solid var(--ba-line, #e3e6ea); border-radius: 10px; padding: 10px 12px; background: var(--ba-surface, #fff); min-width: 0; }
+.ba-job[data-job="unassigned"] { border-left: 3px solid var(--ba-danger, #c0392b); }
+.ba-job[data-job="needs_return"], .ba-job[data-job="paused"] { border-left: 3px solid var(--ba-warning, #c98a00); }
+.ba-job[data-job="completed"] { opacity: 0.8; }
+.ba-job-head { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.ba-job-title { margin: 4px 0 2px; font-weight: 600; overflow-wrap: anywhere; }
+.ba-job .ba-people-actions { margin-top: 8px; }
+.ba-res-day { padding: 8px 0; border-top: 1px solid var(--ba-line, #e3e6ea); }
+.ba-res-day ul { margin: 4px 0 0; padding-left: 18px; }
+.ba-check-list { list-style: none; padding: 0; margin: 0 0 12px; display: grid; gap: 6px; }
+.ba-check-list li { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }

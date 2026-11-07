@@ -10,6 +10,7 @@ const SLOT_TAKEN_MSG = "That time overlaps another booking, or the gap kept betw
 import { EmailField, PhoneField } from "./formFields";
 import { checkEmail, validatePhone } from "./formValidation";
 import { addLead } from "./leadCreate";
+import { scheduleError } from "./schedulingLogic";
 
 // Quick actions from the header: add a lead and book an appointment.
 // Both write with the signed-in member's session, so Row Level Security
@@ -170,6 +171,9 @@ export function BookAppointmentModal({ workspace, term, onClose, onSaved, initia
     partySize: "",
   });
   const [staff, setStaff] = useState([]);
+  // rooms, chairs, bays ... this booking uses (Release 2); the database refuses one that's taken
+  const [resources, setResources] = useState([]);
+  const [resourceIds, setResourceIds] = useState([]);
   const [conflict, setConflict] = useState("");
   const [force, setForce] = useState(false);
   const hospitality = /restaurant|cafe|café|bar\b|food|dining|hotel|catering/i.test(`${workspace.industry ?? ""} ${term("appointment")}`);
@@ -185,6 +189,14 @@ export function BookAppointmentModal({ workspace, term, onClose, onSaved, initia
     let active = true;
     supabase.from("staff_members").select("id, name, working_hours, is_active").eq("business_id", workspace.id).eq("is_active", true).order("sort_order").order("name")
       .then(({ data, error: staffError }) => { if (active && !staffError) setStaff(data ?? []); });
+    return () => { active = false; };
+  }, [workspace.id]);
+
+  // Resources are optional too; an older database without them just shows none.
+  useEffect(() => {
+    let active = true;
+    supabase.from("resources").select("id, name, kind, capacity").eq("business_id", workspace.id).eq("is_active", true).order("sort_order").order("name")
+      .then(({ data, error: resError }) => { if (active && !resError) setResources(data ?? []); });
     return () => { active = false; };
   }, [workspace.id]);
 
@@ -260,6 +272,7 @@ export function BookAppointmentModal({ workspace, term, onClose, onSaved, initia
       business_id: workspace.id,
       customer_id: customer?.id ?? null,
       ...(recordId ? { record_id: recordId } : {}),
+      ...(resourceIds.length ? { resource_ids: resourceIds } : {}),
       title: form.title.trim(),
       start_time: start.toISOString(),
       end_time: end.toISOString(),
@@ -272,6 +285,8 @@ export function BookAppointmentModal({ workspace, term, onClose, onSaved, initia
     setBusy(false);
 
     if (insertError) {
+      // a resource or a crew can't be booked over, so no "book anyway" for those: say which one is taken
+      if (/SLOT_TAKEN/.test(insertError.message ?? "") && /resource|booked, full or blocked|crew/.test(String(insertError.details ?? ""))) return setError(scheduleError(insertError));
       if (/SLOT_TAKEN/.test(insertError.message ?? "")) { setConflict(SLOT_TAKEN_MSG); return setError(SLOT_TAKEN_MSG); }
       return setError(/RECORD_OTHER_CUSTOMER/.test(insertError.message ?? "") ? "That belongs to another customer. Pick theirs, or change the customer."
         : /BAD_RECORD/.test(insertError.message ?? "") ? "That record can't be booked for. Pick another, or none." : friendly(insertError));
@@ -344,6 +359,18 @@ export function BookAppointmentModal({ workspace, term, onClose, onSaved, initia
                 {staff.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
               </select>
             </Field>
+          )}
+          {resources.length > 0 && (
+            <fieldset className="ba-prefs" aria-label="Uses">
+              <legend>Uses (optional)</legend>
+              {resources.map((r) => (
+                <label key={r.id} className="ba-check">
+                  <input type="checkbox" checked={resourceIds.includes(r.id)}
+                    onChange={() => { setResourceIds((ids) => (ids.includes(r.id) ? ids.filter((x) => x !== r.id) : [...ids, r.id])); setError(""); }} />
+                  <span>{r.name}{r.capacity > 1 ? ` (holds ${r.capacity})` : ""}</span>
+                </label>
+              ))}
+            </fieldset>
           )}
           {hospitality && (
             <Field label="Party size"><input type="number" min="1" max="500" value={form.partySize} onChange={set("partySize")} placeholder="Guests" /></Field>

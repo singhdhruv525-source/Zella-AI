@@ -43,6 +43,10 @@ export const NAV_ITEMS = [
   { id: "today", group: "workspace", order: 10, label: "Today", icon: "dashboard", page: "today" },
   { id: "calendar", group: "workspace", order: 20, label: "Calendar", icon: "calendar_today", page: "calendar", capability: "scheduling" },
   { id: "tables", group: "workspace", order: 25, label: "Tables", icon: "table_restaurant", page: "tables", capability: "tables" },
+  // Release 2 (sql/zella_scheduling.sql): the board for field work, the rooms/chairs/bays bookings use, and repeat work
+  { id: "dispatch", group: "workspace", order: 26, label: "Dispatch", icon: "local_shipping", page: "dispatch", capability: "dispatch", capabilityRequired: true },
+  { id: "resources", group: "workspace", order: 27, label: "Resources", icon: "meeting_room", page: "resources", capability: "scheduling" },
+  { id: "recurring", group: "workspace", order: 28, label: "Recurring visits", icon: "event_repeat", page: "recurring", capability: "scheduling" },
   { id: "checkins", group: "workspace", order: 30, label: "Check-ins", icon: "how_to_reg", page: "checkins", capability: "checkins" },
   { id: "waitlist", group: "workspace", order: 40, label: "Waitlist", icon: "hourglass_top", page: "waitlist", module: "calendar", capability: "waitlist" },
   { id: "tasks", group: "workspace", order: 50, label: "Tasks & follow-ups", icon: "task_alt", page: "tasks" },

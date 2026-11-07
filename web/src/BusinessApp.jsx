@@ -18,6 +18,7 @@ import { CallbacksPage } from "./BusinessCallbacks";
 import { InboxPage } from "./BusinessInbox";
 import { CheckInsPage } from "./BusinessCheckIns";
 import { TablesPage } from "./BusinessTables";
+import { DispatchPage, RecurringPage, ResourcesPage } from "./BusinessScheduling";
 import {
   AttentionPage, IntegrationsPage, LeadSourcesPage, ReportsPage,
 } from "./BusinessMore";
@@ -54,7 +55,7 @@ loadBusinessFonts();
 // Every page key the app knows, so an address for a page this person can't see
 // says "not available" instead of "not found".
 const KNOWN_PAGES = new Set([
-  "today", "leads", "customers", "calendar", "tables", "checkins", "waitlist", "tasks", "drafts", "attention", "callbacks",
+  "today", "leads", "customers", "calendar", "tables", "dispatch", "resources", "recurring", "checkins", "waitlist", "tasks", "drafts", "attention", "callbacks",
   "inbox", "messages", "calls", "lead-sources", "receptionist", "transcripts", "automations", "knowledge", "team",
   "access", "approvals", "failed", "security", "reports", "record-settings", "integrations", "settings", "spam", "reviews", "scorecards", "money",
 ]);
@@ -390,6 +391,9 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
           {current.key === "automations" && <AutomationsPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
           {current.key === "callbacks" && <CallbacksPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} onChanged={countAttention} />}
           {current.key === "tasks" && <TasksPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} />}
+          {current.key === "dispatch" && <DispatchPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} />}
+          {current.key === "resources" && <ResourcesPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
+          {current.key === "recurring" && <RecurringPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
           {current.key === "tables" && <TablesPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onBook={canBook ? () => openBooking() : undefined} />}
           {current.key === "waitlist" && <WaitlistPage workspace={workspace} term={term} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} />}
           {current.key === "spam" && <SpamPage workspace={workspace} onNotice={setNotice} onOpenPerson={openPerson} />}

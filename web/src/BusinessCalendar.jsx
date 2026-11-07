@@ -199,7 +199,7 @@ export function TimeGrid({
                       {a.checked_in_at && <Icon name="how_to_reg" size="sm" />}{a.conflict_note && <Icon name="warning" size="sm" />}
                       {["zella", "ai_receptionist"].includes(a.metadata?.source) && <Icon name="smart_toy" size="sm" />}
                     </span>
-                    <span className="ba-ev-title">{a.booking_state === "requested" ? "Requested: " : a.booking_state === "tentative" ? "Held: " : ""}{person ?? a.title}</span>
+                    <span className="ba-ev-title">{a.booking_state === "requested" ? "Requested: " : a.booking_state === "tentative" ? (a.metadata?.planned ? "Planned: " : "Held: ") : ""}{person ?? a.title}</span>
                     <span className="ba-ev-who">{[person ? a.appointment_type || a.title : a.appointment_type, showStaff && a.staff_id ? staffName[a.staff_id] : null,
                       guestWord && a.party_size ? `${a.party_size} ${guestWord}` : null, a.status === "cancelled" ? "Canceled" : a.status === "no_show" ? "No-show" : null].filter(Boolean).join(" · ")}</span>
                   </div>
