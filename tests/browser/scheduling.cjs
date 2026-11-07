@@ -172,6 +172,26 @@ async function open(browser, email, width = 1280) {
     await page.getByRole("button", { name: "Next day" }).click(); await page.getByRole("button", { name: "Next day" }).click();
     await page.locator("section[aria-label='Ben Tech'] li", { hasText: "R2 Filter service" }).waitFor();
     check("a planned visit shows on the board as Planned", await page.locator("section[aria-label='Ben Tech'] li", { hasText: "R2 Filter service" }).locator("text=Planned").isVisible());
+    // the calendar names planned visits (screen readers too); Confirm visit sets both fields, and an out-of-date one does nothing
+    await page.goto(APP + "/app/calendar");
+    const plannedEv = page.getByRole("button", { name: /^Planned: R2 Filter service/ });
+    await page.waitForTimeout(1500);
+    if (!(await plannedEv.count())) { await page.getByRole("button", { name: "Next", exact: true }).click(); await page.waitForTimeout(1500); }
+    check("the calendar's label for a planned visit says Planned", (await plannedEv.count()) >= 1, String(await plannedEv.count()));
+    const [firstId, secondId] = sql(`select string_agg(id::text, ',' order by start_time) from (select id, start_time from appointments where business_id = '${BIZ}' and title = 'R2 Filter service' order by start_time limit 2) x`).split(",");
+    await plannedEv.first().click();
+    await page.locator("[data-planned=true]").getByRole("button", { name: "Confirm visit" }).click();
+    await page.getByText("Visit confirmed.").waitFor();
+    check("Confirm visit confirms both the booking and its status", sql(`select booking_state || '/' || status from appointments where id = '${firstId}'`) === "confirmed/confirmed");
+    await page.keyboard.press("Escape"); await page.waitForTimeout(800);
+    await page.getByRole("button", { name: "Next", exact: true }).click();   // the next weekly visit
+    await page.getByRole("button", { name: /^Planned: R2 Filter service/ }).first().click();
+    await page.locator("[data-planned=true]").waitFor();
+    sql(`update appointments set status = 'cancelled', updated_at = now() where id = '${secondId}'`);   // someone else cancels it meanwhile
+    await page.locator("[data-planned=true]").getByRole("button", { name: "Confirm visit" }).click();
+    await page.waitForTimeout(1500);
+    check("confirming a visit someone else cancelled changes nothing and says so", sql(`select booking_state || '/' || status from appointments where id = '${secondId}'`) === "tentative/cancelled"
+      && (await page.getByText(/Nothing was confirmed: this visit changed meanwhile/).isVisible()), sql(`select booking_state || '/' || status from appointments where id = '${secondId}'`));
     check("owner: no page errors", errors.length === 0, errors.join("; "));
     await ctx.close();
   }

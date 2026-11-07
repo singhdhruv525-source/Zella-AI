@@ -457,6 +457,8 @@ export function RescheduleModal({ workspace, term, appt, person, onClose, onSave
       updated_at: new Date().toISOString(),
     }).eq("id", appt.id));
     setBusy(false);
+    // a room, chair or crew can't be overridden: name it instead of offering "Move it anyway"
+    if (updateError && /SLOT_TAKEN/.test(updateError.message ?? "") && /resource|booked, full or blocked|crew/.test(String(updateError.details ?? ""))) { setConflict(""); return setError(scheduleError(updateError)); }
     if (updateError && /SLOT_TAKEN/.test(updateError.message ?? "")) { setConflict(SLOT_TAKEN_MSG); return setError(SLOT_TAKEN_MSG); }
     if (updateError) return setError(friendly(updateError));
     onSaved(`${appt.title} moved${personName(person) ? ` for ${personName(person)}` : ""}.`);

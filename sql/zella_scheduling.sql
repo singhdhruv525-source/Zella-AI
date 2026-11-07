@@ -616,37 +616,3 @@ grant execute on function public.zella_resource_used(uuid, timestamptz, timestam
   public.zella_schedule_audit(uuid, text, text, uuid, jsonb), public.zella_recurring_dates(public.recurring_plans, date, date) to service_role;
 
 grant execute on function public.zella_resource_free(uuid, timestamptz, timestamptz, integer, uuid) to service_role;
-
--- Resource-only blocks must not become business-wide staff time off. Kept after rollback,
--- since rollback retains the block rows and resource_id column.
-do $$ declare def text; begin
-  def := pg_get_functiondef('public.zella_available_slots(uuid,timestamptz,timestamptz,integer,uuid,integer,integer,uuid)'::regprocedure);
-  def := replace(def, '(bt.staff_id is null or bt.staff_id = r.sid)',
-    '((bt.staff_id is null and bt.resource_id is null) or bt.staff_id = r.sid)');
-  execute def;
-end $$;
-
--- Only this explicit transition suppresses the reminder/confirmation queue.
-do $$ declare def text; needle text := 'perform public.zella_replace_reminders(new.id, v_time_changed or v_state_changed, case when v_time_changed then ''rescheduled'' else ''booked'' end);'; begin
-  def := pg_get_functiondef('public.zella_appointment_after()'::regprocedure);
-  if position('zella.confirm_planned_id' in def) = 0 then
-    if position(needle in def) = 0 then raise exception 'Unexpected appointment messaging trigger'; end if;
-    execute replace(def, needle, 'if current_setting(''zella.confirm_planned_id'', true) is distinct from new.id::text then ' || needle || ' end if;');
-  end if;
-end $$;
-create or replace function public.zella_recurring_confirm(p_appointment_id uuid) returns boolean
-language plpgsql security definer set search_path = public as $$
-declare a public.appointments; previous text := current_setting('zella.confirm_planned_id', true); matched boolean;
-begin
-  select * into a from public.appointments where id = p_appointment_id for update;
-  if not found or not public.zella_schedule_can_work(a.business_id) then raise exception 'NOT_ALLOWED'; end if;
-  perform set_config('zella.confirm_planned_id', p_appointment_id::text, true);
-  update public.appointments set booking_state = 'confirmed', status = 'confirmed', updated_at = now()
-   where id = p_appointment_id and booking_state = 'tentative' and status in ('scheduled', 'confirmed')
-     and metadata ->> 'planned' = 'true';
-  matched := found;
-  perform set_config('zella.confirm_planned_id', coalesce(previous, ''), true);
-  return matched;
-end $$;
-revoke all on function public.zella_recurring_confirm(uuid) from public, anon;
-grant execute on function public.zella_recurring_confirm(uuid) to authenticated, service_role;

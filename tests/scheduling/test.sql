@@ -291,43 +291,10 @@ end $$;
 reset role;
 select 'PASS recurring plans: dates for every N weeks or months; generating books each date once, skips clashes with the reason, and saves planned visits that queue no customer messages; managers only; other businesses'' customers refused';
 
--- Confirm a planned visit conditionally, with no queue changes; stale/cancelled visits stay closed.
-set local role authenticated;
-select pg_temp.as_user('c8000000-0000-0000-0000-00000000000c');
+-- the free-or-busy helper reads any business's resource, so only the server may call it
 do $$ begin
-  assert not has_function_privilege('authenticated', 'public.zella_resource_free(uuid,timestamptz,timestamptz,integer,uuid)', 'execute');
+  assert not has_function_privilege('authenticated', 'public.zella_resource_free(uuid,timestamptz,timestamptz,integer,uuid)', 'execute'), 'signed-in users cannot probe resources';
   assert has_function_privilege('service_role', 'public.zella_resource_free(uuid,timestamptz,timestamptz,integer,uuid)', 'execute');
-end $$;
-reset role;
-do $$ declare a uuid; cancelled uuid; n bigint; begin
-  select id into a from public.appointments where metadata ->> 'planned' = 'true' order by start_time limit 1;
-  select id into cancelled from public.appointments where metadata ->> 'planned' = 'true' and id <> a limit 1;
-  update public.appointments set status = 'cancelled' where id = cancelled;
-  insert into public.automations (business_id, name, trigger_type, status, trigger_config)
-    values ('c8000000-0000-0000-0000-0000000000a1', 'Confirmation regression', 'appointment_confirmation', 'active', '{}');
-  select count(*) into n from public.appointment_reminders;
-  perform pg_temp.as_user('c8000000-0000-0000-0000-00000000000c');
-  assert public.zella_recurring_confirm(a), 'open planned visit confirmed';
-  assert (select booking_state = 'confirmed' and status = 'confirmed' from public.appointments where id = a);
-  assert not public.zella_recurring_confirm(a), 'stale confirmation matches nothing';
-  assert not public.zella_recurring_confirm(cancelled), 'cancelled visit matches nothing';
-  assert (select count(*) = n from public.appointment_reminders), 'confirmation queued no reminders or messages';
-  assert (select status = 'cancelled' from public.appointments where id = cancelled);
-  perform pg_temp.book('Ordinary message check', pg_temp.at(25, '09:00'), 60);
-  assert (select count(*) > n from public.appointment_reminders), 'other bookings still queue messages';
-  perform pg_temp.as_user('c8000000-0000-0000-0000-00000000000d');
-  perform pg_temp.expect(format('select public.zella_recurring_confirm(%L)', a), 'NOT_ALLOWED');
-end $$;
--- Resource blocks leave staff slots available, staff blocks continue to close their person's slots.
-do $$ declare b uuid := 'c8000000-0000-0000-0000-0000000000a1'; st uuid := 'c8000000-0000-0000-0000-0000000005a1'; begin
-  perform pg_temp.as_user('c8000000-0000-0000-0000-00000000000c');
-  update public.staff_members set working_hours = jsonb_build_object(lower(to_char(current_date + 20, 'dy')), jsonb_build_object('on', true, 'start', '09:00', 'end', '17:00')) where id = st;
-  insert into public.blocked_times (business_id, title, start_time, end_time, resource_id)
-    values (b, 'Resource only', pg_temp.at(20, '00:00'), pg_temp.at(21, '00:00'), (select val from ids where k = 'van'));
-  assert exists (select 1 from public.zella_available_slots(b, pg_temp.at(20, '09:00'), pg_temp.at(20, '10:00'), 30, st));
-  insert into public.blocked_times (business_id, title, start_time, end_time, staff_id)
-    values (b, 'Staff time off', pg_temp.at(20, '00:00'), pg_temp.at(21, '00:00'), st);
-  assert not exists (select 1 from public.zella_available_slots(b, pg_temp.at(20, '09:00'), pg_temp.at(20, '10:00'), 30, st));
 end $$;
 -- ===================================================== anon and audit
 set local role anon;

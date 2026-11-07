@@ -192,7 +192,7 @@ export function TimeGrid({
                     onPointerUp={(e) => endDrag(e, a)}
                     onPointerCancel={() => { gesture.current = null; setDrag(null); }}
                     onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(a); } }}
-                    aria-label={`${a.title}, ${formatTime(a.start_time, tz)}${person ? `, ${person}` : ""}`}
+                    aria-label={`${a.booking_state === "tentative" && a.metadata?.planned ? "Planned: " : ""}${a.title}, ${formatTime(a.start_time, tz)}${person ? `, ${person}` : ""}`}
                   >
                     <span className="ba-ev-time">
                       <b>{formatTime(a.start_time, tz)}</b>{endM - startM >= 15 && <span className="ba-ev-len">· {Math.round(endM - startM)} min</span>}

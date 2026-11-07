@@ -52,5 +52,9 @@ test("refusals are explained in plain words", () => {
     assert.match(scheduleError({ message: code }), want, code);
   }
   assert.doesNotMatch(scheduleError({ message: "NOT_CHANGED" }), /changed while you were looking/);
+  // each duplicate names the rule that failed, and an unknown duplicate is not blamed on resource names
+  assert.match(scheduleError({ message: 'duplicate key value violates unique constraint "resource_needs_one"', code: "23505" }), /listed once/);
+  assert.match(scheduleError({ message: 'duplicate key value violates unique constraint "resources_one_name"', code: "23505" }), /already a resource/);
+  assert.doesNotMatch(scheduleError({ message: 'duplicate key value violates unique constraint "something_else"', code: "23505" }), /resource with that name/);
   assert.match(scheduleError({ message: "something odd" }), /didn't work/);
 });

@@ -202,12 +202,17 @@ export function BookingPanel({ workspace, industry, appt, person, staff, blocks,
               <span><strong>Planned visit.</strong> Booked from a recurring plan and holding the time. Nothing has been sent to the customer. Confirm it once it's agreed.</span>
               {canWrite && open && <button type="button" className="ba-btn primary sm" disabled={busy}
                 onClick={async () => {
+                  // confirm only if it's still an open planned visit (another person may have changed it meanwhile)
                   setBusy(true); setError("");
-                  const { data, error: confirmError } = await supabase.rpc("zella_recurring_confirm", { p_appointment_id: appt.id });
-                  setBusy(false);
-                  if (confirmError) { setError(friendly(confirmError)); return; }
-                  if (data === true) onNotice("Visit confirmed.");
-                  onChanged();
+                  let res;
+                  try {
+                    res = await changed(supabase.from("appointments")
+                      .update({ booking_state: "confirmed", status: "confirmed", updated_at: new Date().toISOString() })
+                      .eq("id", appt.id).eq("booking_state", "tentative").in("status", ["scheduled", "confirmed"]));
+                  } catch (e) { res = { error: e }; } finally { setBusy(false); }
+                  if (res.error?.message === "NOT_CHANGED") { onNotice("Nothing was confirmed: this visit changed meanwhile (it may have been canceled). The calendar has been refreshed."); onChanged(); return; }
+                  if (res.error) { setError(friendly(res.error)); return; }
+                  onNotice("Visit confirmed."); onChanged();
                 }}>Confirm visit</button>}
             </div>
           )}
