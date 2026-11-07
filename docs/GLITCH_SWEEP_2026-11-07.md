@@ -76,7 +76,13 @@ sidebar; `deno check` passes for `owner-provision-business`; the production buil
 
 ## Re-running
 
-Set up the local stand-in as in `tests/browser/README.md`, then:
+Set up the local stand-in as in `tests/browser/README.md`. Any local edge-function runtime must use a local
+`SUPABASE_URL` and have no provider keys configured (voice, SMS, email, calendar, store, or AI providers).
+Local test JWT/service credentials authenticate to the isolated stand-in; they are distinct from provider keys
+that authorize outbound services. Verify this configuration before running; the historical runtime environment
+was not independently verified by this follow-up.
+
+Then:
 
 ```bash
 ZDB=<test db> node tests/browser/glitch-sweep.cjs all            # add --mobile for the phone width

@@ -128,14 +128,23 @@ const ADMIN_PAGES = ["/businesses", "/businesses/new", "/verification", "/indust
   "/messaging", "/operations", "/automations", "/integrations", "/support", "/security-abuse", "/users", "/audit-logs"];
 async function seeds(isAdmin, email) {
   const { execFileSync } = require("child_process");
-  // the isolated test server only: a socket directory and a z… test database (as tests/lib's guard requires)
   const pgHost = process.env.ZPG_HOST ?? "/var/lib/postgresql/zella-sec", db = process.env.ZDB;
-  if (db && (!/^z[a-z0-9_]*$/.test(db) || !pgHost.startsWith("/"))) { throw new Error("Refusing to read the database: ZDB must be a z… test database on a local socket"); }
+  const pgPort = process.env.ZPG_PORT ?? "55433";
+  const env = { ...process.env };
+  for (const key of ["PGHOSTADDR", "PGSERVICE", "PGSERVICEFILE", "PGHOST", "PGPORT", "PGDATABASE"]) delete env[key];
+  if (db) {
+    if (!/^\/[A-Za-z0-9/._-]+$/.test(pgHost) || !/^[0-9]{1,5}$/.test(pgPort) || !/^z[a-z0-9_]{1,40}$/.test(db)) {
+      throw new Error("Refusing to read the database: invalid isolated test target");
+    }
+    const data = execFileSync("psql", ["-h", pgHost, "-p", pgPort, "-U", "postgres", "-d", "postgres", "-qtAX", "-c",
+      "select case when inet_server_addr() is null then current_setting('data_directory') end"], { encoding: "utf8", env }).trim();
+    if (data !== "/var/lib/postgresql/zella-sec/data") throw new Error("Refusing to read the database: isolated cluster verification failed");
+  }
   const q = (sql, vars = {}) => {
-    const args = ["-h", pgHost, "-p", process.env.ZPG_PORT ?? "55433", "-U", "postgres", "-d", db, "-qtAX", "-v", "ON_ERROR_STOP=1"];
+    const args = ["-h", pgHost, "-p", pgPort, "-U", "postgres", "-d", db, "-qtAX", "-v", "ON_ERROR_STOP=1"];
     for (const [k, v] of Object.entries(vars)) args.push("-v", `${k}=${v}`);
     // -c doesn't expand :'var', so the query goes in on stdin
-    return execFileSync("psql", args, { encoding: "utf8", input: sql }).trim().split("\n").filter(Boolean);
+    return execFileSync("psql", args, { encoding: "utf8", env, input: sql }).trim().split("\n").filter(Boolean);
   };
   if (isAdmin) return [...ADMIN_PAGES, ...(process.env.ZDB ? q("select '/businesses/' || id from businesses where name like 'B3 Alpha' union all select '/businesses/' || id || '/setup' from businesses where name like 'B3 Alpha'") : [])];
   const nav = await import(path.join(__dirname, "../../web/src/navigation/navConfig.js"));
@@ -150,11 +159,17 @@ async function sweep(browser, name, email) {
   const vw = MOBILE ? { width: 390, height: 844 } : { width: 1280, height: 860 };
   const ctx = await browser.newContext({ viewport: vw, deviceScaleFactor: 1, colorScheme: DARK ? "dark" : "light", reducedMotion: "reduce", isMobile: MOBILE, hasTouch: MOBILE });
   try {
-    await ctx.route("https://zlocal.supabase.co/**", async (route) => {
+    await ctx.route(/^https?:\/\/zlocal\.supabase\.co\//, async (route) => {
       const req = route.request();
-      const url = req.url().replace("https://zlocal.supabase.co", BACKEND);
+      const url = req.url().replace(/^https?:\/\/zlocal\.supabase\.co/, BACKEND);
       try {
-        const r = await fetch(url, { method: req.method(), headers: req.headers(), body: ["GET", "HEAD"].includes(req.method()) ? undefined : req.postDataBuffer() });
+        const r = await fetch(url, { redirect: "manual", method: req.method(), headers: req.headers(), body: ["GET", "HEAD"].includes(req.method()) ? undefined : req.postDataBuffer() });
+        if (r.status >= 300 && r.status < 400 && r.headers.has("location")) {
+          const target = new URL(r.headers.get("location"), r.url);
+          if (!["http:", "https:"].includes(target.protocol) || !["localhost", "127.0.0.1", "[::1]"].includes(target.hostname) || target.username || target.password) {
+            await route.abort(); return;
+          }
+        }
         await route.fulfill({ status: r.status, headers: Object.fromEntries(r.headers.entries()), body: Buffer.from(await r.arrayBuffer()) });
       } catch { await route.abort(); }
     });
