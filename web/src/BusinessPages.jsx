@@ -465,6 +465,15 @@ export function CalendarPage({ workspace, industry, refreshKey, onNotice, onOpen
   async function applyMove(move) {
     setMoving(true);
     const { appt, start, end, staffId } = move;
+    if (move.message) {
+      // "Move anyway" overrides a staff warning, never a block on a room, chair or bay: check again (one may have been
+      // added since the warning)
+      const again = await supabase.from("blocked_times").select("*").eq("business_id", workspace.id)
+        .lt("start_time", end.toISOString()).gt("end_time", start.toISOString());
+      const refused = again.error || !again.data ? "Couldn't check for blocked times, so nothing was moved. Try again."
+        : resourceRefusal({ blocks: again.data, start, end, resourceIds: appt.resource_ids });
+      if (refused) { setMoving(false); setPending(null); onNotice(refused); return; }
+    }
     const was = `${new Date(appt.start_time).toLocaleDateString("en-US", { timeZone: tz, month: "short", day: "numeric" })}, ${formatTime(appt.start_time, tz)}`;
     const note = `Rescheduled from ${was}.`;
     const { error: updateError } = await changed(supabase.from("appointments").update({

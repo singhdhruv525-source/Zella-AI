@@ -433,12 +433,14 @@ export function RescheduleModal({ workspace, term, appt, person, onClose, onSave
     setBusy(true);
     setError("");
 
+    // Checked on every save, "Move it anyway" included: a block on a room, chair or bay can't be overridden (a block may
+    // have been added since the warning, and the database guard doesn't cover every booking).
+    const blockResult = await supabase.from("blocked_times").select("*").eq("business_id", workspace.id)
+      .lt("start_time", end.toISOString()).gt("end_time", start.toISOString());
+    if (blockResult.error || !blockResult.data) { setBusy(false); return setError("Couldn't check for blocked times, so nothing was moved. Try again."); }
+    const refused = resourceRefusal({ blocks: blockResult.data, start, end, resourceIds: appt.resource_ids });
+    if (refused) { setBusy(false); setConflict(""); return setError(refused); }
     if (!force) {
-      const blockResult = await supabase.from("blocked_times").select("*").eq("business_id", workspace.id)
-        .lt("start_time", end.toISOString()).gt("end_time", start.toISOString());
-      if (blockResult.error || !blockResult.data) { setBusy(false); return setError("Couldn't check for blocked times, so nothing was moved. Try again."); }
-      const refused = resourceRefusal({ blocks: blockResult.data, start, end, resourceIds: appt.resource_ids });
-      if (refused) { setBusy(false); setConflict(""); return setError(refused); }   // no "Move it anyway": the database would refuse it
       const message = findConflict({ staff, blocks: blockResult.data, start, end, staffId: form.staffId, timeZone: tz, resourceIds: appt.resource_ids });
       if (message) {
         setBusy(false);
