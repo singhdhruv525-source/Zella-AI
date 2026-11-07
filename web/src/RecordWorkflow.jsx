@@ -452,7 +452,8 @@ export function FollowThroughPage({ workspace, types, refreshKey }) {
 export function WorkflowSettings({ workspace, type, onSaved }) {
   const w = type.workflow ?? {};
   const [form, setForm] = useState(() => workflowForm(w));
-  const [base, setBase] = useState(w);
+  const [base, setBase] = useState(w); // the saved setting the form last synced with
+  const [synced, setSynced] = useState(() => workflowForm(w)); // the form as it was at that moment
   const { kinds, inspect, title, items, credits, unit } = form;
   const set = (k) => (v) => setForm((f) => ({ ...f, [k]: v }));
   const [setKinds, setInspect, setTitle, setItems, setCredits, setUnit] = ["kinds", "inspect", "title", "items", "credits", "unit"].map(set);
@@ -461,7 +462,9 @@ export function WorkflowSettings({ workspace, type, onSaved }) {
   const wKey = JSON.stringify(w);
   useEffect(() => {
     if (wKey === JSON.stringify(base)) return;
-    setForm((f) => reconcileWorkflowForm(f, base, w));
+    const after = workflowForm(w);
+    setForm((f) => reconcileWorkflowForm(f, synced, after));
+    setSynced(after);
     setBase(w);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wKey]);
@@ -471,9 +474,20 @@ export function WorkflowSettings({ workspace, type, onSaved }) {
     const list = items.split("\n").map((t) => t.trim()).filter(Boolean);
     if (inspect && !list.length) { act.setProblem("Add at least one checklist item, one per line."); return; }
     const keep = Object.fromEntries(["requested_status", "approved_status", "declined_status"].filter((k) => w[k] && kinds.length).map((k) => [k, w[k]]));
-    await act.run(() => supabase.rpc("zella_record_workflow_save", { p_business_id: workspace.id, p_type_key: type.key, p_workflow: {
-      approvals: kinds, ...keep, inspection: inspect ? { title, items: list } : null,
-      credits: credits ? { unit, ...(w.credits?.used_up_status ? { used_up_status: w.credits.used_up_status } : {}) } : null } }), "Workflow saved.");
+    const sent = form;
+    await act.run(async () => {
+      const res = await supabase.rpc("zella_record_workflow_save", { p_business_id: workspace.id, p_type_key: type.key, p_workflow: {
+        approvals: kinds, ...keep, inspection: inspect ? { title, items: list } : null,
+        credits: credits ? { unit, ...(w.credits?.used_up_status ? { used_up_status: w.credits.used_up_status } : {}) } : null } });
+      // the server's tidied copy is now the saved setting: fields not edited since sending show it
+      if (!res.error && res.data) {
+        const after = workflowForm(res.data);
+        setForm((f) => reconcileWorkflowForm(f, sent, after));
+        setSynced(after);
+        setBase(res.data);
+      }
+      return res;
+    }, "Workflow saved.");
   }
   return (
     <div className="ba-workflow-settings" data-workflow-settings={type.key}>

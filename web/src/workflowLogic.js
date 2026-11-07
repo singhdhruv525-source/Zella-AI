@@ -104,11 +104,11 @@ export function workflowForm(w) {
   };
 }
 
-// The saved setting changed from `before` to `after` under an open editor. Field by field: one the user hasn't changed
-// (it still matches `before`) shows `after`; one they have changed keeps their unsaved value.
-export function reconcileWorkflowForm(form, before, after) {
-  const was = workflowForm(before);
-  const now = workflowForm(after);
+// Merge a newer saved setting into an open editor's form, field by field. `synced` is the form as it last matched the
+// server (what was loaded, or what was just submitted); `after` is the newer form from the server. A field still equal
+// to `synced` (not edited since) takes the server's value, including any tidying the server did; a field edited since
+// keeps the unsaved value.
+export function reconcileWorkflowForm(form, synced, after) {
   const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-  return Object.fromEntries(Object.keys(now).map((k) => [k, same(form[k], was[k]) ? now[k] : form[k]]));
+  return Object.fromEntries(Object.keys(after).map((k) => [k, same(form[k], synced[k]) ? after[k] : form[k]]));
 }

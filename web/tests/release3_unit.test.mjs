@@ -80,18 +80,23 @@ test("every one of the 28 industry presets has workflow defaults, naming only st
 });
 
 test("an open workflow editor shows a newer saved setting, but keeps unsaved changes", () => {
-  const before = { approvals: ["estimate"] };
-  const after = { approvals: ["estimate", "change_order"], credits: { unit: "visits" }, custom: true };
+  const before = workflowForm({ approvals: ["estimate"] });
+  const after = workflowForm({ approvals: ["estimate", "change_order"], credits: { unit: "visits" }, custom: true });
   assert.deepEqual(workflowForm(null), { kinds: [], inspect: false, title: "Checklist", items: "", credits: false, unit: "sessions" });
   assert.equal(workflowForm({ inspection: { title: "Check", items: ["A", "B"] } }).items, "A\nB");
-  // untouched since it opened: follows the newer setting
-  assert.deepEqual(reconcileWorkflowForm(workflowForm(before), before, after), workflowForm(after));
-  // already shows what was saved (its own save): stays
-  assert.deepEqual(reconcileWorkflowForm(workflowForm(after), before, after), workflowForm(after));
+  // untouched since it last synced: follows the newer setting
+  assert.deepEqual(reconcileWorkflowForm(before, before, after), after);
   // unsaved changes: kept, field by field; the fields left alone still follow the newer setting
-  const edited = { ...workflowForm(before), inspect: true, items: "Tyres" };
+  const edited = { ...before, inspect: true, items: "Tyres" };
   assert.deepEqual(reconcileWorkflowForm(edited, before, after),
     { kinds: ["estimate", "change_order"], inspect: true, title: "Checklist", items: "Tyres", credits: true, unit: "visits" });
-  const changedApprovals = { ...workflowForm(before), kinds: ["refund"] };
-  assert.deepEqual(reconcileWorkflowForm(changedApprovals, before, after).kinds, ["refund"]);
+  assert.deepEqual(reconcileWorkflowForm({ ...before, kinds: ["refund"] }, before, after).kinds, ["refund"]);
+  // after its own save, measured against what was sent: the server's tidied value replaces what was typed,
+  // unless it was edited again while saving
+  const sent = { ...before, inspect: true, title: "  Check  ", items: "A\n\nB" };
+  const tidied = workflowForm({ approvals: ["estimate"], inspection: { title: "Check", items: ["A", "B"] }, custom: true });
+  assert.deepEqual(reconcileWorkflowForm(sent, sent, tidied), tidied);
+  assert.equal(reconcileWorkflowForm({ ...sent, title: "Check v2" }, sent, tidied).title, "Check v2");
+  // a later reload measured against the tidied copy picks up a newer title from someone else
+  assert.equal(reconcileWorkflowForm(tidied, tidied, { ...tidied, title: "Site check" }).title, "Site check");
 });
