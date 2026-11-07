@@ -913,8 +913,8 @@
 
 .wiz-switch-all { display: flex; gap: 14px; align-items: center; }
 
-.wiz-notify { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 13px; color: var(--wiz-muted, #7b6e65); }
-.wiz-notify select { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--wiz-line, #c2beb9); background: #fff; font: inherit; }
+.wiz-notify { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 13px; color: var(--zella-text-secondary, #7b6e65); }
+.wiz-notify select { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--zella-border-strong, #c2beb9); background: var(--zella-card, #fff); color: var(--zella-text, inherit); font: inherit; }
 
 .wiz-group-title { margin: 22px 0 4px; font-size: 15px; font-weight: 600; }
 
@@ -1043,5 +1043,5 @@ button.wiz-chip:hover { border-color: var(--color-primary); color: var(--color-p
 
 /* Readiness ladder (Review step) */
 .wiz-ladder { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 0 0 12px; padding: 0; }
-.wiz-ladder li { padding: 4px 10px; border: 1px solid var(--zella-border, #d9d6cf); border-radius: 999px; font-size: 13px; color: var(--zella-muted, #6b6b6b); }
-.wiz-ladder li.done { background: var(--zella-success-soft, #e7f4ea); border-color: transparent; color: var(--zella-success, #1f6b3a); font-weight: 600; }
+.wiz-ladder li { padding: 4px 10px; border: 1px solid var(--zella-border, #d9d6cf); border-radius: 999px; font-size: 13px; color: var(--zella-text-secondary, #6b6b6b); }
+.wiz-ladder li.done { background: var(--zella-success-bg, #e7f4ea); border-color: transparent; color: var(--zella-success, #1f6b3a); font-weight: 600; }

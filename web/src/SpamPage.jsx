@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { DialogFocus } from "./useDialogFocus";
 import { createPortal } from "react-dom";
 import { supabase } from "./supabase";
 import { Field, Icon, Modal, Pill, personName } from "./BusinessUI";
@@ -297,11 +298,6 @@ function IncidentPanel({ workspace, incident, person, roster, onClose, onChanged
   }, [incident.id, incident.sender, workspace.id, listChannel]);
 
   useEffect(() => { reload(); }, [reload]);
-  useEffect(() => {
-    const onKey = (e) => { if (e.key === "Escape" && !busy && !confirming) onClose(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [busy, confirming, onClose]);
 
   async function act(fn, message) {
     setBusy(true);
@@ -317,7 +313,7 @@ function IncidentPanel({ workspace, incident, person, roster, onClose, onChanged
     `${ref(inc.id)} marked ${STATUS[status][1].toLowerCase()}${block ? " and the sender blocked" : ""}.`);
 
   const box = (
-    <div className="bp-backdrop" onMouseDown={(e) => e.target === e.currentTarget && !busy && !confirming && onClose()}>
+    <DialogFocus onClose={onClose} busy={busy || Boolean(confirming)}><div className="bp-backdrop" onMouseDown={(e) => e.target === e.currentTarget && !busy && !confirming && onClose()}>
       <aside className="bp-panel" role="dialog" aria-modal="true" aria-label={`Incident ${ref(inc.id)}`} tabIndex={-1}>
         <header className="bp-head">
           <div>
@@ -402,7 +398,7 @@ function IncidentPanel({ workspace, incident, person, roster, onClose, onChanged
             : <button type="button" className="ba-btn danger-outline" disabled={busy} onClick={() => setConfirming("block")}><Icon name="block" size="sm" />Block sender</button>)}
         </footer>
       </aside>
-    </div>
+    </div></DialogFocus>
   );
 
   const host = typeof document !== "undefined" ? document.querySelector(".ba-root") : null;

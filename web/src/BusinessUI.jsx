@@ -1,5 +1,6 @@
 import { Component, useEffect } from "react";
 import { createPortal } from "react-dom";
+import { useDialogFocus } from "./useDialogFocus";
 
 // Shared building blocks for the business app (Stitch design).
 
@@ -48,11 +49,8 @@ export function Pill({ tone, dot, pulse, children }) {
 }
 
 export function Modal({ title, description, onClose, children, footer, busy, wide, icon, tone }) {
-  useEffect(() => {
-    const onKey = (event) => event.key === "Escape" && !busy && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, busy]);
+  // focus moves in when it opens, Tab stays inside, Escape closes (unless busy), focus returns to the opener
+  const dialogRef = useDialogFocus(onClose, busy);
 
   // Stop the page behind from scrolling while the box is open.
   useEffect(() => {
@@ -66,7 +64,7 @@ export function Modal({ title, description, onClose, children, footer, busy, wid
       className="ba-modal-backdrop"
       onMouseDown={(event) => event.target === event.currentTarget && !busy && onClose()}
     >
-      <section className={`ba-modal ${wide ? "wide" : ""}`} role="dialog" aria-modal="true" aria-label={title}>
+      <section ref={dialogRef} tabIndex={-1} className={`ba-modal ${wide ? "wide" : ""}`} role="dialog" aria-modal="true" aria-label={title}>
         <div className="ba-modal-head">
           {icon && <span className={`ba-modal-icon ${tone ?? ""}`}><Icon name={icon} /></span>}
           <div className="ba-modal-title">

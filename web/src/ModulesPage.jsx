@@ -27,13 +27,13 @@ export default function ModulesPage({ onNavigate }) {
             {loading ? "Loading..." : "↻ Refresh"}
           </button>
           <button type="button" className="owner-primary-button" onClick={() => onNavigate("Industry Configuration")}>
-            Edit in Industry Configuration
+            Edit in Industry configuration
           </button>
         </div>
       </div>
 
       <div className="wiz-note op-gap">
-        Modules are set per industry. To add, rename or stop offering a module, open Industry Configuration.
+        Modules are set per industry. To add, rename or stop offering a module, open Industry configuration.
         Each business's own modules are chosen in its setup.
       </div>
 

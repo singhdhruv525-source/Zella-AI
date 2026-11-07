@@ -399,8 +399,8 @@ export function FollowThroughPage({ workspace, types, refreshKey }) {
   const d = due.data;
   return (
     <div className="ba-page" data-follow="ready">
-      <PageHead title="Follow-through" sub="Approvals you're waiting on, dates coming up, and problems holding work up, across every kind of record." />
-      <label className="ba-check">Dates in the next{" "}
+      <PageHead crumb="Workspace / Follow-through" title="Follow-through" sub="Approvals you're waiting on, dates coming up, and problems holding work up, across every kind of record." />
+      <label className="ba-select">Dates in the next
         <select value={days} onChange={(e) => setDays(Number(e.target.value))} aria-label="How many days ahead">{[7, 14, 30, 60, 90].map((n) => <option key={n} value={n}>{n} days</option>)}</select>
       </label>
       {due.error ? (

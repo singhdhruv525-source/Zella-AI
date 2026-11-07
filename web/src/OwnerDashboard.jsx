@@ -57,26 +57,27 @@ loadBusinessFonts();
 const INVITE_TONE = { accepted: "success", sent: "warning", pending: "warning", failed: "danger", expired: "danger", revoked: "neutral" };
 const words = humanize;
 
-// The admin sidebar. Each page lists the permission it needs (the same one the server checks for its data), so an
+// The admin sidebar. `label` is the page's key (addresses and links use it); `title`, when set, is how it is shown
+// (sentence case, docs/ZELLA_PRODUCT_VOICE.md). Each page lists the permission it needs (the same one the server checks for its data), so an
 // admin with a restricted role only sees pages they can use. Items with `tabs` take a tab in the address (<path>/<tab>).
 const NAVIGATION = [
   { label: "Overview", icon: "space_dashboard", path: "/", group: null, perm: "businesses.view" },
   { label: "Businesses", icon: "storefront", path: "/businesses", group: "Businesses", perm: "businesses.view" },
   { label: "Verification", icon: "verified_user", path: "/verification", group: "Businesses", perm: "businesses.manage" },
-  { label: "Industry Configuration", icon: "category", path: "/industries", group: "Configuration", perm: "businesses.view" },
-  { label: "Modules & Features", icon: "widgets", path: "/modules", group: "Configuration", perm: "businesses.view" },
-  { label: "Plans & Subscriptions", icon: "credit_card", path: "/plans", group: "Configuration", perm: "billing.view" },
-  { label: "Offers & Promotions", icon: "sell", path: "/offers", group: "Configuration", perm: "billing.view" },
-  { label: "AI Agents", icon: "smart_toy", path: "/agents", group: "AI & communications", perm: "businesses.view" },
+  { label: "Industry Configuration", title: "Industry configuration", icon: "category", path: "/industries", group: "Configuration", perm: "businesses.view" },
+  { label: "Modules & Features", title: "Modules & features", icon: "widgets", path: "/modules", group: "Configuration", perm: "businesses.view" },
+  { label: "Plans & Subscriptions", title: "Plans & subscriptions", icon: "credit_card", path: "/plans", group: "Configuration", perm: "billing.view" },
+  { label: "Offers & Promotions", title: "Offers & promotions", icon: "sell", path: "/offers", group: "Configuration", perm: "billing.view" },
+  { label: "AI Agents", title: "AI agents", icon: "smart_toy", path: "/agents", group: "AI & communications", perm: "businesses.view" },
   { label: "Voice & numbers", icon: "call", path: "/voice", tabs: true, group: "AI & communications", perm: "businesses.view" },
   { label: "Messaging", icon: "forum", path: "/messaging", tabs: true, group: "AI & communications", perm: "businesses.view" },
-  { label: "Platform Operations", icon: "monitor_heart", path: "/operations", group: "Operations", perm: "businesses.view" },
+  { label: "Platform Operations", title: "Platform operations", icon: "monitor_heart", path: "/operations", group: "Operations", perm: "businesses.view" },
   { label: "Automations", icon: "bolt", path: "/automations", tabs: true, group: "Operations", perm: "businesses.view" },
   { label: "Integrations", icon: "hub", path: "/integrations", group: "Operations", perm: "businesses.view" },
   { label: "Support", icon: "support_agent", path: "/support", group: "Operations", perm: "support.manage" },
-  { label: "Security & Abuse", icon: "gpp_maybe", path: "/security-abuse", group: "Operations", perm: "security.view" },
-  { label: "Users & Access", icon: "group", path: "/users", group: "Administration", perm: "security.view" },
-  { label: "Audit Logs", icon: "history", path: "/audit-logs", group: "Administration", perm: "audit.view" },
+  { label: "Security & Abuse", title: "Security & abuse", icon: "gpp_maybe", path: "/security-abuse", group: "Operations", perm: "security.view" },
+  { label: "Users & Access", title: "Users & access", icon: "group", path: "/users", group: "Administration", perm: "security.view" },
+  { label: "Audit Logs", title: "Audit logs", icon: "history", path: "/audit-logs", group: "Administration", perm: "audit.view" },
   { label: "Settings", icon: "settings", path: "/settings", group: "Administration", perm: null },
 ];
 const NAV_GROUPS = [null, "Businesses", "Configuration", "AI & communications", "Operations", "Administration"];
@@ -264,11 +265,11 @@ useEffect(() => {
                     type="button"
                     className={`owner-nav-item ${isCurrent(item) ? "active" : ""}`}
                     onClick={() => goTo(item.label)}
-                    title={item.label}
+                    title={item.title ?? item.label}
                     aria-current={isCurrent(item) ? "page" : undefined}
                   >
                     <span className="owner-nav-icon"><Icon name={item.icon} /></span>
-                    <span>{item.label}</span>
+                    <span>{item.title ?? item.label}</span>
                   </button>
                 ))}
               </div>
@@ -295,7 +296,7 @@ useEffect(() => {
           <div className="owner-breadcrumb">
             <span>Platform</span>
             <span>/</span>
-            <strong>{activePage ?? "Page not found"}</strong>
+            <strong>{activePage ? (currentItem?.title ?? activePage) : "Page not found"}</strong>
           </div>
 
           <div className="owner-top-actions">

@@ -64,7 +64,11 @@ const HOURS_OF_DAY = Array.from({ length: 24 }, (_, h) => [h, new Date(2000, 0, 
 const REPORT_STATUS = { sent: "Sent", nothing_to_report: "Nothing to report", failed: "Failed", missed: "Missed (Zella was not running at that time)" };
 
 function ReportSchedule({ w }) {
-  const state = useAsync(() => rpc("zella_report_schedules", { p_business_id: w.id }), [w.id]);
+  // the server shows the schedule to owners, admins and managers (only owners and admins change it); staff and
+  // viewers get the explanation, not a failed load
+  const canSee = roleIn(w, LEAD);
+  const state = useAsync(() => (canSee ? rpc("zella_report_schedules", { p_business_id: w.id }) : Promise.resolve([])), [w.id, canSee]);
+  if (!canSee) return <Card title="Daily report" sub="Sent in the CRM once a day, in your business time zone."><Banner tone="warn">Only owners, admins and managers can see the daily report.</Banner></Card>;
   return (
     <LoadState state={state}>{(rows) => <ReportScheduleForm w={w} row={(rows ?? []).find((r) => r.kind === "daily_summary")} onSaved={state.reload} />}</LoadState>
   );
@@ -601,7 +605,7 @@ function CalendarConnections({ w }) {
   const back = new URLSearchParams(typeof window === "undefined" ? "" : window.location.search);
   const outcome = back.get("calendar"), reason = back.get("reason");
   const OUTCOME = { connected: ["success", "Calendar connected. Bookings will be copied to it and its busy times kept free once calendar sync is switched on."],
-    cancelled: ["warning", "The calendar wasn't connected: the sign-in was cancelled."],
+    cancelled: ["warning", "The calendar wasn't connected: the sign-in was canceled."],
     error: ["error", `The calendar couldn't be connected (${(reason ?? "error").replace(/_/g, " ")}). Try again, or contact Zella support.`] };
   async function connect(provider) {
     setProblem(""); setBusy(provider);
@@ -609,7 +613,10 @@ function CalendarConnections({ w }) {
     if (error || !data?.url) {
       let answer = null; try { answer = await error?.context?.json?.(); } catch { /* not JSON */ }
       setBusy("");
-      return setProblem(answer?.error === "provider_not_configured" ? `${provider === "google" ? "Google" : "Outlook"} calendars can't be connected yet: Zella's app with ${provider === "google" ? "Google" : "Microsoft"} isn't set up. Contact Zella support.`
+      // "provider_not_configured": Zella's app with Google or Microsoft isn't registered; "not_configured": the
+      // connection service itself isn't set up. Either way trying again won't help, so it says so.
+      const notSetUp = answer?.error === "provider_not_configured" || answer?.error === "not_configured";
+      return setProblem(notSetUp ? `${provider === "google" ? "Google" : "Outlook"} calendars can't be connected yet: Zella's connection with ${provider === "google" ? "Google" : "Microsoft"} isn't set up. Contact Zella support.`
         : answer?.error === "not_allowed" ? "Only owners and admins can connect a calendar." : "The calendar sign-in couldn't be started. Try again.");
     }
     window.location.assign(data.url); // the provider's own sign-in page; Zella never sees the password
@@ -1010,7 +1017,7 @@ function registry(w) {
     ] },
     { key: "reports", label: "Reports and preferences", icon: "monitoring", items: [
       page("dashboard", "Dashboard preferences", lazyNeeds("Dashboard preferences aren't saved yet", "Today opens first; each report remembers its period while you're on it.", "Saving them needs a per-person preferences record.")),
-      page("reporting", "Reporting preferences", () => <ReportSchedule w={w} />, "daily report summary time recipients schedule"),
+      page("reporting", "Reporting preferences", () => <ReportSchedule key={`${w.id}:${roleIn(w, LEAD)}`} w={w} />, "daily report summary time recipients schedule"),
       page("performance", "Business performance", () => <ReportsPage workspace={w} refreshKey={0} />, "calls leads appointments"),
       page("export", "Data export", () => <DataExport w={w} />, "csv"),
     ] },

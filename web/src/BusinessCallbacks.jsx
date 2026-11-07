@@ -283,13 +283,13 @@ export function CallbacksPage({ workspace, refreshKey, onNotice, onOpenPerson, o
                       <td><Assignee id={c.assigned_to} nameOf={roster.nameOf} /></td>
                       <td className="ba-actions" onClick={(e) => e.stopPropagation()}>
                         {!closed && (
-                          <>
+                          <div className="ba-queue-actions">
                             {c.contact_number && !blocked
                               ? <a className="ba-btn sm primary" href={`tel:${c.contact_number}`} onClick={() => callNow(c)}><Icon name="call" size="sm" />Call now</a>
                               : null}
                             <button type="button" className="ba-btn sm" onClick={() => setOpen({ cb: c, finishing: true })}>Mark contacted</button>
                             <button type="button" className="ba-btn sm" onClick={() => setOpen({ cb: c })}>More</button>
-                          </>
+                          </div>
                         )}
                       </td>
                     </tr>

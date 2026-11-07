@@ -1232,6 +1232,9 @@
   border-bottom: 1px solid var(--border-subtle);
 }
 
+/* heading buttons keep their size; the title and description wrap instead */
+.owner-panel-heading > button, .owner-panel-heading > a, .owner-panel-heading > .owner-secondary-button { flex-shrink: 0; }
+
 .owner-panel-heading h2 {
   margin: 0;
   font-size: 15px;

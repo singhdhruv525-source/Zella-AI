@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useDialogFocus } from "../useDialogFocus";
 import { createPortal } from "react-dom";
 import "../OwnerPages.css";
 import { supabase } from "../supabase";
@@ -223,14 +224,10 @@ export function DataTable({ columns, rows, empty, onRow, loading, rowKey = (r) =
 }
 
 export function Drawer({ title, icon = "info", onClose, children }) {
-  useEffect(() => {
-    const onKey = (e) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  const dialogRef = useDialogFocus(onClose);
   return createPortal(
     <div className="owner-modal-overlay ao-drawer-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <aside className="owner-modal sa-drawer ao-drawer" role="dialog" aria-modal="true" aria-label={title}>
+      <aside ref={dialogRef} tabIndex={-1} className="owner-modal sa-drawer ao-drawer" role="dialog" aria-modal="true" aria-label={title}>
         <div className="ao-dialog-head ao-drawer-head">
           <span className="ao-dialog-icon"><Icon name={icon} /></span>
           <h3>{title}</h3>
@@ -259,6 +256,7 @@ export function ReasonDialog({ title, icon = "edit", children, confirmLabel = "C
   const [typed, setTyped] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const dialogRef = useDialogFocus(onClose, busy);
   async function go() {
     if (reason.trim().length < 3) return setError("Give a short reason (it goes in the audit log).");
     if (word && typed.trim() !== word) return setError(`Type ${word} to confirm.`);
@@ -267,7 +265,7 @@ export function ReasonDialog({ title, icon = "edit", children, confirmLabel = "C
   }
   return createPortal(
     <div className="owner-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
-      <div className={`bd-confirm owner-modal${danger ? " danger" : ""}`} role="dialog" aria-modal="true" aria-label={title}>
+      <div ref={dialogRef} tabIndex={-1} className={`bd-confirm owner-modal${danger ? " danger" : ""}`} role="dialog" aria-modal="true" aria-label={title}>
         <div className="ao-dialog-head">
           <span className="ao-dialog-icon"><Icon name={icon} /></span>
           <h3>{title}</h3>

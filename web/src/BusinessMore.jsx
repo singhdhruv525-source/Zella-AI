@@ -408,7 +408,8 @@ function IntegrationCard({ item, row, canManage, loading, onNotice, onChanged, w
 const STORE_ERRORS = { bad_shop_domain: "Enter the store's address ending in .myshopify.com.", bad_token: "That doesn't look like an Admin API access token.",
   token_refused: "Shopify didn't accept that token. Copy it again from the custom app.", store_not_found: "No store answers at that address.",
   missing_scopes: "The custom app needs read access to orders and customers (read_orders, read_customers).", not_allowed: "Only owners and admins can connect the store.",
-  store_unreachable: "Shopify couldn't be reached. Try again in a minute." };
+  store_unreachable: "Shopify couldn't be reached. Try again in a minute.",
+  not_configured: "Store connections aren't switched on for Zella yet. Contact Zella support." };
 function StoreCard({ workspace, onNotice }) {
   const canManage = ["owner", "admin"].includes(workspace.role);
   const [version, setVersion] = useState(0);

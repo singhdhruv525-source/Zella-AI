@@ -69,7 +69,7 @@ const text = (p) => p.evaluate(() => document.body.innerText);
     { const { ctx, p, log } = await open(b, { width });
       await p.goto(BASE + "/"); await p.waitForSelector(".owner-nav-item", { state: "attached" }); await menu(p);
       const nav = await navLabels(p);
-      check(["Overview", "Businesses", "Plans & Subscriptions", "Security & Abuse", "Audit Logs", "Settings"].every((x) => nav.includes(x)), `owner sees every page${w}`);
+      check(["Overview", "Businesses", "Plans & subscriptions", "Security & abuse", "Audit logs", "Settings"].every((x) => nav.includes(x)), `owner sees every page${w}`);
       await p.goto(BASE + "/security-abuse"); await p.waitForSelector("text=Platform defaults"); await p.click("text=Platform defaults");
       check(await p.isVisible("text=Save defaults"), `owner can save Security & Abuse defaults${w}`);
       check(log.errors.length === 0, `owner: no page errors${w} ${log.errors.join(" | ")}`);
@@ -79,8 +79,8 @@ const text = (p) => p.evaluate(() => document.body.innerText);
     { const { ctx, p, log } = await open(b, { width, user: LIMITED });
       await p.goto(BASE + "/"); await p.waitForSelector(".owner-nav-item", { state: "attached" }); await menu(p);
       const nav = await navLabels(p);
-      check(nav.includes("Security & Abuse") && nav.includes("Businesses"), `restricted admin sees permitted pages${w}`);
-      check(!["Plans & Subscriptions", "Audit Logs", "Support", "Verification", "Offers & Promotions"].some((x) => nav.includes(x)), `restricted admin doesn't see other pages${w}: ${nav.join(", ")}`);
+      check(nav.includes("Security & abuse") && nav.includes("Businesses"), `restricted admin sees permitted pages${w}`);
+      check(!["Plans & subscriptions", "Audit logs", "Support", "Verification", "Offers & promotions"].some((x) => nav.includes(x)), `restricted admin doesn't see other pages${w}: ${nav.join(", ")}`);
       for (const url of ["/audit-logs", "/plans", "/support", "/verification", "/businesses/new"]) {
         await p.goto(BASE + url); await p.waitForSelector("[data-access], .owner-page");
         check(await p.isVisible("[data-access=denied]"), `restricted admin: ${url} shows access denied${w}`);
@@ -98,7 +98,7 @@ const text = (p) => p.evaluate(() => document.body.innerText);
       await p.goto(BASE + "/security-abuse"); await p.waitForSelector("[data-access=loading]");
       await menu(p);
       check((await p.$$(".owner-nav-item")).length === 0, `loading: no navigation items${w}`);
-      check(!(await p.isVisible(".owner-search")) && !(await text(p)).includes("Security & Abuse\nSpam"), `loading: no search box, no protected page${w}`);
+      check(!(await p.isVisible(".owner-search")) && !(await text(p)).includes("Security & abuse\nSpam"), `loading: no search box, no protected page${w}`);
       check(!log.actions.some((a) => a !== "me_admin"), `loading: no protected data requested${w} (${log.actions.join(",")})`);
       await p.waitForSelector(".owner-nav-item", { state: "attached" });
       check(await p.isVisible("text=Platform defaults"), `loading then authorized: page appears${w}`);
@@ -126,7 +126,7 @@ const text = (p) => p.evaluate(() => document.body.innerText);
   // account switch in another tab: the new account's permissions replace the old ones
   { const { ctx, p } = await open(b);
     await p.goto(BASE + "/"); await p.waitForSelector(".owner-nav-item", { state: "attached" });
-    check((await navLabels(p)).includes("Audit Logs"), "switch: owner's pages before the switch");
+    check((await navLabels(p)).includes("Audit logs"), "switch: owner's pages before the switch");
     const other = await ctx.newPage();
     await other.goto(BASE + "/status").catch(() => {});
     // what the sign-in library in another tab sends when a different account signs in there
@@ -134,9 +134,9 @@ const text = (p) => p.evaluate(() => document.body.innerText);
       new BroadcastChannel("sb-example-auth-token").postMessage({ event: "SIGNED_IN", session: t }); }, token(LIMITED));
     // the old account's menu goes away, then (after the new account's permissions load) the new account's appears
     await p.waitForFunction(() => { const items = [...document.querySelectorAll(".owner-nav-item")].map((e) => e.innerText);
-      return items.some((t) => t.includes("Security & Abuse")) && !items.some((t) => t.includes("Audit Logs")); }, null, { timeout: 8000 }).catch(() => {});
+      return items.some((t) => t.includes("Security & abuse")) && !items.some((t) => t.includes("Audit logs")); }, null, { timeout: 8000 }).catch(() => {});
     const nav = await navLabels(p);
-    check(!nav.includes("Audit Logs") && nav.includes("Security & Abuse"), `switch: restricted account's pages after the switch (${nav.join(", ")})`);
+    check(!nav.includes("Audit logs") && nav.includes("Security & abuse"), `switch: restricted account's pages after the switch (${nav.join(", ")})`);
     await ctx.close(); }
 
   // sign-out: the dashboard and its permissions are gone
