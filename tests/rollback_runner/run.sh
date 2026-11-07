@@ -4,7 +4,7 @@
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"; REPO="$(cd "$HERE/../.." && pwd)"
 H=${ZPG_HOST:-/var/lib/postgresql/zella-sec}; PT=${ZPG_PORT:-55433}; DB=zrollback_runner
-case "$H" in /var/lib/postgresql/*|/tmp/*) ;; *) echo "REFUSED: $H is not the isolated local socket"; exit 1 ;; esac
+. "$REPO/tests/lib/isolated_guard.sh"; zella_require_isolated "$H" "$PT" "$DB" || exit 1   # before anything is dropped
 P=(psql -h "$H" -p "$PT" -U postgres -qtAX -v ON_ERROR_STOP=1)
 "${P[@]}" -d postgres -c "drop database if exists $DB" -c "create database $DB" > /dev/null || { echo "FAIL setup"; exit 1; }
 "${P[@]}" -d $DB -c "create table t (n int); insert into t values (1);" > /dev/null
@@ -33,4 +33,8 @@ PSQLRC="$T/psqlrc" "$REPO/sql/rollback/run.sh" "$T/good_rollback.sql" -h "$H" -p
 
 # no rollback file carries psql meta-commands (the SQL Editor rejects them)
 if grep -lE '^\\' "$REPO"/sql/rollback/*.sql > "$T/meta"; then fail "psql commands in: $(tr '\n' ' ' < "$T/meta")"; else pass "no rollback file contains a psql command"; fi
+# every rollback file runs as one transaction (industry_data_part.sql is a part included in another file, not a rollback)
+missing=""; for f in "$REPO"/sql/rollback/*_rollback.sql; do
+  grep -qiE '^\s*begin\s*;' "$f" && grep -qiE '^\s*commit\s*;\s*$' "$f" || missing="$missing $(basename "$f")"; done
+[ -z "$missing" ] && pass "every rollback file is one transaction (begin ... commit)" || fail "no transaction in:$missing"
 [ $fails = 0 ] && echo "ALL PASSED" || { echo "$fails FAILED"; exit 1; }

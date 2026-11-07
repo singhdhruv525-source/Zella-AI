@@ -1,4 +1,5 @@
 -- Undo sql/zella_batch3_pagination.sql. The web app must be rolled back first (the Batch 3 screens call these).
+begin;
 drop function if exists public.zella_inbox_previews(uuid, uuid[]);
 drop function if exists public.zella_inbox_page(uuid, text, integer, jsonb);
 drop function if exists public.zella_calls_page(uuid, text, boolean, integer, jsonb);
@@ -17,3 +18,4 @@ drop index if exists public.conversations_business_activity_idx;
 drop index if exists public.conversation_messages_latest_idx;
 drop index if exists public.callbacks_call_idx;
 drop index if exists public.followup_tasks_call_idx;
+commit;
