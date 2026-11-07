@@ -71,3 +71,16 @@ test("a block on a resource doesn't close the business; a person's block covers 
   assert.equal(blockCovers(ana, "s2"), false);
   assert.equal(blockCovers(ana, null), false);
 });
+
+test("a move onto a blocked room, chair or bay is refused outright from now on, and only warned about in the past", async () => {
+  const { resourceRefusal } = await import("../src/schedulingLogic.js");
+  const day = 86400000, now = Date.now();
+  const block = { resource_id: "r1", title: "Lift service", start_time: new Date(now + day).toISOString(), end_time: new Date(now + 2 * day).toISOString() };
+  const at = (offset, hours = 1) => ({ start: new Date(now + offset), end: new Date(now + offset + hours * 3600000) });
+  assert.match(resourceRefusal({ blocks: [block], ...at(day + 3600000), resourceIds: ["r1"] }), /blocked then \(Lift service\)/);
+  assert.equal(resourceRefusal({ blocks: [block], ...at(day + 3600000), resourceIds: ["r2"] }), null, "another resource");
+  assert.equal(resourceRefusal({ blocks: [block], ...at(3 * day), resourceIds: ["r1"] }), null, "after the block");
+  assert.equal(resourceRefusal({ blocks: [block], ...at(day + 3600000), resourceIds: null }), null, "uses no resource");
+  const past = { ...block, start_time: new Date(now - 2 * day).toISOString(), end_time: new Date(now - day).toISOString() };
+  assert.equal(resourceRefusal({ blocks: [past], ...at(-2 * day + 3600000), resourceIds: ["r1"] }), null, "past visits never clash");
+});

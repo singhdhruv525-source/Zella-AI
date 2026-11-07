@@ -1,7 +1,7 @@
 // Release 3: approvals, milestones and renewals, inspections, exceptions and package credits on a record, the
 // follow-through page, and each record type's workflow setting. The server (sql/zella_record_workflows.sql) checks
 // every rule; these screens only collect and explain.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "./supabase";
 import { Field, Modal, Pill } from "./BusinessUI";
 import { formatDay, timeAgo } from "./businessTime";
@@ -9,7 +9,7 @@ import { Empty, Notice, PageHead, useLoad } from "./BusinessShared";
 import { showMoney, toMinor } from "./BusinessMoney";
 import {
   APPROVAL_KINDS, APPROVAL_LABEL, APPROVAL_METHODS, APPROVAL_STATUS, EXCEPTION_LABEL, INSPECTION_RESULTS, MANUAL_EXCEPTION_KINDS, METHOD_LABEL,
-  MILESTONE_KINDS, MILESTONE_LABEL, creditBalance, dueText, inspectionProgress, nextYear, workflowError, workflowParts,
+  MILESTONE_KINDS, MILESTONE_LABEL, creditBalance, dueText, inspectionProgress, nextYear, reconcileWorkflowForm, workflowError, workflowForm, workflowParts,
 } from "./workflowLogic";
 
 const todayIn = (tz) => new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
@@ -451,21 +451,43 @@ export function FollowThroughPage({ workspace, types, refreshKey }) {
 
 export function WorkflowSettings({ workspace, type, onSaved }) {
   const w = type.workflow ?? {};
-  const [kinds, setKinds] = useState(Array.isArray(w.approvals) ? w.approvals : []);
-  const [inspect, setInspect] = useState(Boolean(w.inspection));
-  const [title, setTitle] = useState(w.inspection?.title ?? "Checklist");
-  const [items, setItems] = useState((w.inspection?.items ?? []).join("\n"));
-  const [credits, setCredits] = useState(Boolean(w.credits));
-  const [unit, setUnit] = useState(w.credits?.unit ?? "sessions");
+  const [form, setForm] = useState(() => workflowForm(w));
+  const [base, setBase] = useState(w); // the saved setting the form last synced with
+  const [synced, setSynced] = useState(() => workflowForm(w)); // the form as it was at that moment
+  const { kinds, inspect, title, items, credits, unit } = form;
+  const set = (k) => (v) => setForm((f) => ({ ...f, [k]: v }));
+  const [setKinds, setInspect, setTitle, setItems, setCredits, setUnit] = ["kinds", "inspect", "title", "items", "credits", "unit"].map(set);
+  // When the saved setting changes under an open editor (a reload after a save, perhaps one made from an editor closed
+  // meanwhile), show it, unless there are unsaved changes here: those are kept.
+  const wKey = JSON.stringify(w);
+  useEffect(() => {
+    if (wKey === JSON.stringify(base)) return;
+    const after = workflowForm(w);
+    setForm((f) => reconcileWorkflowForm(f, synced, after));
+    setSynced(after);
+    setBase(w);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wKey]);
   const act = useAction((done) => { if (done) onSaved?.(done); });
   const toggle = (k) => setKinds(kinds.includes(k) ? kinds.filter((x) => x !== k) : [...kinds, k]);
   async function save() {
     const list = items.split("\n").map((t) => t.trim()).filter(Boolean);
     if (inspect && !list.length) { act.setProblem("Add at least one checklist item, one per line."); return; }
     const keep = Object.fromEntries(["requested_status", "approved_status", "declined_status"].filter((k) => w[k] && kinds.length).map((k) => [k, w[k]]));
-    await act.run(() => supabase.rpc("zella_record_workflow_save", { p_business_id: workspace.id, p_type_key: type.key, p_workflow: {
-      approvals: kinds, ...keep, inspection: inspect ? { title, items: list } : null,
-      credits: credits ? { unit, ...(w.credits?.used_up_status ? { used_up_status: w.credits.used_up_status } : {}) } : null } }), "Workflow saved.");
+    const sent = form;
+    await act.run(async () => {
+      const res = await supabase.rpc("zella_record_workflow_save", { p_business_id: workspace.id, p_type_key: type.key, p_workflow: {
+        approvals: kinds, ...keep, inspection: inspect ? { title, items: list } : null,
+        credits: credits ? { unit, ...(w.credits?.used_up_status ? { used_up_status: w.credits.used_up_status } : {}) } : null } });
+      // the server's tidied copy is now the saved setting: fields not edited since sending show it
+      if (!res.error && res.data) {
+        const after = workflowForm(res.data);
+        setForm((f) => reconcileWorkflowForm(f, sent, after));
+        setSynced(after);
+        setBase(res.data);
+      }
+      return res;
+    }, "Workflow saved.");
   }
   return (
     <div className="ba-workflow-settings" data-workflow-settings={type.key}>

@@ -7,7 +7,7 @@ import {
   APPT_LABEL, APPT_TONE, Empty, Notice, PAGE_SIZE, PageHead, Pager, Segment, changed, clock, friendly, loadPeople,
   availabilityAt, findConflict, orThrow, sourceLabel, useLoad,
 } from "./BusinessShared";
-import { blockCovers } from "./schedulingLogic";
+import { blockCovers, resourceRefusal } from "./schedulingLogic";
 import { AddCustomerModal, BookAppointmentModal } from "./BusinessForms";
 import { MonthGrid, TimeGrid, clockText, dayInfo, minutesInto } from "./BusinessCalendar";
 import { ActivationCard } from "./BusinessWork";
@@ -465,6 +465,15 @@ export function CalendarPage({ workspace, industry, refreshKey, onNotice, onOpen
   async function applyMove(move) {
     setMoving(true);
     const { appt, start, end, staffId } = move;
+    if (move.message) {
+      // "Move anyway" overrides a staff warning, never a block on a room, chair or bay: check again (one may have been
+      // added since the warning)
+      const again = await supabase.from("blocked_times").select("*").eq("business_id", workspace.id)
+        .lt("start_time", end.toISOString()).gt("end_time", start.toISOString());
+      const refused = again.error || !again.data ? "Couldn't check for blocked times, so nothing was moved. Try again."
+        : resourceRefusal({ blocks: again.data, start, end, resourceIds: appt.resource_ids });
+      if (refused) { setMoving(false); setPending(null); onNotice(refused); return; }
+    }
     const was = `${new Date(appt.start_time).toLocaleDateString("en-US", { timeZone: tz, month: "short", day: "numeric" })}, ${formatTime(appt.start_time, tz)}`;
     const note = `Rescheduled from ${was}.`;
     const { error: updateError } = await changed(supabase.from("appointments").update({
@@ -491,7 +500,11 @@ export function CalendarPage({ workspace, industry, refreshKey, onNotice, onOpen
     const staffId = view === "staff" ? c.staffId ?? "" : appt.staff_id ?? "";
     const blockResult = await supabase.from("blocked_times").select("*").eq("business_id", workspace.id)
       .lt("start_time", end.toISOString()).gt("end_time", start.toISOString());
-    const message = findConflict({ staff, blocks: blockResult.error ? [] : blockResult.data ?? [], start, end, staffId, timeZone: tz, resourceIds: appt.resource_ids });
+    // couldn't check: nothing is moved (a failed check is never "no conflicts")
+    if (blockResult.error || !blockResult.data) { onNotice("Couldn't check for blocked times, so nothing was moved. Try again."); return; }
+    const refused = resourceRefusal({ blocks: blockResult.data, start, end, resourceIds: appt.resource_ids });
+    if (refused) { onNotice(refused); return; }   // no "Move anyway": the database would refuse it
+    const message = findConflict({ staff, blocks: blockResult.data, start, end, staffId, timeZone: tz, resourceIds: appt.resource_ids });
     const move = { appt, start, end, staffId, message };
     if (message) setPending(move); else applyMove(move);
   }

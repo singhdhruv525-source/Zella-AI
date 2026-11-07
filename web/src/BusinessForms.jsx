@@ -10,7 +10,7 @@ const SLOT_TAKEN_MSG = "That time overlaps another booking, or the gap kept betw
 import { EmailField, PhoneField } from "./formFields";
 import { checkEmail, validatePhone } from "./formValidation";
 import { addLead } from "./leadCreate";
-import { scheduleError } from "./schedulingLogic";
+import { resourceRefusal, scheduleError } from "./schedulingLogic";
 
 // Quick actions from the header: add a lead and book an appointment.
 // Both write with the signed-in member's session, so Row Level Security
@@ -433,10 +433,15 @@ export function RescheduleModal({ workspace, term, appt, person, onClose, onSave
     setBusy(true);
     setError("");
 
+    // Checked on every save, "Move it anyway" included: a block on a room, chair or bay can't be overridden (a block may
+    // have been added since the warning, and the database guard doesn't cover every booking).
+    const blockResult = await supabase.from("blocked_times").select("*").eq("business_id", workspace.id)
+      .lt("start_time", end.toISOString()).gt("end_time", start.toISOString());
+    if (blockResult.error || !blockResult.data) { setBusy(false); return setError("Couldn't check for blocked times, so nothing was moved. Try again."); }
+    const refused = resourceRefusal({ blocks: blockResult.data, start, end, resourceIds: appt.resource_ids });
+    if (refused) { setBusy(false); setConflict(""); return setError(refused); }
     if (!force) {
-      const blockResult = await supabase.from("blocked_times").select("*").eq("business_id", workspace.id)
-        .lt("start_time", end.toISOString()).gt("end_time", start.toISOString());
-      const message = findConflict({ staff, blocks: blockResult.error ? [] : blockResult.data ?? [], start, end, staffId: form.staffId, timeZone: tz, resourceIds: appt.resource_ids });
+      const message = findConflict({ staff, blocks: blockResult.data, start, end, staffId: form.staffId, timeZone: tz, resourceIds: appt.resource_ids });
       if (message) {
         setBusy(false);
         setConflict(message);

@@ -95,3 +95,20 @@ export function workflowError(error) {
   for (const [re, msg] of ERRORS) if (re.test(text)) return msg(error);
   return "That didn't work. Try again, or contact Zella support if it keeps happening.";
 }
+
+// The workflow editor's form, from a type's saved workflow setting.
+export function workflowForm(w) {
+  return {
+    kinds: Array.isArray(w?.approvals) ? w.approvals : [], inspect: Boolean(w?.inspection), title: w?.inspection?.title ?? "Checklist",
+    items: (w?.inspection?.items ?? []).join("\n"), credits: Boolean(w?.credits), unit: w?.credits?.unit ?? "sessions",
+  };
+}
+
+// Merge a newer saved setting into an open editor's form, field by field. `synced` is the form as it last matched the
+// server (what was loaded, or what was just submitted); `after` is the newer form from the server. A field still equal
+// to `synced` (not edited since) takes the server's value, including any tidying the server did; a field edited since
+// keeps the unsaved value.
+export function reconcileWorkflowForm(form, synced, after) {
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  return Object.fromEntries(Object.keys(after).map((k) => [k, same(form[k], synced[k]) ? after[k] : form[k]]));
+}

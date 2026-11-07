@@ -14,6 +14,15 @@ export const blocksEveryone = (b) => !b.staff_id && !b.resource_id;
 // does this block apply to this person (theirs, or the whole business's)?
 export const blockCovers = (b, staffId) => blocksEveryone(b) || (Boolean(b.staff_id) && b.staff_id === staffId);
 
+// A move onto a room, chair or bay that is blocked then can't be overridden: the database refuses it for a booking that
+// holds its time from now on (zella_resource_guard; past visits never clash). Returns the refusal, or null.
+export function resourceRefusal({ blocks, start, end, resourceIds }) {
+  const uses = new Set(resourceIds ?? []);
+  if (!uses.size || end <= new Date()) return null;
+  const block = (blocks ?? []).find((b) => b.resource_id && uses.has(b.resource_id) && new Date(b.start_time) < end && new Date(b.end_time) > start);
+  return block ? `That room, chair or bay is blocked then (${block.title}). Pick another time.` : null;
+}
+
 
 // a job's state on the board, in words and a tone
 export const JOB_STATUS = {
