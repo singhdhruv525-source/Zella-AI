@@ -6,6 +6,7 @@ import { Empty, Notice, PAGE_SIZE, PageHead, Pager, explain, orThrow, useLoad } 
 import { PersonPicker } from "./BusinessWork";
 import { useRoster } from "./BusinessLeads";
 import { FILE_ERRORS, checkOutcome } from "./recordFileCheck";
+import { PeopleAndConsent } from "./BusinessPeople";
 import { useServerPages, useSettled } from "./crm/paging";
 import { linkIdsOf, linkTitle, LINK_BATCH } from "./crm/links";
 
@@ -365,6 +366,8 @@ function RecordModal({ workspace, type, record, canManage, onBook, onClose, onSa
               onClick={async () => { const text = note; setNote(""); await run(() => supabase.rpc("zella_add_record_note", { p_id: record.id, p_note: text }), "Note added."); }}>Add note</button>
           </div>
           <RecordFiles workspace={workspace} record={record} />
+          <h3 className="ba-h3">People &amp; consent</h3>
+          <PeopleAndConsent key={`${workspace.id}:${record.id}`} workspace={workspace} subject={{ recordId: record.id, typeKey: type.key, title: record.title }} />
           {type.appointment_link && (
             <>
               <h3 className="ba-h3">Appointments</h3>

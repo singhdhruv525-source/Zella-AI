@@ -10,6 +10,7 @@ import { checkEmail, validatePhone } from "./formValidation";
 import { formatDay, formatTime, timeAgo } from "./businessTime";
 import { APPT_LABEL, APPT_TONE, changed, clock, friendly, orThrow, sourceLabel, transcriptLines, useLoad, callResult, isAnswered } from "./BusinessShared";
 import { humanize } from "./copy/labels";
+import { PeopleAndConsent } from "./BusinessPeople";
 
 // One place for everything about a person: their details, every call with the
 // full transcript, appointments and conversations in one timeline, and any
@@ -149,7 +150,7 @@ function buildTimeline(person, calls, appts, convos, follows = [], cbs = [], tas
   return events.sort((a, b) => new Date(b.at) - new Date(a.at));
 }
 
-const TABS = [["overview", "Overview"], ["appointments", "Appointments"], ["records", "Records"], ["timeline", "Timeline"], ["calls", "Calls"], ["messages", "Messages"], ["followups", "Follow-ups"], ["lead", "Lead & quotes"], ["privacy", "Privacy"]];
+const TABS = [["overview", "Overview"], ["appointments", "Appointments"], ["records", "Records"], ["timeline", "Timeline"], ["calls", "Calls"], ["messages", "Messages"], ["followups", "Follow-ups"], ["lead", "Lead & quotes"], ["people", "People & consent"], ["privacy", "Privacy"]];
 
 export default function PersonProfile({ personId, workspace, onClose, onChanged, onNotice }) {
   const tz = workspace.timezone;
@@ -346,6 +347,8 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
                 <div className="full ba-form-actions"><button type="submit" className="ba-btn primary" disabled={busy}>{busy ? "Saving…" : "Save details"}</button></div>
               </form>
             )}
+
+            {tab === "people" && <PeopleAndConsent key={`${workspace.id}:${person.id}`} workspace={workspace} subject={{ customer: person }} onNotice={onNotice} />}
 
             {tab === "privacy" && <PersonDataRights person={person} workspace={workspace} onChanged={refresh} onNotice={onNotice} />}
 
