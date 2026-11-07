@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   APPROVAL_KINDS, APPROVAL_METHODS, EXCEPTION_KINDS, MANUAL_EXCEPTION_KINDS, METHOD_LABEL, MILESTONE_KINDS, WORKFLOW_EVENT_LABELS,
-  creditBalance, dueText, inspectionProgress, nextYear, workflowError, workflowParts,
+  creditBalance, dueText, inspectionProgress, nextYear, reconcileWorkflowForm, workflowError, workflowForm, workflowParts,
 } from "../src/workflowLogic.js";
 
 const sql = readFileSync(new URL("../../sql/zella_record_workflows.sql", import.meta.url), "utf8");
@@ -77,4 +77,18 @@ test("every one of the 28 industry presets has workflow defaults, naming only st
     if (p.config.inspection) assert.ok(p.config.inspection.items.length >= 1 && p.config.inspection.title.length >= 2, `${p.preset}.${p.type} inspection`);
     if (p.config.credits) assert.ok(p.config.credits.unit.length >= 2, `${p.preset}.${p.type} credits`);
   }
+});
+
+test("an open workflow editor shows a newer saved setting, but keeps unsaved changes", () => {
+  const before = { approvals: ["estimate"] };
+  const after = { approvals: ["estimate", "change_order"], credits: { unit: "visits" }, custom: true };
+  assert.deepEqual(workflowForm(null), { kinds: [], inspect: false, title: "Checklist", items: "", credits: false, unit: "sessions" });
+  assert.equal(workflowForm({ inspection: { title: "Check", items: ["A", "B"] } }).items, "A\nB");
+  // untouched since it opened: follows the newer setting
+  assert.deepEqual(reconcileWorkflowForm(workflowForm(before), before, after), workflowForm(after));
+  // already shows what was saved (its own save): stays
+  assert.deepEqual(reconcileWorkflowForm(workflowForm(after), before, after), workflowForm(after));
+  // unsaved changes: kept
+  const edited = { ...workflowForm(before), inspect: true, items: "Tyres" };
+  assert.equal(reconcileWorkflowForm(edited, before, after), edited);
 });

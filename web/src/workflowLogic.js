@@ -95,3 +95,18 @@ export function workflowError(error) {
   for (const [re, msg] of ERRORS) if (re.test(text)) return msg(error);
   return "That didn't work. Try again, or contact Zella support if it keeps happening.";
 }
+
+// The workflow editor's form, from a type's saved workflow setting.
+export function workflowForm(w) {
+  return {
+    kinds: Array.isArray(w?.approvals) ? w.approvals : [], inspect: Boolean(w?.inspection), title: w?.inspection?.title ?? "Checklist",
+    items: (w?.inspection?.items ?? []).join("\n"), credits: Boolean(w?.credits), unit: w?.credits?.unit ?? "sessions",
+  };
+}
+
+// The saved setting changed from `before` to `after` under an open editor: show `after`, unless the form holds unsaved
+// changes (it matches neither), which are kept.
+export function reconcileWorkflowForm(form, before, after) {
+  const now = JSON.stringify(form);
+  return now === JSON.stringify(workflowForm(before)) || now === JSON.stringify(workflowForm(after)) ? workflowForm(after) : form;
+}

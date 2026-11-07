@@ -1,7 +1,7 @@
 // Release 3: approvals, milestones and renewals, inspections, exceptions and package credits on a record, the
 // follow-through page, and each record type's workflow setting. The server (sql/zella_record_workflows.sql) checks
 // every rule; these screens only collect and explain.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "./supabase";
 import { Field, Modal, Pill } from "./BusinessUI";
 import { formatDay, timeAgo } from "./businessTime";
@@ -9,7 +9,7 @@ import { Empty, Notice, PageHead, useLoad } from "./BusinessShared";
 import { showMoney, toMinor } from "./BusinessMoney";
 import {
   APPROVAL_KINDS, APPROVAL_LABEL, APPROVAL_METHODS, APPROVAL_STATUS, EXCEPTION_LABEL, INSPECTION_RESULTS, MANUAL_EXCEPTION_KINDS, METHOD_LABEL,
-  MILESTONE_KINDS, MILESTONE_LABEL, creditBalance, dueText, inspectionProgress, nextYear, workflowError, workflowParts,
+  MILESTONE_KINDS, MILESTONE_LABEL, creditBalance, dueText, inspectionProgress, nextYear, reconcileWorkflowForm, workflowError, workflowForm, workflowParts,
 } from "./workflowLogic";
 
 const todayIn = (tz) => new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
@@ -451,12 +451,20 @@ export function FollowThroughPage({ workspace, types, refreshKey }) {
 
 export function WorkflowSettings({ workspace, type, onSaved }) {
   const w = type.workflow ?? {};
-  const [kinds, setKinds] = useState(Array.isArray(w.approvals) ? w.approvals : []);
-  const [inspect, setInspect] = useState(Boolean(w.inspection));
-  const [title, setTitle] = useState(w.inspection?.title ?? "Checklist");
-  const [items, setItems] = useState((w.inspection?.items ?? []).join("\n"));
-  const [credits, setCredits] = useState(Boolean(w.credits));
-  const [unit, setUnit] = useState(w.credits?.unit ?? "sessions");
+  const [form, setForm] = useState(() => workflowForm(w));
+  const [base, setBase] = useState(w);
+  const { kinds, inspect, title, items, credits, unit } = form;
+  const set = (k) => (v) => setForm((f) => ({ ...f, [k]: v }));
+  const [setKinds, setInspect, setTitle, setItems, setCredits, setUnit] = ["kinds", "inspect", "title", "items", "credits", "unit"].map(set);
+  // When the saved setting changes under an open editor (a reload after a save, perhaps one made from an editor closed
+  // meanwhile), show it, unless there are unsaved changes here: those are kept.
+  const wKey = JSON.stringify(w);
+  useEffect(() => {
+    if (wKey === JSON.stringify(base)) return;
+    setForm((f) => reconcileWorkflowForm(f, base, w));
+    setBase(w);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wKey]);
   const act = useAction((done) => { if (done) onSaved?.(done); });
   const toggle = (k) => setKinds(kinds.includes(k) ? kinds.filter((x) => x !== k) : [...kinds, k]);
   async function save() {

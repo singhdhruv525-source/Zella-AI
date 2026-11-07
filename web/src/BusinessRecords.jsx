@@ -34,7 +34,8 @@ export function useRecordTypes(workspace, refreshKey) {
       await supabase.rpc("zella_ensure_crm_types", { p_business_id: workspace.id });
       const { data, error } = await supabase.from("crm_record_types").select("*").eq("business_id", workspace.id).order("position");
       // a failed load is kept apart from "no record types", so the page can say so instead of "nothing yet"
-      if (live) setState({ types: data ?? [], loaded: true, error: error ? "Couldn't load your record types." : "" });
+      // a failed reload keeps the last types that did load (an open editor keeps its link targets); the error says so
+      if (live) setState((prev) => ({ types: error ? prev.types : (data ?? []), loaded: true, error: error ? "Couldn't load your record types." : "" }));
     })();
     return () => { live = false; };
   }, [workspace.id, refreshKey, version]);
@@ -517,7 +518,7 @@ export function RecordsPage({ workspace, type, query, refreshKey, canManage, onN
 
 const FIELD_TYPES = [["text", "Short text"], ["longtext", "Long text"], ["select", "Choice list"], ["date", "Date"], ["datetime", "Date and time"], ["number", "Number"], ["phone", "Phone"], ["email", "Email"], ["bool", "Yes / No"], ["record", "Link to another record"]];
 
-function TypeEditor({ workspace, type, types = [], onClose, onSaved, onWorkflowSaved }) {
+function TypeEditor({ workspace, type, types = [], onClose, onSaved, onWorkflowSaved, loadError, onRetry }) {
   const isNew = !type;
   const [singular, setSingular] = useState(type?.singular ?? "");
   const [plural, setPlural] = useState(type?.plural ?? "");
@@ -638,6 +639,7 @@ function TypeEditor({ workspace, type, types = [], onClose, onSaved, onWorkflowS
       {!isNew && (
         <div className="ba-modal-body">
           {workflowNote && <p className="ba-muted" role="status">{workflowNote}</p>}
+          {loadError && <p className="ba-error" role="alert">{loadError} What you see here may be out of date. <button type="button" className="ba-btn sm" onClick={onRetry}>Try again</button></p>}
           {/* saved on its own: the editor stays open so unsaved status and field changes aren't lost */}
           <WorkflowSettings workspace={workspace} type={type} onSaved={(message) => { setWorkflowNote(message); onWorkflowSaved?.(); }} />
         </div>
@@ -648,6 +650,8 @@ function TypeEditor({ workspace, type, types = [], onClose, onSaved, onWorkflowS
 
 export function RecordSettingsPage({ workspace, types, loaded = true, canManage, onNotice, onChanged, loadError }) {
   const [editing, setEditing] = useState(null); // type, or "new"
+  // the open editor follows the latest loaded copy of its type, so a reload after a save reaches it
+  const editingType = editing && editing !== "new" ? (types.find((t) => t.id === editing.id) ?? editing) : null;
   if (!canManage) {
     return (
       <>
@@ -683,8 +687,8 @@ export function RecordSettingsPage({ workspace, types, loaded = true, canManage,
           </div>
         )}
       </section>
-      {editing && <TypeEditor workspace={workspace} types={types} type={editing === "new" ? null : editing} onClose={() => setEditing(null)} onSaved={(m) => { setEditing(null); onNotice(m); onChanged(); }}
-        onWorkflowSaved={onChanged} />}
+      {editing && <TypeEditor workspace={workspace} types={types} type={editingType} onClose={() => setEditing(null)} onSaved={(m) => { setEditing(null); onNotice(m); onChanged(); }}
+        onWorkflowSaved={onChanged} loadError={loadError} onRetry={onChanged} />}
     </>
   );
 }
