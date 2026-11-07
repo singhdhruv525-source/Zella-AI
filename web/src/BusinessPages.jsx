@@ -7,6 +7,7 @@ import {
   APPT_LABEL, APPT_TONE, Empty, Notice, PAGE_SIZE, PageHead, Pager, Segment, changed, clock, friendly, loadPeople,
   availabilityAt, findConflict, orThrow, sourceLabel, useLoad,
 } from "./BusinessShared";
+import { blockCovers } from "./schedulingLogic";
 import { AddCustomerModal, BookAppointmentModal } from "./BusinessForms";
 import { MonthGrid, TimeGrid, clockText, dayInfo, minutesInto } from "./BusinessCalendar";
 import { ActivationCard } from "./BusinessWork";
@@ -266,7 +267,7 @@ function BlockDetail({ block, who, tz, onClose, onChanged, onNotice }) {
     >
       <div className="ba-detail">
         {error && <div className="ba-banner error">{error}</div>}
-        <p className="ba-note">{block.reason || "This time is blocked, so nobody can book into it."}</p>
+        <p className="ba-note">{block.reason || (block.resource_id ? "This room, chair or bay is blocked then; bookings that use it are refused." : block.staff_id ? "This person is unavailable then." : "This time is blocked, so nobody can book into it.")}</p>
       </div>
     </Modal>
   );
@@ -392,13 +393,13 @@ export function CalendarPage({ workspace, industry, refreshKey, onNotice, onOpen
   const matchesQuery = (x) => !q || [personName(people[x.customer_id]), people[x.customer_id]?.phone, x.title, x.appointment_type, x.location]
     .some((v) => String(v ?? "").toLowerCase().includes(q));
   const appts = (data?.appts ?? []).filter((x) => (who === "all" || x.staff_id === who) && matchesStatus(x, statusFilter) && matchesQuery(x));
-  const blocks = (data?.blocks ?? []).filter((b) => who === "all" || !b.staff_id || b.staff_id === who);
+  const blocks = (data?.blocks ?? []).filter((b) => who === "all" || blockCovers(b, who));
   const inDay = (list, d) => list.filter((x) => {
     const t = new Date(x.start_time).getTime();
     return t >= d.start.getTime() && t < d.end.getTime();
   });
   const blocksIn = (d, staffId) => blocks.filter((b) =>
-    new Date(b.start_time) < d.end && new Date(b.end_time) > d.start && (staffId === undefined || !b.staff_id || b.staff_id === (staffId || null)));
+    new Date(b.start_time) < d.end && new Date(b.end_time) > d.start && (staffId === undefined || blockCovers(b, staffId || null)));
 
   // Columns of the hour grid.
   const columns = (() => {
@@ -490,7 +491,7 @@ export function CalendarPage({ workspace, industry, refreshKey, onNotice, onOpen
     const staffId = view === "staff" ? c.staffId ?? "" : appt.staff_id ?? "";
     const blockResult = await supabase.from("blocked_times").select("*").eq("business_id", workspace.id)
       .lt("start_time", end.toISOString()).gt("end_time", start.toISOString());
-    const message = findConflict({ staff, blocks: blockResult.error ? [] : blockResult.data ?? [], start, end, staffId, timeZone: tz });
+    const message = findConflict({ staff, blocks: blockResult.error ? [] : blockResult.data ?? [], start, end, staffId, timeZone: tz, resourceIds: appt.resource_ids });
     const move = { appt, start, end, staffId, message };
     if (message) setPending(move); else applyMove(move);
   }
@@ -606,7 +607,7 @@ export function CalendarPage({ workspace, industry, refreshKey, onNotice, onOpen
         />
       )}
       {openBlock && (
-        <BlockDetail block={openBlock} who={openBlock.staff_id ? staffName[openBlock.staff_id] : "Whole business"} tz={tz} onClose={() => setOpenBlock(null)} onChanged={() => { setOpenBlock(null); reload(); }} onNotice={onNotice} />
+        <BlockDetail block={openBlock} who={openBlock.staff_id ? staffName[openBlock.staff_id] : openBlock.resource_id ? "A room, chair or bay" : "Whole business"} tz={tz} onClose={() => setOpenBlock(null)} onChanged={() => { setOpenBlock(null); reload(); }} onNotice={onNotice} />
       )}
       {blocking && (
         <BlockTimeModal

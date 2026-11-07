@@ -1,6 +1,6 @@
 # Writes a rollback for a migration that patches functions with replace(def, $a$old$a$, $a$new$a$): each is undone as
 # replace(def, new, old), so only that file's additions go and other migrations' changes stay.
-#   python3 -I tests/setup/make_rollback.py [setup|messaging|orders|buffers|channel|escalation|knowledge|configmig|planlang|holiday|windows|tables]
+#   python3 -I tests/setup/make_rollback.py [setup|messaging|orders|buffers|channel|escalation|knowledge|configmig|planlang|holiday|windows|tables|slotblocks]
 import re, sys
 which = sys.argv[1] if len(sys.argv) > 1 else "setup"
 CFG = {
@@ -99,6 +99,7 @@ CFG["tables"] = ("sql/zella_tables.sql", "sql/rollback/zella_tables_rollback.sql
     "alter table if exists public.table_blocks rename to table_blocks_rolled_back;",
     "alter table if exists public.table_combinations rename to table_combinations_rolled_back;",
     "alter table if exists public.restaurant_tables rename to restaurant_tables_rolled_back;"])
+CFG["slotblocks"] = ("sql/zella_slots_resource_blocks.sql", "sql/rollback/zella_slots_resource_blocks_rollback.sql", [])
 SRC, DST, DROPS = CFG[which]
 src = open(SRC).read()
 fns = re.findall(r"pg_get_functiondef\('([^']+)'::regprocedure\);\n  if position\('([a-z_]+)' in def\) = 0 then\n(.*?)\n    execute def;", src, re.S)

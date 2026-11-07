@@ -7,6 +7,14 @@ export const RESOURCE_KINDS = [
 ];
 export const KIND_LABEL = Object.fromEntries(RESOURCE_KINDS);
 
+// A blocked time with neither a person nor a resource closes the whole business (a holiday, a training day). A block on
+// a resource (a room or bay out for maintenance) doesn't: only bookings that use that resource are refused, by the
+// database (zella_resource_guard). Slot search follows the same rule (sql/zella_slots_resource_blocks.sql).
+export const blocksEveryone = (b) => !b.staff_id && !b.resource_id;
+// does this block apply to this person (theirs, or the whole business's)?
+export const blockCovers = (b, staffId) => blocksEveryone(b) || (Boolean(b.staff_id) && b.staff_id === staffId);
+
+
 // a job's state on the board, in words and a tone
 export const JOB_STATUS = {
   unassigned: ["Unassigned", "danger"], assigned: ["Assigned", ""], en_route: ["On the way", "info"], on_site: ["On site", "info"],

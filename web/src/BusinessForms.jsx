@@ -436,7 +436,7 @@ export function RescheduleModal({ workspace, term, appt, person, onClose, onSave
     if (!force) {
       const blockResult = await supabase.from("blocked_times").select("*").eq("business_id", workspace.id)
         .lt("start_time", end.toISOString()).gt("end_time", start.toISOString());
-      const message = findConflict({ staff, blocks: blockResult.error ? [] : blockResult.data ?? [], start, end, staffId: form.staffId, timeZone: tz });
+      const message = findConflict({ staff, blocks: blockResult.error ? [] : blockResult.data ?? [], start, end, staffId: form.staffId, timeZone: tz, resourceIds: appt.resource_ids });
       if (message) {
         setBusy(false);
         setConflict(message);

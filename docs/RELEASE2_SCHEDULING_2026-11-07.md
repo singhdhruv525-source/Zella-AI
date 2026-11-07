@@ -43,15 +43,24 @@ per-industry defaults.
 
 **Not verified:** production; Safari and Firefox; screen readers beyond labels and roles.
 
+## Fixed after the release (owner's approval, 7 Nov)
+A block on a resource (maintenance, cleaning) closed slot search for the whole business. `sql/zella_slots_resource_blocks.sql`
+changes that one rule in `zella_available_slots`: only a block with neither a person nor a resource closes the business; a
+person's block closes only them; the resource itself is still refused when a booking uses it. The app's availability
+checks follow the same rule, and moving a booking onto a blocked room, chair or bay is now warned about before it's tried.
+Slot search is still not fully resource-aware (it doesn't look for a free resource a service needs; see below).
+
+| Command | Kind | Result |
+|---|---|---|
+| `tests/slotblocks/run.sh` | isolated local copy of production state (not production) | **6 / 6 passed**: the test fails without the fix; the fix applies twice; a resource block leaves people bookable and the resource refused; a person's block closes only them; a business-wide block closes everyone; only that one line of slot search changed and every other function is unchanged; the rollback restores slot search exactly; re-applying passes |
+| `tests/deploy/run_all.sh` | the full sequence with this fix | all passed (391 / 391 and 335 / 335 call checks) |
+| `cd web && node --test tests/*.test.mjs` | unit | 45 / 45 (one new test: which blocks cover whom) |
+
 ## Not in this release (needs your decision or a later release)
 - **Slot search and the AI receptionist offer times without looking at resources yet.** A booking that would take a
   chair or room that's full is still refused when it is written (the trigger), so nothing is double-booked, but the
   receptionist could offer a time and then hear it's taken. Making `zella_available_slots` resource-aware changes live
   assistant behaviour, so it needs your approval.
-- **A block on a resource (maintenance, cleaning) also closes slot search for the whole business at that time.** The
-  existing slot search treats a block with no person as business-wide, and it doesn't know about resources yet. No
-  screen creates resource blocks in this release, and the rollback keeps any that exist. Fixing it is part of the
-  resource-aware slot search above, which needs your approval.
 - **No "on my way" texts** to customers when a technician sets off: sending messages needs your approval and the
   messaging switches.
 - **No automatic weekly generation.** Booking the next weeks is a button; running it on a schedule needs a scheduler,
@@ -64,4 +73,7 @@ per-industry defaults.
    `sql/rollback/zella_scheduling_rollback.sql` (keeps every row).
 2. **Web app:** merge to `main`. Until the database has the tables, the new pages say "This isn't available on this
    workspace yet" and the booking form shows no "Uses" choice; nothing else is affected.
+3. **Slot-search fix:** `sql/zella_slots_resource_blocks.sql`, before its pull request is merged. It changes what the AI
+   receptionist's slot search offers (a resource block no longer closes the whole business). Undo:
+   `sql/rollback/zella_slots_resource_blocks_rollback.sql`.
 No edge-function change and no configuration change.

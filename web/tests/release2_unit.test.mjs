@@ -58,3 +58,16 @@ test("refusals are explained in plain words", () => {
   assert.doesNotMatch(scheduleError({ message: 'duplicate key value violates unique constraint "something_else"', code: "23505" }), /resource with that name/);
   assert.match(scheduleError({ message: "something odd" }), /didn't work/);
 });
+
+test("a block on a resource doesn't close the business; a person's block covers only them", async () => {
+  const { blockCovers, blocksEveryone } = await import("../src/schedulingLogic.js");
+  const holiday = { staff_id: null, resource_id: null }, bay = { staff_id: null, resource_id: "r1" }, ana = { staff_id: "s1", resource_id: null };
+  assert.equal(blocksEveryone(holiday), true);
+  assert.equal(blocksEveryone(bay), false);
+  assert.equal(blocksEveryone(ana), false);
+  assert.equal(blockCovers(holiday, "s1"), true);
+  assert.equal(blockCovers(bay, "s1"), false);
+  assert.equal(blockCovers(ana, "s1"), true);
+  assert.equal(blockCovers(ana, "s2"), false);
+  assert.equal(blockCovers(ana, null), false);
+});
