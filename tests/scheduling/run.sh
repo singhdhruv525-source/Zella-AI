@@ -12,7 +12,8 @@ read -r -a PENDING <<< "$(sed -n '/^PENDING=(/,/)/p' "$REPO/tests/deploy/run_all
 for m in "${PENDING[@]}"; do [[ "$m" =~ ^zella_[a-z0-9_]+$ ]] || { echo "FAIL unexpected pending entry: $m"; exit 1; }; done
 [ "${#PENDING[@]}" -ge 10 ] || { echo "FAIL could not read the pending list"; exit 1; }
 "$REPO/tests/lib/build_full.sh" "$DB" "$REPO/tests/channel/fixture.sql" || exit 1
-for m in "${PENDING[@]}" zella_batch1_security zella_batch3_pagination zella_relationships; do
+for m in "${PENDING[@]}" zella_batch1_security zella_batch3_pagination; do
+  [ "$m" = zella_scheduling ] && continue   # applied below, after the baseline hash is taken
   [ -f "$REPO/sql/$m.sql" ] || continue
   out=$("${P[@]}" -d "$DB" -f "$REPO/sql/$m.sql" 2>&1) || { echo "FAIL apply $m: $(echo "$out" | grep -m1 ERROR)"; exit 1; }
 done
