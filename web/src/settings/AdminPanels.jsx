@@ -209,11 +209,11 @@ export function AllBusinesses({ openBusiness }) {
               ["Business", (b) => <button type="button" className="zs-link" onClick={() => openBusiness(b.id)}>{b.name}</button>],
               ["Industry", (b) => b.industry ?? "—"],
               ["Status", (b) => { const [t, tone] = businessState(b); return <Pill tone={tone}>{t}</Pill>; }],
-              ["Plan", (b) => (b.subscription ? `${b.subscription.plan ?? "Plan"} · ${words(b.subscription.status)}` : "None")],
+              ["Plan", (b) => (r.subscriptionLookupFailed ? "Unavailable" : b.subscription ? `${b.subscription.plan ?? "Plan"} · ${words(b.subscription.status)}` : "None")],
               ["Team", (b) => b.members],
               ["Apps", (b) => (b.integrations.total ? `${b.integrations.total}${b.integrations.failing ? ` · ${b.integrations.failing} failing` : ""}` : "None")],
               ["Created", (b) => (b.created_at ? <span title={when(b.created_at)} style={{ whiteSpace: "nowrap" }}>{new Date(b.created_at).toLocaleDateString([], { dateStyle: "medium" })}</span> : "—")],
-              ["", (b) => <button type="button" className="zs-btn sm" aria-expanded={expanded === b.id} aria-label={`${expanded === b.id ? "Hide" : "Show"} the summary for ${b.name}`} onClick={() => setExpanded(expanded === b.id ? null : b.id)}>{expanded === b.id ? "Hide" : "Open"}</button>],
+              ["", (b) => <button type="button" className="zs-btn sm" aria-expanded={expanded === b.id} onClick={() => setExpanded(expanded === b.id ? null : b.id)}>{expanded === b.id ? "Hide summary" : "Show summary"}</button>],
             ]} />
             {expanded && <TenantSummary businessId={expanded} />}
             <Pager page={r.page} size={r.size} total={r.total} onPage={(page) => setFilters({ ...filters, page })} />

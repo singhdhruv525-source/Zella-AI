@@ -130,13 +130,13 @@ async function seeds(isAdmin, email) {
   const { execFileSync } = require("child_process");
   // the isolated test server only: a socket directory and a z… test database (as tests/lib's guard requires)
   const pgHost = process.env.ZPG_HOST ?? "/var/lib/postgresql/zella-sec", db = process.env.ZDB;
-  if (db && (!/^z[a-z0-9_]*$/.test(db) || !pgHost.startsWith("/"))) { console.error("Refusing to read the database: ZDB must be a z… test database on a local socket"); process.exit(2); }
-  const q = (sql, vars = {}) => { try {
-    const args = ["-h", pgHost, "-p", process.env.ZPG_PORT ?? "55433", "-U", "postgres", "-d", db, "-qtAX"];
+  if (db && (!/^z[a-z0-9_]*$/.test(db) || !pgHost.startsWith("/"))) { throw new Error("Refusing to read the database: ZDB must be a z… test database on a local socket"); }
+  const q = (sql, vars = {}) => {
+    const args = ["-h", pgHost, "-p", process.env.ZPG_PORT ?? "55433", "-U", "postgres", "-d", db, "-qtAX", "-v", "ON_ERROR_STOP=1"];
     for (const [k, v] of Object.entries(vars)) args.push("-v", `${k}=${v}`);
     // -c doesn't expand :'var', so the query goes in on stdin
     return execFileSync("psql", args, { encoding: "utf8", input: sql }).trim().split("\n").filter(Boolean);
-  } catch { return []; } };
+  };
   if (isAdmin) return [...ADMIN_PAGES, ...(process.env.ZDB ? q("select '/businesses/' || id from businesses where name like 'B3 Alpha' union all select '/businesses/' || id || '/setup' from businesses where name like 'B3 Alpha'") : [])];
   const nav = await import(path.join(__dirname, "../../web/src/navigation/navConfig.js"));
   const flat = (items) => items.flatMap((i) => (i.children ? [i, ...flat(i.children)] : [i]));
@@ -149,94 +149,103 @@ async function seeds(isAdmin, email) {
 async function sweep(browser, name, email) {
   const vw = MOBILE ? { width: 390, height: 844 } : { width: 1280, height: 860 };
   const ctx = await browser.newContext({ viewport: vw, deviceScaleFactor: 1, colorScheme: DARK ? "dark" : "light", reducedMotion: "reduce", isMobile: MOBILE, hasTouch: MOBILE });
-  await ctx.route("https://zlocal.supabase.co/**", async (route) => {
-    const req = route.request();
-    const url = req.url().replace("https://zlocal.supabase.co", BACKEND);
-    try {
-      const r = await fetch(url, { method: req.method(), headers: req.headers(), body: ["GET", "HEAD"].includes(req.method()) ? undefined : req.postDataBuffer() });
-      await route.fulfill({ status: r.status, headers: Object.fromEntries(r.headers.entries()), body: Buffer.from(await r.arrayBuffer()) });
-    } catch { await route.abort(); }
-  });
-  // fonts and other outside hosts: answered empty so a blocked network is not reported as a glitch
-  // every other outside address, http or https, answers empty: nothing leaves this machine but the font
-  await ctx.route(/^https?:\/\/(?!zlocal\.supabase\.co[/:]|fonts\.googleapis\.com\/|fonts\.gstatic\.com\/|localhost[/:]|127\.0\.0\.1[/:])/, (r) => r.fulfill({ status: 200, body: "" }));
-  const page = await ctx.newPage();
-  page.setDefaultTimeout(8000);
-  const pageErrors = [], failed = [], consoleErrors = [];
-  page.on("pageerror", (e) => pageErrors.push(e.message.slice(0, 200)));
-  page.on("console", (m) => { if (m.type() === "error") consoleErrors.push(m.text().slice(0, 200)); });
-  page.on("response", async (r) => {
-    if (r.status() >= 400 && r.url().includes("zlocal.supabase.co")) {
-      let body = ""; try { body = (await r.text()).slice(0, 200); } catch { /* gone */ }
-      failed.push({ status: r.status(), url: decodeURIComponent(r.url().replace(/^https?:\/\/[^/]+/, "")).slice(0, 160), body });
+  try {
+    await ctx.route("https://zlocal.supabase.co/**", async (route) => {
+      const req = route.request();
+      const url = req.url().replace("https://zlocal.supabase.co", BACKEND);
+      try {
+        const r = await fetch(url, { method: req.method(), headers: req.headers(), body: ["GET", "HEAD"].includes(req.method()) ? undefined : req.postDataBuffer() });
+        await route.fulfill({ status: r.status, headers: Object.fromEntries(r.headers.entries()), body: Buffer.from(await r.arrayBuffer()) });
+      } catch { await route.abort(); }
+    });
+    // fonts and other outside hosts: answered empty so a blocked network is not reported as a glitch
+    // every other outside address, http or https, answers empty: nothing leaves this machine but the font
+    await ctx.route(/^https?:\/\/(?!zlocal\.supabase\.co[/:]|fonts\.googleapis\.com\/|fonts\.gstatic\.com\/|localhost[/:]|127\.0\.0\.1[/:])/, (r) => r.fulfill({ status: 200, body: "" }));
+    const page = await ctx.newPage();
+    page.setDefaultTimeout(8000);
+    const pageErrors = [], failed = [], consoleErrors = [];
+    page.on("pageerror", (e) => pageErrors.push(e.message.slice(0, 200)));
+    page.on("console", (m) => { if (m.type() === "error") consoleErrors.push(m.text().slice(0, 200)); });
+    page.on("response", async (r) => {
+      if (r.status() >= 400 && r.url().includes("zlocal.supabase.co")) {
+        let body = ""; try { body = (await r.text()).slice(0, 200); } catch { /* gone */ }
+        failed.push({ status: r.status(), url: decodeURIComponent(r.url().replace(/^https?:\/\/[^/]+/, "")).slice(0, 160), body });
+      }
+    });
+    const isAdmin = !/@b3\.test$/.test(email) && /zella\.test$/.test(email);
+    const root = isAdmin ? "/" : "/app";
+    await page.goto(APP + root);
+    await signIn(page, email);
+    await page.waitForTimeout(2500);
+    const dir = path.join(OUT, `${name}${MOBILE ? "-mobile" : ""}${DARK ? "-dark" : ""}`);
+    fs.mkdirSync(dir, { recursive: true });
+    const queue = [root, isAdmin ? "/settings" : "/app/settings", ...(await seeds(isAdmin, email))], seen = new Set(), shapes = new Map(), results = [];
+    while (queue.length && results.length < MAX) {
+      const route = queue.shift();
+      const key = route.split("?")[0].split("#")[0];
+      if (seen.has(key) || SKIP.test(key)) continue;
+      const sh = shape(key);
+      if ((shapes.get(sh) ?? 0) >= 1 && sh !== key) continue;
+      seen.add(key); shapes.set(sh, (shapes.get(sh) ?? 0) + 1);
+      if (ONLY && !key.includes(ONLY)) { /* still crawl through it for links */ }
+      pageErrors.length = 0; failed.length = 0; consoleErrors.length = 0;
+      await page.goto(APP + key).catch(() => {});
+      const stuck = await settle(page);
+      if (/\/settings/.test(key)) await openSettingsTree(page);
+      if (MOBILE) { // the phone menu: open it to collect its links, then close it
+        const burger = page.locator('[aria-label*="menu" i]').first();
+        if (await burger.isVisible().catch(() => false)) { await burger.click().catch(() => {}); await page.waitForTimeout(300); }
+      }
+      for (const h of await links(page, root)) if (!seen.has(h.split("?")[0])) queue.push(h);
+      if (MOBILE) await page.keyboard.press("Escape").catch(() => {});
+      if (ONLY && !key.includes(ONLY)) continue;
+      const info = await inspect(page, vw.width);
+      let axe = null;
+      if (AXE) {
+        await page.addScriptTag({ content: AXE }).catch(() => {});
+        axe = await page.evaluate(async () => {
+          if (!window.axe) return null;
+          const r = await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa"] }, resultTypes: ["violations"] });
+          return r.violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => ({ id: v.id, n: v.nodes.length,
+            sample: v.nodes.slice(0, 2).map((n) => `${n.target.join(" ")} :: ${(n.failureSummary ?? "").split("\n").slice(-1)[0].slice(0, 120)}`) }));
+        }).catch(() => null);
+      }
+      const shot = path.join(dir, (key.replace(UUID, "id").replace(/[^a-z0-9]+/gi, "_").replace(/^_|_$/g, "") || "root") + ".png");
+      await page.screenshot({ path: shot }).catch(() => {});
+      const row = { route: key, ...info, stuck, pageErrors: [...pageErrors], failed: [...failed], consoleErrors: [...new Set(consoleErrors)].slice(0, 5), axe, shot };
+      const problems = [
+        row.crashed && "CRASH", row.pageErrors.length && `pageerror:${row.pageErrors[0]}`, row.notFound && "NOT-FOUND", row.signIn && "SIGNED-OUT",
+        row.stuck && "STUCK-LOADING", row.failed.length && `failed:${row.failed.map((f) => `${f.status} ${f.url.split("?")[0]}`).join(",")}`,
+        row.consoleErrors.length && `console:${row.consoleErrors[0]}`, row.overflowX > 0 && `overflowX=${row.overflowX} ${row.wide.slice(0, 2).join(" ; ")}`,
+        !MOBILE && row.scrollers.length && `table-scrolls:${row.scrollers.join(" ; ")}`,
+        row.clipped.length && `clipped:${row.clipped.slice(0, 2).join(" ; ")}`, row.brokenImg.length && "broken-img", row.rawValues.length && `raw:${row.rawValues.join("/")}`,
+        row.empty && !row.notAvailable && "EMPTY", row.axe?.length && `axe:${row.axe.map((a) => a.id).join(",")}`,
+      ].filter(Boolean);
+      row.problems = problems;
+      results.push(row);
+      console.log(`${problems.length ? "CHECK" : "ok   "} ${name} ${key} [${row.title}] ${problems.join(" | ")}`);
     }
-  });
-  const isAdmin = !/@b3\.test$/.test(email) && /zella\.test$/.test(email);
-  const root = isAdmin ? "/" : "/app";
-  await page.goto(APP + root);
-  await signIn(page, email);
-  await page.waitForTimeout(2500);
-  const dir = path.join(OUT, `${name}${MOBILE ? "-mobile" : ""}${DARK ? "-dark" : ""}`);
-  fs.mkdirSync(dir, { recursive: true });
-  const queue = [root, isAdmin ? "/settings" : "/app/settings", ...(await seeds(isAdmin, email))], seen = new Set(), shapes = new Map(), results = [];
-  while (queue.length && results.length < MAX) {
-    const route = queue.shift();
-    const key = route.split("?")[0].split("#")[0];
-    if (seen.has(key) || SKIP.test(key)) continue;
-    const sh = shape(key);
-    if ((shapes.get(sh) ?? 0) >= 1 && sh !== key) continue;
-    seen.add(key); shapes.set(sh, (shapes.get(sh) ?? 0) + 1);
-    if (ONLY && !key.includes(ONLY)) { /* still crawl through it for links */ }
-    pageErrors.length = 0; failed.length = 0; consoleErrors.length = 0;
-    await page.goto(APP + key).catch(() => {});
-    const stuck = await settle(page);
-    if (/\/settings/.test(key)) await openSettingsTree(page);
-    if (MOBILE) { // the phone menu: open it to collect its links, then close it
-      const burger = page.locator('[aria-label*="menu" i]').first();
-      if (await burger.isVisible().catch(() => false)) { await burger.click().catch(() => {}); await page.waitForTimeout(300); }
-    }
-    for (const h of await links(page, root)) if (!seen.has(h.split("?")[0])) queue.push(h);
-    if (MOBILE) await page.keyboard.press("Escape").catch(() => {});
-    if (ONLY && !key.includes(ONLY)) continue;
-    const info = await inspect(page, vw.width);
-    let axe = null;
-    if (AXE) {
-      await page.addScriptTag({ content: AXE }).catch(() => {});
-      axe = await page.evaluate(async () => {
-        if (!window.axe) return null;
-        const r = await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa"] }, resultTypes: ["violations"] });
-        return r.violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => ({ id: v.id, n: v.nodes.length,
-          sample: v.nodes.slice(0, 2).map((n) => `${n.target.join(" ")} :: ${(n.failureSummary ?? "").split("\n").slice(-1)[0].slice(0, 120)}`) }));
-      }).catch(() => null);
-    }
-    const shot = path.join(dir, (key.replace(UUID, "id").replace(/[^a-z0-9]+/gi, "_").replace(/^_|_$/g, "") || "root") + ".png");
-    await page.screenshot({ path: shot }).catch(() => {});
-    const row = { route: key, ...info, stuck, pageErrors: [...pageErrors], failed: [...failed], consoleErrors: [...new Set(consoleErrors)].slice(0, 5), axe, shot };
-    const problems = [
-      row.crashed && "CRASH", row.pageErrors.length && `pageerror:${row.pageErrors[0]}`, row.notFound && "NOT-FOUND", row.signIn && "SIGNED-OUT",
-      row.stuck && "STUCK-LOADING", row.failed.length && `failed:${row.failed.map((f) => `${f.status} ${f.url.split("?")[0]}`).join(",")}`,
-      row.consoleErrors.length && `console:${row.consoleErrors[0]}`, row.overflowX > 0 && `overflowX=${row.overflowX} ${row.wide.slice(0, 2).join(" ; ")}`,
-      !MOBILE && row.scrollers.length && `table-scrolls:${row.scrollers.join(" ; ")}`,
-      row.clipped.length && `clipped:${row.clipped.slice(0, 2).join(" ; ")}`, row.brokenImg.length && "broken-img", row.rawValues.length && `raw:${row.rawValues.join("/")}`,
-      row.empty && !row.notAvailable && "EMPTY", row.axe?.length && `axe:${row.axe.map((a) => a.id).join(",")}`,
-    ].filter(Boolean);
-    row.problems = problems;
-    results.push(row);
-    console.log(`${problems.length ? "CHECK" : "ok   "} ${name} ${key} [${row.title}] ${problems.join(" | ")}`);
+    fs.writeFileSync(path.join(dir, "results.json"), JSON.stringify(results, null, 1));
+    return results;
+  } finally {
+    await ctx.close();
   }
-  fs.writeFileSync(path.join(dir, "results.json"), JSON.stringify(results, null, 1));
-  await ctx.close();
-  return results;
 }
 
 (async () => {
   const browser = await chromium.launch();
-  const names = !args[0] || args[0] === "all" ? Object.keys(PERSONAS) : args[0].split(",");
-  const summary = {};
-  for (const n of names) {
-    const r = await sweep(browser, n, PERSONAS[n]);
-    summary[n] = { pages: r.length, withProblems: r.filter((x) => x.problems.length).length };
+  try {
+    const names = !args[0] || args[0] === "all" ? Object.keys(PERSONAS) : args[0].split(",");
+    const summary = {};
+    for (const n of names) {
+      const r = await sweep(browser, n, PERSONAS[n]);
+      summary[n] = { pages: r.length, withProblems: r.filter((x) => x.problems.length).length };
+    }
+    console.log(JSON.stringify(summary));
+  } finally {
+    await browser.close();
   }
-  await browser.close();
-  console.log(JSON.stringify(summary));
-})();
+})().catch(() => {
+  console.error("Glitch sweep failed; no success summary was produced.");
+  process.exitCode = 1;
+});
