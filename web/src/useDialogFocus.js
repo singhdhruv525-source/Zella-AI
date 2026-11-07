@@ -5,6 +5,10 @@ import { Children, cloneElement, useEffect, useRef } from "react";
 // control that opened it when it closes. Returns the ref for the dialog element.
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+// Open dialogs, newest last: only the topmost one handles Tab and Escape, so a confirmation opened over a drawer
+// keeps the keyboard and the drawer underneath doesn't pull focus back out of it.
+const OPEN = [];
+
 export function useDialogFocus(onClose, busy = false) {
   const ref = useRef(null);
   const close = useRef(onClose);
@@ -18,7 +22,10 @@ export function useDialogFocus(onClose, busy = false) {
     const items = () => [...(box?.querySelectorAll(FOCUSABLE) ?? [])].filter((el) => el.offsetParent !== null || el === document.activeElement);
     (box?.querySelector("[data-autofocus]") ?? items()[0] ?? box)?.focus?.();
 
+    const me = {};
+    OPEN.push(me);
     const onKey = (event) => {
+      if (OPEN[OPEN.length - 1] !== me) return;   // another dialog is open on top of this one
       if (event.key === "Escape") {
         if (!isBusy.current && close.current) { event.stopPropagation(); close.current(); }
         return;
@@ -33,6 +40,8 @@ export function useDialogFocus(onClose, busy = false) {
     document.addEventListener("keydown", onKey, true);
     return () => {
       document.removeEventListener("keydown", onKey, true);
+      const at = OPEN.indexOf(me);
+      if (at >= 0) OPEN.splice(at, 1);
       if (opener && typeof opener.focus === "function" && document.contains(opener)) opener.focus();
     };
   }, []);

@@ -178,7 +178,7 @@ const AUTO = (dispatchEnabled) => ({ json: { workflows: [], deadLetters: 0, disp
     const loads = await p.evaluate(() => performance.getEntriesByType("navigation").length);
     await p.click("[data-load=failed] >> text=Retry"); await p.waitForSelector("text=Calls");
     check(await p.evaluate(() => performance.getEntriesByType("navigation").length) === loads && !(await p.isVisible("[data-load]")), "B2-05 Retry succeeds without a page reload");
-    check(await p.isVisible("text=Edit in Industry Configuration"), "B2-05 link to Industry Configuration kept");
+    check(await p.isVisible("text=Edit in Industry configuration"), "B2-05 link to Industry configuration kept");
     await ctx.close(); }
   { const { ctx, p } = await open(b, { modules_overview: () => ({ json: { modules: [], industries: 28 } }) });
     await p.goto(BASE + "/modules"); await p.waitForSelector("text=No modules configured yet.");

@@ -77,6 +77,8 @@ export function onboardingHandlers(admin: SupabaseClient, fields: Json, userId: 
   const saveOperations = async () => {
     const businessId = requireId(fields.businessId);
     const business = await kit.getBusiness(admin, businessId);
+    // the receptionist is checked first: a business without one is refused before anything is written
+    const { agent, config } = await kit.getReceptionist(admin, businessId);
     const input = obj(fields.operations);
     const { rows, kb: hoursKb } = cleanHours(obj(input.hours), kit);
 
@@ -124,7 +126,6 @@ export function onboardingHandlers(admin: SupabaseClient, fields: Json, userId: 
     await kit.mergeSetupData(admin, businessId, "operations", { details, booking: bookingRules, appointments: bookingRules !== null });
 
     // 3. What the AI receptionist knows: merged, so the receptionist step's own answers stay.
-    const { agent, config } = await kit.getReceptionist(admin, businessId);
     const knowledge = {
       ...obj(config?.knowledge_base),
       about, hours: hoursKb, services,

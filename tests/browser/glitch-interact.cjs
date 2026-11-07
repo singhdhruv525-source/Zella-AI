@@ -14,13 +14,19 @@ const APP = process.env.APP_URL ?? "http://localhost:5199";
 const BACKEND = process.env.BACKEND_URL ?? "http://localhost:54321";
 const OUT = process.env.OUT ?? path.join(__dirname, "out", "glitch");
 const [persona, resultsFile] = process.argv.slice(2);
+// Never against a real project: the backend must be the local stand-in on this machine.
+{
+  const host = new URL(BACKEND).hostname;
+  if (!["localhost", "127.0.0.1", "::1", "[::1]"].includes(host)) { console.error(`Refusing to run: BACKEND_URL must be the local stand-in, not ${host}`); process.exit(2); }
+}
+
 const MOBILE = process.argv.includes("--mobile");
 const PERSONAS = process.env.PERSONAS ? JSON.parse(process.env.PERSONAS) : {
   admin: "admin@zella.test", readonly: "readonly@zella.test",
   owner: "own-a@b3.test", manager: "multi@b3.test", staff: "staff-a@b3.test", viewer: "view-a@b3.test",
 };
-const OPENERS = /^(\+\s*)?(add|new|create|edit|filter|more|open|block time|book|invite|change|customize|manage|view|details|assign|move|reschedule|import|connect|set up|choose|pick|upload|write|compose|reply|note|ask)\b/i;
-const NEVER = /delete|remove|cancel|archive|send|call now|call |sign out|log out|pay|charge|refund|suspend|reactivate|publish|disconnect|revoke|reset|merge|block caller|mark |approve|decline|confirm|save|finish|submit|test ai voice|try again|refresh|export|download/i;
+const OPENERS = /^(\+\s*)?(add|new|create|edit|filter|more|open|block time|book|invite|change|customize|manage|view|details|assign|move|reschedule|set up|choose|pick|upload|write|compose|reply|note|ask)\b/i;
+const NEVER = /invite|import|connect|delete|remove|cancel|archive|send|call now|call |sign out|log out|pay|charge|refund|suspend|reactivate|publish|disconnect|revoke|reset|merge|block caller|mark |approve|decline|confirm|save|finish|submit|test ai voice|try again|refresh|export|download/i;
 
 async function main() {
   const rows = JSON.parse(fs.readFileSync(resultsFile, "utf8"));
@@ -94,7 +100,7 @@ async function main() {
       if (state.opened) {
         await page.keyboard.press("Escape").catch(() => {});
         await page.waitForTimeout(400);
-        const still = await page.$('[role="dialog"], .ba-modal, .owner-modal, [aria-modal="true"]');
+        const still = await page.$('[role="dialog"], [role="menu"], .ba-modal, .owner-modal, .ba-drawer, .zs-drawer, [aria-modal="true"]');
         if (still && (await still.isVisible().catch(() => false))) {
           problems.push("Escape doesn't close it");
           const close = page.locator('[role="dialog"] button[aria-label*="Close" i], [role="dialog"] button:has-text("Close"), [role="dialog"] button:has-text("Cancel"), .ba-modal button:has-text("Cancel")').first();

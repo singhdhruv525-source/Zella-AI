@@ -2230,5 +2230,5 @@ html:not([data-zella-icons="ready"]) .ba-header-actions { flex-wrap: wrap; flex-
 .ba-calls-table th, .ba-calls-table td { padding-left: 12px; padding-right: 12px; }
 .ba-calls-table td:nth-child(2), .ba-calls-table td:nth-child(4), .ba-calls-table td:nth-child(5) { white-space: nowrap; }
 .ba-calls-table .ba-person small { white-space: nowrap; }
-.ba-calls-flags { min-width: 120px; }
+.ba-calls-table .ba-calls-flags { width: auto; min-width: 120px; white-space: normal; text-align: left; }
 .ba-calls-flags > * { margin: 2px 4px 2px 0; vertical-align: middle; }

@@ -20,6 +20,12 @@ const BACKEND = process.env.BACKEND_URL ?? "http://localhost:54321";
 const OUT = process.env.OUT ?? path.join(__dirname, "out", "glitch");
 let AXE = null; try { AXE = fs.readFileSync(require.resolve("axe-core/axe.min.js"), "utf8"); } catch { /* axe optional */ }
 const PASSWORD = "Test-pass-1";
+// Never against a real project: the backend must be the local stand-in on this machine.
+{
+  const host = new URL(BACKEND).hostname;
+  if (!["localhost", "127.0.0.1", "::1", "[::1]"].includes(host)) { console.error(`Refusing to run: BACKEND_URL must be the local stand-in, not ${host}`); process.exit(2); }
+}
+
 const args = process.argv.slice(2);
 const MOBILE = args.includes("--mobile"), DARK = args.includes("--dark");
 const ONLY = (args.find((a) => a.startsWith("--only=")) ?? "").slice(7);
@@ -122,13 +128,21 @@ const ADMIN_PAGES = ["/businesses", "/businesses/new", "/verification", "/indust
   "/messaging", "/operations", "/automations", "/integrations", "/support", "/security-abuse", "/users", "/audit-logs"];
 async function seeds(isAdmin, email) {
   const { execFileSync } = require("child_process");
-  const q = (sql) => { try { return execFileSync("psql", ["-h", process.env.ZPG_HOST ?? "/var/lib/postgresql/zella-sec", "-p", process.env.ZPG_PORT ?? "55433", "-U", "postgres", "-d", process.env.ZDB, "-qtAX", "-c", sql], { encoding: "utf8" }).trim().split("\n").filter(Boolean); } catch { return []; } };
+  // the isolated test server only: a socket directory and a z… test database (as tests/lib's guard requires)
+  const pgHost = process.env.ZPG_HOST ?? "/var/lib/postgresql/zella-sec", db = process.env.ZDB;
+  if (db && (!/^z[a-z0-9_]*$/.test(db) || !pgHost.startsWith("/"))) { console.error("Refusing to read the database: ZDB must be a z… test database on a local socket"); process.exit(2); }
+  const q = (sql, vars = {}) => { try {
+    const args = ["-h", pgHost, "-p", process.env.ZPG_PORT ?? "55433", "-U", "postgres", "-d", db, "-qtAX"];
+    for (const [k, v] of Object.entries(vars)) args.push("-v", `${k}=${v}`);
+    // -c doesn't expand :'var', so the query goes in on stdin
+    return execFileSync("psql", args, { encoding: "utf8", input: sql }).trim().split("\n").filter(Boolean);
+  } catch { return []; } };
   if (isAdmin) return [...ADMIN_PAGES, ...(process.env.ZDB ? q("select '/businesses/' || id from businesses where name like 'B3 Alpha' union all select '/businesses/' || id || '/setup' from businesses where name like 'B3 Alpha'") : [])];
   const nav = await import(path.join(__dirname, "../../web/src/navigation/navConfig.js"));
   const flat = (items) => items.flatMap((i) => (i.children ? [i, ...flat(i.children)] : [i]));
   const pages = flat(nav.NAV_ITEMS).filter((i) => i.page && i.page !== "today").map((i) => `/app/${i.page}`);
   pages.push("/app/record-settings");
-  if (process.env.ZDB) for (const k of q(`select distinct t.key from crm_record_types t join business_members m on m.business_id = t.business_id join auth.users u on u.id = m.user_id where lower(u.email) = lower('${email.replace(/'/g, "")}')`)) pages.push(`/app/records/${encodeURIComponent(k)}`);
+  if (process.env.ZDB) for (const k of q("select distinct t.key from crm_record_types t join business_members m on m.business_id = t.business_id join auth.users u on u.id = m.user_id where lower(u.email) = lower(:'email')", { email })) pages.push(`/app/records/${encodeURIComponent(k)}`);
   return pages;
 }
 

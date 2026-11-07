@@ -10,7 +10,7 @@ businesses only). Nothing touched production; nothing was sent.
 | Tool | What it does |
 |---|---|
 | `tests/browser/glitch-sweep.cjs` | Signs in through the real sign-in page as each role and opens every page: the CRM and admin menus (from the app's own registries), every Settings subpage (all categories opened), every record type, and detail pages found by crawling. Per page it records crashes, the error screen, console errors, failed backend calls, "Page not found", pages stuck loading, sideways overflow (and the elements causing it), tables that need sideways scrolling at laptop width, cut-off buttons, broken images, raw values (`undefined`, `NaN`, `Invalid Date`), empty pages and axe-core accessibility problems (serious and critical, WCAG 2.1 AA), plus a screenshot. |
-| `tests/browser/glitch-interact.cjs` | On every page from a sweep, clicks each button that opens something (Add, New, Edit, Filter, More, Open, Block time…) and checks a dialog, drawer or form appears, nothing crashes or fails, focus moves into the dialog, it fits the screen and Escape closes it. Buttons that delete, cancel, send, call, pay, publish or sign out are never clicked. |
+| `tests/browser/glitch-interact.cjs` | On every page from a sweep, clicks each button that opens something (Add, New, Edit, Filter, More, Open, Block time…) and checks that a dialog, menu or drawer appears, nothing crashes, no backend call fails, the console stays clean, focus moves into it, it isn't off screen or wider than itself, and Escape closes it (the same dialog, menu and drawer selectors for both checks). Buttons whose label mentions deleting, canceling, sending, calling, paying, publishing, inviting, importing, connecting or signing out are never clicked. Both scripts refuse to run unless the backend is on localhost, and the sweep reads only a `z…` test database on a local socket. |
 
 Roles: Zella owner and read-only admin (admin dashboard); owner, manager, staff and viewer (CRM). Views: laptop
 (1280 px) in the default theme, the Glass (dark) theme, and a phone (390 px). Screenshots were also reviewed by
@@ -26,7 +26,9 @@ eye.
 | CRM › Calls | The table needed sideways scrolling on a laptop; "Follow-up set" was cut off, "1 d ago" broke over two lines. | Tighter columns, one-line times, the flags column wraps. |
 | CRM › Today | "100% vs last week" in red: the direction was only an arrow icon. Five stat cards left Spam alone on a second row; on a phone the longer wording ran off the card. | "Up/Down N% vs last week" in words, the arrow flows with them, five cards fit one row, the text wraps on a phone. |
 | CRM › phone header | The business switcher was squeezed into a sliver next to the menu button. | It keeps its initials at full size. |
-| CRM › Settings › Daily report | Staff and viewers got "Couldn't load this… Try again" (the server only shows it to owners and admins; trying again can't work). | They see "Only an owner or admin can see and change the daily report." |
+| CRM › Settings › Daily report | Staff and viewers got "Couldn't load this… Try again" (the server shows it to owners, admins and managers only; trying again can't work). | Staff and viewers see "Only owners, admins and managers can see the daily report."; managers see it read-only. |
+| Dialogs over dialogs | A confirmation opened over a drawer (the spam incident panel) had two focus traps: the drawer's pulled Tab back out of the confirmation. | Only the topmost open dialog handles Tab and Escape. |
+| Admin › setup wizard (no receptionist) | Hours & services wrote the business hours before refusing for a missing receptionist, so a failed save still changed them. | The receptionist is checked before anything is written. |
 | CRM › Calendar connections | "Connect Google Calendar / Outlook" said "couldn't be started. Try again" when the connection isn't set up on Zella (the server's `not_configured` answer wasn't recognised). Google sign-in isn't set up yet, so every owner would have hit this. | It says the calendar can't be connected yet and to contact Zella support. "canceled" spelling. |
 | CRM › Store connection | The same `not_configured` answer gave a generic failure. | Explained. |
 | CRM › Dispatch, Resources, Follow-through | Plain browser date box and select (unstyled); Follow-through had no breadcrumb. | The styled date box and select; breadcrumb added. |
@@ -42,12 +44,16 @@ Final run on the fixed build (isolated test database, local stand-in; not produc
 
 | Run | Pages | With problems |
 |---|---|---|
-| Glass (dark) theme, owner (CRM) + Zella owner (admin) | 129 + 95 | 0 |
-| Laptop, default theme, all six roles | in progress, see below | |
-| Phone (390 px), owner + Zella owner | in progress, see below | |
-| Click-through, staff | every opening button on every staff page | 0 real (two reports checked by hand: Filter opens inline; Callbacks › More does move focus, the check looked too early) |
+| Laptop, default theme: owner, manager, staff, viewer (CRM) | 129 each | 0 |
+| Laptop, default theme: Zella owner (admin) | 95 | 1, Settings › All businesses needed sideways scrolling; fixed after the run (columns shortened, the Summary button is an icon) and re-measured: no scrolling |
+| Laptop, default theme: read-only admin | 57 of 95 when the report was written | the known read-only-admin refusals (see "Not changed") |
+| Glass (dark) theme: owner (CRM) + Zella owner (admin) | 129 + 95 | 0 |
+| Phone (390 px): owner (CRM) | 43 (every menu page and record type; most Settings subpages weren't reached, because the crawler doesn't open the phone's Settings menu) | 0 |
+| Phone (390 px): Zella owner (admin) | 24 when the report was written | 2, buttons squeezed in panel headings (Overview, business page); fixed after the run and re-measured: none squeezed, no sideways overflow |
+| Click-through: owner, Zella owner, staff | every opening button on every page | no real problem left; the remaining reports were checked by hand: Filter, Edit, Details, Add hours and Add a service open inline; authenticator setup and picture upload open the system's own screens; Callbacks › More does move focus (the check reads it on a fixed delay) |
 
-The web unit tests pass (53/53); `deno check` passes for `owner-provision-business`; the production build passes.
+The web unit tests pass (53/53); `tests/browser/admin-permissions.cjs` passes (49/49) with the sentence-case
+sidebar; `deno check` passes for `owner-provision-business`; the production build passes.
 
 ## Not changed (and why)
 

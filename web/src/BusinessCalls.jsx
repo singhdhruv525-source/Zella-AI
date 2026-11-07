@@ -264,7 +264,7 @@ export function CallsPage({ workspace, refreshKey, onNotice, onOpenPerson, trans
                         <td>{clock(c.duration_seconds)}</td>
                         <td>{c.outcome ? <Pill tone={OUTCOME_TONE[c.outcome]}>{OUTCOMES[c.outcome]}</Pill> : <span className="ba-muted">—</span>}</td>
                         <td><Assignee id={c.assigned_to} nameOf={roster.nameOf} /></td>
-                        <td className="ba-calls-flags">
+                        <td className="ba-actions ba-calls-flags">
                           {isOpenEscalation(c) && <Pill tone="danger">Needs a person</Pill>}
                           {openLinks > 0 && <Pill tone="info" >Follow-up set</Pill>}
                           {recordingAllowed(c) && <Icon name="graphic_eq" size="sm" />}
