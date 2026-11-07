@@ -19,8 +19,10 @@ function useRun(onNotice, reload) {
   async function run(work, done) {
     if (busy) return false;
     setBusy(true); setProblem("");
-    const res = await work();
-    setBusy(false);
+    let res;
+    try { res = await work(); }
+    catch (err) { res = { error: err }; }
+    finally { setBusy(false); }
     if (res?.error) { setProblem(scheduleError(res.error)); reload?.(); return false; }
     if (done) onNotice?.(typeof done === "function" ? done(res.data) : done);
     reload?.();
