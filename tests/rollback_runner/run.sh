@@ -16,7 +16,10 @@ fails=0; pass() { echo "PASS $*"; }; fail() { echo "FAIL $*"; fails=$((fails + 1
 n() { "${P[@]}" -d $DB -c "select n from t"; }
 
 # why the wrapper exists: a bare psql -f (or one that reads such a psqlrc) skips the failed statement and commits
-PSQLRC="$T/psqlrc" psql -h "$H" -p "$PT" -U postgres -q -d $DB -f "$T/bad_rollback.sql" > /dev/null 2>&1; rc=$?
+# (the only psql here that reads a startup file: PSQLRC points it at the hostile file and PGSYSCONFDIR at an empty
+# directory, so no system-wide psqlrc can change what it does; every other call uses -X and reads none)
+mkdir -p "$T/sysconf"
+PGSYSCONFDIR="$T/sysconf" PSQLRC="$T/psqlrc" psql -h "$H" -p "$PT" -U postgres -q -d $DB -f "$T/bad_rollback.sql" > /dev/null 2>&1; rc=$?
 [ "$rc" = 0 ] && [ "$(n)" = 3 ] && pass "bare psql -f: exit 0 and a partial rollback committed (what the wrapper prevents)" \
   || echo "note: bare psql behaved differently here (exit $rc, n=$(n)); the wrapper checks below still apply"
 "${P[@]}" -d $DB -c "update t set n = 1" > /dev/null
