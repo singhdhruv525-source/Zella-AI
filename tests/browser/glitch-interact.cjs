@@ -40,7 +40,8 @@ async function main() {
       await route.fulfill({ status: r.status, headers: Object.fromEntries(r.headers.entries()), body: Buffer.from(await r.arrayBuffer()) });
     } catch { await route.abort(); }
   });
-  await ctx.route(/^https:\/\/(?!zlocal\.supabase\.co|fonts\.googleapis\.com|fonts\.gstatic\.com)/, (r) => r.fulfill({ status: 200, body: "" }));
+  // every other outside address, http or https, answers empty: nothing leaves this machine but the font
+  await ctx.route(/^https?:\/\/(?!zlocal\.supabase\.co[/:]|fonts\.googleapis\.com\/|fonts\.gstatic\.com\/|localhost[/:]|127\.0\.0\.1[/:])/, (r) => r.fulfill({ status: 200, body: "" }));
   const page = await ctx.newPage();
   page.setDefaultTimeout(5000);
   const errs = [], failed = [], cons = [];
@@ -65,18 +66,29 @@ async function main() {
     if (row.notAvailable || row.notFound) continue;
     await page.goto(APP + row.route).catch(() => {});
     await page.waitForTimeout(1800);
-    const labels = await page.$$eval("main button, main a.ba-btn, .owner-content button, .ba-main button", (els) =>
-      [...new Set(els.filter((e) => e.offsetParent && !e.disabled && !e.closest("[role=dialog], .zs-tree, nav")).map((e) => {
-        // the visible words without the icon's ligature name ("event New visit" -> "New visit")
-        const c = e.cloneNode(true); c.querySelectorAll(".ba-icon, .material-symbols-rounded, [aria-hidden=true]").forEach((i) => i.remove());
-        return (c.innerText || c.textContent || e.getAttribute("aria-label") || "").trim().replace(/\s+/g, " ");
-      }).filter(Boolean))]).catch(() => []);
+    // the visible words of a control, without the icon's ligature name ("event New visit" -> "New visit")
+    const SEL = "main button, main a.ba-btn, .owner-content button, .ba-main button";
+    const labels = await page.$$eval(SEL, (els) => [...new Set(els.filter((e) => e.offsetParent && !e.disabled && !e.closest("[role=dialog], .zs-tree, nav")).map((e) => {
+      const c = e.cloneNode(true); c.querySelectorAll(".ba-icon, .material-symbols-rounded, [aria-hidden=true]").forEach((i) => i.remove());
+      return (c.innerText || c.textContent || e.getAttribute("aria-label") || "").trim().replace(/\s+/g, " ");
+    }).filter(Boolean))]).catch(() => []);
     for (const label of labels.filter((l) => OPENERS.test(l) && !NEVER.test(l)).slice(0, 8)) {
       errs.length = 0; failed.length = 0; cons.length = 0;
       const before = page.url();
-      const btn = page.locator("main button, main a.ba-btn, .owner-content button, .ba-main button").filter({ hasText: label }).first();
-      const target = (await btn.count()) ? btn : page.getByRole("button", { name: label }).first();
-      try { await target.click({ timeout: 3000 }); } catch (e) { report.push({ route: row.route, label, problem: `could not click: ${e.message.split("\n")[0].slice(0, 120)}` }); continue; }
+      // click the control whose label is exactly the approved one (never a longer label that merely contains it,
+      // such as "Add and send" for "Add"): it is marked in the page and clicked by that mark
+      const marked = await page.evaluate(({ sel, label }) => {
+        document.querySelectorAll("[data-glitch-target]").forEach((e) => e.removeAttribute("data-glitch-target"));
+        const el = [...document.querySelectorAll(sel)].find((e) => {
+          if (!e.offsetParent || e.disabled || e.closest("[role=dialog], .zs-tree, nav")) return false;
+          const c = e.cloneNode(true); c.querySelectorAll(".ba-icon, .material-symbols-rounded, [aria-hidden=true]").forEach((i) => i.remove());
+          return (c.innerText || c.textContent || e.getAttribute("aria-label") || "").trim().replace(/\s+/g, " ") === label;
+        });
+        if (el) el.setAttribute("data-glitch-target", "1");
+        return Boolean(el);
+      }, { sel: SEL, label }).catch(() => false);
+      if (!marked) { report.push({ route: row.route, label, problem: "not found again" }); continue; }
+      try { await page.locator("[data-glitch-target]").first().click({ timeout: 3000 }); } catch (e) { report.push({ route: row.route, label, problem: `could not click: ${e.message.split("\n")[0].slice(0, 120)}` }); continue; }
       await page.waitForTimeout(900);
       const state = await page.evaluate(() => {
         const dlg = document.querySelector('[role="dialog"], [role="menu"], .ba-modal, .owner-modal, .ba-drawer, .zs-drawer, [aria-modal="true"]');

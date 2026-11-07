@@ -158,7 +158,8 @@ async function sweep(browser, name, email) {
     } catch { await route.abort(); }
   });
   // fonts and other outside hosts: answered empty so a blocked network is not reported as a glitch
-  await ctx.route(/^https:\/\/(?!zlocal\.supabase\.co|fonts\.googleapis\.com|fonts\.gstatic\.com)/, (r) => r.fulfill({ status: 200, body: "" }));
+  // every other outside address, http or https, answers empty: nothing leaves this machine but the font
+  await ctx.route(/^https?:\/\/(?!zlocal\.supabase\.co[/:]|fonts\.googleapis\.com\/|fonts\.gstatic\.com\/|localhost[/:]|127\.0\.0\.1[/:])/, (r) => r.fulfill({ status: 200, body: "" }));
   const page = await ctx.newPage();
   page.setDefaultTimeout(8000);
   const pageErrors = [], failed = [], consoleErrors = [];
