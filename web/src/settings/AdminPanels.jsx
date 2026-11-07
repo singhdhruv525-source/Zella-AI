@@ -212,7 +212,7 @@ export function AllBusinesses({ openBusiness }) {
               ["Plan", (b) => (b.subscription ? `${b.subscription.plan ?? "Plan"} · ${words(b.subscription.status)}` : "No subscription")],
               ["Team", (b) => b.members],
               ["Integrations", (b) => (b.integrations.total ? `${b.integrations.total}${b.integrations.failing ? ` · ${b.integrations.failing} failing` : ""}` : "None")],
-              ["Created", (b) => when(b.created_at)],
+              ["Created", (b) => (b.created_at ? <span title={when(b.created_at)} style={{ whiteSpace: "nowrap" }}>{new Date(b.created_at).toLocaleDateString([], { dateStyle: "medium" })}</span> : "—")],
               ["", (b) => <button type="button" className="zs-btn sm" onClick={() => setExpanded(expanded === b.id ? null : b.id)}>{expanded === b.id ? "Hide" : "Summary"}</button>],
             ]} />
             {expanded && <TenantSummary businessId={expanded} />}

@@ -121,6 +121,7 @@
 .zs-table th { padding: 8px 12px; border-bottom: 1px solid var(--zs-border); color: var(--zs-muted); font-size: 11.5px; font-weight: 600; text-align: left; text-transform: uppercase; letter-spacing: .03em; }
 .zs-table td { padding: 9px 12px; border-bottom: 1px solid var(--zs-border); vertical-align: top; }
 .zs-table tr:last-child td { border-bottom: 0; }
+.zs-table td > .zs-btn { white-space: nowrap; }
 
 .zs-empty-box { display: flex; flex-direction: column; gap: 3px; padding: 14px; border: 1px dashed var(--zs-border-strong); border-radius: var(--zs-radius-sm); color: var(--zs-muted); font-size: 13px; }
 .zs-empty-box strong { color: var(--zs-text-2); }

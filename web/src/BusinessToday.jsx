@@ -519,7 +519,7 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
           )}
         </Card>}
 
-        <Card title="AI Receptionist Activity" action={<Pill tone={agent.tone} dot={agent.live} pulse={agent.live}>{agent.live ? "Live" : agent.label}</Pill>}>
+        <Card title="AI receptionist activity" action={<Pill tone={agent.tone} dot={agent.live} pulse={agent.live}>{agent.live ? "Live" : agent.label}</Pill>}>
           {data?.activity.length ? (
             <ul className="td-feed">
               {data.activity.map((x) => {

@@ -1246,7 +1246,7 @@ html:not([data-zella-icons="ready"]) .ba-icon { color: transparent !important; }
 .ba-record-history { border-top: 1px solid var(--ba-border); }
 .ba-history { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
 .ba-history li { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; color: var(--ba-text-2); }
-.ba-history small { margin-left: auto; color: var(--ba-text-3, var(--ba-text-2)); }
+.ba-history small { margin-left: auto; color: var(--ba-muted); }
 .ba-edit-list { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 8px; }
 .ba-edit-list li { display: flex; align-items: center; gap: 8px; }
 .ba-edit-list li.wrap { flex-wrap: wrap; }
@@ -1629,8 +1629,8 @@ html:not([data-zella-icons="ready"]) .ba-icon { color: transparent !important; }
 .td-kpi-label { display: block; color: var(--ba-muted); font-size: 13px; font-weight: 500; }
 .td-kpi-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin-top: 4px; }
 .td-kpi .ba-kpi-value { margin: 0; font-size: 30px; }
-.td-trend { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px; min-width: 0; color: var(--ba-muted); font-size: 11.5px; font-weight: 600; }
-.td-trend .ba-icon { font-size: 14px; }
+.td-trend { display: inline; min-width: 0; color: var(--ba-muted); font-size: 11.5px; font-weight: 600; }
+.td-trend .ba-icon { font-size: 14px; vertical-align: -3px; margin-right: 2px; }
 .td-trend.up { color: var(--ba-success); }
 .td-trend.down { color: var(--ba-danger); }
 
@@ -1944,7 +1944,7 @@ html[data-zella-theme="glass"] .td-week li.on .td-week-bar::after { background: 
 
 .ba-toasts { position: fixed; right: 20px; bottom: 20px; z-index: 80; display: grid; gap: 10px; width: min(380px, calc(100vw - 32px)); }
 .ba-toast { position: relative; display: grid; grid-template-columns: auto 1fr auto; align-items: start; gap: 10px; padding: 12px 10px 12px 12px; overflow: hidden;
-  border: 1px solid var(--ba-border); border-radius: var(--ba-radius-lg, 14px); background: var(--ba-surface); box-shadow: 0 12px 32px rgba(20, 14, 8, 0.18);
+  border: 1px solid var(--ba-border); border-radius: var(--zella-radius-lg, 14px); background: var(--ba-surface); box-shadow: 0 12px 32px rgba(20, 14, 8, 0.18);
   animation: ba-toast-in 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .ba-toast.urgent { border-color: var(--ba-danger-border, var(--ba-danger)); box-shadow: inset 4px 0 0 var(--ba-danger), 0 12px 32px rgba(20, 14, 8, 0.18); }
 .ba-toast.warning { box-shadow: inset 4px 0 0 var(--ba-warning), 0 12px 32px rgba(20, 14, 8, 0.18); }
@@ -2017,7 +2017,7 @@ html:not([data-zella-icons="ready"]) .ba-header-actions { flex-wrap: wrap; flex-
 .ba-files li strong, .ba-files li small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ba-files-waiting li { border-style: dashed; flex-wrap: wrap; }
 .ba-files-waiting .ba-file { display: grid; place-items: center; }
-.ba-file { flex-shrink: 0; width: 56px; height: 56px; display: grid; place-items: center; overflow: hidden; padding: 0; border: 1px solid var(--ba-border); border-radius: 8px; background: var(--ba-surface-2, #f4f3ef); cursor: pointer; }
+.ba-file { flex-shrink: 0; width: 56px; height: 56px; display: grid; place-items: center; overflow: hidden; padding: 0; border: 1px solid var(--ba-border); border-radius: 8px; background: var(--ba-subtle, #f4f3ef); cursor: pointer; }
 .ba-file img { width: 100%; height: 100%; object-fit: cover; }
 .ba-file-add { flex-wrap: wrap; align-items: center; }
 .ba-btn.disabled { opacity: .6; pointer-events: none; }
@@ -2026,7 +2026,7 @@ html:not([data-zella-icons="ready"]) .ba-header-actions { flex-wrap: wrap; flex-
 .ba-btn.ghost.danger { background: transparent; border-color: transparent; color: var(--ba-danger); }
 .ba-btn.ghost.danger:hover:not(:disabled) { background: var(--ba-danger-bg); border-color: var(--ba-danger-border); }
 /* The one-time key box (Google leads): copy fields that wrap instead of overflowing on a phone */
-.ba-keybox { margin: 8px 0; padding: 12px; border: 1px solid var(--ba-border); border-radius: 10px; background: var(--ba-surface-2, #f7f6f2); }
+.ba-keybox { margin: 8px 0; padding: 12px; border: 1px solid var(--ba-border); border-radius: 10px; background: var(--ba-subtle, #f7f6f2); }
 .ba-keybox p { margin: 0 0 8px; }
 .ba-keybox label { display: block; margin: 8px 0; font-size: 12px; color: var(--ba-muted); }
 .ba-keybox label > span { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
@@ -2201,14 +2201,14 @@ html:not([data-zella-icons="ready"]) .ba-header-actions { flex-wrap: wrap; flex-
 .ba-day-nav { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .ba-dispatch-cols { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-top: 12px; }
 .ba-job-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
-.ba-job { border: 1px solid var(--ba-line, #e3e6ea); border-radius: 10px; padding: 10px 12px; background: var(--ba-surface, #fff); min-width: 0; }
+.ba-job { border: 1px solid var(--ba-border, #e3e6ea); border-radius: 10px; padding: 10px 12px; background: var(--ba-surface, #fff); min-width: 0; }
 .ba-job[data-job="unassigned"] { border-left: 3px solid var(--ba-danger, #c0392b); }
 .ba-job[data-job="needs_return"], .ba-job[data-job="paused"] { border-left: 3px solid var(--ba-warning, #c98a00); }
 .ba-job[data-job="completed"] { border-left: 3px solid var(--ba-success, #287a48); }
 .ba-job-head { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .ba-job-title { margin: 4px 0 2px; font-weight: 600; overflow-wrap: anywhere; }
 .ba-job .ba-people-actions { margin-top: 8px; }
-.ba-res-day { padding: 8px 0; border-top: 1px solid var(--ba-line, #e3e6ea); }
+.ba-res-day { padding: 8px 0; border-top: 1px solid var(--ba-border, #e3e6ea); }
 .ba-res-day ul { margin: 4px 0 0; padding-left: 18px; }
 .ba-check-list { list-style: none; padding: 0; margin: 0 0 12px; display: grid; gap: 6px; }
 .ba-check-list li { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
