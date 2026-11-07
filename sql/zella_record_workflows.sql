@@ -11,7 +11,6 @@
 -- does), record files (evidence), authorized relationships with the "approve" permission (Release 1), staff, audit_logs.
 -- Nothing here sends a message, places a call, charges a card or talks to a provider.
 
-\set ON_ERROR_STOP on
 begin;
 
 -- ===================================================== the workflow setting on each record type
