@@ -4,7 +4,6 @@
 -- record_workflow_presets_rolled_back), and crm_record_types.workflow stays with each business's setting. The trigger and
 -- functions are removed. Linked estimates keep the status an approval gave them, and records keep their statuses and
 -- history (the same as if staff had changed them by hand). Applying the migration again starts new, empty tables.
-\set ON_ERROR_STOP on
 begin;
 drop trigger if exists zella_record_workflow_defaults on public.crm_record_types;
 drop function if exists public.zella_workflow_due(uuid, integer);

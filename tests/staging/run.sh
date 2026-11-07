@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Staging test of the ten industry migrations (4 Nov 2026), on an ISOLATED Postgres only. Never point at production.
+# Staging test of the 17 migrations of 4-5 Nov 2026 (the ten industry migrations and the seven that followed), on an ISOLATED Postgres only. Never point at production.
 #   1. build: production schema (sql/baseline + the hardening already live in production) + production reference data
 #      (industries, presets, automation templates: $REF, exported read-only, no customer data) + synthetic businesses
 #      (seed.sql: four shaped like production, one per industry with records)
 #   2. snapshot "before"; take the pre-deploy backups exactly as the deployment notes say
-#   3. apply the ten migrations in order, print each report, then apply all of them again (must change nothing)
+#   3. apply the 17 migrations in order, print each report, then apply all of them again (must change nothing)
 #   4. checks.sql: nothing lost, every record still valid, roles, privacy, capabilities, presets, receptionist
 #   5. generate the rollback from before/after, run it on a copy, and require schema and data to match "before"
 #   6. re-apply the migrations after the rollback (a second deploy must work)
@@ -36,7 +36,7 @@ $PSQL -d zstg -c "create table public.backup_20261104_presets as select * from p
                   create table public.backup_20261104_records as select id, data from public.crm_records;" > /dev/null
 pass "pre-deploy backups taken (presets, record types, record data)"
 
-# 3. the ten migrations, in order, each report printed; then all again
+# 3. the 17 migrations (TEN holds all 17; the name is historical), in order, each report printed; then all again
 for m in "${TEN[@]}"; do
   out=$($PSQL -d zstg -f "$REPO/sql/$m.sql" 2>&1) || { fail "$m: $(echo "$out" | grep -m1 ERROR)"; continue; }
   rep=$(echo "$out" | grep -oE "NOTICE:  (zella_|capability|sensitive|presets).*" | grep -v "does not exist, skipping" | sed 's/NOTICE:  //' | paste -sd';' -)
