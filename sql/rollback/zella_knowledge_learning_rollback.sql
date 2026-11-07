@@ -1,5 +1,4 @@
 -- Rollback for sql/zella_knowledge_learning.sql (hand-written): the two functions as in production on 5 Nov 2026.
-\set ON_ERROR_STOP on
 begin;
 CREATE OR REPLACE FUNCTION public.zella_answer_knowledge_gap(p_gap_id uuid, p_answer text, p_kind text DEFAULT 'faq'::text, p_title text DEFAULT NULL::text)
  RETURNS uuid

@@ -20,7 +20,8 @@ in `docs/DEPLOYMENT_REVIEW_2026-11-05.md`: those 17 migrations and today's 3 fix
 ## Database manifest, in order
 
 The version is the first 12 characters of the md5 of the file text without its final newline. Each file is safe to
-run twice and has a rollback in `sql/rollback/<name>_rollback.sql`. Roll back in **reverse** order.
+run twice and has a rollback in `sql/rollback/<name>_rollback.sql`. Roll back in **reverse** order. How to run one safely
+(SQL Editor, or psql through `sql/rollback/run.sh`): `sql/rollback/README.md`.
 
 | # | File | Version | Class | Depends on | Fixes |
 | --- | --- | --- | --- | --- | --- |

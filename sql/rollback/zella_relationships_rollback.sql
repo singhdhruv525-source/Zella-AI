@@ -1,7 +1,6 @@
 -- Undoes sql/zella_relationships.sql. One transaction: all or nothing.
 -- The two tables are kept, renamed (customer_relationships_rolled_back, customer_consents_rolled_back), so no
 -- relationship, verification or consent that was recorded is lost; re-applying the migration starts new, empty tables.
-\set ON_ERROR_STOP on
 begin;
 -- take the relationship step out of the customer merge again (exactly the text the migration added)
 do $$
