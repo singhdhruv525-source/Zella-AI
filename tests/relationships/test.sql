@@ -64,7 +64,7 @@ select 'PASS a new link grants nothing until verified; staff cannot verify in a 
 select pg_temp.as_user('c7000000-0000-0000-0000-00000000000b');   -- manager
 do $$ declare v uuid := (select v from ids where k = 'grandma'); begin
   perform pg_temp.expect(format('select public.zella_relationship_verify(%L, %L, %L, %L, %L)', v, 'telepathy', 'c7000000-0000-0000-0000-0000000001a2', 'guardian', '{discuss,pickup}'), 'BAD_METHOD');
-  perform public.zella_relationship_verify(v, 'id_checked', 'c7000000-0000-0000-0000-0000000001a2', 'guardian', array['discuss', 'pickup']);
+  perform public.zella_relationship_verify(v, 'id_checked', 'c7000000-0000-0000-0000-0000000001a2', 'guardian', array['discuss', 'pickup'], null, (select updated_at from public.customer_relationships where id = v));
   assert public.zella_is_authorized('c7000000-0000-0000-0000-0000000000a1', null, 'c7000000-0000-0000-0000-0000000004a1', 'c7000000-0000-0000-0000-0000000001a2', 'pickup'), 'verified guardian may pick up';
   assert not public.zella_is_authorized('c7000000-0000-0000-0000-0000000000a1', null, 'c7000000-0000-0000-0000-0000000004a1', 'c7000000-0000-0000-0000-0000000001a2', 'approve'), 'but not approve';
   assert not public.zella_is_authorized('c7000000-0000-0000-0000-0000000000a1', null, 'c7000000-0000-0000-0000-0000000004a1', 'c7000000-0000-0000-0000-0000000001a3', 'pickup'), 'a stranger may not';
@@ -111,7 +111,7 @@ do $$ declare v uuid := (select v from ids where k = 'grandma'); begin
   perform pg_temp.expect(format('select public.zella_relationship_verify(%L, %L, %L, %L, %L)', v, 'id_checked',
           'c7000000-0000-0000-0000-0000000001a3', 'guardian', '{approve,pickup}'), 'CHANGED');   -- a different person shown
   -- what is really there, in any order, verifies
-  perform public.zella_relationship_verify(v, 'id_checked', 'c7000000-0000-0000-0000-0000000001a2', 'guardian', array['pickup', 'approve']);
+  perform public.zella_relationship_verify(v, 'id_checked', 'c7000000-0000-0000-0000-0000000001a2', 'guardian', array['pickup', 'approve'], null, (select updated_at from public.customer_relationships where id = v));
   assert (select verified_at is not null from public.customer_relationships where id = v), 'verified as it really is';
 end $$;
 reset role;
@@ -147,7 +147,7 @@ do $$ declare v uuid; t timestamptz; begin
   perform pg_temp.expect(format('select public.zella_relationship_verify(%L, %L, %L, %L, %L)', v, 'id_checked',
           'c7000000-0000-0000-0000-0000000001a3', 'representative', '{discuss}'), 'CHANGED');
   assert (select verified_at is null from public.customer_relationships where id = v), 'a verification of a different end date changed nothing';
-  perform public.zella_relationship_verify(v, 'id_checked', 'c7000000-0000-0000-0000-0000000001a3', 'representative', array['discuss'], current_date + 300);
+  perform public.zella_relationship_verify(v, 'id_checked', 'c7000000-0000-0000-0000-0000000001a3', 'representative', array['discuss'], current_date + 300, (select updated_at from public.customer_relationships where id = v));
   assert public.zella_is_authorized('c7000000-0000-0000-0000-0000000000a1', 'c7000000-0000-0000-0000-0000000001a1', null, 'c7000000-0000-0000-0000-0000000001a3', 'discuss'), 'verifying what is current works';
   perform public.zella_relationship_revoke(v, 'test done');
 end $$;
@@ -305,7 +305,7 @@ select pg_temp.as_user('c7000000-0000-0000-0000-00000000000f');   -- salon staff
 do $$ declare v uuid; begin
   v := public.zella_relationship_save('c7000000-0000-0000-0000-0000000000c1', null, 'c7000000-0000-0000-0000-0000000001c1', null,
        'c7000000-0000-0000-0000-0000000001c2', 'household', array['book'], null, null);
-  perform public.zella_relationship_verify(v, 'known_to_team', 'c7000000-0000-0000-0000-0000000001c2', 'household', array['book']);
+  perform public.zella_relationship_verify(v, 'known_to_team', 'c7000000-0000-0000-0000-0000000001c2', 'household', array['book'], null, (select updated_at from public.customer_relationships where id = v));
   assert public.zella_is_authorized('c7000000-0000-0000-0000-0000000000c1', 'c7000000-0000-0000-0000-0000000001c1', null, 'c7000000-0000-0000-0000-0000000001c2', 'book'), 'partner may book';
 end $$;
 reset role;
@@ -336,6 +336,23 @@ insert into public.customer_relationships (id, business_id, customer_id, related
  ('c7000000-0000-0000-0000-0000000005b2', 'c7000000-0000-0000-0000-0000000000a1', 'c7000000-0000-0000-0000-0000000001a1', 'c7000000-0000-0000-0000-0000000001a3', 'emergency_contact', '{discuss}');
 insert into public.customer_consents (business_id, customer_id, kind, status, given_by_customer_id) values
  ('c7000000-0000-0000-0000-0000000000a1', 'c7000000-0000-0000-0000-0000000001a5', 'terms', 'granted', 'c7000000-0000-0000-0000-0000000001a5');
+-- an unverified link about the dropped Pat, with a Verify form opened on it before the merge (its version kept)
+insert into public.customer_relationships (id, business_id, customer_id, related_customer_id, kind, permissions) values
+ ('c7000000-0000-0000-0000-0000000005c1', 'c7000000-0000-0000-0000-0000000000a1', 'c7000000-0000-0000-0000-0000000001a5', 'c7000000-0000-0000-0000-0000000001a3', 'tenant', '{discuss}');
+create temp table seen (k text primary key, t timestamptz) on commit drop;
+grant all on seen to authenticated;
+insert into seen select 'tenant', updated_at from public.customer_relationships where id = 'c7000000-0000-0000-0000-0000000005c1';
+-- the helper itself refuses people from another business, or the same person twice, and changes nothing
+set local role service_role;
+select set_config('request.jwt.claims', '{"role":"service_role"}', true);
+do $$ begin
+  perform pg_temp.expect('select public.zella_people_merge(''c7000000-0000-0000-0000-0000000000a1'', ''c7000000-0000-0000-0000-0000000001b1'', ''c7000000-0000-0000-0000-0000000001a5'')', 'NOT_VALID');
+  perform pg_temp.expect('select public.zella_people_merge(''c7000000-0000-0000-0000-0000000000a1'', ''c7000000-0000-0000-0000-0000000001a1'', ''c7000000-0000-0000-0000-0000000001b1'')', 'NOT_VALID');
+  perform pg_temp.expect('select public.zella_people_merge(''c7000000-0000-0000-0000-0000000000a1'', ''c7000000-0000-0000-0000-0000000001a5'', ''c7000000-0000-0000-0000-0000000001a5'')', 'NOT_VALID');
+  perform pg_temp.expect('select public.zella_people_merge(''c7000000-0000-0000-0000-0000000000a1'', null, ''c7000000-0000-0000-0000-0000000001a5'')', 'NOT_VALID');
+  assert (select count(*) from public.customer_relationships where customer_id = 'c7000000-0000-0000-0000-0000000001a5' and revoked_at is null) >= 4, 'refused direct calls moved nothing';
+end $$;
+reset role;
 set local role authenticated;
 select pg_temp.as_user('c7000000-0000-0000-0000-00000000000b');   -- manager merges the duplicate grandma into Quinn
 do $$ declare j jsonb; begin
@@ -343,6 +360,11 @@ do $$ declare j jsonb; begin
   assert not (j -> 'tables_skipped') ? 'customer_relationships' and not (j -> 'tables_skipped') ? 'customer_consents', 'merge skipped a table: ' || j::text;
   j := public.zella_merge_customers('c7000000-0000-0000-0000-0000000000a1', 'c7000000-0000-0000-0000-0000000001a1', 'c7000000-0000-0000-0000-0000000001a5');
   assert not (j -> 'tables_skipped') ? 'customer_relationships' and not (j -> 'tables_skipped') ? 'customer_consents', 'merge skipped a table: ' || j::text;
+  -- the Verify form opened before the merge shows the dropped Pat: confirming it now verifies nothing
+  perform pg_temp.expect(format('select public.zella_relationship_verify(%L, %L, %L, %L, %L, null, %L)', 'c7000000-0000-0000-0000-0000000005c1', 'id_checked',
+          'c7000000-0000-0000-0000-0000000001a3', 'tenant', '{discuss}', (select t from seen where k = 'tenant')), 'CHANGED');
+  assert (select verified_at is null and customer_id = 'c7000000-0000-0000-0000-0000000001a1' from public.customer_relationships where id = 'c7000000-0000-0000-0000-0000000005c1'),
+    'a link moved by a merge is not verified from a form opened before it';
 end $$;
 reset role;
 do $$ declare r record; begin
@@ -372,7 +394,7 @@ do $$ declare r record; begin
   assert not exists (select 1 from public.customer_relationships where revoked_at is null and (customer_id in ('c7000000-0000-0000-0000-0000000001a4', 'c7000000-0000-0000-0000-0000000001a5')
                        or related_customer_id in ('c7000000-0000-0000-0000-0000000001a4', 'c7000000-0000-0000-0000-0000000001a5'))), 'nothing active is left on the archived duplicates';
 end $$;
-select 'PASS customer merge: links move to the kept person (authority they held must be verified again), duplicates and self-links are revoked, a collision keeps the stronger link, consents follow their subject, and no table is skipped';
+select 'PASS customer merge: links move to the kept person (authority they held must be verified again), duplicates and self-links are revoked, a collision keeps the stronger link, a Verify form opened before the merge verifies nothing, the helper refuses people from another business, consents follow their subject, and no table is skipped';
 
 -- ===================================================== audit
 do $$ declare missing text; begin

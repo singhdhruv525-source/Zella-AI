@@ -115,6 +115,7 @@ export function PeopleAndConsent({ workspace, subject, onNotice }) {
           // exactly what the verifier is looking at; the server refuses if the link changed since (CHANGED)
           p_id: verifying.id, p_method: method, p_related_customer_id: verifying.person.id, p_kind: verifying.kind, p_permissions: verifying.permissions,
           p_valid_until: verifying.valid_until ?? null,
+          p_expected_updated_at: verifying.updated_at ?? null,   // the version shown; a merge or edit since means CHANGED
         }, `${personLabel(verifying.person)} is verified.`);
           setVerifying(null);   // on success, or to show the link as it is now (the panel reloads either way)
         }} />}

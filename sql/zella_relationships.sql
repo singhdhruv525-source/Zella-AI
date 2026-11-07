@@ -197,8 +197,11 @@ end $$;
 -- (CHANGED) and they look again. A row lock alone wouldn't catch a form opened before the change.
 drop function if exists public.zella_relationship_verify(uuid, text);
 drop function if exists public.zella_relationship_verify(uuid, text, uuid, text, text[]);
+drop function if exists public.zella_relationship_verify(uuid, text, uuid, text, text[], date);
+-- p_expected_updated_at: the version the form loaded. Any later change (an edit, a customer merge moving the link to
+-- another person) means the verifier didn't see it: CHANGED. Without it, nothing is verified either.
 create or replace function public.zella_relationship_verify(p_id uuid, p_method text, p_related_customer_id uuid, p_kind text, p_permissions text[],
-  p_valid_until date default null)
+  p_valid_until date default null, p_expected_updated_at timestamptz default null)
 returns void language plpgsql security definer set search_path = public as $$
 declare cur public.customer_relationships; v_shown text[] := coalesce((select array_agg(distinct p order by p) from unnest(p_permissions) p), '{}');
 begin
@@ -207,7 +210,8 @@ begin
   if cur.revoked_at is not null then raise exception 'NOT_FOUND'; end if;
   if p_method is null or p_method not in ('id_checked', 'document_on_file', 'known_to_team', 'callback_verified', 'other') then raise exception 'BAD_METHOD'; end if;
   if cur.related_customer_id is distinct from p_related_customer_id or cur.kind is distinct from p_kind or cur.permissions is distinct from v_shown
-     or cur.valid_until is distinct from p_valid_until then
+     or cur.valid_until is distinct from p_valid_until
+     or p_expected_updated_at is null or cur.updated_at is distinct from p_expected_updated_at then
     raise exception 'CHANGED';
   end if;
   update public.customer_relationships set verified_at = now(), verified_by = auth.uid(), verification_method = p_method, updated_at = clock_timestamp() where id = p_id;
@@ -312,6 +316,12 @@ create or replace function public.zella_people_merge(p_business_id uuid, p_keep 
 language plpgsql security definer set search_path = public as $$
 declare r public.customer_relationships; x public.customer_relationships; v_move boolean; v_subject uuid; v_related uuid; n integer := 0;
 begin
+  -- both people must be customers of this business (the merge checks this too; a direct call must not skip it)
+  if p_keep is null or p_drop is null or p_keep = p_drop
+     or not exists (select 1 from public.customers c where c.id = p_keep and c.business_id = p_business_id)
+     or not exists (select 1 from public.customers c where c.id = p_drop and c.business_id = p_business_id) then
+    raise exception 'NOT_VALID';
+  end if;
   for r in select * from public.customer_relationships
             where business_id = p_business_id and revoked_at is null and (customer_id = p_drop or related_customer_id = p_drop)
             order by created_at for update loop
@@ -380,13 +390,13 @@ select public.zella_people_merge_install();
 revoke execute on function public.zella_people_can_edit(uuid), public.zella_people_can_verify(uuid), public.zella_people_subject_ok(uuid, uuid, uuid),
   public.zella_relationship_in_force(public.customer_relationships), public.zella_is_authorized(uuid, uuid, uuid, uuid, text),
   public.zella_people_audit(uuid, text, text, uuid, jsonb, jsonb),
-  public.zella_relationship_save(uuid, uuid, uuid, uuid, uuid, text, text[], date, text, timestamptz), public.zella_relationship_verify(uuid, text, uuid, text, text[], date),
+  public.zella_relationship_save(uuid, uuid, uuid, uuid, uuid, text, text[], date, text, timestamptz), public.zella_relationship_verify(uuid, text, uuid, text, text[], date, timestamptz),
   public.zella_relationship_revoke(uuid, text), public.zella_consent_record(uuid, uuid, uuid, text, text, uuid, text, date, text),
   public.zella_consent_revoke(uuid, text), public.zella_people_panel(uuid, uuid, uuid) from public, anon;
 revoke execute on function public.zella_people_audit(uuid, text, text, uuid, jsonb, jsonb), public.zella_people_subject_ok(uuid, uuid, uuid),
   public.zella_relationship_in_force(public.customer_relationships) from authenticated;
 grant execute on function public.zella_people_can_edit(uuid), public.zella_people_can_verify(uuid), public.zella_is_authorized(uuid, uuid, uuid, uuid, text),
-  public.zella_relationship_save(uuid, uuid, uuid, uuid, uuid, text, text[], date, text, timestamptz), public.zella_relationship_verify(uuid, text, uuid, text, text[], date),
+  public.zella_relationship_save(uuid, uuid, uuid, uuid, uuid, text, text[], date, text, timestamptz), public.zella_relationship_verify(uuid, text, uuid, text, text[], date, timestamptz),
   public.zella_relationship_revoke(uuid, text), public.zella_consent_record(uuid, uuid, uuid, text, text, uuid, text, date, text),
   public.zella_consent_revoke(uuid, text), public.zella_people_panel(uuid, uuid, uuid) to authenticated, service_role;
 grant execute on function public.zella_people_audit(uuid, text, text, uuid, jsonb, jsonb), public.zella_people_subject_ok(uuid, uuid, uuid),

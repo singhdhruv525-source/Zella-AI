@@ -22,6 +22,7 @@ drop function if exists public.zella_people_panel(uuid, uuid, uuid);
 drop function if exists public.zella_consent_revoke(uuid, text);
 drop function if exists public.zella_consent_record(uuid, uuid, uuid, text, text, uuid, text, date, text);
 drop function if exists public.zella_relationship_revoke(uuid, text);
+drop function if exists public.zella_relationship_verify(uuid, text, uuid, text, text[], date, timestamptz);
 drop function if exists public.zella_relationship_verify(uuid, text, uuid, text, text[], date);
 drop function if exists public.zella_relationship_verify(uuid, text, uuid, text, text[]);
 drop function if exists public.zella_relationship_verify(uuid, text);

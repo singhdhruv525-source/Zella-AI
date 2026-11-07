@@ -9,11 +9,12 @@ set -u
 DB="$1"; shift
 H=${ZPG_HOST:-/var/lib/postgresql/zella-sec}; P=${ZPG_PORT:-55433}
 B="$(cd "$(dirname "$0")" && pwd)"
-PSQL="psql -h $H -p $P -U postgres -v ON_ERROR_STOP=1 -q -X"
-psql -h $H -p $P -U postgres -qX -c "drop database if exists \"$DB\"" -c "create database \"$DB\"" >/dev/null || exit 1
-sed "s/current_database_placeholder/\"$DB\"/" "$B/00_supabase_stubs.sql" | $PSQL -d "$DB" || { echo "FAILED at stubs"; exit 1; }
+. "$B/../../tests/lib/isolated_guard.sh"; zella_require_isolated "$H" "$P" "$DB" || exit 1
+PSQL=(psql -h "$H" -p "$P" -U postgres -v ON_ERROR_STOP=1 -q -X)   # an array: each value stays one argument
+psql -h "$H" -p "$P" -U postgres -qX -c "drop database if exists \"$DB\"" -c "create database \"$DB\"" >/dev/null || exit 1
+sed "s/current_database_placeholder/\"$DB\"/" "$B/00_supabase_stubs.sql" | "${PSQL[@]}" -d "$DB" || { echo "FAILED at stubs"; exit 1; }
 run() { # file
-  { echo "set check_function_bodies = off; set search_path = public, extensions;"; cat "$1"; } | $PSQL -d "$DB" -f - || { echo "FAILED at $1"; exit 1; }
+  { echo "set check_function_bodies = off; set search_path = public, extensions;"; cat "$1"; } | "${PSQL[@]}" -d "$DB" -f - || { echo "FAILED at $1"; exit 1; }
 }
 run "$B/01_tables.sql"
 run "$B/02_constraints.sql"
