@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { Children, cloneElement, useEffect, useRef } from "react";
 
 // Keyboard behaviour every dialog needs: focus moves into it when it opens (the element marked data-autofocus, or
 // the first control), Tab and Shift+Tab stay inside it, Escape closes it (unless busy), and focus goes back to the
@@ -38,4 +38,11 @@ export function useDialogFocus(onClose, busy = false) {
   }, []);
 
   return ref;
+}
+
+// The same for a dialog written inline: wraps its one element and gives it the ref. `onClose` may be null when the
+// page already handles Escape itself (focus still moves in, stays in and goes back).
+export function DialogFocus({ onClose = null, busy = false, children }) {
+  const ref = useDialogFocus(onClose, busy);
+  return cloneElement(Children.only(children), { ref, tabIndex: -1 });
 }

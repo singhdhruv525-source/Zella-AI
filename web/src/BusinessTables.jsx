@@ -467,7 +467,7 @@ function CloseModal({ reservation, working, onClose, onSubmit }) {
     <Modal title={`${reservation.guest ?? "Reservation"} · ${reservation.party} people`} onClose={onClose} busy={working}
       footer={<><button type="button" className="ba-btn" onClick={onClose}>Back</button>
         <button type="button" className="ba-btn danger" disabled={working || !reason.trim()} onClick={() => onSubmit(action, reason.trim())}>{action === "no_show" ? "Mark no-show" : "Cancel reservation"}</button></>}>
-      <Segment label="What happened" value={action} onChange={setAction} options={[["no_show", "Didn't come"], ["cancelled", "Cancelled"]]} />
+      <Segment label="What happened" value={action} onChange={setAction} options={[["no_show", "Didn't come"], ["cancelled", "Canceled"]]} />
       <Field label="Reason" full><input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={200} autoFocus /></Field>
     </Modal>
   );

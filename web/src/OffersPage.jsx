@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useDialogFocus } from "./useDialogFocus";
 import { createPortal } from "react-dom";
 import "./OwnerPages.css";
 import { supabase } from "./supabase";
@@ -127,14 +128,10 @@ function newIdempotencyKey(prefix) {
 }
 
 function Overlay({ title, onClose, busy, children, footer, wide }) {
-  useEffect(() => {
-    const onKey = (e) => e.key === "Escape" && !busy && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, busy]);
+  const dialogRef = useDialogFocus(onClose, busy);
   return createPortal(
     <div className="owner-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
-      <div className={`owner-modal of-modal ${wide ? "wide" : ""}`} role="dialog" aria-modal="true" aria-label={title}>
+      <div ref={dialogRef} tabIndex={-1} className={`owner-modal of-modal ${wide ? "wide" : ""}`} role="dialog" aria-modal="true" aria-label={title}>
         <div className="owner-modal-header of-modal-head">
           <h2>{title}</h2>
           <button type="button" className="owner-modal-close" aria-label="Close" onClick={onClose} disabled={busy}>×</button>

@@ -1,4 +1,5 @@
 import { VoicePanel } from "./settings/VoicePanel";
+import { DialogFocus } from "./useDialogFocus";
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import "./OwnerPages.css";
@@ -348,7 +349,7 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup }) {
       )}
 
       {action && createPortal(
-        <div
+        <DialogFocus onClose={null} busy={busy}><div
           className="owner-modal-overlay"
           onMouseDown={(event) => event.target === event.currentTarget && !busy && (setPending(null), setReason(""))}
         >
@@ -373,7 +374,7 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup }) {
               </button>
             </div>
           </div>
-        </div>,
+        </div></DialogFocus>,
         document.body
       )}
 

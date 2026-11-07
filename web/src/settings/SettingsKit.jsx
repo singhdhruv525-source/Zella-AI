@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useDialogFocus } from "../useDialogFocus";
 import { addLeaveGuard } from "../router";
 import { Icon } from "../BusinessUI";
 import { humanize } from "../copy/labels";
@@ -158,6 +159,7 @@ export function Confirm({ title, children, confirmLabel = "Confirm", danger, wor
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const ready = (!word || typed.trim() === word) && (!reason || why.trim().length >= 3);
+  const dialogRef = useDialogFocus(onClose, busy);
   async function go() {
     setBusy(true);
     setError("");
@@ -171,7 +173,7 @@ export function Confirm({ title, children, confirmLabel = "Confirm", danger, wor
   }
   return (
     <div className="zs-overlay" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}>
-      <div className={`zs-dialog ${danger ? "danger" : ""}`} role="dialog" aria-modal="true" aria-labelledby="zs-dialog-title">
+      <div ref={dialogRef} tabIndex={-1} className={`zs-dialog ${danger ? "danger" : ""}`} role="dialog" aria-modal="true" aria-labelledby="zs-dialog-title">
         <div className="zs-dialog-head">
           <span className="zs-dialog-icon"><Icon name={danger ? "warning" : "task_alt"} /></span>
           <h3 id="zs-dialog-title">{title}</h3>

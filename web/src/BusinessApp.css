@@ -1391,7 +1391,10 @@ html:not([data-zella-icons="ready"]) .ba-icon { color: transparent !important; }
 
 /* Callbacks: work queue */
 .ba-queue td { vertical-align: top; }
-.ba-queue .ba-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+/* the cell stays a table cell (display: flex on a <td> takes it out of the row and squeezes the buttons) */
+.ba-queue .ba-actions { width: auto; }
+.ba-queue-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; min-width: 250px; }
+.ba-queue-actions .ba-btn { flex: 0 0 auto; }
 .ba-queue-reason { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .ba-clip { display: block; max-width: 280px; overflow: hidden; color: var(--ba-muted); font-size: 11.5px; text-overflow: ellipsis; white-space: nowrap; }
 .ba-finish { padding: 12px; border: 1px solid var(--ba-border); border-radius: var(--ba-radius-md); background: var(--ba-alt); }
@@ -1617,7 +1620,7 @@ html:not([data-zella-icons="ready"]) .ba-icon { color: transparent !important; }
 .td-date input { border: 0; outline: none; background: transparent; color: var(--ba-text); font: inherit; font-size: 13px; }
 .td-date:focus-within { border-color: var(--ba-primary); box-shadow: 0 0 0 3px var(--ba-primary-ring); }
 
-.td-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin-bottom: 18px; }
+.td-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(168px, 1fr)); gap: 14px; margin-bottom: 18px; }
 .td-kpi { display: flex; align-items: center; gap: 14px; padding: 16px 18px; }
 .td-kpi > .ba-kpi-icon { width: 44px; height: 44px; border-radius: 12px; }
 .td-kpi-body { min-width: 0; }

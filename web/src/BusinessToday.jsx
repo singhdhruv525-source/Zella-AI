@@ -49,7 +49,7 @@ function trend(cur, prev, upIsGood = true) {
   const pct = Math.round(((cur - prev) / prev) * 100);
   if (pct === 0) return { text: "Same as last week", tone: "" };
   const up = pct > 0;
-  return { text: `${Math.abs(pct)}% vs last week`, label: `${up ? "Up" : "Down"} ${Math.abs(pct)}% vs last week`, tone: up === upIsGood ? "up" : "down", arrow: up ? "arrow_upward" : "arrow_downward" };
+  return { text: `${up ? "Up" : "Down"} ${Math.abs(pct)}% vs last week`, label: `${up ? "Up" : "Down"} ${Math.abs(pct)}% vs last week`, tone: up === upIsGood ? "up" : "down", arrow: up ? "arrow_upward" : "arrow_downward" };
 }
 
 function Kpi({ icon, tone, label, value, change, loading }) {
@@ -436,7 +436,7 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
             <input type="date" value={day} onChange={(e) => e.target.value && setDay(e.target.value)} aria-label="Day to show" />
           </label>
           {!isToday && <button type="button" className="ba-btn" onClick={() => setDay(today)}>Today</button>}
-          {canEdit && scheduling && <button type="button" className="ba-btn primary" onClick={() => onBook()}><Icon name="add" size="sm" />New {oneBooking}</button>}
+          {canEdit && scheduling && <button type="button" className="ba-btn primary" onClick={() => onBook()}><Icon name="add" size="sm" />New {oneBooking.toLowerCase()}</button>}
           {canEdit && (scheduling && cfg.walkIn
             ? <button type="button" className="ba-btn" onClick={() => onBook({ walkIn: true })}><Icon name="directions_walk" size="sm" />Walk-in</button>
             : <button type="button" className={`ba-btn ${scheduling ? "" : "primary"}`} onClick={onAddLead}><Icon name="person_add" size="sm" />Add lead</button>)}
@@ -459,7 +459,7 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
 
       <div className="td-grid">
         {!scheduling && <WorkCard work={data?.work} operations={operations} loading={loading && !data} wide onGo={onGo} />}
-        {scheduling && <Card className="td-span2" title={`${isToday ? "Today's" : ""} ${bookingWord}`.trim()}
+        {scheduling && <Card className="td-span2" title={isToday ? `Today's ${bookingWord.toLowerCase()}` : bookingWord}
           action={<button type="button" className="ba-btn sm" onClick={() => onGo("calendar")}>View calendar</button>}
           tabs={
             <div className="td-tabs" role="tablist" aria-label={`${bookingWord} by status`}>

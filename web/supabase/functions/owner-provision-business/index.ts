@@ -261,7 +261,9 @@ async function getBusiness(admin: SupabaseClient, businessId: string) {
   return data;
 }
 
-async function getReceptionist(admin: SupabaseClient, businessId: string) {
+// The business's receptionist and its settings, or nulls when it has none (a business made outside the setup flow):
+// reading the business must still work then, so the admin can open it.
+async function findReceptionist(admin: SupabaseClient, businessId: string) {
   const { data: agent, error } = await admin
     .from("ai_agents")
     .select("id, name, status")
@@ -273,7 +275,7 @@ async function getReceptionist(admin: SupabaseClient, businessId: string) {
     .maybeSingle();
 
   if (error) throw error;
-  if (!agent) throw new InputError("This business has no AI receptionist", 409);
+  if (!agent) return { agent: null, config: null };
 
   const { data: config, error: configError } = await admin
     .from("ai_agent_configs")
@@ -282,6 +284,13 @@ async function getReceptionist(admin: SupabaseClient, businessId: string) {
     .maybeSingle();
 
   if (configError) throw configError;
+  return { agent, config };
+}
+
+// The same for anything that changes the receptionist: no receptionist is a clear refusal.
+async function getReceptionist(admin: SupabaseClient, businessId: string) {
+  const { agent, config } = await findReceptionist(admin, businessId);
+  if (!agent) throw new InputError("This business has no AI receptionist", 409);
   return { agent, config };
 }
 
@@ -425,7 +434,7 @@ async function loadSetup(admin: SupabaseClient, businessId: string) {
     .select("enabled, local_hour, recipient_roles, period").eq("business_id", businessId).eq("kind", "daily_summary").maybeSingle();
   const dailyReport = reportResult.error ? null : reportResult.data ?? null;
 
-  const { agent, config } = await getReceptionist(admin, businessId);
+  const { agent, config } = await findReceptionist(admin, businessId);
   const enabled = new Set(
     (enabledResult.data ?? []).filter((row) => row.enabled).map((row) => row.module_id),
   );
@@ -442,9 +451,9 @@ async function loadSetup(admin: SupabaseClient, businessId: string) {
       enabled: enabled.has(module.id),
     })),
     receptionist: {
-      agentId: agent.id,
-      name: agent.name,
-      status: agent.status,
+      agentId: agent?.id ?? null,
+      name: agent?.name ?? "",
+      status: agent?.status ?? "missing",
       personality: config?.personality ?? "",
       tone: config?.tone ?? "",
       capabilities: config?.capabilities ?? [],
@@ -1413,7 +1422,7 @@ async function overviewData(admin: SupabaseClient) {
       { label: "Setup complete", count: count(["testing", "ready"]) },
       { label: "Live", count: count(["active"]) },
       { label: "Suspended", count: suspended.length },
-      { label: "Cancelled", count: cancelled.length },
+      { label: "Canceled", count: cancelled.length },
     ],
     upcomingCancellations: cancelling.slice(0, 8).map((b) => ({
       id: b.id,

@@ -546,7 +546,7 @@ export function CalendarPage({ workspace, industry, refreshKey, onNotice, onOpen
         </button>
         <span className="cal-grow" />
         <button type="button" className="ba-btn" onClick={() => setBlocking(true)}><Icon name="block" size="sm" /><span>Block time</span></button>
-        <button type="button" className="ba-btn primary" onClick={() => setBooking({ date: a.dateStr, time: "09:00", staffId: who === "all" ? "" : who })}><Icon name="add" size="sm" /><span>New {term("appointment")}</span></button>
+        <button type="button" className="ba-btn primary" onClick={() => setBooking({ date: a.dateStr, time: "09:00", staffId: who === "all" ? "" : who })}><Icon name="add" size="sm" /><span>New {term("appointment").toLowerCase()}</span></button>
       </div>
       {filtersOpen && (
         <div className="cal-filters" role="group" aria-label="Filters">

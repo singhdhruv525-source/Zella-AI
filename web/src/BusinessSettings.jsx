@@ -64,7 +64,10 @@ const HOURS_OF_DAY = Array.from({ length: 24 }, (_, h) => [h, new Date(2000, 0, 
 const REPORT_STATUS = { sent: "Sent", nothing_to_report: "Nothing to report", failed: "Failed", missed: "Missed (Zella was not running at that time)" };
 
 function ReportSchedule({ w }) {
-  const state = useAsync(() => rpc("zella_report_schedules", { p_business_id: w.id }), [w.id]);
+  // the server shows the schedule to owners and admins only; other roles get the explanation, not a failed load
+  const canSee = roleIn(w, MANAGE);
+  const state = useAsync(() => (canSee ? rpc("zella_report_schedules", { p_business_id: w.id }) : Promise.resolve([])), [w.id, canSee]);
+  if (!canSee) return <Card title="Daily report" sub="Sent in the CRM once a day, in your business time zone."><Banner tone="warn">Only an owner or admin can see and change the daily report.</Banner></Card>;
   return (
     <LoadState state={state}>{(rows) => <ReportScheduleForm w={w} row={(rows ?? []).find((r) => r.kind === "daily_summary")} onSaved={state.reload} />}</LoadState>
   );

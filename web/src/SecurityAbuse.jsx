@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { DialogFocus } from "./useDialogFocus";
 import { createPortal } from "react-dom";
 import "./OwnerPages.css";
 import { callOwnerFunction } from "./CreateBusinessWizard";
@@ -85,7 +86,7 @@ export default function SecurityAbuse({ permissions, onOpenBusiness }) {
       <div className="owner-page-heading">
         <div>
           <div className="owner-eyebrow">Operations</div>
-          <h1>Security &amp; Abuse</h1>
+          <h1>Security &amp; abuse</h1>
           <p>Spam and abuse across every business. Senders are masked; message text stays with each business.</p>
         </div>
         <div className="op-heading-actions">
@@ -283,7 +284,7 @@ function IncidentDrawer({ id, onClose, onOpenBusiness }) {
   }, [id]);
   const inc = res?.incident;
   return createPortal(
-    <div className="owner-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <DialogFocus onClose={onClose} busy={false}><div className="owner-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="owner-modal sa-drawer" role="dialog" aria-modal="true" aria-label="Incident">
         <div className="zs-dialog-head">
           <span className="zs-dialog-icon"><Icon name="gpp_maybe" /></span>
@@ -325,7 +326,7 @@ function IncidentDrawer({ id, onClose, onOpenBusiness }) {
           <button type="button" className="owner-primary-button" onClick={onClose}>Close</button>
         </div>
       </div>
-    </div>,
+    </div></DialogFocus>,
     document.body
   );
 }
@@ -512,7 +513,7 @@ function Rules({ canManage, onChanged }) {
         </table>
       </div>
       {removing && createPortal(
-        <div className="owner-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && !busy && setRemoving(null)}>
+        <DialogFocus onClose={() => setRemoving(null)} busy={busy}><div className="owner-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && !busy && setRemoving(null)}>
           <div className="bd-confirm owner-modal danger" role="dialog" aria-modal="true" aria-label="Remove rule">
             <div className="zs-dialog-head">
               <span className="zs-dialog-icon"><Icon name="lock_open" /></span>
@@ -524,7 +525,7 @@ function Rules({ canManage, onChanged }) {
               <button type="button" className="bd-danger-button" disabled={busy} onClick={() => remove(removing)}>{busy ? "Removing..." : "Remove rule"}</button>
             </div>
           </div>
-        </div>,
+        </div></DialogFocus>,
         document.body
       )}
     </section>
@@ -597,7 +598,7 @@ function Automation({ info, canSave, onSaved }) {
       )}
       {!canSave && <p className="op-muted">Your role can view this but not change it.</p>}
       {confirmAi && createPortal(
-        <div className="owner-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && !busy && setConfirmAi(false)}>
+        <DialogFocus onClose={() => setConfirmAi(false)} busy={busy}><div className="owner-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && !busy && setConfirmAi(false)}>
           <div className="bd-confirm owner-modal" role="dialog" aria-modal="true" aria-label="Switch on AI second opinion">
             <div className="zs-dialog-head"><span className="zs-dialog-icon"><Icon name="psychology" /></span><h3>Switch on AI second opinion?</h3></div>
             <p>For businesses that opt in, medium-risk texts and emails are sent to the AI provider (Anthropic) with names, numbers and email addresses removed first.
@@ -607,7 +608,7 @@ function Automation({ info, canSave, onSaved }) {
               <button type="button" className="owner-primary-button" disabled={busy} onClick={() => save({ ai_live: true }, "AI second opinion switched on.")}>{busy ? "Saving..." : "Switch on"}</button>
             </div>
           </div>
-        </div>,
+        </div></DialogFocus>,
         document.body
       )}
     </section>
