@@ -33,21 +33,31 @@ async function main() {
   const browser = await chromium.launch();
   const vw = MOBILE ? { width: 390, height: 844 } : { width: 1280, height: 860 };
   const ctx = await browser.newContext({ viewport: vw, reducedMotion: "reduce", isMobile: MOBILE, hasTouch: MOBILE });
-  await ctx.route(/^https?:\/\/zlocal\.supabase\.co\//, async (route) => {
+  await ctx.route((url) => ["http:", "https:"].includes(url.protocol), async (route) => {
     const req = route.request();
     try {
-      const r = await fetch(req.url().replace(/^https?:\/\/zlocal\.supabase\.co/, BACKEND), { redirect: "manual", method: req.method(), headers: req.headers(), body: ["GET", "HEAD"].includes(req.method()) ? undefined : req.postDataBuffer() });
+      const url = new URL(req.url());
+      const local = (u) => ["http:", "https:"].includes(u.protocol) &&
+        ["localhost", "127.0.0.1", "[::1]"].includes(u.hostname) && !u.username && !u.password;
+      if (url.username || url.password) { await route.abort(); return; }
+      if (url.hostname !== "zlocal.supabase.co") {
+        const font = ["fonts.googleapis.com", "fonts.gstatic.com"].includes(url.hostname) && !url.port;
+        if (local(url) || font) await route.continue();
+        else await route.fulfill({ status: 200, body: "" });
+        return;
+      }
+      // Assign path and query separately: even a // path cannot replace the backend host or port.
+      const target = new URL(BACKEND);
+      if (!local(target)) { await route.abort(); return; }
+      target.pathname = url.pathname;
+      target.search = url.search;
+      const r = await fetch(target.href, { redirect: "manual", method: req.method(), headers: req.headers(), body: ["GET", "HEAD"].includes(req.method()) ? undefined : req.postDataBuffer() });
       if (r.status >= 300 && r.status < 400 && r.headers.has("location")) {
-        const target = new URL(r.headers.get("location"), r.url);
-        if (!["http:", "https:"].includes(target.protocol) || !["localhost", "127.0.0.1", "[::1]"].includes(target.hostname) || target.username || target.password) {
-          await route.abort(); return;
-        }
+        if (!local(new URL(r.headers.get("location"), target.href))) { await route.abort(); return; }
       }
       await route.fulfill({ status: r.status, headers: Object.fromEntries(r.headers.entries()), body: Buffer.from(await r.arrayBuffer()) });
     } catch { await route.abort(); }
   });
-  // every other outside address, http or https, answers empty: nothing leaves this machine but the font
-  await ctx.route(/^https?:\/\/(?!zlocal\.supabase\.co[/:]|fonts\.googleapis\.com\/|fonts\.gstatic\.com\/|localhost[/:]|127\.0\.0\.1[/:])/, (r) => r.fulfill({ status: 200, body: "" }));
   const page = await ctx.newPage();
   page.setDefaultTimeout(5000);
   const errs = [], failed = [], cons = [];

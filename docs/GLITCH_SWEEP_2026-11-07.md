@@ -4,7 +4,7 @@ At laptop width, every page of the admin dashboard and the business CRM was open
 role (in the default and the Glass theme); at phone width, the CRM and admin menu pages were opened (most Settings
 subpages weren't reached on a phone, see the results). Up to eight opening buttons per page were clicked. Everything ran against the **local stand-in** (`tests/browser/local-backend.mjs`)
 over an **isolated test database** (production state plus Batch 3, Releases 1–3 and the slot-search fix; test
-businesses only). Nothing touched production; nothing was sent.
+businesses only). Browser routing blocked outside addresses except the permitted font endpoints, and the sweep read only the isolated test database. Edge-function outbound access was not independently verified.
 
 ## How it was checked
 
