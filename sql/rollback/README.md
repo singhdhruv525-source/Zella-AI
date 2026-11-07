@@ -81,17 +81,22 @@ happens or none of it does (`tests/rollback_runner/run.sh` checks every file has
   restore function (the snapshots are kept, renamed `config_migration_snapshots_rolled_back`).
   **Restore the right snapshot.** Every call to `zella_config_migration_apply` takes a new snapshot, even one that
   changes nothing. A later snapshot already contains the migrated settings, so restoring it puts the migration back.
-  **First, stop new applies until the rollback commits.** Otherwise an apply that runs after your restore migrates
-  the settings again, and the rollback then removes the restore function. Only `service_role` is granted it:
+  **Before selecting snapshots, pause every caller of `zella_config_migration_apply` and confirm through those
+  callers that all in-flight apply transactions have ended.** This includes owner and superuser sessions (the SQL
+  editor, `postgres`), and applies still running their preview before inserting a snapshot. If you cannot confirm
+  that every apply transaction has ended, **stop; do not select snapshots or proceed with the rollback**. Keep every
+  caller paused until the rollback commits. Otherwise an apply after your restore can migrate the settings again,
+  before the rollback removes the restore function.
+
+  Retain this revoke as a safeguard against new calls from `service_role`:
 
   ```sql
   revoke execute on function public.zella_config_migration_apply(uuid) from service_role;
   ```
 
-  The revoke only stops new calls from `service_role`. The function's owner and superusers (the SQL editor, `postgres`)
-  can still call it, so don't run applies from those either until the rollback commits. Then wait for every apply
-  already started to finish. Each one writes a snapshot row and holds a lock on that table until its transaction
-  ends, even after it has moved on to other statements. This waits for all of them:
+  The revoke does not stop calls from the function's owner or superusers, or end in-flight transactions. It does not
+  replace pausing every caller and confirming the drain through them. After that confirmation, this additional check
+  waits for conflicting locks on the snapshot table, including those held by transactions that inserted snapshots:
 
   ```sql
   begin;
@@ -100,9 +105,14 @@ happens or none of it does (`tests/rollback_runner/run.sh` checks every file has
   commit;
   ```
 
-  If it times out, an open transaction still holds an apply. Find it with
-  `select pid, state, xact_start from pg_locks l join pg_stat_activity a using (pid) where l.relation = 'public.config_migration_snapshots'::regclass and pid <> pg_backend_pid();`,
-  let it finish or end it, and run the wait again. Leave apply revoked: the rollback drops the function.
+  **This lock cannot confirm that every apply has finished.** An apply still in preview has not yet inserted its
+  snapshot and need not hold a conflicting lock on this table. Acquiring the lock successfully does not establish
+  that those transactions have ended; confirmation through every paused caller is required before snapshot selection.
+  If the check times out, roll back the check transaction and inspect snapshot-table lock holders with
+  `select pid, state, xact_start from pg_locks l join pg_stat_activity a using (pid) where l.relation = 'public.config_migration_snapshots'::regclass and pid <> pg_backend_pid();`.
+  This query does not identify applies still in preview. Resolve the blockers with their callers and retry the check,
+  keeping every caller paused. Neither resolving these blockers nor a successful retry replaces confirmation that
+  all apply transactions have ended. Leave apply revoked: the rollback drops the function.
   If you decide not to roll back after all, give it back with
   `grant execute on function public.zella_config_migration_apply(uuid) to service_role;`.
 
