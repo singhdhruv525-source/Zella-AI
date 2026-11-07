@@ -82,15 +82,28 @@ happens or none of it does (`tests/rollback_runner/run.sh` checks every file has
   **Restore the right snapshot.** Every call to `zella_config_migration_apply` takes a new snapshot, even one that
   changes nothing. A later snapshot already contains the migrated settings, so restoring it puts the migration back.
   **First, stop new applies until the rollback commits.** Otherwise an apply that runs after your restore migrates
-  the settings again, and the rollback then removes the restore function. Only `service_role` may call it:
+  the settings again, and the rollback then removes the restore function. Only `service_role` is granted it:
 
   ```sql
   revoke execute on function public.zella_config_migration_apply(uuid) from service_role;
   ```
 
-  Wait for any apply already running to finish (`select pid, query from pg_stat_activity where query ilike
-  '%zella_config_migration_apply%' and pid <> pg_backend_pid();` returns nothing). Leave it revoked: the rollback
-  drops the function. If you decide not to roll back after all, give it back with
+  The revoke only stops new calls from `service_role`. The function's owner and superusers (the SQL editor, `postgres`)
+  can still call it, so don't run applies from those either until the rollback commits. Then wait for every apply
+  already started to finish. Each one writes a snapshot row and holds a lock on that table until its transaction
+  ends, even after it has moved on to other statements. This waits for all of them:
+
+  ```sql
+  begin;
+  set local lock_timeout = '30s';
+  lock table public.config_migration_snapshots in share mode;
+  commit;
+  ```
+
+  If it times out, an open transaction still holds an apply. Find it with
+  `select pid, state, xact_start from pg_locks l join pg_stat_activity a using (pid) where l.relation = 'public.config_migration_snapshots'::regclass and pid <> pg_backend_pid();`,
+  let it finish or end it, and run the wait again. Leave apply revoked: the rollback drops the function.
+  If you decide not to roll back after all, give it back with
   `grant execute on function public.zella_config_migration_apply(uuid) to service_role;`.
 
   List **all** of the business's snapshots, restored ones too, oldest first:
