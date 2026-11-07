@@ -15,6 +15,7 @@ for m in "${PENDING[@]}"; do [[ "$m" =~ ^zella_[a-z0-9_]+$ ]] || { echo "FAIL un
 "$REPO/tests/lib/build_full.sh" "$DB" "$REPO/tests/channel/fixture.sql" || exit 1
 for m in "${PENDING[@]}" zella_batch1_security zella_batch3_pagination; do
   [ "$m" = zella_slots_resource_blocks ] && continue   # applied below, after the baseline is taken
+  [ "$m" = zella_record_workflows ] && continue   # a later release; tests/workflows/run.sh checks it
   [ -f "$REPO/sql/$m.sql" ] || continue
   out=$("${P[@]}" -d "$DB" -f "$REPO/sql/$m.sql" 2>&1) || { echo "FAIL apply $m: $(echo "$out" | grep -m1 ERROR)"; exit 1; }
 done

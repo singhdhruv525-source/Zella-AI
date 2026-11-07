@@ -50,6 +50,8 @@ export const NAV_ITEMS = [
   { id: "checkins", group: "workspace", order: 30, label: "Check-ins", icon: "how_to_reg", page: "checkins", capability: "checkins" },
   { id: "waitlist", group: "workspace", order: 40, label: "Waitlist", icon: "hourglass_top", page: "waitlist", module: "calendar", capability: "waitlist" },
   { id: "tasks", group: "workspace", order: 50, label: "Tasks & follow-ups", icon: "task_alt", page: "tasks" },
+  // Release 3 (sql/zella_record_workflows.sql): approvals waiting, dates coming up and problems holding work up, on any record
+  { id: "follow", group: "workspace", order: 52, label: "Follow-through", icon: "fact_check", page: "follow" },
 
   { id: "leads", group: "crm", order: 10, label: "Leads", icon: "filter_alt", page: "leads" },
   { id: "customers", group: "crm", order: 20, label: (term) => term("customers"), icon: "group", page: "customers" },
