@@ -20,7 +20,8 @@ inputs=$(cat "$REPO"/sql/baseline/*.sql "$REPO/sql/zella_industries_seed.sql" "$
 have=$("${P[@]}" -d postgres -c "select shobj_description(oid, 'pg_database') from pg_database where datname = 'zfull'")
 if [ "$have" != "$inputs" ]; then
   "${P[@]}" -d postgres -c "drop database if exists zfull" > /dev/null 2>&1
-  "$REPO/sql/baseline/restore.sh" zfull $(for m in "${LIVE[@]}"; do echo "$REPO/sql/$m.sql"; done) > /dev/null 2>&1 || { echo "build: restore failed" >&2; exit 1; }
+  live_files=(); for m in "${LIVE[@]}"; do live_files+=("$REPO/sql/$m.sql"); done   # one argument per file, whatever the path
+  "$REPO/sql/baseline/restore.sh" zfull "${live_files[@]}" > /dev/null 2>&1 || { echo "build: restore failed" >&2; exit 1; }
   "${P[@]}" -d zfull -f "$REPO/sql/zella_industries_seed.sql" > /dev/null && "${P[@]}" -d zfull -f "$REPO/tests/calls/industries_28.sql" > /dev/null || { echo "build: industries failed" >&2; exit 1; }
   for m in "${APPLIED[@]}"; do out=$("${P[@]}" -d zfull -f "$REPO/sql/$m.sql" 2>&1) || { echo "build: $m failed: $(echo "$out" | grep -m1 ERROR)" >&2; exit 1; }; done
   "${P[@]}" -d postgres -c "comment on database zfull is '$inputs'" > /dev/null
