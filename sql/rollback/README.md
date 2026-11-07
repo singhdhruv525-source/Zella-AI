@@ -30,17 +30,34 @@ Two exceptions to the naming rule:
   section 5, "Rollback and recovery"). Everything applied after them must be rolled back first, newest first. It
   refuses to run without the pre-deploy backups.
 
-  **It loses data that was added or changed since those migrations.** Keep a copy before running it:
+  **It loses data that was added or changed since those migrations.**
   - **Appointment links.** It drops `appointments.record_id` and `appointments.record_suggested_id`, so every link
-    between an appointment and a record is lost. Save them first, for example with
-    `create table public.keep_appointment_links as select id, record_id, record_suggested_id from public.appointments
-    where record_id is not null or record_suggested_id is not null;`.
+    between an appointment and a record is lost.
   - **Record types.** It puts every record type back to its pre-deploy copy (`backup_20261104_types`): names, icons,
-    labels, statuses and fields edited since are overwritten, and types added since are deleted. Save them first, for
-    example with `create table public.keep_record_types as select * from public.crm_record_types;`.
+    labels, statuses and fields edited since are overwritten, and types added since are deleted.
 
-  Compare the saved copies with the result afterwards, and re-enter what still applies once the group is
-  re-deployed.
+  Save both **inside the rollback's own transaction**, so nothing can change between the copy and the rollback.
+  1. Make a copy of `industry_2026_11_04_rollback.sql`.
+  2. In the copy, paste these lines right after its first `begin;`:
+
+     ```sql
+     -- block writes to both tables until the rollback commits, so the copies are complete
+     lock table public.appointments, public.crm_record_types in share row exclusive mode;
+     -- a private schema: not exposed through the API, no client role can read it
+     create schema if not exists rollback_keep;
+     revoke all on schema rollback_keep from public, anon, authenticated;
+     create table rollback_keep.appointment_links as select id, business_id, record_id, record_suggested_id
+       from public.appointments where record_id is not null or record_suggested_id is not null;
+     create table rollback_keep.record_types as select * from public.crm_record_types;
+     revoke all on all tables in schema rollback_keep from public, anon, authenticated;
+     ```
+
+  3. Run the copy as usual. If anything fails, none of it happens, the copies included. Bookings and record-type
+     edits wait for the few seconds it takes.
+
+  Compare the saved copies (`rollback_keep.appointment_links`, `rollback_keep.record_types`) with the result
+  afterwards, and re-enter what still applies once the group is re-deployed. Drop the `rollback_keep` schema when you
+  no longer need it.
 - `industry_data_part.sql` is not a rollback to run: it is the hand-written part included at the top of
   `industry_2026_11_04_rollback.sql` (`tests/staging/make_rollback.py` builds that file from it).
 
@@ -53,18 +70,21 @@ happens or none of it does (`tests/rollback_runner/run.sh` checks every file has
   restore that business from its snapshot with `zella_config_migration_restore` first. The rollback removes the
   restore function (the snapshots are kept, renamed `config_migration_snapshots_rolled_back`).
   **Restore the right snapshot.** Every call to `zella_config_migration_apply` takes a new snapshot, even one that
-  changes nothing. A later snapshot already contains the migrated settings, so restoring it leaves the first
-  migration in place. Use the business's **earliest** snapshot that hasn't been restored, the one taken before the
-  first apply:
+  changes nothing. A later snapshot already contains the migrated settings, so restoring it puts the migration back.
+  List **all** of the business's snapshots, restored ones too, oldest first:
 
   ```sql
-  select id, taken_at, applied from public.config_migration_snapshots
-   where business_id = '<business id>' and restored_at is null order by taken_at limit 1;
+  select id, taken_at, restored_at, applied from public.config_migration_snapshots
+   where business_id = '<business id>' order by taken_at;
   ```
+
+  - **The first one has `restored_at` empty:** restore that one. It holds the settings from before the first apply.
+  - **The first one was already restored:** don't restore a later one by default. Check the business's current
+    settings first. They may already be the original ones, and a later snapshot would put the migrated settings back.
 
   **A restore overwrites that business's current language and call-routing settings and its knowledge content with
   that snapshot.** Anything the business changed after the migration is lost. So before restoring:
-  1. Compare the business's current settings with the snapshot.
+  1. Compare the business's current settings with the snapshot you chose.
   2. Note any later edits.
   3. Restore only if those edits can be lost or re-entered, then re-apply them after the restore.
   4. Leave a business whose later changes must be kept unrestored, and agree the next step with its owner.
