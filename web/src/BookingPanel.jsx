@@ -100,7 +100,9 @@ export function BookingPanel({ workspace, industry, appt, person, staff, blocks,
   const staffName = Object.fromEntries(staff.map((m) => [m.id, m.name]));
   const canWrite = WRITE_ROLES.includes(workspace.role);
   const requested = appt.booking_state === "requested";
-  const tentative = appt.booking_state === "tentative";
+  // a visit booked from a recurring plan (Release 2) holds the time without a hold expiry until it's confirmed
+  const planned = appt.booking_state === "tentative" && Boolean(appt.metadata?.planned);
+  const tentative = appt.booking_state === "tentative" && !planned;
   const open = ["scheduled", "confirmed"].includes(appt.status) && !requested;
   const arrived = Boolean(appt.checked_in_at || appt.arrived_at);
   const name = personName(person);
@@ -195,6 +197,25 @@ export function BookingPanel({ workspace, industry, appt, person, staff, blocks,
           {error && <div className="ba-banner error">{error}</div>}
           {appt.conflict_note && <div className="ba-banner error"><span><strong>Needs rearranging.</strong> {appt.conflict_note}</span></div>}
           {tentative && <div className="ba-banner"><span><strong>Held, not confirmed.</strong> Held until {formatTime(appt.hold_expires_at, tz)} while the customer decides.</span></div>}
+          {planned && open && (
+            <div className="ba-banner" data-planned="true">
+              <span><strong>Planned visit.</strong> Booked from a recurring plan and holding the time. Nothing has been sent to the customer. Confirm it once it's agreed.</span>
+              {canWrite && open && <button type="button" className="ba-btn primary sm" disabled={busy}
+                onClick={async () => {
+                  // confirm only if it's still an open planned visit (another person may have changed it meanwhile)
+                  setBusy(true); setError("");
+                  let res;
+                  try {
+                    res = await changed(supabase.from("appointments")
+                      .update({ booking_state: "confirmed", status: "confirmed", updated_at: new Date().toISOString() })
+                      .eq("id", appt.id).eq("booking_state", "tentative").in("status", ["scheduled", "confirmed"]));
+                  } catch (e) { res = { error: e }; } finally { setBusy(false); }
+                  if (res.error?.message === "NOT_CHANGED") { onNotice("Nothing was confirmed: this visit changed meanwhile (it may have been canceled). The calendar has been refreshed."); onChanged(); return; }
+                  if (res.error) { setError(friendly(res.error)); return; }
+                  onNotice("Visit confirmed."); onChanged();
+                }}>Confirm visit</button>}
+            </div>
+          )}
           {requested && canWrite && (
             <form className="ba-banner bp-request" onSubmit={confirmRequest}>
               <span><strong>Requested, not booked.</strong> Pick a time to book it.</span>
@@ -214,7 +235,7 @@ export function BookingPanel({ workspace, industry, appt, person, staff, blocks,
               <Row label="Reference">#{ref(appt.id)}</Row>
               <Row label="Status">
                 <Pill tone={APPT_TONE[appt.status]}>{APPT_LABEL[appt.status] ?? appt.status}</Pill>
-                {requested && <Pill tone="warning">Requested</Pill>}{tentative && <Pill tone="warning">Held</Pill>}{arrived && open && <Pill tone="success">{cfg.arrived}</Pill>}
+                {requested && <Pill tone="warning">Requested</Pill>}{tentative && <Pill tone="warning">Held</Pill>}{planned && <Pill tone="warning">Planned</Pill>}{arrived && open && <Pill tone="success">{cfg.arrived}</Pill>}
               </Row>
               <Row label="Duration">{mins(appt) ? `${mins(appt)} min` : null}</Row>
               <Row label="Booking">{appt.title}</Row>
