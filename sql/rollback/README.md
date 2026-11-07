@@ -54,10 +54,9 @@ Two exceptions to the naming rule:
      create table rollback_keep.appointment_links as select id, business_id, record_id, record_suggested_id
        from public.appointments where record_id is not null or record_suggested_id is not null;
      create table rollback_keep.record_types as select * from public.crm_record_types;
-     -- every never-run automation with a starter name (a superset of what step 6 deletes)
+     -- every automation that has never run: a superset of what step 6 deletes, whatever the preset table holds now
      create table rollback_keep.automations as select a.* from public.automations a
-      where a.name in (select name from public.industry_automation_presets)
-        and not exists (select 1 from public.industry_automation_runs r where r.automation_id = a.id);
+      where not exists (select 1 from public.industry_automation_runs r where r.automation_id = a.id);
      revoke all on all tables in schema rollback_keep from public, anon, authenticated;
      ```
 
@@ -82,6 +81,18 @@ happens or none of it does (`tests/rollback_runner/run.sh` checks every file has
   restore function (the snapshots are kept, renamed `config_migration_snapshots_rolled_back`).
   **Restore the right snapshot.** Every call to `zella_config_migration_apply` takes a new snapshot, even one that
   changes nothing. A later snapshot already contains the migrated settings, so restoring it puts the migration back.
+  **First, stop new applies until the rollback commits.** Otherwise an apply that runs after your restore migrates
+  the settings again, and the rollback then removes the restore function. Only `service_role` may call it:
+
+  ```sql
+  revoke execute on function public.zella_config_migration_apply(uuid) from service_role;
+  ```
+
+  Wait for any apply already running to finish (`select pid, query from pg_stat_activity where query ilike
+  '%zella_config_migration_apply%' and pid <> pg_backend_pid();` returns nothing). Leave it revoked: the rollback
+  drops the function. If you decide not to roll back after all, give it back with
+  `grant execute on function public.zella_config_migration_apply(uuid) to service_role;`.
+
   List **all** of the business's snapshots, restored ones too, oldest first:
 
   ```sql
