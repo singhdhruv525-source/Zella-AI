@@ -517,7 +517,7 @@ export function RecordsPage({ workspace, type, query, refreshKey, canManage, onN
 
 const FIELD_TYPES = [["text", "Short text"], ["longtext", "Long text"], ["select", "Choice list"], ["date", "Date"], ["datetime", "Date and time"], ["number", "Number"], ["phone", "Phone"], ["email", "Email"], ["bool", "Yes / No"], ["record", "Link to another record"]];
 
-function TypeEditor({ workspace, type, types = [], onClose, onSaved }) {
+function TypeEditor({ workspace, type, types = [], onClose, onSaved, onWorkflowSaved }) {
   const isNew = !type;
   const [singular, setSingular] = useState(type?.singular ?? "");
   const [plural, setPlural] = useState(type?.plural ?? "");
@@ -528,9 +528,7 @@ function TypeEditor({ workspace, type, types = [], onClose, onSaved }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [workflowNote, setWorkflowNote] = useState("");
-  const [workflowSaved, setWorkflowSaved] = useState(false);
-  // closing after a workflow save still reloads the types, so reopening shows the saved setting
-  const close = () => (workflowSaved ? onSaved("Workflow saved.") : onClose());
+  const close = onClose;
 
   const move = (list, set, i, d) => { const j = i + d; if (j < 0 || j >= list.length) return; const c = [...list]; [c[i], c[j]] = [c[j], c[i]]; set(c); };
 
@@ -641,7 +639,7 @@ function TypeEditor({ workspace, type, types = [], onClose, onSaved }) {
         <div className="ba-modal-body">
           {workflowNote && <p className="ba-muted" role="status">{workflowNote}</p>}
           {/* saved on its own: the editor stays open so unsaved status and field changes aren't lost */}
-          <WorkflowSettings workspace={workspace} type={type} onSaved={(message) => { setWorkflowNote(message); setWorkflowSaved(true); }} />
+          <WorkflowSettings workspace={workspace} type={type} onSaved={(message) => { setWorkflowNote(message); onWorkflowSaved?.(); }} />
         </div>
       )}
     </Modal>
@@ -685,7 +683,8 @@ export function RecordSettingsPage({ workspace, types, loaded = true, canManage,
           </div>
         )}
       </section>
-      {editing && <TypeEditor workspace={workspace} types={types} type={editing === "new" ? null : editing} onClose={() => setEditing(null)} onSaved={(m) => { setEditing(null); onNotice(m); onChanged(); }} />}
+      {editing && <TypeEditor workspace={workspace} types={types} type={editing === "new" ? null : editing} onClose={() => setEditing(null)} onSaved={(m) => { setEditing(null); onNotice(m); onChanged(); }}
+        onWorkflowSaved={onChanged} />}
     </>
   );
 }

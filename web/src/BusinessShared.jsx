@@ -229,7 +229,7 @@ function formatClock(value, timeZone) {
 
 // Why a booking can't go ahead, or null if the slot is free for that person.
 export function findConflict({ staff, blocks, start, end, staffId, timeZone, resourceIds }) {
-  // a room, chair or bay the booking uses that is blocked then (the database refuses it; say so before trying)
+  // a room, chair or bay the booking uses that is blocked then (in the past it only warns: past visits never clash)
   const uses = new Set(resourceIds ?? []);
   const resourceBlock = uses.size ? (blocks ?? []).find((b) => b.resource_id && uses.has(b.resource_id) && new Date(b.start_time) < end && new Date(b.end_time) > start) : null;
   if (resourceBlock) return `That room, chair or bay is blocked then (${resourceBlock.title}).`;
