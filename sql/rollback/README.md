@@ -35,27 +35,38 @@ Two exceptions to the naming rule:
     between an appointment and a record is lost.
   - **Record types.** It puts every record type back to its pre-deploy copy (`backup_20261104_types`): names, icons,
     labels, statuses and fields edited since are overwritten, and types added since are deleted.
+  - **Starter automations.** It deletes every automation named like one of the 15 starter automations that has never
+    run (no `industry_automation_runs` row), even one a business installed and then customised.
 
-  Save both **inside the rollback's own transaction**, so nothing can change between the copy and the rollback.
+  Save all three **inside the rollback's own transaction**, so nothing can change between the copy and the rollback.
   1. Make a copy of `industry_2026_11_04_rollback.sql`.
   2. In the copy, paste these lines right after its first `begin;`:
 
      ```sql
-     -- block writes to both tables until the rollback commits, so the copies are complete
-     lock table public.appointments, public.crm_record_types in share row exclusive mode;
+     -- give up after 5 seconds instead of queueing behind (and in front of) other work; the whole run is undone
+     set local lock_timeout = '5s';
+     -- block writes to these tables until the rollback commits, so the copies are complete
+     lock table public.appointments, public.crm_record_types, public.automations, public.industry_automation_runs
+       in share row exclusive mode;
      -- a private schema: not exposed through the API, no client role can read it
      create schema if not exists rollback_keep;
      revoke all on schema rollback_keep from public, anon, authenticated;
      create table rollback_keep.appointment_links as select id, business_id, record_id, record_suggested_id
        from public.appointments where record_id is not null or record_suggested_id is not null;
      create table rollback_keep.record_types as select * from public.crm_record_types;
+     -- every never-run automation with a starter name (a superset of what step 6 deletes)
+     create table rollback_keep.automations as select a.* from public.automations a
+      where a.name in (select name from public.industry_automation_presets)
+        and not exists (select 1 from public.industry_automation_runs r where r.automation_id = a.id);
      revoke all on all tables in schema rollback_keep from public, anon, authenticated;
      ```
 
-  3. Run the copy as usual. If anything fails, none of it happens, the copies included. Bookings and record-type
-     edits wait for the few seconds it takes.
+  3. Run the copy as usual, **in a maintenance window**. The locks are held until the whole rollback commits, so
+     bookings, record-type edits and automation changes for every business wait until then. If a lock can't be
+     taken within 5 seconds, or anything else fails, none of it happens, the copies included; run it again.
 
-  Compare the saved copies (`rollback_keep.appointment_links`, `rollback_keep.record_types`) with the result
+  Compare the saved copies (`rollback_keep.appointment_links`, `rollback_keep.record_types`,
+  `rollback_keep.automations`) with the result
   afterwards, and re-enter what still applies once the group is re-deployed. Drop the `rollback_keep` schema when you
   no longer need it.
 - `industry_data_part.sql` is not a rollback to run: it is the hand-written part included at the top of
@@ -74,16 +85,35 @@ happens or none of it does (`tests/rollback_runner/run.sh` checks every file has
   List **all** of the business's snapshots, restored ones too, oldest first:
 
   ```sql
-  select id, taken_at, restored_at, applied from public.config_migration_snapshots
+  select id, taken_at, restored_at, applied, count(*) over (partition by taken_at) as same_time
+    from public.config_migration_snapshots
    where business_id = '<business id>' order by taken_at;
   ```
+
+  - **`same_time` is more than 1 on the first row:** stop. Two applies ran in one transaction and got the same
+    `taken_at`, so the order shown is not the order they were taken in. Don't restore either until you know which
+    one holds the pre-migration settings (compare their `languages`, `escalation_rules` and `setup_knowledge`).
 
   - **The first one has `restored_at` empty:** restore that one. It holds the settings from before the first apply.
   - **The first one was already restored:** don't restore a later one by default. Check the business's current
     settings first. They may already be the original ones, and a later snapshot would put the migrated settings back.
 
   **A restore overwrites that business's current language and call-routing settings and its knowledge content with
-  that snapshot.** Anything the business changed after the migration is lost. So before restoring:
+  that snapshot.** Anything the business changed after the migration is lost. Do the comparison and the restore
+  in **one transaction**, with the three tables the restore writes locked, so the business can't change its
+  settings in between (this pauses those settings for every business, so keep the transaction short):
+
+  ```sql
+  begin;
+  set local lock_timeout = '5s';
+  lock table public.business_languages, public.ai_agent_configs, public.knowledge_items in share row exclusive mode;
+  -- compare and note later edits here, then:
+  select public.zella_config_migration_restore('<snapshot id>');
+  -- re-apply the edits you noted, then:
+  commit;   -- or rollback; to change nothing
+  ```
+
+  Inside it:
   1. Compare the business's current settings with the snapshot you chose.
   2. Note any later edits.
   3. Restore only if those edits can be lost or re-entered, then re-apply them after the restore.
