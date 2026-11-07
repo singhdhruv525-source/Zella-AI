@@ -97,6 +97,9 @@ async function inspect(page, vw) {
       return e.offsetParent && e.scrollWidth > e.clientWidth + 2 && st.overflow !== "visible" && st.textOverflow !== "ellipsis";
     }).slice(0, 6).map((e) => `${sel(e)} "${e.innerText.trim().slice(0, 30)}"`);
     const brokenImg = [...document.querySelectorAll("img")].filter((i) => i.complete && i.naturalWidth === 0 && i.offsetParent).map((i) => i.getAttribute("src")?.slice(0, 80));
+    // tables (or boards) that need sideways scrolling inside their box at this width
+    const scrollers = [...document.querySelectorAll(".ba-table-wrap, .owner-table-wrap, .zs-table-wrap, [class*='table-wrap']")]
+      .filter((w) => w.offsetParent && w.scrollWidth > w.clientWidth + 2).map((w) => `${sel(w)} (+${w.scrollWidth - w.clientWidth}px)`).slice(0, 4);
     const raw = (main.innerText.match(/\b(undefined|NaN|null|\[object Object\]|Invalid Date)\b/g) ?? []);
     return {
       title: (document.querySelector("h1")?.innerText ?? "").slice(0, 80),
@@ -105,7 +108,7 @@ async function inspect(page, vw) {
       notAvailable: /isn't available|not available to your role|don't have access|Platform admin access required|no permission/i.test(text),
       signIn: Boolean(document.querySelector('input[type="password"]') && document.querySelector('input[type="email"]') && !document.querySelector('nav, .ba-sidebar, .owner-sidebar')),
       overflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-      wide, clipped, brokenImg,
+      wide, clipped, brokenImg, scrollers,
       rawValues: [...new Set(raw)],
       empty: main.innerText.trim().length < 20,
       errorsShown: [...document.querySelectorAll('[role="alert"], .zs-banner.error, .owner-form-error, .ba-error')].map((e) => e.innerText.slice(0, 160)).filter(Boolean),
@@ -198,6 +201,7 @@ async function sweep(browser, name, email) {
       row.crashed && "CRASH", row.pageErrors.length && `pageerror:${row.pageErrors[0]}`, row.notFound && "NOT-FOUND", row.signIn && "SIGNED-OUT",
       row.stuck && "STUCK-LOADING", row.failed.length && `failed:${row.failed.map((f) => `${f.status} ${f.url.split("?")[0]}`).join(",")}`,
       row.consoleErrors.length && `console:${row.consoleErrors[0]}`, row.overflowX > 0 && `overflowX=${row.overflowX} ${row.wide.slice(0, 2).join(" ; ")}`,
+      !MOBILE && row.scrollers.length && `table-scrolls:${row.scrollers.join(" ; ")}`,
       row.clipped.length && `clipped:${row.clipped.slice(0, 2).join(" ; ")}`, row.brokenImg.length && "broken-img", row.rawValues.length && `raw:${row.rawValues.join("/")}`,
       row.empty && !row.notAvailable && "EMPTY", row.axe?.length && `axe:${row.axe.map((a) => a.id).join(",")}`,
     ].filter(Boolean);

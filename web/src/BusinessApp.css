@@ -590,6 +590,8 @@ html:not([data-zella-icons="ready"]) .ba-icon { color: transparent !important; }
 .ba-panel-title .ba-kpi-icon { flex-shrink: 0; }
 .ba-panel-head h2 { margin: 0; font-size: 15.5px; font-weight: 650; letter-spacing: -0.01em; }
 .ba-panel-head p { margin: 2px 0 0; color: var(--ba-muted); font-size: 12px; }
+/* buttons in a card heading keep their size; the title and description wrap instead */
+.ba-panel-head > .ba-btn, .ba-panel-head > button, .ba-panel-head > a.ba-btn, .ba-panel-head > .ba-actions { flex-shrink: 0; }
 
 .ba-panel-tabs {
   display: flex;
@@ -1627,7 +1629,7 @@ html:not([data-zella-icons="ready"]) .ba-icon { color: transparent !important; }
 .td-kpi-label { display: block; color: var(--ba-muted); font-size: 13px; font-weight: 500; }
 .td-kpi-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin-top: 4px; }
 .td-kpi .ba-kpi-value { margin: 0; font-size: 30px; }
-.td-trend { white-space: nowrap; display: inline-flex; align-items: center; gap: 2px; color: var(--ba-muted); font-size: 11.5px; font-weight: 600; }
+.td-trend { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px; min-width: 0; color: var(--ba-muted); font-size: 11.5px; font-weight: 600; }
 .td-trend .ba-icon { font-size: 14px; }
 .td-trend.up { color: var(--ba-success); }
 .td-trend.down { color: var(--ba-danger); }
@@ -2032,7 +2034,9 @@ html:not([data-zella-icons="ready"]) .ba-header-actions { flex-wrap: wrap; flex-
 /* Narrow phones with every header button (owners): the business switcher becomes just its initials (still opens the list) */
 @media (max-width: 480px) {
   .ba-switcher-btn .ba-switcher-text, .ba-switcher-btn > .ba-icon { display: none; }
-  .ba-switcher-btn { justify-content: center; overflow: hidden; }
+  /* the initials keep their full size: the button doesn't shrink below its logo */
+  .ba-switcher { flex: 0 0 auto; }
+  .ba-switcher-btn { justify-content: center; overflow: hidden; width: auto; padding: 4px; }
 }
 
 /* receptionist editor: grouped settings (handover reasons, booking rules) */
@@ -2221,3 +2225,10 @@ html:not([data-zella-icons="ready"]) .ba-header-actions { flex-wrap: wrap; flex-
 .ba-follow-grid .ba-panel { padding: 12px 14px; min-width: 0; }
 .ba-follow-grid .ba-history li { overflow-wrap: anywhere; }
 .ba-workflow-settings { display: grid; gap: 8px; }
+
+/* Calls list: fits a laptop screen. Short values stay on one line; the flags column wraps instead of being cut off. */
+.ba-calls-table th, .ba-calls-table td { padding-left: 12px; padding-right: 12px; }
+.ba-calls-table td:nth-child(2), .ba-calls-table td:nth-child(4), .ba-calls-table td:nth-child(5) { white-space: nowrap; }
+.ba-calls-table .ba-person small { white-space: nowrap; }
+.ba-calls-flags { min-width: 120px; }
+.ba-calls-flags > * { margin: 2px 4px 2px 0; vertical-align: middle; }

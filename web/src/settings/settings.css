@@ -114,6 +114,7 @@
 .zs-rows li > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .zs-rows strong { font-size: 13.5px; }
 .zs-rows small { color: var(--zs-muted); font-size: 12.5px; }
+.zs-rows li > .zs-btn, .zs-rows li > button { flex-shrink: 0; }
 
 .zs-table-wrap { overflow-x: auto; }
 .zs-table { width: 100%; border-collapse: collapse; font-size: 13px; }

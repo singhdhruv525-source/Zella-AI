@@ -511,10 +511,10 @@ export function PlanManagement({ me, onNavigate }) {
   const state = useAsync(() => call("plans_list"), []);
   return (
     <>
-      <LinkRows rows={[{ title: "Create, rename and archive plans", detail: "On the Plans & Subscriptions page. Archiving keeps every existing subscription.", onClick: () => onNavigate("Plans & Subscriptions") }]} />
+      <LinkRows rows={[{ title: "Create, rename and archive plans", detail: "On the Plans & subscriptions page. Archiving keeps every existing subscription.", onClick: () => onNavigate("Plans & Subscriptions") }]} />
       <LoadState state={state}>{(d) => (
         <Card title="Plans">
-          <Table rows={d.plans ?? []} empty="No plans yet. Create one on the Plans & Subscriptions page." columns={[
+          <Table rows={d.plans ?? []} empty="No plans yet. Create one on the Plans & subscriptions page." columns={[
             ["Plan", (p) => p.name], ["Identifier", (p) => p.slug ?? "—"], ["Monthly", (p) => (p.price_monthly != null ? money(p.price_monthly, p.currency) : "Not set")],
             ["Annual", (p) => (p.price_yearly != null ? money(p.price_yearly, p.currency) : "Not set")], ["Status", (p) => (p.is_active ? <Pill tone="success">Available</Pill> : <Pill>Archived</Pill>)],
           ]} />
@@ -602,7 +602,7 @@ export function Subscriptions() {
 export function TrialsPromotions({ onNavigate, onGo }) {
   return (
     <>
-      <LinkRows rows={[{ title: "Promotion codes and discounts", detail: "Discount type and value, start and end, redemption limits, eligibility and approval: on the Offers & Promotions page.", onClick: () => onNavigate("Offers & Promotions") },
+      <LinkRows rows={[{ title: "Promotion codes and discounts", detail: "Discount type and value, start and end, redemption limits, eligibility and approval: on the Offers & promotions page.", onClick: () => onNavigate("Offers & Promotions") },
         { title: "Offer automation rules", detail: "Starting and ending on time, approval limits, unpaid claim hold and alerts.", onClick: () => onGo("offers/rules") },
         { title: "Trial-ending notices", detail: "When owners are told a trial is ending.", onClick: () => onGo("general/operations") }]} />
       <Needs title="Trial length and eligible plans aren't configurable yet" have="Trials come from the payment provider's subscription (trial start and end dates are stored). Trial-ending notices use the trial_notice_days setting.">
@@ -767,10 +767,10 @@ export function AgentConfiguration({ onNavigate }) {
   return (
     <>
       <Card title="How receptionist settings are layered" sub="Global changes never overwrite a business's own instructions.">
-        <Facts rows={[["Industry defaults", "Words, starter wording and modules per industry (Industry Configuration)"], ["Each business", "Its own versions: draft, check, publish, restore (business Settings, AI receptionist)"],
+        <Facts rows={[["Industry defaults", "Words, starter wording and modules per industry (Industry configuration)"], ["Each business", "Its own versions: draft, check, publish, restore (business Settings, AI receptionist)"],
           ["Deployment", "A published version is synced to Vapi by n8n; it's live when the sync succeeds"]]} />
       </Card>
-      <LinkRows rows={[{ title: "Industry defaults", detail: "Industry Configuration page", onClick: () => onNavigate("Industry Configuration") }]} />
+      <LinkRows rows={[{ title: "Industry defaults", detail: "Industry configuration page", onClick: () => onNavigate("Industry Configuration") }]} />
       <Needs title="A global default prompt that rolls out to businesses isn't built" have="Each business edits and publishes its own receptionist; nothing global overwrites it.">
         Rolling out a global change safely needs a migration that creates a draft in every business for its owner to approve.
       </Needs>
@@ -983,7 +983,7 @@ export function DeliveryMonitoring({ onNavigate }) {
           <Facts rows={[["Texts failed (7 days)", c.sms.failed7d], ["Email bounces (30 days)", c.email.events30d.bounced ?? c.email.events30d["email.bounced"] ?? 0],
             ["Spam complaints (30 days)", c.email.events30d.complained ?? c.email.events30d["email.complained"] ?? 0], ["Suppressed contacts", c.optOuts]]} />
         </Card>
-        <LinkRows rows={[{ title: "Failed events and retries", detail: "Platform Operations", onClick: () => onNavigate("Platform Operations") }]} />
+        <LinkRows rows={[{ title: "Failed events and retries", detail: "Platform operations", onClick: () => onNavigate("Platform Operations") }]} />
       </>
     )}</LoadState>
   );
@@ -1109,7 +1109,7 @@ export function Webhooks() {
       <Card title="Inbound webhooks" sub="From the n8n workflow files and edge functions in the repository. Each business's events are tied to that business on arrival.">
         <Table rowKey={(w) => w[0]} rows={WEBHOOKS} columns={[["Endpoint", (w) => <code>{w[0]}</code>], ["Used by", (w) => w[1]], ["How it's verified", (w) => w[2]]]} />
       </Card>
-      <Needs title="Webhook delivery logs and outbound webhooks for businesses aren't built" have="Incoming events are stored once each (automation_events), with failures and retries under Platform Operations.">Outbound webhooks need endpoint registration, signing keys per business and a delivery log.</Needs>
+      <Needs title="Webhook delivery logs and outbound webhooks for businesses aren't built" have="Incoming events are stored once each (automation_events), with failures and retries under Platform operations.">Outbound webhooks need endpoint registration, signing keys per business and a delivery log.</Needs>
     </>
   );
 }
@@ -1503,13 +1503,13 @@ export function OffersOverview({ onNavigate }) {
       const problems = d.offers.filter((o) => o.problems?.length);
       return (
         <>
-          <Card title="Offers" sub="Discounts, promo codes and deals for businesses. Created, approved and scheduled on the Offers & Promotions page."
+          <Card title="Offers" sub="Discounts, promo codes and deals for businesses. Created, approved and scheduled on the Offers & promotions page."
             actions={<button type="button" className="zs-btn sm primary" onClick={() => onNavigate("Offers & Promotions")}>Open Offers & Promotions</button>}>
             <Facts rows={[...OFFER_STATUS.map(([k, label]) => [label, count(k)]),
               ["Claims waiting for payment", d.offers.reduce((n, o) => n + (o.claims - o.confirmed), 0)], ["Paid claims", d.offers.reduce((n, o) => n + o.confirmed, 0)]]} />
           </Card>
           {problems.length > 0 && (
-            <Card title="Offers that can't go live yet" sub="Fix these on the Offers & Promotions page.">
+            <Card title="Offers that can't go live yet" sub="Fix these on the Offers & promotions page.">
               <Table rows={problems} columns={[["Offer", (o) => o.name], ["Status", (o) => words(o.status)], ["To fix", (o) => o.problems.join(" ")]]} />
             </Card>
           )}

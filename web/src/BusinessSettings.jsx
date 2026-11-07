@@ -604,7 +604,7 @@ function CalendarConnections({ w }) {
   const back = new URLSearchParams(typeof window === "undefined" ? "" : window.location.search);
   const outcome = back.get("calendar"), reason = back.get("reason");
   const OUTCOME = { connected: ["success", "Calendar connected. Bookings will be copied to it and its busy times kept free once calendar sync is switched on."],
-    cancelled: ["warning", "The calendar wasn't connected: the sign-in was cancelled."],
+    cancelled: ["warning", "The calendar wasn't connected: the sign-in was canceled."],
     error: ["error", `The calendar couldn't be connected (${(reason ?? "error").replace(/_/g, " ")}). Try again, or contact Zella support.`] };
   async function connect(provider) {
     setProblem(""); setBusy(provider);
@@ -612,7 +612,10 @@ function CalendarConnections({ w }) {
     if (error || !data?.url) {
       let answer = null; try { answer = await error?.context?.json?.(); } catch { /* not JSON */ }
       setBusy("");
-      return setProblem(answer?.error === "provider_not_configured" ? `${provider === "google" ? "Google" : "Outlook"} calendars can't be connected yet: Zella's app with ${provider === "google" ? "Google" : "Microsoft"} isn't set up. Contact Zella support.`
+      // "provider_not_configured": Zella's app with Google or Microsoft isn't registered; "not_configured": the
+      // connection service itself isn't set up. Either way trying again won't help, so it says so.
+      const notSetUp = answer?.error === "provider_not_configured" || answer?.error === "not_configured";
+      return setProblem(notSetUp ? `${provider === "google" ? "Google" : "Outlook"} calendars can't be connected yet: Zella's connection with ${provider === "google" ? "Google" : "Microsoft"} isn't set up. Contact Zella support.`
         : answer?.error === "not_allowed" ? "Only owners and admins can connect a calendar." : "The calendar sign-in couldn't be started. Try again.");
     }
     window.location.assign(data.url); // the provider's own sign-in page; Zella never sees the password

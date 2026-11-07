@@ -111,7 +111,7 @@ export function DispatchPage({ workspace, refreshKey, onNotice, onOpenPerson }) 
           <button type="button" className="ba-btn sm" onClick={() => setDay(shiftDay(day, -1))} aria-label="Previous day"><Icon name="chevron_left" size="sm" /></button>
           <button type="button" className="ba-btn sm" onClick={() => setDay(todayInput(tz))}>Today</button>
           <button type="button" className="ba-btn sm" onClick={() => setDay(shiftDay(day, 1))} aria-label="Next day"><Icon name="chevron_right" size="sm" /></button>
-          <input type="date" value={day} onChange={(e) => e.target.value && setDay(e.target.value)} aria-label="Day" />
+          <label className="td-date"><Icon name="calendar_month" size="sm" /><input type="date" value={day} onChange={(e) => e.target.value && setDay(e.target.value)} aria-label="Day" /></label>
         </div>
       </PageHead>
       {problem && <p className="ba-error" role="alert">{problem}</p>}
@@ -288,7 +288,7 @@ export function ResourcesPage({ workspace, refreshKey, onNotice }) {
       <section className="ba-panel" aria-label="Resources by day">
         <div className="ba-panel-body">
           <div className="ba-kn-head"><h3 className="ba-h3">Who's using what</h3>
-            <input type="date" value={day} onChange={(e) => e.target.value && setDay(e.target.value)} aria-label="Day" /></div>
+            <label className="td-date"><Icon name="calendar_month" size="sm" /><input type="date" value={day} onChange={(e) => e.target.value && setDay(e.target.value)} aria-label="Day" /></label></div>
           <LoadState load={schedule} what="the day">
             {schedule.data && (schedule.data.length ? schedule.data.map((r) => (
               <div key={r.id} className="ba-res-day">

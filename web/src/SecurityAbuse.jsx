@@ -193,7 +193,7 @@ function Overview({ data, onOpenBusiness }) {
               </li>
             ))}
           </ul>
-        ) : <p className="op-muted">No open flood or call-volume alerts. These also appear in Platform Operations.</p>}
+        ) : <p className="op-muted">No open flood or call-volume alerts. These also appear in Platform operations.</p>}
       </section>
     </div>
   );

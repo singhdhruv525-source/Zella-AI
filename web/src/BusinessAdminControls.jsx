@@ -55,7 +55,7 @@ export function BusinessModulesCard({ businessId, modules, onSaved }) {
 
   return (
     <div className="bac">
-      {!modules.length && <div className="op-empty">No modules are offered for this industry. Add them in Industry Configuration.</div>}
+      {!modules.length && <div className="op-empty">No modules are offered for this industry. Add them in Industry configuration.</div>}
       <div className="bac-list">
         {modules.map((m) => {
           const needed = neededBy(m);

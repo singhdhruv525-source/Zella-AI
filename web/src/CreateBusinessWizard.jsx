@@ -672,7 +672,7 @@ function ModulesStep({ modules, onChange }) {
       <Section title="Modules">
         <div className="owner-empty-state">
           <strong>No modules are configured for this industry yet</strong>
-          <p>Add modules to the industry in Industry Configuration, then return here.</p>
+          <p>Add modules to the industry in Industry configuration, then return here.</p>
         </div>
       </Section>
     );
