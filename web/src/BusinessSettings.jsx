@@ -1017,7 +1017,7 @@ function registry(w) {
     ] },
     { key: "reports", label: "Reports and preferences", icon: "monitoring", items: [
       page("dashboard", "Dashboard preferences", lazyNeeds("Dashboard preferences aren't saved yet", "Today opens first; each report remembers its period while you're on it.", "Saving them needs a per-person preferences record.")),
-      page("reporting", "Reporting preferences", () => <ReportSchedule w={w} />, "daily report summary time recipients schedule"),
+      page("reporting", "Reporting preferences", () => <ReportSchedule key={`${w.id}:${roleIn(w, LEAD)}`} w={w} />, "daily report summary time recipients schedule"),
       page("performance", "Business performance", () => <ReportsPage workspace={w} refreshKey={0} />, "calls leads appointments"),
       page("export", "Data export", () => <DataExport w={w} />, "csv"),
     ] },

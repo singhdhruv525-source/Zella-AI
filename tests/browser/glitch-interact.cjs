@@ -33,10 +33,16 @@ async function main() {
   const browser = await chromium.launch();
   const vw = MOBILE ? { width: 390, height: 844 } : { width: 1280, height: 860 };
   const ctx = await browser.newContext({ viewport: vw, reducedMotion: "reduce", isMobile: MOBILE, hasTouch: MOBILE });
-  await ctx.route("https://zlocal.supabase.co/**", async (route) => {
+  await ctx.route(/^https?:\/\/zlocal\.supabase\.co\//, async (route) => {
     const req = route.request();
     try {
-      const r = await fetch(req.url().replace("https://zlocal.supabase.co", BACKEND), { method: req.method(), headers: req.headers(), body: ["GET", "HEAD"].includes(req.method()) ? undefined : req.postDataBuffer() });
+      const r = await fetch(req.url().replace(/^https?:\/\/zlocal\.supabase\.co/, BACKEND), { redirect: "manual", method: req.method(), headers: req.headers(), body: ["GET", "HEAD"].includes(req.method()) ? undefined : req.postDataBuffer() });
+      if (r.status >= 300 && r.status < 400 && r.headers.has("location")) {
+        const target = new URL(r.headers.get("location"), r.url);
+        if (!["http:", "https:"].includes(target.protocol) || !["localhost", "127.0.0.1", "[::1]"].includes(target.hostname) || target.username || target.password) {
+          await route.abort(); return;
+        }
+      }
       await route.fulfill({ status: r.status, headers: Object.fromEntries(r.headers.entries()), body: Buffer.from(await r.arrayBuffer()) });
     } catch { await route.abort(); }
   });
