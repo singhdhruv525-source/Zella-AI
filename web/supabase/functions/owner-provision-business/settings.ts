@@ -273,6 +273,7 @@ export function settingsHandlers(admin: SupabaseClient, fields: Json, ctx: { use
       const planName = Object.fromEntries(((plans.data ?? []) as { id: string; name: string }[]).map((p) => [p.id, p.name]));
       return {
         total: count ?? 0, page, size,
+        subscriptionLookupFailed: Boolean("error" in subs && subs.error),
         industries: industries.data ?? [], plans: plans.data ?? [],
         rows: (data ?? []).map((b) => {
           const sub = ((subs.data ?? []) as { business_id: string; status: string; plan_id: string }[]).find((s) => s.business_id === b.id);
