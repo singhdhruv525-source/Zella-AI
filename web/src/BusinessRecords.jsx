@@ -527,6 +527,10 @@ function TypeEditor({ workspace, type, types = [], onClose, onSaved }) {
   const [fields, setFields] = useState((type?.fields ?? [{ key: "details", label: "Details", type: "longtext" }]).map((f) => ({ ...f, existing: Boolean(type), wasSensitive: Boolean(f.sensitive), optionsText: (f.options ?? []).join(", ") })));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [workflowNote, setWorkflowNote] = useState("");
+  const [workflowSaved, setWorkflowSaved] = useState(false);
+  // closing after a workflow save still reloads the types, so reopening shows the saved setting
+  const close = () => (workflowSaved ? onSaved("Workflow saved.") : onClose());
 
   const move = (list, set, i, d) => { const j = i + d; if (j < 0 || j >= list.length) return; const c = [...list]; [c[i], c[j]] = [c[j], c[i]]; set(c); };
 
@@ -576,8 +580,8 @@ function TypeEditor({ workspace, type, types = [], onClose, onSaved }) {
   }
 
   return (
-    <Modal wide title={isNew ? "Add a type of record" : `Edit ${type.plural.toLowerCase()}`} description="Changes apply to your business only." onClose={onClose} busy={busy}
-      footer={<><button type="button" className="ba-btn" onClick={onClose} disabled={busy}>Cancel</button>
+    <Modal wide title={isNew ? "Add a type of record" : `Edit ${type.plural.toLowerCase()}`} description="Changes apply to your business only." onClose={close} busy={busy}
+      footer={<><button type="button" className="ba-btn" onClick={close} disabled={busy}>Cancel</button>
         <button type="submit" form="ba-type-form" className="ba-btn primary" disabled={busy}>{busy ? "Saving…" : "Save"}</button></>}>
       <form id="ba-type-form" className="ba-modal-body" onSubmit={save}>
         {error && <p className="ba-error" role="alert">{error}</p>}
@@ -635,7 +639,9 @@ function TypeEditor({ workspace, type, types = [], onClose, onSaved }) {
       </form>
       {!isNew && (
         <div className="ba-modal-body">
-          <WorkflowSettings workspace={workspace} type={type} onSaved={(message) => onSaved(message)} />
+          {workflowNote && <p className="ba-muted" role="status">{workflowNote}</p>}
+          {/* saved on its own: the editor stays open so unsaved status and field changes aren't lost */}
+          <WorkflowSettings workspace={workspace} type={type} onSaved={(message) => { setWorkflowNote(message); setWorkflowSaved(true); }} />
         </div>
       )}
     </Modal>

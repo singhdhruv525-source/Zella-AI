@@ -60,7 +60,7 @@ test("a record type shows the parts its workflow names; dates and problems alway
 test("refusals are explained in plain words", () => {
   for (const [code, want] of [["NOT_AUTHORIZED_APPROVER", /authorized to approve/], ["NO_APPROVER", /who gave the approval/], ["EXPIRED", /expired/],
     ["CHANGED", /changed while you were looking/], ["CHECKLIST_INCOMPLETE", /Answer every item/], ["ALREADY_OPEN", /already an open exception/],
-    ["ALREADY_USED", /already used a credit/], ["NO_CREDITS", /enough credits/], ["NOT_OPEN", /finished/], ["BAD_DATE", /Check the date/],
+    ["ALREADY_USED", /already used a credit/], ["NO_CREDITS", /enough credits/], ["MORE_THAN_USED", /only give back credits that were used/], ["NOT_OPEN", /finished/], ["BAD_DATE", /Check the date/],
     ["new row violates check constraint \"record_credits_units\"", /whole number/], ["NOT_ALLOWED", /permission/],
     ["Could not find the function public.zella_workflow_due", /isn't available/]]) {
     assert.match(workflowError({ message: code }), want, code);

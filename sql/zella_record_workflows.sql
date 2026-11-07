@@ -285,6 +285,8 @@ begin
   if a.charge_id is not null then
     update public.customer_charges set status = case p_decision when 'approved' then 'accepted' else 'declined' end, updated_at = now()
      where id = a.charge_id and kind = 'estimate' and status in ('proposed', 'accepted', 'declined');
+    -- the estimate was voided (or removed) meanwhile: nothing is decided
+    if not found then raise exception 'CHANGED'; end if;
   end if;
   select * into ty from public.crm_record_types where business_id = r.business_id and key = r.type_key;
   -- the record moves on only for its main approval kinds (an approved extra or change order doesn't restart the job)
@@ -467,7 +469,7 @@ create or replace function public.zella_credit_balance(p_record_id uuid) returns
 language sql stable security definer set search_path = public as $$
   select coalesce(sum(case when kind in ('grant', 'refund') then units else -units end), 0)::int from public.record_credits where record_id = p_record_id $$;
 
--- grant and expire: managers and above; use and refund: staff and above. The record row is locked, so two people using
+-- grant and expire: managers and above; use and refund (of what was used): staff and above. The record row is locked, so two people using
 -- the last credit at once can't both succeed. p_expected_balance (optional) refuses a change made from a stale screen.
 create or replace function public.zella_credit_add(p_record_id uuid, p_kind text, p_units integer, p_appointment_id uuid default null,
   p_note text default null, p_expected_balance integer default null) returns jsonb
@@ -482,6 +484,9 @@ begin
   if p_expected_balance is not null and p_expected_balance <> bal then raise exception 'CHANGED'; end if;
   if p_kind = 'use' and r.status = any (ty.closed_statuses) then raise exception 'NOT_OPEN'; end if;
   if p_kind in ('use', 'expire') and coalesce(p_units, 0) > bal then raise exception 'NO_CREDITS'; end if;
+  -- giving credits back returns only what was used (adding new ones is a manager's "grant")
+  if p_kind = 'refund' and coalesce(p_units, 0) > (select coalesce(sum(case kind when 'use' then units when 'refund' then -units else 0 end), 0)
+                                                     from public.record_credits where record_id = r.id) then raise exception 'MORE_THAN_USED'; end if;
   if p_appointment_id is not null and not exists (select 1 from public.appointments ap where ap.id = p_appointment_id and ap.business_id = r.business_id) then raise exception 'NOT_VALID'; end if;
   begin
     insert into public.record_credits (business_id, record_id, kind, units, appointment_id, note, actor)

@@ -76,6 +76,7 @@ const ERRORS = [
   [/ALREADY_OPEN/, () => "There's already an open exception of that kind on this record. Resolve it first."],
   [/ALREADY_USED/, () => "That visit has already used a credit from this package."],
   [/NO_CREDITS/, () => "There aren't enough credits left for that."],
+  [/MORE_THAN_USED/, () => "You can only give back credits that were used. To add new ones, ask a manager."],
   [/NOT_OPEN/, () => "This package is finished, so it can't be used."],
   [/BAD_DATE/, () => "Check the date: it can't be in the past, and a renewal's next date must come after this one."],
   [/record_approvals_title_len|record_milestones_title_len|record_inspections_title_len/, () => "Give it a name (2 to 120 characters)."],

@@ -210,13 +210,17 @@ function AskApproval({ workspace, kinds, canManage, record, onClose, act }) {
   const [f, setF] = useState({ kind: allowed[0] ?? "other", title: "", amount: "", expires: "" });
   const currency = useLoad(async () => {
     const r = await supabase.rpc("zella_business_currency", { p_business_id: workspace.id });
-    return r.error ? "USD" : r.data ?? "USD";
+    if (r.error) throw r.error;
+    if (!r.data) throw new Error("No currency is set for this business.");
+    return r.data;
   }, [workspace.id]);
-  const cur = currency.data ?? "USD";
+  // never guessed: an amount is only taken once the business's currency is known
+  const cur = currency.data;
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   return (
     <ActionModal title="Ask for approval" description={`For ${record.title}. Nothing is sent to anyone: this records what you're waiting for.`} act={act} onClose={onClose} submit="Save"
       onSubmit={() => {
+        if (f.amount.trim() && !cur) { act.setProblem("The business currency couldn't be loaded. Try again, or leave the amount empty."); return false; }
         const minor = f.amount.trim() ? toMinor(f.amount, cur) : null;
         if (f.amount.trim() && !minor) { act.setProblem("Enter the amount like 120.50, or leave it empty."); return false; }
         return act.run(() => supabase.rpc("zella_approval_request", { p_record_id: record.id, p_kind: f.kind, p_title: f.title, p_amount_minor: minor, p_currency: minor ? cur : null,
@@ -227,7 +231,7 @@ function AskApproval({ workspace, kinds, canManage, record, onClose, act }) {
           <select value={f.kind} onChange={set("kind")}>{APPROVAL_KINDS.filter(([k]) => allowed.includes(k)).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
         </Field>
         <Field label="Title"><input value={f.title} onChange={set("title")} required minLength={2} maxLength={120} placeholder="Front brakes and discs" /></Field>
-        <Field label={`Amount (${cur}, optional)`}><input inputMode="decimal" value={f.amount} onChange={set("amount")} /></Field>
+        <Field label={`Amount (${cur ?? (currency.error ? "unavailable" : "loading…")}, optional)`}><input inputMode="decimal" value={f.amount} onChange={set("amount")} disabled={!cur} /></Field>
         <Field label="Answer needed by (optional)"><input type="date" value={f.expires} onChange={set("expires")} /></Field>
       </div>
     </ActionModal>
@@ -253,7 +257,7 @@ function DecideApproval({ approval, record, onClose, act }) {
           <>
             <Field label="Who answered">
               <select value={f.who} onChange={set("who")} required>
-                <option value="">{people.loading ? "Loading…" : list.length ? "Choose…" : "Nobody on file can approve"}</option>
+                <option value="">{people.loading ? "Loading…" : people.error ? "Couldn't load who can approve" : list.length ? "Choose…" : "Nobody on file can approve"}</option>
                 {list.map((p) => <option key={p.customer_id} value={p.customer_id}>{p.name ?? "Unnamed"}{p.via !== "self" ? ` (${p.via.replace(/_/g, " ")})` : ""}</option>)}
               </select>
             </Field>
@@ -264,7 +268,8 @@ function DecideApproval({ approval, record, onClose, act }) {
         )}
         <Field label="Note (optional)" full><input value={f.note} onChange={set("note")} maxLength={500} /></Field>
       </div>
-      {!internal && !people.loading && list.length === 0 && <p className="ba-muted">Link this record to its customer, or add someone under People &amp; consent with the "approve" permission, verified.</p>}
+      {!internal && people.error && <p className="ba-error" role="alert">Couldn't load who can approve: {people.error} <button type="button" className="ba-btn sm" onClick={people.reload}>Try again</button></p>}
+      {!internal && !people.loading && !people.error && list.length === 0 && <p className="ba-muted">Link this record to its customer, or add someone under People &amp; consent with the "approve" permission, verified.</p>}
     </ActionModal>
   );
 }
@@ -283,7 +288,10 @@ function MilestoneModal({ record, milestone, workspace, onClose, act, today }) {
         <Field label="Kind"><select value={f.kind} onChange={set("kind")}>{MILESTONE_KINDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></Field>
         <Field label="Due"><input type="date" value={f.due} onChange={set("due")} required /></Field>
         <Field label="Who's on it (optional)">
-          <select value={f.staff} onChange={set("staff")}><option value="">Nobody</option>{(staff.data ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
+          <select value={f.staff} onChange={set("staff")} disabled={Boolean(staff.error)}>
+            <option value="">{staff.loading ? "Loading…" : staff.error ? "Couldn't load the team" : "Nobody"}</option>
+            {(staff.data ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
         </Field>
       </div>
     </ActionModal>

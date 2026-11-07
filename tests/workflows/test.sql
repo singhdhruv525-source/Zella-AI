@@ -109,6 +109,22 @@ do $$ declare a uuid; res jsonb; begin
   perform pg_temp.expect(format('select public.zella_approval_decide(%L, ''declined'', ''phone'', %L)', a, 'c6000000-0000-0000-0000-0000000001a1'), 'CHANGED');
   perform pg_temp.expect(format('select public.zella_approval_withdraw(%L)', a), 'CHANGED');
 end $$;
+-- an estimate voided after the approval was asked for can't then be approved
+reset role;
+insert into public.customer_charges (id, business_id, kind, description, amount_minor, currency, status, customer_id, record_id) values
+ ('c6000000-0000-0000-0000-0000000003a2', 'c6000000-0000-0000-0000-0000000000a1', 'estimate', 'Exhaust', 30000, 'USD', 'proposed', 'c6000000-0000-0000-0000-0000000001a1', 'c6000000-0000-0000-0000-0000000002a1');
+set local role authenticated;
+select pg_temp.as_user('c6000000-0000-0000-0000-00000000000c');
+do $$ begin insert into ids values ('exhaust', public.zella_approval_request('c6000000-0000-0000-0000-0000000002a1', 'estimate', 'Exhaust', null, null, null, 'c6000000-0000-0000-0000-0000000003a2')); end $$;
+reset role;
+update public.customer_charges set status = 'void' where id = 'c6000000-0000-0000-0000-0000000003a2';
+set local role authenticated;
+select pg_temp.as_user('c6000000-0000-0000-0000-00000000000c');
+do $$ begin
+  perform pg_temp.expect(format('select public.zella_approval_decide(%L, ''approved'', ''phone'', %L)', (select val from ids where k = 'exhaust'), 'c6000000-0000-0000-0000-0000000001a1'), 'CHANGED');
+  assert (select status = 'requested' from public.record_approvals where id = (select val from ids where k = 'exhaust')), 'nothing was decided';
+  perform public.zella_approval_withdraw((select val from ids where k = 'exhaust'));
+end $$;
 -- additional work, approved by the spouse who may approve; the record stays where it is
 reset role;
 update public.crm_records set status = 'in_repair' where id = 'c6000000-0000-0000-0000-0000000002a1';
@@ -172,7 +188,7 @@ do $$ begin
   assert (select count(*) from public.crm_record_events where record_id = 'c6000000-0000-0000-0000-0000000002a1' and kind = 'approval') >= 6, 'approvals are in the record''s history';
   assert (select count(*) from public.audit_logs where business_id = 'c6000000-0000-0000-0000-0000000000a1' and action = 'workflow_approval') >= 6, 'and audited';
 end $$;
-select 'PASS approvals: the amount comes from the estimate; only the customer or someone they authorized to approve can approve (strangers, discuss-only contacts, revoked and other businesses'' people refused); who, how and when are recorded; the estimate is accepted and the record moves on; extra work doesn''t move it back; stale and expired decisions refused; refunds are a manager''s internal decision; viewers and other businesses see and change nothing';
+select 'PASS approvals: the amount comes from the estimate; only the customer or someone they authorized to approve can approve (strangers, discuss-only contacts, revoked and other businesses'' people refused); who, how and when are recorded; the estimate is accepted and the record moves on; extra work doesn''t move it back; stale and expired decisions refused, and so is approving an estimate that was voided meanwhile; refunds are a manager''s internal decision; viewers and other businesses see and change nothing';
 
 -- ===================================================== milestones and renewals
 set local role authenticated;
@@ -264,13 +280,18 @@ do $$ declare res jsonb; begin
   perform pg_temp.expect('select public.zella_credit_add(''c6000000-0000-0000-0000-0000000002a2'', ''use'', 1)', 'NOT_OPEN');
   res := public.zella_credit_add('c6000000-0000-0000-0000-0000000002a2', 'refund', 1, null, 'Cancelled in time');
   assert (res ->> 'balance')::int = 1, 'a refund puts one back';
+  -- giving back can't create credits: only what was used (3), less what was already given back (1)
+  perform pg_temp.expect('select public.zella_credit_add(''c6000000-0000-0000-0000-0000000002a2'', ''refund'', 3)', 'MORE_THAN_USED');
+  res := public.zella_credit_add('c6000000-0000-0000-0000-0000000002a2', 'refund', 2);
+  assert (res ->> 'balance')::int = 3, 'gave back the rest that was used';
+  perform pg_temp.expect('select public.zella_credit_add(''c6000000-0000-0000-0000-0000000002a2'', ''refund'', 1)', 'MORE_THAN_USED');
 end $$;
 select pg_temp.as_user('c6000000-0000-0000-0000-00000000000d');
 do $$ begin
-  assert (select coalesce(sum(case when kind in ('grant', 'refund') then units else -units end), 0) from public.record_credits where record_id = 'c6000000-0000-0000-0000-0000000002a2') = 1, 'viewers can read the balance';
+  assert (select coalesce(sum(case when kind in ('grant', 'refund') then units else -units end), 0) from public.record_credits where record_id = 'c6000000-0000-0000-0000-0000000002a2') = 3, 'viewers can read the balance';
   perform pg_temp.expect('select public.zella_credit_add(''c6000000-0000-0000-0000-0000000002a2'', ''use'', 1)', 'NOT_ALLOWED');
 end $$;
-select 'PASS credits: managers grant and expire, staff use and refund; never below zero; one visit uses a package once; a stale screen changes nothing; the last one marks the package used up and a used-up package can''t be used; viewers read, change nothing';
+select 'PASS credits: managers grant and expire, staff use and give back only what was used; never below zero; one visit uses a package once; a stale screen changes nothing; the last one marks the package used up and a used-up package can''t be used; viewers read, change nothing';
 
 -- ===================================================== workflow settings, the follow-through list, paused businesses, anon
 select pg_temp.as_user('c6000000-0000-0000-0000-00000000000c');
