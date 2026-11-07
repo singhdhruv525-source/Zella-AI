@@ -10,7 +10,6 @@
 --     booking is written: zella_resource_guard refuses a booking that uses a blocked resource.
 --     Nothing else in the function changes.
 
-\set ON_ERROR_STOP on
 begin;
 do $$
 begin
