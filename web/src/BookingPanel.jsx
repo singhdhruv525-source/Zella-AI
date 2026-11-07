@@ -197,11 +197,18 @@ export function BookingPanel({ workspace, industry, appt, person, staff, blocks,
           {error && <div className="ba-banner error">{error}</div>}
           {appt.conflict_note && <div className="ba-banner error"><span><strong>Needs rearranging.</strong> {appt.conflict_note}</span></div>}
           {tentative && <div className="ba-banner"><span><strong>Held, not confirmed.</strong> Held until {formatTime(appt.hold_expires_at, tz)} while the customer decides.</span></div>}
-          {planned && (
+          {planned && open && (
             <div className="ba-banner" data-planned="true">
               <span><strong>Planned visit.</strong> Booked from a recurring plan and holding the time. Nothing has been sent to the customer. Confirm it once it's agreed.</span>
               {canWrite && open && <button type="button" className="ba-btn primary sm" disabled={busy}
-                onClick={() => run(() => changed(supabase.from("appointments").update({ booking_state: "confirmed", updated_at: new Date().toISOString() }).eq("id", appt.id)), "Visit confirmed.")}>Confirm visit</button>}
+                onClick={async () => {
+                  setBusy(true); setError("");
+                  const { data, error: confirmError } = await supabase.rpc("zella_recurring_confirm", { p_appointment_id: appt.id });
+                  setBusy(false);
+                  if (confirmError) { setError(friendly(confirmError)); return; }
+                  if (data === true) onNotice("Visit confirmed.");
+                  onChanged();
+                }}>Confirm visit</button>}
             </div>
           )}
           {requested && canWrite && (

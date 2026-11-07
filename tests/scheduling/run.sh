@@ -18,35 +18,39 @@ for m in "${PENDING[@]}" zella_batch1_security zella_batch3_pagination; do
   out=$("${P[@]}" -d "$DB" -f "$REPO/sql/$m.sql" 2>&1) || { echo "FAIL apply $m: $(echo "$out" | grep -m1 ERROR)"; exit 1; }
 done
 fails=0
-guard_before=$("${P[@]}" -d "$DB" -c "select md5(string_agg(pg_get_functiondef(p.oid), '' order by p.proname)) from pg_proc p where p.proname in ('zella_appointment_conflict_guard', 'zella_available_slots', 'zella_book_appointment')")
+guard_before=$("${P[@]}" -d "$DB" -c "select md5(string_agg(replace(pg_get_functiondef(p.oid), '((bt.staff_id is null and bt.resource_id is null) or bt.staff_id = r.sid)', '(bt.staff_id is null or bt.staff_id = r.sid)'), '' order by p.proname)) from pg_proc p where p.proname in ('zella_appointment_conflict_guard', 'zella_available_slots', 'zella_book_appointment')")
 for i in 1 2; do out=$("${P[@]}" -d "$DB" -f "$REPO/sql/zella_scheduling.sql" 2>&1) || { echo "FAIL migration run $i: $(echo "$out" | grep -m1 ERROR)"; fails=$((fails + 1)); }; done
 if [ $fails = 0 ]; then echo "PASS sql/zella_scheduling.sql applies twice"; fi
 out=$("${P[@]}" -d "$DB" -f "$HERE/test.sql" 2>&1); code=$?
 echo "$out" | grep -o 'PASS .*'
 if [ $code -ne 0 ]; then echo "FAIL test.sql: $(echo "$out" | grep -m3 -E 'ERROR|CONTEXT' | tr '\n' ' ')"; fails=$((fails + 1)); fi
-# the existing booking functions are untouched
-guard_after=$("${P[@]}" -d "$DB" -c "select md5(string_agg(pg_get_functiondef(p.oid), '' order by p.proname)) from pg_proc p where p.proname in ('zella_appointment_conflict_guard', 'zella_available_slots', 'zella_book_appointment')")
-if [ -n "$guard_before" ] && [ "$guard_after" = "$guard_before" ]; then echo "PASS the existing booking guard, slot search and booking function are unchanged"; else echo "FAIL an existing booking function changed"; fails=$((fails + 1)); fi
+# the existing booking functions are unchanged except the authorized resource-only block filter (normalized below)
+guard_after=$("${P[@]}" -d "$DB" -c "select md5(string_agg(replace(pg_get_functiondef(p.oid), '((bt.staff_id is null and bt.resource_id is null) or bt.staff_id = r.sid)', '(bt.staff_id is null or bt.staff_id = r.sid)'), '' order by p.proname)) from pg_proc p where p.proname in ('zella_appointment_conflict_guard', 'zella_available_slots', 'zella_book_appointment')")
+if [ -n "$guard_before" ] && [ "$guard_after" = "$guard_before" ]; then echo "PASS the existing booking guard, slot search and booking function preserve their baseline apart from the resource-only block filter"; else echo "FAIL an existing booking function changed beyond the authorized block filter"; fails=$((fails + 1)); fi
 # every new SECURITY DEFINER function sets search_path; nothing new for anon (a failed query is a failure, never a pass)
 # (zella_dispatch_n8n and zella_schedule_calendar_pulls are older and unrelated)
 FN="p.pronamespace = 'public'::regnamespace and p.proname ~ '^zella_(resource|schedule|dispatch|recurring)' and p.proname not in ('zella_dispatch_n8n', 'zella_schedule_calendar_pulls')"
 if res=$("${P[@]}" -d "$DB" -c "select count(*), count(*) filter (where p.prosecdef), count(*) filter (where p.prosecdef and not exists (select 1 from unnest(coalesce(p.proconfig, '{}')) c where c like 'search\_path=%')), coalesce(string_agg(p.proname, ',') filter (where has_function_privilege('anon', p.oid, 'execute')), '') from pg_proc p where $FN"); then
   IFS='|' read -r nfn ndef nbad anon <<< "$res"
-  if [ "$nfn" -eq 20 ] && [ "$ndef" -eq 18 ] && [ "$nbad" = 0 ] && [ -z "$anon" ]; then echo "PASS exactly the 20 new functions exist (18 run with the owner's rights, all with a fixed search path) and the anonymous role can run none"
+  if [ "$nfn" -eq 21 ] && [ "$ndef" -eq 19 ] && [ "$nbad" = 0 ] && [ -z "$anon" ]; then echo "PASS exactly the 21 new functions exist (19 run with the owner's rights, all with a fixed search path) and the anonymous role can run none"
   else echo "FAIL catalog: $nfn functions, $ndef definer, $nbad without a search path, anon can run: ${anon:-none}"; fails=$((fails + 1)); fi
 else echo "FAIL catalog check could not run"; fails=$((fails + 1)); fi
 # rollback keeps the data (renamed tables, columns kept), removes the functions and triggers; a second apply works
 "${P[@]}" -d "$DB" -c "insert into public.businesses (id, name, timezone) values ('c8000000-0000-0000-0000-0000000000f1', 'R2 Rollback', 'UTC');
   insert into public.resources (id, business_id, name, kind) values ('c8000000-0000-0000-0000-0000000009f1', 'c8000000-0000-0000-0000-0000000000f1', 'Bay 1', 'bay');
   insert into public.recurring_plans (business_id, title, frequency, weekday, start_at, starts_on) values ('c8000000-0000-0000-0000-0000000000f1', 'Weekly', 'weekly', 1, '09:00', current_date);
-  insert into public.blocked_times (business_id, title, start_time, end_time, resource_id) values ('c8000000-0000-0000-0000-0000000000f1', 'Bay repair', now() + interval '1 day', now() + interval '2 days', 'c8000000-0000-0000-0000-0000000009f1');" > /dev/null
+  insert into public.blocked_times (business_id, title, start_time, end_time, resource_id) values ('c8000000-0000-0000-0000-0000000000f1', 'Bay repair', date_trunc('week', now()) + interval '14 days', date_trunc('week', now()) + interval '15 days', 'c8000000-0000-0000-0000-0000000009f1');" > /dev/null
 out=$("${P[@]}" -d "$DB" -f "$REPO/sql/rollback/zella_scheduling_rollback.sql" 2>&1) || { echo "FAIL rollback: $(echo "$out" | grep -m1 ERROR)"; fails=$((fails + 1)); }
+# The retained resource-only block must not close a business with no staff, after rollback.
+"${P[@]}" -d "$DB" -c "do \$\$ begin
+  assert exists (select 1 from public.zella_available_slots('c8000000-0000-0000-0000-0000000000f1', date_trunc('week', now()) + interval '14 days 10 hours', date_trunc('week', now()) + interval '14 days 11 hours')), 'resource block after rollback';
+end \$\$;" || fails=$((fails + 1))
 res=$("${P[@]}" -d "$DB" -c "select (select count(*) from pg_proc p where $FN),
   (select count(*) from pg_trigger where tgname in ('zella_resource_guard', 'zella_resource_block_guard')),
   (select count(*) from public.resources_rolled_back), (select count(*) from public.recurring_plans_rolled_back),
   (select count(*) from public.blocked_times where resource_id = 'c8000000-0000-0000-0000-0000000009f1')")
 IFS='|' read -r left trig kept_r kept_p kept_b <<< "$res"
-guard_rb=$("${P[@]}" -d "$DB" -c "select md5(string_agg(pg_get_functiondef(p.oid), '' order by p.proname)) from pg_proc p where p.proname in ('zella_appointment_conflict_guard', 'zella_available_slots', 'zella_book_appointment')")
+guard_rb=$("${P[@]}" -d "$DB" -c "select md5(string_agg(replace(pg_get_functiondef(p.oid), '((bt.staff_id is null and bt.resource_id is null) or bt.staff_id = r.sid)', '(bt.staff_id is null or bt.staff_id = r.sid)'), '' order by p.proname)) from pg_proc p where p.proname in ('zella_appointment_conflict_guard', 'zella_available_slots', 'zella_book_appointment')")
 if [ "$left" = 0 ] && [ "$trig" = 0 ] && [ "$kept_r" -ge 1 ] && [ "$kept_p" -ge 1 ] && [ "$kept_b" = 1 ] && [ "$guard_rb" = "$guard_before" ]; then
   echo "PASS rollback removes the functions and triggers, keeps the data ($kept_r resource(s), $kept_p plan(s) set aside; the resource block kept), and the booking functions are as before"
 else echo "FAIL rollback: $left functions and $trig triggers left; kept $kept_r resources, $kept_p plans, $kept_b blocks"; fails=$((fails + 1)); fi

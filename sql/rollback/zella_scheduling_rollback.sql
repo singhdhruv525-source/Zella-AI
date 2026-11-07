@@ -6,6 +6,23 @@
 -- Applying the migration again starts new, empty tables.
 \set ON_ERROR_STOP on
 begin;
+-- Resource-only blocks must not become business-wide staff time off. Kept after rollback,
+-- since rollback retains the block rows and resource_id column.
+do $$ declare def text; begin
+  def := pg_get_functiondef('public.zella_available_slots(uuid,timestamptz,timestamptz,integer,uuid,integer,integer,uuid)'::regprocedure);
+  def := replace(def, '(bt.staff_id is null or bt.staff_id = r.sid)',
+    '((bt.staff_id is null and bt.resource_id is null) or bt.staff_id = r.sid)');
+  execute def;
+end $$;
+
+
+drop function if exists public.zella_recurring_confirm(uuid);
+do $$ declare def text; begin
+  def := pg_get_functiondef('public.zella_appointment_after()'::regprocedure);
+  def := replace(def, 'if current_setting(''zella.confirm_planned_id'', true) is distinct from new.id::text then ', '');
+  def := replace(def, 'else ''booked'' end); end if;', 'else ''booked'' end);');
+  execute def;
+end $$;
 drop trigger if exists zella_resource_guard on public.appointments;
 drop trigger if exists zella_resource_block_guard on public.blocked_times;
 drop function if exists public.zella_recurring_generate(uuid, uuid, date);

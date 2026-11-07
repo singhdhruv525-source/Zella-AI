@@ -2197,7 +2197,7 @@ html:not([data-zella-icons="ready"]) .ba-header-actions { flex-wrap: wrap; flex-
 .ba-job { border: 1px solid var(--ba-line, #e3e6ea); border-radius: 10px; padding: 10px 12px; background: var(--ba-surface, #fff); min-width: 0; }
 .ba-job[data-job="unassigned"] { border-left: 3px solid var(--ba-danger, #c0392b); }
 .ba-job[data-job="needs_return"], .ba-job[data-job="paused"] { border-left: 3px solid var(--ba-warning, #c98a00); }
-.ba-job[data-job="completed"] { opacity: 0.8; }
+.ba-job[data-job="completed"] { border-left: 3px solid var(--ba-success, #287a48); }
 .ba-job-head { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .ba-job-title { margin: 4px 0 2px; font-weight: 600; overflow-wrap: anywhere; }
 .ba-job .ba-people-actions { margin-top: 8px; }
@@ -2205,3 +2205,7 @@ html:not([data-zella-icons="ready"]) .ba-header-actions { flex-wrap: wrap; flex-
 .ba-res-day ul { margin: 4px 0 0; padding-left: 18px; }
 .ba-check-list { list-style: none; padding: 0; margin: 0 0 12px; display: grid; gap: 6px; }
 .ba-check-list li { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+
+.ba-check-list .ba-check { white-space: normal; min-width: 0; overflow-wrap: anywhere; }
+.ba-check-list .ba-check span { min-width: 0; }
+.ba-check-list .ba-check input { flex-shrink: 0; }

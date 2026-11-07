@@ -173,6 +173,7 @@ export function BookAppointmentModal({ workspace, term, onClose, onSaved, initia
   const [staff, setStaff] = useState([]);
   // rooms, chairs, bays ... this booking uses (Release 2); the database refuses one that's taken
   const [resources, setResources] = useState([]);
+  const [resourceError, setResourceError] = useState(false);
   const [resourceIds, setResourceIds] = useState([]);
   const [conflict, setConflict] = useState("");
   const [force, setForce] = useState(false);
@@ -196,7 +197,11 @@ export function BookAppointmentModal({ workspace, term, onClose, onSaved, initia
   useEffect(() => {
     let active = true;
     supabase.from("resources").select("id, name, kind, capacity").eq("business_id", workspace.id).eq("is_active", true).order("sort_order").order("name")
-      .then(({ data, error: resError }) => { if (active && !resError) setResources(data ?? []); });
+      .then(({ data, error: resError }) => {
+        if (!active) return;
+        setResources(resError ? [] : data ?? []);
+        setResourceError(Boolean(resError && !["42P01", "PGRST205"].includes(resError.code)));
+      }).catch(() => { if (active) { setResources([]); setResourceError(true); } });
     return () => { active = false; };
   }, [workspace.id]);
 
@@ -360,6 +365,7 @@ export function BookAppointmentModal({ workspace, term, onClose, onSaved, initia
               </select>
             </Field>
           )}
+          {resourceError && <p role="alert" className="ba-muted">Resources could not be loaded. Check availability before saving this booking.</p>}
           {resources.length > 0 && (
             <fieldset className="ba-prefs" aria-label="Uses">
               <legend>Uses (optional)</legend>

@@ -102,7 +102,7 @@ do $$ declare c1 uuid := (select val from ids where k = 'chair1'); c2 uuid := (s
   -- a past visit (history, an import) never clashes
   update public.appointments set start_time = now() - interval '3 hours', end_time = now() - interval '2 hours' where id = v;
   v := pg_temp.book('Old 2', now() - interval '3 hours', 30, array[c1]);
-  assert v is null or true, 'past visits are recorded whatever they overlap';
+  assert v is not null, 'past visits are recorded whatever they overlap';
 end $$;
 reset role;
 select 'PASS a resource takes one booking at a time, keeps its buffer free, and frees up when a booking is cancelled; moves are checked too; past visits never clash';
@@ -117,6 +117,10 @@ do $$ declare kn uuid := (select val from ids where k = 'kennel'); van uuid := (
   perform pg_temp.expect(format('select pg_temp.book(''Group'', %L, 60, array[%L]::uuid[], null, 2)', pg_temp.at(4, '08:30'), kn), 'SLOT_TAKEN');   -- a party of 2 next to one stay
   v := pg_temp.book('Group ok', pg_temp.at(5, '08:00'), 60, array[kn], null, 2);   -- a party of 2 alone fits
   perform pg_temp.expect(format('select pg_temp.book(''Group 3'', %L, 60, array[%L]::uuid[], null, 3)', pg_temp.at(6, '08:00'), kn), 'SLOT_TAKEN');   -- more than it holds
+  perform pg_temp.book('Sequential A', pg_temp.at(8, '09:00'), 60, array[kn]);
+  perform pg_temp.book('Sequential B', pg_temp.at(8, '10:00'), 60, array[kn]);
+  v := pg_temp.book('Long stay', pg_temp.at(8, '09:00'), 120, array[kn]);
+  assert v is not null, 'sequential stays share capacity with one longer stay';
   -- a block (maintenance) on the van
   insert into public.blocked_times (business_id, title, start_time, end_time, resource_id) values ('c8000000-0000-0000-0000-0000000000a1', 'Van service', pg_temp.at(4, '08:00'), pg_temp.at(4, '17:00'), van);
   perform pg_temp.expect(format('select pg_temp.book(''Job'', %L, 60, array[%L]::uuid[])', pg_temp.at(4, '12:00'), van), 'SLOT_TAKEN');
@@ -271,8 +275,9 @@ reset role;
 set local role service_role;
 do $$ declare p public.recurring_plans; d date[]; begin
   select * into p from public.recurring_plans where title = 'Quarterly check';
-  d := array(select public.zella_recurring_dates(p, date '2026-01-01', date '2026-12-31'));
-  assert d = array[date '2026-01-15', date '2026-04-15', date '2026-07-15', date '2026-10-15'] or p.starts_on > date '2026-01-01', 'quarterly dates: ' || d::text;
+  d := array(select public.zella_recurring_dates(p, p.starts_on, (p.starts_on + interval '1 year' - interval '1 day')::date));
+  assert d = array[(p.starts_on + interval '14 days')::date, (p.starts_on + interval '3 months 14 days')::date,
+                   (p.starts_on + interval '6 months 14 days')::date, (p.starts_on + interval '9 months 14 days')::date], 'quarterly dates: ' || d::text;
   p.starts_on := date '2026-01-01'; p.frequency := 'monthly'; p.interval_count := 3; p.month_day := 15;
   d := array(select public.zella_recurring_dates(p, date '2026-01-01', date '2026-12-31'));
   assert d = array[date '2026-01-15', date '2026-04-15', date '2026-07-15', date '2026-10-15'], 'every 3 months on the 15th: ' || d::text;
@@ -286,6 +291,44 @@ end $$;
 reset role;
 select 'PASS recurring plans: dates for every N weeks or months; generating books each date once, skips clashes with the reason, and saves planned visits that queue no customer messages; managers only; other businesses'' customers refused';
 
+-- Confirm a planned visit conditionally, with no queue changes; stale/cancelled visits stay closed.
+set local role authenticated;
+select pg_temp.as_user('c8000000-0000-0000-0000-00000000000c');
+do $$ begin
+  assert not has_function_privilege('authenticated', 'public.zella_resource_free(uuid,timestamptz,timestamptz,integer,uuid)', 'execute');
+  assert has_function_privilege('service_role', 'public.zella_resource_free(uuid,timestamptz,timestamptz,integer,uuid)', 'execute');
+end $$;
+reset role;
+do $$ declare a uuid; cancelled uuid; n bigint; begin
+  select id into a from public.appointments where metadata ->> 'planned' = 'true' order by start_time limit 1;
+  select id into cancelled from public.appointments where metadata ->> 'planned' = 'true' and id <> a limit 1;
+  update public.appointments set status = 'cancelled' where id = cancelled;
+  insert into public.automations (business_id, name, trigger_type, status, trigger_config)
+    values ('c8000000-0000-0000-0000-0000000000a1', 'Confirmation regression', 'appointment_confirmation', 'active', '{}');
+  select count(*) into n from public.appointment_reminders;
+  perform pg_temp.as_user('c8000000-0000-0000-0000-00000000000c');
+  assert public.zella_recurring_confirm(a), 'open planned visit confirmed';
+  assert (select booking_state = 'confirmed' and status = 'confirmed' from public.appointments where id = a);
+  assert not public.zella_recurring_confirm(a), 'stale confirmation matches nothing';
+  assert not public.zella_recurring_confirm(cancelled), 'cancelled visit matches nothing';
+  assert (select count(*) = n from public.appointment_reminders), 'confirmation queued no reminders or messages';
+  assert (select status = 'cancelled' from public.appointments where id = cancelled);
+  perform pg_temp.book('Ordinary message check', pg_temp.at(25, '09:00'), 60);
+  assert (select count(*) > n from public.appointment_reminders), 'other bookings still queue messages';
+  perform pg_temp.as_user('c8000000-0000-0000-0000-00000000000d');
+  perform pg_temp.expect(format('select public.zella_recurring_confirm(%L)', a), 'NOT_ALLOWED');
+end $$;
+-- Resource blocks leave staff slots available, staff blocks continue to close their person's slots.
+do $$ declare b uuid := 'c8000000-0000-0000-0000-0000000000a1'; st uuid := 'c8000000-0000-0000-0000-0000000005a1'; begin
+  perform pg_temp.as_user('c8000000-0000-0000-0000-00000000000c');
+  update public.staff_members set working_hours = jsonb_build_object(lower(to_char(current_date + 20, 'dy')), jsonb_build_object('on', true, 'start', '09:00', 'end', '17:00')) where id = st;
+  insert into public.blocked_times (business_id, title, start_time, end_time, resource_id)
+    values (b, 'Resource only', pg_temp.at(20, '00:00'), pg_temp.at(21, '00:00'), (select val from ids where k = 'van'));
+  assert exists (select 1 from public.zella_available_slots(b, pg_temp.at(20, '09:00'), pg_temp.at(20, '10:00'), 30, st));
+  insert into public.blocked_times (business_id, title, start_time, end_time, staff_id)
+    values (b, 'Staff time off', pg_temp.at(20, '00:00'), pg_temp.at(21, '00:00'), st);
+  assert not exists (select 1 from public.zella_available_slots(b, pg_temp.at(20, '09:00'), pg_temp.at(20, '10:00'), 30, st));
+end $$;
 -- ===================================================== anon and audit
 set local role anon;
 select set_config('request.jwt.claims', '{"role":"anon"}', true);

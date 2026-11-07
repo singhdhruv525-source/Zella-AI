@@ -171,13 +171,23 @@ language sql immutable set search_path = '' as $$
 -- the resource's places used between p_start and p_end (its buffer included), not counting p_ignore
 create or replace function public.zella_resource_used(p_resource uuid, p_start timestamptz, p_end timestamptz, p_ignore uuid) returns integer
 language sql stable security definer set search_path = public as $$
-  select coalesce(sum(public.zella_resource_usage(r.capacity, a.party_size)), 0)::int
-    from public.resources r
-    join public.appointments a on a.business_id = r.business_id and p_resource = any (a.resource_ids)
-   where r.id = p_resource and a.id is distinct from p_ignore
-     and public.zella_appointment_holds_time(a.status, a.booking_state, a.hold_expires_at)
-     and a.start_time < p_end + make_interval(mins => r.buffer_minutes)
-     and a.end_time + make_interval(mins => r.buffer_minutes) > p_start $$;
+  with stays as (
+    select greatest(a.start_time, p_start) as starts,
+           a.end_time + make_interval(mins => r.buffer_minutes) as ends,
+           public.zella_resource_usage(r.capacity, a.party_size) as usage
+      from public.resources r
+      join public.appointments a on a.business_id = r.business_id and p_resource = any (a.resource_ids)
+     where r.id = p_resource and a.id is distinct from p_ignore
+       and public.zella_appointment_holds_time(a.status, a.booking_state, a.hold_expires_at)
+       and a.start_time < p_end + make_interval(mins => r.buffer_minutes)
+       and a.end_time + make_interval(mins => r.buffer_minutes) > p_start
+  ), events as (
+    select starts as at, usage as delta from stays
+    union all select ends, -usage from stays
+  ), totals as (
+    select sum(sum(delta)) over (order by at) as used from events group by at
+  )
+  select coalesce(max(used), 0)::int from totals $$;
 
 -- is the resource free enough for a booking of p_party between p_start and p_end?
 create or replace function public.zella_resource_free(p_resource uuid, p_start timestamptz, p_end timestamptz, p_party integer, p_ignore uuid) returns boolean
@@ -592,10 +602,10 @@ revoke execute on function public.zella_resource_usage(integer, integer), public
   public.zella_dispatch_status(uuid, text, text, text), public.zella_dispatch_checklist(uuid, jsonb),
   public.zella_dispatch_return_visit(uuid, timestamptz, integer, uuid, text), public.zella_recurring_save(uuid, uuid, jsonb),
   public.zella_recurring_dates(public.recurring_plans, date, date), public.zella_recurring_generate(uuid, uuid, date) from public, anon;
-revoke execute on function public.zella_resource_used(uuid, timestamptz, timestamptz, uuid), public.zella_resource_pick(uuid, text, timestamptz, timestamptz, integer, uuid),
+revoke execute on function public.zella_resource_free(uuid, timestamptz, timestamptz, integer, uuid), public.zella_resource_used(uuid, timestamptz, timestamptz, uuid), public.zella_resource_pick(uuid, text, timestamptz, timestamptz, integer, uuid),
   public.zella_resource_guard(), public.zella_resource_block_guard(), public.zella_schedule_audit(uuid, text, text, uuid, jsonb),
   public.zella_recurring_dates(public.recurring_plans, date, date) from authenticated;
-grant execute on function public.zella_resource_usage(integer, integer), public.zella_resource_free(uuid, timestamptz, timestamptz, integer, uuid),
+grant execute on function public.zella_resource_usage(integer, integer),
   public.zella_schedule_can_manage(uuid), public.zella_schedule_can_work(uuid),
   public.zella_resource_save(uuid, uuid, text, text, integer, integer, text, integer, boolean), public.zella_resource_needs_save(uuid, jsonb),
   public.zella_resource_day(uuid, date), public.zella_dispatch_board(uuid, date), public.zella_dispatch_assign(uuid, uuid, uuid[]),
@@ -604,3 +614,39 @@ grant execute on function public.zella_resource_usage(integer, integer), public.
   public.zella_recurring_generate(uuid, uuid, date) to authenticated, service_role;
 grant execute on function public.zella_resource_used(uuid, timestamptz, timestamptz, uuid), public.zella_resource_pick(uuid, text, timestamptz, timestamptz, integer, uuid),
   public.zella_schedule_audit(uuid, text, text, uuid, jsonb), public.zella_recurring_dates(public.recurring_plans, date, date) to service_role;
+
+grant execute on function public.zella_resource_free(uuid, timestamptz, timestamptz, integer, uuid) to service_role;
+
+-- Resource-only blocks must not become business-wide staff time off. Kept after rollback,
+-- since rollback retains the block rows and resource_id column.
+do $$ declare def text; begin
+  def := pg_get_functiondef('public.zella_available_slots(uuid,timestamptz,timestamptz,integer,uuid,integer,integer,uuid)'::regprocedure);
+  def := replace(def, '(bt.staff_id is null or bt.staff_id = r.sid)',
+    '((bt.staff_id is null and bt.resource_id is null) or bt.staff_id = r.sid)');
+  execute def;
+end $$;
+
+-- Only this explicit transition suppresses the reminder/confirmation queue.
+do $$ declare def text; needle text := 'perform public.zella_replace_reminders(new.id, v_time_changed or v_state_changed, case when v_time_changed then ''rescheduled'' else ''booked'' end);'; begin
+  def := pg_get_functiondef('public.zella_appointment_after()'::regprocedure);
+  if position('zella.confirm_planned_id' in def) = 0 then
+    if position(needle in def) = 0 then raise exception 'Unexpected appointment messaging trigger'; end if;
+    execute replace(def, needle, 'if current_setting(''zella.confirm_planned_id'', true) is distinct from new.id::text then ' || needle || ' end if;');
+  end if;
+end $$;
+create or replace function public.zella_recurring_confirm(p_appointment_id uuid) returns boolean
+language plpgsql security definer set search_path = public as $$
+declare a public.appointments; previous text := current_setting('zella.confirm_planned_id', true); matched boolean;
+begin
+  select * into a from public.appointments where id = p_appointment_id for update;
+  if not found or not public.zella_schedule_can_work(a.business_id) then raise exception 'NOT_ALLOWED'; end if;
+  perform set_config('zella.confirm_planned_id', p_appointment_id::text, true);
+  update public.appointments set booking_state = 'confirmed', status = 'confirmed', updated_at = now()
+   where id = p_appointment_id and booking_state = 'tentative' and status in ('scheduled', 'confirmed')
+     and metadata ->> 'planned' = 'true';
+  matched := found;
+  perform set_config('zella.confirm_planned_id', coalesce(previous, ''), true);
+  return matched;
+end $$;
+revoke all on function public.zella_recurring_confirm(uuid) from public, anon;
+grant execute on function public.zella_recurring_confirm(uuid) to authenticated, service_role;
