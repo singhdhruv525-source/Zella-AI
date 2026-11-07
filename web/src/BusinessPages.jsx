@@ -267,7 +267,7 @@ function BlockDetail({ block, who, tz, onClose, onChanged, onNotice }) {
     >
       <div className="ba-detail">
         {error && <div className="ba-banner error">{error}</div>}
-        <p className="ba-note">{block.reason || "This time is blocked, so nobody can book into it."}</p>
+        <p className="ba-note">{block.reason || (block.resource_id ? "This room, chair or bay is blocked then; bookings that use it are refused." : block.staff_id ? "This person is unavailable then." : "This time is blocked, so nobody can book into it.")}</p>
       </div>
     </Modal>
   );
@@ -491,7 +491,7 @@ export function CalendarPage({ workspace, industry, refreshKey, onNotice, onOpen
     const staffId = view === "staff" ? c.staffId ?? "" : appt.staff_id ?? "";
     const blockResult = await supabase.from("blocked_times").select("*").eq("business_id", workspace.id)
       .lt("start_time", end.toISOString()).gt("end_time", start.toISOString());
-    const message = findConflict({ staff, blocks: blockResult.error ? [] : blockResult.data ?? [], start, end, staffId, timeZone: tz });
+    const message = findConflict({ staff, blocks: blockResult.error ? [] : blockResult.data ?? [], start, end, staffId, timeZone: tz, resourceIds: appt.resource_ids });
     const move = { appt, start, end, staffId, message };
     if (message) setPending(move); else applyMove(move);
   }
@@ -607,7 +607,7 @@ export function CalendarPage({ workspace, industry, refreshKey, onNotice, onOpen
         />
       )}
       {openBlock && (
-        <BlockDetail block={openBlock} who={openBlock.staff_id ? staffName[openBlock.staff_id] : "Whole business"} tz={tz} onClose={() => setOpenBlock(null)} onChanged={() => { setOpenBlock(null); reload(); }} onNotice={onNotice} />
+        <BlockDetail block={openBlock} who={openBlock.staff_id ? staffName[openBlock.staff_id] : openBlock.resource_id ? "A room, chair or bay" : "Whole business"} tz={tz} onClose={() => setOpenBlock(null)} onChanged={() => { setOpenBlock(null); reload(); }} onNotice={onNotice} />
       )}
       {blocking && (
         <BlockTimeModal

@@ -43,5 +43,9 @@ else echo "FAIL unexpected change: $changed changed lines in slot search, or ano
 # the rollback puts slot search back exactly; a second apply passes again
 out=$("${P[@]}" -d "$DB" -f "$REPO/sql/rollback/zella_slots_resource_blocks_rollback.sql" 2>&1) || { echo "FAIL rollback: $(echo "$out" | grep -m1 ERROR)"; fails=$((fails + 1)); }
 if [ "$("${P[@]}" -d "$DB" -c "select $SLOTS")" = "$slots_before" ] && [ "$("${P[@]}" -d "$DB" -c "$OTHERS")" = "$others_before" ]; then echo "PASS the rollback restores slot search exactly"; else echo "FAIL rollback left slot search changed"; fails=$((fails + 1)); fi
-out=$("${P[@]}" -d "$DB" -f "$REPO/sql/zella_slots_resource_blocks.sql" 2>&1 && "${P[@]}" -d "$DB" -f "$HERE/test.sql" 2>&1) && echo "PASS re-apply after the rollback: the test passes again" || { echo "FAIL after re-apply: $(echo "$out" | grep -m1 ERROR)"; fails=$((fails + 1)); }
+if out=$("${P[@]}" -d "$DB" -f "$REPO/sql/zella_slots_resource_blocks.sql" 2>&1 && "${P[@]}" -d "$DB" -f "$HERE/test.sql" 2>&1); then
+  echo "PASS re-apply after the rollback: the test passes again"
+else
+  echo "FAIL after re-apply: $(echo "$out" | grep -m1 ERROR)"; fails=$((fails + 1))
+fi
 echo; [ $fails = 0 ] && echo "ALL PASSED" || { echo "$fails FAILED"; exit 1; }
