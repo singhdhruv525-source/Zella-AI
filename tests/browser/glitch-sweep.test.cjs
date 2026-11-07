@@ -50,3 +50,19 @@ test("verification and seed queries clear inherited libpq routing settings", asy
   })(true);
   assert.equal(calls, 2);
 });
+
+test("top-level failure prints only the first error line and closes the browser", async () => {
+  const errors = [], logs = [];
+  let closed = false;
+  const process = { exitCode: 0 };
+  await vm.runInNewContext(source.slice(source.lastIndexOf("(async () => {")), {
+    chromium: { launch: async () => ({ close: async () => { closed = true; } }) },
+    args: ["owner"], PERSONAS: { owner: "fake@zella.test" },
+    sweep: async () => { throw Error("query failed\nprivate detail"); },
+    console: { error: (s) => errors.push(s), log: (s) => logs.push(s) }, process,
+  });
+  assert.equal(closed, true);
+  assert.equal(process.exitCode, 1);
+  assert.deepEqual(logs, []);
+  assert.deepEqual(errors, ["Glitch sweep failed; no success summary was produced.", "query failed"]);
+});
