@@ -11,8 +11,8 @@ Two exceptions to the naming rule:
 - `industry_data_part.sql` is not a rollback to run: it is the hand-written part included at the top of
   `industry_2026_11_04_rollback.sql` (`tests/staging/make_rollback.py` builds that file from it).
 
-Each rollback file is one transaction (`begin; … commit;`): it either all happens or none of it does
-(`tests/rollback_runner/run.sh` checks every file has one).
+Each rollback file is one transaction: an explicit `begin; … commit;` around everything it does, so it either all
+happens or none of it does (`tests/rollback_runner/run.sh` checks every file has one).
 
 **Before running one, read its header comment.** Some need a step first, for example:
 
@@ -32,7 +32,8 @@ Run a rollback in one of two ways:
   sql/rollback/run.sh sql/rollback/<name>_rollback.sql -h <host> -p <port> -U <user> -d <database>
   ```
 
-  It runs psql with `-X -v ON_ERROR_STOP=1 -v ON_ERROR_ROLLBACK=off` (`-X` so a `~/.psqlrc` can't turn those off),
-  so the first error stops it with a non-zero exit
+  It runs psql with `-X -v ON_ERROR_STOP=1 -v ON_ERROR_ROLLBACK=off` (`-X` so a `~/.psqlrc` can't turn those off) and
+  accepts only connection options after the file (`-h`, `-p`, `-U`, `-d`, `-q` and their long forms), so the first
+  error stops it with a non-zero exit
   and nothing is half-applied. The files carry no psql settings themselves (the SQL Editor rejects psql commands
   such as `\set`), so a bare `psql -f` can exit 0 after an error.

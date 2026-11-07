@@ -28,6 +28,14 @@ PSQLRC="$T/psqlrc" "$REPO/sql/rollback/run.sh" "$T/bad_rollback.sql" -h "$H" -p 
 PSQLRC="$T/psqlrc" "$REPO/sql/rollback/run.sh" "$T/good_rollback.sql" -h "$H" -p "$PT" -U postgres -q -d $DB > /dev/null 2>&1; rc=$?
 [ "$rc" = 0 ] && [ "$(n)" = 5 ] && pass "wrapper: a clean rollback applies and exits 0" || fail "clean rollback: exit $rc, n=$(n)"
 
+# nothing on the command line can switch the error settings off: anything but a connection option is refused, unrun
+for bad in "-v ON_ERROR_STOP=0" "--set=ON_ERROR_STOP=0" "-v ON_ERROR_ROLLBACK=on" "-c select_1" "-f $T/good_rollback.sql" "-1"; do
+  # shellcheck disable=SC2086
+  "$REPO/sql/rollback/run.sh" "$T/bad_rollback.sql" -h "$H" -p "$PT" -U postgres -d $DB $bad > /dev/null 2>&1; rc=$?
+  [ "$rc" = 2 ] && [ "$(n)" = 5 ] && pass "wrapper: refuses '$bad' without running anything" || fail "wrapper with '$bad': exit $rc, n=$(n)"
+done
+"$REPO/sql/rollback/run.sh" "$T/good_rollback.sql" --host="$H" --port="$PT" --username=postgres --dbname=$DB -q > /dev/null 2>&1 \
+  && pass "wrapper: long connection options work" || fail "long connection options refused"
 "$REPO/sql/rollback/run.sh" > /dev/null 2>&1; [ $? = 2 ] && pass "wrapper: usage error without a file" || fail "no usage error"
 "$REPO/sql/rollback/run.sh" "$T/missing.sql" > /dev/null 2>&1; [ $? = 2 ] && pass "wrapper: refuses a missing file" || fail "missing file accepted"
 
