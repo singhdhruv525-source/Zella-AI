@@ -305,10 +305,12 @@ Each workspace uses the same Zella Voice features; its data and configuration be
 
 ### 6.3 Who may act: identity and authorization
 
-Every access is checked against three things, **in the database**:
+Every access is checked **in the database**, against the business that owns the data:
 1. the authenticated identity;
-2. an **active** membership in the business that owns the data;
-3. the role's permissions.
+2. for signed-in users, an **active** membership in that business and the role's permissions;
+3. for actors who are not members (inbound calls, customer links, provider webhooks, background workers), the
+   narrow, server-only check of their context below, which is bound to one business and never grants a member's role;
+4. for platform staff, a named platform permission through an audited admin function.
 
 | Context | How the business is established | How the actor is established |
 |---|---|---|
@@ -340,7 +342,7 @@ Every access is checked against three things, **in the database**:
 | ID | Requirement | How |
 |---|---|---|
 | REQ-DB-ISO-01 | Row security enabled **and verified** on every table | CI test: fail if any table lacks RLS or a tenant table lacks a membership policy |
-| REQ-DB-ISO-02 | Server-side tenant authorization in every function | the first statement checks membership and role against the **row's** business |
+| REQ-DB-ISO-02 | Server-side tenant authorization in every function | the first statement authorizes the caller against the **row's** business: membership and role for signed-in users; for actors who are not members, the narrow check of their context in §6.3 (verified number, signed token, verified signature, verified envelope) |
 | REQ-DB-ISO-03 | **Composite foreign keys** for tenant relationships | e.g. `appointments (business_id, customer_id) → customers (business_id, id)`; every tenant table has `unique (business_id, id)` so children can reference it |
 | REQ-DB-ISO-04 | **Tenant-scoped unique constraints** | e.g. `unique (business_id, phone_e164)` for customers; `unique (business_id, vin)`; never global uniqueness on business data |
 | REQ-DB-ISO-05 | Child tables carry their own `business_id` | conversation messages, agent configs, report runs, reminder logs: denormalised, kept consistent by composite FKs |
@@ -571,7 +573,7 @@ two things: cross-business access is rejected, and legitimate independent operat
 | Acceptance criterion | Proven by |
 |---|---|
 | Row security on every table, with a membership policy on every tenant table | CI schema test |
-| Every security-definer function checks membership and role first (or is on the reviewed public list) | CI static test |
+| Every security-definer function authorizes the caller first (membership and role, or the §6.3 non-member check for server functions, or the reviewed public list) | CI static test |
 | Every tenant relationship uses a composite foreign key with `business_id` | CI schema test |
 | Every uniqueness rule on business data includes `business_id` | CI schema test |
 | `business_id NOT NULL` on every tenant table; explicit scope on mixed tables | CI schema test |
@@ -2092,8 +2094,9 @@ Conventions for every tenant table:
 
 ## 30. Function and endpoint catalogue
 
-**Database functions** (called by the web app unless marked *server*). Every function checks membership and role
-first and returns stable error codes (§38).
+**Database functions** (called by the web app unless marked *server*). Every function authorizes the
+caller first (membership and role for web-app functions; the §6.3 non-member check for *server* functions) and returns
+stable error codes (§38).
 
 | Area | Functions |
 |---|---|
