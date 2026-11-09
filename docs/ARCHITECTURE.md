@@ -1936,6 +1936,9 @@ and SMS off per type, except those marked "always". Urgent items repeat until ac
 
 ## 29. Data schema
 
+The executable version of this schema is `sql/target/zella_voice_schema.sql`, with its three-business isolation suite
+(`sql/target/test.sh`). The SQL file and this section must stay in step.
+
 Conventions for every tenant table:
 - `id uuid` primary key; `business_id uuid NOT NULL` → `businesses`; `unique (business_id, id)`;
 - foreign keys to other tenant tables are composite: `(business_id, x_id)`;
