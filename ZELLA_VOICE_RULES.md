@@ -217,7 +217,11 @@ flowchart TD
   id -- no --> x[Refuse]
   id -- yes --> row[Find the business that<br/>OWNS the row, not the one<br/>the caller named]
   row --> mem{Caller is an active<br/>member of that business?}
-  mem -- no --> adm{Zella Voice staff using an<br/>audited admin function<br/>with the right permission?}
+  mem -- no --> nm{Non-member bound to that business?<br/>call · link · webhook · worker envelope}
+  nm -- yes --> scope{Action within that<br/>context's narrow scope?}
+  scope -- no --> x
+  scope -- yes --> cap
+  nm -- no --> adm{Zella Voice staff using an<br/>audited admin function<br/>with the right permission?}
   adm -- no --> x
   adm -- yes --> audit[Write audit record] --> ok
   mem -- yes --> role{Role allows<br/>this action?}
