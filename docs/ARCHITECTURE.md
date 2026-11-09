@@ -769,6 +769,8 @@ stateDiagram-v2
 | Web links | reschedule, waitlist, check-in, unsubscribe, continue plan | — | web app | clicked, used |
 | Staff notifications | — | in-app, email, SMS | same | read (in-app) |
 | Human transfer | — | warm or cold transfer to authorised numbers | voice provider | connected, failed, no one available |
+| Messaging apps (WhatsApp, Instagram, Messenger) | messages to the business's connected accounts | replies and approved templates | Meta [D-39] | sent, delivered, read (where the provider reports it) |
+| Owner push | — | urgent staff alerts (§28, REQ-MOB-01) | Web Push [D-40] | accepted by the push service only |
 
 ### 9.2 Every outbound contact passes the same path
 
@@ -1612,8 +1614,11 @@ flowchart TD
 | Store | Shopify | order lookup only |
 | Reviews | Google Business Profile | owner-approved replies |
 | AI model | Anthropic (through Vapi for voice; direct for drafts and insights) | caps per business; never trains on customer data |
-| Payments | chosen later by the owner (D-34) | hosted checkout and portal; signed webhooks |
-| Monitoring | external uptime, log drain, pager [D-31] | outside the platform |
+| Payments | chosen later by the owner (D-34) | hosted checkout and portal; signed webhooks. The current code has a Stripe-style billing webhook that stays off; that is not a decision |
+| Speech (through Vapi) | voices and transcription chosen in settings (AI-19), e.g. ElevenLabs, Deepgram | reached only through Vapi; listed as sub-processors |
+| Messaging apps | Meta: WhatsApp Business, Instagram, Messenger [D-39] | same rules as SMS: consent, opt-out, contact hours, one reply per inbound message; WhatsApp templates approved by Meta; per-business connection; signed webhooks |
+| Push notifications | Web Push to the installed web app [D-40] | payload holds no personal data, only a title and a link to the item; SMS and email stay the fallback |
+| Monitoring | external uptime, log drain, pager [D-31] | outside the platform; logs hold no personal data (PRV-7) |
 
 ---
 
@@ -1846,6 +1851,8 @@ Knowledge, Automations, Reports, Team, Settings.
 | D-34 | Payment provider, plans and prices: **the owner adds these later**; nothing is built or invented until then | owner |
 | D-35 | Whether a business may ever override a resource conflict (default: never) | owner |
 | D-38 | Platform contact-ceiling values (maximum attempts per sequence, unprompted messages per day) that no plan can exceed | owner |
+| D-39 | WhatsApp, Instagram and Messenger as messaging channels: in launch scope or later (the current code has Meta workers; not yet a decision) | owner + counsel |
+| D-40 | Push notification service for the installed web app (Web Push directly, or a push provider) | owner |
 
 ### 23.3 Rulebook alignment
 
@@ -2272,6 +2279,12 @@ Required before launch (written and approved by the owner with counsel; not part
 | Resend | email | email addresses, email content |
 | Anthropic | AI model for voice, messaging and drafts | conversation content needed for the task; never used for training |
 | Google, Microsoft | calendar sync (when a business connects it) | appointment times and titles |
+| Vapi's speech providers (e.g. ElevenLabs, Deepgram, as set in settings) | voice and transcription | call audio and text needed for the call |
+| Google (Ads lead forms, Business Profile) | lead intake; review replies (when connected) | lead details; review text and owner-approved replies |
+| Meta (lead ads; WhatsApp, Instagram, Messenger if D-39 is approved) | lead intake; messaging | lead details; message content and handles |
+| Shopify (when a business connects it) | order lookup | order number and customer contact used for the lookup |
+| Push service (D-40) | owner alerts | a title and a link, no personal data |
+| Monitoring provider (D-31) | uptime, logs, paging | request metadata only, no personal data |
 | n8n Cloud | workflow workers | work envelopes and message content in transit |
 | Cloudflare | web hosting | web traffic |
 | Payment provider (later) | billing | business billing details; no card data stored by Zella Voice |
