@@ -670,7 +670,9 @@ flowchart LR
 - **REQ-AUT-02 Work items.** A work item has: queue, business, due time, status, attempt count, claim token,
   claim expiry, last error, idempotency key, correlation ID and cancellation reason.
 - **REQ-AUT-03 Claim protocol.** Workers claim with `FOR UPDATE SKIP LOCKED`, take a batch limit, and must report
-  within the claim timeout or the item returns. Workers never retry by themselves.
+  within the claim timeout. A claim that expires **before** the dispatch boundary (REQ-AUT-06) returns the item to
+  `due`; one that expires **after** it (the item is `sending`) moves to `unknown` and is reconciled before any retry
+  (REQ-AUT-05). Workers never retry by themselves.
 - **REQ-AUT-04 Retry policy** is per queue in the database: growing delay, max attempts, then a dead letter and an
   alert.
 - **REQ-AUT-05 Unknown outcome.** If a provider call's result is lost, the item enters `unknown`. It is **reconciled
@@ -707,7 +709,7 @@ stateDiagram-v2
   unknown --> succeeded: reconciled
   unknown --> due: reconciled as not done
   claimed --> due: failed, retry later
-  claimed --> due: claim expired
+  claimed --> due: claim expired before sending
   claimed --> dead_letter: retries exhausted → alert
   scheduled --> cancelled: made irrelevant (reason)
   due --> cancelled

@@ -180,7 +180,7 @@ Trust increases left to right. A rule that lives anywhere left of layer 3 is a d
     claimed --> skipped: a rule said no (reason kept)
     claimed --> dry_run: live switch off
     claimed --> pending: failed, retry with growing delay
-    claimed --> pending: claim timed out
+    claimed --> pending: claim timed out before sending
     claimed --> dead_letter: retries exhausted → alert
     pending --> cancelled: no longer needed
     dead_letter --> pending: a person retries
