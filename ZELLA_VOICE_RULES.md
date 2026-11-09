@@ -332,7 +332,7 @@ flowchart LR
   - transcripts: 90 days;
   - message bodies: 2 years;
   - audit and security logs: 7 years, unless the applicable legal policy requires otherwise;
-  - a cancelled business's data: deleted 30 days after cancellation, after a final export offer. Only audit and security records, and records under a legal hold, are kept to the end of their own retention period; they hold no message bodies, transcripts or recordings, are readable only through audited platform functions, and are then deleted.
+  - a cancelled business's data: deleted 30 days after cancellation, after a final export offer. Only audit and security records (which hold no message bodies, transcripts or recordings) are kept, to the end of their own retention period. Anything under an active legal hold, including message bodies, transcripts and recordings, is kept until counsel releases the hold. Both are readable only through audited platform functions, and are deleted when their period or hold ends.
 
   Call recording stays off until recording consent and caller disclosures have been reviewed.
 - `PRV-5` **Data subject requests** (access, correction, deletion) are logged, completed within 30 days, and reach every copy: tables, files, backups on rotation, provider records.
@@ -468,7 +468,7 @@ flowchart TD
 
 ## Part 12: Customer communications
 
-Every outgoing text or email passes this check when it is prepared, not when it was scheduled, and its consent and cancellation state is checked once more immediately before it is handed to the provider. An opt-out, do-not-contact or cancellation cancels pending **and claimed** items at once, which voids their claim; a worker whose final check is refused does not send:
+Every outgoing text or email passes this check when it is prepared, not when it was scheduled, and its consent and cancellation state is checked once more immediately before it is handed to the provider. The final check and the move to sending are one database transaction: the dispatch boundary. An opt-out, do-not-contact or cancellation cancels pending **and claimed** items at once, which voids their claim; a worker whose final check is refused does not send. A send already past the boundary when an opt-out arrives cannot be recalled: its result is recorded and the opt-out applies to everything after it:
 
 ```mermaid
 flowchart TD
@@ -581,7 +581,7 @@ stateDiagram-v2
 - `UX-21` Every screen works at **360 px** and **1280 px+** with no sideways page scroll; tables scroll inside themselves.
 - `UX-22` **Performance budget** on a mid-range phone over 4G: largest content in under 2.5 s, interaction response under 200 ms, layout shift under 0.1. Customer-facing link pages ship without the admin code.
 - `UX-23` Lists over 50 rows paginate or virtualise.
-- `UX-24` **Owners on the move (§40).** The CRM installs to the phone's home screen and sends push notifications for urgent items, with SMS and email as fallback. A push notification carries no personal data, only a title and a link to the item. The phone layout puts Today, Callbacks, Inbox and Calendar first; every urgent notification opens the exact item.
+- `UX-24` **Owners on the move (§40).** The CRM installs to the phone's home screen and sends push notifications for urgent items, with SMS and email as fallback. A push notification's payload carries no personal data, only a title and a link to the item; the browser's push service still sees its timing and size (§39). The phone layout puts Today, Callbacks, Inbox and Calendar first; every urgent notification opens the exact item.
 
 ---
 
