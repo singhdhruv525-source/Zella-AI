@@ -12,6 +12,9 @@ It is the blueprint every change to the web app, database, workflows and voice s
 
 **Brand:** the product and company are always written in full: **Zella Voice**.
 
+**Decisions applied:** the owner's product decisions of 9 Nov 2026 are written into every section below and listed in
+§23 (decided vs. still open). **Launch market: United States only**; the design stays multi-country ready.
+
 ---
 
 ## Contents
@@ -451,9 +454,13 @@ It checks, in order:
 4. Industry policy (sensitive industries: drafts, no relationship-revealing previews).
 5. Frequency caps [D-23] and "one check-in per visit".
 6. Stop conditions of the sequence (reply received, resolved, booked, closed).
-7. Calling hours (calls) or quiet hours (messages) in the **customer's** time zone if known, else the business's
-   [D-03].
-8. Entitlements (plan allows the channel and has quota).
+7. **Calling window (calls):** the business's configured opening hours, in the business time zone. Businesses open
+   24/7 use a default outbound window of **08:00–21:00 local**, unless they configure a different permitted window.
+   Calls outside the window are queued until it next opens. Emergency inbound availability **never** grants
+   permission for outbound calls. **Quiet hours (non-urgent messages):** [D-03]. Replies to the customer's own message
+   go immediately.
+8. Entitlements: **not enforced at this stage** (no plans yet, REQ-BIL-01). The check point exists so plans can be
+   added later without redesign.
 9. Template completeness (no unfilled placeholders).
 
 **REQ-MSG-02 Opt-outs are immediate and cross-channel by purpose:**
@@ -469,7 +476,15 @@ Opt-outs apply to every pending work item at its next claim and cancel open sequ
 - **REQ-MSG-03** Templates are versioned per business, with industry defaults. Placeholders are typed; a missing
   value blocks the message.
 - **REQ-MSG-04** Every message identifies the business and says how to stop (SMS) or unsubscribe (marketing email).
-- **REQ-MSG-05** Outbound call scripts are approved guidance per business and purpose, not free-form prompts.
+- **REQ-MSG-05** Outbound call scripts are approved guidance per business and purpose, not free-form prompts. The
+  AI follows the business's script.
+- **REQ-MSG-06 Protected template content.**
+  - Businesses can edit tone, wording, greetings, appointment details and other permitted content of every
+    confirmation, reminder and follow-up (text and email).
+  - Protected fields cannot be removed: business identity and disclosure, STOP/opt-out instructions, unsubscribe
+    links, and provider and carrier compliance fields.
+  - Templates are validated on save **and** before every send; a template missing mandatory language cannot be
+    saved or sent.
 
 ### 9.5 Honest status model
 
@@ -524,21 +539,21 @@ flowchart LR
 |---|---|
 | **10.1 Public website** | REQ-LC-01: marketing pages, pricing (owner-defined), demo request and signup entry. Forms post to an edge endpoint with rate limiting and bot protection, creating a **prospect** in the growth schema. |
 | **10.2 Zella Voice sales leads** | REQ-LC-02: prospects, demos, stages, owner and follow-up tasks in the growth schema; visible only with `growth.manage`; prospect emails follow the same consent rules. Never stored in a tenant. |
-| **10.3 Signup / assisted onboarding** | REQ-LC-03: either self-serve (verify email → create business draft → choose industry → setup wizard → plan) or assisted (staff run Create Business, §18.5) [D-06]. Duplicate businesses are prevented by normalised name, phone and domain checks plus staff review. |
+| **10.3 Signup and onboarding** | REQ-LC-03: **self-service signup.** The owner (1) creates an account, (2) creates a business workspace, (3) completes the industry-specific onboarding wizard, (4) adds business information, time zone, hours and contact details, (5) configures the receptionist, (6) completes phone and integration setup. Platform admins can also create or invite businesses (§18.6). Every business gets an isolated workspace; **no demo data is ever loaded into production**. Duplicates are prevented by normalised name, phone and domain checks. |
 | **10.4 Authentication and recovery** | REQ-LC-04: email + password, email links that need a click on our page, recovery by email, MFA (TOTP) required for platform staff and owner-enforceable for members, session revocation on role change, leaked-password protection on. |
 | **10.5 Business creation** | REQ-LC-05: creates the tenant, owner membership (pending until accepted), industry defaults, capabilities, policies, templates, default automations (off until reviewed), and an audit record. Idempotent by a creation key. |
 | **10.6 Invitations** | REQ-LC-06: bound to email, role-limited (admins invite at most staff/manager; only owners invite admins), expiring, revocable, resendable; accepted only from a session proven to own the email. |
 | **10.7 Setup** | REQ-LC-07: wizard (§18.5) with save-and-resume, honest checklist, server-side readiness. |
 | **10.8 Industry configuration** | REQ-LC-08: industry sets terminology, capabilities, modules, record types, message policy, safety lines and default automations. The owner can adjust within allowed bounds. |
 | **10.9 AI receptionist setup** | REQ-LC-09: greeting, voice (approved list), languages (plan), call handling rules, transfer numbers and hours, escalation rules, emergency script, after-hours behaviour. |
-| **10.10 Phone numbers** | REQ-LC-10: buy new or port in [D-07]; or forward an existing number. Numbers are assigned per business, with purpose inbound/outbound. Outbound caller ID must be a number the business owns or Zella Voice provides **for that business**, never shared across businesses. Routing: called number → business, enforced in the database. |
+| **10.10 Phone numbers** | REQ-LC-10: **initially, businesses forward their existing number to their Zella Voice number**, after Zella Voice verifies ownership and forwarding with a test call. Buying new numbers through the telephony provider comes in a later phase. Live calling is never switched on until the provider configuration and test calls are verified. Numbers are assigned per business, with purpose inbound/outbound. Outbound caller ID must be a number the business owns or Zella Voice provides **for that business**, never shared across businesses. Routing: called number → business, enforced in the database. |
 | **10.11 Knowledge** | REQ-LC-11: §16. Activation requires a minimum knowledge set [D-24]. |
 | **10.12 Services, hours, prices, booking rules** | REQ-LC-12: services (duration, price **entered by the business**, buffers, resources, staff), opening hours, holidays, closures, notice and horizon, approval-required bookings. |
 | **10.13 Provider connections** | REQ-LC-13: calendar (Google, Microsoft), lead sources, store (Shopify), reviews. OAuth with signed state; health checks; reconnect prompts. |
 | **10.14 Testing and activation** | REQ-LC-14: an activation checklist the server computes. Each item must pass before the business goes live: hours, at least one service or "no bookings", knowledge minimum, number routed, test inbound call answered and recorded, test message (dry run), transfer number verified, owner sign-off. Results are stored in `activation_tests`. |
 | **10.15–10.18 CRM, admin, billing, reports** | §18, §17, REQ-RPT below |
 | **10.19 Support and incidents** | REQ-LC-19: in-app support requests, tickets linked to the business, audited support access, incident status page, notification of affected businesses. |
-| **10.20 Pause, cancel, export, retention, offboarding** | REQ-LC-20: owner can pause (receptionist takes messages only [D-25]), schedule cancellation (signed "continue my plan" link), export everything (CSV/JSON + files), and data is deleted on the retention schedule after cancellation [D-13]. All steps audited. |
+| **10.20 Pause, cancel, export, retention, offboarding** | REQ-LC-20: owner can pause (receptionist takes messages only [D-25]), schedule cancellation (signed "continue my plan" link), export everything (CSV/JSON + files), and data is deleted on the retention schedule after cancellation. All steps audited. |
 
 **REQ-RPT-01 Reports:**
 - Daily summary at 08:00 business time: calls, missed, leads, bookings, overdue callbacks.
@@ -587,7 +602,7 @@ sequenceDiagram
 | REQ-VOX-03 | Tools: check hours; search knowledge; look up / update caller; check availability; book / find / reschedule / cancel appointment; take message; request follow-up; report emergency; transfer to a person; report unanswered question; look up order (if Orders on). Each is idempotent per tool-call ID, permission- and capability-checked, answered within budget (DB step p95 < 800 ms; whole request well under the provider timeout). |
 | REQ-VOX-04 | Facts only from tools and `ready` knowledge; read back before committing; never advise on medical/legal/financial matters; emergencies → emergency services first; identify as an assistant if asked. |
 | REQ-VOX-05 | Booking changes over the phone require REQ-ID-01. |
-| REQ-VOX-06 | Transfers only to numbers authorised for the current time (on-call rota); failure → urgent callback. |
+| REQ-VOX-06 | Transfers only to numbers each business authorises: the owner by default, or the people or roles the business chooses, with hours (on-call rota). The transfer number is never shown to the AI model; the backend performs the transfer. If the recipient doesn't answer, the AI: (1) detects the failed transfer; (2) returns to the caller; (3) says the person is unavailable right now; (4) offers to take a message or arrange a callback; (5) creates **one** urgent callback task; (6) notifies the right staff member. It never says a transfer succeeded when it did not. |
 | REQ-VOX-07 | Unanswered questions are always logged, with or without caller contact. |
 | REQ-VOX-08 | Every call is finalised exactly once from the final report: duration, end reason, classification, summary, transcript and recording references (per privacy settings). Calls without a final report are reconciled with the provider within 15 minutes [D-26]. |
 | REQ-VOX-09 | Recording and transcription follow the business's notice and consent settings [D-27]. |
@@ -624,13 +639,14 @@ flowchart TD
   spam -- yes --> log[Log only]
   spam -- no --> pol{Contact policy<br/>allows?}
   pol -- no --> staff[Staff task only]
-  pol -- yes --> txt{Missed-call text<br/>enabled? D-12}
-  txt -- yes --> t1[One text per missed call<br/>with reply / booking link]
-  txt -- no --> cb
-  t1 --> cb{Callback by<br/>AI, staff, or none?}
-  cb -- AI --> seq[Call attempts per sequence<br/>§13.4–13.5 rules]
-  cb -- staff --> task[Assigned callback<br/>with due time]
-  seq & task --> stop{Stop condition?<br/>reply · reached · booked ·<br/>opt-out · closed · exhausted}
+  pol -- yes --> txt[Immediate missed-call text<br/>if messaging consent]
+  txt --> chk{After 2–5 min:<br/>voicemail resolved it?<br/>staff already called?<br/>genuinely missed?}
+  chk -- resolved --> done2[Close · note]
+  chk -- still open --> a1[AI callback attempt 1<br/>inside calling window]
+  a1 -- not reached --> m1[Contextual text<br/>if consent]
+  m1 --> a2[Attempt 2 after 2–3 h<br/>inside calling window]
+  a1 -- reached --> stop
+  a2 --> stop{Stop condition?<br/>reply · reached · booked ·<br/>opt-out · closed · exhausted}
   stop -- reply --> inbox[CRM inbox; pause attempts]
   stop -- reached --> done[Resolved outcome]
   stop -- exhausted --> nr[Needs a person + notify]
@@ -646,7 +662,12 @@ flowchart TD
 | REQ-MC-06 | Failed SMS or call attempts follow their own retry rules; when exhausted → "Needs a person" with the full attempt history. |
 | REQ-MC-07 | Business controls on each follow-up: pause, resume, retry now, assign, close with outcome. |
 | REQ-MC-08 | Safe testing: test mode records every decision as a dry run; a test number list can be enabled for real end-to-end tests. |
-| REQ-MC-09 | Settings per business: callback handler (AI/staff/none), attempts, spacing, window, text on/off, calling hours [D-02, D-03, D-12]. |
+| REQ-MC-09 | Settings per business, with these **defaults**: AI callback on; first attempt about 2–5 minutes after the missed call; at most **2** attempts, about 2–3 hours apart (inside the calling window); a contextual text between attempts if messaging consent exists. Businesses can turn the AI callback off (staff task instead). |
+| REQ-MC-10 | **Immediate missed-call text** (default on, where messaging consent and preferences allow): "Hi, this is {{business_name}}. Sorry we missed your call. We can help you shortly. How can we assist?" (editable, REQ-MSG-06). Once per missed-call follow-up. |
+| REQ-MC-11 | **Before the first callback**, the system verifies: the call was genuinely missed; any voicemail the caller left hasn't already resolved the request; no staff member has already returned the call; the caller is eligible (consent, suppression, spam). |
+| REQ-MC-12 | **Withheld or anonymous number:** no automated callback and no attempt to identify the caller. Staff get a notification or task: "Anonymous caller missed at {time}". |
+| REQ-MC-13 | **Spam before every callback:** high-risk spam is blocked or handled by the spam policy. Medium-risk or uncertain calls get **no automatic callback** and go to a staff review queue. A spam classification can never start outbound contact. |
+| REQ-MC-14 | When both attempts fail: callback status "needs a person", a staff task, and the full attempt history on the timeline. |
 
 ---
 
@@ -695,16 +716,17 @@ Sources:
 | Setting | Values | Default |
 |---|---|---|
 | Lead calls enabled | on/off | off |
-| Handler | AI / staff / AI then staff | [D-01] |
-| Eligible sources | per source | [D-01] |
+| Handler | AI / staff / AI then staff | **AI** (if the lead asks for a person: transfer to the owner or the people the business chooses, REQ-VOX-06) |
+| Eligible sources | Google Ads forms, website forms, Meta lead forms, manually added leads, approved CRM/API integrations | all of them, but a source never authorises a call by itself: every lead passes consent, eligibility, duplicate and opt-out checks first |
 | Caller number | one of the business's outbound numbers | required to enable |
-| Calling hours and days | per business, per weekday, in the lead's time zone if known | [D-03] |
-| First-call delay | minutes after lead arrives | [D-02] |
-| Max attempts, spacing, overall window | numbers | [D-02] |
-| Voicemail behaviour | none / leave approved message | [D-10] |
-| Follow-up message after no answer | none / SMS / email, which attempt | [D-02] |
+| Calling hours and days | the business's opening hours (24/7 businesses: 08:00–21:00 local unless configured) | business hours |
+| First-call delay | time after the lead arrives | **about 1 minute**; if closed, queued for the next opening |
+| Max attempts, spacing | numbers | **2 attempts per follow-up sequence**, about **2–3 hours** apart |
+| Voicemail behaviour | none / leave approved message | **leave a short, professional voicemail** where consent and calling rules permit; never sensitive information |
+| Follow-up message after an unsuccessful attempt | SMS / email | **one contextual message** after each unsuccessful attempt (text and/or email, by consent); none if the customer already replied or the lead is closed |
+| After the sequence is exhausted | — | lead status **Unreachable** + staff task for manual follow-up; never deleted; staff can reopen |
 | Assignment and escalation | team / person; when to hand to staff | business |
-| Consent basis required | per source | [D-04] |
+| Consent basis required | per source; evidence stored with the lead | required for automated (AI-voice) calls and texts. US rules for artificial-voice calls and texts need counsel review [D-04] |
 | Script / guidance | approved per purpose | business (template) |
 | Industry restrictions | from industry policy | industry |
 | Kill switch | per business and platform-wide | on hand |
@@ -769,21 +791,46 @@ They are rechecked **immediately before every call, SMS or email** (REQ-OUT-10):
 **"Contacted" (REQ-OUT-13)** is set only for the conversation outcomes the business counts as contact [D-17]. Never
 for `no_conversation` or `hung_up_early`.
 
+**REQ-OUT-14 Picked up and hung up** counts as an **unsuccessful attempt**, not contact:
+- the attempt is recorded with outcome `hung_up_early`, with notes on the callback in the CRM;
+- one contextual follow-up message is sent if messaging consent exists and the lead hasn't replied or closed;
+- the next attempt follows the normal spacing.
+
 ### 13.7 When the lead does not answer
 
 | Attempt outcome | Recorded | Retry? | Message after? | Notes |
 |---|---|---|---|---|
 | `no_answer` | yes | if attempts left | per settings | — |
 | `busy` | yes | yes, at least the spacing later | per settings | — |
-| `voicemail` | yes (provider classified) | yes | per settings; voicemail only if allowed [D-10] | — |
+| `voicemail` | yes (provider classified) | yes | yes: leave a short professional voicemail (no sensitive details), then one contextual text or email if consent | — |
 | `invalid_number` | yes | no | no | suppress number |
 | `rejected` (carrier/provider) | yes | limited | no | alert if repeated (possible spam labelling) |
 | `provider_failure` | yes | yes, not counted as a customer attempt [D-02] | no | alert |
 | `timeout` | yes | after reconciliation | no | — |
 | `unknown` | yes | **only after reconciliation** | no | prevents duplicate calls |
 
-When attempts are exhausted: "Needs a person", assignee notified, with the full attempt history. The workflow then
-stops automated contact.
+**When the sequence is exhausted** (2 attempts plus their follow-up messages):
+- the lead status becomes **Unreachable**;
+- a staff task is created for manual follow-up;
+- the assignee is notified, with the full attempt history;
+- automated contact stops.
+
+The lead is never deleted, and staff can reopen it, which starts a new sequence only if they choose.
+
+**Sequence summary (defaults):**
+
+```mermaid
+flowchart LR
+  L([Eligible lead]) --> C1[Call 1<br/>about 1 min later<br/>in business hours]
+  C1 -- reached --> R[Conversation<br/>outcome]
+  C1 -- not reached --> F1[One contextual<br/>text / email]
+  F1 -- customer replies --> T[Two-way AI messaging<br/>agrees a good time]
+  F1 -- no reply --> C2[Call 2<br/>2–3 h later]
+  T --> C2b[Call at agreed time]
+  C2 -- reached --> R
+  C2 -- not reached --> F2[Final text / email:<br/>how to reach us]
+  F2 --> U[Unreachable +<br/>staff task]
+```
 
 ### 13.8 Attempt history (REQ-OUT-20)
 
@@ -838,6 +885,23 @@ Every attempt stores:
 | Knowledge notices | gaps, conflicts | internal | email + in-app | weekly | resolved | — |
 | Invitation, password, sign-in | auth | transactional | email | immediately | — | — |
 
+**REQ-MSG-30 Reminder schedule** (business time zone), computed from the notice between booking and appointment:
+
+| Booked | Reminders |
+|---|---|
+| more than 48 h ahead | 24 h and 2 h before |
+| 1–48 h ahead (not same day) | one, 2 h before if that is still in the future; otherwise 1 h before |
+| same day (at least 1 h ahead) | one, 1 h before |
+| less than 1 h ahead | confirmation only, no reminder |
+
+Rules for reminders:
+- Rescheduling cancels pending reminders and recalculates from the new time.
+- Cancelling cancels them.
+- Never a duplicate: one dedupe key per appointment, version and offset.
+- Reminders are informational and need no reply, but replies are understood (REQ-MSG-40).
+- **Confirmations** go by text **and** email (each where consent and address exist).
+- Every booking also appears in the business's CRM calendar at once.
+
 Every message goes through §9.2–9.5 with a dedupe key (`kind:entity:version`). Each send is visible on the customer
 timeline (customer messages) or in notifications (internal messages), with an admin view across businesses.
 
@@ -847,6 +911,35 @@ timeline (customer messages) or in notifications (internal messages), with an ad
   the CRM inbox and pauses related sequences.
 - **REQ-MSG-21** Email replies arrive through the inbound email domain into the inbox, signed and rate-limited.
 - **REQ-MSG-22** Staff reply from the inbox; replies are service messages and go immediately.
+
+### 14.3 Two-way AI messaging (text and email)
+
+```mermaid
+flowchart TD
+  in([Customer text or email]) --> stop{STOP / unsubscribe<br/>or opt-out wording?}
+  stop -- yes --> opt[Suppress at once ·<br/>confirm opt-out ·<br/>cancel sequences]
+  stop -- no --> own{Who owns this<br/>conversation?}
+  own -- staff --> inbox[Inbox only;<br/>AI stays silent]
+  own -- AI --> ctx[Load customer, lead<br/>and conversation context]
+  ctx --> cls{Complex, sensitive,<br/>angry or uncertain?}
+  cls -- yes --> esc[Hand to staff ·<br/>pause AI · notify]
+  cls -- no --> act{Request}
+  act -- confirm / cancel / reschedule --> bk[Booking backend ·<br/>reply only after it confirms]
+  act -- question --> kb[Answer from ready knowledge,<br/>else say staff will follow up]
+  act -- good time to call --> sch[Reschedule the next<br/>call attempt to that time]
+  bk & kb & sch --> rep[One reply ·<br/>dedupe key per inbound message]
+```
+
+| ID | Requirement |
+|---|---|
+| REQ-MSG-40 | The AI may reply automatically by text and email to inbound replies, where the customer has consented and the business's rules allow it. It uses the existing conversation and the lead or appointment context. |
+| REQ-MSG-41 | STOP and other opt-out wording are honoured **immediately**, before any AI processing. |
+| REQ-MSG-42 | Exactly one reply per inbound message (dedupe key = inbound message ID); no reply loops (max AI replies per conversation per hour [D-32]). |
+| REQ-MSG-43 | Booking changes go through the authorised booking backend; the AI describes a change as done only after the backend confirms it. |
+| REQ-MSG-44 | Complex, sensitive or uncertain conversations, and every message in regulated industries, are escalated to staff. |
+| REQ-MSG-45 | Staff can take over any conversation. AI replies then stay paused until a staff member explicitly hands control back. The current owner (AI or staff) is shown in the inbox. |
+| REQ-MSG-46 | If the customer gives a good time to call, the next call attempt is moved to that time, inside the calling window. |
+| REQ-MSG-47 | AI messaging usage and cost are metered per business (REQ-BIL-07). |
 
 ---
 
@@ -893,7 +986,7 @@ stateDiagram-v2
 | ID | Requirement |
 |---|---|
 | REQ-CHK-01 | Staff check-in: arrived → checked in → in service → completed, each logged with who and when. Undo is possible within a window. |
-| REQ-CHK-02 | Customer self check-in [D-15]: a signed link in the reminder, or a reply "HERE", or a QR code at the location. The arrival shows on Today and notifies the assigned staff member. |
+| REQ-CHK-02 | **Initial version: staff-managed check-in only.** The design keeps room for customer self check-in later (a signed link in the reminder, a reply "HERE", or a QR code at the location), switched on per business through a business-level permission. |
 | REQ-CHK-03 | Late arrival and no-show rules: after N minutes [D-15], prompt staff to mark no-show. Nothing is assumed automatically. |
 | REQ-CHK-04 | Check-in cancels pending reminders for that appointment. |
 
@@ -930,7 +1023,8 @@ flowchart LR
 | REQ-KNW-01 | Only `ready` items are used. Readiness is set **in the database** when the owner approves an item; it does not depend on an external worker being on. |
 | REQ-KNW-02 | Every edit creates a version; an approval applies only to the version approved. |
 | REQ-KNW-03 | Gaps are logged for every unanswered question, counted, and shown weekly. |
-| REQ-KNW-04 | AI drafts are suggestions; never used until approved. |
+| REQ-KNW-04 | When the receptionist can't answer, the AI writes the best suggested answer (Anthropic API), from the business's own information only. The owner (or an authorised user) reviews, edits and publishes it. Drafts are never used until approved. |
+| REQ-KNW-07 | AI drafting usage and estimated cost are tracked per business. Each business has a configurable internal monthly budget, with alerts at configurable thresholds (default 75% and 90%). Platform admins can see usage and cost. Retries are capped to prevent runaway loops. Reaching the budget pauses **optional drafting only**: it never disables the core receptionist. |
 | REQ-KNW-05 | Conflicting items are detected and shown. |
 | REQ-KNW-06 | Per-industry evaluation cases run before any AI change and weekly. |
 
@@ -951,12 +1045,13 @@ flowchart LR
 
 | ID | Requirement |
 |---|---|
-| REQ-BIL-01 | Plans, prices, trials and limits are set only by the Zella Voice owner [D-09]. |
+| REQ-BIL-01 | **Not in the current build:** subscription plans, prices, minute allowances and plan-based call limits. None are invented or switched on. The billing architecture (ledger, webhook, entitlement check points) stays ready for a payment provider and plans chosen later [D-09]. |
 | REQ-BIL-02 | Usage is metered from an append-only ledger (one entry per finalised call; adjustments, never edits). Our failures are never billable. |
 | REQ-BIL-03 | Entitlements are checked at use time: assistant assembly, outbound claims, messaging claims, AI features. |
 | REQ-BIL-04 | Payment provider handles cards and invoices; Zella Voice stores no card data. Webhooks are signed and idempotent. |
 | REQ-BIL-05 | Billing page for owners: plan, usage, invoices, payment method (provider portal), cancellation. |
 | REQ-BIL-06 | Grace policy on failed payment; no data deleted within the grace and export window. |
+| REQ-BIL-07 | **AI usage and cost tracking (now):** voice minutes, AI drafting, AI messaging and call intelligence are metered per business, with estimated cost, internal budgets, threshold alerts and a platform admin view. Budgets for optional features never stop the core receptionist. |
 
 ---
 
@@ -1142,7 +1237,7 @@ flowchart TD
 | Link tokens | 256-bit random, hashed at rest, single purpose, expiry, revoked when the underlying item changes, never logged |
 | AI | prompt-injection treated as hostile input; tools re-check permissions; no secrets or other customers' data in prompts; eval cases include injection attempts |
 | Sensitive industries | transcripts never to staff; private fields separate; previews never reveal the relationship; drafts for follow-ups |
-| Recordings and transcripts | notice and consent per business [D-27]; retention per class [D-13]; access logged |
+| Recordings and transcripts | **Call recording is off** until recording-consent rules, caller disclosures and business settings have been reviewed [D-27]. Retention defaults (configurable per platform and industry, **legal review before launch**): recordings **30 days**, transcripts **90 days**, audit and security logs per the applicable legal and operational policy. Deletion requests supported; access logged; tenant-isolated. |
 | Audit | append-only; privileged actions; support access |
 | Retention and deletion | scheduled deletion per data class; legal hold; deletion reaches files and provider copies where possible |
 | Backups | point-in-time recovery; quarterly restore drill; a restore never re-sends messages (dedupe keys and a "restored" flag on work items) |
@@ -1225,6 +1320,16 @@ Professional Services, Property Management, Real Estate, Restaurant, Spa & Welln
 | Commerce | E-commerce | order questions | none | orders | low | order lookup | returns policy |
 | Generic | Other | general | yes | generic | low | standard | — |
 
+**REQ-IND-02 Launch approach (US):**
+- **Lower-risk industries launch first.**
+- **Regulated industries** (Healthcare, Dental, Legal, Financial Services, Insurance, Childcare) use stricter
+  configurations and need **legal review before outbound calling, texting or recording is enabled**:
+  - sensitive follow-ups are staff-approved drafts;
+  - no automatic review requests;
+  - stricter consent and retention;
+  - restricted transcript and recording access;
+  - the AI gives no medical, legal or financial advice beyond explicitly approved business information.
+
 An industry is **ready** when:
 - its configuration is complete;
 - its evaluation set passes;
@@ -1234,59 +1339,101 @@ An industry is **ready** when:
 
 ## 23. Decisions
 
+### 23.1 Decided by the owner (9 Nov 2026)
+
+| ID | Decision | Applied in |
+|---|---|---|
+| D-01 | Lead calls are made by the **AI**. If the person asks for a human, the call is transferred to the owner or the people each business chooses. | §13.3, REQ-VOX-06 |
+| D-02 | Lead calls: first call about **1 minute** after an eligible lead arrives (or the next opening). **2 attempts**, about **2–3 h** apart. **One contextual message** after each unsuccessful attempt. Then **Unreachable** plus a staff task; never deleted; reopenable. | §13.3–13.7 |
+| D-03 (calls) | Calling window = **business opening hours**; 24/7 businesses default to **08:00–21:00 local**. Emergency inbound never permits outbound. | §9.3 |
+| D-06 | **Self-service signup**; platform admins can also create or invite businesses. No demo data in production. | §10.3 |
+| D-07 | **Forward existing numbers** first (ownership and forwarding verified); buying new numbers comes later. | §10.10 |
+| D-09 | **No plans, prices or minute allowances now**; billing stays ready for later. AI usage and cost tracked per business. | §17 |
+| D-10 | Leave a **short, professional voicemail** where permitted; no sensitive details; then one contextual message. | §13.7 |
+| D-11 | Not decided separately; missed-call rules apply only when the caller's number is known (REQ-MC-12). | §12 |
+| D-12 | **Immediate missed-call text** (consent permitting); AI callback 2–5 min later after verification; 2 attempts, 2–3 h apart; a contextual text between them; anonymous callers → staff task; medium-risk spam → review queue, no callback. | §12 |
+| D-13 / D-27 | Recording **off** until legal review. Retention defaults: recordings **30 days**, transcripts **90 days**, audit/security per policy; configurable per platform and industry; **legal review before launch**. | §20 |
+| D-14 | **United States only** at launch; multi-country ready; India not enabled until reviewed. | header, §20 |
+| D-15 | **Staff-managed check-in** first; self check-in designed for later. | §15.2 |
+| D-20 | **Lower-risk industries first**; regulated industries after legal review, with stricter settings. | §22 |
+| Templates | Fully editable except **protected compliance content**. | REQ-MSG-06 |
+| Reminders | Schedule by notice period (REQ-MSG-30); informational; replies understood. | §14 |
+| Two-way messaging | The AI replies by text and email, with staff takeover. | §14.3 |
+| Knowledge AI | Anthropic drafts; owner approves; per-business budget and alerts; never disables the receptionist. | §16 |
+
+### 23.2 Still open
+
 | ID | Decision | Owner |
 |---|---|---|
-| D-01 | Lead calls: AI, staff, or both; which sources first | Zella Voice owner |
-| D-02 | Attempt counts, spacing, first-call delay, overall window; whether provider failures count as attempts | owner |
-| D-03 | Calling hours and message quiet hours (per business? defaults?) | owner + legal |
-| D-04 | Consent basis for first contact with new leads, per country and source | legal |
+| D-03 (messages) | Quiet hours for non-urgent messages (rulebook `COM-3` says 09:00–19:00) | owner |
+| D-04 | Consent evidence required per lead source for AI-voice calls and automated texts under US rules | owner + counsel |
 | D-05 | Public website hosting and Zella Voice sales pipeline scope | owner |
-| D-06 | Self-serve signup vs assisted onboarding | owner |
-| D-07 | Number strategy: buy, port, forward; carrier; caller-ID registration | owner |
 | D-08 | Calendar providers at launch | owner |
-| D-09 | Payment provider; plans, prices, trials, limits | owner |
-| D-10 | Voicemail on outbound calls; machine detection | owner + legal |
-| D-11 | Call back after provider-failed inbound calls | owner |
-| D-12 | Missed-call text: immediate, delayed, or none by default | owner |
-| D-13 | Retention per data class | owner + legal |
-| D-14 | Countries served; data residency | owner + legal |
-| D-15 | Self check-in methods; late/no-show thresholds | owner |
-| D-16 | Review requests: service or marketing | legal |
+| D-16 | Review requests: service or marketing | counsel |
 | D-17 | Which conversation outcomes count as "contacted" | owner |
-| D-18 | Caller verification method for booking changes | owner |
+| D-18 | Caller verification for booking changes by phone | owner |
 | D-19 | Gmail/Outlook mailbox integration: build or drop | owner |
-| D-20 | Launch industries | owner |
-| D-21 | Brand rule wording in the rulebook (`BRD-1` allows a short "Zella" in sentences; this document uses "Zella Voice" only) | owner |
-| D-22 | Dispatcher "stuck" threshold | engineering |
+| D-21 | Brand rule in the rulebook (`BRD-1`) | owner |
+| D-22, D-26, D-28 | Engineering thresholds: dispatcher "stuck" count, reconciliation delay, calendar staleness | engineering |
 | D-23 | Frequency caps per customer | owner |
 | D-24 | Minimum knowledge set before activation | owner |
 | D-25 | Behaviour while a business is paused | owner |
-| D-26 | Reconciliation delay for calls without a final report | engineering |
-| D-27 | Recording and transcription notice and consent | owner + legal |
-| D-28 | Maximum staleness of external busy times | engineering |
-| D-29 | Waitlist ranking, offer expiry, broadcast mode, imminent-slot quiet-hours exception | owner |
-| D-30 | Draft expiry for abandoned Create Business drafts | owner |
+| D-29 | Waitlist ranking, offer expiry, broadcast mode | owner |
+| D-30 | Draft expiry for abandoned signups and Create Business drafts | owner |
 | D-31 | Monitoring and pager provider | owner |
+| D-32 | Limit on AI replies per conversation per hour | engineering |
+| D-33 | Default internal monthly AI budget per business and alert thresholds (75% / 90% proposed) | owner |
+| D-34 | Payment provider, plans and prices (deferred) | owner |
+
+### 23.3 Rulebook items that need the owner's update
+
+`ZELLA_VOICE_RULES.md` is changed only by the owner. These rules now differ from the decisions above:
+
+| Rule | Says | Decision |
+|---|---|---|
+| `PRV-4` | recordings 90 days, transcripts 1 year | recordings 30 days, transcripts 90 days (legal review pending) |
+| `COM-3` | non-urgent messages only 09:00–19:00 | calls follow business hours (24/7: 08:00–21:00); message quiet hours still open |
+| `BRD-1` | short "Zella" allowed in sentences | open (D-21) |
 
 ---
 
-## 24. Build order
+## 24. Safe implementation sequence
 
-Each phase ends with its acceptance tests (§21) passing in staging, then a pilot business.
+Every step follows the same safety pattern:
+- Build on a branch; tests run in CI.
+- Rehearse on an isolated copy, then in staging with **dry run**.
+- The owner approves production.
+- Switch on for **one pilot business** first, with a kill switch ready.
+- Watch for a set period, then widen.
 
-| Phase | Scope | Requirements |
-|---|---|---|
-| 1. Foundations | tenancy, identity, roles, RLS, audit, migrations ledger, CI, staging, monitoring | REQ-TEN, REQ-ROLE, REQ-ID, §20, §21 |
-| 2. Core engine | outbox, work items, claim protocol, contact policy engine, status model, dispatcher with correct back-off | REQ-AUT, REQ-MSG-01–12 |
-| 3. Inbound voice | numbers, assistant per call, tools, standby assistant, finalisation, reconciliation, usage ledger | REQ-VOX, REQ-LC-10, REQ-BIL-02 |
-| 4. Scheduling | services, availability, booking, confirmations, reminders, check-in, waitlist | REQ-APT, REQ-CHK, REQ-WL |
-| 5. Missed calls and inbox | classification, missed-call journey, SMS/email, replies, inbox | REQ-MC, REQ-MSG-20–22 |
-| 6. Leads and outbound | intake from sources, sequences, outbound assistant and caller ID, outcomes, timeline | REQ-LEAD, REQ-OUT |
-| 7. CRM and admin completeness | all pages in §18, Create Business, activation tests | REQ-CRM, REQ-ADM, REQ-LC-14 |
-| 8. Billing | provider, plans, entitlements, billing page | REQ-BIL |
-| 9. Knowledge and AI quality | readiness in-database, gaps, drafts, eval sets | REQ-KNW, REQ-VOX-10 |
-| 10. Growth | public website, prospects, signup | REQ-LC-01–03 |
-| 11. Industries | per-industry evaluation and pilots, launch industries first [D-20] | REQ-IND |
+Each step's **exit test** must pass before the next step.
 
-`docs/CURRENT_STATE_REVIEW.md` maps today's code to these phases: what already meets the target, what needs changes,
-and what is missing.
+```mermaid
+flowchart TD
+  S0[0 · Safety foundations] --> S1[1 · Engine fixes]
+  S1 --> S2[2 · Inbound voice on one real number]
+  S2 --> S3[3 · Confirmations, reminders,<br/>protected templates]
+  S3 --> S4[4 · Missed-call flow]
+  S4 --> S5[5 · Two-way AI messaging]
+  S5 --> S6[6 · AI lead calls]
+  S6 --> S7[7 · Knowledge AI drafts<br/>+ usage budgets]
+  S7 --> S8[8 · Self-service signup]
+  S8 --> S9[9 · Retention, recording<br/>after legal review]
+  S9 --> S10[10 · Wider launch:<br/>lower-risk industries,<br/>then regulated after review]
+```
+
+| Step | What | Why first | Exit test (must pass) | Live switch / gate |
+|---|---|---|---|---|
+| **0. Safety foundations** | CI on every pull request; migration ledger; confirm backups and run a restore drill; leaked-password protection on; review `calls_view`; staging environment; external uptime alert | nothing else is safe without these | restore drill restores without re-sending anything; CI blocks a failing PR | none |
+| **1. Engine fixes** | dispatcher back-off that never delays new work (REQ-AUT-11); `unknown` outcome with reconciliation before retry (REQ-AUT-05); claim-time rechecks, including "automation switched off" and "customer replied" (REQ-AUT-06); Failure Alert on every workflow | every later channel depends on the engine | stuck item + new item → new item sent within 1 minute; lost call result → no second call until reconciled | none (dry run) |
+| **2. Inbound voice** | forward the pilot business's number; per-call assistant; tool path; transfer-failure behaviour (REQ-VOX-06); end-of-call finalisation; usage metering; knowledge "ready" on approval (REQ-KNW-01) | proves P1 "every call answered" | real call → one delivery, duration, summary, one usage row; failed transfer → message + one urgent callback | `calls` inbound only; recording **off** |
+| **3. Confirmations and reminders** | reminder schedule (REQ-MSG-30); confirmations by text and email; protected templates (REQ-MSG-06); SMS registration (A2P 10DLC) and delivery receipts | lowest-risk outbound messages; customers expect them | each notice band produces exactly the right reminders; reschedule recalculates; cancel cancels; no duplicates | `email_live`, then `sms_live` for the pilot |
+| **4. Missed-call flow** | classification; immediate text; verification before callback; spam gate; anonymous → staff task; 2 attempts; staff controls | the core promise "never miss a caller" | missed call → one text, verified callback, max 2 attempts, stops on reply or opt-out; medium spam → review queue | outbound calls for the pilot only (callbacks to people who called) |
+| **5. Two-way AI messaging** | AI replies with staff takeover, STOP first, dedupe, loop limits, escalation | needed by missed-call and lead follow-ups | STOP honoured before AI; staff takeover pauses AI; no duplicate replies; booking change confirmed only after the backend confirms | per-business AI messaging switch |
+| **6. AI lead calls** | per-business outbound caller ID and assistant; consent evidence per source; 1-minute first call; 2 attempts; voicemail; contextual messages; Unreachable + staff task; attempt history and timeline | highest legal and reputational risk: last of the channels | full answer and no-answer matrix in staging; consent missing → no call; reply between attempts → call moved or cancelled | per-business lead-call switch; **counsel sign-off on US consent first** |
+| **7. Knowledge AI drafts** | Anthropic drafts for gaps; owner approval; per-business budget and alerts; admin cost view | improves answers once calls flow | gap → draft → approve → ready → answered; budget reached → drafting pauses, receptionist unaffected | `knowledge_ai_live` |
+| **8. Self-service signup** | account → workspace → industry wizard → receptionist → number forwarding → activation tests | opens growth once the product is proven | new business isolated; activation tests block go-live until passed; no demo data | signup open |
+| **9. Retention and recording** | deletion jobs (30 / 90 days); export; deletion requests; recording with disclosures | after legal review | expired items deleted everywhere; export complete | recording switch after counsel review |
+| **10. Wider launch** | lower-risk industries; then regulated industries one by one with their stricter settings | after pilots | per-industry eval set passes; pilot sign-off | per industry |
+
+`docs/CURRENT_STATE_REVIEW.md` §28 maps each step to the gaps it closes.
