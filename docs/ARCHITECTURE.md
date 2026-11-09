@@ -1,1151 +1,1292 @@
-# Zella Voice: complete system architecture
+# Zella Voice: complete target architecture
 
-**Status:** the architecture as built (repo `main` plus production read on 9 Nov 2026) and the changes recommended (§17).
-**Audience:** engineers, reviewers, and the owners making go-live decisions.
-**Diagrams:** written in Mermaid. They render on GitHub and in most Markdown viewers.
+**What this document is:** the complete design of the Zella Voice SaaS platform, written as if nothing were built yet.
+It is the blueprint every change to the web app, database, workflows and voice system is measured against.
 
-Where this file and a dated report in `docs/` disagree, check production. Reports are snapshots; this file describes the design.
+**How to use it:**
+- Every requirement has an ID (`REQ-…`). Changes, pull requests and tests cite the IDs they implement.
+- `docs/CURRENT_STATE_REVIEW.md` records how today's code compares with this target (evidence, gaps, priorities).
+- `ZELLA_VOICE_RULES.md` holds the binding rules this design obeys (`TEN-…`, `SEC-…`, …).
+- Values that are business, legal or product choices are **never invented here**. They appear as **[DECISION D-n]** and
+  are listed in §23. Until a decision is made, the setting exists but has no default, and the feature stays off.
+
+**Brand:** the product and company are always written in full: **Zella Voice**.
+
+---
 
 ## Contents
 
-1. [What the business is](#1-what-the-business-is)
-2. [System context](#2-system-context)
-3. [Architectural style: the database is the application](#3-architectural-style-the-database-is-the-application)
-4. [Multi-tenancy, identity and access](#4-multi-tenancy-identity-and-access)
-5. [Data architecture](#5-data-architecture)
-6. [Backend components](#6-backend-components)
-7. [Voice architecture](#7-voice-architecture)
-8. [Messaging architecture](#8-messaging-architecture)
-9. [Automation architecture: the complete catalogue](#9-automation-architecture-the-complete-catalogue)
-10. [Knowledge and AI quality](#10-knowledge-and-ai-quality)
-11. [Integrations](#11-integrations)
-12. [Frontend and UI/UX architecture](#12-frontend-and-uiux-architecture)
-13. [Security architecture](#13-security-architecture)
-14. [Deployment, environments and operations](#14-deployment-environments-and-operations)
-15. [Testing strategy](#15-testing-strategy)
-16. [Production state (9 Nov 2026)](#16-production-state-9-nov-2026)
-17. [Architect's recommendations](#17-architects-recommendations)
-18. [Glossary and repo map](#18-glossary-and-repo-map)
+| Part | Sections |
+|---|---|
+| A. Foundations | [1 Product](#1-product) · [2 Actors and roles](#2-actors-and-roles) · [3 Principles](#3-principles) · [4 System context and containers](#4-system-context-and-containers) · [5 Responsibility boundaries](#5-responsibility-boundaries) |
+| B. Core platform | [6 Tenancy, identity and permissions](#6-tenancy-identity-and-permissions) · [7 Domain model](#7-domain-model) · [8 Automation engine](#8-automation-engine) · [9 Communication core](#9-communication-core) |
+| C. Journeys | [10 SaaS lifecycle](#10-saas-lifecycle) · [11 Inbound calls and the AI receptionist](#11-inbound-calls-and-the-ai-receptionist) · [12 Missed calls](#12-missed-calls) · [13 Leads and outgoing lead calls](#13-leads-and-outgoing-lead-calls) · [14 SMS and email](#14-sms-and-email) · [15 Appointments, check-in and waitlist](#15-appointments-check-in-and-waitlist) · [16 Knowledge](#16-knowledge) · [17 Billing, plans and usage](#17-billing-plans-and-usage) |
+| D. Applications | [18 Web application](#18-web-application) (public pages, CRM, admin, Create Business) |
+| E. Operations | [19 Integrations](#19-integrations) · [20 Security and privacy](#20-security-and-privacy) · [21 Reliability, observability, delivery](#21-reliability-observability-delivery) · [22 Industries](#22-industries) · [23 Decisions](#23-decisions) · [24 Build order](#24-build-order) |
 
 ---
 
-## 1. What the business is
+# Part A: Foundations
 
-Zella Voice is a multi-tenant SaaS **AI receptionist for small businesses** in 28 industries (salons, dental, restaurants,
-HVAC, legal, childcare, hotels, e-commerce …). Each business gets:
+## 1. Product
 
-1. **An AI phone receptionist** that answers 24/7. It answers from the business's own knowledge, books, moves and
-   cancels appointments, takes messages, screens spam, transfers urgent calls and looks up orders.
-2. **A business CRM** (`app.zellavoice.com`): Today, calls, callbacks, leads, inbox, calendar, industry records,
-   money, reports, team, settings and the receptionist editor.
-3. **Automations** that act on the business's behalf within strict rules: reminders, confirmations, follow-ups,
-   waitlist offers, review requests, missed-call texts, digests and staff alerts.
+Zella Voice answers the phone for small businesses so no customer is missed. It is three products on one platform:
 
-Zella's team runs the platform from the **admin console** (`admin.zellavoice.com`).
+| Product | Who uses it | What it does |
+|---|---|---|
+| **AI receptionist** | callers, customers | Answers every call; answers questions from the business's approved knowledge; books, moves and cancels appointments; takes messages; transfers to a person; calls leads and missed callers back when the business allows it |
+| **Business CRM** | business owners and teams | One place for customers, leads, calls, messages, appointments, follow-ups, industry records, reports and settings |
+| **Platform admin** | Zella Voice staff | Creating and supporting businesses, numbers, plans, monitoring, security, abuse and audit |
+
+A fourth, internal product supports the business itself:
+
+| Product | Who uses it | What it does |
+|---|---|---|
+| **Zella Voice growth** | Zella Voice sales and marketing | Public website, Zella Voice's own sales leads, demos and signups. **Fully separate from every business's data.** |
+
+### 1.1 Promises that drive every requirement
+
+| ID | To the business | To their customers |
+|---|---|---|
+| P1 | Every call is answered | You reach someone who helps |
+| P2 | Only true things are said about your business | Correct answers, or an honest "I'll have them call you" |
+| P3 | Your data is yours alone | Your details stay private |
+| P4 | No spam, no wrong or badly timed messages | You hear from the business only when it is useful and wanted |
+| P5 | You stay in control | You can always stop messages and reach a person |
+| P6 | It works, and you hear first when it doesn't | Your booking is real |
+
+### 1.2 Glossary
+
+| Term | Meaning |
+|---|---|
+| Business | a tenant: one customer of Zella Voice |
+| Member | a person's membership in a business, with a role |
+| Customer | a person a business serves (caller, client, patient, guest). A **lead** is a customer not yet converted |
+| Interaction | any call, message, email, booking or note on a customer's timeline |
+| Work item | a durable row that represents something to do later (reminder, follow-up, callback, attempt) |
+| Live switch | a setting that lets a channel act in the real world; off = dry run |
+| Capability | a kind of operation a business offers (bookings, check-in, waitlist, orders, money, dispatch, classes, tables) |
+| Module | an area of the CRM, enabled per industry and per business |
+| Record type | a configurable industry object (pet, vehicle, matter, policy, job …) |
+
+---
+
+## 2. Actors and roles
 
 ```mermaid
-mindmap
-  root((Zella Voice))
-    AI receptionist
-      Answers calls 24/7
-      Books, moves, cancels
-      Knowledge answers
-      Transfers and messages
-      Spam screening
-      Order lookup
-    Business CRM
-      Today
-      Calls and callbacks
-      Leads and inbox
-      Calendar and scheduling
-      Industry records
-      Money records
-      Reports and team
-    Automations
-      Reminders and confirmations
-      Follow-ups
-      Waitlist offers
-      Reviews
-      Owner and staff alerts
-    Admin console
-      Business setup wizard
-      Plans and offers
-      Voice numbers
-      Monitoring and alerts
-      Spam and abuse
-      Audit and support
+flowchart LR
+  subgraph Platform["Zella Voice (platform)"]
+    ZO[Zella Voice owner]
+    ZA[Platform admins<br/>operations · billing · support ·<br/>security · read-only · sales]
+  end
+  subgraph Tenant["One business (tenant)"]
+    O[Owner] --> AD[Admin] --> M[Manager] --> S[Staff] --> V[Viewer]
+  end
+  subgraph Outside["Outside"]
+    CU[Customers and callers]
+    PR[Providers<br/>voice · SMS · email · calendar ·<br/>leads · payments · AI]
+    PS[Prospects of Zella Voice]
+  end
+  ZA -. audited admin functions .-> Tenant
+  CU --> Tenant
+  PS --> Platform
 ```
 
-### Product principles that shape the architecture
+**REQ-ROLE-01: business roles** (ordered; each includes the ones below it, except where stated):
 
-| Principle | Architectural consequence |
-|---|---|
-| The AI never makes things up | Only `ready` knowledge is used. Facts come from tools that read the database, and the model never computes availability. |
-| Nothing goes out without consent | Consent, opt-out, calling hours and industry policy are checked **in the database** when a message is prepared. |
-| Safe by default | Each outbound channel has a live switch, off by default. Off means a recorded **dry run**. |
-| One codebase, every industry | Industries are **data** (configurations, presets, capabilities, policies), not code. |
-| Say what happened | Failures stay visible (dead letters, "Sending failed", platform alerts) and are never swallowed. |
+| Role | Can | Cannot |
+|---|---|---|
+| Owner | everything in the business, including billing, ownership transfer, deletion, data export | — |
+| Admin | settings, team (not owners or other admins unless the owner allows), automations, integrations, receptionist | billing, ownership, deletion |
+| Manager | daily operations, money records, approvals, transcripts (unless the industry forbids), reports | settings, team, integrations |
+| Staff | assigned and team work: calls, callbacks, bookings, messages, records | money settings, other staff's private data, transcripts unless the owner allows |
+| Viewer | read only; no amounts; no transcripts | any write |
+
+**REQ-ROLE-02: platform roles** use named permissions, never one all-powerful role in daily use:
+- `businesses.view` / `businesses.manage`
+- `telephony.manage`
+- `comms.manage`
+- `ai.configure`
+- `integrations.manage`
+- `billing.view` / `billing.manage`
+- `plans.manage`
+- `support.manage`
+- `security.view` / `security.manage`
+- `audit.view`
+- `analytics.view`
+- `growth.manage` (Zella Voice's own sales pipeline)
+
+The Zella Voice owner has all permissions and is the only one who manages platform admins.
 
 ---
 
-## 2. System context
+## 3. Principles
+
+| ID | Principle | Consequence |
+|---|---|---|
+| PRN-1 | **The database is the rules engine** | Permissions, tenant isolation, eligibility, consent, timing, retries and policies are enforced in Postgres functions and row security. Apps and workers ask; they never decide. |
+| PRN-2 | **Adapters are thin** | Edge functions authenticate, validate, call one rule and translate the answer. Workers claim, call one provider and report. |
+| PRN-3 | **Every external action is at-least-once, made safe** | Idempotency keys, dedupe, an `unknown` outcome state, reconciliation before retry. Exactly-once is never claimed for provider actions. |
+| PRN-4 | **Events create durable work** | An event writes a work item with a due time; schedules only wake workers and run reconciliation and health checks. |
+| PRN-5 | **Configuration over code** | Industries, capabilities, policies, templates and terminology are data. No per-industry code branches. |
+| PRN-6 | **Off by default, dry run when off** | Every channel and AI feature has a live switch; off records exactly what would have happened. |
+| PRN-7 | **Honest state everywhere** | Separate statuses for lead, attempt, conversation, task and appointment. "Delivered" only with proof. Nothing silently dropped. |
+| PRN-8 | **The AI is constrained, not trusted** | Facts only from tools and approved knowledge; actions only through server-checked tools; uncertainty leads to a message, callback or person. |
+| PRN-9 | **Privacy by default** | Collect the minimum; classify; mask in logs; retention per class; sensitive industries stricter. |
+| PRN-10 | **Every change is reversible** | Migrations with rollbacks; feature switches; kill switches per channel and per business. |
+
+---
+
+## 4. System context and containers
 
 ```mermaid
 flowchart TB
-  subgraph People
-    caller([Caller / customer])
-    team([Business team])
-    zadmin([Zella admin])
+  subgraph Users
+    pros([Prospects])
+    own([Business teams])
+    cust([Customers / callers])
+    zv([Zella Voice staff])
   end
-
-  subgraph Providers
-    vapi[Vapi<br/>Deepgram STT · Claude LLM · ElevenLabs TTS]
-    telnyx[Telnyx SMS]
-    resend[Resend email]
-    meta[Meta: FB / IG / WhatsApp]
-    google[Google: Calendar · Ads leads · Reviews]
-    msft[Microsoft Graph: Outlook]
-    shopify[Shopify]
-    anthropic[Anthropic API]
-    pay[Payment provider]
+  subgraph Web["Web (Cloudflare Pages)"]
+    site[Public website<br/>zellavoice.com]
+    app[Web app<br/>app. · admin. · public links]
   end
-
-  subgraph Cloudflare
-    web[Web app: React SPA<br/>admin.zellavoice.com · app.zellavoice.com]
-  end
-
-  subgraph Supabase["Supabase · pffqxlumqhjdbzvvoszm"]
-    auth[Auth + MFA]
-    edge[Edge functions · Deno]
-    db[(Postgres 17<br/>tables · RLS · zella_* functions)]
-    cron[[pg_cron]]
-    net[[pg_net]]
+  subgraph Core["Supabase"]
+    auth[Auth<br/>passwords · links · MFA]
+    edge[Edge functions<br/>adapters]
+    pg[(Postgres<br/>rules engine · RLS)]
+    cron[[Scheduler]]
     vault[(Vault)]
-    storage[(Storage)]
+    files[(Storage)]
   end
-
-  subgraph N8N["n8n Cloud"]
-    wf[30 workflows<br/>claim → act → report]
+  subgraph Workers["Workflow workers (n8n)"]
+    wk[Claim → act → report]
   end
-
-  caller -- phone --> vapi
-  caller -- SMS --> telnyx
-  caller -- email --> resend
-  caller -- "/r /w /u links" --> web
-  team --> web
-  zadmin --> web
-
-  web -- "supabase-js · user JWT" --> auth
-  web -- RPC --> db
-  web --> edge
-  vapi -- "signed webhooks" --> edge
-  edge --> db
-  cron --> db
-  db --> net -- "POST /webhook/zella/run/*" --> wf
-  wf -- "service-role RPC" --> db
-  wf --> telnyx & resend & vapi & meta & google & msft & anthropic
-  telnyx -- events --> wf
-  resend -- events --> wf
-  meta -- webhooks --> wf
-  pay -- webhook --> edge
-  edge --> google & msft & shopify
-  db --- vault
-  edge --- storage
+  subgraph Providers
+    voice[Voice + telephony<br/>Vapi + carrier numbers]
+    sms[SMS provider]
+    mail[Email provider]
+    cal[Calendars<br/>Google · Microsoft]
+    leads[Lead sources<br/>Google Ads · Meta · forms]
+    pay[Payment provider]
+    llm[AI model provider]
+    obs[Monitoring<br/>uptime · logs · pager]
+  end
+  pros --> site --> edge
+  own & zv --> app --> auth
+  app --> pg
+  app --> edge
+  cust --> voice --> edge
+  cust --> sms --> edge
+  cust --> mail --> edge
+  cust --> app
+  edge --> pg
+  cron --> pg
+  pg -- wake when due --> wk
+  wk --> pg
+  wk --> voice & sms & mail & cal & llm
+  leads --> edge
+  pay --> edge
+  pg --- vault
+  edge --- files
+  edge & wk & pg -.-> obs
 ```
 
----
+**Containers:**
 
-## 3. Architectural style: the database is the application
-
-```mermaid
-flowchart LR
-  subgraph Adapters["Thin adapters: no business rules"]
-    ui[Web UI]
-    ef[Edge functions]
-    n8[n8n workers]
-    vp[Vapi via voice-rules]
-  end
-  subgraph Core["Postgres: the rules engine"]
-    fn["zella_* functions<br/>security definer<br/>role check first"]
-    tb[("Tables<br/>RLS on every one")]
-    tr["Triggers<br/>create work"]
-    cr["pg_cron<br/>timed jobs"]
-  end
-  ui -- rpc --> fn
-  ef -- rpc --> fn
-  n8 -- rpc --> fn
-  vp --> ef
-  fn --> tb
-  tb --> tr --> tb
-  cr --> fn
-```
-
-- **All business logic is PL/pgSQL** (`public.zella_*`, about 660 functions), called over PostgREST RPC.
-- **n8n holds no rules.** It *claims* work, calls a provider, and *reports* the outcome.
-- **Edge functions are adapters** for callers that cannot use PostgREST directly (Vapi, OAuth, webhooks, service-key operations).
-
-**Why this design:** one enforcement point for every entry (browser, AI, SMS reply, webhook, cron). Transactions
-give exactly-once behaviour. There is no app-server fleet to run. **The cost:** SQL-heavy code and deploys done as
-migrations. These are handled by the test suites and migration discipline in §14 and §15.
-
----
-
-## 4. Multi-tenancy, identity and access
-
-### 4.1 Tenancy
-
-Shared database and schema, isolated by row. Every tenant-owned row has `business_id`, and the trigger
-`zz_tenant_links` on about 30 tables refuses a row whose linked rows belong to another business.
-
-```mermaid
-erDiagram
-  AUTH_USERS ||--|| PROFILES : has
-  AUTH_USERS ||--o{ BUSINESS_MEMBERS : "belongs to"
-  BUSINESSES ||--o{ BUSINESS_MEMBERS : has
-  AUTH_USERS ||--o| PLATFORM_ADMINS : "may be"
-  PLATFORM_ADMINS }o--|| PLATFORM_ROLE_PERMISSIONS : "role grants"
-  BUSINESSES }o--|| INDUSTRIES : "is a"
-  BUSINESSES ||--o{ BUSINESS_INVITATIONS : sends
-  BUSINESS_MEMBERS {
-    uuid business_id
-    uuid user_id
-    text role "owner|admin|manager|staff|viewer"
-    text status
-  }
-  PLATFORM_ADMINS {
-    uuid user_id
-    text role "zella_owner|platform_operations|billing_admin|support_admin|security_admin|read_only_admin"
-  }
-```
-
-### 4.2 Two role planes
-
-| Plane | Roles (high → low) | Checked by |
+| Container | Technology | Responsibility |
 |---|---|---|
-| Business | `owner`, `admin`, `manager`, `staff`, `viewer` | `zella_has_role(business, roles[])`, `zella_is_member`, RLS |
-| Platform | `zella_owner`, then `platform_operations`, `billing_admin`, `support_admin`, `security_admin`, `read_only_admin` | `zella_admin_role()`, `zella_admin_can(permission)` |
+| Public website | static site + form endpoint | marketing, demo requests, signup entry |
+| Web app | React (single bundle, three surfaces; code-split by surface) | CRM, admin, customer self-service pages |
+| Auth | Supabase Auth | identity, sessions, MFA, invitations, recovery |
+| Rules engine | Postgres functions + RLS | all business rules, queues, audit |
+| Edge functions | Deno | provider webhooks, voice endpoint, OAuth, provisioning, signed links |
+| Scheduler | pg_cron | wake workers, reconciliation, health, timers |
+| Workers | n8n (replaceable by edge workers) | provider calls for queued work |
+| Storage | Supabase Storage | files, brand assets, recordings (if stored) |
+| Vault | Supabase Vault | provider secrets, signing keys |
+| Monitoring | external uptime check, log drain, pager | alerting outside the platform it watches |
 
-Platform permissions: `businesses.view|manage`, `billing.view|manage`, `plans.manage`, `security.view|manage`,
-`audit.view`, `support.manage`, `telephony.manage`, `ai.configure`, `comms.manage`, `integrations.manage`, `analytics.view`.
+---
 
-**Access to a CRM feature requires all three checks** (`docs/NAVIGATION.md`):
+## 5. Responsibility boundaries
+
+| Concern | Owner layer | Never in |
+|---|---|---|
+| Who may do what | Postgres (role checks + RLS) | UI, workers |
+| Which business a request belongs to | derived in the adapter from session, verified number, signed token or signature, then checked in Postgres | request body, AI arguments |
+| Whether a message or call may happen now | Postgres (contact policy engine, §9.3) | workers, UI |
+| When work is due, retries, back-off | Postgres work items | workers |
+| Talking to providers | workers and edge adapters | Postgres (except waking workers) |
+| Mapping provider results to outcomes | one shared adapter module per provider, used by every caller | duplicated per workflow |
+| Display, wording, honest states | web app | business rules |
+| Booking authority | Zella Voice database | external calendars (mirror and busy-time source only) |
+| Payments and card data | payment provider | Zella Voice (never stores cards) |
+| Alerting | external monitoring | only inside the system being watched |
+
+---
+
+# Part B: Core platform
+
+## 6. Tenancy, identity and permissions
+
+- **REQ-TEN-01** One shared schema; every tenant-owned row has `business_id`; row-level security on every table.
+- **REQ-TEN-02** Every function checks membership and role against the business that **owns the row**, first.
+- **REQ-TEN-03** Links between rows (customer, appointment, record, staff, file, call) must be in the same business, enforced by the database.
+- **REQ-TEN-04** Caches, exports, search, analytics and AI prompts keep the tenant boundary.
+- **REQ-TEN-05** Platform staff reach tenant data only through audited admin functions with a named permission.
+- **REQ-TEN-06** Zella Voice growth data (prospects, demos) lives in a separate platform schema, never in a tenant.
+
+**Identity:**
+
+| Context | How identity is established | Strength |
+|---|---|---|
+| Web app user | Supabase session (password or email link), MFA required for platform staff and optional (owner-enforceable) for business members | strong |
+| Inbound call | the **called number** identifies the business (strong); the **caller number** identifies the customer **weakly** (spoofable) | caller: weak |
+| Customer self-service link | signed, single-purpose, expiring token | medium |
+| Provider webhook | signature over raw bytes + timestamp + replay protection | strong |
+| Worker → database | service credential, server-only functions | strong (protect the credential) |
+
+- **REQ-ID-01** Changing or cancelling a booking, or revealing appointment details over the phone, requires a second
+  factor beyond caller ID. Examples: name and booking date, or a text with a signed link to the number on file.
+  **[D-18]**
+
+---
+
+## 7. Domain model
+
+### 7.1 Bounded contexts
 
 ```mermaid
 flowchart LR
-  req[User opens a page or calls a function] --> a{Industry offers<br/>this module?}
-  a -- no --> x[Refused / hidden]
-  a -- yes --> b{Business switched<br/>it on?}
-  b -- no --> x
-  b -- yes --> c{User's role<br/>allowed?}
-  c -- no --> x
-  c -- yes --> d{Capability on?<br/>bookings, orders, money …}
-  d -- no --> x
-  d -- yes --> ok[Allowed]
+  T[Tenancy<br/>businesses · members ·<br/>invitations · settings]
+  C[Customers<br/>customers · consents ·<br/>relationships · leads]
+  V[Voice<br/>numbers · assistants ·<br/>calls · tool calls]
+  O[Outreach<br/>callbacks · attempts ·<br/>sequences]
+  M[Messaging<br/>messages · templates ·<br/>conversations · suppressions]
+  S[Scheduling<br/>services · hours · resources ·<br/>appointments · waitlist · check-in]
+  K[Knowledge<br/>items · versions · gaps · evals]
+  R[Records<br/>record types · records ·<br/>files · secrets · money]
+  A[Automation<br/>rules · events · work items ·<br/>executions · dead letters]
+  B[Billing<br/>plans · subscriptions ·<br/>usage ledger · entitlements]
+  P[Platform<br/>admins · alerts · incidents ·<br/>audit · support · provider health]
+  G[Growth<br/>prospects · demos ·<br/>signups: separate schema]
+  T --> C & V & S & K & R & B
+  C --> O & M & S
+  V --> O
+  A --> O & M & S & R
 ```
 
-### 4.3 Request contexts
+### 7.2 Core entities (target)
 
-| Context | `auth.uid()` | JWT role | `zella_has_role` |
-|---|---|---|---|
-| Signed-in browser | set | `authenticated` | checks membership and role |
-| Anonymous browser | null | `anon` | **always false** |
-| Server (n8n, edge, cron, SQL editor) | null | `service_role` / none | trusted |
-
-### 4.4 Sign-in and invitation flow
-
-```mermaid
-sequenceDiagram
-  autonumber
-  actor A as Admin / owner
-  participant W as Web app
-  participant F as staff-invite / owner-provision-business
-  participant DB as Postgres
-  participant SA as Supabase Auth
-  participant R as Resend SMTP
-  actor P as Invited person
-  A->>W: Invite person (role)
-  W->>F: POST with user JWT
-  F->>DB: check role, capacity, record invitation
-  F->>SA: generate invite link
-  SA->>R: send email
-  R-->>P: email with link
-  P->>W: opens /welcome?token_hash=…
-  W-->>P: "Continue" button (protects against mail scanners)
-  P->>SA: verify token, set password
-  SA-->>W: session
-  W->>DB: claim invitation, then membership becomes active
-  opt Platform admin
-    W->>SA: MFA TOTP challenge
-  end
-```
+| Entity | Key fields | Notes |
+|---|---|---|
+| `businesses` | id, name, industry, time_zone, status (draft, setup, testing, live, paused, suspended, cancelling, cancelled), locale, plan | tenant root |
+| `business_members` | business_id, user_id, role, status | REQ-ROLE-01 |
+| `customers` | business_id, names, phones[], emails[], lifecycle (lead, customer, inactive), source, owner (assignee) | one person per business; dedupe by normalised phone and email |
+| `contact_consents` | business_id, customer_id or address, channel, purpose (service, marketing), status, evidence (how, when, text shown), source | append-only history |
+| `suppressions` | business_id, address, channel, reason (opt_out, invalid, bounced, complaint, legal) | checked before every contact |
+| `phone_numbers` | business_id, e164, provider, purpose (inbound, outbound, both), caller-ID verified | per business |
+| `assistants` | business_id, kind (inbound, outbound), version, config hash, status | built from settings per call |
+| `calls` | business_id, direction, from, to, provider_call_id (unique), status, end_reason, classification (§12.1), duration, handled_by (ai, staff), transfer_status, recording/transcript refs, correlation_id | one row per provider call |
+| `call_tool_calls` | call_id, tool, idempotency_key (unique), args keys, result, verified | AI actions |
+| `callbacks` (outreach tasks) | business_id, customer_id, reason (missed_call, new_lead, needs_person, transfer_failed, requested), handler (ai, staff), status, attempts, sequence_id, next_due_at, assignee, outcome | REQ-OUT-* |
+| `call_attempts` | callback_id, attempt_no, scheduled_at, started_at, from_number, provider_call_id, provider_status, attempt_outcome, conversation_outcome, duration, handler, summary, policy_decision, failure_reason, next_action, next_due_at, correlation_id | REQ-OUT-20 |
+| `messages` | business_id, customer_id, channel (sms, email), direction, purpose, template_id, body, status (§9.5), provider_id, delivery evidence, dedupe_key (unique), correlation_id | texts and emails |
+| `message_jobs` | the work item behind each automated message | REQ-MSG-* |
+| `conversations` | business_id, customer_id, channel, state | CRM inbox |
+| `appointments` | business_id, customer_id, service, staff, resources, start/end, status, source, booking_state, linked record, attendance timestamps | REQ-APT-* |
+| `waitlist_entries`, `waitlist_offers` | entry preferences; offer slot, token, expires_at, state | REQ-WL-* |
+| `knowledge_items`, `knowledge_versions`, `knowledge_gaps` | status (draft, ready, archived) | REQ-KNW-* |
+| `automation_rules` | business_id, trigger, conditions, actions, channel, audience, enabled | owner-visible |
+| `events` (outbox) | business_id, type, payload, idempotency_key, status | REQ-AUT-01 |
+| `work_items` | queue, business_id, due_at, status, attempts, claim, last_error, idempotency_key | REQ-AUT-02 |
+| `usage_ledger` | business_id, source event, quantity, unit, kind (usage, adjustment), period | append-only |
+| `plans`, `subscriptions`, `entitlements` | limits per plan (owner-defined) | REQ-BIL-* |
+| `audit_logs` | actor, business, action, before/after, at | append-only |
 
 ---
 
-## 5. Data architecture
+## 8. Automation engine
 
-### 5.1 Core entity model
+### 8.1 Three kinds of automated work
+
+| Kind | Example | Mechanism |
+|---|---|---|
+| **Event-triggered** | missed call → callback; booking → confirmation | database trigger or webhook writes an **event** and **work items** in the same transaction |
+| **Durable future job** | reminder 24 h before; retry at next calling window | a work item with `due_at` |
+| **Reconciliation / health** | calls without reports; stuck claims; provider health; tenant self-checks | scheduled jobs |
+
+- **REQ-AUT-01 Outbox.** Every business event is written once to `events`, with an idempotency key, in the same
+  transaction as the change that caused it.
+- **REQ-AUT-02 Work items.** A work item has: queue, business, due time, status, attempt count, claim token,
+  claim expiry, last error, idempotency key, correlation ID and cancellation reason.
+- **REQ-AUT-03 Claim protocol.** Workers claim with `FOR UPDATE SKIP LOCKED`, take a batch limit, and must report
+  within the claim timeout or the item returns. Workers never retry by themselves.
+- **REQ-AUT-04 Retry policy** is per queue in the database: growing delay, max attempts, then a dead letter and an
+  alert.
+- **REQ-AUT-05 Unknown outcome.** If a provider call's result is lost, the item enters `unknown`. It is **reconciled
+  with the provider before any retry**.
+- **REQ-AUT-06 Re-check before acting.** Eligibility (business status, consent, suppression, calling or quiet hours,
+  stop conditions, entitlements) is evaluated **at claim time**, not when the item was created.
+- **REQ-AUT-07 Cancellation.** Work items are cancelled by the events that make them irrelevant: a booking moved or
+  cancelled, a reply received, an opt-out, a rule disabled, the business paused. Every cancellation stores its reason.
+- **REQ-AUT-08 Visibility.** Every work item and its outcome is visible to the business (on the customer timeline
+  and the relevant page) and to platform operations.
+
+### 8.2 Work item lifecycle
 
 ```mermaid
-erDiagram
-  BUSINESSES ||--o{ CUSTOMERS : has
-  BUSINESSES ||--o{ CALLS : receives
-  BUSINESSES ||--o{ APPOINTMENTS : schedules
-  BUSINESSES ||--o{ AI_AGENTS : has
-  AI_AGENTS ||--o{ AI_AGENT_CONFIGS : versions
-  BUSINESSES ||--o{ BUSINESS_PHONE_NUMBERS : owns
-  BUSINESSES ||--o{ KNOWLEDGE_ITEMS : knows
-  KNOWLEDGE_ITEMS ||--o{ KNOWLEDGE_VERSIONS : history
-  BUSINESSES ||--o{ CRM_RECORD_TYPES : configures
-  CRM_RECORD_TYPES ||--o{ CRM_RECORDS : typed
-  CRM_RECORDS ||--o| CRM_RECORD_SECRETS : private
-  CRM_RECORDS ||--o{ CRM_RECORD_EVENTS : history
-  CRM_RECORDS ||--o{ CRM_RECORD_FILES : files
-  CUSTOMERS ||--o{ CALLS : makes
-  CUSTOMERS ||--o{ APPOINTMENTS : books
-  CUSTOMERS ||--o{ CUSTOMER_CONSENTS : grants
-  CUSTOMERS ||--o{ CUSTOMER_RELATIONSHIPS : linked
-  CALLS ||--o{ AI_TOOL_CALLS : tools
-  CALLS ||--o| CALL_INSIGHTS : analysed
-  CALLS ||--o{ CALLBACKS : creates
-  CALLBACKS ||--o{ CALLBACK_ATTEMPTS : tries
-  CALLS ||--o| USAGE_RECORDS : metered
-  APPOINTMENTS ||--o{ APPOINTMENT_REMINDERS : reminds
-  APPOINTMENTS ||--o{ FOLLOWUP_TASKS : follows
-  APPOINTMENTS }o--o| CRM_RECORDS : "for pet / vehicle / property"
-  APPOINTMENT_REMINDERS ||--o| SMS_MESSAGES : sent_as
-  APPOINTMENT_REMINDERS ||--o| EMAIL_MESSAGES : sent_as
-  BUSINESSES ||--o{ SUBSCRIPTIONS : pays
-  SUBSCRIPTIONS }o--|| PLANS : on
+stateDiagram-v2
+  [*] --> scheduled
+  scheduled --> due: due_at reached
+  due --> claimed: worker claims
+  claimed --> succeeded
+  claimed --> skipped: rule said no (reason)
+  claimed --> dry_run: live switch off
+  claimed --> unknown: result lost
+  unknown --> succeeded: reconciled
+  unknown --> due: reconciled as not done
+  claimed --> due: failed, retry later
+  claimed --> due: claim expired
+  claimed --> dead_letter: retries exhausted → alert
+  scheduled --> cancelled: made irrelevant (reason)
+  due --> cancelled
+  dead_letter --> due: person retries
+  succeeded --> [*]
+  skipped --> [*]
+  dry_run --> [*]
+  cancelled --> [*]
 ```
 
-### 5.2 Table groups (about 175 tables)
+### 8.3 Waking workers (dispatcher)
 
-| Domain | Key tables |
-|---|---|
-| Tenancy and access | `businesses`, `business_members`, `business_invitations`, `profiles`, `platform_admins`, `platform_role_permissions`, `staff_members` |
-| Industry configuration | `industries`, `industry_configurations`, `industry_modules`, `business_modules`, `business_capabilities`, `industry_crm_presets`, `industry_automation_presets`, `industry_automation_defaults`, `industry_message_policy`, `record_workflow_presets` |
-| Customers and leads | `customers`, `customer_relationships`, `customer_consents`, `contact_consents`, `lead_rules`, `lead_questions`, `lead_submissions`, `website_forms`, `google_lead_keys`, `google_lead_events`, `meta_*`, `duplicate_reviews` |
-| Calls and voice | `calls` (read through `calls_view`), `call_messages`, `call_insights`, `ai_agents`, `ai_agent_configs`, `agent_config_versions`, `business_voice`, `business_phone_numbers`, `ai_tool_calls`, `vapi_request_receipts`, `ai_eval_cases`, `ai_response_samples`, `ai_answer_reports` |
-| Scheduling | `appointments`, `business_hours`, `business_closures`, `blocked_times`, `resources`, `resource_needs`, `waitlist_entries`, `appointment_reminders`, `appointment_reschedule_links`, `waitlist_offer_links`, `calendar_connections`, `calendar_sync_queue`, `recurring_plans`, `recurring_visits`, `restaurant_tables`, `table_combinations`, `table_blocks`, `table_states`, `table_events` |
-| Industry records | `crm_record_types`, `crm_records`, `crm_record_events`, `crm_record_secrets`, `crm_record_files`, `record_approvals`, `record_milestones`, `record_inspections`, `record_exceptions`, `record_credits`, `job_dispatch` |
-| Work queues | `callbacks`, `callback_attempts`, `followup_tasks`, `crm_tasks`, `staff_notifications`, `message_drafts`, `staff_handovers`, `customer_requests`, `time_off_requests`, `on_call_*` |
-| Messaging | `sms_messages`, `email_messages`, `email_events`, `message_templates`, `conversations`, `conversation_messages`, `conversation_notes`, `email_unsubscribe_tokens`, `assistant_deliveries` |
-| Knowledge | `knowledge_items`, `knowledge_versions`, `knowledge_gaps`, `website_sources`, `website_pages` |
-| Automation engine | `automations`, `automation_runs`, `automation_events`, `workflow_executions`, `automation_dead_letters`, `industry_automation_runs`, `automation_channel_reviews`, `n8n_dispatch_state` |
-| Money and billing | `plans`, `subscriptions`, `payments`, `billing_events`, `usage_records`, `usage_thresholds`, `usage_threshold_events`, `voice_pricing`, `customer_charges`, `customer_charge_payments`, `offers`, `offer_*` |
-| Trust and safety | `spam_settings`, `spam_list_entries`, `spam_incidents`, `spam_incident_events`, `rate_limits`, `sensitive_approvals`, `business_verification_documents`, `data_rights_requests`, `legal_documents`, `legal_acceptances` |
-| Reviews and growth | `review_sources`, `reviews`, `cross_sell_rules`, `zella_milestones`, `social_flows` |
-| Platform operations | `platform_settings`, `platform_alerts`, `platform_incidents`, `provider_health`, `audit_logs`, `support_tickets`, `config_migration_snapshots`, `business_report_schedules`, `business_report_runs` |
+- **REQ-AUT-10** Workers are woken when work is due (on insert of due work, and once a minute as a safety net). The
+  database calls the worker webhook only if that queue has due work.
+- **REQ-AUT-11 Back-off without starving new work.**
+  - A queue is "stuck" only when its **oldest due item has not changed** across N wake-ups **[D-22]**.
+  - A stuck queue is woken less often, but any **newly due item** wakes the worker immediately.
+  - The stuck item is also alerted and, after its retries, dead-lettered.
+- **REQ-AUT-12** A master switch stops all worker wake-ups; each queue has its own switch.
 
-### 5.3 Configuration layering
+### 8.4 Automation catalogue (target)
+
+| # | Automation | Kind | Trigger | Main checks at claim | Action | Stop / cancel | Visible in |
+|---|---|---|---|---|---|---|---|
+| A1 | Inbound call handling | event | call arrives | number → business; business live | AI receptionist | — | Calls |
+| A2 | Missed-call callback | event → work | call classified missed (§12) | consent, suppression, calling hours, already handled? | AI or staff callback sequence | reply, booked, opt-out, staff closed | Callbacks |
+| A3 | Missed-call text | event → work | missed call | SMS consent, quiet-hours rule [D-12], one per missed call | text | reply, callback reached | Callbacks, timeline |
+| A4 | Lead intake | event | lead source webhook / form / staff | source auth, dedupe | create or update lead, assign | — | Leads |
+| A5 | Lead call sequence | work | new eligible lead | §13.5 stop conditions, consent, calling hours | outgoing call attempts | §13.5 | Leads, Callbacks |
+| A6 | Lead follow-up message | work | attempt outcome rules | consent per channel and purpose | SMS / email | reply, resolved | timeline |
+| A7 | Booking confirmation | event → work | appointment booked | consent | message | cancelled | appointment |
+| A8 | Reminders | work | appointment start minus offsets | still booked, consent, quiet-hours rule | message | moved, cancelled | appointment |
+| A9 | Reschedule / cancellation confirmation | event → work | appointment changed | consent | message | — | appointment |
+| A10 | Check-in reminder | work | before start [D-15] | still booked | message with check-in link | checked in, cancelled | appointment |
+| A11 | No-show follow-up | event → work | marked no-show | policy | message or call | rebooked | timeline |
+| A12 | Post-visit follow-up / feedback | work | marked completed | industry policy, one check-in per visit | message or draft | — | timeline |
+| A13 | Review request | work | completed + review link | classification [D-16] | message | — | timeline |
+| A14 | Waitlist offer | event → work | slot freed | next eligible entry | offer with link | accepted, expired, slot gone | Waitlist |
+| A15 | Callback reminder (staff) | work | callback due soon | still open | staff notification | done | Callbacks |
+| A16 | Overdue alerts | schedule | callbacks or leads past due | still open | escalate to assignee, then owner | done | Callbacks, Leads |
+| A17 | Staff notifications | event → work | anything needing a person | member preferences | email / SMS / in-app | read | Notifications |
+| A18 | Daily summary, weekly review, scheduled reports | schedule | business local time | has content | email | — | Reports |
+| A19 | Knowledge readiness | event → work | item saved | — | validate → ready | edited again | Knowledge |
+| A20 | Knowledge gap handling | event | unanswered question | — | gap + optional AI draft for approval | answered | Knowledge |
+| A21 | Calendar sync | event → work + schedule | booking change; periodic busy pull | connection healthy | push event / pull busy | disconnect | Integrations |
+| A22 | Provider health | schedule | — | — | test each provider | — | Admin |
+| A23 | Call reconciliation | schedule | call without final report | — | fetch provider record | reconciled | Calls (admin) |
+| A24 | Usage metering | event | call finalised | — | ledger entry | — | Billing |
+| A25 | Thresholds and entitlements | schedule + at use | usage | plan | warn / limit humanely | — | Billing |
+| A26 | Payment policy | event + schedule | payment failed | grace policy | warn → read-only → suspend | paid | Billing |
+| A27 | Spam scoring and response | event | call/text/email/booking | — | score, restrict temporarily, notify | allow-listed | Spam |
+| A28 | Industry rules | event + schedule | record status, due dates, stale records, seasonal, service due | policy | task / message / draft | — | Automations |
+| A29 | Retention and deletion | schedule | data past retention | legal hold | delete or anonymise | — | Admin, audit |
+| A30 | Data-rights requests | event + schedule | request created | identity verified | export / delete within deadline | done | Admin |
+| A31 | Setup / trial / renewal nudges | schedule | — | — | owner notices | done | — |
+| A32 | Self-checks | schedule | — | — | tenant isolation and permission tests on live metadata | — | Admin alerts |
+| A33 | Growth: prospect follow-up | event → work | Zella Voice website lead | prospect consent | sales task / email | converted, opted out | Growth (platform only) |
+
+---
+
+## 9. Communication core
+
+### 9.1 Channels
+
+| Channel | Inbound | Outbound | Provider | Status evidence available |
+|---|---|---|---|---|
+| Voice | calls to the business number | callbacks, lead calls | Vapi + carrier numbers | ringing, answered, end reason, duration; voicemail detection only if the provider reports it |
+| SMS | replies, STOP/HELP | service and marketing texts | SMS provider (Telnyx planned) | accepted, sent, delivered/failed (delivery receipts required: REQ-MSG-12) |
+| Email | replies | service and marketing emails | Resend | accepted, delivered, bounced, complained |
+| Web links | reschedule, waitlist, check-in, unsubscribe, continue plan | — | web app | clicked, used |
+| Staff notifications | — | in-app, email, SMS | same | read (in-app) |
+| Human transfer | — | warm or cold transfer to authorised numbers | voice provider | connected, failed, no one available |
+
+### 9.2 Every outbound contact passes the same path
 
 ```mermaid
 flowchart LR
-  p[platform_settings<br/>global switches, models, limits] --> i[industry defaults<br/>presets · policy · capabilities]
-  i --> b[business settings<br/>modules · capabilities · templates · hours]
-  b --> r[per-record overrides]
-  r --> eff((effective<br/>behaviour))
+  e[Event or schedule] --> w[(Work item)]
+  w --> c[Claim]
+  c --> p{{Contact policy engine<br/>REQ-MSG-01}}
+  p -- no --> s[Skipped + reason]
+  p -- needs a person --> d[Draft for approval]
+  p -- yes --> t[Template / script<br/>filled and checked]
+  t --> l{Live switch?}
+  l -- off --> dr[Dry run recorded]
+  l -- on --> pr[Provider]
+  pr --> st[Status events → honest status]
+  st --> tl[Timeline + CRM page]
 ```
 
-### 5.4 Data-integrity patterns
+### 9.3 Contact policy engine
 
-| Pattern | Where |
-|---|---|
-| Idempotency keys | `ai_tool_calls` (Vapi `toolCallId`), `vapi_request_receipts`, `usage_records.idempotency_key`, unique `calls.external_call_id`, one message per reminder, provider event ids |
-| Claim / complete queues | `FOR UPDATE SKIP LOCKED`, an attempt counter, and a visibility timeout. Workers never retry on their own. |
-| Per-business booking lock | `zella_booking_lock` (advisory transaction lock) before every availability check |
-| Append-only ledgers | `usage_records` (usage / adjustment), `audit_logs`, `crm_record_events`, `offer_events` |
-| Version-guarded migrations | A patch checks that the live function body matches the expected version before replacing it |
+**REQ-MSG-01:** one database function decides, for (business, customer or address, channel, purpose, kind),
+whether contact may happen **now**. It returns allow, deny (with reason), defer-until (with time) or draft-required.
+It checks, in order:
 
-### 5.5 Sensitive data
+1. Business status (live, not paused or suspended) and the channel's live switch.
+2. Suppression list (opt-out, invalid, bounced, complaint, legal).
+3. Consent for the channel **and purpose** (service vs marketing), with evidence.
+4. Industry policy (sensitive industries: drafts, no relationship-revealing previews).
+5. Frequency caps [D-23] and "one check-in per visit".
+6. Stop conditions of the sequence (reply received, resolved, booked, closed).
+7. Calling hours (calls) or quiet hours (messages) in the **customer's** time zone if known, else the business's
+   [D-03].
+8. Entitlements (plan allows the channel and has quota).
+9. Template completeness (no unfilled placeholders).
 
-| Data | Protection |
-|---|---|
-| Transcripts and recordings | Only through `calls_view`: owners, admins and managers; staff only if the owner opts in; never in health, legal, financial, insurance, vet or childcare. `zella_lock_call_columns()` revokes the raw columns. |
-| Access codes, member IDs, children's details | `crm_record_secrets`: managers and assigned staff only |
-| Provider tokens | Vault and `integration_secrets`. n8n provider keys live on n8n credentials. |
-| Card data | Not stored, by design |
-| Files | Private `record-files` bucket. Each upload stays `checking` until it has been inspected. |
+**REQ-MSG-02 Opt-outs are immediate and cross-channel by purpose:**
+- A STOP reply suppresses SMS for that business.
+- "Don't call me" suppresses calls.
+- An email unsubscribe suppresses marketing email.
+- "Do not contact" suppresses everything.
+
+Opt-outs apply to every pending work item at its next claim and cancel open sequences for that channel.
+
+### 9.4 Templates and scripts
+
+- **REQ-MSG-03** Templates are versioned per business, with industry defaults. Placeholders are typed; a missing
+  value blocks the message.
+- **REQ-MSG-04** Every message identifies the business and says how to stop (SMS) or unsubscribe (marketing email).
+- **REQ-MSG-05** Outbound call scripts are approved guidance per business and purpose, not free-form prompts.
+
+### 9.5 Honest status model
+
+| Status | Meaning | Proof required |
+|---|---|---|
+| Scheduled | waiting for its time | — |
+| Queued | due, waiting for a worker | — |
+| Attempting | claimed, being sent or dialled | claim |
+| Provider accepted | provider took the request | provider ID |
+| Ringing | call ringing | provider event |
+| Answered | the call was picked up (by a person **or** a machine) | provider event |
+| No answer / Busy | not picked up | provider end reason |
+| Voicemail / machine | provider classified it as a machine | provider classification. Never inferred |
+| Delivered | handset or mailbox confirmed | provider delivery event |
+| Failed | provider refused or failed | provider error |
+| Unknown | result lost; being reconciled | — |
+| Cancelled | no longer needed (reason) | — |
+| Skipped | a rule said no (reason) | — |
+| Not sent (test mode) | live switch off | — |
+
+- **REQ-MSG-10** These labels are defined once and used everywhere: the CRM, the admin, exports and the AI's own
+  summaries.
+- **REQ-MSG-11** "Answered" never means "contacted". "Contacted" is a **conversation outcome** (§13.6).
+- **REQ-MSG-12** SMS delivery receipts and email events update message status. Without a receipt, the UI shows
+  "Sent", never "Delivered".
 
 ---
 
-## 6. Backend components
+# Part C: Journeys
 
-### 6.1 Function conventions
+## 10. SaaS lifecycle
 
-- Named `public.zella_<verb>_<noun>`, always `security definer set search_path = public`.
-- The first statement is the authorization check (`zella_has_role`, `zella_admin_can`, `zella_require_capability`,
-  or a server-only grant).
-- Errors are stable codes (`not_allowed`, `capability_off`, `slot_taken` …) that the UI maps to friendly copy.
-- Important writes add a row to `audit_logs`.
+```mermaid
+flowchart LR
+  v[Website visit] --> pl[Prospect lead<br/>Zella Voice growth]
+  pl --> demo[Demo / call]
+  demo --> su{Signup path<br/>decision D-06}
+  su -- self-serve --> ss[Signup + business draft]
+  su -- assisted --> cb[Create Business<br/>by Zella Voice staff]
+  ss & cb --> inv[Owner invited / verified]
+  inv --> setup[Setup wizard]
+  setup --> num[Number + receptionist]
+  num --> test[Activation tests]
+  test --> live[Live]
+  live --> use[Daily use]
+  use --> bill[Billing, usage, reports]
+  use --> sup[Support]
+  use --> off[Pause / cancel / export / delete]
+```
 
-### 6.2 Edge functions
+| Area | Requirement |
+|---|---|
+| **10.1 Public website** | REQ-LC-01: marketing pages, pricing (owner-defined), demo request and signup entry. Forms post to an edge endpoint with rate limiting and bot protection, creating a **prospect** in the growth schema. |
+| **10.2 Zella Voice sales leads** | REQ-LC-02: prospects, demos, stages, owner and follow-up tasks in the growth schema; visible only with `growth.manage`; prospect emails follow the same consent rules. Never stored in a tenant. |
+| **10.3 Signup / assisted onboarding** | REQ-LC-03: either self-serve (verify email → create business draft → choose industry → setup wizard → plan) or assisted (staff run Create Business, §18.5) [D-06]. Duplicate businesses are prevented by normalised name, phone and domain checks plus staff review. |
+| **10.4 Authentication and recovery** | REQ-LC-04: email + password, email links that need a click on our page, recovery by email, MFA (TOTP) required for platform staff and owner-enforceable for members, session revocation on role change, leaked-password protection on. |
+| **10.5 Business creation** | REQ-LC-05: creates the tenant, owner membership (pending until accepted), industry defaults, capabilities, policies, templates, default automations (off until reviewed), and an audit record. Idempotent by a creation key. |
+| **10.6 Invitations** | REQ-LC-06: bound to email, role-limited (admins invite at most staff/manager; only owners invite admins), expiring, revocable, resendable; accepted only from a session proven to own the email. |
+| **10.7 Setup** | REQ-LC-07: wizard (§18.5) with save-and-resume, honest checklist, server-side readiness. |
+| **10.8 Industry configuration** | REQ-LC-08: industry sets terminology, capabilities, modules, record types, message policy, safety lines and default automations. The owner can adjust within allowed bounds. |
+| **10.9 AI receptionist setup** | REQ-LC-09: greeting, voice (approved list), languages (plan), call handling rules, transfer numbers and hours, escalation rules, emergency script, after-hours behaviour. |
+| **10.10 Phone numbers** | REQ-LC-10: buy new or port in [D-07]; or forward an existing number. Numbers are assigned per business, with purpose inbound/outbound. Outbound caller ID must be a number the business owns or Zella Voice provides **for that business**, never shared across businesses. Routing: called number → business, enforced in the database. |
+| **10.11 Knowledge** | REQ-LC-11: §16. Activation requires a minimum knowledge set [D-24]. |
+| **10.12 Services, hours, prices, booking rules** | REQ-LC-12: services (duration, price **entered by the business**, buffers, resources, staff), opening hours, holidays, closures, notice and horizon, approval-required bookings. |
+| **10.13 Provider connections** | REQ-LC-13: calendar (Google, Microsoft), lead sources, store (Shopify), reviews. OAuth with signed state; health checks; reconnect prompts. |
+| **10.14 Testing and activation** | REQ-LC-14: an activation checklist the server computes. Each item must pass before the business goes live: hours, at least one service or "no bookings", knowledge minimum, number routed, test inbound call answered and recorded, test message (dry run), transfer number verified, owner sign-off. Results are stored in `activation_tests`. |
+| **10.15–10.18 CRM, admin, billing, reports** | §18, §17, REQ-RPT below |
+| **10.19 Support and incidents** | REQ-LC-19: in-app support requests, tickets linked to the business, audited support access, incident status page, notification of affected businesses. |
+| **10.20 Pause, cancel, export, retention, offboarding** | REQ-LC-20: owner can pause (receptionist takes messages only [D-25]), schedule cancellation (signed "continue my plan" link), export everything (CSV/JSON + files), and data is deleted on the retention schedule after cancellation [D-13]. All steps audited. |
 
-| Function | Caller | Purpose | Auth gate |
-|---|---|---|---|
-| `voice-rules` | Vapi | assistant-request, 15 tools, transfer, status, end-of-call | HMAC or Bearer verified in the DB (`zella_vapi_authenticate`: raw bytes, 5-minute timestamp, replay table) |
-| `owner-provision-business` | Admin console | business creation, setup wizard, owner invite, settings sync | platform role |
-| `staff-invite` | CRM team | invite, re-invite, revoke | business role |
-| `reschedule-appointment` | `/r/…`, `/w/…` | reschedule, cancel, accept or decline a waitlist offer | 64-hex link token |
-| `website-lead` | business websites | lead intake | form key and rate limit |
-| `google-lead` | Google Ads | lead intake | Google key |
-| `billing-webhook` | payment provider | subscription and payment events | signature |
-| `calendar-connect` | OAuth redirect | connect Google or Outlook | signed 10-minute state |
-| `store-connect` | CRM | connect Shopify | business role, `*.myshopify.com` only |
-| `record-files` | CRM | upload checks and inspection | member check in the DB |
-| `continue-plan` | public page | resume plan or checkout | link token |
+**REQ-RPT-01 Reports:**
+- Daily summary at 08:00 business time: calls, missed, leads, bookings, overdue callbacks.
+- Weekly review.
+- Scheduled report emails.
+- On-screen analytics.
 
-All deploy with `verify_jwt = false` and authenticate as their first step. `_shared/vapi-brain-tools.js` and
-`_shared/vapi-call-events.js` are the **same parsing code** that n8n uses.
+All are computed in the business time zone, DST-safe, and visible only to permitted roles.
 
 ---
 
-## 7. Voice architecture
+## 11. Inbound calls and the AI receptionist
 
-### 7.1 Inbound call sequence
+### 11.1 Call flow
 
 ```mermaid
 sequenceDiagram
   autonumber
   actor C as Caller
-  participant V as Vapi (STT · LLM · TTS)
-  participant E as voice-rules (edge)
-  participant DB as Postgres
-  participant N as n8n (after the call)
-  C->>V: dials business number
-  V->>E: assistant-request (signed)
-  E->>DB: zella_vapi_authenticate (bytes, timestamp, replay)
-  E->>DB: zella_assistant_for_call(number)
-  DB-->>E: prompt + tools + voice from live settings
-  E-->>V: assistant
-  V-->>C: greeting
-  loop each turn
+  participant V as Voice provider
+  participant E as Voice endpoint (edge)
+  participant DB as Rules engine
+  C->>V: calls business number
+  V->>E: assistant request (signed)
+  E->>DB: authenticate request, number to business, business live?
+  DB-->>E: assistant built from current settings (or fallback: message-taking)
+  loop conversation
     C->>V: speaks
-    V->>E: tool-calls [1..n]
-    E->>DB: zella_ai_tool(name, args, toolCallId)  (idempotent, capability-checked)
-    DB-->>E: result
-    E-->>V: results[] one per toolCallId
-    V-->>C: answer
+    V->>E: tool calls
+    E->>DB: tool (idempotent, permission + capability checked)
+    E-->>V: one result per call, within budget
   end
-  opt transfer
-    V->>E: transfer-destination-request
-    E->>DB: zella_transfer_destination
-    E-->>V: authorised number or refusal
+  opt person needed
+    V->>E: transfer request
+    E->>DB: authorised destination now?
   end
-  V->>E: status-update(s)
-  E->>DB: zella_record_call_status
-  V->>E: end-of-call-report
-  E->>DB: zella_record_inbound_call
-  Note over DB: triggers: callbacks, usage ledger, spam, integrity, call intelligence queue
-  DB-)N: dispatcher wakes follow-up workers
+  V->>E: status events + final report
+  E->>DB: call finalised → classification → events
+  Note over DB: missed-call work, usage entry, timeline, notifications
 ```
 
-### 7.2 The receptionist's tools
-
-| Tool | Does | Guard |
-|---|---|---|
-| `search_knowledge` | answers from `ready` knowledge | "don't know" if there is no match |
-| `check_open_hours` | hours, closures, holidays | business time zone |
-| `lookup_caller` / `update_caller` | identify the caller, save preferences | caller number match |
-| `check_availability` | real free times | capability `bookings`, staff, resources, buffers |
-| `book_appointment` | book | exact `start` from check_availability, read-back, booking lock |
-| `find_my_appointments` / `reschedule_appointment` / `cancel_appointment` | manage own bookings | caller identity |
-| `take_message` | message for staff | becomes a notification |
-| `report_emergency` | urgent escalation | escalation rules, on-call |
-| `transfer_to_human` | live transfer | authorised number only |
-| `request_follow_up` | callback request | becomes a callback |
-| `report_unanswered_question` | knowledge gap | feeds the knowledge loop |
-| `lookup_order` | order status | capability `orders`, Shopify connected |
-
-### 7.3 Voice design rules
-
-- **No sync step:** the assistant is built per call from live settings.
-- **Tools give facts; the prompt forbids guessing.** Industry safety lines are added to the prompt.
-- **The tool list follows capabilities** (no booking tools where bookings are off). The DB refuses anyway.
-- **Exactly once:** identical in-flight tool calls wait for each other, and a redelivery returns the first result.
-- **Latency budget:** 4 s per DB call and 12 s per request, under Vapi's 20 s timeout. A timeout gives a safe failure.
-- **Fallback path:** n8n Brain Tools (`/webhook/zella/vapi-brain`) runs the same code with the same idempotency key.
-
-### 7.4 Booking concurrency
-
-```mermaid
-flowchart TD
-  a[book request: AI, CRM, reschedule link, waitlist, social] --> l[zella_booking_lock business_id<br/>advisory transaction lock]
-  l --> c{slot still free?<br/>hours · staff · resources · holds · buffers}
-  c -- no --> r[refuse: slot_taken → offer other times]
-  c -- yes --> w[insert appointment]
-  w --> t[triggers: reminders · source · cross-sell · spam guard · calendar sync queue]
-  t --> u[commit releases the lock]
-```
-
-### 7.5 Minute metering
-
-```mermaid
-flowchart LR
-  call[calls row: ended + duration] -- trigger zella_calls_usage --> p[zella_process_call_usage]
-  p --> q{report in?<br/>duration plausible?}
-  q -- missing --> iss[usage_processing_issues after N hours]
-  q -- ok --> led[(usage_records<br/>usage row, idempotent)]
-  rec[zella_reconcile_call_usage every 15 min] --> adj[adjustment rows, never edits]
-  led --> th[zella_check_usage_thresholds hourly] --> own[owner notifications]
-```
+| ID | Requirement |
+|---|---|
+| REQ-VOX-01 | The assistant is assembled **per call** from current settings; every delivery is recorded (`served`, `not_ready`, `unknown_number`). |
+| REQ-VOX-02 | If the business is not ready or the database is unreachable, a **standby assistant** answers, takes a message and promises a callback; the message is stored once recovered. |
+| REQ-VOX-03 | Tools: check hours; search knowledge; look up / update caller; check availability; book / find / reschedule / cancel appointment; take message; request follow-up; report emergency; transfer to a person; report unanswered question; look up order (if Orders on). Each is idempotent per tool-call ID, permission- and capability-checked, answered within budget (DB step p95 < 800 ms; whole request well under the provider timeout). |
+| REQ-VOX-04 | Facts only from tools and `ready` knowledge; read back before committing; never advise on medical/legal/financial matters; emergencies → emergency services first; identify as an assistant if asked. |
+| REQ-VOX-05 | Booking changes over the phone require REQ-ID-01. |
+| REQ-VOX-06 | Transfers only to numbers authorised for the current time (on-call rota); failure → urgent callback. |
+| REQ-VOX-07 | Unanswered questions are always logged, with or without caller contact. |
+| REQ-VOX-08 | Every call is finalised exactly once from the final report: duration, end reason, classification, summary, transcript and recording references (per privacy settings). Calls without a final report are reconciled with the provider within 15 minutes [D-26]. |
+| REQ-VOX-09 | Recording and transcription follow the business's notice and consent settings [D-27]. |
+| REQ-VOX-10 | AI changes (prompt, tools, model, voice) pass the per-industry evaluation set before release. |
 
 ---
 
-## 8. Messaging architecture
+## 12. Missed calls
 
-### 8.1 The outbound pipeline (every channel)
+### 12.1 Final classification (exactly one per inbound call)
+
+| Classification | Definition | Default next step |
+|---|---|---|
+| `answered_ai_resolved` | AI handled it; no person needed | none |
+| `answered_ai_unresolved` | AI answered; caller needs a person or follow-up | callback (`needs_person`) |
+| `answered_human` | transfer connected; a person talked | none (close any open callback) |
+| `transfer_failed` | caller asked for a person; transfer failed or no one available | urgent callback |
+| `abandoned_before_answer` | caller hung up before the assistant answered | missed-call journey |
+| `not_answered` | rang without being answered (provider or capacity issue) | missed-call journey |
+| `failed` | provider or system error | missed-call journey **if** the caller number is known [D-11] + platform alert |
+| `spam` | spam rules matched | none (logged) |
+| `unknown` | final report missing | reconcile (REQ-VOX-08), then classify |
+
+"Missed" = `abandoned_before_answer`, `not_answered`, and `failed` with a known number.
+
+### 12.2 Missed-call journey
 
 ```mermaid
 flowchart TD
-  t[Trigger: DB event · cron job · staff action] --> q[(Queue row<br/>appointment_reminders · followup_tasks ·<br/>callbacks · staff_notifications · meta_outbox)]
-  q --> d[zella_dispatch_n8n sees due work]
-  d --> w[n8n worker: claim, SKIP LOCKED]
-  w --> p[zella_prepare_sms / zella_prepare_email]
-  p --> chk{consent · do-not-contact · calling hours ·<br/>industry policy · template filled ·<br/>business active · marketing allowed}
-  chk -- skip --> s[stored as skipped with reason<br/>visible in CRM]
-  chk -- needs a person --> dr[message_drafts: Suggested messages]
-  chk -- other channel possible --> fb[switch text ↔ email]
-  fb --> p
-  chk -- ok --> live{live switch on?}
-  live -- no --> dry[log dry_run]
-  live -- yes --> send[Telnyx / Resend / Meta]
-  send --> rep[zella_update_outbound_* / complete]
-  rep -- failed --> retry{attempts left?}
-  retry -- yes --> q
-  retry -- no --> fail[Sending failed + owner notified]
+  m[Call classified missed] --> grp{Open missed-call follow-up<br/>for this number?}
+  grp -- yes --> merge[Attach to it<br/>count repeat calls]
+  grp -- no --> cr[Create follow-up<br/>sequence]
+  merge & cr --> spam{Spam?}
+  spam -- yes --> log[Log only]
+  spam -- no --> pol{Contact policy<br/>allows?}
+  pol -- no --> staff[Staff task only]
+  pol -- yes --> txt{Missed-call text<br/>enabled? D-12}
+  txt -- yes --> t1[One text per missed call<br/>with reply / booking link]
+  txt -- no --> cb
+  t1 --> cb{Callback by<br/>AI, staff, or none?}
+  cb -- AI --> seq[Call attempts per sequence<br/>§13.4–13.5 rules]
+  cb -- staff --> task[Assigned callback<br/>with due time]
+  seq & task --> stop{Stop condition?<br/>reply · reached · booked ·<br/>opt-out · closed · exhausted}
+  stop -- reply --> inbox[CRM inbox; pause attempts]
+  stop -- reached --> done[Resolved outcome]
+  stop -- exhausted --> nr[Needs a person + notify]
 ```
 
-### 8.2 Queue item lifecycle
-
-```mermaid
-stateDiagram-v2
-  [*] --> pending
-  pending --> claimed: worker claims
-  claimed --> sent: provider accepted
-  claimed --> skipped: rule says no (reason kept)
-  claimed --> dry_run: live switch off
-  claimed --> pending: failed, retry after delay
-  claimed --> pending: claim timed out (worker died)
-  claimed --> failed: attempts exhausted
-  sent --> delivered: provider event
-  sent --> bounced: provider event
-  failed --> pending: owner presses Retry
-  pending --> cancelled: booking cancelled or moved
-  skipped --> [*]
-  delivered --> [*]
-```
-
-### 8.3 Inbound
-
-```mermaid
-flowchart LR
-  sms[Inbound SMS] --> gw[Event Gateway<br/>/webhook/zella/events] --> ev[(automation_events)] --> rt[Event Router]
-  rt -->|STOP / START / HELP| cons[consent records · reply_help]
-  rt -->|other text| inbox[inbox notice · spam check]
-  em[Inbound email] --> ie[Inbound Email<br/>/webhook/zella/inbound-email] --> rcv[zella_receive_inbound_email_signed]
-  evt[Resend delivery events] --> ee[Email Events<br/>/webhook/zella/resend] --> rec[zella_record_email_event_signed]
-  mw[Meta messages and leads] --> mh[Meta Webhook<br/>/webhook/zella/meta] --> mr[zella_meta_receive]
-```
-
-### 8.4 Customer self-service links (no sign-in)
-
-| Link | Page | Backend |
-|---|---|---|
-| `/r/<64 hex>` | reschedule or cancel | `reschedule-appointment` |
-| `/w/<64 hex>` | accept or decline a waitlist offer | `reschedule-appointment` |
-| `/u/<32 hex>` | unsubscribe | `zella_unsubscribe_lookup` / `zella_unsubscribe_email` |
-| `/status` | platform status | `zella_public_status` |
+| ID | Requirement |
+|---|---|
+| REQ-MC-01 | Repeat calls from the same number within the open follow-up are grouped, not duplicated; each call still appears on the timeline. |
+| REQ-MC-02 | At most one missed-call text per missed-call follow-up [D-12]. |
+| REQ-MC-03 | A reply from the customer pauses pending attempts and puts the conversation in the inbox. |
+| REQ-MC-04 | If staff called the customer (logged call or manual attempt), the automated sequence stops unless staff choose to continue. |
+| REQ-MC-05 | Opt-out at any point cancels the remaining sequence for that channel. |
+| REQ-MC-06 | Failed SMS or call attempts follow their own retry rules; when exhausted → "Needs a person" with the full attempt history. |
+| REQ-MC-07 | Business controls on each follow-up: pause, resume, retry now, assign, close with outcome. |
+| REQ-MC-08 | Safe testing: test mode records every decision as a dry run; a test number list can be enabled for real end-to-end tests. |
+| REQ-MC-09 | Settings per business: callback handler (AI/staff/none), attempts, spacing, window, text on/off, calling hours [D-02, D-03, D-12]. |
 
 ---
 
-## 9. Automation architecture: the complete catalogue
+## 13. Leads and outgoing lead calls
 
-Automations come from **five sources**. All of them end in the same queues and the same worker contract.
+### 13.1 Two separate lead worlds
 
-```mermaid
-flowchart TB
-  subgraph Sources
-    T1[1 · Database triggers<br/>row changes]
-    T2[2 · pg_cron jobs<br/>time]
-    T3[3 · Inbound webhooks<br/>providers]
-    T4[4 · Industry rule engine<br/>per-business rules]
-    T5[5 · People<br/>CRM and admin actions]
-  end
-  subgraph Queues["Postgres queues"]
-    Q[(reminders · follow-ups · callbacks ·<br/>notifications · events · outboxes ·<br/>calendar · knowledge · insights · spam work)]
-  end
-  D{{zella_dispatch_n8n<br/>count due work per worker}}
-  subgraph Workers["n8n workers"]
-    W[claim → prepare → send / dry run → report]
-  end
-  T1 & T2 & T3 & T4 & T5 --> Q
-  Q --> D -- "pg_net POST + X-Zella-Secret" --> W
-  W -- "complete / fail" --> Q
-  W -. errors .-> FA[Failure Alert → platform_alerts]
-```
+| | Zella Voice prospects (growth) | Business leads (tenant) |
+|---|---|---|
+| Storage | platform growth schema | tenant `customers` (lifecycle = lead) |
+| Access | `growth.manage` platform staff | business members by role |
+| Calls | by Zella Voice sales staff (or AI if decided) from Zella Voice numbers | from the business's own outbound number |
+| Rules | same contact policy engine, platform as "business" | business's policy |
 
-### 9.1 The dispatcher
+### 13.2 Lead intake
 
 ```mermaid
 flowchart TD
-  start([every minute + on urgent insert]) --> on{n8n_dispatch_enabled?<br/>base URL? secret in Vault?}
-  on -- no --> stop([skip, reason returned])
-  on -- yes --> loop[for each worker]
-  loop --> cnt[count due items of the kinds<br/>this worker handles]
-  cnt --> z{count > 0?}
-  z -- no --> next[next worker]
-  z -- yes --> stuck{same count 5 times in a row?}
-  stuck -- yes --> slow[back off to every 15 min]
-  stuck -- no --> post[pg_net POST /webhook/zella/run/worker]
-  post --> state[(n8n_dispatch_state)]
-  slow --> state
-  state --> next
+  src[Lead source] --> au{Authenticated?<br/>signature · key · session}
+  au -- no --> rj[Reject + rate-limit]
+  au -- yes --> bz[Business resolved from the key/connection]
+  bz --> nm[Normalise phone, email, name]
+  nm --> dd{Existing customer<br/>or open lead?}
+  dd -- yes --> up[Update + add source event]
+  dd -- no --> new[Create lead]
+  up & new --> cons[Record consent evidence<br/>from the source]
+  cons --> spam{Spam / duplicate<br/>submission?}
+  spam -- yes --> hold[Hold for review]
+  spam -- no --> route[Assign: rules → staff / team]
+  route --> el{Eligible for<br/>outgoing call sequence?}
+  el -- yes --> seq[Start lead call sequence]
+  el -- no --> task[Staff task + optional message]
 ```
 
-### 9.2 Source 1: database triggers (work created the moment data changes)
+Sources:
+- REQ-LEAD-01: Google Ads lead forms (per-business key).
+- REQ-LEAD-02: website forms (form key, bot check).
+- REQ-LEAD-03: incoming calls (caller saved as a lead).
+- REQ-LEAD-04: inbound SMS and email from unknown senders.
+- REQ-LEAD-05: Meta lead ads (signed webhook, then a fetch).
+- REQ-LEAD-06: manual entry and CSV import (staff; import requires a stated consent basis).
+- REQ-LEAD-07: other connected sources through the same intake function.
 
-| Table | Trigger | Automation it starts |
+### 13.3 Outgoing call configuration (per business)
+
+| Setting | Values | Default |
 |---|---|---|
-| `calls` | `zella_calls_callbacks_trg` | missed or unfinished call → **callback** (auto-call or staff) |
-| `calls` | `zella_calls_usage` | **minute ledger** entry |
-| `calls` | `zella_spam_call` | **spam scoring** of the caller |
-| `calls` | `zella_call_integrity` | one row per provider call; status order |
-| `appointments` | `zella_appointment_new`, `zella_appointment_after_trg` | **confirmation and reminders** queued; calendar sync queued; waitlist offer on cancel; pending follow-ups withdrawn on cancel or move |
-| `appointments` | `zella_no_show_followup` | **no-show follow-up** |
-| `appointments` | `zella_cross_sell_booked`, `zella_cross_sell_completed` | **cross-sell** offers (opt-in only) |
-| `appointments` | `zella_spam_booking_guard` / `_record` | **booking abuse** limits |
-| `customers` | `zella_welcome_new_customer` | **welcome message** |
-| `customers` | `zella_auto_assign_lead_trg` | **lead assignment** by rules |
-| `customers` | `zella_customer_change` | `customer.*` event |
-| `callbacks` | `zella_auto_assign_callback_trg` | **callback assignment** |
-| `crm_records` | `zella_industry_status` | **industry status actions** (status update messages, tasks) |
-| `sms_messages`, `email_messages` | `zella_spam_sms`, `zella_spam_email` | **spam scoring** |
-| `followup_tasks` | `zella_spam_reply_guard` | no auto-reply to spam |
-| `staff_notifications` | `zella_mark_staff_sms_trg` | **staff text** queued when the person chose text |
-| `knowledge_items` | `zella_knowledge_*` | version log; back to `processing` on edit |
-| `reviews` | `zella_review_*_insert` | **review reply draft** queued |
-| `sensitive_approvals` | `zella_approval_decided_trg` | carry out the approved action |
-| `subscriptions`, `payments` | `zella_subscription_*`, `zella_offer_*` | **plan state**, offer redemption |
-| `business_invitations`, `business_phone_numbers` | capacity triggers | plan limits |
-| `businesses`, `business_members`, `ai_agents`, `automations`, `platform_settings` | `zella_audit_privileged_trg` | **audit log** |
-| about 30 tenant tables | `zz_tenant_links` | refuse cross-business links |
+| Lead calls enabled | on/off | off |
+| Handler | AI / staff / AI then staff | [D-01] |
+| Eligible sources | per source | [D-01] |
+| Caller number | one of the business's outbound numbers | required to enable |
+| Calling hours and days | per business, per weekday, in the lead's time zone if known | [D-03] |
+| First-call delay | minutes after lead arrives | [D-02] |
+| Max attempts, spacing, overall window | numbers | [D-02] |
+| Voicemail behaviour | none / leave approved message | [D-10] |
+| Follow-up message after no answer | none / SMS / email, which attempt | [D-02] |
+| Assignment and escalation | team / person; when to hand to staff | business |
+| Consent basis required | per source | [D-04] |
+| Script / guidance | approved per purpose | business (template) |
+| Industry restrictions | from industry policy | industry |
+| Kill switch | per business and platform-wide | on hand |
 
-### 9.3 Source 2: pg_cron jobs (time-based)
+### 13.4 Lead call sequence
 
-**Production cron entries (read 9 Nov 2026):**
+```mermaid
+flowchart TD
+  start([Lead eligible]) --> sch[Schedule attempt 1<br/>after first-call delay,<br/>inside calling hours]
+  sch --> pre{Claim-time checks<br/>§13.5 stop conditions ·<br/>policy · hours · entitlement}
+  pre -- stop --> end1([Sequence ends · reason])
+  pre -- defer --> sch
+  pre -- go --> dial[Dial from the business number<br/>with the business's outbound assistant]
+  dial --> res{Provider result}
+  res -- answered --> conv[Conversation §13.6]
+  res -- no answer / busy --> na[Record attempt]
+  res -- voicemail --> vm[Record; leave message only if allowed]
+  res -- invalid number --> inv[Mark number invalid ·<br/>suppress · end]
+  res -- failed / rejected --> fl[Record failure reason]
+  res -- unknown --> rec[Reconcile before anything else]
+  rec --> res
+  na & vm & fl --> more{Attempts left and<br/>inside overall window?}
+  more -- yes --> fu[Optional follow-up message<br/>per settings + policy] --> sch
+  more -- no --> ex[Exhausted → Needs a person<br/>notify assignee]
+  conv --> out[Save conversation outcome] --> next{Outcome says}
+  next -- resolved / booked / not interested / opt-out --> end2([Sequence ends])
+  next -- callback requested --> cbk[Schedule at requested time] --> sch
+  next -- needs a person --> hp[Assign + notify] --> end2
+```
 
-| Job | Schedule (UTC) | Runs | Active in prod |
-|---|---|---|---|
-| `zella_dispatch` | every minute | `zella_dispatch_n8n()` | **off** |
-| `zella_jobs_every5` | `*/5` | group `every5` | **off** |
-| `zella_jobs_every15` | `*/15` | group `every15` | **off** |
-| `zella_jobs_hourly` | `0 *` | group `hourly` | **off** |
-| `zella_jobs_daily` | `0 4 * * *` | group `daily` | **off** |
-| `zella_jobs_weekly` | `0 8 * * 1` | group `weekly` | **off** |
-| `zella_spam_hourly` | `17 *` | `zella_spam_hourly()` | **off** |
-| `zella_cron_cleanup` | `30 3 * * *` | prune `cron.job_run_details` (3 days) | **off** |
-| `zella_billing_reconcile` | `*/15` | `zella_reconcile_billing_events()` | on |
-| `zella_usage_thresholds` | `23 *` | `zella_check_usage_thresholds()` | on |
+### 13.5 Stop conditions
 
-**Every job in the groups** (each runs through `zella_run_scheduled_job`, which checks its allow-list; a failure raises one grouped alert):
+They are rechecked **immediately before every call, SMS or email** (REQ-OUT-10):
 
-| Group | Job | What it does |
-|---|---|---|
-| every 5 min | `zella_flag_overdue_leads` | leads not contacted in time → alert the assignee |
-| | `zella_expire_holds` | release held slots |
-| | `zella_expire_waitlist_offers` | unanswered offer → next person |
-| | `zella_detect_transfer_failures` | transfers that didn't connect → callback |
-| | `zella_flag_overdue_callbacks` | warning after 10/30/60 min, urgent after 3 h |
-| | `zella_sweep_stuck_calls` | outbound call with no report after 45 min → failed attempt |
-| | `zella_check_engine_health` | automation engine self-check |
-| | `zella_rebalance_assignments` | rebalance leads and callbacks across staff |
-| | `zella_check_unassigned_work` | unassigned work → owner |
-| | `zella_check_escalation_acks` | unacknowledged escalations → next person |
-| | `zella_remind_upcoming_callbacks` | reminder before a scheduled callback |
-| | `zella_sweep_open_calls` | close calls left open |
-| | `zella_offers_tick` | start, end and limit platform offers |
-| every 15 min | `zella_queue_quote_followups` | quote follow-up tasks |
-| | `zella_recover_orphaned_work` | release stuck claims |
-| | `zella_check_response_times` | response-time KPIs |
-| | `zella_reconcile_call_usage` | minute ledger adjustments |
-| | `zella_check_uptime` | uptime signal |
-| | `zella_on_call_reminders` | on-call shift reminders |
-| hourly | `zella_post_daily_summaries` | owner daily summary at the business's local 8 am |
-| | `zella_schedule_calendar_pulls` | queue calendar pulls |
-| | `zella_check_customer_requests` | customer requests waiting |
-| | `zella_post_callback_digests` | callback digest |
-| | `zella_post_team_summaries` | team summary |
-| | `zella_recover_failed_texts` | retry or move failed texts |
-| | `zella_check_overdue_tasks` | overdue CRM tasks |
-| | `zella_detect_repeated_questions` | repeated unanswered questions → knowledge gap |
-| | `zella_flag_unrecorded_appointments` | past visits without an outcome |
-| | `zella_recover_provisioning` | finish a half-done business setup |
-| | `zella_sweep_approvals` | expire or remind approvals |
-| | `zella_run_industry_timers` | **industry rule engine** (§9.5) |
-| | `zella_verify_calls` | check call records against Vapi |
-| | `zella_recover_knowledge` | retry stuck knowledge updates |
-| | `zella_check_milestones` | customer milestones |
-| | `zella_team_scorecard_nudge` | scorecard reminders |
-| daily 04:00 | `zella_queue_lead_reactivation` | reactivation (marketing, opt-in only, up to 200) |
-| | `zella_check_setup_incomplete` | nudge unfinished setups |
-| | `zella_check_trials` | trial ending |
-| | `zella_apply_payment_policy` | past due → restrict per policy |
-| | `zella_queue_customer_touches` | visit feedback, six-month check-in, review request |
-| | `zella_check_kpis` | KPI alerts |
-| | `zella_check_renewals` | renewals due |
-| | `zella_check_connections` | integration health |
-| | `zella_sample_ai_responses` | AI quality samples |
-| | `zella_reconcile` | data reconciliation |
-| | `zella_retention_scan` | retention due |
-| | `zella_detect_knowledge_conflicts` | conflicting answers |
-| | `zella_run_tenant_check` | cross-tenant integrity self-test |
-| | `zella_notify_message_failures` | failed-message summary |
-| | `zella_check_data_rights_due` | privacy request deadlines |
-| | `zella_scan_duplicates` | duplicate customers → review |
-| | `zella_remind_reconnects` | reconnect expired integrations |
-| | `zella_apply_scheduled_cancellations` | subscription cancellations at period end |
-| | `zella_run_permission_check` | grants and policy self-test |
-| weekly, Mon 08:00 | `zella_post_weekly_reviews` | owner weekly review |
-| | `zella_remind_integrations` | integrations not set up |
-| | `zella_send_gap_reports` | knowledge gap report |
+| Condition | Effect |
+|---|---|
+| Opt-out, "don't call", do-not-contact, suppression | end; suppress channel |
+| Not interested | end; lead status lost (reason) |
+| Resolved by AI or staff | end |
+| Appointment booked (if the sequence is set to stop on booking) | end |
+| Customer replied by text or email | pause; inbox; staff decides |
+| Staff paused or closed the lead | pause / end |
+| Invalid number | end; mark number invalid |
+| Business disabled the sequence, or paused the business | pause all attempts at next claim |
+| Outside calling hours or past the overall window | defer / end |
+| Attempts exhausted | end → Needs a person |
+| Consent missing or withdrawn | end |
+| Duplicate or spam confirmed | end |
+| Entitlement exhausted | defer; notify owner |
 
-### 9.4 Source 3: the n8n workflows (all 30)
+### 13.6 When the lead answers
 
-**Workers started by the dispatcher** (`POST /webhook/zella/run/<name>`, `X-Zella-Secret`):
+| Step | Requirement |
+|---|---|
+| 1 | Provider reports answered (REQ-OUT-11). Machine detection is used **only** if the provider classifies it and its accuracy is acceptable [D-10]; otherwise the assistant listens before speaking. |
+| 2 | Introduce: the business name, that this is an assistant, why it is calling (reply to their enquiry), per the approved script. |
+| 3 | Ask permission to continue; on "no" → record `declined_now` and offer a better time or stop. |
+| 4 | Handle the request with the **same tools as inbound**: answer from knowledge, offer times, book (after confirmed success only), take a message, transfer, schedule a callback, record "not interested", record opt-out. |
+| 5 | Save the **conversation outcome** (REQ-OUT-12): `booked`, `resolved`, `callback_requested`, `message_taken`, `transferred`, `not_interested`, `opted_out`, `wrong_person`, `language_barrier`, `no_conversation` (answered but nothing meaningful), `hung_up_early`. |
+| 6 | Update the lead status and the timeline; cancel future attempts per §13.5; notify staff if a person is needed; start permitted follow-up. |
 
-| Workflow | Path | Claims (DB) | Provider | Reports (DB) | Gate |
-|---|---|---|---|---|---|
-| SMS Sender | `run/sms-sender` | `zella_claim_reminders(sms)` → `zella_prepare_sms` | Telnyx | `zella_log_outbound_sms`, `zella_update_outbound_sms` | `sms_live` |
-| Follow-up Texts | `run/followup-texts` | `zella_claim_followup_texts` → `zella_prepare_sms` | Telnyx | same | `sms_live` |
-| Email Sender | `run/email-sender` | `zella_claim_reminders(email)` → `zella_prepare_email` | Resend | `zella_log_outbound_email`, `zella_update_outbound_email` | `email_live` |
-| Follow-up Emails | `run/followup-emails` | `zella_claim_followup_emails` → `zella_prepare_email` | Resend | same | `email_live` |
-| Owner Emails | `run/owner-emails` | `zella_claim_owner_emails` | Resend | same | `email_live` |
-| Staff Texts | `run/staff-sms` | `zella_claim_staff_sms` | Telnyx | `zella_update_outbound_sms` | `sms_live` |
-| Admin Alerts | `run/admin-alerts` | `zella_claim_admin_alert_email` | Resend | after-send step | `email_live` |
-| Outbound Calls | `run/outbound-calls` | `zella_claim_callback_calls`, `zella_claim_followup_calls` | Vapi | via Call Results | `calls_live` + assistant and number set |
-| Event Router | `run/event-router` | `zella_claim_events` (×20) | — | `zella_start_execution`, `zella_finish_execution`, `zella_complete_event` | — |
-| Calendar Sync | `run/calendar-sync` | `zella_claim_calendar_sync`, `zella_claim_calendar_pulls` | Google, Microsoft Graph | `zella_finish_calendar_sync`, `zella_replace_calendar_busy`, `zella_calendar_mark_error` | `calendar_sync_live` |
-| Knowledge | `run/knowledge-sync` | `zella_claim_knowledge_updates`, `zella_claim_gap_drafts` | Anthropic (drafts) | `zella_complete_knowledge_update`, `zella_set_gap_suggestion` | `knowledge_ai_live` for drafts |
-| Call Intelligence | `run/call-intel` | `zella_claim_call_insights` | Anthropic | insight saved | `call_intel_live`, monthly limit |
-| Call Reconciliation | `run/call-reconcile` | `zella_calls_to_reconcile` | Vapi | `zella_reconcile_call` | — |
-| Connection Tests | `run/connection-tests` | `zella_claim_provider_checks` | Telnyx, Resend, Vapi | `zella_record_provider_check` | `provider_checks_live` |
-| Website Crawler | `run/website-crawl` | `zella_website_claim` | business website | `zella_website_record_discovery`, `zella_website_record_page` | `website_crawl_live` |
-| Review Replies | `run/review-replies` | `zella_review_claim_fetch`, `_claim_ai`, `_claim_posts` | Google Business Profile, Anthropic | `zella_review_ingest`, `zella_review_save_ai_draft`, `zella_review_post_result` | owner approves each reply |
-| Spam Response | `run/spam-response` | `zella_spam_claim_work` | Anthropic (optional second opinion) | `zella_spam_finish_work`, `zella_spam_save_report` | policy re-checked in the DB |
-| Meta Sender | `run/meta-sender` | `zella_meta_claim_outbox` | Meta Graph | `zella_meta_record_send` | Meta connection + approved templates |
-| Meta Leads | `run/meta-leads` | `zella_meta_claim_leads` | Meta Graph | `zella_meta_capture_lead`, `zella_meta_fail_event` | Meta connection |
-| Meta Health | `run/meta-health` | `zella_meta_claim_checks` | Meta Graph | `zella_meta_record_check`, `zella_meta_record_templates` | — |
+**"Contacted" (REQ-OUT-13)** is set only for the conversation outcomes the business counts as contact [D-17]. Never
+for `no_conversation` or `hung_up_early`.
 
-**Webhooks called by outside systems:**
+### 13.7 When the lead does not answer
 
-| Workflow | Path | Caller | DB entry | Role today |
+| Attempt outcome | Recorded | Retry? | Message after? | Notes |
 |---|---|---|---|---|
-| Event Gateway | `zella/events` | Telnyx, internal | `zella_ingest_event` | store each event once, reply fast |
-| Email Events | `zella/resend` | Resend | `zella_record_email_event_signed` | delivery, bounce, complaint |
-| Inbound Email | `zella/inbound-email` | Resend inbound | `zella_receive_inbound_email_signed` | customer replies |
-| Meta Webhook | `zella/meta` (GET verify, POST) | Meta | `zella_meta_verify_token`, `zella_meta_receive` | messages and leads |
-| Call Results | `zella/vapi` | Vapi | `zella_record_inbound_call`, `zella_record_call_result`, `zella_record_call_status` | **fallback**: `voice-rules` is primary |
-| Receptionist Brain Tools | `zella/vapi-brain` | Vapi | `zella_ai_tool` | **fallback** for tools |
-| Voice Rules | `zella/vapi-voice` | Vapi | `zella_business_for_number` | **fallback** |
-| Assistant Tools | `zella/vapi-tools` | Vapi | `zella_business_for_number` | **fallback** |
-| Appointment Booking | `zella/vapi-booking` | Vapi | `zella_ai_tool` | **fallback** |
+| `no_answer` | yes | if attempts left | per settings | — |
+| `busy` | yes | yes, at least the spacing later | per settings | — |
+| `voicemail` | yes (provider classified) | yes | per settings; voicemail only if allowed [D-10] | — |
+| `invalid_number` | yes | no | no | suppress number |
+| `rejected` (carrier/provider) | yes | limited | no | alert if repeated (possible spam labelling) |
+| `provider_failure` | yes | yes, not counted as a customer attempt [D-02] | no | alert |
+| `timeout` | yes | after reconciliation | no | — |
+| `unknown` | yes | **only after reconciliation** | no | prevents duplicate calls |
 
-**Platform:**
+When attempts are exhausted: "Needs a person", assignee notified, with the full attempt history. The workflow then
+stops automated contact.
 
-| Workflow | Trigger | Does |
-|---|---|---|
-| Failure Alert | n8n error trigger (set as the error workflow on all 29 others) | `zella_platform_alert` |
+### 13.8 Attempt history (REQ-OUT-20)
 
-### 9.5 Source 4: the industry rule engine
+Every attempt stores:
+- business, lead/customer, sequence and callback IDs;
+- attempt ID and number;
+- scheduled and actual start, in UTC plus the business time zone;
+- calling number and provider call ID;
+- final provider status;
+- **attempt outcome** and **conversation outcome**;
+- duration, and handler (AI assistant version or staff member);
+- summary and transcript reference (if permitted);
+- failure reason;
+- the policy decision (which checks passed);
+- next action and next due time;
+- correlation ID and audit entries.
 
-Per-business rules (`automations`, seeded from `industry_automation_presets` / `industry_automation_defaults`, edited
-in Setup and "Write your own rule") are evaluated hourly by `zella_run_industry_timers` and immediately by the
-`zella_industry_status` trigger:
+**Five statuses, never merged (REQ-OUT-21):**
 
-| Trigger type | Fires when | Typical action |
-|---|---|---|
-| `appointment_followup` | N days after a completed visit | feedback, check-in, review request |
-| `record_due_reminder` | a record's due date is N days away | "service due", renewal, inspection |
-| `record_status_action` | a record enters a status | status-update message, staff task |
-| `record_stale` | a record hasn't moved in N days | task for the owner or assignee |
-| `seasonal_reminder` | a date in the year | seasonal service reminder |
-| `service_due` | service interval since the last visit | rebooking prompt |
+| Status | Values (target) |
+|---|---|
+| Lead status | new, working, contacted, qualified, booked, converted, not_interested, unreachable, lost |
+| Attempt status | scheduled, attempting, ringing, answered, no_answer, busy, voicemail, invalid_number, rejected, failed, unknown, cancelled, skipped |
+| Conversation outcome | §13.6 list |
+| Callback / task status | open, scheduled, in_progress, paused, waiting_reply, needs_person, resolved, closed, cancelled |
+| Appointment status | §15 |
 
-Each rule has a **notify** target (owner, assignee, team) and a **channel** ("tell the owner by" text, email or in-app).
-Customer-facing actions still go through the message policy, so sensitive industries become drafts.
+---
 
-### 9.6 Key automation flows
+## 14. SMS and email
 
-**Missed call → callback**
+### 14.1 Message catalogue (target)
 
-```mermaid
-flowchart LR
-  c[call ends: missed / hang-up / AI couldn't help] --> t[trigger zella_calls_callbacks_trg]
-  t --> cb[(callbacks)] --> as[auto-assign trigger]
-  as --> auto{business allows auto-call?}
-  auto -- yes --> oc[Outbound Calls worker → Vapi]
-  auto -- no --> staff[staff sees it in Callbacks]
-  oc --> res{connected?}
-  res -- yes --> done[contacted]
-  res -- no, tries left --> cb
-  res -- no tries left --> fs[callback_sms follow-up → text, else email]
-  cb -. overdue .-> al[warning after 10/30/60 min → urgent after 3 h]
-```
+| Message | Trigger | Purpose | Channels | Timing | Cancel when | Reply handling |
+|---|---|---|---|---|---|---|
+| Missed-call text | missed call | service | SMS | immediately or delayed [D-12] | caller reached | inbox; pause attempts |
+| Lead follow-up | sequence rule | service (first contact to an enquiry) [D-04] | SMS, email | after attempt N | resolved, reply | inbox |
+| Booking confirmation | booked | service | SMS/email (customer preference) | immediately | cancelled | inbox; "C" not required |
+| Reminder(s) | before start | service | same | offsets per business; quiet-hours rule [D-03] | moved, cancelled, checked in | inbox |
+| Reschedule / cancellation confirmation | changed | service | same | immediately | — | inbox |
+| Check-in reminder / link | before start | service | SMS | [D-15] | checked in | — |
+| Waitlist offer | slot freed | service | SMS (+ email if chosen) | immediately | expired, slot gone | link |
+| No-show follow-up | no-show | service | per policy | per policy | rebooked | inbox |
+| Post-visit / feedback | completed | service | per industry | per industry | — | inbox |
+| Review request | completed + link | [D-16] | per policy | per policy | — | — |
+| Reactivation, cross-sell, promotions | schedule / rule | **marketing** | SMS/email with opt-in | quiet hours | opt-out | inbox |
+| Callback reminder | staff, before due | internal | in-app, email, SMS | before due | done | — |
+| Staff notification | needs a person, escalation, new lead | internal | per member preference | immediately | read | — |
+| Business reports | schedule | internal | email | 08:00 local / weekly | — | — |
+| Integration disconnected | health | internal | email + in-app | immediately, then daily | reconnected | — |
+| Billing notifications | payment events | internal | email | immediately | paid | — |
+| Knowledge notices | gaps, conflicts | internal | email + in-app | weekly | resolved | — |
+| Invitation, password, sign-in | auth | transactional | email | immediately | — | — |
 
-**Appointment lifecycle**
+Every message goes through §9.2–9.5 with a dedupe key (`kind:entity:version`). Each send is visible on the customer
+timeline (customer messages) or in notifications (internal messages), with an admin view across businesses.
 
-```mermaid
-flowchart TD
-  b[booked: AI / CRM / link] --> conf[confirmation queued]
-  b --> rem[reminders queued per reminder rules]
-  b --> cal[calendar sync queued]
-  b --> xs[cross-sell if opted in]
-  b --> mv{moved or cancelled?}
-  mv -- moved --> rs[reschedule confirmation; old reminders withdrawn]
-  mv -- cancelled --> cc[cancellation confirmation; follow-ups withdrawn]
-  cc --> wl[waitlist offer to the next fit → /w link]
-  b --> out{outcome}
-  out -- completed --> fu[post-visit follow-up · feedback · review request · rule engine]
-  out -- no-show --> ns[no-show follow-up]
-  out -- not recorded --> fl[flagged hourly for staff]
-```
+### 14.2 Inbound replies
 
-**Waitlist offer**
+- **REQ-MSG-20** SMS replies: STOP and its variants opt out, START opts in, HELP sends help. Any other reply goes to
+  the CRM inbox and pauses related sequences.
+- **REQ-MSG-21** Email replies arrive through the inbound email domain into the inbox, signed and rate-limited.
+- **REQ-MSG-22** Staff reply from the inbox; replies are service messages and go immediately.
 
-```mermaid
-sequenceDiagram
-  participant DB as Postgres
-  participant N as Follow-up Texts
-  actor C as Customer
-  participant R as reschedule-appointment
-  DB->>DB: cancellation frees a time → pick the next waitlist fit
-  DB->>N: waitlist_offer task (dispatcher)
-  N->>C: text with private /w/<token> link
-  C->>R: Book this time / No thanks
-  R->>DB: book under the booking lock, or pass on
-  Note over DB: unanswered → expires (every 5 min) → next person
-```
+---
 
-**Knowledge readiness**
+## 15. Appointments, check-in and waitlist
+
+### 15.1 Lifecycle
 
 ```mermaid
 stateDiagram-v2
-  [*] --> processing: owner adds or edits
-  processing --> ready: Knowledge worker confirms the same version
-  processing --> processing: edited again (old confirmation is stale)
-  ready --> processing: edited
-  ready --> archived
-  note right of ready: only ready knowledge is used on calls
+  [*] --> held: slot held during a call (expires)
+  held --> requested: business approves bookings
+  held --> booked
+  requested --> booked: approved
+  requested --> declined
+  booked --> confirmed: customer confirms (optional)
+  booked --> checked_in
+  confirmed --> checked_in
+  checked_in --> in_service
+  in_service --> completed
+  booked --> no_show
+  confirmed --> no_show
+  booked --> cancelled
+  confirmed --> cancelled
+  booked --> booked: rescheduled
+  completed --> [*]
+  no_show --> [*]
+  cancelled --> [*]
+  declined --> [*]
 ```
 
-**Spam**
+| ID | Requirement |
+|---|---|
+| REQ-APT-01 | Zella Voice's database is the **booking authority**. External calendars are mirrors plus busy-time sources. |
+| REQ-APT-02 | Availability = hours − closures − holidays − existing bookings − holds − buffers − staff/resource conflicts − **external busy times**. External busy times must be fresh (push notifications, or a pull no older than N minutes before offering a slot [D-28]). |
+| REQ-APT-03 | Booking takes a per-business lock, re-checks availability inside the lock, and writes once (idempotent per request). |
+| REQ-APT-04 | Uncertain result (timeout): the next request with the same key returns the first result; the AI says only what the system confirms. |
+| REQ-APT-05 | External conflict after booking (calendar shows a clash): flag for staff; never silently move a customer. |
+| REQ-APT-06 | Confirmation and reminders are created on booking and cancelled or replaced on change. |
+| REQ-APT-07 | All times in the business time zone; customer-facing times in the customer's zone if known. |
+| REQ-APT-08 | Customer self-service: signed links to view, reschedule or cancel (policy windows apply). |
 
-```mermaid
-flowchart LR
-  in[call / text / email / booking] --> sc[trigger: score signals<br/>lists · repetition · links · phrases · withheld ID]
-  sc --> inc[(spam_incidents<br/>one per sender, channel and day)]
-  inc --> lvl{score}
-  lvl -- low --> log[recorded]
-  lvl -- medium --> rev[Spam Response: AI second opinion optional]
-  lvl -- "high + 2 signals" --> tmp[temporary 24 h restriction, reversible]
-  rev & tmp --> fin[zella_spam_finish_work re-checks policy]
-  fin --> ui[CRM Spam page + weekly summary]
-```
+### 15.2 Check-in
 
-**Calendar sync**
+| ID | Requirement |
+|---|---|
+| REQ-CHK-01 | Staff check-in: arrived → checked in → in service → completed, each logged with who and when. Undo is possible within a window. |
+| REQ-CHK-02 | Customer self check-in [D-15]: a signed link in the reminder, or a reply "HERE", or a QR code at the location. The arrival shows on Today and notifies the assigned staff member. |
+| REQ-CHK-03 | Late arrival and no-show rules: after N minutes [D-15], prompt staff to mark no-show. Nothing is assumed automatically. |
+| REQ-CHK-04 | Check-in cancels pending reminders for that appointment. |
 
-```mermaid
-flowchart LR
-  ap[appointment change] --> q[(calendar_sync_queue)] --> cs[Calendar Sync worker]
-  cs --> g[Google / Outlook: create · update · delete event]
-  hr[hourly zella_schedule_calendar_pulls] --> cs
-  cs --> busy[pull busy times → zella_replace_calendar_busy]
-  busy --> av[availability excludes external busy]
-  cs -. token error .-> err[zella_calendar_mark_error → reconnect reminder]
-```
+### 15.3 Waitlist
 
-**Reviews**
-
-```mermaid
-flowchart LR
-  f[fetch new Google reviews] --> ing[zella_review_ingest] --> ai[AI drafts a reply]
-  ai --> own[owner edits and approves in CRM]
-  own --> post[post to Google] --> res[zella_review_post_result]
-```
+| ID | Requirement |
+|---|---|
+| REQ-WL-01 | Customers join by phone (AI), by link, or through staff, with preferences (service, staff, days, times, earliest/latest). |
+| REQ-WL-02 | When a slot frees up, the matching entries are ranked [D-29: first-come, priority, or best fit]. |
+| REQ-WL-03 | Offers go **one at a time** by default, with an expiry [D-29]. Optional "first to accept" broadcast mode, protected by the booking lock: later accepters are told politely that it is taken. |
+| REQ-WL-04 | Acceptance books under the lock after re-checking availability (including external busy times). |
+| REQ-WL-05 | When the slot disappears (booked by staff, external busy), open offers are withdrawn at once. |
+| REQ-WL-06 | Offers are service messages; they respect suppression and quiet hours unless the slot is imminent [D-29]. |
+| REQ-WL-07 | The CRM shows entries, offers sent, expiries and acceptances. |
 
 ---
 
-## 10. Knowledge and AI quality
+## 16. Knowledge
 
 ```mermaid
 flowchart LR
-  src1[Owner writes answers] --> ki[(knowledge_items)]
-  src2[Website crawler] --> sug[suggested items] --> ki
-  calls[Calls] --> gap[(knowledge_gaps)]
-  gap --> draft[AI draft, knowledge_ai_live] --> own[owner approves] --> ki
-  ki --> kw[Knowledge worker → ready]
-  kw --> brain[search_knowledge on calls]
-  brain --> samp[ai_response_samples · ai_answer_reports]
-  evals[(ai_eval_cases)] --> run[zella_brain_run_evals]
-  calls --> intel[Call Intelligence → call_insights]
+  in1[Owner writes] --> dr[(Draft)]
+  in2[Website import] --> sg[Suggestion] --> dr
+  in3[Unanswered question] --> gp[(Gap)] --> ai[Optional AI draft] --> sg
+  dr --> rv{Validated · approved}
+  rv --> rd[(Ready)]
+  rd --> use[Used by the receptionist]
+  rd -- edited --> dr
+  use -- no answer --> gp
 ```
+
+| ID | Requirement |
+|---|---|
+| REQ-KNW-01 | Only `ready` items are used. Readiness is set **in the database** when the owner approves an item; it does not depend on an external worker being on. |
+| REQ-KNW-02 | Every edit creates a version; an approval applies only to the version approved. |
+| REQ-KNW-03 | Gaps are logged for every unanswered question, counted, and shown weekly. |
+| REQ-KNW-04 | AI drafts are suggestions; never used until approved. |
+| REQ-KNW-05 | Conflicting items are detected and shown. |
+| REQ-KNW-06 | Per-industry evaluation cases run before any AI change and weekly. |
 
 ---
 
-## 11. Integrations
+## 17. Billing, plans and usage
 
-| Integration | Direction | Built | Gate / blocker |
+```mermaid
+flowchart LR
+  ev[Call finalised · message sent ·<br/>AI used] --> led[(Usage ledger<br/>append-only, idempotent)]
+  led --> ent{Entitlement check<br/>at use time}
+  ent -- within --> ok[Proceed]
+  ent -- near limit --> warn[Warn at thresholds]
+  ent -- over --> lim[Owner-chosen limit behaviour<br/>never cut a live call]
+  pp[Payment provider] --> wh[Signed webhook<br/>idempotent] --> sub[(Subscription)]
+  sub --> grace[Grace policy: warn → read-only → suspend]
+```
+
+| ID | Requirement |
+|---|---|
+| REQ-BIL-01 | Plans, prices, trials and limits are set only by the Zella Voice owner [D-09]. |
+| REQ-BIL-02 | Usage is metered from an append-only ledger (one entry per finalised call; adjustments, never edits). Our failures are never billable. |
+| REQ-BIL-03 | Entitlements are checked at use time: assistant assembly, outbound claims, messaging claims, AI features. |
+| REQ-BIL-04 | Payment provider handles cards and invoices; Zella Voice stores no card data. Webhooks are signed and idempotent. |
+| REQ-BIL-05 | Billing page for owners: plan, usage, invoices, payment method (provider portal), cancellation. |
+| REQ-BIL-06 | Grace policy on failed payment; no data deleted within the grace and export window. |
+
+---
+
+# Part D: Applications
+
+## 18. Web application
+
+### 18.1 Surfaces and routing
+
+| Surface | Host / path | Users | Auth |
 |---|---|---|---|
-| Vapi (voice) | both | yes | real assistants need the server headers; phone numbers to assign |
-| Telnyx SMS | both | yes | A2P 10DLC registration; `sms_live` |
-| Resend email | both | yes (domain verified) | `email_live`; signing secret |
-| Google Calendar | both | yes | Google OAuth client and consent screen |
-| Outlook Calendar | both | yes | Microsoft app registration |
-| Meta lead ads / WhatsApp | both | yes | Meta app review, template approval |
-| Google Ads lead forms | in | yes | approval |
-| Website forms | in | yes | — |
-| Shopify | out (lookup) | yes | per-store connect |
-| Google reviews | both | yes | Google OAuth; owner approval per reply |
-| Anthropic | out | yes | API key and budget |
-| Payments (Stripe-style) | in | webhook only | choose a provider |
-| Gmail / Outlook mailbox | — | **choice stored, nothing uses it** | build it or remove it from the wizard |
+| Public website | `zellavoice.com` | prospects | none |
+| Business CRM | `app.zellavoice.com/app/*` | business members | session + business membership |
+| Platform admin | `admin.zellavoice.com/*` | platform staff | session + platform permission + MFA |
+| Customer pages | `/r/<token>` reschedule, `/w/<token>` waitlist, `/c/<token>` check-in, `/u/<token>` unsubscribe, `/continue-plan`, `/status` | customers, public | signed token / none |
+| Auth pages | `/welcome` (email link landing with Continue), sign-in, reset | everyone | — |
 
----
+- **REQ-WEB-01** Each surface is code-split; customer pages never load CRM or admin code.
+- **REQ-WEB-02** URL-based routing with leave guards for unsaved changes.
+- **REQ-WEB-03** All data through RPCs or RLS-protected reads; no direct writes to tables that only the server may
+  change.
+- **REQ-WEB-04** Every page has distinct loading, empty, error, stale, unauthorized and success states.
+- **REQ-WEB-05** Accessibility at WCAG 2.2 AA; 360 px and 1280 px layouts; performance budget per the rulebook (UX-22).
+- **REQ-WEB-06** Design tokens only; one component library; industry terminology everywhere.
 
-## 12. Frontend and UI/UX architecture
+### 18.2 Page specification format
 
-### 12.1 Structure
+Each page below lists: **job** (what the user needs to do), **data** (sources), **actions**, **roles**, **states**
+(beyond the standard ones), **connected automations**, **provider dependencies**.
+
+### 18.3 Business CRM pages
+
+| ID | Page | Job | Data | Actions | Roles | Notes / connected automations |
+|---|---|---|---|---|---|---|
+| REQ-CRM-01 | **Today** | What needs me now | needs-a-person calls, due callbacks, leads waiting, today's bookings, check-ins, failed sends, alerts | open, call, assign, mark | all (viewer read) | A2, A5, A15, A16 |
+| REQ-CRM-02 | **Calls** | Review every call | calls with classification (§12.1), handler, outcome, transfer, duration, summary; transcript if permitted | set outcome, call back, create callback, open customer | all; transcripts manager+ (industry rules) | A1, A23 |
+| REQ-CRM-03 | **Outgoing calls** | See every attempt | attempts with attempt + conversation outcome, next action | retry now, pause, stop, listen/summary | staff+ | A5, A2 |
+| REQ-CRM-04 | **Callbacks** (missed calls, lead calls, needs a person) | Work the follow-up queue | callback/sequence status, attempts, due time, assignee | call now (staff), schedule, assign, pause, resume, close with outcome | staff+ | A2, A5, A15, A16 |
+| REQ-CRM-05 | **Leads** | Convert enquiries | leads by status, source, owner, age; speed-to-lead | add, import, assign, start/stop sequence, convert, mark lost | staff+ | A4, A5, A6 |
+| REQ-CRM-06 | **Inbox** | Reply to customers | conversations (SMS, email), unread, assigned | reply, assign, close, mark spam | staff+ | MSG-20–22 |
+| REQ-CRM-07 | **Customers** | Know each person | profile, contact details, consent and suppressions, **unified timeline** (§18.4), records, appointments | edit, merge duplicates, export (owner), delete (owner) | staff+ (viewer read) | — |
+| REQ-CRM-08 | **Calendar** | Manage bookings | appointments, holds, blocks, external busy times | book, move, cancel, block time | staff+ | A7–A9 |
+| REQ-CRM-09 | **Check-ins** | Run arrivals | today's appointments with arrival state | arrived, checked in, in service, completed, no-show, undo | staff+ | CHK-* |
+| REQ-CRM-10 | **Waitlist** | Fill gaps | entries, offers, expiries | add, remove, offer manually | staff+ | A14 |
+| REQ-CRM-11 | **Industry records** | Industry objects | records by type, status, due dates, files, private fields (managers/assigned staff) | create, update status, attach files | staff+ | A28 |
+| REQ-CRM-12 | **Money** (if capability on) | Invoices and payments recorded (no cards) | charges, payments | raise (staff), record payment/refund (manager+) | staff+ | — |
+| REQ-CRM-13 | **Tasks & follow-through** | Internal work | tasks, approvals, milestones, problems | complete, assign | staff+ | A28 |
+| REQ-CRM-14 | **Suggested messages** | Approve drafts | drafts with reason | send, edit, discard | staff+ | A12, sensitive industries |
+| REQ-CRM-15 | **Sending failed** | Fix failures | failed messages and calls with reason | retry (queued), fix contact, dismiss | owner/admin retry | §8.2 |
+| REQ-CRM-16 | **Reports** | Understand performance | answered rate, missed, speed-to-lead, bookings, sources, AI resolution, costs vs plan | schedule reports | owner/admin/manager | A18 |
+| REQ-CRM-17 | **AI receptionist** | Configure the voice | greeting, voice, languages, rules, transfers, hours, escalation, test call | edit, publish version, test | owner/admin | REQ-VOX-* |
+| REQ-CRM-18 | **Knowledge** | Teach the receptionist | items (draft/ready), gaps, suggestions, conflicts | add, approve, archive | owner/admin/manager | A19, A20 |
+| REQ-CRM-19 | **Automations** | Control what happens automatically | every automation (A2–A28 that apply), its switch, settings and last outcomes | toggle, edit settings, pause all | owner/admin | — |
+| REQ-CRM-20 | **Outreach settings** | Lead calls and missed-call follow-up | §13.3 and REQ-MC-09 settings | edit (owner/admin) | owner/admin | — |
+| REQ-CRM-21 | **Lead sources** | Connect sources | forms, Google keys, Meta pages, imports | create keys, connect, test | owner/admin | A4 |
+| REQ-CRM-22 | **Integrations** | Calendars, store, reviews | connection health | connect, reconnect, disconnect | owner/admin | A21 |
+| REQ-CRM-23 | **Team** | People and access | members, invites, roles, on-call, notification preferences | invite, change role, remove | owner/admin | — |
+| REQ-CRM-24 | **Settings** | Business profile, hours, services, policies, templates, appearance | — | edit | owner/admin | — |
+| REQ-CRM-25 | **Billing** | Plan and usage | plan, usage vs limits, invoices | change plan, payment portal, cancel | owner | §17 |
+| REQ-CRM-26 | **Support** | Get help | tickets | open, reply | owner/admin | — |
+| REQ-CRM-27 | **Spam protection** | Handle abuse | incidents, allow/block lists | confirm, allow, block | owner/admin | A27 |
+| REQ-CRM-28 | **Security log, data rights** | Oversight | sign-ins, privileged changes, requests | export, respond | owner | A30 |
+
+### 18.4 Unified customer timeline (REQ-CRM-30)
+
+One chronological list per customer, scoped to one business. It shows:
+- incoming calls (classification and summary);
+- outgoing attempts (attempt and conversation outcome);
+- missed calls;
+- SMS and email in both directions (honest status);
+- replies;
+- callback requests and their status;
+- appointments and their changes;
+- check-ins;
+- staff actions and notes;
+- consent changes and opt-outs;
+- automation outcomes, including **skipped with reason**;
+- record events.
+
+Each item links to its source, and the timeline is filterable by type.
+
+### 18.5 Platform admin pages
+
+| ID | Page | Job | Permission |
+|---|---|---|---|
+| REQ-ADM-01 | Overview | platform health and growth KPIs | any |
+| REQ-ADM-02 | Businesses (search, filters by status, detail) | find and support a business; pause/suspend; view readiness, numbers, usage, alerts | `businesses.view/manage` |
+| REQ-ADM-03 | **Create Business** | §18.6 | `businesses.manage` |
+| REQ-ADM-04 | Users & platform roles | manage platform staff | Zella Voice owner |
+| REQ-ADM-05 | Plans & offers | define plans and promotions | `plans.manage` |
+| REQ-ADM-06 | Billing | subscriptions, failed payments, credits | `billing.*` |
+| REQ-ADM-07 | Voice & numbers | buy/assign/release numbers, caller-ID status, assistants | `telephony.manage` |
+| REQ-ADM-08 | Providers & integrations health | provider status, credentials present (not values), test results | `integrations.manage` |
+| REQ-ADM-09 | Automation queues | queue depth, oldest due, stuck queues, dispatcher state, dead letters, retry | ops |
+| REQ-ADM-10 | Outgoing call attempts (cross-business) | spot carrier rejections and anomalies | ops |
+| REQ-ADM-11 | Failed messages | cross-business failures | `comms.manage` |
+| REQ-ADM-12 | Spam & abuse | incidents, global rules | `security.*` |
+| REQ-ADM-13 | Support | tickets, audited access to a business | `support.manage` |
+| REQ-ADM-14 | Audit logs | every privileged action | `audit.view` |
+| REQ-ADM-15 | Monitoring & incidents | alerts, status page incidents | ops |
+| REQ-ADM-16 | Platform settings & kill switches | live switches per channel, per business override, maintenance mode | Zella Voice owner |
+| REQ-ADM-17 | Industry configuration | presets, policies, safety lines, defaults | `ai.configure` |
+| REQ-ADM-18 | Growth (prospects, demos) | Zella Voice sales pipeline | `growth.manage` |
+
+**REQ-ADM-20 Access states:** loading, authorized, unauthorized (signed out, MFA needed, no permission) and failed
+(couldn't check; grants nothing). A refusal always applies; a failed background refresh keeps the current view.
+
+### 18.6 Create Business (REQ-ADM-03)
 
 ```mermaid
 flowchart TD
-  main[main.jsx<br/>styles · appearance · ErrorBoundary] --> app[App.jsx: choose surface by host and path]
-  app -->|"/welcome, token links"| welcome[Welcome / set password]
-  app -->|"/r/hex · /w/hex · /u/hex"| pub[Reschedule · WaitlistOffer · Unsubscribe]
-  app -->|"/status"| status[StatusPage]
-  app -->|"/continue-plan"| cp[ContinuePlan]
-  app -->|"/app/*"| crm[BusinessApp: CRM]
-  app -->|"/ on admin host"| admin[AdminApp → OwnerDashboard]
-  crm --> nav[navigation/: navConfig + zella_workspace_navigation]
-  crm --> pages[Today · Calls · Callbacks · Leads · Inbox · Calendar ·<br/>Records · Money · Reports · Team · Settings …]
-  admin --> apages[Businesses · Wizard · Plans · Offers · Voice numbers ·<br/>Monitoring · Spam · Audit · Support · Settings]
-  crm & admin --> sb[supabase.js · rpc / RLS selects]
+  s([Start: idempotent draft]) --> b[1 Business<br/>name · industry · time zone ·<br/>contact · address · locale]
+  b --> o[2 Owner & verification<br/>owner email · documents]
+  o --> h[3 Hours, services, prices<br/>entered by the business · booking rules]
+  h --> t[4 Team & roles<br/>optional]
+  t --> r[5 AI receptionist<br/>voice · greeting · rules ·<br/>transfers · escalation]
+  r --> k[6 Knowledge<br/>minimum set D-24]
+  k --> p[7 Phone<br/>new · port · forward ·<br/>outbound caller ID]
+  p --> i[8 Integrations<br/>calendar · lead sources · store]
+  i --> c[9 Communication settings<br/>SMS/email · consent policy ·<br/>missed-call follow-up ·<br/>lead calls · templates]
+  c --> a[10 Automations<br/>each rule on/off + settings]
+  a --> pl[11 Plan & entitlements]
+  pl --> rv[12 Review & readiness<br/>server-computed checklist]
+  rv --> act{All required<br/>checks pass?}
+  act -- no --> save[Saved; resume later]
+  act -- yes --> inv[Invite owner → email sent] --> test[Activation tests REQ-LC-14] --> live[Go live]
 ```
 
-- **Stack:** React 19, Vite 8, plain JSX, no state or router library (`router.js` is about 80 lines), `oxlint`.
-- **Routing:** History API with **leave guards** (unsaved forms are protected on navigation, Back and tab close).
-- **Data:** `supabase.rpc('zella_*')` and RLS selects. Loading, empty and error are always distinct states.
-- **Navigation is data-driven:** the sidebar shows what passes the checks in §4.2, and the DB refuses the rest anyway.
-
-### 12.2 Design system
-
-| Layer | File |
+| Concern | Requirement |
 |---|---|
-| Tokens (the only place for colour, type, spacing, radii, shadows) | `styles/tokens.css` (`--zella-*`) |
-| Base | `index.css` |
-| Components | `styles/components.css`, `BusinessUI.jsx`, `formFields.jsx` |
-| Themes | `zella-theme.css` (warm ivory and mocha, default), `glass.css` (dark) |
-| Motion | `motion.css`, `motion.js` (off with reduced motion) |
-
-### 12.3 UX rules
-
-- **Accessibility, WCAG 2.1 AA:** `useDialogFocus` on every dialog (focus in, Tab trapped, Escape, focus returned,
-  only the topmost dialog handles keys), a visible focus ring, labels, and axe-core in the sweeps.
-- **Responsive:** 1280 px and 390 px are tested, with no sideways scrolling.
-- **Copy:** sentence case, US spelling, honest status language (`ZELLA_PRODUCT_VOICE.md`, `ZELLA_STATUS_LANGUAGE_GUIDE.md`).
-- **Role-aware UI:** viewers see read-only views without amounts, and staff see only what their role allows.
+| Save, resume, duplicates | Every step is saved server-side; the draft resumes at the first incomplete step. A creation key prevents a second business on a double submit. A duplicate name, phone or domain shows a warning. |
+| Validation | Server-side per step; nothing is written to live tables until the step's checks pass. |
+| Failure and rollback | Each step is atomic. A failed invite leaves the business inactive and retryable. Abandoned drafts expire [D-30]. |
+| Audit | Every step and every change is audited. |
+| Provider readiness | Numbers, calendar and lead sources are each checked, with a clear "not set up yet" state. |
+| Test call and message readiness | Part of the activation tests before go-live. |
 
 ---
 
-## 13. Security architecture
+# Part E: Operations
 
-### 13.1 Defence in depth
+## 19. Integrations
 
-```mermaid
-flowchart TB
-  L1[Edge: Cloudflare TLS · CORS allow-list · body limits] --> L2[Identity: Supabase Auth · MFA for admins · invite-only]
-  L2 --> L3[API: publishable key only in browser · service key only server-side]
-  L3 --> L4[Functions: security definer · role check first · EXECUTE revoked from public]
-  L4 --> L5[Data: RLS on every table · tenant-link triggers · private columns behind views · Vault]
-  L5 --> L6[Webhooks: HMAC/Bearer + timestamp + replay · Resend and Meta signatures · X-Zella-Secret · signed OAuth state]
-  L6 --> L7[Abuse: rate limits · spam scoring · temporary restrictions]
-  L7 --> L8[Audit and self-tests: audit_logs · daily tenant and permission checks]
-```
+**REQ-INT-01 Provider adapter contract:** one adapter per provider with:
+- a switch, with dry-run behaviour when off;
+- credentials in Vault or the worker credential store, never in code or logs;
+- timeouts;
+- one shared module that maps provider results to Zella Voice outcomes;
+- signature verification for inbound events;
+- a health check;
+- an exit plan.
 
-### 13.2 Threat model (summary)
-
-| Threat | Control |
-|---|---|
-| One business reads another's data | RLS, `zz_tenant_links`, role checks in every function, daily `zella_run_tenant_check`, the security test suite |
-| Forged Vapi request books or reads data | HMAC/Bearer verified in the DB over the raw bytes, 5-minute window, replay table |
-| Prompt injection makes the AI do something | Tools are capability- and role-checked server-side; transfer only to authorised numbers; the AI cannot see secrets |
-| Stolen staff session | MFA (admins), short sessions, viewer read-only, sensitive approvals |
-| SMS/email abuse or toll fraud | consent checks, calling hours, rate limits, spam scoring, live switches |
-| Service key leak | only in edge secrets and the n8n credential; rotate; nothing in the repo (`.gitignore`) |
-| Mail scanner uses up a one-time link | the Continue step on `/welcome` |
-
-### 13.3 Supabase advisor findings (9 Nov 2026)
-
-| Finding | Assessment / action |
-|---|---|
-| `calls_view` is `SECURITY DEFINER` (ERROR) | It is the gate that hides transcripts. Confirm it filters by membership and role, or use `security_invoker` plus column grants. |
-| 6 functions callable by `anon` | Intended public endpoints (status, platform info, unsubscribe ×2, MFA check, pre-request). Keep them small and rate-limited. |
-| 355 definer functions callable by `authenticated` | Expected with this design. Every one must start with a role check, which the test suites enforce. |
-| Leaked-password protection off | Turn it on. |
-| `backup_20261104_*` tables, legacy functions `smart-action` and `zella-admin-check-v2` | Remove them or move them out of `public`. |
-
----
-
-## 14. Deployment, environments and operations
-
-### 14.1 Deployment topology
-
-```mermaid
-flowchart LR
-  dev[Developer] -->|PR → main| gh[(GitHub repo)]
-  gh -->|build web/ → dist| cf[Cloudflare Pages<br/>admin. · app.zellavoice.com]
-  gh -->|supabase functions deploy| ef[Edge functions]
-  gh -->|approved SQL, in order| db[(Supabase Postgres)]
-  gh -->|n8n/src → build.mjs → import| n8n[n8n Cloud]
-  dns[GoDaddy DNS] --> cf
-  dns --> rs[Resend: send · rsend records]
-```
-
-### 14.2 Environments
-
-| Environment | What it is |
-|---|---|
-| Production | Supabase `pffqxlumqhjdbzvvoszm` (us-west-1, Postgres 17), n8n Cloud, Cloudflare Pages |
-| Isolated test DB | `sql/baseline/` (a schema-only snapshot of prod) restored locally by `restore.sh`, plus pending migrations; guarded so it can never target prod |
-| Local stand-in backend | `tests/browser/local-backend.mjs` for browser sweeps, with outside network blocked |
-| Local edge runtime | `tests/runtime/` |
-
-### 14.3 Change process
-
-```mermaid
-flowchart LR
-  w[write sql/zella_x.sql<br/>idempotent · version-guarded] --> rb[write rollback]
-  rb --> t[test on isolated DB<br/>feature · security · matrix · deploy rehearsal]
-  t --> m[deployment manifest]
-  m --> ap{owner approves}
-  ap --> bk[backup] --> apply[apply in order<br/>dispatcher last]
-  apply --> base[refresh sql/baseline]
-```
-
-n8n: edit `n8n/src/*.js` → `node n8n/src/build.mjs` → `node n8n/test.mjs` → import → re-attach the hand-set
-credentials → set the error workflow. **Never hand-edit the workflow JSON.**
-
-### 14.4 Observability
-
-| Signal | Where |
-|---|---|
-| Platform alerts (grouped, deduped) | `platform_alerts` → Admin Alerts email, and the admin bell |
-| Job failures | `scheduler_failed` alert |
-| n8n failures | Failure Alert → platform alert |
-| Automation health | `workflow_executions`, `automation_dead_letters`, `n8n_dispatch_state` |
-| Provider health | `provider_health`, Connection Tests, Meta Health |
-| Voice latency | `Server-Timing` and one JSON log line per `voice-rules` request |
-| Public status | `/status` |
-
-### 14.5 Live switches (all off by default; each is also a kill switch)
-
-`sms_live` · `email_live` · `calls_live` · `knowledge_ai_live` · `calendar_sync_live` · `provider_checks_live` ·
-`website_crawl_live` · `call_intel_live` · `n8n_dispatch_enabled`
-
----
-
-## 15. Testing strategy
-
-| Level | Suite | Proves |
+| Provider type | Choice | Notes |
 |---|---|---|
-| Unit | `web/src/*.test.mjs`, `n8n/test.mjs`, edge `*_test.ts` | routing, wizard, templates, tool parsing, signatures, OAuth state |
-| Database | `tests/security`, `tests/<feature>/` | RLS and role matrix, privacy, cross-tenant refusal, idempotency, rollback |
-| Concurrency | `tests/voice-reliability` | parallel bookings, retries, duplicate call rows |
-| Industry matrix | `tests/workflows/industry_matrix.mjs` | 1,383 checks across 28 industries |
-| End to end | `tests/workflows/salon_launch.mjs`, `tests/e2e` | a full business journey |
-| Runtime | `tests/runtime` | edge functions in the real edge runtime |
-| Browser | `tests/browser/*.cjs` (Playwright) | every page × role × laptop, phone and dark theme; axe-core; dialogs |
-| Deploy rehearsal | `tests/deploy/run_all.sh`, `tests/staging/run.sh` | full pending sequence and full rollback |
-
-**Gap:** there is no CI. Nothing runs automatically on a pull request.
-
----
-
-## 16. Production state (9 Nov 2026)
-
-| Area | State |
-|---|---|
-| Data | 4 test businesses (salon, 2 restaurants, dental), 5 calls, 2 customers, 0 subscriptions |
-| Edge functions | 13 deployed (11 in the repo + 2 legacy) |
-| Cron | 10 jobs registered; **only `zella_billing_reconcile` and `zella_usage_thresholds` active**. Dispatcher and all job groups are off. |
-| n8n | 30 workflows, **all unpublished** |
-| Live switches | all off |
-| Hosting | Cloudflare Pages setup pending |
-| Provider accounts | Resend verified; Telnyx 10DLC, Google/Microsoft OAuth and Meta review pending |
-
-**Go-live order:** hosting → Auth URLs and secrets → Vault secrets → publish Failure Alert, then the other workflows
-→ attach provider credentials → turn on the job groups and the dispatcher → one live switch at a time, starting with
-one business and one number.
+| Voice orchestration | Vapi | inbound assistant per call; outbound assistant per business; server tools |
+| Phone numbers / carrier | through Vapi or Telnyx [D-07] | caller-ID registration per business; spam-label monitoring |
+| SMS | Telnyx (planned) | A2P 10DLC or local equivalent before live; delivery receipts required |
+| Email | Resend | verified domain; inbound domain; events |
+| Calendars | Google, Microsoft | OAuth, push notifications preferred |
+| Lead sources | Google Ads lead forms, Meta lead ads, website forms | per-business keys / connections |
+| Store | Shopify | order lookup only |
+| Reviews | Google Business Profile | owner-approved replies |
+| AI model | Anthropic (through Vapi for voice; direct for drafts and insights) | caps per business; never trains on customer data |
+| Payments | [D-09] | hosted checkout and portal; signed webhooks |
+| Monitoring | external uptime, log drain, pager [D-31] | outside the platform |
 
 ---
 
-## 17. Architect's recommendations
+## 20. Security and privacy
 
-### P0: before the first paying customer
-
-1. **CI on every PR:** web lint and build, edge `deno test`, `n8n/test.mjs`, and the security suite in a Postgres 17
-   service container. Block merges on red.
-2. **Make migrations queryable:** a `zella_schema_migrations(name, checksum, applied_at, applied_by)` table, or
-   Supabase CLI migrations.
-3. **Close the advisor items** (§13.3).
-4. **PITR backups** and an external uptime ping on `/status` and `voice-rules`.
-5. **Launch narrow:** one or two industries (salon first) on real numbers, turning live switches on one at a time.
-6. **One source of truth:** this file plus a short `docs/STATUS.md`. Archive the dated reports.
-
-### P1: first months
-
-7. Voice SLOs: p95 tool call under 1.5 s with an error-rate alert, and a log drain for `voice-rules`.
-8. Retire the five n8n voice fallback workflows after 30 clean days on `voice-rules`.
-9. Generated DB types and gradual TypeScript. Split `CreateBusinessWizard.jsx` (2.3k lines) by step.
-10. Code-split by surface (admin, CRM, public) with `React.lazy`.
-11. Decide the 10DLC model (platform brand vs per business) and per-business sender numbers.
-12. Connect billing to plans and the minute ledger, and enforce quotas in `zella_assistant_for_call`.
-
-### P2: scale
-
-13. n8n capacity: upgrade the plan, or move the hot senders to edge functions. The claim/complete contract makes this a drop-in swap.
-14. Monthly partitions plus retention for `audit_logs`, `ai_tool_calls`, `usage_records`, `automation_events`, `sms_messages`.
-15. A read replica for reports once KPI queries compete with voice-path writes.
-16. Data residency: an India launch (`zellaai.in`) needs a separate regional project.
-17. Build or remove the Gmail and Outlook mailbox option.
+| Area | Requirement |
+|---|---|
+| Isolation | REQ-TEN-*; cross-tenant tests for every table, view, function and endpoint |
+| Row security | on every table; tables meant for the server only have no client policies and no grants |
+| Storage | private buckets; per-business paths; content inspection before files are usable |
+| Realtime (if used) | subscriptions are filtered by RLS only; no broadcast of tenant data |
+| Definer functions | pinned search path; role check first; an automated test fails on any definer function without a role check that is not on the public allow-list |
+| Service contexts | a null user is trusted only for the server role; anonymous API requests never pass a role check |
+| Service credentials | edge secrets and the worker credential store only; worker accounts protected by MFA, with a minimal number of people; consider scoped database roles for workers |
+| Webhooks | signatures over raw bytes, timestamp windows, replay tables |
+| Caller identity | REQ-ID-01 |
+| Contact policy | REQ-MSG-01 before every contact |
+| Link tokens | 256-bit random, hashed at rest, single purpose, expiry, revoked when the underlying item changes, never logged |
+| AI | prompt-injection treated as hostile input; tools re-check permissions; no secrets or other customers' data in prompts; eval cases include injection attempts |
+| Sensitive industries | transcripts never to staff; private fields separate; previews never reveal the relationship; drafts for follow-ups |
+| Recordings and transcripts | notice and consent per business [D-27]; retention per class [D-13]; access logged |
+| Audit | append-only; privileged actions; support access |
+| Retention and deletion | scheduled deletion per data class; legal hold; deletion reaches files and provider copies where possible |
+| Backups | point-in-time recovery; quarterly restore drill; a restore never re-sends messages (dedupe keys and a "restored" flag on work items) |
+| Support access | ticket-linked, time-limited, visible to the business, audited |
+| Rate limiting | every public entry point |
+| Spam false positives | only explicit lists block; automatic restriction needs several signals and is temporary and reversible |
+| Export and offboarding | owner export; deletion schedule |
+| Professional review | legal review is needed for calling and texting rules per country, recording consent, sensitive industries, data residency and retention. No compliance is claimed by this document. |
 
 ---
 
-## 18. Glossary and repo map
+## 21. Reliability, observability, delivery
 
-| Term | Meaning |
+| Topic | Requirement |
 |---|---|
-| Business | a tenant (one paying customer of Zella) |
-| Member | a user's role in a business |
-| Platform admin | Zella staff with a platform role |
-| Capability | a switch for a kind of operation (bookings, check-ins, waitlist, dispatch, classes, orders, money, access codes) |
-| Module | a CRM area enabled per industry and per business |
-| Record type | a configurable industry object (pet, vehicle, matter, policy, job …) |
-| Live switch | a setting that lets a channel act in the real world; off = dry run |
-| Claim / complete | the queue protocol between the DB and workers |
-| Dispatcher | `zella_dispatch_n8n`: wakes n8n only when work is due |
-| Ready knowledge | knowledge the receptionist may use |
-| Dead letter | a permanently failed or unhandled event, kept visible |
+| Service levels | voice path 99.9% monthly; tool DB step p95 < 800 ms; messages sent within 5 min of due 99% of the time; web 99.5% (rulebook REL-1) |
+| Recovery | RPO ≤ 5 min, RTO ≤ 1 h voice, ≤ 4 h other |
+| Degradation | DB down → standby assistant takes messages; workers down → queues hold work; provider down → kill switch + clear status |
+| Idempotency and outbox | §8 |
+| Correlation | one correlation ID from the first event (call, lead) through every work item, attempt, message and timeline entry |
+| Metrics | answered rate, abandon rate, time to answer, AI resolution rate, tool latency/errors, booking success, speed-to-lead, attempts per lead, messages by status, queue depth and oldest due, dead letters, cost per call, per business and platform-wide |
+| Alerts | grouped, actionable, routed to an external pager for Sev1 (calls not answered, data exposure, wrong messages at scale) |
+| Environments | local isolated DB; hosted **staging** (Supabase + workers + test numbers); production. Each has its own credentials. |
+| CI | every pull request runs lint, build, unit tests, function checks, worker tests, database security suite and the migration apply/rollback rehearsal |
+| Migrations | one file per change, idempotent, version-guarded, with rollback; a migration ledger table written by each migration |
+| Deploys | owner-approved, one at a time; verify the deployed version equals the reviewed source; smoke test after |
+| Kill switches | per channel, per business, per automation, platform-wide |
 
-| Need | Path |
-|---|---|
-| Production schema snapshot | `sql/baseline/` |
-| A feature's SQL / its rollback | `sql/zella_<feature>.sql` / `sql/rollback/` |
-| Scheduler and dispatcher | `sql/zella_dispatcher.sql` |
-| Role checks | `sql/zella_role_check_hardening.sql`, `sql/zella_settings_system.sql`, `sql/zella_viewer_read_only.sql` |
-| Voice endpoint / shared Vapi code | `web/supabase/functions/voice-rules/` / `web/supabase/functions/_shared/` |
-| n8n source / built workflows | `n8n/src/` / `n8n/workflows/` |
-| App entry and routing | `web/src/main.jsx`, `web/src/App.jsx`, `web/src/router.js` |
-| Navigation / design system | `web/src/navigation/` / `web/src/styles/tokens.css` |
-| Go-live | `docs/GO_LIVE.md`, `n8n/GO-LIVE.md` |
-| Deeper design notes | `docs/VOICE_RELIABILITY.md`, `docs/MESSAGING_POLICY_2026-11-05.md`, `docs/SPAM_PROTECTION.md`, `docs/MINUTE_USAGE_DESIGN.md`, `docs/NAVIGATION.md`, `docs/DESIGN_SYSTEM.md` |
+**Test plan (acceptance):**
+- two-business isolation;
+- inbound call on a real test number;
+- outbound: answered / no answer / busy / voicemail / invalid / failure / unknown;
+- attempt limits and windows;
+- opt-out mid-sequence;
+- reply before the next attempt;
+- duplicate lead events;
+- missed-call text once;
+- failed SMS and email bounce;
+- booking concurrency;
+- external calendar conflict;
+- reschedule cancels reminders;
+- waitlist acceptance race;
+- DST reports;
+- voice provider failure;
+- worker outage and recovery;
+- business paused with queued work;
+- plan and entitlement changes;
+- admin permission failures;
+- backup restore without duplicate sends;
+- dispatcher back-off with new work.
+
+---
+
+## 22. Industries
+
+The platform serves **28 industries** as configuration: Automotive, Beauty & Salon, Childcare, Cleaning Services,
+Dental, E-commerce, Education, Electrical, Financial Services, Fitness, Healthcare, Home Services, Hospitality, HVAC,
+Insurance, Landscaping & Lawn Care, Legal, Other, Pest Control, Pet Care & Veterinary, Photography & Events, Plumbing,
+Professional Services, Property Management, Real Estate, Restaurant, Spa & Wellness and Travel.
+
+**REQ-IND-01** Each industry configuration defines:
+- terminology;
+- capabilities;
+- modules;
+- record types (with private fields);
+- message policy;
+- AI safety lines;
+- default automations;
+- escalation defaults;
+- knowledge checklist;
+- evaluation cases.
+
+| Group | Industries | Calls and leads | Scheduling | Records | Sensitivity | Specific automations | Questions to validate with real businesses |
+|---|---|---|---|---|---|---|---|
+| Appointment services | Beauty & Salon, Spa & Wellness, Fitness, Pet Care & Veterinary, Photography & Events, Education | bookings, questions, price checks | services, staff, classes | client/pet/student | low–medium | reminders, rebooking, feedback, reviews | deposits, class billing, vaccination reminders |
+| Hospitality | Restaurant, Hospitality, Travel | reservations | tables / stays | tables, stays | low | confirmations, no-show | deposits, party size rules |
+| Field services | HVAC, Plumbing, Electrical, Home Services, Cleaning, Landscaping, Pest Control, Automotive, Property Management | service calls, emergencies, quotes | jobs, arrival windows, crews, recurring | jobs, equipment, properties, vehicles, access codes | low–medium | emergency escalation, job status, service due, seasonal | after-hours emergency fees, dispatch rules |
+| Regulated / sensitive | Dental, Healthcare, Legal, Financial Services, Insurance, Childcare | consultations | appointments | patients, matters, policies, children (private) | **high** | drafts only for follow-ups; no review requests by default | legal review per country; triage scripts |
+| Sales-led | Real Estate, Professional Services | leads, viewings | appointments | listings, clients | low–medium | speed-to-lead calls | outbound rules |
+| Commerce | E-commerce | order questions | none | orders | low | order lookup | returns policy |
+| Generic | Other | general | yes | generic | low | standard | — |
+
+An industry is **ready** when:
+- its configuration is complete;
+- its evaluation set passes;
+- a pilot business has run it live with sign-off.
+
+---
+
+## 23. Decisions
+
+| ID | Decision | Owner |
+|---|---|---|
+| D-01 | Lead calls: AI, staff, or both; which sources first | Zella Voice owner |
+| D-02 | Attempt counts, spacing, first-call delay, overall window; whether provider failures count as attempts | owner |
+| D-03 | Calling hours and message quiet hours (per business? defaults?) | owner + legal |
+| D-04 | Consent basis for first contact with new leads, per country and source | legal |
+| D-05 | Public website hosting and Zella Voice sales pipeline scope | owner |
+| D-06 | Self-serve signup vs assisted onboarding | owner |
+| D-07 | Number strategy: buy, port, forward; carrier; caller-ID registration | owner |
+| D-08 | Calendar providers at launch | owner |
+| D-09 | Payment provider; plans, prices, trials, limits | owner |
+| D-10 | Voicemail on outbound calls; machine detection | owner + legal |
+| D-11 | Call back after provider-failed inbound calls | owner |
+| D-12 | Missed-call text: immediate, delayed, or none by default | owner |
+| D-13 | Retention per data class | owner + legal |
+| D-14 | Countries served; data residency | owner + legal |
+| D-15 | Self check-in methods; late/no-show thresholds | owner |
+| D-16 | Review requests: service or marketing | legal |
+| D-17 | Which conversation outcomes count as "contacted" | owner |
+| D-18 | Caller verification method for booking changes | owner |
+| D-19 | Gmail/Outlook mailbox integration: build or drop | owner |
+| D-20 | Launch industries | owner |
+| D-21 | Brand rule wording in the rulebook (`BRD-1` allows a short "Zella" in sentences; this document uses "Zella Voice" only) | owner |
+| D-22 | Dispatcher "stuck" threshold | engineering |
+| D-23 | Frequency caps per customer | owner |
+| D-24 | Minimum knowledge set before activation | owner |
+| D-25 | Behaviour while a business is paused | owner |
+| D-26 | Reconciliation delay for calls without a final report | engineering |
+| D-27 | Recording and transcription notice and consent | owner + legal |
+| D-28 | Maximum staleness of external busy times | engineering |
+| D-29 | Waitlist ranking, offer expiry, broadcast mode, imminent-slot quiet-hours exception | owner |
+| D-30 | Draft expiry for abandoned Create Business drafts | owner |
+| D-31 | Monitoring and pager provider | owner |
+
+---
+
+## 24. Build order
+
+Each phase ends with its acceptance tests (§21) passing in staging, then a pilot business.
+
+| Phase | Scope | Requirements |
+|---|---|---|
+| 1. Foundations | tenancy, identity, roles, RLS, audit, migrations ledger, CI, staging, monitoring | REQ-TEN, REQ-ROLE, REQ-ID, §20, §21 |
+| 2. Core engine | outbox, work items, claim protocol, contact policy engine, status model, dispatcher with correct back-off | REQ-AUT, REQ-MSG-01–12 |
+| 3. Inbound voice | numbers, assistant per call, tools, standby assistant, finalisation, reconciliation, usage ledger | REQ-VOX, REQ-LC-10, REQ-BIL-02 |
+| 4. Scheduling | services, availability, booking, confirmations, reminders, check-in, waitlist | REQ-APT, REQ-CHK, REQ-WL |
+| 5. Missed calls and inbox | classification, missed-call journey, SMS/email, replies, inbox | REQ-MC, REQ-MSG-20–22 |
+| 6. Leads and outbound | intake from sources, sequences, outbound assistant and caller ID, outcomes, timeline | REQ-LEAD, REQ-OUT |
+| 7. CRM and admin completeness | all pages in §18, Create Business, activation tests | REQ-CRM, REQ-ADM, REQ-LC-14 |
+| 8. Billing | provider, plans, entitlements, billing page | REQ-BIL |
+| 9. Knowledge and AI quality | readiness in-database, gaps, drafts, eval sets | REQ-KNW, REQ-VOX-10 |
+| 10. Growth | public website, prospects, signup | REQ-LC-01–03 |
+| 11. Industries | per-industry evaluation and pilots, launch industries first [D-20] | REQ-IND |
+
+`docs/CURRENT_STATE_REVIEW.md` maps today's code to these phases: what already meets the target, what needs changes,
+and what is missing.
