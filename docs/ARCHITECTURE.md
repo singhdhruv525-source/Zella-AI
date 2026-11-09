@@ -787,11 +787,17 @@ It checks, in order:
 2. Suppression list (opt-out, invalid, bounced, complaint, legal).
 3. Consent for the channel **and purpose** (service vs marketing), with evidence.
 4. Industry policy (sensitive industries: drafts, no relationship-revealing previews).
-5. **Frequency (REQ-MSG-08):**
-   - Messages **not** caused by the customer are capped at one per customer per day per business, plus one after-visit
-     check-in per visit.
-   - Messages inside a follow-up sequence the customer started (missed call, lead enquiry) are capped by the sequence
-     instead: at most 2 call attempts, each followed by at most one message.
+5. **Frequency (REQ-MSG-08), two layers:**
+   - **Plan limits (commercial):** the business's plan sets the quantities, such as call attempts per sequence,
+     callbacks, minutes and messages (REQ-BIL-08).
+   - **Platform contact ceiling (protective):** the most any single customer can be contacted, set by the Zella Voice
+     owner and never raised by a plan [D-38]. It covers attempts per sequence, unprompted messages per day and
+     check-ins per visit.
+   - The effective limit is the **lower** of the two.
+   - **Until plans exist**, these defaults apply:
+     - at most 2 call attempts per sequence, each followed by at most one message;
+     - one unprompted message per customer per day per business;
+     - one after-visit check-in per visit.
    - Replies to the customer are never capped.
 6. Stop conditions of the sequence (reply received, resolved, booked, closed).
 7. **Contact hours (REQ-MSG-07)**, in the **recipient's local time zone when known** (from their address, area code or a
@@ -1069,7 +1075,7 @@ Sources:
 | Caller number | one of the business's outbound numbers | required to enable |
 | Calling hours and days | the business's opening hours (24/7 businesses: 08:00–21:00 unless configured narrower), checked in the **lead's local time zone when known**, else the business's | business hours (REQ-MSG-07) |
 | First-call delay | time after the lead arrives | **about 1 minute**; if closed, queued for the next opening |
-| Max attempts, spacing | numbers | **2 attempts per follow-up sequence**, about **2–3 hours** apart |
+| Max attempts, spacing | numbers | **set by the business's plan** within the platform ceiling (REQ-BIL-08); until plans exist **2 attempts per follow-up sequence**, about **2–3 hours** apart |
 | Voicemail behaviour | none / leave approved message | **leave a short, professional voicemail** where consent and calling rules permit; never sensitive information |
 | Follow-up message after an unsuccessful attempt | SMS / email | **one contextual message** after each unsuccessful attempt (text and/or email, by consent); none if the customer already replied or the lead is closed |
 | After the sequence is exhausted | — | lead status **Unreachable** + staff task for manual follow-up; never deleted; staff can reopen |
@@ -1402,6 +1408,7 @@ flowchart LR
 | REQ-BIL-04 | Payment provider handles cards and invoices; Zella Voice stores no card data. Webhooks are signed and idempotent. |
 | REQ-BIL-05 | Billing page for owners: plan, usage, invoices, payment method (provider portal), cancellation. |
 | REQ-BIL-06 | Grace policy on failed payment; no data deleted within the grace and export window. |
+| REQ-BIL-08 | **Plan-defined limits.** When the owner creates plans, each plan sets the business's quantities: AI voice minutes, inbound and outbound calls, callbacks, call attempts per follow-up sequence, messages (SMS and email), AI messaging and AI drafting. They are enforced at the entitlement check points (REQ-BIL-03). Plans choose values **within** the platform contact ceiling (REQ-MSG-08); they never raise it. Until plans exist, the defaults in REQ-MSG-08 and §13.3 apply. |
 | REQ-BIL-07 | **AI usage and cost tracking (now):** voice minutes, AI drafting, AI messaging and call intelligence are metered per business, with estimated cost, internal budgets, threshold alerts and a platform admin view. Budgets for optional features never stop the core receptionist. |
 
 ---
@@ -1698,7 +1705,7 @@ An industry is **ready** when:
 | D-01 | Lead calls are made by the **AI**. If the person asks for a human, the call is transferred to the owner or the people each business chooses. | §13.3, REQ-VOX-06 |
 | D-02 | Lead calls: first call about **1 minute** after an eligible lead arrives (or the next opening). **2 attempts**, about **2–3 h** apart. **One contextual message** after each unsuccessful attempt. Then **Unreachable** plus a staff task; never deleted; reopenable. | §13.3–13.7 |
 | D-03 | **Contact hours (REQ-MSG-07):** calls in business hours (24/7: 08:00–21:00); replies and customer-caused messages immediately; post-call follow-ups in the calling window; reminders 07:00–21:00, moved earlier; other service messages and marketing 09:00–19:00. **Time zone:** the recipient's when known, else the business's. | §9.3 |
-| D-23 | **Frequency (REQ-MSG-08):** one non-customer-caused message per customer per day per business; sequences capped by their own rules; replies never capped. | §9.3 |
+| D-23 | **Frequency (REQ-MSG-08):** quantities come from the business's **plan**, within a platform contact ceiling the plan cannot raise. Until plans exist: 2 attempts per sequence (one message after each), one unprompted message per day, one check-in per visit. Replies never capped. | §9.3, REQ-BIL-08 |
 | D-06 | **Businesses are created by the Zella Voice team for now**; self-service signup is a later phase. No demo data in production. | §10.3 |
 | D-07 | **Forward existing numbers** first (ownership and forwarding verified); buying new numbers comes later. | §10.10 |
 | D-09 | **No plans, prices or minute allowances now**; billing stays ready for later. AI usage and cost tracked per business. | §17 |
@@ -1737,6 +1744,7 @@ An industry is **ready** when:
 | D-33 | Default internal monthly AI budget per business and alert thresholds (75% / 90% proposed) | owner |
 | D-34 | Payment provider, plans and prices: **the owner adds these later**; nothing is built or invented until then | owner |
 | D-35 | Whether a business may ever override a resource conflict (default: never) | owner |
+| D-38 | Platform contact-ceiling values (maximum attempts per sequence, unprompted messages per day) that no plan can exceed | owner |
 
 ### 23.3 Rulebook alignment
 

@@ -490,11 +490,11 @@ flowchart TD
   - **Other service messages:** 09:00–19:00. Waitlist offers go immediately when the freed slot is within 24 h.
   - **Marketing:** 09:00–19:00.
   - Messages outside their window move to the next allowed time; they are never dropped. Calling hours must also satisfy US calling-time rules for the called person's local time (counsel confirms scope).
-- `COM-4` **Frequency caps:**
-  - at most one message per customer per day per business that the customer did not cause;
-  - at most one after-visit check-in per visit;
-  - follow-up sequences the customer started (missed call, lead enquiry) are capped by the sequence: at most 2 call attempts, each followed by at most one message;
-  - replies to the customer are never capped.
+- `COM-4` **Frequency limits: two layers.**
+  - **Plan limits:** the business's plan sets its quantities (minutes, calls, callbacks, call attempts per sequence, messages, AI usage).
+  - **Platform contact ceiling:** the owner sets the most any single customer can be contacted (attempts per sequence, unprompted messages per day, check-ins per visit). **No plan can raise it.** The effective limit is the lower of the two.
+  - **Until plans exist**, the defaults are: at most 2 call attempts per sequence, each followed by at most one message; one unprompted message per customer per day per business; one after-visit check-in per visit.
+  - Replies to the customer are never capped.
 - `COM-5` **Sensitive industries** (health, dental, legal, financial, insurance, childcare): messages never reveal the nature of the relationship in the preview; follow-ups are drafts a person approves; review requests are off by default.
 - `COM-6` **Cancelled or moved bookings withdraw their own pending messages.**
 - `COM-7` **Every message identifies the business** and gives a way to stop or reply.
