@@ -675,10 +675,14 @@ flowchart LR
 - **REQ-AUT-06 Re-check before acting.** Eligibility (business status, consent, suppression, contact hours (REQ-MSG-07),
   stop conditions, entitlements) is evaluated **at claim time**, not when the item was created, and consent, suppression
   and cancellation are checked once more **immediately before the provider call**; if that final check refuses, the
-  worker does not send.
+  worker does not send. The final check and the move to `sending` are **one database transaction** that locks the
+  item: this is the dispatch boundary. An opt-out or cancellation committed before it stops the send. One that arrives
+  after it cannot recall a send already handed to the provider: that send's result is recorded (or reconciled as
+  `unknown`, REQ-AUT-05) and shown on the timeline, and the opt-out applies to everything not yet dispatched.
 - **REQ-AUT-07 Cancellation.** Work items are cancelled by the events that make them irrelevant: a booking moved or
   cancelled, a reply received, an opt-out, a rule disabled, the business paused. Cancellation also reaches **claimed**
-  items and voids their claim token, so the worker's final check refuses. Every cancellation stores its reason.
+  items not yet past the dispatch boundary (REQ-AUT-06) and voids their claim token, so the worker's final check
+  refuses. Every cancellation stores its reason.
 - **REQ-AUT-08 Visibility.** Every work item and its outcome is visible to the business (on the customer timeline
   and the relevant page) and to platform operations.
 
@@ -837,7 +841,8 @@ It checks, in order:
 - An email unsubscribe suppresses marketing email.
 - "Do not contact" suppresses everything.
 
-Opt-outs apply to every pending work item at its next claim and cancel open sequences for that channel.
+Opt-outs cancel every pending and claimed work item for that channel and its open sequences at once. The only send an
+opt-out cannot stop is one already past the dispatch boundary when it arrived (REQ-AUT-06); its result is recorded.
 
 ### 9.4 Templates and scripts
 
@@ -1617,7 +1622,7 @@ flowchart TD
 | Payments | chosen later by the owner (D-34) | hosted checkout and portal; signed webhooks. The current code has a Stripe-style billing webhook that stays off; that is not a decision |
 | Speech (through Vapi) | voices and transcription chosen in settings (AI-19), e.g. ElevenLabs, Deepgram | reached only through Vapi; listed as sub-processors |
 | Messaging apps | Meta: WhatsApp Business, Instagram, Messenger [D-39] | same rules as SMS: consent, opt-out, contact hours, one reply per inbound message; WhatsApp templates approved by Meta; per-business connection; signed webhooks |
-| Push notifications | Web Push to the installed web app [D-40] | payload holds no personal data, only a title and a link to the item; SMS and email stay the fallback |
+| Push notifications | Web Push to the installed web app [D-40] | the encrypted payload holds no personal data, only a title and a link to the item; the push service the phone's browser uses still sees the subscription and message metadata (timing, size); SMS and email stay the fallback |
 | Monitoring | external uptime, log drain, pager [D-31] | outside the platform; logs hold no personal data (PRV-7) |
 
 ---
@@ -1640,7 +1645,7 @@ flowchart TD
 | AI | prompt-injection treated as hostile input; tools re-check permissions; no secrets or other customers' data in prompts; eval cases include injection attempts |
 | Sensitive industries | transcripts never to staff; private fields separate; previews never reveal the relationship; drafts for follow-ups |
 | Recordings and transcripts | **Call recording is off** until recording-consent rules, caller disclosures and business settings have been reviewed [D-27]. Access logged; tenant-isolated; deletion requests supported. |
-| Retention (REQ-PRV-01) | Defaults, configurable per platform and per industry; **legal review before launch** (some regulated industries may need longer periods for certain records): **call recordings 30 days**, **transcripts 90 days**, **message bodies 2 years**, **audit and security logs 7 years** (unless the applicable legal policy requires otherwise), **a cancelled business's data deleted 30 days after cancellation**, after a final export offer (only audit and security records and records under legal hold are kept to the end of their own retention, without message bodies, transcripts or recordings, readable only through audited platform functions). Deletion is a scheduled job that reaches tables, files and provider copies where possible, with legal hold respected. |
+| Retention (REQ-PRV-01) | Defaults, configurable per platform and per industry; **legal review before launch** (some regulated industries may need longer periods for certain records): **call recordings 30 days**, **transcripts 90 days**, **message bodies 2 years**, **audit and security logs 7 years** (unless the applicable legal policy requires otherwise), **a cancelled business's data deleted 30 days after cancellation**, after a final export offer (only audit and security records, which hold no message bodies, transcripts or recordings, are kept to the end of their own retention; anything under an active **legal hold**, including message bodies, transcripts and recordings, is kept until counsel releases the hold; both are readable only through audited platform functions). Deletion is a scheduled job that reaches tables, files and provider copies where possible, with legal hold respected. |
 | Audit | append-only; privileged actions; support access |
 | Retention and deletion | scheduled deletion per data class; legal hold; deletion reaches files and provider copies where possible |
 | Backups | point-in-time recovery; quarterly restore drill; a restore never re-sends messages (dedupe keys and a "restored" flag on work items) |
@@ -2283,7 +2288,7 @@ Required before launch (written and approved by the owner with counsel; not part
 | Google (Ads lead forms, Business Profile) | lead intake; review replies (when connected) | lead details; review text and owner-approved replies |
 | Meta (lead ads; WhatsApp, Instagram, Messenger if D-39 is approved) | lead intake; messaging | lead details; message content and handles |
 | Shopify (when a business connects it) | order lookup | order number and customer contact used for the lookup |
-| Push service (D-40) | owner alerts | a title and a link, no personal data |
+| Push services (D-40; chosen by each staff member's browser, e.g. Apple, Google, Mozilla) | owner alerts | the push subscription and message metadata (timing, size); the payload is encrypted and holds only a title and a link, no personal data |
 | Monitoring provider (D-31) | uptime, logs, paging | request metadata only, no personal data |
 | n8n Cloud | workflow workers | work envelopes and message content in transit |
 | Cloudflare | web hosting | web traffic |
