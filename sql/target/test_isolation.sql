@@ -274,6 +274,86 @@ do $$ begin
 end $$;
 
 -- ---------------------------------------------------------------------------------------------------------------------
+-- Several bookings at the same time: staff, shared capacity, restaurant tables (§6.8)
+-- ---------------------------------------------------------------------------------------------------------------------
+insert into resources (id, business_id, location_id, kind, name, capacity) values
+  ('a4000000-0000-0000-0000-000000000003', 'aaaaaaaa-0000-0000-0000-000000000000', 'a1000000-0000-0000-0000-000000000001', 'staff', 'Colourist (2 at once)', 2);
+insert into resources (id, business_id, location_id, kind, name, capacity, seats_min, seats_max) values
+  ('b4000000-0000-0000-0000-000000000011', 'bbbbbbbb-0000-0000-0000-000000000000', 'b1000000-0000-0000-0000-000000000001', 'table', 'T1', 1, 2, 4),
+  ('b4000000-0000-0000-0000-000000000012', 'bbbbbbbb-0000-0000-0000-000000000000', 'b1000000-0000-0000-0000-000000000001', 'table', 'T2', 1, 2, 4);
+insert into resources (id, business_id, location_id, kind, name, capacity) values
+  ('b4000000-0000-0000-0000-000000000020', 'bbbbbbbb-0000-0000-0000-000000000000', 'b1000000-0000-0000-0000-000000000001', 'dining_area', 'Patio (covers)', 20);
+insert into table_combinations (id, business_id, location_id, name, seats_min, seats_max) values
+  ('b5000000-0000-0000-0000-000000000001', 'bbbbbbbb-0000-0000-0000-000000000000', 'b1000000-0000-0000-0000-000000000001', 'T1+T2', 5, 8);
+insert into table_combination_members (business_id, combination_id, resource_id) values
+  ('bbbbbbbb-0000-0000-0000-000000000000', 'b5000000-0000-0000-0000-000000000001', 'b4000000-0000-0000-0000-000000000011'),
+  ('bbbbbbbb-0000-0000-0000-000000000000', 'b5000000-0000-0000-0000-000000000001', 'b4000000-0000-0000-0000-000000000012');
+
+-- helper: one appointment + its reservations, as the booking function does in one transaction
+create or replace function pg_temp.book(p_biz uuid, p_loc uuid, p_cust uuid, p_period tstzrange, p_resources uuid[], p_units int default 1)
+returns uuid language plpgsql as $$
+declare v_appt uuid := gen_random_uuid(); r uuid;
+begin
+  insert into appointments (id, business_id, location_id, customer_id, starts_at, ends_at, source, party_size)
+  values (v_appt, p_biz, p_loc, p_cust, lower(p_period), upper(p_period), 'staff', p_units);
+  foreach r in array p_resources loop
+    insert into resource_reservations (business_id, resource_id, appointment_id, kind, period, units)
+    values (p_biz, r, v_appt, 'booking', p_period, p_units);
+  end loop;
+  return v_appt;
+end $$;
+
+do $$
+declare A uuid := 'aaaaaaaa-0000-0000-0000-000000000000'; B uuid := 'bbbbbbbb-0000-0000-0000-000000000000';
+        AL uuid := 'a1000000-0000-0000-0000-000000000001'; BL uuid := 'b1000000-0000-0000-0000-000000000001';
+        AC uuid := 'a3000000-0000-0000-0000-000000000001'; BC uuid := 'b3000000-0000-0000-0000-000000000001';
+        slot tstzrange := '[2026-12-05 18:00+00, 2026-12-05 19:30+00)';
+begin
+  perform pg_temp.book(A, AL, AC, '[2026-12-05 15:00+00, 2026-12-05 17:00+00)', array['a4000000-0000-0000-0000-000000000003'::uuid]);
+  perform pg_temp.book(A, AL, AC, '[2026-12-05 15:30+00, 2026-12-05 16:30+00)', array['a4000000-0000-0000-0000-000000000003'::uuid]);
+  raise notice 'PASS salon: a staff member with capacity 2 takes two overlapping clients';
+  begin
+    perform pg_temp.book(A, AL, AC, '[2026-12-05 16:00+00, 2026-12-05 16:15+00)', array['a4000000-0000-0000-0000-000000000003'::uuid]);
+    raise exception 'FAIL third overlapping client accepted';
+  exception when raise_exception then
+    if sqlerrm <> 'over_capacity' then raise; end if;
+    raise notice 'PASS salon: a third overlapping client is refused (capacity full)';
+  end;
+  perform pg_temp.book(A, AL, AC, '[2026-12-05 17:00+00, 2026-12-05 18:00+00)', array['a4000000-0000-0000-0000-000000000003'::uuid]);
+  raise notice 'PASS salon: the next free time on the same staff member is accepted';
+
+  perform pg_temp.book(B, BL, BC, slot, array['b4000000-0000-0000-0000-000000000011'::uuid], 4);
+  perform pg_temp.book(B, BL, BC, slot, array['b4000000-0000-0000-0000-000000000012'::uuid], 3);
+  raise notice 'PASS restaurant: tables T1 and T2 booked for the same time';
+  begin
+    perform pg_temp.book(B, BL, BC, '[2026-12-05 19:00+00, 2026-12-05 20:00+00)', array['b4000000-0000-0000-0000-000000000011'::uuid], 2);
+    raise exception 'FAIL table T1 double-booked';
+  exception when exclusion_violation then raise notice 'PASS restaurant: the same table can''t hold two parties at once'; end;
+  begin
+    perform pg_temp.book(B, BL, BC, slot, array['b4000000-0000-0000-0000-000000000011'::uuid, 'b4000000-0000-0000-0000-000000000012'::uuid], 8);
+    raise exception 'FAIL combination booked over taken tables';
+  exception when exclusion_violation then raise notice 'PASS restaurant: joined tables T1+T2 refused while either table is taken'; end;
+  perform pg_temp.book(B, BL, BC, '[2026-12-05 20:00+00, 2026-12-05 21:30+00)',
+                       array['b4000000-0000-0000-0000-000000000011'::uuid, 'b4000000-0000-0000-0000-000000000012'::uuid], 8);
+  raise notice 'PASS restaurant: joined tables T1+T2 booked for a party of 8 when both are free';
+
+  perform pg_temp.book(B, BL, BC, slot, array['b4000000-0000-0000-0000-000000000020'::uuid], 8);
+  perform pg_temp.book(B, BL, BC, slot, array['b4000000-0000-0000-0000-000000000020'::uuid], 8);
+  raise notice 'PASS restaurant covers: 16 of 20 guests booked in one slot';
+  begin
+    perform pg_temp.book(B, BL, BC, slot, array['b4000000-0000-0000-0000-000000000020'::uuid], 6);
+    raise exception 'FAIL covers over capacity';
+  exception when raise_exception then
+    if sqlerrm <> 'over_capacity' then raise; end if;
+    raise notice 'PASS restaurant covers: a party of 6 refused when only 4 covers are left';
+  end;
+  perform pg_temp.book(B, BL, BC, slot, array['b4000000-0000-0000-0000-000000000020'::uuid], 4);
+  raise notice 'PASS restaurant covers: a party of 4 fills the last covers';
+  perform pg_temp.book(A, AL, AC, slot, array['a4000000-0000-0000-0000-000000000003'::uuid]);
+  raise notice 'PASS different businesses never share capacity (A books while B''s patio is full)';
+end $$;
+
+-- ---------------------------------------------------------------------------------------------------------------------
 -- Integrity guards
 -- ---------------------------------------------------------------------------------------------------------------------
 do $$ begin

@@ -648,21 +648,53 @@ create table services (
   unique (business_id, name)
 );
 
-create table resources (                                  -- staff, rooms, chairs, tables, vehicles, equipment
+-- Resources are what a booking uses up. Several bookings at the same time are normal: two stylists, five technicians,
+-- twenty restaurant tables are separate resources. capacity = how many units it can serve at once:
+--   1  : exclusive (a stylist, a chair, a technician, one restaurant table holds one party)
+--   >1 : shared (a stylist who can overlap 2 clients, a class with 12 spots, a dining area taking 40 covers)
+create table resources (
   id           uuid primary key default gen_random_uuid(),
   business_id  uuid not null references businesses(id),
   location_id  uuid not null,
-  kind         text not null check (kind in ('staff','room','chair','table','vehicle','equipment','technician')),
+  kind         text not null check (kind in ('staff','room','chair','table','dining_area','class','vehicle','equipment','technician')),
   member_id    uuid,
   name         text not null,
   capacity     integer not null default 1 check (capacity >= 1),
+  seats_min    integer check (seats_min >= 1),            -- restaurant tables: party sizes this table fits
+  seats_max    integer check (seats_max >= 1),
   active       boolean not null default true,
   created_at   timestamptz not null default now(),
   updated_at   timestamptz not null default now(),
   unique (business_id, id),
   unique (business_id, location_id, name),
   foreign key (business_id, location_id) references locations (business_id, id),
-  foreign key (business_id, member_id)   references business_members (business_id, id)
+  foreign key (business_id, member_id)   references business_members (business_id, id),
+  check (seats_min is null or seats_max is null or seats_min <= seats_max),
+  check (kind <> 'table' or (seats_max is not null and capacity = 1))
+);
+
+-- Restaurant tables that can be joined for a larger party (e.g. T1 + T2 seat 8). Booking a combination reserves
+-- every table in it, so each table's own exclusivity still applies.
+create table table_combinations (
+  id           uuid primary key default gen_random_uuid(),
+  business_id  uuid not null references businesses(id),
+  location_id  uuid not null,
+  name         text not null,
+  seats_min    integer not null check (seats_min >= 1),
+  seats_max    integer not null check (seats_max >= seats_min),
+  active       boolean not null default true,
+  unique (business_id, id),
+  unique (business_id, location_id, name),
+  foreign key (business_id, location_id) references locations (business_id, id)
+);
+
+create table table_combination_members (
+  business_id     uuid not null,
+  combination_id  uuid not null,
+  resource_id     uuid not null,
+  primary key (business_id, combination_id, resource_id),
+  foreign key (business_id, combination_id) references table_combinations (business_id, id) on delete cascade,
+  foreign key (business_id, resource_id)    references resources (business_id, id)
 );
 
 create table service_locations (
@@ -715,6 +747,7 @@ create table appointments (
   status          text not null default 'booked' check (status in ('requested','booked','confirmed','checked_in',
                     'in_service','completed','no_show','cancelled','declined')),
   source          text not null check (source in ('ai_call','ai_message','staff','link','import','api')),
+  party_size      integer not null default 1 check (party_size between 1 and 500),   -- guests (restaurants), people (classes)
   request_key     text,                                   -- idempotent booking (REQ-APT-ISO-04)
   record_id       uuid,
   arrived_at      timestamptz,
@@ -732,10 +765,12 @@ create table appointments (
 );
 create index appointments_calendar on appointments (business_id, location_id, starts_at);
 
--- One table for both bookings and short holds, so a single exclusion constraint protects every resource (DB-9).
--- Different businesses never conflict (business_id is part of the constraint); the same exclusive resource can't be
--- reserved twice for overlapping periods, even by concurrent transactions. Capacity > 1 resources are handled by the
--- booking function under an advisory lock and do not use exclusive reservations.
+-- One table for both bookings and short holds, so every resource is protected in one place (DB-9):
+--   * different businesses never conflict (business_id is part of every check);
+--   * different resources of one business never conflict (two stylists, two tables at 10:00 are fine);
+--   * an EXCLUSIVE resource (capacity 1) can't be reserved twice for overlapping periods: exclusion constraint;
+--   * a SHARED resource (capacity > 1) accepts overlapping reservations until the units in use at any moment would
+--     exceed its capacity: enforced by a trigger under a per-resource transaction lock, so concurrent bookings queue.
 create table resource_reservations (
   id              uuid primary key default gen_random_uuid(),
   business_id     uuid not null references businesses(id),
@@ -743,6 +778,8 @@ create table resource_reservations (
   appointment_id  uuid,
   kind            text not null check (kind in ('booking','hold')),
   period          tstzrange not null check (not isempty(period)),
+  units           integer not null default 1 check (units >= 1),   -- guests or spots used on a shared resource
+  exclusive       boolean not null default true,                  -- set from the resource's capacity by trigger
   active          boolean not null default true,         -- set false on cancel/move; holds expire via a sweeper
   hold_expires_at timestamptz,
   call_id         uuid,
@@ -754,8 +791,41 @@ create table resource_reservations (
   check ((kind = 'booking') = (appointment_id is not null)),
   check ((kind = 'hold') = (hold_expires_at is not null)),
   constraint no_double_booking exclude using gist
-    (business_id with =, resource_id with =, period with &&) where (active)
+    (business_id with =, resource_id with =, period with &&) where (active and exclusive)
 );
+
+-- Exclusivity comes from the resource, never from the caller; shared resources are checked against capacity.
+create or replace function app_private.check_reservation_capacity() returns trigger
+language plpgsql security definer set search_path = pg_catalog, public as $$
+declare v_capacity integer; v_active boolean; v_peak integer;
+begin
+  select r.capacity, r.active into v_capacity, v_active from public.resources r
+   where r.business_id = new.business_id and r.id = new.resource_id;
+  if not found then return new; end if;                 -- not this business's resource: the composite FK rejects it
+  if not v_active and new.active then raise exception 'resource_unavailable' using errcode = 'P0001'; end if;
+  new.exclusive := (v_capacity = 1);
+  if new.exclusive then new.units := 1; end if;          -- an exclusive resource holds one booking, whatever its size
+  if new.units > v_capacity then raise exception 'over_capacity' using errcode = 'P0001'; end if;
+  if new.active and not new.exclusive then
+    -- serialise bookings of this resource: a concurrent booking waits here and then sees this one
+    perform pg_advisory_xact_lock(hashtextextended(new.business_id::text || ':' || new.resource_id::text, 0));
+    -- peak load inside the new period: check at the new start and at every overlapping reservation's start
+    select max(load) into v_peak from (
+      select p.at, coalesce(sum(o.units), 0) + new.units as load
+        from (select lower(new.period) as at
+              union select greatest(lower(o2.period), lower(new.period)) from public.resource_reservations o2
+               where o2.business_id = new.business_id and o2.resource_id = new.resource_id and o2.active
+                 and o2.id <> new.id and o2.period && new.period) p
+        left join public.resource_reservations o
+          on o.business_id = new.business_id and o.resource_id = new.resource_id and o.active
+         and o.id <> new.id and o.period @> p.at
+       group by p.at) x;
+    if v_peak > v_capacity then raise exception 'over_capacity' using errcode = 'P0001'; end if;
+  end if;
+  return new;
+end $$;
+create trigger check_reservation_capacity before insert or update of resource_id, period, units, active
+  on resource_reservations for each row execute function app_private.check_reservation_capacity();
 
 create table external_busy (                              -- busy times from connected calendars
   id                  uuid primary key default gen_random_uuid(),
@@ -1391,6 +1461,7 @@ begin
       'tags','customer_tags','phone_numbers','assistants','sequences','conversations','messages','services','resources',
       'service_locations','service_resource_needs','opening_hours','closures','external_busy','waitlist_entries',
       'knowledge_items','knowledge_versions','record_types','records','record_events','record_files','automation_rules',
+      'table_combinations','table_combination_members',
       'notifications','support_tickets','integrations','activation_tests','business_settings']
   loop
     execute format('grant select on public.%I to authenticated', t);

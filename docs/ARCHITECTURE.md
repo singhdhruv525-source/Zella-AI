@@ -470,6 +470,9 @@ The booking check considers:
 | REQ-APT-ISO-04 | Idempotent booking: the same request key returns the same appointment. |
 | REQ-APT-ISO-05 | Support: independent calendars per business; multiple staff and resources; configurable durations and buffers; business working hours; time-zone-aware scheduling; cancellation and rescheduling that release and re-reserve atomically. |
 | REQ-APT-ISO-06 | A staff override of a resource conflict is **not allowed by default**. If ever enabled, it is a separate business setting with a reason and an audit record [D-35]. |
+| REQ-APT-ISO-07 | **Several bookings at the same time are normal.** Each staff member, chair, room, technician and restaurant table is its own resource; two stylists or two tables at 10:00 never conflict. "Any available staff member" picks a free resource at booking time. |
+| REQ-APT-ISO-08 | **Capacity.** A resource with capacity 1 is exclusive (exclusion constraint). A resource with capacity > 1 is shared: a stylist who overlaps 2 clients, a class with 12 spots, a dining area taking 40 covers. Each reservation uses `units` (people or guests); the database refuses a reservation when the units in use at any moment would exceed capacity, under a per-resource transaction lock so simultaneous bookings queue instead of overbooking. |
+| REQ-APT-ISO-09 | **Restaurants.** Two booking modes per location: **table mode** (tables with minimum and maximum seats; a party is seated at a table that fits, or at a **table combination** such as T1 + T2 for 8, which reserves every table in it) and **covers mode** (a dining area with a covers capacity per time slot; each booking uses its party size). Turn time is the booking's duration. Party size is stored on the appointment. |
 
 ### 6.9 Automation and n8n isolation
 
@@ -1975,11 +1978,11 @@ Conventions for every tenant table:
 | | `sender_identities` | location_id, channel, value (number, from-address), registration_status | unique (business_id, channel, value) |
 | Scheduling | `services` | name, duration_min, price_minor, currency, buffer_before/after_min, active | — |
 | | `service_locations`, `service_resources` | which locations offer a service; which resource kinds it needs | — |
-| | `resources` | location_id, kind (staff, room, chair, table, vehicle, equipment), member_id, name, capacity, active | — |
+| | `resources` | location_id, kind (staff, room, chair, table, dining_area, class, vehicle, equipment, technician), member_id, name, capacity, seats_min/max, active | tables have capacity 1 and seats |
 | | `opening_hours`, `closures` | location_id, weekday / date range, open, close | — |
-| | `appointments` | location_id, customer_id, service_id, starts_at, ends_at, status, booking_state, source, request_key, record_id, attendance timestamps, notes | unique (business_id, request_key) |
-| | `appointment_resources` | appointment_id, resource_id, period tstzrange, active | **EXCLUDE (business_id =, resource_id =, period &&) WHERE active** |
-| | `slot_holds` | resource_id, period, expires_at, call_id | same exclusion, time-limited |
+| | `appointments` | location_id, customer_id, service_id, starts_at, ends_at, status, source, party_size, request_key, record_id, attendance timestamps, notes | unique (business_id, request_key) |
+| | `resource_reservations` | appointment_id or hold, resource_id, period tstzrange, units, exclusive, active | **EXCLUDE (business_id =, resource_id =, period &&) WHERE active AND exclusive**; capacity trigger for shared resources |
+| | `table_combinations`, `table_combination_members` | location, seats min/max; member tables | restaurant tables that can be joined |
 | | `external_busy` | resource_id, period, provider_event_ref, fetched_at | — |
 | | `waitlist_entries`, `waitlist_offers` | preferences jsonb / entry_id, period, token_hash, expires_at, state | one open offer per freed slot |
 | Knowledge | `knowledge_items` | location_id (optional), title, body, language, status, current_version | — |

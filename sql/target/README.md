@@ -18,13 +18,16 @@ Run (isolated local test cluster only; the shared guard refuses anything else):
 sql/target/test.sh
 ```
 
-Last run: 34/34 checks passed on Postgres 16 (local, isolated). Production runs Postgres 17.
+Last run: 45/45 checks passed on Postgres 16 (local, isolated). Production runs Postgres 17.
 
 Design rules the schema enforces:
 - every tenant table: `business_id NOT NULL`, `unique (business_id, id)`, composite foreign keys to other tenant tables;
 - one phone number, assistant or sender maps to exactly one business;
 - clients only read through row-level security; all writes go through server functions (§30);
 - sensitive tables need manager or admin; location-limited members see only their locations;
-- booking conflicts are prevented per business and resource by an exclusion constraint, including concurrent requests;
+- booking conflicts are prevented per business and resource: exclusive resources (one stylist, one table) by an exclusion
+  constraint; shared resources (a multi-client stylist, a class, restaurant covers) by a capacity check under a
+  per-resource lock. Several staff or tables at the same time never conflict; restaurants book tables, joined tables or
+  covers by party size;
 - audit log, usage ledger and consent history are append-only; private values never enter the audit log;
 - files live under `<business_uuid>/…` in private buckets, served through server-signed URLs.
