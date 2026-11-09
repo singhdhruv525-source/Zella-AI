@@ -8,8 +8,7 @@ set client_min_messages = notice;
 -- ---------------------------------------------------------------------------------------------------------------------
 -- Fixtures (as the database owner): businesses A, B, C; users per role; locations, customers, resources, calls.
 -- ---------------------------------------------------------------------------------------------------------------------
-insert into industries (key, name) values ('beauty_salon', 'Beauty & Salon'), ('dental', 'Dental');
-update industries set regulated = true where key = 'dental';
+-- industries come from industries_seed.sql (loaded by test.sh)
 
 insert into auth.users (id, email) values
   ('a0000000-0000-0000-0000-000000000001', 'owner-a@example.com'),
@@ -352,6 +351,76 @@ begin
   perform pg_temp.book(A, AL, AC, slot, array['a4000000-0000-0000-0000-000000000003'::uuid]);
   raise notice 'PASS different businesses never share capacity (A books while B''s patio is full)';
 end $$;
+
+-- ---------------------------------------------------------------------------------------------------------------------
+-- Industry-driven platform (§22)
+-- ---------------------------------------------------------------------------------------------------------------------
+do $$ declare n int; begin
+  select count(*) into n from industries; if n <> 28 then raise exception 'FAIL % industries seeded', n; end if;
+  select count(*) into n from industries i where (select count(*) from industry_modules im join modules m on m.key = im.module_key
+                                                    where im.industry_key = i.key and m.core and im.availability = 'required') < 11;
+  if n <> 0 then raise exception 'FAIL % industries missing core modules', n; end if;
+  if exists (select 1 from industry_modules where industry_key = 'ecommerce' and module_key = 'calendar') then raise exception 'FAIL e-commerce has a calendar'; end if;
+  if exists (select 1 from industry_services where industry_key in (select key from industries)) and
+     exists (select 1 from information_schema.columns where table_name = 'industry_services' and column_name like '%price%') then
+    raise exception 'FAIL industry defaults carry prices';
+  end if;
+  raise notice 'PASS 28 industries seeded; every industry has the core modules; e-commerce has no calendar; no seeded prices';
+end $$;
+
+insert into businesses (id, name, industry_key, status) values
+  ('dddddddd-0000-0000-0000-000000000000', 'Test Bistro D', 'restaurant', 'setup'),
+  ('eeeeeeee-0000-0000-0000-000000000000', 'Test Shop E', 'ecommerce', 'setup'),
+  ('ffffffff-0000-0000-0000-000000000000', 'Test Dental F', 'dental', 'setup');
+select app_private.apply_industry(id) from businesses where id in ('aaaaaaaa-0000-0000-0000-000000000000','dddddddd-0000-0000-0000-000000000000','eeeeeeee-0000-0000-0000-000000000000','ffffffff-0000-0000-0000-000000000000');
+
+do $$
+declare R uuid := 'dddddddd-0000-0000-0000-000000000000'; E uuid := 'eeeeeeee-0000-0000-0000-000000000000';
+        F uuid := 'ffffffff-0000-0000-0000-000000000000'; A uuid := 'aaaaaaaa-0000-0000-0000-000000000000';
+begin
+  if not app_private.module_enabled(R, 'tables') then raise exception 'FAIL restaurant has no tables module'; end if;
+  if app_private.module_enabled(A, 'tables') then raise exception 'FAIL salon has a tables module'; end if;
+  if not app_private.module_enabled(A, 'check_in') then raise exception 'FAIL salon has no check-in'; end if;
+  if app_private.module_enabled(E, 'calendar') then raise exception 'FAIL e-commerce has a calendar'; end if;
+  if not app_private.module_enabled(E, 'orders') then raise exception 'FAIL e-commerce has no orders'; end if;
+  raise notice 'PASS Create Business applies the industry: restaurant gets tables, salon gets check-in, e-commerce gets orders and no calendar';
+  if not exists (select 1 from record_types where business_id = R and key = 'guest_notes' and source_industry = 'restaurant') then raise exception 'FAIL restaurant record types'; end if;
+  if not exists (select 1 from services where business_id = A and source_key = 'haircut' and price_minor is null) then raise exception 'FAIL salon services'; end if;
+  raise notice 'PASS industry record types and services copied into the business, prices left for the business to enter';
+  if (select enabled from automation_rules where business_id = E and kind = 'reminders') then raise exception 'FAIL e-commerce reminders on'; end if;
+  if (select enabled from automation_rules where business_id = F and kind = 'review_request') then raise exception 'FAIL dental review requests on'; end if;
+  raise notice 'PASS industry automations: e-commerce has no booking reminders; regulated dental has no automatic review requests';
+  begin insert into business_modules (business_id, module_key, enabled) values (A, 'tables', true);
+        raise exception 'FAIL salon switched on tables';
+  exception when raise_exception then if sqlerrm <> 'module_not_offered' then raise; end if;
+        raise notice 'PASS a business cannot switch on a module its industry does not offer'; end;
+  begin update business_modules set enabled = false where business_id = A and module_key = 'calls';
+        raise exception 'FAIL required module switched off';
+  exception when raise_exception then if sqlerrm <> 'module_required' then raise; end if;
+        raise notice 'PASS a required module cannot be switched off'; end;
+  update business_modules set enabled = false, customized = true where business_id = A and module_key = 'waitlist';
+  update record_types set name = 'Our colour cards', customized = true where business_id = A and key = 'colour_formula';
+  update industry_record_types set name = 'Client preferences v2' where industry_key = 'beauty_salon' and key = 'client_profile';
+  update industry_record_types set name = 'Colour formula v2' where industry_key = 'beauty_salon' and key = 'colour_formula';
+  update industries set version = 2 where key = 'beauty_salon';
+  perform app_private.apply_industry(A);
+  if (select name from record_types where business_id = A and key = 'colour_formula') <> 'Our colour cards' then raise exception 'FAIL customization overwritten'; end if;
+  if (select name from record_types where business_id = A and key = 'client_profile') <> 'Client preferences v2' then raise exception 'FAIL upgrade not applied'; end if;
+  if (select enabled from business_modules where business_id = A and module_key = 'waitlist') then raise exception 'FAIL module choice overwritten'; end if;
+  if (select industry_version from businesses where id = A) <> 2 then raise exception 'FAIL version not recorded'; end if;
+  raise notice 'PASS industry upgrade: new defaults applied, the business''s customizations kept, version recorded';
+end $$;
+
+begin; select pg_temp.as_user('a0000000-0000-0000-0000-000000000001');
+do $$ declare c jsonb; begin
+  c := public.effective_config('aaaaaaaa-0000-0000-0000-000000000000');
+  if c ->> 'booking_model' <> 'staff_appointment' or c -> 'terminology' ->> 'customer' <> 'client'
+     or not (c -> 'modules' ? 'check_in') or (c -> 'modules' ? 'waitlist') then raise exception 'FAIL effective config %', c; end if;
+  raise notice 'PASS effective configuration: industry words, booking model and the business''s own module choices';
+  begin perform public.effective_config('dddddddd-0000-0000-0000-000000000000'); raise exception 'FAIL A read D configuration';
+  exception when insufficient_privilege then raise notice 'PASS A cannot read another business''s configuration'; end;
+end $$;
+rollback;
 
 -- ---------------------------------------------------------------------------------------------------------------------
 -- Integrity guards

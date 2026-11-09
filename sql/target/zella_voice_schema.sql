@@ -44,14 +44,75 @@ set local search_path = public, extensions;
 -- 1. Platform-owned reference data (no business_id)
 -- =====================================================================================================================
 
+-- Industry-driven platform (architecture §22): each of the 28 industries is versioned configuration data.
 create table industries (
   key            text primary key check (key ~ '^[a-z0-9_]{2,40}$'),
   name           text not null,
-  regulated      boolean not null default false,          -- healthcare, dental, legal, financial, insurance, childcare
-  terminology    jsonb not null default '{}'::jsonb,       -- {"customer": "patient", "appointment": "visit", ...}
-  defaults       jsonb not null default '{}'::jsonb,       -- capabilities, modules, message policy, safety lines
+  version        integer not null default 1 check (version >= 1),
+  regulated      boolean not null default false,          -- regulated overlay (REQ-IND-09)
+  booking_model  text not null default 'general' check (booking_model in ('staff_appointment','table','field_job','class',
+                   'stay','consultation','viewing','none','general')),
+  terminology    jsonb not null default '{}'::jsonb,       -- {"customer": "patient", "appointment": "visit", "staff": "dentist"}
+  policies       jsonb not null default '{}'::jsonb,       -- message policy, retention overrides, transcript access
   created_at     timestamptz not null default now(),
   updated_at     timestamptz not null default now()
+);
+
+create table modules (                                    -- catalogue of CRM modules
+  key            text primary key check (key ~ '^[a-z_]{2,40}$'),
+  name           text not null,
+  core           boolean not null default false           -- core modules exist for every industry (§22.4)
+);
+
+create table industry_modules (                           -- what each industry offers
+  industry_key   text not null references industries(key) on delete cascade,
+  module_key     text not null references modules(key),
+  availability   text not null check (availability in ('required','default_on','optional')),
+  primary key (industry_key, module_key)
+);
+
+create table industry_record_types (                      -- record type templates, copied into businesses
+  industry_key   text not null references industries(key) on delete cascade,
+  key            text not null,
+  name           text not null,
+  schema         jsonb not null default '{}'::jsonb,       -- fields, statuses, unique field, private fields
+  version        integer not null default 1,
+  primary key (industry_key, key)
+);
+
+create table industry_services (                          -- default services (no prices: prices are entered by the business)
+  industry_key   text not null references industries(key) on delete cascade,
+  key            text not null,
+  name           text not null,
+  duration_min   integer not null check (duration_min between 5 and 1440),
+  resource_kind  text,
+  version        integer not null default 1,
+  primary key (industry_key, key)
+);
+
+create table industry_automation_presets (
+  industry_key   text not null references industries(key) on delete cascade,
+  kind           text not null,
+  enabled        boolean not null default false,
+  settings       jsonb not null default '{}'::jsonb,
+  version        integer not null default 1,
+  primary key (industry_key, kind)
+);
+
+create table industry_ai_profiles (                       -- tools offered, safety lines, booking questions, knowledge checklist
+  industry_key   text primary key references industries(key) on delete cascade,
+  tools          text[] not null default '{}',
+  safety_lines   text[] not null default '{}',
+  booking_questions text[] not null default '{}',
+  knowledge_checklist text[] not null default '{}',
+  version        integer not null default 1
+);
+
+create table industry_kpis (
+  industry_key   text not null references industries(key) on delete cascade,
+  metric_key     text not null,
+  position       integer not null default 1,
+  primary key (industry_key, metric_key)
 );
 
 create table plans (                                      -- values are defined by the owner later (BIL-1, BIL-8)
@@ -141,6 +202,8 @@ create table businesses (
   primary_time_zone  text not null default 'America/New_York',
   country            text not null default 'US' check (country ~ '^[A-Z]{2}$'),
   primary_language   text not null default 'en' check (primary_language in ('en','es')),
+  industry_version   integer,                              -- the industry configuration version it was set up from
+  terminology        jsonb not null default '{}'::jsonb,   -- business renames within the allowed set
   plan_id            uuid references plans(id),
   creation_key       text unique,                          -- idempotent Create Business (no duplicates on double submit)
   created_by         uuid,                                 -- platform admin who created it (BIZ-9)
@@ -173,6 +236,15 @@ create table business_members (
   updated_at   timestamptz not null default now(),
   unique (business_id, id),
   unique (business_id, user_id)
+);
+
+create table business_modules (                           -- per business: which offered modules are on (REQ-IND-06)
+  business_id  uuid not null references businesses(id),
+  module_key   text not null references modules(key),
+  enabled      boolean not null,
+  customized   boolean not null default false,             -- changed by the business: kept on industry upgrades
+  updated_at   timestamptz not null default now(),
+  primary key (business_id, module_key)
 );
 
 create table member_locations (                           -- if a member has rows here, they only see these locations
@@ -642,6 +714,8 @@ create table services (
   buffer_before_min  integer not null default 0 check (buffer_before_min >= 0),
   buffer_after_min   integer not null default 0 check (buffer_after_min >= 0),
   active             boolean not null default true,
+  source_key         text,                                 -- industry default service it came from
+  customized         boolean not null default false,
   created_at         timestamptz not null default now(),
   updated_at         timestamptz not null default now(),
   unique (business_id, id),
@@ -943,6 +1017,9 @@ create table record_types (
   name         text not null,
   schema       jsonb not null default '{}'::jsonb,       -- fields, statuses, unique fields, private fields
   enabled      boolean not null default true,
+  source_industry text references industries(key),       -- copied from this industry (REQ-IND-03)
+  source_version  integer,
+  customized   boolean not null default false,             -- business changed it: kept on industry upgrades
   created_at   timestamptz not null default now(),
   updated_at   timestamptz not null default now(),
   unique (business_id, id),
@@ -1045,6 +1122,9 @@ create table automation_rules (
   kind         text not null,
   enabled      boolean not null default false,
   settings     jsonb not null default '{}'::jsonb,
+  source_industry text references industries(key),
+  source_version  integer,
+  customized   boolean not null default false,
   created_at   timestamptz not null default now(),
   updated_at   timestamptz not null default now(),
   unique (business_id, id),
@@ -1352,6 +1432,16 @@ exception when invalid_text_representation then
   return null;
 end $$;
 
+-- Is a module usable by this business? Industry offers it AND the business has it on (REQ-IND-06).
+create or replace function app_private.module_enabled(p_business_id uuid, p_module text) returns boolean
+language sql stable security definer set search_path = pg_catalog, public as $$
+  select exists (
+    select 1 from public.businesses b
+      join public.industry_modules im on im.industry_key = b.industry_key and im.module_key = p_module
+      join public.business_modules bm on bm.business_id = b.id and bm.module_key = p_module and bm.enabled
+     where b.id = p_business_id)
+$$;
+
 revoke all on function app_private.role_rank(text), app_private.has_role(uuid, text),
   app_private.can_see_location(uuid, uuid), app_private.path_business(text) from public;
 grant execute on function app_private.role_rank(text), app_private.has_role(uuid, text),
@@ -1375,6 +1465,87 @@ begin
     execute format('create trigger touch_updated_at before update on public.%I for each row execute function app_private.touch_updated_at()', t);
   end loop;
 end $$;
+
+-- A business can only switch on modules its industry offers, and can never switch off a required one.
+create or replace function app_private.guard_business_module() returns trigger
+language plpgsql security definer set search_path = pg_catalog, public as $$
+declare v_avail text;
+begin
+  select im.availability into v_avail from public.businesses b
+    join public.industry_modules im on im.industry_key = b.industry_key and im.module_key = new.module_key
+   where b.id = new.business_id;
+  if v_avail is null then raise exception 'module_not_offered' using errcode = 'P0001'; end if;
+  if v_avail = 'required' and not new.enabled then raise exception 'module_required' using errcode = 'P0001'; end if;
+  return new;
+end $$;
+create trigger guard_business_module before insert or update on business_modules
+  for each row execute function app_private.guard_business_module();
+
+-- Apply the business's industry configuration (REQ-IND-03, REQ-IND-04). Server-only. Used by Create Business and by
+-- industry upgrades: copies defaults the business doesn't have yet, refreshes items it never customized, and never
+-- touches anything the business customized. Idempotent.
+create or replace function app_private.apply_industry(p_business_id uuid) returns jsonb
+language plpgsql security definer set search_path = pg_catalog, public as $$
+declare v_ind public.industries; v_added int := 0; v_kept int := 0;
+begin
+  select i.* into v_ind from public.industries i join public.businesses b on b.industry_key = i.key where b.id = p_business_id;
+  if v_ind.key is null then raise exception 'business_not_found' using errcode = 'P0001'; end if;
+
+  insert into public.business_modules (business_id, module_key, enabled)
+  select p_business_id, im.module_key, im.availability in ('required','default_on')
+    from public.industry_modules im where im.industry_key = v_ind.key
+  on conflict (business_id, module_key) do update set enabled = excluded.enabled
+   where not public.business_modules.customized;
+  get diagnostics v_added = row_count;
+
+  insert into public.record_types (business_id, key, name, schema, source_industry, source_version)
+  select p_business_id, rt.key, rt.name, rt.schema, v_ind.key, v_ind.version
+    from public.industry_record_types rt where rt.industry_key = v_ind.key
+  on conflict (business_id, key) do update set name = excluded.name, schema = excluded.schema,
+         source_industry = excluded.source_industry, source_version = excluded.source_version
+   where not public.record_types.customized;
+
+  insert into public.services (business_id, name, duration_min, source_key)
+  select p_business_id, sv.name, sv.duration_min, sv.key
+    from public.industry_services sv where sv.industry_key = v_ind.key
+  on conflict (business_id, name) do nothing;
+
+  insert into public.automation_rules (business_id, kind, enabled, settings, source_industry, source_version)
+  select p_business_id, ap.kind, ap.enabled, ap.settings, v_ind.key, v_ind.version
+    from public.industry_automation_presets ap where ap.industry_key = v_ind.key
+  on conflict (business_id, kind) do update set settings = excluded.settings,
+         source_industry = excluded.source_industry, source_version = excluded.source_version
+   where not public.automation_rules.customized;
+
+  select count(*) into v_kept from public.record_types where business_id = p_business_id and customized;
+  update public.businesses set industry_version = v_ind.version where id = p_business_id;
+  return jsonb_build_object('industry', v_ind.key, 'version', v_ind.version, 'customized_kept', v_kept);
+end $$;
+
+-- Effective configuration (REQ-IND-05): what the app, the AI and workers read for this business. Members only.
+create or replace function public.effective_config(p_business_id uuid) returns jsonb
+language plpgsql stable security definer set search_path = pg_catalog, public as $$
+declare v jsonb;
+begin
+  if not app_private.has_role(p_business_id, 'viewer') then raise exception 'not_allowed' using errcode = '42501'; end if;
+  select jsonb_build_object(
+      'industry', i.key, 'industry_version', b.industry_version, 'booking_model', i.booking_model, 'regulated', i.regulated,
+      'terminology', i.terminology || b.terminology,
+      'modules', coalesce((select jsonb_agg(bm.module_key order by bm.module_key) from public.business_modules bm
+                            join public.industry_modules im on im.industry_key = i.key and im.module_key = bm.module_key
+                           where bm.business_id = b.id and bm.enabled), '[]'::jsonb),
+      'record_types', coalesce((select jsonb_agg(jsonb_build_object('key', rt.key, 'name', rt.name, 'schema', rt.schema) order by rt.key)
+                                  from public.record_types rt where rt.business_id = b.id and rt.enabled), '[]'::jsonb),
+      'kpis', coalesce((select jsonb_agg(k.metric_key order by k.position) from public.industry_kpis k where k.industry_key = i.key), '[]'::jsonb),
+      'ai', (select to_jsonb(ap) - 'industry_key' from public.industry_ai_profiles ap where ap.industry_key = i.key))
+    into v
+    from public.businesses b join public.industries i on i.key = b.industry_key where b.id = p_business_id;
+  return v;
+end $$;
+revoke all on function app_private.module_enabled(uuid, text), app_private.apply_industry(uuid), public.effective_config(uuid) from public;
+grant execute on function app_private.module_enabled(uuid, text) to authenticated, service_role;
+grant execute on function app_private.apply_industry(uuid) to service_role;
+grant execute on function public.effective_config(uuid) to authenticated, service_role;
 
 -- A business always keeps at least one active owner.
 create or replace function app_private.keep_an_owner() returns trigger
@@ -1444,8 +1615,16 @@ grant all on all tables in schema public to service_role;
 grant all on all sequences in schema public to service_role;
 
 -- Platform reference data that members may read.
-grant select on industries, plans, plan_limits to authenticated;
+grant select on industries, plans, plan_limits, modules, industry_modules, industry_record_types, industry_services,
+  industry_automation_presets, industry_kpis to authenticated;
 create policy read_industries on industries for select to authenticated using (true);
+create policy read_modules on modules for select to authenticated using (true);
+create policy read_industry_modules on industry_modules for select to authenticated using (true);
+create policy read_industry_record_types on industry_record_types for select to authenticated using (true);
+create policy read_industry_services on industry_services for select to authenticated using (true);
+create policy read_industry_automations on industry_automation_presets for select to authenticated using (true);
+create policy read_industry_kpis on industry_kpis for select to authenticated using (true);
+-- industry_ai_profiles: server only (prompts and safety lines are not shown to clients)
 create policy read_plans on plans for select to authenticated using (active);
 create policy read_plan_limits on plan_limits for select to authenticated
   using (exists (select 1 from plans p where p.id = plan_id and p.active));
@@ -1461,7 +1640,7 @@ begin
       'tags','customer_tags','phone_numbers','assistants','sequences','conversations','messages','services','resources',
       'service_locations','service_resource_needs','opening_hours','closures','external_busy','waitlist_entries',
       'knowledge_items','knowledge_versions','record_types','records','record_events','record_files','automation_rules',
-      'table_combinations','table_combination_members',
+      'table_combinations','table_combination_members','business_modules',
       'notifications','support_tickets','integrations','activation_tests','business_settings']
   loop
     execute format('grant select on public.%I to authenticated', t);

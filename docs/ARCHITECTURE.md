@@ -25,7 +25,7 @@ It is the blueprint every change to the web app, database, workflows and voice s
 | B. Core platform | [6 Multi-tenant isolation](#6-multi-tenant-isolation-architecture) · [7 Domain model](#7-domain-model) · [8 Automation engine](#8-automation-engine) · [9 Communication core](#9-communication-core) |
 | C. Journeys | [10 SaaS lifecycle](#10-saas-lifecycle) · [11 Inbound calls and the AI receptionist](#11-inbound-calls-and-the-ai-receptionist) · [12 Missed calls](#12-missed-calls) · [13 Leads and outgoing lead calls](#13-leads-and-outgoing-lead-calls) · [14 SMS and email](#14-sms-and-email) · [15 Appointments, check-in and waitlist](#15-appointments-check-in-and-waitlist) · [16 Knowledge](#16-knowledge) · [17 Billing, plans and usage](#17-billing-plans-and-usage) |
 | D. Applications | [18 Web application](#18-web-application) (public pages, CRM, admin, Create Business) |
-| E. Operations | [19 Integrations](#19-integrations) · [20 Security and privacy](#20-security-and-privacy) · [21 Reliability, observability, delivery](#21-reliability-observability-delivery) · [22 Industries](#22-industries) · [23 Decisions](#23-decisions) · [24 Safe build sequence](#24-safe-build-sequence) · [25 Still needed](#25-what-is-still-needed-from-the-owner-or-counsel) |
+| E. Operations | [19 Integrations](#19-integrations) · [20 Security and privacy](#20-security-and-privacy) · [21 Reliability, observability, delivery](#21-reliability-observability-delivery) · [22 Industry-driven platform](#22-industry-driven-platform) · [23 Decisions](#23-decisions) · [24 Safe build sequence](#24-safe-build-sequence) · [25 Still needed](#25-what-is-still-needed-from-the-owner-or-counsel) |
 | F. Specifications | [26 Locations](#26-locations-multi-location-businesses) · [27 Roles](#27-role-and-permission-matrix-business-roles) · [28 Notifications](#28-notification-matrix) · [29 Data schema](#29-data-schema) · [30 Functions and endpoints](#30-function-and-endpoint-catalogue) · [31 Events](#31-event-catalogue) · [32 Metrics](#32-metric-dictionary) · [33 Templates](#33-default-templates-and-scripts) · [34 Consent](#34-consent-capture-proposed-for-counsel-review) · [35 Import](#35-data-import) · [36 API](#36-public-api-and-outgoing-webhooks) · [37 Runbooks](#37-runbooks) · [38 Errors](#38-error-and-status-catalogue) · [39 Legal](#39-legal-documents-and-sub-processors) · [40 Mobile and staff calling](#40-owner-mobile-experience-and-staff-calling) |
 
 ---
@@ -623,7 +623,9 @@ flowchart LR
 
 | Entity | Key fields | Notes |
 |---|---|---|
-| `businesses` | id, name, industry, time_zone, status (draft, setup, testing, live, paused, suspended, cancelling, cancelled), locale, plan | tenant root |
+| `businesses` | id, name, industry_key, industry_version, time_zone, status (draft, setup, testing, live, paused, suspended, cancelling, cancelled), locale, plan | tenant root |
+| `modules`, `industry_modules`, `business_modules` | module catalogue; per industry: available / default / required; per business: on or off | REQ-IND-06 |
+| `industry_record_types`, `industry_services`, `industry_automation_presets`, `industry_ai_profiles`, `industry_kpis` | versioned industry defaults copied into each business (REQ-IND-03) | platform-owned |
 | `business_members` | business_id, user_id, role, status | REQ-ROLE-01 |
 | `customers` | business_id, names, phones[], emails[], lifecycle (lead, customer, inactive), source, owner (assignee) | one person per business; dedupe by normalised phone and email |
 | `contact_consents` | business_id, customer_id or address, channel, purpose (service, marketing), status, evidence (how, when, text shown), source | append-only history |
@@ -1470,6 +1472,12 @@ Each page below lists: **job** (what the user needs to do), **data** (sources), 
 
 ### 18.3 Business CRM pages
 
+The pages below are the full catalogue. **Which pages a business sees, what they are called, and which fields,
+statuses and booking controls they show all come from the business's effective industry configuration (§22).** For
+example, a restaurant sees Tables and "guests" and "reservations"; a dental practice sees "patients" and recalls; an
+e-commerce shop has no Calendar. Pages are built once and filled from configuration; record pages are generated from
+record type definitions (REQ-IND-07).
+
 | ID | Page | Job | Data | Actions | Roles | Notes / connected automations |
 |---|---|---|---|---|---|---|
 | REQ-CRM-01 | **Today** | What needs me now | needs-a-person calls, due callbacks, leads waiting, today's bookings, check-ins, failed sends, alerts | open, call, assign, mark | all (viewer read) | A2, A5, A15, A16 |
@@ -1678,51 +1686,113 @@ flowchart TD
 
 ---
 
-## 22. Industries
+## 22. Industry-driven platform
 
-The platform serves **28 industries** as configuration: Automotive, Beauty & Salon, Childcare, Cleaning Services,
-Dental, E-commerce, Education, Electrical, Financial Services, Fitness, Healthcare, Home Services, Hospitality, HVAC,
-Insurance, Landscaping & Lawn Care, Legal, Other, Pest Control, Pet Care & Veterinary, Photography & Events, Plumbing,
-Professional Services, Property Management, Real Estate, Restaurant, Spa & Wellness and Travel.
+**Principle (REQ-IND-00):** Zella Voice has one codebase and **28 industry configurations**. Everything a business
+sees and everything the platform does on its behalf is driven by its industry's configuration, and then by the
+business's own permitted customization. No screen, rule or automation contains an `if industry = …` branch. Adding an
+industry, or changing one, is a reviewed configuration change, not new code.
 
-**REQ-IND-01** Each industry configuration defines:
-- terminology;
-- capabilities;
-- modules;
-- record types (with private fields);
-- message policy;
-- AI safety lines;
-- default automations;
-- escalation defaults;
-- knowledge checklist;
-- evaluation cases.
+### 22.1 What an industry drives
 
-| Group | Industries | Calls and leads | Scheduling | Records | Sensitivity | Specific automations | Questions to validate with real businesses |
-|---|---|---|---|---|---|---|---|
-| Appointment services | Beauty & Salon, Spa & Wellness, Fitness, Pet Care & Veterinary, Photography & Events, Education | bookings, questions, price checks | services, staff, classes | client/pet/student | low–medium | reminders, rebooking, feedback, reviews | deposits, class billing, vaccination reminders |
-| Hospitality | Restaurant, Hospitality, Travel | reservations | tables / stays | tables, stays | low | confirmations, no-show | deposits, party size rules |
-| Field services | HVAC, Plumbing, Electrical, Home Services, Cleaning, Landscaping, Pest Control, Automotive, Property Management | service calls, emergencies, quotes | jobs, arrival windows, crews, recurring | jobs, equipment, properties, vehicles, access codes | low–medium | emergency escalation, job status, service due, seasonal | after-hours emergency fees, dispatch rules |
-| Regulated / sensitive | Dental, Healthcare, Legal, Financial Services, Insurance, Childcare | consultations | appointments | patients, matters, policies, children (private) | **high** | drafts only for follow-ups; no review requests by default | legal review per country; triage scripts |
-| Sales-led | Real Estate, Professional Services | leads, viewings | appointments | listings, clients | low–medium | speed-to-lead calls | outbound rules |
-| Commerce | E-commerce | order questions | none | orders | low | order lookup | returns policy |
-| Generic | Other | general | yes | generic | low | standard | — |
+| Area | Driven by the industry | Business may customize |
+|---|---|---|
+| **CRM modules** | which modules exist, which are on by default, which are required, which are unavailable | turn optional modules on or off |
+| **Terminology** | the words for customer, appointment, staff, service, location, record types (patient, client, guest, diner; appointment, visit, reservation, job, class, stay, consultation) | rename within the allowed set |
+| **Booking model** | how bookings work: staff appointment, restaurant table or covers, field job with arrival window, class with capacity, room stay, consultation, viewing, or no bookings | settings within the model (durations, buffers, notice, capacity) |
+| **Record types** | the industry objects, their fields, statuses (pipelines), unique fields, private fields, files | add fields and statuses; never remove required or private-field protections |
+| **Services** | default services, durations, resource needs | prices (always entered by the business), names, durations |
+| **Resources** | default resource kinds (stylist, chair, technician, vehicle, table, room, class) | the actual staff, tables, rooms |
+| **Automations** | default automation rules and their timing | switch each on or off; settings within limits |
+| **Messages** | default templates per channel and language; message policy (welcome, follow-ups, review requests, drafts-only) | wording, except protected compliance content |
+| **AI receptionist** | tools offered, safety lines, emergency script, questions to ask before booking, knowledge checklist, evaluation cases | greeting, tone, business knowledge |
+| **Today and reports** | which cards appear on Today; which KPIs each report shows | choose among the industry's KPIs |
+| **Privacy and retention** | sensitivity class, transcript access, preview rules, retention overrides, legal-review gate | shorten retention only |
+| **Onboarding** | Create Business steps and required fields for the industry | — |
 
-**REQ-IND-02 Launch approach (US):**
+### 22.2 Configuration model
+
+```mermaid
+flowchart LR
+  P["Platform defaults<br/>modules catalogue · base templates ·<br/>contact ceiling · safety baseline"] --> I["Industry configuration v N<br/>modules · terminology · booking model ·<br/>record types · services · automations ·<br/>templates · AI profile · KPIs · policies"]
+  I --> B["Business customization<br/>allowed overrides only,<br/>each marked as customized"]
+  B --> E["Effective configuration<br/>computed in the database,<br/>read by the app, AI and workers"]
+```
+
+| ID | Requirement |
+|---|---|
+| REQ-IND-01 | Industry configuration is **data** in platform tables: `industries`, `modules` (catalogue), `industry_modules`, `industry_record_types`, `industry_services`, `industry_automation_presets`, `message_templates` (industry scope), `industry_ai_profiles`, `industry_kpis`, `ai_eval_cases` (industry scope). |
+| REQ-IND-02 | Industry configuration is **versioned**. Each business records the version it was set up from. |
+| REQ-IND-03 | **Create Business applies the industry**: it copies the industry's defaults into the business's own rows (modules, record types, services, automations, terminology), each marked with its source industry and version and `customized = false`. All of this happens in one transaction. |
+| REQ-IND-04 | **Industry upgrades**: when a new industry version is published, businesses receive new defaults and updated, uncustomized items. Anything the business customized is kept and listed for review. Upgrades are previewed, applied per business, audited and reversible. |
+| REQ-IND-05 | **Effective configuration is computed in the database** (`effective_config(business)`), never assembled in the UI. The web app's navigation, labels and forms, the AI receptionist's tools and prompt, and the workers' rules all read it. |
+| REQ-IND-06 | **Three checks for every module action**, enforced in the database: the industry offers the module, the business has it on, the member's role allows it. The UI hides what fails; the server refuses it anyway. |
+| REQ-IND-07 | **Record screens are generated** from the record type's definition: fields, statuses, required fields, private fields, files, links to customers and bookings. There is no hand-built page per industry. |
+| REQ-IND-08 | **Booking UI and AI booking follow the booking model**: staff picker and services for appointments; party size and table or covers for restaurants; arrival window and job details for field services; spots for classes; check-in and check-out dates for stays; none for e-commerce. |
+| REQ-IND-09 | **Regulated overlay**: industries marked regulated get stricter defaults that a business cannot loosen: drafts-only follow-ups, no automatic review requests, transcripts never to staff, relationship-neutral message previews, legal-review gate before outbound calling, texting or recording. |
+| REQ-IND-10 | **Quality per industry**: every industry has its own AI evaluation set and an automated "industry journey" test (§21) that creates a business of that industry and runs intake, booking, records, messages and privacy checks. An industry launches only when both pass and a pilot business signs off. |
+| REQ-IND-11 | **Industry change for an existing business** is a platform-admin action with a preview: modules and record types of the new industry are added; data is never deleted; incompatible items are listed for the owner. |
+
+### 22.3 Booking models
+
+| Model | Resource used | What a booking holds | Industries (proposed defaults) |
+|---|---|---|---|
+| `staff_appointment` | staff, chair, room | service, staff member, start, duration | Beauty & Salon, Spa & Wellness, Pet Care & Veterinary, Dental, Healthcare, Automotive, Photography & Events |
+| `table` | tables or a covers area | party size, table or combination, turn time | Restaurant |
+| `field_job` | technicians, vehicles | address, arrival window, job type, crew | HVAC, Plumbing, Electrical, Home Services, Cleaning Services, Landscaping & Lawn Care, Pest Control, Property Management |
+| `class` | class with capacity | spots taken | Fitness, Education, Childcare (sessions or tours) |
+| `stay` | rooms | check-in and check-out dates, guests | Hospitality |
+| `consultation` | advisor | topic, advisor, start | Legal, Financial Services, Insurance, Professional Services, Travel |
+| `viewing` | agent | property, start | Real Estate |
+| `none` | — | no bookings; orders and enquiries only | E-commerce |
+| `general` | staff | service, start | Other |
+
+### 22.4 The 28 industry configurations (proposed defaults, to validate with pilot businesses)
+
+Terminology is shown as customer / booking / staff. "Regulated" industries use the overlay in REQ-IND-09.
+
+| # | Industry | Terminology | Booking model | CRM modules on by default (beyond the core) | Record types | Key automations | AI receptionist focus | Regulated |
+|---|---|---|---|---|---|---|---|---|
+| 1 | Beauty & Salon | client / appointment / stylist | staff_appointment | check-in, waitlist, reviews | client preferences, colour formula | confirmation, reminders, rebook nudge, review request | service and stylist choice, any available stylist | no |
+| 2 | Spa & Wellness | client / appointment / therapist | staff_appointment | check-in, waitlist, packages | treatment notes, packages | reminders, intake form, rebook | treatment questions, couples bookings | no |
+| 3 | Fitness | member / class / instructor | class | classes, waitlist, memberships | memberships, member ID (private) | class reminders, waitlist offers, renewal | class schedule, spots left | no |
+| 4 | Restaurant | guest / reservation / host | table | tables, waitlist | party notes, allergies | confirmation, reminder, no-show follow-up | party size, table or covers availability, opening hours | no |
+| 5 | Hospitality | guest / stay / front desk | stay | rooms, check-in | stays, room preferences | pre-arrival, check-out thank-you | dates, room types, policies | no |
+| 6 | Travel | traveller / consultation / agent | consultation | trips | trips, documents | follow-up on quotes | enquiries, callbacks | no |
+| 7 | Education | student / class / teacher | class | classes, enrolments | enrolments, student details (private) | class reminders, enrolment follow-up | schedules, enrolment questions | no |
+| 8 | Childcare | parent / tour or session / staff | class | enrolments, check-in | children (private), guardians | tour reminders | tours, availability, never children's details | **yes** |
+| 9 | Pet Care & Veterinary | pet owner / appointment / vet or groomer | staff_appointment | pets, check-in, reminders | pets, vaccinations | vaccination and service-due reminders | which pet, emergency triage script | no |
+| 10 | Dental | patient / appointment / dentist | staff_appointment | recalls, check-in | patient record (private), recalls | recall reminders (drafts for follow-ups) | booking, emergencies, no clinical advice | **yes** |
+| 11 | Healthcare | patient / appointment / provider | staff_appointment | check-in | patient record (private) | reminders (drafts for follow-ups) | booking, emergencies, no medical advice | **yes** |
+| 12 | Legal | client / consultation / attorney | consultation | matters, intake | matters (private), conflicts check | consultation reminders | intake questions, no legal advice, confidentiality | **yes** |
+| 13 | Financial Services | client / consultation / advisor | consultation | accounts | client profile (private) | consultation reminders | booking, no financial advice | **yes** |
+| 14 | Insurance | policyholder / consultation / agent | consultation | policies, claims | policies (unique number), claims | renewal reminders | quotes, claims intake, no advice | **yes** |
+| 15 | Professional Services | client / consultation / consultant | consultation | projects, quotes | projects, quotes | quote follow-up | enquiries, booking | no |
+| 16 | Real Estate | lead / viewing / agent | viewing | listings, leads | listings, viewings | speed-to-lead call, viewing reminders | property questions, viewing booking | no |
+| 17 | Property Management | tenant or owner / job / technician | field_job | properties, maintenance, dispatch | properties, units, maintenance requests, access codes (private) | job status updates | maintenance intake, emergencies | no |
+| 18 | HVAC | customer / job / technician | field_job | dispatch, recurring visits, quotes | equipment, service agreements, jobs | service-due, quote follow-up, job status | emergency vs routine, arrival windows | no |
+| 19 | Plumbing | customer / job / plumber | field_job | dispatch, quotes | jobs, properties | quote follow-up, job status | emergencies (leaks), arrival windows | no |
+| 20 | Electrical | customer / job / electrician | field_job | dispatch, quotes | jobs, properties | quote follow-up, job status | safety triage, arrival windows | no |
+| 21 | Home Services | customer / job / technician | field_job | dispatch, quotes | jobs, properties | quote follow-up | job intake, arrival windows | no |
+| 22 | Cleaning Services | customer / visit / cleaner | field_job | recurring visits, dispatch | properties, access codes (private) | recurring visit reminders | frequency, access instructions (never read aloud) | no |
+| 23 | Landscaping & Lawn Care | customer / visit / crew | field_job | recurring visits, seasonal | properties | seasonal reminders | service area, recurring schedules | no |
+| 24 | Pest Control | customer / treatment / technician | field_job | recurring visits | properties, treatments | treatment reminders | pest type, safety notes | no |
+| 25 | Automotive | customer / service appointment / technician | staff_appointment | vehicles, quotes | vehicles (unique VIN), repair orders | repair status updates, service-due | vehicle details, status of repair | no |
+| 26 | Photography & Events | client / booking / photographer | staff_appointment | events, quotes | events, contracts | quote follow-up, event reminders | date availability, packages | no |
+| 27 | E-commerce | customer / order / support | none | orders | orders (store link) | order status replies | order lookup, returns policy; never books | no |
+| 28 | Other | customer / appointment / staff | general | core only | — | confirmation, reminders | general enquiries, booking | no |
+
+The **core modules** every industry has: Today, Customers, Leads, Calls, Callbacks, Inbox, Calendar (except E-commerce),
+Knowledge, Automations, Reports, Team, Settings.
+
+### 22.5 Launch approach (US)
+
 - **Lower-risk industries launch first.**
-- **Regulated industries** (Healthcare, Dental, Legal, Financial Services, Insurance, Childcare) use stricter
-  configurations and need **legal review before outbound calling, texting or recording is enabled**:
-  - sensitive follow-ups are staff-approved drafts;
-  - no automatic review requests;
-  - stricter consent and retention;
-  - restricted transcript and recording access;
-  - the AI gives no medical, legal or financial advice beyond explicitly approved business information.
-
-An industry is **ready** when:
-- its configuration is complete;
-- its evaluation set passes;
-- a pilot business has run it live with sign-off.
-
----
+- **Regulated industries** (Healthcare, Dental, Legal, Financial Services, Insurance, Childcare) launch one by one,
+  only after legal review of outbound calling, texting and recording for that industry, with the regulated overlay
+  (REQ-IND-09) on.
+- **An industry is ready when** its configuration is complete, its evaluation set and industry journey test pass
+  (REQ-IND-10), and a pilot business has run it live and signed off.
 
 ## 23. Decisions
 
@@ -1811,7 +1881,7 @@ flowchart TD
 | Phase | Build | Exit test | Gate |
 |---|---|---|---|
 | **1. Platform foundations** | environments (local, staging, production); CI; migration ledger; backups with a restore drill; auth with MFA for platform staff; leaked-password protection; audit log; external monitoring and pager | CI blocks a failing PR; restore drill restores without re-sending anything | — |
-| **2. Tenant isolation core** | businesses, members and roles; ownership model (tenant, platform, mixed scope); `business_id NOT NULL`, composite FKs, tenant-scoped uniques; RLS policies; storage layout and policies; signed URLs; Create Business (team-created) with owner invite | §6.12 three-business suite green in CI | — |
+| **2. Tenant isolation core and industry engine** | the 28 industry configurations (modules, terminology, booking models, record types, services, automations, templates, AI profiles, KPIs); apply-industry on Create Business; effective configuration; businesses, members and roles; ownership model (tenant, platform, mixed scope); `business_id NOT NULL`, composite FKs, tenant-scoped uniques; RLS policies; storage layout and policies; signed URLs; Create Business (team-created) with owner invite | §6.12 three-business suite green in CI | — |
 | **3. Automation and communication engine** | outbox; work items; claim protocol with signed work envelopes; retry, unknown-outcome and reconciliation; dispatcher back-off that never delays new work; dead letters; contact policy engine; status model; protected templates; provider adapters with dry run | a stuck item never delays a new item; a lost result never causes a second action before reconciliation; every skip has a reason | all live switches off |
 | **4. Inbound AI receptionist** | number forwarding with verification; business mapping; per-call assistant; tools bound to the business; transfers with failure handling; standby assistant; call finalisation; usage ledger; knowledge readiness on approval | a real test call on the pilot number: one delivery, correct business, duration, summary, one usage entry; "switch business" has no effect; a failed transfer produces a message and one urgent callback | inbound calls for the pilot; recording off |
 | **5. Scheduling, confirmations, reminders** | resources and reservations with an exclusion constraint; availability; booking, reschedule, cancel; confirmations by text and email; the reminder schedule (REQ-MSG-30); staff check-in; waitlist | concurrent double-booking: one wins; A and B at the same time: both succeed; every notice band produces exactly the right reminders | email live, then SMS live after carrier registration |
@@ -1939,8 +2009,9 @@ and SMS off per type, except those marked "always". Urgent items repeat until ac
 
 ## 29. Data schema
 
-The executable version of this schema is `sql/target/zella_voice_schema.sql`, with its three-business isolation suite
-(`sql/target/test.sh`). The SQL file and this section must stay in step.
+The executable version of this schema is `sql/target/zella_voice_schema.sql`, the 28 industry configurations are
+`sql/target/industries_seed.sql` (generated from `sql/target/generate_industries.py`), and the test suite is
+`sql/target/test.sh`. These files and this section must stay in step.
 
 Conventions for every tenant table:
 - `id uuid` primary key; `business_id uuid NOT NULL` → `businesses`; `unique (business_id, id)`;

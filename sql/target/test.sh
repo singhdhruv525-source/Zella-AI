@@ -11,6 +11,7 @@ PSQL=(psql -h "$H" -p "$P" -U postgres -X -q)
 "${PSQL[@]}" -d postgres -c "drop database if exists $DB" -c "create database $DB" >/dev/null || exit 1
 sed "s/current_database_placeholder/$DB/" "$REPO/sql/baseline/00_supabase_stubs.sql" | "${PSQL[@]}" -v ON_ERROR_STOP=1 -d "$DB" -f - >/dev/null || { echo "FAILED loading stubs"; exit 1; }
 "${PSQL[@]}" -v ON_ERROR_STOP=1 -d "$DB" -f "$HERE/zella_voice_schema.sql" >/dev/null || { echo "FAILED loading schema"; exit 1; }
+"${PSQL[@]}" -v ON_ERROR_STOP=1 -d "$DB" -f "$HERE/industries_seed.sql" >/dev/null || { echo "FAILED loading industries"; exit 1; }
 echo "schema loaded: $("${PSQL[@]}" -d "$DB" -tAc "select count(*) from pg_tables where schemaname='public'") tables, $("${PSQL[@]}" -d "$DB" -tAc "select count(*) from pg_policies where schemaname in ('public','storage')") policies"
 
 OUT=$("${PSQL[@]}" -d "$DB" -f "$HERE/test_isolation.sql" 2>&1)

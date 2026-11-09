@@ -9,7 +9,9 @@ from it, one reviewed migration at a time (build phase 2, architecture §24), fo
 | File | What it is |
 |---|---|
 | `zella_voice_schema.sql` | Tables, composite tenant foreign keys, tenant-scoped uniques, the booking exclusion constraint, authorization helpers, integrity and audit triggers, row-level security, grants, storage policies |
-| `test_isolation.sql` | Three-business isolation suite (§6.12) |
+| `industries_seed.sql` | The 28 industry configurations (§22.4): modules, terminology, booking models, record types, default services (no prices), automations, KPIs, AI profiles. **Generated**; do not edit by hand |
+| `generate_industries.py` | Source of the industry seed: edit this, then run `python3 sql/target/generate_industries.py` |
+| `test_isolation.sql` | Three-business isolation suite (§6.12), capacity and restaurant booking cases, industry engine cases |
 | `test.sh` | Loads the schema into a fresh isolated local database and runs the suite, plus a concurrent double-booking race |
 
 Run (isolated local test cluster only; the shared guard refuses anything else):
@@ -18,7 +20,7 @@ Run (isolated local test cluster only; the shared guard refuses anything else):
 sql/target/test.sh
 ```
 
-Last run: 45/45 checks passed on Postgres 16 (local, isolated). Production runs Postgres 17.
+Last run: 54/54 checks passed on Postgres 16 (local, isolated). Production runs Postgres 17.
 
 Design rules the schema enforces:
 - every tenant table: `business_id NOT NULL`, `unique (business_id, id)`, composite foreign keys to other tenant tables;
@@ -31,3 +33,6 @@ Design rules the schema enforces:
   covers by party size;
 - audit log, usage ledger and consent history are append-only; private values never enter the audit log;
 - files live under `<business_uuid>/…` in private buckets, served through server-signed URLs.
+- industry-driven: Create Business applies the industry (`app_private.apply_industry`), a business can only switch on modules
+  its industry offers and never switch off required ones, industry upgrades keep the business's customizations, and
+  the app, AI and workers read `effective_config(business)`.
