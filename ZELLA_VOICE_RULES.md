@@ -171,8 +171,10 @@ Trust increases left to right. A rule that lives anywhere left of layer 3 is a d
   stateDiagram-v2
     [*] --> pending: created by trigger, schedule or person
     pending --> claimed: worker claims (SKIP LOCKED)
-    claimed --> done: provider accepted
-    claimed --> unknown: provider result lost
+    claimed --> sending: final check passed (dispatch boundary)
+    sending --> done: provider accepted
+    sending --> pending: provider refused, retry with growing delay
+    sending --> unknown: result lost or worker stopped
     unknown --> done: reconciled as accepted
     unknown --> pending: reconciled as not sent
     claimed --> skipped: a rule said no (reason kept)
@@ -188,7 +190,7 @@ Trust increases left to right. A rule that lives anywhere left of layer 3 is a d
     cancelled --> [*]
   ```
 
-  Each work item is a row with a status, a due time, an attempt counter and a claim timeout. Workers claim with `SKIP LOCKED`, act, and report. The database owns retries, back-off and dead letters. When a provider's result is lost, the item is `unknown` and is **reconciled with the provider before any retry**; a database key alone never proves the provider did not act.
+  Each work item is a row with a status, a due time, an attempt counter and a claim timeout. A claim that times out before `sending` returns the item to `pending`; an item stuck in `sending` is never retried blind, it becomes `unknown`. Workers claim with `SKIP LOCKED`, act, and report. The database owns retries, back-off and dead letters. When a provider's result is lost, the item is `unknown` and is **reconciled with the provider before any retry**; a database key alone never proves the provider did not act.
 - `ARC-5` **Time-based work is scheduled by the database**, never by a workflow tool's own timer. Workers are woken only when work is due.
 - `ARC-6` **Configuration over code.** Industries, capabilities, message policies, record types, templates and terminology are data with a clear precedence: platform → industry → business → record.
 - `ARC-7` **One implementation per concern.** One parser per provider, one place for each label, one function for each rule. Copies drift; drift becomes bugs.
@@ -213,14 +215,16 @@ Every request that touches business data passes all of these gates, in the datab
 
 ```mermaid
 flowchart TD
-  r([Request touches business data]) --> id{Identity derived<br/>from session, verified number,<br/>signed link or signature?}
+  r([Request touches business data]) --> id{Identity derived<br/>from session, verified number,<br/>signed link, signature or API key?}
   id -- no --> x[Refuse]
   id -- yes --> row[Find the business that<br/>OWNS the row, not the one<br/>the caller named]
   row --> mem{Caller is an active<br/>member of that business?}
-  mem -- no --> nm{Non-member bound to that business?<br/>call · link · webhook · worker envelope}
+  mem -- no --> nm{Non-member bound to that business?<br/>call · link · webhook · worker envelope · API key}
   nm -- yes --> scope{Action within that<br/>context's narrow scope?}
   scope -- no --> x
-  scope -- yes --> cap
+  scope -- yes --> optq{Opt-out: STOP,<br/>unsubscribe, do-not-contact?}
+  optq -- yes --> link
+  optq -- no --> cap
   nm -- no --> adm{Zella Voice staff using an<br/>audited admin function<br/>with the right permission?}
   adm -- no --> x
   adm -- yes --> audit[Write audit record] --> ok
@@ -243,8 +247,8 @@ flowchart LR
 
 - `TEN-1` Every row that belongs to a business carries `business_id`. No exceptions, including logs, files, events and usage.
 - `TEN-2` Every tenant table has **row-level security on**, with policies based on membership and role. A table without RLS does not ship.
-- `TEN-3` Every function touching tenant data **authorizes the caller first**, against the business that owns the row, not a business ID the caller supplied. Signed-in users: active membership and role. Actors who are not members get narrow, server-only checks instead (§6.3): an inbound call is bound to the verified called number, a customer link to its signed token (one business, one record, one action), a provider webhook to its verified signature and provider mapping, a background worker to its verified envelope (`TEN-13`). None of them ever gains a member's role.
-- `TEN-4` **Identity is derived, never accepted.** Browser: from the signed-in session. Phone: from the verified called number. Links: from the signed token. Webhooks: from the verified signature. Never from a request body, URL parameter or AI tool argument.
+- `TEN-3` Every function touching tenant data **authorizes the caller first**, against the business that owns the row, not a business ID the caller supplied. Signed-in users: active membership and role. Actors who are not members get narrow, server-only checks instead (§6.3): an inbound call is bound to the verified called number, a customer link to its signed token (one business, one record, one action), a provider webhook to its verified signature and provider mapping, a background worker to its verified envelope (`TEN-13`), a public API caller to its hashed per-business key and scopes (§36). None of them ever gains a member's role. Recording an opt-out (STOP, unsubscribe, do-not-contact) is never blocked by a module or capability being off.
+- `TEN-4` **Identity is derived, never accepted.** Browser: from the signed-in session. Phone: from the verified called number. Links: from the signed token. Webhooks: from the verified signature. Public API: from the hashed key. Never from a request body, URL parameter or AI tool argument.
 - `TEN-5` Rows may only link to rows of the **same business** (customer ↔ booking ↔ record ↔ staff ↔ file), enforced by the database with **composite foreign keys that include `business_id`**, never by the UI (§6.4).
 - `TEN-6` Zella Voice staff access a business's data only through **audited admin functions** with a named permission, never through broad policies or direct SQL in the normal course of work.
 - `TEN-7` **Every new table, view, function and endpoint gets a cross-tenant test**: another business can't read it, can't write it, and a lower role can't do more than it should.
@@ -472,7 +476,7 @@ flowchart TD
 
 ## Part 12: Customer communications
 
-Every outgoing text or email passes this check when it is prepared, not when it was scheduled, and its consent and cancellation state is checked once more immediately before it is handed to the provider. The final check and the move to sending are one database transaction: the dispatch boundary. An opt-out, do-not-contact or cancellation cancels pending **and claimed** items at once, which voids their claim; a worker whose final check is refused does not send. A send already past the boundary when an opt-out arrives cannot be recalled: its result is recorded and the opt-out applies to everything after it:
+Every outgoing text or email passes this check when it is prepared, not when it was scheduled, and its consent and cancellation state is checked once more immediately before it is handed to the provider. The final check and the move to sending are one database transaction that also locks the recipient's consent row, which every opt-out write takes too: the dispatch boundary. An opt-out, do-not-contact or cancellation cancels pending **and claimed** items at once, which voids their claim; a worker whose final check is refused does not send. A send already past the boundary when an opt-out arrives cannot be recalled: its result is recorded and the opt-out applies to everything after it:
 
 ```mermaid
 flowchart TD

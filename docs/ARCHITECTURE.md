@@ -319,6 +319,7 @@ Every access is checked **in the database**, against the business that owns the 
 | Provider webhook (SMS, email, leads, payments) | verified provider identifier (number, inbound address, lead-form key, connection) → business mapping | signature over raw bytes + timestamp + replay protection |
 | Customer link | signed token bound to one business and one record | token |
 | Background worker | business ID carried in a **signed work envelope** (§6.9), re-verified by the database | service credential, server-only functions |
+| Public API caller (§36) | the business bound to the API key | hashed per-business key + its scopes (REQ-API-01); never a member's role |
 | Platform staff | — | platform permission + MFA + audited admin function |
 
 - **REQ-ID-01** Changing or cancelling a booking, or hearing appointment details by phone, needs more than caller ID
@@ -573,7 +574,7 @@ two things: cross-business access is rejected, and legitimate independent operat
 | Acceptance criterion | Proven by |
 |---|---|
 | Row security on every table, with a membership policy on every tenant table | CI schema test |
-| Every security-definer function authorizes the caller first (membership and role, or the §6.3 non-member check for server functions, or the reviewed public list) | CI static test |
+| Every security-definer function authorizes the caller first (membership and role; or the §6.3 non-member check for server, link and API-key functions; or the platform permission for audited admin functions; or the reviewed public list) | CI static test |
 | Every tenant relationship uses a composite foreign key with `business_id` | CI schema test |
 | Every uniqueness rule on business data includes `business_id` | CI schema test |
 | `business_id NOT NULL` on every tenant table; explicit scope on mixed tables | CI schema test |
@@ -678,7 +679,9 @@ flowchart LR
   stop conditions, entitlements) is evaluated **at claim time**, not when the item was created, and consent, suppression
   and cancellation are checked once more **immediately before the provider call**; if that final check refuses, the
   worker does not send. The final check and the move to `sending` are **one database transaction** that locks the
-  item: this is the dispatch boundary. An opt-out or cancellation committed before it stops the send. One that arrives
+  item **and the recipient's consent row** (per business, address and channel); opt-out and suppression writes take
+  the same lock, so the two are serialized and neither can slip between the check and the commit. This is the
+  dispatch boundary. An opt-out or cancellation committed before it stops the send. One that arrives
   after it cannot recall a send already handed to the provider: that send's result is recorded (or reconciled as
   `unknown`, REQ-AUT-05) and shown on the timeline, and the opt-out applies to everything not yet dispatched.
 - **REQ-AUT-07 Cancellation.** Work items are cancelled by the events that make them irrelevant: a booking moved or
@@ -695,10 +698,12 @@ stateDiagram-v2
   [*] --> scheduled
   scheduled --> due: due_at reached
   due --> claimed: worker claims
-  claimed --> succeeded
+  claimed --> sending: final check passed (dispatch boundary)
+  sending --> succeeded: provider accepted
+  sending --> due: provider refused, retry later
+  sending --> unknown: result lost or worker stopped
   claimed --> skipped: rule said no (reason)
   claimed --> dry_run: live switch off
-  claimed --> unknown: result lost
   unknown --> succeeded: reconciled
   unknown --> due: reconciled as not done
   claimed --> due: failed, retry later
@@ -843,7 +848,9 @@ It checks, in order:
 - An email unsubscribe suppresses marketing email.
 - "Do not contact" suppresses everything.
 
-Opt-outs cancel every pending and claimed work item for that channel and its open sequences at once. The only send an
+Opt-outs cancel, at once, the pending and claimed work items and open sequences that the opt-out covers: same business,
+same customer or address, same channel, and the same purpose (an email unsubscribe cancels marketing email only;
+service messages such as booking confirmations continue; "do not contact" covers everything). The only send an
 opt-out cannot stop is one already past the dispatch boundary when it arrived (REQ-AUT-06); its result is recorded.
 
 ### 9.4 Templates and scripts
@@ -2094,8 +2101,10 @@ Conventions for every tenant table:
 
 ## 30. Function and endpoint catalogue
 
-**Database functions** (called by the web app unless marked *server* or *link*). Every function authorizes the
-caller first (membership and role for web-app functions; for *server* functions the §6.3 check of the verified number,
+**Database functions** (called by the web app unless marked *server* or *link*; the Platform admin row is called by the
+platform admin app). Every function authorizes the caller first (membership and role for web-app functions; for
+*platform admin* functions the §6.3 platform permission, MFA and an audit record, with no business membership; for
+*server* functions the §6.3 check of the verified number,
 signature or envelope; for *link* functions the §6.3 signed-token check, one business, one record, one action, no
 membership) and returns
 stable error codes (§38).
