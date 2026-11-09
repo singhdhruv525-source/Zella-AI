@@ -347,7 +347,7 @@ Every access is checked against three things, **in the database**:
 | REQ-DB-ISO-06 | Tenant-aware **storage** policies | object paths start with the business **UUID**; policies check membership against that UUID; files are served through short-lived server-signed URLs |
 | REQ-DB-ISO-07 | Tenant-aware **Realtime** | if Realtime is used, only through RLS-filtered `postgres_changes`, or private channels named per business with membership-checked authorization; never public broadcast of tenant data |
 | REQ-DB-ISO-08 | Service-role operations are secured | service credential only server-side; server functions take the business from the verified envelope and re-check record ownership; no "act on any ID" functions |
-| REQ-DB-ISO-09 | Privileged operations audited | audit row: actor, business, action, before and after |
+| REQ-DB-ISO-09 | Privileged operations audited | audit row: actor, business, action, before and after, with sensitive personal data and secrets redacted (field name and "changed" only) |
 | REQ-DB-ISO-10 | Records referencing another business's resources are **rejected** | composite FKs (preferred), with a trigger guard as a backstop |
 | REQ-DB-ISO-11 | Frontend filters are never a security boundary | every list and RPC returns only what RLS and functions allow |
 
@@ -648,7 +648,7 @@ flowchart LR
 | `work_items` | queue, business_id, due_at, status, attempts, claim, last_error, idempotency_key | REQ-AUT-02 |
 | `usage_ledger` | business_id, source event, quantity, unit, kind (usage, adjustment), period | append-only |
 | `plans`, `subscriptions`, `entitlements` | limits per plan (owner-defined) | REQ-BIL-* |
-| `audit_logs` | actor, business, action, before/after, at | append-only |
+| `audit_logs` | actor, business, action, before/after (sensitive fields redacted), at | append-only |
 
 ---
 
@@ -673,9 +673,12 @@ flowchart LR
 - **REQ-AUT-05 Unknown outcome.** If a provider call's result is lost, the item enters `unknown`. It is **reconciled
   with the provider before any retry**.
 - **REQ-AUT-06 Re-check before acting.** Eligibility (business status, consent, suppression, contact hours (REQ-MSG-07),
-  stop conditions, entitlements) is evaluated **at claim time**, not when the item was created.
+  stop conditions, entitlements) is evaluated **at claim time**, not when the item was created, and consent, suppression
+  and cancellation are checked once more **immediately before the provider call**; if that final check refuses, the
+  worker does not send.
 - **REQ-AUT-07 Cancellation.** Work items are cancelled by the events that make them irrelevant: a booking moved or
-  cancelled, a reply received, an opt-out, a rule disabled, the business paused. Every cancellation stores its reason.
+  cancelled, a reply received, an opt-out, a rule disabled, the business paused. Cancellation also reaches **claimed**
+  items and voids their claim token, so the worker's final check refuses. Every cancellation stores its reason.
 - **REQ-AUT-08 Visibility.** Every work item and its outcome is visible to the business (on the customer timeline
   and the relevant page) and to platform operations.
 
@@ -1632,7 +1635,7 @@ flowchart TD
 | AI | prompt-injection treated as hostile input; tools re-check permissions; no secrets or other customers' data in prompts; eval cases include injection attempts |
 | Sensitive industries | transcripts never to staff; private fields separate; previews never reveal the relationship; drafts for follow-ups |
 | Recordings and transcripts | **Call recording is off** until recording-consent rules, caller disclosures and business settings have been reviewed [D-27]. Access logged; tenant-isolated; deletion requests supported. |
-| Retention (REQ-PRV-01) | Defaults, configurable per platform and per industry; **legal review before launch** (some regulated industries may need longer periods for certain records): **call recordings 30 days**, **transcripts 90 days**, **message bodies 2 years**, **audit and security logs 7 years** (unless the applicable legal policy requires otherwise), **a cancelled business's data deleted 30 days after cancellation**, after a final export offer. Deletion is a scheduled job that reaches tables, files and provider copies where possible, with legal hold respected. |
+| Retention (REQ-PRV-01) | Defaults, configurable per platform and per industry; **legal review before launch** (some regulated industries may need longer periods for certain records): **call recordings 30 days**, **transcripts 90 days**, **message bodies 2 years**, **audit and security logs 7 years** (unless the applicable legal policy requires otherwise), **a cancelled business's data deleted 30 days after cancellation**, after a final export offer (only audit and security records and records under legal hold are kept to the end of their own retention, without message bodies, transcripts or recordings, readable only through audited platform functions). Deletion is a scheduled job that reaches tables, files and provider copies where possible, with legal hold respected. |
 | Audit | append-only; privileged actions; support access |
 | Retention and deletion | scheduled deletion per data class; legal hold; deletion reaches files and provider copies where possible |
 | Backups | point-in-time recovery; quarterly restore drill; a restore never re-sends messages (dedupe keys and a "restored" flag on work items) |

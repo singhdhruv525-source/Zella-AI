@@ -74,7 +74,7 @@ flowchart LR
 
 1. `NN-1` **No business ever sees or changes another business's data.** Not through the app, the AI, a link, an export, a log or an admin tool.
 2. `NN-2` **No secret is ever written where a person or AI could read it later**: code, chat, logs, tests, tickets, docs, commit messages, screenshots.
-3. `NN-3` **Nothing reaches the real world without approval.** No real call, text or email, no live switch, no change to a live voice assistant, without the owner's explicit approval for that specific action.
+3. `NN-3` **Nothing reaches the real world without approval.** No person or AI agent makes a real call, text or email, turns on a live switch, or changes a live voice assistant without the owner's explicit approval for that specific action. Repository code, scripts and tests never do these things on their own; the product reaches the real world only through its live switches (`ARC-8`), each turned on by the owner.
 4. `NN-4` **Production is changed only with the owner's explicit approval, one change at a time**, with a backup before and proof after.
 5. `NN-5` **Nobody pushes to `main`.** All work goes through a branch and a reviewed pull request that the owner merges.
 6. `NN-6` **The database is the single source of truth and the single enforcer of rules.** The UI, edge functions and workflows never decide; they ask.
@@ -172,6 +172,9 @@ Trust increases left to right. A rule that lives anywhere left of layer 3 is a d
     [*] --> pending: created by trigger, schedule or person
     pending --> claimed: worker claims (SKIP LOCKED)
     claimed --> done: provider accepted
+    claimed --> unknown: provider result lost
+    unknown --> done: reconciled as accepted
+    unknown --> pending: reconciled as not sent
     claimed --> skipped: a rule said no (reason kept)
     claimed --> dry_run: live switch off
     claimed --> pending: failed, retry with growing delay
@@ -185,7 +188,7 @@ Trust increases left to right. A rule that lives anywhere left of layer 3 is a d
     cancelled --> [*]
   ```
 
-  Each work item is a row with a status, a due time, an attempt counter and a claim timeout. Workers claim with `SKIP LOCKED`, act, and report. The database owns retries, back-off and dead letters.
+  Each work item is a row with a status, a due time, an attempt counter and a claim timeout. Workers claim with `SKIP LOCKED`, act, and report. The database owns retries, back-off and dead letters. When a provider's result is lost, the item is `unknown` and is **reconciled with the provider before any retry**; a database key alone never proves the provider did not act.
 - `ARC-5` **Time-based work is scheduled by the database**, never by a workflow tool's own timer. Workers are woken only when work is due.
 - `ARC-6` **Configuration over code.** Industries, capabilities, message policies, record types, templates and terminology are data with a clear precedence: platform → industry → business → record.
 - `ARC-7` **One implementation per concern.** One parser per provider, one place for each label, one function for each rule. Copies drift; drift becomes bugs.
@@ -236,7 +239,7 @@ flowchart LR
 
 - `TEN-1` Every row that belongs to a business carries `business_id`. No exceptions, including logs, files, events and usage.
 - `TEN-2` Every tenant table has **row-level security on**, with policies based on membership and role. A table without RLS does not ship.
-- `TEN-3` Every function touching tenant data **checks the caller's membership and role first**, against the business that owns the row, not a business ID the caller supplied.
+- `TEN-3` Every function touching tenant data **authorizes the caller first**, against the business that owns the row, not a business ID the caller supplied. Signed-in users: active membership and role. Actors who are not members get narrow, server-only checks instead (§6.3): an inbound call is bound to the verified called number, a customer link to its signed token (one business, one record, one action), a provider webhook to its verified signature and provider mapping, a background worker to its verified envelope (`TEN-13`). None of them ever gains a member's role.
 - `TEN-4` **Identity is derived, never accepted.** Browser: from the signed-in session. Phone: from the verified called number. Links: from the signed token. Webhooks: from the verified signature. Never from a request body, URL parameter or AI tool argument.
 - `TEN-5` Rows may only link to rows of the **same business** (customer ↔ booking ↔ record ↔ staff ↔ file), enforced by the database with **composite foreign keys that include `business_id`**, never by the UI (§6.4).
 - `TEN-6` Zella Voice staff access a business's data only through **audited admin functions** with a named permission, never through broad policies or direct SQL in the normal course of work.
@@ -329,7 +332,7 @@ flowchart LR
   - transcripts: 90 days;
   - message bodies: 2 years;
   - audit and security logs: 7 years, unless the applicable legal policy requires otherwise;
-  - a cancelled business's data: deleted 30 days after cancellation, after a final export offer.
+  - a cancelled business's data: deleted 30 days after cancellation, after a final export offer. Only audit and security records, and records under a legal hold, are kept to the end of their own retention period; they hold no message bodies, transcripts or recordings, are readable only through audited platform functions, and are then deleted.
 
   Call recording stays off until recording consent and caller disclosures have been reviewed.
 - `PRV-5` **Data subject requests** (access, correction, deletion) are logged, completed within 30 days, and reach every copy: tables, files, backups on rotation, provider records.
@@ -372,7 +375,7 @@ flowchart LR
 - `DB-10` **Time is stored in UTC** (`timestamptz`); "today", reports and opening hours use the **business's (or location's) own time zone**; contact hours use the recipient's time zone when known (`COM-3`); everything survives daylight-saving changes.
 - `DB-11` **Money is stored in integer minor units** with an explicit currency. Never floating point.
 - `DB-12` **Errors are stable codes** (`not_allowed`, `slot_taken`, `capability_off`), translated to words by the app.
-- `DB-13` **Privileged and sensitive changes write an audit record**: who, what, which business, before and after, when.
+- `DB-13` **Privileged and sensitive changes write an audit record**: who, what, which business, when, and the values before and after. Sensitive personal data (`PRV-2`) and secrets are never copied into it: for those fields the record keeps only the field name and the fact that it changed.
 - `DB-14` **Every migration is tested on an isolated copy** (schema snapshot plus pending migrations) together with the security suite, before it is proposed for production.
 - `DB-15` Indexes accompany every new foreign key and every filter used by a list screen or queue claim.
 
@@ -465,7 +468,7 @@ flowchart TD
 
 ## Part 12: Customer communications
 
-Every outgoing text or email passes this check at the moment it is prepared, not when it was scheduled:
+Every outgoing text or email passes this check when it is prepared, not when it was scheduled, and its consent and cancellation state is checked once more immediately before it is handed to the provider. An opt-out, do-not-contact or cancellation cancels pending **and claimed** items at once, which voids their claim; a worker whose final check is refused does not send:
 
 ```mermaid
 flowchart TD
