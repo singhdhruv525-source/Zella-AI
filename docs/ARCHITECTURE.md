@@ -2094,8 +2094,10 @@ Conventions for every tenant table:
 
 ## 30. Function and endpoint catalogue
 
-**Database functions** (called by the web app unless marked *server*). Every function authorizes the
-caller first (membership and role for web-app functions; the §6.3 non-member check for *server* functions) and returns
+**Database functions** (called by the web app unless marked *server* or *link*). Every function authorizes the
+caller first (membership and role for web-app functions; for *server* functions the §6.3 check of the verified number,
+signature or envelope; for *link* functions the §6.3 signed-token check, one business, one record, one action, no
+membership) and returns
 stable error codes (§38).
 
 | Area | Functions |
