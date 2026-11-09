@@ -1,11 +1,11 @@
 # Zella Voice: complete target architecture
 
-**What this document is:** the complete design of the Zella Voice SaaS platform, written as if nothing were built yet.
+**What this document is:** the complete required design of the Zella Voice SaaS platform, written by the principal
+architect from first principles. It states what Zella Voice must be, not what exists.
 It is the blueprint every change to the web app, database, workflows and voice system is measured against.
 
 **How to use it:**
 - Every requirement has an ID (`REQ-…`). Changes, pull requests and tests cite the IDs they implement.
-- `docs/CURRENT_STATE_REVIEW.md` records how today's code compares with this target (evidence, gaps, priorities).
 - `ZELLA_VOICE_RULES.md` holds the binding rules this design obeys (`TEN-…`, `SEC-…`, …).
 - Values that are business, legal or product choices are **never invented here**. They appear as **[DECISION D-n]** and
   are listed in §23. Until a decision is made, the setting exists but has no default, and the feature stays off.
@@ -22,10 +22,10 @@ It is the blueprint every change to the web app, database, workflows and voice s
 | Part | Sections |
 |---|---|
 | A. Foundations | [1 Product](#1-product) · [2 Actors and roles](#2-actors-and-roles) · [3 Principles](#3-principles) · [4 System context and containers](#4-system-context-and-containers) · [5 Responsibility boundaries](#5-responsibility-boundaries) |
-| B. Core platform | [6 Tenancy, identity and permissions](#6-tenancy-identity-and-permissions) · [7 Domain model](#7-domain-model) · [8 Automation engine](#8-automation-engine) · [9 Communication core](#9-communication-core) |
+| B. Core platform | [6 Multi-tenant isolation](#6-multi-tenant-isolation-architecture) · [7 Domain model](#7-domain-model) · [8 Automation engine](#8-automation-engine) · [9 Communication core](#9-communication-core) |
 | C. Journeys | [10 SaaS lifecycle](#10-saas-lifecycle) · [11 Inbound calls and the AI receptionist](#11-inbound-calls-and-the-ai-receptionist) · [12 Missed calls](#12-missed-calls) · [13 Leads and outgoing lead calls](#13-leads-and-outgoing-lead-calls) · [14 SMS and email](#14-sms-and-email) · [15 Appointments, check-in and waitlist](#15-appointments-check-in-and-waitlist) · [16 Knowledge](#16-knowledge) · [17 Billing, plans and usage](#17-billing-plans-and-usage) |
 | D. Applications | [18 Web application](#18-web-application) (public pages, CRM, admin, Create Business) |
-| E. Operations | [19 Integrations](#19-integrations) · [20 Security and privacy](#20-security-and-privacy) · [21 Reliability, observability, delivery](#21-reliability-observability-delivery) · [22 Industries](#22-industries) · [23 Decisions](#23-decisions) · [24 Build order](#24-build-order) |
+| E. Operations | [19 Integrations](#19-integrations) · [20 Security and privacy](#20-security-and-privacy) · [21 Reliability, observability, delivery](#21-reliability-observability-delivery) · [22 Industries](#22-industries) · [23 Decisions](#23-decisions) · [24 Safe build sequence](#24-safe-build-sequence) |
 
 ---
 
@@ -231,28 +231,363 @@ flowchart TB
 
 # Part B: Core platform
 
-## 6. Tenancy, identity and permissions
+## 6. Multi-tenant isolation architecture
 
-- **REQ-TEN-01** One shared schema; every tenant-owned row has `business_id`; row-level security on every table.
-- **REQ-TEN-02** Every function checks membership and role against the business that **owns the row**, first.
-- **REQ-TEN-03** Links between rows (customer, appointment, record, staff, file, call) must be in the same business, enforced by the database.
-- **REQ-TEN-04** Caches, exports, search, analytics and AI prompts keep the tenant boundary.
-- **REQ-TEN-05** Platform staff reach tenant data only through audited admin functions with a named permission.
-- **REQ-TEN-06** Zella Voice growth data (prospects, demos) lives in a separate platform schema, never in a tenant.
+**One Zella Voice platform. Many independent businesses. Shared infrastructure. Strict database-enforced isolation.**
 
-**Identity:**
+Zella Voice is a shared, multi-tenant SaaS platform. Every business gets an independent workspace with its own:
+- configuration;
+- communication environment;
+- AI receptionist;
+- operational data boundary.
 
-| Context | How identity is established | Strength |
+Business A, Business B and Business C share the Zella Voice application and infrastructure, and operate as three
+independent businesses.
+
+### 6.1 Non-negotiable principles
+
+| ID | Principle |
+|---|---|
+| ISO-01 | One shared Zella Voice application codebase and platform |
+| ISO-02 | One shared Supabase Postgres infrastructure |
+| ISO-03 | Tenant isolation **enforced by the database**: row security, ownership checks, constraints |
+| ISO-04 | Independent business configuration and operations |
+| ISO-05 | No cross-business data access |
+| ISO-06 | No cross-business booking conflicts (conflicts are scoped to one business and one resource) |
+| ISO-07 | No shared AI context or communication history |
+| ISO-08 | Every tenant-owned record belongs to exactly one verified business |
+| ISO-09 | Platform administration is separate from business administration |
+| ISO-10 | Privileged access and sensitive operations are audited |
+
+### 6.2 High-level tenant architecture
+
+```mermaid
+flowchart TB
+  Z["Zella Voice: shared platform"]
+  Z --> AUTH["Authentication and authorization"]
+  Z --> API["Secure backend and edge functions"]
+  API --> DB[("Shared Postgres database")]
+  DB --> RLS["Row security + tenant ownership + constraints"]
+  RLS --> A
+  RLS --> B
+  RLS --> C
+  subgraph A["Business A: independent workspace"]
+    A1["CRM and customers"]
+    A2["Calls, SMS, email"]
+    A3["Appointments and calendar"]
+    A4["Scripts and templates"]
+    A5["Knowledge and AI agents"]
+    A6["Vapi assistant A"]
+    A7["Automations"]
+  end
+  subgraph B["Business B: independent workspace"]
+    B1["CRM and customers"]
+    B2["Calls, SMS, email"]
+    B3["Appointments and calendar"]
+    B4["Scripts and templates"]
+    B5["Knowledge and AI agents"]
+    B6["Vapi assistant B"]
+    B7["Automations"]
+  end
+  subgraph C["Business C: independent workspace"]
+    C1["CRM and customers"]
+    C2["Calls, SMS, email"]
+    C3["Appointments and calendar"]
+    C4["Scripts and templates"]
+    C5["Knowledge and AI agents"]
+    C6["Vapi assistant C"]
+    C7["Automations"]
+  end
+```
+
+Each workspace uses the same Zella Voice features; its data and configuration belong to that business alone.
+
+### 6.3 Who may act: identity and authorization
+
+Every access is checked against three things, **in the database**:
+1. the authenticated identity;
+2. an **active** membership in the business that owns the data;
+3. the role's permissions.
+
+| Context | How the business is established | How the actor is established |
 |---|---|---|
-| Web app user | Supabase session (password or email link), MFA required for platform staff and optional (owner-enforceable) for business members | strong |
-| Inbound call | the **called number** identifies the business (strong); the **caller number** identifies the customer **weakly** (spoofable) | caller: weak |
-| Customer self-service link | signed, single-purpose, expiring token | medium |
-| Provider webhook | signature over raw bytes + timestamp + replay protection | strong |
-| Worker → database | service credential, server-only functions | strong (protect the credential) |
+| Web app user | from the row being touched (never from a business ID the browser sends) | Supabase session + `business_members` (active) + role |
+| Inbound call | verified **called number** or **Vapi assistant / phone-number ID** → business mapping | caller number = weak customer identity (REQ-ID-01) |
+| Provider webhook (SMS, email, leads, payments) | verified provider identifier (number, inbound address, lead-form key, connection) → business mapping | signature over raw bytes + timestamp + replay protection |
+| Customer link | signed token bound to one business and one record | token |
+| Background worker | business ID carried in a **signed work envelope** (§6.9), re-verified by the database | service credential, server-only functions |
+| Platform staff | — | platform permission + MFA + audited admin function |
 
-- **REQ-ID-01** Changing or cancelling a booking, or revealing appointment details over the phone, requires a second
-  factor beyond caller ID. Examples: name and booking date, or a text with a signed link to the number on file.
-  **[D-18]**
+- **REQ-ID-01** Changing or cancelling a booking, or hearing appointment details by phone, needs more than caller ID
+  [D-18].
+- **REQ-ISO-01** Removing a member, suspending a business or changing a role takes effect on the **next request**:
+  sessions are re-checked against membership on every call, and open work items re-check business status at claim
+  time.
+
+### 6.4 Database-level isolation
+
+**Ownership model.** Every table is exactly one of:
+
+| Scope | Rule | Examples |
+|---|---|---|
+| **Tenant-owned** | `business_id NOT NULL`, references `businesses` | customers, appointments, calls, conversations, conversation messages, SMS, email, AI agents and configs, knowledge, automations and runs, integrations, notifications, support tickets, usage records |
+| **Platform-owned** | no `business_id`; readable by members only where needed; writable only by platform functions | industries, presets, plans, platform settings |
+| **Mixed** (platform default + business override) | explicit `scope` column (`platform`, `industry`, `business`) with a check constraint: `scope = 'business'` ⇔ `business_id IS NOT NULL` | message templates, spam rules, automation presets |
+
+**Database security requirements:**
+
+| ID | Requirement | How |
+|---|---|---|
+| REQ-DB-ISO-01 | Row security enabled **and verified** on every table | CI test: fail if any table lacks RLS or a tenant table lacks a membership policy |
+| REQ-DB-ISO-02 | Server-side tenant authorization in every function | the first statement checks membership and role against the **row's** business |
+| REQ-DB-ISO-03 | **Composite foreign keys** for tenant relationships | e.g. `appointments (business_id, customer_id) → customers (business_id, id)`; every tenant table has `unique (business_id, id)` so children can reference it |
+| REQ-DB-ISO-04 | **Tenant-scoped unique constraints** | e.g. `unique (business_id, phone_e164)` for customers; `unique (business_id, vin)`; never global uniqueness on business data |
+| REQ-DB-ISO-05 | Child tables carry their own `business_id` | conversation messages, agent configs, report runs, reminder logs: denormalised, kept consistent by composite FKs |
+| REQ-DB-ISO-06 | Tenant-aware **storage** policies | object paths start with the business **UUID**; policies check membership against that UUID; files are served through short-lived server-signed URLs |
+| REQ-DB-ISO-07 | Tenant-aware **Realtime** | if Realtime is used, only through RLS-filtered `postgres_changes`, or private channels named per business with membership-checked authorization; never public broadcast of tenant data |
+| REQ-DB-ISO-08 | Service-role operations are secured | service credential only server-side; server functions take the business from the verified envelope and re-check record ownership; no "act on any ID" functions |
+| REQ-DB-ISO-09 | Privileged operations audited | audit row: actor, business, action, before and after |
+| REQ-DB-ISO-10 | Records referencing another business's resources are **rejected** | composite FKs (preferred), with a trigger guard as a backstop |
+| REQ-DB-ISO-11 | Frontend filters are never a security boundary | every list and RPC returns only what RLS and functions allow |
+
+### 6.5 CRM independence
+
+| CRM feature | Business A | Business B |
+|---|---|---|
+| Customer records, notes, tags, status | independent | independent |
+| Lead pipeline and stages | independent | independent |
+| Appointments | independent | independent |
+| Staff and assignments | independent | independent |
+| Tasks | independent | independent |
+| Custom fields and record types | independent | independent |
+| Reports | independent | independent |
+| Communication history | independent | independent |
+
+- **REQ-CRM-ISO-01** The same person can be a customer of Business A and Business B as **two separate records**.
+  Updating A's record (for example the phone number) never changes B's.
+- **REQ-CRM-ISO-02** A custom field or record type created by A never appears in B. Industry defaults are copied
+  into a business as its own rows (or read as platform templates); business changes never write back to the template.
+- **REQ-CRM-ISO-03** Duplicate detection, merging and search run **inside one business only**.
+
+### 6.6 Communication isolation: calls, SMS, email
+
+```mermaid
+flowchart TD
+  IN["Incoming call, SMS or email"] --> ID["Identify the provider event<br/>and its business mapping"]
+  ID --> VER{"Mapping verified<br/>and unambiguous?"}
+  VER -- no --> Q["Reject or quarantine<br/>alert platform ops"]
+  VER -- yes --> CTX["Load only that business's context"]
+  CTX --> CRM["Its CRM"]
+  CTX --> AI["Its AI configuration"]
+  CTX --> HIS["Its communication history"]
+  AI --> RES["Generate response"]
+  RES --> OUT["Send through that business's<br/>authorized sender"]
+```
+
+Every business has independent:
+- call history, recordings and transcripts;
+- SMS and email conversations;
+- email signatures;
+- call scripts and message templates;
+- AI-generated responses;
+- callbacks and missed-call records;
+- spam classifications and allow/block lists;
+- communication preferences;
+- consent and opt-out records.
+
+| ID | Requirement |
+|---|---|
+| REQ-COM-ISO-01 | A provider event that maps to no business, or to more than one, is **quarantined** (`quarantined_events`) and alerted. It is never guessed. |
+| REQ-COM-ISO-02 | Outbound messages are sent only from the sender identities (numbers, email domains or addresses) registered to that business. Each send re-checks that the customer, destination and sender belong to the same business. |
+| REQ-COM-ISO-03 | Opt-outs and consent are recorded **per business**: a STOP to Business A does not opt the person out of Business B. Platform-level legal blocks are a separate, explicit list. |
+| REQ-COM-ISO-04 | Changing A's missed-call template never changes B's; templates resolve platform → industry → **A's own override**. |
+| REQ-COM-ISO-05 | Platform-wide spam intelligence may use counts across businesses (e.g. "seen at 3 businesses") but never exposes another business's data or customer identity. |
+
+### 6.7 Vapi and AI receptionist isolation
+
+```mermaid
+flowchart TB
+  V["Vapi platform"] --> A["Assistant A"]
+  V --> B["Assistant B"]
+  V --> C["Assistant C"]
+  A --> AC["Business A configuration"] --> AK["A knowledge + A CRM + A scripts"]
+  B --> BC["Business B configuration"] --> BK["B knowledge + B CRM + B scripts"]
+  C --> CC["Business C configuration"] --> CK["C knowledge + C CRM + C scripts"]
+```
+
+Each assistant loads only its own business's:
+- name and identity;
+- instructions;
+- hours and time zone;
+- knowledge;
+- services and prices;
+- staff and transfer settings;
+- availability;
+- customer context;
+- authorized tools.
+
+**Critical rule (REQ-VOX-ISO-01):** the AI model never decides its own tenant.
+- The business is resolved from a **verified** Vapi assistant ID, phone-number ID or provider-event mapping.
+- That business is bound to the call on the server.
+- **Every tool call is authorized against that bound business**; tool arguments can never name or switch a business.
+- A caller saying "switch to Business B" changes nothing.
+
+| ID | Requirement |
+|---|---|
+| REQ-VOX-ISO-02 | Inbound **and** outbound assistants are per business (or built per call from that business's settings); no shared assistant carries business data. |
+| REQ-VOX-ISO-03 | Tool results contain only the bound business's data; customer lookups match only inside it. |
+| REQ-VOX-ISO-04 | Transfer numbers are resolved server-side from the bound business; the model never sees them. |
+| REQ-VOX-ISO-05 | Webhook replays and duplicates are idempotent per business and provider call ID. |
+
+### 6.8 Appointment isolation and double-booking protection
+
+**Rule A: different businesses never conflict.** Business A, B and C may each book 10:00 AM. There is no global
+appointment uniqueness anywhere in Zella Voice.
+
+**Rule B: the same business cannot double-book the same exclusive resource.**
+
+| Business | Resource | Time | Result |
+|---|---|---|---|
+| A | Provider 1 | 10:00 | allowed |
+| A | Provider 1 | 10:00 (overlapping) | **conflict** |
+| A | Provider 2 | 10:00 | allowed |
+| B | Provider 1 of B | 10:00 | allowed |
+
+The booking check considers:
+- `business_id`;
+- the resource (provider, staff member, room, chair, table, technician, vehicle);
+- start and end, including buffers;
+- appointment status (only active statuses block);
+- the business time zone;
+- configured capacity (a class or a resource with capacity > 1).
+
+| ID | Requirement |
+|---|---|
+| REQ-APT-ISO-01 | Each appointment reserves one or more resources through a reservation table: `appointment_resources (business_id, appointment_id, resource_id, period tstzrange, status)`. |
+| REQ-APT-ISO-02 | Database-level guarantee: an **exclusion constraint** on reservations, `EXCLUDE USING gist (business_id WITH =, resource_id WITH =, period WITH &&) WHERE (status is active)` (needs `btree_gist`). Capacity resources use a counted check inside the booking transaction under a per-resource advisory lock. |
+| REQ-APT-ISO-03 | Bookings run in one transaction: lock → re-check availability (hours, holidays, external busy times) → insert reservation → insert appointment. An exclusion violation returns `slot_taken` with alternatives. |
+| REQ-APT-ISO-04 | Idempotent booking: the same request key returns the same appointment. |
+| REQ-APT-ISO-05 | Support: independent calendars per business; multiple staff and resources; configurable durations and buffers; business working hours; time-zone-aware scheduling; cancellation and rescheduling that release and re-reserve atomically. |
+| REQ-APT-ISO-06 | A staff override of a resource conflict is **not allowed by default**. If ever enabled, it is a separate business setting with a reason and an audit record [D-35]. |
+
+### 6.9 Automation and n8n isolation
+
+n8n never runs an automation without a verified tenant context. Every execution carries a **work envelope**:
+
+| Field | Purpose |
+|---|---|
+| `business_id` | verified owner |
+| `automation_id` | which rule |
+| `event_id` | triggering event |
+| `work_item_id` | the claimed item |
+| `subject_id` | customer or record, when relevant |
+| `idempotency_key` | duplicate protection |
+| `business_timezone` | timing |
+| `claim_token` | proves the worker holds this claim |
+
+- **REQ-AUT-ISO-01** Before any action, the database re-verifies that the business, automation, customer,
+  destination (phone, email, transfer number) and sender all belong together. Any mismatch → refuse, dead-letter,
+  alert.
+- **REQ-AUT-ISO-02** Workers never choose destinations; the database `prepare` step returns them from the verified
+  records.
+- **REQ-AUT-ISO-03** Retries re-use the same envelope and are re-verified; a retry can never run another business's
+  work.
+- **REQ-AUT-ISO-04** Supabase stays the authority for rules and data; n8n only orchestrates.
+
+These must never happen:
+- Business A's reminder using Business B's customer phone number;
+- A's missed-call callback using B's transfer number;
+- A's knowledge automation updating B's knowledge.
+
+### 6.10 Storage, recordings and sensitive information
+
+```text
+<business_uuid>/recordings/…
+<business_uuid>/documents/…
+<business_uuid>/knowledge/…
+```
+
+- Paths start with the business **UUID**, never a name or slug.
+- Paths alone are not security: storage policies check membership against the path's business UUID, and downloads
+  use short-lived **server-signed URLs** issued after an authorization check.
+- Brand assets that must be public (logos) live in a public bucket containing nothing sensitive.
+- Recordings, transcripts, documents and knowledge files are always private.
+
+### 6.11 Configuration scopes
+
+| Configuration | Scope |
+|---|---|
+| Default Zella Voice behaviour | platform |
+| Industry terminology and default templates | industry |
+| Greeting, AI voice and personality | business |
+| Call scripts, SMS and email templates | business (with protected compliance content, REQ-MSG-06) |
+| Business hours, appointment rules | business |
+| Staff transfer settings | business |
+| Knowledge answers | business |
+| Automation rules | business |
+
+```mermaid
+flowchart LR
+  P[Zella Voice platform defaults] --> I[Industry defaults] --> B[Business customization] --> ACT[Active business configuration]
+```
+
+A business customizes permitted defaults without ever changing another business's settings or the shared template.
+
+### 6.12 Cross-tenant security tests (required before production)
+
+Three isolated test businesses (A, B, C), each with an owner, admin, manager, staff and viewer:
+
+| Test | Expected |
+|---|---|
+| A reads B's customer | rejected |
+| A edits B's appointment | rejected |
+| A accesses B's call recording or transcript | rejected |
+| A retrieves B's knowledge | rejected |
+| A changes B's SMS template | rejected |
+| A triggers B's automation | rejected |
+| A subscribes to B's Realtime data | rejected |
+| A's assistant or tool call targets B (including "switch to B") | rejected |
+| A links its appointment to B's customer or resource | rejected |
+| A books the same time as B | **allowed** |
+| A double-books the same exclusive resource (including concurrently) | rejected (one succeeds) |
+| A and B edit their own templates | both allowed, independent |
+| A and B run separate reminders at the same time | both allowed, correct destinations |
+| Duplicate webhooks | one effect |
+| Forged tenant ID in a webhook or request body | rejected |
+| Removed staff member's next request | rejected |
+| Suspended business: queued work | skipped with reason |
+| Viewer or staff attempts a forbidden write | rejected |
+| Malicious browser requests (direct RPC/REST) | rejected by RLS and functions |
+
+### 6.13 Acceptance and status
+
+This section is the required design. Tenant isolation is **accepted only when** the automated tests in §6.12 prove
+two things: cross-business access is rejected, and legitimate independent operations still work.
+
+| Acceptance criterion | Proven by |
+|---|---|
+| Row security on every table, with a membership policy on every tenant table | CI schema test |
+| Every security-definer function checks membership and role first (or is on the reviewed public list) | CI static test |
+| Every tenant relationship uses a composite foreign key with `business_id` | CI schema test |
+| Every uniqueness rule on business data includes `business_id` | CI schema test |
+| `business_id NOT NULL` on every tenant table; explicit scope on mixed tables | CI schema test |
+| Storage paths keyed by business UUID; policies check membership; signed URLs only | storage policy tests |
+| Realtime (if used) only through RLS or membership-checked private channels | Realtime tests |
+| Booking conflicts scoped to business + resource; exclusion constraint holds under concurrency | concurrency test |
+| Business bound from verified provider mapping; tools authorized against it; "switch business" has no effect | voice runtime tests |
+| Unmapped or ambiguous provider events quarantined | webhook tests |
+| Opt-outs and consent per business | messaging tests |
+| Worker envelope re-verified before every action; retries keep the same business | worker tests |
+| Privileged operations audited | audit tests |
+| §6.12 three-business suite passes in CI and staging | CI + staging |
+
+### 6.14 Future features
+
+Every new feature must follow this architecture. That includes new CRM modules, AI agents, Vapi tools, SMS and email
+workflows, appointment features, integrations, industry modules, automations, reports and dashboards.
+
+**A feature is not complete until** all of these are in place: its tenant ownership, its authorization, its data
+relationships (composite FKs), and its cross-business tests.
 
 ---
 
@@ -378,14 +713,14 @@ stateDiagram-v2
 |---|---|---|---|---|---|---|---|
 | A1 | Inbound call handling | event | call arrives | number → business; business live | AI receptionist | — | Calls |
 | A2 | Missed-call callback | event → work | call classified missed (§12) | consent, suppression, calling hours, already handled? | AI or staff callback sequence | reply, booked, opt-out, staff closed | Callbacks |
-| A3 | Missed-call text | event → work | missed call | SMS consent, quiet-hours rule [D-12], one per missed call | text | reply, callback reached | Callbacks, timeline |
+| A3 | Missed-call text | event → work | missed call | SMS consent; sent immediately (a reply to the caller's own action); one per missed-call follow-up | text | reply, callback reached | Callbacks, timeline |
 | A4 | Lead intake | event | lead source webhook / form / staff | source auth, dedupe | create or update lead, assign | — | Leads |
 | A5 | Lead call sequence | work | new eligible lead | §13.5 stop conditions, consent, calling hours | outgoing call attempts | §13.5 | Leads, Callbacks |
 | A6 | Lead follow-up message | work | attempt outcome rules | consent per channel and purpose | SMS / email | reply, resolved | timeline |
 | A7 | Booking confirmation | event → work | appointment booked | consent | message | cancelled | appointment |
 | A8 | Reminders | work | appointment start minus offsets | still booked, consent, quiet-hours rule | message | moved, cancelled | appointment |
 | A9 | Reschedule / cancellation confirmation | event → work | appointment changed | consent | message | — | appointment |
-| A10 | Check-in reminder | work | before start [D-15] | still booked | message with check-in link | checked in, cancelled | appointment |
+| A10 | Check-in reminder (**later phase**, with self check-in) | work | before start | still booked | message with check-in link | checked in, cancelled | appointment |
 | A11 | No-show follow-up | event → work | marked no-show | policy | message or call | rebooked | timeline |
 | A12 | Post-visit follow-up / feedback | work | marked completed | industry policy, one check-in per visit | message or draft | — | timeline |
 | A13 | Review request | work | completed + review link | classification [D-16] | message | — | timeline |
@@ -521,10 +856,8 @@ Opt-outs apply to every pending work item at its next claim and cancel open sequ
 flowchart LR
   v[Website visit] --> pl[Prospect lead<br/>Zella Voice growth]
   pl --> demo[Demo / call]
-  demo --> su{Signup path<br/>decision D-06}
-  su -- self-serve --> ss[Signup + business draft]
-  su -- assisted --> cb[Create Business<br/>by Zella Voice staff]
-  ss & cb --> inv[Owner invited / verified]
+  demo --> cb[Create Business<br/>by Zella Voice staff]
+  cb --> inv[Owner invited / verified]
   inv --> setup[Setup wizard]
   setup --> num[Number + receptionist]
   num --> test[Activation tests]
@@ -539,7 +872,7 @@ flowchart LR
 |---|---|
 | **10.1 Public website** | REQ-LC-01: marketing pages, pricing (owner-defined), demo request and signup entry. Forms post to an edge endpoint with rate limiting and bot protection, creating a **prospect** in the growth schema. |
 | **10.2 Zella Voice sales leads** | REQ-LC-02: prospects, demos, stages, owner and follow-up tasks in the growth schema; visible only with `growth.manage`; prospect emails follow the same consent rules. Never stored in a tenant. |
-| **10.3 Signup and onboarding** | REQ-LC-03: **self-service signup.** The owner (1) creates an account, (2) creates a business workspace, (3) completes the industry-specific onboarding wizard, (4) adds business information, time zone, hours and contact details, (5) configures the receptionist, (6) completes phone and integration setup. Platform admins can also create or invite businesses (§18.6). Every business gets an isolated workspace; **no demo data is ever loaded into production**. Duplicates are prevented by normalised name, phone and domain checks. |
+| **10.3 Business onboarding** | REQ-LC-03: **for now, every business is created by the Zella Voice team** in the platform admin (Create Business, §18.6). The owner is then invited, signs in and finishes setup. **Self-service signup is a later phase:** account → workspace → industry wizard → business details, time zone, hours → receptionist → phone and integrations, built on the same server functions. Every business gets an isolated workspace; **no demo data is ever loaded into production**. Duplicates are prevented by normalised name, phone and domain checks. |
 | **10.4 Authentication and recovery** | REQ-LC-04: email + password, email links that need a click on our page, recovery by email, MFA (TOTP) required for platform staff and owner-enforceable for members, session revocation on role change, leaked-password protection on. |
 | **10.5 Business creation** | REQ-LC-05: creates the tenant, owner membership (pending until accepted), industry defaults, capabilities, policies, templates, default automations (off until reviewed), and an audit record. Idempotent by a creation key. |
 | **10.6 Invitations** | REQ-LC-06: bound to email, role-limited (admins invite at most staff/manager; only owners invite admins), expiring, revocable, resendable; accepted only from a session proven to own the email. |
@@ -605,7 +938,7 @@ sequenceDiagram
 | REQ-VOX-06 | Transfers only to numbers each business authorises: the owner by default, or the people or roles the business chooses, with hours (on-call rota). The transfer number is never shown to the AI model; the backend performs the transfer. If the recipient doesn't answer, the AI: (1) detects the failed transfer; (2) returns to the caller; (3) says the person is unavailable right now; (4) offers to take a message or arrange a callback; (5) creates **one** urgent callback task; (6) notifies the right staff member. It never says a transfer succeeded when it did not. |
 | REQ-VOX-07 | Unanswered questions are always logged, with or without caller contact. |
 | REQ-VOX-08 | Every call is finalised exactly once from the final report: duration, end reason, classification, summary, transcript and recording references (per privacy settings). Calls without a final report are reconciled with the provider within 15 minutes [D-26]. |
-| REQ-VOX-09 | Recording and transcription follow the business's notice and consent settings [D-27]. |
+| REQ-VOX-09 | Call recording is **off** until recording consent and caller disclosures are legally reviewed [D-27]. When enabled, it follows the business's notice and consent settings. Retention: recordings 30 days, transcripts 90 days (§20). |
 | REQ-VOX-10 | AI changes (prompt, tools, model, voice) pass the per-industry evaluation set before release. |
 
 ---
@@ -622,7 +955,7 @@ sequenceDiagram
 | `transfer_failed` | caller asked for a person; transfer failed or no one available | urgent callback |
 | `abandoned_before_answer` | caller hung up before the assistant answered | missed-call journey |
 | `not_answered` | rang without being answered (provider or capacity issue) | missed-call journey |
-| `failed` | provider or system error | missed-call journey **if** the caller number is known [D-11] + platform alert |
+| `failed` | provider or system error | missed-call journey **if** the caller number is known and the caller is eligible (REQ-MC-11) + platform alert |
 | `spam` | spam rules matched | none (logged) |
 | `unknown` | final report missing | reconcile (REQ-VOX-08), then classify |
 
@@ -655,7 +988,7 @@ flowchart TD
 | ID | Requirement |
 |---|---|
 | REQ-MC-01 | Repeat calls from the same number within the open follow-up are grouped, not duplicated; each call still appears on the timeline. |
-| REQ-MC-02 | At most one missed-call text per missed-call follow-up [D-12]. |
+| REQ-MC-02 | At most one immediate missed-call text per missed-call follow-up (REQ-MC-10). |
 | REQ-MC-03 | A reply from the customer pauses pending attempts and puts the conversation in the inbox. |
 | REQ-MC-04 | If staff called the customer (logged call or manual attempt), the automated sequence stops unless staff choose to continue. |
 | REQ-MC-05 | Opt-out at any point cancels the remaining sequence for that channel. |
@@ -781,7 +1114,7 @@ They are rechecked **immediately before every call, SMS or email** (REQ-OUT-10):
 
 | Step | Requirement |
 |---|---|
-| 1 | Provider reports answered (REQ-OUT-11). Machine detection is used **only** if the provider classifies it and its accuracy is acceptable [D-10]; otherwise the assistant listens before speaking. |
+| 1 | Provider reports answered (REQ-OUT-11). Machine detection is used **only** if the provider classifies it and its accuracy is acceptable; otherwise the assistant listens before speaking. On voicemail, leave the short approved message (D-10). |
 | 2 | Introduce: the business name, that this is an assistant, why it is calling (reply to their enquiry), per the approved script. |
 | 3 | Ask permission to continue; on "no" → record `declined_now` and offer a better time or stop. |
 | 4 | Handle the request with the **same tools as inbound**: answer from knowledge, offer times, book (after confirmed success only), take a message, transfer, schedule a callback, record "not interested", record opt-out. |
@@ -805,7 +1138,7 @@ for `no_conversation` or `hung_up_early`.
 | `voicemail` | yes (provider classified) | yes | yes: leave a short professional voicemail (no sensitive details), then one contextual text or email if consent | — |
 | `invalid_number` | yes | no | no | suppress number |
 | `rejected` (carrier/provider) | yes | limited | no | alert if repeated (possible spam labelling) |
-| `provider_failure` | yes | yes, not counted as a customer attempt [D-02] | no | alert |
+| `provider_failure` | yes | yes, **not counted** toward the 2 customer attempts (our failure, not theirs) | no | alert |
 | `timeout` | yes | after reconciliation | no | — |
 | `unknown` | yes | **only after reconciliation** | no | prevents duplicate calls |
 
@@ -866,12 +1199,12 @@ Every attempt stores:
 
 | Message | Trigger | Purpose | Channels | Timing | Cancel when | Reply handling |
 |---|---|---|---|---|---|---|
-| Missed-call text | missed call | service | SMS | immediately or delayed [D-12] | caller reached | inbox; pause attempts |
+| Missed-call text | missed call | service | SMS | immediately | caller reached | inbox; pause attempts; AI may reply (§14.3) |
 | Lead follow-up | sequence rule | service (first contact to an enquiry) [D-04] | SMS, email | after attempt N | resolved, reply | inbox |
 | Booking confirmation | booked | service | SMS/email (customer preference) | immediately | cancelled | inbox; "C" not required |
 | Reminder(s) | before start | service | same | offsets per business; quiet-hours rule [D-03] | moved, cancelled, checked in | inbox |
 | Reschedule / cancellation confirmation | changed | service | same | immediately | — | inbox |
-| Check-in reminder / link | before start | service | SMS | [D-15] | checked in | — |
+| Check-in reminder / link (**later phase**) | before start | service | SMS | with self check-in | checked in | — |
 | Waitlist offer | slot freed | service | SMS (+ email if chosen) | immediately | expired, slot gone | link |
 | No-show follow-up | no-show | service | per policy | per policy | rebooked | inbox |
 | Post-visit / feedback | completed | service | per industry | per industry | — | inbox |
@@ -987,7 +1320,7 @@ stateDiagram-v2
 |---|---|
 | REQ-CHK-01 | Staff check-in: arrived → checked in → in service → completed, each logged with who and when. Undo is possible within a window. |
 | REQ-CHK-02 | **Initial version: staff-managed check-in only.** The design keeps room for customer self check-in later (a signed link in the reminder, a reply "HERE", or a QR code at the location), switched on per business through a business-level permission. |
-| REQ-CHK-03 | Late arrival and no-show rules: after N minutes [D-15], prompt staff to mark no-show. Nothing is assumed automatically. |
+| REQ-CHK-03 | Late arrival and no-show rules: after N minutes [D-36], prompt staff to mark no-show. Nothing is assumed automatically. |
 | REQ-CHK-04 | Check-in cancels pending reminders for that appointment. |
 
 ### 15.3 Waitlist
@@ -1045,9 +1378,9 @@ flowchart LR
 
 | ID | Requirement |
 |---|---|
-| REQ-BIL-01 | **Not in the current build:** subscription plans, prices, minute allowances and plan-based call limits. None are invented or switched on. The billing architecture (ledger, webhook, entitlement check points) stays ready for a payment provider and plans chosen later [D-09]. |
+| REQ-BIL-01 | Subscription plans, prices and minute allowances are **defined later by the Zella Voice owner** (D-34). Until then no plans exist and no plan-based limits apply. The billing architecture (ledger, payment webhook, entitlement check points) is designed so plans and a payment provider can be added without redesign. |
 | REQ-BIL-02 | Usage is metered from an append-only ledger (one entry per finalised call; adjustments, never edits). Our failures are never billable. |
-| REQ-BIL-03 | Entitlements are checked at use time: assistant assembly, outbound claims, messaging claims, AI features. |
+| REQ-BIL-03 | Entitlement **check points** sit at use time: assistant assembly, outbound claims, messaging claims, AI features. They enforce limits only once plans exist; the core receptionist is never cut mid-call. |
 | REQ-BIL-04 | Payment provider handles cards and invoices; Zella Voice stores no card data. Webhooks are signed and idempotent. |
 | REQ-BIL-05 | Billing page for owners: plan, usage, invoices, payment method (provider portal), cancellation. |
 | REQ-BIL-06 | Grace policy on failed payment; no data deleted within the grace and export window. |
@@ -1066,7 +1399,7 @@ flowchart LR
 | Public website | `zellavoice.com` | prospects | none |
 | Business CRM | `app.zellavoice.com/app/*` | business members | session + business membership |
 | Platform admin | `admin.zellavoice.com/*` | platform staff | session + platform permission + MFA |
-| Customer pages | `/r/<token>` reschedule, `/w/<token>` waitlist, `/c/<token>` check-in, `/u/<token>` unsubscribe, `/continue-plan`, `/status` | customers, public | signed token / none |
+| Customer pages | `/r/<token>` reschedule, `/w/<token>` waitlist, `/c/<token>` check-in (later phase), `/u/<token>` unsubscribe, `/continue-plan`, `/status` | customers, public | signed token / none |
 | Auth pages | `/welcome` (email link landing with Continue), sign-in, reset | everyone | — |
 
 - **REQ-WEB-01** Each surface is code-split; customer pages never load CRM or admin code.
@@ -1173,7 +1506,7 @@ flowchart TD
   p --> i[8 Integrations<br/>calendar · lead sources · store]
   i --> c[9 Communication settings<br/>SMS/email · consent policy ·<br/>missed-call follow-up ·<br/>lead calls · templates]
   c --> a[10 Automations<br/>each rule on/off + settings]
-  a --> pl[11 Plan & entitlements]
+  a --> pl[11 Plan<br/>once plans exist]
   pl --> rv[12 Review & readiness<br/>server-computed checklist]
   rv --> act{All required<br/>checks pass?}
   act -- no --> save[Saved; resume later]
@@ -1207,7 +1540,7 @@ flowchart TD
 | Provider type | Choice | Notes |
 |---|---|---|
 | Voice orchestration | Vapi | inbound assistant per call; outbound assistant per business; server tools |
-| Phone numbers / carrier | through Vapi or Telnyx [D-07] | caller-ID registration per business; spam-label monitoring |
+| Phone numbers / carrier | **forwarding of existing numbers first** (D-07), then numbers bought through Vapi or Telnyx in a later phase | caller-ID registration per business; spam-label monitoring |
 | SMS | Telnyx (planned) | A2P 10DLC or local equivalent before live; delivery receipts required |
 | Email | Resend | verified domain; inbound domain; events |
 | Calendars | Google, Microsoft | OAuth, push notifications preferred |
@@ -1215,7 +1548,7 @@ flowchart TD
 | Store | Shopify | order lookup only |
 | Reviews | Google Business Profile | owner-approved replies |
 | AI model | Anthropic (through Vapi for voice; direct for drafts and insights) | caps per business; never trains on customer data |
-| Payments | [D-09] | hosted checkout and portal; signed webhooks |
+| Payments | chosen later by the owner (D-34) | hosted checkout and portal; signed webhooks |
 | Monitoring | external uptime, log drain, pager [D-31] | outside the platform |
 
 ---
@@ -1224,7 +1557,7 @@ flowchart TD
 
 | Area | Requirement |
 |---|---|
-| Isolation | REQ-TEN-*; cross-tenant tests for every table, view, function and endpoint |
+| Isolation | §6 (ISO, REQ-DB-ISO, REQ-COM-ISO, REQ-VOX-ISO, REQ-APT-ISO, REQ-AUT-ISO); cross-tenant tests §6.12 for every table, view, function and endpoint |
 | Row security | on every table; tables meant for the server only have no client policies and no grants |
 | Storage | private buckets; per-business paths; content inspection before files are usable |
 | Realtime (if used) | subscriptions are filtered by RLS only; no broadcast of tenant data |
@@ -1346,7 +1679,7 @@ An industry is **ready** when:
 | D-01 | Lead calls are made by the **AI**. If the person asks for a human, the call is transferred to the owner or the people each business chooses. | §13.3, REQ-VOX-06 |
 | D-02 | Lead calls: first call about **1 minute** after an eligible lead arrives (or the next opening). **2 attempts**, about **2–3 h** apart. **One contextual message** after each unsuccessful attempt. Then **Unreachable** plus a staff task; never deleted; reopenable. | §13.3–13.7 |
 | D-03 (calls) | Calling window = **business opening hours**; 24/7 businesses default to **08:00–21:00 local**. Emergency inbound never permits outbound. | §9.3 |
-| D-06 | **Self-service signup**; platform admins can also create or invite businesses. No demo data in production. | §10.3 |
+| D-06 | **Businesses are created by the Zella Voice team for now**; self-service signup is a later phase. No demo data in production. | §10.3 |
 | D-07 | **Forward existing numbers** first (ownership and forwarding verified); buying new numbers comes later. | §10.10 |
 | D-09 | **No plans, prices or minute allowances now**; billing stays ready for later. AI usage and cost tracked per business. | §17 |
 | D-10 | Leave a **short, professional voicemail** where permitted; no sensitive details; then one contextual message. | §13.7 |
@@ -1379,11 +1712,13 @@ An industry is **ready** when:
 | D-24 | Minimum knowledge set before activation | owner |
 | D-25 | Behaviour while a business is paused | owner |
 | D-29 | Waitlist ranking, offer expiry, broadcast mode | owner |
-| D-30 | Draft expiry for abandoned signups and Create Business drafts | owner |
+| D-30 | Draft expiry for abandoned Create Business drafts | owner |
 | D-31 | Monitoring and pager provider | owner |
+| D-36 | Late-arrival minutes before staff are prompted to mark a no-show | owner |
 | D-32 | Limit on AI replies per conversation per hour | engineering |
 | D-33 | Default internal monthly AI budget per business and alert thresholds (75% / 90% proposed) | owner |
-| D-34 | Payment provider, plans and prices (deferred) | owner |
+| D-34 | Payment provider, plans and prices: **the owner adds these later**; nothing is built or invented until then | owner |
+| D-35 | Whether a business may ever override a resource conflict (default: never) | owner |
 
 ### 23.3 Rulebook items that need the owner's update
 
@@ -1397,43 +1732,44 @@ An industry is **ready** when:
 
 ---
 
-## 24. Safe implementation sequence
+## 24. Safe build sequence
 
-Every step follows the same safety pattern:
-- Build on a branch; tests run in CI.
-- Rehearse on an isolated copy, then in staging with **dry run**.
-- The owner approves production.
-- Switch on for **one pilot business** first, with a kill switch ready.
-- Watch for a set period, then widen.
+Zella Voice is built in phases. Each phase follows the same safety pattern:
+- built on a branch, with CI running the required tests;
+- rehearsed on an isolated database;
+- run in staging in **dry-run** mode;
+- moved to production only with owner approval;
+- switched on for **one pilot business** first, with its kill switch ready;
+- observed, then widened.
 
-Each step's **exit test** must pass before the next step.
+A phase starts only when the previous phase's **exit test** passes.
 
 ```mermaid
 flowchart TD
-  S0[0 · Safety foundations] --> S1[1 · Engine fixes]
-  S1 --> S2[2 · Inbound voice on one real number]
-  S2 --> S3[3 · Confirmations, reminders,<br/>protected templates]
-  S3 --> S4[4 · Missed-call flow]
-  S4 --> S5[5 · Two-way AI messaging]
-  S5 --> S6[6 · AI lead calls]
-  S6 --> S7[7 · Knowledge AI drafts<br/>+ usage budgets]
-  S7 --> S8[8 · Self-service signup]
-  S8 --> S9[9 · Retention, recording<br/>after legal review]
-  S9 --> S10[10 · Wider launch:<br/>lower-risk industries,<br/>then regulated after review]
+  P1[1 · Platform foundations] --> P2[2 · Tenant isolation core]
+  P2 --> P3[3 · Automation and communication engine]
+  P3 --> P4[4 · Inbound AI receptionist]
+  P4 --> P5[5 · Scheduling, confirmations, reminders]
+  P5 --> P6[6 · Missed-call follow-up]
+  P6 --> P7[7 · Two-way AI messaging]
+  P7 --> P8[8 · AI lead calls]
+  P8 --> P9[9 · Knowledge AI and usage budgets]
+  P9 --> P10[10 · CRM and admin completeness]
+  P10 --> P11[11 · Privacy operations]
+  P11 --> P12[12 · Launch: lower-risk industries,<br/>then regulated after legal review]
 ```
 
-| Step | What | Why first | Exit test (must pass) | Live switch / gate |
-|---|---|---|---|---|
-| **0. Safety foundations** | CI on every pull request; migration ledger; confirm backups and run a restore drill; leaked-password protection on; review `calls_view`; staging environment; external uptime alert | nothing else is safe without these | restore drill restores without re-sending anything; CI blocks a failing PR | none |
-| **1. Engine fixes** | dispatcher back-off that never delays new work (REQ-AUT-11); `unknown` outcome with reconciliation before retry (REQ-AUT-05); claim-time rechecks, including "automation switched off" and "customer replied" (REQ-AUT-06); Failure Alert on every workflow | every later channel depends on the engine | stuck item + new item → new item sent within 1 minute; lost call result → no second call until reconciled | none (dry run) |
-| **2. Inbound voice** | forward the pilot business's number; per-call assistant; tool path; transfer-failure behaviour (REQ-VOX-06); end-of-call finalisation; usage metering; knowledge "ready" on approval (REQ-KNW-01) | proves P1 "every call answered" | real call → one delivery, duration, summary, one usage row; failed transfer → message + one urgent callback | `calls` inbound only; recording **off** |
-| **3. Confirmations and reminders** | reminder schedule (REQ-MSG-30); confirmations by text and email; protected templates (REQ-MSG-06); SMS registration (A2P 10DLC) and delivery receipts | lowest-risk outbound messages; customers expect them | each notice band produces exactly the right reminders; reschedule recalculates; cancel cancels; no duplicates | `email_live`, then `sms_live` for the pilot |
-| **4. Missed-call flow** | classification; immediate text; verification before callback; spam gate; anonymous → staff task; 2 attempts; staff controls | the core promise "never miss a caller" | missed call → one text, verified callback, max 2 attempts, stops on reply or opt-out; medium spam → review queue | outbound calls for the pilot only (callbacks to people who called) |
-| **5. Two-way AI messaging** | AI replies with staff takeover, STOP first, dedupe, loop limits, escalation | needed by missed-call and lead follow-ups | STOP honoured before AI; staff takeover pauses AI; no duplicate replies; booking change confirmed only after the backend confirms | per-business AI messaging switch |
-| **6. AI lead calls** | per-business outbound caller ID and assistant; consent evidence per source; 1-minute first call; 2 attempts; voicemail; contextual messages; Unreachable + staff task; attempt history and timeline | highest legal and reputational risk: last of the channels | full answer and no-answer matrix in staging; consent missing → no call; reply between attempts → call moved or cancelled | per-business lead-call switch; **counsel sign-off on US consent first** |
-| **7. Knowledge AI drafts** | Anthropic drafts for gaps; owner approval; per-business budget and alerts; admin cost view | improves answers once calls flow | gap → draft → approve → ready → answered; budget reached → drafting pauses, receptionist unaffected | `knowledge_ai_live` |
-| **8. Self-service signup** | account → workspace → industry wizard → receptionist → number forwarding → activation tests | opens growth once the product is proven | new business isolated; activation tests block go-live until passed; no demo data | signup open |
-| **9. Retention and recording** | deletion jobs (30 / 90 days); export; deletion requests; recording with disclosures | after legal review | expired items deleted everywhere; export complete | recording switch after counsel review |
-| **10. Wider launch** | lower-risk industries; then regulated industries one by one with their stricter settings | after pilots | per-industry eval set passes; pilot sign-off | per industry |
-
-`docs/CURRENT_STATE_REVIEW.md` §28 maps each step to the gaps it closes.
+| Phase | Build | Exit test | Gate |
+|---|---|---|---|
+| **1. Platform foundations** | environments (local, staging, production); CI; migration ledger; backups with a restore drill; auth with MFA for platform staff; leaked-password protection; audit log; external monitoring and pager | CI blocks a failing PR; restore drill restores without re-sending anything | — |
+| **2. Tenant isolation core** | businesses, members and roles; ownership model (tenant, platform, mixed scope); `business_id NOT NULL`, composite FKs, tenant-scoped uniques; RLS policies; storage layout and policies; signed URLs; Create Business (team-created) with owner invite | §6.12 three-business suite green in CI | — |
+| **3. Automation and communication engine** | outbox; work items; claim protocol with signed work envelopes; retry, unknown-outcome and reconciliation; dispatcher back-off that never delays new work; dead letters; contact policy engine; status model; protected templates; provider adapters with dry run | a stuck item never delays a new item; a lost result never causes a second action before reconciliation; every skip has a reason | all live switches off |
+| **4. Inbound AI receptionist** | number forwarding with verification; business mapping; per-call assistant; tools bound to the business; transfers with failure handling; standby assistant; call finalisation; usage ledger; knowledge readiness on approval | a real test call on the pilot number: one delivery, correct business, duration, summary, one usage entry; "switch business" has no effect; a failed transfer produces a message and one urgent callback | inbound calls for the pilot; recording off |
+| **5. Scheduling, confirmations, reminders** | resources and reservations with an exclusion constraint; availability; booking, reschedule, cancel; confirmations by text and email; the reminder schedule (REQ-MSG-30); staff check-in; waitlist | concurrent double-booking: one wins; A and B at the same time: both succeed; every notice band produces exactly the right reminders | email live, then SMS live after carrier registration |
+| **6. Missed-call follow-up** | call classification; immediate text; verification before callback; spam gate; anonymous-caller tasks; 2 attempts; staff controls | missed call → one text, a verified callback, at most 2 attempts; stops on reply or opt-out; medium-risk spam → review queue | outbound callbacks for the pilot |
+| **7. Two-way AI messaging** | AI replies with STOP first, dedupe, loop limits, escalation, staff takeover | STOP before AI; takeover pauses AI; one reply per inbound message; booking changes only after backend confirmation | per-business switch |
+| **8. AI lead calls** | lead intake from all sources with consent evidence; per-business outbound caller ID and assistant; 1-minute first call; 2 attempts; voicemail; contextual follow-ups; Unreachable + staff task; attempt history and timeline | full answer / no-answer / voicemail / failure / unknown matrix in staging; missing consent → no call; a reply between attempts reschedules or stops | per-business switch, **after counsel sign-off on US consent** |
+| **9. Knowledge AI and usage budgets** | AI-drafted answers for gaps; approval flow; per-business AI usage and cost tracking; budgets and alerts; admin cost view | gap → draft → approve → ready → answered; budget reached → drafting pauses, receptionist unaffected | AI drafting switch |
+| **10. CRM and admin completeness** | every page in §18; unified timeline; outgoing-call attempts view; queue and provider views; growth pipeline | every page passes role, state and accessibility checks for all roles | — |
+| **11. Privacy operations** | retention jobs (recordings 30 days, transcripts 90 days); export; deletion requests; recording with disclosures | expired data deleted everywhere; complete export | recording only after legal review |
+| **12. Launch** | lower-risk industries first; regulated industries one by one with their stricter settings; self-service signup in a later phase | per-industry evaluation set passes; pilot sign-off | per industry |

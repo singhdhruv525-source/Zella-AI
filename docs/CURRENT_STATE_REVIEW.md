@@ -1352,3 +1352,26 @@ Environment: isolated local Postgres 16 and a local stand-in API. Not production
 | G-24 alerting | §21 | Monitoring |
 | G-26 eval set | REQ-KNW-06, REQ-VOX-10 | — |
 | self check-in, waitlist self-join | REQ-CHK-02, REQ-WL-01 | `/c/<token>` page; waitlist join |
+
+## 29. Multi-tenant isolation: current status against `docs/ARCHITECTURE.md` §6
+
+Status as of 9 Nov 2026 (evidence: `docs/CURRENT_STATE_REVIEW.md` and read-only production checks):
+
+| Requirement | Status | Evidence |
+|---|---|---|
+| RLS enabled on every table | **Implemented and tested** | production: 0 tables without RLS; security suite 58/58 (isolated) |
+| Server-side tenant authorization | **Implemented and tested** (convention) | role checks; suites pass. An automated "every definer function checks roles" test is **not implemented** |
+| Composite foreign keys | **Partially implemented** | 1 of 253 foreign keys includes `business_id`; cross-business links are blocked by the `zz_tenant_links` trigger on about 30 tables instead |
+| Tenant-scoped unique constraints | **Partially implemented** | 18 unique constraints + 52 unique indexes include `business_id`; not yet audited table by table |
+| Mandatory `business_id` on tenant tables | **Partially implemented** | 117 tables NOT NULL. 15 nullable (mostly mixed-scope tables without an explicit scope column). Child tables such as `conversation_messages`, `ai_agent_configs`, `business_report_runs` have no `business_id` |
+| Storage policies | **Implemented and tested** for record files | private buckets `record-files`, `business-documents`; 8 policies; `record_files_test.sql` passes. Path convention to verify for every bucket |
+| Realtime | **Not used** (no publication) | must follow REQ-DB-ISO-07 if introduced |
+| Business-scoped booking conflicts | **Partially implemented** | per-business lock and availability checks (tested); **no exclusion constraint**; staff can double-book in the CRM today |
+| Per-business Vapi assistant (inbound) | **Implemented and tested** | per-call assembly; 391/391 runtime checks (isolated). **Requires provider verification** on a real number |
+| Per-business outbound assistant / caller ID | **Not implemented** | one platform assistant and number today |
+| Tenant identity never from the model | **Implemented and tested** (inbound) | business bound from the verified number; tools authorized server-side |
+| Quarantine of unmapped provider events | **Partially implemented** | unknown numbers recorded as `unknown_number`; no general quarantine for SMS/email/leads |
+| Per-business opt-outs | **Implemented and tested** | consent records per business |
+| n8n work envelope and re-verification | **Partially implemented** | items carry `business_id`; claim functions re-check business status; no claim token / full destination re-verification |
+| Privileged operations audited | **Implemented** | audit triggers; 145 audit rows in production |
+| Three-business test suite (§6.12) | **Partially implemented** | two-business isolation suites exist; three-business and Realtime/forged-webhook cases to add |
