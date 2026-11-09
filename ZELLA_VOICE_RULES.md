@@ -338,7 +338,7 @@ flowchart LR
 - `PRV-5` **Data subject requests** (access, correction, deletion) are logged, completed within 30 days, and reach every copy: tables, files, backups on rotation, provider records.
 - `PRV-6` **Consent is recorded**, not assumed: when, how, for which channel, for which purpose (service vs marketing).
 - `PRV-7` **Logs are not a data store.** No full phone numbers, emails, message bodies or transcripts in logs. Mask what must appear.
-- `PRV-8` **Every sub-processor** (voice, SMS, email, AI model, hosting) is listed with what data it receives. Adding one needs owner approval.
+- `PRV-8` **Every sub-processor** (voice and the speech providers behind it, SMS, email, AI model, hosting, calendars, lead sources, reviews, store, messaging apps, push, monitoring, payments) is listed with what data it receives (§39). Adding one needs owner approval.
 - `PRV-9` **Data stays in its region.** A business in a new country with data-residency rules gets a regional deployment decision before it is sold.
 - `PRV-10` **Never train AI models on customer data** or send it to any provider that does.
 
@@ -581,7 +581,7 @@ stateDiagram-v2
 - `UX-21` Every screen works at **360 px** and **1280 px+** with no sideways page scroll; tables scroll inside themselves.
 - `UX-22` **Performance budget** on a mid-range phone over 4G: largest content in under 2.5 s, interaction response under 200 ms, layout shift under 0.1. Customer-facing link pages ship without the admin code.
 - `UX-23` Lists over 50 rows paginate or virtualise.
-- `UX-24` **Owners on the move (§40).** The CRM installs to the phone's home screen and sends push notifications for urgent items, with SMS and email as fallback. The phone layout puts Today, Callbacks, Inbox and Calendar first; every urgent notification opens the exact item.
+- `UX-24` **Owners on the move (§40).** The CRM installs to the phone's home screen and sends push notifications for urgent items, with SMS and email as fallback. A push notification carries no personal data, only a title and a link to the item. The phone layout puts Today, Callbacks, Inbox and Calendar first; every urgent notification opens the exact item.
 
 ---
 
