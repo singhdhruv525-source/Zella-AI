@@ -665,7 +665,7 @@ flowchart LR
   alert.
 - **REQ-AUT-05 Unknown outcome.** If a provider call's result is lost, the item enters `unknown`. It is **reconciled
   with the provider before any retry**.
-- **REQ-AUT-06 Re-check before acting.** Eligibility (business status, consent, suppression, calling or quiet hours,
+- **REQ-AUT-06 Re-check before acting.** Eligibility (business status, consent, suppression, contact hours (REQ-MSG-07),
   stop conditions, entitlements) is evaluated **at claim time**, not when the item was created.
 - **REQ-AUT-07 Cancellation.** Work items are cancelled by the events that make them irrelevant: a booking moved or
   cancelled, a reply received, an opt-out, a rule disabled, the business paused. Every cancellation stores its reason.
@@ -718,7 +718,7 @@ stateDiagram-v2
 | A5 | Lead call sequence | work | new eligible lead | §13.5 stop conditions, consent, calling hours | outgoing call attempts | §13.5 | Leads, Callbacks |
 | A6 | Lead follow-up message | work | attempt outcome rules | consent per channel and purpose | SMS / email | reply, resolved | timeline |
 | A7 | Booking confirmation | event → work | appointment booked | consent | message | cancelled | appointment |
-| A8 | Reminders | work | appointment start minus offsets | still booked, consent, quiet-hours rule | message | moved, cancelled | appointment |
+| A8 | Reminders | work | appointment start minus offsets | still booked, consent, reminder window 07:00–21:00 (REQ-MSG-07) | message | moved, cancelled | appointment |
 | A9 | Reschedule / cancellation confirmation | event → work | appointment changed | consent | message | — | appointment |
 | A10 | Check-in reminder (**later phase**, with self check-in) | work | before start | still booked | message with check-in link | checked in, cancelled | appointment |
 | A11 | No-show follow-up | event → work | marked no-show | policy | message or call | rebooked | timeline |
@@ -787,13 +787,28 @@ It checks, in order:
 2. Suppression list (opt-out, invalid, bounced, complaint, legal).
 3. Consent for the channel **and purpose** (service vs marketing), with evidence.
 4. Industry policy (sensitive industries: drafts, no relationship-revealing previews).
-5. Frequency caps [D-23] and "one check-in per visit".
+5. **Frequency (REQ-MSG-08):**
+   - Messages **not** caused by the customer are capped at one per customer per day per business, plus one after-visit
+     check-in per visit.
+   - Messages inside a follow-up sequence the customer started (missed call, lead enquiry) are capped by the sequence
+     instead: at most 2 call attempts, each followed by at most one message.
+   - Replies to the customer are never capped.
 6. Stop conditions of the sequence (reply received, resolved, booked, closed).
-7. **Calling window (calls):** the business's configured opening hours, in the business time zone. Businesses open
-   24/7 use a default outbound window of **08:00–21:00 local**, unless they configure a different permitted window.
-   Calls outside the window are queued until it next opens. Emergency inbound availability **never** grants
-   permission for outbound calls. **Quiet hours (non-urgent messages):** [D-03]. Replies to the customer's own message
-   go immediately.
+7. **Contact hours (REQ-MSG-07)**, in the **recipient's local time zone when known** (from their address, area code or a
+   stated preference), otherwise the business's time zone:
+
+   | Contact | Allowed window | Outside the window |
+   |---|---|---|
+   | Calls (callbacks, lead calls) | the business's opening hours; businesses open 24/7 use 08:00–21:00 unless they set a narrower permitted window | wait for the next opening |
+   | Replies, and messages caused by the customer's own action (answers to their texts, missed-call text, booking confirmation) | immediately, any time | — |
+   | Follow-up text or email after a call attempt | the same window as calls | sent at the next opening |
+   | Appointment reminders | 07:00–21:00 | moved **earlier** (for example to 20:00 the evening before), never past the appointment |
+   | Other service messages (reschedule/cancellation follow-ups, post-visit, feedback, waitlist offers) | 09:00–19:00 (waitlist offers: immediately if the freed slot is within 24 h, otherwise 09:00–19:00) | next window |
+   | Marketing (reactivation, promotions, cross-sell) | 09:00–19:00 | next window |
+
+   The calling window must also satisfy US calling-time rules (federal and state) for the called person's local time;
+   counsel confirms which call types they cover [D-04]. Emergency inbound availability **never** grants permission for
+   outbound calls.
 8. Entitlements: **not enforced at this stage** (no plans yet, REQ-BIL-01). The check point exists so plans can be
    added later without redesign.
 9. Template completeness (no unfilled placeholders).
@@ -1052,7 +1067,7 @@ Sources:
 | Handler | AI / staff / AI then staff | **AI** (if the lead asks for a person: transfer to the owner or the people the business chooses, REQ-VOX-06) |
 | Eligible sources | Google Ads forms, website forms, Meta lead forms, manually added leads, approved CRM/API integrations | all of them, but a source never authorises a call by itself: every lead passes consent, eligibility, duplicate and opt-out checks first |
 | Caller number | one of the business's outbound numbers | required to enable |
-| Calling hours and days | the business's opening hours (24/7 businesses: 08:00–21:00 local unless configured) | business hours |
+| Calling hours and days | the business's opening hours (24/7 businesses: 08:00–21:00 unless configured narrower), checked in the **lead's local time zone when known**, else the business's | business hours (REQ-MSG-07) |
 | First-call delay | time after the lead arrives | **about 1 minute**; if closed, queued for the next opening |
 | Max attempts, spacing | numbers | **2 attempts per follow-up sequence**, about **2–3 hours** apart |
 | Voicemail behaviour | none / leave approved message | **leave a short, professional voicemail** where consent and calling rules permit; never sensitive information |
@@ -1202,14 +1217,14 @@ Every attempt stores:
 | Missed-call text | missed call | service | SMS | immediately | caller reached | inbox; pause attempts; AI may reply (§14.3) |
 | Lead follow-up | sequence rule | service (first contact to an enquiry) [D-04] | SMS, email | after attempt N | resolved, reply | inbox |
 | Booking confirmation | booked | service | SMS/email (customer preference) | immediately | cancelled | inbox; "C" not required |
-| Reminder(s) | before start | service | same | offsets per business; quiet-hours rule [D-03] | moved, cancelled, checked in | inbox |
+| Reminder(s) | before start | service | same | REQ-MSG-30 schedule; 07:00–21:00, moved earlier | moved, cancelled, checked in | inbox |
 | Reschedule / cancellation confirmation | changed | service | same | immediately | — | inbox |
 | Check-in reminder / link (**later phase**) | before start | service | SMS | with self check-in | checked in | — |
 | Waitlist offer | slot freed | service | SMS (+ email if chosen) | immediately | expired, slot gone | link |
 | No-show follow-up | no-show | service | per policy | per policy | rebooked | inbox |
 | Post-visit / feedback | completed | service | per industry | per industry | — | inbox |
 | Review request | completed + link | [D-16] | per policy | per policy | — | — |
-| Reactivation, cross-sell, promotions | schedule / rule | **marketing** | SMS/email with opt-in | quiet hours | opt-out | inbox |
+| Reactivation, cross-sell, promotions | schedule / rule | **marketing** | SMS/email with opt-in | 09:00–19:00 | opt-out | inbox |
 | Callback reminder | staff, before due | internal | in-app, email, SMS | before due | done | — |
 | Staff notification | needs a person, escalation, new lead | internal | per member preference | immediately | read | — |
 | Business reports | schedule | internal | email | 08:00 local / weekly | — | — |
@@ -1228,6 +1243,9 @@ Every attempt stores:
 | less than 1 h ahead | confirmation only, no reminder |
 
 Rules for reminders:
+- Reminders are sent only between **07:00 and 21:00** in the customer's local time (business time if unknown). A
+  reminder that would fall outside that window moves **earlier**, never later. If no earlier time remains after the
+  booking was made, that reminder is dropped and the confirmation stands.
 - Rescheduling cancels pending reminders and recalculates from the new time.
 - Cancelling cancels them.
 - Never a duplicate: one dedupe key per appointment, version and offset.
@@ -1332,7 +1350,7 @@ stateDiagram-v2
 | REQ-WL-03 | Offers go **one at a time** by default, with an expiry [D-29]. Optional "first to accept" broadcast mode, protected by the booking lock: later accepters are told politely that it is taken. |
 | REQ-WL-04 | Acceptance books under the lock after re-checking availability (including external busy times). |
 | REQ-WL-05 | When the slot disappears (booked by staff, external busy), open offers are withdrawn at once. |
-| REQ-WL-06 | Offers are service messages; they respect suppression and quiet hours unless the slot is imminent [D-29]. |
+| REQ-WL-06 | Offers are service messages; they respect suppression and contact hours (REQ-MSG-07: immediately if the slot is within 24 h, otherwise 09:00–19:00). |
 | REQ-WL-07 | The CRM shows entries, offers sent, expiries and acceptances. |
 
 ---
@@ -1570,7 +1588,8 @@ flowchart TD
 | Link tokens | 256-bit random, hashed at rest, single purpose, expiry, revoked when the underlying item changes, never logged |
 | AI | prompt-injection treated as hostile input; tools re-check permissions; no secrets or other customers' data in prompts; eval cases include injection attempts |
 | Sensitive industries | transcripts never to staff; private fields separate; previews never reveal the relationship; drafts for follow-ups |
-| Recordings and transcripts | **Call recording is off** until recording-consent rules, caller disclosures and business settings have been reviewed [D-27]. Retention defaults (configurable per platform and industry, **legal review before launch**): recordings **30 days**, transcripts **90 days**, audit and security logs per the applicable legal and operational policy. Deletion requests supported; access logged; tenant-isolated. |
+| Recordings and transcripts | **Call recording is off** until recording-consent rules, caller disclosures and business settings have been reviewed [D-27]. Access logged; tenant-isolated; deletion requests supported. |
+| Retention (REQ-PRV-01) | Defaults, configurable per platform and per industry; **legal review before launch** (some regulated industries may need longer periods for certain records): **call recordings 30 days**, **transcripts 90 days**, **message bodies 2 years**, **audit and security logs 7 years** (unless the applicable legal policy requires otherwise), **a cancelled business's data deleted 30 days after cancellation**, after a final export offer. Deletion is a scheduled job that reaches tables, files and provider copies where possible, with legal hold respected. |
 | Audit | append-only; privileged actions; support access |
 | Retention and deletion | scheduled deletion per data class; legal hold; deletion reaches files and provider copies where possible |
 | Backups | point-in-time recovery; quarterly restore drill; a restore never re-sends messages (dedupe keys and a "restored" flag on work items) |
@@ -1678,14 +1697,15 @@ An industry is **ready** when:
 |---|---|---|
 | D-01 | Lead calls are made by the **AI**. If the person asks for a human, the call is transferred to the owner or the people each business chooses. | §13.3, REQ-VOX-06 |
 | D-02 | Lead calls: first call about **1 minute** after an eligible lead arrives (or the next opening). **2 attempts**, about **2–3 h** apart. **One contextual message** after each unsuccessful attempt. Then **Unreachable** plus a staff task; never deleted; reopenable. | §13.3–13.7 |
-| D-03 (calls) | Calling window = **business opening hours**; 24/7 businesses default to **08:00–21:00 local**. Emergency inbound never permits outbound. | §9.3 |
+| D-03 | **Contact hours (REQ-MSG-07):** calls in business hours (24/7: 08:00–21:00); replies and customer-caused messages immediately; post-call follow-ups in the calling window; reminders 07:00–21:00, moved earlier; other service messages and marketing 09:00–19:00. **Time zone:** the recipient's when known, else the business's. | §9.3 |
+| D-23 | **Frequency (REQ-MSG-08):** one non-customer-caused message per customer per day per business; sequences capped by their own rules; replies never capped. | §9.3 |
 | D-06 | **Businesses are created by the Zella Voice team for now**; self-service signup is a later phase. No demo data in production. | §10.3 |
 | D-07 | **Forward existing numbers** first (ownership and forwarding verified); buying new numbers comes later. | §10.10 |
 | D-09 | **No plans, prices or minute allowances now**; billing stays ready for later. AI usage and cost tracked per business. | §17 |
 | D-10 | Leave a **short, professional voicemail** where permitted; no sensitive details; then one contextual message. | §13.7 |
 | D-11 | Not decided separately; missed-call rules apply only when the caller's number is known (REQ-MC-12). | §12 |
 | D-12 | **Immediate missed-call text** (consent permitting); AI callback 2–5 min later after verification; 2 attempts, 2–3 h apart; a contextual text between them; anonymous callers → staff task; medium-risk spam → review queue, no callback. | §12 |
-| D-13 / D-27 | Recording **off** until legal review. Retention defaults: recordings **30 days**, transcripts **90 days**, audit/security per policy; configurable per platform and industry; **legal review before launch**. | §20 |
+| D-13 / D-27 | Recording **off** until legal review. Retention: recordings **30 days**, transcripts **90 days**, message bodies **2 years**, audit and security logs **7 years**, cancelled business **30 days** after cancellation; configurable per platform and industry; **legal review before launch**. | §20 |
 | D-14 | **United States only** at launch; multi-country ready; India not enabled until reviewed. | header, §20 |
 | D-15 | **Staff-managed check-in** first; self check-in designed for later. | §15.2 |
 | D-20 | **Lower-risk industries first**; regulated industries after legal review, with stricter settings. | §22 |
@@ -1698,7 +1718,6 @@ An industry is **ready** when:
 
 | ID | Decision | Owner |
 |---|---|---|
-| D-03 (messages) | Quiet hours for non-urgent messages (rulebook `COM-3` says 09:00–19:00) | owner |
 | D-04 | Consent evidence required per lead source for AI-voice calls and automated texts under US rules | owner + counsel |
 | D-05 | Public website hosting and Zella Voice sales pipeline scope | owner |
 | D-08 | Calendar providers at launch | owner |
@@ -1708,7 +1727,6 @@ An industry is **ready** when:
 | D-19 | Gmail/Outlook mailbox integration: build or drop | owner |
 | D-21 | Brand rule in the rulebook (`BRD-1`) | owner |
 | D-22, D-26, D-28 | Engineering thresholds: dispatcher "stuck" count, reconciliation delay, calendar staleness | engineering |
-| D-23 | Frequency caps per customer | owner |
 | D-24 | Minimum knowledge set before activation | owner |
 | D-25 | Behaviour while a business is paused | owner |
 | D-29 | Waitlist ranking, offer expiry, broadcast mode | owner |
@@ -1720,15 +1738,14 @@ An industry is **ready** when:
 | D-34 | Payment provider, plans and prices: **the owner adds these later**; nothing is built or invented until then | owner |
 | D-35 | Whether a business may ever override a resource conflict (default: never) | owner |
 
-### 23.3 Rulebook items that need the owner's update
+### 23.3 Rulebook alignment
 
-`ZELLA_VOICE_RULES.md` is changed only by the owner. These rules now differ from the decisions above:
+`ZELLA_VOICE_RULES.md` was aligned with these decisions on the owner's instruction:
+- `PRV-4` retention;
+- `COM-3` contact hours;
+- `COM-4` frequency.
 
-| Rule | Says | Decision |
-|---|---|---|
-| `PRV-4` | recordings 90 days, transcripts 1 year | recordings 30 days, transcripts 90 days (legal review pending) |
-| `COM-3` | non-urgent messages only 09:00–19:00 | calls follow business hours (24/7: 08:00–21:00); message quiet hours still open |
-| `BRD-1` | short "Zella" allowed in sentences | open (D-21) |
+`BRD-1` (brand wording) remains open as D-21.
 
 ---
 

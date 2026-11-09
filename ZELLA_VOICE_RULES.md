@@ -312,12 +312,14 @@ flowchart LR
 
   Each class has its own access rules.
 - `PRV-3` **Sensitive personal data** is visible only to owners, admins and managers (staff by owner opt-in), never in sensitive industries' staff views, never in logs, never in AI prompts beyond what the task needs, never in exports without an audit record.
-- `PRV-4` **Retention defaults** (the owner may tighten; loosening needs owner approval):
-  - call recordings: 90 days;
-  - transcripts: 1 year;
+- `PRV-4` **Retention defaults** (configurable per platform and industry; the owner may shorten, lengthening needs owner approval; **legal review before launch**, since some regulated industries may need longer periods for certain records):
+  - call recordings: 30 days;
+  - transcripts: 90 days;
   - message bodies: 2 years;
-  - audit logs: 7 years;
-  - deleted-business data: purged 30 days after cancellation, after a final export offer.
+  - audit and security logs: 7 years, unless the applicable legal policy requires otherwise;
+  - a cancelled business's data: deleted 30 days after cancellation, after a final export offer.
+
+  Call recording stays off until recording consent and caller disclosures have been reviewed.
 - `PRV-5` **Data subject requests** (access, correction, deletion) are logged, completed within 30 days, and reach every copy: tables, files, backups on rotation, provider records.
 - `PRV-6` **Consent is recorded**, not assumed: when, how, for which channel, for which purpose (service vs marketing).
 - `PRV-7` **Logs are not a data store.** No full phone numbers, emails, message bodies or transcripts in logs. Mask what must appear.
@@ -465,7 +467,7 @@ flowchart TD
   st -- no --> cx[Cancel · reason kept]
   st -- yes --> cap{Frequency cap and<br/>one check-in per visit OK?}
   cap -- no --> sk
-  cap -- yes --> qh{Inside 09:00–19:00<br/>business time, or a reply?}
+  cap -- yes --> qh{Inside its contact-hours<br/>window COM-3, or a reply?}
   qh -- no --> later[Move to next window]
   qh -- yes --> ch{Channel valid<br/>with consent?}
   ch -- no --> fbk{Other channel valid<br/>with consent?}
@@ -480,8 +482,19 @@ flowchart TD
 
 - `COM-1` **Consent first.** Every message is checked at send time against consent, opt-out, do-not-contact, channel validity and the business's status.
 - `COM-2` **Service vs marketing:** service messages (confirmations, reminders, replies, status updates) need a relationship; marketing (win-back, cross-sell, promotions) needs explicit opt-in and an unsubscribe in every message.
-- `COM-3` **Quiet hours:** non-urgent messages only between 09:00 and 19:00 in the business's time zone; late ones move to the next window, never dropped. Replies to the customer's own message go immediately.
-- `COM-4` **Frequency caps:** at most one non-requested message per customer per day, and at most one after-visit check-in per visit.
+- `COM-3` **Contact hours**, in the recipient's local time zone when known, otherwise the business's:
+  - **Calls** (callbacks, lead calls): only in the business's opening hours. Businesses open 24/7 use 08:00–21:00 unless they set a narrower window.
+  - **Replies and messages caused by the customer's own action** (answers to their texts, missed-call text, booking confirmations): immediately.
+  - **Follow-up messages after a call attempt:** in the same window as calls.
+  - **Appointment reminders:** 07:00–21:00, moved **earlier** when needed, never past the appointment.
+  - **Other service messages:** 09:00–19:00. Waitlist offers go immediately when the freed slot is within 24 h.
+  - **Marketing:** 09:00–19:00.
+  - Messages outside their window move to the next allowed time; they are never dropped. Calling hours must also satisfy US calling-time rules for the called person's local time (counsel confirms scope).
+- `COM-4` **Frequency caps:**
+  - at most one message per customer per day per business that the customer did not cause;
+  - at most one after-visit check-in per visit;
+  - follow-up sequences the customer started (missed call, lead enquiry) are capped by the sequence: at most 2 call attempts, each followed by at most one message;
+  - replies to the customer are never capped.
 - `COM-5` **Sensitive industries** (health, dental, legal, financial, insurance, childcare): messages never reveal the nature of the relationship in the preview; follow-ups are drafts a person approves; review requests are off by default.
 - `COM-6` **Cancelled or moved bookings withdraw their own pending messages.**
 - `COM-7` **Every message identifies the business** and gives a way to stop or reply.
