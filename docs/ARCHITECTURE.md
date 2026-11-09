@@ -25,7 +25,7 @@ It is the blueprint every change to the web app, database, workflows and voice s
 | B. Core platform | [6 Multi-tenant isolation](#6-multi-tenant-isolation-architecture) · [7 Domain model](#7-domain-model) · [8 Automation engine](#8-automation-engine) · [9 Communication core](#9-communication-core) |
 | C. Journeys | [10 SaaS lifecycle](#10-saas-lifecycle) · [11 Inbound calls and the AI receptionist](#11-inbound-calls-and-the-ai-receptionist) · [12 Missed calls](#12-missed-calls) · [13 Leads and outgoing lead calls](#13-leads-and-outgoing-lead-calls) · [14 SMS and email](#14-sms-and-email) · [15 Appointments, check-in and waitlist](#15-appointments-check-in-and-waitlist) · [16 Knowledge](#16-knowledge) · [17 Billing, plans and usage](#17-billing-plans-and-usage) |
 | D. Applications | [18 Web application](#18-web-application) (public pages, CRM, admin, Create Business) |
-| E. Operations | [19 Integrations](#19-integrations) · [20 Security and privacy](#20-security-and-privacy) · [21 Reliability, observability, delivery](#21-reliability-observability-delivery) · [22 Industries](#22-industries) · [23 Decisions](#23-decisions) · [24 Safe build sequence](#24-safe-build-sequence) |
+| E. Operations | [19 Integrations](#19-integrations) · [20 Security and privacy](#20-security-and-privacy) · [21 Reliability, observability, delivery](#21-reliability-observability-delivery) · [22 Industries](#22-industries) · [23 Decisions](#23-decisions) · [24 Safe build sequence](#24-safe-build-sequence) · [25 Still needed](#25-what-this-document-still-needs) |
 
 ---
 
@@ -735,7 +735,7 @@ stateDiagram-v2
 | A22 | Provider health | schedule | — | — | test each provider | — | Admin |
 | A23 | Call reconciliation | schedule | call without final report | — | fetch provider record | reconciled | Calls (admin) |
 | A24 | Usage metering | event | call finalised | — | ledger entry | — | Billing |
-| A25 | Thresholds and entitlements | schedule + at use | usage | plan | warn / limit humanely | — | Billing |
+| A25 | Thresholds and plan limits | schedule + at use | usage | the business's plan (REQ-BIL-08); defaults until plans exist | warn / limit humanely; never cut a live call | — | Billing |
 | A26 | Payment policy | event + schedule | payment failed | grace policy | warn → read-only → suspend | paid | Billing |
 | A27 | Spam scoring and response | event | call/text/email/booking | — | score, restrict temporarily, notify | allow-listed | Spam |
 | A28 | Industry rules | event + schedule | record status, due dates, stale records, seasonal, service due | policy | task / message / draft | — | Automations |
@@ -815,7 +815,7 @@ It checks, in order:
    The calling window must also satisfy US calling-time rules (federal and state) for the called person's local time;
    counsel confirms which call types they cover [D-04]. Emergency inbound availability **never** grants permission for
    outbound calls.
-8. Entitlements: **not enforced at this stage** (no plans yet, REQ-BIL-01). The check point exists so plans can be
+8. Plan limits (REQ-BIL-08): enforced once plans exist; until then the defaults in item 5 apply (REQ-BIL-01). The check point exists so plans can be
    added later without redesign.
 9. Template completeness (no unfilled placeholders).
 
@@ -1016,7 +1016,7 @@ flowchart TD
 | REQ-MC-06 | Failed SMS or call attempts follow their own retry rules; when exhausted → "Needs a person" with the full attempt history. |
 | REQ-MC-07 | Business controls on each follow-up: pause, resume, retry now, assign, close with outcome. |
 | REQ-MC-08 | Safe testing: test mode records every decision as a dry run; a test number list can be enabled for real end-to-end tests. |
-| REQ-MC-09 | Settings per business, with these **defaults**: AI callback on; first attempt about 2–5 minutes after the missed call; at most **2** attempts, about 2–3 hours apart (inside the calling window); a contextual text between attempts if messaging consent exists. Businesses can turn the AI callback off (staff task instead). |
+| REQ-MC-09 | Settings per business, with these **defaults**: AI callback on; first attempt about 2–5 minutes after the missed call; the number of attempts **set by the business's plan** within the platform ceiling (until plans exist: at most **2**), about 2–3 hours apart (inside the calling window); a contextual text between attempts if messaging consent exists. Businesses can turn the AI callback off (staff task instead). |
 | REQ-MC-10 | **Immediate missed-call text** (default on, where messaging consent and preferences allow): "Hi, this is {{business_name}}. Sorry we missed your call. We can help you shortly. How can we assist?" (editable, REQ-MSG-06). Once per missed-call follow-up. |
 | REQ-MC-11 | **Before the first callback**, the system verifies: the call was genuinely missed; any voicemail the caller left hasn't already resolved the request; no staff member has already returned the call; the caller is eligible (consent, suppression, spam). |
 | REQ-MC-12 | **Withheld or anonymous number:** no automated callback and no attempt to identify the caller. Staff get a notification or task: "Anonymous caller missed at {time}". |
@@ -1163,7 +1163,7 @@ for `no_conversation` or `hung_up_early`.
 | `timeout` | yes | after reconciliation | no | — |
 | `unknown` | yes | **only after reconciliation** | no | prevents duplicate calls |
 
-**When the sequence is exhausted** (2 attempts plus their follow-up messages):
+**When the sequence is exhausted** (the plan's attempts, 2 until plans exist, plus their follow-up messages):
 - the lead status becomes **Unreachable**;
 - a staff task is created for manual follow-up;
 - the assignee is notified, with the full attempt history;
@@ -1410,6 +1410,25 @@ flowchart LR
 | REQ-BIL-06 | Grace policy on failed payment; no data deleted within the grace and export window. |
 | REQ-BIL-08 | **Plan-defined limits.** When the owner creates plans, each plan sets the business's quantities: AI voice minutes, inbound and outbound calls, callbacks, call attempts per follow-up sequence, messages (SMS and email), AI messaging and AI drafting. They are enforced at the entitlement check points (REQ-BIL-03). Plans choose values **within** the platform contact ceiling (REQ-MSG-08); they never raise it. Until plans exist, the defaults in REQ-MSG-08 and §13.3 apply. |
 | REQ-BIL-07 | **AI usage and cost tracking (now):** voice minutes, AI drafting, AI messaging and call intelligence are metered per business, with estimated cost, internal budgets, threshold alerts and a platform admin view. Budgets for optional features never stop the core receptionist. |
+
+### 17.1 What a plan controls
+
+The Zella Voice owner fills in the values when creating plans. Nothing below has a value until then; the system
+meters every dimension from day one so plans can be applied without rework.
+
+| Plan dimension | Metered from | Checked at | When the limit is reached |
+|---|---|---|---|
+| AI voice minutes (inbound) | usage ledger, per finalised call | assistant assembly | warn at thresholds; owner-chosen behaviour; a live call is never cut |
+| AI voice minutes (outbound) | usage ledger | outbound claim | attempts wait; owner notified |
+| Missed-call callbacks per period | callbacks created | callback claim | staff task instead of an AI callback |
+| Call attempts per follow-up sequence | attempts | attempt claim | sequence ends → staff task (within the platform ceiling, REQ-MSG-08) |
+| Lead-call sequences per period | sequences started | sequence start | lead goes to staff |
+| SMS segments and emails | messages sent | message claim | service messages: owner-chosen behaviour; marketing: stopped |
+| Two-way AI messaging conversations | AI replies | AI reply | conversation goes to staff |
+| AI knowledge drafts | drafts created | draft job | drafting pauses; receptionist unaffected |
+| Team seats | active members | invitation | invitation refused with a clear reason |
+| Phone numbers | assigned numbers | assignment | refused with a clear reason |
+| Languages, premium voices, integrations | feature flags | setup | option not offered |
 
 ---
 
@@ -1703,7 +1722,7 @@ An industry is **ready** when:
 | ID | Decision | Applied in |
 |---|---|---|
 | D-01 | Lead calls are made by the **AI**. If the person asks for a human, the call is transferred to the owner or the people each business chooses. | §13.3, REQ-VOX-06 |
-| D-02 | Lead calls: first call about **1 minute** after an eligible lead arrives (or the next opening). **2 attempts**, about **2–3 h** apart. **One contextual message** after each unsuccessful attempt. Then **Unreachable** plus a staff task; never deleted; reopenable. | §13.3–13.7 |
+| D-02 | Lead calls: first call about **1 minute** after an eligible lead arrives (or the next opening). Attempts per sequence **come from the plan** (2 until plans exist), about **2–3 h** apart. **One contextual message** after each unsuccessful attempt. Then **Unreachable** plus a staff task; never deleted; reopenable. | §13.3–13.7 |
 | D-03 | **Contact hours (REQ-MSG-07):** calls in business hours (24/7: 08:00–21:00); replies and customer-caused messages immediately; post-call follow-ups in the calling window; reminders 07:00–21:00, moved earlier; other service messages and marketing 09:00–19:00. **Time zone:** the recipient's when known, else the business's. | §9.3 |
 | D-23 | **Frequency (REQ-MSG-08):** quantities come from the business's **plan**, within a platform contact ceiling the plan cannot raise. Until plans exist: 2 attempts per sequence (one message after each), one unprompted message per day, one check-in per visit. Replies never capped. | §9.3, REQ-BIL-08 |
 | D-06 | **Businesses are created by the Zella Voice team for now**; self-service signup is a later phase. No demo data in production. | §10.3 |
@@ -1711,7 +1730,7 @@ An industry is **ready** when:
 | D-09 | **No plans, prices or minute allowances now**; billing stays ready for later. AI usage and cost tracked per business. | §17 |
 | D-10 | Leave a **short, professional voicemail** where permitted; no sensitive details; then one contextual message. | §13.7 |
 | D-11 | Not decided separately; missed-call rules apply only when the caller's number is known (REQ-MC-12). | §12 |
-| D-12 | **Immediate missed-call text** (consent permitting); AI callback 2–5 min later after verification; 2 attempts, 2–3 h apart; a contextual text between them; anonymous callers → staff task; medium-risk spam → review queue, no callback. | §12 |
+| D-12 | **Immediate missed-call text** (consent permitting); AI callback 2–5 min later after verification; attempts from the plan (2 until plans exist), 2–3 h apart; a contextual text between them; anonymous callers → staff task; medium-risk spam → review queue, no callback. | §12 |
 | D-13 / D-27 | Recording **off** until legal review. Retention: recordings **30 days**, transcripts **90 days**, message bodies **2 years**, audit and security logs **7 years**, cancelled business **30 days** after cancellation; configurable per platform and industry; **legal review before launch**. | §20 |
 | D-14 | **United States only** at launch; multi-country ready; India not enabled until reviewed. | header, §20 |
 | D-15 | **Staff-managed check-in** first; self check-in designed for later. | §15.2 |
@@ -1791,10 +1810,41 @@ flowchart TD
 | **3. Automation and communication engine** | outbox; work items; claim protocol with signed work envelopes; retry, unknown-outcome and reconciliation; dispatcher back-off that never delays new work; dead letters; contact policy engine; status model; protected templates; provider adapters with dry run | a stuck item never delays a new item; a lost result never causes a second action before reconciliation; every skip has a reason | all live switches off |
 | **4. Inbound AI receptionist** | number forwarding with verification; business mapping; per-call assistant; tools bound to the business; transfers with failure handling; standby assistant; call finalisation; usage ledger; knowledge readiness on approval | a real test call on the pilot number: one delivery, correct business, duration, summary, one usage entry; "switch business" has no effect; a failed transfer produces a message and one urgent callback | inbound calls for the pilot; recording off |
 | **5. Scheduling, confirmations, reminders** | resources and reservations with an exclusion constraint; availability; booking, reschedule, cancel; confirmations by text and email; the reminder schedule (REQ-MSG-30); staff check-in; waitlist | concurrent double-booking: one wins; A and B at the same time: both succeed; every notice band produces exactly the right reminders | email live, then SMS live after carrier registration |
-| **6. Missed-call follow-up** | call classification; immediate text; verification before callback; spam gate; anonymous-caller tasks; 2 attempts; staff controls | missed call → one text, a verified callback, at most 2 attempts; stops on reply or opt-out; medium-risk spam → review queue | outbound callbacks for the pilot |
+| **6. Missed-call follow-up** | call classification; immediate text; verification before callback; spam gate; anonymous-caller tasks; plan-limited attempts (default 2); staff controls | missed call → one text, a verified callback, never more attempts than the limit; stops on reply or opt-out; medium-risk spam → review queue | outbound callbacks for the pilot |
 | **7. Two-way AI messaging** | AI replies with STOP first, dedupe, loop limits, escalation, staff takeover | STOP before AI; takeover pauses AI; one reply per inbound message; booking changes only after backend confirmation | per-business switch |
-| **8. AI lead calls** | lead intake from all sources with consent evidence; per-business outbound caller ID and assistant; 1-minute first call; 2 attempts; voicemail; contextual follow-ups; Unreachable + staff task; attempt history and timeline | full answer / no-answer / voicemail / failure / unknown matrix in staging; missing consent → no call; a reply between attempts reschedules or stops | per-business switch, **after counsel sign-off on US consent** |
+| **8. AI lead calls** | lead intake from all sources with consent evidence; per-business outbound caller ID and assistant; 1-minute first call; plan-limited attempts (default 2); voicemail; contextual follow-ups; Unreachable + staff task; attempt history and timeline | full answer / no-answer / voicemail / failure / unknown matrix in staging; missing consent → no call; a reply between attempts reschedules or stops | per-business switch, **after counsel sign-off on US consent** |
 | **9. Knowledge AI and usage budgets** | AI-drafted answers for gaps; approval flow; per-business AI usage and cost tracking; budgets and alerts; admin cost view | gap → draft → approve → ready → answered; budget reached → drafting pauses, receptionist unaffected | AI drafting switch |
 | **10. CRM and admin completeness** | every page in §18; unified timeline; outgoing-call attempts view; queue and provider views; growth pipeline | every page passes role, state and accessibility checks for all roles | — |
 | **11. Privacy operations** | retention jobs (recordings 30 days, transcripts 90 days); export; deletion requests; recording with disclosures | expired data deleted everywhere; complete export | recording only after legal review |
 | **12. Launch** | lower-risk industries first; regulated industries one by one with their stricter settings; self-service signup in a later phase | per-industry evaluation set passes; pilot sign-off | per industry |
+
+---
+
+## 25. What this document still needs
+
+These parts are required before or during the build and are **not yet specified**. Each needs input from the owner
+or a design pass.
+
+| # | Missing part | Why it is needed | Needed by phase |
+|---|---|---|---|
+| 1 | **Plans and the platform contact ceiling** (values for §17.1 and D-38) | limits, billing page, entitlement checks | before charging |
+| 2 | **Outbound caller ID with forwarded numbers.** Businesses forward their existing number to Zella Voice, so outbound calls and texts need a decision: show the business's own number (needs carrier verification), or the Zella Voice number assigned to that business | callers must recognise who is calling; texting needs a registered number per business | 5 (SMS), 6, 8 |
+| 3 | **Consent capture design:** exact wording on forms and calls, what evidence is stored, per lead source | AI calls and texts depend on it; counsel review | 5, 8 |
+| 4 | **Inbound voicemail:** whether callers can leave a voicemail when they don't want the AI, and how it is transcribed and routed | the missed-call flow refers to it | 6 |
+| 5 | **Staff calling from the CRM:** click-to-call through the business number, or staff use their own phones and log the result | callbacks handled by staff; attempt history | 6 |
+| 6 | **Role and permission matrix:** every action on every page, per role | build and test the CRM and admin precisely | 2, 10 |
+| 7 | **Notification matrix:** which event notifies whom, by which channel, and how urgent | staff notifications, escalations | 4–8 |
+| 8 | **Default templates and scripts:** the standard wording of every text, email, voicemail and call script, per industry | businesses start from them; protected content | 5–8 |
+| 9 | **AI conversation design:** greeting, tone options, languages (for example Spanish in the US), evaluation cases per industry | receptionist quality | 4, 9 |
+| 10 | **Full data schema:** every table, column, constraint and index for §7 | implementation | 2 onward |
+| 11 | **Function and endpoint catalogue:** each database function and edge endpoint with inputs, outputs, errors, permissions | web app and workers build against it | 2 onward |
+| 12 | **Event catalogue:** every event name, payload and consumer | automation engine | 3 |
+| 13 | **Metric dictionary:** exact definition of each report number (answered rate, speed-to-lead, contacted) | reports that agree with each other | 10 |
+| 14 | **Multi-location businesses:** one business with several branches, numbers and calendars | affects the tenant and scheduling model if supported | 2 (decide early) |
+| 15 | **Data import:** bringing existing customers and appointments from spreadsheets or other systems, with consent basis | onboarding real businesses | 8, 10 |
+| 16 | **Public API and outgoing webhooks** for "approved CRM/API integrations" | lead intake from other systems | 8 |
+| 17 | **Legal documents and sub-processors:** terms, privacy policy, data-processing terms, list of providers receiving data; agreements regulated industries may require | launch | 12 |
+| 18 | **Runbooks:** step-by-step responses to each alert and incident type; restore procedure | operations | 1, 12 |
+| 19 | **Mobile experience for owners:** responsive web only, or push notifications / an installable app | urgent callbacks and alerts reach owners | 10 |
+| 20 | **Error and status catalogue:** every error code and customer-facing wording | consistent, honest UI | 10 |
+| 21 | **Remaining open decisions** in §23.2 | various | as listed |
