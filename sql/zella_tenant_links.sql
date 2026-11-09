@@ -1,4 +1,4 @@
--- Zella AI: every link from a business's record to a customer, a staff member or a team member must stay inside
+-- Zella Voice: every link from a business's record to a customer, a staff member or a team member must stay inside
 -- that business.
 --
 -- Found in the end-to-end audit (docs/ZELLA_END_TO_END_AUDIT.md, finding H-1): row-level security checks the

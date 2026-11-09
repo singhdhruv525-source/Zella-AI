@@ -1,4 +1,4 @@
--- Zella AI: Offers & Promotions engine (Zella Core).
+-- Zella Voice: Offers & Promotions engine (Zella Core).
 -- Needs: core schema (businesses, industries, plans, subscriptions, payments, platform_admins,
 -- platform_alerts, audit_logs, business_members), zella_platform_alert, zella_has_role, is_platform_admin.
 -- Safe to run more than once.

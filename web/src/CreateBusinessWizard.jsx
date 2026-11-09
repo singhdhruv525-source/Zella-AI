@@ -888,8 +888,8 @@ function IntegrationsStep({ value, onChange, showErrors }) {
       <Section title="Phone setup (Telnyx)" description="How callers will reach the AI receptionist.">
         <div className="wiz-choice-row">
           {[
-            ["new_number", "Get a new Zella number", "Zella gives the business a new local number to publish"],
-            ["call_forwarding", "Call forwarding", "The business keeps its number and forwards calls to Zella"],
+            ["new_number", "Get a new Zella Voice number", "Zella gives the business a new local number to publish"],
+            ["call_forwarding", "Call forwarding", "The business keeps its number and forwards calls to Zella Voice"],
           ].map(([mode, label, description]) => (
             <button
               type="button"
@@ -919,8 +919,8 @@ function IntegrationsStep({ value, onChange, showErrors }) {
             </>
           )}
           <Field
-            label={value.phone.mode === "new_number" ? "Preferred area code" : "Zella number area code"}
-            hint={value.phone.mode === "new_number" ? "3 digits, optional" : "Calls are forwarded to a Zella number; 3 digits, optional"}
+            label={value.phone.mode === "new_number" ? "Preferred area code" : "Zella Voice number area code"}
+            hint={value.phone.mode === "new_number" ? "3 digits, optional" : "Calls are forwarded to a Zella Voice number; 3 digits, optional"}
           >
             <input inputMode="numeric" maxLength={3} value={value.phone.areaCode} onChange={(e) => setPhone({ areaCode: e.target.value.replace(/\D/g, "") })} />
           </Field>
@@ -1326,7 +1326,7 @@ function DocumentsSection({ businessId, documents, available, onChange }) {
   return (
     <Section
       title="Verification documents"
-      description="Proof that the business is real and that the person registering it may act for it. Files are private: only Zella admins can open them, through a link that expires after a minute."
+      description="Proof that the business is real and that the person registering it may act for it. Files are private: only Zella Voice admins can open them, through a link that expires after a minute."
       aside={<Badge tone={DOCUMENT_KINDS.filter((k) => k.required).every((k) => byKind[k.kind] && byKind[k.kind].status !== "rejected") ? "success" : "neutral"}>
         {DOCUMENT_KINDS.filter((k) => k.required && byKind[k.kind] && byKind[k.kind].status !== "rejected").length} of {DOCUMENT_KINDS.filter((k) => k.required).length} required uploaded
       </Badge>}
@@ -1734,7 +1734,7 @@ function reviewRows(setup, industries, config, docsReady) {
     { key: "receptionist", title: "AI receptionist", ok: r.faqs.length > 0 || o.services.length > 0,
       detail: `${r.name} · ${r.faqs.length} FAQs · ${r.capabilities.length} abilities` },
     { key: "integrations", title: "Phone & integrations", ok: true,
-      detail: `${setup.integrations.phone.mode === "new_number" ? "New Zella number" : `Call forwarding from ${setup.integrations.phone.existingNumber || "number not set"}`} · calendar ${setup.integrations.calendar} · leads ${leads.length ? leads.join(", ") : "none"}` },
+      detail: `${setup.integrations.phone.mode === "new_number" ? "New Zella Voice number" : `Call forwarding from ${setup.integrations.phone.existingNumber || "number not set"}`} · calendar ${setup.integrations.calendar} · leads ${leads.length ? leads.join(", ") : "none"}` },
     { key: "integrations", title: "Spam protection", ok: true,
       detail: !setup.spamAvailable ? "Not set up on Zella yet" : setup.spam.enabled ? `On · suspicious callers ${setup.spam.call_screening === "screen" ? "screened" : "flagged"}` : "Off (platform rules still apply)" },
     { key: "automations", title: "Automations", ok: true, detail: `${enabledAutomations} turned on (paused until go-live)` },
@@ -1754,7 +1754,7 @@ function Readiness({ businessId }) {
     let live = true;
     supabase.rpc("zella_business_readiness", { p_business_id: businessId }).then(({ data: d, error: e }) => {
       if (!live) return;
-      if (e) setError(/could not find the function/i.test(e.message) ? "Readiness needs the latest Zella update." : e.message);
+      if (e) setError(/could not find the function/i.test(e.message) ? "Readiness needs the latest Zella Voice update." : e.message);
       else setData(d);
     });
     return () => { live = false; };
@@ -1971,7 +1971,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
     if (key === "integrations") {
       if (validatePhone(setup.integrations.transferNumber)) return `Call transfer number: ${validatePhone(setup.integrations.transferNumber)}`;
       if (setup.integrations.phone.mode === "call_forwarding") {
-        if (!setup.integrations.phone.existingNumber.trim()) return "Enter the business number that will be forwarded to Zella.";
+        if (!setup.integrations.phone.existingNumber.trim()) return "Enter the business number that will be forwarded to Zella Voice.";
         const bad = validatePhone(setup.integrations.phone.existingNumber, { required: true });
         if (bad) return `Business number to forward: ${bad}`;
       }

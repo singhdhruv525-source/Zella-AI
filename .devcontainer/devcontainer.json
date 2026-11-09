@@ -1,6 +1,6 @@
 {
-  // Codespaces / dev container for Zella AI. Small Node image, so it opens in a minute or two.
-  "name": "Zella AI",
+  // Codespaces / dev container for Zella Voice. Small Node image, so it opens in a minute or two.
+  "name": "Zella Voice",
   "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
   "hostRequirements": { "cpus": 2 },
   "forwardPorts": [5173, 3000],

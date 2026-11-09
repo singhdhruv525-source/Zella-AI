@@ -1,4 +1,4 @@
-# Zella AI: end-to-end audit (frontend, backend, admin dashboard, security)
+# Zella Voice: end-to-end audit (frontend, backend, admin dashboard, security)
 
 Date: 29 October 2026. Branch `voice-reliability`. Environment audited: the production Supabase project
 (`pffqxlumqhjdbzvvoszm`), read-only except for the fixes listed under F. Every test that touched production ran inside

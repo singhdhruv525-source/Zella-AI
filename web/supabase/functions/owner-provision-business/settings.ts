@@ -70,7 +70,7 @@ export const PERMISSION_CATALOG: [string, string][] = [
 ];
 export const RESTRICTED_ROLES = ["platform_operations", "billing_admin", "support_admin", "security_admin", "read_only_admin"];
 const ROLE_LABELS: Record<string, string> = {
-  zella_owner: "Zella owner", super_admin: "Super admin", platform_operations: "Platform operations", billing_admin: "Billing admin",
+  zella_owner: "Zella Voice owner", super_admin: "Super admin", platform_operations: "Platform operations", billing_admin: "Billing admin",
   support_admin: "Support admin", security_admin: "Security admin", read_only_admin: "Read-only admin",
 };
 
@@ -213,7 +213,7 @@ export function settingsHandlers(admin: SupabaseClient, fields: Json, ctx: { use
       }
       if (section === "branding") {
         const logo = httpsUrl(v.logo_url, "Logo", k);
-        if (logo && !logo.includes("/storage/v1/object/public/brand-assets/platform/")) throw new k.InputError("Upload the logo here so it is stored with Zella");
+        if (logo && !logo.includes("/storage/v1/object/public/brand-assets/platform/")) throw new k.InputError("Upload the logo here so it is stored with Zella Voice");
         const value = { logo_url: logo, login_headline: k.text(v.login_headline, 120) || null };
         const before = await putSetting(admin, "platform_branding", value);
         return { section, value, before };
@@ -222,7 +222,7 @@ export function settingsHandlers(admin: SupabaseClient, fields: Json, ctx: { use
     },
 
     maintenance_save: async () => {
-      if (!["zella_owner", "super_admin"].includes(ctx.role)) throw new k.InputError("Only a Zella owner or super admin can change maintenance mode", 403);
+      if (!["zella_owner", "super_admin"].includes(ctx.role)) throw new k.InputError("Only a Zella Voice owner or super admin can change maintenance mode", 403);
       const reason = k.text(fields.reason, 300);
       if (reason.length < 3) throw new k.InputError("Give a reason (kept in the audit log)");
       const active = k.bool(fields.active, false);

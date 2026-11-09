@@ -135,7 +135,7 @@ const ADMIN_NAV = [
 ];
 async function admin(b, report) {
   const roles = {
-    zella_owner: { role: "zella_owner", roleLabel: "Zella owner", permissions: ALL_PERMS, mfa: true, aal: "aal2" },
+    zella_owner: { role: "zella_owner", roleLabel: "Zella Voice owner", permissions: ALL_PERMS, mfa: true, aal: "aal2" },
     read_only_admin: { role: "read_only_admin", roleLabel: "Read-only admin", permissions: ["businesses.view", "billing.view", "security.view", "audit.view", "analytics.view"], mfa: true, aal: "aal2" },
     support_admin: { role: "support_admin", roleLabel: "Support admin", permissions: ["businesses.view", "support.manage"], mfa: true, aal: "aal2" },
   };
@@ -179,7 +179,7 @@ async function publicLinks(b, report) {
       await p.route("**/auth/v1/**", (r) => r.fulfill({ status: 400, json: { error: "invalid", error_description: "invalid" } }));
       await p.goto(BASE + url); await p.waitForTimeout(1500);
       const text = (await p.locator("body").innerText()).replace(/\s+/g, " ");
-      report.push({ app: "public", mode, page: what, url, crash: errors.join(" | ") || null, adminSignIn: /OWNER ACCESS|Sign in to your Zella platform/i.test(text),
+      report.push({ app: "public", mode, page: what, url, crash: errors.join(" | ") || null, adminSignIn: /OWNER ACCESS|Sign in to your Zella Voice platform/i.test(text),
         errorShown: ERRORISH.test(text) || /expired|not valid|invalid/i.test(text), text: text.slice(0, 140) });
       await ctx.close();
     }

@@ -88,8 +88,8 @@ function Blocked({ workspace, onSignOut }) {
         <h1>{canceled ? "This plan has ended" : "This workspace is paused"}</h1>
         <p className="ba-auth-description">
           {canceled
-            ? "Your Zella membership has ended, so your workspace and AI receptionist are off. Your information is kept. Contact the Zella team to start again."
-            : "Your workspace and AI receptionist are paused for now. Please contact the Zella team to get it running again."}
+            ? "Your Zella Voice membership has ended, so your workspace and AI receptionist are off. Your information is kept. Contact the Zella Voice team to start again."
+            : "Your workspace and AI receptionist are paused for now. Please contact the Zella Voice team to get it running again."}
         </p>
         <button type="button" className="ba-btn block" onClick={onSignOut}>Sign out</button>
       </section>
@@ -170,7 +170,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
     try {
       const { error: rpcError } = await supabase.rpc("zella_owner_continue_plan", { p_business_id: workspace.id });
       if (rpcError) throw rpcError;
-      setNotice("Your plan will continue. Thanks for staying with Zella.");
+      setNotice("Your plan will continue. Thanks for staying with Zella Voice.");
       await onReload();
     } catch (err) {
       setError(friendly(err));
@@ -302,7 +302,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
           {workspace.cancel_at && !workspace.cancelled_at && (
             <div className="ba-banner">
               <span>
-                Your Zella plan ends on <strong>{formatLongDate(workspace.cancel_at, workspace.timezone)}</strong>.
+                Your Zella Voice plan ends on <strong>{formatLongDate(workspace.cancel_at, workspace.timezone)}</strong>.
                 After that your AI receptionist stops answering calls.
               </span>
               {isOwner && (
@@ -507,7 +507,7 @@ function BusinessHome() {
       return;
     }
     if (!(data ?? []).length) {
-      // A Zella admin without a business of their own belongs in the admin dashboard.
+      // A Zella Voice admin without a business of their own belongs in the admin dashboard.
       const { data: admin } = await supabase.rpc("is_platform_admin");
       setIsAdmin(admin === true);
     }
@@ -551,13 +551,13 @@ function BusinessHome() {
             <div className="ba-logo">Z</div>
             <div className="ba-brand-name">Zella Voice</div>
           </div>
-          <h1>{isAdmin ? "You're a Zella admin" : "No workspace yet"}</h1>
+          <h1>{isAdmin ? "You're a Zella Voice admin" : "No workspace yet"}</h1>
           <p className="ba-auth-description">
             {error
               ? `Your workspace couldn't be loaded: ${error}`
               : isAdmin
                 ? `${session.user.email} manages Zella from the admin dashboard and isn't linked to a business here.`
-                : `${session.user.email} isn't linked to a Zella business yet. If you were invited, open the link in your invitation email first, or ask the Zella team to resend it.`}
+                : `${session.user.email} isn't linked to a Zella Voice business yet. If you were invited, open the link in your invitation email first, or ask the Zella Voice team to resend it.`}
           </p>
           <InviteBanner status={invites} email={session.user.email} onRetry={loadWorkspaces} />
           {isAdmin && <a className="ba-btn primary block" href="/">Open the admin dashboard</a>}

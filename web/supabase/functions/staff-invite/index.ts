@@ -55,7 +55,7 @@ Deno.serve(withCors(async (req: Request) => {
   });
   const { data: { user }, error: userError } = await caller.auth.getUser();
   if (userError || !user) return respond({ error: "Please sign in first" }, 401);
-  if (!appUrl) return respond({ error: "The app address (ZELLA_APP_URL) is not set, so the invitation link would not open. Ask the Zella team." }, 503);
+  if (!appUrl) return respond({ error: "The app address (ZELLA_APP_URL) is not set, so the invitation link would not open. Ask the Zella Voice team." }, 503);
 
   let body: Record<string, unknown>;
   try { body = await req.json(); } catch { return respond({ error: "Invalid request" }, 400); }

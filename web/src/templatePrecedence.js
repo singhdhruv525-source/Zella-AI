@@ -14,7 +14,7 @@ export function templatesForBusiness(rows, businessId, industryId) {
     if (!inUse.has(slot)) inUse.set(slot, t.id);
   }
   return mine
-    .map((t) => ({ ...t, source: t.business_id ? "Yours" : t.industry_id ? "Zella (your industry)" : "Zella",
+    .map((t) => ({ ...t, source: t.business_id ? "Yours" : t.industry_id ? "Zella Voice (your industry)" : "Zella Voice",
       inUse: inUse.get(`${t.key}|${t.channel}|${t.locale || "en-US"}`) === t.id }))
     .sort((a, b) => a.key.localeCompare(b.key) || a.channel.localeCompare(b.channel) || cmp(a, b));
 }

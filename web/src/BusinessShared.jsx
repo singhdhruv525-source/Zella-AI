@@ -139,7 +139,7 @@ export function transcriptLines(transcript) {
 }
 
 
-const NEEDS_UPDATE = "Your workspace needs the latest Zella update before this can be saved. Please ask the Zella team.";
+const NEEDS_UPDATE = "Your workspace needs the latest Zella Voice update before this can be saved. Please ask the Zella Voice team.";
 // Short codes raised by the database functions, in plain words.
 const CODES = {
   NOT_ALLOWED: "You don't have permission to do that in this workspace.",
@@ -164,7 +164,7 @@ export const friendly = (error) => {
   if (/failed to fetch|network|load failed/i.test(message)) return "Couldn't reach Zella. Check your internet connection and try again.";
   if (CODES[message.trim()]) return CODES[message.trim()];
   // an internal code no screen explains yet: say what happened and keep the code for support
-  if (/^[A-Z][A-Z0-9_]{2,}$/.test(message.trim())) return `That didn't work (code ${message.trim()}). Try again, or contact Zella support if it keeps happening.`;
+  if (/^[A-Z][A-Z0-9_]{2,}$/.test(message.trim())) return `That didn't work (code ${message.trim()}). Try again, or contact Zella Voice support if it keeps happening.`;
   return message;
 };
 

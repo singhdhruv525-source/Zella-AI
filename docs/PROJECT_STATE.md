@@ -1,4 +1,4 @@
-# Zella AI: where things stand (handoff notes)
+# Zella Voice: where things stand (handoff notes)
 
 Kept up to date so work can continue in a new session without losing anything. No secrets are kept here:
 keys and passwords live only in Supabase secrets/vault, Vapi, GoDaddy and Resend.

@@ -65,7 +65,7 @@ Deno.serve(withCors(async (req: Request) => {
 
   if (!supabaseUrl || !serverSecretKey || !linkSecret) {
     console.error("continue-plan configuration is missing");
-    return respond({ error: "This link can't be used right now. Please contact Zella support." }, 500);
+    return respond({ error: "This link can't be used right now. Please contact Zella Voice support." }, 500);
   }
 
   let body: Record<string, unknown>;

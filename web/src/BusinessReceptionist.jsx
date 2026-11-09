@@ -97,7 +97,7 @@ function Editor({ agent, base, onSaved }) {
   }
 
   async function publish() {
-    if (!window.confirm("Publish these changes? Booking, handover and knowledge rules apply from the next call. Changes to what it says (instructions, greeting, owner's rules) reach the phone line once the assistant is updated, which Zella support does for now.")) return;
+    if (!window.confirm("Publish these changes? Booking, handover and knowledge rules apply from the next call. Changes to what it says (instructions, greeting, owner's rules) reach the phone line once the assistant is updated, which Zella Voice support does for now.")) return;
     setBusy(true);
     setProblem("");
     const { data, error } = await supabase.rpc("zella_publish_agent_config", { p_version_id: result.versionId });

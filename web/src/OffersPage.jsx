@@ -38,7 +38,7 @@ const TYPES = [
 
 const CHANNELS = [
   ["dashboard", "Business dashboard", "Owners see it in their workspace and can claim it."],
-  ["sales", "Applied by Zella", "A Zella admin applies it to a chosen business."],
+  ["sales", "Applied by Zella Voice", "A Zella Voice admin applies it to a chosen business."],
   ["pricing_page", "Public pricing page", null, ["checkout"]],
   ["signup", "Sign-up", null, ["checkout"]],
   ["checkout", "Checkout", null, ["checkout", "billing"]],
@@ -75,9 +75,9 @@ const SIMPLE_VALUES = {
 const ZONES = ["America/New_York", "America/Chicago", "America/Denver", "America/Phoenix", "America/Los_Angeles", "America/Anchorage", "Pacific/Honolulu", "Asia/Kolkata", "UTC"];
 
 const ERRORS = {
-  NOT_ALLOWED: "Only Zella admins can do this.",
-  OWNER_ONLY: "Only a Zella owner can do this.",
-  SECOND_PERSON_NEEDED: "Another Zella owner has to approve an offer you submitted.",
+  NOT_ALLOWED: "Only Zella Voice admins can do this.",
+  OWNER_ONLY: "Only a Zella Voice owner can do this.",
+  SECOND_PERSON_NEEDED: "Another Zella Voice owner has to approve an offer you submitted.",
   NOTE_REQUIRED: "Add a short note explaining why.",
   TERMS_LOCKED: "The terms of a submitted offer can't change. Move it back to draft first, or end it and create a new one.",
   CODE_TAKEN: "That code is already used by another offer.",
@@ -518,7 +518,7 @@ function OfferEditor({ offerId, caps, lookups, onClose, onSaved }) {
         </fieldset>
 
         <label className="owner-field">
-          <span>Internal note (only Zella admins see this)</span>
+          <span>Internal note (only Zella Voice admins see this)</span>
           <textarea rows={2} maxLength={2000} value={f.internal_note} onChange={(e) => set({ internal_note: e.target.value })} />
         </label>
 
@@ -718,7 +718,7 @@ function OfferDetail({ offerId, me, isOwner, lookups, onClose, onEdit, onChanged
           <div><dt>Limits</dt><dd>{o.max_redemptions ? `${o.max_redemptions} claims in total` : "No total limit"}, {o.max_per_business} per business{o.stackable ? ", can be combined" : ""}</dd></div>
           <div><dt>Who can get it</dt><dd>{describeEligibility(o.eligibility, lookups)}</dd></div>
           <div><dt>Where</dt><dd>{(o.channels ?? []).map((c) => CHANNELS.find((x) => x[0] === c)?.[1] ?? c).join(", ")}</dd></div>
-          <div><dt>Approval</dt><dd>{o.approved_at ? `Approved ${formatDateTime(o.approved_at)}` : o.needs_approval_now ? "Needs a Zella owner's approval" : "Not needed"}</dd></div>
+          <div><dt>Approval</dt><dd>{o.approved_at ? `Approved ${formatDateTime(o.approved_at)}` : o.needs_approval_now ? "Needs a Zella Voice owner's approval" : "Not needed"}</dd></div>
           {audience && <div><dt>Reach today</dt><dd>{audience.eligible} of {audience.total} businesses{audience.missing_size ? ` (${audience.missing_size} have no size set)` : ""}{audience.names?.length ? `: ${audience.names.join(", ")}${audience.eligible > audience.names.length ? "…" : ""}` : ""}</dd></div>}
           {o.internal_note && <div><dt>Internal note</dt><dd>{o.internal_note}</dd></div>}
         </dl>
@@ -729,7 +729,7 @@ function OfferDetail({ offerId, me, isOwner, lookups, onClose, onEdit, onChanged
             <ul className="of-list">{o.problems.map((p) => <li key={p}>{p}</li>)}</ul>
           </div>
         )}
-        {canApprove && ownSubmission && <p className="op-muted">You submitted this offer. If another Zella owner is active, they have to approve it.</p>}
+        {canApprove && ownSubmission && <p className="op-muted">You submitted this offer. If another Zella Voice owner is active, they have to approve it.</p>}
         {error && <div className="owner-form-error" role="alert">{error}</div>}
         {result && <div className="owner-form-success" role="status">{result}</div>}
 
@@ -753,7 +753,7 @@ function OfferDetail({ offerId, me, isOwner, lookups, onClose, onEdit, onChanged
               {ask.action === "end_now" && "New claims stop immediately. Businesses that already claimed keep their terms."}
               {ask.action === "approve" && `This approves ${o.summary} for ${audience ? `${audience.eligible} business${audience.eligible === 1 ? "" : "es"} today` : "the chosen businesses"}. It goes live at its start time.`}
               {ask.action === "submit" && (o.needs_approval_now
-                ? "The terms are then locked and a Zella owner has to approve it."
+                ? "The terms are then locked and a Zella Voice owner has to approve it."
                 : `The terms are then locked. It goes live at its start time and can reach ${audience?.eligible ?? "the chosen"} business${audience?.eligible === 1 ? "" : "es"} today.`)}
               {ask.action === "reject" && "It goes back to draft so it can be changed."}
             </p>
@@ -807,7 +807,7 @@ function OfferDetail({ offerId, me, isOwner, lookups, onClose, onEdit, onChanged
                         {r.note && <div className="owner-table-secondary">{r.note}</div>}</td>
                       <td><Pill tone={tone}>{label}</Pill>{r.status === "pending" && r.hold_until && <div className="owner-table-secondary">Held until {formatDate(r.hold_until)}</div>}</td>
                       <td>{formatDateTime(r.created_at)}</td>
-                      <td>{r.source === "admin" ? "Applied by Zella" : r.source === "code" ? "Code" : "Dashboard"}</td>
+                      <td>{r.source === "admin" ? "Applied by Zella Voice" : r.source === "code" ? "Code" : "Dashboard"}</td>
                       <td>
                         {r.status === "pending" && <button type="button" className="op-link" disabled={busy} onClick={() => changeClaim(r.id, "cancelled")}>Cancel</button>}
                         {r.status === "confirmed" && <button type="button" className="op-link" disabled={busy} onClick={() => changeClaim(r.id, "reversed")}>Mark reversed</button>}
@@ -825,7 +825,7 @@ function OfferDetail({ offerId, me, isOwner, lookups, onClose, onEdit, onChanged
           {data.events.map((e) => (
             <li key={e.id}>
               <span>{EVENT_TEXT[e.kind] ?? e.kind}{e.business ? ` · ${e.business}` : ""}{e.detail?.reason ? ` (${humanize(e.detail.reason)})` : ""}{e.detail?.note ? `: ${e.detail.note}` : ""}</span>
-              <span className="op-muted">{e.actor ?? "Zella"} · {timeAgo(e.created_at)}</span>
+              <span className="op-muted">{e.actor ?? "Zella Voice"} · {timeAgo(e.created_at)}</span>
               {e.detail?.problems && <span className="of-problem-line">{e.detail.problems.join(" ")}</span>}
             </li>
           ))}
@@ -853,11 +853,11 @@ function describeEligibility(el, lookups) {
 const RULES = {
   auto_activate: ["Start offers on time", "Scheduled offers go live at their start time, after a last check that they're valid.", []],
   auto_expire: ["End offers on time", "Offers stop taking claims at their end time. Claims already made keep their terms.", []],
-  approval_thresholds: ["Approval for big offers", "Offers above these limits need a Zella owner's approval before they can go live.", [["percent_bp", "Percent off at or above (in hundredths of a percent, 3000 = 30%)"], ["amount_cents", "Amount off at or above (in cents, 10000 = $100)"], ["max_redemptions", "Total claims above"]]],
+  approval_thresholds: ["Approval for big offers", "Offers above these limits need a Zella Voice owner's approval before they can go live.", [["percent_bp", "Percent off at or above (in hundredths of a percent, 3000 = 30%)"], ["amount_cents", "Amount off at or above (in cents, 10000 = $100)"], ["max_redemptions", "Total claims above"]]],
   claim_hold: ["Release unpaid claims", "A claim that isn't paid within this many days is released, so it stops counting toward limits.", [["days", "Days to hold a claim"]]],
-  expiry_warning: ["Ending-soon alert", "Alerts Zella admins before an offer ends.", [["days_before", "Days before the end"]]],
-  limit_warning: ["Limit nearly reached", "Alerts Zella admins when this share of the claims has been used.", [["percent", "Percent used"]]],
-  unusual_activity: ["Unusual claims", "Alerts Zella admins when an offer gets this many claims in one hour.", [["claims_per_hour", "Claims in one hour"]]],
+  expiry_warning: ["Ending-soon alert", "Alerts Zella Voice admins before an offer ends.", [["days_before", "Days before the end"]]],
+  limit_warning: ["Limit nearly reached", "Alerts Zella Voice admins when this share of the claims has been used.", [["percent", "Percent used"]]],
+  unusual_activity: ["Unusual claims", "Alerts Zella Voice admins when an offer gets this many claims in one hour.", [["claims_per_hour", "Claims in one hour"]]],
   completion_report: ["Offer ended summary", "When an offer ends, admins get its claims, payments and what's still waiting.", []],
   abandoned_checkout: ["Abandoned checkout reminder", "Remind a business that started checkout but didn't finish.", [["delay_hours", "Wait (hours)"], ["max_reminders", "Most reminders"]]],
   intro_renewal: ["Introductory price renewal", "Move a business from its introductory price to the agreed renewal price.", []],
@@ -936,7 +936,7 @@ export function RulesTab({ onChanged }) {
           : "The automatic schedule isn't switched on yet (it starts at go-live). Until then, offers go live and end when you press Run now, when an admin changes an offer, or when someone tries to claim one after it has ended."}
         {" "}<button type="button" className="op-link" onClick={runNow} disabled={busy === "run"}>{busy === "run" ? "Running..." : "Run now"}</button>
       </div>
-      {!data.is_owner && <p className="op-muted">Only a Zella owner can change these rules.</p>}
+      {!data.is_owner && <p className="op-muted">Only a Zella Voice owner can change these rules.</p>}
       {error && <div className="owner-form-error" role="alert">{error}</div>}
       {msg && <div className="owner-form-success" role="status">{msg}</div>}
 
@@ -1128,7 +1128,7 @@ export function ReportsTab() {
             <ReportTable title="By business size" cols={["Size", "Claims", "Paid"]} rows={(data.by_size ?? []).map((r) => [r.size, r.claims, r.paid])} />
             <ReportTable title="By industry" cols={["Industry", "Claims", "Paid"]} rows={(data.by_industry ?? []).map((r) => [r.industry, r.claims, r.paid])} />
             <ReportTable title="By how it was claimed" cols={["Source", "Claims", "Paid"]}
-              rows={(data.by_source ?? []).map((r) => [r.source === "admin" ? "Applied by Zella" : r.source === "code" ? "Code" : "Dashboard", r.claims, r.paid])} />
+              rows={(data.by_source ?? []).map((r) => [r.source === "admin" ? "Applied by Zella Voice" : r.source === "code" ? "Code" : "Dashboard", r.claims, r.paid])} />
           </div>
         </>
       )}

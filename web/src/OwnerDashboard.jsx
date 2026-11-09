@@ -247,7 +247,7 @@ useEffect(() => {
         <div className="owner-workspace">
           <div className="owner-workspace-icon">Z</div>
           <div className="owner-workspace-copy">
-            <strong>Zella Platform</strong>
+            <strong>Zella Voice Platform</strong>
             <span>{me?.roleLabel ?? (access.state === ACCESS.LOADING ? "Loading role…" : "Role not loaded")}</span>
           </div>
         </div>
@@ -349,13 +349,13 @@ useEffect(() => {
             <div className="owner-empty-state" role="alert" data-access="unauthorized">
               <strong>No admin access</strong>
               <p>{access.reason === "MFA_REQUIRED" ? "Enter the code from your authenticator app: sign out and sign in again."
-                : "This account isn't allowed to use the Zella admin, or its access has changed. Sign out and sign in with an admin account, or ask a Zella owner."}</p>
+                : "This account isn't allowed to use the Zella Voice admin, or its access has changed. Sign out and sign in with an admin account, or ask a Zella Voice owner."}</p>
               <button type="button" className="owner-primary-button" onClick={onSignOut}>Sign out</button>
             </div>
           ) : blocked ? (
             <div className="owner-empty-state" role="status" data-access="denied">
               <strong>This page isn't available</strong>
-              <p>Your admin role ({me?.roleLabel ?? "restricted"}) doesn't include it. Ask a Zella owner if you need access.</p>
+              <p>Your admin role ({me?.roleLabel ?? "restricted"}) doesn't include it. Ask a Zella Voice owner if you need access.</p>
             </div>
           ) : wizard ? (
             <CreateBusinessWizard

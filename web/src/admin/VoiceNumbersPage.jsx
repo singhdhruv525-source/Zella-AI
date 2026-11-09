@@ -129,7 +129,7 @@ function Numbers({ me, options, onAssign, onOpenCalls, say, onOpenBusiness }) {
             {manage && <>
               <button type="button" className="owner-secondary-button" onClick={() => onAssign({ id: open.id, e164: open.e164, businessId: open.business_id, vapiPhoneNumberId: open.vapi_phone_number_id ?? "", label: open.label ?? "" })}>Reassign or edit</button>
               <button type="button" className="owner-secondary-button" onClick={() => setAction({ kind: "status", row: open })}>{open.status === "active" ? "Pause" : "Activate"}</button>
-              {open.status === "paused" && <button type="button" className="bd-danger-button" onClick={() => setAction({ kind: "release", row: open })}>Release from Zella</button>}
+              {open.status === "paused" && <button type="button" className="bd-danger-button" onClick={() => setAction({ kind: "release", row: open })}>Release from Zella Voice</button>}
             </>}
           </div>
           {!manage && <p className="op-muted">Your admin role can see numbers but not change them.</p>}
@@ -148,8 +148,8 @@ function Numbers({ me, options, onAssign, onOpenCalls, say, onOpenBusiness }) {
         </ReasonDialog>
       )}
       {action?.kind === "release" && (
-        <ReasonDialog title={`Release ${action.row.e164} from Zella?`} icon="delete" danger word="RELEASE" confirmLabel="Release" onClose={() => setAction(null)}
-          onConfirm={async (reason) => { await rpc("zella_admin_number_release", { p_id: action.row.id, p_reason: reason }); done(`${action.row.e164} released from Zella.`); }}>
+        <ReasonDialog title={`Release ${action.row.e164} from Zella Voice?`} icon="delete" danger word="RELEASE" confirmLabel="Release" onClose={() => setAction(null)}
+          onConfirm={async (reason) => { await rpc("zella_admin_number_release", { p_id: action.row.id, p_reason: reason }); done(`${action.row.e164} released from Zella Voice.`); }}>
           <p>The number is removed from {action.row.business_name}. Its past calls are kept. This doesn't cancel it at the carrier — do that in the Telnyx or Vapi dashboard, or it keeps costing money.</p>
         </ReasonDialog>
       )}
@@ -326,7 +326,7 @@ function Providers({ me }) {
   const data = useLoad(() => rpc("zella_admin_voice_overview", { p_from: since(1), p_to: null }), []);
   return (
     <>
-      <Panel title="Connection checks" description="Zella's own checks of each provider, run by the provider health job.">
+      <Panel title="Connection checks" description="Zella Voice's own checks of each provider, run by the provider health job.">
         <ErrorNote error={data.error} onRetry={data.reload} />
         {data.data && <ProviderHealth rows={data.data.providers} checksLive={data.data.checks_live} names={[["vapi", "Vapi", "AI voice and phone numbers"], ["telnyx", "Telnyx", "Numbers and carrier"]]} />}
         {data.data && !data.data.checks_live && <NotAvailable title="Provider checks are off">The provider health job isn't switched on, so connection status is unknown rather than healthy. A "test connection" button isn't offered because it would need the provider keys in the browser.</NotAvailable>}

@@ -8,7 +8,7 @@ import { formatDate, timeAgo } from "./ownerFormat";
 import { friendlyError } from "./admin/adminOps";
 
 const ROLE_LABELS = {
-  zella_owner: "Zella owner", super_admin: "Super admin", platform_operations: "Platform operations",
+  zella_owner: "Zella Voice owner", super_admin: "Super admin", platform_operations: "Platform operations",
   billing_admin: "Billing admin", support_admin: "Support admin", security_admin: "Security admin", read_only_admin: "Read-only admin",
 };
 // What each restricted role can do is set in Settings > Users, roles & access > Platform roles.
@@ -23,7 +23,7 @@ function roleExplanation(role, roles) {
   if (!def) return "Only the permissions set for this role in Settings > Users, roles & access > Platform roles. (They couldn't be loaded just now.)";
   const words = new Map((roles.catalog ?? []).map(([key, text]) => [key, text]));
   const list = (def.permissions ?? []).map((p) => words.get(p) ?? p);
-  if (!list.length) return "No permissions yet: they can sign in, but see only Settings until a Zella owner gives this role permissions.";
+  if (!list.length) return "No permissions yet: they can sign in, but see only Settings until a Zella Voice owner gives this role permissions.";
   return `Only: ${list.join("; ")}. Nothing else.`;
 }
 const loadRoles = () => callOwnerFunction("roles_get");
@@ -85,7 +85,7 @@ export default function UsersAccess() {
         ? `Invitation re-emailed to ${r.email}. Their existing role was not changed.`
         : r.invited
         ? `Invitation emailed to ${r.email} as ${label}.`
-        : `${r.email} already had a Zella login and can now use the admin dashboard as ${label}.`
+        : `${r.email} already had a Zella Voice login and can now use the admin dashboard as ${label}.`
     );
     if (ok) {
       setInviting(false);
@@ -99,7 +99,7 @@ export default function UsersAccess() {
         <div>
           <div className="owner-eyebrow">Access</div>
           <h1>Users & access</h1>
-          <p>People who can use this Zella admin dashboard. Business owners and staff are managed inside each business.</p>
+          <p>People who can use this Zella Voice admin dashboard. Business owners and staff are managed inside each business.</p>
         </div>
         {isOwner && (
           <button type="button" className="owner-primary-button" onClick={() => setInviting(true)} disabled={busy}>
@@ -112,7 +112,7 @@ export default function UsersAccess() {
       {error && <div className="owner-form-error op-gap" role="alert">{error}</div>}
 
       {data && !isOwner && (
-        <div className="wiz-note op-gap">You can view platform admins. Only a Zella owner can add or remove them.</div>
+        <div className="wiz-note op-gap">You can view platform admins. Only a Zella Voice owner can add or remove them.</div>
       )}
 
       {inviting && (
@@ -120,7 +120,7 @@ export default function UsersAccess() {
           <div className="wiz-section-head">
             <div>
               <h3>Add a platform admin</h3>
-              <p>What they can do depends on the role you choose below. If they don't have a Zella login yet, they're emailed an invitation.</p>
+              <p>What they can do depends on the role you choose below. If they don't have a Zella Voice login yet, they're emailed an invitation.</p>
             </div>
           </div>
           <div className="owner-form-grid">
@@ -132,7 +132,7 @@ export default function UsersAccess() {
               <span>Role</span>
               <select value={invite.role} onChange={(e) => setInvite({ ...invite, role: e.target.value })}>
                 <option value="super_admin">Super admin: manages businesses and setup</option>
-                <option value="zella_owner">Zella owner: also manages admins</option>
+                <option value="zella_owner">Zella Voice owner: also manages admins</option>
                 {RESTRICTED.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}: only the permissions set for this role</option>)}
               </select>
             </label>
@@ -194,7 +194,7 @@ export default function UsersAccess() {
                         }}
                       >
                         <option value="super_admin">Super admin</option>
-                        <option value="zella_owner">Zella owner</option>
+                        <option value="zella_owner">Zella Voice owner</option>
                         {RESTRICTED.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
                       </select>
                     ) : (
@@ -214,7 +214,7 @@ export default function UsersAccess() {
                           setConfirm(
                             a.is_active
                               ? {
-                                  message: `Remove ${a.email}'s access to the Zella admin dashboard?`,
+                                  message: `Remove ${a.email}'s access to the Zella Voice admin dashboard?`,
                                   label: "Remove access",
                                   run: () => run("admin_update", { userId: a.user_id, isActive: false }, () => `${a.email} no longer has admin access.`),
                                 }

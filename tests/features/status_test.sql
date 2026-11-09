@@ -39,7 +39,7 @@ begin
   r := zella_public_status();
   assert jsonb_array_length(r -> 'incidents') = 1 and r #>> '{incidents,0,message}' = 'Some text messages are delayed. We are working with our provider.'
      and r::text not like '%carrier ticket%', r::text;
-  raise notice 'PASS only incidents a Zella admin published appear, with the public wording only; business users can''t publish';
+  raise notice 'PASS only incidents a Zella Voice admin published appear, with the public wording only; business users can''t publish';
 
   -- uptime: checks stopped for 6 hours -> urgent alert; back -> resolved
   update provider_health set checked_at = now() - interval '7 hours';

@@ -1,4 +1,4 @@
--- Zella AI: email platform alerts to Zella admins (n8n workflow "Zella - Admin Alerts").
+-- Zella Voice: email platform alerts to Zella admins (n8n workflow "Zella - Admin Alerts").
 -- Needs: platform_alerts, platform_admins, zella_setting. Safe to run more than once.
 -- Alerts come from the whole platform: offers (ending soon, limit reached, unusual claims, failed to go live,
 -- completed), failed scheduled jobs, provider problems and more. They are always visible in the database;

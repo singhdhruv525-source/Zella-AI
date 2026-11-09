@@ -52,7 +52,7 @@ export default function SpamPage({ workspace, onNotice, onOpenPerson }) {
     return (
       <>
         <PageHead crumb="Calls & messages / Spam protection" title="Spam protection" />
-        <Empty icon="gpp_maybe" title="Spam protection isn't set up yet">The Zella team needs to apply its latest database update. Nothing is being missed: until then, calls, texts and emails work as usual.</Empty>
+        <Empty icon="gpp_maybe" title="Spam protection isn't set up yet">The Zella Voice team needs to apply its latest database update. Nothing is being missed: until then, calls, texts and emails work as usual.</Empty>
       </>
     );
   }
@@ -521,7 +521,7 @@ function Lists({ workspace, onNotice }) {
         <Field label="Reason (optional)"><input value={form.reason} maxLength={300} onChange={(e) => setForm({ ...form, reason: e.target.value })} /></Field>
         <button type="submit" className="ba-btn primary" disabled={busy || !form.value.trim()}><Icon name="add" size="sm" />Add</button>
       </form>
-      <p className="ba-muted sp-small">Blocking is per channel: blocking a number for texts doesn't block its calls unless you choose all channels. Zella's own platform rules also apply and aren't listed here.</p>
+      <p className="ba-muted sp-small">Blocking is per channel: blocking a number for texts doesn't block its calls unless you choose all channels. Zella Voice's own platform rules also apply and aren't listed here.</p>
       <Notice error={error} onRetry={load} />
       {live.length ? (
         <div className="ba-table-wrap" tabIndex={0}>
@@ -577,7 +577,7 @@ function FollowUp({ inc }) {
           {Number(f.here_confirmed) > 0 && <li><Icon name="history" size="sm" />Your team confirmed this sender as spam {f.here_confirmed} time{Number(f.here_confirmed) === 1 ? "" : "s"} before</li>}
           {Number(f.other_businesses) > 0 && <li><Icon name="hub" size="sm" />Also seen at {f.other_businesses} other business{Number(f.other_businesses) === 1 ? "" : "es"} on Zella this month</li>}
           {r.restricted && <li><Icon name="block" size="sm" />Temporarily restricted by your auto-restrict setting (confirmed twice before)</li>}
-          {r.escalated && <li><Icon name="shield" size="sm" />Reported to Zella's security team</li>}
+          {r.escalated && <li><Icon name="shield" size="sm" />Reported to Zella Voice's security team</li>}
         </ul>
       )}
       {r.ai && (

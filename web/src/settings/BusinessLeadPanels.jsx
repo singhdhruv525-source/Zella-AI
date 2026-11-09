@@ -456,7 +456,7 @@ function SourceActions({ x, busy, act, onRemove }) {
 /* ---------- Offers ---------- */
 
 export function BusinessOffersSettings({ w }) {
-  if (!can(w, MANAGE)) return <Banner tone="warn">Offers from Zella are shown to owners and admins. Ask your business owner.</Banner>;
+  if (!can(w, MANAGE)) return <Banner tone="warn">Offers from Zella Voice are shown to owners and admins. Ask your business owner.</Banner>;
   return (
     <>
       <OffersPanel workspace={w} />

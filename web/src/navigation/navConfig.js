@@ -130,7 +130,7 @@ export function buildNavigation(access, term) {
     const groupItems = g.id === "operations" ? operations : items.filter((i) => i.group === g.id).sort((a, b) => a.order - b.order);
     const label = g.id === "operations" ? (access.operationsLabel || "Business operations") : g.label;
     const notice = g.id === "operations" && !access.configured
-      ? "Your industry settings aren't set up yet. The Zella team configures them."
+      ? "Your industry settings aren't set up yet. The Zella Voice team configures them."
       : null;
     return { ...g, label, items: groupItems, notice };
   }).filter((g) => g.items.length || g.notice);

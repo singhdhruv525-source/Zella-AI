@@ -373,7 +373,7 @@ export function CalendarPage({ workspace, industry, refreshKey, onNotice, onOpen
   const { data, error, loading, reload } = useLoad(async () => {
     const appts = orThrow(await supabase.from("appointments").select("*").eq("business_id", workspace.id)
       .gte("start_time", rangeStart.toISOString()).lt("start_time", rangeEnd.toISOString()).order("start_time"));
-    // Blocked time and team are optional until the latest Zella update is applied.
+    // Blocked time and team are optional until the latest Zella Voice update is applied.
     const blockResult = await supabase.from("blocked_times").select("*").eq("business_id", workspace.id)
       .lt("start_time", rangeEnd.toISOString()).gt("end_time", rangeStart.toISOString()).order("start_time");
     const staffResult = await supabase.from("staff_members").select("*").eq("business_id", workspace.id)

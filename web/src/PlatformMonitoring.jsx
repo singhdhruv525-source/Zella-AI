@@ -10,7 +10,7 @@ import { formatDateTime } from "./ownerFormat";
 // is_platform_admin() itself.
 
 const CODES = {
-  NOT_ALLOWED: "Only a Zella admin can do this.",
+  NOT_ALLOWED: "Only a Zella Voice admin can do this.",
   NOT_RETRYABLE: "This event was already retried or is no longer failed.",
   TITLE_REQUIRED: "Give the incident a title of at least 3 characters.",
   ALREADY_RESOLVED: "This incident is already resolved.",
@@ -120,7 +120,7 @@ const loadIncidents = async () => {
   if (result.error) throw result.error;
   return result.data ?? [];
 };
-const STATUS_PARTS = [["", "No specific part"], ["phone", "Phone assistant"], ["texts", "Text messages"], ["email", "Email"], ["automations", "Reminders and follow-ups"], ["app", "Zella app"]];
+const STATUS_PARTS = [["", "No specific part"], ["phone", "Phone assistant"], ["texts", "Text messages"], ["email", "Email"], ["automations", "Reminders and follow-ups"], ["app", "Zella Voice app"]];
 
 export function IncidentsPanel() {
   const { data, error, loading, reload } = useAsync(loadIncidents);

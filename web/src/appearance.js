@@ -11,7 +11,7 @@ import { supabase } from "./supabase";
 //
 // Applied as attributes on <html> (data-zella-theme, data-zella-sidebar), two CSS variables (--zella-wallpaper,
 // --zella-wallpaper-dim) and, with Glass and "match colours to the picture", the picture's palette as the shared
-// colour tokens. styles/glass.css does the rest. The Zella logo keeps its own colours.
+// colour tokens. styles/glass.css does the rest. The Zella Voice logo keeps its own colours.
 
 export const BACKGROUNDS = [
   { key: "lounge", label: "Lounge at dusk", src: "/backgrounds/lounge-dusk.svg" },
@@ -53,7 +53,7 @@ function normalise(p) {
   const v = { ...DEFAULT_APPEARANCE, ...(p && typeof p === "object" ? p : {}) };
   if (!["zella", "classic", "glass"].includes(v.theme)) v.theme = DEFAULT_APPEARANCE.theme;
   if (v.background !== "custom" && !BACKGROUNDS.some((b) => b.key === v.background)) v.background = DEFAULT_APPEARANCE.background;
-  // only a picture uploaded to Zella's own storage is used as a background
+  // only a picture uploaded to Zella Voice's own storage is used as a background
   if (typeof v.customUrl !== "string" || !/^https:\/\/[^/]+\.supabase\.co\/storage\/v1\/object\/public\/brand-assets\/user\//.test(v.customUrl)) v.customUrl = null;
   if (v.background === "custom" && !v.customUrl) v.background = DEFAULT_APPEARANCE.background;
   v.dim = Math.min(80, Math.max(0, Math.round(Number(v.dim) || 0)));

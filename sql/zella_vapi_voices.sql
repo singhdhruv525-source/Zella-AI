@@ -1,4 +1,4 @@
--- Zella AI: the receptionist can use Vapi's own voices (provider "vapi", voice by name, Version 2) as well as
+-- Zella Voice: the receptionist can use Vapi's own voices (provider "vapi", voice by name, Version 2) as well as
 -- ElevenLabs. Needs sql/zella_voice_assistant.sql and sql/zella_languages.sql (patches their live body; safe to run again).
 --
 -- Vapi's VapiVoice (@vapi-ai/server-sdk 3.0.0): { provider: "vapi", voiceId: <built-in voice name>, version: "2" }.

@@ -23,7 +23,7 @@ Never point any of this at production.
    ```
 
 2. Load the test data:
-   - **Reference data:** industries, industry modules, presets, Zella's own message templates and offer rules. These are configuration rows, not customer data. Copy them read-only from the project, or load them from `sql/zella_industries_seed.sql` and the preset files.
+   - **Reference data:** industries, industry modules, presets, Zella Voice's own message templates and offer rules. These are configuration rows, not customer data. Copy them read-only from the project, or load them from `sql/zella_industries_seed.sql` and the preset files.
    - **Test people:** `admin@zella.test` (zella_owner), `readonly@zella.test` (read_only_admin), `owner@glow.test` (owner of two businesses), `staff@glow.test`, `viewer@glow.test`. Every test password is `Test-pass-1`. These accounts exist only in the isolated database.
 
 3. Start the backend and the functions:

@@ -79,7 +79,7 @@ begin
   assert zella_admin_acknowledge_alert(v);
   assert (select status from platform_alerts where id = v) = 'acknowledged';
   perform set_config('request.jwt.claim.sub', '', true);
-  raise notice 'PASS a Zella admin can acknowledge an alert from the bell; a business owner cannot';
+  raise notice 'PASS a Zella Voice admin can acknowledge an alert from the bell; a business owner cannot';
 end $$;
 
 -- urgent text alerts on by default

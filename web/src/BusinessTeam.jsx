@@ -172,7 +172,7 @@ export function TeamPage({ workspace, email, refreshKey, onNotice }) {
 
       <Notice error={error} onRetry={reload} />
       {data?.staffMissing && (
-        <div className="ba-banner error"><span>Team availability needs the latest Zella update. Please ask the Zella team to apply it.</span></div>
+        <div className="ba-banner error"><span>Team availability needs the latest Zella Voice update. Please ask the Zella Voice team to apply it.</span></div>
       )}
 
       <section className="ba-panel">

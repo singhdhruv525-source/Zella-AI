@@ -278,7 +278,7 @@ export function TablesPage({ workspace, refreshKey, onNotice, onBook }) {
         {!history.events.length ? <Empty title="Nothing recorded yet" icon="history" /> : (
           <ul className="tb-history">{history.events.map((e, i) => (
             <li key={i}><span>{new Date(e.at).toLocaleString([], { timeZone: tz, dateStyle: "medium", timeStyle: "short" })}</span>
-              <strong>{e.action.replace(/_/g, " ")}</strong><span>{e.by ?? "Zella"}</span></li>))}</ul>
+              <strong>{e.action.replace(/_/g, " ")}</strong><span>{e.by ?? "Zella Voice"}</span></li>))}</ul>
         )}
       </Modal>}
     </>

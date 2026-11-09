@@ -4,7 +4,7 @@ import "./OwnerPages.css";
 import { supabase } from "./supabase";
 
 // Public status page (/status): is Zella working right now. Readable without signing in. Shows only the state of each
-// part and incidents a Zella admin published, in the words they wrote (zella_public_status, sql/zella_status.sql).
+// part and incidents a Zella Voice admin published, in the words they wrote (zella_public_status, sql/zella_status.sql).
 const STATES = {
   operational: ["ok", "Working"],
   degraded: ["warn", "Slower than usual"],

@@ -79,7 +79,7 @@ export async function finishSetupWith(d: FinishDeps) {
     if ("error" in sent) {
       await d.release(inv!.id, sent.error);
       return { completed: false, invitationStatus: "failed",
-        invitationError: /already|registered|exists/i.test(sent.error) ? "This email already has a Zella account" : sent.error };
+        invitationError: /already|registered|exists/i.test(sent.error) ? "This email already has a Zella Voice account" : sent.error };
     }
     const bookkeeping = await d.recordSent(inv!.id, sent.userId);
     if (bookkeeping === "closed") {

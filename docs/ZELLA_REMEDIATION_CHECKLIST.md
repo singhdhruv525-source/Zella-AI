@@ -1,4 +1,4 @@
-# Zella AI: remediation checklist
+# Zella Voice: remediation checklist
 
 From the end-to-end audit of 29 October 2026 (`docs/ZELLA_END_TO_END_AUDIT.md`). Ticked items are done and verified.
 

@@ -8,7 +8,7 @@ const OWNER = { id: "30000000-0000-0000-0000-0000000000a1", email: "admin@zella.
 const LIMITED = { id: "30000000-0000-0000-0000-0000000000a2", email: "readonly@zella.test" };
 const ALL = ["businesses.view", "businesses.manage", "billing.view", "security.view", "security.manage", "platform.configure", "audit.view", "support.manage", "analytics.view"];
 const ME = {
-  [OWNER.id]: { role: "zella_owner", roleLabel: "Zella owner", permissions: ALL, mfa: true, aal: "aal2" },
+  [OWNER.id]: { role: "zella_owner", roleLabel: "Zella Voice owner", permissions: ALL, mfa: true, aal: "aal2" },
   [LIMITED.id]: { role: "read_only_admin", roleLabel: "Read-only admin", permissions: ["businesses.view", "security.view"], mfa: true, aal: "aal2" },
 };
 const DASH = { businesses: [], industries: [], stats: { totalBusinesses: 0, activeWorkspaces: 0, pendingInvitations: 0, provisioningIssues: 0 } };

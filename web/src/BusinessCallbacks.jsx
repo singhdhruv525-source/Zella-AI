@@ -7,7 +7,7 @@ import { ATTEMPT_LABEL, CB_CLOSED, CB_REASON, CB_STATUS, NewCallbackModal, PRIOR
 import { Assignee, useRoster } from "./BusinessLeads";
 
 /* The callback work queue: what is due now, what is coming, what slipped, and
-   what needs a person. Zella's own retries follow the business's rules (tries
+   what needs a person. Zella Voice's own retries follow the business's rules (tries
    allowed, delay between tries, calling hours); people never bypass an opt-out here. */
 
 const HOUR = 3600000;

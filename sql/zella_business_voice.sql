@@ -1,4 +1,4 @@
--- Zella AI: each business can have its own receptionist voice, chosen from a list the platform approves.
+-- Zella Voice: each business can have its own receptionist voice, chosen from a list the platform approves.
 -- Needs sql/zella_vapi_voices.sql (voice_tts_model). Safe to run again.
 --
 -- - platform setting voice_tts_choices: the approved ElevenLabs voices (Vapi's built-in ElevenLabs voice names,

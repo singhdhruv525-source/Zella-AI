@@ -62,7 +62,7 @@ export default function PlatformOperations({ onNavigate, onOpenBusiness }) {
         <div>
           <div className="owner-eyebrow">Operations</div>
           <h1>Platform operations</h1>
-          <p>Health of the Zella platform and anything that needs fixing.</p>
+          <p>Health of the Zella Voice platform and anything that needs fixing.</p>
         </div>
         <div className="op-heading-actions">
           <UpdatedAt r={r} />

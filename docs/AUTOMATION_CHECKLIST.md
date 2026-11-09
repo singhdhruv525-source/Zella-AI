@@ -1,6 +1,6 @@
 # Zella automation checklist (338 items)
 
-Item numbers and names come from the Zella AI Complete Automation Guide. Status is honest and conservative: nothing has run against a real provider yet.
+Item numbers and names come from the Zella Voice Complete Automation Guide. Status is honest and conservative: nothing has run against a real provider yet.
 
 - **Built**: the database part is applied and tested, and (where it needs n8n) the unpublished n8n workflow exists and its logic is tested. Nothing runs until go-live and live provider keys.
 - **Partly**: some of the item works; the missing part is noted by the module section in `n8n/README.md` or the Not built items nearby.

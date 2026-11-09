@@ -14,10 +14,10 @@ const say = (error) => {
     BAD_PHONE: "Enter the mobile number with its country code, for example +1 555 123 4567.",
     USE_SIGN_OUT: "That's this device. Use Sign out instead.",
     NOT_SIGNED_IN: "Your session has ended. Please sign in again.",
-    BAD_AVATAR_URL: "Upload the picture here so it's stored with Zella.",
+    BAD_AVATAR_URL: "Upload the picture here so it's stored with Zella Voice.",
   };
   const code = Object.keys(codes).find((k) => m.includes(k));
-  return code ? codes[code] : /does not exist|schema cache|Could not find the function/i.test(m) ? "This needs the latest Zella database update." : m;
+  return code ? codes[code] : /does not exist|schema cache|Could not find the function/i.test(m) ? "This needs the latest Zella Voice database update." : m;
 };
 
 async function rpc(name, args) {
@@ -33,7 +33,7 @@ export async function uploadImage(path, file) {
   const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
   const full = `${path}-${Date.now()}.${ext}`;
   const { error } = await supabase.storage.from("brand-assets").upload(full, file, { contentType: file.type, upsert: false });
-  if (error) throw new Error(/bucket not found/i.test(error.message) ? "Image storage isn't set up yet (needs the latest Zella database update)." : /row-level security|unauthorized/i.test(error.message) ? "You don't have permission to upload this image." : error.message);
+  if (error) throw new Error(/bucket not found/i.test(error.message) ? "Image storage isn't set up yet (needs the latest Zella Voice database update)." : /row-level security|unauthorized/i.test(error.message) ? "You don't have permission to upload this image." : error.message);
   return supabase.storage.from("brand-assets").getPublicUrl(full).data.publicUrl;
 }
 

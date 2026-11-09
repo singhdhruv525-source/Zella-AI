@@ -3,7 +3,7 @@ import { supabase } from "./supabase";
 import { Field, Pill } from "./BusinessUI";
 import { Notice, friendly, useLoad } from "./BusinessShared";
 
-// Offers from Zella for this business. Zella's database decides who qualifies, checks limits and
+// Offers from Zella Voice for this business. Zella's database decides who qualifies, checks limits and
 // dates at the moment of claiming, and only marks a claim paid when a real payment arrives.
 // Owners can claim; admins can see. Nothing here changes a price by itself.
 
@@ -73,7 +73,7 @@ export function OffersPanel({ workspace }) {
 
   return (
     <section className="ba-panel">
-      <div className="ba-panel-head"><div className="ba-panel-title"><div><h2>Offers from Zella</h2><p>Discounts your business qualifies for.</p></div></div></div>
+      <div className="ba-panel-head"><div className="ba-panel-title"><div><h2>Offers from Zella Voice</h2><p>Discounts your business qualifies for.</p></div></div></div>
       <div className="ba-panel-body">
         <Notice error={error} onRetry={reload} />
 

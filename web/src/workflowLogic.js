@@ -88,12 +88,12 @@ const ERRORS = [
   [/MFA_REQUIRED/, () => "Enter the code from your authenticator app first: sign out and sign in again."],
   [/failed to fetch|network|load failed/i, () => "Couldn't reach Zella. Nothing was changed; try again."],
   [/zella_approval|zella_milestone|zella_inspection|zella_exception|zella_credit|zella_workflow|record_approvals|record_milestones|schema cache|Could not find the function/,
-    () => "This isn't available on this workspace yet. Ask the Zella team."],
+    () => "This isn't available on this workspace yet. Ask the Zella Voice team."],
 ];
 export function workflowError(error) {
   const text = `${error?.message ?? ""} ${error?.code ?? ""}`;
   for (const [re, msg] of ERRORS) if (re.test(text)) return msg(error);
-  return "That didn't work. Try again, or contact Zella support if it keeps happening.";
+  return "That didn't work. Try again, or contact Zella Voice support if it keeps happening.";
 }
 
 // The workflow editor's form, from a type's saved workflow setting.

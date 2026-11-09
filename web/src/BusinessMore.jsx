@@ -329,7 +329,7 @@ export function ReportsPage({ workspace, refreshKey }) {
 /* ---------------------------------------------------------------- */
 
 const CATALOG = [
-  { match: ["telnyx"], icon: "call", name: "Phone line", text: "Your business number, new or forwarded to Zella." },
+  { match: ["telnyx"], icon: "call", name: "Phone line", text: "Your business number, new or forwarded to Zella Voice." },
   { match: ["vapi"], icon: "record_voice_over", name: "Voice assistant", text: "The AI receptionist that answers your calls." },
   { match: ["google_calendar", "gcal", "google"], not: ["ads", "lead", "profile", "mail"], icon: "calendar_month", name: "Google Calendar", text: "Keeps bookings and your calendar in sync." },
   { match: ["outlook_calendar", "microsoft_calendar", "outlook", "microsoft"], not: ["mail"], icon: "event", name: "Outlook / Microsoft Calendar", text: "Keeps bookings and your calendar in sync." },
@@ -355,7 +355,7 @@ function IntegrationCard({ item, row, canManage, loading, onNotice, onChanged, w
     setError("");
     const { error: failure } = await supabase.rpc("zella_set_integration", { p_business_id: workspace.id, p_integration_id: row.id, p_action: action });
     setBusy(false);
-    if (failure) return setError(/NEEDS_RECONNECT/.test(failure.message) ? "This was removed, so it needs the Zella team to connect it again." : explain(failure));
+    if (failure) return setError(/NEEDS_RECONNECT/.test(failure.message) ? "This was removed, so it needs the Zella Voice team to connect it again." : explain(failure));
     setConfirming(false);
     onNotice?.(action === "remove" ? `${item.name} was removed.` : `${item.name} is ${action === "on" ? "on" : "off"}.`);
     onChanged();
@@ -374,12 +374,12 @@ function IntegrationCard({ item, row, canManage, loading, onNotice, onChanged, w
       {canManage && row && (
         <div className="ba-integration-actions">
           {row.status === "disconnected" ? (
-            <small>Removed. Ask the Zella team to connect it again.</small>
+            <small>Removed. Ask the Zella Voice team to connect it again.</small>
           ) : confirming ? (
             <div className="ba-confirm" role="alertdialog" aria-label={`Remove ${item.name}`}>
               <p>
                 Remove {item.name}? Its saved sign-in details are deleted.
-                {core && " Your AI receptionist can't take calls without it."} The Zella team has to connect it again.
+                {core && " Your AI receptionist can't take calls without it."} The Zella Voice team has to connect it again.
               </p>
               <div className="ba-auto-actions">
                 <button type="button" className="ba-btn" disabled={busy} onClick={() => setConfirming(false)}>Keep it</button>
@@ -409,7 +409,7 @@ const STORE_ERRORS = { bad_shop_domain: "Enter the store's address ending in .my
   token_refused: "Shopify didn't accept that token. Copy it again from the custom app.", store_not_found: "No store answers at that address.",
   missing_scopes: "The custom app needs read access to orders and customers (read_orders, read_customers).", not_allowed: "Only owners and admins can connect the store.",
   store_unreachable: "Shopify couldn't be reached. Try again in a minute.",
-  not_configured: "Store connections aren't switched on for Zella yet. Contact Zella support." };
+  not_configured: "Store connections aren't switched on for Zella yet. Contact Zella Voice support." };
 function StoreCard({ workspace, onNotice }) {
   const canManage = ["owner", "admin"].includes(workspace.role);
   const [version, setVersion] = useState(0);
@@ -546,7 +546,7 @@ export function IntegrationsPage({ workspace, refreshKey, onNotice }) {
             onNotice={onNotice} onChanged={reload} workspace={workspace} />
         ))}
       </div>
-      <p className="ba-muted ba-gap">Want one connected or connected again? Ask the Zella team and it will be set up for you.</p>
+      <p className="ba-muted ba-gap">Want one connected or connected again? Ask the Zella Voice team and it will be set up for you.</p>
     </>
   );
 }

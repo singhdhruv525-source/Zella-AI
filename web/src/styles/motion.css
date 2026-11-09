@@ -1,4 +1,4 @@
-/* Motion for every page in both apps (the CRM and the Zella admin): buttons lift and press, a ripple follows the
+/* Motion for every page in both apps (the CRM and the Zella Voice admin): buttons lift and press, a ripple follows the
    click (styles/motion.js), main buttons get a sheen, cards and panels respond to the pointer, tabs glide, rows show
    an accent, and every popup opens with a pop. Short and soft. Everything that moves is off for people who prefer
    reduced motion; colour changes stay. */

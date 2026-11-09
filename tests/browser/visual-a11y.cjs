@@ -17,7 +17,7 @@ const ws = { id: B1, name: "Glow & Grace Hair and Beauty Studio of Greater Austi
 const NAV = { role: "owner", configured: true, industry: { slug: "salon", name: "Salon" }, operations_label: "Salon operations",
   modules: ["ai-receptionist", "automations", "calendar", "calls", "sms", "email"].map((slug) => ({ slug, available: true, enabled: true })) };
 const CALLS = [1, 2, 3, 4].map((n) => ({ id: "c" + n, business_id: B1, status: ["completed", "missed", "failed", "answered"][n - 1], direction: "inbound", ai_handled: n !== 4, from_number: "+1555000000" + n, created_at: ago(n * 30), duration_seconds: 80, metadata: {} }));
-const ME = { role: "zella_owner", roleLabel: "Zella owner", permissions: ["businesses.view", "businesses.manage", "billing.view", "security.view", "audit.view", "support.manage", "analytics.view"], mfa: true, aal: "aal2" };
+const ME = { role: "zella_owner", roleLabel: "Zella Voice owner", permissions: ["businesses.view", "businesses.manage", "billing.view", "security.view", "audit.view", "support.manage", "analytics.view"], mfa: true, aal: "aal2" };
 const DASH = { businesses: [1, 2, 3].map((n) => ({ id: `4000000${n}-0000-0000-0000-000000000000`, name: ["Bright Smile Family Dentistry and Orthodontics", "Glow Salon", "Fix-It Plumbing"][n - 1], industry: "Dental", onboarding_status: ["active", "owner_setup", "testing"][n - 1], is_active: n === 1, invitations: [{ status: "sent" }], created_at: ago(n * 1000), updated_at: ago(n * 100) })),
   industries: [{ id: "i1", name: "Dental", slug: "dental", is_active: true }], stats: { totalBusinesses: 3, activeWorkspaces: 1, pendingInvitations: 1, provisioningIssues: 0 } };
 

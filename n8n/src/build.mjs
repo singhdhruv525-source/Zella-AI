@@ -364,7 +364,7 @@ const knowledge = wf('Zella - Knowledge', [
 // One item per tool call, so several tool calls in one request each get their own answer, matched by toolCallId.
 // In Vapi: add a server tool "report_unanswered_question" (parameter: question, text) pointing at
 // <n8n>/webhook/zella/vapi-tools with the X-Zella-Secret header. The call must carry the business id (call metadata
-// or the assistant variable business_id) unless the call is already known to Zella.
+// or the assistant variable business_id) unless the call is already known to Zella Voice.
 const assistantTools = secureVapi(wf('Zella - Assistant Tools', [
   node('Vapi tool call', 'n8n-nodes-base.webhook', 2, [0, 200], {
     httpMethod: 'POST', path: 'zella/vapi-tools', authentication: 'headerAuth', responseMode: 'responseNode', options: {},
@@ -514,7 +514,7 @@ const googleToken = (name, pos, tokenExpr) => node(name, 'n8n-nodes-base.httpReq
   options: { response: { response: { fullResponse: true, neverError: true, responseFormat: 'json' } } },
 });
 // Outlook / Microsoft 365 through Microsoft Graph: the same flow with Microsoft's token box (client id and secret of the
-// Zella app registration in Microsoft Entra ID, pasted by hand at go-live like Google's).
+// Zella Voice app registration in Microsoft Entra ID, pasted by hand at go-live like Google's).
 const microsoftToken = (name, pos, tokenExpr) => node(name, 'n8n-nodes-base.httpRequest', 4.2, pos, {
   method: 'POST', url: 'https://login.microsoftonline.com/common/oauth2/v2.0/token', authentication: 'none',
   sendBody: true, contentType: 'form-urlencoded',
@@ -859,7 +859,7 @@ const failureAlert = wf('Zella - Failure Alert', [
   'Describe failure': { main: [[link('Raise alert')]] },
 });
 
-// Admin alerts: one plain-text digest email to the active Zella admins with the platform alerts that are waiting
+// Admin alerts: one plain-text digest email to the active Zella Voice admins with the platform alerts that are waiting
 // (offers ending soon, limits reached, unusual claims, offers that could not go live, failed jobs, provider problems).
 // The database hands out alerts only when email_live is on and a sender address is set. The Resend box ships with
 // NO credential, like the other email workflows: add the Resend key by hand at go-live. A failed send is put back

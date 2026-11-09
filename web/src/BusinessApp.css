@@ -1,5 +1,5 @@
 /* =========================================================
-   Zella business app (client CRM), from the Stitch
+   Zella Voice business app (client CRM), from the Stitch
    "Intelligent Operations CRM" design. Everything is scoped
    to .ba-root / .ba-auth so it never mixes with the admin's
    Oat & Slate styles.
@@ -1483,7 +1483,7 @@ html:not([data-zella-icons="ready"]) .ba-icon { color: transparent !important; }
 .ba-draft-foot { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 .ba-draft-foot small { margin-right: auto; color: var(--ba-muted); }
 
-/* Offers from Zella (Settings) */
+/* Offers from Zella Voice (Settings) */
 .ba-offer-list { display: flex; flex-direction: column; gap: 10px; margin: 0 0 14px; padding: 0; list-style: none; }
 .ba-offer { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; padding: 12px 14px; border: 1px solid var(--ba-border); border-radius: var(--ba-radius-sm); background: var(--ba-surface); }
 .ba-offer strong { font-size: 14px; }

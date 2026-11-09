@@ -34,6 +34,10 @@ provider error codes).
 - **Sentence case** for navigation, page titles, section headings, buttons, tabs, filters, column headers, badges
   and labels: "Calls & messages", "Sending failed", "Retry sending", "Needs a person".
 - **Proper nouns keep their capitals:** Zella Voice, Google Calendar, Vapi, Telnyx, Resend, Stripe, ElevenLabs.
+- **The brand is "Zella Voice", never "Zella AI".** Write it in full wherever the brand itself is named: titles,
+  email sender names and subjects, sign-offs, "the Zella Voice team", "Zella Voice support", "Zella Voice owner",
+  "your Zella Voice number / account / plan", "Booked by Zella Voice". Inside a running sentence about what the
+  product does, the short "Zella" is fine: "Zella will call to offer a new time", "Zella checks this on every call".
 - **Feature names:** "AI Receptionist" is the name of the module in navigation; in running text it is "your AI
   receptionist".
 - Acronyms stay in capitals inside labels: AI, SMS, CRM, ID, URL, MFA.

@@ -36,7 +36,7 @@ async function sendInvitationEmail(invitationId) {
   return data ?? {};
 }
 const sentMessage = (email, result) => result.existingAccount
-  ? `${email} already has a Zella account. They'll see this workspace the next time they sign in.`
+  ? `${email} already has a Zella Voice account. They'll see this workspace the next time they sign in.`
   : `Invitation emailed to ${email}. The link works once and the invitation is valid for 14 days.`;
 
 const words = humanize;

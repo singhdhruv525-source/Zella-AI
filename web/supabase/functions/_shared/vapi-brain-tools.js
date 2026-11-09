@@ -26,7 +26,7 @@ export function vapiCallContext(message) {
   const vars = o(o(call.assistantOverrides).variableValues);
   const pn = isObj(call.phoneNumber) ? call.phoneNumber : o(m.phoneNumber);
   const cn = String(o(call.customer).number || '');
-  // the assistant's own metadata (set by Zella when the assistant is configured) also counts: web test calls have no
+  // the assistant's own metadata (set by Zella Voice when the assistant is configured) also counts: web test calls have no
   // phone number and no call metadata
   const asst = o(o(m.assistant).metadata);
   const bid = [meta.business_id, vars.business_id, asst.business_id].find((v) => typeof v === 'string' && UUID.test(v)) || null;

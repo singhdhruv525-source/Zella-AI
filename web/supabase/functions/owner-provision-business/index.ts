@@ -889,7 +889,7 @@ async function saveIntegrations(admin: SupabaseClient, fields: Json) {
 
   const forwardFrom = optionalPhone(phone.existingNumber, "business phone number");
   if (mode === "call_forwarding" && !forwardFrom) {
-    throw new InputError("Enter the business number that will be forwarded to Zella");
+    throw new InputError("Enter the business number that will be forwarded to Zella Voice");
   }
 
   // These are the client's setup choices. Real connections are stored in
@@ -1922,7 +1922,7 @@ async function callerRole(admin: SupabaseClient, userId: string) {
 
 async function requireOwner(admin: SupabaseClient, userId: string) {
   if ((await callerRole(admin, userId)) !== "zella_owner") {
-    throw new InputError("Only a Zella owner can manage platform admins", 403);
+    throw new InputError("Only a Zella Voice owner can manage platform admins", 403);
   }
 }
 
@@ -1978,7 +1978,7 @@ async function adminInvite(admin: SupabaseClient, fields: Json, userId: string) 
   const appUrl = (Deno.env.get("ZELLA_APP_URL") ?? "").trim();
   if (!appUrl) {
     throw new InputError(
-      "The app address is not set, so the invitation link would not open for the invited person. Add the ZELLA_APP_URL secret (the public address of the Zella app) and try again.",
+      "The app address is not set, so the invitation link would not open for the invited person. Add the ZELLA_APP_URL secret (the public address of the Zella Voice app) and try again.",
       503,
     );
   }
@@ -2043,7 +2043,7 @@ async function adminUpdate(admin: SupabaseClient, fields: Json, userId: string) 
 
   const targetId = requireId(fields.userId, "admin");
   if (targetId === userId) {
-    throw new InputError("You can't change your own access. Ask another Zella owner.", 409);
+    throw new InputError("You can't change your own access. Ask another Zella Voice owner.", 409);
   }
 
   const { data: current, error: currentError } = await admin
@@ -2727,7 +2727,7 @@ async function invitationResend(admin: SupabaseClient, fields: Json) {
       email: invitation.email,
       invitationStatus: "failed",
       invitationError: /already|registered|exists/i.test(reason)
-        ? "This email already has a confirmed Zella account. They can sign in with their existing password."
+        ? "This email already has a confirmed Zella Voice account. They can sign in with their existing password."
         : reason,
     };
   }
@@ -2864,7 +2864,7 @@ async function platformSettingsList(admin: SupabaseClient, userId: string) {
 }
 
 async function platformSettingSave(admin: SupabaseClient, fields: Json, userId: string) {
-  if ((await callerRole(admin, userId)) !== "zella_owner") throw new InputError("Only a Zella owner can change platform settings", 403);
+  if ((await callerRole(admin, userId)) !== "zella_owner") throw new InputError("Only a Zella Voice owner can change platform settings", 403);
   const key = text(fields.key, 80);
   const rule = EDITABLE_SETTINGS[key];
   if (!rule) throw new InputError("This setting can't be changed here", 400);
@@ -3015,7 +3015,7 @@ Deno.serve(withCors(async (req: Request) => {
       allowed = Boolean(grant);
     }
     if (!allowed) {
-      return respond({ error: "Your admin role doesn't allow this. Ask a Zella owner to change your role or its permissions.", code: "NOT_PERMITTED", permission }, 403);
+      return respond({ error: "Your admin role doesn't allow this. Ask a Zella Voice owner to change your role or its permissions.", code: "NOT_PERMITTED", permission }, 403);
     }
 
     if (action === "dashboard_data") {

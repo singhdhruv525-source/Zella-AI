@@ -8,13 +8,13 @@ const CODES = {
   NOT_ALLOWED: "Only owners, admins and managers can change languages.",
   UNKNOWN_LANGUAGE: "Pick languages from the list.",
   TOO_MANY_LANGUAGES: "Up to three extra languages.",
-  PLAN_LANGUAGES: "Your plan includes fewer languages than this. Remove one, or ask the Zella team about your plan.",
+  PLAN_LANGUAGES: "Your plan includes fewer languages than this. Remove one, or ask the Zella Voice team about your plan.",
   GREETING_LENGTH: "The greeting needs 5 to 200 characters.",
   GREETING_TEXT: "The greeting can't contain links, brackets or placeholders other than {name}.",
 };
 const say = (error) => {
   const message = error?.message?.trim() ?? String(error);
-  if (/does not exist|schema cache|Could not find the/i.test(message)) return "Languages need the latest Zella update. Please ask the Zella team.";
+  if (/does not exist|schema cache|Could not find the/i.test(message)) return "Languages need the latest Zella Voice update. Please ask the Zella Voice team.";
   return CODES[message] ?? message;
 };
 
@@ -37,7 +37,7 @@ function Editor({ w, data }) {
       });
       if (error) throw new Error(say(error));
       return { extras: values.extras.filter((c) => c !== values.primary), greeting: values.greeting.trim() };
-    }, "Saved. The Zella team updates your phone assistant with it.");
+    }, "Saved. The Zella Voice team updates your phone assistant with it.");
   }
 
   return (
@@ -69,7 +69,7 @@ function Editor({ w, data }) {
       </Card>
       {other && (
         <Banner tone="warn">
-          Other languages need a transcriber that understands them. The Zella team switches your line over and makes a test call in each language before it goes live.
+          Other languages need a transcriber that understands them. The Zella Voice team switches your line over and makes a test call in each language before it goes live.
           Booking times, names and texts you send stay as they are; texts and emails are still sent in English.
         </Banner>
       )}

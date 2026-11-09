@@ -1,4 +1,4 @@
--- Zella AI: signed-in users stop writing directly to tables that only the server should change.
+-- Zella Voice: signed-in users stop writing directly to tables that only the server should change.
 --
 -- Found in the end-to-end audit (docs/ZELLA_END_TO_END_AUDIT.md, finding H-2): business members could insert and
 -- update their own rows in calls, sms_messages and email_messages directly. The usage trigger on calls recalculates

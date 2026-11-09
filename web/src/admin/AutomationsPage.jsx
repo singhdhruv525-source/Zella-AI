@@ -295,7 +295,7 @@ function Infrastructure() {
     <>
       <Panel title="Scheduled jobs" description="Jobs inside the database. They find due work and hand it to n8n." action={<button type="button" className="owner-secondary-button" onClick={h.reload}>Refresh</button>}>
         <ErrorNote error={h.error} onRetry={h.reload} />
-        {s && <DataTable rows={s.jobs} rowKey={(j) => j.name} empty="No Zella jobs found."
+        {s && <DataTable rows={s.jobs} rowKey={(j) => j.name} empty="No Zella Voice jobs found."
           columns={[["Job", (j) => <code>{j.name}</code>], ["Schedule", (j) => <code>{j.schedule}</code>], ["State", (j) => <Pill tone={j.active ? "success" : "neutral"}>{j.active ? "Running" : "Off"}</Pill>],
             ["Last run", (j) => (j.last_run ? <span><Pill tone={j.last_run.status === "succeeded" ? "success" : "danger"}>{words(j.last_run.status)}</Pill> {when(j.last_run.at)}</span> : "Never")],
             ["Last success", (j) => when(j.last_success)], ["Failures (24 h)", (j) => (j.failures_24h ? <Pill tone="danger">{j.failures_24h}</Pill> : 0)]]} />}

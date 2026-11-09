@@ -25,7 +25,7 @@ export default function ScorecardsPage({ workspace }) {
   }, [workspace.id, range]);
 
   const head = <PageHead crumb="Team & staff / Scorecards" title="Scorecards" sub="Callbacks, leads and tasks per person, and how each team member's appointments went." />;
-  if (data?.missing) return <>{head}<Empty icon="leaderboard" title="Scorecards aren't set up yet">The Zella team needs to apply its latest database update.</Empty></>;
+  if (data?.missing) return <>{head}<Empty icon="leaderboard" title="Scorecards aren't set up yet">The Zella Voice team needs to apply its latest database update.</Empty></>;
 
   const people = data?.people ?? [];
   const bookable = data?.bookable ?? [];

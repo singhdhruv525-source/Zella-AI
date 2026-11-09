@@ -44,7 +44,7 @@ export async function sendInvitation(deps: Deps, callerId: string, invitationId:
   // The caller must run this business, checked here and never taken from the request (and again when finishing).
   const role = await deps.callerRole(invitation.business_id, callerId);
   if (!role || !["owner", "admin"].includes(role)) return err(403, "You don't have permission to do that in this workspace.");
-  if (invitation.role === "owner") return err(403, "Owner invitations are sent by the Zella team.");
+  if (invitation.role === "owner") return err(403, "Owner invitations are sent by the Zella Voice team.");
   if (invitation.role === "admin" && role !== "owner") return err(403, "Only the owner can invite an admin.");
   if (!["pending", "sent", "failed"].includes(invitation.status)) return err(409, "This invitation is already closed.");
   if (invitation.expires_at && new Date(invitation.expires_at) <= deps.now()) return err(409, "This invitation has expired. Choose Send again.");

@@ -162,7 +162,7 @@ ok("on the day", "the stylist saves the colour card on Maria's profile", Boolean
 as(MANAGER, `select public.zella_record_charge_payment('${deposit.id}', 'payment', 2500, 'card_terminal', null, 'pay-dep-${apptId}')`);
 const inv = JSON.parse(as(STAFF, `select public.zella_create_charge('${B}', 'invoice', 12000, 'Colour and cut', '${cust.id}', '${card.id}', '${apptId}', null, null, 'inv-${apptId}')`));
 as(MANAGER, `select public.zella_record_charge_payment('${inv.id}', 'payment', 12000, 'card_terminal', null, 'pay-inv-${apptId}')`);
-ok("on the day", "deposit and the visit are paid (recorded by a manager, nothing charged by Zella)",
+ok("on the day", "deposit and the visit are paid (recorded by a manager, nothing charged by Zella Voice)",
   q(`select string_agg(status, ',' order by kind) from public.customer_charges where appointment_id = '${apptId}'`) === "paid,paid");
 let refused = "";
 try { as(STAFF, `select public.zella_record_charge_payment('${inv.id}', 'refund', 100, 'cash')`); } catch (e) { refused = String(e.stderr ?? e.message); }

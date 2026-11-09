@@ -44,7 +44,7 @@ const LABELS = {
   complex_request: "Complex request", billing_question: "Billing question",
   owner: "Business owner", manager: "Manager", team_member: "Team member", phone_number: "Phone number",
   "en-US": "English", "es-US": "Spanish", "en-US+es-US": "English and Spanish",
-  new_number: "New Zella number", call_forwarding: "Call forwarding", existing_number: "Call forwarding",
+  new_number: "New Zella Voice number", call_forwarding: "Call forwarding", existing_number: "Call forwarding",
   always: "All calls", no_answer: "When nobody answers", busy_or_no_answer: "When busy or nobody answers",
   after_hours: "After business hours",
   google: "Google", outlook: "Outlook", gmail: "Gmail", none: "None",
@@ -73,7 +73,7 @@ function describeSettings(settings = {}) {
   return parts.join(" · ") || "Default settings";
 }
 
-// Small, Medium or Large: set by a Zella admin, never guessed from the industry. Offers can target it.
+// Small, Medium or Large: set by a Zella Voice admin, never guessed from the industry. Offers can target it.
 function BusinessSizeCard({ businessId, size, onSaved }) {
   const [value, setValue] = useState(size ?? "");
   const [busy, setBusy] = useState(false);

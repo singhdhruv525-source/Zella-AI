@@ -11,7 +11,7 @@ return {
     notification_id: r.notification_id,
     live: r.live === true,
     from: r.from || null,
-    from_name: r.from_name || 'Zella',
+    from_name: r.from_name || 'Zella Voice',
     to: r.to,
     subject: r.subject,
     text: r.body_text,

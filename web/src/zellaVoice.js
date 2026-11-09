@@ -101,7 +101,7 @@ const TITLES = {
   staff_joined: ["A new teammate just joined. Welcome them in!", "Say hello! Someone new has joined the team."],
   staff_unavailable: ["Someone on your team is away. We've kept things covered."],
   went_live: ["You're live! Zella is picking up the phone.", "It's official: Zella is on the line for you."],
-  business_welcome: ["Welcome aboard! We're glad you're here.", "Welcome to Zella. We're right here with you."],
+  business_welcome: ["Welcome aboard! We're glad you're here.", "Welcome to Zella Voice. We're right here with you."],
   setup_incomplete: ["A few small steps left before you go live."],
   setup_reminder: ["Almost there. A few steps are left to finish setup."],
   trial_ending: ["Your trial is wrapping up. We'd love to keep you."],
@@ -125,7 +125,7 @@ const TITLES = {
   agent_config_published: ["Your AI receptionist has a fresh update. She's ready!"],
   knowledge_report: ["Your knowledge report is ready."],
   duplicate: ["Two records look like the same person. Want to tidy up?"],
-  industry_alert: (n) => [`Zella spotted something: ${n.title}`, `Heads up! ${n.title}`, `Worth a look: ${n.title}`, `A little nudge from Zella: ${n.title}`],
+  industry_alert: (n) => [`Zella spotted something: ${n.title}`, `Heads up! ${n.title}`, `Worth a look: ${n.title}`, `A little nudge from Zella Voice: ${n.title}`],
   draft_ready: ["Zella wrote a message for you. Give it a look and send it!", "A message is warmed up and waiting for your OK.", "Fresh draft on your desk. Edit it, send it, or skip it.", "We've done the writing. You make the call."],
   shift_handover: ["Work was handed to you. Your team is counting on you!", "A handover just landed on your desk. Welcome to the next leg.", "Baton passed! Some work is yours now."],
 };
@@ -134,7 +134,7 @@ const TITLES = {
 // Kinds whose title carries the facts (a name, a number) keep it: the function gets the original notification.
 Object.assign(TITLES, {
   // account and plan
-  account_cancelled: ["Your Zella plan has been canceled. We're sorry to see you go."],
+  account_cancelled: ["Your Zella Voice plan has been canceled. We're sorry to see you go."],
   account_reactivated: ["Welcome back! Your workspace is active again.", "You're back! Everything is switched on again."],
   account_suspended: ["Your workspace is paused. Let's get it sorted together."],
   subscription_cancelled: ["Your subscription was canceled. Your records are safe for now."],

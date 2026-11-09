@@ -128,7 +128,7 @@ html[data-zella-theme="glass"]:has(.ba-root, .owner-app) :is(
 ) { color: var(--zella-on-primary); }
 html[data-zella-theme="glass"]:has(.ba-root, .owner-app) .td-star { color: #F2C66D; }
 
-/* The Zella logo keeps Zella's own colours, whatever palette the background picture gives everything else. */
+/* The Zella Voice logo keeps Zella Voice's own colours, whatever palette the background picture gives everything else. */
 html[data-zella-theme="glass"]:has(.ba-root, .owner-app) :is(.ba-logo, .owner-brand-mark, .owner-workspace-icon) { background: #DCA67F; color: #22170F; }
 html[data-zella-theme="glass"]:has(.ba-root, .owner-app) .owner-brand-name span { color: #DCA67F; }
 

@@ -7,7 +7,7 @@ const BASE = process.env.APP_URL ?? "http://localhost:5199";
 const OWNER = { id: "30000000-0000-0000-0000-0000000000a1", email: "admin@zella.test" };
 const OTHER = { id: "30000000-0000-0000-0000-0000000000a3", email: "owner2@zella.test" };
 const ALL = ["businesses.view", "businesses.manage", "billing.view", "security.view", "security.manage", "platform.configure", "audit.view", "support.manage", "analytics.view"];
-const ME = { role: "zella_owner", roleLabel: "Zella owner", permissions: ALL, mfa: true, aal: "aal2" };
+const ME = { role: "zella_owner", roleLabel: "Zella Voice owner", permissions: ALL, mfa: true, aal: "aal2" };
 
 const enc = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
 const token = (u) => { const exp = Math.floor(Date.now() / 1000) + 3600;

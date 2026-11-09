@@ -16,7 +16,7 @@ const CODES = {
 };
 const say = (error) => {
   const message = error?.message?.trim() ?? String(error);
-  if (/does not exist|schema cache|Could not find the/i.test(message)) return "Suggestions need the latest Zella update. Please ask the Zella team.";
+  if (/does not exist|schema cache|Could not find the/i.test(message)) return "Suggestions need the latest Zella Voice update. Please ask the Zella Voice team.";
   return CODES[message] ?? message;
 };
 

@@ -11,7 +11,7 @@ scanners (Gmail, Outlook) that open links early then can't use the link up (see 
 - `{{ .RedirectTo }}` is the address the app asked for: `/welcome` for invitations and password resets.
 - `{{ .SiteURL }}` is set in Authentication > URL Configuration. After hosting it is `https://app.zellavoice.com`.
 
-The app itself still says "Zella AI" until the rebrand.
+The app, the sign-in pages and these emails all use the name "Zella Voice".
 
 ## Invite user
 
