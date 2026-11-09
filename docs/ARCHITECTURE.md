@@ -25,7 +25,8 @@ It is the blueprint every change to the web app, database, workflows and voice s
 | B. Core platform | [6 Multi-tenant isolation](#6-multi-tenant-isolation-architecture) · [7 Domain model](#7-domain-model) · [8 Automation engine](#8-automation-engine) · [9 Communication core](#9-communication-core) |
 | C. Journeys | [10 SaaS lifecycle](#10-saas-lifecycle) · [11 Inbound calls and the AI receptionist](#11-inbound-calls-and-the-ai-receptionist) · [12 Missed calls](#12-missed-calls) · [13 Leads and outgoing lead calls](#13-leads-and-outgoing-lead-calls) · [14 SMS and email](#14-sms-and-email) · [15 Appointments, check-in and waitlist](#15-appointments-check-in-and-waitlist) · [16 Knowledge](#16-knowledge) · [17 Billing, plans and usage](#17-billing-plans-and-usage) |
 | D. Applications | [18 Web application](#18-web-application) (public pages, CRM, admin, Create Business) |
-| E. Operations | [19 Integrations](#19-integrations) · [20 Security and privacy](#20-security-and-privacy) · [21 Reliability, observability, delivery](#21-reliability-observability-delivery) · [22 Industries](#22-industries) · [23 Decisions](#23-decisions) · [24 Safe build sequence](#24-safe-build-sequence) · [25 Still needed](#25-what-this-document-still-needs) |
+| E. Operations | [19 Integrations](#19-integrations) · [20 Security and privacy](#20-security-and-privacy) · [21 Reliability, observability, delivery](#21-reliability-observability-delivery) · [22 Industries](#22-industries) · [23 Decisions](#23-decisions) · [24 Safe build sequence](#24-safe-build-sequence) · [25 Still needed](#25-what-is-still-needed-from-the-owner-or-counsel) |
+| F. Specifications | [26 Locations](#26-locations-multi-location-businesses) · [27 Roles](#27-role-and-permission-matrix-business-roles) · [28 Notifications](#28-notification-matrix) · [29 Data schema](#29-data-schema) · [30 Functions and endpoints](#30-function-and-endpoint-catalogue) · [31 Events](#31-event-catalogue) · [32 Metrics](#32-metric-dictionary) · [33 Templates](#33-default-templates-and-scripts) · [34 Consent](#34-consent-capture-proposed-for-counsel-review) · [35 Import](#35-data-import) · [36 API](#36-public-api-and-outgoing-webhooks) · [37 Runbooks](#37-runbooks) · [38 Errors](#38-error-and-status-catalogue) · [39 Legal](#39-legal-documents-and-sub-processors) · [40 Mobile and staff calling](#40-owner-mobile-experience-and-staff-calling) |
 
 ---
 
@@ -624,7 +625,8 @@ flowchart LR
 | `customers` | business_id, names, phones[], emails[], lifecycle (lead, customer, inactive), source, owner (assignee) | one person per business; dedupe by normalised phone and email |
 | `contact_consents` | business_id, customer_id or address, channel, purpose (service, marketing), status, evidence (how, when, text shown), source | append-only history |
 | `suppressions` | business_id, address, channel, reason (opt_out, invalid, bounced, complaint, legal) | checked before every contact |
-| `phone_numbers` | business_id, e164, provider, purpose (inbound, outbound, both), caller-ID verified | per business |
+| `locations` | business_id, name, address, time_zone, hours, status | a business has one or more locations (§26) |
+| `phone_numbers` | business_id, location_id, e164, provider, mode (new, forwarding_target), purpose (inbound, outbound, both), forwarding verified, caller-ID and SMS registration | dedicated per business and location |
 | `assistants` | business_id, kind (inbound, outbound), version, config hash, status | built from settings per call |
 | `calls` | business_id, direction, from, to, provider_call_id (unique), status, end_reason, classification (§12.1), duration, handled_by (ai, staff), transfer_status, recording/transcript refs, correlation_id | one row per provider call |
 | `call_tool_calls` | call_id, tool, idempotency_key (unique), args keys, result, verified | AI actions |
@@ -899,8 +901,8 @@ flowchart LR
 | **10.6 Invitations** | REQ-LC-06: bound to email, role-limited (admins invite at most staff/manager; only owners invite admins), expiring, revocable, resendable; accepted only from a session proven to own the email. |
 | **10.7 Setup** | REQ-LC-07: wizard (§18.5) with save-and-resume, honest checklist, server-side readiness. |
 | **10.8 Industry configuration** | REQ-LC-08: industry sets terminology, capabilities, modules, record types, message policy, safety lines and default automations. The owner can adjust within allowed bounds. |
-| **10.9 AI receptionist setup** | REQ-LC-09: greeting, voice (approved list), languages (plan), call handling rules, transfer numbers and hours, escalation rules, emergency script, after-hours behaviour. |
-| **10.10 Phone numbers** | REQ-LC-10: **initially, businesses forward their existing number to their Zella Voice number**, after Zella Voice verifies ownership and forwarding with a test call. Buying new numbers through the telephony provider comes in a later phase. Live calling is never switched on until the provider configuration and test calls are verified. Numbers are assigned per business, with purpose inbound/outbound. Outbound caller ID must be a number the business owns or Zella Voice provides **for that business**, never shared across businesses. Routing: called number → business, enforced in the database. |
+| **10.9 AI receptionist setup** | REQ-LC-09: greeting, voice (approved list), languages (English, Spanish or both, **as the plan allows**), call handling rules, **transfer destinations** (who gets transferred calls: the owner by default, or the people the business names, with hours; set when the business is created and editable later), escalation rules, emergency script, after-hours behaviour, voicemail greeting. |
+| **10.10 Phone numbers** | REQ-LC-10: when a business is registered it chooses one of two options. **(a) A new Zella Voice number** (bought through Telnyx), which the business publishes as its line. **(b) Call forwarding:** the business keeps its existing number and forwards it to its Zella Voice number. Either way, **every business (and every location) gets its own dedicated Zella Voice number**, never shared. That number is the caller ID for the AI's outgoing calls and the sender for texts, so customers can call or text back and reach the same business. With forwarding, ownership and forwarding are verified by a test call. Showing the business's own existing number as outbound caller ID is a later option that needs carrier verification. Live calling is never switched on until provider configuration and test calls are verified. Routing: called number → business and location, enforced in the database. |
 | **10.11 Knowledge** | REQ-LC-11: §16. Activation requires a minimum knowledge set [D-24]. |
 | **10.12 Services, hours, prices, booking rules** | REQ-LC-12: services (duration, price **entered by the business**, buffers, resources, staff), opening hours, holidays, closures, notice and horizon, approval-required bookings. |
 | **10.13 Provider connections** | REQ-LC-13: calendar (Google, Microsoft), lead sources, store (Shopify), reviews. OAuth with signed state; health checks; reconnect prompts. |
@@ -961,6 +963,8 @@ sequenceDiagram
 | REQ-VOX-08 | Every call is finalised exactly once from the final report: duration, end reason, classification, summary, transcript and recording references (per privacy settings). Calls without a final report are reconciled with the provider within 15 minutes [D-26]. |
 | REQ-VOX-09 | Call recording is **off** until recording consent and caller disclosures are legally reviewed [D-27]. When enabled, it follows the business's notice and consent settings. Retention: recordings 30 days, transcripts 90 days (§20). |
 | REQ-VOX-10 | AI changes (prompt, tools, model, voice) pass the per-industry evaluation set before release. |
+| REQ-VOX-11 | **Inbound voicemail.** A caller can leave a voicemail instead of talking to the assistant: on request ("I'd like to leave a message"), when a transfer fails, or through the standby assistant. The caller hears that they are leaving a recorded message. The voicemail is stored privately for that business, transcribed, shown on the customer timeline and in Callbacks, and creates one callback task. It is kept 30 days (as recordings, §20). A voicemail is the caller's own recorded message; it is separate from call recording, which stays off until legal review. |
+| REQ-VOX-12 | **Languages.** The receptionist speaks the languages the business's plan includes: English, Spanish, or both. With both, it answers in the business's primary language and switches when the caller speaks the other. Templates, knowledge and scripts exist per language; a missing translation falls back to the primary language. Until plans exist, English is the default and Spanish can be enabled per business by the Zella Voice team. |
 
 ---
 
@@ -977,6 +981,7 @@ sequenceDiagram
 | `abandoned_before_answer` | caller hung up before the assistant answered | missed-call journey |
 | `not_answered` | rang without being answered (provider or capacity issue) | missed-call journey |
 | `failed` | provider or system error | missed-call journey **if** the caller number is known and the caller is eligible (REQ-MC-11) + platform alert |
+| `voicemail_left` | the caller left a voicemail (REQ-VOX-11) | callback task with the transcript; the automated missed-call callback is skipped if the voicemail already resolved the request |
 | `spam` | spam rules matched | none (logged) |
 | `unknown` | final report missing | reconcile (REQ-VOX-08), then classify |
 
@@ -1428,7 +1433,8 @@ meters every dimension from day one so plans can be applied without rework.
 | AI knowledge drafts | drafts created | draft job | drafting pauses; receptionist unaffected |
 | Team seats | active members | invitation | invitation refused with a clear reason |
 | Phone numbers | assigned numbers | assignment | refused with a clear reason |
-| Languages, premium voices, integrations | feature flags | setup | option not offered |
+| Languages (English only, Spanish only, or both) | plan feature | receptionist setup and per call | languages outside the plan are not offered |
+| Premium voices, integrations | feature flags | setup | option not offered |
 
 ---
 
@@ -1584,7 +1590,7 @@ flowchart TD
 | Provider type | Choice | Notes |
 |---|---|---|
 | Voice orchestration | Vapi | inbound assistant per call; outbound assistant per business; server tools |
-| Phone numbers / carrier | **forwarding of existing numbers first** (D-07), then numbers bought through Vapi or Telnyx in a later phase | caller-ID registration per business; spam-label monitoring |
+| Phone numbers / carrier | **Telnyx**: a dedicated number per business and location, either published as the business line or used as the forwarding target (D-07) | caller-ID and SMS registration per business; spam-label monitoring |
 | SMS | Telnyx (planned) | A2P 10DLC or local equivalent before live; delivery receipts required |
 | Email | Resend | verified domain; inbound domain; events |
 | Calendars | Google, Microsoft | OAuth, push notifications preferred |
@@ -1726,7 +1732,7 @@ An industry is **ready** when:
 | D-03 | **Contact hours (REQ-MSG-07):** calls in business hours (24/7: 08:00–21:00); replies and customer-caused messages immediately; post-call follow-ups in the calling window; reminders 07:00–21:00, moved earlier; other service messages and marketing 09:00–19:00. **Time zone:** the recipient's when known, else the business's. | §9.3 |
 | D-23 | **Frequency (REQ-MSG-08):** quantities come from the business's **plan**, within a platform contact ceiling the plan cannot raise. Until plans exist: 2 attempts per sequence (one message after each), one unprompted message per day, one check-in per visit. Replies never capped. | §9.3, REQ-BIL-08 |
 | D-06 | **Businesses are created by the Zella Voice team for now**; self-service signup is a later phase. No demo data in production. | §10.3 |
-| D-07 | **Forward existing numbers** first (ownership and forwarding verified); buying new numbers comes later. | §10.10 |
+| D-07 | At registration the business chooses **a new Zella Voice number (Telnyx)** or **forwarding its existing number**. Every business and location has its own dedicated Zella Voice number, used for outgoing calls and texts. | §10.10 |
 | D-09 | **No plans, prices or minute allowances now**; billing stays ready for later. AI usage and cost tracked per business. | §17 |
 | D-10 | Leave a **short, professional voicemail** where permitted; no sensitive details; then one contextual message. | §13.7 |
 | D-11 | Not decided separately; missed-call rules apply only when the caller's number is known (REQ-MC-12). | §12 |
@@ -1820,31 +1826,386 @@ flowchart TD
 
 ---
 
-## 25. What this document still needs
+## 25. What is still needed from the owner or counsel
 
-These parts are required before or during the build and are **not yet specified**. Each needs input from the owner
-or a design pass.
+Everything else in this document is specified. These items need a person's input:
 
-| # | Missing part | Why it is needed | Needed by phase |
+| # | Item | Who | Needed by phase |
 |---|---|---|---|
-| 1 | **Plans and the platform contact ceiling** (values for §17.1 and D-38) | limits, billing page, entitlement checks | before charging |
-| 2 | **Outbound caller ID with forwarded numbers.** Businesses forward their existing number to Zella Voice, so outbound calls and texts need a decision: show the business's own number (needs carrier verification), or the Zella Voice number assigned to that business | callers must recognise who is calling; texting needs a registered number per business | 5 (SMS), 6, 8 |
-| 3 | **Consent capture design:** exact wording on forms and calls, what evidence is stored, per lead source | AI calls and texts depend on it; counsel review | 5, 8 |
-| 4 | **Inbound voicemail:** whether callers can leave a voicemail when they don't want the AI, and how it is transcribed and routed | the missed-call flow refers to it | 6 |
-| 5 | **Staff calling from the CRM:** click-to-call through the business number, or staff use their own phones and log the result | callbacks handled by staff; attempt history | 6 |
-| 6 | **Role and permission matrix:** every action on every page, per role | build and test the CRM and admin precisely | 2, 10 |
-| 7 | **Notification matrix:** which event notifies whom, by which channel, and how urgent | staff notifications, escalations | 4–8 |
-| 8 | **Default templates and scripts:** the standard wording of every text, email, voicemail and call script, per industry | businesses start from them; protected content | 5–8 |
-| 9 | **AI conversation design:** greeting, tone options, languages (for example Spanish in the US), evaluation cases per industry | receptionist quality | 4, 9 |
-| 10 | **Full data schema:** every table, column, constraint and index for §7 | implementation | 2 onward |
-| 11 | **Function and endpoint catalogue:** each database function and edge endpoint with inputs, outputs, errors, permissions | web app and workers build against it | 2 onward |
-| 12 | **Event catalogue:** every event name, payload and consumer | automation engine | 3 |
-| 13 | **Metric dictionary:** exact definition of each report number (answered rate, speed-to-lead, contacted) | reports that agree with each other | 10 |
-| 14 | **Multi-location businesses:** one business with several branches, numbers and calendars | affects the tenant and scheduling model if supported | 2 (decide early) |
-| 15 | **Data import:** bringing existing customers and appointments from spreadsheets or other systems, with consent basis | onboarding real businesses | 8, 10 |
-| 16 | **Public API and outgoing webhooks** for "approved CRM/API integrations" | lead intake from other systems | 8 |
-| 17 | **Legal documents and sub-processors:** terms, privacy policy, data-processing terms, list of providers receiving data; agreements regulated industries may require | launch | 12 |
-| 18 | **Runbooks:** step-by-step responses to each alert and incident type; restore procedure | operations | 1, 12 |
-| 19 | **Mobile experience for owners:** responsive web only, or push notifications / an installable app | urgent callbacks and alerts reach owners | 10 |
-| 20 | **Error and status catalogue:** every error code and customer-facing wording | consistent, honest UI | 10 |
-| 21 | **Remaining open decisions** in §23.2 | various | as listed |
+| 1 | Plan values for §17.1 and the platform contact ceiling (D-38); payment provider (D-34) | owner | before charging |
+| 2 | Review of the proposed consent wording (§34), templates (§33), voicemail and recording disclosures, retention periods and US calling and texting rules | counsel | 5, 6, 8, 11 |
+| 3 | Terms of service, privacy policy, data-processing terms and any agreements regulated industries require (§39) | owner + counsel | 12 |
+| 4 | Remaining open decisions in §23.2 | owner | as listed |
+
+---
+
+# Part F: Specifications
+
+Names of tables, functions, events and codes below are the required contract. Details may be refined during the
+build, but only by updating this document in the same pull request.
+
+## 26. Locations (multi-location businesses)
+
+A business can have several locations (branches). It remains **one tenant**: one workspace, one customer list, one
+set of members.
+
+```mermaid
+flowchart TB
+  B[Business: one tenant] --> L1[Location 1<br/>number · hours · time zone ·<br/>staff · resources · calendar]
+  B --> L2[Location 2<br/>number · hours · time zone ·<br/>staff · resources · calendar]
+  B --> SH[Shared across locations<br/>customers · consent · templates ·<br/>knowledge · automations · reports]
+```
+
+| ID | Requirement |
+|---|---|
+| REQ-LOC-01 | Every business has at least one location, created with the business. Single-location businesses never see location pickers. |
+| REQ-LOC-02 | Per location: name, address, time zone, opening hours, holidays, phone number, transfer destinations, staff, resources, services offered. |
+| REQ-LOC-03 | Shared by the business: customers, consent and opt-outs, templates, automations, lead sources. Knowledge items are shared by default and can be marked as applying to one location (for example parking or address). |
+| REQ-LOC-04 | A call to a location's number is answered for that location: its hours, its availability, its transfers. The caller can ask for another location; the assistant can check that location's availability too. |
+| REQ-LOC-05 | Appointments, calls, callbacks and resources carry `location_id`. Booking conflicts stay scoped to business + resource; a resource belongs to one location. |
+| REQ-LOC-06 | Members can be limited to chosen locations (`member_locations`). Owners and admins see all. Reports can be filtered by location. |
+| REQ-LOC-07 | Contact hours use the location's opening hours and time zone. |
+| REQ-LOC-08 | The number of locations is a plan dimension. |
+
+## 27. Role and permission matrix (business roles)
+
+✓ = allowed · R = read only · A = only items assigned to them or their team · — = not allowed.
+The database enforces every cell; the UI only reflects it.
+
+| Area / action | Owner | Admin | Manager | Staff | Viewer |
+|---|---|---|---|---|---|
+| Today, calendar, customers, leads: view | ✓ | ✓ | ✓ | ✓ | R |
+| Customers and leads: create, edit | ✓ | ✓ | ✓ | ✓ | — |
+| Customers: merge duplicates | ✓ | ✓ | ✓ | — | — |
+| Customers: export | ✓ | ✓ | — | — | — |
+| Customers: delete | ✓ | — | — | — | — |
+| Private record fields (access codes, member IDs) | ✓ | ✓ | ✓ | A | — |
+| Appointments: book, move, cancel | ✓ | ✓ | ✓ | ✓ | — |
+| Check-in and attendance | ✓ | ✓ | ✓ | ✓ | — |
+| Waitlist: manage | ✓ | ✓ | ✓ | ✓ | — |
+| Calls: view list and summaries | ✓ | ✓ | ✓ | ✓ | R (no summaries in regulated industries) |
+| Transcripts, voicemails, recordings | ✓ | ✓ | ✓ | only if the owner allows; never in regulated industries | — |
+| Callbacks: work, close | ✓ | ✓ | ✓ | A | — |
+| Callbacks and leads: assign to others | ✓ | ✓ | ✓ | — | — |
+| Lead-call sequences: start, pause, stop | ✓ | ✓ | ✓ | A (pause/stop) | — |
+| Inbox: reply, take over from the AI, hand back | ✓ | ✓ | ✓ | ✓ | — |
+| Suggested messages: approve and send | ✓ | ✓ | ✓ | ✓ | — |
+| Sending failed: retry | ✓ | ✓ | ✓ | — | — |
+| Industry records: create, update | ✓ | ✓ | ✓ | ✓ | R |
+| Money: raise a charge | ✓ | ✓ | ✓ | ✓ | — |
+| Money: record payment or refund; see amounts | ✓ | ✓ | ✓ | — (amounts on own items only) | — |
+| Reports | ✓ | ✓ | ✓ | — | — |
+| Knowledge: add, edit, approve (publish) | ✓ | ✓ | ✓ | suggest only | — |
+| AI receptionist settings, voice, call rules, transfer destinations | ✓ | ✓ | R | — | — |
+| Templates and scripts | ✓ | ✓ | R | — | — |
+| Automations and outreach settings | ✓ | ✓ | R | — | — |
+| Hours, services, booking rules, locations | ✓ | ✓ | R | — | — |
+| Lead sources, integrations | ✓ | ✓ | — | — | — |
+| Team: invite or remove staff, managers, viewers | ✓ | ✓ | — | — | — |
+| Team: invite or remove admins; change roles | ✓ | — | — | — | — |
+| Spam lists and review queue | ✓ | ✓ | ✓ | — | — |
+| Security log, data-rights requests | ✓ | ✓ | — | — | — |
+| Billing, plan, cancellation | ✓ | — | — | — | — |
+| Ownership transfer, business deletion, full export | ✓ | — | — | — | — |
+| Own profile and notification preferences | ✓ | ✓ | ✓ | ✓ | ✓ |
+
+## 28. Notification matrix
+
+Channels: **App** (in-app, always), **Push** (installed web app), **Email**, **SMS**. Each person can turn Email
+and SMS off per type, except those marked "always". Urgent items repeat until acknowledged, then escalate.
+
+| Event | Who is told | Channels | Urgency / escalation |
+|---|---|---|---|
+| Emergency reported by a caller | on-call person, then owner | App, Push, SMS (always) | immediate; escalate after 2 min unacknowledged |
+| Transfer failed (caller wanted a person) | intended recipient, then owner | App, Push, SMS | urgent; escalate after 10 min |
+| Call needs a person | assignee or team | App, Push | high; overdue alert after 30 min |
+| Voicemail left | assignee or team | App, Push, Email | normal |
+| Missed call from a withheld number | team | App | normal |
+| Missed-call or lead sequence exhausted (Unreachable) | assignee, managers | App, Email | normal |
+| New lead | assignee | App, Push | normal |
+| Lead waiting too long | assignee, then manager | App, Push | warning |
+| Customer reply the AI escalated | assignee or team | App, Push | high |
+| Booking made, moved or cancelled by the AI or a link | assigned staff | App | info |
+| Customer arrived (check-in) | assigned staff | App, Push | info |
+| Suggested message waiting for approval | team | App | daily digest by Email |
+| Sending failed | owner, admins | App, Email | warning |
+| Medium-risk spam for review | managers | App | normal |
+| Unanswered question / AI draft ready | owner, admins, managers | App; weekly Email | info |
+| Integration disconnected | owner, admins | App, Email | warning; daily reminder |
+| Usage threshold reached (75%, 90%, 100%) | owner | App, Email | warning |
+| Payment failed | owner | App, Email (always) | urgent |
+| Daily summary / weekly review | owner, admins, managers (opt-in) | Email | scheduled |
+| Sign-in from a new device, role change, export | the person; owner for role changes and exports | Email (always) | security |
+| Platform: Sev1 incident, queue stuck, provider down, isolation self-check failure | Zella Voice on-call | Pager, Email | per §21 |
+
+## 29. Data schema
+
+Conventions for every tenant table:
+- `id uuid` primary key; `business_id uuid NOT NULL` → `businesses`; `unique (business_id, id)`;
+- foreign keys to other tenant tables are composite: `(business_id, x_id)`;
+- `created_at`, `updated_at` (`timestamptz`); soft-delete only where stated;
+- RLS on; no client writes except through functions unless stated.
+
+| Context | Table | Key columns (beyond the conventions) | Key constraints and indexes |
+|---|---|---|---|
+| Tenancy | `businesses` | name, industry_key, status, primary_time_zone, locale, plan_id, primary_language | status check |
+| | `locations` | name, address, time_zone, status | unique (business_id, name) |
+| | `business_members` | user_id, role, status | unique (business_id, user_id) |
+| | `member_locations` | member_id, location_id | unique (business_id, member_id, location_id) |
+| | `business_invitations` | email, role, token_hash, expires_at, status | one open invite per (business_id, email) |
+| | `business_settings` | key, value jsonb | unique (business_id, key) |
+| | `transfer_destinations` | location_id, label, phone, member_id, hours, priority, active | phone never returned to clients below admin |
+| Customers | `customers` | first/last name, lifecycle, lead_status, source, owner_member_id, time_zone, language, do_not_contact | index (business_id, lifecycle, lead_status) |
+| | `customer_contacts` | customer_id, kind (phone, email), value_normalised, is_primary, valid | unique (business_id, kind, value_normalised) |
+| | `contact_consents` | customer_id or address, channel, purpose, status, evidence jsonb, source, recorded_at | append-only |
+| | `suppressions` | channel, address_normalised, reason | unique (business_id, channel, address_normalised) |
+| | `lead_events` | customer_id, source, source_ref, payload jsonb, idempotency_key | unique (business_id, idempotency_key) |
+| | `customer_notes`, `customer_tags` | customer_id, body / tag | — |
+| Voice | `phone_numbers` | location_id, e164, provider_ref, mode, purpose, forwarding_verified_at, registration_status | **e164 globally unique** (a number maps to exactly one business) |
+| | `assistants` | location_id, kind (inbound, outbound), version, config_hash, status | — |
+| | `calls` | location_id, customer_id, direction, from_e164, to_e164, provider_call_id, status, end_reason, classification, started/answered/ended_at, duration_s, handled_by, transfer_status, summary, correlation_id | unique (business_id, provider_call_id) |
+| | `call_tool_calls` | call_id, tool, idempotency_key, args_keys, result jsonb, verified | unique (business_id, idempotency_key) |
+| | `voicemails` | call_id, customer_id, storage_path, transcript, duration_s, expires_at | — |
+| | `call_artifacts` | call_id, kind (recording, transcript), storage_path, expires_at | — |
+| Outreach | `sequences` | customer_id, kind (missed_call, lead), status, attempts_made, attempts_allowed, next_due_at, owner (ai, staff), stop_reason, correlation_id | one open sequence per (business_id, customer_id, kind) |
+| | `callbacks` | sequence_id, customer_id, call_id, location_id, reason, priority, status, assignee_member_id, due_at, outcome | index (business_id, status, due_at) |
+| | `call_attempts` | callback_id, attempt_no, scheduled_at, started_at, from_e164, provider_call_id, provider_status, attempt_outcome, conversation_outcome, duration_s, handler, summary, policy_decision jsonb, failure_reason, next_action, next_due_at, correlation_id | unique (business_id, callback_id, attempt_no) |
+| Messaging | `conversations` | customer_id, channel, state, owner (ai, staff), assignee_member_id, last_message_at | one open conversation per (business_id, customer_id, channel) |
+| | `messages` | conversation_id, customer_id, channel, direction, purpose, kind, template_id, language, body, status, provider_id, delivered_at, failed_reason, dedupe_key, correlation_id | unique (business_id, dedupe_key) |
+| | `message_templates` | scope, kind, channel, language, body, protected_parts jsonb, version, active | scope check; unique (business_id, kind, channel, language, version) |
+| | `sender_identities` | location_id, channel, value (number, from-address), registration_status | unique (business_id, channel, value) |
+| Scheduling | `services` | name, duration_min, price_minor, currency, buffer_before/after_min, active | — |
+| | `service_locations`, `service_resources` | which locations offer a service; which resource kinds it needs | — |
+| | `resources` | location_id, kind (staff, room, chair, table, vehicle, equipment), member_id, name, capacity, active | — |
+| | `opening_hours`, `closures` | location_id, weekday / date range, open, close | — |
+| | `appointments` | location_id, customer_id, service_id, starts_at, ends_at, status, booking_state, source, request_key, record_id, attendance timestamps, notes | unique (business_id, request_key) |
+| | `appointment_resources` | appointment_id, resource_id, period tstzrange, active | **EXCLUDE (business_id =, resource_id =, period &&) WHERE active** |
+| | `slot_holds` | resource_id, period, expires_at, call_id | same exclusion, time-limited |
+| | `external_busy` | resource_id, period, provider_event_ref, fetched_at | — |
+| | `waitlist_entries`, `waitlist_offers` | preferences jsonb / entry_id, period, token_hash, expires_at, state | one open offer per freed slot |
+| Knowledge | `knowledge_items` | location_id (optional), title, body, language, status, current_version | — |
+| | `knowledge_versions` | item_id, version, body, approved_by, approved_at | unique (business_id, item_id, version) |
+| | `knowledge_gaps` | question, question_key, times_asked, status, suggested_answer, call_id | unique (business_id, question_key) |
+| | `ai_eval_cases` (platform + business) | scope, industry_key, scenario, expected | scope check |
+| Records | `record_types`, `records`, `record_events`, `record_secrets`, `record_files` | type schema jsonb; record data jsonb, status, due_at; private values; file path and scan status | tenant-scoped unique fields per type |
+| | `charges`, `charge_payments` | customer_id, amount_minor, currency, status / payment method label, amount_minor | no card data |
+| Automation | `automation_rules` | kind, enabled, settings jsonb, audience | unique (business_id, kind) for standard rules |
+| | `events` | type, payload jsonb, idempotency_key, correlation_id, status | unique (business_id, idempotency_key) |
+| | `work_items` | queue, subject ref, due_at, status, attempts, claim_token, claim_expires_at, last_error, idempotency_key, cancel_reason, correlation_id | unique (business_id, idempotency_key); index (queue, status, due_at) |
+| | `work_results`, `dead_letters` | work_item_id, outcome, detail | — |
+| | `quarantined_events` (platform) | provider, raw ref, reason | no business_id by definition |
+| Billing | `plans`, `plan_limits` (platform) | owner-defined | — |
+| | `subscriptions` | plan_id, status, period | one active per business |
+| | `usage_ledger` | kind, quantity, unit, source_ref, entry_kind, period, estimated_cost_minor, idempotency_key | append-only; unique (business_id, idempotency_key) |
+| | `usage_budgets` | kind, monthly_limit, thresholds | — |
+| Platform | `platform_admins`, `platform_permissions`, `platform_settings`, `platform_alerts`, `platform_incidents`, `provider_health`, `support_tickets` (tenant-owned), `audit_logs` (business_id nullable only for platform actions, with scope) | — | audit append-only |
+| | `notifications` | member_id, type, title, body, link, urgency, read_at, acknowledged_at | index (business_id, member_id, read_at) |
+| Growth (separate schema) | `prospects`, `prospect_activities`, `demos` | never joined to tenant tables | platform permission `growth.manage` |
+
+## 30. Function and endpoint catalogue
+
+**Database functions** (called by the web app unless marked *server*). Every function checks membership and role
+first and returns stable error codes (§38).
+
+| Area | Functions |
+|---|---|
+| Workspace | `workspace_get`, `navigation_get`, `today_get`, `notifications_list`, `notification_ack` |
+| Customers | `customer_search`, `customer_get`, `customer_upsert`, `customer_merge`, `customer_delete`, `customer_timeline`, `consent_record`, `suppression_set` |
+| Leads | `lead_create`, `lead_import`, `lead_assign`, `lead_set_status`, `lead_reopen`; *server*: `lead_ingest` |
+| Scheduling | `availability_get`, `appointment_book`, `appointment_reschedule`, `appointment_cancel`, `attendance_set`, `block_time`, `waitlist_add`, `waitlist_offer`; *link*: `waitlist_accept`, `appointment_link_view` |
+| Calls and outreach | `calls_list`, `call_get`, `call_set_outcome`, `callback_create`, `callback_assign`, `callback_log_attempt`, `callback_close`, `sequence_start`, `sequence_pause`, `sequence_resume`, `sequence_stop` |
+| Inbox | `conversations_list`, `conversation_get`, `message_send`, `conversation_take_over`, `conversation_hand_back`, `draft_approve`, `draft_discard`, `failed_retry` |
+| Knowledge | `knowledge_list`, `knowledge_save`, `knowledge_approve`, `knowledge_archive`, `gaps_list`, `gap_resolve` |
+| Settings | `settings_get`, `settings_save`, `hours_save`, `service_save`, `resource_save`, `location_save`, `template_save` (validates protected parts), `automation_save`, `transfer_destination_save`, `receptionist_save`, `receptionist_publish` |
+| Team | `member_list`, `member_set_role`, `member_remove`, `invitation_create`, `invitation_revoke` |
+| Reports | `report_get(metric set, range, location)`, `report_schedule_save` |
+| Voice (*server*) | `voice_authenticate`, `assistant_for_call`, `ai_tool` (dispatches the tools), `transfer_destination_for_call`, `call_status_record`, `call_finalise`, `voicemail_record` |
+| Engine (*server*) | `event_ingest`, `work_claim(queue, limit)`, `work_prepare`, `work_complete`, `work_fail`, `work_unknown`, `work_reconcile`, `contact_policy_check`, `dispatch_due` |
+| Messaging (*server*) | `message_inbound`, `message_status`, `ai_reply_prepare`, `ai_reply_commit` |
+| Platform admin | `admin_me`, `admin_business_list`, `admin_business_get`, `admin_business_create_*` (one per wizard step), `admin_business_set_status`, `admin_number_assign`, `admin_number_release`, `admin_queue_overview`, `admin_dead_letter_retry`, `admin_setting_set`, `admin_audit_list` |
+
+**Edge endpoints:**
+
+| Endpoint | Caller | Auth |
+|---|---|---|
+| `POST /voice` | Vapi (assistant request, tools, transfer, status, final report) | provider signature + timestamp + replay |
+| `POST /telephony/events` | Telnyx (call and number events) | signature |
+| `POST /sms/inbound`, `POST /sms/status` | Telnyx | signature |
+| `POST /email/inbound`, `POST /email/events` | Resend | signature |
+| `POST /leads/google`, `POST /leads/meta`, `POST /leads/form/{form_key}` | lead sources | per-business key / signature / form key + bot check |
+| `POST /api/v1/leads`, `GET /api/v1/…` | approved integrations (§36) | per-business API key |
+| `POST /links/{kind}` | customer pages (reschedule, waitlist, unsubscribe) | signed token |
+| `GET /oauth/{provider}/callback` | Google, Microsoft, Shopify | signed state |
+| `POST /billing/webhook` | payment provider | signature |
+| `POST /invites`, `POST /provision` | web app | session + role / platform permission |
+| `POST /workers/{queue}` | scheduler wake-up to workers | shared secret + signed envelope |
+
+## 31. Event catalogue
+
+Every event: `id`, `business_id`, `type`, `occurred_at`, `correlation_id`, `idempotency_key`, `payload`.
+
+| Group | Events | Main consumers |
+|---|---|---|
+| Calls | `call.started`, `call.answered`, `call.finalised` (with classification), `call.transfer_failed`, `call.voicemail_left`, `call.unreconciled` | missed-call flow, usage, timeline, notifications |
+| Outreach | `sequence.started`, `attempt.scheduled`, `attempt.finished`, `sequence.paused`, `sequence.stopped`, `sequence.exhausted`, `callback.created`, `callback.overdue`, `callback.closed` | attempts, follow-up messages, staff tasks |
+| Leads | `lead.received`, `lead.deduplicated`, `lead.assigned`, `lead.status_changed`, `lead.unreachable` | lead sequence, notifications, reports |
+| Messages | `message.queued`, `message.sent`, `message.delivered`, `message.failed`, `message.received`, `consent.changed`, `suppression.added`, `conversation.taken_over`, `conversation.handed_back`, `conversation.escalated` | policy engine, sequences (pause on reply), inbox |
+| Appointments | `appointment.booked`, `appointment.rescheduled`, `appointment.cancelled`, `appointment.checked_in`, `appointment.completed`, `appointment.no_show`, `slot.freed`, `waitlist.offer_sent`, `waitlist.offer_accepted`, `waitlist.offer_expired` | confirmations, reminders, waitlist, calendar sync |
+| Knowledge | `knowledge.submitted`, `knowledge.approved`, `gap.logged`, `gap.draft_ready` | readiness, notifications |
+| Business | `business.created`, `business.activated`, `business.paused`, `business.suspended`, `business.cancelled`, `member.added`, `member.removed`, `member.role_changed`, `setting.changed` | claim-time checks, audit |
+| Integrations | `integration.connected`, `integration.disconnected`, `provider.unhealthy`, `provider.recovered`, `event.quarantined` | alerts |
+| Billing | `usage.recorded`, `usage.threshold_reached`, `payment.failed`, `payment.recovered` | notices, limits |
+
+## 32. Metric dictionary
+
+All metrics are per business (optionally per location), in business time, for a chosen period.
+
+| Metric | Exact definition |
+|---|---|
+| Inbound calls | finalised inbound calls, excluding `spam` |
+| Answered rate | calls classified `answered_ai_resolved`, `answered_ai_unresolved` or `answered_human` ÷ inbound calls |
+| Missed calls | `abandoned_before_answer` + `not_answered` + `failed` (known number) |
+| AI resolution rate | `answered_ai_resolved` ÷ calls answered by the AI |
+| Missed-call recovery rate | missed-call sequences ending in a qualifying conversation, a reply or a booking ÷ missed-call sequences |
+| Time to answer | median seconds from call start to the assistant's first word |
+| Leads received | `lead.received` after deduplication |
+| Speed to lead | median time from `lead.received` to the first call attempt or first staff contact |
+| Contacted | a lead with at least one conversation outcome that counts as contact (D-17); never "answered" alone |
+| Contact rate | contacted leads ÷ leads received |
+| Lead conversion | leads reaching `booked` or `converted` ÷ leads received |
+| Unreachable rate | leads ending `unreachable` ÷ leads received |
+| Bookings | appointments created (excluding declined requests), by source: AI call, AI message, staff, link |
+| No-show rate | `no_show` ÷ (completed + no_show) |
+| Messages sent / delivered / failed | by channel; "delivered" only with provider delivery evidence |
+| Callback on-time rate | callbacks first worked before their due time ÷ callbacks due |
+| Usage | ledger totals by kind (minutes, messages, AI) and estimated cost |
+
+## 33. Default templates and scripts
+
+Drafts for counsel review. `{{…}}` are placeholders; **[protected]** parts cannot be removed (REQ-MSG-06). Each
+exists in English and Spanish.
+
+| Kind | Channel | Default wording |
+|---|---|---|
+| Booking confirmation | SMS | "{{business_name}}: you're booked for {{service}} on {{date}} at {{time}}. Need to change it? {{link}} **[Reply STOP to opt out]**" |
+| Booking confirmation | Email | Subject: "Your booking at {{business_name}}". Body: service, date, time, location, change link, business contact. **[business name and address]** |
+| Reminder | SMS | "{{business_name}}: reminder of your {{service}} {{when}} at {{time}}. Change or cancel: {{link}} **[Reply STOP to opt out]**" |
+| Reschedule confirmation | SMS | "{{business_name}}: your booking is now {{date}} at {{time}}. **[Reply STOP to opt out]**" |
+| Cancellation confirmation | SMS | "{{business_name}}: your booking on {{date}} at {{time}} is cancelled. Call or text us to rebook. **[Reply STOP to opt out]**" |
+| Missed-call text | SMS | "Hi, this is {{business_name}}. Sorry we missed your call. We can help you shortly. How can we assist? **[Reply STOP to opt out]**" |
+| After a missed callback attempt | SMS | "{{business_name}}: we tried to call you back. What time suits you? You can also reply here. **[Reply STOP to opt out]**" |
+| Lead follow-up after call 1 | SMS / Email | "Hi {{first_name}}, this is {{business_name}} about your enquiry. We just tried to call. When is a good time to reach you? **[Reply STOP to opt out]**" |
+| Lead final follow-up | SMS / Email | "Hi {{first_name}}, {{business_name}} here. We couldn't reach you. Call or text us at {{business_number}} whenever you're ready. **[Reply STOP to opt out]**" |
+| Waitlist offer | SMS | "{{business_name}}: a {{service}} slot opened {{date}} at {{time}}. Take it here: {{link}} (held until {{expires}}). **[Reply STOP to opt out]**" |
+| Outbound call opening | Voice | "Hi, this is the assistant for {{business_name}}. I'm calling about {{reason}}. Is now a good time?" **[identifies the business and that it is an assistant]** |
+| Outbound voicemail | Voice | "Hi, this is the assistant for {{business_name}} returning your {{call/enquiry}}. Please call or text us at {{business_number}}. Thank you." (no personal or sensitive details) |
+| Inbound greeting | Voice | "Thanks for calling {{business_name}}. How can I help?" |
+| Voicemail prompt | Voice | "Please leave your message after the tone. It will be recorded and passed to the team." **[recording notice]** |
+| Opt-out confirmation | SMS | "{{business_name}}: you're unsubscribed and won't receive more texts. Reply START to resubscribe." **[protected]** |
+| HELP reply | SMS | "{{business_name}}: for help call {{business_number}}. Reply STOP to opt out." **[protected]** |
+
+## 34. Consent capture (proposed, for counsel review)
+
+| Where | Proposed wording | Evidence stored |
+|---|---|---|
+| Website and lead forms | Unticked checkbox: "I agree that {{business_name}} may contact me by phone call, including calls using an automated or AI voice, and by text message at the number I provided, about my enquiry. Consent is not a condition of purchase. Message and data rates may apply. Reply STOP to opt out." | form version, exact text shown, time, IP, checkbox state |
+| Google and Meta lead forms | the same text configured as the form's custom disclosure; leads without it are **not** auto-called | form ID and disclosure version from the source |
+| Inbound call | caller asks to be called or texted back, or the assistant asks "May we call or text you back at this number?" | call ID, time, the caller's answer |
+| Missed call | the caller called the business; a single missed-call text and callback respond to that call [counsel to confirm] | call ID |
+| Manually added or imported leads | staff must select the consent basis and source; none selected → no automated calls or texts | member, time, basis |
+| Marketing | separate, explicit opt-in per channel | as above |
+
+Opt-outs are honoured at once and never need a reason. Consent is per business.
+
+## 35. Data import
+
+| ID | Requirement |
+|---|---|
+| REQ-IMP-01 | Owners and admins can import customers and future appointments from CSV, with column mapping and a preview. |
+| REQ-IMP-02 | Rows are validated, normalised and deduplicated against existing customers; the result lists created, updated, skipped and failed rows with reasons. |
+| REQ-IMP-03 | The importer must state a consent basis per channel for the file. Without it, imported people are stored but excluded from automated calls and texts. |
+| REQ-IMP-04 | Imports never trigger welcome messages, lead sequences or reminders for past dates. Future appointments get reminders by the normal schedule. |
+| REQ-IMP-05 | Imports run as work items, are idempotent per file hash, can be undone within 7 days, and are audited. |
+
+## 36. Public API and outgoing webhooks
+
+| ID | Requirement |
+|---|---|
+| REQ-API-01 | Per-business API keys (hashed at rest, shown once, revocable, scoped: leads write, appointments read, customers read). |
+| REQ-API-02 | Versioned REST endpoints under `/api/v1`: create a lead (with consent evidence), read appointments, read customers. Rate-limited per key. Idempotency-Key header honoured. |
+| REQ-API-03 | Outgoing webhooks per business: chosen events (§31) are delivered to the business's URL, signed, retried with back-off, with a delivery log. |
+| REQ-API-04 | An API key can never reach another business; every request is bound to the key's business. |
+
+## 37. Runbooks
+
+| Alert | First action | Then |
+|---|---|---|
+| Calls not being answered | confirm on the status page and with a test call; switch affected businesses to the standby assistant | check voice provider status, endpoint errors, database health; tell affected businesses; review |
+| Voice endpoint slow or failing | check latency by step | database load, recent deploys; roll back the last deploy if it correlates |
+| Queue stuck / dead letters rising | open Automation queues; read the oldest item's error | fix the cause or dead-letter the item; never bulk-retry without reading |
+| Wrong or duplicate messages sent | **turn the channel's live switch off** | find the scope from the ledger; tell affected businesses; fix; switch on for one business first |
+| Provider down (SMS, email, voice) | confirm with the provider's status | leave queues holding work; switch off if errors cause retries; resume and watch the backlog |
+| Carrier flags a number as spam / high rejection rate | pause outbound for that business | check complaint and opt-out rates; registration status; contact the carrier |
+| Suspected cross-business data exposure | **Sev1**: restrict the affected feature; preserve logs | scope with audit logs; inform the owner; follow the breach procedure |
+| Unmapped provider events quarantined | read the event | fix the mapping or reject; never assign by guesswork |
+| Integration disconnected for a business | confirm token state | owner is prompted to reconnect; bookings continue from the Zella Voice calendar |
+| Backup restore needed | owner approval | restore to a new instance; mark work items as restored so nothing is re-sent; verify; switch over |
+| AI budget or spend spike | check the usage ledger by business and feature | pause the optional feature for that business; look for loops |
+
+## 38. Error and status catalogue
+
+Functions return a stable code; the app shows the wording. Unknown codes show: "That didn't work (code X). Try
+again, or contact Zella Voice support if it keeps happening."
+
+| Code | Meaning | Wording shown |
+|---|---|---|
+| `not_signed_in` | no session | "Please sign in again." |
+| `not_allowed` | role or membership does not permit it | "You don't have permission to do that in this workspace." |
+| `not_found` | missing, or belongs to another business | "We couldn't find that." |
+| `business_inactive` | paused, suspended or cancelled | "This workspace is paused. Contact the owner or Zella Voice support." |
+| `capability_off` | the business does not offer this | "This isn't switched on for your business." |
+| `plan_limit` | plan limit reached | "You've reached your plan's limit for {{thing}}." |
+| `validation_failed` | bad input (field list) | per field |
+| `slot_taken` | resource already reserved | "That time was just taken. Here are the nearest free times." |
+| `outside_hours` | outside opening or contact hours | "That's outside opening hours." / scheduled for the next window |
+| `no_consent` | no consent for this channel and purpose | "We don't have permission to {{call/text/email}} this person." |
+| `suppressed` | opted out or invalid address | "This person has opted out of {{channel}}." |
+| `duplicate` | same idempotency key or duplicate record | shows the existing item |
+| `template_invalid` | missing protected content or unfilled placeholder | "This template is missing required wording: {{part}}." |
+| `conflict` | changed by someone else meanwhile | "This was changed a moment ago. Reload to see the latest." |
+| `rate_limited` | too many requests | "Too many attempts. Wait a minute and try again." |
+| `provider_unavailable` | provider did not respond | "We couldn't reach the {{channel}} service. It's queued and will retry." |
+| `unknown_outcome` | result lost, being reconciled | "We're confirming whether this went through." |
+| `link_expired`, `link_invalid` | customer link problems | "This link has expired. Contact {{business_name}} for a new one." |
+
+Status labels are those of §9.5 and §13.8, defined once and reused everywhere.
+
+## 39. Legal documents and sub-processors
+
+Required before launch (written and approved by the owner with counsel; not part of the product build):
+- Terms of service; privacy policy; acceptable-use policy (no unlawful calling or texting);
+- data-processing terms for businesses; a business associate agreement if any healthcare business is onboarded;
+- messaging terms and opt-in disclosures required for carrier registration;
+- a public sub-processor list, kept current:
+
+| Sub-processor | Purpose | Data it receives |
+|---|---|---|
+| Supabase | database, auth, storage, functions | all platform data |
+| Vapi | voice conversations | call audio, caller number, the business context needed for the call |
+| Telnyx | phone numbers, calls, SMS | phone numbers, call routing data, message content |
+| Resend | email | email addresses, email content |
+| Anthropic | AI model for voice, messaging and drafts | conversation content needed for the task; never used for training |
+| Google, Microsoft | calendar sync (when a business connects it) | appointment times and titles |
+| n8n Cloud | workflow workers | work envelopes and message content in transit |
+| Cloudflare | web hosting | web traffic |
+| Payment provider (later) | billing | business billing details; no card data stored by Zella Voice |
+
+## 40. Owner mobile experience and staff calling
+
+| ID | Decision (principal architect) |
+|---|---|
+| REQ-MOB-01 | The CRM is a responsive web app that can be **installed to the phone's home screen** and sends **push notifications** for urgent items (emergency, failed transfer, needs a person, new lead). SMS and email remain the fallback for urgent alerts. A native app is not part of the first version. |
+| REQ-MOB-02 | The phone layout puts Today, Callbacks, Inbox and Calendar first; every urgent notification opens the exact item. |
+| REQ-CALL-01 | **Staff calling, first version:** staff tap the customer's number to call from their own phone, then log the result in one tap (reached, no answer, voicemail, wrong number) with a note. The attempt is recorded on the timeline. |
+| REQ-CALL-02 | **Staff calling, later:** click-to-call that rings the staff member and connects the customer through the business's Zella Voice number, so the customer sees the business number and the call is logged automatically. |
+| REQ-CALL-03 | Calls transferred by the assistant go to the business's transfer destinations (REQ-VOX-06), set when the business is created. |
