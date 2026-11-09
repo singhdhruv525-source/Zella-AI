@@ -1732,6 +1732,7 @@ An industry is **ready** when:
 | D-03 | **Contact hours (REQ-MSG-07):** calls in business hours (24/7: 08:00–21:00); replies and customer-caused messages immediately; post-call follow-ups in the calling window; reminders 07:00–21:00, moved earlier; other service messages and marketing 09:00–19:00. **Time zone:** the recipient's when known, else the business's. | §9.3 |
 | D-23 | **Frequency (REQ-MSG-08):** quantities come from the business's **plan**, within a platform contact ceiling the plan cannot raise. Until plans exist: 2 attempts per sequence (one message after each), one unprompted message per day, one check-in per visit. Replies never capped. | §9.3, REQ-BIL-08 |
 | D-06 | **Businesses are created by the Zella Voice team for now**; self-service signup is a later phase. No demo data in production. | §10.3 |
+| D-21 | Brand: always **Zella Voice** in full, everywhere (rulebook `BRD-1`). | all |
 | D-07 | At registration the business chooses **a new Zella Voice number (Telnyx)** or **forwarding its existing number**. Every business and location has its own dedicated Zella Voice number, used for outgoing calls and texts. | §10.10 |
 | D-09 | **No plans, prices or minute allowances now**; billing stays ready for later. AI usage and cost tracked per business. | §17 |
 | D-10 | Leave a **short, professional voicemail** where permitted; no sensitive details; then one contextual message. | §13.7 |
@@ -1757,7 +1758,6 @@ An industry is **ready** when:
 | D-17 | Which conversation outcomes count as "contacted" | owner |
 | D-18 | Caller verification for booking changes by phone | owner |
 | D-19 | Gmail/Outlook mailbox integration: build or drop | owner |
-| D-21 | Brand rule in the rulebook (`BRD-1`) | owner |
 | D-22, D-26, D-28 | Engineering thresholds: dispatcher "stuck" count, reconciliation delay, calendar staleness | engineering |
 | D-24 | Minimum knowledge set before activation | owner |
 | D-25 | Behaviour while a business is paused | owner |
@@ -1773,12 +1773,8 @@ An industry is **ready** when:
 
 ### 23.3 Rulebook alignment
 
-`ZELLA_VOICE_RULES.md` was aligned with these decisions on the owner's instruction:
-- `PRV-4` retention;
-- `COM-3` contact hours;
-- `COM-4` frequency.
-
-`BRD-1` (brand wording) remains open as D-21.
+`ZELLA_VOICE_RULES.md` is aligned with this document on the owner's instruction. The two must always agree; a change
+to one updates the other in the same pull request.
 
 ---
 

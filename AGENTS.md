@@ -13,8 +13,8 @@ The twelve non-negotiables:
 5. Nobody pushes to `main`.
 6. The database is the single source of truth and the single enforcer of rules.
 7. The AI receptionist never invents a fact.
-8. Opt-out always wins.
+8. Opt-out always wins, instantly and permanently, for the business the person opted out of.
 9. No card number ever touches our systems.
 10. Every change can be undone.
 11. Never claim what didn't happen.
-12. The brand is "Zella Voice", never "Zella AI".
+12. The brand is "Zella Voice", always in full: never "Zella" alone, never "Zella AI".

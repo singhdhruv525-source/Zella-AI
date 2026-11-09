@@ -10,6 +10,9 @@ commits and incidents can cite it (for example "breaks `TEN-2`").
 **Ownership of this file:** only the owner changes the rules. Agents may propose changes in a pull request, never
 apply them on their own.
 
+**Companion:** `docs/ARCHITECTURE.md` is the required design. This rulebook and the architecture must always agree;
+a change to one updates the other in the same pull request. References like (§6) point to architecture sections.
+
 ---
 
 ## Part 1: The business
@@ -61,6 +64,8 @@ flowchart LR
 - `BIZ-5` **Honesty is a product feature.** We never claim a call was answered, a message delivered, or a booking made unless it truly was.
 - `BIZ-6` **We are not a law firm, clinic or bank.** We never give legal, medical or financial advice, and never claim regulatory compliance we haven't been certified for.
 - `BIZ-7` **Prices, plans, discounts and contracts are set only by the owner.** No agent invents a price, plan, trial length or promise.
+- `BIZ-8` **Launch scope (§22, §23).** United States only at launch; the platform stays multi-country ready, but no other country's calling or messaging is enabled until its rules are reviewed. Lower-risk industries launch first; regulated industries (healthcare, dental, legal, financial services, insurance, childcare) launch only after legal review, with their stricter settings.
+- `BIZ-9` **Onboarding (§10.3).** Businesses are created by the Zella Voice team in the platform admin for now. Self-service signup is a later phase. No demo or sample data is ever loaded into production.
 
 ---
 
@@ -73,11 +78,11 @@ flowchart LR
 5. `NN-5` **Nobody pushes to `main`.** All work goes through a branch and a reviewed pull request that the owner merges.
 6. `NN-6` **The database is the single source of truth and the single enforcer of rules.** The UI, edge functions and workflows never decide; they ask.
 7. `NN-7` **The AI receptionist never invents a fact.** If it doesn't know, it says so and takes a message.
-8. `NN-8` **Opt-out always wins.** STOP, "don't call me" and do-not-contact are honoured instantly, on every channel, forever.
+8. `NN-8` **Opt-out always wins.** STOP, "don't call me" and do-not-contact are honoured instantly and permanently, for the business the person opted out of: STOP stops that business's texts, "don't call me" its calls, do-not-contact everything from it. A separate platform legal block list, when used, applies to every business (§6.6).
 9. `NN-9` **No card number ever touches our systems.** Payments go through a certified payment provider.
 10. `NN-10` **Every change can be undone.** No migration, deploy or data change ships without a tested way back.
 11. `NN-11` **Never claim what didn't happen**: in the product, in reports, in tests, in chat.
-12. `NN-12` **The brand is "Zella Voice".** Never "Zella AI".
+12. `NN-12` **The brand is "Zella Voice", always in full.** Never "Zella" alone, never "Zella AI".
 
 ---
 
@@ -208,7 +213,7 @@ flowchart TD
   id -- no --> x[Refuse]
   id -- yes --> row[Find the business that<br/>OWNS the row, not the one<br/>the caller named]
   row --> mem{Caller is an active<br/>member of that business?}
-  mem -- no --> adm{Zella staff using an<br/>audited admin function<br/>with the right permission?}
+  mem -- no --> adm{Zella Voice staff using an<br/>audited admin function<br/>with the right permission?}
   adm -- no --> x
   adm -- yes --> audit[Write audit record] --> ok
   mem -- yes --> role{Role allows<br/>this action?}
@@ -232,11 +237,17 @@ flowchart LR
 - `TEN-2` Every tenant table has **row-level security on**, with policies based on membership and role. A table without RLS does not ship.
 - `TEN-3` Every function touching tenant data **checks the caller's membership and role first**, against the business that owns the row, not a business ID the caller supplied.
 - `TEN-4` **Identity is derived, never accepted.** Browser: from the signed-in session. Phone: from the verified called number. Links: from the signed token. Webhooks: from the verified signature. Never from a request body, URL parameter or AI tool argument.
-- `TEN-5` Rows may only link to rows of the **same business** (customer ↔ booking ↔ record ↔ staff ↔ file), enforced by the database, not the UI.
-- `TEN-6` Zella staff access a business's data only through **audited admin functions** with a named permission, never through broad policies or direct SQL in the normal course of work.
+- `TEN-5` Rows may only link to rows of the **same business** (customer ↔ booking ↔ record ↔ staff ↔ file), enforced by the database with **composite foreign keys that include `business_id`**, never by the UI (§6.4).
+- `TEN-6` Zella Voice staff access a business's data only through **audited admin functions** with a named permission, never through broad policies or direct SQL in the normal course of work.
 - `TEN-7` **Every new table, view, function and endpoint gets a cross-tenant test**: another business can't read it, can't write it, and a lower role can't do more than it should.
 - `TEN-8` Caches, search indexes, exports, AI prompts and analytics **keep the tenant boundary** too. A shared cache key or a prompt containing two businesses' data is a breach.
-- `TEN-9` Business roles are ordered: **owner > admin > manager > staff > viewer.** Viewers never write. Staff never see money settings or other staff's private data. Only owners change ownership, billing and deletion.
+- `TEN-9` Business roles are ordered: **owner > admin > manager > staff > viewer.** Viewers never write. Staff never see money settings or other staff's private data. Only owners change ownership, billing and deletion. The full permission matrix is §27; the database enforces every cell.
+- `TEN-10` **Every table has exactly one ownership scope (§6.4):** tenant-owned (`business_id NOT NULL`, including child tables), platform-owned (no `business_id`, platform writes only), or mixed (explicit `scope` column with a check constraint). Uniqueness on business data always includes `business_id`.
+- `TEN-11` **The business is never chosen by an AI model or a request body.** Calls, texts, emails and webhooks are bound to a business from a verified provider mapping (number, assistant, address, key); every tool call and action is authorized against that bound business. A caller saying "switch to another business" changes nothing (§6.7).
+- `TEN-12` **Unmapped or ambiguous provider events are quarantined and alerted**, never assigned by guesswork (§6.6).
+- `TEN-13` **Background work carries a verified envelope** (business, automation, event, work item, subject, idempotency key, claim token). The database re-checks that the business, record, destination and sender all belong together before any action; retries re-use and re-check the same envelope (§6.9).
+- `TEN-14` **Locations belong to one business (§26).** A business may have several locations, each with its own number, hours, time zone, staff, resources and calendar; customers, consent, templates and automations are shared within the business only. Members can be limited to chosen locations.
+- `TEN-15` **Isolation is accepted only by tests:** the three-business suite (§6.12) passes in CI and staging before production, and every new feature adds its own cross-business cases.
 
 ---
 
@@ -273,7 +284,7 @@ flowchart LR
 - `SEC-16` Customer-facing links use long random tokens, do one thing, expire, and are checked server-side.
 
 ### 6.4 People and access
-- `SEC-17` Zella staff accounts use **multi-factor sign-in**, least privilege (granular permissions, not "super admin" by default), and are reviewed quarterly.
+- `SEC-17` Zella Voice staff accounts use **multi-factor sign-in**, least privilege (granular permissions, not "super admin" by default), and are reviewed quarterly.
 - `SEC-18` Sensitive actions (ownership transfer, data export, deletion, role escalation, refunds) need a **second confirmation** and leave an audit record.
 - `SEC-19` Invitations are bound to the invited email address, expire, and are accepted only from a session proven to own that address.
 - `SEC-20` Sign-in links require a click on our page before they are used (mail scanners open links first).
@@ -356,8 +367,8 @@ flowchart LR
 - `DB-6` **Expand, then contract.** Add the new structure, move readers and writers, then remove the old structure in a later release.
 - `DB-7` **Never edit an applied migration** to change behaviour. Write a new one.
 - `DB-8` **Constraints over code:** uniqueness, foreign keys, checks and not-null rules live in the schema. Idempotency uses unique keys, never "check then insert".
-- `DB-9` **Concurrency is designed, not hoped for:** booking writes take a per-business lock; queues use `SKIP LOCKED`; counters and ledgers are append-only.
-- `DB-10` **Time is stored in UTC** (`timestamptz`); "today", quiet hours, reminders and reports use the **business's own time zone** and survive daylight-saving changes.
+- `DB-9` **Concurrency is designed, not hoped for:** booking conflicts are prevented by the database per **business and resource** with an exclusion constraint on resource reservations (different businesses never conflict; the same exclusive resource can't be double-booked, even concurrently; no staff override unless the owner enables one, §6.8); queues use `SKIP LOCKED`; counters and ledgers are append-only.
+- `DB-10` **Time is stored in UTC** (`timestamptz`); "today", reports and opening hours use the **business's (or location's) own time zone**; contact hours use the recipient's time zone when known (`COM-3`); everything survives daylight-saving changes.
 - `DB-11` **Money is stored in integer minor units** with an explicit currency. Never floating point.
 - `DB-12` **Errors are stable codes** (`not_allowed`, `slot_taken`, `capability_off`), translated to words by the app.
 - `DB-13` **Privileged and sensitive changes write an audit record**: who, what, which business, before and after, when.
@@ -444,6 +455,10 @@ flowchart TD
 - `AI-17` **Sample and review** a share of real conversations (with privacy controls) weekly; wrong answers become knowledge gaps or eval cases.
 - `AI-18` **AI-written text for humans to send** (message drafts, review replies, knowledge suggestions) is always a suggestion a person approves.
 - `AI-19` **Model, voice and provider names come from settings.** Never hard-coded, never invented.
+- `AI-20` **Transfers (§11).** Each business sets its transfer destinations when it is created (owner by default, or the people it names, with hours). If a transfer fails, the AI returns to the caller, says the person is unavailable, offers a message or callback, creates **one** urgent callback and notifies staff. It never says a transfer succeeded when it did not.
+- `AI-21` **Voicemail (§11).** A caller may leave a voicemail instead of talking to the AI. The caller is told it is recorded. Voicemails are private to the business, transcribed, kept 30 days, and create one callback task. Call recording is separate and stays off until legal review.
+- `AI-22` **Languages (§11).** The receptionist speaks the languages the business's plan includes (English, Spanish or both). Templates, scripts and knowledge exist per language, with a fallback to the business's primary language.
+- `AI-23` **Knowledge drafts (§16).** When the receptionist can't answer, the AI may draft an answer from the business's own information only. A person reviews, edits and publishes it; drafts are never used until approved. AI drafting has a per-business budget with alerts; reaching it never affects the core receptionist.
 
 ---
 
@@ -501,6 +516,11 @@ flowchart TD
 - `COM-8` **Channel fallback** (text ↔ email) only for service messages and only where consent exists for the fallback channel.
 - `COM-9` **Templates are reviewed copy**, with no placeholders left unfilled; a message with a missing value is skipped, never sent with a blank.
 - `COM-10` **Carrier and anti-spam registration** is complete before texting goes live in any country.
+- `COM-11` **Numbers (§10.10).** At registration a business chooses a new Zella Voice number (Telnyx) or forwarding its existing number. Every business and location has its **own dedicated Zella Voice number**, never shared. Outgoing AI calls and texts use that number as caller ID and sender, so replies reach the same business. Forwarding is verified by a test call before go-live.
+- `COM-12` **Two-way AI messaging (§14.3).** The AI may reply to customer texts and emails where consent and the business's rules allow. STOP and opt-out wording are handled before any AI processing. Exactly one reply per inbound message; reply loops are capped. Complex, sensitive or uncertain conversations, and all in regulated industries, go to staff. When staff take over, the AI stays silent until a person hands control back. A booking change is described as done only after the booking backend confirms it.
+- `COM-13` **Missed calls (§12).** Classify every inbound call exactly once. For a genuine missed call: one immediate missed-call text (consent permitting); verify before calling back (voicemail resolved it? staff already called? spam?); callback attempts within the plan's limit; stop on reply, booking, opt-out or staff closing. Withheld numbers get no automated callback: staff are notified. Medium-risk spam goes to a review queue; spam never starts outbound contact.
+- `COM-14` **Lead calls (§13).** Every lead passes consent, eligibility, duplicate and opt-out checks before any call; the source alone never authorises a call. The AI calls about 1 minute after an eligible lead arrives (or at the next opening), with attempts per the plan, a contextual message after each unsuccessful attempt, a short non-sensitive voicemail where permitted, then **Unreachable** plus a staff task. A lead is never deleted for being unreachable. "Answered" never means "contacted".
+- `COM-15` **Reminders (§14).** Reminder times follow the notice period (more than 48 h: 24 h and 2 h before; 1–48 h: one reminder; same day: 1 h before; under 1 h: none), inside 07:00–21:00, moved earlier if needed. Rescheduling recalculates; cancelling cancels; never a duplicate.
 
 ---
 
@@ -557,12 +577,13 @@ stateDiagram-v2
 - `UX-21` Every screen works at **360 px** and **1280 px+** with no sideways page scroll; tables scroll inside themselves.
 - `UX-22` **Performance budget** on a mid-range phone over 4G: largest content in under 2.5 s, interaction response under 200 ms, layout shift under 0.1. Customer-facing link pages ship without the admin code.
 - `UX-23` Lists over 50 rows paginate or virtualise.
+- `UX-24` **Owners on the move (§40).** The CRM installs to the phone's home screen and sends push notifications for urgent items, with SMS and email as fallback. The phone layout puts Today, Callbacks, Inbox and Calendar first; every urgent notification opens the exact item.
 
 ---
 
 ## Part 14: Words and brand
 
-- `BRD-1` The product is **Zella Voice**. Write it in full wherever the brand is named (titles, sender names, subjects, sign-offs, "the Zella Voice team", "your Zella Voice number"). In a running sentence about what the product does, "Zella" is fine. **Never "Zella AI".**
+- `BRD-1` The product and company are **always written in full: "Zella Voice"**, everywhere: product copy, emails, texts, the AI's speech, documents and code comments. Never "Zella" alone, never "Zella AI". Technical identifiers such as `zella_*` function names are not brand text.
 - `BRD-2` **Plain, calm, warm.** Short sentences, everyday words, sentence case, no hype, no exclamation marks on working screens, no blame.
 - `BRD-3` **American English**, consistent spelling and terms across app, emails, texts and the AI's speech.
 - `BRD-4` **One label per state**, defined once and reused everywhere.
@@ -592,6 +613,8 @@ flowchart LR
 - `BIL-5` **Limits are humane:** warn at 80% and 100% of a limit; never cut off a live call mid-sentence; the owner chooses what happens at the limit.
 - `BIL-6` **Payment failure follows a published grace policy**: warnings, then read-only, then suspension. Data is never deleted for non-payment inside the grace and export window.
 - `BIL-7` **Money amounts are integers in minor units with currency**, displayed in the business's locale.
+- `BIL-8` **Plans decide quantities (§17.1).** When the owner creates plans, each plan sets the business's limits: AI minutes, callbacks, call attempts per sequence, lead-call sequences, texts and emails, AI messaging, AI drafts, team seats, phone numbers, locations, languages and premium features. Plans never raise the platform contact ceiling (`COM-4`). Until plans exist, the documented defaults apply and no plan-based limit is enforced.
+- `BIL-9` **Everything is metered from day one.** Voice minutes, messages and AI usage are recorded per business with estimated cost, so plans can be applied later without rework.
 
 ---
 
@@ -697,7 +720,7 @@ flowchart LR
 - `SUP-1` **Support sees the minimum.** Support staff use audited, permissioned views; they never browse a business's data without a ticket and a reason.
 - `SUP-2` **Impersonation** (acting as a business user) is off by default; when enabled by the owner it is time-limited, visible to the business, and audited.
 - `SUP-3` **Answer with facts:** support replies quote what the system recorded, not what probably happened.
-- `SUP-4` **Onboarding is complete before go-live:** hours, services, knowledge, numbers, test call passed, owner sign-off. The receptionist is never switched on for a half-configured business.
+- `SUP-4` **Onboarding is complete before go-live:** hours, services, knowledge, number (new or verified forwarding), transfer destinations, test call passed, owner sign-off. The receptionist is never switched on for a half-configured business.
 - `SUP-5` **Offboarding is respectful:** the owner can export everything, cancellation is honoured on time, data is purged on schedule.
 
 ---
