@@ -17,6 +17,7 @@ create or replace function public.zella_language_allowance(p_business_id uuid) r
 language plpgsql stable security definer set search_path = public as $$
 declare s public.subscriptions; v text;
 begin
+  if not public.zella_has_role(p_business_id, array['owner','admin','manager','staff','viewer']) then raise exception 'NOT_ALLOWED'; end if;
   s := public.zella_current_subscription(p_business_id);
   if s.id is null then return null; end if;
   select p.limits ->> 'languages' into v from public.plans p where p.id = s.plan_id;

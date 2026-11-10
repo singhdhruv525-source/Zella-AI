@@ -50,7 +50,7 @@ create or replace function public.zella_decide_time_off(p_request_id uuid, p_app
 returns text language plpgsql security definer set search_path = public as $$
 declare r public.time_off_requests%rowtype; v_name text; v_block uuid;
 begin
-  select * into r from public.time_off_requests where id = p_request_id;
+  select * into r from public.time_off_requests where id = p_request_id for update;
   if not found or not public.zella_can_manage(r.business_id) then raise exception 'NOT_ALLOWED'; end if;
   if r.status <> 'pending' then raise exception 'ALREADY_DECIDED'; end if;
   select name into v_name from public.staff_members where id = r.staff_id;

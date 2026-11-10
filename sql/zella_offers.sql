@@ -529,6 +529,7 @@ declare o public.offers; r public.offer_redemptions; v_reason text; v_hold jsonb
         v_total int; v_mine int; v_recent int; v_unusual jsonb := public.zella_offer_rule_config('unusual_activity'); v_limit jsonb;
 begin
   if p_key is null or length(p_key) < 8 then raise exception 'IDEMPOTENCY_KEY_REQUIRED'; end if;
+  perform pg_advisory_xact_lock(hashtextextended(p_key, 0));
   -- The same request sent twice returns the first answer.
   select * into r from public.offer_redemptions where idempotency_key = p_key;
   if found then

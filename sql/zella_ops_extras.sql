@@ -1,9 +1,14 @@
 -- Zella - callback controls, daily callback digest, contact preferences, customer data export and erasure, call
 -- recording access log, tenant-isolation check and two-person approval. Safe to run more than once. Database only.
+-- Undo: sql/rollback/zella_ops_extras_rollback.sql (retains approval history and shared role hardening).
 
 create or replace function public.zella_has_role(p_business_id uuid, p_roles text[])
 returns boolean language sql stable security definer set search_path = public as $$
-  select auth.uid() is null or exists (select 1 from public.business_members m where m.business_id = p_business_id and m.user_id = auth.uid() and m.status = 'active' and m.role = any (p_roles));
+  select case
+    when auth.uid() is null then coalesce(auth.jwt() ->> 'role', '') not in ('anon', 'authenticated')
+    else exists (select 1 from public.business_members m
+                  where m.business_id = p_business_id and m.user_id = auth.uid() and m.status = 'active' and m.role = any (p_roles))
+  end;
 $$;
 
 -- 1. Callback controls: reassign, reschedule, cancel.
@@ -16,6 +21,7 @@ begin
   if not public.zella_has_role(cb.business_id, array['owner','admin','manager','staff']) then raise exception 'NOT_ALLOWED'; end if;
   if p_to_user is not null and not exists (select 1 from public.business_members m where m.business_id = cb.business_id and m.user_id = p_to_user and m.status = 'active') then raise exception 'TARGET_NOT_ACTIVE'; end if;
   update public.callbacks set assigned_to = p_to_user, updated_at = now() where id = p_callback_id and status not in ('completed','cancelled');
+  if not found then return 'closed'; end if;
   if p_to_user is not null then
     perform public.zella_notify(cb.business_id, 'callback', 'A callback was assigned to you', coalesce(cb.summary, 'Please call them back.'), 'info', 'callbacks', cb.id, p_to_user);
   end if;
@@ -110,6 +116,7 @@ end $$;
 
 create or replace function public.zella_erase_customer(p_business_id uuid, p_customer_id uuid)
 returns text language plpgsql security definer set search_path = public as $$
+declare v_column text;
 begin
   if not public.zella_has_role(p_business_id, array['owner','admin']) then raise exception 'NOT_ALLOWED'; end if;
   if not exists (select 1 from public.customers where id = p_customer_id and business_id = p_business_id) then raise exception 'NOT_FOUND'; end if;
@@ -117,6 +124,22 @@ begin
   update public.email_messages set subject = '[removed]', body_text = '[removed]', body_html = null where customer_id = p_customer_id and business_id = p_business_id;
   update public.calls set transcript = null, recording_url = null, summary = null, from_number = null, to_number = null where customer_id = p_customer_id and business_id = p_business_id;
   update public.callbacks set contact_number = null, summary = null, note = null where customer_id = p_customer_id and business_id = p_business_id;
+  update public.appointments set description = null where customer_id = p_customer_id and business_id = p_business_id;
+  update public.crm_tasks set title = '[removed]', body = null where customer_id = p_customer_id and business_id = p_business_id;
+  -- The base customer_requests DDL is external to this migration set. Scrub its
+  -- descriptive fields when present without changing workflow keys or links.
+  for v_column in select column_name from information_schema.columns
+    where table_schema = 'public' and table_name = 'customer_requests'
+      and column_name in ('title','subject','description','summary','body','notes','details','metadata','resolution','contact_name','contact_email','contact_phone')
+  loop
+    execute format('update public.customer_requests set %I = %s where customer_id = $1 and business_id = $2',
+      v_column, case when v_column in ('details','metadata') then quote_literal('{}') else quote_literal('[removed]') end)
+      using p_customer_id, p_business_id;
+  end loop;
+  -- Consent history is append-only (docs/ARCHITECTURE.md section 7.2). Keep
+  -- phone_digits and email_lower for all channels/purposes: SMS opt-out readers
+  -- match phone_digits and voice checks use the latest consent by that number.
+  -- Do not erase/rewrite history or suppression identifiers when the profile is cleared.
   update public.followup_tasks set status = 'cancelled', updated_at = now() where customer_id = p_customer_id and business_id = p_business_id and status in ('pending','in_progress');
   update public.customers set first_name = 'Deleted', last_name = null, phone = null, email = null, address = null, notes = null, date_of_birth = null, company_name = null,
          tags = '{}', metadata = '{}'::jsonb, qualification = '{}'::jsonb, do_not_contact = true, status = 'archived', updated_at = now()

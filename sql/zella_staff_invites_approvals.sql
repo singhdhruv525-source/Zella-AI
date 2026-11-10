@@ -51,18 +51,18 @@ end $$;
 revoke execute on function public.zella_resend_invitation(uuid) from public, anon;
 grant execute on function public.zella_resend_invitation(uuid) to authenticated, service_role;
 
--- the signed-in person joins every business that invited their email
+-- the signed-in person joins every business whose invitation is bound to their user id
 create or replace function public.zella_accept_staff_invitations() returns integer
 language plpgsql security definer set search_path = public as $$
-declare v_user uuid := auth.uid(); v_email text; i record; n integer := 0;
+declare v_user uuid := auth.uid(); i record; n integer := 0;
 begin
   if v_user is null then raise exception 'NOT_SIGNED_IN'; end if;
-  select lower(email) into v_email from auth.users where id = v_user;
-  for i in select * from public.business_invitations where lower(email) = v_email and status in ('pending', 'sent') and role <> 'owner'
+  for i in select * from public.business_invitations where auth_user_id = v_user and status in ('pending', 'sent') and role <> 'owner'
                 and (expires_at is null or expires_at > now()) for update loop
     if exists (select 1 from public.businesses where id = i.business_id and cancelled_at is not null) then continue; end if;
     insert into public.business_members (business_id, user_id, role, status) values (i.business_id, v_user, i.role, 'active')
-    on conflict do nothing;
+    on conflict (business_id, user_id) do update set role = excluded.role, status = 'active'
+      where business_members.status = 'suspended';
     update public.business_invitations set status = 'accepted', accepted_at = now(), auth_user_id = v_user, updated_at = now() where id = i.id;
     insert into public.audit_logs (business_id, user_id, action, entity_type, entity_id, new_data) values (i.business_id, v_user, 'invitation.accepted', 'business_invitation', i.id, jsonb_build_object('email', i.email, 'role', i.role));
     if i.invited_by is not null then

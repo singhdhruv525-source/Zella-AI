@@ -26,7 +26,8 @@ language plpgsql security definer set search_path = public as $$
 declare c record;
 begin
   select * into c from public.customers where id = p_customer_id for update;
-  if not found or not public.zella_is_member(c.business_id) then raise exception 'NOT_ALLOWED'; end if;
+  if not found or not public.zella_is_member(c.business_id)
+     or not public.zella_has_role(c.business_id, array['owner','admin','manager','staff']) then raise exception 'NOT_ALLOWED'; end if;
   if p_priority is not null and p_priority not in ('normal', 'high', 'urgent') then raise exception 'BAD_PRIORITY'; end if;
   update public.customers
      set priority = coalesce(p_priority, priority),
@@ -47,7 +48,8 @@ language plpgsql security definer set search_path = public as $$
 declare c record; v_name text;
 begin
   select * into c from public.customers where id = p_customer_id for update;
-  if not found or not public.zella_is_member(c.business_id) then raise exception 'NOT_ALLOWED'; end if;
+  if not found or not public.zella_is_member(c.business_id)
+     or not public.zella_has_role(c.business_id, array['owner','admin','manager','staff']) then raise exception 'NOT_ALLOWED'; end if;
   if nullif(trim(coalesce(p_note, '')), '') is null then raise exception 'NOTE_REQUIRED'; end if;
   select coalesce(nullif(trim(coalesce(first_name, '') || ' ' || coalesce(last_name, '')), ''), 'Team member')
     into v_name from public.profiles where id = auth.uid();

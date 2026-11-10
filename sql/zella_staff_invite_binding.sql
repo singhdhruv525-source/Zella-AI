@@ -28,7 +28,8 @@ begin
               and (expires_at is null or expires_at > now()) for update loop
     if exists (select 1 from public.businesses where id = i.business_id and cancelled_at is not null) then continue; end if;
     insert into public.business_members (business_id, user_id, role, status) values (i.business_id, v_user, i.role, 'active')
-    on conflict do nothing;
+    on conflict (business_id, user_id) do update set role = excluded.role, status = 'active'
+      where business_members.status = 'suspended';
     update public.business_invitations set status = 'accepted', accepted_at = now(), updated_at = now() where id = i.id;
     insert into public.audit_logs (business_id, user_id, action, entity_type, entity_id, new_data) values (i.business_id, v_user, 'invitation.accepted', 'business_invitation', i.id, jsonb_build_object('email', i.email, 'role', i.role));
     if i.invited_by is not null then

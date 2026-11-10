@@ -14,7 +14,9 @@
 --   Server key, pg_cron, SQL editor: unchanged (their request role is service_role, or there is no request at all).
 --   Anonymous API requests: now FALSE instead of TRUE.
 --
--- Rollback: re-run the zella_has_role definition from zella_ops_extras.sql.
+-- Rollback: zella_ops_extras.sql now contains the same hardened definition.
+-- Re-running it preserves rejection of null-user anon/authenticated requests;
+-- it does not restore the former unconditional null-user bypass.
 --
 -- Validation (rolled back):
 --   do $$ begin

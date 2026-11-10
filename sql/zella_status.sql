@@ -65,7 +65,7 @@ begin
       into v_components from jsonb_array_elements(v_components) x;
   end loop;
 
-  select coalesce(jsonb_agg(jsonb_build_object('title', i.title, 'message', i.public_message, 'status', i.status, 'component', i.component,
+  select coalesce(jsonb_agg(jsonb_build_object('message', i.public_message, 'status', i.status, 'component', i.component,
            'started_at', i.created_at, 'resolved_at', i.resolved_at) order by (i.status = 'open') desc, i.created_at desc), '[]'::jsonb) into v_incidents
     from (select * from public.platform_incidents where is_public and (status = 'open' or resolved_at > now() - interval '14 days')
            order by created_at desc limit 20) i;
@@ -87,7 +87,7 @@ begin
   -- 1. the connection checks stopped
   select max(checked_at) into v_last from public.provider_health;
   select min(updated_at) into v_since from public.platform_settings where key = 'provider_checks_live';
-  if public.zella_provider_checks_live() and coalesce(v_last, v_since, now()) < now() - interval '6 hours' then
+  if public.zella_provider_checks_live() and coalesce(greatest(v_last, v_since), now()) < now() - interval '6 hours' then
     perform public.zella_platform_alert('automation_heartbeat', 'The automation engine looks down',
       'No connection check has come back for 6 hours (last: ' || coalesce(to_char(v_last at time zone 'UTC', 'YYYY-MM-DD HH24:MI') || ' UTC', 'never')
       || '). n8n may be down or the Connection Tests workflow switched off.', 'urgent', null, 'heartbeat');

@@ -100,6 +100,14 @@ begin
   end if;
   select role into v_role from public.business_members where business_id = p_business_id and user_id = p_user_id;
   if v_role is null then raise exception 'NOT_A_MEMBER'; end if;
+  if auth.uid() is not null and v_role in ('owner','admin')
+     and not exists (select 1 from public.business_members m where m.business_id = p_business_id and m.user_id = auth.uid() and m.status = 'active' and m.role = 'owner') then
+    raise exception 'NOT_ALLOWED';
+  end if;
+  if p_reassign_to is not null and (p_reassign_to = p_user_id or not exists (
+    select 1 from public.business_members m where m.business_id = p_business_id and m.user_id = p_reassign_to and m.status = 'active')) then
+    raise exception 'TARGET_NOT_ACTIVE';
+  end if;
   if v_role = 'owner' and not exists (select 1 from public.business_members m where m.business_id = p_business_id and m.role = 'owner' and m.status = 'active' and m.user_id <> p_user_id) then
     raise exception 'LAST_OWNER';
   end if;
