@@ -6,7 +6,24 @@ set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"; REPO="$(cd "$HERE/../.." && pwd)"
 export ZPG_HOST=${ZPG_HOST:-/var/lib/postgresql/zella-sec} ZPG_PORT=${ZPG_PORT:-55433}; DB=${DB:-zbatch3}
 P="psql -h $ZPG_HOST -p $ZPG_PORT -U postgres -qtAX -v ON_ERROR_STOP=1"
-eval "$(grep -A3 '^PENDING=' "$REPO/tests/deploy/run_all.sh" | sed '/^ROLLBACK=/,$d')"
+# Parse the complete assignment as data; never execute deployment-script text.
+pending=$(python3 -I - "$REPO/tests/deploy/run_all.sh" <<'PY_PENDING'
+import pathlib, re, sys
+text = pathlib.Path(sys.argv[1]).read_text()
+assignments = re.findall(r"^PENDING=", text, re.M)
+match = re.search(r"^PENDING=\(([^)]*)\)[ \t]*$", text, re.M)
+if len(assignments) != 1 or not match:
+    sys.exit("FAIL: could not read the complete PENDING assignment")
+entries = match[1].split()
+if not entries or any(not re.fullmatch(r"zella_[a-z0-9_]+", entry) for entry in entries):
+    sys.exit("FAIL: invalid or empty PENDING list")
+print(" ".join(entries))
+PY_PENDING
+) || exit 1
+read -r -a PENDING <<< "$pending"
+for m in "${PENDING[@]}"; do
+  [ -f "$REPO/sql/$m.sql" ] || { echo "FAIL: missing migration $m" >&2; exit 1; }
+done
 "$REPO/tests/lib/build_full.sh" "$DB" || exit 1
 for m in "${PENDING[@]}" zella_batch1_security; do out=$($P -d "$DB" -f "$REPO/sql/$m.sql" 2>&1) || { echo "FAIL apply $m: $(echo "$out" | grep -m1 ERROR)"; exit 1; }; done
 fails=0
