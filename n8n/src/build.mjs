@@ -52,8 +52,8 @@ const ifBool = (name, position, expr) =>
     options: {},
   });
 const link = (to, index = 0) => ({ node: to, type: 'main', index });
-const wf = (name, nodes, connections) => ({
-  name, nodes, connections, active: false, settings: { executionOrder: 'v1', executionTimeout: 300 }, pinData: {},
+const wf = (name, nodes, connections, settings = {}) => ({
+  name, nodes, connections, active: false, settings: { executionOrder: 'v1', executionTimeout: 300, ...settings }, pinData: {},
   meta: { templateCredsSetupCompleted: false },
 });
 
@@ -364,14 +364,14 @@ const knowledge = wf('Zella - Knowledge', [
 // One item per tool call, so several tool calls in one request each get their own answer, matched by toolCallId.
 // In Vapi: add a server tool "report_unanswered_question" (parameter: question, text) pointing at
 // <n8n>/webhook/zella/vapi-tools with the X-Zella-Secret header. The call must carry the business id (call metadata
-// or the assistant variable business_id) unless the call is already known to Zella.
+// or the assistant variable business_id) only as a hint; a registered number or existing call must establish the business.
 const assistantTools = secureVapi(wf('Zella - Assistant Tools', [
   node('Vapi tool call', 'n8n-nodes-base.webhook', 2, [0, 200], {
     httpMethod: 'POST', path: 'zella/vapi-tools', authentication: 'headerAuth', responseMode: 'responseNode', options: {},
   }, { webhookId: id('webhook:zella-vapi-tools'), credentials: GATEWAY_CRED }),
   codeAll('Plan', [240, 200], 'vapi-tool-plan.js'),
   ifBool('Has question', [480, 200], '={{ !!$json.record }}'),
-  rpcNode('Find business', [720, 100], 'zella_business_for_number', '={{ JSON.stringify($json.lookup) }}', { full: true }),
+  rpcNode('Find business', [720, 100], 'zella_business_for_number', '={{ JSON.stringify({ ...$json.lookup, p_fallback: null }) }}', { full: true }),
   code('Use business', [960, 100], 'business-apply.js'),
   rpcNode('Log question', [1200, 100], '', '={{ JSON.stringify($json.record) }}', { full: true, urlExpr: `={{ '${SUPABASE}/rest/v1/rpc/' + $json.rpc }}` }),
   code('Build reply', [1440, 100], 'vapi-tool-reply.js'),
@@ -401,7 +401,7 @@ const aiBooking = secureVapi(wf('Zella - Appointment Booking', [
   }, { webhookId: id('webhook:zella-vapi-booking'), credentials: GATEWAY_CRED }),
   codeAll('Plan', [240, 200], 'brain-tool-plan.js', { ONLY_TOOLS: BOOKING_TOOLS }),
   ifBool('Is a booking tool', [480, 200], '={{ !!$json.record }}'),
-  rpcNode('Find business', [720, 100], 'zella_business_for_number', '={{ JSON.stringify($json.lookup) }}', { full: true }),
+  rpcNode('Find business', [720, 100], 'zella_business_for_number', '={{ JSON.stringify({ ...$json.lookup, p_fallback: null }) }}', { full: true }),
   code('Use business', [960, 100], 'business-apply.js'),
   rpcNode('Run booking', [1200, 100], 'zella_ai_tool', '={{ JSON.stringify($json.record) }}', { full: true }),
   code('Build reply', [1440, 100], 'brain-tool-reply.js'),
@@ -429,7 +429,7 @@ const voiceRules = secureVapi(wf('Zella - Voice Rules', [
   }, { webhookId: id('webhook:zella-vapi-voice'), credentials: GATEWAY_CRED }),
   codeAll('Plan', [240, 200], 'voice-tool-plan.js'),
   ifBool('Is a voice tool', [480, 200], '={{ !!$json.record }}'),
-  rpcNode('Find business', [720, 100], 'zella_business_for_number', '={{ JSON.stringify($json.lookup) }}', { full: true }),
+  rpcNode('Find business', [720, 100], 'zella_business_for_number', '={{ JSON.stringify({ ...$json.lookup, p_fallback: null }) }}', { full: true }),
   code('Use business', [960, 100], 'business-apply.js'),
   rpcNode('Run voice rule', [1200, 100], '', '={{ JSON.stringify($json.record) }}', { full: true, urlExpr: `={{ '${SUPABASE}/rest/v1/rpc/' + $json.rpc }}` }),
   code('Build reply', [1440, 100], 'voice-tool-reply.js'),
@@ -499,34 +499,49 @@ const emailEvents = wf('Zella - Email Events', [
   'Build reply': { main: [[link('Reply')]] },
 });
 
+// Require configured signing secrets and a valid URL key before any Resend work.
+const secureResend = (workflow, hook, endpoint) => {
+  const next = workflow.connections[hook].main[0];
+  workflow.nodes.push(
+    code('Read Resend auth', [120, -300], 'resend-auth-read.js', { ENDPOINT: endpoint }),
+    rpcNode('Check Resend auth', [360, -300], 'zella_n8n_resend_auth', '={{ JSON.stringify($json.record) }}', { full: true }),
+    ifBool('Resend authenticated', [600, -300], "={{ $json.statusCode === 200 && $json.body === 'ok' }}"),
+    node('Authenticated request', 'n8n-nodes-base.code', 2, [840, -300], { mode: 'runOnceForEachItem', jsCode: `return { json: $('${hook}').item.json, binary: $('${hook}').item.binary };` }),
+    node('Refuse Resend', 'n8n-nodes-base.respondToWebhook', 1.1, [840, -100], { respondWith: 'json', responseBody: '{"error":"Unauthorized"}', options: { responseCode: 401 } }),
+  );
+  workflow.connections[hook] = { main: [[link('Read Resend auth')]] };
+  workflow.connections['Read Resend auth'] = { main: [[link('Check Resend auth')]] };
+  workflow.connections['Check Resend auth'] = { main: [[link('Resend authenticated')]] };
+  workflow.connections['Resend authenticated'] = { main: [[link('Authenticated request')], [link('Refuse Resend')]] };
+  workflow.connections['Authenticated request'] = { main: [next] };
+};
+secureResend(inboundEmail, 'Resend inbound', 'inbound');
+secureResend(emailEvents, 'Resend event', 'events');
+
 // Calendar Sync: copies bookings to the business's Google Calendar or Outlook calendar and reads its busy times back into Zella.
 // Started by the dispatcher only when a booking change or a refresh is waiting (and calendar_sync_live is true).
-// The two Google token boxes ship with NO credential; the Google client id and secret are pasted by hand at go-live.
+// Select the provider Custom Auth credential on both token boxes; client credentials stay in n8n credentials.
 const googleToken = (name, pos, tokenExpr) => node(name, 'n8n-nodes-base.httpRequest', 4.2, pos, {
-  method: 'POST', url: 'https://oauth2.googleapis.com/token', authentication: 'none',
+  method: 'POST', url: 'https://oauth2.googleapis.com/token', authentication: 'genericCredentialType', genericAuthType: 'httpCustomAuth',
   sendBody: true, contentType: 'form-urlencoded',
   bodyParameters: { parameters: [
     { name: 'grant_type', value: 'refresh_token' },
     { name: 'refresh_token', value: tokenExpr },
-    { name: 'client_id', value: 'PASTE_GOOGLE_CLIENT_ID' },
-    { name: 'client_secret', value: 'PASTE_GOOGLE_CLIENT_SECRET' },
   ] },
   options: { response: { response: { fullResponse: true, neverError: true, responseFormat: 'json' } } },
-});
+}, { credentials: { httpCustomAuth: { id: '', name: 'Zella Google calendar client' } } });
 // Outlook / Microsoft 365 through Microsoft Graph: the same flow with Microsoft's token box (client id and secret of the
-// Zella app registration in Microsoft Entra ID, pasted by hand at go-live like Google's).
+// Zella app registration in Microsoft Entra ID, stored in a Custom Auth credential like Google's).
 const microsoftToken = (name, pos, tokenExpr) => node(name, 'n8n-nodes-base.httpRequest', 4.2, pos, {
-  method: 'POST', url: 'https://login.microsoftonline.com/common/oauth2/v2.0/token', authentication: 'none',
+  method: 'POST', url: 'https://login.microsoftonline.com/common/oauth2/v2.0/token', authentication: 'genericCredentialType', genericAuthType: 'httpCustomAuth',
   sendBody: true, contentType: 'form-urlencoded',
   bodyParameters: { parameters: [
     { name: 'grant_type', value: 'refresh_token' },
     { name: 'refresh_token', value: tokenExpr },
-    { name: 'client_id', value: 'PASTE_MICROSOFT_CLIENT_ID' },
-    { name: 'client_secret', value: 'PASTE_MICROSOFT_CLIENT_SECRET' },
     { name: 'scope', value: 'offline_access Calendars.ReadWrite' },
   ] },
   options: { response: { response: { fullResponse: true, neverError: true, responseFormat: 'json' } } },
-});
+}, { credentials: { httpCustomAuth: { id: '', name: 'Zella Microsoft calendar client' } } });
 const googleAuthHeader = { sendHeaders: true, headerParameters: { parameters: [{ name: 'Authorization', value: '=Bearer {{ $json.body.access_token }}' }] } };
 const calendarSync = wf('Zella - Calendar Sync', [
   runTrigger('calendar-sync'),
@@ -593,7 +608,7 @@ const calendarSync = wf('Zella - Calendar Sync', [
   'Map busy': { main: [[link('Has events')]] },
   'Has events': { main: [[link('Replace busy times')], [link('Has error')]] },
   'Has error': { main: [[link('Mark error')], []] },
-});
+}, { saveDataSuccessExecution: 'none', saveDataErrorExecution: 'none', saveManualExecutions: false, saveExecutionProgress: false });
 
 
 // ------------------------------------------------------------------ Connection Tests
@@ -697,7 +712,7 @@ const metaLeads = wf('Zella - Meta Leads', [
   'Fetch lead': { main: [[link('Read result')]] },
   'Read result': { main: [[link('Can save')]] },
   'Can save': { main: [[link('Save lead')], [link('Record failure')]] },
-});
+}, { saveDataSuccessExecution: 'none' });
 
 const metaSender = wf('Zella - Meta Sender', [
   runTrigger('meta-sender'),
@@ -729,7 +744,7 @@ const metaSender = wf('Zella - Meta Sender', [
   'Can send': { main: [[link('Send reply')], [link('Read result')]] },
   'Send reply': { main: [[link('Read result')]] },
   'Read result': { main: [[link('Record send')]] },
-});
+}, { saveDataSuccessExecution: 'none' });
 
 const metaHealth = wf('Zella - Meta Health', [
   runTrigger('meta-health'),
@@ -762,7 +777,7 @@ const metaHealth = wf('Zella - Meta Health', [
   'Get templates': { main: [[link('Map templates')]] },
   'Map templates': { main: [[link('Has templates')]] },
   'Has templates': { main: [[link('Record templates')], []] },
-});
+}, { saveDataSuccessExecution: 'none' });
 
 // Receptionist Brain: the webhook for every tool the phone assistant uses during a call (14 tools behind zella_ai_tool).
 // One item per tool call, so several tool calls in one request each get their own answer, matched by toolCallId.
@@ -773,7 +788,7 @@ const brainTools = secureVapi(wf('Zella - Receptionist Brain Tools', [
   }, { webhookId: '9439095a-ccca-43a3-bc4b-5a5c07862415', credentials: GATEWAY_CRED }),
   codeAll('Plan', [240, 200], 'brain-tool-plan.js'),
   ifBool('Is a brain tool', [480, 200], '={{ !!$json.record }}'),
-  rpcNode('Find business', [720, 100], 'zella_business_for_number', '={{ JSON.stringify($json.lookup) }}', { full: true }),
+  rpcNode('Find business', [720, 100], 'zella_business_for_number', '={{ JSON.stringify({ ...$json.lookup, p_fallback: null }) }}', { full: true }),
   code('Use business', [960, 100], 'business-apply.js'),
   rpcNode('Run tool', [1200, 100], 'zella_ai_tool', '={{ JSON.stringify($json.record) }}', { full: true }),
   code('Build reply', [1440, 100], 'brain-tool-reply.js'),

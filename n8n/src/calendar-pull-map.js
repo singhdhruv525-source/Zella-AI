@@ -12,6 +12,7 @@ const status = Number($json.statusCode);
 const b = $json.body && typeof $json.body === 'object' ? $json.body : {};
 const list = outlook ? b.value : b.items;
 if (!(status >= 200 && status < 300) || !Array.isArray(list)) return fail(name + '_' + (status || 'no_answer'), status === 404);
+if (b.nextPageToken || b['@odata.nextLink']) return fail(name + '_truncated', false);
 const events = [];
 for (const e of list) {
   if (!e || typeof e.id !== 'string') continue;

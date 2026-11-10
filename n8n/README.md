@@ -1,6 +1,14 @@
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:8e8242b6f3deefe81f83a08888435db4b28ec9cab14bd4f1531deaef378376c9 -->
+
+<!-- coderabbit-ai-generated-section:v1:3967c87fa390583b98fe78b9ce0a0ab250ef69ae536ec52549f087f4e2f4512a -->
+
+<!-- coderabbit-ai-generated-section:v1:797ab3303e0febfe676bedd880bfd4a44636cb43b4fff7a3935fd1a21526bff1 -->
+
 # Zella n8n workflows
 
-Seven workflows. All are shared by every business and every industry. Nothing business-specific lives in n8n: the database holds the rules, n8n moves the work.
+All workflows are shared by every business and every industry. Nothing business-specific lives in n8n: the database holds the rules, n8n moves the work.
 
 **Nothing in n8n runs on a timer.** n8n Cloud's Starter plan allows 2,500 runs a month, and a workflow that wakes every minute uses about 43,000. So a Supabase job (`zella_dispatch_n8n`, see "The dispatcher" below) is called straight away whenever something urgent is saved (a new event, follow-up, alert or reminder), and once a minute as a safety net for work that becomes due later and calls the matching workflow only then. The timed database jobs run inside Supabase too.
 
@@ -137,11 +145,13 @@ Run `sql/zella_owner_emails.sql` after `zella_email_sender.sql`.
 
 ## Setup (once)
 
+Apply `sql/zella_n8n_webhook_auth.sql` after `sql/zella_resend_signature.sql` and configure both Resend signing secrets and proxy rate limits as described in [GO-LIVE.md](GO-LIVE.md). Missing or invalid authentication returns 401 before inbound email is fetched.
+
 1. In n8n, create two credentials:
    - **Zella Supabase service role**: type *Custom Auth*. JSON: `{"headers": {"apikey": "<service role key>", "Authorization": "Bearer <service role key>"}}`. Use the service role key from Supabase, Settings, API. It stays in n8n only. Never put it in the website or in a workflow file.
    - **Zella gateway secret**: type *Header Auth*. Name `X-Zella-Secret`, value a long random string. Every system that posts events must send this header.
-2. Import all seven files (Workflows, Import from file). Open each node that shows a missing credential and select the credential above. The six worker workflows each start from a protected webhook ("Run now") that uses the **Zella gateway secret** credential.
-3. Publish all seven (they import as inactive). Nothing runs until the dispatcher calls it.
+2. Import the generated workflow files (Workflows, Import from file). Open each node that shows a missing credential and select the credential above. The worker workflows each start from a protected webhook ("Run now") that uses the **Zella gateway secret** credential.
+3. Publish the imported workflows (they import as inactive). Nothing runs until the dispatcher calls it.
 4. In Supabase, run `sql/zella_dispatcher.sql` and store the secret (see "The dispatcher").
 
 ## Sending an event
@@ -171,7 +181,7 @@ Replies: `200 {ok, id, duplicate}`, `400` bad request, `401/403` wrong secret, `
 
 ## Tests
 
-`node n8n/test.mjs` runs 220 checks: the exact Code-node logic that ships, plus structure checks on all seven files (connections, node references, no pasted keys).
+`node n8n/test.mjs` checks: the exact Code-node logic that ships, plus structure checks on the generated workflow files (connections, node references, no pasted keys).
 
 **Not verified:** the files have not been imported into a running n8n. The workspace could not install n8n. Import them into your n8n and report anything that does not open cleanly. Node versions used: Webhook 2, Code 2, HTTP Request 4.2, IF 2, Schedule Trigger 1.2, Respond to Webhook 1.1.
 
@@ -195,10 +205,10 @@ Run `sql/zella_knowledge_automation.sql` (needs `zella_knowledge.sql`). Import `
 Run the third section of `sql/zella_knowledge_automation.sql` (it is in the same file). Import `workflows/zella-assistant-tools.json` (webhook `/webhook/zella/vapi-tools`, same `X-Zella-Secret`). It runs only when the phone assistant calls it during a call. Several tool calls in one request each get their own answer.
 
 - In Vapi, add a **server tool** named `report_unanswered_question` with one text parameter `question`, pointing at that webhook. Tell the assistant to use it when it does not know an answer, and then to say the team will get back to the caller.
-- The workflow logs the question for the owner (`zella_report_unanswered`). The business comes from the call when Zella already knows the call, otherwise from `business_id` in the call's metadata or assistant variables. A call with no business is rejected. At most 5 questions per call; the same question is one review item that counts up.
+- The workflow logs the question for the owner (`zella_report_unanswered`). The business comes from the call when Zella already knows the call, otherwise from a registered called number. A call with no business is rejected. At most 5 questions per call; the same question is one review item that counts up.
 - It always answers Vapi with the same short line, so the assistant keeps talking naturally whether or not the question could be saved.
 - The Knowledge workflow then drafts an answer (when `knowledge_ai_live` is on), and the owner approves it on the Knowledge page.
-- **Still needed for inbound calls:** Zella must know which business a call is for (the phone number to business link is not built yet). Until then, set `business_id` as an assistant variable per business.
+- **Required for inbound calls:** register the called number with `zella_register_phone_number` so the workflow can establish the business. An assistant variable alone does not establish an association.
 
 ## Appointment booking by the phone assistant
 
@@ -210,7 +220,7 @@ Run `sql/zella_ai_booking.sql` (needs `zella_run_all.sql`). Import `workflows/ze
 - **The database decides everything** (`zella_ai_booking`): the calendar's working hours, breaks, time off and existing bookings are respected. Times are up to 5 openings, in the business's own time zone.
 - If the time was just taken, the caller is offered other times. A booking is only confirmed after the calendar accepts it. If Zella cannot tell who the caller is for sure, or anything unexpected happens, a **request** is saved for staff and the assistant is told not to say it is booked.
 - The same caller asking twice for the same time is booked once. Reminders and the confirmation message come from the normal booking rules.
-- The business comes from the call (when Zella knows it) or from `business_id` in the call metadata or assistant variables, the same as the "couldn't answer" tool.
+- The business comes from an existing call or a registered called number. A `business_id` in call settings alone is refused by the workflow lookup.
 - **Changing an existing booking by phone** (same workflow, three more Vapi server tools): `find_my_appointments`, `reschedule_appointment` (`appointment_id` from find, `start` from check_availability) and `cancel_appointment` (`appointment_id`). The caller is recognised **only by the number they are calling from** (taken from Vapi's call, never from what is said). Only an exact match to one customer can see or change that customer's own upcoming bookings. If the caller cannot be matched, nothing is shown or changed and a callback is created for staff. A move that fails leaves the original booking unchanged and offers other times. Cancelling frees the time (waitlist offers and staff notices follow the normal rules).
 - Not built: choosing a specific staff member, and services with different lengths per service.
 
@@ -234,14 +244,14 @@ Run `sql/zella_engine_health.sql`, then `sql/zella_dispatcher.sql` (it adds the 
 Workflow `Zella - Calendar Sync` (webhook `zella/run/calendar-sync`). Zella's database stays the source of truth for free times and bookings; Google is a copy plus a source of busy times.
 - **Booking to Google:** when a confirmed booking is created or changed (or cancelled), a trigger puts a row in `calendar_sync_queue` (only for businesses with an active connection). The workflow creates, updates or deletes the Google event and saves its id on the appointment. Failures retry up to 5 times (5, 10, 15 ... minutes), then raise a platform alert.
 - **Google to Zella:** the workflow lists the next 60 days of events and replaces the imported `blocked_times` (cancelled, "free" and Zella-made events are ignored; all-day events block the day in UTC). Refreshed when a connection is made, and hourly by `zella_schedule_calendar_pulls`. A lost-access error pauses the link and alerts.
-- Nothing runs until `calendar_sync_live` is true. The refresh token is kept in Vault (`zella_gcal_<business id>`); it passes through the workflow run data when talking to Google. The Google client id/secret are pasted on the two token boxes by hand.
-- Known limits: first 250 events only; if an owner deletes a Zella event in Google, later edits to it fail (retry then alert); one calendar per business.
+- Nothing runs until `calendar_sync_live` is true. The refresh token is kept in Vault (`zella_gcal_<business id>`); it passes through the workflow run data when talking to Google. Configure the Google and Microsoft Custom Auth credentials described in GO-LIVE.md on both token boxes for each provider. Refresh tokens pass through execution data; Calendar Sync disables all execution-data saving.
+- Known limits: paginated responses are rejected and retried without replacing stored busy times; if an owner deletes a Zella event in Google, later edits to it fail (retry then alert); one calendar per business.
 
 ## Phone number to business link
 Table `business_phone_numbers` (number in +1... form, optional Vapi phone number id, active or paused). `zella_register_phone_number(business, number, vapi_id, label)` adds one (service role only; a number cannot belong to two businesses). In the two Vapi tool workflows (Assistant Tools and Appointment Booking) a "Find business" step calls `zella_business_for_number` with the called number and Vapi number id before the database call:
 - A registered, active number always wins over anything in the call settings.
 - A paused number, or one belonging to a stopped business, never falls back (the tool then refuses to act).
-- An unregistered number uses the business id from the call settings only if that business is active.
+- Workflow lookups pass no fallback business ID: an unregistered number requires an existing trusted call. Active status alone does not establish an association.
 Businesses can read their own numbers; nobody can write from the browser.
 
 ## Work assignment (leads and callbacks)
@@ -403,7 +413,7 @@ Owners are told when the account is paused, switched back on or cancelled. A can
 Changes to team roles, the AI agent, automations, platform settings and suspension/cancellation are written to `audit_logs` as `privileged_*` (only which fields changed - never values - except roles/status). Daily `zella_run_permission_check()` raises an urgent platform alert if a signed-out visitor can call a function that is not on the short public list, or a table policy lets everyone in. Tenant isolation is checked daily by `zella_run_tenant_check` (already built).
 
 ## Staff invitations and approvals (checklist 184, 162) - `sql/zella_staff_invites_approvals.sql`
-Owners/admins call `zella_invite_staff(business, email, name, role)` (only owners can invite admins); the person signs up with that email and the app calls `zella_accept_staff_invitations()` after sign-in, which adds them and tells the inviter. Cancel/resend with `zella_cancel_invitation` / `zella_resend_invitation`. Invitation reminders reuse the existing `zella_check_invitations` path (the Owner Emails workflow wording says owner - adjust the template for staff). Approvals: hourly `zella_sweep_approvals()` expires old requests and nudges approvers after a day; the requester is told the decision; `zella_pending_approvals(business)` feeds the Approvals screen.
+Owners/admins call `zella_invite_staff(business, email, name, role)` (only owners can invite admins); the person signs up with that email and the app calls `zella_accept_staff_invitations()` after sign-in, which adds them and tells the inviter. Cancel/resend with `zella_cancel_invitation` / `zella_resend_invitation`. `zella_check_invitations` lists due reminders but does not send them. Invitation reminder email delivery still needs the sign-up link, domain and a sender; it is not handled by Owner Emails. Approvals: hourly `zella_sweep_approvals()` expires old requests and nudges approvers after a day; the requester is told the decision; `zella_pending_approvals(business)` feeds the Approvals screen.
 
 ## Industry automations (checklist 196-254, 235) - `sql/zella_industry_engine.sql` + `sql/zella_industry_presets.sql`
 One engine, many industries. A rule is a row in `automations` with one of these `trigger_type`s: `record_status_action` (when a record is created in / moves to a status), `record_due_reminder` (before/after the record's due date), `record_stale` (stuck in a status), `appointment_followup` (N days after a completed visit), `seasonal_reminder` (once per season), `service_due`. Each rule can queue a customer message (sent only when sms_live/email_live and consent allow), create a staff task, and/or alert the owners. Hourly `zella_run_industry_timers()` handles the timed ones (each fires once per record; `industry_automation_runs` remembers). When a business's industry is set, `zella_apply_industry_automations` copies that industry's presets (68 rules across 18 industries, built on the record types in `industry_crm_presets`); owners can pause/edit them or add their own with `zella_save_industry_rule` (blocks prices and promotional wording). For hospitality, set a stay's `due_at` to the arrival date, then to the checkout date at check-in. For emergency intake (electrical, plumbing), a job created with `data.priority = 'emergency'` alerts the owners and creates an urgent task.
@@ -460,3 +470,6 @@ Flow: Run now -> Claim work (`zella_spam_claim_work`) -> Evaluate severity -> lo
   with no credential (add `Authorization: Bearer <Vapi private key>` by hand).
 - **Voice Rules** no longer hands the transfer number to the model (`use_transfer_tool` instead).
 - Tests: `node n8n/test.mjs`, plus `tests/voice-reliability/run_all.sh` (staging database, before/after).
+
+
+<!-- /coderabbit-ai-generated:v1 -->
