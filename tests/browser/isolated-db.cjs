@@ -7,7 +7,8 @@ const PSQL_ENV = Object.fromEntries(Object.entries(process.env).filter(([k]) => 
 // Runs before any other SQL.
 function requireIsolated(host, port, db) {
   const WANT = "/var/lib/postgresql/zella-sec/data";
-  if (!host.startsWith("/") || host.includes(",")) throw new Error(`REFUSED: ${host} is not a local socket directory`);
+  if (!/^\/[A-Za-z0-9/._-]+(?![\s\S])/.test(host)) throw new Error(`REFUSED: ${host} is not a local socket directory`);
+  if (!/^[0-9]{1,5}(?![\s\S])/.test(port)) throw new Error(`REFUSED: '${port}' is not a port number`);
   if (!/^z[a-z0-9_]{1,40}$/.test(db)) throw new Error(`REFUSED: '${db}' is not a test database name (z..., lower case)`);
   let data = "";
   try { data = execFileSync("psql", ["-h", host, "-p", port, "-U", "postgres", "-d", "postgres", "-AtqX", "-c", "select case when inet_server_addr() is null then current_setting('data_directory') end"], { stdio: ["ignore", "pipe", "pipe"], env: PSQL_ENV }).toString().trim(); }

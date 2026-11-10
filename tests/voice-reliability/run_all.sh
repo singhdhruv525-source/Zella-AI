@@ -6,6 +6,7 @@ set -u
 cd "$(dirname "$0")"; HERE=$(pwd); REPO=$(cd ../.. && pwd)
 export ZPSQL=${ZPSQL:-"psql -q -At -v ON_ERROR_STOP=1 -h /var/tmp/zella-pg -p 54329 -U postgres"}
 DENO=${DENO:-deno}
+node --test transfer-privacy.test.cjs || exit 1
 FAILS=0; fail() { echo "FAIL $*"; FAILS=$((FAILS + 1)); }; pass() { echo "PASS $*"; }
 run() { su nobody -s /bin/bash -c "$ZPSQL -d $1"; }
 q() { echo "$2" | run "$1"; }

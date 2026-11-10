@@ -44,7 +44,8 @@ begin
   assert r ->> 'message' = 'Please hold while I connect you.';
   raise notice 'PASS spoken text is "please hold" (an attempt), never "you are connected"';
 end $$;
--- The transfer branch returns an internal destination; the edge function excludes it from the model result.
+-- The SQL branch returns an internal destination. Model privacy is checked against the
+-- edge handler with a stubbed backend in transfer-privacy.test.cjs.
 do $$
 declare r jsonb;
 begin
@@ -52,10 +53,5 @@ begin
   if r is null or r ->> 'status' is distinct from 'transfer' then
     raise exception 'transfer branch was not reached: %', r;
   end if;
-  r := r - 'transfer_number';
-  if r ? 'number'
-     or regexp_replace(r::text, '[^0-9]', '', 'g') ~ '555010(1111|2222|3333)' then
-    raise exception 'transfer result exposes a destination or is null: %', r;
-  end if;
-  raise notice 'PASS model result does not expose transfer numbers';
+  raise notice 'PASS SQL transfer branch reached';
 end $$;

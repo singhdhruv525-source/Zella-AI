@@ -16,10 +16,18 @@ test('isolated guard rejects unsafe targets and strips libpq redirects', () => {
   for (const [host, db] of [['remote', 'ztest'], ['/socket,remote', 'ztest'], ['/socket,/other', 'ztest'], ['/socket,', 'ztest'], ['/socket', 'production'], ['/socket', 'ztest?host=remote']]) {
     assert.throws(() => requireIsolated(host, '55433', db), /REFUSED/);
   }
+  for (const host of ['/', '/sock -h prod', '/sock\\name', '/sock?host=remote', '/sock\n', '/sock@remote', '/sock:5199']) {
+    assert.throws(() => requireIsolated(host, '55433', 'ztest'), /REFUSED/);
+  }
+  for (const port of ['', '123456', '-1', '54.3', '55433 -h prod', '55433,5432', '55433\n']) {
+    assert.throws(() => requireIsolated('/socket', port, 'ztest'), /REFUSED/);
+  }
   assert.equal(calls.length, 0);
   for (result of ['', '/production/data']) assert.throws(() => requireIsolated('/socket', '55433', 'ztest'), /REFUSED/);
   result = '/var/lib/postgresql/zella-sec/data';
-  requireIsolated('/socket', '55433', 'ztest');
+  for (const port of ['1', '00000', '55433', '99999']) {
+    requireIsolated('/var/lib/postgresql/zella-sec_1.0', port, 'ztest');
+  }
   assert.equal(calls.at(-1)[2].env, PSQL_ENV);
 });
 
@@ -33,11 +41,12 @@ test('local backend guards before binding and limits CORS to trusted origins', a
     requireIsolated: () => guarded++, PSQL_ENV: {}, crypto: require('node:crypto'),
   });
   assert.deepEqual(binds.map((args) => args[1]).sort(), ['127.0.0.1', '::1']);
-  for (const origin of ['http://localhost:5199', 'http://127.0.0.1:5199', 'http://[::1]:5199', 'https://evil.test', 'null', undefined]) {
+  const trustedOrigins = ['http://localhost:5199', 'http://127.0.0.1:5199', 'http://[::1]:5199'];
+  for (const origin of [...trustedOrigins, 'https://evil.test:5199', 'https://evil.test', 'null', undefined]) {
     let headers;
     await handler({ method: 'OPTIONS', headers: { origin } }, { writeHead: (_, h) => { headers = h; }, end() {} });
-    assert.equal(headers['access-control-allow-origin'], origin?.includes(':5199') ? origin : undefined);
-    if (!origin?.includes(':5199')) assert.equal(headers['access-control-allow-credentials'], undefined);
+    assert.equal(headers['access-control-allow-origin'], trustedOrigins.includes(origin) ? origin : undefined);
+    assert.equal(headers['access-control-allow-credentials'], trustedOrigins.includes(origin) ? 'true' : undefined);
   }
 });
 
