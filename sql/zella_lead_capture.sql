@@ -108,7 +108,7 @@ begin
     else
       update public.customers set
           metadata = jsonb_set(coalesce(metadata, '{}'::jsonb), '{attribution,last_touch}', v_src || jsonb_build_object('channel', v_channel, 'at', now()), true),
-          priority = case when v_urgent then 'high' else priority end, updated_at = now()
+          updated_at = now()
         where id = v_cust;
       -- Same person, same kind, last 10 minutes: count it once.
       if exists (select 1 from public.lead_submissions s where s.customer_id = v_cust and s.kind = v_kind and s.status = 'accepted' and s.created_at > now() - interval '10 minutes') then

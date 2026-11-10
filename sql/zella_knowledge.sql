@@ -88,12 +88,14 @@ begin
       new.status := case when new.status = 'draft' then 'draft' else 'processing' end;
       new.version := 1; new.error := null; new.ready_at := null;
       new.created_by := auth.uid();
+      new.approved_by := null; new.approved_at := null;
       if new.status = 'processing' then new.approved_by := auth.uid(); new.approved_at := now(); end if;
     end if;
     return new;
   end if;
 
   if not v_service then
+    new.approved_by := old.approved_by; new.approved_at := old.approved_at;
     -- members may change content, archive, or send a draft for processing; nothing else
     if new.status not in ('draft', 'processing', 'archived') then
       new.status := old.status;

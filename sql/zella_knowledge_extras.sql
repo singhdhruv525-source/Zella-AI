@@ -23,6 +23,8 @@ begin
   end if;
 end $$;
 
+alter table public.knowledge_items add column if not exists conflicts_with uuid references public.knowledge_items(id) on delete set null;
+
 -- 3. Conflicting answers (161). Daily. Flags the newer one; the owner decides which is right.
 create or replace function public.zella_detect_knowledge_conflicts()
 returns integer language plpgsql security definer set search_path = public as $$

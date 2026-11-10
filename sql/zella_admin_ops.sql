@@ -119,7 +119,7 @@ begin
         'calls_30d', (select count(*) from public.calls c where c.business_id = f.business_id
                        and (c.to_number = f.e164 or c.from_number = f.e164) and c.created_at > now() - interval '30 days'),
         'last_call_at', (select max(c.created_at) from public.calls c where c.business_id = f.business_id and (c.to_number = f.e164 or c.from_number = f.e164)))
-        order by f.created_at desc) from (select * from f order by created_at desc limit v_lim offset greatest(coalesce(p_offset, 0), 0)) f), '[]'::jsonb)));
+        order by f.created_at desc, f.id) from (select * from f order by created_at desc, id limit v_lim offset greatest(coalesce(p_offset, 0), 0)) f), '[]'::jsonb)));
 end $$;
 
 -- Releasing a number from Zella: only a paused number, with a typed reason. The number stays with the carrier
@@ -167,8 +167,8 @@ begin
         'agent', (select a.name from public.ai_agents a where a.business_id = f.business_id and a.agent_type = 'receptionist' order by a.is_default desc limit 1),
         'ai_handled', f.ai_handled, 'duration_seconds', f.duration_seconds, 'outcome', f.outcome, 'transfer_status', f.transfer_status,
         'has_recording', f.recording_url is not null, 'has_transcript', f.transcript is not null, 'failure_reason', f.failure_reason,
-        'needs_human', f.needs_human) order by f.created_at desc)
-      from (select * from f order by created_at desc limit v_lim offset greatest(coalesce(p_offset, 0), 0)) f
+        'needs_human', f.needs_human) order by f.created_at desc, f.id)
+      from (select * from f order by created_at desc, id limit v_lim offset greatest(coalesce(p_offset, 0), 0)) f
       join public.businesses b on b.id = f.business_id), '[]'::jsonb)));
 end $$;
 
@@ -234,7 +234,7 @@ returns jsonb language plpgsql security definer set search_path = public as $$
 declare v_reason text := public.zella_admin_reason(p_reason); v_cfg uuid; v_old jsonb; v_new jsonb; v_num text; v_fb text;
 begin
   perform public.zella_admin_require('telephony.manage');
-  if jsonb_typeof(p_rules) <> 'object' then raise exception 'INVALID_RULES'; end if;
+  if jsonb_typeof(p_rules) is distinct from 'object' then raise exception 'INVALID_RULES'; end if;
   select cfg.id, coalesce(cfg.escalation_rules, '{}'::jsonb) into v_cfg, v_old
     from public.ai_agents ag join public.ai_agent_configs cfg on cfg.agent_id = ag.id
    where ag.business_id = p_business_id and ag.is_default limit 1;
@@ -361,8 +361,8 @@ begin
           'id', g.id, 'created_at', g.created_at, 'business_id', g.business_id, 'business_name', b.name, 'direction', g.direction, 'status', g.status,
           'to', public.zella_admin_mask(g.to_number), 'from', public.zella_admin_mask(g.from_number), 'kind', g.kind,
           'provider_id', g.external_message_id, 'conversation_id', g.conversation_id, 'sent_at', g.sent_at, 'delivered_at', g.delivered_at,
-          'error', left(coalesce(g.metadata ->> 'error', g.metadata ->> 'failure_reason'), 160)) order by g.created_at desc)
-        from (select * from g order by created_at desc limit v_lim offset greatest(coalesce(p_offset, 0), 0)) g join public.businesses b on b.id = g.business_id), '[]'::jsonb)));
+          'error', left(coalesce(g.metadata ->> 'error', g.metadata ->> 'failure_reason'), 160)) order by g.created_at desc, g.id)
+        from (select * from g order by created_at desc, id limit v_lim offset greatest(coalesce(p_offset, 0), 0)) g join public.businesses b on b.id = g.business_id), '[]'::jsonb)));
   elsif p_channel = 'email' then
     return (with f as (
         select m.*, case when m.metadata ? 'reminder_id' then 'reminder' when m.metadata ? 'task_id' then 'follow_up'
@@ -378,8 +378,8 @@ begin
           'to', public.zella_admin_mask(g.to_email), 'from', g.from_email, 'subject', left(g.subject, 120), 'kind', g.kind,
           'provider_id', g.external_message_id, 'sent_at', g.sent_at, 'delivered_at', g.delivered_at,
           'last_event', (select ev.type from public.email_events ev where ev.email_message_id = g.id order by ev.created_at desc limit 1),
-          'error', left(coalesce(g.metadata ->> 'error', g.metadata ->> 'failure_reason'), 160)) order by g.created_at desc)
-        from (select * from g order by created_at desc limit v_lim offset greatest(coalesce(p_offset, 0), 0)) g join public.businesses b on b.id = g.business_id), '[]'::jsonb)));
+          'error', left(coalesce(g.metadata ->> 'error', g.metadata ->> 'failure_reason'), 160)) order by g.created_at desc, g.id)
+        from (select * from g order by created_at desc, id limit v_lim offset greatest(coalesce(p_offset, 0), 0)) g join public.businesses b on b.id = g.business_id), '[]'::jsonb)));
   end if;
   raise exception 'INVALID_CHANNEL';
 end $$;
@@ -443,7 +443,7 @@ begin
     out := jsonb_build_object('message', jsonb_build_object('id', e.id, 'business_id', e.business_id, 'business_name', (select name from public.businesses where id = e.business_id),
         'direction', e.direction, 'status', e.status, 'to', public.zella_admin_mask(e.to_email), 'from', e.from_email, 'subject', e.subject,
         'provider_id', e.external_message_id, 'created_at', e.created_at, 'sent_at', e.sent_at, 'delivered_at', e.delivered_at, 'updated_at', e.updated_at,
-        'conversation_id', e.conversation_id, 'customer_id', e.customer_id, 'meta', e.metadata),
+        'conversation_id', e.conversation_id, 'customer_id', e.customer_id, 'meta', e.metadata - 'body' - 'text'),
       'events', coalesce((select jsonb_agg(jsonb_build_object('type', ev.type, 'at', ev.created_at, 'detail', ev.detail - 'to' - 'from' - 'email') order by ev.created_at)
                             from public.email_events ev where ev.email_message_id = e.id), '[]'::jsonb),
       'content', case when v_content then jsonb_build_object('body', e.body_text) end);
@@ -478,7 +478,7 @@ create or replace function public.zella_admin_template_variables(p_key text, p_c
 language sql stable security definer set search_path = public as $$
   select array(select distinct v from (
       select (regexp_matches(coalesce(t.body, '') || ' ' || coalesce(t.subject, ''), '\{\{\s*([a-z_]+)\s*\}\}', 'g'))[1] v
-        from public.message_templates t where t.key = p_key and t.channel = p_channel
+        from public.message_templates t where t.key = p_key and t.channel = p_channel and t.business_id is null
       union all select unnest(array['first_name', 'business'])) x order by 1);
 $$;
 
@@ -640,8 +640,8 @@ begin
           'runs', (select jsonb_build_object('total', count(*), 'failed', count(*) filter (where r.status = 'failed'), 'last_at', max(r.created_at),
                                              'last_status', (select r2.status from public.automation_runs r2 where r2.automation_id = f.id order by r2.created_at desc limit 1))
                      from public.automation_runs r where r.automation_id = f.id))
-          order by f.business_name, f.name)
-        from (select * from f order by business_name, name limit v_lim offset greatest(coalesce(p_offset, 0), 0)) f), '[]'::jsonb)));
+          order by f.business_name, f.name, f.id)
+        from (select * from f order by business_name, name, id limit v_lim offset greatest(coalesce(p_offset, 0), 0)) f), '[]'::jsonb)));
 end $$;
 
 -- The work an automation type puts in the queue: follow-ups and reminders for that business.
@@ -729,8 +729,8 @@ begin
         'kind', f.kind, 'id', f.id, 'name', f.name, 'business_id', f.business_id, 'business_name', b.name, 'status', f.status,
         'started_at', f.started_at, 'finished_at', f.finished_at, 'duration_seconds', round(extract(epoch from f.finished_at - f.started_at)::numeric, 1),
         'failed_step', case when f.status = 'failed' then f.failed_step end, 'error_category', f.error_category, 'error', f.error,
-        'attempts', f.attempts, 'needs_manual', f.needs_manual) order by f.started_at desc)
-      from (select * from f order by started_at desc limit v_lim offset greatest(coalesce(p_offset, 0), 0)) f left join public.businesses b on b.id = f.business_id), '[]'::jsonb)));
+        'attempts', f.attempts, 'needs_manual', f.needs_manual) order by f.started_at desc, f.id)
+      from (select * from f order by started_at desc, id limit v_lim offset greatest(coalesce(p_offset, 0), 0)) f left join public.businesses b on b.id = f.business_id), '[]'::jsonb)));
 end $$;
 
 -- Whether a failed run can be started again without repeating something that already happened.
