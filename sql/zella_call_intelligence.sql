@@ -37,7 +37,7 @@ create index if not exists call_insights_work_idx on public.call_insights (statu
 create index if not exists call_insights_business_idx on public.call_insights (business_id, created_at desc);
 alter table public.call_insights enable row level security;
 drop policy if exists call_insights_read on public.call_insights;
-create policy call_insights_read on public.call_insights for select to authenticated using (public.zella_is_member(business_id));
+create policy call_insights_read on public.call_insights for select to authenticated using (public.zella_can_read_call_content(business_id));
 revoke all on public.call_insights from anon;
 revoke insert, update, delete on public.call_insights from authenticated;
 
@@ -163,7 +163,7 @@ grant execute on function public.zella_fail_call_insight(uuid, text) to service_
 create or replace function public.zella_call_insights_list(p_business_id uuid, p_limit integer default 50)
 returns jsonb language plpgsql stable security definer set search_path = public as $$
 begin
-  if not public.zella_is_member(p_business_id) then raise exception 'NOT_ALLOWED'; end if;
+  if not public.zella_can_read_call_content(p_business_id) then raise exception 'NOT_ALLOWED'; end if;
   return coalesce((select jsonb_agg(jsonb_build_object('id', i.id, 'call_id', i.call_id, 'intent', i.intent, 'sentiment', i.sentiment, 'urgency', i.urgency, 'summary', i.summary,
                      'details', i.details, 'unresolved', i.unresolved, 'review_status', i.review_status, 'processed_at', i.processed_at) order by i.processed_at desc)
                      from (select * from public.call_insights where business_id = p_business_id and status = 'done' order by processed_at desc limit greatest(1, least(coalesce(p_limit, 50), 200))) i), '[]'::jsonb);

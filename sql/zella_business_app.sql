@@ -10,50 +10,34 @@
 
 -- Called after an invited owner sets their password (and on every sign-in;
 -- it does nothing if there is nothing to accept).
-create or replace function public.zella_accept_my_invitations()
-returns integer
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_user uuid := auth.uid();
-  v_count integer;
+create or replace function public.zella_accept_my_invitations() returns integer
+language plpgsql security definer set search_path = public as $$
+declare v_user uuid := auth.uid(); v_email text; v_count integer;
 begin
-  if v_user is null then
-    raise exception 'NOT_SIGNED_IN';
-  end if;
+  if v_user is null then raise exception 'NOT_SIGNED_IN'; end if;
+  if not public.zella_session_proved_email() then return 0; end if;   -- reported as needs_email_link by _v2
+  select lower(u.email) into v_email from auth.users u where u.id = v_user;
 
   with activated as (
-    update business_members m
-    set status = 'active'
-    from businesses b
-    where m.business_id = b.id
-      and m.user_id = v_user
-      and m.status = 'invited'
-      and b.cancelled_at is null
-    returning m.business_id
-  ),
+    update business_members m set status = 'active'
+      from businesses b
+     where m.business_id = b.id and m.user_id = v_user and m.status = 'invited' and b.cancelled_at is null
+       -- if the seat came from an owner invitation, one must still be open, unexpired and for this address
+       and (not exists (select 1 from business_invitations i where i.business_id = m.business_id and i.auth_user_id = v_user and i.role = 'owner')
+            or exists (select 1 from business_invitations i where i.business_id = m.business_id and i.auth_user_id = v_user and i.role = 'owner'
+                         and i.status in ('pending', 'sent') and (i.expires_at is null or i.expires_at > now()) and lower(i.email) = v_email))
+    returning m.business_id),
   accepted as (
-    update business_invitations i
-    set status = 'accepted', accepted_at = now(), updated_at = now()
-    where i.auth_user_id = v_user
-      and i.status in ('pending', 'sent')
-      and i.business_id in (select business_id from activated)
-    returning i.business_id, i.email
-  ),
+    update business_invitations i set status = 'accepted', accepted_at = now(), updated_at = now()
+     where i.auth_user_id = v_user and i.status in ('pending', 'sent') and i.business_id in (select business_id from activated)
+    returning i.business_id, i.email),
   logged as (
     insert into audit_logs (user_id, action, business_id, entity_type, new_data)
-    select v_user, 'invitation.accepted', a.business_id, 'business_invitation',
-           jsonb_build_object('email', a.email)
-    from accepted a
-    returning 1
-  )
+    select v_user, 'invitation.accepted', a.business_id, 'business_invitation', jsonb_build_object('email', a.email) from accepted a
+    returning 1)
   select count(*) into v_count from activated;
-
   return v_count;
-end;
-$$;
+end $$;
 
 -- The signed-in user's businesses, with the terminology and modules the
 -- app needs. Terminology = industry defaults overlaid with the business's own words.

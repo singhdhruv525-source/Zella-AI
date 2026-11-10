@@ -172,7 +172,15 @@ begin
   if s.languages is not null then
     insert into business_languages select * from jsonb_populate_record(null::business_languages, s.languages);
   end if;
-  update ai_agent_configs set escalation_rules = s.escalation_rules, updated_at = now() where agent_id = v_agent;
+  if s.applied ? 'transfer_number' then
+    update ai_agent_configs
+       set escalation_rules = (coalesce(escalation_rules, '{}'::jsonb) - 'transfer_number' - 'transfer_number_source')
+             || (select coalesce(jsonb_object_agg(key, value), '{}'::jsonb)
+                   from jsonb_each(coalesce(s.escalation_rules, '{}'::jsonb))
+                  where key in ('transfer_number', 'transfer_number_source')),
+           updated_at = now()
+     where agent_id = v_agent;
+  end if;
   update knowledge_items set status = 'archived', updated_at = now()
    where business_id = s.business_id and source_key like 'setup:%' and source_page_id is null
      and not exists (select 1 from jsonb_array_elements(s.setup_knowledge) x where (x ->> 'id')::uuid = knowledge_items.id);

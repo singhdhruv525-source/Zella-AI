@@ -387,7 +387,7 @@ begin
     select p.sid, p.sname, p.hours, g.t as t
       from people p,
            generate_series(
-             date_trunc('hour', greatest(p_from, now())) + (ceil(extract(minute from greatest(p_from, now())) / extract(minute from v_step)) * v_step),
+             date_trunc('hour', greatest(p_from, now())) + (ceil(extract(epoch from (greatest(p_from, now()) - date_trunc('hour', greatest(p_from, now())))) / extract(epoch from v_step)) * v_step),
              p_to, v_step) as g(t)
   ),
   checked as (

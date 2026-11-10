@@ -13,8 +13,8 @@ create extension if not exists pg_cron with schema pg_catalog;
 create extension if not exists pg_net with schema extensions;
 
 -- 1. Settings and a little bookkeeping so a stuck item can never make n8n run every minute forever.
-insert into public.platform_settings (key, value) values ('n8n_base_url', '"https://dhruvsingh.app.n8n.cloud"'::jsonb) on conflict (key) do nothing;
-insert into public.platform_settings (key, value) values ('n8n_dispatch_enabled', 'true'::jsonb) on conflict (key) do nothing;
+insert into public.platform_settings (key, value) values ('n8n_base_url', '""'::jsonb) on conflict (key) do nothing;
+insert into public.platform_settings (key, value) values ('n8n_dispatch_enabled', 'false'::jsonb) on conflict (key) do nothing;
 
 create table if not exists public.n8n_dispatch_state (
   workflow text primary key,
@@ -69,7 +69,7 @@ create or replace function public.zella_dispatch_n8n()
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare
   v_base text := nullif(trim(public.zella_setting('n8n_base_url', '""'::jsonb) #>> '{}'), '');
-  v_on boolean := coalesce(public.zella_setting('n8n_dispatch_enabled', 'true'::jsonb) = 'true'::jsonb, true);
+  v_on boolean := coalesce(public.zella_setting('n8n_dispatch_enabled', 'false'::jsonb) = 'true'::jsonb, false);
   v_secret text; w record; n integer; st public.n8n_dispatch_state; v_same integer; v_res jsonb := '{}'::jsonb; v_spam integer := 0; v_reconcile integer := 0; v_reviews integer := 0;
   v_text_kinds text[] := array['no_show_follow_up', 'post_appointment_follow_up', 'quote_follow_up', 'lead_reactivation', 'callback_sms', 'welcome_new_customer', 'feedback_request', 'cancellation_confirmation', 'record_status_update', 'service_due', 'no_response_follow_up', 'reschedule_confirmation', 'booking_follow_up', 'service_completed', 'lead_follow_up', 'lead_final_follow_up', 'reply_confirmed', 'reply_reschedule', 'reply_help', 'waitlist_offer', 'cross_sell'];
   v_email_kinds text[] := array['no_show_follow_up', 'post_appointment_follow_up', 'quote_follow_up', 'lead_reactivation', 'callback_sms', 'welcome_new_customer', 'feedback_request', 'cancellation_confirmation', 'record_status_update', 'service_due', 'no_response_follow_up', 'reschedule_confirmation', 'booking_follow_up', 'service_completed', 'lead_follow_up', 'lead_final_follow_up', 'cross_sell'];
@@ -196,6 +196,7 @@ returns trigger language plpgsql security definer set search_path = public as $$
 declare st public.n8n_dispatch_state;
 begin
   if tg_table_name = 'followup_tasks' and new.due_at > now() + interval '5 seconds' then return new; end if;
+  if not pg_try_advisory_xact_lock(hashtextextended('zella_kick_dispatch', 0)) then return new; end if;
   insert into public.n8n_dispatch_state (workflow) values ('_kick') on conflict do nothing;
   update public.n8n_dispatch_state set last_triggered_at = now()
    where workflow = '_kick' and (last_triggered_at is null or last_triggered_at < now() - interval '2 seconds');

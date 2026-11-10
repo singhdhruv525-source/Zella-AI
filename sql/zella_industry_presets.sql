@@ -69,6 +69,6 @@ insert into public.industry_automation_presets (industry_key, name, checklist_no
 ('hospitality','Arrival reminder',252,'Remind guests the day before arrival.','record_due_reminder','{"type_key":"stays","rule":{"message":"Your stay begins tomorrow. Reply here with your expected arrival time.","delay_minutes":1},"before_hours":24,"statuses":["booked","pre_arrival"]}'::jsonb),
 ('hospitality','Checkout reminder',253,'Remind guests before checkout.','record_due_reminder','{"type_key":"stays","rule":{"message":"A reminder that checkout is today. Reply here if you need help with anything.","delay_minutes":1},"before_hours":3,"statuses":["checked_in"]}'::jsonb),
 ('hospitality','Stay feedback',254,'Ask guests how their stay was.','record_status_action','{"type_key":"stays","rules":[{"status":"checked_out","message":"Thank you for staying with us. How was your stay? Reply here with any feedback.","delay_minutes":180}]}'::jsonb)
-on conflict (industry_key, name) do update set checklist_no = excluded.checklist_no, description = excluded.description, trigger_type = excluded.trigger_type, trigger_config = excluded.trigger_config;
+on conflict (industry_key, name) do nothing;
 -- give every existing business its industry rules
 select public.zella_apply_industry_automations(id) from public.businesses;

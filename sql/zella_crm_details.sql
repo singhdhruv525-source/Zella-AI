@@ -66,18 +66,18 @@ create policy staff_members_member_select on public.staff_members
 drop policy if exists staff_members_member_insert on public.staff_members;
 create policy staff_members_member_insert on public.staff_members
   for insert to authenticated
-  with check (exists (select 1 from public.business_members m where m.business_id = staff_members.business_id and m.user_id = auth.uid() and m.status = 'active'));
+  with check (exists (select 1 from public.business_members m where m.business_id = staff_members.business_id and m.user_id = auth.uid() and m.status = 'active' and m.role <> 'viewer'));
 
 drop policy if exists staff_members_member_update on public.staff_members;
 create policy staff_members_member_update on public.staff_members
   for update to authenticated
-  using (exists (select 1 from public.business_members m where m.business_id = staff_members.business_id and m.user_id = auth.uid() and m.status = 'active'))
-  with check (exists (select 1 from public.business_members m where m.business_id = staff_members.business_id and m.user_id = auth.uid() and m.status = 'active'));
+  using (exists (select 1 from public.business_members m where m.business_id = staff_members.business_id and m.user_id = auth.uid() and m.status = 'active' and m.role <> 'viewer'))
+  with check (exists (select 1 from public.business_members m where m.business_id = staff_members.business_id and m.user_id = auth.uid() and m.status = 'active' and m.role <> 'viewer'));
 
 drop policy if exists staff_members_member_delete on public.staff_members;
 create policy staff_members_member_delete on public.staff_members
   for delete to authenticated
-  using (exists (select 1 from public.business_members m where m.business_id = staff_members.business_id and m.user_id = auth.uid() and m.status = 'active'));
+  using (exists (select 1 from public.business_members m where m.business_id = staff_members.business_id and m.user_id = auth.uid() and m.status = 'active' and m.role <> 'viewer'));
 
 grant select, insert, update, delete on public.staff_members to authenticated;
 
@@ -116,16 +116,16 @@ create policy blocked_times_member_select on public.blocked_times
 
 drop policy if exists blocked_times_member_insert on public.blocked_times;
 create policy blocked_times_member_insert on public.blocked_times
-  for insert to authenticated with check (exists (select 1 from public.business_members m where m.business_id = blocked_times.business_id and m.user_id = auth.uid() and m.status = 'active'));
+  for insert to authenticated with check (exists (select 1 from public.business_members m where m.business_id = blocked_times.business_id and m.user_id = auth.uid() and m.status = 'active' and m.role <> 'viewer'));
 
 drop policy if exists blocked_times_member_update on public.blocked_times;
 create policy blocked_times_member_update on public.blocked_times
   for update to authenticated
-  using (exists (select 1 from public.business_members m where m.business_id = blocked_times.business_id and m.user_id = auth.uid() and m.status = 'active'))
-  with check (exists (select 1 from public.business_members m where m.business_id = blocked_times.business_id and m.user_id = auth.uid() and m.status = 'active'));
+  using (exists (select 1 from public.business_members m where m.business_id = blocked_times.business_id and m.user_id = auth.uid() and m.status = 'active' and m.role <> 'viewer'))
+  with check (exists (select 1 from public.business_members m where m.business_id = blocked_times.business_id and m.user_id = auth.uid() and m.status = 'active' and m.role <> 'viewer'));
 
 drop policy if exists blocked_times_member_delete on public.blocked_times;
 create policy blocked_times_member_delete on public.blocked_times
-  for delete to authenticated using (exists (select 1 from public.business_members m where m.business_id = blocked_times.business_id and m.user_id = auth.uid() and m.status = 'active'));
+  for delete to authenticated using (exists (select 1 from public.business_members m where m.business_id = blocked_times.business_id and m.user_id = auth.uid() and m.status = 'active' and m.role <> 'viewer'));
 
 grant select, insert, update, delete on public.blocked_times to authenticated;

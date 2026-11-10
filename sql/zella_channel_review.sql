@@ -111,6 +111,19 @@ begin
       update public.appointment_reminders set status = 'skipped', error = 'channel_needs_review' where id = r.id; continue;
     end if;
     /* zella_message_settings_fix: the automation that queued it must still be on */$a$);
+    if position('zella_channel_review' in def) = 0 then
+      def := replace(def, $a$    select * into a from public.appointments where id = r.appointment_id;$a$,
+        $a$    /* zella_channel_review: repository definitions before message-settings patch */
+    if public.zella_channel_on_hold(r.business_id, case when r.kind = 'reminder' then 'appointment_reminder' else 'appointment_confirmation' end) then
+      update public.appointment_reminders set status = 'skipped', error = 'channel_needs_review' where id = r.id; continue;
+    end if;
+    if not exists (select 1 from public.automations au where au.business_id = r.business_id
+                   and au.trigger_type = case when r.kind = 'reminder' then 'appointment_reminder' else 'appointment_confirmation' end
+                   and au.status = 'active') then
+      update public.appointment_reminders set status = 'skipped', error = 'automation_disabled' where id = r.id; continue;
+    end if;
+    select * into a from public.appointments where id = r.appointment_id;$a$);
+    end if;
     if position('zella_channel_review' in def) = 0 then raise exception 'zella_claim_reminders has changed; review this patch'; end if;
     execute def;
   end if;

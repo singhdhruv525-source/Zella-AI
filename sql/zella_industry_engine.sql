@@ -195,7 +195,7 @@ begin
   if p_trigger_type <> 'seasonal_reminder' and p_trigger_type <> 'service_due' and not (p_config ? 'rule' or p_config ? 'rules') then raise exception 'RULE_REQUIRED'; end if;
   -- no prices or marketing in customer messages
   for v_text in select (jsonb_path_query(p_config, '$.**.message')) #>> '{}' loop
-    if v_text ~ '[$€£]' or v_text ~* '\m(sale|discount|% off|offer ends|promo)\M' then raise exception 'NO_MARKETING_OR_PRICES'; end if;
+    if v_text ~ '[$€£]' or (v_text ~* '\m(sale|discount|offer ends|promo)\M' or v_text ~* '% off\M') then raise exception 'NO_MARKETING_OR_PRICES'; end if;
     if length(v_text) > 300 then raise exception 'MESSAGE_TOO_LONG'; end if;
   end loop;
   insert into public.automations (business_id, name, trigger_type, status, trigger_config, actions, conditions, created_by)

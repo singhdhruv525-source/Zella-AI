@@ -29,6 +29,9 @@ create table if not exists public.knowledge_items (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+-- Optional provenance for approved knowledge, including databases created from the base schema.
+alter table public.knowledge_items add column if not exists source_url text;
+
 create index if not exists knowledge_items_business_idx on public.knowledge_items (business_id, status, updated_at desc);
 
 create table if not exists public.knowledge_gaps (

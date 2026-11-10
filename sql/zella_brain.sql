@@ -11,6 +11,9 @@
 --   6. accuracy checks: zella_brain_run_evals(biz) asks saved questions and compares with the business's own facts
 -- The language model only chooses words and tools. The database decides what is true and what was done.
 
+-- Optional provenance for approved knowledge, including databases created from the base schema.
+alter table public.knowledge_items add column if not exists source_url text;
+
 insert into public.platform_settings (key, value) values ('voice_llm_provider', '"anthropic"'::jsonb) on conflict (key) do nothing;
 insert into public.platform_settings (key, value) values ('voice_llm_model', '"claude-sonnet-5-5"'::jsonb) on conflict (key) do nothing;
 insert into public.platform_settings (key, value) values ('brain_tools_url', 'null'::jsonb) on conflict (key) do nothing;
@@ -252,7 +255,7 @@ begin
           update public.customers set
                  first_name = case when nullif(first_name, '') is null then coalesce(v_first, first_name) else first_name end,
                  last_name = case when nullif(last_name, '') is null then coalesce(v_last, last_name) else last_name end,
-                 email = coalesce(v_email, email),
+                 email = case when nullif(trim(email), '') is null then coalesce(v_email, email) else email end,
                  preferred_contact_method = coalesce(v_pref, preferred_contact_method), updated_at = now()
            where id = v_cust and business_id = v_biz;
           v_res := jsonb_build_object('ok', true, 'status', 'saved', 'say', 'Saved. Carry on helping the caller.');

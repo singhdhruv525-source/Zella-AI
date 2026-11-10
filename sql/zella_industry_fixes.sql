@@ -5,7 +5,12 @@
 --  2. Emergency rules never fired: plumbing looked for a field it does not have (urgency, not priority),
 --     electrical compared "emergency" with "Emergency", and HVAC had no emergency rule at all.
 --     Field values are now compared without caring about capital letters.
-set lock_timeout = '15s';
+begin;
+set local lock_timeout = '15s';
+
+-- Keep the prior preset identity and values for conservative, field-level backfills.
+create temporary table zella_prior_industry_presets on commit drop as
+select * from public.industry_automation_presets;
 
 -- A date field means noon that day in the business's time zone; a date-and-time field is used as is.
 create or replace function public.zella_record_due(p_due timestamptz, p_data jsonb, p_cfg jsonb, p_tz text)
@@ -42,8 +47,7 @@ update public.industry_automation_presets p set trigger_config = p.trigger_confi
 -- Two reminders target a status that counts as closed (enrolled, won); let them still run.
 update public.industry_automation_presets set trigger_config = trigger_config || '{"include_closed": true}'::jsonb
  where (industry_key, name) in (('childcare','Start date reminder'), ('financial_services','Renewal reminder'));
-update public.automations set trigger_config = trigger_config || '{"include_closed": true}'::jsonb
- where name in ('Start date reminder','Renewal reminder') and trigger_type = 'record_due_reminder';
+
 
 -- Emergency rules.
 update public.industry_automation_presets set trigger_config = replace(trigger_config::text, '"key": "priority"', '"key": "urgency"')::jsonb
@@ -55,19 +59,6 @@ insert into public.industry_automation_presets (industry_key, name, checklist_no
  '{"type_key":"jobs","rules":[{"status":"new","notify":{"title":"Emergency job: {title}","severity":"urgent","body":"Call the customer now."},"task":{"title":"Call emergency customer: {title}","priority":"urgent","due_hours":1},"when_data":{"key":"priority","value":"Emergency"}}]}'::jsonb)
 on conflict (industry_key, name) do update set trigger_config = excluded.trigger_config, description = excluded.description;
 
--- Businesses that already have these rules get the corrected settings (their own notify choice is kept).
-update public.automations a
-   set trigger_config = p.trigger_config || case when a.trigger_config ? 'notify_via' then jsonb_build_object('notify_via', a.trigger_config ->> 'notify_via') else '{}'::jsonb end,
-       updated_at = now()
-  from public.industry_automation_presets p
- where a.name = p.name and a.trigger_type = p.trigger_type and p.trigger_config ? 'due_field' and not a.trigger_config ? 'due_field';
-update public.automations a
-   set trigger_config = p.trigger_config || case when a.trigger_config ? 'notify_via' then jsonb_build_object('notify_via', a.trigger_config ->> 'notify_via') else '{}'::jsonb end,
-       updated_at = now()
-  from public.industry_automation_presets p
- where a.name = p.name and a.trigger_type = 'record_status_action' and p.name in ('Emergency routing', 'Emergency intake')
-   and a.trigger_config -> 'rules' <> p.trigger_config -> 'rules';
-
 -- Field values match without regard to capital letters.
 do $do$
 declare d text;
@@ -76,6 +67,7 @@ begin
   if d not like '%lower(new.data%' then
     d := replace(d, 'new.data ->> (r -> ''when_data'' ->> ''key'') = r -> ''when_data'' ->> ''value''',
                     'lower(new.data ->> (r -> ''when_data'' ->> ''key'')) = lower(r -> ''when_data'' ->> ''value'')');
+    if position('lower(new.data' in d) = 0 then raise exception 'zella_industry_status_trg anchor missing'; end if;
     execute d;
   end if;
   select pg_get_functiondef('public.zella_run_industry_timers()'::regprocedure) into d;
@@ -84,12 +76,18 @@ begin
       'r.assigned_to, public.zella_record_due(r.due_at, r.data, c, (select timezone from public.businesses where id = a.business_id)) as due_at from public.crm_records r');
     d := replace(d, 'r.due_at is not null', 'public.zella_record_due(r.due_at, r.data, c, (select timezone from public.businesses where id = a.business_id)) is not null');
     d := replace(d, 'and r.due_at - make_interval', 'and public.zella_record_due(r.due_at, r.data, c, (select timezone from public.businesses where id = a.business_id)) - make_interval');
+    if position(')) as due_at from public.crm_records r' in d) = 0
+       or position(')) is not null' in d) = 0
+       or position(')) - make_interval' in d) = 0 then
+      raise exception 'zella_run_industry_timers due-date anchor missing';
+    end if;
     execute d;
   end if;
   select pg_get_functiondef('public.zella_run_industry_timers()'::regprocedure) into d;
   if d not like '%include_closed%' then
     d := replace(d, 'c, (select timezone from public.businesses where id = a.business_id)) is not null and r.archived_at is null and r.closed_at is null',
                     'c, (select timezone from public.businesses where id = a.business_id)) is not null and r.archived_at is null and (r.closed_at is null or coalesce((c ->> ''include_closed'')::boolean, false))');
+    if position('coalesce((c ->> ''include_closed'')::boolean, false)' in d) = 0 then raise exception 'zella_run_industry_timers include_closed anchor missing'; end if;
     execute d;
   end if;
 end $do$;
@@ -99,8 +97,7 @@ select public.zella_apply_industry_automations(id) from public.businesses;
 -- Legal: a text message must not reveal that a firm has taken someone on as a client.
 update public.industry_automation_presets set trigger_config = replace(trigger_config::text, 'We have accepted your matter. We will contact you about the next steps.', 'Thank you for contacting us. We will be in touch about the next steps.')::jsonb
  where industry_key = 'legal' and name = 'Matter accepted';
-update public.automations set trigger_config = replace(trigger_config::text, 'We have accepted your matter. We will contact you about the next steps.', 'Thank you for contacting us. We will be in touch about the next steps.')::jsonb
- where name = 'Matter accepted';
+
 
 -- AI safety wording for more industries (the same text lives in zella_brain.sql).
 do $do$
@@ -121,6 +118,24 @@ end $do$;
 -- Financial services: the renewal date lives on service requests, not on opportunities.
 update public.industry_automation_presets set trigger_config = (trigger_config - 'include_closed') || '{"type_key":"requests","statuses":["open","waiting"],"due_field":"renewal"}'::jsonb
  where industry_key = 'financial_services' and name = 'Renewal reminder';
-update public.automations a set trigger_config = p.trigger_config || case when a.trigger_config ? 'notify_via' then jsonb_build_object('notify_via', a.trigger_config ->> 'notify_via') else '{}'::jsonb end
-  from public.industry_automation_presets p
- where p.industry_key = 'financial_services' and p.name = 'Renewal reminder' and a.name = p.name and a.trigger_type = 'record_due_reminder';
+-- Only known preset instances in the matching industry are eligible. Changed rule bodies
+-- are left alone; unrelated owner keys remain intact, and changed scalar keys are not reset.
+update public.automations a
+   set trigger_config = (a.trigger_config - delta.removed) || delta.config, updated_at = now()
+  from zella_prior_industry_presets old
+  join public.industry_automation_presets p using (industry_key, name)
+  cross join lateral (
+    select coalesce(jsonb_object_agg(k.key, k.value), '{}'::jsonb) as config,
+           array(select key from jsonb_object_keys(old.trigger_config) key
+                  where not p.trigger_config ? key) as removed
+      from jsonb_each(p.trigger_config) k
+     where k.value is distinct from old.trigger_config -> k.key
+  ) delta
+ where (delta.config <> '{}'::jsonb or cardinality(delta.removed) > 0) and a.name = old.name and a.trigger_type = old.trigger_type
+   and p.industry_key = public.zella_industry_key_for(a.business_id)
+   and a.trigger_config -> 'type_key' = old.trigger_config -> 'type_key'
+   and a.trigger_config -> 'rules' is not distinct from old.trigger_config -> 'rules'
+   and a.trigger_config -> 'rule' is not distinct from old.trigger_config -> 'rule'
+   and not exists (select 1 from (select jsonb_object_keys(delta.config) as k union select unnest(delta.removed)) keys
+                    where a.trigger_config -> k is distinct from old.trigger_config -> k);
+commit;

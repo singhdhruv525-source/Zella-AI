@@ -33,8 +33,13 @@ declare def text;
 begin
   def := pg_get_functiondef('public.zella_available_slots(uuid, timestamptz, timestamptz, integer, uuid, integer, integer, uuid)'::regprocedure);
   if position('zella_booking_buffers' in def) = 0 then
-    def := replace(def, $a$  v_has_hours boolean;$a$, $a$  v_has_hours boolean;
+    if position('v_has_hours boolean;' in def) > 0 then
+      def := replace(def, $a$  v_has_hours boolean;$a$, $a$  v_has_hours boolean;
   v_buffer interval := make_interval(mins => public.zella_booking_buffer(p_business_id)); /* zella_booking_buffers */$a$);
+    else
+      def := replace(def, $a$  v_has_staff boolean;$a$, $a$  v_has_staff boolean;
+  v_buffer interval := make_interval(mins => public.zella_booking_buffer(p_business_id)); /* zella_booking_buffers */$a$);
+    end if;
     def := replace(def, $a$          and a.start_time < r.t + v_duration and a.end_time > r.t$a$,
                         $a$          and a.start_time < r.t + v_duration + v_buffer and a.end_time + v_buffer > r.t$a$);
     if position('zella_booking_buffers' in def) = 0 or position('a.end_time + v_buffer > r.t' in def) = 0 then
