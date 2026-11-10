@@ -1,0 +1,88 @@
+// What the record-files check accepts and refuses, from crafted files (no real customer files).
+import { assert, assertEquals } from "jsr:@std/assert@1";
+import { inspect, MAX_BYTES, sha256 } from "./inspect.ts";
+
+const enc = (s: string) => new TextEncoder().encode(s);
+const cat = (...parts: Uint8Array[]) => { const o = new Uint8Array(parts.reduce((n, p) => n + p.length, 0)); let a = 0; for (const p of parts) { o.set(p, a); a += p.length; } return o; };
+async function deflate(s: string) { return new Uint8Array(await new Response(new Blob([enc(s)]).stream().pipeThrough(new CompressionStream("deflate"))).arrayBuffer()); }
+const jpeg = cat(new Uint8Array([0xff, 0xd8, 0xff, 0xe0]), enc("JFIF rest of image"));
+const png = cat(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), enc("IHDR..."));
+const webp = enc("RIFF\x10\x00\x00\x00WEBPVP8 ...");
+const heic = cat(new Uint8Array([0, 0, 0, 0x18]), enc("ftypheic\x00\x00\x00\x00mif1heic"));
+const pdf = (body: string) => enc(`%PDF-1.7\n${body}\n%%EOF`);
+const plainPdf = pdf("1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n2 0 obj << /Type /Pages /Kids [] /Count 0 >> endobj");
+async function pdfWithStream(inside: string) {
+  const z = await deflate(inside);
+  return cat(enc(`%PDF-1.7\n3 0 obj << /Type /ObjStm /Length ${z.length} /Filter /FlateDecode >>\nstream\n`), z, enc("\nendstream\nendobj\n%%EOF"));
+}
+
+Deno.test("real images and plain PDFs pass", async () => {
+  assertEquals(await inspect("image/jpeg", jpeg), { ok: true });
+  assertEquals(await inspect("image/png", png), { ok: true });
+  assertEquals(await inspect("image/webp", webp), { ok: true });
+  assertEquals(await inspect("image/heic", heic), { ok: true });
+  assertEquals(await inspect("application/pdf", plainPdf), { ok: true });
+  assertEquals(await inspect("application/pdf", await pdfWithStream("BT /F1 12 Tf (Vaccination record) Tj ET")), { ok: true });
+});
+Deno.test("contents that don't match the declared type are refused", async () => {
+  assertEquals((await inspect("image/jpeg", png)).ok, false);
+  assertEquals((await inspect("image/png", enc("<html><script>alert(1)</script>"))).ok, false);
+  assertEquals((await inspect("application/pdf", enc("MZ\x90\x00 windows program"))).ok, false);
+  assertEquals((await inspect("image/svg+xml", enc("<svg onload=alert(1)>"))).ok, false); // not an allowed type at all
+  assertEquals((await inspect("image/heic", cat(new Uint8Array([0, 0, 0, 0x18]), enc("ftypisom")))).ok, false); // an MP4, not a photo
+});
+Deno.test("empty and oversized files are refused", async () => {
+  assertEquals(await inspect("image/png", new Uint8Array()), { ok: false, reason: "empty file" });
+  const big = new Uint8Array(MAX_BYTES + 1); big.set(png);
+  assertEquals(await inspect("image/png", big), { ok: false, reason: "larger than 10 MB" });
+});
+Deno.test("PDFs with active content are refused", async () => {
+  for (const k of ["/JavaScript", "/JS (app.alert(1))", "/Launch << /F (cmd.exe) >>", "/EmbeddedFile", "/EmbeddedFiles", "/RichMedia", "/XFA", "/SubmitForm", "/ImportData", "/GoToR"]) {
+    const v = await inspect("application/pdf", pdf(`1 0 obj << /OpenAction << /S ${k} >> >> endobj`));
+    assert(!v.ok, k);
+  }
+});
+Deno.test("active content hidden with #-escapes or inside a compressed stream is refused", async () => {
+  assertEquals((await inspect("application/pdf", pdf("1 0 obj << /S /J#61vaScript /JS (x) >> endobj"))).ok, false);
+  const v = await inspect("application/pdf", await pdfWithStream("4 0 obj << /S /JavaScript /JS (app.launchURL('x')) >> endobj"));
+  assertEquals(v, { ok: false, reason: "PDF with active content (in a compressed stream)" });
+});
+Deno.test("names that merely start the same are not mistaken for active content", async () => {
+  assertEquals(await inspect("application/pdf", pdf("1 0 obj << /JSONData (x) /Launcher 1 >> endobj")), { ok: true });
+});
+Deno.test("a compressed part that can't be read is refused, not skipped", async () => {
+  const b = cat(enc(`%PDF-1.7\n1 0 obj << /Filter /FlateDecode >>\nstream\n`), enc("not deflate data /J"), enc("\nendstream\nendobj"));
+  assertEquals((await inspect("application/pdf", b)).ok, false);
+});
+Deno.test("encrypted PDFs can't be checked and are refused", async () => {
+  assertEquals((await inspect("application/pdf", pdf("trailer << /Encrypt 5 0 R >>"))).ok, false);
+});
+Deno.test("a compression bomb stops at the budget", async () => {
+  const z = await deflate("A".repeat(70 * 1024 * 1024));
+  const b = cat(enc(`%PDF-1.7\n1 0 obj << /Filter /FlateDecode >>\nstream\n`), z, enc("\nendstream\nendobj"));
+  assertEquals(await inspect("application/pdf", b), { ok: false, reason: "PDF too large to check" }); // refused, never skipped
+});
+Deno.test("sha256", async () => {
+  assertEquals(await sha256(enc("abc")), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+});
+
+Deno.test("unchecked PDF streams fail closed", async () => {
+  for (const body of [
+    "1 0 obj << >> stream\nunterminated",
+    "1 0 obj << /Filter /ASCIIHexDecode >> stream\n2f4a53>\nendstream endobj",
+    "1 0 obj << /Filter [/ASCII85Decode /FlateDecode] >> stream\nx\nendstream endobj",
+    "1 0 obj << /Filter 2 0 R >> stream\nx\nendstream endobj",
+    Array.from({ length: 2001 }, (_, i) => `${i + 1} 0 obj << >> stream\nx\nendstream endobj`).join("\n"),
+  ]) assertEquals((await inspect("application/pdf", pdf(body))).ok, false);
+});
+Deno.test("nested and long stream dictionaries cannot hide compressed active content", async () => {
+  const z = await deflate("/J#61vaScript");
+  for (const extra of ["/DecodeParms << /Predictor 1 >>", `/Padding (${"x".repeat(500)})`]) {
+    const b = cat(enc(`%PDF-1.7\n1 0 obj << /Filter /FlateDecode ${extra} >> stream\n`), z, enc("\nendstream endobj"));
+    assertEquals((await inspect("application/pdf", b)).ok, false);
+  }
+});
+Deno.test("stream markers inside compressed bytes are skipped", async () => {
+  // Level-zero deflate includes literal stream markers in the compressed bytes.
+  assertEquals((await inspect("application/pdf", await pdfWithStream("stream\ninnocent text"))).ok, true);
+});
