@@ -175,6 +175,15 @@ end $$;
 select 'PASS #65 a finished task is not finished again; #66 a call from another business is refused';
 
 -- #70 platform-admin changes are audited
+-- (second pass) a user whose email identity is not verified cannot be made a platform admin
+update auth.users set last_sign_in_at = now() where id = 'fa000000-0000-0000-0000-00000000000f';
+do $$ begin
+  insert into public.platform_admins (user_id, role, is_active) values ('fa000000-0000-0000-0000-00000000000f', 'super_admin', true);
+  raise exception 'FAIL platform admin without a verified email identity was accepted';
+exception when others then if sqlerrm like 'FAIL%' then raise; end if;
+end $$;
+select 'PASS platform admin needs a verified email identity (CodeRabbit #38 second pass)';
+insert into auth.identities (user_id, provider, email, identity_data) values ('fa000000-0000-0000-0000-00000000000f', 'email', 'newadmin@rf.test', '{"email": "newadmin@rf.test", "email_verified": true}');
 insert into public.platform_admins (user_id, role, is_active) values ('fa000000-0000-0000-0000-00000000000f', 'super_admin', true);
 do $$ begin
   if not exists (select 1 from public.audit_logs where entity_type = 'platform_admins' and new_data ->> 'user_id' = 'fa000000-0000-0000-0000-00000000000f') then raise exception 'FAIL #70'; end if;
@@ -248,5 +257,15 @@ select pg_temp.must_fail($q$select public.zella_inbox_previews('fa000000-0000-00
   (select array_agg(array[gen_random_uuid(), gen_random_uuid()]) from generate_series(1, 60))::uuid[])$q$, 'TOO_MANY');
 reset role;
 select 'PASS #78 a 60x2 array (120 ids) is refused';
+
+-- second pass (CodeRabbit's autofix on #38): dispatch is off unless switched on; admin lists break ties by id;
+-- restoring a config migration puts back only the transfer keys it changed
+do $$ begin
+  delete from public.platform_settings where key = 'n8n_dispatch_enabled';
+  if position($p$zella_setting('n8n_dispatch_enabled', 'false'::jsonb) = 'true'::jsonb, false)$p$ in pg_get_functiondef('public.zella_dispatch_n8n'::regproc)) = 0 then raise exception 'FAIL dispatch default'; end if;
+  if position('order by created_at desc, id limit v_lim' in pg_get_functiondef(to_regprocedure((select oid::regprocedure::text from pg_proc where proname = 'zella_admin_messages')))) = 0 then raise exception 'FAIL admin_messages tie-break'; end if;
+  if position($p$if s.applied ? 'transfer_number' then$p$ in pg_get_functiondef('public.zella_config_migration_restore'::regproc)) = 0 then raise exception 'FAIL config restore'; end if;
+end $$;
+select 'PASS dispatch is off unless n8n_dispatch_enabled is true; admin messages break ties by id; config restore puts back only transfer keys';
 
 rollback;

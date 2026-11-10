@@ -175,6 +175,22 @@ begin
   if v is null or v not in ('4056e1f758f5da3886e4f5f1a883f562', 'c73ac566a70bcd0400d648e537189aeb') then
     raise exception 'VERSION_MISMATCH: public.zella_inbox_previews(uuid,uuid[]) is not the version this file was written against (rollback)';
   end if;
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_admin_messages(text,timestamp with time zone,timestamp with time zone,uuid,text,text,text,text,integer,integer)');
+  if v is null or v not in ('b5266efa18efd567be8823bd366347c7', 'c24262336af3803fcb64c29fd5a6ed4e') then
+    raise exception 'VERSION_MISMATCH: public.zella_admin_messages(text,timestamp with time zone,timestamp with time zone,uuid,text,text,text,text,integer,integer) is not the version this file was written against (rollback)';
+  end if;
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_config_migration_restore(uuid)');
+  if v is null or v not in ('bf10db91f9e8c2f256ce4bde22abf45b', '22a34e2fc9e2711d82189dfc5ceab1ec') then
+    raise exception 'VERSION_MISMATCH: public.zella_config_migration_restore(uuid) is not the version this file was written against (rollback)';
+  end if;
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_dispatch_n8n()');
+  if v is null or v not in ('da510c38639c117833a799c01723f07f', 'a415745bfcd66f15293eee25d2767d7f') then
+    raise exception 'VERSION_MISMATCH: public.zella_dispatch_n8n() is not the version this file was written against (rollback)';
+  end if;
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_platform_admin_email_check()');
+  if v is null or v not in ('8afa557d293ef3e92a310842c461b6d6', 'b90210c5a2693e974f284f9f33b5fe26') then
+    raise exception 'VERSION_MISMATCH: public.zella_platform_admin_email_check() is not the version this file was written against (rollback)';
+  end if;
 end $guard$;
 
 -- #8: the dental reminder wording as it was
@@ -1834,6 +1850,196 @@ begin
       cross join lateral (select cm.content from public.conversation_messages cm where cm.conversation_id = x.id
                            order by cm.created_at desc limit 1) m
      where x.business_id = p_business_id and x.id = any (p_conversation_ids);
+end $function$;
+
+CREATE OR REPLACE FUNCTION public.zella_admin_messages(p_channel text, p_from timestamp with time zone DEFAULT NULL::timestamp with time zone, p_to timestamp with time zone DEFAULT NULL::timestamp with time zone, p_business uuid DEFAULT NULL::uuid, p_status text DEFAULT NULL::text, p_direction text DEFAULT NULL::text, p_kind text DEFAULT NULL::text, p_q text DEFAULT NULL::text, p_limit integer DEFAULT 25, p_offset integer DEFAULT 0)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare v_lim int := least(greatest(coalesce(p_limit, 25), 1), 100); v_q text := nullif(lower(trim(coalesce(p_q, ''))), '');
+        v_from timestamptz := coalesce(p_from, now() - interval '30 days'); v_to timestamptz := coalesce(p_to, now() + interval '1 minute');
+begin
+  perform public.zella_admin_require('businesses.view');
+  if p_channel = 'sms' then
+    return (with f as (
+        select m.*, case when m.metadata ? 'reminder_id' then 'reminder' when m.metadata ? 'task_id' then 'follow_up'
+                         when m.metadata ? 'notification_id' then 'staff_alert' when m.direction = 'inbound' then 'inbound' else 'other' end as kind
+          from public.sms_messages m
+         where m.created_at >= v_from and m.created_at < v_to and (p_business is null or m.business_id = p_business)
+           and (p_status is null or m.status = p_status) and (p_direction is null or m.direction = p_direction)
+           and (v_q is null or length(regexp_replace(v_q, '\D', '', 'g')) >= 4 and (regexp_replace(coalesce(m.to_number, ''), '\D', '', 'g') like '%' || regexp_replace(v_q, '\D', '', 'g') || '%'
+                or regexp_replace(coalesce(m.from_number, ''), '\D', '', 'g') like '%' || regexp_replace(v_q, '\D', '', 'g') || '%')
+                or m.external_message_id = p_q)),
+      g as (select * from f where p_kind is null or kind = p_kind)
+      select jsonb_build_object('total', (select count(*) from g), 'rows', coalesce((select jsonb_agg(jsonb_build_object(
+          'id', g.id, 'created_at', g.created_at, 'business_id', g.business_id, 'business_name', b.name, 'direction', g.direction, 'status', g.status,
+          'to', public.zella_admin_mask(g.to_number), 'from', public.zella_admin_mask(g.from_number), 'kind', g.kind,
+          'provider_id', g.external_message_id, 'conversation_id', g.conversation_id, 'sent_at', g.sent_at, 'delivered_at', g.delivered_at,
+          'error', left(coalesce(g.metadata ->> 'error', g.metadata ->> 'failure_reason'), 160)) order by g.created_at desc)
+        from (select * from g order by created_at desc limit v_lim offset greatest(coalesce(p_offset, 0), 0)) g join public.businesses b on b.id = g.business_id), '[]'::jsonb)));
+  elsif p_channel = 'email' then
+    return (with f as (
+        select m.*, case when m.metadata ? 'reminder_id' then 'reminder' when m.metadata ? 'task_id' then 'follow_up'
+                         when m.metadata ? 'notification_id' then 'owner_email' when m.direction = 'inbound' then 'inbound' else 'other' end as kind
+          from public.email_messages m
+         where m.created_at >= v_from and m.created_at < v_to and (p_business is null or m.business_id = p_business)
+           and (p_status is null or m.status = p_status) and (p_direction is null or m.direction = p_direction)
+           and (v_q is null or lower(coalesce(m.to_email, '')) = v_q or lower(coalesce(m.from_email, '')) = v_q
+                or lower(coalesce(m.subject, '')) like '%' || v_q || '%' or m.external_message_id = p_q)),
+      g as (select * from f where p_kind is null or kind = p_kind)
+      select jsonb_build_object('total', (select count(*) from g), 'rows', coalesce((select jsonb_agg(jsonb_build_object(
+          'id', g.id, 'created_at', g.created_at, 'business_id', g.business_id, 'business_name', b.name, 'direction', g.direction, 'status', g.status,
+          'to', public.zella_admin_mask(g.to_email), 'from', g.from_email, 'subject', left(g.subject, 120), 'kind', g.kind,
+          'provider_id', g.external_message_id, 'sent_at', g.sent_at, 'delivered_at', g.delivered_at,
+          'last_event', (select ev.type from public.email_events ev where ev.email_message_id = g.id order by ev.created_at desc limit 1),
+          'error', left(coalesce(g.metadata ->> 'error', g.metadata ->> 'failure_reason'), 160)) order by g.created_at desc)
+        from (select * from g order by created_at desc limit v_lim offset greatest(coalesce(p_offset, 0), 0)) g join public.businesses b on b.id = g.business_id), '[]'::jsonb)));
+  end if;
+  raise exception 'INVALID_CHANNEL';
+end $function$;
+
+CREATE OR REPLACE FUNCTION public.zella_config_migration_restore(p_snapshot_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare s record; v_agent uuid; k jsonb;
+begin
+  select * into s from config_migration_snapshots where id = p_snapshot_id for update;
+  if not found then raise exception 'NOT_FOUND'; end if;
+  if s.restored_at is not null then return jsonb_build_object('restored', false, 'reason', 'already restored'); end if;
+  select a.id into v_agent from ai_agents a where a.business_id = s.business_id and a.is_default limit 1;
+  delete from business_languages where business_id = s.business_id;
+  if s.languages is not null then
+    insert into business_languages select * from jsonb_populate_record(null::business_languages, s.languages);
+  end if;
+  update ai_agent_configs set escalation_rules = s.escalation_rules, updated_at = now() where agent_id = v_agent;
+  update knowledge_items set status = 'archived', updated_at = now()
+   where business_id = s.business_id and source_key like 'setup:%' and source_page_id is null
+     and not exists (select 1 from jsonb_array_elements(s.setup_knowledge) x where (x ->> 'id')::uuid = knowledge_items.id);
+  for k in select * from jsonb_array_elements(s.setup_knowledge) loop
+    update knowledge_items set status = k ->> 'status', title = k ->> 'title', question = k ->> 'question', answer = k ->> 'answer', kind = k ->> 'kind', updated_at = now()
+     where id = (k ->> 'id')::uuid;
+  end loop;
+  update config_migration_snapshots set restored_at = now() where id = p_snapshot_id;
+  return jsonb_build_object('restored', true, 'business_id', s.business_id);
+end $function$;
+
+CREATE OR REPLACE FUNCTION public.zella_dispatch_n8n()
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_base text := nullif(trim(public.zella_setting('n8n_base_url', '""'::jsonb) #>> '{}'), '');
+  v_on boolean := coalesce(public.zella_setting('n8n_dispatch_enabled', 'true'::jsonb) = 'true'::jsonb, true);
+  v_secret text; w record; n integer; st public.n8n_dispatch_state; v_same integer; v_res jsonb := '{}'::jsonb; v_spam integer := 0; v_reconcile integer := 0; v_reviews integer := 0;
+  v_text_kinds text[] := array['no_show_follow_up', 'post_appointment_follow_up', 'quote_follow_up', 'lead_reactivation', 'callback_sms', 'welcome_new_customer', 'feedback_request', 'cancellation_confirmation', 'record_status_update', 'service_due', 'no_response_follow_up', 'reschedule_confirmation', 'booking_follow_up', 'service_completed', 'lead_follow_up', 'lead_final_follow_up', 'reply_confirmed', 'reply_reschedule', 'reply_help', 'waitlist_offer', 'cross_sell'];
+  v_email_kinds text[] := array['no_show_follow_up', 'post_appointment_follow_up', 'quote_follow_up', 'lead_reactivation', 'callback_sms', 'welcome_new_customer', 'feedback_request', 'cancellation_confirmation', 'record_status_update', 'service_due', 'no_response_follow_up', 'reschedule_confirmation', 'booking_follow_up', 'service_completed', 'lead_follow_up', 'lead_final_follow_up', 'cross_sell'];
+begin
+  if not v_on then return jsonb_build_object('skipped', 'switched_off'); end if;
+  if v_base is null then return jsonb_build_object('skipped', 'no_base_url'); end if;
+  select decrypted_secret into v_secret from vault.decrypted_secrets where name = 'zella_n8n_secret' limit 1;
+  if v_secret is null or v_secret = '' then return jsonb_build_object('skipped', 'no_secret'); end if;
+  if to_regprocedure('public.zella_spam_work_waiting()') is not null then
+    begin execute 'select public.zella_spam_work_waiting()' into v_spam; exception when others then v_spam := 0; end;
+  end if;
+  if to_regprocedure('public.zella_call_reconcile_waiting()') is not null then
+    begin execute 'select public.zella_call_reconcile_waiting()' into v_reconcile; exception when others then v_reconcile := 0; end;
+  end if;
+
+  if to_regprocedure('public.zella_review_work_waiting()') is not null then
+    begin execute 'select public.zella_review_work_waiting()' into v_reviews; exception when others then v_reviews := 0; end;
+  end if;
+
+  for w in select * from (values ('event-router'), ('sms-sender'), ('email-sender'), ('followup-texts'), ('followup-emails'), ('owner-emails'), ('outbound-calls'), ('knowledge-sync'), ('calendar-sync'), ('connection-tests'), ('meta-leads'), ('meta-sender'), ('meta-health'), ('website-crawl'), ('staff-sms'), ('call-intel'), ('admin-alerts'), ('spam-response'), ('call-reconcile'), ('review-replies')) as t(name) loop
+    n := case w.name
+      when 'event-router' then (select count(*) from public.automation_events
+         where (status = 'received' and coalesce(next_attempt_at, now()) <= now()) or (status = 'processing' and claimed_at < now() - interval '10 minutes'))
+      when 'sms-sender' then (select count(*) from public.appointment_reminders where status = 'pending' and channel = 'sms' and due_at <= now())
+      when 'email-sender' then (select count(*) from public.appointment_reminders where status = 'pending' and channel = 'email' and due_at <= now())
+      when 'followup-texts' then (select count(*) from public.followup_tasks where status = 'pending' and channel = 'sms' and due_at <= now() and kind = any (v_text_kinds))
+      when 'followup-emails' then (select count(*) from public.followup_tasks where status = 'pending' and channel = 'email' and due_at <= now() and kind = any (v_email_kinds))
+      when 'outbound-calls' then (select count(*) from public.followup_tasks where status = 'pending' and channel = 'call' and due_at <= now())
+         + (select count(*) from public.callbacks where status in ('scheduled', 'retry_scheduled', 'due') and due_at <= now() and auto_call
+              and (locked_at is null or locked_at < now() - interval '15 minutes'))
+      when 'knowledge-sync' then (select count(*) from public.knowledge_items where status = 'processing')
+         + case when coalesce(public.zella_setting('knowledge_ai_live', 'false'::jsonb) = 'true'::jsonb, false)
+                then (select count(*) from public.knowledge_gaps where status = 'open' and suggested_at is null and suggestion_attempts < 3) else 0 end
+      when 'call-intel' then case when coalesce(public.zella_setting('call_intel_live', 'false'::jsonb) = 'true'::jsonb, false)
+         then (select count(*) from public.call_insights where (status = 'pending' and attempts < 3) or (status = 'processing' and claimed_at < now() - interval '15 minutes')) else 0 end
+      when 'calendar-sync' then case when public.zella_calendar_live()
+         then (select count(*) from public.calendar_sync_queue where status = 'pending' and due_at <= now())
+            + (select count(*) from public.calendar_connections where status = 'active' and busy_refresh_due_at <= now()) else 0 end
+      when 'connection-tests' then case when public.zella_provider_checks_live()
+         then (select count(*) from unnest(array['telnyx', 'vapi', 'resend']) p where not exists (select 1 from public.provider_health h where h.provider = p
+                 and (coalesce(h.checked_at, 'epoch') > now() - interval '3 hours' or coalesce(h.claimed_at, 'epoch') > now() - interval '10 minutes'))) else 0 end
+      when 'meta-leads' then (select count(*) from public.meta_events where kind = 'lead'
+         and ((status = 'pending' and next_try_at <= now()) or (status = 'processing' and claimed_at < now() - interval '10 minutes')))
+      when 'meta-sender' then (select count(*) from public.meta_outbox where (status = 'queued' and next_try_at <= now()) or (status = 'sending' and claimed_at < now() - interval '10 minutes'))
+      when 'meta-health' then (select count(*) from public.meta_connections where status in ('connected', 'error') and next_check_at <= now())
+      when 'website-crawl' then case when public.zella_website_crawl_live()
+         then (select count(*) from public.website_pages wp join public.website_sources ws on ws.id = wp.source_id and ws.status = 'active'
+                where wp.status in ('approved', 'broken', 'missing') and wp.next_fetch_at <= now() and (wp.claimed_at is null or wp.claimed_at < now() - interval '10 minutes'))
+            + (select count(*) from public.website_sources where status = 'active' and next_discovery_at <= now()) else 0 end
+      when 'staff-sms' then case when coalesce(public.zella_setting('sms_live', 'false'::jsonb) = 'true'::jsonb, false)
+         then (select count(*) from public.staff_notifications where created_at > now() - interval '6 hours'
+                 and (sms_status = 'pending' or (sms_status = 'sending' and sms_claimed_at < now() - interval '15 minutes'))) else 0 end
+      when 'admin-alerts' then case when coalesce(public.zella_setting('email_live', 'false'::jsonb) = 'true'::jsonb, false)
+                                     and nullif(trim(public.zella_setting('email_from_address', '""'::jsonb) #>> '{}'), '') is not null
+         then (select count(*) from public.platform_alerts where notified_at is null and status = 'open') else 0 end
+      when 'spam-response' then coalesce(v_spam, 0)
+      when 'call-reconcile' then coalesce(v_reconcile, 0)
+      when 'review-replies' then coalesce(v_reviews, 0)
+      when 'owner-emails' then (select count(*) from public.staff_notifications s join public.businesses b on b.id = s.business_id
+         where b.suspended_at is null and b.cancelled_at is null
+           and (s.delivery_status = 'pending' or (s.delivery_status = 'sending' and s.claimed_at < now() - interval '30 minutes')))
+      else 0 end;
+    if n = 0 then
+      update public.n8n_dispatch_state set last_count = 0, consecutive_same = 0 where workflow = w.name;
+      continue;
+    end if;
+
+    insert into public.n8n_dispatch_state (workflow) values (w.name) on conflict do nothing;
+    select * into st from public.n8n_dispatch_state where workflow = w.name;
+    if st.last_triggered_at > now() - interval '8 seconds' then continue; end if;
+    v_same := case when n >= st.last_count and st.last_triggered_at > now() - interval '10 minutes' then st.consecutive_same + 1 else 0 end;
+    if v_same >= 12 and st.last_triggered_at > now() - interval '15 minutes' then
+      update public.n8n_dispatch_state set last_count = n, consecutive_same = v_same where workflow = w.name;
+      v_res := v_res || jsonb_build_object(w.name, 'backed_off');
+      continue;
+    end if;
+
+    perform net.http_post(url := v_base || '/webhook/zella/run/' || w.name,
+                          headers := jsonb_build_object('Content-Type', 'application/json', 'X-Zella-Secret', v_secret),
+                          body := '{}'::jsonb, timeout_milliseconds := 5000);
+    update public.n8n_dispatch_state set last_triggered_at = now(), last_count = n, consecutive_same = v_same, triggers_total = triggers_total + 1 where workflow = w.name;
+    v_res := v_res || jsonb_build_object(w.name, n);
+  end loop;
+  return v_res;
+end $function$;
+
+CREATE OR REPLACE FUNCTION public.zella_platform_admin_email_check()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare u record;
+begin
+  if not new.is_active then return new; end if;
+  if tg_op = 'UPDATE' and old.is_active and old.user_id = new.user_id then return new; end if;   -- unchanged grant
+  select email_confirmed_at, last_sign_in_at into u from auth.users where id = new.user_id;
+  if not found then raise exception 'ADMIN_ACCOUNT_NOT_FOUND' using errcode = '23503'; end if;
+  if u.email_confirmed_at is null and u.last_sign_in_at is not null then
+    raise exception 'ADMIN_EMAIL_NOT_CONFIRMED' using errcode = '42501',
+      hint = 'This account''s email address was never confirmed, so it can''t be made an admin.';
+  end if;
+  return new;
 end $function$;
 
 commit;
