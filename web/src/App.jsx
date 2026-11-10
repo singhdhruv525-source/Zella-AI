@@ -82,10 +82,12 @@ async function hasAdminAccess() {
   return !legacy.error && legacy.data === true;
 }
 
-// The session needs the authenticator code before it may continue.
+// The session needs the authenticator code before it may continue. If the check itself fails, nothing opens (it fails
+// closed): the error reaches the caller's catch, which leaves the admin page locked and says why.
 async function needsMfaCode() {
   const { data, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-  return !error && data.nextLevel === "aal2" && data.currentLevel !== "aal2";
+  if (error || !data) throw new Error("We couldn't check your two-step sign-in. Please try again.");
+  return data.nextLevel === "aal2" && data.currentLevel !== "aal2";
 }
 
 function AdminApp() {
