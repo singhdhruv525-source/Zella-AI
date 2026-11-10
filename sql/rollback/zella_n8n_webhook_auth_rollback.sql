@@ -1,3 +1,4 @@
+-- Before running: unpublish or revert BOTH the Inbound Email and Email Events workflows.
 -- Rollback for sql/zella_n8n_webhook_auth.sql: restores both signed functions exactly as sql/zella_resend_signature.sql
 -- defined them and removes zella_n8n_resend_auth. Deletes no data. One transaction.
 begin;

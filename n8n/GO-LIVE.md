@@ -123,7 +123,15 @@ Tests: `tests/features/run.sh` (staging only, 69 checks).
 
 ## Required Resend authentication and proxy limits
 
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:ce0a9e213a150a93bed0d2d2ed9607292c15789d1f09a52716ab5c0d7ae53bd2 -->
+
 Apply `sql/zella_n8n_webhook_auth.sql` after `sql/zella_resend_signature.sql`, before importing the workflows. This intentionally removes the previous unsigned mode: missing signing secrets, invalid signatures and invalid URL keys are refused before fetching email or recording events. Keep the URL `?key=` and `zella_resend_webhook_key`; the existing database key checks still require them.
+
+For rollback, first unpublish or revert both the Inbound Email and Email Events workflows, then run `sql/rollback/zella_n8n_webhook_auth_rollback.sql`. The rollback removes the authentication function used by both workflows.
+
+<!-- /coderabbit-ai-generated:v1 -->
 
 Store each endpoint's Resend signing secret in Vault: `zella_resend_signing_secret` for delivery events and `zella_resend_inbound_signing_secret` for inbound email. These are the `whsec_` values from the respective Resend webhook settings; do not assume the two endpoints share a secret.
 

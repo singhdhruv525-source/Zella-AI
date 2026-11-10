@@ -206,7 +206,13 @@ Run the third section of `sql/zella_knowledge_automation.sql` (it is in the same
 
 - In Vapi, add a **server tool** named `report_unanswered_question` with one text parameter `question`, pointing at that webhook. Tell the assistant to use it when it does not know an answer, and then to say the team will get back to the caller.
 - The workflow logs the question for the owner (`zella_report_unanswered`). The business comes from the call when Zella already knows the call, otherwise from a registered called number. A call with no business is rejected. At most 5 questions per call; the same question is one review item that counts up.
-- It always answers Vapi with the same short line, so the assistant keeps talking naturally whether or not the question could be saved.
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:32b09a5303caaa421d96bcc3e70a4e6258839b800a1932e6565c28211f5ed541 -->
+
+- A failed write returns an error to Vapi so the assistant cannot claim the team was notified. Otherwise, the tool returns its planned short reply.
+
+<!-- /coderabbit-ai-generated:v1 -->
 - The Knowledge workflow then drafts an answer (when `knowledge_ai_live` is on), and the owner approves it on the Knowledge page.
 - **Required for inbound calls:** register the called number with `zella_register_phone_number` so the workflow can establish the business. An assistant variable alone does not establish an association.
 

@@ -15,7 +15,42 @@ const inReplyTo = str(lower['in-reply-to'] || '', 300).replace(/[<>\s]/g, '');
 const auto = /auto-(replied|generated)|auto_reply|yes/i.test(String(lower['auto-submitted'] || '')) && !/^no$/i.test(String(lower['auto-submitted'] || '')) ||
   /^(bulk|junk|list|auto_reply)$/i.test(String(lower['precedence'] || '')) || !!lower['x-autoreply'] || !!lower['x-autorespond'];
 let text = str(e.text, 20000);
-if (!text && typeof e.html === 'string') text = e.html.slice(0, 100000).replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 20000);
+if (!text && typeof e.html === 'string') {
+  const html = e.html.slice(0, 100000);
+  // Fold ASCII only: Unicode lowercasing can change string length and tag offsets.
+  const lowerHtml = html.replace(/[A-Z]/g, (c) => c.toLowerCase());
+  const parts = [];
+  const closing = {};
+  const opens = /<style|<script/gi;
+  let start = 0;
+  let match;
+  // Cache failed closing-tag searches so repeated unclosed openers never rescan the suffix.
+  while ((match = opens.exec(html))) {
+    const kind = match[0].slice(1).toLowerCase();
+    if (closing[kind] === undefined || (closing[kind] >= 0 && closing[kind] < match.index)) {
+      closing[kind] = lowerHtml.indexOf('</' + kind + '>', opens.lastIndex);
+    }
+    if (closing[kind] < 0) continue;
+    parts.push(html.slice(start, match.index), ' ');
+    start = closing[kind] + kind.length + 3;
+    opens.lastIndex = start;
+  }
+  parts.push(html.slice(start));
+  const withoutBlocks = parts.join('');
+  const plain = [];
+  start = 0;
+  let cursor = 0;
+  while ((cursor = withoutBlocks.indexOf('<', cursor)) >= 0) {
+    const end = withoutBlocks.indexOf('>', cursor + 1);
+    if (end < 0) break;
+    if (end === cursor + 1) { cursor = end + 1; continue; }
+    plain.push(withoutBlocks.slice(start, cursor), ' ');
+    start = end + 1;
+    cursor = start;
+  }
+  plain.push(withoutBlocks.slice(start));
+  text = plain.join('').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 20000);
+}
 return {
   json: {
     record: {

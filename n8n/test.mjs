@@ -1845,7 +1845,9 @@ test('Resend: invalid authentication cannot reach a provider fetch or event writ
 for (const file of ['inbound-email-plan.js', 'email-event-plan.js']) {
   for (const auth of [{}, { statusCode: 200, body: 'off' }, { statusCode: 200, body: 'bad' }, { statusCode: 500, body: 'ok' }]) {
     const r = await runCodeAsync(file, { json: { query: { key: 'nonempty' }, body: { type: 'email.received', data: { email_id: 'abc12345' } } }, nodes: { 'Check Resend auth': auth } });
-    assert.equal(r.json.fetch, null); assert.equal(r.json.record, null);
+    test(`Resend: ${file} refuses authentication ${JSON.stringify(auth)}`, () => {
+      assert.equal(r.json.fetch, null); assert.equal(r.json.record, null);
+    });
   }
 }
 test('assistant tools: failed writes return errors while non-loggable calls retain their reply', () => {
@@ -1885,6 +1887,18 @@ test('inbound email: HTML input is capped before text extraction', () => {
   const r = ieMap({ statusCode: 200, body: { html: ' '.repeat(100000) + 'beyond-limit' } });
   assert.equal(r.record.p_message.text, '');
 });
+test('inbound email: malformed HTML preserves fallback text and removes closed raw blocks', () => {
+  const extract = (html) => ieMap({ statusCode: 200, body: { html } }).record.p_message.text;
+  for (const kind of ['style', 'script']) {
+    assert.equal(extract('before<' + kind + '>hidden<' + kind + '>also hidden</' + kind.toUpperCase() + '>after'), 'before after');
+    assert.equal(extract(('<' + kind + '>').repeat(10000) + 'visible'), 'visible');
+    assert.equal(extract(('<' + kind).repeat(10000)), ('<' + kind).repeat(10000).slice(0, 20000));
+  }
+  assert.equal(extract('İ<STYLE>hidden</STYLE>after'), 'İ after');
+  assert.equal(extract('<'.repeat(100000)), '<'.repeat(20000));
+  assert.equal(extract('before<>after<unfinished'), 'before<>after<unfinished');
+  assert.equal(extract('<p>' + 'x'.repeat(25000) + '</p>'), 'x'.repeat(20000));
+});
 test('tools: all number lookups suppress unlinked fallback business IDs', () => {
   for (const file of ['assistant-tools', 'voice-rules', 'appointment-booking', 'brain-tools']) {
     const w = wfJson('zella-' + file + '.json');
@@ -1910,7 +1924,14 @@ test('Meta: unreadable and oversized bodies have distinct safe diagnostics', () 
   for (const r of [unreadable, oversized]) { assert.equal(r.ok, false); assert.equal(r.record.p_raw, ''); assert.equal(r.record.p_signature, 'sig'); }
 });
 
-await assert.rejects(runCodeAsync('email-event-plan.js'), { message: 'Test did not provide node: Check Resend auth' });
+const missingResendAuth = await runCodeAsync('email-event-plan.js').then(
+  () => ({ rejected: false }),
+  (error) => ({ rejected: true, error }),
+);
+test('Resend: a missing auth node rejects execution', () => {
+  assert.equal(missingResendAuth.rejected, true);
+  assert.equal(missingResendAuth.error.message, 'Test did not provide node: Check Resend auth');
+});
 
 console.log(`${passed} passed, ${failures.length} failed`);
 for (const f of failures) console.log('  FAIL ' + f);
