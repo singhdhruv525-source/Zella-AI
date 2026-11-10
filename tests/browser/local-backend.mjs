@@ -471,5 +471,9 @@ const server = http.createServer(async (req, res) => {
   }
 });
 requireIsolated(PGH, PGP, DB);
-http.createServer(server.listeners("request")[0]).listen(PORT, "::1");
+http.createServer(server.listeners("request")[0])
+  .on("error", (err) => {
+    if (!["EADDRNOTAVAIL", "EAFNOSUPPORT"].includes(err.code)) console.error("IPv6 listener failed:", err);
+  })
+  .listen(PORT, "::1");
 server.listen(PORT, "127.0.0.1", () => console.log(`local Supabase stand-in on http://localhost:${PORT} (database ${DB})`));

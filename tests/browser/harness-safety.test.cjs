@@ -13,7 +13,7 @@ test('isolated guard rejects unsafe targets and strips libpq redirects', () => {
   vm.runInNewContext(read('isolated-db.cjs'), context);
   const { PSQL_ENV, requireIsolated } = context.module.exports;
   assert.deepEqual(Object.keys(PSQL_ENV), ['PATH']);
-  for (const [host, db] of [['remote', 'ztest'], ['/socket', 'production'], ['/socket', 'ztest?host=remote']]) {
+  for (const [host, db] of [['remote', 'ztest'], ['/socket,remote', 'ztest'], ['/socket,/other', 'ztest'], ['/socket,', 'ztest'], ['/socket', 'production'], ['/socket', 'ztest?host=remote']]) {
     assert.throws(() => requireIsolated(host, '55433', db), /REFUSED/);
   }
   assert.equal(calls.length, 0);
@@ -29,7 +29,7 @@ test('local backend guards before binding and limits CORS to trusted origins', a
   const source = read('local-backend.mjs').replace(/^import .*;\n/gm, '').replace(/export /g, '');
   vm.runInNewContext(source, {
     process: { env: {} }, Buffer, URL, console,
-    http: { createServer: (fn) => { handler = fn; return { listeners: () => [fn], listen: (...args) => { assert.equal(guarded, 1); binds.push(args); } }; } },
+    http: { createServer: (fn) => { handler = fn; return { on() { return this; }, listeners: () => [fn], listen: (...args) => { assert.equal(guarded, 1); binds.push(args); } }; } },
     requireIsolated: () => guarded++, PSQL_ENV: {}, crypto: require('node:crypto'),
   });
   assert.deepEqual(binds.map((args) => args[1]).sort(), ['127.0.0.1', '::1']);
@@ -38,6 +38,32 @@ test('local backend guards before binding and limits CORS to trusted origins', a
     await handler({ method: 'OPTIONS', headers: { origin } }, { writeHead: (_, h) => { headers = h; }, end() {} });
     assert.equal(headers['access-control-allow-origin'], origin?.includes(':5199') ? origin : undefined);
     if (!origin?.includes(':5199')) assert.equal(headers['access-control-allow-credentials'], undefined);
+  }
+});
+
+test('IPv6 bind failures leave IPv4 available and report unexpected errors', () => {
+  const source = read('local-backend.mjs').replace(/^import .*;\n/gm, '').replace(/export /g, '');
+  for (const code of ['EADDRNOTAVAIL', 'EAFNOSUPPORT', 'EADDRINUSE', 'EACCES']) {
+    const binds = [], errors = [];
+    let guarded = false;
+    vm.runInNewContext(source, {
+      process: { env: {} }, Buffer, URL,
+      console: { error: (...args) => errors.push(args) },
+      http: { createServer: (fn) => {
+        const listener = new EventEmitter();
+        listener.listeners = () => [fn];
+        listener.listen = (_, host) => {
+          assert.equal(guarded, true);
+          binds.push(host);
+          if (host === '::1') listener.emit('error', Object.assign(new Error(code), { code }));
+        };
+        return listener;
+      } },
+      requireIsolated: () => { guarded = true; }, PSQL_ENV: {}, crypto: require('node:crypto'),
+    });
+    assert.deepEqual(binds, ['::1', '127.0.0.1']);
+    assert.equal(errors.length, ['EADDRNOTAVAIL', 'EAFNOSUPPORT'].includes(code) ? 0 : 1);
+    if (errors.length) assert.equal(errors[0][1].code, code);
   }
 });
 
