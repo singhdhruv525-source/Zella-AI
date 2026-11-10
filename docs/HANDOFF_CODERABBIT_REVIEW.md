@@ -59,3 +59,37 @@ Each fix PR has a checklist in `docs/review/FINDINGS_PR<n>.md`, in CodeRabbit's 
 ## Waiting on the owner (production; nothing has been applied)
 - After the merges, applying the migrations and deploying the edge functions and n8n workflows each needs their approval.
 - In Supabase Auth, keep "Confirm email" on. Findings #9 and #10 of #38 depend on it.
+
+
+## Update (10 Nov 2026, ~21:00 UTC, next session)
+
+**CodeRabbit cannot fix by comment** ("This action requires Coding Agent, which is unavailable for this repository").
+Only the "Fix comments" box works, and only on CodeRabbit's own comments on that PR. With the owner's agreement
+the box was ticked on the review-only PRs #38 and #41 and #44–#48 (they are still never merged); CodeRabbit committed
+fixes to those branches (it also committed `web/node_modules`, which is never ported). Each commit is ported onto the
+matching fix PR to main, tested, and reviewed there; the owner ticks "Fix comments" on that PR's review for anything new.
+
+| Fix PR → main | Ported from | State |
+|---|---|---|
+| #42 | (own review) | autofix commits verified (lint, build, 59 web tests, 11 functions type-check, 149 edge tests); re-review requested |
+| #43 | #38 | a0df86d verified (needs `plpgsql_check`, installed on the isolated server only); 2a3ecb3 adds the 6 new function fixes from #38's autofix (spec.py). Re-review requested. **Left:** triage the other #38 autofix hunks (see below) |
+| #49 | #44 | 2407ccd: ported; baseline edits dropped (baseline = production snapshot); finding 2 already fixed in production by `zella_call_content_privacy.sql` (CodeRabbit's calls_view would have dropped the module/MFA checks); new migration has guard, rollback, `tests/rollback_security/run.sh`; rehearsal passes |
+| #50 | #47 | 8e07d15 ported; review posted 3 findings — owner to tick |
+| #51 | #45 | 4d8c064 ported + df5b327 (4 findings the autofix skipped); review posted 5 findings — owner to tick |
+| #52 | #48 | 478cedd ported; review posted 2 findings — owner to tick |
+| #53 | #46 | db0d288 ported; new `sql/zella_n8n_webhook_auth.sql` got guard, rollback, `tests/n8n_webhook_auth/run.sh` (16 checks) |
+| (new) | #41 | **not started**: CodeRabbit's autofix (e082ea1 on `review/full-04-sql-b`, 13 threads of 97) edits applied migrations; convert to a new migration the same way; the other 84 findings are in the review body |
+
+**#38 hunks still to triage** (CodeRabbit commits 74b6b3f, 5ffc879, 8f468a6 on `review/full-01-sql-a`):
+29 hunks outside function bodies (DO blocks, DDL, grants) and these function hunks whose old text no longer matches the
+live definition (a later migration replaced the function): zella_admin_numbers, zella_admin_calls,
+zella_admin_template_variables, zella_admin_automations, zella_admin_runs, zella_ai_tool, zella_call_insights_list,
+zella_available_slots, zella_save_industry_rule, zella_set_industry_rules, zella_apply_industry_automations (engine),
+zella_capture_web_lead, zella_kick_dispatch (no longer exists). Many repeat fixes #43 already has (its ORDER table lists
+them). Edits that only change how an applied migration re-runs cannot be carried over (DB-7).
+Extractor: compare each hunk's old text with `pg_get_functiondef` on an isolated production-state copy
+(`tests/review_sql/run.sh`'s first 17 lines with `DB=zrevstate`).
+
+**Owner notes:** before applying #43, set `n8n_dispatch_enabled` to true explicitly (missing now means off).
+`.coderabbit.yaml` line 31 still conflicts with NN-3 (owner decision). `tests/voice-reliability/run_all.sh` fails on main
+too (`zella_ai_voice does not reproduce the live body`); `tests/calls` checks depend on the time of day.
