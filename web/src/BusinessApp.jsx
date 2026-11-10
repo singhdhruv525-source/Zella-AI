@@ -547,6 +547,7 @@ function BusinessHome() {
         <h1>Couldn't verify sign-in</h1>
         <p className="ba-auth-description">Your sign-in security check failed. Try again to open your workspace.</p>
         <button type="button" className="ba-btn primary block" onClick={mfa.recheck}>Try again</button>
+        <button type="button" className="ba-btn block" onClick={signOut}>Sign out</button>
       </section>
     </main>
   );

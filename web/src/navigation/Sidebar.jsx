@@ -115,6 +115,10 @@ export function SidebarState({ status, error, onRetry }) {
 function useMenu() {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
+  const pointerOpen = useRef(false);
+  // Focus-out may close the menu between pointer-down and click on its trigger.
+  const onTriggerPointerDown = () => { pointerOpen.current = open; };
+  const onTriggerClick = (e) => setOpen(e.detail > 0 ? !pointerOpen.current : !open);
   useEffect(() => {
     if (!open) return undefined;
     const box = ref.current;
@@ -131,7 +135,7 @@ function useMenu() {
       box?.removeEventListener("focusout", onFocusOut);
     };
   }, [open]);
-  return { open, setOpen, ref };
+  return { open, setOpen, ref, onTriggerPointerDown, onTriggerClick };
 }
 
 const initialsOf = (name) => (name || "?").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
@@ -143,7 +147,7 @@ export function BusinessSwitcher({ workspace, workspaces, config, onSwitch, onGo
   const others = workspaces.filter((w) => w.id !== workspace.id);
   return (
     <div className="ba-switcher" ref={ref}>
-      <button type="button" className="ba-switcher-btn" aria-expanded={menu.open} onClick={() => menu.setOpen(!menu.open)}>
+      <button type="button" className="ba-switcher-btn" aria-expanded={menu.open} onPointerDown={menu.onTriggerPointerDown} onClick={menu.onTriggerClick}>
         {config?.logo_url ? <img src={config.logo_url} alt="" className="ba-switcher-logo" /> : <span className="ba-switcher-logo">{initialsOf(workspace.name)}</span>}
         <span className="ba-switcher-text">
           <strong>{workspace.name}</strong>
@@ -186,7 +190,7 @@ export function ProfileMenu({ email, name, role, onGo, onSignOut }) {
   const { ref, ...menu } = useMenu();
   return (
     <div className="ba-profile" ref={ref}>
-      <button type="button" className="ba-profile-btn" aria-expanded={menu.open} onClick={() => menu.setOpen(!menu.open)}>
+      <button type="button" className="ba-profile-btn" aria-expanded={menu.open} onPointerDown={menu.onTriggerPointerDown} onClick={menu.onTriggerClick}>
         <span className="ba-avatar">{initialsOf(name || email)}</span>
         <span className="ba-profile-text"><strong title={email}>{name || email}</strong><small>{role}</small></span>
         <Icon name="expand_more" size="sm" />
