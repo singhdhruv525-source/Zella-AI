@@ -315,4 +315,29 @@ do $$ begin if public.zella_session_proved_email() then raise exception 'FAIL a 
 reset request.jwt.claims;
 select 'PASS call insights follow the call-content rule; email proof needs an email sign-in on this address, a verified identity and the current session';
 
+-- CodeRabbit security audit #2: a hard bounce changes only the sending business's customer; an unmatched one changes none
+insert into public.customers (id, business_id, first_name, email, status) values
+  ('fa100000-0000-0000-0000-0000000000e1', 'fa000000-0000-0000-0000-0000000000a1', 'Bounce A', 'gone@rf.test', 'active'),
+  ('fa100000-0000-0000-0000-0000000000e2', 'fa000000-0000-0000-0000-0000000000b1', 'Bounce B', 'gone@rf.test', 'active');
+insert into public.email_messages (id, business_id, customer_id, direction, to_email, status, external_message_id)
+  values ('fa110000-0000-0000-0000-0000000000e1', 'fa000000-0000-0000-0000-0000000000a1', 'fa100000-0000-0000-0000-0000000000e1', 'outbound', 'gone@rf.test', 'sent', 'ext-bounce-1');
+delete from vault.secrets where name = 'zella_resend_webhook_key';
+select vault.create_secret('test-url-key', 'zella_resend_webhook_key');
+do $$ begin
+  perform public.zella_record_email_event('test-url-key', '{"type": "email.bounced", "data": {"email_id": "ext-bounce-1", "to": ["gone@rf.test"], "bounce": {"type": "Permanent"}}}', 'evt-bounce-1');
+  if not (select do_not_email from public.customers where id = 'fa100000-0000-0000-0000-0000000000e1') then raise exception 'FAIL audit #2 the sending business''s customer was not suppressed'; end if;
+  if (select coalesce(do_not_email, false) from public.customers where id = 'fa100000-0000-0000-0000-0000000000e2') then raise exception 'FAIL audit #2 another business''s customer was changed'; end if;
+  perform public.zella_record_email_event('test-url-key', '{"type": "email.bounced", "data": {"email_id": "unknown", "to": ["gone@rf.test"], "bounce": {"type": "Permanent"}}}', 'evt-bounce-2');
+  if (select coalesce(do_not_email, false) from public.customers where id = 'fa100000-0000-0000-0000-0000000000e2') then raise exception 'FAIL audit #2 an unmatched bounce changed a customer'; end if;
+end $$;
+select 'PASS audit #2 a hard bounce suppresses only the sending business''s customer; an unmatched bounce changes nothing';
+-- CodeRabbit security audit #7: a business's currency is readable only by its members
+set local request.jwt.claims = '{"sub": "fa000000-0000-0000-0000-00000000000f", "role": "authenticated"}';
+do $$ begin
+  if public.zella_business_currency('fa000000-0000-0000-0000-0000000000b1') is not null and not public.is_business_member('fa000000-0000-0000-0000-0000000000b1') then raise exception 'FAIL audit #7 a non-member read the currency'; end if;
+end $$;
+reset request.jwt.claims;
+do $$ begin if public.zella_business_currency('fa000000-0000-0000-0000-0000000000b1') is null then raise exception 'FAIL audit #7 server code lost the currency'; end if; end $$;
+select 'PASS audit #7 business currency only for members (server code unchanged)';
+
 rollback;

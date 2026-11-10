@@ -411,6 +411,26 @@ FUNCS.append(("zella_session_proved_email", [
      "  -- the session must have signed in by email (link, or emailed code: the app has no phone sign-in), on this\n  -- account's current address, with an email identity the auth provider verified\n  select exists (\n    select 1 from auth.users u\n    join auth.sessions s on s.user_id = u.id and s.id::text = auth.jwt() ->> 'session_id'\n    where u.id = auth.uid() and lower(u.email) = lower(auth.jwt() ->> 'email')\n      and exists (select 1 from auth.identities i where i.user_id = u.id\n        and lower(i.identity_data ->> 'email') = lower(u.email)\n        and i.identity_data -> 'email_verified' = 'true'::jsonb)\n      and exists (select 1 from jsonb_array_elements(\n        case when jsonb_typeof(auth.jwt() -> 'amr') = 'array' then auth.jwt() -> 'amr' else '[]'::jsonb end) m\n        where m ->> 'method' in ('otp', 'magiclink', 'invite', 'recovery', 'email/signup', 'email_change'))\n  );"),
 ]))
 
+
+# CodeRabbit security audit (PR #42 comment, 10 Nov): tenant isolation in the database
+FUNCS.append(("zella_record_email_event", [
+    ("""    if v_to is not null then
+      for v_cust in
+        update public.customers c set do_not_email = true, email_suppressed_at = now(), email_suppressed_reason = 'bounced', updated_at = now()
+         where lower(c.email) = v_to and not coalesce(c.do_not_email, false)""",
+     """    -- only the business that sent the message (NN-1, TEN-3); a bounce that matches no message changes no customer
+    if v_msg.id is not null and v_to is not null then
+      for v_cust in
+        update public.customers c set do_not_email = true, email_suppressed_at = now(), email_suppressed_reason = 'bounced', updated_at = now()
+         where c.business_id = v_msg.business_id and lower(c.email) = v_to and not coalesce(c.do_not_email, false)"""),
+]))
+FUNCS.append(("zella_business_currency", [
+    ("  from public.businesses b where b.id = p_business_id;",
+     "  from public.businesses b where b.id = p_business_id\n"
+     "    -- members of that business only; server code (no signed-in user) as before\n"
+     "    and (auth.uid() is null or public.is_business_member(p_business_id));"),
+]))
+
 # CodeRabbit's order (finding number on PR #38, first finding = 0): each function is written in the order of its
 # first finding, so the migration reads in the same order as the review.
 ORDER = {"zella_claim_admin_alert_email": 0, "zella_admin_routing_save": 1, "zella_admin_message_detail": 2,
@@ -428,6 +448,8 @@ ORDER = {"zella_claim_admin_alert_email": 0, "zella_admin_routing_save": 1, "zel
   # second pass (CodeRabbit's autofix on #38), in its commit order
   "zella_admin_messages": 100.1, "zella_config_migration_restore": 100.2, "zella_dispatch_n8n": 100.3,
   "zella_platform_admin_email_check": 100.4, "zella_session_proved_email": 100.5,
+  # CodeRabbit security audit on PR #42, in its order
+  "zella_record_email_event": 300.2, "zella_business_currency": 300.7,
   # PR #41 (SQL part 2), in its order
   "zella_offer_redeem_core": 200.1, "zella_reassign_callback": 200.2, "zella_erase_customer": 200.3, "zella_language_allowance": 200.4,
   "zella_decide_time_off": 200.5, "zella_offboard_member": 200.6, "zella_public_status": 200.7, "zella_check_uptime": 200.8}

@@ -227,6 +227,14 @@ begin
   if v is null or v not in ('ff763b4ad36144503c67881c4e18790c', '92689ace8808705ae6f51a842623d47f') then
     raise exception 'VERSION_MISMATCH: public.zella_check_uptime() is not the version this file was written against (rollback)';
   end if;
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_record_email_event(text,jsonb,text)');
+  if v is null or v not in ('eab985f3dfbfdadad7b73f6a0b5818a6', '4b8ce14641635b9b92e39863625eecb1') then
+    raise exception 'VERSION_MISMATCH: public.zella_record_email_event(text,jsonb,text) is not the version this file was written against (rollback)';
+  end if;
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_business_currency(uuid)');
+  if v is null or v not in ('478feda6c0e6714ebb6bac9591b19716', '5d3592b5abf157fb6983059e39762b40') then
+    raise exception 'VERSION_MISMATCH: public.zella_business_currency(uuid) is not the version this file was written against (rollback)';
+  end if;
 end $guard$;
 
 alter policy call_insights_read on public.call_insights using (public.zella_is_member(business_id));
@@ -2349,5 +2357,88 @@ begin
   end if;
   return jsonb_build_object('heartbeat_last', v_last, 'stalled', to_jsonb(v_stuck));
 end $function$;
+
+CREATE OR REPLACE FUNCTION public.zella_record_email_event(p_key text, p_event jsonb, p_event_id text)
+ RETURNS text
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'extensions'
+AS $function$
+declare
+  v_secret text; v_type text; v_data jsonb; v_ext text; v_to text; v_msg record; v_bounce text; v_n integer; v_cust record;
+begin
+  select decrypted_secret into v_secret from vault.decrypted_secrets where name = 'zella_resend_webhook_key' limit 1;
+  if v_secret is null or v_secret = '' then return 'not_configured'; end if;
+  if p_key is null or encode(sha256(convert_to(p_key, 'utf8')), 'hex') <> encode(sha256(convert_to(v_secret, 'utf8')), 'hex') then return 'unauthorized'; end if;
+  if p_event is null or jsonb_typeof(p_event) <> 'object' or nullif(p_event_id, '') is null then return 'ignored'; end if;
+
+  v_type := left(coalesce(p_event ->> 'type', ''), 60);
+  v_data := case when jsonb_typeof(p_event -> 'data') = 'object' then p_event -> 'data' else '{}'::jsonb end;
+  v_ext := nullif(left(coalesce(v_data ->> 'email_id', ''), 200), '');
+  v_to := lower(nullif(trim(left(coalesce(case when jsonb_typeof(v_data -> 'to') = 'array' then v_data -> 'to' ->> 0 else v_data ->> 'to' end, ''), 300)), ''));
+  v_bounce := lower(coalesce(v_data -> 'bounce' ->> 'type', ''));
+
+  select m.id, m.business_id, m.customer_id, m.to_email into v_msg from public.email_messages m
+   where v_ext is not null and m.external_message_id = v_ext and m.direction = 'outbound' limit 1;
+  v_to := coalesce(v_to, lower(v_msg.to_email));
+
+  insert into public.email_events (provider_event_id, type, email_message_id, business_id, to_email, detail)
+  values (left(p_event_id, 200), v_type, v_msg.id, v_msg.business_id, v_to,
+          jsonb_build_object('bounce_type', nullif(v_bounce, ''), 'bounce_sub_type', v_data -> 'bounce' ->> 'subType'))
+  on conflict (provider_event_id) do nothing;
+  if not found then return 'duplicate'; end if;
+  if v_msg.id is null and v_to is null then return 'ignored'; end if;
+
+  if v_type = 'email.delivered' then
+    update public.email_messages set status = 'delivered', delivered_at = now(), updated_at = now() where id = v_msg.id and status in ('sent', 'queued');
+    return 'delivered';
+  end if;
+
+  if v_type = 'email.bounced' and v_bounce in ('permanent', 'hard') then
+    if v_msg.id is not null then
+      update public.email_messages set status = 'failed', metadata = metadata || jsonb_build_object('bounced', true), updated_at = now() where id = v_msg.id;
+    end if;
+    if v_to is not null then
+      for v_cust in
+        update public.customers c set do_not_email = true, email_suppressed_at = now(), email_suppressed_reason = 'bounced', updated_at = now()
+         where lower(c.email) = v_to and not coalesce(c.do_not_email, false)
+        returning c.business_id, c.id
+      loop
+        perform public.zella_notify(v_cust.business_id, 'email_bounced', 'An email address does not work',
+          'An email to ' || v_to || ' could not be delivered, so we will not email that address again. Please check the address with the customer.', 'info', 'customers', v_cust.id);
+      end loop;
+    end if;
+    return 'bounced';
+  end if;
+
+  if v_type = 'email.complained' then
+    if v_msg.business_id is not null and v_to is not null then
+      for v_cust in
+        update public.customers c set do_not_email = true, email_suppressed_at = now(), email_suppressed_reason = 'complained', updated_at = now()
+         where c.business_id = v_msg.business_id and lower(c.email) = v_to and not coalesce(c.do_not_email, false)
+        returning c.business_id, c.id
+      loop
+        perform public.zella_notify(v_cust.business_id, 'email_complaint', 'A customer marked an email as spam',
+          v_to || ' marked an email as spam, so we will not email them again.', 'warning', 'customers', v_cust.id);
+      end loop;
+    end if;
+    return 'complained';
+  end if;
+
+  return 'recorded';
+end $function$;
+
+CREATE OR REPLACE FUNCTION public.zella_business_currency(p_business_id uuid)
+ RETURNS text
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select coalesce(upper(nullif(b.setup_data #>> '{billing,currency}', '')), case upper(coalesce(b.country, 'US'))
+    when 'AU' then 'AUD' when 'GB' then 'GBP' when 'UK' then 'GBP' when 'CA' then 'CAD' when 'NZ' then 'NZD' when 'IN' then 'INR'
+    when 'IE' then 'EUR' when 'DE' then 'EUR' when 'FR' then 'EUR' when 'ES' then 'EUR' when 'IT' then 'EUR' when 'NL' then 'EUR'
+    when 'SG' then 'SGD' when 'AE' then 'AED' when 'ZA' then 'ZAR' when 'JP' then 'JPY' else 'USD' end)
+  from public.businesses b where b.id = p_business_id;
+$function$;
 
 commit;
