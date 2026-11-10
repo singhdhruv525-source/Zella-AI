@@ -1,0 +1,84 @@
+/* =========================================================
+   Zella Voice theme: the official look from the Zella Voice design system (paper, midnight, coral; Inter Tight
+   headings; pill buttons). The default for anyone without a saved look (appearance.js DEFAULT_APPEARANCE). Like
+   Glass, it only re-points the shared tokens in tokens.css, and only while the signed-in admin (.owner-app) or CRM
+   (.ba-root) is on the page; sign-in and public pages keep the standard look.
+   Text pairs checked against WCAG AA: ink 16-19:1, secondary #5B6474 5.1-6.0:1, faint #626B7B 4.6-5.4:1 on every
+   surface below (paper, white, sunken, coral tint).
+   ========================================================= */
+
+html[data-zella-theme="zella"]:has(.ba-root, .owner-app) {
+  /* Surfaces: 60% paper */
+  --zella-bg: #FAFAF7;
+  --zella-sidebar: #FFFFFF;
+  --zella-card: #FFFFFF;
+  --zella-subtle: #F1F2F4;
+  --zella-alt: #F7F8F9;
+
+  /* Midnight is the action colour; coral marks what's selected or live (10%, so it stands out) */
+  --zella-primary: #0B0F1A;
+  --zella-primary-hover: #1C2333;
+  --zella-primary-soft: #FFE9E3;          /* coral tint */
+  --zella-primary-border: #F7B6A6;
+  --zella-primary-ring: rgba(255, 79, 46, 0.32);
+  --zella-nav-active: #FFE9E3;
+  --zella-nav-hover: rgba(11, 15, 26, 0.05);
+  --zella-on-primary: #FFFFFF;
+
+  /* Text */
+  --zella-text: #0B0F1A;
+  --zella-text-2: #2A3142;
+  --zella-text-secondary: #5B6474;
+  --zella-text-faint: #626B7B;
+
+  /* Lines: hairlines for decoration, line-strong (3.5:1) where a border marks a control */
+  --zella-border: #D9DCE1;
+  --zella-border-strong: #7C8597;
+
+  /* Status, always with a word or icon (danger is crimson, never the brand coral) */
+  --zella-success-bg: #E3F5EF;
+  --zella-success: #0B7A5E;
+  --zella-success-border: #A9DDCB;
+  --zella-info-bg: #E6EAFF;
+  --zella-info: #3150E0;
+  --zella-info-border: #B9C4F7;
+  --zella-warning-bg: #FFF2DB;
+  --zella-warning: #A15F00;
+  --zella-warning-border: #F0CF95;
+  --zella-danger-bg: #FCE6EA;
+  --zella-danger: #B8263F;
+  --zella-danger-border: #F2B3BF;
+
+  --zella-radius-sm: 10px;
+  --zella-radius-md: 10px;
+  --zella-radius-lg: 16px;
+  --zella-shadow-sm: 0 1px 2px rgba(11, 15, 26, 0.06);
+  --zella-shadow-md: 0 1px 2px rgba(11, 15, 26, 0.06), 0 8px 24px rgba(11, 15, 26, 0.06);
+  --zella-shadow-pop: 0 4px 8px rgba(11, 15, 26, 0.08), 0 20px 48px rgba(11, 15, 26, 0.14);
+  --zella-overlay: rgba(11, 15, 26, 0.45);
+  --zella-focus: 0 0 0 3px rgba(255, 79, 46, 0.45);
+
+  --zella-display: "Inter Tight", Inter, system-ui, sans-serif;
+}
+
+/* Headlines in Inter Tight, tracked in slightly, like the wordmark */
+html[data-zella-theme="zella"]:has(.ba-root, .owner-app) :is(.ba-root, .owner-app) :is(h1, h2, .ba-page-head h1, .owner-page-heading h1, .zs-head h1) {
+  font-family: var(--zella-display);
+  letter-spacing: -0.02em;
+}
+
+/* The pill is the signature shape: buttons echo the logo's bars */
+html[data-zella-theme="zella"]:has(.ba-root, .owner-app) :is(.ba-btn, .owner-primary-button, .owner-secondary-button, .zs-btn, .bd-danger-button, .zella-dock-toggle) {
+  border-radius: 999px;
+}
+
+/* The selected sidebar item: coral tint with midnight text, and a coral mark like the tall bar */
+html[data-zella-theme="zella"]:has(.ba-root, .owner-app) :is(.ba-nav-item.active, .owner-nav-item.active) {
+  color: var(--zella-text);
+  box-shadow: inset 3px 0 0 #FF4F2E;
+}
+
+/* The top bar used a cream glass; paper here */
+html[data-zella-theme="zella"]:has(.ba-root, .owner-app) :is(.owner-topbar, .ba-header) {
+  background: rgba(250, 250, 247, 0.92);
+}

@@ -1,0 +1,120 @@
+@import "./styles/tokens.css";
+
+/* =========================================================
+   Base styles for every page. Colours and type come from
+   styles/tokens.css. The product is light-only: no dark mode
+   switch, so the browser never repaints pages dark.
+   ========================================================= */
+
+:root {
+  color-scheme: light;
+  font-family: var(--zella-font);
+  font-size: var(--zella-text-base);
+  line-height: var(--zella-leading);
+  color: var(--zella-text);
+  background: var(--zella-bg);
+  font-synthesis: none;
+  font-feature-settings: "cv11", "ss01";
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--zella-bg);
+}
+
+body {
+  overflow-x: hidden;
+}
+
+#root {
+  width: 100%;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+}
+
+#root > * {
+  flex: 1 0 auto;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  margin: 0;
+  color: var(--zella-text);
+  font-family: var(--zella-font);
+  line-height: var(--zella-leading-tight);
+  letter-spacing: -0.01em;
+}
+
+p {
+  margin: 0;
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+/* Checkboxes, radios, ranges and progress bars in the brand colour */
+input,
+progress {
+  accent-color: var(--zella-primary);
+}
+
+img,
+svg {
+  max-width: 100%;
+}
+
+code,
+kbd {
+  font-family: var(--zella-font-mono);
+  font-size: 0.92em;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--zella-subtle);
+  color: var(--zella-text);
+}
+
+:focus-visible {
+  outline: 2px solid var(--zella-primary);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--zella-primary-soft);
+  color: var(--zella-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Appearance couldn't be saved (AppearanceSaveNotice) */
+.zella-save-notice { position: fixed; z-index: 1000; left: 50%; bottom: 20px; transform: translateX(-50%); max-width: min(560px, calc(100vw - 32px));
+  display: flex; gap: 12px; align-items: center; padding: 10px 14px; border-radius: 10px; background: #7f1d1d; color: #fff; font-size: 14px; line-height: 1.4;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25); }
+.zella-save-notice button { flex: none; border: 1px solid rgba(255, 255, 255, 0.7); background: transparent; color: #fff; border-radius: 8px; padding: 6px 10px; font: inherit; cursor: pointer; }
+.zella-save-notice button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }

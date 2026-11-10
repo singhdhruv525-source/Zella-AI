@@ -1,0 +1,187 @@
+import { useRef, useState } from "react";
+import { supabase } from "../supabase";
+import {
+  activePalette, APP_SCOPE, BACKGROUNDS, DEFAULT_APPEARANCE, forgetPictureLater, prepareBackground, resetAppearance, retryAppearanceSave, sidebarMode,
+  updateAppearance, useAppearance, useAppearanceSave, wallpaperUrl,
+} from "../appearance";
+import { uploadImage } from "./PersonalPanels";
+import { Banner, Card, Field, Toggle } from "./SettingsKit";
+import { chime, deviceAlerts, setDeviceAlerts } from "../liveAlerts";
+
+// Settings > Personal > Appearance (admin and CRM). Personal only: it changes how this app (admin or CRM, each kept
+// apart) looks for the person signed in, on every device, and never for anyone else. Sign-in pages are not themed.
+// Every change applies at once and is saved to their account.
+
+const THEMES = [
+  { key: "zella", label: "Zella Voice", text: "Paper, midnight and coral. The official Zella Voice look." },
+  { key: "classic", label: "Classic", text: "Warm cream and copper. The earlier Zella look." },
+  { key: "glass", label: "Glass", text: "Frosted panels over a background picture of your choice." },
+];
+const SIDEBAR = [
+  { key: null, label: "Automatic", text: "A slim dock with Glass, the full list with the other themes." },
+  { key: "full", label: "Always full", text: "Icons with their names." },
+  { key: "compact", label: "Always a dock", text: "Icons only; names appear when you point at one." },
+];
+
+// Colours from the picture: buttons, links, highlights, panels and text take on the picture's palette (Glass only).
+function MatchColours({ look }) {
+  const pal = activePalette(look);
+  const url = wallpaperUrl(look);
+  const status = !look.matchPicture ? "Standard Zella colors."
+    : look.theme !== "glass" ? "Applies with the Glass theme."
+    : !url ? "The Plain background has no picture to take colors from."
+    : look.palette?.for === url && look.palette.none ? "This picture has almost no color, so the standard Zella colors are kept."
+    : pal ? "Buttons, links, highlights, panels and text now use the picture's colors. The Zella logo keeps its own."
+    : "Reading the picture's colors…";
+  return (
+    <div className="zs-match">
+      <div className="zs-match-row">
+        <Toggle on={look.matchPicture} onChange={(on) => updateAppearance({ matchPicture: on })} label="Match colors to the picture" />
+        <strong>Match colors to the picture</strong>
+      </div>
+      <p className="zs-hint">{status}</p>
+      {pal && (
+        <div className="zs-swatches" aria-label="Colors taken from the picture">
+          {pal.swatches.map((c, i) => <span key={i} style={{ background: c }} title={c} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// The one notification choice: the chime when something new arrives (on by default, saved for this browser).
+function NotificationSound() {
+  const [on, setOn] = useState(() => deviceAlerts().sound);
+  return (
+    <Card title="Notification sound">
+      <ul className="zs-rows"><li><div><strong>Play a sound for new notifications</strong><small>A soft chime. Urgent alerts sound different.</small></div>
+        <Toggle on={on} label="Notification sound" onChange={(v) => { setOn(setDeviceAlerts({ sound: v }).sound); if (v) chime("info"); }} /></li></ul>
+    </Card>
+  );
+}
+
+// Shown changes are only on this device until the account confirms the save.
+function SaveStatus() {
+  const save = useAppearanceSave();
+  if (save.status === "failed") {
+    return (
+      <Banner tone="error">
+        Your look is showing on this device but wasn't saved to your account ({save.error}). Other devices won't see it yet.{" "}
+        <button type="button" className="zs-link" onClick={retryAppearanceSave}>Try again</button>
+      </Banner>
+    );
+  }
+  const text = save.status === "saved" ? "Saved to your account." : "Saving to your account…";
+  return <p className="zs-hint" role="status" aria-live="polite">{text}</p>;
+}
+
+export function AppearancePanel() {
+  const look = useAppearance();
+  const fileInput = useRef(null);
+  const [pic, setPic] = useState({ busy: false, error: "" });
+
+  async function upload(file) {
+    if (!file) return;
+    setPic({ busy: true, error: "" });
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Your session has ended. Please sign in again.");
+      const small = await prepareBackground(file);
+      const url = await uploadImage(`user/${user.id}/background`, small);
+      const old = look.customUrl;
+      if (old && old !== url) forgetPictureLater(old);   // deleted once the account has saved the new picture
+      updateAppearance({ theme: "glass", background: "custom", customUrl: url });
+      setPic({ busy: false, error: "" });
+    } catch (err) {
+      setPic({ busy: false, error: err.message });
+    }
+  }
+  async function removePicture() {
+    forgetPictureLater(look.customUrl);
+    updateAppearance({ background: DEFAULT_APPEARANCE.background, customUrl: null });
+  }
+
+  return (
+    <>
+      <Banner>
+        These settings change how {APP_SCOPE === "crm" ? "the CRM" : "the admin dashboard"} looks for you only, on every device you sign in on.
+        {APP_SCOPE === "crm" ? " The admin dashboard" : " The CRM"} has its own setting, and everyone else keeps their own look. Changes show here
+        straight away and are then saved to your account.
+      </Banner>
+      <SaveStatus />
+
+      <Card title="Theme">
+        <div className="zs-look-grid" role="radiogroup" aria-label="Theme">
+          {THEMES.map((t) => (
+            <button key={t.key} type="button" role="radio" aria-checked={look.theme === t.key}
+              className={`zs-look ${look.theme === t.key ? "on" : ""}`} onClick={() => updateAppearance({ theme: t.key })}>
+              <span className={`zs-look-preview ${t.key}`} aria-hidden="true"><i /><i /><i /></span>
+              <strong>{t.label}</strong>
+              <small>{t.text}</small>
+            </button>
+          ))}
+        </div>
+      </Card>
+
+      <Card title="Background picture" sub="Shown behind the Glass theme.">
+        {look.theme !== "glass" && (
+          <Banner>The picture appears with the Glass theme. <button type="button" className="zs-link" onClick={() => updateAppearance({ theme: "glass" })}>Switch to Glass</button></Banner>
+        )}
+        <div className="zs-bg-grid" role="radiogroup" aria-label="Background picture">
+          {BACKGROUNDS.map((b) => (
+            <button key={b.key} type="button" role="radio" aria-checked={look.background === b.key}
+              className={`zs-bg ${look.background === b.key ? "on" : ""}`} onClick={() => updateAppearance({ background: b.key })}>
+              <span className="zs-bg-thumb" style={b.src ? { backgroundImage: `url("${b.src}")` } : undefined} aria-hidden="true" />
+              <span>{b.label}{b.key === DEFAULT_APPEARANCE.background ? " (default)" : ""}</span>
+            </button>
+          ))}
+          {look.customUrl && (
+            <button type="button" role="radio" aria-checked={look.background === "custom"}
+              className={`zs-bg ${look.background === "custom" ? "on" : ""}`} onClick={() => updateAppearance({ background: "custom" })}>
+              <span className="zs-bg-thumb" style={{ backgroundImage: `url("${look.customUrl}")` }} aria-hidden="true" />
+              <span>Your picture</span>
+            </button>
+          )}
+        </div>
+        <div className="zs-bg-actions">
+          <input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp" hidden
+            onChange={(e) => { upload(e.target.files?.[0]); e.target.value = ""; }} />
+          <button type="button" className="zs-btn" disabled={pic.busy} onClick={() => fileInput.current?.click()}>
+            {pic.busy ? "Uploading…" : look.customUrl ? "Upload a different picture" : "Upload your own picture"}
+          </button>
+          {look.customUrl && <button type="button" className="zs-btn" disabled={pic.busy} onClick={removePicture}>Remove my picture</button>}
+        </div>
+        {pic.error && <Banner tone="error">{pic.error}</Banner>}
+        <p className="zs-hint">PNG, JPEG or WebP. Large photos are made smaller automatically. Stored with your Zella account; anyone with its
+          exact link could open it, so don't use a private photo.</p>
+        <MatchColours look={look} />
+        <Field label={`Dim the picture: ${look.dim}%`} hint="More dimming makes text easier to read.">
+          <input type="range" min="0" max="80" step="5" value={look.dim} onChange={(e) => updateAppearance({ dim: Number(e.target.value) })} />
+        </Field>
+      </Card>
+
+      <Card title="Sidebar" sub={`Now: ${sidebarMode(look) === "compact" ? "a slim dock" : "the full list"}. The button at the bottom of the sidebar switches it too.`}>
+        <div className="zs-look-grid" role="radiogroup" aria-label="Sidebar">
+          {SIDEBAR.map((o) => (
+            <button key={String(o.key)} type="button" role="radio" aria-checked={look.sidebar === o.key}
+              className={`zs-look ${look.sidebar === o.key ? "on" : ""}`} onClick={() => updateAppearance({ sidebar: o.key })}>
+              <strong>{o.label}</strong>
+              <small>{o.text}</small>
+            </button>
+          ))}
+        </div>
+      </Card>
+
+      <NotificationSound />
+
+      <Card title="Start again">
+        <div className="zs-bg-actions">
+          <button type="button" className="zs-btn" onClick={() => { forgetPictureLater(look.customUrl); resetAppearance(); }}>
+            Back to the default look
+          </button>
+          <small className="zs-hint">Zella Voice theme, the default picture for Glass, automatic sidebar. Removes your uploaded picture.</small>
+        </div>
+      </Card>
+    </>
+  );
+}
