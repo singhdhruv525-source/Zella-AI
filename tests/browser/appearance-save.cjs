@@ -126,7 +126,7 @@ const stateText = (p) => p.locator(".zs-page").innerText();
     check("outside settings, a failed look save shows a notice with Try again", (await notice.count()) === 1 && /wasn't saved/.test(await notice.innerText()));
     account.fail = false;
     await notice.locator("button").click(); await p.waitForTimeout(1300);
-    check("Try again from the notice saves and the notice goes away", (await notice.count()) === 0 && account.meta.crm.sidebar === "compact" || account.meta.crm.sidebar === "full");
+    check("Try again from the notice saves and the notice goes away", (await notice.count()) === 0 && (account.meta.crm.sidebar === "compact" || account.meta.crm.sidebar === "full"));
     await ctx.close();
   }
 

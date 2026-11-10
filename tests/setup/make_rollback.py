@@ -2,6 +2,9 @@
 # replace(def, new, old), so only that file's additions go and other migrations' changes stay.
 #   python3 -I tests/setup/make_rollback.py [setup|messaging|orders|buffers|channel|escalation|knowledge|configmig|planlang|holiday|windows|tables|slotblocks]
 import re, sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
 which = sys.argv[1] if len(sys.argv) > 1 else "setup"
 CFG = {
   "setup": ("sql/zella_setup_enforcement.sql", "sql/rollback/zella_setup_enforcement_rollback.sql", [
@@ -100,7 +103,7 @@ CFG["tables"] = ("sql/zella_tables.sql", "sql/rollback/zella_tables_rollback.sql
     "do $$\ndeclare t text; i record; v_stamp text := to_char(clock_timestamp(), 'YYYYMMDDHH24MISSUS');\nbegin\n  foreach t in array array['table_events', 'table_blocks', 'table_combinations', 'restaurant_tables'] loop\n    continue when to_regclass('public.' || t) is null;\n    for i in select ix.relname, ix.oid from pg_index x join pg_class ix on ix.oid = x.indexrelid\n      where x.indrelid = to_regclass('public.' || t) and not x.indisprimary loop\n      execute format('alter index public.%I rename to %I', i.relname, left(i.relname, 20) || '_rb' || i.oid || '_' || v_stamp);\n    end loop;\n    if to_regclass('public.' || t || '_rolled_back') is not null then\n      execute format('alter table public.%I rename to %I', t || '_rolled_back', t || '_rb_' || v_stamp);\n    end if;\n    execute format('alter table public.%I rename to %I', t, t || '_rolled_back');\n    execute format('alter table public.%I enable row level security', t || '_rolled_back');\n    execute format('revoke all on public.%I from public, anon, authenticated', t || '_rolled_back');\n  end loop;\nend $$;"])
 CFG["slotblocks"] = ("sql/zella_slots_resource_blocks.sql", "sql/rollback/zella_slots_resource_blocks_rollback.sql", [])
 SRC, DST, DROPS = CFG[which]
-src = open(SRC).read()
+src = (ROOT / SRC).read_text()
 fns = re.findall(r"pg_get_functiondef\('([^']+)'::regprocedure\);\n  if position\('([a-z_]+)' in def\) = 0 then\n(.*?)\n    execute def;", src, re.S)
 if not fns:
     raise ValueError(f"{SRC}: no function patches found")
@@ -128,5 +131,5 @@ for sig, marker, body in fns:
     out.append("    execute def;")
     out.append("  end if;")
 out += ["end $$;"] + DROPS + ["commit;"]
-open(DST, 'w').write("\n".join(out) + "\n")
+(ROOT / DST).write_text("\n".join(out) + "\n")
 print(len(fns), "functions,", sum(len(re.findall(r'replace\(def', b)) for _, _, b in fns), "replacements")

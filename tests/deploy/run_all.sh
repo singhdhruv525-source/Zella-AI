@@ -89,5 +89,5 @@ fi
 # 7. and the sequence applies again after a rollback
 for m in "${PENDING[@]}"; do out=$($P -d $DB -f "$REPO/sql/$m.sql" 2>&1) || { bad "re-apply $m after rollback: $(echo "$out" | grep -m1 ERROR)"; break; }; done
 check_approval "after reapply"
-[ "$($P -d $DB -c "$STATE")" != "$before" ] && ok "re-apply after the rollback" || bad "re-apply changed nothing"
+[ "$($P -d $DB -c "$STATE")" = "$after" ] && ok "re-apply after the rollback" || bad "re-apply differs from the first apply"
 echo; [ $fails -eq 0 ] && echo "ALL PASSED" || { echo "$fails FAILED"; exit 1; }

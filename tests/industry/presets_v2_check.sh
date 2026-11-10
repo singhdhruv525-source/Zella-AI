@@ -8,9 +8,13 @@
 #   * private fields hold no plain values in record data
 # Usage: tests/industry/presets_v2_check.sh [source db, default zella_ui]
 set -euo pipefail
-SRC=${1:-zella_ui}; DB=zsec_presets_check
-H="-h ${ZPG_HOST:-/var/lib/postgresql/zella-sec} -p ${ZPG_PORT:-55433} -U postgres"
+SRC=${1-zella_ui}; DB=zsec_presets_check
+[[ "$SRC" =~ ^z[a-z0-9_]{1,40}$ ]] || { echo "REFUSED: invalid source database name" >&2; exit 1; }
+ZPG_HOST=${ZPG_HOST:-/var/lib/postgresql/zella-sec}; ZPG_PORT=${ZPG_PORT:-55433}
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
+. "$REPO/tests/lib/isolated_guard.sh"
+zella_require_isolated "$ZPG_HOST" "$ZPG_PORT" "$DB" || exit 1
+H="-h $ZPG_HOST -p $ZPG_PORT -U postgres"
 psql $H -qX -c "drop database if exists $DB" -c "create database $DB" >/dev/null
 pg_dump $H -d "$SRC" | psql $H -qX -d $DB >/dev/null 2>&1
 P="psql $H -qtAX -d $DB -v ON_ERROR_STOP=1"

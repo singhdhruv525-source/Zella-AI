@@ -7,8 +7,8 @@
         "type": "function",
         "async": false,
         "server": {
-          "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/functions/v1/voice-rules",
-          "credentialId": "9b6da51e-2b7e-45f2-aa48-bf17673fe6a0",
+          "url": "https://zella.example.test/functions/v1/voice-rules",
+          "credentialId": "00000000-0000-0000-0000-000000000001",
           "timeoutSeconds": 20
         },
         "function": {
@@ -31,8 +31,8 @@
         "type": "function",
         "async": false,
         "server": {
-          "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/functions/v1/voice-rules",
-          "credentialId": "9b6da51e-2b7e-45f2-aa48-bf17673fe6a0",
+          "url": "https://zella.example.test/functions/v1/voice-rules",
+          "credentialId": "00000000-0000-0000-0000-000000000001",
           "timeoutSeconds": 20
         },
         "function": {
@@ -83,8 +83,8 @@
         "type": "function",
         "async": false,
         "server": {
-          "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/functions/v1/voice-rules",
-          "credentialId": "9b6da51e-2b7e-45f2-aa48-bf17673fe6a0",
+          "url": "https://zella.example.test/functions/v1/voice-rules",
+          "credentialId": "00000000-0000-0000-0000-000000000001",
           "timeoutSeconds": 20
         },
         "function": {
@@ -111,8 +111,8 @@
         "type": "function",
         "async": false,
         "server": {
-          "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/functions/v1/voice-rules",
-          "credentialId": "9b6da51e-2b7e-45f2-aa48-bf17673fe6a0",
+          "url": "https://zella.example.test/functions/v1/voice-rules",
+          "credentialId": "00000000-0000-0000-0000-000000000001",
           "timeoutSeconds": 20
         },
         "function": {
@@ -139,8 +139,8 @@
         "type": "function",
         "async": false,
         "server": {
-          "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/functions/v1/voice-rules",
-          "credentialId": "9b6da51e-2b7e-45f2-aa48-bf17673fe6a0",
+          "url": "https://zella.example.test/functions/v1/voice-rules",
+          "credentialId": "00000000-0000-0000-0000-000000000001",
           "timeoutSeconds": 20
         },
         "function": {
@@ -156,8 +156,8 @@
         "type": "function",
         "async": false,
         "server": {
-          "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/functions/v1/voice-rules",
-          "credentialId": "9b6da51e-2b7e-45f2-aa48-bf17673fe6a0",
+          "url": "https://zella.example.test/functions/v1/voice-rules",
+          "credentialId": "00000000-0000-0000-0000-000000000001",
           "timeoutSeconds": 20
         },
         "function": {
@@ -173,8 +173,8 @@
         "type": "function",
         "async": false,
         "server": {
-          "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/functions/v1/voice-rules",
-          "credentialId": "9b6da51e-2b7e-45f2-aa48-bf17673fe6a0",
+          "url": "https://zella.example.test/functions/v1/voice-rules",
+          "credentialId": "00000000-0000-0000-0000-000000000001",
           "timeoutSeconds": 20
         },
         "function": {
@@ -190,8 +190,8 @@
         "type": "function",
         "async": false,
         "server": {
-          "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/functions/v1/voice-rules",
-          "credentialId": "9b6da51e-2b7e-45f2-aa48-bf17673fe6a0",
+          "url": "https://zella.example.test/functions/v1/voice-rules",
+          "credentialId": "00000000-0000-0000-0000-000000000001",
           "timeoutSeconds": 20
         },
         "function": {
@@ -211,8 +211,8 @@
         "type": "function",
         "async": false,
         "server": {
-          "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/functions/v1/voice-rules",
-          "credentialId": "9b6da51e-2b7e-45f2-aa48-bf17673fe6a0",
+          "url": "https://zella.example.test/functions/v1/voice-rules",
+          "credentialId": "00000000-0000-0000-0000-000000000001",
           "timeoutSeconds": 20
         },
         "function": {
@@ -235,8 +235,8 @@
         "type": "function",
         "async": false,
         "server": {
-          "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/functions/v1/voice-rules",
-          "credentialId": "9b6da51e-2b7e-45f2-aa48-bf17673fe6a0",
+          "url": "https://zella.example.test/functions/v1/voice-rules",
+          "credentialId": "00000000-0000-0000-0000-000000000001",
           "timeoutSeconds": 20
         },
         "function": {
@@ -263,8 +263,8 @@
         "type": "function",
         "async": false,
         "server": {
-          "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/functions/v1/voice-rules",
-          "credentialId": "9b6da51e-2b7e-45f2-aa48-bf17673fe6a0",
+          "url": "https://zella.example.test/functions/v1/voice-rules",
+          "credentialId": "00000000-0000-0000-0000-000000000001",
           "timeoutSeconds": 20
         },
         "function": {
@@ -295,8 +295,8 @@
         "type": "function",
         "async": false,
         "server": {
-          "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/functions/v1/voice-rules",
-          "credentialId": "9b6da51e-2b7e-45f2-aa48-bf17673fe6a0",
+          "url": "https://zella.example.test/functions/v1/voice-rules",
+          "credentialId": "00000000-0000-0000-0000-000000000001",
           "timeoutSeconds": 20
         },
         "function": {
@@ -320,8 +320,8 @@
         "type": "function",
         "async": false,
         "server": {
-          "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/functions/v1/voice-rules",
-          "credentialId": "9b6da51e-2b7e-45f2-aa48-bf17673fe6a0",
+          "url": "https://zella.example.test/functions/v1/voice-rules",
+          "credentialId": "00000000-0000-0000-0000-000000000001",
           "timeoutSeconds": 20
         },
         "function": {
@@ -350,8 +350,8 @@
         "type": "function",
         "async": false,
         "server": {
-          "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/functions/v1/voice-rules",
-          "credentialId": "9b6da51e-2b7e-45f2-aa48-bf17673fe6a0",
+          "url": "https://zella.example.test/functions/v1/voice-rules",
+          "credentialId": "00000000-0000-0000-0000-000000000001",
           "timeoutSeconds": 20
         },
         "function": {
@@ -371,8 +371,8 @@
         "type": "function",
         "async": false,
         "server": {
-          "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/functions/v1/voice-rules",
-          "credentialId": "9b6da51e-2b7e-45f2-aa48-bf17673fe6a0",
+          "url": "https://zella.example.test/functions/v1/voice-rules",
+          "credentialId": "00000000-0000-0000-0000-000000000001",
           "timeoutSeconds": 20
         },
         "function": {
@@ -424,12 +424,12 @@
     "provider": "11labs"
   },
   "server": {
-    "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/functions/v1/voice-rules",
-    "credentialId": "9b6da51e-2b7e-45f2-aa48-bf17673fe6a0",
+    "url": "https://zella.example.test/functions/v1/voice-rules",
+    "credentialId": "00000000-0000-0000-0000-000000000001",
     "timeoutSeconds": 20
   },
   "metadata": {
-    "business_id": "0ed3b097-8dee-4fa8-98c2-3888be3e79b2"
+    "business_id": "00000000-0000-0000-0000-000000000002"
   },
   "transcriber": {
     "model": "nova-2-phonecall",

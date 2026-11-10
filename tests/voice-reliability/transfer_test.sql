@@ -44,6 +44,14 @@ begin
   assert r ->> 'message' = 'Please hold while I connect you.';
   raise notice 'PASS spoken text is "please hold" (an attempt), never "you are connected"';
 end $$;
--- the model is no longer told the number
-select 'model text: ' || (r ->> 'say') || ' | number in result: ' || coalesce(r ->> 'transfer_number', 'none')
-  from (select zella_ai_voice('vt-1', 'aaaaaaaa-0000-4000-8000-000000000001', 'transfer', '{}') r) x;
+-- The SQL branch returns an internal destination. Model privacy is checked against the
+-- edge handler with a stubbed backend in transfer-privacy.test.cjs.
+do $$
+declare r jsonb;
+begin
+  r := zella_ai_voice('vt-1', 'aaaaaaaa-0000-4000-8000-000000000001', 'transfer', '{}');
+  if r is null or r ->> 'status' is distinct from 'transfer' then
+    raise exception 'transfer branch was not reached: %', r;
+  end if;
+  raise notice 'PASS SQL transfer branch reached';
+end $$;
