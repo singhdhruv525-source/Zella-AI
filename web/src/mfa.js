@@ -5,15 +5,19 @@ import { supabase } from "./supabase";
 // After the password, people who set it up must enter a 6-digit code before
 // the app opens. The admin server function also refuses requests without it.
 
-// "ok" | "needs_code" | "checking"
+// "ok" | "needs_code" | "checking" | "error"
 export function useMfaGate(session) {
   const [state, setState] = useState("checking");
   const check = useCallback(async () => {
     if (!session) { setState("ok"); return; }
     setState("checking");
-    const { data, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-    if (error) { setState("ok"); return; }
-    setState(data.nextLevel === "aal2" && data.currentLevel !== "aal2" ? "needs_code" : "ok");
+    try {
+      const { data, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (error || !data || !["aal1", "aal2"].includes(data.currentLevel) || !["aal1", "aal2"].includes(data.nextLevel)) { setState("error"); return; }
+      setState(data.nextLevel === "aal2" && data.currentLevel !== "aal2" ? "needs_code" : "ok");
+    } catch {
+      setState("error");
+    }
   }, [session]);
   useEffect(() => { check(); }, [check]);
   return { state, recheck: check };

@@ -68,7 +68,7 @@ export default function WaitlistOffer() {
   }
 
   const tz = info?.timezone || "America/New_York";
-  const stop = PROBLEMS[problem];
+  const stop = problem ? (Object.hasOwn(PROBLEMS, problem) ? PROBLEMS[problem] : PROBLEMS.invalid) : undefined;
 
   return (
     <main className="cp-page">

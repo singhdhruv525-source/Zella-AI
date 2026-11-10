@@ -45,7 +45,7 @@ function Editor({ w, data }) {
       <Card title="Main language" sub="Your receptionist answers every call in this language.">
         <div className="zs-grid">
           <Field label="Language">
-            <select value={v.primary} disabled={!data.can_edit} onChange={(e) => form.set("primary")(e.target.value)}>
+            <select value={v.primary} disabled={!data.can_edit} onChange={(e) => { const primary = e.target.value; form.setValues((f) => ({ ...f, primary, extras: f.extras.filter((c) => c !== primary) })); }}>
               {catalog.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
             </select>
           </Field>
