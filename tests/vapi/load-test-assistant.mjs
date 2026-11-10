@@ -29,7 +29,8 @@ if (token) {
 const targetUrl = `https://api.vapi.ai/assistant/${assistantId}`;
 const current = await fetch(targetUrl, { headers: { Authorization: `Bearer ${key}` } });
 const assistant = await current.json().catch(() => null);
-if (!current.ok || !assistant || !( /\btest\b/i.test(assistant.name ?? "") || assistant.metadata?.test === true )) {
+// Dedicated test assistant documented in docs/PROJECT_STATE.md; do not infer safety from a partial name.
+if (!current.ok || !assistant || assistant.name !== "test saloon receptionist") {
   console.error("Refused: the target assistant is not marked as a test assistant.");
   process.exit(1);
 }
