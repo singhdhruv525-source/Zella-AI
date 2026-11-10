@@ -187,9 +187,9 @@ export default function ReviewsPage({ workspace, onNotice }) {
       {head}
       {error && <div className="ba-banner error"><span>{error}</span><button type="button" className="ba-btn sm" onClick={reload}>Try again</button></div>}
       <div className="rv-summary">
-        <div><strong>{counts.to_reply ?? 0}</strong><span>to reply</span></div>
+        <div><strong>{data ? counts.to_reply ?? 0 : "—"}</strong><span>to reply</span></div>
         <div><strong>{counts.average ?? "—"}</strong><span>average stars</span></div>
-        <div><strong>{counts.total ?? 0}</strong><span>reviews</span></div>
+        <div><strong>{data ? counts.total ?? 0 : "—"}</strong><span>reviews</span></div>
         <div className="rv-source">
           <Icon name="storefront" size="sm" />
           <span>

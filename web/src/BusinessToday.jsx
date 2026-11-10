@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "./supabase";
 import { Icon, Pill, personName } from "./BusinessUI";
 import { makeTerm, receptionistState } from "./businessWorkspace";
@@ -52,14 +52,14 @@ function trend(cur, prev, upIsGood = true) {
   return { text: `${up ? "Up" : "Down"} ${Math.abs(pct)}% vs last week`, label: `${up ? "Up" : "Down"} ${Math.abs(pct)}% vs last week`, tone: up === upIsGood ? "up" : "down", arrow: up ? "arrow_upward" : "arrow_downward" };
 }
 
-function Kpi({ icon, tone, label, value, change, loading }) {
+function Kpi({ icon, tone, label, value, change, loading, unavailable }) {
   return (
     <div className="ba-kpi td-kpi">
       <span className={`ba-kpi-icon ${tone}`}><Icon name={icon} /></span>
       <div className="td-kpi-body">
         <span className="td-kpi-label">{label}</span>
         <div className="td-kpi-row">
-          <span className="ba-kpi-value">{loading ? "…" : <CountUp value={value} />}</span>
+          <span className="ba-kpi-value">{loading ? "…" : unavailable ? "—" : <CountUp value={value} />}</span>
           {change && (
             <span className={`td-trend ${change.tone}`} aria-label={change.label ?? change.text}>
               {change.arrow && <Icon name={change.arrow} size="sm" />}{change.text}
@@ -284,7 +284,10 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
   const [moving, setMoving] = useState(null);
   const opsKeys = useMemo(() => operations.filter((t) => t.enabled && capabilityOn(capabilities, t.capability)).slice(0, 2).map((t) => t.key), [operations, capabilities]);
 
+  // A newer load (another day, a refresh) wins: an older one that finishes later must not overwrite it.
+  const loadSeq = useRef(0);
   const load = useCallback(async () => {
+    const request = ++loadSeq.current;
     setLoading(true);
     setError("");
     const id = workspace.id;
@@ -347,6 +350,7 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
       const withPerson = (r) => ({ ...r, customer: people[r.customer_id] });
       const missedOpen = (rows) => rows.filter((c) => c.status === "missed" && !c.metadata?.followed_up_at).length;
 
+      if (request !== loadSeq.current) return;
       setData({
         appts: appts.map((a) => ({ ...withPerson(a), forTitle: forTitle[a.record_id] })),
         prev: {
@@ -374,9 +378,9 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
         }),
       });
     } catch (err) {
-      setError(friendly(err));
+      if (request === loadSeq.current) setError(friendly(err));
     } finally {
-      setLoading(false);
+      if (request === loadSeq.current) setLoading(false);
     }
   }, [workspace.id, day, tz, opsKeys, cfg.staffColumn]);
 
@@ -448,12 +452,12 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
       {actionError && <div className="ba-banner error" role="alert">{actionError}</div>}
 
       <div className="td-kpis">
-        {scheduling && <Kpi icon="event" tone="rose" label={`${bookingWord} ${isToday ? "today" : ""}`.trim()} value={active.length} loading={loading && !data} change={p && trend(active.length, p.bookings)} />}
-        {!scheduling && <Kpi icon="pending_actions" tone="rose" label="Open work" value={(data?.work ?? []).reduce((n, w) => n + w.open, 0)} loading={loading && !data} />}
-        {scheduling && showGuests && <Kpi icon="groups" tone="indigo" label={`Total ${term("customers").toLowerCase()}`} value={guests} loading={loading && !data} change={p && trend(guests, p.guests)} />}
-        <Kpi icon="person_add" tone="amber" label="New leads" value={data?.leads.length ?? 0} loading={loading && !data} change={p && trend(data.leads.length, p.leads)} />
-        <Kpi icon="smart_toy" tone="green" label="AI-answered calls" value={data?.aiCalls ?? 0} loading={loading && !data} change={p && trend(data.aiCalls, p.aiCalls)} />
-        <Kpi icon="phone_missed" tone="rose" label="Missed calls" value={data?.missed ?? 0} loading={loading && !data} change={p && trend(data.missed, p.missed, false)} />
+        {scheduling && <Kpi icon="event" tone="rose" label={`${bookingWord} ${isToday ? "today" : ""}`.trim()} value={active.length} loading={loading && !data} unavailable={!data && !loading} change={p && trend(active.length, p.bookings)} />}
+        {!scheduling && <Kpi icon="pending_actions" tone="rose" label="Open work" value={(data?.work ?? []).reduce((n, w) => n + w.open, 0)} loading={loading && !data} unavailable={!data && !loading} />}
+        {scheduling && showGuests && <Kpi icon="groups" tone="indigo" label={`Total ${term("customers").toLowerCase()}`} value={guests} loading={loading && !data} unavailable={!data && !loading} change={p && trend(guests, p.guests)} />}
+        <Kpi icon="person_add" tone="amber" label="New leads" value={data?.leads.length ?? 0} loading={loading && !data} unavailable={!data && !loading} change={p && trend(data.leads.length, p.leads)} />
+        <Kpi icon="smart_toy" tone="green" label="AI-answered calls" value={data?.aiCalls ?? 0} loading={loading && !data} unavailable={!data && !loading} change={p && trend(data.aiCalls, p.aiCalls)} />
+        <Kpi icon="phone_missed" tone="rose" label="Missed calls" value={data?.missed ?? 0} loading={loading && !data} unavailable={!data && !loading} change={p && trend(data.missed, p.missed, false)} />
         <SpamKpi workspace={workspace} day={day} tz={tz} onOpen={() => onGo("spam")} />
       </div>
 

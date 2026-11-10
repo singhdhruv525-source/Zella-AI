@@ -67,9 +67,12 @@ export default function PlansPage({ onOpenBusiness }) {
           <h1>Plans & subscriptions</h1>
           <p>The plans businesses can be on, and which business is on which plan.</p>
         </div>
-        <button type="button" className="owner-primary-button" onClick={() => setEditing({ ...EMPTY_PLAN })} disabled={busy}>
-          ＋ New plan
-        </button>
+        <div className="op-heading-actions">
+          <button type="button" className="owner-secondary-button" onClick={load} disabled={loading}>{loading ? "Loading..." : "↻ Refresh"}</button>
+          <button type="button" className="owner-primary-button" onClick={() => setEditing({ ...EMPTY_PLAN })} disabled={busy}>
+            ＋ New plan
+          </button>
+        </div>
       </div>
 
       <div className="wiz-note op-gap">

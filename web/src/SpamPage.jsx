@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DialogFocus } from "./useDialogFocus";
 import { createPortal } from "react-dom";
 import { supabase } from "./supabase";
@@ -33,6 +33,7 @@ export default function SpamPage({ workspace, onNotice, onOpenPerson }) {
   const [range, setRange] = useState("7");
   const [overview, setOverview] = useState({ loading: true });
   const [setup, setSetup] = useState(null);
+  const [setupError, setSetupError] = useState("");
   const from = useMemo(() => sinceDays(range), [range]);
 
   const loadOverview = useCallback(async () => {
@@ -41,7 +42,9 @@ export default function SpamPage({ workspace, onNotice, onOpenPerson }) {
       supabase.rpc("zella_spam_overview", { p_business_id: workspace.id, p_from: from.toISOString(), p_to: new Date(Date.now() + 60000).toISOString() }),
       supabase.rpc("zella_spam_settings_get", { p_business_id: workspace.id }),
     ]);
-    setSetup(st.error ? null : st.data);
+    // a failed settings read keeps the last good settings and says so; it never empties the page
+    if (!st.error) setSetup(st.data);
+    setSetupError(st.error ? friendly(st.error) : "");
     if (ov.error) setOverview({ loading: false, missing: missingFn(ov.error), error: missingFn(ov.error) ? "" : friendly(ov.error) });
     else setOverview({ loading: false, data: ov.data });
   }, [workspace.id, from]);
@@ -74,13 +77,14 @@ export default function SpamPage({ workspace, onNotice, onOpenPerson }) {
       </div>
       {tab === "inbox" && <Inbox workspace={workspace} from={from} onChanged={loadOverview} onNotice={onNotice} onOpenPerson={onOpenPerson} />}
       {tab === "lists" && <Lists workspace={workspace} onNotice={onNotice} />}
-      {tab === "settings" && <Settings workspace={workspace} setup={setup} onSaved={(d) => { setSetup(d); onNotice("Spam protection settings saved."); }} />}
+      {tab === "settings" && <Settings workspace={workspace} setup={setup} loadError={setupError} onRetry={loadOverview} onSaved={(d) => { setSetup(d); onNotice("Spam protection settings saved."); }} />}
     </>
   );
 }
 
 function Overview({ data, loading, channels }) {
-  const v = (k) => (loading && !data ? "…" : data?.[k] ?? 0);
+  // no data after loading means it couldn't be loaded: "—", never 0
+  const v = (k) => (data ? data[k] ?? 0 : loading ? "…" : "—");
   const ch = data?.by_channel ?? {};
   const cmp = data && data.previous_total !== null && data.previous_total !== undefined
     ? data.total === data.previous_total ? "Same as the previous period"
@@ -115,7 +119,7 @@ function Overview({ data, loading, channels }) {
               <li key={k} className={channels && channels[k] === false ? "off" : ""}>
                 <Icon name={CHANNELS[k][0]} size="sm" />
                 <span>{CHANNELS[k][1]}{k === "booking" ? "s" : k === "sms" ? "s" : k === "email" ? "s" : "s"}</span>
-                {channels && channels[k] === false ? <small>Not connected</small> : <strong>{loading && !data ? "…" : ch[k] ?? 0}</strong>}
+                {channels && channels[k] === false ? <small>Not connected</small> : <strong>{data ? ch[k] ?? 0 : loading ? "…" : "—"}</strong>}
               </li>
             ))}
             {(ch.other ?? 0) > 0 && <li><Icon name="help" size="sm" /><span>Other</span><strong>{ch.other}</strong></li>}
@@ -132,7 +136,7 @@ function Overview({ data, loading, channels }) {
                 </div>
               ))}
             </div>
-          ) : <p className="ba-muted sp-quiet">{loading ? "Loading…" : "No suspicious activity in this period."}</p>}
+          ) : <p className="ba-muted sp-quiet">{loading ? "Loading…" : data ? "No suspicious activity in this period." : "Couldn't load this chart."}</p>}
         </div>
       </div>
     </>
@@ -158,7 +162,11 @@ function Inbox({ workspace, from, onChanged, onNotice, onOpenPerson }) {
     if (filters.status === "open") q = q.in("status", ["new", "under_review", "escalated"]);
     else if (filters.status) q = q.eq("status", filters.status);
     const term = filters.q.trim().replace(/[%,()]/g, "");
-    if (term) q = q.or(`sender.ilike.%${term.replace(/\D/g, "") || term}%,sender_display.ilike.%${term}%`);
+    if (term) {
+      // only a phone-like search is reduced to its digits; an email or name keeps every character
+      const senderTerm = /^[\d\s+().-]+$/.test(term) ? term.replace(/\D/g, "") || term : term;
+      q = q.or(`sender.ilike.%${senderTerm}%,sender_display.ilike.%${term}%`);
+    }
     q = filters.sort === "risk" ? q.order("risk_score", { ascending: false }).order("last_seen_at", { ascending: false }) : q.order("last_seen_at", { ascending: false });
     const res = await q.range(page * PAGE, page * PAGE + PAGE - 1);
     if (res.error) { setState({ loading: false, rows: [], total: 0, error: friendly(res.error) }); return; }
@@ -282,6 +290,7 @@ function IncidentPanel({ workspace, incident, person, roster, onClose, onChanged
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(null);
   const [listed, setListed] = useState(null);
+  const [lookupFailed, setLookupFailed] = useState(false);
   const src = useSource(inc);
   const canBlock = inc.sender && inc.sender !== "unknown";
   const listChannel = ["call", "sms", "email", "booking"].includes(inc.channel) ? inc.channel : "all";
@@ -292,9 +301,14 @@ function IncidentPanel({ workspace, incident, person, roster, onClose, onChanged
       supabase.from("spam_incident_events").select("*").eq("incident_id", incident.id).order("created_at", { ascending: false }).limit(100),
       supabase.from("spam_list_entries").select("id, list, channel, source, expires_at").eq("business_id", workspace.id).eq("value", incident.sender).is("removed_at", null),
     ]);
+    // a failed lookup keeps what was shown and says so: never an empty history or a "not blocked" sender
+    if (i.error || e.error || l.error) { setLookupFailed(true); onNotice(friendly(i.error ?? e.error ?? l.error)); return; }
+    setLookupFailed(false);
     if (i.data) setInc(i.data);
     setEvents(e.data ?? []);
     setListed((l.data ?? []).find((x) => (x.channel === listChannel || x.channel === "all") && (!x.expires_at || new Date(x.expires_at) > new Date())) ?? null);
+    // onNotice is left out on purpose: it isn't stable, and the history must not reload on every render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [incident.id, incident.sender, workspace.id, listChannel]);
 
   useEffect(() => { reload(); }, [reload]);
@@ -363,6 +377,7 @@ function IncidentPanel({ workspace, incident, person, roster, onClose, onChanged
 
           <section className="bp-section">
             <h3>History</h3>
+            {lookupFailed && <p className="ba-error" role="alert">This incident's history and block status couldn't be loaded. <button type="button" className="ba-link" onClick={reload}>Try again</button></p>}
             <ul className="bp-feed">
               {events.map((e) => (
                 <li key={e.id}>
@@ -393,7 +408,7 @@ function IncidentPanel({ workspace, incident, person, roster, onClose, onChanged
           {inc.status !== "false_positive" && <button type="button" className="ba-btn" disabled={busy} onClick={() => review("false_positive")}><Icon name="verified" size="sm" />Not spam</button>}
           {inc.status !== "escalated" && <button type="button" className="ba-btn" disabled={busy} onClick={() => review("escalated")}><Icon name="priority_high" size="sm" />Escalate</button>}
           {inc.status !== "resolved" && <button type="button" className="ba-btn primary" disabled={busy} onClick={() => review("resolved")}><Icon name="task_alt" size="sm" />Resolve</button>}
-          {canBlock && (listed?.list === "block"
+          {canBlock && !lookupFailed && (listed?.list === "block"
             ? <button type="button" className="ba-btn" disabled={busy} onClick={() => setConfirming("unblock")}><Icon name="lock_open" size="sm" />Unblock</button>
             : <button type="button" className="ba-btn danger-outline" disabled={busy} onClick={() => setConfirming("block")}><Icon name="block" size="sm" />Block sender</button>)}
         </footer>
@@ -591,17 +606,31 @@ function FollowUp({ inc }) {
   );
 }
 
-function Settings({ workspace, setup, onSaved }) {
+// Bounds for the number boxes: kept while typing, applied when the box is left and again on save.
+const NUM_BOUNDS = { repeat_call_limit: [2, 50], repeat_window_minutes: [5, 1440], sms_flood_limit: [3, 200], email_flood_limit: [3, 200], booking_daily_limit: [1, 20] };
+const clampNum = (k, v) => { const [lo, hi] = NUM_BOUNDS[k]; return Math.max(lo, Math.min(hi, Number(v) || lo)); };
+
+function Settings({ workspace, setup, loadError, onRetry, onSaved }) {
   const [form, setForm] = useState(setup?.settings ?? null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  useEffect(() => { setForm(setup?.settings ?? null); }, [setup]);
+  // Overview reloads hand over a new settings object each time; the form resets only when the saved settings
+  // really changed and nothing has been edited, so a date-range change never wipes unsaved edits.
+  const saved = useRef(JSON.stringify(setup?.settings ?? null));
+  useEffect(() => {
+    const next = JSON.stringify(setup?.settings ?? null);
+    if (next === saved.current) return;
+    setForm((cur) => (cur === null || JSON.stringify(cur) === saved.current ? setup?.settings ?? null : cur));
+    saved.current = next;
+  }, [setup]);
+  if (!setup && loadError) return <section className="ba-panel"><Notice error={`Couldn't load the settings. ${loadError}`} onRetry={onRetry} /></section>;
   if (!setup || !form) return <section className="ba-panel"><p className="ba-muted sp-quiet">Loading settings…</p></section>;
   const can = setup.can_edit;
   const ch = setup.channels ?? {};
   const auto = setup.automation ?? {};
   const set = (k, v) => setForm({ ...form, [k]: v });
-  const num = (k, lo, hi) => (e) => set(k, Math.max(lo, Math.min(hi, Number(e.target.value) || lo)));
+  // eslint-disable-next-line no-unused-vars
+  const num = (k, lo, hi) => ({ onChange: (e) => set(k, e.target.value), onBlur: (e) => set(k, clampNum(k, e.target.value)) });
   const toggle = (k, label, hint, disabled) => (
     <label className={`sp-toggle ${disabled ? "off" : ""}`}>
       <input type="checkbox" checked={Boolean(form[k])} disabled={!can || disabled || busy} onChange={(e) => set(k, e.target.checked)} />
@@ -613,15 +642,18 @@ function Settings({ workspace, setup, onSaved }) {
     setBusy(true);
     setError("");
     const keys = ["enabled", "call_screening", "ai_spam_handling", "repeat_call_limit", "repeat_window_minutes", "sms_monitoring", "sms_flood_limit", "email_monitoring", "email_flood_limit", "booking_protection", "booking_daily_limit", "auto_restrict", "notify_high_risk", "notify_medium", "weekly_report", "ai_review"];
-    const { data, error: err } = await supabase.rpc("zella_spam_settings_save", { p_business_id: workspace.id, p_settings: Object.fromEntries(keys.map((k) => [k, form[k]])) });
+    const { data, error: err } = await supabase.rpc("zella_spam_settings_save", { p_business_id: workspace.id, p_settings: Object.fromEntries(keys.map((k) => [k, NUM_BOUNDS[k] ? clampNum(k, form[k]) : form[k]])) });
     setBusy(false);
     if (err) { setError(friendly(err)); return; }
+    saved.current = JSON.stringify(data);
+    setForm(data);
     onSaved({ ...setup, settings: data, saved: true });
   }
 
   return (
     <section className="ba-panel sp-settings">
       {!can && <div className="ba-banner"><span>Only owners and admins can change these settings.</span></div>}
+      {loadError && <div className="ba-banner error"><span>The latest refresh failed, so these may be out of date. {loadError}</span> <button type="button" className="ba-btn sm" onClick={onRetry}>Try again</button></div>}
       {error && <div className="ba-banner error">{error}</div>}
       {toggle("enabled", "Spam protection for this business", "Checks calls, texts, emails and bookings for spam. Zella's platform rules and limits always apply, even when this is off.")}
       <fieldset className="sp-group" disabled={!form.enabled}>
@@ -630,22 +662,22 @@ function Settings({ workspace, setup, onSaved }) {
           <div className="sp-grid">
             <Field label="High-risk callers"><select value={form.call_screening} disabled={!can} onChange={(e) => set("call_screening", e.target.value)}><option value="flag">Answer and flag for review</option><option value="screen">Screen: the AI doesn't help them</option></select></Field>
             <Field label="When screened, the AI"><select value={form.ai_spam_handling} disabled={!can} onChange={(e) => set("ai_spam_handling", e.target.value)}><option value="end_politely">Ends the call politely</option><option value="take_message">Takes a short message only</option></select></Field>
-            <Field label="Flag after this many calls"><input type="number" min={2} max={50} value={form.repeat_call_limit} disabled={!can} onChange={num("repeat_call_limit", 2, 50)} /></Field>
-            <Field label="Within (minutes)"><input type="number" min={5} max={1440} value={form.repeat_window_minutes} disabled={!can} onChange={num("repeat_window_minutes", 5, 1440)} /></Field>
+            <Field label="Flag after this many calls"><input type="number" min={2} max={50} value={form.repeat_call_limit} disabled={!can} {...num("repeat_call_limit", 2, 50)} /></Field>
+            <Field label="Within (minutes)"><input type="number" min={5} max={1440} value={form.repeat_window_minutes} disabled={!can} {...num("repeat_window_minutes", 5, 1440)} /></Field>
           </div>
         )}
       </fieldset>
       <fieldset className="sp-group" disabled={!form.enabled}>
         <legend>Texts and email</legend>
         {toggle("sms_monitoring", "Watch incoming texts", "Floods, suspicious links and spam wording.", ch.sms === false)}
-        {form.sms_monitoring && ch.sms !== false && <Field label="Flag after this many texts in the window"><input type="number" min={3} max={200} value={form.sms_flood_limit} disabled={!can} onChange={num("sms_flood_limit", 3, 200)} /></Field>}
+        {form.sms_monitoring && ch.sms !== false && <Field label="Flag after this many texts in the window"><input type="number" min={3} max={200} value={form.sms_flood_limit} disabled={!can} {...num("sms_flood_limit", 3, 200)} /></Field>}
         {toggle("email_monitoring", "Watch incoming email", "Floods, suspicious links and the email provider's own spam verdict.", ch.email === false)}
-        {form.email_monitoring && ch.email !== false && <Field label="Flag after this many emails in the window"><input type="number" min={3} max={200} value={form.email_flood_limit} disabled={!can} onChange={num("email_flood_limit", 3, 200)} /></Field>}
+        {form.email_monitoring && ch.email !== false && <Field label="Flag after this many emails in the window"><input type="number" min={3} max={200} value={form.email_flood_limit} disabled={!can} {...num("email_flood_limit", 3, 200)} /></Field>}
       </fieldset>
       <fieldset className="sp-group" disabled={!form.enabled}>
         <legend>Bookings</legend>
         {toggle("booking_protection", "Hold suspicious bookings", "Bookings from blocked contacts, or too many from one contact in a day, wait for the team to confirm. Team bookings are never held.", ch.booking === false)}
-        {form.booking_protection && ch.booking !== false && <Field label="Bookings allowed per contact per day"><input type="number" min={1} max={20} value={form.booking_daily_limit} disabled={!can} onChange={num("booking_daily_limit", 1, 20)} /></Field>}
+        {form.booking_protection && ch.booking !== false && <Field label="Bookings allowed per contact per day"><input type="number" min={1} max={20} value={form.booking_daily_limit} disabled={!can} {...num("booking_daily_limit", 1, 20)} /></Field>}
       </fieldset>
       <fieldset className="sp-group" disabled={!form.enabled}>
         <legend>Responses and alerts</legend>

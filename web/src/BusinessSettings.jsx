@@ -478,6 +478,7 @@ function PhoneTroubleshooting({ w }) {
 function CurrentPlan({ w, onReload }) {
   const state = useAsync(() => entitlementsOf(w), [w.id]);
   const [busy, setBusy] = useState(false);
+  const [keepError, setKeepError] = useState("");
   return (
     <LoadState state={state}>{(e) => (
       <>
@@ -486,7 +487,8 @@ function CurrentPlan({ w, onReload }) {
             ["Billing", e.subscription ? words(e.subscription.billing_interval) : "—"], ["Renews", when(e.subscription?.current_period_end)], ["Trial ends", when(e.subscription?.trial_end_at)],
             ["Core CRM", "Included in every plan"]]} />
           {w.cancel_at && !w.cancelled_at && w.role === "owner" && <button type="button" className="zs-btn primary" style={{ marginTop: 12 }} disabled={busy}
-            onClick={async () => { setBusy(true); try { await rpc("zella_owner_continue_plan", { p_business_id: w.id }); onReload?.(); } finally { setBusy(false); } }}>Keep my plan</button>}
+            onClick={async () => { setBusy(true); setKeepError(""); try { await rpc("zella_owner_continue_plan", { p_business_id: w.id }); onReload?.(); } catch (err) { setKeepError(say(err)); } finally { setBusy(false); } }}>Keep my plan</button>}
+          <Banner tone="error">{keepError}</Banner>
         </Card>
         <UsageCard e={e} />
       </>
@@ -690,7 +692,9 @@ function DataExport({ w }) {
     try {
       const cols = EXPORTS[table][1];
       const rows = [];
-      for (let from = 0; from < 50000; from += 1000) {
+      let capped = false;
+      for (let from = 0; ; from += 1000) {
+        if (from >= 50000) { capped = true; break; }
         const page = orThrow(await supabase.from(table).select(cols).eq("business_id", w.id).order("created_at", { ascending: true }).range(from, from + 999));
         rows.push(...page);
         if (page.length < 1000) break;
@@ -698,7 +702,7 @@ function DataExport({ w }) {
       const blob = new Blob([toCsv(rows, cols.split(", "))], { type: "text/csv" });
       const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `${w.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-${table.replace("_view", "")}-${new Date().toISOString().slice(0, 10)}.csv` });
       document.body.appendChild(a); a.click(); a.remove();
-      setMsg({ text: `${rows.length} ${EXPORTS[table][0].toLowerCase()} exported. Keep the file safe; it has customers' contact details.`, error: "" });
+      setMsg({ text: `${rows.length} ${EXPORTS[table][0].toLowerCase()} exported${capped ? " (the first 50,000 only: this file is not complete; ask Zella Voice support for the rest)" : ""}. Keep the file safe; it has customers' contact details.`, error: "" });
     } catch (err) { setMsg({ text: "", error: say(err) }); } finally { setBusy(""); }
   }
   return (

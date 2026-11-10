@@ -177,10 +177,11 @@ useEffect(() => {
 
 // The setup wizard needs the industry list even when opened from Overview.
 useEffect(() => {
-  if (wizard && hasPermission(access, "businesses.manage") && industries.length === 0 && !loadingBusinesses && !businessError) {
+  // Load once per opening: a successful load with no industries must not trigger another request.
+  if (wizard && hasPermission(access, "businesses.manage") && !businessesLoadedAt && !loadingBusinesses && !businessError) {
     loadDashboardData();
   }
-}, [wizard, access, industries.length, loadingBusinesses, businessError, loadDashboardData]);
+}, [wizard, access, businessesLoadedAt, loadingBusinesses, businessError, loadDashboardData]);
 
 
   const isBusinesses = activePage === "Businesses";

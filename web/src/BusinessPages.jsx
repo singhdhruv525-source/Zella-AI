@@ -96,6 +96,9 @@ function PeoplePage({ mode, workspace, query, refreshKey, onOpenPerson }) {
       )}
 
       <Notice error={error} onRetry={reload} />
+      {!isLeads && (data?.length ?? 0) >= 1000 && (
+        <div className="ba-banner" role="status">Showing the newest 1,000 {term("customers").toLowerCase()}. Older ones aren't in this list or its search yet; open them from a call, booking or record.</div>
+      )}
       <section className="ba-panel">
         <div className="ba-toolbar">
           <span className="ba-muted">Use the search box at the top to find someone by name, phone or email.</span>
