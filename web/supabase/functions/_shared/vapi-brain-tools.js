@@ -71,10 +71,12 @@ function invalidField(clean) {
 export function planBrainTool(tc, ctx, allowed = TOOLS) {
   const name = toolName(tc);
   const args = toolArgs(tc);
-  const malformedSeating = Object.hasOwn(args, 'seating') && typeof args.seating !== 'string';
+  const usesSeating = ['check_availability', 'book_appointment'].includes(name);
+  const malformedSeating = usesSeating && Object.hasOwn(args, 'seating') && typeof args.seating !== 'string';
   const clean = {};
   for (const k of STRINGS) if (typeof args[k] === 'string') clean[k] = args[k].replace(/\s+/g, ' ').trim().slice(0, k === 'query' ? 300 : 1500);
   for (const k of NUMBERS) if (typeof args[k] === 'number' && Number.isFinite(args[k])) clean[k] = args[k];
+  if (!usesSeating) delete clean.seating;
   // the caller's yes must be a real boolean from the assistant; anything else counts as "not confirmed"
   clean.confirmed = args.confirmed === true;
   const known = TOOLS.includes(name) && allowed.includes(name);

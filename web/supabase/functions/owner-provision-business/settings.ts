@@ -607,26 +607,37 @@ export function settingsHandlers(admin: SupabaseClient, fields: Json, ctx: { use
     },
 
     analytics_overview: async () => {
-      const [bizRows, subsRows, callsRows, execsRows, intsRows] = await Promise.all([
-        allRows((a, b) => admin.from("businesses").select("id, created_at, cancelled_at").order("id").range(a, b)),
-        allRows((a, b) => admin.from("subscriptions").select("id, created_at, status").order("id").range(a, b)),
-        allRows((a, b) => admin.from("calls").select("id, created_at, ai_handled").gte("created_at", since(180)).order("id").range(a, b), 500000),
-        allRows((a, b) => admin.from("workflow_executions").select("id, status").gte("started_at", since(30)).order("id").range(a, b), 500000),
-        allRows((a, b) => admin.from("integrations").select("id, status").order("id").range(a, b)),
-      ]);
-      const biz = { data: bizRows }, subs = { data: subsRows }, calls = { data: callsRows }, execs = { data: execsRows }, ints = { data: intsRows };
-      const month = (d: string) => d.slice(0, 7);
+      // Counts stay in Postgres; any missing count or query error fails the whole report.
+      const count = async (query: PromiseLike<{ count: number | null; error: unknown }>) => {
+        const result = await query;
+        if (result.error) throw result.error;
+        if (result.count === null) throw new Error("Analytics count unavailable");
+        return result.count;
+      };
+      const query = (table: string) => admin.from(table).select("id", { count: "exact", head: true });
+      const callsSince = since(180), execsSince = since(30);
       const months = [...Array(6)].map((_, i) => { const d = new Date(); d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() - 5 + i); return d.toISOString().slice(0, 7); });
-      const count = (rows: { created_at: string }[], m: string) => rows.filter((r) => month(r.created_at) === m).length;
-      const B = (biz.data ?? []) as { created_at: string; cancelled_at: string | null }[];
-      const E = (execs.data ?? []) as { status: string }[];
-      const I = (ints.data ?? []) as { status: string }[];
-      const C = (calls.data ?? []) as { created_at: string; ai_handled: boolean }[];
+      const [monthly, total, cancelled, executions, succeeded, failed, integrations, failing] = await Promise.all([
+        Promise.all(months.map(async (month) => {
+          const start = `${month}-01T00:00:00.000Z`;
+          const end = new Date(start); end.setUTCMonth(end.getUTCMonth() + 1);
+          const inMonth = (table: string) => query(table).gte("created_at", start).lt("created_at", end.toISOString());
+          const [businesses, subscriptions, aiCalls] = await Promise.all([
+            count(inMonth("businesses")), count(inMonth("subscriptions")),
+            count(inMonth("calls").gte("created_at", callsSince).eq("ai_handled", true)),
+          ]);
+          return { month, businesses, subscriptions, aiCalls };
+        })),
+        count(query("businesses")), count(query("businesses").not("cancelled_at", "is", null)),
+        count(query("workflow_executions").gte("started_at", execsSince)),
+        count(query("workflow_executions").gte("started_at", execsSince).eq("status", "succeeded")),
+        count(query("workflow_executions").gte("started_at", execsSince).eq("status", "failed")),
+        count(query("integrations")), count(query("integrations").in("status", ["error", "disconnected"])),
+      ]);
       return {
-        months: months.map((m) => ({ month: m, businesses: count(B, m), subscriptions: count((subs.data ?? []) as { created_at: string }[], m), aiCalls: C.filter((c) => c.ai_handled && month(c.created_at) === m).length })),
-        businesses: { total: B.length, cancelled: B.filter((b) => b.cancelled_at).length },
-        automation30d: { total: E.length, succeeded: E.filter((e) => e.status === "succeeded").length, failed: E.filter((e) => e.status === "failed").length },
-        integrations: { total: I.length, failing: I.filter((i) => ["error", "disconnected"].includes(i.status)).length },
+        months: monthly, businesses: { total, cancelled },
+        automation30d: { total: executions, succeeded, failed },
+        integrations: { total: integrations, failing },
       };
     },
 

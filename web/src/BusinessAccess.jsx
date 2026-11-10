@@ -224,7 +224,7 @@ export function AccessPage({ workspace, refreshKey, onNotice, userId }) {
     setResending(invite.id);
     try {
       const { error: e } = await supabase.rpc("zella_resend_invitation", { p_invitation_id: invite.id });
-      if (e) return onNotice(say(e));
+      if (e) { onNotice(say(e)); reload(); return; }
       onNotice(sentMessage(invite.email, await sendInvitationEmail(invite.id)));
       reload();
     } catch (err) {

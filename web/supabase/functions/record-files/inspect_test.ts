@@ -67,13 +67,13 @@ Deno.test("sha256", async () => {
 });
 
 Deno.test("unchecked PDF streams fail closed", async () => {
-  for (const body of [
-    "1 0 obj << >> stream\nunterminated",
-    "1 0 obj << /Filter /ASCIIHexDecode >> stream\n2f4a53>\nendstream endobj",
-    "1 0 obj << /Filter [/ASCII85Decode /FlateDecode] >> stream\nx\nendstream endobj",
-    "1 0 obj << /Filter 2 0 R >> stream\nx\nendstream endobj",
-    Array.from({ length: 2001 }, (_, i) => `${i + 1} 0 obj << >> stream\nx\nendstream endobj`).join("\n"),
-  ]) assertEquals((await inspect("application/pdf", pdf(body))).ok, false);
+  for (const [body, reason] of [
+    ["1 0 obj << >> stream\nunterminated", "unterminated PDF stream"],
+    ["1 0 obj << /Filter /ASCIIHexDecode >> stream\n2f4a53>\nendstream endobj", "unsupported PDF stream filter"],
+    ["1 0 obj << /Filter [/ASCII85Decode /FlateDecode] >> stream\nx\nendstream endobj", "unsupported PDF stream filter"],
+    ["1 0 obj << /Filter 2 0 R >> stream\nx\nendstream endobj", "unsupported PDF stream filter"],
+    [Array.from({ length: 2001 }, (_, i) => `${i + 1} 0 obj << >> stream\nx\nendstream endobj`).join("\n"), "PDF has too many streams to check"],
+  ]) assertEquals(await inspect("application/pdf", pdf(body)), { ok: false, reason });
 });
 Deno.test("nested and long stream dictionaries cannot hide compressed active content", async () => {
   const z = await deflate("/J#61vaScript");
@@ -97,12 +97,84 @@ Deno.test("every stream filter entry must be supported", async () => {
   const z = await deflate("innocent");
   for (const filters of ["/Filter /FlateDecode /Filter /ASCIIHexDecode", "/Filter /ASCIIHexDecode /Filter /FlateDecode"]) {
     const file = cat(enc(`%PDF-1.7\n1 0 obj << ${filters} >> stream\n`), z, enc("\nendstream endobj"));
-    assertEquals((await inspect("application/pdf", file)).ok, false);
+    assertEquals(await inspect("application/pdf", file), { ok: false, reason: "unsupported PDF stream filter" });
   }
 });
 
 Deno.test("indirect decode parameters fail closed before inspecting compressed content", async () => {
   const z = await deflate("/J#61vaScript");
-  const b = cat(enc("%PDF-1.7\n1 0 obj << /Filter /FlateDecode /DecodeParms 2 0 R >> stream\n"), z, enc("\nendstream endobj"));
-  assertEquals(await inspect("application/pdf", b), { ok: false, reason: "unsupported PDF stream parameters" });
+  for (const parameters of ["2 0 R", "[2 0 R]"]) {
+    const b = cat(enc(`%PDF-1.7\n1 0 obj << /Filter /FlateDecode /DecodeParms ${parameters} >> stream\n`), z, enc("\nendstream endobj"));
+    assertEquals(await inspect("application/pdf", b), { ok: false, reason: "unsupported PDF stream parameters" });
+  }
+});
+
+async function predictedPdf(bytes: Uint8Array, parameters: string) {
+  const z = new Uint8Array(await new Response(new Blob([bytes as Uint8Array<ArrayBuffer>]).stream().pipeThrough(new CompressionStream("deflate"))).arrayBuffer());
+  return cat(enc(`%PDF-1.7\n1 0 obj << /Type /XRef /W [1 2 1] /Size 2 /Filter /FlateDecode /DecodeParms << ${parameters} >> /Length ${z.length} >> stream\n`), z, enc("\nendstream endobj\n%%EOF"));
+}
+Deno.test("predictor 12 cross-reference stream is accepted", async () => {
+  // Two xref rows: free object and an in-use object, encoded with PNG Up.
+  const bytes = new Uint8Array([2, 0, 0, 0, 255, 2, 1, 0, 9, 1]);
+  assertEquals(await inspect("application/pdf", await predictedPdf(bytes, "/Predictor 12 /Columns 4")), { ok: true });
+});
+Deno.test("all supported predictors reveal active content, across rows and chunks", async () => {
+  for (const predictor of [2, 10, 11, 12, 13, 14, 15]) {
+    const plain = enc("x".repeat(20000) + "/J#61vaScript");
+    const encoded: number[] = [];
+    let previous = 0;
+    for (const byte of plain) {
+      // One-byte rows; PNG Up (2) reconstructs from the preceding row.
+      if (predictor !== 2) encoded.push(2);
+      encoded.push(predictor === 2 ? byte : (byte - previous + 256) % 256);
+      previous = byte;
+    }
+    assertEquals(await inspect("application/pdf", await predictedPdf(new Uint8Array(encoded), `/Predictor ${predictor}`)),
+      { ok: false, reason: "PDF with active content (in a compressed stream)" });
+  }
+});
+Deno.test("TIFF packed, byte, and 16-bit differences are reversed", async () => {
+  // Byte samples with horizontal differences hide the active name.
+  const plain = enc("/JavaScript"), encoded = plain.map((b, i) => i ? (b - plain[i - 1] + 256) % 256 : b);
+  assertEquals(await inspect("application/pdf", await predictedPdf(encoded, `/Predictor 2 /Columns ${plain.length}`)),
+    { ok: false, reason: "PDF with active content (in a compressed stream)" });
+  for (const bits of [1, 2, 4, 16]) {
+    assertEquals(await inspect("application/pdf", await predictedPdf(new Uint8Array(Math.ceil(4 * bits / 8)), `/Predictor 2 /Columns 4 /BitsPerComponent ${bits}`)), { ok: true });
+  }
+});
+Deno.test("unsupported predictors and malformed rows fail closed", async () => {
+  for (const parameters of ["/Predictor 3", "/Predictor 12 /Columns 0", "/Predictor 2 /BitsPerComponent 3"]) {
+    assertEquals(await inspect("application/pdf", await predictedPdf(enc("x"), parameters)), { ok: false, reason: "unsupported PDF stream predictor" });
+  }
+  for (const bytes of [new Uint8Array([5, 0]), new Uint8Array([2])]) {
+    assertEquals(await inspect("application/pdf", await predictedPdf(bytes, "/Predictor 12")), { ok: false, reason: "damaged PDF (a compressed part can't be read)" });
+  }
+});
+Deno.test("oversized and unterminated filter arrays fail closed", async () => {
+  for (const filter of [`[${" ".repeat(1025)}/FlateDecode]`, "[ /Filter [".repeat(5000)]) {
+    const file = pdf(`1 0 obj << /Filter ${filter} >> stream\nx\nendstream endobj`);
+    assertEquals(await inspect("application/pdf", file), { ok: false, reason: "unsupported PDF stream filter" });
+  }
+});
+
+Deno.test("each PNG row filter is reversed before scanning", async () => {
+  const columns = 8;
+  const plain = enc("innocent/JavaScript     ".padEnd(24));
+  const paeth = (a: number, b: number, c: number) => {
+    const x = a + b - c, distances = [Math.abs(x - a), Math.abs(x - b), Math.abs(x - c)];
+    return [a, b, c][distances.indexOf(Math.min(...distances))];
+  };
+  for (let filter = 0; filter <= 4; filter++) {
+    const encoded: number[] = [];
+    for (let i = 0; i < plain.length; i++) {
+      if (i % columns === 0) encoded.push(filter);
+      const left = i % columns ? plain[i - 1] : 0;
+      const up = i >= columns ? plain[i - columns] : 0;
+      const upperLeft = i >= columns && i % columns ? plain[i - columns - 1] : 0;
+      const prediction = [0, left, up, Math.floor((left + up) / 2), paeth(left, up, upperLeft)][filter];
+      encoded.push((plain[i] - prediction + 256) % 256);
+    }
+    assertEquals(await inspect("application/pdf", await predictedPdf(new Uint8Array(encoded), `/Predictor 15 /Columns ${columns}`)),
+      { ok: false, reason: "PDF with active content (in a compressed stream)" });
+  }
 });

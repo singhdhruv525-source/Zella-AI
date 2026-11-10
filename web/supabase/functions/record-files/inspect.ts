@@ -24,17 +24,59 @@ const latin1 = (b: Uint8Array) => { let s = ""; for (let i = 0; i < b.length; i 
 // PDF names may hide letters as #xx ("/J#61vaScript")
 const unescapeNames = (s: string) => s.replace(/#([0-9A-Fa-f]{2})/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
 
-async function inflate(data: Uint8Array, limit: number): Promise<number | "active" | "too_big" | null> {
+type Predictor = { value: number; colors: number; bits: number; columns: number };
+
+// Decode one row at a time, preserving state across decompressor chunks.
+function predictorDecoder(p: Predictor) {
+  const rowBytes = Math.ceil(p.colors * p.columns * p.bits / 8);
+  const pixelBytes = Math.ceil(p.colors * p.bits / 8);
+  let previous = new Uint8Array(rowBytes), row = new Uint8Array(rowBytes);
+  let offset = 0, filter = p.value === 2 ? 0 : -1;
+  const paeth = (a: number, b: number, c: number) => {
+    const x = a + b - c, da = Math.abs(x - a), db = Math.abs(x - b), dc = Math.abs(x - c);
+    return da <= db && da <= dc ? a : db <= dc ? b : c;
+  };
+  return {
+    complete: () => offset === 0 && (p.value === 2 || filter === -1),
+    decode(chunk: Uint8Array) {
+      const out: number[] = [];
+      for (const byte of chunk) {
+        if (filter === -1) { if (byte > 4) throw new Error("Invalid PNG filter"); filter = byte; continue; }
+        const left = offset >= pixelBytes ? row[offset - pixelBytes] : 0;
+        const up = previous[offset], upperLeft = offset >= pixelBytes ? previous[offset - pixelBytes] : 0;
+        row[offset++] = byte + (p.value === 2 ? 0 : [0, left, up, Math.floor((left + up) / 2), paeth(left, up, upperLeft)][filter]);
+        if (offset === rowBytes) {
+          if (p.value === 2) {
+            // TIFF differences are per component, including packed and 16-bit samples.
+            const samples = p.colors * p.columns, mask = (1 << p.bits) - 1;
+            const read = (i: number) => { const bit = i * p.bits; return p.bits === 16 ? row[bit / 8] * 256 + row[bit / 8 + 1] : (row[bit >> 3] >> (8 - p.bits - bit % 8)) & mask; };
+            for (let i = p.colors; i < samples; i++) {
+              const value = (read(i) + read(i - p.colors)) & mask, bit = i * p.bits;
+              if (p.bits === 16) { row[bit / 8] = value >> 8; row[bit / 8 + 1] = value & 255; }
+              else { const shift = 8 - p.bits - bit % 8; row[bit >> 3] = (row[bit >> 3] & ~(mask << shift)) | (value << shift); }
+            }
+          }
+          for (const decoded of row) out.push(decoded);
+          [previous, row] = [row, previous]; offset = 0; filter = p.value === 2 ? 0 : -1;
+        }
+      }
+      return new Uint8Array(out);
+    },
+  };
+}
+
+async function inflate(data: Uint8Array, limit: number, predictor?: Predictor): Promise<number | "active" | "too_big" | null> {
   try {
     const stream = new Blob([data as Uint8Array<ArrayBuffer>]).stream().pipeThrough(new DecompressionStream("deflate"));
+    const decoder = predictor ? predictorDecoder(predictor) : null;
     const reader = stream.getReader(); let n = 0, tail = "";
     try {
       for (;;) {
         const { done, value } = await reader.read();
-        if (done) return n;
+        if (done) return decoder && !decoder.complete() ? null : n;
         n += value.length;
         if (n > limit) { await reader.cancel(); return "too_big"; }
-        const text = tail + latin1(value);
+        const text = tail + latin1(decoder ? decoder.decode(value) : value);
         if (ACTIVE.test(unescapeNames(text))) { await reader.cancel(); return "active"; }
         // Retain enough raw bytes for a name (including #xx escapes) spanning chunks.
         tail = text.slice(-256);
@@ -86,13 +128,27 @@ export async function inspectPdf(b: Uint8Array): Promise<Verdict> {
     let stop = end;
     if (b[stop - 1] === 0x0a) stop--;
     if (b[stop - 1] === 0x0d) stop--;
-    const filters = [...dict.matchAll(/\/Filter(?=[\s<>\[\]()/]|$)\s*(\[[^\]]*\]|\/[^\s<>\[\]()]+|[^\s]*)/g)];
+    const filters = [...dict.matchAll(/\/Filter(?=[\s<>\[\]()/]|$)\s*(\[[^\]]{0,1024}\]|\/[^\s<>\[\]()]+|[^\s]*)/g)];
     if (!filters.length) continue; // unfiltered bytes were scanned above
     if (filters.some((filter) => !/^\/FlateDecode$|^\[\s*\/FlateDecode\s*\]$/.test(filter[1]))) return { ok: false, reason: "unsupported PDF stream filter" };
-    if (/\/DecodeParms\s+\d+\s+\d+\s+R\b/.test(dict)) return { ok: false, reason: "unsupported PDF stream parameters" };
-    // Predictors transform decoded bytes; this scanner only supports the default identity predictor.
-    if (/\/Predictor\s+(?!1(?:\s|[<>/]))/.test(dict)) return { ok: false, reason: "unsupported PDF stream predictor" };
-    const inflated = await inflate(b.subarray(start, stop), budget);
+    if (/\/DecodeParms\s*(?:\[\s*)?\d+\s+\d+\s+R\b/.test(dict)) return { ok: false, reason: "unsupported PDF stream parameters" };
+    const parameter = (key: string, fallback: number) => {
+      const matches = [...dict.matchAll(new RegExp(`/${key}(?=[\\s<>\\[\\]()/]|$)\\s*([^\\s<>\\[\\]()/]*)`, "g"))];
+      if (!matches.length) return fallback;
+      return matches.length === 1 && /^\d+$/.test(matches[0][1]) ? Number(matches[0][1]) : NaN;
+    };
+    const value = parameter("Predictor", 1);
+    if (![1, 2, 10, 11, 12, 13, 14, 15].includes(value)) return { ok: false, reason: "unsupported PDF stream predictor" };
+    let predictor: Predictor | undefined;
+    if (value !== 1) {
+      const colors = parameter("Colors", 1), bits = parameter("BitsPerComponent", 8), columns = parameter("Columns", 1);
+      if (!Number.isSafeInteger(colors) || colors < 1 || !Number.isSafeInteger(columns) || columns < 1 ||
+          ![1, 2, 4, 8, 16].includes(bits) || colors * columns * bits > budget * 8) {
+        return { ok: false, reason: "unsupported PDF stream predictor" };
+      }
+      predictor = { value, colors, bits, columns };
+    }
+    const inflated = await inflate(b.subarray(start, stop), budget, predictor);
     if (inflated === "too_big") return { ok: false, reason: "PDF too large to check" };
     if (inflated === null) return { ok: false, reason: "damaged PDF (a compressed part can't be read)" };
     if (inflated === "active") return { ok: false, reason: "PDF with active content (in a compressed stream)" };
