@@ -585,7 +585,8 @@
   "settings": {
     "executionOrder": "v1",
     "executionTimeout": 300,
-    "saveDataSuccessExecution": "none"
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "none"
   },
   "pinData": {},
   "meta": {

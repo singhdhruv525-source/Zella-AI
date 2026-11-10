@@ -139,6 +139,15 @@
         "url": "https://oauth2.googleapis.com/token",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/x-www-form-urlencoded"
+            }
+          ]
+        },
         "sendBody": true,
         "contentType": "form-urlencoded",
         "bodyParameters": {
@@ -185,6 +194,15 @@
         "url": "https://login.microsoftonline.com/common/oauth2/v2.0/token",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/x-www-form-urlencoded"
+            }
+          ]
+        },
         "sendBody": true,
         "contentType": "form-urlencoded",
         "bodyParameters": {
@@ -479,7 +497,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Zella - Calendar Sync: build the request that lists one business calendar's upcoming events (Google or Outlook).\nconst c = $json;\nconst provider = c && c.provider === 'outlook' ? 'outlook' : 'google';\nif (!c || !c.connection_id || !c.refresh_token || !c.calendar_id) return { json: { connection_id: c && c.connection_id ? c.connection_id : null, provider, token_form: null, url: null, prefer: '' } };\nif (provider === 'outlook') {\n  const MS_PROP = 'String {6f1d2c9a-3b7e-4a51-9c0d-8e2f4b6a1c35} Name zella_appointment_id';\n  const where = String(c.calendar_id) === 'primary' ? 'me/calendarView' : 'me/calendars/' + encodeURIComponent(String(c.calendar_id)) + '/calendarView';\n  const q = new URLSearchParams({ startDateTime: c.from, endDateTime: c.to, $top: '250', $select: 'id,showAs,isCancelled,isAllDay,start,end',\n    $expand: \"singleValueExtendedProperties($filter=id eq '\" + MS_PROP + \"')\" });\n  return { json: { connection_id: c.connection_id, provider, token_form: { refresh_token: String(c.refresh_token) },\n    url: 'https://graph.microsoft.com/v1.0/' + where + '?' + q.toString(), prefer: 'outlook.timezone=\"UTC\"' } };\n}\nconst q = new URLSearchParams({ timeMin: c.from, timeMax: c.to, singleEvents: 'true', orderBy: 'startTime', maxResults: '250',\n  fields: 'items(id,status,transparency,start,end,extendedProperties)' });\nreturn { json: { connection_id: c.connection_id, provider, token_form: { refresh_token: String(c.refresh_token) },\n  url: 'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(String(c.calendar_id)) + '/events?' + q.toString(), prefer: '' } };\n"
+        "jsCode": "// Zella - Calendar Sync: build the request that lists one business calendar's upcoming events (Google or Outlook).\nconst c = $json;\nconst provider = c && c.provider === 'outlook' ? 'outlook' : 'google';\nif (!c || !c.connection_id || !c.refresh_token || !c.calendar_id) return { json: { connection_id: c && c.connection_id ? c.connection_id : null, provider, token_form: null, url: null, prefer: '' } };\nif (provider === 'outlook') {\n  const MS_PROP = 'String {6f1d2c9a-3b7e-4a51-9c0d-8e2f4b6a1c35} Name zella_appointment_id';\n  const where = String(c.calendar_id) === 'primary' ? 'me/calendarView' : 'me/calendars/' + encodeURIComponent(String(c.calendar_id)) + '/calendarView';\n  const q = new URLSearchParams({ startDateTime: c.from, endDateTime: c.to, $top: '250', $select: 'id,showAs,isCancelled,isAllDay,start,end',\n    $expand: \"singleValueExtendedProperties($filter=id eq '\" + MS_PROP + \"')\" });\n  return { json: { connection_id: c.connection_id, provider, token_form: { refresh_token: String(c.refresh_token) },\n    url: 'https://graph.microsoft.com/v1.0/' + where + '?' + q.toString(), prefer: 'outlook.timezone=\"UTC\"' } };\n}\nconst q = new URLSearchParams({ timeMin: c.from, timeMax: c.to, singleEvents: 'true', orderBy: 'startTime', maxResults: '250',\n  fields: 'nextPageToken,items(id,status,transparency,start,end,extendedProperties)' });\nreturn { json: { connection_id: c.connection_id, provider, token_form: { refresh_token: String(c.refresh_token) },\n  url: 'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(String(c.calendar_id)) + '/events?' + q.toString(), prefer: '' } };\n"
       },
       "id": "babecd1f-ff3f-49bd-8efc-df3bd4f85019",
       "name": "Plan pull",
@@ -529,6 +547,15 @@
         "url": "https://oauth2.googleapis.com/token",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/x-www-form-urlencoded"
+            }
+          ]
+        },
         "sendBody": true,
         "contentType": "form-urlencoded",
         "bodyParameters": {
@@ -575,6 +602,15 @@
         "url": "https://login.microsoftonline.com/common/oauth2/v2.0/token",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/x-www-form-urlencoded"
+            }
+          ]
+        },
         "sendBody": true,
         "contentType": "form-urlencoded",
         "bodyParameters": {

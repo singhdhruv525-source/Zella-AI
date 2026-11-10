@@ -734,6 +734,7 @@ const cpMap = (plan, res, token = { body: { access_token: 't' } }) => runCode('c
 const CPC = { connection_id: 'c1', calendar_id: 'primary', refresh_token: 'rt', from: '2026-10-23T00:00:00Z', to: '2026-12-23T00:00:00Z' };
 test('calendar: the refresh lists single (expanded) events for the next 60 days only', () => {
   const p = cpPlan(CPC); assert.ok(p.url.includes('singleEvents=true') && p.url.includes('timeMin=2026-10-23') && p.url.includes('maxResults=250'));
+  assert.equal(new URL(p.url).searchParams.get('fields'), 'nextPageToken,items(id,status,transparency,start,end,extendedProperties)');
   assert.equal(cpPlan({}).url, null);
 });
 test('calendar: busy times skip cancelled, free, and Zella-made events; all-day events block the day', () => {
@@ -760,6 +761,12 @@ test('calendar workflow: token boxes use credentials and other calls use dynamic
   const t = w.nodes.find((n) => n.name === 'Get Google token'); const s = JSON.stringify(t.parameters);
   assert.equal(s.includes('client_id'), false); assert.equal(s.includes('client_secret'), false);
   assert.equal(t.parameters.genericAuthType, 'httpCustomAuth');
+  for (const name of ['Get Google token', 'Get pull token', 'Get Microsoft token', 'Get Microsoft pull token']) {
+    const p = w.nodes.find((n) => n.name === name).parameters;
+    assert.equal(p.sendHeaders, true);
+    assert.deepEqual(p.headerParameters.parameters, [{ name: 'Content-Type', value: 'application/x-www-form-urlencoded' }]);
+    assert.equal(p.sendBody, true); assert.equal(p.contentType, 'form-urlencoded');
+  }
   assert.ok(!JSON.stringify(w).match(/GOCSPX|\.apps\.googleusercontent/));
 });
 test('calendar sql: the token lives only in the vault, nothing runs until calendar_sync_live, access is service-role only', () => {
@@ -1824,7 +1831,7 @@ test('calendar and Meta: execution settings preserve defaults and protect tokens
     const s = wfJson('zella-' + file + '.json').settings;
     assert.equal(s.saveDataSuccessExecution, 'none'); assert.equal(s.executionOrder, 'v1'); assert.equal(s.executionTimeout, 300);
     if (file === 'calendar-sync') { assert.equal(s.saveDataErrorExecution, 'none'); assert.equal(s.saveManualExecutions, false); assert.equal(s.saveExecutionProgress, false); }
-    else assert.equal(s.saveDataErrorExecution, undefined);
+    else { assert.equal(s.saveDataErrorExecution, 'none'); assert.equal(s.saveManualExecutions, undefined); assert.equal(s.saveExecutionProgress, undefined); }
   }
 });
 test('Resend: invalid authentication cannot reach a provider fetch or event write', () => {
@@ -1843,6 +1850,13 @@ for (const file of ['inbound-email-plan.js', 'email-event-plan.js']) {
 }
 test('assistant tools: failed writes return errors while non-loggable calls retain their reply', () => {
   for (const statusCode of [0, 400, 429, 500]) assert.ok(runCode('vapi-tool-reply.js', { json: { statusCode }, nodes: { 'Use business': { loggable: true, tool_call_id: 't', reply_text: 'Noted' } } }).json.error);
+  const plan = { loggable: true, rpc: 'zella_ai_log_request', tool: 'log_request', tool_call_id: 't', reply_text: 'Noted' };
+  const reply = (p, body) => runCode('vapi-tool-reply.js', { json: { statusCode: 200, body }, nodes: { 'Use business': p } }).json;
+  const failed = reply(plan, { ok: false });
+  assert.ok(failed.error); assert.equal(failed.result, undefined); assert.equal(failed.toolCallId, 't');
+  assert.equal(reply(plan, { ok: true }).result, 'Noted');
+  assert.equal(reply({ ...plan, rpc: 'zella_report_unanswered' }, { ok: false }).result, 'Noted');
+  assert.equal(reply({ ...plan, loggable: false }, { ok: false }).result, 'Noted');
   assert.equal(vtReply({ loggable: true, reply_text: 'Noted' }).result, 'Noted');
   assert.equal(runCode('vapi-tool-reply.js', { nodes: { 'Use business': { loggable: false, reply_text: 'No action' } } }).json.result, 'No action');
 });
@@ -1862,8 +1876,10 @@ test('router: a missing plan and problem goes to the dead-letter path', () => {
   assert.equal(r.needs_manual, true); assert.equal(r.category, 'invalid_input');
 });
 test('website: nested entities are decoded only once', () => {
-  const r = runCode('website-parse.js', { json: { statusCode: 200, body: '<title>&amp;lt; &amp;#39; &lt; &amp;amp;</title>' }, nodes: { Plan: { kind: 'page', url: 'https://example.com', host: 'example.com' } } }).json;
-  assert.equal(r.rpc.p_title, '&lt; &#39; < &amp;');
+  const r = runCode('website-parse.js', { json: { statusCode: 200, body: '<title>&amp;lt; &amp;#39; &lt; &amp;amp; &amp;#38;amp; &#38;amp; &#60;gt;</title>' }, nodes: { Plan: { kind: 'page', url: 'https://example.com', host: 'example.com' } } }).json;
+  assert.equal(r.rpc.p_title, '&lt; &#39; < &amp; &#38;amp; &amp; <gt;');
+  const entities = runCode('website-parse.js', { json: { statusCode: 200, body: '<title>&nbsp;|&#160;|&gt;|&quot;|&apos;|&#39;|&#039;|&#31;|&#32;|&#65535;|&#65536;|&#9;|&#x26;</title>' }, nodes: { Plan: { kind: 'page', url: 'https://example.com', host: 'example.com' } } }).json;
+  assert.equal(entities.rpc.p_title, `| |>|"|'|'|'| | |${String.fromCharCode(65535)}| |&#9;|&#x26;`);
 });
 test('inbound email: HTML input is capped before text extraction', () => {
   const r = ieMap({ statusCode: 200, body: { html: ' '.repeat(100000) + 'beyond-limit' } });
@@ -1893,6 +1909,8 @@ test('Meta: unreadable and oversized bodies have distinct safe diagnostics', () 
   assert.equal(unreadable.reason, 'body_unreadable'); assert.equal(oversized.reason, 'body_too_large');
   for (const r of [unreadable, oversized]) { assert.equal(r.ok, false); assert.equal(r.record.p_raw, ''); assert.equal(r.record.p_signature, 'sig'); }
 });
+
+await assert.rejects(runCodeAsync('email-event-plan.js'), { message: 'Test did not provide node: Check Resend auth' });
 
 console.log(`${passed} passed, ${failures.length} failed`);
 for (const f of failures) console.log('  FAIL ' + f);

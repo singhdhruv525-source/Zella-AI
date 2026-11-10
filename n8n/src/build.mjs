@@ -523,6 +523,7 @@ secureResend(emailEvents, 'Resend event', 'events');
 // Select the provider Custom Auth credential on both token boxes; client credentials stay in n8n credentials.
 const googleToken = (name, pos, tokenExpr) => node(name, 'n8n-nodes-base.httpRequest', 4.2, pos, {
   method: 'POST', url: 'https://oauth2.googleapis.com/token', authentication: 'genericCredentialType', genericAuthType: 'httpCustomAuth',
+  sendHeaders: true, headerParameters: { parameters: [{ name: 'Content-Type', value: 'application/x-www-form-urlencoded' }] },
   sendBody: true, contentType: 'form-urlencoded',
   bodyParameters: { parameters: [
     { name: 'grant_type', value: 'refresh_token' },
@@ -534,6 +535,7 @@ const googleToken = (name, pos, tokenExpr) => node(name, 'n8n-nodes-base.httpReq
 // Zella app registration in Microsoft Entra ID, stored in a Custom Auth credential like Google's).
 const microsoftToken = (name, pos, tokenExpr) => node(name, 'n8n-nodes-base.httpRequest', 4.2, pos, {
   method: 'POST', url: 'https://login.microsoftonline.com/common/oauth2/v2.0/token', authentication: 'genericCredentialType', genericAuthType: 'httpCustomAuth',
+  sendHeaders: true, headerParameters: { parameters: [{ name: 'Content-Type', value: 'application/x-www-form-urlencoded' }] },
   sendBody: true, contentType: 'form-urlencoded',
   bodyParameters: { parameters: [
     { name: 'grant_type', value: 'refresh_token' },
@@ -712,7 +714,7 @@ const metaLeads = wf('Zella - Meta Leads', [
   'Fetch lead': { main: [[link('Read result')]] },
   'Read result': { main: [[link('Can save')]] },
   'Can save': { main: [[link('Save lead')], [link('Record failure')]] },
-}, { saveDataSuccessExecution: 'none' });
+}, { saveDataSuccessExecution: 'none', saveDataErrorExecution: 'none' });
 
 const metaSender = wf('Zella - Meta Sender', [
   runTrigger('meta-sender'),
@@ -744,7 +746,7 @@ const metaSender = wf('Zella - Meta Sender', [
   'Can send': { main: [[link('Send reply')], [link('Read result')]] },
   'Send reply': { main: [[link('Read result')]] },
   'Read result': { main: [[link('Record send')]] },
-}, { saveDataSuccessExecution: 'none' });
+}, { saveDataSuccessExecution: 'none', saveDataErrorExecution: 'none' });
 
 const metaHealth = wf('Zella - Meta Health', [
   runTrigger('meta-health'),
@@ -777,7 +779,7 @@ const metaHealth = wf('Zella - Meta Health', [
   'Get templates': { main: [[link('Map templates')]] },
   'Map templates': { main: [[link('Has templates')]] },
   'Has templates': { main: [[link('Record templates')], []] },
-}, { saveDataSuccessExecution: 'none' });
+}, { saveDataSuccessExecution: 'none', saveDataErrorExecution: 'none' });
 
 // Receptionist Brain: the webhook for every tool the phone assistant uses during a call (14 tools behind zella_ai_tool).
 // One item per tool call, so several tool calls in one request each get their own answer, matched by toolCallId.

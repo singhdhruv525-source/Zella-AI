@@ -31,7 +31,11 @@ export function runCode(file, { json = {}, nodes = {}, vars = {} } = {}) {
 const AsyncFn = Object.getPrototypeOf(async function () {}).constructor;
 export async function runCodeAsync(file, { json = {}, raw = '', vars = {}, nodes = {} } = {}) {
   const fn = new AsyncFn('$json', '$', loadCode(file, vars));
-  return fn.call({ helpers: { getBinaryDataBuffer: async () => Buffer.from(raw) } }, json, (name) => ({ item: { json: nodes[name] || {} } }));
+  const lookup = (name) => {
+    if (!(name in nodes)) throw new Error('Test did not provide node: ' + name);
+    return { item: { json: nodes[name] } };
+  };
+  return fn.call({ helpers: { getBinaryDataBuffer: async () => Buffer.from(raw) } }, json, lookup);
 }
 
 // Same, for Code nodes that run once for all items ("run once for all items"): they read $input.first() / $input.all().
