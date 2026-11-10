@@ -58,7 +58,7 @@ export async function handle(req: Request): Promise<Response> {
     if (!res.ok) return json({ ok: false, error: "try_again", message: "Something went wrong. Please try again or call us." }, 502, origin);
     const out = await res.json();
     if (!out || typeof out !== "object" || Array.isArray(out) || typeof out.ok !== "boolean") throw new Error("Invalid response");
-    const known = ["too_many_requests", "origin_not_allowed", "bad_request", "invalid_key", "consent_required", "try_again"];
+    const known = ["too_many_requests", "origin_not_allowed", "bad_request", "invalid_key", "consent_required", "try_again", "unknown_form", "unknown_kind", "invalid_phone", "invalid_email", "no_contact"];
     const error = typeof out.error === "string" && known.includes(out.error) ? out.error : "try_again";
     const status = out.ok ? 200 : out.error === "too_many_requests" ? 429 : out.error === "origin_not_allowed" ? 403 : 400;
     return json({ ok: out.ok, ...(out.ok ? {} : { error }), ...(typeof out.message === "string" ? { message: out.message } : {}) }, status, origin);
