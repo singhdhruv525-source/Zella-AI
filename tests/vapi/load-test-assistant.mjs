@@ -25,6 +25,14 @@ if (token) {
   config.server = withHeader(config.server);
   for (const tool of config.model?.tools ?? []) if (tool.server) tool.server = withHeader(tool.server);
 }
+// Verify the existing remote identity before changing it; the input fixture is not proof.
+const targetUrl = `https://api.vapi.ai/assistant/${assistantId}`;
+const current = await fetch(targetUrl, { headers: { Authorization: `Bearer ${key}` } });
+const assistant = await current.json().catch(() => null);
+if (!current.ok || !assistant || !( /\btest\b/i.test(assistant.name ?? "") || assistant.metadata?.test === true )) {
+  console.error("Refused: the target assistant is not marked as a test assistant.");
+  process.exit(1);
+}
 const res = await fetch(`https://api.vapi.ai/assistant/${assistantId}`, {
   method: "PATCH",
   headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },

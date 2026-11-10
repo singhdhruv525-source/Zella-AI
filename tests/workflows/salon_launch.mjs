@@ -15,12 +15,17 @@
 //                (skipped with a reason); a caller who hangs up mid-booking gets a callback assigned
 //   audit        AI tool log, record history, money audit, appointment history
 // Usage: node tests/workflows/salon_launch.mjs        (needs the staging database zstg)
+import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { runCode } from "../../n8n/src/load.mjs";
 
 const H = ["-h", process.env.ZPG_HOST ?? "/var/lib/postgresql/zella-sec", "-p", process.env.ZPG_PORT ?? "55433", "-U", "postgres"];
 const DB = "zwf_salon";
+// Match the shell runners: clear redirects in this process as well as in the guard.
+for (const key of ["PGHOSTADDR", "PGSERVICE", "PGSERVICEFILE", "PGHOST", "PGPORT", "PGDATABASE"]) delete process.env[key];
+execFileSync("bash", ["-c", 'source "$1"; zella_require_isolated "$2" "$3" "$4"',
+  "isolated-guard", fileURLToPath(new URL("../lib/isolated_guard.sh", import.meta.url)), H[1], H[3], DB], { stdio: "inherit" });
 const psql = (args, input) => execFileSync("psql", [...H, ...args], { input, encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] });
 const q = (sql) => psql(["-d", DB, "-qtAX", "-v", "ON_ERROR_STOP=1"], sql).trim();
 const j = (sql) => { const t = q(sql); return t ? JSON.parse(t) : null; };

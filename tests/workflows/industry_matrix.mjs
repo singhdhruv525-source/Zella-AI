@@ -18,12 +18,17 @@
 //   recovery     a provider failure is retried, then stops; it shows in "Sending failed"; the owner retries it (staff,
 //                viewer and other businesses can't) and it is then sent
 // Usage: node tests/workflows/industry_matrix.mjs [slug ...]     (needs zstg; writes tests/workflows/out/matrix.json)
+import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { runCode } from "../../n8n/src/load.mjs";
 
 const H = ["-h", process.env.ZPG_HOST ?? "/var/lib/postgresql/zella-sec", "-p", process.env.ZPG_PORT ?? "55433", "-U", "postgres"];
 const DB = "zwf_matrix";
+// Match the shell runners: clear redirects in this process as well as in the guard.
+for (const key of ["PGHOSTADDR", "PGSERVICE", "PGSERVICEFILE", "PGHOST", "PGPORT", "PGDATABASE"]) delete process.env[key];
+execFileSync("bash", ["-c", 'source "$1"; zella_require_isolated "$2" "$3" "$4"',
+  "isolated-guard", fileURLToPath(new URL("../lib/isolated_guard.sh", import.meta.url)), H[1], H[3], DB], { stdio: "inherit" });
 const psql = (args, input) => execFileSync("psql", [...H, ...args], { input, encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] });
 const q = (sql) => psql(["-d", DB, "-qtAX", "-v", "ON_ERROR_STOP=1"], sql).trim();
 const j = (sql) => { const t = q(sql); return t ? JSON.parse(t) : null; };
