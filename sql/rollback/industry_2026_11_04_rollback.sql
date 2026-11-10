@@ -32,13 +32,24 @@ begin
   else execute format('drop table public.%I cascade', p_table); end if;
 end $f$;
 
--- 1. private values back into record data, then emptied
+-- 1. Copy only missing keys in object data, for the same business. Existing keys (including
+-- nulls and values of a different type) win; non-object data and conflicting secrets stay archived.
 do $$ begin
   if to_regclass('public.crm_record_secrets') is not null then
-    update public.crm_records r set data = r.data || s.v
-      from (select record_id, jsonb_object_agg(field_key, value) v from public.crm_record_secrets group by record_id) s
-     where s.record_id = r.id;
-    delete from public.crm_record_secrets;
+    lock table public.crm_record_secrets, public.crm_records in share row exclusive mode;
+    with copied as (
+      update public.crm_records r set data = r.data || s.v
+      from (select s.record_id, s.business_id, jsonb_object_agg(s.field_key, s.value) v
+        from public.crm_record_secrets s join public.crm_records r
+          on r.id = s.record_id and r.business_id = s.business_id
+        where jsonb_typeof(r.data) = 'object' and not r.data ? s.field_key
+        group by s.record_id, s.business_id) s
+      where r.id = s.record_id and r.business_id = s.business_id
+      returning r.id, r.business_id, s.v
+    )
+    delete from public.crm_record_secrets s using copied c
+      where s.record_id = c.id and s.business_id = c.business_id
+        and c.v ? s.field_key and c.v -> s.field_key = to_jsonb(s.value);
   end if;
 end $$;
 
@@ -46,11 +57,16 @@ end $$;
 delete from public.industry_crm_presets p where not exists (select 1 from public.backup_20261104_presets b where b.key = p.key);
 update public.industry_crm_presets p set match = b.match, config = b.config from public.backup_20261104_presets b where b.key = p.key;
 
+insert into public.industry_crm_presets select * from public.backup_20261104_presets on conflict (key) do nothing;
+
 -- 3. record types as they were; added ones go only when empty
 update public.crm_record_types t set singular = b.singular, plural = b.plural, icon = b.icon, title_label = b.title_label, link_person = b.link_person,
        statuses = b.statuses, closed_statuses = b.closed_statuses, fields = b.fields, columns = b.columns, notice = b.notice, enabled = b.enabled,
        position = b.position, preset_key = b.preset_key, updated_at = b.updated_at
   from public.backup_20261104_types b where b.id = t.id;
+insert into public.crm_record_types (id, business_id, key, singular, plural, icon, title_label, link_person, statuses, closed_statuses, fields, columns, notice, enabled, position, preset_key, created_at, updated_at)
+select b.id, b.business_id, b.key, b.singular, b.plural, b.icon, b.title_label, b.link_person, b.statuses, b.closed_statuses, b.fields, b.columns, b.notice, b.enabled, b.position, b.preset_key, b.created_at, b.updated_at
+  from public.backup_20261104_types b where not exists (select 1 from public.crm_record_types t where t.id = b.id);
 delete from public.crm_record_types t
  where not exists (select 1 from public.backup_20261104_types b where b.id = t.id)
    and not exists (select 1 from public.crm_records r where r.business_id = t.business_id and r.type_key = t.key);
@@ -69,8 +85,9 @@ with v(industry_key, name) as (values ('legal', 'Deadline in 30 days'), ('legal'
   ('healthcare', 'Refill request waiting'), ('healthcare', 'Prior authorization pending'), ('dental', 'Treatment plan not accepted'),
   ('fitness', 'Freeze or cancellation request waiting'), ('childcare', 'Incident report still open'), ('property_management', 'Vendor insurance expiring'),
   ('travel', 'Passport expiring'), ('automotive', 'Declined work reminder'), ('cleaning', 'Visit not started'))
-, gone as (delete from public.industry_automation_presets p using v where p.industry_key = v.industry_key and p.name = v.name returning p.name)
-delete from public.automations a where a.name in (select name from v)
+, gone as (delete from public.industry_automation_presets p using v where p.industry_key = v.industry_key and p.name = v.name returning p.name, p.trigger_type, p.trigger_config)
+delete from public.automations a using gone p where a.name = p.name
+   and a.trigger_type = p.trigger_type and a.trigger_config = p.trigger_config
    and not exists (select 1 from public.industry_automation_runs r where r.automation_id = a.id);
 
 -- 7. photos and files (zella_record_files.sql): the storage policies go, so signed-in users can no longer reach the
@@ -94,6 +111,8 @@ drop table if exists public.industry_message_policy cascade;
 do $$ begin
   if exists (select 1 from public.calendar_connections where provider <> 'google') then
     create table if not exists public.calendar_connections_outlook_rolled_back_20261104 as select * from public.calendar_connections where false;
+    alter table public.calendar_connections_outlook_rolled_back_20261104 enable row level security;
+    revoke all on public.calendar_connections_outlook_rolled_back_20261104 from anon, authenticated, public;
     insert into public.calendar_connections_outlook_rolled_back_20261104 select * from public.calendar_connections where provider <> 'google';
     delete from public.blocked_times where connection_id in (select id from public.calendar_connections where provider <> 'google') and end_time > now();
     delete from public.calendar_connections where provider <> 'google';
@@ -101,7 +120,6 @@ do $$ begin
 end $$;
 alter table public.calendar_connections drop constraint if exists calendar_connections_provider_check;
 alter table public.calendar_connections add constraint calendar_connections_provider_check check (provider = 'google');
-
 
 -- ---------- schema (generated) ----------
 drop trigger if exists zella_welcome_superseded on public.appointment_reminders;

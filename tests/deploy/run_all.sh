@@ -22,7 +22,7 @@ ITEMS="select x from (
   union all select 't:' || tgrelid::regclass::text || '.' || tgname from pg_trigger where not tgisinternal and tgrelid::regclass::text not like 'pg_%'
   union all select 'p:' || tablename || '.' || policyname from pg_policies where schemaname in ('public', 'storage')) s
   where x not like '%_rolled_back%'
-    and x not in ('c:appointments.resource_ids:ARRAY', 'c:appointments.crew_staff_ids:ARRAY', 'c:blocked_times.resource_id:uuid', 'c:crm_record_types.workflow:jsonb')"   # what a rollback keeps on purpose: renamed tables, the Release 2 columns with their values, and each record type's Release 3 workflow setting
+    and x not in ('c:appointments.resource_ids:ARRAY', 'c:appointments.crew_staff_ids:ARRAY', 'c:blocked_times.resource_id:uuid', 'c:crm_record_types.workflow:jsonb', 'c:calls.transfer_approved_at:timestamp with time zone')"   # what a rollback keeps on purpose: renamed tables, the Release 2 columns with their values, each record type's Release 3 workflow setting, and when a transfer was approved (CodeRabbit #44 finding 11: never delete customer data)
 STATE="select md5(string_agg(x, ',' order by x)) from ($ITEMS) y"
 
 # 1. production state, plus settings that existed before the pending files (they must find them)

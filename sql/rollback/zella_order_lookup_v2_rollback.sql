@@ -1,10 +1,17 @@
 -- Undoes sql/zella_order_lookup_v2.sql (hand-written; tests/orders/run_v2.sh checks it restores the functions exactly).
--- The lookup records keep their found_<level> results and their order references are dropped with the column.
+-- The lookup records keep their found_<level> results and their order references remain in lookup_ref_rolled_back.
 begin;
 drop function if exists public.zella_store_lookup_context(text, uuid, text);
 drop function if exists public.zella_store_lookup_log(uuid, text, uuid, text, boolean, text);
 drop index if exists public.ai_tool_calls_lookup_ref_idx;
-alter table public.ai_tool_calls drop column if exists lookup_ref;
+do $$ begin
+  if exists (select 1 from pg_attribute where attrelid = 'public.ai_tool_calls'::regclass and attname = 'lookup_ref' and not attisdropped) then
+    if exists (select 1 from pg_attribute where attrelid = 'public.ai_tool_calls'::regclass and attname = 'lookup_ref_rolled_back' and not attisdropped) then
+      raise exception 'lookup_ref_rolled_back already exists: preserve it before another rollback';
+    end if;
+    alter table public.ai_tool_calls rename column lookup_ref to lookup_ref_rolled_back;
+  end if;
+end $$;
 -- the report as sql/zella_order_lookup_assurance.sql has it
 create or replace function public.zella_order_lookup_report(p_business_id uuid, p_days integer default 30) returns jsonb
 language plpgsql stable security definer set search_path = public as $$

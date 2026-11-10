@@ -13,6 +13,7 @@ usage() { echo "usage: $0 <rollback file> [-h HOST] [-p PORT] [-U USER] [-d DATA
 [ $# -ge 1 ] || usage
 file=$1; shift
 [ -f "$file" ] || { echo "no such file: $file" >&2; exit 2; }
+python3 "$(dirname "$0")/validate.py" "$file" || exit 2
 conn=()
 while [ $# -gt 0 ]; do
   case "$1" in
