@@ -86,10 +86,13 @@ with v(industry_key, name) as (values ('legal', 'Deadline in 30 days'), ('legal'
   ('healthcare', 'Refill request waiting'), ('healthcare', 'Prior authorization pending'), ('dental', 'Treatment plan not accepted'),
   ('fitness', 'Freeze or cancellation request waiting'), ('childcare', 'Incident report still open'), ('property_management', 'Vendor insurance expiring'),
   ('travel', 'Passport expiring'), ('automotive', 'Declined work reminder'), ('cleaning', 'Visit not started'))
-, gone as (delete from public.industry_automation_presets p using v where p.industry_key = v.industry_key and p.name = v.name returning p.name, p.trigger_type, p.trigger_config)
--- Only copies the system installed (no created_by: zella_apply_industry_automations); a rule a person created or
--- turned on records who did, so a look-alike owner rule is kept (provenance must be known before anything is deleted).
-delete from public.automations a using gone p where a.name = p.name
+, gone as (delete from public.industry_automation_presets p using v where p.industry_key = v.industry_key and p.name = v.name returning p.industry_key, p.name, p.description, p.trigger_type, p.trigger_config)
+-- Match the tenant industry and the unchanged installer defaults from zella_apply_industry_automations.
+-- Keep authored, customized, and previously run rules; a shared name alone is never enough.
+delete from public.automations a using gone p, public.businesses b
+ where a.business_id = b.id and public.zella_industry_key_for(b.id) = p.industry_key
+   and a.name = p.name and a.description is not distinct from p.description
+   and a.status = 'active' and a.actions = '[]'::jsonb and a.conditions = '{}'::jsonb
    and a.trigger_type = p.trigger_type and a.trigger_config = p.trigger_config
    and a.created_by is null
    and not exists (select 1 from public.industry_automation_runs r where r.automation_id = a.id);

@@ -54,15 +54,26 @@ do $$ begin
  assert (select count(*)=2 from crm_records r join crm_record_types t on t.business_id=r.business_id and t.key=r.type_key);
  assert (select t.id <> b.id and t.singular=b.singular from crm_record_types t join backup_20261104_types b using(business_id,key) where t.key='collision');
 end $$;''')
-run('''create table industry_automation_presets(industry_key text,name text,trigger_type text,trigger_config jsonb);
-create table automations(id int,name text,trigger_type text,trigger_config jsonb,created_by uuid);
+run('''create table industry_automation_presets(industry_key text,name text,description text,trigger_type text,trigger_config jsonb);
+create table businesses(id int, industry_key text);
+insert into businesses values (1,'legal'),(2,'dental');
+create function zella_industry_key_for(int) returns text language sql as $$ select industry_key from businesses where id=$1 $$;
+create table automations(id int,business_id int default 1,name text,description text default 'Starter',trigger_type text,trigger_config jsonb,created_by uuid,status text default 'active',actions jsonb default '[]',conditions jsonb default '{}');
 create table industry_automation_runs(automation_id int);
-insert into industry_automation_presets values ('legal','Deadline tomorrow','deadline','{"days":1}');
-insert into automations values (1,'Deadline tomorrow','deadline','{"days":1}',null),(2,'Deadline tomorrow','custom','{}',null),(3,'Deadline tomorrow','deadline','{"days":2}',null),(4,'Deadline tomorrow','deadline','{"days":1}',null),
-  (5,'Deadline tomorrow','deadline','{"days":1}','00000000-0000-0000-0000-000000000005');  -- an owner's look-alike rule: kept
+insert into industry_automation_presets values ('legal','Deadline tomorrow','Starter','deadline','{"days":1}');
+insert into automations(id,name,trigger_type,trigger_config,created_by) values
+ (1,'Deadline tomorrow','deadline','{"days":1}',null),(2,'Deadline tomorrow','custom','{}',null),
+ (3,'Deadline tomorrow','deadline','{"days":2}',null),(4,'Deadline tomorrow','deadline','{"days":1}',null),
+ (5,'Deadline tomorrow','deadline','{"days":1}','00000000-0000-0000-0000-000000000005');
 insert into industry_automation_runs values(4);
+insert into automations select n,1,'Deadline tomorrow','Starter','deadline','{"days":1}',null,'active','[]','{}' from generate_series(6,10) n;
+update automations set business_id=2 where id=6;
+update automations set description='Owner edited' where id=7;
+update automations set status='disabled' where id=8;
+update automations set actions='[{"type":"email"}]' where id=9;
+update automations set conditions='{"owner":true}' where id=10;
 '''+part[part.index('with v(industry_key'):part.index('-- 7. photos')]+'''
-do $$ begin assert (select array_agg(id order by id)=array[2,3,4,5] from automations); assert not exists(select from industry_automation_presets); end $$;''')
+do $$ begin assert (select array_agg(id order by id)=array[2,3,4,5,6,7,8,9,10] from automations); assert not exists(select from industry_automation_presets); end $$;''')
 # Resource-only blocks are archived, others remain; repeat is a no-op.
 sched=(ROOT/'sql/rollback/zella_scheduling_rollback.sql').read_text()
 block=sched[sched.index('do $$'):sched.index('end $$;')+7]
