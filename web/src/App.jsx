@@ -142,6 +142,10 @@ function AdminApp() {
         }
       } catch (error) {
         console.error("Session check failed:", error);
+        if (active) {
+          setMessageType("error");
+          setMessage(friendlyAuthError(error));
+        }
       } finally {
         if (active) setCheckingSession(false);
       }
