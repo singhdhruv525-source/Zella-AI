@@ -162,7 +162,7 @@ export function SaveBar({ form, onSave, disabled, label = "Save changes" }) {
 
 // Confirmation for consequential actions. With `word`, the person types it;
 // with `reason`, a reason is required and passed to onConfirm.
-export function Confirm({ title, children, confirmLabel = "Confirm", danger, word, reason, onConfirm, onClose }) {
+export function Confirm({ title, children, confirmLabel = "Confirm", danger, word, reason, onConfirm, onClose, keepOpenOnFalse = false }) {
   const [typed, setTyped] = useState("");
   const [why, setWhy] = useState("");
   const [busy, setBusy] = useState(false);
@@ -173,7 +173,10 @@ export function Confirm({ title, children, confirmLabel = "Confirm", danger, wor
     setBusy(true);
     setError("");
     try {
-      await onConfirm(why.trim());
+      if (await onConfirm(why.trim()) === false && keepOpenOnFalse) {
+        setBusy(false);
+        return;
+      }
       onClose();
     } catch (err) {
       setError(err?.message || String(err));
