@@ -491,6 +491,7 @@ function BusinessHome() {
     return id;
   });
   const [error, setError] = useState("");
+  const [signOutError, setSignOutError] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
   const [invites, setInvites] = useState(null);
 
@@ -532,8 +533,19 @@ function BusinessHome() {
     else if (!session) setWorkspaces(null);
   }, [session, mfa.state, loadWorkspaces]);
 
+  // Signs out. If the server can't be reached, the session is still cleared on this device; if even that fails, the
+  // person is told, and the screen does not claim they are signed out.
   async function signOut() {
-    await supabase.auth.signOut();
+    setSignOutError("");
+    let failed = false;
+    try { const { error: e } = await supabase.auth.signOut(); if (e) failed = true; } catch { failed = true; }
+    if (failed) {
+      try { const { error: e } = await supabase.auth.signOut({ scope: "local" }); if (e) throw e; }
+      catch {
+        setSignOutError("We couldn't sign you out. Check your connection and try again, or close this browser window.");
+        return;
+      }
+    }
     setWorkspaces(null);
   }
 
@@ -548,6 +560,7 @@ function BusinessHome() {
         <p className="ba-auth-description">Your sign-in security check failed. Try again to open your workspace.</p>
         <button type="button" className="ba-btn primary block" onClick={mfa.recheck}>Try again</button>
         <button type="button" className="ba-btn block" onClick={signOut}>Sign out</button>
+        {signOutError && <p className="ba-error" role="alert">{signOutError}</p>}
       </section>
     </main>
   );
