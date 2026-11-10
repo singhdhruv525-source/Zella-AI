@@ -35,8 +35,14 @@ Two exceptions to the naming rule:
     between an appointment and a record is lost.
   - **Record types.** It puts every record type back to its pre-deploy copy (`backup_20261104_types`): names, icons,
     labels, statuses and fields edited since are overwritten, and types added since are deleted.
-  - **Starter automations.** It deletes every automation named like one of the 15 starter automations that has never
-    run (no `industry_automation_runs` row), even one a business installed and then customised.
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:9741a9c84d352a8ac28e788e382da0c2c97a8a21a7c947d33da14c0dbfaf0051 -->
+
+  - **Starter automations.** It deletes unused copies only when their name, trigger type and trigger configuration
+    still match a removed preset. Same-name automations with different triggers or settings are kept.
+
+<!-- /coderabbit-ai-generated:v1 -->
 
   Save all three **inside the rollback's own transaction**, so nothing can change between the copy and the rollback.
   1. Make a copy of `industry_2026_11_04_rollback.sql`.

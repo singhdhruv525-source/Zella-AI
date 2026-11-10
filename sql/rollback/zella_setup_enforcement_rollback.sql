@@ -3,17 +3,20 @@
 -- created goes (see below).
 begin;
 do $$
-declare def text;
+declare def text; previous_def text;
 begin
   def := pg_get_functiondef('public.zella_brain_context(uuid)'::regprocedure);
   if position('zella_setup_enforcement_tools' in def) > 0 then
+    previous_def := def;
     def := replace(def, $a$  v_disabled := coalesce(v_cfg.business_context -> 'disabled_tools', '[]'::jsonb);
   /* zella_setup_enforcement_tools */ v_disabled := v_disabled || public.zella_setup_disabled_tools(p_business_id);$a$, $a$  v_disabled := coalesce(v_cfg.business_context -> 'disabled_tools', '[]'::jsonb);$a$);
+    if def = previous_def then raise exception 'rollback replacement did not match'; end if;
     if position('zella_setup_enforcement_tools' in def) > 0 then raise exception 'public.zella_brain_context(uuid): could not remove this patch'; end if;
     execute def;
   end if;
   def := pg_get_functiondef('public.zella_ai_tool(text, uuid, text, jsonb, text)'::regprocedure);
   if position('zella_setup_enforcement_tools' in def) > 0 then
+    previous_def := def;
     def := replace(def, $a$  if v_disabled is not null and jsonb_typeof(v_disabled) = 'array' and v_disabled ? p_tool then
     return jsonb_build_object('ok', false, 'status', 'not_available', 'say', 'This business does not use that. Offer to take a message instead.');
   end if;
@@ -25,15 +28,19 @@ begin
   end if;$a$, $a$  if v_disabled is not null and jsonb_typeof(v_disabled) = 'array' and v_disabled ? p_tool then
     return jsonb_build_object('ok', false, 'status', 'not_available', 'say', 'This business does not use that. Offer to take a message instead.');
   end if;$a$);
+    if def = previous_def then raise exception 'rollback replacement did not match'; end if;
     if position('zella_setup_enforcement_tools' in def) > 0 then raise exception 'public.zella_ai_tool(text, uuid, text, jsonb, text): could not remove this patch'; end if;
     execute def;
   end if;
   def := pg_get_functiondef('public.zella_ai_booking(text, uuid, text, jsonb)'::regprocedure);
   if position('zella_setup_enforcement_booking' in def) > 0 then
+    previous_def := def;
     def := replace(def, $a$  if v_start is not null and (v_start < now() + make_interval(hours => v_notice) or (v_ahead is not null and v_start > now() + make_interval(days => v_ahead))) then
     return jsonb_build_object('ok', false, 'status', 'unavailable', 'say', 'That time is outside when this business takes bookings. Offer the times from check_availability.');
   end if;
   if v_start is null or v_start <= now() or v_start > now() + interval '1 year' then$a$, $a$  if v_start is null or v_start <= now() or v_start > now() + interval '1 year' then$a$);
+    if def = previous_def then raise exception 'rollback replacement did not match'; end if;
+    previous_def := def;
     def := replace(def, $a$    v_to := (v_day + v_days)::timestamp at time zone v_tz;
     v_from := greatest(v_from, now() + make_interval(hours => v_notice));
     if v_ahead is not null then v_to := least(v_to, now() + make_interval(days => v_ahead)); end if;
@@ -42,6 +49,8 @@ begin
         'There are no openings in that period. This business books from ' || v_notice || ' hours ahead'
         || coalesce(' and up to ' || v_ahead || ' days ahead', '') || '. Offer other days in that range, or take a message.');
     end if;$a$, $a$    v_to := (v_day + v_days)::timestamp at time zone v_tz;$a$);
+    if def = previous_def then raise exception 'rollback replacement did not match'; end if;
+    previous_def := def;
     def := replace(def, $a$  v_dur := least(480, greatest(5, coalesce(nullif(v_args ->> 'duration_minutes', '')::integer, 30)));
   /* zella_setup_enforcement_booking: the setup's booking rules */
   v_book_rules := public.zella_booking_rules(v_biz);
@@ -50,12 +59,17 @@ begin
   if nullif(v_args ->> 'duration_minutes', '') is null and (v_book_rules ->> 'default_minutes') ~ '^\d{1,3}$' then
     v_dur := least(480, greatest(5, (v_book_rules ->> 'default_minutes')::integer));
   end if;$a$, $a$  v_dur := least(480, greatest(5, coalesce(nullif(v_args ->> 'duration_minutes', '')::integer, 30)));$a$);
+    if def = previous_def then raise exception 'rollback replacement did not match'; end if;
+    previous_def := def;
     def := replace(def, $a$v_err text; v_when text; v_book_rules jsonb; v_notice integer; v_ahead integer;$a$, $a$v_err text; v_when text;$a$);
+    if def = previous_def then raise exception 'rollback replacement did not match'; end if;
     if position('zella_setup_enforcement_booking' in def) > 0 then raise exception 'public.zella_ai_booking(text, uuid, text, jsonb): could not remove this patch'; end if;
+    if def ~ 'v_notice|v_ahead|zella_booking_rules' then raise exception 'booking patch remains'; end if;
     execute def;
   end if;
   def := pg_get_functiondef('public.zella_ai_manage_booking(text, uuid, text, jsonb)'::regprocedure);
   if position('zella_setup_enforcement_booking' in def) > 0 then
+    previous_def := def;
     def := replace(def, $a$  /* zella_setup_enforcement_booking */
   if v_start is not null and (
        v_start < now() + make_interval(hours => case when (public.zella_booking_rules(v_biz) ->> 'min_notice_hours') ~ '^\d{1,3}$' then (public.zella_booking_rules(v_biz) ->> 'min_notice_hours')::integer else 0 end)
@@ -63,7 +77,9 @@ begin
     return jsonb_build_object('ok', false, 'status', 'unavailable', 'say', 'That time is outside when this business takes bookings. Offer the times from check_availability.');
   end if;
   if v_start is null or v_start <= now() or v_start > now() + interval '1 year' then$a$, $a$  if v_start is null or v_start <= now() or v_start > now() + interval '1 year' then$a$);
+    if def = previous_def then raise exception 'rollback replacement did not match'; end if;
     if position('zella_setup_enforcement_booking' in def) > 0 then raise exception 'public.zella_ai_manage_booking(text, uuid, text, jsonb): could not remove this patch'; end if;
+    if def ~ 'v_notice|v_ahead|zella_booking_rules' then raise exception 'booking patch remains'; end if;
     execute def;
   end if;
 end $$;

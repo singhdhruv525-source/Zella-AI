@@ -3,36 +3,49 @@
 -- created goes (see below).
 begin;
 do $$
-declare def text;
+declare def text; previous_def text;
 begin
   def := pg_get_functiondef('public.zella_issue_quote(uuid, text, integer)'::regprocedure);
   if position('zella_message_settings_fix' in def) > 0 then
+    previous_def := def;
     def := replace(def, $a$coalesce(case when (v_auto.trigger_config ->> 'hours_after') ~ '^\d{1,4}$' then greatest(1, ceil((v_auto.trigger_config ->> 'hours_after')::numeric / 24)::integer) end, (v_auto.trigger_config ->> 'every_days')::integer, 3)$a$, $a$coalesce((v_auto.trigger_config ->> 'every_days')::integer, 3)$a$);
+    if def = previous_def then raise exception 'rollback replacement did not match'; end if;
+    previous_def := def;
     def := replace(def, $a$coalesce(case when (v_auto.trigger_config ->> 'max_attempts') ~ '^\d{1,2}$' then (v_auto.trigger_config ->> 'max_attempts')::integer end, (v_auto.trigger_config ->> 'max_follow_ups')::integer, 3) /* zella_message_settings_fix */$a$, $a$coalesce((v_auto.trigger_config ->> 'max_follow_ups')::integer, 3)$a$);
+    if def = previous_def then raise exception 'rollback replacement did not match'; end if;
     if position('zella_message_settings_fix' in def) > 0 then raise exception 'public.zella_issue_quote(uuid, text, integer): could not remove this patch'; end if;
     execute def;
   end if;
   def := pg_get_functiondef('public.zella_queue_quote_followups()'::regprocedure);
   if position('zella_message_settings_fix' in def) > 0 then
+    previous_def := def;
     def := replace(def, $a$case v_auto.trigger_config ->> 'channel' when 'call' then 'call' when 'email' then (case when public.zella_valid_email(c.email) then 'email' else 'sms' end) else 'sms' end /* zella_message_settings_fix */$a$, $a$case when v_auto.trigger_config ->> 'channel' = 'call' then 'call' else 'sms' end$a$);
+    if def = previous_def then raise exception 'rollback replacement did not match'; end if;
     if position('zella_message_settings_fix' in def) > 0 then raise exception 'public.zella_queue_quote_followups(): could not remove this patch'; end if;
     execute def;
   end if;
   def := pg_get_functiondef('public.zella_appointment_after()'::regprocedure);
   if position('zella_message_settings_fix' in def) > 0 then
+    previous_def := def;
     def := replace(def, $a$case v_auto.trigger_config ->> 'channel' when 'call' then 'call' when 'email' then (case when public.zella_valid_email((select x.email from public.customers x where x.id = new.customer_id)) then 'email' else 'sms' end) else 'sms' end /* zella_message_settings_fix */$a$, $a$case when v_auto.trigger_config ->> 'channel' = 'call' then 'call' else 'sms' end$a$);
+    if def = previous_def then raise exception 'rollback replacement did not match'; end if;
     if position('zella_message_settings_fix' in def) > 0 then raise exception 'public.zella_appointment_after(): could not remove this patch'; end if;
     execute def;
   end if;
   def := pg_get_functiondef('public.zella_replace_reminders(uuid, boolean, text)'::regprocedure);
   if position('zella_message_settings_fix' in def) > 0 then
+    previous_def := def;
     def := replace(def, $a$(case when coalesce(v_conf.trigger_config ->> 'channel', 'sms') = 'email' then 'email' else 'sms' end)$a$, $a$coalesce(v_conf.trigger_config ->> 'channel', 'sms')$a$);
+    if def = previous_def then raise exception 'rollback replacement did not match'; end if;
+    previous_def := def;
     def := replace(def, $a$(case when coalesce(v_rem.trigger_config ->> 'channel', 'sms') = 'email' then 'email' else 'sms' end) /* zella_message_settings_fix */$a$, $a$coalesce(v_rem.trigger_config ->> 'channel', 'sms')$a$);
+    if def = previous_def then raise exception 'rollback replacement did not match'; end if;
     if position('zella_message_settings_fix' in def) > 0 then raise exception 'public.zella_replace_reminders(uuid, boolean, text): could not remove this patch'; end if;
     execute def;
   end if;
   def := pg_get_functiondef('public.zella_claim_reminders(integer, text)'::regprocedure);
   if position('zella_message_settings_fix' in def) > 0 then
+    previous_def := def;
     def := replace(def, $a$      update public.appointment_reminders set status = 'skipped', error = 'appointment_no_longer_active' where id = r.id; continue;
     end if;
     /* zella_message_settings_fix: the automation that queued it must still be on */
@@ -41,6 +54,7 @@ begin
       update public.appointment_reminders set status = 'skipped', error = 'automation_off' where id = r.id; continue;
     end if;$a$, $a$      update public.appointment_reminders set status = 'skipped', error = 'appointment_no_longer_active' where id = r.id; continue;
     end if;$a$);
+    if def = previous_def then raise exception 'rollback replacement did not match'; end if;
     if position('zella_message_settings_fix' in def) > 0 then raise exception 'public.zella_claim_reminders(integer, text): could not remove this patch'; end if;
     execute def;
   end if;

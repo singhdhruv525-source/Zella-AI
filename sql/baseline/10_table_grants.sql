@@ -626,7 +626,6 @@ grant SELECT on table public.callback_attempts to authenticated;
 grant SELECT on table public.callback_attempts to service_role;
 grant SELECT on table public.callbacks to authenticated;
 grant SELECT on table public.callbacks to service_role;
-grant SELECT on table public.calls to authenticated;
 grant SELECT on table public.calls to service_role;
 grant SELECT on table public.calls_view to authenticated;
 grant SELECT on table public.calls_view to service_role;

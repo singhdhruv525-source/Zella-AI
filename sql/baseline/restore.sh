@@ -25,7 +25,8 @@ run "$B/06_views.sql"
 run "$B/07_triggers.sql"
 run "$B/08_rls.sql"
 run "$B/09_policies.sql"
-{ echo "revoke execute on all functions in schema public from public;"; grep -v "grant MAINTAIN " "$B/10_table_grants.sql"; cat "$B/11_column_grants.sql" "$B/12_function_grants.sql" "$B/13_public_grants.sql"; } > "${TMPDIR:-/tmp}/zella-grants.$$.sql" && run "${TMPDIR:-/tmp}/zella-grants.$$.sql"; rm -f "${TMPDIR:-/tmp}/zella-grants.$$.sql"
+VERSION=$("${PSQL[@]}" -d "$DB" -Atc "show server_version_num") || exit 1
+{ echo "revoke execute on all functions in schema public from public;"; if [ "$VERSION" -ge 170000 ]; then cat "$B/10_table_grants.sql"; else grep -v "grant MAINTAIN " "$B/10_table_grants.sql"; fi; cat "$B/11_column_grants.sql" "$B/12_function_grants.sql" "$B/13_public_grants.sql"; } > "${TMPDIR:-/tmp}/zella-grants.$$.sql" && run "${TMPDIR:-/tmp}/zella-grants.$$.sql"; rm -f "${TMPDIR:-/tmp}/zella-grants.$$.sql"
 run "$B/14_storage.sql"
 for extra in "$@"; do run "$extra"; done
 echo "restored $DB"

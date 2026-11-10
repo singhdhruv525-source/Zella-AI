@@ -1,10 +1,23 @@
 -- Undoes sql/zella_scheduling.sql. One transaction: all or nothing.
 -- Nothing recorded is lost: the five tables are kept, renamed (resources_rolled_back, resource_needs_rolled_back,
 -- job_dispatch_rolled_back, recurring_plans_rolled_back, recurring_visits_rolled_back), and the new columns
--- (appointments.resource_ids, appointments.crew_staff_ids, blocked_times.resource_id) stay with their values. The
+-- (appointments.resource_ids, appointments.crew_staff_ids, blocked_times.resource_id) stay with their values.
+-- Resource-only blocks move to blocked_times_resources_rolled_back so the earlier scheduler cannot treat them as
+-- business-wide blocks. All other blocked_times rows remain active. The
 -- triggers and functions are removed, so bookings are checked exactly as before (staff and tables only).
 -- Applying the migration again starts new, empty tables.
 begin;
+-- Resource-only blocks must not become business-wide blocks under the old scheduler.
+do $$ begin
+  if exists (select 1 from pg_attribute where attrelid = 'public.blocked_times'::regclass and attname = 'resource_id' and not attisdropped) then
+    lock table public.blocked_times in share row exclusive mode;
+    create table if not exists public.blocked_times_resources_rolled_back as select * from public.blocked_times where false;
+    alter table public.blocked_times_resources_rolled_back enable row level security;
+    revoke all on public.blocked_times_resources_rolled_back from public, anon, authenticated;
+    with moved as (delete from public.blocked_times where resource_id is not null and staff_id is null returning *)
+    insert into public.blocked_times_resources_rolled_back select * from moved;
+  end if;
+end $$;
 drop trigger if exists zella_resource_guard on public.appointments;
 drop trigger if exists zella_resource_block_guard on public.blocked_times;
 drop function if exists public.zella_recurring_generate(uuid, uuid, date);

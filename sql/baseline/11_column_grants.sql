@@ -34,3 +34,4 @@ grant SELECT (status) on table public.business_verification_documents to authent
 grant SELECT (status) on table public.calendar_connections to authenticated;
 grant SELECT (status) on table public.integrations to authenticated;
 grant SELECT (updated_at) on table public.integrations to authenticated;
+grant SELECT (id, business_id, customer_id, conversation_id, direction, status, from_number, to_number, started_at, answered_at, ended_at, duration_seconds, ai_handled, external_call_id, metadata, created_at, updated_at, needs_human, escalation_reason, escalated_at, escalation_resolved_at, escalation_resolved_by, summary, transfer_status, failure_reason, failure_context, assigned_to, outcome, outcome_note, outcome_at, escalation_acknowledged_at, escalation_acknowledged_by, escalation_reminded_at) on public.calls to authenticated;

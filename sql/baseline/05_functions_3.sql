@@ -2717,7 +2717,7 @@ begin
 
   select b.id, b.name, lower(a) into v_biz, v_name, v_to
     from jsonb_array_elements_text(case when jsonb_typeof(m -> 'to') = 'array' then m -> 'to' when jsonb_typeof(m -> 'to') = 'string' then jsonb_build_array(m ->> 'to') else '[]'::jsonb end) a
-    join public.businesses b on b.inbound_email_token = substring(lower(a) from '([a-z0-9]{12})@')
+    join public.businesses b on b.inbound_email_token = substring(lower(a) from '(?:^|[<[:space:]])([a-z0-9]{12}|[a-f0-9]{32})@')
    where b.suspended_at is null and b.cancelled_at is null limit 1;
   if v_biz is null then return jsonb_build_object('result', 'no_business'); end if;
 

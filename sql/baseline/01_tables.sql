@@ -410,7 +410,7 @@ create table public.businesses (
   cancellation_reason text,
   cancelled_at timestamp with time zone,
   retention_until timestamp with time zone,
-  inbound_email_token text default substr(md5(((random())::text || (clock_timestamp())::text)), 1, 12),
+  inbound_email_token text default encode(extensions.gen_random_bytes(16), 'hex'::text),
   business_size text,
   description text,
   alternate_phone text

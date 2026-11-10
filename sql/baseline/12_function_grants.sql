@@ -939,3 +939,5 @@ grant execute on function public.zella_workflow_effectiveness(p_business_id uuid
 grant execute on function public.zella_workflow_effectiveness(p_business_id uuid, p_days integer) to service_role;
 grant execute on function public.zella_workspace_navigation(p_business_id uuid) to authenticated;
 grant execute on function public.zella_workspace_navigation(p_business_id uuid) to service_role;
+grant execute on function public.zella_call_content(uuid) to authenticated;
+grant execute on function public.zella_call_content(uuid) to service_role;

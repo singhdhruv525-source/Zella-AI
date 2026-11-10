@@ -31,12 +31,7 @@ create or replace view public.calls_view with (security_invoker=true) as  SELECT
     escalation_acknowledged_at,
     escalation_acknowledged_by,
     escalation_reminded_at,
-        CASE
-            WHEN zella_has_role(business_id, ARRAY['owner'::text, 'admin'::text, 'manager'::text]) THEN recording_url
-            ELSE NULL::text
-        END AS recording_url,
-        CASE
-            WHEN zella_has_role(business_id, ARRAY['owner'::text, 'admin'::text, 'manager'::text]) THEN transcript
-            ELSE NULL::text
-        END AS transcript
-   FROM calls c;
+    content.recording_url,
+    content.transcript
+   FROM public.calls c
+   LEFT JOIN LATERAL public.zella_call_content(c.id) content ON true;
