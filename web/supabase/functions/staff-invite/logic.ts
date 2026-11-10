@@ -67,7 +67,7 @@ export async function sendInvitation(deps: Deps, callerId: string, invitationId:
     }
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
-    await deps.fail(invitation.id, message);
+    try { await deps.fail(invitation.id, message); } catch { /* still return the email failure */ }
     return err(502, /rate limit|security purposes|too many/i.test(message)
       ? "Too many emails were sent in a short time. Wait a minute and try again."
       : "The invitation email could not be sent. Please try again.");

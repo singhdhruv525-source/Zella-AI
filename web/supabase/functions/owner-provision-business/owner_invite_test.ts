@@ -89,3 +89,9 @@ Deno.test("finish: cancelled while the email was going out: not completed, nothi
   const r = await finishSetupWith(w.deps);
   assertEquals([r.completed, r.invitationStatus, w.st.activated], [false, "closed", 0]);
 });
+
+Deno.test("finish: thrown email error releases the claim", async () => {
+  const w = world("pending", { extra: { sendInvite: async () => { throw new Error("network down"); } } });
+  const r = await finishSetupWith(w.deps);
+  assertEquals([r.completed, r.invitationStatus, w.st.inv.status, w.st.activated], [false, "failed", "failed", 0]);
+});

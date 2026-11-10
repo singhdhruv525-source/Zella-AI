@@ -101,3 +101,15 @@ Deno.test("each finalize refusal maps to a clear answer", async () => {
     assertEquals(typeof r.body.error, "string");
   }
 });
+
+Deno.test("failure bookkeeping throwing still returns the email error", async () => {
+  const { deps } = fake({ findUser: async () => { throw new Error("rate limit"); }, fail: async () => { throw new Error("RPC down"); } });
+  const r = await sendInvitation(deps, OWNER, "i1");
+  assertEquals(r.status, 502);
+  assertEquals(r.body.error, "Too many emails were sent in a short time. Wait a minute and try again.");
+});
+Deno.test("membership lookup errors stop email delivery", async () => {
+  const { deps, calls } = fake({ findUser: async () => ({ id: "u" }), isActiveMember: async () => { throw new Error("query failed"); } });
+  assertEquals((await sendInvitation(deps, OWNER, "i1")).status, 502);
+  assertEquals(calls, ["fail:query failed"]);
+});
