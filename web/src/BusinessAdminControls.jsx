@@ -108,6 +108,21 @@ export function BusinessRecordsCard({ businessId }) {
 
   const dirty = data?.types.some((t) => draft[t.key] !== t.enabled);
 
+  async function applyPreset() {
+    setSaving(true);
+    setError("");
+    setNotice("");
+    try {
+      await callOwnerFunction("business_records_save", { businessId, applyPreset: true });
+      setNotice("The industry's record types were added.");
+      await load();
+    } catch (err) {
+      setError(friendlyError(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function save() {
     setSaving(true);
     setError("");
@@ -129,9 +144,12 @@ export function BusinessRecordsCard({ businessId }) {
       {error && <div className="owner-form-error" role="alert">{error}</div>}
       {data && !data.types.length && (
         <div className="op-empty">
-          {["testing", "ready", "active", "paused"].includes(data.status)
-            ? "This business's industry has no record types."
-            : "Record types are added when setup is finished."}
+          {data.presetPending
+            ? <>Record types haven't been added yet. They're added when the business first opens its CRM, or now:{" "}
+              <button type="button" className="owner-secondary-button op-small" disabled={saving} onClick={applyPreset}>{saving ? "Adding..." : "Add the industry's record types"}</button></>
+            : ["testing", "ready", "active", "paused"].includes(data.status)
+              ? "This business's industry has no record types."
+              : "Record types are added when setup is finished."}
         </div>
       )}
       <div className="bac-list">

@@ -567,9 +567,11 @@ test('assistant tools: a complaint or data request is logged with its kind, and 
 test('assistant tools: unknown kinds and empty summaries log nothing, but the assistant still gets a valid answer', () => {
   for (const a of [{ kind: 'hack', summary: 'abc def' }, { kind: 'complaint', summary: 'a' }, { kind: 'complaint' }, {}]) { const r = vt(reqMsg(a)); assert.equal(r.record, null); assert.equal(r.reply.results[0].toolCallId, 'tc2'); }
 });
-test('assistant tools: arguments as text, the business id from assistant variables, and bad input all behave', () => {
+test('assistant tools: arguments as text, a caller-set business id is ignored, and bad input all behave', () => {
   assert.equal(vt(tcm('{"question":"Is parking free?"}')).record.p_question, 'Is parking free?');
-  assert.equal(vt(tcm({ question: 'Is parking free?' }, { call: { id: 'c', assistantOverrides: { variableValues: { business_id: BIZ2 } } } })).record.p_business_id, BIZ2);
+  // variable values can be set by whoever starts a web call: never a source for the business
+  assert.equal(vt(tcm({ question: 'Is parking free?' }, { call: { id: 'c', assistantOverrides: { variableValues: { business_id: BIZ2 } } } })).record.p_business_id, null);
+  assert.equal(vt(tcm({ question: 'Is parking free?' }, { call: { id: 'c', metadata: { business_id: BIZ2 } } })).record.p_business_id, BIZ2);
   assert.equal(vt(tcm({ question: 'Is parking free?' }, { call: { id: 'c', metadata: { business_id: 'not-a-uuid' } } })).record.p_business_id, null);
   assert.equal(vt(tcm({ question: 'x' })).record, null); assert.equal(vt(tcm({})).reply.results[0].toolCallId, 'tc1');
   assert.equal(vt({ type: 'status-update' }).record, null); assert.deepEqual(vt({ type: 'status-update' }).reply, { results: [] });

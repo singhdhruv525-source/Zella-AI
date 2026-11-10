@@ -50,7 +50,7 @@ const TONES = ["", "info", "success", "warning", "danger"] as const;
 // The same normalised name zella_apply_crm_preset matches presets on.
 export const normalise = (name: string) => name.toLowerCase().replace(/[^a-z]/g, "");
 
-export function platformHandlers(admin: SupabaseClient, fields: Json, kit: PlatformKit, kitUser: string | null = null) {
+export function platformHandlers(admin: SupabaseClient, fields: Json, kit: PlatformKit, kitUser: string | null = null, kitRole: string | null = null) {
   const { text, bool, obj, requireId, InputError } = kit;
 
   const industryOf = async (id: string) => {
@@ -183,25 +183,31 @@ export function platformHandlers(admin: SupabaseClient, fields: Json, kit: Platf
     if (bizError) throw bizError;
     if (!business) throw new InputError("Business not found", 404);
     const read = () => admin.from("crm_record_types").select("key, singular, plural, icon, enabled, position, preset_key").eq("business_id", businessId).order("position");
-    let { data, error } = await read();
+    const { data, error } = await read();
     if (error) throw error;
-    // A finished business whose CRM hasn't been opened yet gets its industry's types now, as the CRM would.
-    if (!data?.length && ["testing", "ready", "active", "paused"].includes(business.onboarding_status)) {
-      const { error: applyError } = await admin.rpc("zella_apply_crm_preset", { p_business_id: businessId });
-      if (applyError) throw applyError;
-      ({ data, error } = await read());
-      if (error) throw error;
-    }
+    // Reading never changes the business (this action only needs businesses.view). A finished business whose CRM
+    // hasn't been opened yet has no types; the admin can add its industry's types with business_records_save
+    // (applyPreset), which needs businesses.manage and is audited, or the CRM adds them when it is first opened.
+    const presetPending = !data?.length && ["testing", "ready", "active", "paused"].includes(business.onboarding_status);
     const counts = new Map<string, number>();
     const { data: records, error: recError } = await admin.from("crm_records").select("type_key").eq("business_id", businessId).limit(5000);
     if (recError) throw recError;
     for (const r of records ?? []) counts.set(r.type_key, (counts.get(r.type_key) ?? 0) + 1);
-    return { businessId, status: business.onboarding_status, types: (data ?? []).map((t) => ({ ...t, records: counts.get(t.key) ?? 0 })) };
+    return { businessId, status: business.onboarding_status, presetPending, types: (data ?? []).map((t) => ({ ...t, records: counts.get(t.key) ?? 0 })) };
   };
 
   const businessRecordsSave = async () => {
     const businessId = requireId(fields.businessId);
     const input = obj(fields.enabled);
+    if (fields.applyPreset === true) {
+      // the industry's record types for a business that has none yet (the same step the CRM takes when first opened)
+      const { data: existing, error: exError } = await admin.from("crm_record_types").select("key").eq("business_id", businessId).limit(1);
+      if (exError) throw exError;
+      if (existing?.length) throw new InputError("This business already has record types");
+      const { error: applyError } = await admin.rpc("zella_apply_crm_preset", { p_business_id: businessId });
+      if (applyError) throw applyError;
+      return { businessId, changes: [{ applied_preset: true }] };
+    }
     const { data: current, error } = await admin.from("crm_record_types").select("key, enabled").eq("business_id", businessId);
     if (error) throw error;
     const now = new Date().toISOString();
@@ -324,8 +330,20 @@ export function platformHandlers(admin: SupabaseClient, fields: Json, kit: Platf
     if (error) throw error;
     const before = Object.fromEntries((cur ?? []).map((x) => [x.key, x.value]));
     const next: Json = {};
-    if ("live" in input) next.spam_workflow_live = bool(input.live);
-    if ("ai_live" in input) next.spam_ai_live = bool(input.ai_live);
+    // Live switches must be real true/false values: anything else is refused, never read as "off".
+    for (const [field, key] of [["live", "spam_workflow_live"], ["ai_live", "spam_ai_live"]] as const) {
+      if (!(field in input)) continue;
+      if (typeof input[field] !== "boolean") throw new InputError(`${field} must be true or false`);
+      next[key] = input[field];
+    }
+    // Switching one ON sends real alerts or data to an outside service for every business: only a Zella owner or
+    // super admin may, with a reason that goes into the audit log. Switching off stays open to platform.configure.
+    const turningOn = next.spam_workflow_live === true || next.spam_ai_live === true;
+    const reason = text(fields.reason, 300);
+    if (turningOn) {
+      if (!["zella_owner", "super_admin"].includes(kitRole ?? "")) throw new InputError("Only a Zella owner or super admin can switch this on", 403);
+      if (reason.length < 3) throw new InputError("Give a reason (kept in the audit log)");
+    }
     if ("ai_monthly_limit" in input) {
       const n = Math.round(Number(input.ai_monthly_limit));
       if (!Number.isFinite(n) || n < 0 || n > 10000) throw new InputError("AI reviews per business per month must be between 0 and 10000");
@@ -335,7 +353,7 @@ export function platformHandlers(admin: SupabaseClient, fields: Json, kit: Platf
     const now = new Date().toISOString();
     const { error: upError } = await admin.from("platform_settings").upsert(Object.entries(next).map(([key, value]) => ({ key, value, updated_at: now })), { onConflict: "key" });
     if (upError) throw upError;
-    return { before, after: next };
+    return { before, after: next, reason: reason || null };
   };
 
   const spamAdminIncidents = async () => {
@@ -446,7 +464,7 @@ export function platformHandlers(admin: SupabaseClient, fields: Json, kit: Platf
     industry_records_save: (r) => ({ action: r.created ? "industry.records_created" : "industry.records_updated", entity_type: "industry", entity_id: r.industryId, old_data: { preset: r.presetKey, types: r.before }, new_data: { preset: r.presetKey, types: r.after } }),
     spam_admin_policy_save: (r) => ({ action: "platform.spam_policy_updated", entity_type: "platform_setting", old_data: r.before as Json, new_data: r.after as Json }),
     spam_admin_rule_add: (r) => ({ action: "platform.spam_rule_added", entity_type: "spam_list_entry", entity_id: obj(r.rule).id, new_data: { channel: obj(r.rule).channel, type: obj(r.rule).value_type, reason: obj(r.rule).reason, expires_at: obj(r.rule).expires_at } }),
-    spam_admin_automation_save: (r) => ({ action: "platform.spam_automation_updated", entity_type: "platform_setting", old_data: r.before as Json, new_data: r.after as Json }),
+    spam_admin_automation_save: (r) => ({ action: "platform.spam_automation_updated", entity_type: "platform_setting", old_data: r.before as Json, new_data: { ...(r.after as Json), reason: r.reason ?? null } as Json }),
     spam_admin_rule_remove: (r) => ({ action: "platform.spam_rule_removed", entity_type: "spam_list_entry", entity_id: obj(r.rule).id, old_data: { channel: obj(r.rule).channel, type: obj(r.rule).value_type } }),
     business_records_save: (r) => ({ action: "business.record_types_updated", business_id: r.businessId, entity_type: "business", entity_id: r.businessId, new_data: { changes: r.changes } }),
   };

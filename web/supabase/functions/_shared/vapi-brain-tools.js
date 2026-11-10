@@ -23,13 +23,13 @@ export function vapiCallContext(message) {
   const m = o(message);
   const call = o(m.call);
   const meta = o(call.metadata);
-  const vars = o(o(call.assistantOverrides).variableValues);
   const pn = isObj(call.phoneNumber) ? call.phoneNumber : o(m.phoneNumber);
   const cn = String(o(call.customer).number || '');
   // the assistant's own metadata (set by Zella when the assistant is configured) also counts: web test calls have no
-  // phone number and no call metadata
+  // phone number and no call metadata. The call's variable values are NOT used: whoever starts a web call can set
+  // them, so a business id there could point the tools at another business. Zella never puts one there.
   const asst = o(o(m.assistant).metadata);
-  const bid = [meta.business_id, vars.business_id, asst.business_id].find((v) => typeof v === 'string' && UUID.test(v)) || null;
+  const bid = [meta.business_id, asst.business_id].find((v) => typeof v === 'string' && UUID.test(v)) || null;
   return {
     callId: typeof call.id === 'string' && call.id ? call.id.slice(0, 200) : null,
     calledNumber: typeof pn.number === 'string' && /^\+?[0-9() .-]{7,20}$/.test(pn.number) ? pn.number : null,

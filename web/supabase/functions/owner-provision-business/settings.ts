@@ -97,6 +97,21 @@ function httpsUrl(v: unknown, label: string, k: Kit): string | null {
   return t;
 }
 
+// Every row of a query, a page of 1,000 at a time (the API returns at most 1,000 per request, so a single
+// .limit() above that silently undercounts). Totals built from it are never understated: past the cap it refuses.
+// deno-lint-ignore no-explicit-any
+async function allRows(page: (from: number, to: number) => PromiseLike<{ data: any[] | null; error: unknown }>, cap = 100000) {
+  // deno-lint-ignore no-explicit-any
+  const out: any[] = [];
+  for (let from = 0; from < cap; from += 1000) {
+    const { data, error } = await page(from, from + 999);
+    if (error) throw error;
+    out.push(...(data ?? []));
+    if (!data || data.length < 1000) return out;
+  }
+  throw new Error("There are too many rows to total here; ask a developer to run this report in the database.");
+}
+
 function check<T>(res: { data: T; error: unknown }): T {
   if (res.error) throw res.error;
   return res.data;
@@ -213,7 +228,15 @@ export function settingsHandlers(admin: SupabaseClient, fields: Json, ctx: { use
       }
       if (section === "branding") {
         const logo = httpsUrl(v.logo_url, "Logo", k);
-        if (logo && !logo.includes("/storage/v1/object/public/brand-assets/platform/")) throw new k.InputError("Upload the logo here so it is stored with Zella");
+        if (logo) {
+          // the logo must be this project's own storage, not any address that merely contains the path
+          let stored = false;
+          try {
+            const u = new URL(logo), base = new URL(Deno.env.get("SUPABASE_URL") ?? "");
+            stored = u.origin === base.origin && u.pathname.startsWith("/storage/v1/object/public/brand-assets/platform/") && !u.username && !u.password;
+          } catch { stored = false; }
+          if (!stored) throw new k.InputError("Upload the logo here so it is stored with Zella");
+        }
         const value = { logo_url: logo, login_headline: k.text(v.login_headline, 120) || null };
         const before = await putSetting(admin, "platform_branding", value);
         return { section, value, before };
@@ -338,12 +361,15 @@ export function settingsHandlers(admin: SupabaseClient, fields: Json, ctx: { use
     },
 
     billing_overview: async () => {
-      const [subs, plans, pays, events] = await Promise.all([
-        admin.from("subscriptions").select("id, business_id, plan_id, status, billing_interval, trial_end_at, cancelled_at, created_at"),
-        admin.from("plans").select("id, price_monthly, price_yearly, currency"),
-        admin.from("payments").select("amount, currency, status, created_at, paid_at").gte("created_at", since(30)),
-        admin.from("billing_events").select("type, status, received_at").gte("received_at", since(30)),
+      // every query's error is checked (a failed one must not read as "no subscriptions" or "no revenue"), and
+      // every row is counted, past the API's 1,000-row page
+      const [subsRows, plansRows, paysRows, eventsRows] = await Promise.all([
+        allRows((a, b) => admin.from("subscriptions").select("id, business_id, plan_id, status, billing_interval, trial_end_at, cancelled_at, created_at").order("id").range(a, b)),
+        allRows((a, b) => admin.from("plans").select("id, price_monthly, price_yearly, currency").order("id").range(a, b)),
+        allRows((a, b) => admin.from("payments").select("id, amount, currency, status, created_at, paid_at").gte("created_at", since(30)).order("id").range(a, b)),
+        allRows((a, b) => admin.from("billing_events").select("id, type, status, received_at").gte("received_at", since(30)).order("id").range(a, b)),
       ]);
+      const subs = { data: subsRows }, plans = { data: plansRows }, pays = { data: paysRows }, events = { data: eventsRows };
       const planById = Object.fromEntries(((plans.data ?? []) as { id: string; price_monthly: number; price_yearly: number; currency: string }[]).map((p) => [p.id, p]));
       const S = (subs.data ?? []) as { plan_id: string; status: string; billing_interval: string; trial_end_at: string | null; cancelled_at: string | null }[];
       const paid = S.filter((s) => ["active", "renewal_due", "past_due", "grace_period"].includes(s.status));
@@ -581,13 +607,14 @@ export function settingsHandlers(admin: SupabaseClient, fields: Json, ctx: { use
     },
 
     analytics_overview: async () => {
-      const [biz, subs, calls, execs, ints] = await Promise.all([
-        admin.from("businesses").select("created_at, cancelled_at"),
-        admin.from("subscriptions").select("created_at, status"),
-        admin.from("calls").select("created_at, ai_handled").gte("created_at", since(180)).limit(50000),
-        admin.from("workflow_executions").select("status").gte("started_at", since(30)).limit(50000),
-        admin.from("integrations").select("status"),
+      const [bizRows, subsRows, callsRows, execsRows, intsRows] = await Promise.all([
+        allRows((a, b) => admin.from("businesses").select("id, created_at, cancelled_at").order("id").range(a, b)),
+        allRows((a, b) => admin.from("subscriptions").select("id, created_at, status").order("id").range(a, b)),
+        allRows((a, b) => admin.from("calls").select("id, created_at, ai_handled").gte("created_at", since(180)).order("id").range(a, b), 500000),
+        allRows((a, b) => admin.from("workflow_executions").select("id, status").gte("started_at", since(30)).order("id").range(a, b), 500000),
+        allRows((a, b) => admin.from("integrations").select("id, status").order("id").range(a, b)),
       ]);
+      const biz = { data: bizRows }, subs = { data: subsRows }, calls = { data: callsRows }, execs = { data: execsRows }, ints = { data: intsRows };
       const month = (d: string) => d.slice(0, 7);
       const months = [...Array(6)].map((_, i) => { const d = new Date(); d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() - 5 + i); return d.toISOString().slice(0, 7); });
       const count = (rows: { created_at: string }[], m: string) => rows.filter((r) => month(r.created_at) === m).length;
@@ -670,7 +697,8 @@ export function settingsHandlers(admin: SupabaseClient, fields: Json, ctx: { use
       const url = Deno.env.get("SUPABASE_URL") ?? "";
       const ref = (url.match(/^https:\/\/([a-z0-9]+)\.supabase\.co/) ?? [])[1] ?? null;
       const settings = (check(await admin.from("platform_settings").select("key, value, updated_at").order("updated_at", { ascending: false })) ?? []) as { key: string; value: unknown; updated_at: string }[];
-      const history = check(await admin.from("audit_logs").select("action, user_id, new_data, old_data, created_at").in("action", ["platform.setting_updated", "platform.profile_updated", "platform.maintenance_updated", "platform.roles_updated"]).order("created_at", { ascending: false }).limit(25));
+      // when and who only: the values themselves are in the audit log, which needs audit.view
+      const history = check(await admin.from("audit_logs").select("action, user_id, created_at, key:new_data->>key, section:new_data->>section, role:new_data->>role").in("action", ["platform.setting_updated", "platform.profile_updated", "platform.maintenance_updated", "platform.roles_updated"]).order("created_at", { ascending: false }).limit(25));
       return {
         projectRef: ref, environment: ref ? "production (Supabase project " + ref + ")" : "unknown",
         flags: settings.filter((s) => /_live$|_enabled$|_allowed$/.test(s.key)).map((s) => ({ key: s.key, on: s.value === true, updated_at: s.updated_at })),

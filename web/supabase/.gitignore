@@ -6,3 +6,7 @@
 .env.keys
 .env.local
 .env.*.local
+# any other env file (edge function secrets); the example stays tracked
+.env
+.env.*
+!.env.example

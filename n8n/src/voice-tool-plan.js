@@ -14,9 +14,9 @@ if (m.type !== 'tool-calls' || !list.length) return [{ json: { reply: { results:
 
 const call = m.call && typeof m.call === 'object' ? m.call : {};
 const meta = call.metadata && typeof call.metadata === 'object' ? call.metadata : {};
-const vars = call.assistantOverrides && call.assistantOverrides.variableValues && typeof call.assistantOverrides.variableValues === 'object' ? call.assistantOverrides.variableValues : {};
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const bid = [meta.business_id, vars.business_id].find((v) => typeof v === 'string' && uuid.test(v)) || null;
+// call variable values are settable by whoever starts a web call: never a source for the business
+const bid = [meta.business_id].find((v) => typeof v === 'string' && uuid.test(v)) || null;
 // Which number was called? Used to find the business (a registered number always wins over call settings).
 const pn = call.phoneNumber && typeof call.phoneNumber === 'object' ? call.phoneNumber : m.phoneNumber && typeof m.phoneNumber === 'object' ? m.phoneNumber : {};
 const calledNumber = typeof pn.number === 'string' && /^\+?[0-9() .-]{7,20}$/.test(pn.number) ? pn.number : null;
