@@ -1,0 +1,77 @@
+/* Motion for every page in both apps (the CRM and the Zella admin): buttons lift and press, a ripple follows the
+   click (styles/motion.js), main buttons get a sheen, cards and panels respond to the pointer, tabs glide, rows show
+   an accent, and every popup opens with a pop. Short and soft. Everything that moves is off for people who prefer
+   reduced motion; colour changes stay. */
+
+.ba-btn, .zs-btn, .owner-button, .owner-primary-button, .owner-secondary-button, .cp-button, .bd-danger-button, .ba-icon-btn, .owner-icon-button { position: relative; overflow: hidden; isolation: isolate; }
+.ba-btn.icon, .owner-bell .owner-icon-button { overflow: visible; }   /* their counter badge sits outside the button */
+.ba-btn:focus-visible, .zs-btn:focus-visible, .owner-button:focus-visible, .owner-primary-button:focus-visible, .owner-secondary-button:focus-visible, .cp-button:focus-visible, .bd-danger-button:focus-visible, .ba-icon-btn:focus-visible, .owner-icon-button:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--zella-primary-ring, var(--ba-primary-ring)); }
+.ba-btn.primary, .zs-btn.primary, .owner-primary-button, .owner-button-primary, .cp-button, .ba-btn.danger, .zs-btn.danger, .bd-danger-button, .owner-button-danger { background-image: linear-gradient(180deg, color-mix(in srgb, #fff 14%, transparent), transparent 60%); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .ba-btn, .zs-btn, .owner-button, .owner-primary-button, .owner-secondary-button, .cp-button, .bd-danger-button, .ba-icon-btn, .owner-icon-button {
+    transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease, transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.2s ease;
+  }
+  .ba-btn:hover:not(:disabled), .zs-btn:hover:not(:disabled), .owner-button:hover:not(:disabled), .owner-primary-button:hover:not(:disabled), .owner-secondary-button:hover:not(:disabled), .cp-button:hover:not(:disabled), .bd-danger-button:hover:not(:disabled), .ba-icon-btn:hover:not(:disabled), .owner-icon-button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 12px -4px color-mix(in srgb, var(--zella-text) 22%, transparent); }
+  .ba-btn:active:not(:disabled), .zs-btn:active:not(:disabled), .owner-button:active:not(:disabled), .owner-primary-button:active:not(:disabled), .owner-secondary-button:active:not(:disabled), .cp-button:active:not(:disabled), .bd-danger-button:active:not(:disabled), .ba-icon-btn:active:not(:disabled), .owner-icon-button:active:not(:disabled) { transform: translateY(0) scale(0.96); box-shadow: none; transition-duration: 0.06s; }
+  .ba-btn.primary:hover:not(:disabled), .zs-btn.primary:hover:not(:disabled), .owner-primary-button:hover:not(:disabled), .owner-button-primary:hover:not(:disabled), .cp-button:hover:not(:disabled), .ba-btn.danger:hover:not(:disabled), .zs-btn.danger:hover:not(:disabled), .bd-danger-button:hover:not(:disabled), .owner-button-danger:hover:not(:disabled) { box-shadow: 0 8px 20px -8px color-mix(in srgb, var(--zella-primary) 70%, transparent); }
+  .ba-btn.ghost:hover:not(:disabled) { box-shadow: none; }
+  .ba-btn.primary::after, .zs-btn.primary::after, .owner-primary-button::after, .owner-button-primary::after, .cp-button::after, .ba-btn.danger::after, .zs-btn.danger::after, .bd-danger-button::after, .owner-button-danger::after {
+    content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+    background: linear-gradient(110deg, transparent 30%, color-mix(in srgb, #fff 32%, transparent) 50%, transparent 70%);
+    transform: translateX(-120%);
+  }
+  .ba-btn.primary:hover:not(:disabled)::after, .zs-btn.primary:hover:not(:disabled)::after, .owner-primary-button:hover:not(:disabled)::after, .owner-button-primary:hover:not(:disabled)::after, .cp-button:hover:not(:disabled)::after, .ba-btn.danger:hover:not(:disabled)::after, .zs-btn.danger:hover:not(:disabled)::after, .bd-danger-button:hover:not(:disabled)::after, .owner-button-danger:hover:not(:disabled)::after { transform: translateX(120%); transition: transform 0.7s ease; }
+  .ba-btn .ba-icon, .zs-btn .ba-icon, .owner-button .ba-icon, .owner-primary-button .ba-icon, .owner-secondary-button .ba-icon, .cp-button .ba-icon, .bd-danger-button .ba-icon, .ba-icon-btn .ba-icon, .owner-icon-button .ba-icon, .ba-btn .material-symbols-rounded, .zs-btn .material-symbols-rounded, .owner-button .material-symbols-rounded, .owner-primary-button .material-symbols-rounded, .owner-secondary-button .material-symbols-rounded, .cp-button .material-symbols-rounded, .bd-danger-button .material-symbols-rounded, .ba-icon-btn .material-symbols-rounded, .owner-icon-button .material-symbols-rounded, .ba-btn svg, .zs-btn svg, .owner-button svg, .owner-primary-button svg, .owner-secondary-button svg, .cp-button svg, .bd-danger-button svg, .ba-icon-btn svg, .owner-icon-button svg { transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1); }
+  .ba-btn:hover:not(:disabled) .ba-icon, .zs-btn:hover:not(:disabled) .ba-icon, .owner-button:hover:not(:disabled) .ba-icon, .owner-primary-button:hover:not(:disabled) .ba-icon, .owner-secondary-button:hover:not(:disabled) .ba-icon, .cp-button:hover:not(:disabled) .ba-icon, .bd-danger-button:hover:not(:disabled) .ba-icon, .ba-icon-btn:hover:not(:disabled) .ba-icon, .owner-icon-button:hover:not(:disabled) .ba-icon, .ba-btn:hover:not(:disabled) .material-symbols-rounded, .zs-btn:hover:not(:disabled) .material-symbols-rounded, .owner-button:hover:not(:disabled) .material-symbols-rounded, .owner-primary-button:hover:not(:disabled) .material-symbols-rounded, .owner-secondary-button:hover:not(:disabled) .material-symbols-rounded, .cp-button:hover:not(:disabled) .material-symbols-rounded, .bd-danger-button:hover:not(:disabled) .material-symbols-rounded, .ba-icon-btn:hover:not(:disabled) .material-symbols-rounded, .owner-icon-button:hover:not(:disabled) .material-symbols-rounded, .ba-btn:hover:not(:disabled) svg, .zs-btn:hover:not(:disabled) svg, .owner-button:hover:not(:disabled) svg, .owner-primary-button:hover:not(:disabled) svg, .owner-secondary-button:hover:not(:disabled) svg, .cp-button:hover:not(:disabled) svg, .bd-danger-button:hover:not(:disabled) svg, .ba-icon-btn:hover:not(:disabled) svg, .owner-icon-button:hover:not(:disabled) svg { transform: scale(1.12); }
+  .ba-ripple {
+    position: absolute; border-radius: 50%; pointer-events: none; z-index: 0; transform: scale(0); opacity: 0.35;
+    background: currentColor; animation: ba-ripple 0.55s ease-out forwards;
+  }
+
+  /* cards lift; their icon bounces once. Panels gain depth. */
+  .ba-kpi, .owner-stat-card, .op-card, .pl-card { transition: border-color 0.18s ease, box-shadow 0.22s ease, transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1); }
+  .ba-kpi:hover, .owner-stat-card:hover, .op-card:hover, .pl-card:hover { transform: translateY(-2px); box-shadow: 0 12px 28px -14px color-mix(in srgb, var(--zella-text) 30%, transparent); }
+  .ba-kpi:hover .ba-kpi-icon, .owner-stat-card:hover .owner-stat-icon { animation: ba-bounce 0.5s cubic-bezier(0.3, 1.6, 0.5, 1); }
+  .ba-panel, .owner-panel, .zs-card { transition: border-color 0.18s ease, box-shadow 0.22s ease; }
+  .ba-panel:hover, .owner-panel:hover, .zs-card:hover { box-shadow: 0 10px 30px -18px color-mix(in srgb, var(--zella-text) 28%, transparent); }
+
+  /* tabs, segments and chips glide and pop when chosen */
+  .ba-segment button, .td-tabs button, .ba-panel-tabs button, .op-tabs button, .ao-chip, .zs-chip { transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease; }
+  .ba-segment button:active, .td-tabs button:active, .op-tabs button:active, .ao-chip:active, .zs-chip:active { transform: scale(0.95); }
+  .ba-segment button.active, .td-tabs button.active, .op-tabs button.active, .op-tabs button[aria-selected="true"], .ao-chip.active, .ao-chip[aria-pressed="true"] { animation: ba-pick 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.3); }
+
+  /* table rows: an accent bar slides in */
+  .ba-table tbody tr, .owner-table tbody tr, .zs-table tbody tr { box-shadow: inset 0 0 0 0 var(--zella-primary); transition: background-color 0.12s ease, box-shadow 0.18s ease; }
+  .ba-table tbody tr:hover, .owner-table tbody tr:hover, .zs-table tbody tr:hover { box-shadow: inset 3px 0 0 0 var(--zella-primary); }
+
+  /* sidebars: items slide toward the pointer */
+  .ba-nav-item, .owner-nav a, .owner-nav button, .owner-nav-item { transition: background-color 0.15s ease, color 0.15s ease, transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1); }
+  .ba-nav-item:hover, .owner-nav a:hover, .owner-nav button:hover, .owner-nav-item:hover { transform: translateX(3px); }
+
+  /* status pills pop in */
+  .ba-pill, .owner-status { animation: ba-pop-in 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.3) both; }
+
+  /* admin pages ease in, their parts one after another (the CRM's do already, CrmMotion.css) */
+  .owner-page > *, .owner-content > :not(.owner-page):not(.owner-modal-overlay) { animation: ba-rise 0.35s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  .owner-page > :nth-child(2) { animation-delay: 40ms; }
+  .owner-page > :nth-child(3) { animation-delay: 80ms; }
+  .owner-page > :nth-child(n + 4) { animation-delay: 120ms; }
+
+  /* every popup: the backdrop fades, the box pops (CRM modals already do, CrmMotion.css) */
+  .owner-modal-overlay, .owner-modal-backdrop, .zs-overlay { animation: ba-fade 0.18s ease-out both; }
+  .owner-modal, .zs-dialog, .bd-confirm { animation: ba-pop 0.26s cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
+  .ba-modal { animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1.2); }
+  .zs-dialog-icon, .ao-dialog-icon, .ba-modal-icon { animation: ba-bounce 0.55s cubic-bezier(0.3, 1.6, 0.5, 1) 0.12s both; }
+}
+@media (prefers-reduced-motion: no-preference) and (max-width: 640px) {
+  .owner-modal, .zs-dialog { animation-name: ba-sheet; }
+}
+@keyframes ba-ripple { to { transform: scale(2.6); opacity: 0; } }
+@keyframes ba-bounce { 0% { transform: scale(1); } 40% { transform: scale(1.18) rotate(-6deg); } 100% { transform: scale(1); } }
+@keyframes ba-pick { from { transform: scale(0.92); } to { transform: none; } }
+@keyframes ba-pop-in { from { opacity: 0; transform: scale(0.85); } to { opacity: 1; transform: none; } }
+@keyframes ba-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes ba-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ba-pop { from { opacity: 0; transform: translateY(10px) scale(0.96); } to { opacity: 1; transform: none; } }
+@keyframes ba-sheet { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
