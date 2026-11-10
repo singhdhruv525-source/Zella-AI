@@ -82,10 +82,12 @@ async function hasAdminAccess() {
   return !legacy.error && legacy.data === true;
 }
 
-// The session needs the authenticator code before it may continue.
+// The session needs the authenticator code before it may continue. If the check itself fails, nothing opens (it fails
+// closed): the error reaches the caller's catch, which leaves the admin page locked and says why.
 async function needsMfaCode() {
   const { data, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-  return !error && data.nextLevel === "aal2" && data.currentLevel !== "aal2";
+  if (error || !data) throw new Error("We couldn't check your two-step sign-in. Please try again.");
+  return data.nextLevel === "aal2" && data.currentLevel !== "aal2";
 }
 
 function AdminApp() {
@@ -110,7 +112,15 @@ function AdminApp() {
 
     async function restoreSession() {
       try {
-        const { data } = await supabase.auth.getSession();
+        const { data, error: sessionError } = await supabase.auth.getSession();
+        // a failed refresh returns an error with no session: say so instead of showing a plain sign-in screen; on the
+        // invitation's password step the expired-link guidance below already covers it
+        if (sessionError && !LANDING.setup) {
+          if (/refresh[ _-]?token/i.test(`${sessionError.code ?? ""} ${sessionError.message ?? sessionError}`)) {
+            throw new Error("Your saved session could not be restored. Please sign in again.");
+          }
+          throw sessionError;
+        }
         if (LANDING.setup) {
           // From an invitation: stay on the "choose a password" step.
           if (!data.session && active) {
@@ -140,6 +150,10 @@ function AdminApp() {
         }
       } catch (error) {
         console.error("Session check failed:", error);
+        if (active) {
+          setMessageType("error");
+          setMessage(friendlyAuthError(error));
+        }
       } finally {
         if (active) setCheckingSession(false);
       }

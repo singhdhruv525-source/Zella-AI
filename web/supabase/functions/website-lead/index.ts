@@ -2,6 +2,7 @@
 // It holds no secrets of its own: the form key identifies the business, and the database does every check
 // (allowed websites, spam, rate limits, duplicates, consent). verify_jwt is off because visitors have no login.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { readBodyLimited } from "../_shared/body.ts";
 
 const cors = (origin: string | null) => ({
   "Access-Control-Allow-Origin": origin ?? "*",
@@ -20,8 +21,8 @@ Deno.serve(async (req: Request) => {
   const serverKey = Deno.env.get("ZELLA_SERVER_SECRET_KEY");
   if (!serverKey) return json({ ok: false, error: "try_again", message: "Something went wrong. Please try again or call us." }, 503, origin);
 
-  const raw = await req.text();
-  if (raw.length > 12000) return json({ ok: false, error: "too_large" }, 413, origin);
+  const raw = await readBodyLimited(req, 12000);
+  if (raw === null) return json({ ok: false, error: "too_large" }, 413, origin);
   let b: Record<string, unknown>;
   try { b = JSON.parse(raw); } catch { return json({ ok: false, error: "bad_json" }, 400, origin); }
   if (typeof b !== "object" || b === null || Array.isArray(b)) return json({ ok: false, error: "bad_json" }, 400, origin);
