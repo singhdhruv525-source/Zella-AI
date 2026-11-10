@@ -7,6 +7,7 @@
 // Usage: node tests/browser/local-backend.mjs     (env: ZDB=zella_ui ZPG_HOST ZPG_PORT PORT=54321)
 // Not a full PostgREST: it covers the query shapes this app uses (select with embeds, eq/neq/gt/gte/lt/lte/like/ilike/
 // is/in/cs/not, or=, order, limit/offset, count, single object, insert/upsert/update/delete, rpc).
+import { PSQL_ENV, requireIsolated } from "./isolated-db.cjs";
 import http from "node:http";
 import crypto from "node:crypto";
 import { spawn } from "node:child_process";
@@ -42,7 +43,7 @@ const ident = (s) => `"${String(s).replace(/"/g, '""')}"`;
 
 function psql(sql) {
   return new Promise((resolve) => {
-    const p = spawn("psql", ["-h", PGH, "-p", PGP, "-U", "postgres", "-d", DB, "-X", "-q", "-A", "-t", "-v", "ON_ERROR_STOP=1", "-v", "VERBOSITY=verbose"]);
+    const p = spawn("psql", ["-h", PGH, "-p", PGP, "-U", "postgres", "-d", DB, "-X", "-q", "-A", "-t", "-v", "ON_ERROR_STOP=1", "-v", "VERBOSITY=verbose"], { env: PSQL_ENV });
     let out = "", err = "";
     p.stdout.on("data", (d) => (out += d)); p.stderr.on("data", (d) => (err += d));
     p.on("close", (code) => resolve({ code, out, err }));
@@ -426,10 +427,11 @@ function read(req) {
 }
 
 export const log = [];
+const TRUSTED_ORIGINS = new Set(["http://localhost:5199", "http://127.0.0.1:5199", "http://[::1]:5199"]);
 const server = http.createServer(async (req, res) => {
-  const cors = { "access-control-allow-origin": req.headers.origin ?? "*", "access-control-allow-credentials": "true",
+  const cors = TRUSTED_ORIGINS.has(req.headers.origin) ? { "access-control-allow-origin": req.headers.origin, "access-control-allow-credentials": "true",
     "access-control-allow-headers": req.headers["access-control-request-headers"] ?? "*", "access-control-allow-methods": "GET,POST,PUT,PATCH,DELETE,HEAD,OPTIONS",
-    "access-control-expose-headers": "content-range, x-total-count" };
+    "access-control-expose-headers": "content-range, x-total-count", "vary": "Origin" } : { "vary": "Origin" };
   if (req.method === "OPTIONS") { res.writeHead(204, cors); return res.end(); }
   const url = new URL(req.url, `http://${req.headers.host}`);
   const raw = await read(req);
@@ -468,4 +470,6 @@ const server = http.createServer(async (req, res) => {
     res.end(JSON.stringify({ code: err.pgrst ?? "LOCAL", message: err.message }));
   }
 });
-server.listen(PORT, () => console.log(`local Supabase stand-in on http://localhost:${PORT} (database ${DB})`));
+requireIsolated(PGH, PGP, DB);
+http.createServer(server.listeners("request")[0]).listen(PORT, "::1");
+server.listen(PORT, "127.0.0.1", () => console.log(`local Supabase stand-in on http://localhost:${PORT} (database ${DB})`));

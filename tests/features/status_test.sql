@@ -71,5 +71,11 @@ end $$;
 
 -- anyone can read it, even without signing in
 set role anon;
-select case when zella_public_status() ? 'overall' then 'PASS the status can be read without signing in' end;
+do $$
+begin
+  if (zella_public_status() ? 'overall') is not true then
+    raise exception 'anonymous status result lacks overall';
+  end if;
+  raise notice 'PASS the status can be read without signing in';
+end $$;
 reset role;

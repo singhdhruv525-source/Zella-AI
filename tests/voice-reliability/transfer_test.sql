@@ -45,5 +45,13 @@ begin
   raise notice 'PASS spoken text is "please hold" (an attempt), never "you are connected"';
 end $$;
 -- the model is no longer told the number
-select 'model text: ' || (r ->> 'say') || ' | number in result: ' || coalesce(r ->> 'transfer_number', 'none')
-  from (select zella_ai_voice('vt-1', 'aaaaaaaa-0000-4000-8000-000000000001', 'transfer', '{}') r) x;
+do $$
+declare r jsonb;
+begin
+  r := zella_ai_voice('vt-1', 'aaaaaaaa-0000-4000-8000-000000000001', 'transfer', '{}');
+  if r is null or r ? 'transfer_number' or r ? 'number'
+     or regexp_replace(r::text, '[^0-9]', '', 'g') ~ '555010(1111|2222|3333)' then
+    raise exception 'transfer result exposes a destination or is null: %', r;
+  end if;
+  raise notice 'PASS model result does not expose transfer numbers';
+end $$;
