@@ -1,0 +1,19 @@
+{
+  // Codespaces / dev container for Zella AI. Small Node image, so it opens in a minute or two.
+  "name": "Zella AI",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
+  "hostRequirements": { "cpus": 2 },
+  "forwardPorts": [5173, 3000],
+  "portsAttributes": {
+    "5173": { "label": "Zella app (Vite)", "onAutoForward": "openBrowser" },
+    "3000": { "label": "Zella app (port 3000)" }
+  },
+  // Installs the web app. The Supabase address and publishable key come from
+  // Codespaces secrets VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY
+  // (GitHub > Settings > Codespaces > Secrets), or from web/.env.local.
+  "postCreateCommand": "cd web && npm ci",
+  "postAttachCommand": "echo 'Start the app: cd web && npm run dev -- --host'",
+  "customizations": {
+    "vscode": { "extensions": ["dbaeumer.vscode-eslint"] }
+  }
+}

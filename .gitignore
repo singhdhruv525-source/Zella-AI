@@ -1,0 +1,10 @@
+# Never commit secrets or build output
+.env
+.env.*
+!.env.example
+*.pem
+node_modules/
+dist/
+*.log
+__pycache__/
+tests/staging/out/
