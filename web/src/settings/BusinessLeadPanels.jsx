@@ -169,7 +169,7 @@ export function LeadRules({ w }) {
       [order[i], order[i + dir]] = [order[i + dir], order[i]];
       for (const [n, id] of order.entries()) await write(supabase.from("lead_rules").update({ sort_order: (n + 1) * 10 }).eq("id", id).eq("business_id", w.id));
       state.reload();
-    } catch (err) { setError(friendly(err)); } finally { setMoving(false); }
+    } catch (err) { setError(friendly(err)); state.reload(); } finally { setMoving(false); }
   }
 
   return (

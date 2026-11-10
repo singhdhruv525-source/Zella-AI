@@ -31,8 +31,8 @@ function useRange(onChange) {
   const ok = from && to && from <= to;
   const picker = (
     <div className="zs-grid" style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
-      <Field label="From"><input type="date" value={from} max={to} onChange={(e) => { setFrom(e.target.value); onChange(); }} /></Field>
-      <Field label="To"><input type="date" value={to} min={from} onChange={(e) => { setTo(e.target.value); onChange(); }} /></Field>
+      <Field label="From"><input type="date" value={from} max={to} onChange={(e) => { setFrom(e.target.value); onChange?.(); }} /></Field>
+      <Field label="To"><input type="date" value={to} min={from} onChange={(e) => { setTo(e.target.value); onChange?.(); }} /></Field>
     </div>
   );
   return { from, to, ok, picker, range: ok ? { p_from: startOf(from).toISOString(), p_to: endOf(to).toISOString() } : null };

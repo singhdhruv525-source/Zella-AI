@@ -122,7 +122,7 @@ function useMenu() {
     const trigger = () => box?.querySelector("button[aria-expanded]");
     const onDown = (e) => { if (box && !box.contains(e.target)) setOpen(false); };
     const onKey = (e) => { if (e.key === "Escape") { setOpen(false); trigger()?.focus(); } };
-    const onFocusOut = (e) => { if (box && e.relatedTarget && !box.contains(e.relatedTarget)) setOpen(false); };
+    const onFocusOut = (e) => { if (!e.relatedTarget || !box?.querySelector(".ba-menu")?.contains(e.relatedTarget)) setOpen(false); };
     document.addEventListener("mousedown", onDown);
     window.addEventListener("keydown", onKey);
     box?.addEventListener("focusout", onFocusOut);

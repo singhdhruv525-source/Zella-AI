@@ -21,5 +21,5 @@ test("Next is refused while the shown rows belong to an earlier page (failed loa
 test("actionLabel tolerates a missing action", () => {
   assert.equal(actionLabel(null), "");
   assert.equal(actionLabel(undefined), "");
-  assert.equal(actionLabel("member.added"), actionLabel("member.added"));
+  assert.equal(actionLabel("member.added"), "member added");
 });

@@ -541,6 +541,15 @@ function BusinessHome() {
   if (!session) return <BusinessSignIn />;
   if (mfa.state === "checking") return <Loading text="Loading..." />;
   if (mfa.state === "needs_code") return <MfaCodeCard email={session.user.email} onDone={mfa.recheck} />;
+  if (mfa.state === "error") return (
+    <main className="ba-auth">
+      <section className="ba-auth-card" role="alert">
+        <h1>Couldn't verify sign-in</h1>
+        <p className="ba-auth-description">Your sign-in security check failed. Try again to open your workspace.</p>
+        <button type="button" className="ba-btn primary block" onClick={mfa.recheck}>Try again</button>
+      </section>
+    </main>
+  );
   if (workspaces === null) return <Loading text="Loading your workspace..." />;
 
   if (!workspaces.length) {
