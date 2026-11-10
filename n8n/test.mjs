@@ -1805,6 +1805,14 @@ test('reviews: the workflow posts nothing without an approved claim and ships wi
   assert.equal(w.active, false);
 });
 
+test('calendar sync keeps no execution history (its items carry refresh tokens)', () => {
+  const s = wfJson('zella-calendar-sync.json').settings;
+  assert.equal(s.saveDataSuccessExecution, 'none');
+  assert.equal(s.saveDataErrorExecution, 'none');
+  assert.equal(s.saveManualExecutions, false);
+  assert.equal(s.saveExecutionProgress, false);
+});
+
 console.log(`${passed} passed, ${failures.length} failed`);
 for (const f of failures) console.log('  FAIL ' + f);
 process.exit(failures.length ? 1 : 0);

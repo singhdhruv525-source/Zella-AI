@@ -52,8 +52,8 @@ const ifBool = (name, position, expr) =>
     options: {},
   });
 const link = (to, index = 0) => ({ node: to, type: 'main', index });
-const wf = (name, nodes, connections) => ({
-  name, nodes, connections, active: false, settings: { executionOrder: 'v1', executionTimeout: 300 }, pinData: {},
+const wf = (name, nodes, connections, extraSettings = {}) => ({
+  name, nodes, connections, active: false, settings: { executionOrder: 'v1', executionTimeout: 300, ...extraSettings }, pinData: {},
   meta: { templateCredsSetupCompleted: false },
 });
 
@@ -499,6 +499,10 @@ const emailEvents = wf('Zella - Email Events', [
   'Build reply': { main: [[link('Reply')]] },
 });
 
+// Calendar Sync never keeps its runs in n8n's execution history: the claim RPCs hand it each calendar's refresh token
+// (the token exchange happens in this workflow), and a saved execution would store that token in n8n's database.
+// Failures are still recorded in Zella (Finish sync / Mark error write them to calendar_sync_queue and calendar_connections).
+const NO_SAVED_RUNS = { saveDataSuccessExecution: 'none', saveDataErrorExecution: 'none', saveManualExecutions: false, saveExecutionProgress: false };
 // Calendar Sync: copies bookings to the business's Google Calendar or Outlook calendar and reads its busy times back into Zella.
 // Started by the dispatcher only when a booking change or a refresh is waiting (and calendar_sync_live is true).
 // The two Google token boxes ship with NO credential; the Google client id and secret are pasted by hand at go-live.
@@ -593,7 +597,7 @@ const calendarSync = wf('Zella - Calendar Sync', [
   'Map busy': { main: [[link('Has events')]] },
   'Has events': { main: [[link('Replace busy times')], [link('Has error')]] },
   'Has error': { main: [[link('Mark error')], []] },
-});
+}, NO_SAVED_RUNS);
 
 
 // ------------------------------------------------------------------ Connection Tests
