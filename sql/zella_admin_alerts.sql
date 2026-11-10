@@ -18,10 +18,12 @@ begin
     return jsonb_build_object('alerts', '[]'::jsonb, 'to', v_to, 'live', v_live, 'from', v_from,
                               'why', case when not v_live then 'email_off' when v_from is null then 'no_sender' else 'no_admins' end);
   end if;
+  -- notified_at is a 15-minute claim lease; emailed_at remains the delivery marker.
   with c as (
     update public.platform_alerts a set notified_at = now()
     where a.id in (select s.id from public.platform_alerts s
-                   where s.notified_at is null and s.status = 'open'
+                   where s.status = 'open' and (s.notified_at is null or s.notified_at < now() - interval '15 minutes')
+                     and s.meta ->> 'emailed_at' is null and coalesce((s.meta ->> 'email_attempts')::int, 0) < 3
                    order by case s.severity when 'urgent' then 0 when 'warning' then 1 else 2 end, s.first_seen_at
                    limit greatest(1, least(coalesce(p_limit, 25), 50)) for update skip locked)
     returning a.id, a.kind, a.severity, a.title, a.detail, a.occurrences, a.first_seen_at, a.last_seen_at, a.business_id)

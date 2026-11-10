@@ -18,7 +18,7 @@ begin
             where industry_key = v_key
                or (industry_key = 'general' and v_key not in ('healthcare', 'dental', 'legal', 'financial_services', 'childcare')) loop
     insert into public.automations (business_id, name, description, trigger_type, status, trigger_config, actions, conditions)
-    select p_business_id, p.name, p.description, p.trigger_type, 'active', p.trigger_config, '[]'::jsonb, '{}'::jsonb
+    select p_business_id, p.name, p.description, p.trigger_type, 'disabled', p.trigger_config, '[]'::jsonb, '{}'::jsonb
      where not exists (select 1 from public.automations x where x.business_id = p_business_id and x.name = p.name);
     get diagnostics v_rows = row_count;
     n := n + v_rows;

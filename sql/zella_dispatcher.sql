@@ -127,7 +127,8 @@ begin
                  and (sms_status = 'pending' or (sms_status = 'sending' and sms_claimed_at < now() - interval '15 minutes'))) else 0 end
       when 'admin-alerts' then case when coalesce(public.zella_setting('email_live', 'false'::jsonb) = 'true'::jsonb, false)
                                      and nullif(trim(public.zella_setting('email_from_address', '""'::jsonb) #>> '{}'), '') is not null
-         then (select count(*) from public.platform_alerts where notified_at is null and status = 'open') else 0 end
+         then (select count(*) from public.platform_alerts s where s.status = 'open' and (s.notified_at is null or s.notified_at < now() - interval '15 minutes')
+                     and s.meta ->> 'emailed_at' is null and coalesce((s.meta ->> 'email_attempts')::int, 0) < 3) else 0 end
       when 'spam-response' then coalesce(v_spam, 0)
       when 'call-reconcile' then coalesce(v_reconcile, 0)
       when 'review-replies' then coalesce(v_reviews, 0)

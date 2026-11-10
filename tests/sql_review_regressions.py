@@ -59,6 +59,14 @@ with psycopg.connect(os.environ['ZELLA_TEST_DSN']) as db:
     assert value(f"select zella_answer_knowledge_gap('{uid}','Answer')")
     assert value('select count(*) from knowledge_items where approved_by=auth.uid()') == 1
     assert value("select to_regprocedure('zella_knowledge_gap_editor(uuid)')") is None
+    # Preserve the remote branch's supported kinds when rolling back helper extraction.
+    extras=source('zella_knowledge_extras.sql')
+    run(extras[extras.index('do $$'):extras.index('end $$;')+7])
+    for kind in ['product', 'price']:
+        run("update knowledge_gaps set status='open'")
+        item=value(f"select zella_answer_knowledge_gap('{uid}','Answer',%s)",(kind,))
+        assert value('select kind from knowledge_items where id=%s',(item,))==kind
+
     print('PASS: rollback preserves editor and MFA checks; base knowledge has source_url')
 
     # Whole hour, fractional hour, and sub-minute start positions round up.

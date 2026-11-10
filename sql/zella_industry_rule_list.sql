@@ -1,5 +1,5 @@
 -- Zella - list and switch industry rules per business. Safe to run more than once. Run AFTER zella_industry_engine.sql / zella_industry_presets.sql.
--- Shows every rule a business can have: the ones made for its industry (switched on by default) and a few general ones anyone can add.
+-- Shows every rule a business can have: the ones made for its industry (disabled until the owner enables them) and a few general ones anyone can add.
 -- Platform admins (setup wizard, admin page) and owners/admins of the business can use these.
 insert into public.industry_automation_presets (industry_key, name, checklist_no, description, trigger_type, trigger_config) values
 ('general', 'Visit feedback request', null, 'Ask customers how their visit went the day after.', 'appointment_followup', '{"after_days":1,"rule":{"message":"Thanks for visiting. How did it go? Reply here with any feedback.","delay_minutes":1}}'::jsonb),
@@ -56,11 +56,11 @@ begin
     if not found then
       insert into public.automations (business_id, name, description, trigger_type, status, trigger_config, actions, conditions, created_by)
       values (p_business_id, p.name, p.description, p.trigger_type, case when v_on then 'active' else 'disabled' end,
-              p.trigger_config || coalesce(jsonb_build_object('notify_via', v_notify), '{}'::jsonb), '[]'::jsonb, '{}'::jsonb, auth.uid());
+              p.trigger_config || case when v_notify is not null then jsonb_build_object('notify_via', v_notify) else '{}'::jsonb end, '[]'::jsonb, '{}'::jsonb, auth.uid());
     else
       update public.automations set
              status = case when v_on then 'active' else 'disabled' end,
-             trigger_config = a.trigger_config || coalesce(jsonb_build_object('notify_via', v_notify), '{}'::jsonb), updated_at = now()
+             trigger_config = a.trigger_config || case when v_notify is not null then jsonb_build_object('notify_via', v_notify) else '{}'::jsonb end, updated_at = now()
        where id = a.id;
     end if;
     n := n + 1;

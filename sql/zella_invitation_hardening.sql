@@ -13,7 +13,7 @@
 --    confirmation off, anyone can create an account for someone else's address and sign in, so the invitation
 --    could be bound to a stranger. Whether confirmation is on in production can't be assumed, so acceptance now
 --    needs proof made in the current session: the person signed in with a link or code sent to that address
---    (JWT amr method otp, magiclink, invite, recovery, email/signup or email_change). A password-only session
+--    (an email-specific JWT amr method, a matching current email/session and a verified Auth identity). A password-only session
 --    can't accept; the app tells the person to open the invitation email. The account's email must also still
 --    equal the invited address.
 --
@@ -26,9 +26,18 @@
 
 -- The current session proved control of the account's email address (see 2 above).
 create or replace function public.zella_session_proved_email() returns boolean
-language sql stable set search_path = '' as $$
-  select coalesce((select bool_or(m ->> 'method' in ('otp', 'magiclink', 'invite', 'recovery', 'email/signup', 'email_change'))
-                     from jsonb_array_elements(case when jsonb_typeof(auth.jwt() -> 'amr') = 'array' then auth.jwt() -> 'amr' else '[]'::jsonb end) m), false);
+language sql stable security definer set search_path = '' as $$
+  select exists (
+    select 1 from auth.users u
+    join auth.sessions s on s.user_id = u.id and s.id::text = auth.jwt() ->> 'session_id'
+    where u.id = auth.uid() and lower(u.email) = lower(auth.jwt() ->> 'email')
+      and exists (select 1 from auth.identities i where i.user_id = u.id
+        and lower(i.identity_data ->> 'email') = lower(u.email)
+        and i.identity_data -> 'email_verified' = 'true'::jsonb)
+      and exists (select 1 from jsonb_array_elements(
+        case when jsonb_typeof(auth.jwt() -> 'amr') = 'array' then auth.jwt() -> 'amr' else '[]'::jsonb end) m
+        where m ->> 'method' in ('magiclink', 'invite', 'recovery', 'email/signup', 'email_change'))
+  );
 $$;
 revoke execute on function public.zella_session_proved_email() from public, anon;
 grant execute on function public.zella_session_proved_email() to authenticated, service_role;
@@ -179,7 +188,7 @@ grant execute on function public.zella_accept_my_invitations() to authenticated,
 
 -- Platform admins (2026-11-04). owner-provision-business (adminInvite) granted admin straight to an existing account
 -- that had signed in, without checking that the account ever proved its address. Enforced here so every path is
--- covered: admin access is granted (or reactivated) only to an account that confirmed its email, or to one that was
+-- covered: admin access is granted (or reactivated) only to an account with an Auth-verified identity for its current email, or to one that was
 -- just invited and has never signed in (it can only be used through the invitation link, which proves the address).
 create or replace function public.zella_platform_admin_email_check() returns trigger
 language plpgsql security definer set search_path = '' as $$
@@ -187,9 +196,12 @@ declare u record;
 begin
   if not new.is_active then return new; end if;
   if tg_op = 'UPDATE' and old.is_active and old.user_id = new.user_id then return new; end if;   -- unchanged grant
-  select email_confirmed_at, last_sign_in_at into u from auth.users where id = new.user_id;
+  select email, invited_at, last_sign_in_at into u from auth.users where id = new.user_id;
   if not found then raise exception 'ADMIN_ACCOUNT_NOT_FOUND' using errcode = '23503'; end if;
-  if u.email_confirmed_at is null and u.last_sign_in_at is not null then
+  if not exists (select 1 from auth.identities i where i.user_id = new.user_id
+       and lower(i.identity_data ->> 'email') = lower(u.email)
+       and i.identity_data -> 'email_verified' = 'true'::jsonb)
+     and not (u.invited_at is not null and u.last_sign_in_at is null) then
     raise exception 'ADMIN_EMAIL_NOT_CONFIRMED' using errcode = '42501',
       hint = 'This account''s email address was never confirmed, so it can''t be made an admin.';
   end if;

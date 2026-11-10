@@ -88,5 +88,16 @@ insert into public.industry_automation_presets (industry_key, name, checklist_no
 ('childcare','Enrolment welcome',341,'Welcome new families and start onboarding.','record_status_action','{"type_key":"enrolments","rules":[{"status":"enrolled","message":"Welcome. We will send you what you need before the first day.","delay_minutes":1,"task":{"title":"Send welcome pack: {title}","priority":"normal","due_hours":24}}]}'::jsonb),
 ('childcare','Start date reminder',342,'Remind families three days before the start date.','record_due_reminder','{"type_key":"enrolments","rule":{"message":"A reminder that your start date is in three days. Reply here if you have questions.","delay_minutes":1},"before_hours":72,"statuses":["enrolled"]}'::jsonb)
 on conflict (industry_key, name) do update set checklist_no = excluded.checklist_no, description = excluded.description, trigger_type = excluded.trigger_type, trigger_config = excluded.trigger_config;
+-- Keep already-installed versions of the backfill disabled too.
+do $$
+declare d text;
+begin
+  d := pg_get_functiondef('public.zella_apply_industry_automations(uuid)'::regprocedure);
+  d := replace(d, 'p.trigger_type, ''active'', p.trigger_config', 'p.trigger_type, ''disabled'', p.trigger_config');
+  if position('p.trigger_type, ''disabled'', p.trigger_config' in d) = 0 then
+    raise exception 'PATCH_FAILED_INDUSTRY_DEFAULT_STATE';
+  end if;
+  execute d;
+end $$;
 -- give every existing business any new rules for its industry (never overwrites rules it already has)
 select public.zella_apply_industry_automations(id) from public.businesses;

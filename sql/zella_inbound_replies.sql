@@ -20,7 +20,7 @@ select null, null, v.key, 'sms', 'transactional', 'en-US', null, v.body, 1, 'act
    select 1 from public.message_templates t
     where t.business_id is null and t.industry_id is null and t.key = v.key and t.channel = 'sms' and t.locale = 'en-US' and t.status = 'active');
 
--- 2. The incoming-text handler.
+-- 2. The incoming-text handler. Reapply zella_after_hours_reply.sql after this file.
 create or replace function public.zella_handle_inbound_sms_keyword(p_business_id uuid, p_from text, p_body text)
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare
