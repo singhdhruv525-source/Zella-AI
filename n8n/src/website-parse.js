@@ -6,7 +6,7 @@ const status = Number(r.statusCode) || 0;
 const failed = !!r.error && !status;
 const raw = typeof r.body === 'string' ? r.body : '';
 const body = raw.length > 600000 ? raw.slice(0, 600000) : raw;
-const decode = (s) => String(s).replace(/&nbsp;|&#160;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#0?39;|&apos;/g, "'").replace(/&#(\d{2,5});/g, (_, n) => { const c = Number(n); return c > 31 && c < 65536 ? String.fromCharCode(c) : ' '; });
+const decode = (s) => String(s).replace(/&nbsp;|&#160;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#0?39;|&apos;/g, "'").replace(/&#(\d{2,5});/g, (_, n) => { const c = Number(n); return c > 31 && c < 65536 ? String.fromCharCode(c) : ' '; }).replace(/&amp;/g, '&');
 const clean = (s) => decode(s).replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim();
 
 if (plan.kind === 'discover') {

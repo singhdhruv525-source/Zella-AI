@@ -24,7 +24,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Zella - Email Events: Resend tells us what happened to an email (delivered, bounced, marked as spam).\n// The secret key in the webhook address and the event are handed to the database, which checks the key.\nconst key = typeof ($json.query && $json.query.key) === 'string' ? $json.query.key.slice(0, 200) : '';\nconst h = $json.headers && typeof $json.headers === 'object' ? $json.headers : {};\nconst event = $json.body && typeof $json.body === 'object' && !Array.isArray($json.body) ? $json.body : null;\nconst data = event && event.data && typeof event.data === 'object' ? event.data : {};\nconst eventId = String(h['svix-id'] || (event ? [event.type, data.email_id, event.created_at].filter(Boolean).join(':') : '')).slice(0, 200);\nif (!event || !eventId) return { json: { record: null } };\n// The signature is made over the exact bytes Resend sent, so those are kept. The database checks it against the signing\n// secret in Vault (zella_resend_signing_secret); this step never sees that secret. Until the secret is set, only the key counts.\nlet raw = '';\ntry { raw = (await this.helpers.getBinaryDataBuffer(0, 'data')).toString('utf8'); } catch (e) { raw = ''; }\nif (raw.length > 500000) raw = '';\nconst sig = { id: String(h['svix-id'] || '').slice(0, 200), timestamp: String(h['svix-timestamp'] || '').slice(0, 20), signature: String(h['svix-signature'] || '').slice(0, 500), raw };\nreturn { json: { record: { p_key: key, p_event: event, p_event_id: eventId, p_sig: sig } } };\n"
+        "jsCode": "// Zella - Email Events: Resend tells us what happened to an email (delivered, bounced, marked as spam).\n// The secret key in the webhook address and the event are handed to the database, which checks the key.\nconst auth = $('Check Resend auth').item.json;\nif (auth.statusCode !== 200 || auth.body !== 'ok') return { json: { fetch: null, record: null } };\nconst key = typeof ($json.query && $json.query.key) === 'string' ? $json.query.key.slice(0, 200) : '';\nconst h = $json.headers && typeof $json.headers === 'object' ? $json.headers : {};\nconst event = $json.body && typeof $json.body === 'object' && !Array.isArray($json.body) ? $json.body : null;\nconst data = event && event.data && typeof event.data === 'object' ? event.data : {};\nconst eventId = String(h['svix-id'] || (event ? [event.type, data.email_id, event.created_at].filter(Boolean).join(':') : '')).slice(0, 200);\nif (!event || !eventId) return { json: { record: null } };\n// The signature is made over the exact bytes Resend sent, so those are kept. The database checks it against the signing\n// secret in Vault (zella_resend_signing_secret); this step never sees that secret. A missing signing secret is refused by the authentication step.\nlet raw = '';\ntry { raw = (await this.helpers.getBinaryDataBuffer(0, 'data')).toString('utf8'); } catch (e) { raw = ''; }\nif (raw.length > 500000) raw = '';\nconst sig = { id: String(h['svix-id'] || '').slice(0, 200), timestamp: String(h['svix-timestamp'] || '').slice(0, 20), signature: String(h['svix-signature'] || '').slice(0, 500), raw };\nreturn { json: { record: { p_key: key, p_event: event, p_event_id: eventId, p_sig: sig } } };\n"
       },
       "id": "ae2f98a0-99fe-4855-8311-26233e9c1364",
       "name": "Plan",
@@ -133,6 +133,119 @@
         1200,
         200
       ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Read exact bytes for the mandatory database key and signature check.\nconst j = $json;\nconst h = j.headers || {};\nlet raw = '';\ntry { raw = (await this.helpers.getBinaryDataBuffer(0, 'data')).toString('utf8'); } catch (e) { raw = ''; }\nif (raw.length > 500000) raw = '';\nreturn { json: { record: { p_key: typeof j.query?.key === 'string' ? j.query.key.slice(0, 200) : '', p_endpoint: 'events', p_id: String(h['svix-id'] || '').slice(0, 200), p_timestamp: String(h['svix-timestamp'] || '').slice(0, 20), p_signature: String(h['svix-signature'] || '').slice(0, 500), p_raw: raw || null } } };\n"
+      },
+      "id": "398103e1-5fbc-43ae-81d0-fe850912a335",
+      "name": "Read Resend auth",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        120,
+        -300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_n8n_resend_auth",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.record) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "aea6dd73-4613-433d-8725-7db0f6152298",
+      "name": "Check Resend auth",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        360,
+        -300
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "0f97bd5a-12c7-4e66-8d79-20c5780e5765",
+              "leftValue": "={{ $json.statusCode === 200 && $json.body === 'ok' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "8a42ace3-03e6-481e-8eef-adc1d0c5006c",
+      "name": "Resend authenticated",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        600,
+        -300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return { json: $('Resend event').item.json, binary: $('Resend event').item.binary };"
+      },
+      "id": "4c3df7e8-3411-4414-8044-456309b2c20d",
+      "name": "Authenticated request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        840,
+        -300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"error\":\"Unauthorized\"}",
+        "options": {
+          "responseCode": 401
+        }
+      },
+      "id": "0da36667-9ed6-433b-839d-0b8050a2f4a3",
+      "name": "Refuse Resend",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        840,
+        -100
+      ]
     }
   ],
   "connections": {
@@ -140,7 +253,7 @@
       "main": [
         [
           {
-            "node": "Plan",
+            "node": "Read Resend auth",
             "type": "main",
             "index": 0
           }
@@ -192,6 +305,57 @@
         [
           {
             "node": "Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Resend auth": {
+      "main": [
+        [
+          {
+            "node": "Check Resend auth",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Resend auth": {
+      "main": [
+        [
+          {
+            "node": "Resend authenticated",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resend authenticated": {
+      "main": [
+        [
+          {
+            "node": "Authenticated request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Refuse Resend",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Authenticated request": {
+      "main": [
+        [
+          {
+            "node": "Plan",
             "type": "main",
             "index": 0
           }

@@ -548,7 +548,7 @@ test('knowledge: the AI box has no credential, the SQL claims nothing unless liv
 // ---------------- assistant tools (Vapi asks Zella to log a question it could not answer)
 const BIZ2 = '0ed3b097-8dee-4fa8-98c2-3888be3e79b2';
 const vtAll = (message) => runCodeAll('vapi-tool-plan.js', { items: [{ json: { body: { message } } }] }).map((i) => i.json);
-const vtReply = (p) => runCode('vapi-tool-reply.js', { json: {}, nodes: { 'Use business': p } }).json;
+const vtReply = (p) => runCode('vapi-tool-reply.js', { json: { statusCode: 200 }, nodes: { 'Use business': p } }).json;
 // first tool call's plan, with .reply as the answer Vapi would get for it
 const vt = (message) => { const p = vtAll(message)[0]; return p.tool_call_id ? { ...p, record: p.loggable ? p.record : null, reply: { results: [vtReply(p)] } } : p; };
 const tcm = (args, over = {}) => ({ type: 'tool-calls', toolCallList: [{ id: 'tc1', name: 'report_unanswered_question', arguments: args }], call: { id: 'call_7', metadata: { business_id: BIZ2 } }, ...over });
@@ -653,7 +653,7 @@ test('booking tools: changing a booking uses the caller\'s own number, never one
 
 // ---------------- email events (bounces and spam complaints)
 const evSql = readFileSync(new URL('../sql/zella_email_events.sql', import.meta.url), 'utf8');
-const evp = async (j, raw = '') => (await runCodeAsync('email-event-plan.js', { json: j, raw })).json;
+const evp = async (j, raw = '') => (await runCodeAsync('email-event-plan.js', { json: j, raw, nodes: { 'Check Resend auth': { statusCode: 200, body: 'ok' } } })).json;
 const evSigned = await evp({ query: { key: 'k1' }, headers: { 'svix-id': 'msg_1', 'svix-timestamp': '1792878608', 'svix-signature': 'v1,abc' }, body: { type: 'email.bounced', data: { email_id: 'e1' } } }, '{"type":"email.bounced"}');
 const evNoId = await evp({ query: {}, headers: {}, body: { type: 'email.delivered', data: { email_id: 'e2' }, created_at: 'T' } });
 const evText = await evp({ query: {}, headers: {}, body: 'text' });
@@ -753,12 +753,13 @@ test('calendar: a failed refresh keeps the old busy times and reports a short re
   const b = cpMap(p, {}, { body: { error: 'invalid_grant', error_description: 'PRIVATE' } }); assert.equal(b.error.p_fatal, true); assert.equal(JSON.stringify(b).includes('PRIVATE'), false);
   assert.equal(cpMap({ connection_id: null }, {}).error, null);
 });
-test('calendar workflow: Google boxes ship without a credential and with client id/secret placeholders only', () => {
+test('calendar workflow: token boxes use credentials and other calls use dynamic access tokens', () => {
   const w = wfJson('zella-calendar-sync.json'); const boxes = w.nodes.filter((n) => ['Get Google token', 'Google call', 'Google delete', 'Get pull token', 'List events'].includes(n.name));
   assert.equal(boxes.length, 5);
-  for (const n of boxes) assert.ok(!n.credentials, n.name);
+  for (const n of boxes) assert.equal(!!n.credentials, ['Get Google token', 'Get pull token'].includes(n.name), n.name);
   const t = w.nodes.find((n) => n.name === 'Get Google token'); const s = JSON.stringify(t.parameters);
-  assert.ok(s.includes('PASTE_GOOGLE_CLIENT_ID') && s.includes('PASTE_GOOGLE_CLIENT_SECRET'));
+  assert.equal(s.includes('client_id'), false); assert.equal(s.includes('client_secret'), false);
+  assert.equal(t.parameters.genericAuthType, 'httpCustomAuth');
   assert.ok(!JSON.stringify(w).match(/GOCSPX|\.apps\.googleusercontent/));
 });
 test('calendar sql: the token lives only in the vault, nothing runs until calendar_sync_live, access is service-role only', () => {
@@ -818,7 +819,8 @@ test('outlook: the workflow sends Microsoft items to Microsoft\'s token box and 
   assert.equal(w.connections['Get Microsoft token'].main[0][0].node, 'Token ok');
   const ms = w.nodes.find((n) => n.name === 'Get Microsoft token');
   assert.equal(ms.parameters.url, 'https://login.microsoftonline.com/common/oauth2/v2.0/token');
-  assert.equal(JSON.stringify(w).includes('PASTE_MICROSOFT_CLIENT_SECRET'), true); // no real secret in the file
+  assert.equal(JSON.stringify(w).includes('PASTE_MICROSOFT_CLIENT_SECRET'), false);
+  assert.equal(ms.parameters.genericAuthType, 'httpCustomAuth');
 });
 
 // ---------------- phone number to business link
@@ -900,7 +902,7 @@ test('voice rules sql: missing hours never mean closed, holidays win, and the fu
 
 // ---------------- inbound email and delivery receipts
 const ieSql = readFileSync(new URL('../sql/zella_email_inbound.sql', import.meta.url), 'utf8');
-const iePlan = (body, query = { key: 'k1' }, headers = {}, raw = '') => runCodeAsync('inbound-email-plan.js', { json: { body, query, headers }, raw }).then((r) => r.json);
+const iePlan = (body, query = { key: 'k1' }, headers = {}, raw = '') => runCodeAsync('inbound-email-plan.js', { json: { body, query, headers }, raw, nodes: { 'Check Resend auth': { statusCode: 200, body: 'ok' } } }).then((r) => r.json);
 const ieOk = await iePlan({ type: 'email.received', data: { email_id: 'abc12345-def', to: ['x@y.com'] } }, { key: 'k1' }, { 'svix-id': 'm1', 'svix-timestamp': '1792878608', 'svix-signature': 'v1,zz' }, '{"raw":1}');
 const ieNotRecv = await iePlan({ type: 'email.delivered', data: { email_id: 'abc12345-def' } });
 const ieBadId = await iePlan({ type: 'email.received', data: { email_id: '../../admin' } });
@@ -1157,7 +1159,7 @@ test('meta sql: leads need consent before they are called, replies respect the 2
 
 test('phone link: the business found from the number replaces the one in the record, and none found means none', () => {
   const plan = { reply: {}, record: { p_business_id: BIZ, p_question: 'q' }, lookup: {} };
-  const ok = runCode('business-apply.js', { json: { body: '0ed3b097-8dee-4fa8-98c2-3888be3e79b2' }, nodes: { Plan: plan } }).json;
+  const ok = runCode('business-apply.js', { json: { statusCode: 200, body: '0ed3b097-8dee-4fa8-98c2-3888be3e79b2' }, nodes: { Plan: plan } }).json;
   assert.equal(ok.record.p_business_id, '0ed3b097-8dee-4fa8-98c2-3888be3e79b2'); assert.equal(ok.record.p_question, 'q');
   for (const body of [null, 'not-a-uuid', { x: 1 }, '']) assert.equal(runCode('business-apply.js', { json: { body }, nodes: { Plan: plan } }).json.record.p_business_id, null);
 });
@@ -1803,6 +1805,93 @@ test('reviews: the workflow posts nothing without an approved claim and ships wi
   assert.deepEqual(w.connections['Can post'].main[0], [{ node: 'Post reply on Google', type: 'main', index: 0 }]);
   assert.equal(w.connections['Claim replies'].main[0][0].node, 'Plan post');
   assert.equal(w.active, false);
+});
+
+// Regression checks for review fixes; exercise refused inputs as well as successful paths.
+test('calendar: pagination never replaces busy times for either provider', () => {
+  for (const provider of ['google', 'outlook']) {
+    const marker = provider === 'google' ? { nextPageToken: 'next', items: [] } : { '@odata.nextLink': 'next', value: [] };
+    const tokenNode = provider === 'google' ? 'Get pull token' : 'Get Microsoft pull token';
+    const r = runCode('calendar-pull-map.js', { json: { statusCode: 200, body: marker }, nodes: { 'Plan pull': { connection_id: 'c', url: 'url', provider }, [tokenNode]: { body: { access_token: 't' } } } }).json;
+    assert.equal(r.events, null); assert.equal(r.error.p_error, (provider === 'google' ? 'google' : 'microsoft') + '_truncated'); assert.equal(r.error.p_fatal, false);
+  }
+});
+test('outlook: an invalid start or end is skipped without throwing', () => {
+  for (const field of ['start', 'end']) assert.equal(csPlan({ ...CSI, provider: 'outlook', event: { ...CSI.event, [field]: 'bad-date' } }).needs_google, false);
+});
+test('calendar and Meta: execution settings preserve defaults and protect tokens', () => {
+  for (const file of ['calendar-sync', 'meta-leads', 'meta-sender', 'meta-health']) {
+    const s = wfJson('zella-' + file + '.json').settings;
+    assert.equal(s.saveDataSuccessExecution, 'none'); assert.equal(s.executionOrder, 'v1'); assert.equal(s.executionTimeout, 300);
+    if (file === 'calendar-sync') { assert.equal(s.saveDataErrorExecution, 'none'); assert.equal(s.saveManualExecutions, false); assert.equal(s.saveExecutionProgress, false); }
+    else assert.equal(s.saveDataErrorExecution, undefined);
+  }
+});
+test('Resend: invalid authentication cannot reach a provider fetch or event write', () => {
+  for (const file of ['inbound-email', 'email-events']) {
+    const w = wfJson('zella-' + file + '.json');
+    assert.equal(w.connections['Check Resend auth'].main[0][0].node, 'Resend authenticated');
+    assert.equal(w.connections['Resend authenticated'].main[1][0].node, 'Refuse Resend');
+    assert.equal(w.nodes.find((n) => n.name === 'Refuse Resend').parameters.options.responseCode, 401);
+  }
+});
+for (const file of ['inbound-email-plan.js', 'email-event-plan.js']) {
+  for (const auth of [{}, { statusCode: 200, body: 'off' }, { statusCode: 200, body: 'bad' }, { statusCode: 500, body: 'ok' }]) {
+    const r = await runCodeAsync(file, { json: { query: { key: 'nonempty' }, body: { type: 'email.received', data: { email_id: 'abc12345' } } }, nodes: { 'Check Resend auth': auth } });
+    assert.equal(r.json.fetch, null); assert.equal(r.json.record, null);
+  }
+}
+test('assistant tools: failed writes return errors while non-loggable calls retain their reply', () => {
+  for (const statusCode of [0, 400, 429, 500]) assert.ok(runCode('vapi-tool-reply.js', { json: { statusCode }, nodes: { 'Use business': { loggable: true, tool_call_id: 't', reply_text: 'Noted' } } }).json.error);
+  assert.equal(vtReply({ loggable: true, reply_text: 'Noted' }).result, 'Noted');
+  assert.equal(runCode('vapi-tool-reply.js', { nodes: { 'Use business': { loggable: false, reply_text: 'No action' } } }).json.result, 'No action');
+});
+test('Meta: WhatsApp templates need no text, but ordinary messages do', () => {
+  const base = { id: BIZ, page_id: '123456', whatsapp_phone_id: '234567', recipient: '14155550123', channel: 'whatsapp', template_name: 'hello', template_language: 'en' };
+  assert.equal(runCode('meta-send-plan.js', { json: { ...base, kind: 'template', text: '' } }).json.body.type, 'template');
+  assert.equal(runCode('meta-send-plan.js', { json: { ...base, kind: 'message', text: '' } }).json.valid, false);
+});
+test('failure alerts: keyword separators and long tokens are hidden', () => {
+  for (const message of ['token abc123', 'secret: abc123', 'key -> abc123', 'Authorization: Bearer abc123', 'password = abc123', 'x'.repeat(80)]) {
+    const detail = runCode('failure-alert.js', { json: { execution: { error: { message } } } }).json.alert.p_detail;
+    assert.ok(detail.includes('[hidden]')); assert.ok(!detail.includes('abc123')); assert.ok(!detail.includes('x'.repeat(80)));
+  }
+});
+test('router: a missing plan and problem goes to the dead-letter path', () => {
+  const r = runCode('router-result.js', { nodes: { Route: { event: { id: 'e' } }, 'Start execution': {} } }).json;
+  assert.equal(r.needs_manual, true); assert.equal(r.category, 'invalid_input');
+});
+test('website: nested entities are decoded only once', () => {
+  const r = runCode('website-parse.js', { json: { statusCode: 200, body: '<title>&amp;lt; &amp;#39; &lt; &amp;amp;</title>' }, nodes: { Plan: { kind: 'page', url: 'https://example.com', host: 'example.com' } } }).json;
+  assert.equal(r.rpc.p_title, '&lt; &#39; < &amp;');
+});
+test('inbound email: HTML input is capped before text extraction', () => {
+  const r = ieMap({ statusCode: 200, body: { html: ' '.repeat(100000) + 'beyond-limit' } });
+  assert.equal(r.record.p_message.text, '');
+});
+test('tools: all number lookups suppress unlinked fallback business IDs', () => {
+  for (const file of ['assistant-tools', 'voice-rules', 'appointment-booking', 'brain-tools']) {
+    const w = wfJson('zella-' + file + '.json');
+    assert.ok(w.nodes.find((n) => n.name === 'Find business').parameters.jsonBody.includes('p_fallback: null'));
+  }
+});
+
+test('outbound calls: an invalid timezone uses the existing default', () => {
+  const c = { source: 'callback', id: 'c', live: true, contact_number: '+14155550123', appointment: { start_time: '2026-11-10T15:00:00Z' } };
+  const plan = (timezone) => runCode('call-plan.js', { json: { ...c, business: { timezone } } }).json.call.assistantOverrides.variableValues.appointment_time;
+  assert.equal(plan('Invalid/Timezone'), plan('America/New_York'));
+  assert.notEqual(plan('UTC'), plan('America/New_York'));
+});
+const metaRead = async (getBuffer) => {
+  const AsyncFn = Object.getPrototypeOf(async function () {}).constructor;
+  const fn = new AsyncFn('$input', loadCode('meta-receive-plan.js'));
+  return (await fn.call({ helpers: { getBinaryDataBuffer: getBuffer } }, { first: () => ({ json: { headers: { 'x-hub-signature-256': 'sig' } } }) }))[0].json;
+};
+const unreadable = await metaRead(async () => { throw new Error('unreadable'); });
+const oversized = await metaRead(async () => Buffer.from('x'.repeat(500001)));
+test('Meta: unreadable and oversized bodies have distinct safe diagnostics', () => {
+  assert.equal(unreadable.reason, 'body_unreadable'); assert.equal(oversized.reason, 'body_too_large');
+  for (const r of [unreadable, oversized]) { assert.equal(r.ok, false); assert.equal(r.record.p_raw, ''); assert.equal(r.record.p_signature, 'sig'); }
 });
 
 console.log(`${passed} passed, ${failures.length} failed`);

@@ -1,3 +1,9 @@
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:81594dd31177445e08eb9279d32bc80245f0f61a938fc6d7bee7c7040d8dc86a -->
+
+<!-- coderabbit-ai-generated-section:v1:9f75135fbbc01ef71db7dc8b3e5120925396219c87468e46f1e629fc761a8358 -->
+
 # Zella go-live checklist (kept up to date as automations are built)
 
 Nothing below has been done yet on purpose: all n8n workflows are unpublished and the timers are paused until testing.
@@ -6,7 +12,7 @@ Nothing below has been done yet on purpose: all n8n workflows are unpublished an
 1. Run `sql/zella_engine_health.sql` and `sql/zella_calendar_sync.sql`, `sql/zella_phone_numbers.sql` and `sql/zella_assignment.sql` and `sql/zella_customer_requests.sql` (already applied), then re-run `sql/zella_dispatcher.sql` once (adds the outbound-calls and knowledge lanes, the stuck-call sweep and the engine health check, and restarts the timers).
 2. Store the n8n secret in Vault (`zella_n8n_secret`), as described at the end of the dispatcher file.
 3. Store the Resend webhook key: `select vault.create_secret('<long random value>', 'zella_resend_webhook_key');`
-4. Set `app_base_url` (your web address) so reschedule and waitlist links appear in messages.
+4. Set `app_base_url` (your web address) so reschedule, waitlist and marketing email unsubscribe links appear in messages. Marketing email also requires the person to have opted in.
 5. Switch live flags only when each provider is ready: `sms_live`, `email_live`, `calls_live`, `knowledge_ai_live`, `calendar_sync_live`.
 6. Run `sql/zella_security_hardening.sql` if not done; turn on leaked-password protection.
 
@@ -18,17 +24,17 @@ Nothing below has been done yet on purpose: all n8n workflows are unpublished an
 9. Resend: verify the sending domain, key on the "Send via Resend" boxes, add the webhook `https://<n8n>/webhook/zella/resend?key=<value>` (delivered, bounced, complained).
 10. Vapi: account, assistant, phone number; ids into `vapi_assistant_id` and `vapi_phone_number_id`; key on the "Start Vapi call" box.
     - Server URLs (with header `X-Zella-Secret`): end-of-call reports to `/webhook/zella/vapi` (end-of-call-report only); tools to `/webhook/zella/vapi-tools` (`report_unanswered_question` with `question`; `log_customer_request` with `kind` = complaint, correction, data_access or data_deletion, and `summary`) and `/webhook/zella/vapi-booking` (`check_availability`, `book_appointment`, `find_my_appointments`, `reschedule_appointment`, `cancel_appointment`; add the boolean `confirmed` to book, reschedule and cancel, which are refused until the caller has said yes).
-    - Register each business's number so tools find the business: `select zella_register_phone_number('<business id>', '+1XXXXXXXXXX', '<Vapi phone number id>', 'Main line');` (service role; the number must belong to only one business). Without a registered number a call must carry the business id in its settings.
+    - Register each business's number so tools find the business: `select zella_register_phone_number('<business id>', '+1XXXXXXXXXX', '<Vapi phone number id>', 'Main line');` (service role; the number must belong to only one business). Without a registered number, an existing trusted call must establish the business; a business ID in call settings alone is refused.
 11. Anthropic key on the "Ask AI" box in the Knowledge workflow.
-12. Google Calendar: create a Google Cloud project, turn on the Calendar API, set up the consent screen (calendar scope), create an OAuth client. Paste its client id and secret by hand into the two token boxes ("Get Google token", "Get pull token") in the Calendar Sync workflow. Each business is then connected with `zella_calendar_connect(...)` (a "Connect Google Calendar" button in the app is not built yet).
+12. Google Calendar: create a Google Cloud project, turn on the Calendar API, set up the consent screen (calendar scope), create an OAuth client. Create an n8n **Custom Auth** credential named `Zella Google calendar client` with JSON `{"body":{"client_id":"<Google client ID>","client_secret":"<Google client secret>"}}`; select it on both "Get Google token" and "Get pull token" in Calendar Sync. Create `Zella Microsoft calendar client` with the same body fields using the Microsoft Entra app registration client ID and secret, and select it on both "Get Microsoft token" and "Get Microsoft pull token". Never paste client credentials into node parameters or exported JSON. Each business is then connected with `zella_calendar_connect(...)` (a "Connect Google Calendar" button in the app is not built yet).
 
 ## n8n
 13. Publish the workflows (gateway, router, the sender and worker workflows, Call Results, Knowledge, Assistant Tools, Appointment Booking, Email Events, Calendar Sync), then test everything together.
 
 ## Not built yet
-- "Connect Google Calendar" button and Google sign-in function in the app; Google change notifications (hourly refresh covers it); Outlook calendar
-- Invitation reminder emails (needs the sign-up link and domain)
-- Unsubscribe link and page for marketing emails (reactivation emails stay skipped until then)
+- "Connect Google Calendar" button and Google sign-in function in the app; Google change notifications (hourly refresh covers it)
+- Invitation reminder email delivery (needs the sign-up link, domain and sender; `zella_check_invitations` only lists due reminders)
+- Verify marketing email unsubscribe links and page with `app_base_url` set and an opted-in person before enabling marketing sends
 - Choosing a specific staff member and per-service lengths in phone booking
 - 5-minute batching setting, document or website upload into knowledge
 
@@ -114,3 +120,14 @@ n8n (done 2026-10-28, all unpublished): Follow-up Texts and Follow-up Emails sen
 (scope `business.manage`, the Google account added as a manager of each business's profile) on "Get Google reviews" and
 "Post reply on Google", and the Anthropic key on "Ask AI". Google's v4 review endpoints are untested against the real API.
 Tests: `tests/features/run.sh` (staging only, 69 checks).
+
+## Required Resend authentication and proxy limits
+
+Apply `sql/zella_n8n_webhook_auth.sql` after `sql/zella_resend_signature.sql`, before importing the workflows. This intentionally removes the previous unsigned mode: missing signing secrets, invalid signatures and invalid URL keys are refused before fetching email or recording events. Keep the URL `?key=` and `zella_resend_webhook_key`; the existing database key checks still require them.
+
+Store each endpoint's Resend signing secret in Vault: `zella_resend_signing_secret` for delivery events and `zella_resend_inbound_signing_secret` for inbound email. These are the `whsec_` values from the respective Resend webhook settings; do not assume the two endpoints share a secret.
+
+At the public reverse proxy, rate-limit POSTs to `/webhook/zella/inbound-email` and `/webhook/zella/resend` before forwarding to n8n: for example, 5 requests/second per source IP with burst 20, excess requests returning 429, and a 500 KB request body limit. Preserve raw request bytes and Svix headers. Apply equivalent limits at the provider edge when using n8n Cloud, and restrict direct access so the proxy cannot be bypassed. Verify an excess-request test returns 429 before publishing; this repository cannot configure the hosted proxy.
+
+
+<!-- /coderabbit-ai-generated:v1 -->

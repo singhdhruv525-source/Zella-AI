@@ -15,7 +15,7 @@ const inReplyTo = str(lower['in-reply-to'] || '', 300).replace(/[<>\s]/g, '');
 const auto = /auto-(replied|generated)|auto_reply|yes/i.test(String(lower['auto-submitted'] || '')) && !/^no$/i.test(String(lower['auto-submitted'] || '')) ||
   /^(bulk|junk|list|auto_reply)$/i.test(String(lower['precedence'] || '')) || !!lower['x-autoreply'] || !!lower['x-autorespond'];
 let text = str(e.text, 20000);
-if (!text && typeof e.html === 'string') text = e.html.replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 20000);
+if (!text && typeof e.html === 'string') text = e.html.slice(0, 100000).replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 20000);
 return {
   json: {
     record: {
