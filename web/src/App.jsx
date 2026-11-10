@@ -112,7 +112,9 @@ function AdminApp() {
 
     async function restoreSession() {
       try {
-        const { data } = await supabase.auth.getSession();
+        const { data, error: sessionError } = await supabase.auth.getSession();
+        // a failed refresh returns an error with no session: say so instead of showing a plain sign-in screen
+        if (sessionError) throw sessionError;
         if (LANDING.setup) {
           // From an invitation: stay on the "choose a password" step.
           if (!data.session && active) {
