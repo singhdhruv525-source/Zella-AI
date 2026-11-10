@@ -49,12 +49,23 @@ function normalisePalette(p) {
   return { for: p.for.slice(0, 500), vars, swatches };
 }
 
+// Origin of this project's own Supabase (the URL supabase.js uses); unset in unit tests, where no picture is accepted.
+const SUPABASE_ORIGIN = (() => { try { return new URL(import.meta.env?.VITE_SUPABASE_URL).origin; } catch { return null; } })();
+// Only a public picture under brand-assets/user/ in this project's own storage, with no whitespace or backslash.
+export function isOwnPicture(u, origin = SUPABASE_ORIGIN) {
+  if (typeof u !== "string" || !origin || /[\\\s]/.test(u)) return false;
+  try {
+    const x = new URL(u);
+    return x.protocol === "https:" && x.origin === origin && x.pathname.startsWith("/storage/v1/object/public/brand-assets/user/");
+  } catch { return false; }
+}
+
 function normalise(p) {
   const v = { ...DEFAULT_APPEARANCE, ...(p && typeof p === "object" ? p : {}) };
   if (!["zella", "classic", "glass"].includes(v.theme)) v.theme = DEFAULT_APPEARANCE.theme;
   if (v.background !== "custom" && !BACKGROUNDS.some((b) => b.key === v.background)) v.background = DEFAULT_APPEARANCE.background;
   // only a picture uploaded to Zella's own storage is used as a background
-  if (typeof v.customUrl !== "string" || !/^https:\/\/[^/]+\.supabase\.co\/storage\/v1\/object\/public\/brand-assets\/user\//.test(v.customUrl)) v.customUrl = null;
+  if (!isOwnPicture(v.customUrl)) v.customUrl = null;
   if (v.background === "custom" && !v.customUrl) v.background = DEFAULT_APPEARANCE.background;
   v.dim = Math.min(80, Math.max(0, Math.round(Number(v.dim) || 0)));
   if (!["compact", "full", null].includes(v.sidebar)) v.sidebar = null;

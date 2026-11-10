@@ -32,7 +32,7 @@ export const ACTION_LABELS = {
 };
 
 export function actionLabel(action) {
-  return ACTION_LABELS[action] ?? action.replace(/[._]/g, " ");
+  return ACTION_LABELS[action] ?? String(action ?? "").replace(/[._]/g, " ");
 }
 
 export const STAGE_LABELS = {
