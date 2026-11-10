@@ -268,4 +268,35 @@ do $$ begin
 end $$;
 select 'PASS dispatch is off unless n8n_dispatch_enabled is true; admin messages break ties by id; config restore puts back only transfer keys';
 
+-- PR #41 (SQL part 2): CodeRabbit's autofix, in its order
+do $$
+declare d text;
+begin
+  d := pg_get_functiondef((select oid from pg_proc where proname = 'zella_offer_redeem_core'));
+  if position('pg_advisory_xact_lock(hashtextextended(p_key, 0))' in d) = 0 then raise exception 'FAIL #41 offer redemptions are not serialized per key'; end if;
+  d := pg_get_functiondef((select oid from pg_proc where proname = 'zella_reassign_callback'));
+  if position($p$if not found then return 'closed'; end if;$p$ in d) = 0 then raise exception 'FAIL #41 reassigning a closed callback'; end if;
+  d := pg_get_functiondef((select oid from pg_proc where proname = 'zella_erase_customer'));
+  if position('update public.appointments set description = null' in d) = 0 or position('customer_requests' in d) = 0 then raise exception 'FAIL #41 erase leaves appointment, task or request text'; end if;
+  d := pg_get_functiondef((select oid from pg_proc where proname = 'zella_language_allowance'));
+  if position($p$zella_has_role(p_business_id, array['owner','admin','manager','staff','viewer'])$p$ in d) = 0 then raise exception 'FAIL #41 language allowance readable by non-members'; end if;
+  d := pg_get_functiondef((select oid from pg_proc where proname = 'zella_decide_time_off'));
+  if position('where id = p_request_id for update' in d) = 0 then raise exception 'FAIL #41 time-off decision not locked'; end if;
+  d := pg_get_functiondef((select oid from pg_proc where proname = 'zella_offboard_member'));
+  if position('TARGET_NOT_ACTIVE' in d) = 0 then raise exception 'FAIL #41 offboarding can reassign to an inactive member'; end if;
+  d := pg_get_functiondef((select oid from pg_proc where proname = 'zella_public_status'));
+  if position($p$'title', i.title$p$ in d) > 0 then raise exception 'FAIL #41 public status shows internal incident titles'; end if;
+  d := pg_get_functiondef((select oid from pg_proc where proname = 'zella_check_uptime'));
+  if position('greatest(v_last, v_since)' in d) = 0 then raise exception 'FAIL #41 uptime uses the older of the two times'; end if;
+end $$;
+-- a non-member cannot read a business's language allowance
+do $$ begin
+  set local role anon;
+  begin perform public.zella_language_allowance((select id from public.businesses limit 1));
+    raise exception 'FAIL #41 anon read the language allowance';
+  exception when others then if sqlerrm like 'FAIL%' then raise; end if; end;
+  reset role;
+end $$;
+select 'PASS #41 offer key lock, closed callbacks, erase scrubs more, allowance needs a role, time-off lock, offboard target, public status hides titles, uptime age';
+
 rollback;

@@ -191,6 +191,38 @@ begin
   if v is null or v not in ('8afa557d293ef3e92a310842c461b6d6', 'b90210c5a2693e974f284f9f33b5fe26') then
     raise exception 'VERSION_MISMATCH: public.zella_platform_admin_email_check() is not the version this file was written against (rollback)';
   end if;
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_offer_redeem_core(uuid,uuid,text,text,text)');
+  if v is null or v not in ('c25cd23249dfdc84570416c4bc8de9bd', 'bbdabe8a60a313dee4cbd81b02718791') then
+    raise exception 'VERSION_MISMATCH: public.zella_offer_redeem_core(uuid,uuid,text,text,text) is not the version this file was written against (rollback)';
+  end if;
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_reassign_callback(uuid,uuid)');
+  if v is null or v not in ('137b3dd9edb6b2c632c6d93370757df5', '11428e212deb216c43129ebafb69a030') then
+    raise exception 'VERSION_MISMATCH: public.zella_reassign_callback(uuid,uuid) is not the version this file was written against (rollback)';
+  end if;
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_erase_customer(uuid,uuid)');
+  if v is null or v not in ('c382a6510ef2f93d47c198f2880593ac', '3e070f982d65afbe1bf78ea4af835fe8') then
+    raise exception 'VERSION_MISMATCH: public.zella_erase_customer(uuid,uuid) is not the version this file was written against (rollback)';
+  end if;
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_language_allowance(uuid)');
+  if v is null or v not in ('6065f9d8f83e516cfcf119865723e053', '3803b3857250d255a80058ef0def94ae') then
+    raise exception 'VERSION_MISMATCH: public.zella_language_allowance(uuid) is not the version this file was written against (rollback)';
+  end if;
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_decide_time_off(uuid,boolean)');
+  if v is null or v not in ('65cfff0b090957176b03a09573272fd2', '2cdb807f2fa95ae26db1b3634265fddd') then
+    raise exception 'VERSION_MISMATCH: public.zella_decide_time_off(uuid,boolean) is not the version this file was written against (rollback)';
+  end if;
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_offboard_member(uuid,uuid,uuid)');
+  if v is null or v not in ('5600a85970b4db6d3098f7436118aaaa', '65c78ec745b471a153ce7d00e2dba5f4') then
+    raise exception 'VERSION_MISMATCH: public.zella_offboard_member(uuid,uuid,uuid) is not the version this file was written against (rollback)';
+  end if;
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_public_status()');
+  if v is null or v not in ('5bffa7615dd51d83d6a0cdfe9131c9b8', 'a6b97350537ab1f77f40430f032b98af') then
+    raise exception 'VERSION_MISMATCH: public.zella_public_status() is not the version this file was written against (rollback)';
+  end if;
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_check_uptime()');
+  if v is null or v not in ('ff763b4ad36144503c67881c4e18790c', '92689ace8808705ae6f51a842623d47f') then
+    raise exception 'VERSION_MISMATCH: public.zella_check_uptime() is not the version this file was written against (rollback)';
+  end if;
 end $guard$;
 
 -- #8: the dental reminder wording as it was
@@ -2040,6 +2072,267 @@ begin
       hint = 'This account''s email address was never confirmed, so it can''t be made an admin.';
   end if;
   return new;
+end $function$;
+
+CREATE OR REPLACE FUNCTION public.zella_offer_redeem_core(p_offer uuid, p_business uuid, p_source text, p_key text, p_note text DEFAULT NULL::text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare o public.offers; r public.offer_redemptions; v_reason text; v_hold jsonb := public.zella_offer_rule_config('claim_hold');
+        v_total int; v_mine int; v_recent int; v_unusual jsonb := public.zella_offer_rule_config('unusual_activity'); v_limit jsonb;
+begin
+  if p_key is null or length(p_key) < 8 then raise exception 'IDEMPOTENCY_KEY_REQUIRED'; end if;
+  select * into r from public.offer_redemptions where idempotency_key = p_key;
+  if found then
+    if r.offer_id <> p_offer or r.business_id <> p_business then raise exception 'IDEMPOTENCY_KEY_REUSED'; end if;
+    return jsonb_build_object('ok', r.status in ('pending', 'confirmed'), 'status', r.status, 'redemption_id', r.id, 'repeat', true);
+  end if;
+
+  select * into o from public.offers where id = p_offer for update;
+  if not found then v_reason := 'not_found';
+  elsif o.status = 'paused' then v_reason := 'paused';
+  elsif o.status in ('expired', 'archived') or (o.ends_at is not null and o.ends_at <= now()) then v_reason := 'expired';
+  elsif o.status <> 'active' or o.starts_at is null or o.starts_at > now() then v_reason := 'not_started';
+  elsif p_source in ('dashboard', 'code') and not ('dashboard' = any (o.channels)) then v_reason := 'not_available_here';
+  elsif p_source = 'admin' and not ('sales' = any (o.channels)) and not ('dashboard' = any (o.channels)) then v_reason := 'not_available_here';
+  elsif p_source = 'dashboard' and o.code is not null then v_reason := 'code_required';
+  elsif not public.zella_offer_is_eligible(o, p_business) then v_reason := 'not_eligible';
+  end if;
+
+  if v_reason is null then
+    select count(*) filter (where status in ('pending', 'confirmed')),
+           count(*) filter (where status in ('pending', 'confirmed') and business_id = p_business)
+      into v_total, v_mine from public.offer_redemptions where offer_id = o.id;
+    if v_mine >= o.max_per_business then v_reason := 'already_claimed';
+    elsif o.max_redemptions is not null and v_total >= o.max_redemptions then v_reason := 'limit_reached';
+    elsif not o.stackable and exists (
+      select 1 from public.offer_redemptions x join public.offers xo on xo.id = x.offer_id
+      where x.business_id = p_business and x.status = 'pending' and x.offer_id <> o.id and not xo.stackable) then
+      v_reason := 'cannot_combine';
+    end if;
+  end if;
+
+  if v_reason is not null then
+    perform public.zella_offer_log(case when o.id is not null then o.id end, 'claim_rejected', null, null,
+                                   jsonb_build_object('reason', v_reason, 'source', p_source), p_business);
+    return jsonb_build_object('ok', false, 'reason', v_reason);
+  end if;
+
+  insert into public.offer_redemptions (offer_id, business_id, status, source, idempotency_key, terms, hold_until, claimed_by, note)
+  values (o.id, p_business, 'pending', p_source, p_key, public.zella_offer_terms(o),
+          now() + make_interval(days => coalesce((v_hold ->> 'days')::int, 14)), auth.uid(), left(nullif(btrim(p_note), ''), 500))
+  returning * into r;
+  perform public.zella_offer_log(o.id, 'claimed', null, null, jsonb_build_object('source', p_source, 'redemption_id', r.id), p_business);
+
+  v_total := v_total + 1;
+  v_limit := public.zella_offer_rule_config('limit_warning');
+  if o.max_redemptions is not null then
+    if v_total >= o.max_redemptions then
+      perform public.zella_platform_alert('offer_limit_reached', 'Offer limit reached: ' || o.name,
+        format('All %s claims for this offer have been used.', o.max_redemptions), 'info', null, 'limit:' || o.id);
+    elsif v_limit is not null and v_total * 100 >= o.max_redemptions * coalesce((v_limit ->> 'percent')::int, 80) then
+      perform public.zella_platform_alert('offer_limit_near', 'Offer nearly used up: ' || o.name,
+        format('%s of %s claims used.', v_total, o.max_redemptions), 'info', null, 'limitnear:' || o.id);
+    end if;
+  end if;
+  if v_unusual is not null then
+    select count(*) into v_recent from public.offer_redemptions where offer_id = o.id and created_at > now() - interval '1 hour';
+    if v_recent >= coalesce((v_unusual ->> 'claims_per_hour')::int, 20) then
+      perform public.zella_platform_alert('offer_unusual_activity', 'Unusual number of claims: ' || o.name,
+        format('%s claims in the last hour. Consider pausing the offer to review.', v_recent), 'warning', null,
+        'unusual:' || o.id || ':' || to_char(now(), 'YYYYMMDDHH24'));
+    end if;
+  end if;
+  return jsonb_build_object('ok', true, 'status', r.status, 'redemption_id', r.id, 'hold_until', r.hold_until);
+end $function$;
+
+CREATE OR REPLACE FUNCTION public.zella_reassign_callback(p_callback_id uuid, p_to_user uuid)
+ RETURNS text
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare cb record;
+begin
+  select * into cb from public.callbacks where id = p_callback_id;
+  if cb.id is null then return 'not_found'; end if;
+  if not public.zella_has_role(cb.business_id, array['owner','admin','manager','staff']) then raise exception 'NOT_ALLOWED'; end if;
+  if p_to_user is not null and not exists (select 1 from public.business_members m where m.business_id = cb.business_id and m.user_id = p_to_user and m.status = 'active') then raise exception 'TARGET_NOT_ACTIVE'; end if;
+  update public.callbacks set assigned_to = p_to_user, updated_at = now() where id = p_callback_id and status not in ('completed','cancelled');
+  if p_to_user is not null then
+    perform public.zella_notify(cb.business_id, 'callback', 'A callback was assigned to you', coalesce(cb.summary, 'Please call them back.'), 'info', 'callbacks', cb.id, p_to_user);
+  end if;
+  return 'reassigned';
+end $function$;
+
+CREATE OR REPLACE FUNCTION public.zella_erase_customer(p_business_id uuid, p_customer_id uuid)
+ RETURNS text
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not public.zella_has_role(p_business_id, array['owner','admin']) then raise exception 'NOT_ALLOWED'; end if;
+  if not exists (select 1 from public.customers where id = p_customer_id and business_id = p_business_id) then raise exception 'NOT_FOUND'; end if;
+  if not public.zella_approval_ok(p_business_id, 'erase_customer', p_customer_id) then raise exception 'APPROVAL_REQUIRED'; end if;
+  update public.sms_messages set message_body = '[removed]' where customer_id = p_customer_id and business_id = p_business_id;
+  update public.email_messages set subject = '[removed]', body_text = '[removed]', body_html = null where customer_id = p_customer_id and business_id = p_business_id;
+  update public.calls set transcript = null, recording_url = null, summary = null, from_number = null, to_number = null where customer_id = p_customer_id and business_id = p_business_id;
+  update public.callbacks set contact_number = null, summary = null, note = null where customer_id = p_customer_id and business_id = p_business_id;
+  update public.followup_tasks set status = 'cancelled', updated_at = now() where customer_id = p_customer_id and business_id = p_business_id and status in ('pending','in_progress');
+  update public.customers set first_name = 'Deleted', last_name = null, phone = null, email = null, address = null, notes = null, date_of_birth = null, company_name = null,
+         tags = '{}', metadata = '{}'::jsonb, qualification = null, do_not_contact = true, status = 'archived', updated_at = now()
+   where id = p_customer_id;
+  insert into public.audit_logs (business_id, user_id, action, entity_type, entity_id) values (p_business_id, auth.uid(), 'customer_erased', 'customer', p_customer_id);
+  return 'erased';
+end $function$;
+
+CREATE OR REPLACE FUNCTION public.zella_language_allowance(p_business_id uuid)
+ RETURNS integer
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare s public.subscriptions; v text;
+begin
+  s := public.zella_current_subscription(p_business_id);
+  if s.id is null then return null; end if;
+  select p.limits ->> 'languages' into v from public.plans p where p.id = s.plan_id;
+  if v is null or v !~ '^[0-9]{1,2}$' then return null; end if;
+  return greatest(v::int, 1);
+end $function$;
+
+CREATE OR REPLACE FUNCTION public.zella_decide_time_off(p_request_id uuid, p_approve boolean)
+ RETURNS text
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare r public.time_off_requests%rowtype; v_name text; v_block uuid;
+begin
+  select * into r from public.time_off_requests where id = p_request_id;
+  if not found or not public.zella_can_manage(r.business_id) then raise exception 'NOT_ALLOWED'; end if;
+  if r.status <> 'pending' then raise exception 'ALREADY_DECIDED'; end if;
+  select name into v_name from public.staff_members where id = r.staff_id;
+  if p_approve then
+    insert into public.blocked_times (business_id, title, reason, start_time, end_time, staff_id, created_by, source)
+    values (r.business_id, 'Time off: ' || coalesce(v_name, 'staff'), coalesce(r.reason, 'Time off'), r.from_at, r.to_at, r.staff_id, auth.uid(), 'time_off')
+    returning id into v_block;
+  end if;
+  update public.time_off_requests set status = case when p_approve then 'approved' else 'declined' end, decided_by = auth.uid(), decided_at = now(), blocked_time_id = v_block where id = r.id;
+  if r.requested_by is not null then
+    perform public.zella_notify(r.business_id, 'time_off_decision', case when p_approve then 'Time off approved' else 'Time off declined' end,
+      coalesce(v_name, 'Staff') || ': ' || to_char(r.from_at, 'Mon FMDD') || ' to ' || to_char(r.to_at, 'Mon FMDD'), 'info', 'calendar', r.id, r.requested_by);
+  end if;
+  return case when p_approve then 'approved' else 'declined' end;
+end $function$;
+
+CREATE OR REPLACE FUNCTION public.zella_offboard_member(p_business_id uuid, p_user_id uuid, p_reassign_to uuid DEFAULT NULL::uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare v_role text; v_moved jsonb := '{}'::jsonb;
+begin
+  if auth.uid() is not null and not exists (select 1 from public.business_members m where m.business_id = p_business_id and m.user_id = auth.uid() and m.status = 'active' and m.role in ('owner','admin')) then
+    raise exception 'NOT_ALLOWED';
+  end if;
+  select role into v_role from public.business_members where business_id = p_business_id and user_id = p_user_id;
+  if v_role is null then raise exception 'NOT_A_MEMBER'; end if;
+  if v_role = 'owner' and not exists (select 1 from public.business_members m where m.business_id = p_business_id and m.role = 'owner' and m.status = 'active' and m.user_id <> p_user_id) then
+    raise exception 'LAST_OWNER';
+  end if;
+  update public.business_members set status = 'suspended', accepts_work = false where business_id = p_business_id and user_id = p_user_id;
+  if p_reassign_to is not null then
+    v_moved := public.zella_move_open_work(p_business_id, p_user_id, p_reassign_to);
+  else
+    update public.customers set assigned_to = null where business_id = p_business_id and assigned_to = p_user_id;
+    update public.callbacks set assigned_to = null where business_id = p_business_id and assigned_to = p_user_id and status not in ('completed','done','reached','cancelled','failed');
+    update public.customer_requests set assigned_to = null where business_id = p_business_id and assigned_to = p_user_id and status not in ('resolved','closed','cancelled');
+  end if;
+  insert into public.audit_logs (business_id, user_id, action, entity_type, entity_id, new_data)
+  values (p_business_id, auth.uid(), 'member_offboarded', 'business_member', p_user_id, jsonb_build_object('reassigned_to', p_reassign_to, 'moved', v_moved));
+  return v_moved;
+end $function$;
+
+CREATE OR REPLACE FUNCTION public.zella_public_status()
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_checks boolean := public.zella_provider_checks_live();
+  v_n8n boolean := nullif(trim(public.zella_setting('n8n_base_url', '""'::jsonb) #>> '{}'), '') is not null
+                   and coalesce(public.zella_setting('n8n_dispatch_enabled', 'true'::jsonb) = 'true'::jsonb, true);
+  v_components jsonb := '[]'::jsonb; v_incidents jsonb; v_state text; h record; c record; v_rank int := 0;
+  rank_of constant jsonb := '{"operational": 0, "unknown": 0, "degraded": 1, "outage": 2}';
+begin
+  for c in select * from (values ('phone', 'Phone assistant', 'vapi'), ('texts', 'Text messages', 'telnyx'), ('email', 'Email', 'resend')) as t(key, label, provider) loop
+    select * into h from public.provider_health where provider = c.provider;
+    v_state := case
+      when not v_checks or h.provider is null or h.checked_at is null or h.checked_at < now() - interval '6 hours' then 'unknown'
+      when h.ok then 'operational'
+      when h.consecutive_failures >= 2 then 'outage'
+      else 'degraded' end;
+    v_components := v_components || jsonb_build_object('key', c.key, 'label', c.label, 'state', v_state,
+      'checked_at', case when v_state <> 'unknown' then h.checked_at end);
+  end loop;
+  v_state := case
+    when exists (select 1 from public.platform_alerts a where a.status <> 'resolved' and a.kind in ('automation_heartbeat', 'automation_stalled')) then 'outage'
+    when exists (select 1 from public.platform_alerts a where a.status <> 'resolved' and a.kind = 'queue_backlog') then 'degraded'
+    when v_n8n then 'operational' else 'unknown' end;
+  v_components := v_components || jsonb_build_object('key', 'automations', 'label', 'Reminders and follow-ups', 'state', v_state);
+  v_components := v_components || jsonb_build_object('key', 'app', 'label', 'Zella app', 'state', 'operational');
+
+  for c in select distinct i.component from public.platform_incidents i where i.is_public and i.status = 'open' and i.component is not null loop
+    select coalesce(jsonb_agg(case when x ->> 'key' = c.component and x ->> 'state' in ('operational', 'unknown') then x || '{"state": "degraded"}'::jsonb else x end), '[]'::jsonb)
+      into v_components from jsonb_array_elements(v_components) x;
+  end loop;
+
+  select coalesce(jsonb_agg(jsonb_build_object('title', i.title, 'message', i.public_message, 'status', i.status, 'component', i.component,
+           'started_at', i.created_at, 'resolved_at', i.resolved_at) order by (i.status = 'open') desc, i.created_at desc), '[]'::jsonb) into v_incidents
+    from (select * from public.platform_incidents where is_public and (status = 'open' or resolved_at > now() - interval '14 days')
+           order by created_at desc limit 20) i;
+
+  select max((rank_of ->> (x ->> 'state'))::int) into v_rank from jsonb_array_elements(v_components) x;
+  if exists (select 1 from public.platform_incidents where is_public and status = 'open') then v_rank := greatest(v_rank, 1); end if;
+  return jsonb_build_object('overall', case v_rank when 2 then 'outage' when 1 then 'degraded' else 'operational' end,
+    'components', v_components, 'incidents', v_incidents, 'generated_at', now());
+end $function$;
+
+CREATE OR REPLACE FUNCTION public.zella_check_uptime()
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare v_last timestamptz; v_stuck text[]; v_since timestamptz;
+  v_n8n boolean := nullif(trim(public.zella_setting('n8n_base_url', '""'::jsonb) #>> '{}'), '') is not null
+                   and coalesce(public.zella_setting('n8n_dispatch_enabled', 'true'::jsonb) = 'true'::jsonb, true);
+begin
+  select max(checked_at) into v_last from public.provider_health;
+  select min(updated_at) into v_since from public.platform_settings where key = 'provider_checks_live';
+  if public.zella_provider_checks_live() and coalesce(v_last, v_since, now()) < now() - interval '6 hours' then
+    perform public.zella_platform_alert('automation_heartbeat', 'The automation engine looks down',
+      'No connection check has come back for 6 hours (last: ' || coalesce(to_char(v_last at time zone 'UTC', 'YYYY-MM-DD HH24:MI') || ' UTC', 'never')
+      || '). n8n may be down or the Connection Tests workflow switched off.', 'urgent', null, 'heartbeat');
+  else
+    perform public.zella_resolve_platform_alerts('automation_heartbeat', null, 'heartbeat', 'Connection checks are coming back again');
+  end if;
+  select coalesce(array_agg(workflow order by workflow), '{}') into v_stuck from public.n8n_dispatch_state
+   where workflow <> '_kick' and consecutive_same >= 12 and last_count > 0 and last_triggered_at > now() - interval '30 minutes';
+  if v_n8n and cardinality(v_stuck) > 0 then
+    perform public.zella_platform_alert('automation_stalled', 'Automations are not being worked',
+      'n8n keeps being called but these queues are not going down: ' || array_to_string(v_stuck, ', ') || '. Check the workflows are published and their credentials work.',
+      'urgent', null, 'stalled', jsonb_build_object('workflows', to_jsonb(v_stuck)));
+  else
+    perform public.zella_resolve_platform_alerts('automation_stalled', null, 'stalled', 'Queues are moving again');
+  end if;
+  return jsonb_build_object('heartbeat_last', v_last, 'stalled', to_jsonb(v_stuck));
 end $function$;
 
 commit;
