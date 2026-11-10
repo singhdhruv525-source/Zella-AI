@@ -1,0 +1,122 @@
+#!/bin/bash
+# Voice reliability phase 1 and 2 tests, on a STAGING copy of the live database functions (never production).
+# Needs a local Postgres (ZPSQL, default: the session's local cluster), node, python3 and deno (DENO).
+# Builds: zbase = live functions as they are; zvoice = live functions + sql/zella_voice_reliability.sql + sql/zella_vapi_auth.sql. Exits 1 on any failure.
+set -u
+cd "$(dirname "$0")"; HERE=$(pwd); REPO=$(cd ../.. && pwd)
+export ZPSQL=${ZPSQL:-"psql -q -At -v ON_ERROR_STOP=1 -h /var/tmp/zella-pg -p 54329 -U postgres"}
+DENO=${DENO:-deno}
+FAILS=0; fail() { echo "FAIL $*"; FAILS=$((FAILS + 1)); }; pass() { echo "PASS $*"; }
+run() { su nobody -s /bin/bash -c "$ZPSQL -d $1"; }
+q() { echo "$2" | run "$1"; }
+WORK=$(mktemp -d "${TMPDIR:-/tmp}/zella-voice.XXXX"); chmod 755 "$WORK"
+
+echo "== build the staging copy from the repo, checked against the live function checksums (prod_md5.txt)"
+python3 -I build_functions.py prod_md5.txt "$REPO/sql" "$WORK/functions.sql" | tail -1
+python3 -I rebuild_ai_voice.py "$REPO/sql" prod_md5.txt "$WORK/ai_voice.sql" || exit 1
+python3 -I build_phase4.py "$REPO/sql" "$WORK/phase4.sql" > /dev/null || exit 1
+{ cat tables.sql "$WORK/functions.sql" live_two.sql "$WORK/ai_voice.sql" "$WORK/phase4.sql"
+  echo "create unique index callbacks_one_live_idx on public.callbacks (business_id, public.zella_digits(contact_number), reason) where contact_number is not null and status <> all (array['completed','cancelled','needs_review']);"; } > "$WORK/staging.sql"
+for DB in zbase zvoice; do
+  echo "drop database if exists $DB; create database $DB;" | su nobody -s /bin/bash -c "${ZPSQL/-v ON_ERROR_STOP=1/} -d postgres" >/dev/null 2>&1
+  run $DB < "$WORK/staging.sql" > /dev/null || { echo "staging build failed"; exit 1; }
+done
+q zvoice "select string_agg(p.proname || '=' || md5(p.prosrc), ' ' order by p.proname) from pg_proc p where p.pronamespace = 'public'::regnamespace and p.prokind = 'f' and p.proname like 'zella_%'" | tr ' ' '\n' | sort > "$WORK/l.txt"
+cat prod_md5.txt phase4_md5.txt | tr ' ' '\n' | grep . | sort > "$WORK/want.txt"
+[ -z "$(comm -23 "$WORK/want.txt" "$WORK/l.txt")" ] && pass "staging copy reproduces all $(wc -l < "$WORK/want.txt") live function bodies exactly (plus the live base prompt and production's call triggers)" || { fail "staging copy differs from production: $(comm -23 "$WORK/want.txt" "$WORK/l.txt" | head -3)"; exit 1; }
+for i in 1 2; do run zvoice < "$REPO/sql/zella_voice_reliability.sql" > /dev/null 2>&1 || fail "migration run $i"; done
+[ "$(q zvoice "select count(*) from jsonb_each(zella_voice_reliability_status()) where value = 'true'::jsonb")" = 12 ] && pass "migration applied twice; all 12 patches in place" || fail "patch status"
+for i in 1 2; do run zvoice < "$REPO/sql/zella_vapi_auth.sql" > /dev/null 2>&1 || fail "auth migration run $i"; done
+# before phase 4: a 95-second call whose "ended" status arrives before its report
+run zvoice < fixture.sql; run zvoice < phase4_reference.sql
+q zvoice "insert into business_phone_numbers (business_id, e164, vapi_phone_number_id) values ('aaaaaaaa-0000-4000-8000-000000000001', '+15550001000', 'pn-A');
+  select zella_record_call_status('pre-1', 'in-progress', '+15550001000', 'pn-A', '+15551230001', 'inbound', now() - interval '2 minutes', null);
+  select zella_record_call_status('pre-1', 'ended', '+15550001000', 'pn-A', '+15551230001', 'inbound', now() - interval '25 seconds', 'customer-ended-call');" > /dev/null
+echo "   before phase 4: that call became '$(q zvoice "select status from calls where external_call_id = 'pre-1'")' with $(q zvoice "select count(*) from callbacks b join calls c on c.id = b.call_id where c.external_call_id = 'pre-1'") missed-call callback(s)"
+for i in 1 2; do run zvoice < "$REPO/sql/zella_voice_assistant.sql" > "$WORK/va.log" 2>&1 || fail "assistant migration run $i: $(grep -m1 ERROR "$WORK/va.log")"; done
+[ "$(q zvoice "select count(*) from jsonb_each(zella_voice_assistant_status()) where value = 'true'::jsonb")" = 7 ] && pass "phase 4 migration applied twice; all 7 changes in place" || fail "phase 4 status: $(q zvoice "select zella_voice_assistant_status()")"
+for i in 1 2; do run zvoice < "$REPO/sql/zella_call_usage.sql" > "$WORK/cu.log" 2>&1 || fail "usage migration run $i: $(grep -m1 ERROR "$WORK/cu.log")"; done
+[ "$(q zvoice "select count(*) from jsonb_each(zella_call_usage_status()) where value = 'true'::jsonb")" = 6 ] && pass "calling-usage migration applied twice; all 6 parts in place" || fail "usage status: $(q zvoice "select zella_call_usage_status()")"
+echo "== Vapi request authentication (database check)"
+out=$(run zvoice < auth_test.sql 2>&1); echo "$out" | grep -o 'PASS.*'; echo "$out" | grep -q 'ERROR' && fail "auth_test: $(echo "$out" | grep ERROR | head -1)"
+
+count() { q "$1" "$2"; }
+race() { ./race.sh "$1" "$2" "$3" > "$WORK/race.out" 2>&1; }
+echo "== booking concurrency (20 at the same instant), before (zbase) and after (zvoice)"
+for DB in zbase zvoice; do
+  run $DB < fixture.sql
+  race $DB 20 "select 'booked' from public.zella_book_appointment('aaaaaaaa-0000-4000-8000-000000000001', null, 'C%i', '2026-11-02 10:00 America/New_York', 30, null, null, null);"
+  n=$(count $DB "select count(*) from appointments where start_time = '2026-11-02 10:00 America/New_York'")
+  if [ $DB = zbase ]; then echo "   before: $n appointments for one slot"; else [ "$n" = 1 ] && pass "20 simultaneous bookings -> 1 appointment" || fail "after fix: $n appointments"; fi
+done
+run zvoice < fixture.sql
+q zvoice "insert into appointments (id, business_id, title, start_time, end_time) select ('dddddddd-0000-4000-8000-0000000000' || lpad(g::text, 2, '0'))::uuid, 'aaaaaaaa-0000-4000-8000-000000000001', 'm', '2026-11-03 09:00 America/New_York'::timestamptz + g * interval '30 minutes', '2026-11-03 09:30 America/New_York'::timestamptz + g * interval '30 minutes' from generate_series(1, 6) g" > /dev/null
+race zvoice 20 "select case when %i <= 8 then (select 'b' from public.zella_book_appointment('aaaaaaaa-0000-4000-8000-000000000001', null, 'B', '2026-11-02 11:00 America/New_York', 30, null, null, null)) when %i <= 14 then (select 'h' from public.zella_hold_slot('aaaaaaaa-0000-4000-8000-000000000001', null, 'H', '2026-11-02 11:00 America/New_York', 30, null, 15)) else (select 'm' from public.zella_reschedule_appointment(('dddddddd-0000-4000-8000-0000000000' || lpad((%i - 14)::text, 2, '0'))::uuid, '2026-11-02 11:00 America/New_York', null, 'staff')) end;"
+[ "$(count zvoice "select count(*) from appointments where start_time = '2026-11-02 11:00 America/New_York'")" = 1 ] && pass "mixed book/hold/reschedule race -> 1" || fail "mixed race"
+run zvoice < fixture.sql
+q zvoice "insert into staff_members (business_id, name, working_hours) select 'aaaaaaaa-0000-4000-8000-000000000001', n, '{\"mon\":{\"on\":true,\"start\":\"09:00\",\"end\":\"17:00\"}}' from unnest(array['A','B']) n" > /dev/null
+race zvoice 20 "select 'b' from public.zella_book_appointment('aaaaaaaa-0000-4000-8000-000000000001', null, 'S', '2026-11-02 10:00 America/New_York', 30, null, null, null);"
+[ "$(count zvoice "select count(distinct staff_id) || '/' || count(*) from appointments where start_time = '2026-11-02 10:00 America/New_York'")" = 2/2 ] && pass "two free staff -> exactly 2 bookings, one each" || fail "staff race"
+for DB in zbase zvoice; do
+  run $DB < fixture.sql
+  race $DB 20 "select (r ->> 'status') || coalesce('-' || (r ->> 'repeated'), '') from (select public.zella_ai_tool('dup-1', 'aaaaaaaa-0000-4000-8000-000000000001', 'book_appointment', '{\"confirmed\": true, \"start\": \"2026-11-02T15:00:00Z\", \"first_name\": \"Ana\", \"phone\": \"+15551230001\"}'::jsonb) r) x;"
+  okn=$(grep -c "booked" "$WORK/race.out" || true); oks=$(grep -o '[0-9]* booked' "$WORK/race.out" | awk '{s+=$1} END {print s+0}')
+  race $DB 20 "select r ->> 'status' from (select public.zella_ai_tool('d-%i', 'aaaaaaaa-0000-4000-8000-000000000001', 'book_appointment', ('{\"confirmed\": true, \"start\": \"2026-11-02T16:00:00Z\", \"first_name\": \"C%i\", \"phone\": \"+1555777' || lpad('%i', 4, '0') || '\"}')::jsonb) r) x;"
+  diffc=$(count $DB "select count(*) from appointments where start_time = '2026-11-02T16:00:00Z' and booking_state = 'confirmed'")
+  if [ $DB = zbase ]; then echo "   before: identical retries answered 'booked' $oks/20 times; different callers booked into one slot: $diffc"
+  else [ "$oks" = 20 ] && pass "20 identical in-flight retries -> all answered 'booked', one appointment" || fail "retries: $oks/20"
+       [ "$diffc" = 1 ] && pass "20 different callers -> 1 booked" || fail "different callers: $diffc"; fi
+done
+echo "== call rows"
+for DB in zbase zvoice; do
+  run $DB < fixture.sql
+  race $DB 10 "select public.zella_ai_voice('vc-777', 'aaaaaaaa-0000-4000-8000-000000000001', 'rules', '{}'::jsonb) is not null;"
+  n=$(count $DB "select count(*) from calls where external_call_id = 'vc-777'")
+  if [ $DB = zbase ]; then echo "   before: 10 parallel first tool calls -> $n call rows"; else [ "$n" = 1 ] && pass "10 parallel first tool calls -> 1 call row" || fail "call rows $n"; fi
+done
+echo "== rules, lifecycle, transfer, phase 4 (assertions inside)"
+for t in rules_test lifecycle_test transfer_test phase4_test usage_test; do
+  run zvoice < fixture.sql; run zvoice < phase4_reference.sql
+  out=$(run zvoice < $t.sql 2>&1); echo "$out" | grep -o 'PASS.*' ; echo "$out" | grep -q 'ERROR' && fail "$t: $(echo "$out" | grep ERROR | head -1)"
+done
+echo "== calling usage: the same call processed by 10 sessions at the same instant"
+run zvoice < fixture.sql
+q zvoice "delete from usage_records; insert into calls (business_id, direction, status, external_call_id, started_at, ended_at, duration_seconds, ai_handled)
+  values ('aaaaaaaa-0000-4000-8000-000000000001', 'inbound', 'completed', 'race-u', now() - interval '1 hour', now() - interval '1 hour' + interval '42 seconds', 42, false);
+  update calls set ai_handled = true where external_call_id = 'race-u';" > /dev/null
+./race.sh zvoice 10 "select public.zella_process_call_usage((select id from calls where external_call_id = 'race-u'), 'race') ->> 'result';" > "$WORK/race.out" 2>&1
+[ "$(q zvoice "select count(*) from usage_records u join calls c on c.id = u.call_id where c.external_call_id = 'race-u'")" = 1 ] && pass "10 concurrent processings of one call -> 1 usage row ($(grep -c recorded "$WORK/race.out") recorded, the rest unchanged)" || fail "usage race: $(q zvoice "select count(*) from usage_records")"
+echo "== generated Vapi assistant against Vapi's own types (@vapi-ai/server-sdk 3.0.0, needs the npm registry)"
+run zvoice < fixture.sql; run zvoice < phase4_reference.sql
+q zvoice "update businesses set industry_id = (select id from industries where slug = 'dental') where id = 'aaaaaaaa-0000-4000-8000-000000000001';
+  insert into platform_settings (key, value) values ('vapi_server_url', '\"https://pffqxlumqhjdbzvvoszm.supabase.co/functions/v1/voice-rules\"'), ('vapi_credential_id', '\"cred-test-123\"'), ('voice_llm_model', '\"claude-sonnet-5\"'), ('voice_tts_voice_id', '\"test-voice-id\"')
+  on conflict (key) do update set value = excluded.value" > /dev/null
+for B in aaaaaaaa-0000-4000-8000-000000000001 bbbbbbbb-0000-4000-8000-000000000002; do
+  printf 'import type { Vapi } from "npm:@vapi-ai/server-sdk@3.0.0";\nexport const assistant: Vapi.CreateAssistantDto = %s;\n' "$(q zvoice "select zella_assistant_config('$B') -> 'assistant'")" > "$WORK/assistant_$B.ts"
+done
+if out=$(cd "$WORK" && "$DENO" check assistant_*.ts 2>&1); then pass "both generated assistants type-check as Vapi CreateAssistantDto (tools in model.tools, server + credential, transfer tool, model, voice, transcriber, max duration)"
+elif echo "$out" | grep -q "TS[0-9]"; then fail "generated assistant does not match Vapi's types: $(echo "$out" | grep -m1 TS)"
+else echo "skip  Vapi type check (npm registry not reachable)"; fi
+q zvoice "delete from platform_settings where key in ('vapi_server_url', 'vapi_credential_id', 'voice_llm_model', 'voice_tts_voice_id')" > /dev/null
+echo "== Brain Tools code nodes against the patched functions"
+run zvoice < fixture.sql
+q zvoice "insert into business_phone_numbers (business_id, e164, vapi_phone_number_id) values ('aaaaaaaa-0000-4000-8000-000000000001', '+15550001000', 'pn-A'), ('bbbbbbbb-0000-4000-8000-000000000002', '+15550002000', 'pn-B')" > /dev/null
+node brain-flow.mjs || FAILS=$((FAILS + 1))
+echo "== voice-rules edge function end to end (HTTP -> function -> staging database)"
+run zvoice < fixture.sql
+q zvoice "insert into business_phone_numbers (business_id, e164, vapi_phone_number_id) values ('aaaaaaaa-0000-4000-8000-000000000001', '+15550001000', 'pn-A'), ('bbbbbbbb-0000-4000-8000-000000000002', '+15550002000', 'pn-B');
+  insert into ai_agents (id, business_id, name, agent_type, is_default) values ('a0000000-0000-4000-8000-00000000000a', 'aaaaaaaa-0000-4000-8000-000000000001', 'R', 'receptionist', true), ('b0000000-0000-4000-8000-00000000000b', 'bbbbbbbb-0000-4000-8000-000000000002', 'R', 'receptionist', true);
+  insert into ai_agent_configs (agent_id, escalation_rules) values ('a0000000-0000-4000-8000-00000000000a', '{\"transfer_number\": \"+15550101111\", \"transfer_open_hours_only\": false}'), ('b0000000-0000-4000-8000-00000000000b', '{\"transfer_enabled\": false}')" > /dev/null
+export TEST_HMAC_SECRET="test-only-$(date +%s%N)-hmac" MOCK_CONTROL="$WORK/mock.ctl"
+q zvoice "delete from vault.decrypted_secrets where name like 'zella_vapi_%'; delete from platform_settings where key = 'vapi_auth_mode'; insert into vault.decrypted_secrets values ('zella_vapi_hmac_secret', '$TEST_HMAC_SECRET')" > /dev/null
+: > "$MOCK_CONTROL"; chmod 666 "$MOCK_CONTROL"
+node mock-rest.mjs > "$WORK/mock.log" 2>&1 & MOCK=$!
+( cd "$REPO/web/supabase/functions/voice-rules" && exec env SUPABASE_URL=http://127.0.0.1:54400 ZELLA_SERVER_SECRET_KEY=test-key ZELLA_VOICE_RPC_MS=1500 ZELLA_VOICE_BUDGET_MS=4000 NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 \
+  "$DENO" run --allow-net --allow-env --allow-read --allow-sys index.ts > "$WORK/fn.log" 2>&1 ) & FN=$!
+for i in $(seq 1 30); do curl -s -o /dev/null --max-time 1 http://127.0.0.1:8000 && break; sleep 1; done
+NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 node edge-e2e.mjs | tee "$WORK/edge.out"; grep -q '^FAIL' "$WORK/edge.out" && FAILS=$((FAILS + 1))
+echo "== the 14 Receptionist Brain tools through voice-rules (HTTP)"
+NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 node brain-e2e.mjs > "$WORK/brain.out" 2>&1; cat "$WORK/brain.out"; grep -q '^FAIL\|Error' "$WORK/brain.out" && FAILS=$((FAILS + 1))
+kill $FN $MOCK 2>/dev/null; wait $FN $MOCK 2>/dev/null
+rm -rf "$WORK"
+echo; [ $FAILS = 0 ] && echo "ALL PASSED" || echo "$FAILS FAILED"; exit $([ $FAILS = 0 ] && echo 0 || echo 1)
