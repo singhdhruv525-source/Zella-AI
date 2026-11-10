@@ -1,0 +1,13 @@
+grant execute on function public.zella_brain_tool_defs() to public;
+grant execute on function public.zella_cross_sell_ideas(p_industry_slug text) to public;
+grant execute on function public.zella_digits(p text) to public;
+grant execute on function public.zella_language_catalog() to public;
+grant execute on function public.zella_offer_channel_requires(p_channel text) to public;
+grant execute on function public.zella_offer_reason_text(p_reason text) to public;
+grant execute on function public.zella_offer_rule_requires(p_key text) to public;
+grant execute on function public.zella_offer_rule_results(p_eligibility jsonb, p_facts jsonb) to public;
+grant execute on function public.zella_offer_summary(o offers) to public;
+grant execute on function public.zella_offer_terms(o offers) to public;
+grant execute on function public.zella_offer_type_requires(p_type text) to public;
+grant execute on function public.zella_record_due(p_due timestamp with time zone, p_data jsonb, p_cfg jsonb, p_tz text) to public;
+grant execute on function public.zella_valid_email(p_email text) to public;
