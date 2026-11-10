@@ -1835,6 +1835,7 @@ test('calendar reconciliation patches existing events and refuses uncertain look
     assert.equal(existing.method, 'PATCH');
     assert.ok(existing.url.endsWith('/already-created'));
     assert.equal(existing.body.id, undefined);
+    assert.equal(existing.body.transactionId, undefined);
     for (const [body, statusCode] of [[list([]), 503], [{ ...list([]), nextPageToken: 'more' }, 200],
       [{ ...list([]), '@odata.nextLink': 'more' }, 200], [list([{ id: 'a' }, { id: 'b' }]), 200], [list([{}]), 200], [{}, 200]]) {
       const failed = runCode('calendar-sync-resolve.js', { json: { body, statusCode }, nodes: { 'Plan sync': plan } }).json;

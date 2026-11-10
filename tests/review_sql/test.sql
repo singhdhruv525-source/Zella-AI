@@ -9,7 +9,7 @@ create extension if not exists plpgsql_check;
 do $$ declare f record; t record; e record; begin
   for f in select p.oid, p.prorettype, p.proname from pg_proc p join pg_language l on l.oid = p.prolang
     where p.pronamespace = 'public'::regnamespace and l.lanname = 'plpgsql'
-      and p.proname = any (array['zella_admin_messages', 'zella_config_migration_restore', 'zella_dispatch_n8n', 'zella_platform_admin_email_check', 'zella_claim_admin_alert_email', 'zella_admin_routing_save', 'zella_admin_message_detail', 'zella_admin_template_variables', 'zella_admin_numbers', 'zella_admin_calls', 'zella_admin_automations', 'zella_admin_runs', 'zella_admin_templates', 'zella_set_industry_rules', 'zella_answer_knowledge_gap', 'zella_knowledge_guard', 'zella_capture_web_lead', 'zella_ai_booking', 'zella_flag_unrecorded_appointments', 'zella_rebalance_assignments', 'zella_save_business_hours', 'zella_add_business_closure', 'zella_finish_calendar_sync', 'zella_calendar_connect_provider', 'zella_queue_calendar_sync', 'zella_claim_calendar_sync', 'zella_replace_calendar_busy', 'zella_sensitive_industry', 'zella_today_operations', 'zella_merge_customers', 'zella_log_customer_request', 'zella_update_customer_request', 'zella_record_status_touches_trg', 'zella_queue_customer_touches', 'zella_check_engine_health', 'zella_ai_voice', 'zella_complete_followup_task', 'zella_claim_reminders', 'zella_permission_check', 'zella_apply_industry_automations', 'zella_decide_draft', 'zella_claim_events', 'zella_complete_event', 'zella_record_consent', 'zella_calls_page', 'zella_inbox_previews']) loop
+      and p.proname = any (array['zella_admin_messages', 'zella_config_migration_restore', 'zella_dispatch_n8n', 'zella_platform_admin_email_check', 'zella_claim_admin_alert_email', 'zella_admin_routing_save', 'zella_admin_message_detail', 'zella_admin_template_variables', 'zella_admin_numbers', 'zella_admin_calls', 'zella_admin_automations', 'zella_admin_runs', 'zella_admin_templates', 'zella_set_industry_rules', 'zella_answer_knowledge_gap', 'zella_knowledge_guard', 'zella_capture_web_lead', 'zella_ai_booking', 'zella_flag_unrecorded_appointments', 'zella_rebalance_assignments', 'zella_save_business_hours', 'zella_add_business_closure', 'zella_finish_calendar_sync', 'zella_calendar_connect_provider', 'zella_queue_calendar_sync', 'zella_claim_calendar_sync', 'zella_replace_calendar_busy', 'zella_sensitive_industry', 'zella_today_operations', 'zella_merge_customers', 'zella_log_customer_request', 'zella_update_customer_request', 'zella_record_status_touches_trg', 'zella_queue_customer_touches', 'zella_check_engine_health', 'zella_ai_voice', 'zella_complete_followup_task', 'zella_claim_reminders', 'zella_permission_check', 'zella_apply_industry_automations', 'zella_decide_draft', 'zella_claim_events', 'zella_complete_event', 'zella_record_consent', 'zella_calls_page', 'zella_inbox_previews', 'zella_offer_redeem_core', 'zella_reassign_callback', 'zella_erase_customer', 'zella_language_allowance', 'zella_decide_time_off', 'zella_offboard_member', 'zella_public_status', 'zella_check_uptime', 'zella_record_email_event']) loop
     if f.prorettype = 'trigger'::regtype then
       for t in select distinct tgrelid from pg_trigger where tgfoid = f.oid loop
         for e in select * from plpgsql_check_function_tb(f.oid, t.tgrelid) where level = 'error' loop
@@ -111,6 +111,27 @@ select public.zella_replace_calendar_busy('fa400000-0000-0000-0000-000000000001'
 do $$ begin if (select title from public.blocked_times where external_id = 'e1') <> 'Busy (Outlook calendar)' then raise exception 'FAIL #33 title'; end if; end $$;
 select 'PASS #38 501 events refused and nothing removed; #33 an Outlook busy time is labelled Outlook';
 
+-- #32 switching providers clears old event ids and requeues future confirmed bookings.
+-- Reuse the active Outlook connection and provider-switch/queue fixture pattern.
+insert into public.appointments (id, business_id, title, start_time, end_time, status, booking_state, external_event_id)
+values ('fa700000-0000-0000-0000-000000000001', 'fa000000-0000-0000-0000-0000000000b1', 'Provider switch',
+  now() + interval '3 days', now() + interval '3 days 1 hour', 'confirmed', 'confirmed', 'outlook-old-event');
+insert into public.business_members (business_id, user_id, role, status)
+values ('fa000000-0000-0000-0000-0000000000b1', 'fa000000-0000-0000-0000-00000000000a', 'owner', 'active');
+do $$ declare old_queue uuid; begin
+  select id into strict old_queue from public.calendar_sync_queue
+   where appointment_id = 'fa700000-0000-0000-0000-000000000001' and status = 'pending';
+  perform public.zella_calendar_connect_provider('fa000000-0000-0000-0000-0000000000b1', 'google',
+    'fa000000-0000-0000-0000-00000000000a', 'owner@rf.test', 'rt-switch-test');
+  assert (select status from public.calendar_connections where id = 'fa400000-0000-0000-0000-000000000001') = 'disconnected', 'old provider disconnected';
+  assert exists (select 1 from public.calendar_connections where business_id = 'fa000000-0000-0000-0000-0000000000b1' and provider = 'google' and status = 'active'), 'new provider active';
+  assert (select external_event_id from public.appointments where id = 'fa700000-0000-0000-0000-000000000001') is null, 'old event id cleared';
+  assert not exists (select 1 from public.calendar_sync_queue where id = old_queue), 'old pending row deleted';
+  assert exists (select 1 from public.calendar_sync_queue where appointment_id = 'fa700000-0000-0000-0000-000000000001'
+    and business_id = 'fa000000-0000-0000-0000-0000000000b1' and status = 'pending' and action = 'upsert' and id <> old_queue), 'future confirmed booking requeued after deletion';
+end $$;
+select 'PASS #32 switching provider requeues a future confirmed booking after removing the old pending row';
+
 -- #39 sensitive industry only for the caller's own business
 set local role authenticated; select pg_temp.as_user('fa000000-0000-0000-0000-00000000000a');
 do $$ begin if not public.zella_sensitive_industry('fa000000-0000-0000-0000-0000000000a1') then raise exception 'FAIL #39 owner'; end if; end $$;
@@ -180,7 +201,7 @@ update auth.users set last_sign_in_at = now() where id = 'fa000000-0000-0000-000
 do $$ begin
   insert into public.platform_admins (user_id, role, is_active) values ('fa000000-0000-0000-0000-00000000000f', 'super_admin', true);
   raise exception 'FAIL platform admin without a verified email identity was accepted';
-exception when others then if sqlerrm like 'FAIL%' then raise; end if;
+exception when others then if sqlerrm <> 'ADMIN_EMAIL_NOT_CONFIRMED' then raise; end if;
 end $$;
 select 'PASS platform admin needs a verified email identity (CodeRabbit #38 second pass)';
 insert into auth.identities (user_id, provider, email, identity_data) values ('fa000000-0000-0000-0000-00000000000f', 'email', 'newadmin@rf.test', '{"email": "newadmin@rf.test", "email_verified": true}');
@@ -289,14 +310,24 @@ begin
   d := pg_get_functiondef((select oid from pg_proc where proname = 'zella_check_uptime'));
   if position('greatest(v_last, v_since)' in d) = 0 then raise exception 'FAIL #41 uptime uses the older of the two times'; end if;
 end $$;
--- a non-member cannot read a business's language allowance
+-- Anon has no execute grant. Also exercise the body with a test-only grant,
+-- restored immediately and rolled back with all other fixtures.
+do $$ begin
+  if has_function_privilege('anon', 'public.zella_language_allowance(uuid)', 'execute') then
+    raise exception 'FAIL #41 anon can execute language allowance';
+  end if;
+end $$;
+grant execute on function public.zella_language_allowance(uuid) to anon;
+set local request.jwt.claims = '{"role": "anon"}';
 do $$ begin
   set local role anon;
-  begin perform public.zella_language_allowance((select id from public.businesses limit 1));
+  begin perform public.zella_language_allowance('fa000000-0000-0000-0000-0000000000a1');
     raise exception 'FAIL #41 anon read the language allowance';
-  exception when others then if sqlerrm like 'FAIL%' then raise; end if; end;
+  exception when others then if sqlerrm <> 'NOT_ALLOWED' then raise; end if; end;
   reset role;
 end $$;
+revoke execute on function public.zella_language_allowance(uuid) from anon;
+reset request.jwt.claims;
 select 'PASS #41 offer key lock, closed callbacks, erase scrubs more, allowance needs a role, time-off lock, offboard target, public status hides titles, uptime age';
 
 -- CodeRabbit #38 (autofix): call insights follow the call-content rule; email proof needs an email sign-in on a verified identity
@@ -334,7 +365,8 @@ select 'PASS audit #2 a hard bounce suppresses only the sending business''s cust
 -- CodeRabbit security audit #7: a business's currency is readable only by its members
 set local request.jwt.claims = '{"sub": "fa000000-0000-0000-0000-00000000000f", "role": "authenticated"}';
 do $$ begin
-  if public.zella_business_currency('fa000000-0000-0000-0000-0000000000b1') is not null and not public.is_business_member('fa000000-0000-0000-0000-0000000000b1') then raise exception 'FAIL audit #7 a non-member read the currency'; end if;
+  if public.is_business_member('fa000000-0000-0000-0000-0000000000b1') then raise exception 'FAIL audit #7 fixture user is a business member'; end if;
+  if public.zella_business_currency('fa000000-0000-0000-0000-0000000000b1') is not null then raise exception 'FAIL audit #7 a non-member read the currency'; end if;
 end $$;
 reset request.jwt.claims;
 do $$ begin if public.zella_business_currency('fa000000-0000-0000-0000-0000000000b1') is null then raise exception 'FAIL audit #7 server code lost the currency'; end if; end $$;
