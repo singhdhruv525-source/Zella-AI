@@ -362,12 +362,13 @@
       "position": [
         1560,
         -300
-      ]
+      ],
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Only a complete, successful lookup permits creating an event.\nconst plan = $('Plan sync').item.json;\nconst b = $json.body || {};\nconst events = plan.provider === 'outlook' ? b.value : b.items;\nif ($json.statusCode !== 200 || !Array.isArray(events) || b.nextPageToken || b['@odata.nextLink'] || events.length > 1) {\n  throw new Error('calendar_reconciliation_failed');\n}\nconst google = { ...plan.google };\nif (events.length) {\n  if (typeof events[0].id !== 'string' || !events[0].id) throw new Error('calendar_reconciliation_failed');\n  google.method = 'PATCH';\n  google.url = plan.provider === 'outlook' ? 'https://graph.microsoft.com/v1.0/me/events/' + encodeURIComponent(events[0].id) : google.url + '/' + encodeURIComponent(events[0].id);\n  google.body = { ...google.body };\n  delete google.body.id;\n  delete google.body.transactionId;\n}\nreturn { json: { google } };\n"
+        "jsCode": "// Only a complete, successful lookup permits creating an event.\nconst plan = $('Plan sync').item.json;\nconst failed = () => ({ json: { record: { p_queue_id: plan.queue_id, p_ok: false, p_event_id: null, p_error: 'calendar_reconciliation_failed' } } });\nconst b = $json.body || {};\nconst events = plan.provider === 'outlook' ? b.value : b.items;\nif ($json.statusCode !== 200 || !Array.isArray(events) || b.nextPageToken || b['@odata.nextLink'] || events.length > 1) {\n  return failed();\n}\nconst google = { ...plan.google };\nif (events.length) {\n  if (typeof events[0].id !== 'string' || !events[0].id) return failed();\n  google.method = 'PATCH';\n  google.url = plan.provider === 'outlook' ? 'https://graph.microsoft.com/v1.0/me/events/' + encodeURIComponent(events[0].id) : google.url + '/' + encodeURIComponent(events[0].id);\n  google.body = { ...google.body };\n  delete google.body.id;\n  delete google.body.transactionId;\n}\nreturn { json: { google } };\n"
       },
       "id": "6a39b642-5928-4ef6-8957-921d87ec0768",
       "name": "Resolve event",
@@ -376,6 +377,39 @@
       "position": [
         1680,
         -300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "954e93d4-5669-41cf-83af-34bffb37b4e4",
+              "leftValue": "={{ !!$json.google }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "93a002a5-f9fd-4c11-8276-d8dee8ea7c21",
+      "name": "Lookup succeeded",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1740,
+        -400
       ]
     },
     {
@@ -489,7 +523,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Zella - Calendar Sync: read the calendar provider's answer and report it back to the database (which retries or\n// raises an alert). Only a short error name is kept; the provider's response text is never stored.\nconst plan = $('Plan sync').item.json;\nconst name = plan.provider === 'outlook' ? 'microsoft' : 'google';\nconst rec = (ok, eventId, error) => ({ json: { record: { p_queue_id: plan.queue_id, p_ok: ok, p_event_id: eventId || null, p_error: ok ? null : String(error).slice(0, 80) } } });\nif (!plan.queue_id) return { json: { record: null } };\nif (!plan.needs_google) return plan.skip_ok ? rec(true, null) : rec(false, null, 'bad_queue_item');\nlet tok = null;\ntry { tok = $(plan.provider === 'outlook' ? 'Get Microsoft token' : 'Get Google token').item.json; } catch (e) { tok = null; }\nconst tb = tok && tok.body && typeof tok.body === 'object' ? tok.body : {};\nif (!tb.access_token) return rec(false, null, name + '_token_' + (typeof tb.error === 'string' ? tb.error.replace(/[^a-z_]/gi, '').slice(0, 30) : 'failed'));\nconst status = Number($json.statusCode);\nconst b = $json.body && typeof $json.body === 'object' ? $json.body : {};\nif (plan.google.action === 'delete') return (status >= 200 && status < 300) || status === 404 || status === 410 ? rec(true, null) : rec(false, null, name + '_' + (status || 'no_answer'));\nif (status >= 200 && status < 300 && typeof b.id === 'string') return rec(true, b.id);\nreturn rec(false, null, name + '_' + (status || 'no_answer'));\n"
+        "jsCode": "// Zella - Calendar Sync: read the calendar provider's answer and report it back to the database (which retries or\n// raises an alert). Only a short error name is kept; the provider's response text is never stored.\nconst plan = $('Plan sync').item.json;\nconst name = plan.provider === 'outlook' ? 'microsoft' : 'google';\nconst rec = (ok, eventId, error) => ({ json: { record: { p_queue_id: plan.queue_id, p_ok: ok, p_event_id: eventId || null, p_error: ok ? null : String(error).slice(0, 80) } } });\nif (!plan.queue_id) return { json: { record: null } };\nif ($json.record?.p_error === 'calendar_reconciliation_failed') return rec(false, null, 'calendar_reconciliation_failed');\nif (!plan.needs_google) return plan.skip_ok ? rec(true, null) : rec(false, null, 'bad_queue_item');\nlet tok = null;\ntry { tok = $(plan.provider === 'outlook' ? 'Get Microsoft token' : 'Get Google token').item.json; } catch (e) { tok = null; }\nconst tb = tok && tok.body && typeof tok.body === 'object' ? tok.body : {};\nif (!tb.access_token) return rec(false, null, name + '_token_' + (typeof tb.error === 'string' ? tb.error.replace(/[^a-z_]/gi, '').slice(0, 30) : 'failed'));\nconst status = Number($json.statusCode);\nconst b = $json.body && typeof $json.body === 'object' ? $json.body : {};\nif (plan.google.action === 'delete') return (status >= 200 && status < 300) || status === 404 || status === 410 ? rec(true, null) : rec(false, null, name + '_' + (status || 'no_answer'));\nif (status >= 200 && status < 300 && typeof b.id === 'string') return rec(true, b.id);\nreturn rec(false, null, name + '_' + (status || 'no_answer'));\n"
       },
       "id": "4c6d268d-614a-4f2c-88a7-3ba8dafbadc2",
       "name": "Read result",
@@ -1129,7 +1163,25 @@
       "main": [
         [
           {
+            "node": "Lookup succeeded",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lookup succeeded": {
+      "main": [
+        [
+          {
             "node": "Reconciled call",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Read result",
             "type": "main",
             "index": 0
           }

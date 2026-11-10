@@ -548,8 +548,9 @@ const calendarSync = wf('Zella - Calendar Sync', [
     method: 'GET', url: "={{ $('Plan sync').item.json.lookup_url }}", authentication: 'none',
     ...googleAuthHeader,
     options: { response: { response: { fullResponse: true, neverError: true, responseFormat: 'json' } } },
-  }),
+  }, { onError: 'continueRegularOutput' }),
   code('Resolve event', [1680, -300], 'calendar-sync-resolve.js'),
+  ifBool('Lookup succeeded', [1740, -400], '={{ !!$json.google }}'),
   node('Reconciled call', 'n8n-nodes-base.httpRequest', 4.2, [1800, -300], {
     method: '={{ $json.google.method }}', url: '={{ $json.google.url }}', authentication: 'none',
     sendHeaders: true, headerParameters: { parameters: [{ name: 'Authorization', value: "=Bearer {{ $('Token ok').item.json.body.access_token }}" }] },
@@ -599,7 +600,8 @@ const calendarSync = wf('Zella - Calendar Sync', [
   'Is delete': { main: [[link('Google delete')], [link('Needs lookup')]] },
   'Needs lookup': { main: [[link('Find existing event')], [link('Google call')]] },
   'Find existing event': { main: [[link('Resolve event')]] },
-  'Resolve event': { main: [[link('Reconciled call')]] },
+  'Resolve event': { main: [[link('Lookup succeeded')]] },
+  'Lookup succeeded': { main: [[link('Reconciled call')], [link('Read result')]] },
   'Reconciled call': { main: [[link('Read result')]] },
   'Google delete': { main: [[link('Read result')]] },
   'Google call': { main: [[link('Read result')]] },
@@ -875,10 +877,15 @@ const websiteCrawler = wf('Zella - Website Crawler', [
 const failureAlert = wf('Zella - Failure Alert', [
   node('A workflow failed', 'n8n-nodes-base.errorTrigger', 1, [0, 200], {}),
   code('Describe failure', [240, 200], 'failure-alert.js'),
-  rpcNode('Raise alert', [480, 200], 'zella_platform_alert', '={{ JSON.stringify($json.alert) }}', { full: true }),
+  { ...rpcNode('Raise alert', [480, 200], 'zella_platform_alert', '={{ JSON.stringify($json.alert) }}'),
+    retryOnFail: true, maxTries: 3, waitBetweenTries: 5000, onError: 'continueErrorOutput' },
+  node('Alert delivery failed', 'n8n-nodes-base.stopAndError', 1, [720, 300], {
+    errorType: 'errorMessage', errorMessage: 'workflow_alert_delivery_failed: platform alert delivery exhausted retries',
+  }),
 ], {
   'A workflow failed': { main: [[link('Describe failure')]] },
   'Describe failure': { main: [[link('Raise alert')]] },
+  'Raise alert': { main: [[], [link('Alert delivery failed')]] },
 });
 
 failureAlert.id = FAILURE_WORKFLOW_ID;

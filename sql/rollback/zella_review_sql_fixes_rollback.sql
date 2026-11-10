@@ -184,7 +184,7 @@ begin
     raise exception 'VERSION_MISMATCH: public.zella_config_migration_restore(uuid) is not the version this file was written against (rollback)';
   end if;
   select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_dispatch_n8n()');
-  if v is null or v not in ('da510c38639c117833a799c01723f07f', 'a415745bfcd66f15293eee25d2767d7f') then
+  if v is null or v not in ('da510c38639c117833a799c01723f07f', '6144122e54ea96d4fb7de63676321d4d') then
     raise exception 'VERSION_MISMATCH: public.zella_dispatch_n8n() is not the version this file was written against (rollback)';
   end if;
   select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_platform_admin_email_check()');

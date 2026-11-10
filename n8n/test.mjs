@@ -1835,9 +1835,22 @@ test('calendar reconciliation patches existing events and refuses uncertain look
     assert.equal(existing.method, 'PATCH');
     assert.ok(existing.url.endsWith('/already-created'));
     assert.equal(existing.body.id, undefined);
-    assert.throws(() => resolve(list([]), 503), /calendar_reconciliation_failed/);
-    assert.throws(() => resolve({ ...list([]), nextPageToken: 'more' }), /calendar_reconciliation_failed/);
-    assert.throws(() => resolve(list([{ id: 'a' }, { id: 'b' }])), /calendar_reconciliation_failed/);
+    for (const [body, statusCode] of [[list([]), 503], [{ ...list([]), nextPageToken: 'more' }, 200],
+      [{ ...list([]), '@odata.nextLink': 'more' }, 200], [list([{ id: 'a' }, { id: 'b' }]), 200], [list([{}]), 200], [{}, 200]]) {
+      const failed = runCode('calendar-sync-resolve.js', { json: { body, statusCode }, nodes: { 'Plan sync': plan } }).json;
+      assert.equal(failed.google, undefined);
+      assert.equal(failed.record.p_ok, false);
+      assert.equal(failed.record.p_queue_id, plan.queue_id);
+      const result = runCode('calendar-sync-after.js', { json: failed, nodes: { 'Plan sync': plan } }).json.record;
+      assert.equal(result.p_ok, false);
+      assert.equal(result.p_event_id, null);
+      assert.equal(result.p_error, 'calendar_reconciliation_failed');
+    }
+    const workflow = wfJson('zella-calendar-sync.json');
+    assert.equal(workflow.nodes.find(n => n.name === 'Find existing event').onError, 'continueRegularOutput');
+    assert.equal(workflow.connections['Resolve event'].main[0][0].node, 'Lookup succeeded');
+    assert.equal(workflow.connections['Lookup succeeded'].main[1][0].node, 'Read result');
+    assert.equal(workflow.connections['Lookup succeeded'].main[0][0].node, 'Reconciled call');
   }
 });
 test('calendar unhandled failures use the imported sanitized error workflow', () => {
@@ -1845,6 +1858,20 @@ test('calendar unhandled failures use the imported sanitized error workflow', ()
   assert.equal(wfJson('zella-calendar-sync.json').settings.errorWorkflow, alert.id);
   const r = runCode('failure-alert.js', { json: { workflow: { name: 'Calendar Sync' }, execution: { error: { message: 'Bearer secret-value' } } } });
   assert.ok(!JSON.stringify(r).includes('secret-value'));
+  const delivery = alert.nodes.find(n => n.name === 'Raise alert');
+  assert.equal(delivery.retryOnFail, true);
+  assert.equal(delivery.maxTries, 3);
+  assert.equal(delivery.waitBetweenTries, 5000);
+  assert.equal(delivery.parameters.options.response?.response?.neverError, undefined);
+  assert.equal(delivery.onError, 'continueErrorOutput');
+  assert.equal(alert.connections['Raise alert'].main[1][0].node, 'Alert delivery failed');
+  const signal = alert.nodes.find(n => n.name === 'Alert delivery failed');
+  assert.equal(signal.type, 'n8n-nodes-base.stopAndError');
+  assert.ok(signal.parameters.errorMessage.startsWith('workflow_alert_delivery_failed:'));
+  assert.ok(!signal.parameters.errorMessage.includes('{{'));
+  assert.equal(alert.settings.saveDataSuccessExecution, 'none');
+  assert.equal(alert.settings.saveManualExecutions, false);
+  assert.equal(alert.settings.saveExecutionProgress, false);
   assert.equal(alert.settings.saveDataErrorExecution, 'none');
 });
 
