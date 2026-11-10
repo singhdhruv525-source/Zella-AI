@@ -78,6 +78,7 @@ const LANDING = {
 async function hasAdminAccess() {
   const { data, error } = await supabase.rpc("zella_admin_role");
   if (!error) return typeof data === "string";
+  if (!["PGRST202", "42883"].includes(error.code)) return false;
   const legacy = await supabase.rpc("is_platform_admin");
   return !legacy.error && legacy.data === true;
 }

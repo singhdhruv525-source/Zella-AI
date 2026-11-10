@@ -48,9 +48,15 @@ function ShiftModal({ workspace, staff, onClose, onSaved }) {
     }
     setBusy(true);
     setError("");
+    let saved = 0;
     for (const shift of shifts) {
       const { error: saveError } = await supabase.rpc("zella_on_call_save", { p_business_id: workspace.id, p_shift: shift });
-      if (saveError) { setBusy(false); return setError(say(saveError)); }
+      if (saveError) {
+        setBusy(false);
+        if (saved) return onSaved(`${saved} of ${shifts.length} days saved. ${say(saveError)}`);
+        return setError(say(saveError));
+      }
+      saved += 1;
     }
     setBusy(false);
     onSaved(form.kind === "weekly" ? "Added to the weekly rota." : "Cover added. It takes over from the weekly rota for that time.");

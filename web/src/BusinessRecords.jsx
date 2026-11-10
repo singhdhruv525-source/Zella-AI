@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "./supabase";
 import { Field, Icon, Modal, Pill, personName } from "./BusinessUI";
-import { formatDay, formatTime, timeAgo } from "./businessTime";
+import { formatDay, formatTime, timeAgo, zonedDateTime } from "./businessTime";
 import { Empty, Notice, PAGE_SIZE, PageHead, Pager, explain, orThrow, useLoad } from "./BusinessShared";
 import { PersonPicker } from "./BusinessWork";
 import { useRoster } from "./BusinessLeads";
@@ -16,12 +16,14 @@ import { linkIdsOf, linkTitle, LINK_BATCH } from "./crm/links";
 // (fields, statuses, names) come from crm_record_types.
 
 const slug = (text) => text.toLowerCase().trim().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40);
-const toInputDateTime = (value) => {
+const toInputDateTime = (value, tz) => {
   if (!value) return "";
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return "";
-  const pad = (n) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).formatToParts(d).map(({ type, value }) => [type, value]));
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
 };
 
 export function useRecordTypes(workspace, refreshKey) {
@@ -82,7 +84,7 @@ function SensitiveInput({ field, isNew, secrets, canChange, edited, value, onRev
   return <input value={edited ? value ?? "" : known ?? ""} onChange={(e) => onChange(e.target.value)} autoComplete="off" placeholder={isNew ? "" : "Empty clears it"} />;
 }
 
-function FieldInput({ field, value, onChange }) {
+function FieldInput({ field, value, onChange, tz }) {
   const v = value ?? "";
   if (field.type === "longtext") return <textarea rows={3} value={v} onChange={(e) => onChange(e.target.value)} />;
   if (field.type === "select") return (
@@ -95,8 +97,8 @@ function FieldInput({ field, value, onChange }) {
     <label className="ba-check"><input type="checkbox" checked={v === true || v === "true"} onChange={(e) => onChange(e.target.checked)} /> Yes</label>
   );
   const htmlType = { number: "number", date: "date", datetime: "datetime-local", phone: "tel", email: "email" }[field.type] ?? "text";
-  const shown = field.type === "datetime" ? toInputDateTime(v) : v;
-  return <input type={htmlType} value={shown} onChange={(e) => onChange(field.type === "datetime" && e.target.value ? new Date(e.target.value).toISOString() : e.target.value)} />;
+  const shown = field.type === "datetime" ? toInputDateTime(v, tz) : v;
+  return <input type={htmlType} value={shown} onChange={(e) => onChange(field.type === "datetime" && e.target.value ? zonedDateTime(...e.target.value.split("T"), tz).toISOString() : e.target.value)} />;
 }
 
 /* ------------------------------------------------------------------ */
@@ -256,7 +258,7 @@ function RecordModal({ workspace, type, record, canManage, onBook, onClose, onSa
   const [error, setError] = useState("");
   const [duplicateId, setDuplicateId] = useState(null);
   const [assignee, setAssignee] = useState(record?.assigned_to ?? "");
-  const [due, setDue] = useState(toInputDateTime(record?.due_at));
+  const [due, setDue] = useState(toInputDateTime(record?.due_at, tz));
   const [secrets, setSecrets] = useState(null);
   const [secretEdits, setSecretEdits] = useState({});
   const roster = useRoster(workspace);
@@ -294,7 +296,7 @@ function RecordModal({ workspace, type, record, canManage, onBook, onClose, onSa
     const { data: saved, error: failure } = await supabase.rpc("zella_save_record", {
       p_business_id: workspace.id, p_type_key: type.key, p_id: record?.id ?? null, p_title: title, p_status: status,
       p_customer_id: type.link_person ? person?.id ?? null : null, p_assigned_to: assignee || null,
-      p_due_at: due ? new Date(due).toISOString() : null,
+      p_due_at: due ? zonedDateTime(...due.split("T"), tz).toISOString() : null,
       // sensitive values only when they were typed here (absent = unchanged on the server)
       p_data: { ...data, ...secretEdits },
     });
@@ -343,7 +345,7 @@ function RecordModal({ workspace, type, record, canManage, onBook, onClose, onSa
                     value={secretEdits[f.key]} onReveal={reveal} onChange={(val) => setSecretEdits({ ...secretEdits, [f.key]: val })} />
                 : f.type === "record"
                   ? <RecordLinkInput workspace={workspace} field={f} value={data[f.key]} onChange={(val) => setData({ ...data, [f.key]: val })} />
-                  : <FieldInput field={f} value={data[f.key]} onChange={(val) => setData({ ...data, [f.key]: val })} />}
+                  : <FieldInput tz={tz} field={f} value={data[f.key]} onChange={(val) => setData({ ...data, [f.key]: val })} />}
             </Field>
           ))}
           <Field label="Assigned to">

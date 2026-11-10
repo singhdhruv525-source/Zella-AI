@@ -25,6 +25,8 @@ export default function AdminAlertsBell({ onOpenMonitoring }) {
   const [loadFailed, setLoadFailed] = useState(false);   // never shown as "all calm" when alerts couldn't be read
   const seen = useRef(null);
   const box = useRef(null);
+  const bell = useRef(null);
+  const dialog = useRef(null);
 
   async function load() {
     const { data, error: e } = await supabase.from("platform_alerts").select("id, kind, severity, title, detail, occurrences, last_seen_at, business_id")
@@ -53,11 +55,12 @@ export default function AdminAlertsBell({ onOpenMonitoring }) {
   useEffect(() => { tabCount((rows ?? []).filter((a) => a.severity !== "info").length); }, [rows]);
   useEffect(() => {
     if (!open) return undefined;
+    dialog.current?.focus();
     const close = (e) => { if (box.current && !box.current.contains(e.target)) setOpen(false); };
     const key = (e) => e.key === "Escape" && setOpen(false);
     document.addEventListener("mousedown", close);
     document.addEventListener("keydown", key);
-    return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", key); };
+    return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", key); bell.current?.focus(); };
   }, [open]);
 
   async function acknowledge(alert) {
@@ -74,12 +77,12 @@ export default function AdminAlertsBell({ onOpenMonitoring }) {
   const urgent = list.some((a) => a.severity === "urgent");
   return (
     <div className="owner-bell" ref={box}>
-      <button type="button" className="owner-icon-button" aria-label={loadFailed ? "Platform alerts (couldn't load)" : loud ? `${loud} platform alerts` : "Platform alerts"} aria-expanded={open} title="Platform alerts" onClick={() => setOpen(!open)}>
+      <button ref={bell} type="button" className="owner-icon-button" aria-label={loadFailed ? "Platform alerts (couldn't load)" : loud ? `${loud} platform alerts` : "Platform alerts"} aria-expanded={open} title="Platform alerts" onClick={() => setOpen(!open)}>
         <Icon name="notifications" />
         {loud > 0 && <span className={`owner-bell-count ${urgent ? "urgent" : ""}`}>{loud > 9 ? "9+" : loud}</span>}
       </button>
       {open && (
-        <div className="owner-bell-panel" role="dialog" aria-label="Platform alerts">
+        <div ref={dialog} tabIndex={-1} className="owner-bell-panel" role="dialog" aria-label="Platform alerts">
           <div className="owner-bell-head"><strong>Platform alerts</strong><span>{list.length ? `${list.length} open` : ""}</span></div>
           {error && <p className="owner-bell-error" role="alert">{error}</p>}
           {loadFailed && <p className="owner-bell-error" role="alert">Alerts couldn't be loaded, so this list may be out of date.{" "}

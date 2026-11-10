@@ -5,6 +5,7 @@ import { formatDay, formatTime, timeAgo, todayInput, zonedDateTime } from "./bus
 import { Empty, Notice, PageHead, Pager, Segment, clock, explain, loadPeople, plural, useLoad, callResult, isAnswered } from "./BusinessShared";
 import { useServerPages } from "./crm/paging";
 import { inboxItem, replyBlock, supportProblems, threadFrom } from "./crm/inbox";
+import { recordingAllowed } from "./BusinessCalls";
 import { EscalationControls, Transcript, isOpenEscalation } from "./BusinessProfile";
 import { Assignee, useRoster } from "./BusinessLeads";
 
@@ -232,9 +233,9 @@ function CallPane({ item, person, workspace, onChanged, onNotice, onOpenPerson, 
       {full.error && <Notice error={`Couldn't load this call's summary and transcript. ${full.error}`} onRetry={full.reload} />}
       {isOpenEscalation(call) && <EscalationControls call={call} onChanged={onChanged} onNotice={onNotice} />}
       {call.summary && <section><h3 className="ba-sub">Summary</h3><p className="ba-item-text">{call.summary}</p></section>}
-      {call.recording_url && <section><h3 className="ba-sub">Recording</h3><audio controls preload="none" src={call.recording_url} style={{ width: "100%" }} /></section>}
-      {call.transcript && <section><h3 className="ba-sub">Transcript</h3><Transcript transcript={call.transcript} /></section>}
-      {full.data && !call.summary && !call.transcript && <p className="ba-muted">No summary or transcript for this call.</p>}
+      {call.recording_url && recordingAllowed(call) && <section><h3 className="ba-sub">Recording</h3><audio controls preload="none" src={call.recording_url} style={{ width: "100%" }} /></section>}
+      {(call.transcript || !["owner", "admin", "manager"].includes(workspace.role)) && <section><h3 className="ba-sub">Transcript</h3><Transcript transcript={call.transcript} role={workspace.role} /></section>}
+      {full.data && ["owner", "admin", "manager"].includes(workspace.role) && !call.summary && !call.transcript && <p className="ba-muted">No summary or transcript for this call.</p>}
     </div>
   );
 }

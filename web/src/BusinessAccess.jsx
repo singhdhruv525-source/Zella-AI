@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { supabase } from "./supabase";
 import { Field, Icon, Modal, Pill, initials } from "./BusinessUI";
 import { timeAgo } from "./businessTime";
@@ -47,7 +47,8 @@ export function ApprovalsPage({ workspace, refreshKey, onNotice }) {
   const { data, error, loading, reload } = useLoad(async () => {
     const { data: rows, error: e } = await supabase.rpc("zella_pending_approvals", { p_business_id: workspace.id });
     if (e) throw e;
-    return rows ?? [];
+    if (!rows) throw new Error("Approvals unavailable.");
+    return rows;
   }, [workspace.id, refreshKey]);
   const [busy, setBusy] = useState("");
 
@@ -65,7 +66,7 @@ export function ApprovalsPage({ workspace, refreshKey, onNotice }) {
       <PageHead crumb="Team & staff / Approvals" title="Approvals" sub="Sensitive actions wait here until a second person says yes." />
       <Notice error={error} onRetry={reload} />
       <section className="ba-panel">
-        {!data?.length ? (
+        {loading || error || !data ? <p className="ba-muted">{loading ? "Loading…" : "Items unavailable"}</p> : !data.length ? (
           <div className="ba-panel-body"><Empty title={loading ? "Loading…" : "Nothing waiting"}>When someone asks to erase a customer's data or do something similar, it shows up here.</Empty></div>
         ) : (
           <ul className="ba-threads">
@@ -102,7 +103,7 @@ function InviteModal({ workspace, onClose, onDone }) {
   async function save() {
     setBusy(true); setProblem("");
     const email = form.email.trim().toLowerCase();
-    const { data: invitationId, error: e } = await supabase.rpc("zella_invite_staff", { p_business_id: workspace.id, p_email: form.email, p_name: form.name, p_role: form.role });
+    const { data: invitationId, error: e } = await supabase.rpc("zella_invite_staff", { p_business_id: workspace.id, p_email: email, p_name: form.name, p_role: form.role });
     if (e) { setBusy(false); return setProblem(say(e)); }
     try {
       const result = await sendInvitationEmail(invitationId);
@@ -196,6 +197,8 @@ function HandoverModal({ workspace, people, me, onClose, onDone }) {
 
 export function AccessPage({ workspace, refreshKey, onNotice, userId }) {
   const [modal, setModal] = useState(null);
+  const resendLock = useRef(null);
+  const [resending, setResending] = useState(null);
   const canAdmin = ["owner", "admin"].includes(workspace.role);
   const { data, error, loading, reload } = useLoad(async () => {
     const roster = orThrow(await supabase.rpc("zella_team_roster", { p_business_id: workspace.id }));
@@ -203,7 +206,8 @@ export function AccessPage({ workspace, refreshKey, onNotice, userId }) {
     if (canAdmin) {
       const r = await supabase.rpc("zella_list_invitations", { p_business_id: workspace.id });
       if (r.error) throw r.error;
-      invites = r.data ?? [];
+      if (!r.data) throw new Error("Invitations unavailable.");
+      invites = r.data;
     }
     return { roster, invites };
   }, [workspace.id, refreshKey]);
@@ -215,15 +219,23 @@ export function AccessPage({ workspace, refreshKey, onNotice, userId }) {
     onNotice(message); reload();
   }
   async function resend(invite) {
-    const { error: e } = await supabase.rpc("zella_resend_invitation", { p_invitation_id: invite.id });
-    if (e) return onNotice(say(e));
+    if (resendLock.current) return;
+    resendLock.current = invite.id;
+    setResending(invite.id);
     try {
+      const { error: e } = await supabase.rpc("zella_resend_invitation", { p_invitation_id: invite.id });
+      if (e) return onNotice(say(e));
       onNotice(sentMessage(invite.email, await sendInvitationEmail(invite.id)));
+      reload();
     } catch (err) {
       onNotice(err.message);
+      reload();
+    } finally {
+      resendLock.current = null;
+      setResending(null);
     }
-    reload();
   }
+
   const roster = data?.roster ?? [];
 
   return (
@@ -255,7 +267,7 @@ export function AccessPage({ workspace, refreshKey, onNotice, userId }) {
       {canAdmin && (
         <section className="ba-panel ba-gap">
           <div className="ba-panel-head"><div className="ba-panel-title"><div><h2>Waiting to join</h2><p>Invitations that haven't been accepted yet.</p></div></div></div>
-          {!data?.invites.length ? (
+          {loading || error || !data ? <p className="ba-muted">{loading ? "Loading…" : "Invitations unavailable"}</p> : !data.invites.length ? (
             <div className="ba-panel-body"><Empty title="No open invitations">Invite someone to give them access.</Empty></div>
           ) : (
             <ul className="ba-threads">
@@ -264,8 +276,8 @@ export function AccessPage({ workspace, refreshKey, onNotice, userId }) {
                   <span className="ba-thread-icon"><Icon name="mail" size="sm" /></span>
                   <div><strong>{i.email}</strong><small>{words(i.role)} · invited {timeAgo(i.invited_at)}{i.status === "expired" ? " · expired" : ""}{i.last_error ? ` · ${i.last_error}` : ""}</small></div>
                   <div className="ba-thread-meta">
-                    <button type="button" className="ba-btn sm" onClick={() => resend(i)}>Send again</button>
-                    <button type="button" className="ba-btn sm" onClick={() => act("zella_cancel_invitation", { p_invitation_id: i.id }, "Invitation canceled.")}>Cancel</button>
+                    <button type="button" className="ba-btn sm" disabled={resending === i.id} onClick={() => resend(i)}>Send again</button>
+                    <button type="button" className="ba-btn sm" disabled={resending === i.id} onClick={() => act("zella_cancel_invitation", { p_invitation_id: i.id }, "Invitation canceled.")}>Cancel</button>
                   </div>
                 </li>
               ))}
@@ -288,7 +300,8 @@ export function FailedWorkPage({ workspace, refreshKey, onNotice }) {
   const { data, error, loading, reload } = useLoad(async () => {
     const { data: d, error: e } = await supabase.rpc("zella_failed_work", { p_business_id: workspace.id });
     if (e) throw e;
-    return d ?? {};
+    if (!d) throw new Error("Failed messages unavailable.");
+    return d;
   }, [workspace.id, refreshKey]);
   const rows = FAILED.flatMap(([key, kind, label]) => (data?.[key] ?? []).map((r) => ({ ...r, kind, label })));
 
@@ -304,7 +317,7 @@ export function FailedWorkPage({ workspace, refreshKey, onNotice }) {
       <PageHead crumb="Calls & messages / Sending failed" title="Sending failed" sub="Follow-ups, appointment reminders and social messages that Zella tried to send in the last 7 days but couldn't. Fix the cause first (for example, reconnect the account), then retry." />
       <Notice error={error} onRetry={reload} />
       <section className="ba-panel">
-        {!rows.length ? (
+        {loading || error || !data ? <p className="ba-muted">{loading ? "Loading…" : "Failed messages unavailable"}</p> : !rows.length ? (
           <div className="ba-panel-body"><Empty title={loading ? "Loading…" : "No failed messages"}>Nothing failed to send in the last 7 days.</Empty></div>
         ) : (
           <ul className="ba-threads">
@@ -327,14 +340,15 @@ export function SecurityLogPage({ workspace, refreshKey }) {
   const { data, error, loading, reload } = useLoad(async () => {
     const { data: d, error: e } = await supabase.rpc("zella_security_log", { p_business_id: workspace.id, p_limit: 100 });
     if (e) throw e;
-    return d ?? [];
+    if (!d) throw new Error("Security log unavailable.");
+    return d;
   }, [workspace.id, refreshKey]);
   return (
     <>
       <PageHead crumb="Team & staff / Security log" title="Security log" sub="Who changed what in this workspace. The last 100 changes." />
       <Notice error={error} onRetry={reload} />
       <section className="ba-panel">
-        {!data?.length ? (
+        {loading || error || !data ? <p className="ba-muted">{loading ? "Loading…" : "Items unavailable"}</p> : !data.length ? (
           <div className="ba-panel-body"><Empty title={loading ? "Loading…" : "Nothing recorded yet"}>Changes to access, plans and customer data will appear here.</Empty></div>
         ) : (
           <ul className="ba-threads">
