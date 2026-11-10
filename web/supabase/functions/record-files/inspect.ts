@@ -76,7 +76,7 @@ export async function inspectPdf(b: Uint8Array): Promise<Verdict> {
     // Read from the enclosing object's start, not the last nested dictionary or a fixed window.
     const prefix = dictionaryTokens(text.slice(previousEnd, m.index));
     const objects = [...prefix.matchAll(/\b\d+\s+\d+\s+obj\b/g)];
-    const object = objects.at(-1);
+    const object = objects[0];
     if (!object) return { ok: false, reason: "damaged PDF stream dictionary" };
     const dict = unescapeNames(prefix.slice(object.index! + object[0].length));
     const start = m.index + m[0].length, end = text.indexOf("endstream", start);
@@ -89,6 +89,7 @@ export async function inspectPdf(b: Uint8Array): Promise<Verdict> {
     const filters = [...dict.matchAll(/\/Filter(?=[\s<>\[\]()/]|$)\s*(\[[^\]]*\]|\/[^\s<>\[\]()]+|[^\s]*)/g)];
     if (!filters.length) continue; // unfiltered bytes were scanned above
     if (filters.some((filter) => !/^\/FlateDecode$|^\[\s*\/FlateDecode\s*\]$/.test(filter[1]))) return { ok: false, reason: "unsupported PDF stream filter" };
+    if (/\/DecodeParms\s+\d+\s+\d+\s+R\b/.test(dict)) return { ok: false, reason: "unsupported PDF stream parameters" };
     // Predictors transform decoded bytes; this scanner only supports the default identity predictor.
     if (/\/Predictor\s+(?!1(?:\s|[<>/]))/.test(dict)) return { ok: false, reason: "unsupported PDF stream predictor" };
     const inflated = await inflate(b.subarray(start, stop), budget);

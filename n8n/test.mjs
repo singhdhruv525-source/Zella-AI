@@ -1807,6 +1807,18 @@ test('reviews: the workflow posts nothing without an approved claim and ships wi
   assert.equal(w.active, false);
 });
 
+test('brain tools preserve seating constraints and accept three-digit parties for database handoff', () => {
+  const ctx = sharedBrain.vapiCallContext({});
+  for (const seating of [null, 12, [], {}]) {
+    const p = sharedBrain.planBrainTool({ id: 'x', name: 'check_availability', arguments: { seating } }, ctx);
+    assert.match(p.invalid, /seating/);
+    assert.equal(p.record.p_tool, 'unknown');
+  }
+  for (const party_size of [1, 100, 101, 999]) assert.equal(sharedBrain.planBrainTool({ id: 'x', name: 'check_availability', arguments: { party_size, seating: 'patio' } }, ctx).invalid, null);
+  for (const party_size of [0, -1, 1.5, 1000]) assert.match(sharedBrain.planBrainTool({ id: 'x', name: 'check_availability', arguments: { party_size } }, ctx).invalid, /party_size/);
+  assert.match(sharedBrain.planBrainTool({ id: 'x', name: 'check_availability', arguments: { seating: 'x'.repeat(41) } }, ctx).invalid, /seating/);
+});
+
 console.log(`${passed} passed, ${failures.length} failed`);
 for (const f of failures) console.log('  FAIL ' + f);
 process.exit(failures.length ? 1 : 0);

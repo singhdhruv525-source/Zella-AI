@@ -77,9 +77,9 @@ Deno.test("unchecked PDF streams fail closed", async () => {
 });
 Deno.test("nested and long stream dictionaries cannot hide compressed active content", async () => {
   const z = await deflate("/J#61vaScript");
-  for (const extra of ["/Note (1 0 obj)", "/Note (nested (2 0 obj) literal)", "/DecodeParms << /Predictor 1 >>", `/Padding (${"x".repeat(500)})`]) {
+  for (const extra of ["/Foo 1 0 obj", "/Note (1 0 obj)", "/Note (nested (2 0 obj) literal)", "/DecodeParms << /Predictor 1 >>", `/Padding (${"x".repeat(500)})`]) {
     const b = cat(enc(`%PDF-1.7\n1 0 obj << /Filter /FlateDecode ${extra} >> stream\n`), z, enc("\nendstream endobj"));
-    assertEquals((await inspect("application/pdf", b)).ok, false);
+    assertEquals(await inspect("application/pdf", b), { ok: false, reason: "PDF with active content (in a compressed stream)" });
   }
 });
 Deno.test("stream markers inside compressed bytes are skipped", async () => {
@@ -99,4 +99,10 @@ Deno.test("every stream filter entry must be supported", async () => {
     const file = cat(enc(`%PDF-1.7\n1 0 obj << ${filters} >> stream\n`), z, enc("\nendstream endobj"));
     assertEquals((await inspect("application/pdf", file)).ok, false);
   }
+});
+
+Deno.test("indirect decode parameters fail closed before inspecting compressed content", async () => {
+  const z = await deflate("/J#61vaScript");
+  const b = cat(enc("%PDF-1.7\n1 0 obj << /Filter /FlateDecode /DecodeParms 2 0 R >> stream\n"), z, enc("\nendstream endobj"));
+  assertEquals(await inspect("application/pdf", b), { ok: false, reason: "unsupported PDF stream parameters" });
 });

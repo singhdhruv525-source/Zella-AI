@@ -487,7 +487,7 @@ function CurrentPlan({ w, onReload }) {
             ["Billing", e.subscription ? words(e.subscription.billing_interval) : "—"], ["Renews", when(e.subscription?.current_period_end)], ["Trial ends", when(e.subscription?.trial_end_at)],
             ["Core CRM", "Included in every plan"]]} />
           {w.cancel_at && !w.cancelled_at && w.role === "owner" && <button type="button" className="zs-btn primary" style={{ marginTop: 12 }} disabled={busy}
-            onClick={async () => { setBusy(true); setKeepError(""); try { await rpc("zella_owner_continue_plan", { p_business_id: w.id }); onReload?.(); } catch (err) { setKeepError(say(err)); } finally { setBusy(false); } }}>Keep my plan</button>}
+            onClick={async () => { setBusy(true); setKeepError(""); try { const kept = await rpc("zella_owner_continue_plan", { p_business_id: w.id }); if (kept === false) setKeepError("Your plan could not be continued. Please try again."); onReload?.(); } catch (err) { setKeepError(say(err)); } finally { setBusy(false); } }}>Keep my plan</button>}
           <Banner tone="error">{keepError}</Banner>
         </Card>
         <UsageCard e={e} />

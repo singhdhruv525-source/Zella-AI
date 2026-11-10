@@ -58,7 +58,7 @@ function invalidField(clean) {
   if (clean.duration_minutes !== undefined && !(Number.isInteger(clean.duration_minutes) && clean.duration_minutes >= 5 && clean.duration_minutes <= 480)) return 'duration_minutes must be a whole number from 5 to 480';
   if (clean.preferred_contact_method !== undefined && !['call', 'sms', 'email'].includes(clean.preferred_contact_method)) return 'preferred_contact_method must be call, sms or email';
   if (clean.email !== undefined && clean.email.length > 200) return 'email is too long';
-  if (clean.party_size !== undefined && !(Number.isInteger(clean.party_size) && clean.party_size >= 1 && clean.party_size <= 100)) return 'party_size must be a whole number of people from 1 to 100';
+  if (clean.party_size !== undefined && !(Number.isInteger(clean.party_size) && clean.party_size >= 1 && clean.party_size <= 999)) return 'party_size must be a whole number of people from 1 to 999';
   if (clean.seating !== undefined && clean.seating.length > 40) return 'seating must be a short preference, e.g. patio';
   if (clean.order_number !== undefined && !/^#?[A-Za-z0-9-]{1,30}$/.test(clean.order_number)) return 'order_number must be the order number only, e.g. 1001';
   return null;
@@ -71,13 +71,14 @@ function invalidField(clean) {
 export function planBrainTool(tc, ctx, allowed = TOOLS) {
   const name = toolName(tc);
   const args = toolArgs(tc);
+  const malformedSeating = Object.hasOwn(args, 'seating') && typeof args.seating !== 'string';
   const clean = {};
   for (const k of STRINGS) if (typeof args[k] === 'string') clean[k] = args[k].replace(/\s+/g, ' ').trim().slice(0, k === 'query' ? 300 : 1500);
   for (const k of NUMBERS) if (typeof args[k] === 'number' && Number.isFinite(args[k])) clean[k] = args[k];
   // the caller's yes must be a real boolean from the assistant; anything else counts as "not confirmed"
   clean.confirmed = args.confirmed === true;
   const known = TOOLS.includes(name) && allowed.includes(name);
-  const invalid = known ? invalidField(clean) : null;
+  const invalid = known ? (malformedSeating ? 'seating must be a string preference' : invalidField(clean)) : null;
   return {
     toolCallId: tc.id, name, known, invalid,
     record: { p_provider_call_id: ctx.callId, p_business_id: ctx.fallbackBusinessId, p_tool: known && !invalid ? name : 'unknown',

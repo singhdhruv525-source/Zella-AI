@@ -91,7 +91,12 @@ Deno.test("finish: cancelled while the email was going out: not completed, nothi
 });
 
 Deno.test("finish: thrown email error releases the claim", async () => {
+  let released = "";
   const w = world("pending", { extra: { sendInvite: async () => { throw new Error("network down"); } } });
+  const release = w.deps.release;
+  w.deps.release = async (id, reason) => { released = reason; await release(id, reason); };
   const r = await finishSetupWith(w.deps);
   assertEquals([r.completed, r.invitationStatus, w.st.inv.status, w.st.activated], [false, "failed", "failed", 0]);
+  assertEquals(r.invitationError, "The invitation could not be sent. Please try again.");
+  assertEquals(released, r.invitationError);
 });

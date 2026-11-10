@@ -109,7 +109,7 @@ export function WalkInModal({ workspace, staff, hospitality, onClose, onSaved })
           p_phone: phone, p_email: null, p_notes: null,
         });
         if (added.error) throw added.error;
-        customerId = added.data?.customer_id ?? null;
+        customerId = ["exists", "created"].includes(added.data?.result) ? added.data.customer_id ?? null : null;
       } else if (name) {
         // a name alone can't be matched safely, so a new customer is recorded
         const [first, ...rest] = name.split(/\s+/);

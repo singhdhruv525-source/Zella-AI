@@ -207,9 +207,10 @@ export function platformHandlers(admin: SupabaseClient, fields: Json, kit: Platf
       const { data: existing, error: exError } = await admin.from("crm_record_types").select("key").eq("business_id", businessId).limit(1);
       if (exError) throw exError;
       if (existing?.length) throw new InputError("This business already has record types");
-      const { error: applyError } = await admin.rpc("zella_apply_crm_preset", { p_business_id: businessId });
+      const { data: count, error: applyError } = await admin.rpc("zella_apply_crm_preset", { p_business_id: businessId });
       if (applyError) throw applyError;
-      return { businessId, changes: [{ applied_preset: true }] };
+      if (typeof count !== "number" || count < 1) throw new InputError("No record types were available to apply");
+      return { businessId, changes: [{ applied_preset: true, count }] };
     }
     const { data: current, error } = await admin.from("crm_record_types").select("key, enabled").eq("business_id", businessId);
     if (error) throw error;

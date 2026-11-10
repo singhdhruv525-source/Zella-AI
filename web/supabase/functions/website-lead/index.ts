@@ -21,8 +21,23 @@ export async function handle(req: Request): Promise<Response> {
   const base = Deno.env.get("SUPABASE_URL");
   if (!serverKey || !base) return json({ ok: false, error: "try_again", message: "Something went wrong. Please try again or call us." }, 503, origin);
 
-  const raw = await req.text();
-  if (raw.length > 12000) return json({ ok: false, error: "too_large" }, 413, origin);
+  let raw = "";
+  const reader = req.body?.getReader();
+  if (reader) {
+    const decoder = new TextDecoder();
+    let bytes = 0;
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        bytes += value.byteLength;
+        if (bytes > 12000) { await reader.cancel(); return json({ ok: false, error: "too_large" }, 413, origin); }
+        raw += decoder.decode(value, { stream: true });
+      }
+      raw += decoder.decode();
+    } catch { return json({ ok: false, error: "bad_json" }, 400, origin); }
+    finally { reader.releaseLock(); }
+  }
   let b: Record<string, unknown>;
   try { b = JSON.parse(raw); } catch { return json({ ok: false, error: "bad_json" }, 400, origin); }
   if (typeof b !== "object" || b === null || Array.isArray(b)) return json({ ok: false, error: "bad_json" }, 400, origin);
@@ -60,7 +75,7 @@ export async function handle(req: Request): Promise<Response> {
     if (!out || typeof out !== "object" || Array.isArray(out) || typeof out.ok !== "boolean") throw new Error("Invalid response");
     const known = ["too_many_requests", "origin_not_allowed", "bad_request", "invalid_key", "consent_required", "try_again", "unknown_form", "unknown_kind", "invalid_phone", "invalid_email", "no_contact"];
     const error = typeof out.error === "string" && known.includes(out.error) ? out.error : "try_again";
-    const status = out.ok ? 200 : out.error === "too_many_requests" ? 429 : out.error === "origin_not_allowed" ? 403 : 400;
+    const status = out.ok ? 200 : error === "try_again" ? 502 : out.error === "too_many_requests" ? 429 : out.error === "origin_not_allowed" ? 403 : 400;
     return json({ ok: out.ok, ...(out.ok ? {} : { error }), ...(typeof out.message === "string" ? { message: out.message } : {}) }, status, origin);
   } catch (error) {
     console.error(error instanceof Error ? error.name : "unknown");
