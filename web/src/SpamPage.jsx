@@ -84,7 +84,7 @@ export default function SpamPage({ workspace, onNotice, onOpenPerson }) {
 
 function Overview({ data, loading, channels }) {
   // no data after loading means it couldn't be loaded: "—", never 0
-  const v = (k) => (data ? data[k] ?? 0 : loading ? "…" : "—");
+  const v = (k) => (data ? data[k] ?? "—" : loading ? "…" : "—");
   const ch = data?.by_channel ?? {};
   const cmp = data && data.previous_total !== null && data.previous_total !== undefined
     ? data.total === data.previous_total ? "Same as the previous period"
@@ -608,7 +608,7 @@ function FollowUp({ inc }) {
 
 // Bounds for the number boxes: kept while typing, applied when the box is left and again on save.
 const NUM_BOUNDS = { repeat_call_limit: [2, 50], repeat_window_minutes: [5, 1440], sms_flood_limit: [3, 200], email_flood_limit: [3, 200], booking_daily_limit: [1, 20] };
-const clampNum = (k, v) => { const [lo, hi] = NUM_BOUNDS[k]; return Math.max(lo, Math.min(hi, Number(v) || lo)); };
+const clampNum = (k, v) => { const [lo, hi] = NUM_BOUNDS[k]; return Math.max(lo, Math.min(hi, Math.round(Number(v)) || lo)); };
 
 function Settings({ workspace, setup, loadError, onRetry, onSaved }) {
   const [form, setForm] = useState(setup?.settings ?? null);
@@ -642,6 +642,7 @@ function Settings({ workspace, setup, loadError, onRetry, onSaved }) {
     setBusy(true);
     setError("");
     const keys = ["enabled", "call_screening", "ai_spam_handling", "repeat_call_limit", "repeat_window_minutes", "sms_monitoring", "sms_flood_limit", "email_monitoring", "email_flood_limit", "booking_protection", "booking_daily_limit", "auto_restrict", "notify_high_risk", "notify_medium", "weekly_report", "ai_review"];
+    setForm((current) => ({ ...current, ...Object.fromEntries(keys.filter((k) => NUM_BOUNDS[k]).map((k) => [k, clampNum(k, form[k])])) }));
     const { data, error: err } = await supabase.rpc("zella_spam_settings_save", { p_business_id: workspace.id, p_settings: Object.fromEntries(keys.map((k) => [k, NUM_BOUNDS[k] ? clampNum(k, form[k]) : form[k]])) });
     setBusy(false);
     if (err) { setError(friendly(err)); return; }

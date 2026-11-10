@@ -163,6 +163,7 @@ do $$ declare ab jsonb; list jsonb; n int; begin
   assert not list ? ((select v from ids where k = 'p') ->> 'path'), 'a live file is never listed';
   assert jsonb_array_length(list) = 3, 'exactly those three: ' || list::text;
   delete from storage.objects where name in (select jsonb_array_elements_text(list)); -- what the storage API does
+  assert public.zella_record_file_cleanup() ? ((select v from ids where k = 'bad') ->> 'path'), 'deleted object with unpurged record is retried';
   n := public.zella_record_files_purged(array(select jsonb_array_elements_text(list)));
   assert n = 2, 'two file records purged (the orphan had none)';
   assert jsonb_array_length(public.zella_record_file_cleanup()) = 0, 'nothing left to clean';

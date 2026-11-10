@@ -200,6 +200,9 @@ export function platformHandlers(admin: SupabaseClient, fields: Json, kit: Platf
     const businessId = requireId(fields.businessId);
     const input = obj(fields.enabled);
     if (fields.applyPreset === true) {
+      const { data: business, error: bizError } = await admin.from("businesses").select("id").eq("id", businessId).maybeSingle();
+      if (bizError) throw bizError;
+      if (!business) throw new InputError("Business not found", 404);
       // the industry's record types for a business that has none yet (the same step the CRM takes when first opened)
       const { data: existing, error: exError } = await admin.from("crm_record_types").select("key").eq("business_id", businessId).limit(1);
       if (exError) throw exError;

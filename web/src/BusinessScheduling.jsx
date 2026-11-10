@@ -225,7 +225,7 @@ function ReturnVisitModal({ job, tz, technicians, busy, onClose, onSave }) {
         <Field label="Minutes"><input type="number" min={5} max={720} value={minutes} onChange={(e) => setMinutes(e.target.value)} required /></Field>
         <Field label="Technician">
           <select value={staff} onChange={(e) => setStaff(e.target.value)}>
-            <option value="">Anyone (assign later)</option>
+            <option value="">Same technician</option>
             {technicians.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
         </Field>

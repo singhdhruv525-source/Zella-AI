@@ -78,7 +78,7 @@ const LANDING = {
 async function hasAdminAccess() {
   const { data, error } = await supabase.rpc("zella_admin_role");
   if (!error) return typeof data === "string";
-  if (!["PGRST202", "42883"].includes(error.code)) return false;
+  if (!["PGRST202", "42883"].includes(error.code)) return "unavailable";
   const legacy = await supabase.rpc("is_platform_admin");
   return !legacy.error && legacy.data === true;
 }
@@ -131,7 +131,10 @@ function AdminApp() {
 
         if (!active) return;
 
-        if (isOwner) {
+        if (isOwner === "unavailable") {
+          setMessageType("error");
+          setMessage("Admin access could not be checked. Please try signing in again.");
+        } else if (isOwner) {
           setIsAuthorized(true);
         } else {
           // Signed in to the business app in this browser. Don't sign them out of
@@ -210,7 +213,9 @@ function AdminApp() {
     try {
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
-      if (!(await hasAdminAccess())) {
+      const access = await hasAdminAccess();
+      if (access === "unavailable") throw new Error("Admin access could not be checked. Please try again.");
+      if (!access) {
         await supabase.auth.signOut();
         setMode("signin");
         throw new Error("Your password is saved, but this account is not an authorized Zella admin yet.");
@@ -233,7 +238,9 @@ function AdminApp() {
     setLoading(true);
     try {
       await verifyMfaCode(code);
-      if (!(await hasAdminAccess())) {
+      const access = await hasAdminAccess();
+      if (access === "unavailable") throw new Error("Admin access could not be checked. Please try again.");
+      if (!access) {
         await supabase.auth.signOut();
         setMode("signin");
         throw new Error("This account is not authorized to access the Zella Owner Admin.");
@@ -285,7 +292,9 @@ function AdminApp() {
         setMessage("");
         return;
       }
-      if (!(await hasAdminAccess())) {
+      const access = await hasAdminAccess();
+      if (access === "unavailable") throw new Error("Admin access could not be checked. Please try again.");
+      if (!access) {
         await supabase.auth.signOut();
         throw new Error(
           "This account is not authorized to access the Zella Owner Admin."

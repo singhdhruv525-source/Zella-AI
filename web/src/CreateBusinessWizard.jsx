@@ -1852,7 +1852,7 @@ function UnsavedDialog({ stepLabel, closing, onSave, onDiscard, onStay }) {
   );
 }
 
-export default function CreateBusinessWizard({ businessId: initialBusinessId, industries, onClose }) {
+export default function CreateBusinessWizard({ businessId: initialBusinessId, industries, industryError, onRetryIndustries, loadingIndustries, onClose }) {
   const [setup, setSetup] = useState(emptySetup);
   const [businessId, setBusinessId] = useState(initialBusinessId || null);
   const [step, setStep] = useState(0);
@@ -2198,6 +2198,9 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
         </button>
       </div>
 
+      {industryError && <div className="owner-form-error" role="alert">
+        {industryError} <button type="button" className="owner-secondary-button" onClick={onRetryIndustries} disabled={loadingIndustries}>{loadingIndustries ? "Loading..." : "Retry"}</button>
+      </div>}
       <div className="wiz-progress" role="progressbar" aria-label="Setup progress" aria-valuemin={1} aria-valuemax={STEPS.length} aria-valuenow={step + 1}>
         <span style={{ width: `${((step + 1) / STEPS.length) * 100}%` }} />
         <small>Step {step + 1} of {STEPS.length} · {STEPS[step].label}</small>

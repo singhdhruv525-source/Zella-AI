@@ -178,7 +178,6 @@ begin
   return coalesce((select jsonb_agg(path) from (
       select f.path from public.crm_record_files f
        where f.status in ('removed', 'rejected') and f.purged_at is null
-         and exists (select 1 from storage.objects o where o.bucket_id = 'record-files' and o.name = f.path)
       union
       select o.name from storage.objects o
        where o.bucket_id = 'record-files' and o.created_at < now() - interval '1 day'

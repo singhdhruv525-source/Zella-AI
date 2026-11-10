@@ -20,7 +20,7 @@ Deno.test("upstream failures are structured and preserve origin", async () => {
 Deno.test("RPC output is restricted to approved fields and errors", async () => {
   const real = globalThis.fetch;
   try {
-    for (const [error, status] of [["too_many_requests", 429], ["origin_not_allowed", 403], ["secret_error", 400]] as const) {
+    for (const [error, status] of [["too_many_requests", 429], ["origin_not_allowed", 403], ["unknown_form", 400], ["unknown_kind", 400], ["invalid_phone", 400], ["invalid_email", 400], ["no_contact", 400], ["secret_error", 400]] as const) {
       globalThis.fetch = (() => Promise.resolve(Response.json({ ok: false, error, message: "Try again", secret: "hidden" }))) as typeof fetch;
       const r = await call();
       assertEquals(r.status, status);

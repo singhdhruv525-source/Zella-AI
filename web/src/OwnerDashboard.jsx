@@ -363,6 +363,9 @@ useEffect(() => {
               key={wizard.businessId || "new"}
               businessId={wizard.businessId}
               industries={industries}
+              industryError={businessError}
+              onRetryIndustries={loadDashboardData}
+              loadingIndustries={loadingBusinesses}
               onClose={(changed) => {
                 navigate(wizard.businessId ? `/businesses/${wizard.businessId}` : "/businesses");
                 if (changed) loadDashboardData();

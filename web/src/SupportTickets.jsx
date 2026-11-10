@@ -113,10 +113,10 @@ export default function SupportTickets({ onOpenBusiness }) {
               <thead><tr><th>Ticket</th><th>Business</th><th>Priority</th><th>Status</th><th>Assigned</th></tr></thead>
               <tbody>
                 {tickets.map((t) => (
-                  <tr key={t.id} className={`st-row ${t.id === selectedId ? "selected" : ""}`} onClick={() => { if (t.id !== selectedId) selectTicket(t.id); setCreating(false); }}>
+                  <tr key={t.id} className={`st-row ${t.id === selectedId ? "selected" : ""}`}>
                     <td>
                       <div className="owner-business-cell">
-                        <strong>{t.subject}</strong>
+                        <button type="button" className="owner-secondary-button" onClick={() => { if (t.id !== selectedId) selectTicket(t.id); setCreating(false); }}>{t.subject}</button>
                         <span>{t.category ? `${t.category} · ` : ""}{timeAgo(t.created_at)}</span>
                       </div>
                     </td>

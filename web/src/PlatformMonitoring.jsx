@@ -45,10 +45,12 @@ const loadHealth = async () => {
 
 export function HealthPanel() {
   const { data, error, loading } = useAsync(loadHealth);
-  const alerts = data?.open_alerts ?? {};
-  // A count the server didn't send is unknown, never 0 or "Clear".
-  const counted = ["urgent", "warning", "info"].every((k) => Number.isFinite(alerts[k]));
-  const count = (k) => (Number.isFinite(alerts[k]) ? alerts[k] : "—");
+  const rawAlerts = data?.open_alerts;
+  const validAlerts = rawAlerts && typeof rawAlerts === "object" && !Array.isArray(rawAlerts);
+  const alerts = Object.fromEntries(["urgent", "warning", "info"].map((k) => [k,
+    validAlerts ? (Object.hasOwn(rawAlerts, k) ? rawAlerts[k] : 0) : null]));
+  const counted = Object.values(alerts).every((n) => Number.isInteger(n) && n >= 0);
+  const count = (k) => (Number.isInteger(alerts[k]) && alerts[k] >= 0 ? alerts[k] : "—");
   return (
     <section className="owner-panel op-card">
       <div className="owner-panel-heading"><div><h2>Providers and alerts</h2><p>From the scheduled provider checks and open platform alerts.</p></div></div>

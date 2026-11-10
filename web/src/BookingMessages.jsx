@@ -126,8 +126,8 @@ export function BookingMessages({ workspace, appt, tz, term }) {
         <div className="bp-empty">
           <Icon name="forward_to_inbox" />
           <p>
-            {data.failedToLoad ? "Messages couldn't be loaded." : `No messages for this ${oneWord.toLowerCase()}.`}
-            {!data.failedToLoad && status && auto.appointment_reminder !== "active" && auto.appointment_confirmation !== "active"
+            { `No messages for this ${oneWord.toLowerCase()}.` }
+            {status && auto.appointment_reminder !== "active" && auto.appointment_confirmation !== "active"
               ? " Confirmations and reminders are off for this business. Turn them on in Automations." : ""}
           </p>
         </div>

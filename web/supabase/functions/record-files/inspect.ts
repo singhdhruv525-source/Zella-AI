@@ -43,6 +43,27 @@ async function inflate(data: Uint8Array, limit: number): Promise<number | "activ
   } catch { return null; }
 }
 
+// Mask literal strings, hex strings and comments without changing token positions.
+function dictionaryTokens(text: string): string {
+  const out = text.split("");
+  let depth = 0, hex = false, comment = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (comment) { out[i] = " "; if (c === "\n" || c === "\r") comment = false; }
+    else if (depth) {
+      out[i] = " ";
+      if (c === "\\") { if (i + 1 < text.length) out[++i] = " "; }
+      else if (c === "(") depth++;
+      else if (c === ")") depth--;
+    } else if (hex) { out[i] = " "; if (c === ">") hex = false; }
+    else if (c === "%") { comment = true; out[i] = " "; }
+    else if (c === "(") { depth = 1; out[i] = " "; }
+    else if (c === "<" && text[i + 1] === "<") { i++; }
+    else if (c === "<") { hex = true; out[i] = " "; }
+  }
+  return out.join("");
+}
+
 export async function inspectPdf(b: Uint8Array): Promise<Verdict> {
   const text = latin1(b), names = unescapeNames(text);
   if (/\/Encrypt(?![A-Za-z0-9])/.test(names)) return { ok: false, reason: "encrypted PDF (can't be checked)" };
@@ -53,7 +74,7 @@ export async function inspectPdf(b: Uint8Array): Promise<Verdict> {
   while ((m = re.exec(text))) {
     if (++streams > 2000) return { ok: false, reason: "PDF has too many streams to check" };
     // Read from the enclosing object's start, not the last nested dictionary or a fixed window.
-    const prefix = text.slice(previousEnd, m.index);
+    const prefix = dictionaryTokens(text.slice(previousEnd, m.index));
     const objects = [...prefix.matchAll(/\b\d+\s+\d+\s+obj\b/g)];
     const object = objects.at(-1);
     if (!object) return { ok: false, reason: "damaged PDF stream dictionary" };
@@ -65,9 +86,9 @@ export async function inspectPdf(b: Uint8Array): Promise<Verdict> {
     let stop = end;
     if (b[stop - 1] === 0x0a) stop--;
     if (b[stop - 1] === 0x0d) stop--;
-    const filter = dict.match(/\/Filter\s*(\[[^\]]*\]|\/[^\s<>\[\]()]+|[^\s]+)/);
-    if (!filter) continue; // unfiltered bytes were scanned above
-    if (!/^\/FlateDecode$|^\[\s*\/FlateDecode\s*\]$/.test(filter[1])) return { ok: false, reason: "unsupported PDF stream filter" };
+    const filters = [...dict.matchAll(/\/Filter(?=[\s<>\[\]()/]|$)\s*(\[[^\]]*\]|\/[^\s<>\[\]()]+|[^\s]*)/g)];
+    if (!filters.length) continue; // unfiltered bytes were scanned above
+    if (filters.some((filter) => !/^\/FlateDecode$|^\[\s*\/FlateDecode\s*\]$/.test(filter[1]))) return { ok: false, reason: "unsupported PDF stream filter" };
     // Predictors transform decoded bytes; this scanner only supports the default identity predictor.
     if (/\/Predictor\s+(?!1(?:\s|[<>/]))/.test(dict)) return { ok: false, reason: "unsupported PDF stream predictor" };
     const inflated = await inflate(b.subarray(start, stop), budget);

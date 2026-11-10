@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import "./OwnerPages.css";
 import { callOwnerFunction } from "./CreateBusinessWizard";
 import { Pill } from "./OwnerOverview";
@@ -28,15 +28,18 @@ export default function PlansPage({ onOpenBusiness }) {
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(null);
 
+  const loadId = useRef(0);
   const load = useCallback(async () => {
+    const id = ++loadId.current;
     setLoading(true);
     setError("");
     try {
-      setData(await callOwnerFunction("plans_list"));
+      const result = await callOwnerFunction("plans_list");
+      if (id === loadId.current) setData(result);
     } catch (err) {
-      setError(friendlyError(err));
+      if (id === loadId.current) setError(friendlyError(err));
     } finally {
-      setLoading(false);
+      if (id === loadId.current) setLoading(false);
     }
   }, []);
 

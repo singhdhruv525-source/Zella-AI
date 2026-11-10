@@ -4,15 +4,13 @@
 //
 // ZELLA_ALLOWED_ORIGINS: comma-separated list, e.g. "https://app.zella.ai,https://my-codespace-3000.app.github.dev".
 // ZELLA_APP_URL's origin is always allowed, and so is localhost for development.
-// With neither ZELLA_ALLOWED_ORIGINS nor ZELLA_APP_URL set (a project that isn't hosted yet), any website is
-// allowed, as before. As soon as either is set, only those origins (and localhost) are: setting ZELLA_APP_URL at
-// go-live is enough to close the wildcard, so a forgotten ZELLA_ALLOWED_ORIGINS no longer leaves it open.
+// Without configured origins, only localhost is allowed for browser callers.
 // Server-to-server callers (Telnyx, Vapi, Stripe, Resend, n8n) send no Origin header and are never affected.
 
-function allowedOrigins(): string[] | null {
+function allowedOrigins(): string[] {
   const list = (Deno.env.get("ZELLA_ALLOWED_ORIGINS") ?? "").split(",").map((s) => s.trim().replace(/\/+$/, "")).filter(Boolean);
   const app = Deno.env.get("ZELLA_APP_URL");
-  if (!list.length && !app) return null;   // not hosted yet: any website, as before
+  if (!list.length && !app) return [];
   try {
     if (app) list.push(new URL(app).origin);
   } catch { /* a bad ZELLA_APP_URL is reported by the settings page; the list stays closed */ }
@@ -28,7 +26,6 @@ export function corsFor(origin: string | null): Record<string, string> {
     "Vary": "Origin",
   };
   const list = allowedOrigins();
-  if (!list) return { ...base, "Access-Control-Allow-Origin": "*" };
   if (origin && (list.includes(origin) || isLocal(origin))) return { ...base, "Access-Control-Allow-Origin": origin };
   return base;   // no Allow-Origin: the browser refuses to hand the answer to that page
 }

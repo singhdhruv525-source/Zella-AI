@@ -44,7 +44,7 @@ export async function handle(req: Request): Promise<Response> {
       const allowed = await can.json();
       if (allowed === false) return json({ ok: false, error: "not_allowed" }, 403);
       if (allowed !== true) return json({ ok: false, error: "try_again" }, 502);
-    } catch { return json({ ok: false, error: "try_again" }, 502); }
+    } catch (error) { console.error(error instanceof Error ? error.name : "unknown"); return json({ ok: false, error: "try_again" }, 502); }
     const c = client(p);
     if (!c.id || !c.secret) return json({ ok: false, error: "provider_not_configured", provider: p }, 503);
     const state = await signState(linkSecret, { b: biz, p, u: String(user.id) });

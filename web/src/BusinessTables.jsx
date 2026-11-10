@@ -235,8 +235,8 @@ export function TablesPage({ workspace, refreshKey, onNotice, onBook }) {
                   if (working) return;
                   setWorking(true); setProblem("");
                   try {
-                    const { error } = await supabase.rpc("zella_remove_waitlist_entry", { p_id: w.id });
-                    if (error) setProblem(say(error)); else { onNotice?.("Removed from the waitlist."); board.reload(); }
+                    const { data: removed, error } = await supabase.rpc("zella_remove_waitlist_entry", { p_id: w.id });
+                    if (error) setProblem(say(error)); else { onNotice?.(removed === false ? "Already removed from the waitlist or seated." : "Removed from the waitlist."); board.reload(); }
                   } catch (err) { setProblem(say(err)); } finally { setWorking(false); }
                 }} />
             </aside>

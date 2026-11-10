@@ -77,12 +77,26 @@ Deno.test("unchecked PDF streams fail closed", async () => {
 });
 Deno.test("nested and long stream dictionaries cannot hide compressed active content", async () => {
   const z = await deflate("/J#61vaScript");
-  for (const extra of ["/DecodeParms << /Predictor 1 >>", `/Padding (${"x".repeat(500)})`]) {
+  for (const extra of ["/Note (1 0 obj)", "/Note (nested (2 0 obj) literal)", "/DecodeParms << /Predictor 1 >>", `/Padding (${"x".repeat(500)})`]) {
     const b = cat(enc(`%PDF-1.7\n1 0 obj << /Filter /FlateDecode ${extra} >> stream\n`), z, enc("\nendstream endobj"));
     assertEquals((await inspect("application/pdf", b)).ok, false);
   }
 });
 Deno.test("stream markers inside compressed bytes are skipped", async () => {
-  // Level-zero deflate includes literal stream markers in the compressed bytes.
-  assertEquals((await inspect("application/pdf", await pdfWithStream("stream\ninnocent text"))).ok, true);
+  const bytes = enc("stream\ninnocent text");
+  let a = 1, b = 0;
+  for (const byte of bytes) { a = (a + byte) % 65521; b = (b + a) % 65521; }
+  const n = bytes.length;
+  const z = cat(new Uint8Array([0x78, 0x01, 0x01, n & 255, n >> 8, (~n) & 255, ((~n) >> 8) & 255]),
+    bytes, new Uint8Array([b >> 8, b & 255, a >> 8, a & 255]));
+  assert(new TextDecoder().decode(z).includes("stream"));
+  const file = cat(enc(`%PDF-1.7\n3 0 obj << /Length ${z.length} /Filter /FlateDecode >>\nstream\n`), z, enc("\nendstream\nendobj\n%%EOF"));
+  assertEquals((await inspect("application/pdf", file)).ok, true);
+});
+Deno.test("every stream filter entry must be supported", async () => {
+  const z = await deflate("innocent");
+  for (const filters of ["/Filter /FlateDecode /Filter /ASCIIHexDecode", "/Filter /ASCIIHexDecode /Filter /FlateDecode"]) {
+    const file = cat(enc(`%PDF-1.7\n1 0 obj << ${filters} >> stream\n`), z, enc("\nendstream endobj"));
+    assertEquals((await inspect("application/pdf", file)).ok, false);
+  }
 });

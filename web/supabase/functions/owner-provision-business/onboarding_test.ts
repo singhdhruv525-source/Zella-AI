@@ -36,3 +36,48 @@ Deno.test("document confirmation rejects missing and mismatched storage metadata
     await assertRejects(onboardingHandlers(admin, fields, "u", kit).handlers.setup_document_confirm, InputError, "metadata");
   }
 });
+Deno.test("missing hours RPC falls back to delete then insert", async () => {
+  const writes: unknown[] = [];
+  const admin = {
+    rpc: async () => ({ error: { code: "PGRST202" } }),
+    from: (table: string) => ({
+      delete: () => ({ eq: async (key: string, id: string) => { writes.push(["delete", table, key, id]); return { error: null }; } }),
+      insert: async (rows: unknown) => { writes.push(["insert", table, rows]); return { error: null }; },
+      update: () => ({ eq: async () => ({ error: null }) }),
+    }),
+  } as unknown as SupabaseClient;
+  const completeKit = { ...kit, mergeSetupData: async () => {}, advance: async () => {} };
+  const result = await onboardingHandlers(admin, { operations: { hours: { mon: { open: "09:00", close: "17:00" } } } }, "u", completeKit).handlers.setup_save_operations();
+  assertEquals(writes.slice(0, 2), [
+    ["delete", "business_hours", "business_id", B],
+    ["insert", "business_hours", [{ weekday: 1, opens: "09:00", closes: "17:00", business_id: B }]],
+  ]);
+  assertEquals((result as { hours: number }).hours, 1);
+});
+Deno.test("document confirmation accepts matching storage metadata", async () => {
+  const name = "11111111-2222-3333-4444-555555555555.pdf";
+  const path = `${B}/owner_identity/${name}`;
+  const document = { id: "doc", status: "pending_review" };
+  let inserted: unknown;
+  let replaced = false;
+  const admin = {
+    storage: { from: (bucket: string) => {
+      assertEquals(bucket, "business-documents");
+      return { list: async (folder: string) => {
+        assertEquals(folder, `${B}/owner_identity`);
+        return { data: [{ name, metadata: { size: 2, mimetype: "application/pdf" } }], error: null };
+      } };
+    } },
+    from: (table: string) => {
+      assertEquals(table, "business_verification_documents");
+      return {
+        update: () => ({ eq: () => ({ eq: () => ({ neq: async () => { replaced = true; return { error: null }; } }) }) }),
+        insert: (row: unknown) => { inserted = row; return { select: () => ({ single: async () => ({ data: document, error: null }) }) }; },
+      };
+    },
+  } as unknown as SupabaseClient;
+  const result = await onboardingHandlers(admin, { kind: "owner_identity", fileName: name, mimeType: "application/pdf", size: 2, path }, "u", kit).handlers.setup_document_confirm();
+  assertEquals(replaced, true);
+  assertEquals(inserted, { business_id: B, kind: "owner_identity", file_path: path, file_name: name, mime_type: "application/pdf", size_bytes: 2, uploaded_by: "u" });
+  assertEquals(result, { businessId: B, document });
+});

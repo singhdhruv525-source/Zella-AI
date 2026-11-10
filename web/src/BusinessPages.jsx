@@ -82,7 +82,6 @@ function PeoplePage({ mode, workspace, query, refreshKey, onOpenPerson }) {
           </button>
         )}
       </PageHead>
-      {data?.length >= 1000 && <p className="ba-muted">Showing the newest 1,000. Search and paging cover these customers.</p>}
       {added && <div className="ba-banner success" role="status"><span>{added}</span></div>}
       {adding && (
         <AddCustomerModal workspace={workspace} term={term} onClose={() => setAdding(false)} onDone={(res) => {
