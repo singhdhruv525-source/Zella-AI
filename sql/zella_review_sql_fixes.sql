@@ -256,7 +256,7 @@ begin
     raise exception 'VERSION_MISMATCH: public.zella_config_migration_restore(uuid) is not the version this file was written against (expected the live version or this file version)';
   end if;
   select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_dispatch_n8n()');
-  if v is null or v not in ('da510c38639c117833a799c01723f07f', 'a415745bfcd66f15293eee25d2767d7f') then
+  if v is null or v not in ('da510c38639c117833a799c01723f07f', '6144122e54ea96d4fb7de63676321d4d') then
     raise exception 'VERSION_MISMATCH: public.zella_dispatch_n8n() is not the version this file was written against (expected the live version or this file version)';
   end if;
   select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_platform_admin_email_check()');
@@ -2202,8 +2202,10 @@ begin
                  and (sms_status = 'pending' or (sms_status = 'sending' and sms_claimed_at < now() - interval '15 minutes'))) else 0 end
       when 'admin-alerts' then case when coalesce(public.zella_setting('email_live', 'false'::jsonb) = 'true'::jsonb, false)
                                      and nullif(trim(public.zella_setting('email_from_address', '""'::jsonb) #>> '{}'), '') is not null
-         then (select count(*) from public.platform_alerts s where s.status = 'open' and (s.notified_at is null or s.notified_at < now() - interval '15 minutes')
-                     and s.meta ->> 'emailed_at' is null and coalesce((s.meta ->> 'email_attempts')::int, 0) < 3) else 0 end
+         then (select count(*) from public.platform_alerts s where s.status = 'open' and (s.notified_at is null
+                     or (s.meta ? 'email_claimed_at' and not s.meta ? 'emailed_at'
+                         and s.notified_at < now() - interval '15 minutes'
+                         and coalesce((s.meta ->> 'email_attempts')::int, 0) < 2))) else 0 end
       when 'spam-response' then coalesce(v_spam, 0)
       when 'call-reconcile' then coalesce(v_reconcile, 0)
       when 'review-replies' then coalesce(v_reviews, 0)
@@ -2665,6 +2667,14 @@ AS $function$
     -- members of that business only; server code (no signed-in user) as before
     and (auth.uid() is null or public.is_business_member(p_business_id));
 $function$;
+
+-- The dispatcher defaults off; flag only installations without an explicit setting.
+do $dispatch_notice$
+begin
+  if not exists (select 1 from public.platform_settings where key = 'n8n_dispatch_enabled') then
+    raise notice 'n8n_dispatch_enabled is not configured; dispatch remains disabled. Set it explicitly to true to enable dispatch.';
+  end if;
+end $dispatch_notice$;
 
 -- CodeRabbit #38 (autofix): call insights summarise call content, so they follow the call-content rule, not membership
 alter policy call_insights_read on public.call_insights using (public.zella_can_read_call_content(business_id));

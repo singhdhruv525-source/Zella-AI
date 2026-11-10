@@ -4,6 +4,7 @@ const plan = $('Plan sync').item.json;
 const name = plan.provider === 'outlook' ? 'microsoft' : 'google';
 const rec = (ok, eventId, error) => ({ json: { record: { p_queue_id: plan.queue_id, p_ok: ok, p_event_id: eventId || null, p_error: ok ? null : String(error).slice(0, 80) } } });
 if (!plan.queue_id) return { json: { record: null } };
+if ($json.record?.p_error === 'calendar_reconciliation_failed') return rec(false, null, 'calendar_reconciliation_failed');
 if (!plan.needs_google) return plan.skip_ok ? rec(true, null) : rec(false, null, 'bad_queue_item');
 let tok = null;
 try { tok = $(plan.provider === 'outlook' ? 'Get Microsoft token' : 'Get Google token').item.json; } catch (e) { tok = null; }

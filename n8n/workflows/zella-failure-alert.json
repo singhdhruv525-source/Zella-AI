@@ -36,13 +36,6 @@
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json.alert) }}",
         "options": {
-          "response": {
-            "response": {
-              "fullResponse": true,
-              "neverError": true,
-              "responseFormat": "json"
-            }
-          },
           "timeout": 30000
         }
       },
@@ -59,7 +52,25 @@
           "id": "",
           "name": "Zella Supabase service role"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "errorType": "errorMessage",
+        "errorMessage": "workflow_alert_delivery_failed: platform alert delivery exhausted retries"
+      },
+      "id": "36fafb19-7509-469c-8d6e-4fd2c3ec6b2d",
+      "name": "Alert delivery failed",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        720,
+        300
+      ]
     }
   ],
   "connections": {
@@ -79,6 +90,18 @@
         [
           {
             "node": "Raise alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Raise alert": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Alert delivery failed",
             "type": "main",
             "index": 0
           }
