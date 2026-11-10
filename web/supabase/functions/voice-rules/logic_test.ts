@@ -1,0 +1,163 @@
+import { assistantReply, authHeaders, CANT_TAKE, brainInvalidReply, brainToolReply, FAILED, plan, toolResult, transferReply, UNSUPPORTED, unsupported } from "./logic.ts";
+import { eventTime, planCallEvent } from "../_shared/vapi-call-events.js";
+
+function eq(a: unknown, b: unknown, m: string) { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(m + ": " + JSON.stringify(a) + " !== " + JSON.stringify(b)); }
+const BIZ = "3f1c2b4e-5a6d-4e7f-8a9b-0c1d2e3f4a5b";
+const callObj = { id: "call-1", type: "inboundPhoneCall", customer: { number: "+15559990001" }, phoneNumber: { number: "+15550001111", id: "pn1" }, metadata: { business_id: BIZ } };
+const toolMsg = (list: unknown[]) => ({ message: { type: "tool-calls", toolCallList: list, call: callObj } });
+const rules = (id: string, args: unknown) => ({ id, name: "call_rules", arguments: args });
+const parse = (r: Record<string, unknown>) => JSON.parse(r.result as string);
+
+Deno.test("plans every tool call in one request, each with its own id", () => {
+  const p = plan(toolMsg([rules("tc1", { action: "rules" }), rules("tc2", { action: "transfer", reason: "  wants   a person " }), rules("tc3", "{\"action\":\"message\",\"message\":\"hi\"}")]));
+  if (p.kind !== "tools") throw new Error("not tools");
+  eq(p.calls.map((c) => [c.toolCallId, c.action]), [["tc1", "rules"], ["tc2", "transfer"], ["tc3", "message"]], "ids and actions");
+  eq(p.calls[1].args.reason, "wants a person", "args cleaned");
+  eq(p.calls[0].args.caller_number, "+15559990001", "caller number from the network");
+  eq(p.lookup, { p_called_number: "+15550001111", p_vapi_phone_number_id: "pn1", p_fallback: BIZ }, "lookup");
+});
+Deno.test("unknown tools and actions get their own error answer, not silence", () => {
+  const p = plan(toolMsg([rules("tc1", { action: "rules" }), { id: "tc2", name: "delete_everything", arguments: {} }, rules("tc3", { action: "drop_table" })]));
+  if (p.kind !== "tools") throw new Error("not tools");
+  eq(p.calls.map((c) => c.action), ["rules", null, null], "only call_rules with a known action runs");
+  eq(unsupported("tc2", "delete_everything"), { name: "delete_everything", toolCallId: "tc2", error: UNSUPPORTED }, "error entry");
+  eq(p.calls.map((c) => c.name), ["call_rules", "delete_everything", "call_rules"], "names kept for the reply");
+});
+Deno.test("tool calls without an id are skipped; repeated ids answered once; at most 10", () => {
+  const many = Array.from({ length: 15 }, (_, i) => rules("t" + i, { action: "rules" }));
+  const p = plan(toolMsg([{ name: "call_rules", arguments: {} }, rules("dup", {}), rules("dup", {}), ...many]));
+  if (p.kind !== "tools") throw new Error("not tools");
+  eq(p.calls[0].toolCallId, "dup", "no-id skipped"); eq(p.calls.filter((c) => c.toolCallId === "dup").length, 1, "dup once");
+  eq(p.calls.length <= 10, true, "capped");
+});
+Deno.test("malformed requests are refused before any database work", () => {
+  for (const b of [null, "x", [], {}, { message: null }, { message: [] }, { message: {} }, { message: { type: 5 } }]) eq(plan(b).kind, "invalid", JSON.stringify(b));
+});
+Deno.test("non-tool messages are not sent to the database", () => {
+  eq(plan({ message: { type: "speech-update" } }).kind, "ignore", "other");
+  eq(plan({}).kind, "invalid", "empty");
+  eq(plan(toolMsg([])).kind, "ignore", "no calls");
+});
+Deno.test("a screened caller gets the screening instruction, and no transfer", () => {
+  const r = parse(toolResult("tc1", true, { ok: true, status: "open", say: "Acme is open now.", can_transfer: true, emergency_keywords: ["bleeding"],
+    caller: { say: "Spam protection: this caller is not accepted. End the call.", screening: { decision: "blocked", level: "high" } } }));
+  eq(r.status, "screened", "status"); eq(r.can_transfer, false, "no transfer"); eq(r.emergency_words, ["bleeding"], "emergencies still recognised");
+  eq(parse(toolResult("tc1", true, { ok: false, status: "screened", say: "Do not transfer." })).status, "screened", "database refusal passed on");
+});
+Deno.test("a transfer result tells the model to use the transfer tool and never contains the number", () => {
+  const r = toolResult("tc1", true, { ok: true, status: "transfer", transfer_number: "+15550109999", say: "Connect them." });
+  eq(parse(r).use_transfer_tool, true, "flag"); eq(String(r.result).includes("5550109999"), false, "number not exposed");
+});
+Deno.test("a normal caller gets the rules plus the caller note; a flagged caller gets a caution", () => {
+  eq(parse(toolResult("tc1", true, { status: "open", say: "Open.", caller: { say: "New caller." } })).instruction, "Open. About this caller: New caller.", "note");
+  eq(parse(toolResult("tc1", true, { status: "open", say: "Open.", caller: { say: "x", screening: { decision: "flagged" } } })).caution, true, "caution");
+});
+Deno.test("failures use Vapi's error field with a safe instruction; text is single-line", () => {
+  eq(toolResult("tc1", false, null), { name: "call_rules", toolCallId: "tc1", error: FAILED }, "failed");
+  eq(String(toolResult("tc1", true, { status: "open", say: "a\nb" }).result).includes("\\n"), false, "no line breaks");
+});
+Deno.test("transfer-destination-request: authorised number only, refusal otherwise", () => {
+  const p = plan({ message: { type: "transfer-destination-request", call: callObj } });
+  if (p.kind !== "transfer") throw new Error("not transfer");
+  eq([p.providerCallId, p.calledNumber, p.vapiNumberId, p.callerNumber], ["call-1", "+15550001111", "pn1", "+15559990001"], "context");
+  eq(transferReply(true, { ok: true, number: "+15550101111", message: "Please hold." }), { destination: { type: "number", number: "+15550101111", message: "Please hold." } }, "ok");
+  eq("error" in transferReply(true, { ok: false, message: "Can't connect." }), true, "refused");
+  eq("error" in transferReply(true, { ok: true, number: "555-0101" }), true, "non-E.164 never used");
+  eq("error" in transferReply(false, null), true, "database down: refused");
+});
+Deno.test("status-update becomes one status record; unknown statuses ignored", () => {
+  const p = plan({ message: { type: "status-update", status: "in-progress", timestamp: 1793102400000, call: callObj } });
+  if (p.kind !== "status") throw new Error("not status");
+  eq(p.record.p_status, "in-progress", "status"); eq(p.record.p_direction, "inbound", "direction"); eq(p.record.p_event_at, new Date(1793102400000).toISOString(), "time");
+  eq(plan({ message: { type: "status-update", status: "queued", call: callObj } }).kind, "ignore", "queued ignored");
+  eq(plan({ message: { type: "status-update", status: "ended" } }).kind, "ignore", "no call id");
+});
+Deno.test("only the headers the signature check reads are passed on", () => {
+  const h = new Headers({ "X-Signature": "ab", "x-timestamp": "1", Authorization: "Bearer t", Cookie: "c", "X-Other": "o" });
+  eq(authHeaders(h), { "x-signature": "ab", "x-timestamp": "1", authorization: "Bearer t" }, "subset");
+});
+Deno.test("end-of-call-report: Vapi's artifact and analysis fields, real duration only", () => {
+  const rep = { type: "end-of-call-report", endedReason: "customer-ended-call", startedAt: "2026-11-02T15:00:00.000Z", endedAt: "2026-11-02T15:02:05.000Z",
+    artifact: { transcript: "AI: Hi", recordingUrl: "https://r.example/x.wav" }, analysis: { summary: "Asked   about prices." }, call: callObj };
+  const p = plan({ message: rep });
+  if (p.kind !== "report") throw new Error("not report");
+  eq(p.rpc, "zella_record_inbound_call", "rpc");
+  eq([p.record.p_seconds, p.record.p_transcript, p.record.p_recording_url, p.record.p_summary], [125, "AI: Hi", "https://r.example/x.wav", "Asked about prices."], "fields");
+  const noTimes = planCallEvent({ ...rep, startedAt: undefined, endedAt: undefined });
+  eq(noTimes.inbound?.p_seconds, null, "no times: duration left empty, not 0");
+});
+Deno.test("end-of-call-report for a callback Zella placed: outcome from the real call length", () => {
+  const cb = (extra: Record<string, unknown>) => planCallEvent({ type: "end-of-call-report", endedReason: "customer-ended-call",
+    call: { id: "c-out", type: "outboundPhoneCall", metadata: { zella_source: "callback", zella_id: BIZ } }, ...extra }).record ?? {};
+  eq(cb({ startedAt: "2026-11-02T15:00:00Z", endedAt: "2026-11-02T15:01:00Z" }).p_outcome, "connected", "60 s talk = connected (was no_answer when durationSeconds was absent)");
+  eq(cb({ startedAt: "2026-11-02T15:00:00Z", endedAt: "2026-11-02T15:00:03Z" }).p_outcome, "no_answer", "3 s");
+  eq(cb({}).p_outcome, "no_answer", "unknown length is never counted as a conversation");
+  eq(planCallEvent({ type: "end-of-call-report", endedReason: "voicemail", call: { id: "c", type: "outboundPhoneCall", metadata: { zella_source: "task", zella_id: BIZ } } }).record?.p_outcome, "voicemail", "task voicemail");
+});
+Deno.test("event timestamps: milliseconds, or seconds, never 1970", () => {
+  eq(eventTime(1793102400000), "2026-10-27T12:00:00.000Z", "ms"); eq(eventTime(1793102400), "2026-10-27T12:00:00.000Z", "s");
+  eq(eventTime("2026-10-27T12:00:00Z"), "2026-10-27T12:00:00.000Z", "iso"); eq(eventTime(undefined), null, "missing"); eq(eventTime(-5), null, "junk");
+});
+Deno.test("Brain tools: each of the 14 is planned for the audited gateway, call_rules for voice rules, anything else refused", () => {
+  const names = ["search_knowledge", "check_open_hours", "lookup_caller", "update_caller", "check_availability", "book_appointment", "find_my_appointments",
+    "reschedule_appointment", "cancel_appointment", "take_message", "report_emergency", "transfer_to_human", "request_follow_up", "report_unanswered_question"];
+  const p1 = plan(toolMsg(names.slice(0, 10).map((n, i) => ({ id: "t" + i, function: { name: n, arguments: "{}" } }))));
+  const p2 = plan(toolMsg([...names.slice(10).map((n, i) => ({ id: "u" + i, name: n, arguments: {} })), rules("r", {}), { id: "x", name: "drop_all", arguments: {} }]));
+  if (p1.kind !== "tools" || p2.kind !== "tools") throw new Error("not tools");
+  eq([...p1.calls, ...p2.calls].map((c) => c.kind), [...names.map(() => "brain"), "rules", "unsupported"], "kinds");
+  eq(p1.calls.map((c) => c.record?.p_tool), names.slice(0, 10), "tool names passed to zella_ai_tool");
+  eq(p1.calls[0].record?.p_idempotency_key, "call-1:t0", "idempotency key = call id + tool call id");
+});
+Deno.test("Brain tools: only known fields, the network caller number, and confirmed only as a real boolean", () => {
+  const p = plan(toolMsg([{ id: "b", name: "book_appointment", arguments: { start: "2026-11-02T15:00:00Z", first_name: "  Ana  ", confirmed: "true", caller_number: "+19999999999", business_id: "x", evil: 1 } },
+    { id: "c", name: "cancel_appointment", arguments: { appointment_id: "33333333-3333-4333-8333-333333333333", confirmed: true } }]));
+  if (p.kind !== "tools") throw new Error("not tools");
+  const a = p.calls[0].record?.p_args as Record<string, unknown>;
+  eq([a.first_name, a.confirmed, a.caller_number, "evil" in a, "business_id" in a], ["Ana", false, "+15559990001", false, false], "args");
+  eq((p.calls[1].record?.p_args as Record<string, unknown>).confirmed, true, "real boolean yes");
+});
+Deno.test("Brain tools: malformed arguments are refused before the database, saying what to fix", () => {
+  const bad = { date: "next week", start: "tomorrow", appointment_id: "1 or 1=1", days: 40, duration_minutes: 2, preferred_contact_method: "fax" };
+  const p = plan(toolMsg(Object.entries(bad).map(([k, v], i) => ({ id: "v" + i, name: k === "preferred_contact_method" ? "update_caller" : k === "appointment_id" ? "cancel_appointment" : "check_availability", arguments: { [k]: v } }))));
+  if (p.kind !== "tools") throw new Error("not tools");
+  eq(p.calls.map((c) => c.kind), ["invalid", "invalid", "invalid", "invalid", "invalid", "invalid"], "each malformed value refused");
+  const b = plan(toolMsg([{ id: "s", name: "book_appointment", arguments: { start: "tomorrow at 3" } }]));
+  if (b.kind !== "tools") throw new Error("not tools");
+  eq([b.calls[0].kind, /start/.test(b.calls[0].why ?? "")], ["invalid", true], "bad start on booking");
+  eq(brainInvalidReply("x", "v", "date must be YYYY-MM-DD").error, "Invalid arguments: date must be YYYY-MM-DD. Nothing was done.", "reply");
+});
+Deno.test("Brain tools: replies keep the id and name, hide the transfer number, pass screening, and fail safely", () => {
+  const ok = brainToolReply("check_availability", "a", true, { status: "slots", say: "Offer.", slots: [{ say: "Mon 9", start: "s", secret: 1 }] });
+  eq([ok.name, ok.toolCallId, JSON.parse(ok.result as string).times], ["check_availability", "a", [{ say: "Mon 9", start: "s" }]], "slots");
+  const tr = brainToolReply("transfer_to_human", "t", true, { status: "transfer", say: "x", transfer_number: "+15550109999" });
+  eq([String(tr.result).includes("5550109999"), JSON.parse(tr.result as string).use_transfer_tool], [false, true], "transfer");
+  eq(JSON.parse(brainToolReply("lookup_caller", "s", true, { status: "screened", say: "End politely." }).result as string).status, "screened", "screened");
+  for (const body of [null, [], "x", { status: "ok" }, { say: 5 }]) eq("error" in brainToolReply("n", "f", true, body), true, "malformed: " + JSON.stringify(body));
+  eq("error" in brainToolReply("n", "f", false, { say: "x" }), true, "database error");
+});
+
+Deno.test("assistant-request is planned with the called line only (no business id from the request)", () => {
+  const p = plan({ message: { type: "assistant-request", call: { id: "c-1", phoneNumberId: "pn-1", customer: { number: "+15125550100" }, metadata: { business_id: "11111111-1111-1111-1111-111111111111" } }, phoneNumber: { number: "+15125550000" } } });
+  eq(p, { kind: "assistant", providerCallId: "c-1", calledNumber: "+15125550000", vapiNumberId: "pn-1" }, "assistant");
+});
+
+Deno.test("assistant-request answers: current settings, standby assistant, or a spoken refusal", () => {
+  const a = { name: "Salon receptionist", firstMessage: "Hello" };
+  eq(assistantReply(true, { ok: true, assistant: a }), { assistant: a }, "assistant");
+  eq(assistantReply(true, { ok: false, outcome: "not_ready", fallback_assistant_id: "0a1b2c3d-0000-4000-8000-000000000001" }), { assistantId: "0a1b2c3d-0000-4000-8000-000000000001" }, "assistant");
+  eq(assistantReply(true, { ok: false, outcome: "unknown_number", fallback_assistant_id: null }), { error: CANT_TAKE }, "assistant");
+  eq(assistantReply(true, { ok: false, fallback_assistant_id: "not-a-uuid" }), { error: CANT_TAKE }, "assistant");
+  eq(assistantReply(false, null), { error: CANT_TAKE }, "assistant");   // database down or too slow
+  eq(assistantReply(true, { ok: true, assistant: [] }), { error: CANT_TAKE }, "assistant");
+});
+
+Deno.test("party size and seating reach the booking tools; bad values are refused before the database", () => {
+  const msg = (args: unknown) => ({ message: { type: "tool-calls", call: callObj, toolCallList: [{ id: "tc-p", type: "function", function: { name: "check_availability", arguments: args } }] } });
+  let p = plan(msg({ party_size: 6, seating: "patio", days: 1 }));
+  eq((p as unknown as { calls: { record: { p_args: Record<string, unknown> } }[] }).calls[0].record.p_args.party_size, 6, "party size kept");
+  eq((p as unknown as { calls: { record: { p_args: Record<string, unknown> } }[] }).calls[0].record.p_args.seating, "patio", "seating kept");
+  p = plan(msg({ party_size: 0 }));
+  eq((p as unknown as { calls: { kind: string }[] }).calls[0].kind, "invalid", "zero people refused");
+  p = plan(msg({ party_size: 2.5 }));
+  eq((p as unknown as { calls: { kind: string }[] }).calls[0].kind, "invalid", "half a person refused");
+});
