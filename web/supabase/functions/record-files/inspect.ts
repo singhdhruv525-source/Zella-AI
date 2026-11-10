@@ -24,44 +24,57 @@ const latin1 = (b: Uint8Array) => { let s = ""; for (let i = 0; i < b.length; i 
 // PDF names may hide letters as #xx ("/J#61vaScript")
 const unescapeNames = (s: string) => s.replace(/#([0-9A-Fa-f]{2})/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
 
-async function inflate(data: Uint8Array, limit: number): Promise<Uint8Array | "too_big" | null> {
+async function inflate(data: Uint8Array, limit: number): Promise<number | "active" | "too_big" | null> {
   try {
     const stream = new Blob([data as Uint8Array<ArrayBuffer>]).stream().pipeThrough(new DecompressionStream("deflate"));
-    const reader = stream.getReader(); const parts: Uint8Array[] = []; let n = 0;
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      n += value.length; if (n > limit) { await reader.cancel(); return "too_big"; }
-      parts.push(value);
-    }
-    const out = new Uint8Array(n); let at = 0; for (const p of parts) { out.set(p, at); at += p.length; }
-    return out;
+    const reader = stream.getReader(); let n = 0, tail = "";
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) return n;
+        n += value.length;
+        if (n > limit) { await reader.cancel(); return "too_big"; }
+        const text = tail + latin1(value);
+        if (ACTIVE.test(unescapeNames(text))) { await reader.cancel(); return "active"; }
+        // Retain enough raw bytes for a name (including #xx escapes) spanning chunks.
+        tail = text.slice(-256);
+      }
+    } finally { reader.releaseLock(); }
   } catch { return null; }
 }
 
 export async function inspectPdf(b: Uint8Array): Promise<Verdict> {
-  const text = latin1(b);
-  if (/\/Encrypt(?![A-Za-z0-9])/.test(unescapeNames(text))) return { ok: false, reason: "encrypted PDF (can't be checked)" };
-  if (ACTIVE.test(unescapeNames(text))) return { ok: false, reason: `PDF with active content (${unescapeNames(text).match(ACTIVE)![1]})` };
-  // compressed streams (object streams can hide the same features)
-  const re = /stream\r?\n/g; let m: RegExpExecArray | null; let streams = 0, budget = 64 * 1024 * 1024;
-  while ((m = re.exec(text)) && streams < 2000) {
-    const head = text.slice(Math.max(0, m.index - 400), m.index);
-    const dict = head.slice(head.lastIndexOf("<<"));
-    if (!/\/FlateDecode/.test(unescapeNames(dict))) continue;
-    const start = m.index + m[0].length;
-    const end = text.indexOf("endstream", start);
-    if (end < 0) break;
-    streams++;
-    let stop = end; // the line break before "endstream" is not part of the data
+  const text = latin1(b), names = unescapeNames(text);
+  if (/\/Encrypt(?![A-Za-z0-9])/.test(names)) return { ok: false, reason: "encrypted PDF (can't be checked)" };
+  const active = names.match(ACTIVE);
+  if (active) return { ok: false, reason: `PDF with active content (${active[1]})` };
+  const re = /\bstream\r?\n/g; let m: RegExpExecArray | null;
+  let streams = 0, budget = 10 * 1024 * 1024, previousEnd = 0;
+  while ((m = re.exec(text))) {
+    if (++streams > 2000) return { ok: false, reason: "PDF has too many streams to check" };
+    // Read from the enclosing object's start, not the last nested dictionary or a fixed window.
+    const prefix = text.slice(previousEnd, m.index);
+    const objects = [...prefix.matchAll(/\b\d+\s+\d+\s+obj\b/g)];
+    const object = objects.at(-1);
+    if (!object) return { ok: false, reason: "damaged PDF stream dictionary" };
+    const dict = unescapeNames(prefix.slice(object.index! + object[0].length));
+    const start = m.index + m[0].length, end = text.indexOf("endstream", start);
+    if (end < 0) return { ok: false, reason: "unterminated PDF stream" };
+    re.lastIndex = end + "endstream".length;
+    previousEnd = re.lastIndex;
+    let stop = end;
     if (b[stop - 1] === 0x0a) stop--;
     if (b[stop - 1] === 0x0d) stop--;
-    const raw = b.subarray(start, stop);
-    const inflated = await inflate(raw, budget);
-    if (inflated === "too_big") return { ok: false, reason: "PDF too large to check" }; // a compression bomb, or simply huge
-    if (inflated === null) return { ok: false, reason: "damaged PDF (a compressed part can't be read)" }; // unreadable could hide anything
-    budget -= inflated.length;
-    if (ACTIVE.test(unescapeNames(latin1(inflated)))) return { ok: false, reason: "PDF with active content (in a compressed stream)" };
+    const filter = dict.match(/\/Filter\s*(\[[^\]]*\]|\/[^\s<>\[\]()]+|[^\s]+)/);
+    if (!filter) continue; // unfiltered bytes were scanned above
+    if (!/^\/FlateDecode$|^\[\s*\/FlateDecode\s*\]$/.test(filter[1])) return { ok: false, reason: "unsupported PDF stream filter" };
+    // Predictors transform decoded bytes; this scanner only supports the default identity predictor.
+    if (/\/Predictor\s+(?!1(?:\s|[<>/]))/.test(dict)) return { ok: false, reason: "unsupported PDF stream predictor" };
+    const inflated = await inflate(b.subarray(start, stop), budget);
+    if (inflated === "too_big") return { ok: false, reason: "PDF too large to check" };
+    if (inflated === null) return { ok: false, reason: "damaged PDF (a compressed part can't be read)" };
+    if (inflated === "active") return { ok: false, reason: "PDF with active content (in a compressed stream)" };
+    budget -= inflated;
     if (budget <= 0) return { ok: false, reason: "PDF too large to check" };
   }
   return { ok: true };

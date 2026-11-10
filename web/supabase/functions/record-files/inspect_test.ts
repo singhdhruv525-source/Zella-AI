@@ -65,3 +65,24 @@ Deno.test("a compression bomb stops at the budget", async () => {
 Deno.test("sha256", async () => {
   assertEquals(await sha256(enc("abc")), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
 });
+
+Deno.test("unchecked PDF streams fail closed", async () => {
+  for (const body of [
+    "1 0 obj << >> stream\nunterminated",
+    "1 0 obj << /Filter /ASCIIHexDecode >> stream\n2f4a53>\nendstream endobj",
+    "1 0 obj << /Filter [/ASCII85Decode /FlateDecode] >> stream\nx\nendstream endobj",
+    "1 0 obj << /Filter 2 0 R >> stream\nx\nendstream endobj",
+    Array.from({ length: 2001 }, (_, i) => `${i + 1} 0 obj << >> stream\nx\nendstream endobj`).join("\n"),
+  ]) assertEquals((await inspect("application/pdf", pdf(body))).ok, false);
+});
+Deno.test("nested and long stream dictionaries cannot hide compressed active content", async () => {
+  const z = await deflate("/J#61vaScript");
+  for (const extra of ["/DecodeParms << /Predictor 1 >>", `/Padding (${"x".repeat(500)})`]) {
+    const b = cat(enc(`%PDF-1.7\n1 0 obj << /Filter /FlateDecode ${extra} >> stream\n`), z, enc("\nendstream endobj"));
+    assertEquals((await inspect("application/pdf", b)).ok, false);
+  }
+});
+Deno.test("stream markers inside compressed bytes are skipped", async () => {
+  // Level-zero deflate includes literal stream markers in the compressed bytes.
+  assertEquals((await inspect("application/pdf", await pdfWithStream("stream\ninnocent text"))).ok, true);
+});

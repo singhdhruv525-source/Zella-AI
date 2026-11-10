@@ -75,7 +75,9 @@ export async function finishSetupWith(d: FinishDeps) {
   let warning: string | undefined;
   if (plan.kind === "send") {
     if (!(await d.claim(inv!.id))) throw new FinishError("Setup is already being finished in another window. Reload the page to see the result.", 409);
-    const sent = await d.sendInvite(inv!.email, inv!.owner_name);
+    let sent: { userId: string } | { error: string };
+    try { sent = await d.sendInvite(inv!.email, inv!.owner_name); }
+    catch (e) { sent = { error: e instanceof Error ? e.message : String(e) }; }
     if ("error" in sent) {
       await d.release(inv!.id, sent.error);
       return { completed: false, invitationStatus: "failed",

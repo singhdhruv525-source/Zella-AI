@@ -54,9 +54,11 @@ export function mapEvent(ev: Json): Mapped {
         p_reason: ok ? null : "The card was declined or the payment could not be completed" } };
     }
     case "customer.subscription.deleted":
+      if (!str(o.id)) return { invalid: "missing subscription" };
       return { args: { ...base, p_type: "subscription_cancelled", p_external_subscription_id: str(o.id) } };
     case "customer.subscription.updated":
       if (o.status !== "active") return { ignore: `subscription status ${String(o.status)}` };
+      if (!str(o.id)) return { invalid: "missing subscription" };
       return { args: { ...base, p_type: "subscription_renewed", p_external_subscription_id: str(o.id),
         p_period_start: iso(o.current_period_start), p_period_end: iso(o.current_period_end) } };
     case "charge.refunded": {
@@ -84,5 +86,5 @@ export function mapEvent(ev: Json): Mapped {
 // The database's answer -> the HTTP status for the provider. "pending" is stored and applied later by Zella
 // (200, so the provider doesn't keep retrying); "failed" asks the provider to retry (500).
 export function httpStatusFor(result: string): number {
-  return result === "failed" ? 500 : ["processed", "pending", "duplicate", "ignored"].includes(result) ? 200 : 500;
+  return ["processed", "pending", "duplicate", "ignored"].includes(result) ? 200 : 500;
 }
