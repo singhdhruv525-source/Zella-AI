@@ -1,0 +1,133 @@
+import { Component, useEffect } from "react";
+import { createPortal } from "react-dom";
+import { useDialogFocus } from "./useDialogFocus";
+
+// Shared building blocks for the business app (Stitch design).
+
+// Material Symbols (outline icons) for both apps. Loaded once; Inter comes from index.html.
+export function loadBusinessFonts() {
+  if (typeof document === "undefined" || document.getElementById("ba-fonts")) return;
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,400,0..1,0&display=block";
+  link.id = "ba-fonts";
+  document.head.appendChild(link);
+  watchIconFont(link);
+}
+
+// Icons are words drawn by the icon font ("dashboard", "settings"). Until the font has really loaded (and for good
+// if it is blocked or never arrives) the words are hidden, so no half-word ever shows where an icon belongs. Icons
+// are decorative (aria-hidden): buttons carry their own names, so nothing is lost for screen readers.
+function watchIconFont(link) {
+  const root = document.documentElement;
+  if (!document.fonts?.load) { root.dataset.zellaIcons = "ready"; return; }
+  root.dataset.zellaIcons = "loading";
+  let settled = false;
+  const done = (state) => { if (!settled) { settled = true; root.dataset.zellaIcons = state; } };
+  const check = () => document.fonts.load('20px "Material Symbols Outlined"', "home")
+    .then((faces) => done(faces.length ? "ready" : "failed"), () => done("failed"));
+  link?.addEventListener("load", check);
+  link?.addEventListener("error", () => done("failed"));
+  setTimeout(() => done(document.fonts.check?.('20px "Material Symbols Outlined"', "home") ? "ready" : "failed"), 10000);
+}
+
+export function Icon({ name, size, className = "" }) {
+  return (
+    <span className={`ba-icon ${size ?? ""} ${className}`} aria-hidden="true">
+      {name}
+    </span>
+  );
+}
+
+export function Pill({ tone, dot, pulse, children }) {
+  return (
+    <span className={`ba-pill ${tone ?? ""}`}>
+      {dot && <span className={`ba-dot ${pulse ? "pulse" : ""}`} />}
+      {children}
+    </span>
+  );
+}
+
+export function Modal({ title, description, onClose, children, footer, busy, wide, icon, tone }) {
+  // focus moves in when it opens, Tab stays inside, Escape closes (unless busy), focus returns to the opener
+  const dialogRef = useDialogFocus(onClose, busy);
+
+  // Stop the page behind from scrolling while the box is open.
+  useEffect(() => {
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previous; };
+  }, []);
+
+  const box = (
+    <div
+      className="ba-modal-backdrop"
+      onMouseDown={(event) => event.target === event.currentTarget && !busy && onClose()}
+    >
+      <section ref={dialogRef} tabIndex={-1} className={`ba-modal ${wide ? "wide" : ""}`} role="dialog" aria-modal="true" aria-label={title}>
+        <div className="ba-modal-head">
+          {icon && <span className={`ba-modal-icon ${tone ?? ""}`}><Icon name={icon} /></span>}
+          <div className="ba-modal-title">
+            <h2>{title}</h2>
+            {description && <p>{description}</p>}
+          </div>
+          <button type="button" className="ba-btn ghost sm" onClick={onClose} disabled={busy} aria-label="Close">
+            <Icon name="close" size="sm" />
+          </button>
+        </div>
+        {children}
+        {footer && <div className="ba-modal-foot">{footer}</div>}
+      </section>
+    </div>
+  );
+
+  // Drawn at the top of the app, not inside the page. The sticky header and the
+  // page animations create their own layers, and a box opened from inside one of
+  // them was trapped there (cut off, behind other cards, or stuck in the header).
+  // The app root still carries the colour tokens, so the look is unchanged.
+  const host = typeof document !== "undefined" ? document.querySelector(".ba-root, .ba-auth") : null;
+  return host ? createPortal(box, host) : box;
+}
+
+export function Field({ label, hint, full, bare, children }) {
+  const Tag = bare ? "div" : "label";
+  return (
+    <Tag className={`ba-field ${full ? "full" : ""}`}>
+      <span>{label}</span>
+      {children}
+      {hint && <small>{hint}</small>}
+    </Tag>
+  );
+}
+
+export function personName(person) {
+  if (!person) return null;
+  return [person.first_name, person.last_name].filter(Boolean).join(" ") || person.company_name || null;
+}
+
+export function initials(name) {
+  return (name || "?").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
+}
+
+// Catches a crash in the part of the screen it wraps and shows a way out instead of a blank page. resetKey (for
+// example the address) clears the error when it changes, so moving to another page recovers.
+export class ErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { error: null, key: props.resetKey }; }
+  static getDerivedStateFromError(error) { return { error }; }
+  static getDerivedStateFromProps(props, state) { return props.resetKey !== state.key ? { error: null, key: props.resetKey } : null; }
+  componentDidCatch(error, info) { console.error("Screen error", error, info?.componentStack); }
+  render() {
+    if (!this.state.error) return this.props.children;
+    if (this.props.fallback) return this.props.fallback(() => this.setState({ error: null }));
+    return (
+      <section className="ba-panel" role="alert" style={{ margin: 16 }}>
+        <div className="ba-panel-body">
+          <h2>Something went wrong on this page</h2>
+          <p className="ba-muted">Nothing you saved was lost. Try again, or go to another page.</p>
+          <button type="button" className="ba-btn primary" onClick={() => this.setState({ error: null })}>Try again</button>{" "}
+          <button type="button" className="ba-btn" onClick={() => window.location.reload()}>Reload</button>
+        </div>
+      </section>
+    );
+  }
+}
