@@ -32,9 +32,9 @@ Repo: `singhdhruv525-source/Zella-AI`. Read `ZELLA_VOICE_RULES.md` first. Use th
 | #41 | Review-only, SQL part 2 | Review requested, not posted yet. When it lands, open a fix PR the same way as #49–#52 |
 | #49 → main | Fixes for #44 (baseline and rollbacks, 20 findings) | CodeRabbit was asked to fix them in order. Wait for its commits, then verify and review |
 | #50 → main | Fixes for #47 (tests part A, 12 findings) | Same as #49 |
-| #51 → main | Fixes for #45 (web part B, 29 findings) | Same as #49 |
+| #51 → main | Fixes for #45 (web part B, 29 findings incl. second batch) | Same as #49 |
 | #52 → main | Fixes for #48 (tests part B and root files, 11 findings) | Same as #49 |
-| #46 | Review-only, n8n | Review not posted yet. When it lands, open a fix PR the same way |
+| #53 → main | Fixes for #46 (n8n, 21 findings) | CodeRabbit asked to fix in order. Wait for commits, verify, review |
 
 Each fix PR has a checklist in `docs/review/FINDINGS_PR<n>.md`, in CodeRabbit's order.
 - **How a fix PR was made:**
