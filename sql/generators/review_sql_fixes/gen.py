@@ -35,13 +35,16 @@ for sig, reps in spec.FUNCS:
     src = q(db, f"select prosrc from pg_proc where oid = {lit(sig)}::regprocedure")
     src = src[:-1] if src.endswith("\n") else src  # psql adds one newline
     new_def, new_src = fdef, src
-    for old, new in reps:
-        for label, text in (("def", new_def), ("src", new_src)):
+    for rep in reps:
+        old, new = rep[0], rep[1]
+        header_only = len(rep) > 2 and rep[2] == "header"  # a change to the function's attributes, not its body
+        for label, text in (("def", new_def),) + ((() if header_only else (("src", new_src),))):
             n = text.count(old)
             if n != 1:
                 sys.exit(f"{sig}: expected 1 match in {label}, found {n}: {old[:80]!r}")
         new_def = new_def.replace(old, new)
-        new_src = new_src.replace(old, new)
+        if not header_only:
+            new_src = new_src.replace(old, new)
     old_md5 = q(db, f"select md5(pg_get_functiondef({lit(sig)}::regprocedure))").strip()
     new_md5 = q(db, f"begin; {new_def}; select md5(pg_get_functiondef({lit(sig)}::regprocedure)); rollback;").strip()
     guards.append((sig, old_md5, new_md5))

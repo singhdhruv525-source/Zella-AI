@@ -403,6 +403,14 @@ FUNCS.append(('zella_check_uptime', [
      "  select max(checked_at) into v_last from public.provider_health;\n  select min(updated_at) into v_since from public.platform_settings where key = 'provider_checks_live';\n  if public.zella_provider_checks_live() and coalesce(greatest(v_last, v_since), now()) < now() - interval '6 hours' then\n    perform public.zella_platform_alert('automation_heartbeat', 'The automation engine looks down',\n      'No connection check has come back for 6 hours (last: ' || coalesce(to_char(v_last at time zone 'UTC', 'YYYY-MM-DD HH24:MI') || ' UTC', 'never')"),
 ]))
 
+
+# CodeRabbit's autofix on #38, policy and email-proof fixes not in production yet
+FUNCS.append(("zella_session_proved_email", [
+    (" STABLE\n SET search_path TO ''", " STABLE SECURITY DEFINER\n SET search_path TO ''", "header"),
+    ("  select coalesce((select bool_or(m ->> 'method' in ('otp', 'magiclink', 'invite', 'recovery', 'email/signup', 'email_change'))\n                     from jsonb_array_elements(case when jsonb_typeof(auth.jwt() -> 'amr') = 'array' then auth.jwt() -> 'amr' else '[]'::jsonb end) m), false);",
+     "  -- the session must have signed in by email (link, or emailed code: the app has no phone sign-in), on this\n  -- account's current address, with an email identity the auth provider verified\n  select exists (\n    select 1 from auth.users u\n    join auth.sessions s on s.user_id = u.id and s.id::text = auth.jwt() ->> 'session_id'\n    where u.id = auth.uid() and lower(u.email) = lower(auth.jwt() ->> 'email')\n      and exists (select 1 from auth.identities i where i.user_id = u.id\n        and lower(i.identity_data ->> 'email') = lower(u.email)\n        and i.identity_data -> 'email_verified' = 'true'::jsonb)\n      and exists (select 1 from jsonb_array_elements(\n        case when jsonb_typeof(auth.jwt() -> 'amr') = 'array' then auth.jwt() -> 'amr' else '[]'::jsonb end) m\n        where m ->> 'method' in ('otp', 'magiclink', 'invite', 'recovery', 'email/signup', 'email_change'))\n  );"),
+]))
+
 # CodeRabbit's order (finding number on PR #38, first finding = 0): each function is written in the order of its
 # first finding, so the migration reads in the same order as the review.
 ORDER = {"zella_claim_admin_alert_email": 0, "zella_admin_routing_save": 1, "zella_admin_message_detail": 2,
@@ -419,7 +427,7 @@ ORDER = {"zella_claim_admin_alert_email": 0, "zella_admin_routing_save": 1, "zel
   "zella_complete_event": 75.2, "zella_record_consent": 76, "zella_calls_page": 77, "zella_inbox_previews": 78,
   # second pass (CodeRabbit's autofix on #38), in its commit order
   "zella_admin_messages": 100.1, "zella_config_migration_restore": 100.2, "zella_dispatch_n8n": 100.3,
-  "zella_platform_admin_email_check": 100.4,
+  "zella_platform_admin_email_check": 100.4, "zella_session_proved_email": 100.5,
   # PR #41 (SQL part 2), in its order
   "zella_offer_redeem_core": 200.1, "zella_reassign_callback": 200.2, "zella_erase_customer": 200.3, "zella_language_allowance": 200.4,
   "zella_decide_time_off": 200.5, "zella_offboard_member": 200.6, "zella_public_status": 200.7, "zella_check_uptime": 200.8}
@@ -429,6 +437,8 @@ assert not missing, missing
 FUNCS.sort(key=lambda f: ORDER[_name(f[0])])
 
 EXTRA_UP = """
+-- CodeRabbit #38 (autofix): call insights summarise call content, so they follow the call-content rule, not membership
+alter policy call_insights_read on public.call_insights using (public.zella_can_read_call_content(business_id));
 -- #8: dental reminders don't name the treatment (anyone who sees the phone or inbox would read it); the platform
 -- wording only, so a business's own template is untouched
 update public.message_templates t set body = replace(t.body, 'a reminder of your {{appointment}} at', 'a reminder of your appointment at')
@@ -456,6 +466,7 @@ create trigger zella_audit_privileged_trg after insert or update or delete on pu
 """
 
 EXTRA_DOWN = """
+alter policy call_insights_read on public.call_insights using (public.zella_is_member(business_id));
 -- #8: the dental reminder wording as it was
 update public.message_templates t set body = replace(t.body, 'a reminder of your appointment at', 'a reminder of your {{appointment}} at')
  where t.business_id is null and t.key = 'appointment_reminder' and t.status = 'active'

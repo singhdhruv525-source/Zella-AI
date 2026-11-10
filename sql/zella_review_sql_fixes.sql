@@ -263,6 +263,10 @@ begin
   if v is null or v not in ('8afa557d293ef3e92a310842c461b6d6', 'b90210c5a2693e974f284f9f33b5fe26') then
     raise exception 'VERSION_MISMATCH: public.zella_platform_admin_email_check() is not the version this file was written against (expected the live version or this file version)';
   end if;
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_session_proved_email()');
+  if v is null or v not in ('6414658bfcbdadb8af7003f4c762ec96', '24b1ef7a8efbb8c511b6cb247cdd5581') then
+    raise exception 'VERSION_MISMATCH: public.zella_session_proved_email() is not the version this file was written against (expected the live version or this file version)';
+  end if;
   select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_offer_redeem_core(uuid,uuid,text,text,text)');
   if v is null or v not in ('c25cd23249dfdc84570416c4bc8de9bd', 'bbdabe8a60a313dee4cbd81b02718791') then
     raise exception 'VERSION_MISMATCH: public.zella_offer_redeem_core(uuid,uuid,text,text,text) is not the version this file was written against (expected the live version or this file version)';
@@ -2246,6 +2250,28 @@ begin
   return new;
 end $function$;
 
+-- CodeRabbit #100
+CREATE OR REPLACE FUNCTION public.zella_session_proved_email()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+  -- the session must have signed in by email (link, or emailed code: the app has no phone sign-in), on this
+  -- account's current address, with an email identity the auth provider verified
+  select exists (
+    select 1 from auth.users u
+    join auth.sessions s on s.user_id = u.id and s.id::text = auth.jwt() ->> 'session_id'
+    where u.id = auth.uid() and lower(u.email) = lower(auth.jwt() ->> 'email')
+      and exists (select 1 from auth.identities i where i.user_id = u.id
+        and lower(i.identity_data ->> 'email') = lower(u.email)
+        and i.identity_data -> 'email_verified' = 'true'::jsonb)
+      and exists (select 1 from jsonb_array_elements(
+        case when jsonb_typeof(auth.jwt() -> 'amr') = 'array' then auth.jwt() -> 'amr' else '[]'::jsonb end) m
+        where m ->> 'method' in ('otp', 'magiclink', 'invite', 'recovery', 'email/signup', 'email_change'))
+  );
+$function$;
+
 -- CodeRabbit #200
 CREATE OR REPLACE FUNCTION public.zella_offer_redeem_core(p_offer uuid, p_business uuid, p_source text, p_key text, p_note text DEFAULT NULL::text)
  RETURNS jsonb
@@ -2544,6 +2570,8 @@ begin
   return jsonb_build_object('heartbeat_last', v_last, 'stalled', to_jsonb(v_stuck));
 end $function$;
 
+-- CodeRabbit #38 (autofix): call insights summarise call content, so they follow the call-content rule, not membership
+alter policy call_insights_read on public.call_insights using (public.zella_can_read_call_content(business_id));
 -- #8: dental reminders don't name the treatment (anyone who sees the phone or inbox would read it); the platform
 -- wording only, so a business's own template is untouched
 update public.message_templates t set body = replace(t.body, 'a reminder of your {{appointment}} at', 'a reminder of your appointment at')

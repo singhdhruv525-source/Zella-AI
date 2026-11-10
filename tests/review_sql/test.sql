@@ -299,4 +299,20 @@ do $$ begin
 end $$;
 select 'PASS #41 offer key lock, closed callbacks, erase scrubs more, allowance needs a role, time-off lock, offboard target, public status hides titles, uptime age';
 
+-- CodeRabbit #38 (autofix): call insights follow the call-content rule; email proof needs an email sign-in on a verified identity
+do $$ begin
+  if (select pg_get_expr(polqual, polrelid) from pg_policy where polname = 'call_insights_read') not like '%zella_can_read_call_content%' then raise exception 'FAIL call insights readable by every member'; end if;
+end $$;
+insert into auth.sessions (id, user_id) values ('fa900000-0000-0000-0000-000000000001', 'fa000000-0000-0000-0000-00000000000f');
+set local request.jwt.claims = '{"sub": "fa000000-0000-0000-0000-00000000000f", "role": "authenticated", "email": "newadmin@rf.test", "session_id": "fa900000-0000-0000-0000-000000000001", "amr": [{"method": "password"}]}';
+do $$ begin if public.zella_session_proved_email() then raise exception 'FAIL a password sign-in proved the email'; end if; end $$;
+set local request.jwt.claims = '{"sub": "fa000000-0000-0000-0000-00000000000f", "role": "authenticated", "email": "other@rf.test", "session_id": "fa900000-0000-0000-0000-000000000001", "amr": [{"method": "otp"}]}';
+do $$ begin if public.zella_session_proved_email() then raise exception 'FAIL a token for another address proved the email'; end if; end $$;
+set local request.jwt.claims = '{"sub": "fa000000-0000-0000-0000-00000000000f", "role": "authenticated", "email": "newadmin@rf.test", "session_id": "fa900000-0000-0000-0000-000000000001", "amr": [{"method": "magiclink"}]}';
+do $$ begin if not public.zella_session_proved_email() then raise exception 'FAIL an email link on a verified identity was refused'; end if; end $$;
+set local request.jwt.claims = '{"sub": "fa000000-0000-0000-0000-00000000000f", "role": "authenticated", "email": "newadmin@rf.test", "session_id": "fa900000-0000-0000-0000-000000000099", "amr": [{"method": "magiclink"}]}';
+do $$ begin if public.zella_session_proved_email() then raise exception 'FAIL a session that is not this user''s proved the email'; end if; end $$;
+reset request.jwt.claims;
+select 'PASS call insights follow the call-content rule; email proof needs an email sign-in on this address, a verified identity and the current session';
+
 rollback;

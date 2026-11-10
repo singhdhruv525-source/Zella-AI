@@ -191,6 +191,10 @@ begin
   if v is null or v not in ('8afa557d293ef3e92a310842c461b6d6', 'b90210c5a2693e974f284f9f33b5fe26') then
     raise exception 'VERSION_MISMATCH: public.zella_platform_admin_email_check() is not the version this file was written against (rollback)';
   end if;
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_session_proved_email()');
+  if v is null or v not in ('6414658bfcbdadb8af7003f4c762ec96', '24b1ef7a8efbb8c511b6cb247cdd5581') then
+    raise exception 'VERSION_MISMATCH: public.zella_session_proved_email() is not the version this file was written against (rollback)';
+  end if;
   select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_offer_redeem_core(uuid,uuid,text,text,text)');
   if v is null or v not in ('c25cd23249dfdc84570416c4bc8de9bd', 'bbdabe8a60a313dee4cbd81b02718791') then
     raise exception 'VERSION_MISMATCH: public.zella_offer_redeem_core(uuid,uuid,text,text,text) is not the version this file was written against (rollback)';
@@ -225,6 +229,7 @@ begin
   end if;
 end $guard$;
 
+alter policy call_insights_read on public.call_insights using (public.zella_is_member(business_id));
 -- #8: the dental reminder wording as it was
 update public.message_templates t set body = replace(t.body, 'a reminder of your appointment at', 'a reminder of your {{appointment}} at')
  where t.business_id is null and t.key = 'appointment_reminder' and t.status = 'active'
@@ -2073,6 +2078,16 @@ begin
   end if;
   return new;
 end $function$;
+
+CREATE OR REPLACE FUNCTION public.zella_session_proved_email()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE
+ SET search_path TO ''
+AS $function$
+  select coalesce((select bool_or(m ->> 'method' in ('otp', 'magiclink', 'invite', 'recovery', 'email/signup', 'email_change'))
+                     from jsonb_array_elements(case when jsonb_typeof(auth.jwt() -> 'amr') = 'array' then auth.jwt() -> 'amr' else '[]'::jsonb end) m), false);
+$function$;
 
 CREATE OR REPLACE FUNCTION public.zella_offer_redeem_core(p_offer uuid, p_business uuid, p_source text, p_key text, p_note text DEFAULT NULL::text)
  RETURNS jsonb
