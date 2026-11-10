@@ -1,0 +1,65 @@
+/* Motion in the CRM: pages ease in, buttons lift and press, cards respond to the pointer, tabs glide and numbers
+   count up. Short and soft, never in the way of reading. Everything that moves is switched off for people who
+   prefer reduced motion (colour changes stay). */
+@media (prefers-reduced-motion: no-preference) {
+  /* Each page eases in, its parts one after another. */
+  .ba-content > :not([role="dialog"]) { animation: ba-rise 0.35s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  .ba-content > :nth-child(2) { animation-delay: 40ms; }
+  .ba-content > :nth-child(3) { animation-delay: 80ms; }
+  .ba-content > :nth-child(n + 4) { animation-delay: 120ms; }
+
+  /* Cards and rows answer the pointer. */
+  .ba-kpi, .ba-panel { transition: border-color 0.18s ease, box-shadow 0.22s ease, transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1); }
+  .ba-kpi:hover, .ba-panel:hover { border-color: var(--ba-border-strong); }
+  .ba-table tbody tr { transition: background-color 0.12s ease; }
+
+  /* Progress bars fill in. */
+  .ba-bar span { transform-origin: left center; animation: ba-fill 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) 0.3s both; }
+
+  /* Banners slide in. */
+  .ba-banner { animation: ba-slide 0.3s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+}
+@keyframes ba-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes ba-fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes ba-slide { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+
+/* Urgent notifications are easy to spot, without shouting. */
+.ba-bell-panel li.urgent button { box-shadow: inset 3px 0 0 var(--ba-danger); }
+
+/* Popups, side panels and menus open with a short, soft movement and close back the way they came. */
+@media (prefers-reduced-motion: no-preference) {
+  .ba-modal-backdrop, .bp-backdrop { animation: ba-fade 0.18s ease-out both; }
+  .ba-modal { animation: ba-pop 0.24s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  .bp-panel { animation: bp-slide 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  .bp-section { animation: ba-rise 0.3s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  .bp-section:nth-of-type(2) { animation-delay: 40ms; }
+  .bp-section:nth-of-type(3) { animation-delay: 80ms; }
+  .bp-section:nth-of-type(n + 4) { animation-delay: 120ms; }
+  .ba-bell-panel { transform-origin: top right; animation: ba-menu 0.16s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  .ba-menu { transform-origin: top left; animation: ba-menu 0.16s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  .ba-menu.right { transform-origin: top right; }
+  .bp-msg { transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+  .bp-msg:hover { border-color: var(--ba-border-strong); box-shadow: var(--ba-shadow-1); }
+  .ba-modal .ba-field input, .ba-modal .ba-field select, .ba-modal .ba-field textarea { transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+}
+@media (prefers-reduced-motion: no-preference) and (max-width: 640px) {
+  .ba-modal { animation-name: ba-sheet; }
+}
+@keyframes ba-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ba-pop { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
+@keyframes ba-sheet { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes bp-slide { from { transform: translateX(32px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes ba-menu { from { opacity: 0; transform: translateY(-4px) scale(0.97); } to { opacity: 1; transform: none; } }
+
+/* the floor plan and table cards (the shared button, card and popup motion is in styles/motion.css) */
+@media (prefers-reduced-motion: no-preference) {
+  /* floor plan: tables grow on hover; a table waiting to be cleared pulses */
+  .fp-table { transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.2s ease, background-color 0.3s ease; }
+  .fp-table:hover { transform: translate(-50%, -50%) scale(1.07); box-shadow: 0 10px 22px -8px rgba(0, 0, 0, 0.35); z-index: 2; }
+  .fp-table.selected { box-shadow: 0 0 0 6px color-mix(in srgb, var(--ba-primary) 25%, transparent), 0 10px 22px -8px rgba(0, 0, 0, 0.35); }
+  .fp-table.st-needs_clearing { animation: ba-attention 2.2s ease-in-out infinite; }
+  .fp.editable .fp-table:active { transform: translate(-50%, -50%) scale(1.1); cursor: grabbing; }
+  .tb-card { transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.2s ease, border-color 0.15s ease; }
+  .tb-card:hover { transform: translateY(-2px); box-shadow: 0 10px 22px -12px rgba(0, 0, 0, 0.3); }
+}
+@keyframes ba-attention { 0%, 100% { box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12); } 50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--ba-warning) 28%, transparent); } }

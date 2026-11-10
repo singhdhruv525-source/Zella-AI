@@ -1,0 +1,377 @@
+/* =========================================================
+   Zella admin sign-in, Oat & Slate SaaS Beige theme
+   (same tokens as the admin dashboard and client CRM)
+   ========================================================= */
+
+#root:has(.login-page) {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  text-align: left;
+}
+
+.login-page {
+  /* Sign-in names for the shared tokens in styles/tokens.css */
+  --canvas: var(--zella-bg);
+  --surface: var(--zella-card);
+  --subdued: var(--zella-subtle);
+  --alt: var(--zella-alt);
+  --border: var(--zella-border);
+  --border-strong: var(--zella-border-strong);
+  --text: var(--zella-text);
+  --text-2: var(--zella-text-2);
+  --muted: var(--zella-text-secondary);
+  --primary: var(--zella-primary);
+  --primary-hover: var(--zella-primary-hover);
+  --primary-subtle: var(--zella-primary-soft);
+  --success: var(--zella-success);
+  --success-bg: var(--zella-success-bg);
+  --danger: var(--zella-danger);
+  --danger-bg: var(--zella-danger-bg);
+
+  position: relative;
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  padding: 24px;
+  background: var(--canvas);
+  color: var(--text);
+  font-family: var(--zella-font);
+  text-align: left;
+}
+
+.login-page * { box-sizing: border-box; }
+
+/* The soft background shapes are kept in the markup but not drawn: the page stays calm and flat. */
+.ambient {
+  display: none;
+}
+
+.login-layout {
+  position: relative;
+  width: min(1040px, 100%);
+  min-height: 620px;
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--zella-radius-lg);
+  background: var(--surface);
+  box-shadow: var(--zella-shadow-md);
+}
+
+/* Left: brand panel */
+.brand-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 32px;
+  padding: 40px;
+  border-right: 1px solid var(--border);
+  background: var(--subdued);
+}
+
+.brand,
+.mobile-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 19px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+
+.brand-mark {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 750;
+}
+
+.brand-ai { color: var(--primary); }
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 18px;
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+}
+
+.eyebrow-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  background: var(--primary);
+  box-shadow: 0 0 0 4px var(--zella-primary-ring);
+}
+
+.brand-message h1 {
+  margin: 0 0 16px;
+  font-size: clamp(30px, 3.4vw, 42px);
+  font-weight: 750;
+  letter-spacing: -0.035em;
+  line-height: 1.08;
+}
+
+.brand-message h1 span { color: var(--primary); }
+
+.brand-message > p {
+  max-width: 400px;
+  margin: 0 0 28px;
+  color: var(--text-2);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.feature-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.feature {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.feature-icon {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--primary);
+}
+
+.feature strong {
+  display: block;
+  font-size: 14px;
+}
+
+.feature span:not(.feature-icon) {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.brand-footer {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* Right: form panel */
+.form-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 40px;
+}
+
+.mobile-brand { display: none; }
+
+.form-content {
+  width: 100%;
+  max-width: 380px;
+  margin: auto;
+}
+
+.form-symbol {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 18px;
+  border: 1px solid var(--zella-info-border);
+  border-radius: 12px;
+  background: var(--primary-subtle);
+  color: var(--primary);
+  font-size: 18px;
+}
+
+.form-eyebrow {
+  margin-bottom: 8px;
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+}
+
+.form-content h2 {
+  margin: 0 0 6px;
+  font-size: 28px;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+}
+
+.form-description {
+  margin: 0 0 26px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.form-content form {
+  display: flex;
+  flex-direction: column;
+}
+
+.form-content label {
+  margin-bottom: 7px;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.password-heading { margin-top: 16px; }
+
+.input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 46px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.input-wrap:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--zella-primary-ring);
+}
+
+.input-icon {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.input-wrap input {
+  min-width: 0;
+  flex: 1;
+  height: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+}
+
+.input-wrap input::placeholder { color: var(--zella-text-faint); }
+
+.show-password {
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--primary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.show-password:hover { background: var(--primary-subtle); }
+
+.login-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 46px;
+  margin-top: 22px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--primary);
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.login-button:hover:not(:disabled) { background: var(--primary-hover); }
+.login-button:disabled { cursor: not-allowed; opacity: 0.65; }
+
+.login-message {
+  margin-top: 14px;
+  padding: 11px 13px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+.login-message.error { border: 1px solid var(--zella-danger-border); background: var(--danger-bg); color: var(--danger); }
+.login-message.success { border: 1px solid var(--zella-success-border); background: var(--success-bg); color: var(--success); }
+
+.security-note {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--alt);
+}
+
+.security-note > span { color: var(--primary); }
+.security-note strong { font-size: 13px; }
+
+.security-note p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.form-footer {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+@media (max-width: 860px) {
+  .login-layout { grid-template-columns: 1fr; min-height: 0; }
+  .brand-panel { display: none; }
+  .mobile-brand { display: flex; margin-bottom: 26px; }
+  .form-panel { padding: 28px 22px; }
+  .form-footer { margin-top: 24px; }
+}
+
+.field-error {
+  margin: -4px 0 12px;
+  color: var(--danger);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+.forgot-link {
+  display: block;
+  margin: 14px auto 0;
+  padding: 6px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--primary);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.forgot-link:hover { text-decoration: underline; }

@@ -1,0 +1,244 @@
+import "./OwnerPages.css";
+import { callOwnerFunction } from "./CreateBusinessWizard";
+import { actionLabel, stageLabel, stageTone, timeAgo, formatDate } from "./ownerFormat";
+import { humanize } from "./copy/labels";
+import { LoadNotice, UpdatedAt, useRefreshable } from "./admin/loadState";
+import { emptyText, metric } from "./admin/loadStatus";
+
+const ATTENTION_LABELS = {
+  invitation_failed: "Invitation failed",
+  invitation_expired: "Invitation expired",
+  integration_error: "Integration problem",
+  setup_failed: "Setup failed",
+};
+
+function Metric({ label, value, note }) {
+  return (
+    <div className="owner-stat-card">
+      <div className="owner-stat-top"><span>{label}</span></div>
+      <div className="owner-stat-value">{value}</div>
+      {note && <div className="owner-stat-note">{note}</div>}
+    </div>
+  );
+}
+
+function Panel({ title, description, action, children }) {
+  return (
+    <section className="owner-panel">
+      <div className="owner-panel-heading">
+        <div>
+          <h2>{title}</h2>
+          {description && <p>{description}</p>}
+        </div>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+export function Pill({ tone = "neutral", children }) {
+  // Sentence case for plain status words ("past_due" -> "Past due"); anything else is shown as given.
+  const text = typeof children === "string" ? humanize(children) : children;
+  return <span className={`op-pill op-pill-${tone}`}>{text}</span>;
+}
+
+const loadOverview = () => callOwnerFunction("overview_data");
+
+export default function OwnerOverview({ onCreateBusiness, onOpenBusiness, onContinueSetup, onNavigate }) {
+  // the last good answer stays on screen when a refresh fails, marked as possibly out of date (admin/loadState.jsx)
+  const r = useRefreshable(loadOverview);
+  const { data, loading } = r;
+  const load = r.reload;
+
+  const s = data?.stats;
+  // a missing or unloaded number shows "—", never a made-up 0
+  const show = (value) => metric(value, r);
+  const list = (key) => (Array.isArray(data?.[key]) ? data[key] : null);
+  const maxFunnel = Math.max(1, ...(data?.funnel ?? []).map((f) => f.count));
+
+  return (
+    <section className="owner-page">
+      <div className="owner-page-heading">
+        <div>
+          <div className="owner-eyebrow">Platform control center</div>
+          <h1>Overview</h1>
+          <p>Every client business on Zella, where its setup stands, and what needs attention.</p>
+        </div>
+        <div className="op-heading-actions">
+          <UpdatedAt r={r} />
+          <button type="button" className="owner-secondary-button" onClick={load} disabled={loading}>
+            {loading ? "Loading..." : "↻ Refresh"}
+          </button>
+          <button type="button" className="owner-primary-button" onClick={onCreateBusiness}>
+            ＋ Create business
+          </button>
+        </div>
+      </div>
+
+      <LoadNotice r={r} what="the overview" />
+
+      <div className="owner-stat-grid">
+        <Metric label="Businesses" value={show(s?.totalBusinesses)} note={`${show(s?.live)} live`} />
+        <Metric label="Setups in progress" value={show(s?.setupsInProgress)} note={`${show(s?.setupComplete)} setup complete`} />
+        <Metric label="Owner invitations" value={show(s?.pendingInvitations)} note={`Pending · ${show(s?.acceptedInvitations)} accepted`} />
+        <Metric label="AI receptionists live" value={show(s?.receptionistsLive)} note="Answering calls" />
+      </div>
+
+      <div className="owner-stat-grid">
+        <Metric label="Calls (30 days)" value={show(s?.callsLast30Days)} note={`${show(s?.aiCallsLast30Days)} handled by AI`} />
+        <Metric label="Open support tickets" value={show(s?.openTickets)} note="Open or in progress" />
+        <Metric label="Needs attention" value={show(list("attention")?.length)} note="Failed invites, errors" />
+        <Metric label="Suspended / canceling" value={r.status === "loading" ? "…" : `${show(s?.suspended)} / ${show(s?.cancelling)}`} note={`${show(s?.cancelled)} canceled`} />
+      </div>
+
+      <div className="op-grid">
+        <Panel
+          title="Needs attention"
+          description="Problems that block a client from going live."
+        >
+          {data?.attention?.length ? (
+            <ul className="op-list">
+              {data.attention.map((item, index) => (
+                <li key={`${item.kind}-${item.businessId}-${index}`}>
+                  <div>
+                    <Pill tone="danger">{ATTENTION_LABELS[item.kind] ?? item.kind}</Pill>
+                    <strong>{item.businessName}</strong>
+                    <span>{item.detail}</span>
+                  </div>
+                  <button type="button" className="op-link" onClick={() => onOpenBusiness(item.businessId)}>
+                    Open
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="op-empty">{emptyText(r, list("attention") ? "Nothing needs attention right now." : "Not reported.", "the overview")}</div>
+          )}
+        </Panel>
+
+        <Panel title="Setup pipeline" description="Where client businesses are in onboarding.">
+          <div className="op-funnel">
+            {(data?.funnel ?? []).map((stage) => (
+              <div key={stage.label} className="op-funnel-row">
+                <span>{stage.label}</span>
+                <div className="op-funnel-bar">
+                  <div style={{ width: `${(stage.count / maxFunnel) * 100}%` }} />
+                </div>
+                <strong>{stage.count}</strong>
+              </div>
+            ))}
+            {!list("funnel") && <div className="op-empty">{emptyText(r, "Not reported.", "the overview")}</div>}
+          </div>
+        </Panel>
+      </div>
+
+      <div className="op-grid">
+        <Panel
+          title="Setups in progress"
+          description="Drafts that still need steps completed."
+          action={
+            <button type="button" className="owner-secondary-button" onClick={() => onNavigate("Businesses")}>
+              All businesses
+            </button>
+          }
+        >
+          {data?.inProgress?.length ? (
+            <ul className="op-list">
+              {data.inProgress.map((b) => (
+                <li key={b.id}>
+                  <div>
+                    <button type="button" className="op-name" onClick={() => onOpenBusiness(b.id)}>{b.name}</button>
+                    <span>{b.industry} · {stageLabel(b.status)} · updated {timeAgo(b.updatedAt)}</span>
+                  </div>
+                  <button type="button" className="owner-secondary-button op-small" onClick={() => onContinueSetup(b.id)}>
+                    Continue setup
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="op-empty">{emptyText(r, list("inProgress") ? "No setups in progress." : "Not reported.", "the overview")}</div>
+          )}
+        </Panel>
+
+        <Panel
+          title="Recent activity"
+          description="Latest admin actions."
+          action={
+            <button type="button" className="owner-secondary-button" onClick={() => onNavigate("Audit Logs")}>
+              Audit logs
+            </button>
+          }
+        >
+          {data?.activity?.length ? (
+            <ul className="op-list op-activity">
+              {data.activity.map((log) => (
+                <li key={log.id}>
+                  <div>
+                    <strong>{actionLabel(log.action)}</strong>
+                    <span>
+                      {log.business_name ? `${log.business_name} · ` : ""}
+                      {log.actor ?? "Unknown user"} · {timeAgo(log.created_at)}
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="op-empty">{emptyText(r, list("activity") ? "No activity recorded yet." : "Not reported.", "the overview")}</div>
+          )}
+        </Panel>
+      </div>
+
+      {data?.upcomingCancellations?.length > 0 && (
+        <Panel title="Upcoming cancellations" description="Memberships that end when the business's current month is over.">
+          <ul className="op-list">
+            {data.upcomingCancellations.map((b) => (
+              <li key={b.id}>
+                <div>
+                  <button type="button" className="op-name" onClick={() => onOpenBusiness(b.id)}>{b.name}</button>
+                  <span>Stops on {formatDate(b.cancelAt)}</span>
+                </div>
+                <button type="button" className="op-link" onClick={() => onOpenBusiness(b.id)}>Manage</button>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      )}
+
+      <Panel title="Recently added businesses">
+        {data?.recentBusinesses?.length ? (
+          <div className="owner-table-wrap" tabIndex={0}>
+            <table className="owner-table">
+              <thead>
+                <tr><th>Business</th><th>Industry</th><th>Stage</th><th>Created</th><th /></tr>
+              </thead>
+              <tbody>
+                {data.recentBusinesses.map((b) => (
+                  <tr key={b.id}>
+                    <td><button type="button" className="op-name" onClick={() => onOpenBusiness(b.id)}>{b.name}</button></td>
+                    <td>{b.industry}</td>
+                    <td><Pill tone={stageTone(b.status)}>{stageLabel(b.status)}</Pill></td>
+                    <td>{formatDate(b.createdAt)}</td>
+                    <td><button type="button" className="op-link" onClick={() => onOpenBusiness(b.id)}>View</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="op-empty">
+            {emptyText(r, list("recentBusinesses") ? "No businesses yet." : "Not reported.", "the overview")}
+            {/* only after an answer that really lists no businesses */}
+            {list("recentBusinesses") && !list("recentBusinesses").length && (
+              <button type="button" className="owner-primary-button op-gap-top" onClick={onCreateBusiness}>
+                ＋ Create your first business
+              </button>
+            )}
+          </div>
+        )}
+      </Panel>
+    </section>
+  );
+}
