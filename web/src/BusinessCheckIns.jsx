@@ -48,6 +48,86 @@ function ReasonForm({ kind, onSubmit, onCancel, busy }) {
   );
 }
 
+const Card = ({ a, column, data, working, nowMs, onOpenPerson, tz, staffName, staff, reasonFor, setReasonFor, setMoving, act }) => {
+  const person = data.people[a.customer_id];
+  const name = personName(person) ?? a.title;
+  const busy = working === a.id;
+  const late = minutesLate(a, nowMs);
+  const started = new Date(a.start_time).getTime() <= nowMs;
+  const lateNow = column === "expected" && late >= LATE_MIN;
+  const arrivedLate = (column === "waiting" || column === "service") && late >= LATE_MIN;
+  const sub = a.checked_in_at ? "Checked in" : "Arrived";
+  return (
+    <article className={`ba-item ${lateNow ? "alert" : ""}`}>
+      <div className="ba-item-top">
+        <div className="ba-item-name">{person ? <button type="button" className="ba-namebtn strong" onClick={() => onOpenPerson(person.id)}>{name}</button> : <strong>{name}</strong>}</div>
+        <span className="ba-item-time">{formatTime(a.start_time, tz)}</span>
+      </div>
+      <div className="ba-item-meta">
+        <span>{a.title}</span>
+        {a.party_size && <span>· party of {a.party_size}</span>}
+        {column === "waiting" && <Pill tone="success">{sub} · waiting {Math.max(0, Math.round((nowMs - new Date(a.checked_in_at ?? a.arrived_at).getTime()) / 60000))} min</Pill>}
+        {column === "service" && <Pill tone="info">With {staffName[a.staff_id] ?? "the team"} since {formatTime(a.in_service_at, tz)}</Pill>}
+        {lateNow && <Pill tone="danger">{late} min late</Pill>}
+        {arrivedLate && <Pill tone="warning">Arrived {late} min late</Pill>}
+        {column === "done" && <Pill tone={APPT_TONE[a.status]}>{APPT_LABEL[a.status]}</Pill>}
+        {column === "done" && a.attendance_note && <small>{a.attendance_note}</small>}
+        {column === "done" && a.cancel_reason && !a.attendance_note && <small>{a.cancel_reason}</small>}
+      </div>
+
+      {column !== "done" && staff.length > 0 && (
+        <label className="ba-select ba-item-staff"><span>Provider</span>
+          <select value={a.staff_id ?? ""} disabled={busy} onChange={(e) => e.target.value && act(a, "assign", "Provider assigned.", { staffId: e.target.value })}>
+            <option value="">Not assigned</option>
+            {staff.filter((m) => m.is_active || m.id === a.staff_id).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+          </select>
+        </label>
+      )}
+
+      {reasonFor?.id === a.id ? (
+        <ReasonForm kind={reasonFor.kind} busy={busy} onCancel={() => setReasonFor(null)}
+          onSubmit={(reason) => act(a, reasonFor.kind, `${a.title} ${reasonFor.kind === "cancelled" ? "cancelled" : "marked no-show"}.`, { reason })} />
+      ) : (
+        <div className="ba-item-actions">
+          {column === "expected" && (
+            <>
+              <button type="button" className="ba-btn sm" disabled={busy || a.arrived_at} onClick={() => act(a, "arrived", `${name} arrived.`)}><Icon name="directions_walk" size="sm" />Arrived</button>
+              <button type="button" className="ba-btn sm primary" disabled={busy} onClick={() => act(a, "checked_in", `${name} checked in.`)}><Icon name="how_to_reg" size="sm" />Check in</button>
+            </>
+          )}
+          {column === "waiting" && (
+            <>
+              {!a.checked_in_at && <button type="button" className="ba-btn sm" disabled={busy} onClick={() => act(a, "checked_in", `${name} checked in.`)}>Check in</button>}
+              <button type="button" className="ba-btn sm primary" disabled={busy} onClick={() => act(a, "in_service", `${name} is now being seen.`)}>Start</button>
+              <button type="button" className="ba-btn sm" disabled={busy} onClick={() => act(a, "undo", "Undone.")}>Undo</button>
+            </>
+          )}
+          {column === "service" && (
+            <>
+              <button type="button" className="ba-btn sm primary" disabled={busy} onClick={() => act(a, "completed", `${a.title} completed.`)}>Complete</button>
+              <button type="button" className="ba-btn sm" disabled={busy} onClick={() => act(a, "undo", "Undone.")}>Undo</button>
+            </>
+          )}
+          {column === "done" && <button type="button" className="ba-btn sm" disabled={busy} onClick={() => act(a, "undo", "Reopened.")}>Reopen</button>}
+          {column !== "done" && person?.phone && <a className="ba-btn sm" href={`tel:${person.phone}`}><Icon name="call" size="sm" />Call</a>}
+          {column !== "done" && person?.phone && !person.do_not_sms && !person.do_not_contact && <a className="ba-btn sm" href={`sms:${person.phone}`}><Icon name="sms" size="sm" />Text</a>}
+          {column === "expected" && <button type="button" className="ba-btn sm" disabled={busy} onClick={() => setMoving(a)}><Icon name="event_repeat" size="sm" />Reschedule</button>}
+          {column === "expected" && started && <button type="button" className="ba-btn sm danger-outline" disabled={busy} onClick={() => setReasonFor({ id: a.id, kind: "no_show" })}>No-show</button>}
+          {(column === "expected" || column === "waiting") && <button type="button" className="ba-btn sm danger-outline" disabled={busy} onClick={() => setReasonFor({ id: a.id, kind: "cancelled" })}>Cancel</button>}
+        </div>
+      )}
+    </article>
+  );
+};
+
+const Column = ({ title, icon, items, column, emptyText, cardProps }) => (
+  <section className="ba-panel">
+    <div className="ba-panel-head"><div className="ba-panel-title"><span className="ba-kpi-icon indigo"><Icon name={icon} size="sm" /></span><div><h2>{title}</h2><p>{plural(items.length, "person", "people")}</p></div></div></div>
+    <div className="ba-panel-body">{items.length ? items.map((a) => <Card {...cardProps} key={a.id} a={a} column={column} />) : <Empty>{emptyText}</Empty>}</div>
+  </section>
+);
+
+
 export function CheckInsPage({ workspace, refreshKey, onNotice, onOpenPerson, onChanged }) {
   const tz = workspace.timezone;
   const term = makeTerm(workspace);
@@ -98,84 +178,6 @@ export function CheckInsPage({ workspace, refreshKey, onNotice, onOpenPerson, on
     onChanged?.();
   }
 
-  const Card = ({ a, column }) => {
-    const person = data.people[a.customer_id];
-    const name = personName(person) ?? a.title;
-    const busy = working === a.id;
-    const late = minutesLate(a, nowMs);
-    const started = new Date(a.start_time).getTime() <= nowMs;
-    const lateNow = column === "expected" && late >= LATE_MIN;
-    const arrivedLate = (column === "waiting" || column === "service") && late >= LATE_MIN;
-    const sub = a.checked_in_at ? "Checked in" : "Arrived";
-    return (
-      <article className={`ba-item ${lateNow ? "alert" : ""}`}>
-        <div className="ba-item-top">
-          <div className="ba-item-name">{person ? <button type="button" className="ba-namebtn strong" onClick={() => onOpenPerson(person.id)}>{name}</button> : <strong>{name}</strong>}</div>
-          <span className="ba-item-time">{formatTime(a.start_time, tz)}</span>
-        </div>
-        <div className="ba-item-meta">
-          <span>{a.title}</span>
-          {a.party_size && <span>· party of {a.party_size}</span>}
-          {column === "waiting" && <Pill tone="success">{sub} · waiting {Math.max(0, Math.round((nowMs - new Date(a.checked_in_at ?? a.arrived_at).getTime()) / 60000))} min</Pill>}
-          {column === "service" && <Pill tone="info">With {staffName[a.staff_id] ?? "the team"} since {formatTime(a.in_service_at, tz)}</Pill>}
-          {lateNow && <Pill tone="danger">{late} min late</Pill>}
-          {arrivedLate && <Pill tone="warning">Arrived {late} min late</Pill>}
-          {column === "done" && <Pill tone={APPT_TONE[a.status]}>{APPT_LABEL[a.status]}</Pill>}
-          {column === "done" && a.attendance_note && <small>{a.attendance_note}</small>}
-          {column === "done" && a.cancel_reason && !a.attendance_note && <small>{a.cancel_reason}</small>}
-        </div>
-
-        {column !== "done" && staff.length > 0 && (
-          <label className="ba-select ba-item-staff"><span>Provider</span>
-            <select value={a.staff_id ?? ""} disabled={busy} onChange={(e) => e.target.value && act(a, "assign", "Provider assigned.", { staffId: e.target.value })}>
-              <option value="">Not assigned</option>
-              {staff.filter((m) => m.is_active || m.id === a.staff_id).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-            </select>
-          </label>
-        )}
-
-        {reasonFor?.id === a.id ? (
-          <ReasonForm kind={reasonFor.kind} busy={busy} onCancel={() => setReasonFor(null)}
-            onSubmit={(reason) => act(a, reasonFor.kind, `${a.title} ${reasonFor.kind === "cancelled" ? "cancelled" : "marked no-show"}.`, { reason })} />
-        ) : (
-          <div className="ba-item-actions">
-            {column === "expected" && (
-              <>
-                <button type="button" className="ba-btn sm" disabled={busy || a.arrived_at} onClick={() => act(a, "arrived", `${name} arrived.`)}><Icon name="directions_walk" size="sm" />Arrived</button>
-                <button type="button" className="ba-btn sm primary" disabled={busy} onClick={() => act(a, "checked_in", `${name} checked in.`)}><Icon name="how_to_reg" size="sm" />Check in</button>
-              </>
-            )}
-            {column === "waiting" && (
-              <>
-                {!a.checked_in_at && <button type="button" className="ba-btn sm" disabled={busy} onClick={() => act(a, "checked_in", `${name} checked in.`)}>Check in</button>}
-                <button type="button" className="ba-btn sm primary" disabled={busy} onClick={() => act(a, "in_service", `${name} is now being seen.`)}>Start</button>
-                <button type="button" className="ba-btn sm" disabled={busy} onClick={() => act(a, "undo", "Undone.")}>Undo</button>
-              </>
-            )}
-            {column === "service" && (
-              <>
-                <button type="button" className="ba-btn sm primary" disabled={busy} onClick={() => act(a, "completed", `${a.title} completed.`)}>Complete</button>
-                <button type="button" className="ba-btn sm" disabled={busy} onClick={() => act(a, "undo", "Undone.")}>Undo</button>
-              </>
-            )}
-            {column === "done" && <button type="button" className="ba-btn sm" disabled={busy} onClick={() => act(a, "undo", "Reopened.")}>Reopen</button>}
-            {column !== "done" && person?.phone && <a className="ba-btn sm" href={`tel:${person.phone}`}><Icon name="call" size="sm" />Call</a>}
-            {column !== "done" && person?.phone && !person.do_not_sms && !person.do_not_contact && <a className="ba-btn sm" href={`sms:${person.phone}`}><Icon name="sms" size="sm" />Text</a>}
-            {column === "expected" && <button type="button" className="ba-btn sm" disabled={busy} onClick={() => setMoving(a)}><Icon name="event_repeat" size="sm" />Reschedule</button>}
-            {column === "expected" && started && <button type="button" className="ba-btn sm danger-outline" disabled={busy} onClick={() => setReasonFor({ id: a.id, kind: "no_show" })}>No-show</button>}
-            {(column === "expected" || column === "waiting") && <button type="button" className="ba-btn sm danger-outline" disabled={busy} onClick={() => setReasonFor({ id: a.id, kind: "cancelled" })}>Cancel</button>}
-          </div>
-        )}
-      </article>
-    );
-  };
-
-  const Column = ({ title, icon, items, column, emptyText }) => (
-    <section className="ba-panel">
-      <div className="ba-panel-head"><div className="ba-panel-title"><span className="ba-kpi-icon indigo"><Icon name={icon} size="sm" /></span><div><h2>{title}</h2><p>{plural(items.length, "person", "people")}</p></div></div></div>
-      <div className="ba-panel-body">{items.length ? items.map((a) => <Card key={a.id} a={a} column={column} />) : <Empty>{emptyText}</Empty>}</div>
-    </section>
-  );
 
   return (
     <>
@@ -198,10 +200,10 @@ export function CheckInsPage({ workspace, refreshKey, onNotice, onOpenPerson, on
       <Notice error={error} onRetry={reload} />
       {loading && !data ? <p className="ba-muted">Loading…</p> : (
         <div className="ba-columns four">
-          <Column title="Expected" icon="schedule" items={groups.expected} column="expected" emptyText={`No more ${term("appointments").toLowerCase()} expected today.`} />
-          <Column title="Waiting now" icon="hourglass_top" items={groups.waiting} column="waiting" emptyText="Nobody is waiting." />
-          <Column title="In service" icon="medical_services" items={groups.service} column="service" emptyText="Nobody is being seen right now." />
-          <Column title="Done today" icon="task_alt" items={groups.done} column="done" emptyText="Nothing finished yet." />
+          <Column cardProps={{ data, working, nowMs, onOpenPerson, tz, staffName, staff, reasonFor, setReasonFor, setMoving, act }} title="Expected" icon="schedule" items={groups.expected} column="expected" emptyText={`No more ${term("appointments").toLowerCase()} expected today.`} />
+          <Column cardProps={{ data, working, nowMs, onOpenPerson, tz, staffName, staff, reasonFor, setReasonFor, setMoving, act }} title="Waiting now" icon="hourglass_top" items={groups.waiting} column="waiting" emptyText="Nobody is waiting." />
+          <Column cardProps={{ data, working, nowMs, onOpenPerson, tz, staffName, staff, reasonFor, setReasonFor, setMoving, act }} title="In service" icon="medical_services" items={groups.service} column="service" emptyText="Nobody is being seen right now." />
+          <Column cardProps={{ data, working, nowMs, onOpenPerson, tz, staffName, staff, reasonFor, setReasonFor, setMoving, act }} title="Done today" icon="task_alt" items={groups.done} column="done" emptyText="Nothing finished yet." />
         </div>
       )}
       {moving && (

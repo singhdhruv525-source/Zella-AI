@@ -66,7 +66,7 @@ function ChannelReview({ row, canDecide, onNotice, onChanged }) {
   );
 }
 
-function AutomationCard({ row, role, live, canManage, recommended, runs, audits, people, nameOf, tz, onNotice, onChanged }) {
+function AutomationCard({ row, role, live, canManage, recommended, runs, audits, historyFailed, people, nameOf, tz, onNotice, onChanged }) {
   const isBase = CATALOG.some(([t]) => t === row.trigger_type);
   const fields = [...(AUTOMATION_OPTIONS[row.trigger_type] ?? []), { key: "notify_via", label: "Tell the owner by", options: NOTIFY_OPTIONS }];
   const [draft, setDraft] = useState(row.trigger_config ?? {});
@@ -116,8 +116,8 @@ function AutomationCard({ row, role, live, canManage, recommended, runs, audits,
         <div><dt>When</dt><dd>{info.trigger}</dd></div>
         <div><dt>Only if</dt><dd>{info.conditions}</dd></div>
         <div><dt>Then</dt><dd>{info.actions}</dd></div>
-        <div><dt>Next run</dt><dd>{row.status !== "active" ? "Not scheduled" : nextRun ? `${formatDay(nextRun, tz)} · ${formatTime(nextRun, tz)}` : "Runs when something triggers it"}</dd></div>
-        <div><dt>Last run</dt><dd>{lastRun ? <><Pill tone={RUN_TONE[lastRun.status]}>{RUN_LABEL[lastRun.status] ?? lastRun.status}</Pill> {timeAgo(lastRun.started_at ?? lastRun.created_at)}</> : "Hasn't run yet"}</dd></div>
+        <div><dt>Next run</dt><dd>{historyFailed ? "Run history unavailable" : row.status !== "active" ? "Not scheduled" : nextRun ? `${formatDay(nextRun, tz)} · ${formatTime(nextRun, tz)}` : "Runs when something triggers it"}</dd></div>
+        <div><dt>Last run</dt><dd>{historyFailed ? "Run history unavailable" : lastRun ? <><Pill tone={RUN_TONE[lastRun.status]}>{RUN_LABEL[lastRun.status] ?? lastRun.status}</Pill> {timeAgo(lastRun.started_at ?? lastRun.created_at)}</> : "Hasn't run yet"}</dd></div>
       </dl>
       <div className="ba-auto-links">
         <button type="button" className="ba-link ba-auto-toggle" aria-expanded={history} onClick={() => setHistory(!history)}>
@@ -129,7 +129,8 @@ function AutomationCard({ row, role, live, canManage, recommended, runs, audits,
           </button>
         )}
       </div>
-      {history && <RunsPanel runs={runs} audits={audits} nameOf={nameOf} people={people} canManage={canManage} tz={tz} onNotice={onNotice} onChanged={onChanged} />}
+      {history && historyFailed && <p className="ba-muted">Run history unavailable</p>}
+      {history && !historyFailed && <RunsPanel runs={runs} audits={audits} nameOf={nameOf} people={people} canManage={canManage} tz={tz} onNotice={onNotice} onChanged={onChanged} />}
       {canManage && fields.length > 0 && (
         <>
           <button type="button" className="ba-link ba-auto-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
@@ -190,8 +191,11 @@ export function AutomationsPage({ workspace, refreshKey, onNotice }) {
     // Run history and the audit trail are optional until the latest update is applied.
     const runsRes = await supabase.from("automation_runs").select("*").eq("business_id", workspace.id).order("created_at", { ascending: false }).limit(300);
     const auditRes = await supabase.from("audit_logs").select("*").eq("business_id", workspace.id).eq("entity_type", "automation").order("created_at", { ascending: false }).limit(200);
-    const runs = runsRes.error ? [] : runsRes.data ?? [];
-    return { list, follows: f.error ? [] : (f.data ?? []), runs, audits: auditRes.error ? [] : auditRes.data ?? [], people: await loadPeople(runs.slice(0, 60).map((r) => r.customer_id)) };
+    const missingTable = (e) => ["42P01", "PGRST205"].includes(e?.code);
+    const runsFailed = Boolean(runsRes.error && !missingTable(runsRes.error));
+    const auditsFailed = Boolean(auditRes.error && !missingTable(auditRes.error));
+    const runs = runsRes.data ?? [];
+    return { list, runsFailed, auditsFailed, follows: f.error ? [] : (f.data ?? []), runs, audits: auditRes.error ? [] : auditRes.data ?? [], people: await loadPeople(runs.slice(0, 60).map((r) => r.customer_id)) };
   }, [workspace.id, refreshKey]);
 
   const follows = data?.follows ?? [];
@@ -230,10 +234,10 @@ export function AutomationsPage({ workspace, refreshKey, onNotice }) {
         <>
           <div className="ba-toolbar ba-lead-tools">
             <Segment label="Automation status" value={tab} onChange={setTab}
-              options={[["all", `All (${groups.all.length})`], ["active", `Active (${groups.active.length})`], ["paused", `Paused (${groups.paused.length})`], ["failed", `Failed (${groups.failed.length})`]]} />
+              options={[["all", `All (${groups.all.length})`], ["active", `Active (${groups.active.length})`], ["paused", `Paused (${groups.paused.length})`], ["failed", data?.runsFailed ? "Run history unavailable" : `Failed (${groups.failed.length})`]]} />
           </div>
           <p className="ba-muted ba-auto-summary">
-            Last 7 days: {doneRuns} {doneRuns === 1 ? "run" : "runs"} finished, {failedRuns} failed
+            {data?.runsFailed ? "Run history unavailable" : `Last 7 days: ${doneRuns} ${doneRuns === 1 ? "run" : "runs"} finished, ${failedRuns} failed`}
             {follows.length > 0 ? ` · Follow-up calls: ${waiting} waiting, ${rebooked} rebooked, ${unanswered} unanswered` : ""}
             {workspace.industry ? " · Marked “Preferred for this business”: the ones that suit your industry." : ""}
           </p>
@@ -242,13 +246,13 @@ export function AutomationsPage({ workspace, refreshKey, onNotice }) {
       <section className="ba-panel">
         {loading && !data ? <div className="ba-panel-body"><p className="ba-muted">Loading…</p></div> : !data?.list.length ? (
           <div className="ba-panel-body"><Empty title="No automations yet">Zella sets up reminders, missed-call callbacks and no-show follow-ups for you.</Empty></div>
-        ) : !shown.length ? (
+        ) : tab === "failed" && data?.runsFailed ? <p className="ba-muted">Run history unavailable</p> : !shown.length ? (
           <div className="ba-panel-body"><Empty title={tab === "failed" ? "Nothing has failed" : "Nothing here"}>{tab === "failed" ? "Failed runs from the last 7 days would show up here." : "No automations match this view."}</Empty></div>
         ) : (
           <ul className="ba-autos">
             {shown.map((row) => (
               <AutomationCard key={row.id} row={row} role={workspace.role} live={live} canManage={canManage} recommended={Boolean(workspace.industry) && isPreferred(row.trigger_type, workspace.industry)}
-                runs={runsFor(row.id)} audits={auditsFor(row.id)} people={data.people} nameOf={roster.nameOf} tz={tz}
+                historyFailed={data.runsFailed || data.auditsFailed} runs={runsFor(row.id)} audits={auditsFor(row.id)} people={data.people} nameOf={roster.nameOf} tz={tz}
                 onNotice={onNotice} onChanged={reload} />
             ))}
           </ul>

@@ -162,17 +162,17 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
 
   const { data, error: loadError, loading, reload } = useLoad(async () => {
     const [person, calls, appts, convos] = await Promise.all([
-      supabase.from("customers").select("*").eq("id", personId).limit(1),
-      supabase.from("calls_view").select("*").eq("customer_id", personId).order("created_at", { ascending: false }).limit(100),
-      supabase.from("appointments").select("*").eq("customer_id", personId).order("start_time", { ascending: false }).limit(100),
-      supabase.from("conversations").select("*").eq("customer_id", personId).order("last_message_at", { ascending: false, nullsFirst: false }).limit(50),
+      supabase.from("customers").select("*").eq("business_id", workspace.id).eq("id", personId).limit(1),
+      supabase.from("calls_view").select("*").eq("business_id", workspace.id).eq("customer_id", personId).order("created_at", { ascending: false }).limit(100),
+      supabase.from("appointments").select("*").eq("business_id", workspace.id).eq("customer_id", personId).order("start_time", { ascending: false }).limit(100),
+      supabase.from("conversations").select("*").eq("business_id", workspace.id).eq("customer_id", personId).order("last_message_at", { ascending: false, nullsFirst: false }).limit(50),
     ]);
     const row = orThrow(person)[0];
     if (!row) throw new Error("This person could not be found.");
     // Follow-up calls are optional: workspaces without the latest update just show none.
-    const followRes = await supabase.from("followup_tasks").select("*").eq("customer_id", personId).order("created_at", { ascending: false }).limit(20);
-    const cbRes = await supabase.from("callbacks").select("*").eq("customer_id", personId).order("created_at", { ascending: false }).limit(30);
-    const taskRes = await supabase.from("crm_tasks").select("*").eq("customer_id", personId).order("created_at", { ascending: false }).limit(30);
+    const followRes = await supabase.from("followup_tasks").select("*").eq("business_id", workspace.id).eq("customer_id", personId).order("created_at", { ascending: false }).limit(20);
+    const cbRes = await supabase.from("callbacks").select("*").eq("business_id", workspace.id).eq("customer_id", personId).order("created_at", { ascending: false }).limit(30);
+    const taskRes = await supabase.from("crm_tasks").select("*").eq("business_id", workspace.id).eq("customer_id", personId).order("created_at", { ascending: false }).limit(30);
     const staffRes = await supabase.from("staff_members").select("id, name").eq("business_id", workspace.id);
     // This person's industry records (their vehicles, pets, recalls, matters...), with each type's names and statuses.
     const [recRes, typeRes] = await Promise.all([
@@ -185,9 +185,10 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
       person: row, calls: orThrow(calls), appts: orThrow(appts), convos: orThrow(convos), follows: followRes.error ? [] : (followRes.data ?? []),
       cbs: cbRes.error ? [] : cbRes.data ?? [], tasks: taskRes.error ? [] : taskRes.data ?? [], staff: staffRes.error ? [] : staffRes.data ?? [],
       records: recRes.error ? [] : recRes.data ?? [], recordTypes: typeRes.error ? [] : typeRes.data ?? [], recordsFailed: Boolean(recRes.error),
+      failures: { followups: Boolean(followRes.error), callbacks: Boolean(cbRes.error), tasks: Boolean(taskRes.error), staff: Boolean(staffRes.error), timeline: Boolean(tlRes.error) },
       server: tlRes.error ? [] : (tlRes.data ?? []).filter((e) => ["text", "email", "change"].includes(e.type)),
     };
-  }, [personId]);
+  }, [personId, workspace.id]);
 
   useEffect(() => {
     const p = data?.person;
@@ -277,6 +278,7 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
     >
       <div className="ba-detail">
         {(error || loadError) && <div className="ba-banner error">{error || loadError}</div>}
+        {data && Object.entries(data.failures).filter(([, failed]) => failed).map(([section]) => <p key={section} className="ba-error">Couldn't load {section}.</p>)}
         {loading && !data && <p className="ba-muted">Loading…</p>}
 
         {person && (

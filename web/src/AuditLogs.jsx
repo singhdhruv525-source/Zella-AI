@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import "./OwnerPages.css";
 import { callOwnerFunction } from "./CreateBusinessWizard";
 import { ACTION_LABELS, actionLabel, formatDateTime, timeAgo } from "./ownerFormat";
@@ -14,23 +14,27 @@ export default function AuditLogs({ onOpenBusiness }) {
   const [error, setError] = useState("");
   const [expanded, setExpanded] = useState(null);
 
+  const request = useRef(0);
   const load = useCallback(async (before) => {
+    const id = ++request.current;
     setLoading(true);
     setError("");
     try {
       const data = await callOwnerFunction("audit_logs", { businessId, search, before });
+      if (id !== request.current) return;
       setLogs((current) => (before ? [...current, ...data.logs] : data.logs));
       setCursor(data.nextCursor);
       if (data.businesses) setBusinesses(data.businesses);
     } catch (err) {
-      setError(friendlyError(err));
+      if (id === request.current) setError(friendlyError(err));
     } finally {
-      setLoading(false);
+      if (id === request.current) setLoading(false);
     }
   }, [businessId, search]);
 
   useEffect(() => {
     load(null);
+    return () => { request.current += 1; };
   }, [load]);
 
   return (
@@ -122,7 +126,7 @@ export default function AuditLogs({ onOpenBusiness }) {
                 <tr>
                   <td colSpan={5}>
                     <div className="op-empty">
-                      {loading ? "Loading audit logs..." : businessId || search ? "No matching entries." : "No admin actions recorded yet."}
+                      {loading ? "Loading audit logs..." : error ? "Audit logs unavailable." : businessId || search ? "No matching entries." : "No admin actions recorded yet."}
                     </div>
                   </td>
                 </tr>
