@@ -34,6 +34,13 @@ out=$("${P[@]}" -d "$DB" -f "$HERE/check.sql" 2>&1) && ok "check.sql: new tokens
 out=$("${P[@]}" -d "$DB" -f "$REPO/sql/rollback/zella_rollback_security_rollback.sql" 2>&1) || bad "rollback: $(echo "$out" | grep -m1 ERROR)"
 [ "$("${P[@]}" -d "$DB" -c "$SNAP")" = "$before" ] && ok "rollback restores the function and the default exactly; calls untouched" || bad "rollback differs"
 out=$("${P[@]}" -d "$DB" -f "$REPO/sql/zella_rollback_security.sql" 2>&1) && ok "applies again after the rollback" || bad "reapply: $(echo "$out" | grep -m1 ERROR)"
+# a business already given a 32-character address keeps receiving replies after a rollback; only the default goes back
+"${P[@]}" -d "$DB" -c "insert into public.businesses (id, name, inbound_email_token) values ('10000000-0000-0000-0000-0000000000aa', 'Issued Token', 'abcdef0123456789abcdef0123456789')" >/dev/null
+out=$("${P[@]}" -d "$DB" -f "$REPO/sql/rollback/zella_rollback_security_rollback.sql" 2>&1) || bad "rollback with issued tokens: $(echo "$out" | grep -m1 ERROR)"
+kept=$("${P[@]}" -d "$DB" -c "select position('[a-f0-9]{32}' in pg_get_functiondef('public.zella_receive_inbound_email(text,jsonb)'::regprocedure)) > 0 and pg_get_expr(d.adbin, d.adrelid) like 'substr(md5%' from pg_attrdef d join pg_attribute a on a.attrelid = d.adrelid and a.attnum = d.adnum where d.adrelid = 'public.businesses'::regclass and a.attname = 'inbound_email_token'")
+[ "$kept" = "t" ] && ok "with 32-character addresses already issued, the rollback keeps them routable and restores only the default" || bad "issued addresses not kept routable"
+"${P[@]}" -d "$DB" -c "set session_replication_role = replica; delete from public.businesses where id = '10000000-0000-0000-0000-0000000000aa'" >/dev/null
+out=$("${P[@]}" -d "$DB" -f "$REPO/sql/zella_rollback_security.sql" 2>&1) || bad "reapply after the second rollback: $(echo "$out" | grep -m1 ERROR)"
 out=$(python3 "$HERE/runner_checks.py" 2>&1) && ok "rollback runner rejects fragments" || bad "runner_checks.py: $(echo "$out" | tail -3)"
 out=$(python3 "$HERE/data_checks.py" 2>&1) && ok "rollback data boundaries (tenant, conflicts, archives)" || bad "data_checks.py: $(echo "$out" | tail -3)"
 echo; [ "$fails" = 0 ] && echo "ALL PASSED" || { echo "$fails FAILED"; exit 1; }

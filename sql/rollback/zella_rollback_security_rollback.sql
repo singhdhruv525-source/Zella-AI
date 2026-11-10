@@ -1,7 +1,15 @@
--- Rollback for sql/zella_rollback_security.sql: restores zella_receive_inbound_email and the inbound_email_token
--- default exactly as they were. Deletes no data; 32-character tokens issued meanwhile are kept (the restored function
--- then matches only 12-character tokens, so re-issue those if this is ever rolled back). One transaction.
+-- Rollback for sql/zella_rollback_security.sql: restores the inbound_email_token default and, when it is safe,
+-- zella_receive_inbound_email exactly as it was. Deletes no data and reissues no token.
+-- If any business already has a 32-character token (issued while the migration was live), its address is printed in
+-- emails already sent, so the receiver that matches both forms is kept: putting back the old one would stop replies
+-- to those addresses from reaching the business. Only the default for new tokens goes back in that case. One transaction.
 begin;
+do $rollback$
+begin
+  if exists (select 1 from public.businesses where inbound_email_token ~ '^[a-f0-9]{32}$') then
+    raise notice 'zella_receive_inbound_email kept: some businesses already use 32-character inbound addresses';
+  else
+    execute $def$
 CREATE OR REPLACE FUNCTION public.zella_receive_inbound_email(p_key text, p_message jsonb)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -89,6 +97,8 @@ begin
   return jsonb_build_object('result', 'saved', 'category', v_cat, 'known_customer', v_known, 'conversation_id', v_conv);
 end $function$
 
-;
+$def$;
+  end if;
+end $rollback$;
 alter table public.businesses alter column inbound_email_token set default substr(md5(((random())::text || (clock_timestamp())::text)), 1, 12);
 commit;

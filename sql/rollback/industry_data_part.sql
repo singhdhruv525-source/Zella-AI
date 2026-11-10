@@ -82,8 +82,11 @@ with v(industry_key, name) as (values ('legal', 'Deadline in 30 days'), ('legal'
   ('fitness', 'Freeze or cancellation request waiting'), ('childcare', 'Incident report still open'), ('property_management', 'Vendor insurance expiring'),
   ('travel', 'Passport expiring'), ('automotive', 'Declined work reminder'), ('cleaning', 'Visit not started'))
 , gone as (delete from public.industry_automation_presets p using v where p.industry_key = v.industry_key and p.name = v.name returning p.name, p.trigger_type, p.trigger_config)
+-- Only copies the system installed (no created_by: zella_apply_industry_automations); a rule a person created or
+-- turned on records who did, so a look-alike owner rule is kept (provenance must be known before anything is deleted).
 delete from public.automations a using gone p where a.name = p.name
    and a.trigger_type = p.trigger_type and a.trigger_config = p.trigger_config
+   and a.created_by is null
    and not exists (select 1 from public.industry_automation_runs r where r.automation_id = a.id);
 
 -- 7. photos and files (zella_record_files.sql): the storage policies go, so signed-in users can no longer reach the

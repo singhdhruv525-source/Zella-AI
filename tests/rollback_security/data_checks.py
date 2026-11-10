@@ -55,13 +55,14 @@ do $$ begin
  assert (select t.id <> b.id and t.singular=b.singular from crm_record_types t join backup_20261104_types b using(business_id,key) where t.key='collision');
 end $$;''')
 run('''create table industry_automation_presets(industry_key text,name text,trigger_type text,trigger_config jsonb);
-create table automations(id int,name text,trigger_type text,trigger_config jsonb);
+create table automations(id int,name text,trigger_type text,trigger_config jsonb,created_by uuid);
 create table industry_automation_runs(automation_id int);
 insert into industry_automation_presets values ('legal','Deadline tomorrow','deadline','{"days":1}');
-insert into automations values (1,'Deadline tomorrow','deadline','{"days":1}'),(2,'Deadline tomorrow','custom','{}'),(3,'Deadline tomorrow','deadline','{"days":2}'),(4,'Deadline tomorrow','deadline','{"days":1}');
+insert into automations values (1,'Deadline tomorrow','deadline','{"days":1}',null),(2,'Deadline tomorrow','custom','{}',null),(3,'Deadline tomorrow','deadline','{"days":2}',null),(4,'Deadline tomorrow','deadline','{"days":1}',null),
+  (5,'Deadline tomorrow','deadline','{"days":1}','00000000-0000-0000-0000-000000000005');  -- an owner's look-alike rule: kept
 insert into industry_automation_runs values(4);
 '''+part[part.index('with v(industry_key'):part.index('-- 7. photos')]+'''
-do $$ begin assert (select array_agg(id order by id)=array[2,3,4] from automations); assert not exists(select from industry_automation_presets); end $$;''')
+do $$ begin assert (select array_agg(id order by id)=array[2,3,4,5] from automations); assert not exists(select from industry_automation_presets); end $$;''')
 # Resource-only blocks are archived, others remain; repeat is a no-op.
 sched=(ROOT/'sql/rollback/zella_scheduling_rollback.sql').read_text()
 block=sched[sched.index('do $$'):sched.index('end $$;')+7]
