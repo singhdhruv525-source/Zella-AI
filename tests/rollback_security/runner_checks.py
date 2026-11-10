@@ -7,6 +7,10 @@ with tempfile.TemporaryDirectory() as tmp:
     for sql, valid in [
         ('begin; select 1; commit;',True),
         ('-- header\nbegin; do $$ begin perform 1; end $$; commit;',True),
+        (r"begin; select E'escaped\'quote; commit;'; commit;",True),
+        ('begin; /* outer /* commit; */ still comment */ select 1; commit;',True),
+        ("begin; do $body$ begin perform '$$ commit;'; end $body$; commit;",True),
+        ('begin; /* unterminated /* nested */ commit;',False),
         ('select 1;',False), ('-- begin;\nselect 1; -- commit;',False),
         ('begin; select 1;',False), ('begin; commit; select 1; commit;',False),
         ('begin; select 1; commit; select 2;',False),

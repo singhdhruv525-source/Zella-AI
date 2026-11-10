@@ -153,8 +153,8 @@ begin
     execute format('lock table public.%I in share row exclusive mode', t);
     execute format('insert into public.table_data_rolled_back (source_table, business_id, row_data) select %L, business_id, to_jsonb(r) from public.%I r where %s', t, t,
       case t when 'business_capabilities' then 'capability = ''tables'''
-      when 'appointments' then 'to_jsonb(r) ? ''table_ids'''
-      when 'waitlist_entries' then 'to_jsonb(r) ?| array[''party_size'', ''preferences'', ''contact_ok'']'
+      when 'appointments' then 'to_jsonb(r) ->> ''table_ids'' is not null'
+      when 'waitlist_entries' then '(to_jsonb(r) ->> ''party_size'' is not null or to_jsonb(r) ->> ''preferences'' is not null or to_jsonb(r) ->> ''contact_ok'' is not null)'
       else 'true' end);
   end loop;
 end $$;

@@ -15,6 +15,7 @@ insert into public.calls(id,business_id,direction,recording_url,transcript) valu
  ('50000000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000002','inbound','other-url','other-text');
 do $$ declare token text; begin
  select inbound_email_token into token from businesses where name='Privacy A';
+ assert position($pattern$from '(?:^|[<[:space:]])([a-z0-9]{12}|[a-f0-9]{32})@'$pattern$ in pg_get_functiondef('public.zella_receive_inbound_email(text,jsonb)'::regprocedure)) > 0;
  assert length(token)=32;
  assert substring(token || '@example.test' from '(?:^|[<[:space:]])([a-z0-9]{12}|[a-f0-9]{32})@')=token;
  assert substring('Name <abcdef123456@example.test>' from '(?:^|[<[:space:]])([a-z0-9]{12}|[a-f0-9]{32})@')='abcdef123456';

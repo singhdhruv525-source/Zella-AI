@@ -1,13 +1,20 @@
 -- Undoes sql/zella_order_lookup_v2.sql (hand-written; tests/orders/run_v2.sh checks it restores the functions exactly).
--- The lookup records keep their found_<level> results and their order references remain in lookup_ref_rolled_back.
+-- Lookup results stay; each rollback keeps references in lookup_ref_rolled_back, archiving any prior
+-- generation under a timestamped column name so rollback/reapply/rollback preserves both.
 begin;
 drop function if exists public.zella_store_lookup_context(text, uuid, text);
 drop function if exists public.zella_store_lookup_log(uuid, text, uuid, text, boolean, text);
 drop index if exists public.ai_tool_calls_lookup_ref_idx;
-do $$ begin
+do $$
+declare v_archive text;
+begin
   if exists (select 1 from pg_attribute where attrelid = 'public.ai_tool_calls'::regclass and attname = 'lookup_ref' and not attisdropped) then
     if exists (select 1 from pg_attribute where attrelid = 'public.ai_tool_calls'::regclass and attname = 'lookup_ref_rolled_back' and not attisdropped) then
-      raise exception 'lookup_ref_rolled_back already exists: preserve it before another rollback';
+      loop
+        v_archive := 'lookup_ref_rb_' || to_char(clock_timestamp(), 'YYYYMMDDHH24MISSUS');
+        exit when not exists (select 1 from pg_attribute where attrelid = 'public.ai_tool_calls'::regclass and attname = v_archive and not attisdropped);
+      end loop;
+      execute format('alter table public.ai_tool_calls rename column lookup_ref_rolled_back to %I', v_archive);
     end if;
     alter table public.ai_tool_calls rename column lookup_ref to lookup_ref_rolled_back;
   end if;

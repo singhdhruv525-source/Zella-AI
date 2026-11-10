@@ -68,8 +68,16 @@ git -C "$REPO" worktree remove --force "$SCR/old" > /dev/null 2>&1
 for f in voice-rules owner-provision-business; do (cd "$REPO/web/supabase/functions/$f" && deno check --no-lock index.ts > /dev/null 2>&1) && ok "deno check $f" || bad "deno check $f"; done
 (cd "$REPO/web" && npm run build > "$SCR/web.log" 2>&1) && ok "web build" || bad "web build: $(tail -3 "$SCR/web.log")"
 
+# Seed an approval independently of the schema comparison's intentional column exclusion.
+APPROVAL_ID=97000000-0000-0000-0000-000000000001
+out=$($P -d $DB -c "set session_replication_role = replica; insert into public.calls (id, business_id, direction, transfer_approved_at) values ('$APPROVAL_ID', '97000000-0000-0000-0000-000000000002', 'inbound', '2026-11-05 12:34:56+00');" 2>&1) || { bad "seed transfer approval: $out"; exit 1; }
+check_approval() {
+  out=$($P -d $DB -c "do \$\$ begin assert exists (select 1 from information_schema.columns where table_schema='public' and table_name='calls' and column_name='transfer_approved_at'); assert (select transfer_approved_at = timestamptz '2026-11-05 12:34:56+00' from public.calls where id='$APPROVAL_ID'); end \$\$;" 2>&1) && ok "transfer approval timestamp retained $1" || bad "transfer approval $1: $out"
+}
+
 # 6. roll the whole sequence back, newest first, and compare with the state before
 for r in "${ROLLBACK[@]}"; do out=$($P -d $DB -f "$REPO/sql/rollback/$r.sql" 2>&1) || { bad "rollback $r: $(echo "$out" | grep -m1 ERROR)"; break; }; done
+check_approval "after rollback"
 now=$($P -d $DB -c "$STATE")
 kept=$($P -d $DB -c "select string_agg(table_name, ', ') from information_schema.tables where table_schema = 'public' and table_name like '%_rolled_back'")
 if [ "$now" = "$before" ]; then ok "full rollback, newest first: every function, column, trigger and policy identical to before (kept on purpose, renamed: $kept)"
@@ -80,5 +88,6 @@ else
 fi
 # 7. and the sequence applies again after a rollback
 for m in "${PENDING[@]}"; do out=$($P -d $DB -f "$REPO/sql/$m.sql" 2>&1) || { bad "re-apply $m after rollback: $(echo "$out" | grep -m1 ERROR)"; break; }; done
+check_approval "after reapply"
 [ "$($P -d $DB -c "$STATE")" != "$before" ] && ok "re-apply after the rollback" || bad "re-apply changed nothing"
 echo; [ $fails -eq 0 ] && echo "ALL PASSED" || { echo "$fails FAILED"; exit 1; }

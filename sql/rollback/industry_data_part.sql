@@ -54,16 +54,17 @@ update public.industry_crm_presets p set match = b.match, config = b.config from
 
 insert into public.industry_crm_presets select * from public.backup_20261104_presets on conflict (key) do nothing;
 
--- 3. record types as they were; added ones go only when empty
+-- 3. Restore by ID or the business/key used by records; keep a replacement ID on key collisions.
+-- Added types go only when empty.
 update public.crm_record_types t set singular = b.singular, plural = b.plural, icon = b.icon, title_label = b.title_label, link_person = b.link_person,
        statuses = b.statuses, closed_statuses = b.closed_statuses, fields = b.fields, columns = b.columns, notice = b.notice, enabled = b.enabled,
        position = b.position, preset_key = b.preset_key, updated_at = b.updated_at
-  from public.backup_20261104_types b where b.id = t.id;
+  from public.backup_20261104_types b where b.id = t.id or (b.business_id = t.business_id and b.key = t.key);
 insert into public.crm_record_types (id, business_id, key, singular, plural, icon, title_label, link_person, statuses, closed_statuses, fields, columns, notice, enabled, position, preset_key, created_at, updated_at)
 select b.id, b.business_id, b.key, b.singular, b.plural, b.icon, b.title_label, b.link_person, b.statuses, b.closed_statuses, b.fields, b.columns, b.notice, b.enabled, b.position, b.preset_key, b.created_at, b.updated_at
-  from public.backup_20261104_types b where not exists (select 1 from public.crm_record_types t where t.id = b.id);
+  from public.backup_20261104_types b where not exists (select 1 from public.crm_record_types t where t.id = b.id or (t.business_id = b.business_id and t.key = b.key));
 delete from public.crm_record_types t
- where not exists (select 1 from public.backup_20261104_types b where b.id = t.id)
+ where not exists (select 1 from public.backup_20261104_types b where b.id = t.id or (b.business_id = t.business_id and b.key = t.key))
    and not exists (select 1 from public.crm_records r where r.business_id = t.business_id and r.type_key = t.key);
 
 -- 4. capability defaults off the industry configuration

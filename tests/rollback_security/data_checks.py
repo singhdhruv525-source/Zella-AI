@@ -42,6 +42,18 @@ do $$ begin
  assert (select count(*)=1 from crm_record_types);
  assert (select fields_seen='{}' from crm_record_types);
 end $$;''')
+# A replacement ID shares the backed-up business/key; records must keep resolving to it.
+run('''
+alter table crm_record_types add unique (business_id,key);
+insert into backup_20261104_types select gen_random_uuid(), business_id, 'collision', singular, plural, icon, title_label, link_person, statuses, closed_statuses, fields, columns, notice, enabled, position, preset_key, created_at, updated_at from backup_20261104_types limit 1;
+insert into crm_record_types(business_id,key,singular,plural,statuses) values ('00000000-0000-0000-0000-000000000001','collision','Replacement','Replacements','[]');
+update crm_records set type_key='collision';
+'''+part[part.index('-- 3.'):part.index('-- 4. capability')]+'''
+do $$ begin
+ assert (select count(*)=2 from crm_record_types);
+ assert (select count(*)=2 from crm_records r join crm_record_types t on t.business_id=r.business_id and t.key=r.type_key);
+ assert (select t.id <> b.id and t.singular=b.singular from crm_record_types t join backup_20261104_types b using(business_id,key) where t.key='collision');
+end $$;''')
 run('''create table industry_automation_presets(industry_key text,name text,trigger_type text,trigger_config jsonb);
 create table automations(id int,name text,trigger_type text,trigger_config jsonb);
 create table industry_automation_runs(automation_id int);
@@ -73,7 +85,14 @@ end $$;''')
 print('PASS private-value conflicts/tenant checks, backup reinsertion, automation matching, resource blocks, repeatable archives')
 # Guarded reference rename is repeatable and preserves values.
 r=(ROOT/'sql/rollback/zella_order_lookup_v2_rollback.sql').read_text();block=r[r.index('do $$'):r.index('end $$;')+7]
-run("create table ai_tool_calls(lookup_ref text); insert into ai_tool_calls values('order-123');"+block+block+"do $$ begin assert (select lookup_ref_rolled_back='order-123' from ai_tool_calls); end $$;")
+run("create table ai_tool_calls(lookup_ref text); insert into ai_tool_calls values('order-123');"+block+block+
+    "alter table ai_tool_calls add lookup_ref text; update ai_tool_calls set lookup_ref='order-456';"+block+block+'''
+do $$ declare archived text; original text; begin
+ assert (select lookup_ref_rolled_back='order-456' from ai_tool_calls);
+ select attname into strict archived from pg_attribute where attrelid='ai_tool_calls'::regclass and attname like 'lookup_ref_rb_%' and not attisdropped;
+ execute format('select %I from ai_tool_calls', archived) into original;
+ assert original='order-123';
+end $$;''')
 # Outlook archives must be private before accepting rows.
 start=part.index('do $$ begin',part.index('-- 9. calendar'))
 run('''create table calendar_connections(id int,provider text);
@@ -89,3 +108,21 @@ do $$ begin
  assert not has_table_privilege('anon','calendar_connections_outlook_rolled_back_20261104','select');
 end $$;''')
 print('PASS order references and private Outlook archive')
+
+# Archive only non-null table data, including false/zero values, across repeated rollback.
+r=(ROOT/'sql/rollback/zella_tables_rollback.sql').read_text()
+start=r.rindex('do $$',0,r.index('create table if not exists public.table_data_rolled_back'))
+archive=r[start:r.index('end $$;',start)+7]
+run('''create table business_capabilities(business_id uuid, capability text);
+create table appointments(business_id uuid, table_ids uuid[]);
+create table waitlist_entries(business_id uuid, party_size int, preferences text[], contact_ok boolean);
+create table table_states(business_id uuid);
+insert into appointments values(null,null),(null,'{}');
+insert into waitlist_entries values(null,null,null,null),(null,0,null,null),(null,null,'{}',null),(null,null,null,false);
+insert into business_capabilities values(null,'tables'),(null,'other');
+'''+archive+'''do $$ begin
+ assert (select count(*)=1 from table_data_rolled_back where source_table='appointments');
+ assert (select count(*)=3 from table_data_rolled_back where source_table='waitlist_entries');
+ assert (select count(*)=1 from table_data_rolled_back where source_table='business_capabilities');
+end $$;''')
+print('PASS non-null table data archive filters')

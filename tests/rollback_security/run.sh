@@ -34,6 +34,6 @@ out=$("${P[@]}" -d "$DB" -f "$HERE/check.sql" 2>&1) && ok "check.sql: new tokens
 out=$("${P[@]}" -d "$DB" -f "$REPO/sql/rollback/zella_rollback_security_rollback.sql" 2>&1) || bad "rollback: $(echo "$out" | grep -m1 ERROR)"
 [ "$("${P[@]}" -d "$DB" -c "$SNAP")" = "$before" ] && ok "rollback restores the function and the default exactly; calls untouched" || bad "rollback differs"
 out=$("${P[@]}" -d "$DB" -f "$REPO/sql/zella_rollback_security.sql" 2>&1) && ok "applies again after the rollback" || bad "reapply: $(echo "$out" | grep -m1 ERROR)"
-python3 "$HERE/runner_checks.py" >/dev/null 2>&1 && ok "rollback runner rejects fragments" || bad "runner_checks.py"
-python3 "$HERE/data_checks.py" >/dev/null 2>&1 && ok "rollback data boundaries (tenant, conflicts, archives)" || bad "data_checks.py"
+out=$(python3 "$HERE/runner_checks.py" 2>&1) && ok "rollback runner rejects fragments" || bad "runner_checks.py: $(echo "$out" | tail -3)"
+out=$(python3 "$HERE/data_checks.py" 2>&1) && ok "rollback data boundaries (tenant, conflicts, archives)" || bad "data_checks.py: $(echo "$out" | tail -3)"
 echo; [ "$fails" = 0 ] && echo "ALL PASSED" || { echo "$fails FAILED"; exit 1; }
