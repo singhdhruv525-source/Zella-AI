@@ -3,6 +3,28 @@
 -- findings on the full-repository review (PR #38), numbered as there.
 \set ON_ERROR_STOP on
 begin;
+-- Compile every replaced PL/pgSQL function, including triggers against their actual relations.
+-- plpgsql_check is installed only in this isolated database and rolled back with the fixtures.
+create extension if not exists plpgsql_check;
+do $$ declare f record; t record; e record; begin
+  for f in select p.oid, p.prorettype, p.proname from pg_proc p join pg_language l on l.oid = p.prolang
+    where p.pronamespace = 'public'::regnamespace and l.lanname = 'plpgsql'
+      and p.proname = any (array['zella_claim_admin_alert_email', 'zella_admin_routing_save', 'zella_admin_message_detail', 'zella_admin_template_variables', 'zella_admin_numbers', 'zella_admin_calls', 'zella_admin_automations', 'zella_admin_runs', 'zella_admin_templates', 'zella_set_industry_rules', 'zella_answer_knowledge_gap', 'zella_knowledge_guard', 'zella_capture_web_lead', 'zella_ai_booking', 'zella_flag_unrecorded_appointments', 'zella_rebalance_assignments', 'zella_save_business_hours', 'zella_add_business_closure', 'zella_finish_calendar_sync', 'zella_calendar_connect_provider', 'zella_queue_calendar_sync', 'zella_claim_calendar_sync', 'zella_replace_calendar_busy', 'zella_sensitive_industry', 'zella_today_operations', 'zella_merge_customers', 'zella_log_customer_request', 'zella_update_customer_request', 'zella_record_status_touches_trg', 'zella_queue_customer_touches', 'zella_check_engine_health', 'zella_ai_voice', 'zella_complete_followup_task', 'zella_claim_reminders', 'zella_permission_check', 'zella_apply_industry_automations', 'zella_decide_draft', 'zella_claim_events', 'zella_complete_event', 'zella_record_consent', 'zella_calls_page', 'zella_inbox_previews']) loop
+    if f.prorettype = 'trigger'::regtype then
+      for t in select distinct tgrelid from pg_trigger where tgfoid = f.oid loop
+        for e in select * from plpgsql_check_function_tb(f.oid, t.tgrelid) where level = 'error' loop
+          raise exception 'Function %: %', f.proname, e.message;
+        end loop;
+      end loop;
+    else
+      for e in select * from plpgsql_check_function_tb(f.oid) where level = 'error' loop
+        raise exception 'Function %: %', f.proname, e.message;
+      end loop;
+    end if;
+  end loop;
+end $$;
+select 'PASS execution-time validation of all replaced PL/pgSQL functions and trigger relations';
+
 reset role; set timezone = 'UTC';
 create or replace function pg_temp.as_user(u text) returns void language sql as $$
   select set_config('request.jwt.claims', json_build_object('sub', u, 'role', 'authenticated', 'aal', 'aal1')::text, true) $$;
@@ -134,7 +156,7 @@ select 'PASS #51 staff can neither reject nor reopen a privacy request; the owne
 
 -- #64 the assistant can't label a transfer an emergency
 do $$ declare r jsonb; begin
-  r := public.zella_ai_voice('rf-no-such-call', 'fa000000-0000-0000-0000-0000000000a1', 'transfer', '{"reason": "emergency"}'::jsonb);
+  r := public.zella_ai_voice('rf-no-such-call', 'fa000000-0000-0000-0000-0000000000a1', 'transfer', '{"reason": "Emergency"}'::jsonb);
   if r ->> 'status' <> 'use_emergency' then raise exception 'FAIL #64 got %', r; end if;
 end $$;
 select 'PASS #64 transfer with reason "emergency" is sent to report_emergency instead';
@@ -168,11 +190,14 @@ end $$;
 drop table public.rf_open_table;
 select 'PASS #71 a reachable table without row security is reported and makes ok false';
 
--- #73 "20% off" counts as marketing
-do $$ begin
-  if not ('Get 20% off this week' ~* '%\s*off\M') or ('Your office visit' ~* '%\s*off\M') then raise exception 'FAIL #73'; end if;
-end $$;
-select 'PASS #73 the percent-off pattern catches "20% off" and not "office"';
+-- #73 marketing is rejected by the function's existing exception contract.
+insert into public.message_drafts (id, business_id, customer_id, body, reason)
+values ('fa730000-0000-0000-0000-000000000001', 'fa000000-0000-0000-0000-0000000000a1',
+        'fa100000-0000-0000-0000-000000000001', 'Get 20% off this week', 'Synthetic test');
+set local role authenticated; select pg_temp.as_user('fa000000-0000-0000-0000-00000000000a');
+select pg_temp.must_fail($q$select public.zella_decide_draft('fa730000-0000-0000-0000-000000000001', true)$q$, 'NO_MARKETING_OR_PRICES');
+reset role;
+select 'PASS #73 decide_draft rejects percent-off marketing';
 
 -- #75 completing an event that is no longer being processed does nothing
 insert into public.automation_events (id, business_id, event_type, source, idempotency_key, payload, status, attempts)
@@ -182,8 +207,22 @@ update public.automation_events set claimed_at = now() - interval '1 hour' where
 do $$ begin
   if public.zella_complete_event('fa700000-0000-0000-0000-000000000001', false, 'unknown_error', 'late') <> 'ignored' then raise exception 'FAIL #75 completed twice'; end if;
   if exists (select 1 from public.zella_claim_events(100) e where e.id = 'fa700000-0000-0000-0000-000000000002') then raise exception 'FAIL #75 reclaimed after 5 attempts'; end if;
+  if not exists (select 1 from public.automation_dead_letters where event_id = 'fa700000-0000-0000-0000-000000000002') then raise exception 'FAIL #75 no dead letter'; end if;
 end $$;
 select 'PASS #75 a finished event ignores late reports; an event with 5 attempts is not claimed again';
+
+-- Health cleanup uses the same completion lock/dead-letter path; earlier attempts remain reclaimable.
+insert into public.automation_events (id, business_id, event_type, source, idempotency_key, payload, status, attempts, claimed_at)
+values ('fa750000-0000-0000-0000-000000000001', 'fa000000-0000-0000-0000-0000000000a1', 'call.ended', 'system', 'rf-health-final', '{}', 'processing', 5, now() - interval '1 hour'),
+       ('fa750000-0000-0000-0000-000000000002', 'fa000000-0000-0000-0000-0000000000a1', 'call.ended', 'system', 'rf-health-retry', '{}', 'processing', 4, now() - interval '1 hour');
+select public.zella_check_engine_health();
+do $$ begin
+  if (select status from public.automation_events where id = 'fa750000-0000-0000-0000-000000000001') <> 'failed'
+     or not exists (select 1 from public.automation_dead_letters where event_id = 'fa750000-0000-0000-0000-000000000001') then raise exception 'FAIL exhausted health cleanup'; end if;
+  if public.zella_complete_event('fa750000-0000-0000-0000-000000000001', true) <> 'ignored' then raise exception 'FAIL late completion'; end if;
+  if not exists (select 1 from public.zella_claim_events(100) where id = 'fa750000-0000-0000-0000-000000000002' and attempts = 5) then raise exception 'FAIL fourth attempt not reclaimed'; end if;
+end $$;
+select 'PASS health cleanup dead-letters final attempts and preserves earlier reclaiming';
 
 -- #76 consent: only staff-witnessed sources, opt-ins need a manager, only the server lifts do-not flags
 set local role authenticated; select pg_temp.as_user('fa000000-0000-0000-0000-00000000000b');

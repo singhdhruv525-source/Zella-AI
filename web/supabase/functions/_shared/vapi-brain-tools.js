@@ -77,7 +77,11 @@ export function planBrainTool(tc, ctx, allowed = TOOLS) {
   // the caller's yes must be a real boolean from the assistant; anything else counts as "not confirmed"
   clean.confirmed = args.confirmed === true;
   const known = TOOLS.includes(name) && allowed.includes(name);
-  const invalid = known ? invalidField(clean) : null;
+  const typeError = Object.hasOwn(args, 'seating') && typeof args.seating !== 'string'
+    ? 'seating must be a short preference, e.g. patio'
+    : Object.hasOwn(args, 'party_size') && (typeof args.party_size !== 'number' || !Number.isFinite(args.party_size))
+      ? 'party_size must be a whole number of people from 1 to 100' : null;
+  const invalid = known ? typeError || invalidField(clean) : null;
   return {
     toolCallId: tc.id, name, known, invalid,
     record: { p_provider_call_id: ctx.callId, p_business_id: ctx.fallbackBusinessId, p_tool: known && !invalid ? name : 'unknown',

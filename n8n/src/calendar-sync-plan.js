@@ -8,7 +8,7 @@ const MS_PROP = 'String {6f1d2c9a-3b7e-4a51-9c0d-8e2f4b6a1c35} Name zella_appoin
 const none = { json: { queue_id: it && it.queue_id ? it.queue_id : null, provider, needs_google: false, token_form: null, google: null, skip_ok: false } };
 if (!it || !it.queue_id || !it.refresh_token || !it.calendar_id) return none;
 const tokenForm = { refresh_token: String(it.refresh_token) };
-const ask = (google) => ({ json: { queue_id: it.queue_id, provider, needs_google: true, token_form: tokenForm, skip_ok: false, google } });
+const ask = (google) => ({ json: { queue_id: it.queue_id, provider, needs_google: true, token_form: tokenForm, skip_ok: false, google, lookup_url: !it.event_id && it.action === 'upsert' ? (provider === 'outlook' ? base + '?$filter=' + encodeURIComponent("singleValueExtendedProperties/Any(ep: ep/id eq '" + MS_PROP + "' and ep/value eq '" + String(it.appointment_id) + "')") : base + '?privateExtendedProperty=' + encodeURIComponent('zella_appointment_id=' + String(it.appointment_id))) : null } });
 let base;
 if (provider === 'outlook') {
   base = String(it.calendar_id) === 'primary' ? 'https://graph.microsoft.com/v1.0/me/events'
@@ -29,6 +29,7 @@ let body;
 if (provider === 'outlook') {
   const utc = (s) => new Date(s).toISOString().slice(0, 19); // Graph: a local date-time plus its time zone
   body = {
+    transactionId: String(it.queue_id),
     subject: String(e.summary || 'Appointment').slice(0, 200),
     body: { contentType: 'text', content: String(e.description || '').slice(0, 1000) },
     start: { dateTime: utc(e.start), timeZone: 'UTC' },
@@ -37,6 +38,7 @@ if (provider === 'outlook') {
   };
 } else {
   body = {
+    ...(!update ? { id: String(it.appointment_id).replace(/-/g, '').toLowerCase() } : {}),
     summary: String(e.summary || 'Appointment').slice(0, 200),
     description: String(e.description || '').slice(0, 1000),
     start: { dateTime: e.start, timeZone: e.timezone || 'America/New_York' },

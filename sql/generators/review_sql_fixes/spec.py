@@ -65,9 +65,8 @@ HEADER = """-- Review fixes for the SQL migrations (CodeRabbit full-repository r
 --   * zella_claim_admin_alert_email: a claim that was never finished (the workflow stopped) is retried after 15 minutes,
 --     at most 3 times in all; alerts claimed before this change are never re-sent.
 --   * zella_queue_calendar_sync: cancelling a booking that never reached the calendar drops its pending upload.
---   * zella_claim_calendar_sync: an item stuck "in progress" for 30 minutes is marked failed (and the owner told by the
---     usual failure path on the next change) rather than left forever; it is not retried blindly, because the event may
---     already exist in the calendar.
+--   * Calendar claims interrupted for 30 minutes are recovered by the claim RPC and health check (up to 5 attempts).
+--     n8n reconciles appointment markers before creating an event; exhausted claims use the usual failure alerts.
 --   * zella_finish_calendar_sync, zella_replace_calendar_busy: the business's active calendar is updated whichever
 --     provider it is (it was always "google"), the owner's message says "your calendar", and a pull of more than 500
 --     events is refused before any busy time is removed (it used to delete them all and keep only the first 500).
@@ -143,7 +142,7 @@ FUNCS = [
     ("    v_why := nullif(trim(left(coalesce(v_args ->> 'reason', ''), 300)), '');\n",
      "    v_why := nullif(trim(left(coalesce(v_args ->> 'reason', ''), 300)), '');\n"
      "    -- an emergency is reported with report_emergency (it alerts the owners and marks the call); the assistant can't claim one here\n"
-     "    if v_why = 'emergency' and (v_call.id is null or not exists (select 1 from public.calls where id = v_call.id and escalation_reason = 'emergency')) then\n"
+     "    if lower(v_why) = 'emergency' and (v_call.id is null or not exists (select 1 from public.calls where id = v_call.id and escalation_reason = 'emergency')) then\n"
      "      return jsonb_build_object('ok', true, 'status', 'use_emergency',\n"
      "        'say', 'If this is an emergency, use the emergency action first. Otherwise ask why they need a person and try again with that reason.');\n"
      "    end if;\n"),
@@ -152,6 +151,13 @@ FUNCS = [
      "         where id = v_call.id and transfer_status is distinct from 'attempted';   -- an approved transfer stays approved"),
   ]),
   ("public.zella_calendar_connect_provider(uuid,text,uuid,text,text,text)", [
+    ("  returning id into v_id;\n", "  returning id into v_id;\n"
+     "  insert into public.calendar_sync_queue (business_id, appointment_id, action)\n"
+     "  select business_id, id, 'upsert' from public.appointments\n"
+     "   where business_id = p_business_id and start_time > now()\n"
+     "     and status in ('scheduled', 'confirmed', 'completed')\n"
+     "     and coalesce(booking_state, 'confirmed') not in ('requested', 'tentative')\n"
+     "  on conflict (appointment_id) where status = 'pending' do update set action = 'upsert', due_at = now();\n"),
     ("    delete from public.blocked_times where connection_id = o.id and end_time > now();\n  end loop;",
      "    delete from public.blocked_times where connection_id = o.id and end_time > now();\n"
      "    -- event ids belong to the old provider's calendar: never send them to the new one (bookings are copied again)\n"
@@ -201,6 +207,14 @@ FUNCS = [
      "    end;"),
   ]),
   ("public.zella_check_engine_health()", [
+    ("  for q in\n    select * from (values", "  for q in select id from public.calendar_sync_queue where status = 'in_progress' and attempts >= 5\n"
+     "    and claimed_at < now() - interval '30 minutes' for update skip locked loop\n"
+     "    perform public.zella_finish_calendar_sync(q.id, false, null, 'interrupted');\n"
+     "  end loop;\n"
+     "  update public.calendar_sync_queue set status = 'pending', error = 'interrupted', due_at = now()\n"
+     "    where status = 'in_progress' and attempts < 5 and claimed_at < now() - interval '30 minutes';\n"
+     "  for q in\n    select * from (values"),
+    ("begin\n  update public.followup_tasks", "begin\n  for q in select id from public.automation_events\n    where status = 'processing' and attempts >= 5 and claimed_at < now() - interval '10 minutes'\n    for update skip locked loop\n    perform public.zella_complete_event(q.id, false, 'provider_timeout', 'Execution interrupted at final attempt');\n  end loop;\n  update public.followup_tasks"),
     ("  update public.followup_tasks set status = 'pending', due_at = now(), updated_at = now()\n   where status = 'in_progress' and channel in ('sms', 'email') and claimed_at < now() - interval '30 minutes';",
      "  update public.followup_tasks set status = 'failed', outcome = 'failed', outcome_notes = 'Stopped after the last attempt never finished.', completed_at = now(), updated_at = now()\n"
      "   where status = 'in_progress' and channel in ('sms', 'email') and claimed_at < now() - interval '30 minutes' and attempts >= max_attempts;\n"
@@ -258,6 +272,7 @@ FUNCS = [
      "select p_business_id, p.name, p.description, p.trigger_type, case when p.industry_key = 'general' then 'paused' else 'active' end, p.trigger_config"),
   ]),
   ("public.zella_claim_events(integer)", [
+    ("begin\n  return query", "declare q record;\nbegin\n  for q in select id from public.automation_events\n    where status = 'processing' and attempts >= 5 and claimed_at < now() - interval '10 minutes'\n    for update skip locked loop\n    perform public.zella_complete_event(q.id, false, 'provider_timeout', 'Execution interrupted at final attempt');\n  end loop;\n  return query"),
     ("        or (status = 'processing' and claimed_at < now() - interval '10 minutes')",
      "        or (status = 'processing' and claimed_at < now() - interval '10 minutes' and attempts < 5)"),
   ]),
@@ -289,9 +304,9 @@ FUNCS = [
   ("public.zella_claim_calendar_sync(integer)", [
     ("  if not public.zella_calendar_live() then return v_res; end if;\n",
      "  if not public.zella_calendar_live() then return v_res; end if;\n"
-     "  -- a run that stopped half-way: fail it rather than retry blindly (the event may already be in the calendar)\n"
-     "  update public.calendar_sync_queue set status = 'failed', error = 'interrupted', completed_at = now()\n"
-     "   where status = 'in_progress' and claimed_at < now() - interval '30 minutes';\n"),
+     "  -- interrupted claims are retried through n8n marker reconciliation before any calendar create\n"
+     "  update public.calendar_sync_queue set status = 'pending', error = 'interrupted', due_at = now()\n"
+     "   where status = 'in_progress' and attempts < 5 and claimed_at < now() - interval '30 minutes';\n"),
   ]),
   ("public.zella_finish_calendar_sync(uuid,boolean,text,text)", [
     ("update public.calendar_connections set last_pushed_at = now(), last_error = null where business_id = q.business_id and provider = 'google';",

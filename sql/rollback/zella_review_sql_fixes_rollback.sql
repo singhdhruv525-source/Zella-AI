@@ -7,172 +7,172 @@ begin;
 do $guard$
 declare v text;
 begin
-  select md5(prosrc) into v from pg_proc where oid = to_regprocedure('public.zella_claim_admin_alert_email(integer)');
-  if v is null or v not in ('66ec3be2abc0cc68eaf0758031f0ad30', '1ec8f039861dcb236c5160c38f8ed65c') then
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_claim_admin_alert_email(integer)');
+  if v is null or v not in ('78b170185fbbee0396f5217f91b7980f', '7475a9a1192c1640d4a34c2cd43ac199') then
     raise exception 'VERSION_MISMATCH: public.zella_claim_admin_alert_email(integer) is not the version this file was written against (rollback)';
   end if;
-  select md5(prosrc) into v from pg_proc where oid = to_regprocedure('public.zella_admin_routing_save(uuid,jsonb,text)');
-  if v is null or v not in ('1d84b93ac5222790d7d3c12e153d0656', '4d9ef4fcd2a4a29688b26858ef061c90') then
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_admin_routing_save(uuid,jsonb,text)');
+  if v is null or v not in ('9d5f8d233ef529d6e6ad99f15f9750a1', '481212ddb7e82c833347b276ae5110cd') then
     raise exception 'VERSION_MISMATCH: public.zella_admin_routing_save(uuid,jsonb,text) is not the version this file was written against (rollback)';
   end if;
-  select md5(prosrc) into v from pg_proc where oid = to_regprocedure('public.zella_admin_message_detail(text,uuid,boolean)');
-  if v is null or v not in ('f32a252a1bc43904d8848ae4b80b1e09', '92d5a49bfec16b5135d3f041442f0529') then
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_admin_message_detail(text,uuid,boolean)');
+  if v is null or v not in ('ad71ce21bf44c64cc0d1b01878ebd8e3', 'b50368af28d43198d519f69799705596') then
     raise exception 'VERSION_MISMATCH: public.zella_admin_message_detail(text,uuid,boolean) is not the version this file was written against (rollback)';
   end if;
-  select md5(prosrc) into v from pg_proc where oid = to_regprocedure('public.zella_admin_template_variables(text,text)');
-  if v is null or v not in ('e6904c352df8bf5a2f2c21f3abd8abae', '23dd55db660283e7a8855dd6aae919d5') then
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_admin_template_variables(text,text)');
+  if v is null or v not in ('931a50d4976389408e0f9743801bf656', 'b3cf3dce93050cd76604b9a80969c62c') then
     raise exception 'VERSION_MISMATCH: public.zella_admin_template_variables(text,text) is not the version this file was written against (rollback)';
   end if;
-  select md5(prosrc) into v from pg_proc where oid = to_regprocedure('public.zella_admin_numbers(text,text,uuid,integer,integer)');
-  if v is null or v not in ('3a908348bf6db01ad9497d0238190386', 'e85dcd8fc411420c7e0789319c46a2d0') then
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_admin_numbers(text,text,uuid,integer,integer)');
+  if v is null or v not in ('ef4838fdec880aed471be646600fcee4', 'bed32020b81254bfb618f4c004260b34') then
     raise exception 'VERSION_MISMATCH: public.zella_admin_numbers(text,text,uuid,integer,integer) is not the version this file was written against (rollback)';
   end if;
-  select md5(prosrc) into v from pg_proc where oid = to_regprocedure('public.zella_admin_calls(timestamp with time zone,timestamp with time zone,uuid,text,text,text,boolean,text,integer,integer)');
-  if v is null or v not in ('3b8aab3f3f87318f2266a2f8af2d97e6', '44cdecfec1eae33acb56f947f64eab8b') then
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_admin_calls(timestamp with time zone,timestamp with time zone,uuid,text,text,text,boolean,text,integer,integer)');
+  if v is null or v not in ('76d07613e1f9a4ef5d8240f7f0d311d9', 'd182a3dbf2112c0e6f8b64c2c82e9f8c') then
     raise exception 'VERSION_MISMATCH: public.zella_admin_calls(timestamp with time zone,timestamp with time zone,uuid,text,text,text,boolean,text,integer,integer) is not the version this file was written against (rollback)';
   end if;
-  select md5(prosrc) into v from pg_proc where oid = to_regprocedure('public.zella_admin_automations(text,text,text,uuid,uuid,integer,integer)');
-  if v is null or v not in ('f69ee721fff74677147af763f87bb1e8', 'c87d62cbe5ca6aae0678ce597ea0db8b') then
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_admin_automations(text,text,text,uuid,uuid,integer,integer)');
+  if v is null or v not in ('4604774c905a8710f4423883ef878d7a', 'f02b02915d6f7ab29390fd83c45ca302') then
     raise exception 'VERSION_MISMATCH: public.zella_admin_automations(text,text,text,uuid,uuid,integer,integer) is not the version this file was written against (rollback)';
   end if;
-  select md5(prosrc) into v from pg_proc where oid = to_regprocedure('public.zella_admin_runs(text,uuid,text,timestamp with time zone,timestamp with time zone,integer,integer)');
-  if v is null or v not in ('4a6c768f50bf3b9f0bc3542074e8021a', 'ddee65cc0c59cbd9950dd06b751fd4a4') then
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_admin_runs(text,uuid,text,timestamp with time zone,timestamp with time zone,integer,integer)');
+  if v is null or v not in ('a3e1e913bc7547c82eb3898511afa644', '342c84f42d4e7df997abe5f5f3f0da97') then
     raise exception 'VERSION_MISMATCH: public.zella_admin_runs(text,uuid,text,timestamp with time zone,timestamp with time zone,integer,integer) is not the version this file was written against (rollback)';
   end if;
-  select md5(prosrc) into v from pg_proc where oid = to_regprocedure('public.zella_admin_templates(text,text,text,integer,integer)');
-  if v is null or v not in ('2283af7bc93cf4dd471647e7d8b0a2c7', '38d76ea2282fb8af4889190e3c7ad908') then
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_admin_templates(text,text,text,integer,integer)');
+  if v is null or v not in ('6ee03a144d856aae53002c822b0996b1', '19e3cf8c0cdcf075404dcbd117bf7846') then
     raise exception 'VERSION_MISMATCH: public.zella_admin_templates(text,text,text,integer,integer) is not the version this file was written against (rollback)';
   end if;
-  select md5(prosrc) into v from pg_proc where oid = to_regprocedure('public.zella_set_industry_rules(uuid,jsonb)');
-  if v is null or v not in ('9ae8a61bea21efd37e66599fd516fb3c', 'c444036975e3e20bd4bbaad3868b9664') then
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_set_industry_rules(uuid,jsonb)');
+  if v is null or v not in ('1c00e650ac1566977f02b70ffde7c482', '9d987f934d6dee3f9869cc311c9345e8') then
     raise exception 'VERSION_MISMATCH: public.zella_set_industry_rules(uuid,jsonb) is not the version this file was written against (rollback)';
   end if;
-  select md5(prosrc) into v from pg_proc where oid = to_regprocedure('public.zella_answer_knowledge_gap(uuid,text,text,text)');
-  if v is null or v not in ('e7616fdc57dea7bb19d4c99c9b7feb87', '2e2db3e725388681bcfe89700b747cf6') then
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_answer_knowledge_gap(uuid,text,text,text)');
+  if v is null or v not in ('ec34ae8717bcde5f0d9befdf84045e6d', 'd3e59106fac39bc25588570dcac27dcd') then
     raise exception 'VERSION_MISMATCH: public.zella_answer_knowledge_gap(uuid,text,text,text) is not the version this file was written against (rollback)';
   end if;
-  select md5(prosrc) into v from pg_proc where oid = to_regprocedure('public.zella_knowledge_guard()');
-  if v is null or v not in ('f99fda69f0ddb6b632ebfbeb1edccfbb', '5f14fe50b740f39554cac3500bf64292') then
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_knowledge_guard()');
+  if v is null or v not in ('2eb712cb74b8ebca84aa321934164bb2', 'c14d02095780cb04f150f165fbed9405') then
     raise exception 'VERSION_MISMATCH: public.zella_knowledge_guard() is not the version this file was written against (rollback)';
   end if;
-  select md5(prosrc) into v from pg_proc where oid = to_regprocedure('public.zella_capture_web_lead(text,text,text,text,text,text,jsonb,boolean,text,text,text,text)');
-  if v is null or v not in ('e16a5e4646e1f9eb896a22058dc6117c', '1eb6ffbf52f0ad14a513936a3e7bd768') then
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_capture_web_lead(text,text,text,text,text,text,jsonb,boolean,text,text,text,text)');
+  if v is null or v not in ('a250820470472da69cb6bb69a262710f', '9135680d4ed9bf46b4651320caf7b106') then
     raise exception 'VERSION_MISMATCH: public.zella_capture_web_lead(text,text,text,text,text,text,jsonb,boolean,text,text,text,text) is not the version this file was written against (rollback)';
   end if;
-  select md5(prosrc) into v from pg_proc where oid = to_regprocedure('public.zella_ai_booking(text,uuid,text,jsonb)');
-  if v is null or v not in ('36a2ee5cb1092f130cb3212862f46b7a', '143795206381bbf713f630fa71c317c3') then
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_ai_booking(text,uuid,text,jsonb)');
+  if v is null or v not in ('62a54ffd24a2500d5e37d80848b441e7', '9a51d8626096d17e653764b5106a9eda') then
     raise exception 'VERSION_MISMATCH: public.zella_ai_booking(text,uuid,text,jsonb) is not the version this file was written against (rollback)';
   end if;
-  select md5(prosrc) into v from pg_proc where oid = to_regprocedure('public.zella_flag_unrecorded_appointments()');
-  if v is null or v not in ('01b13252d9bd88c95aafc242428e1fbe', 'a08c1e9024823dbd5326508b072dc6c6') then
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_flag_unrecorded_appointments()');
+  if v is null or v not in ('d6285be3e17dbbde221dc9de1bf7c820', '713dae58c10fac0253dc7a5734b182be') then
     raise exception 'VERSION_MISMATCH: public.zella_flag_unrecorded_appointments() is not the version this file was written against (rollback)';
   end if;
-  select md5(prosrc) into v from pg_proc where oid = to_regprocedure('public.zella_rebalance_assignments()');
-  if v is null or v not in ('57190298f8eeecb222e7e0d4063f57f4', 'fc91d27184d6ee1b3a222f226231f2ba') then
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_rebalance_assignments()');
+  if v is null or v not in ('b5a446cca05995bbe1e6b493b5e74fb3', '8e51bd0ca8d789bea6342eb92976d42f') then
     raise exception 'VERSION_MISMATCH: public.zella_rebalance_assignments() is not the version this file was written against (rollback)';
   end if;
-  select md5(prosrc) into v from pg_proc where oid = to_regprocedure('public.zella_save_business_hours(uuid,jsonb)');
-  if v is null or v not in ('e34678fff3a3ac4389804818344f2591', 'c864bcd81e2f346b6038346adeab8df8') then
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_save_business_hours(uuid,jsonb)');
+  if v is null or v not in ('18f3299c8b8d86ff077bc476488225fa', 'b97c330a3ab6985e5b0107ead23eca3b') then
     raise exception 'VERSION_MISMATCH: public.zella_save_business_hours(uuid,jsonb) is not the version this file was written against (rollback)';
   end if;
-  select md5(prosrc) into v from pg_proc where oid = to_regprocedure('public.zella_add_business_closure(uuid,date,date,text,time without time zone,time without time zone)');
-  if v is null or v not in ('8087333b5db23bec9593230e07838333', 'bfa131f09555844052be50e149da3ab4') then
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_add_business_closure(uuid,date,date,text,time without time zone,time without time zone)');
+  if v is null or v not in ('146208fe6a703700cc7d58617d6924d3', 'f11db8217743a29ff1892c6dbf9ea6b9') then
     raise exception 'VERSION_MISMATCH: public.zella_add_business_closure(uuid,date,date,text,time without time zone,time without time zone) is not the version this file was written against (rollback)';
   end if;
-  select md5(prosrc) into v from pg_proc where oid = to_regprocedure('public.zella_finish_calendar_sync(uuid,boolean,text,text)');
-  if v is null or v not in ('c0c78505daa0263a089d103ad7b16da0', '4b18a344282c6977ad51c411eb50800b') then
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_finish_calendar_sync(uuid,boolean,text,text)');
+  if v is null or v not in ('39fb72ca1085f27ac9218e920f390fc7', 'f7012f3004e0d9b7c271563bbd96989f') then
     raise exception 'VERSION_MISMATCH: public.zella_finish_calendar_sync(uuid,boolean,text,text) is not the version this file was written against (rollback)';
   end if;
-  select md5(prosrc) into v from pg_proc where oid = to_regprocedure('public.zella_calendar_connect_provider(uuid,text,uuid,text,text,text)');
-  if v is null or v not in ('b6dc2e33e83e99b3b8c40e90da5e739b', 'a1ba4c76bb2432b7f2807d2725aa3bf5') then
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_calendar_connect_provider(uuid,text,uuid,text,text,text)');
+  if v is null or v not in ('59e47a581b66326398601d5f9e739e0e', '251194d9699c23f55b63b306bd80155c') then
     raise exception 'VERSION_MISMATCH: public.zella_calendar_connect_provider(uuid,text,uuid,text,text,text) is not the version this file was written against (rollback)';
   end if;
-  select md5(prosrc) into v from pg_proc where oid = to_regprocedure('public.zella_queue_calendar_sync()');
-  if v is null or v not in ('8095c177e6e5c8074c0e825548a1798a', '95f4636ad40ef15376343c0dcccc6892') then
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_queue_calendar_sync()');
+  if v is null or v not in ('33ee870e17e39b7934fbd7cd85eb28cb', 'f8883f2d80575ada191ac230754c2b6f') then
     raise exception 'VERSION_MISMATCH: public.zella_queue_calendar_sync() is not the version this file was written against (rollback)';
   end if;
-  select md5(prosrc) into v from pg_proc where oid = to_regprocedure('public.zella_claim_calendar_sync(integer)');
-  if v is null or v not in ('01219c987442b1e4a595a953b8c6156a', 'eba8925564ca983e12117a6b72ee3dd3') then
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_claim_calendar_sync(integer)');
+  if v is null or v not in ('dc2640b340530c2cdfbf663d1b6bc71b', 'b92d1471d2570e0d62eb78d1427309cc') then
     raise exception 'VERSION_MISMATCH: public.zella_claim_calendar_sync(integer) is not the version this file was written against (rollback)';
   end if;
-  select md5(prosrc) into v from pg_proc where oid = to_regprocedure('public.zella_replace_calendar_busy(uuid,jsonb)');
-  if v is null or v not in ('cac8ab21d3f54016a5fbe785d46a84fd', '65257b369ceec1c5d2ba72cc7b07a0fa') then
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_replace_calendar_busy(uuid,jsonb)');
+  if v is null or v not in ('06ed66f72e3e0ac3d77c43143c3dd726', '0dcce697a56d6c3848fa78be5dac7a0c') then
     raise exception 'VERSION_MISMATCH: public.zella_replace_calendar_busy(uuid,jsonb) is not the version this file was written against (rollback)';
   end if;
-  select md5(prosrc) into v from pg_proc where oid = to_regprocedure('public.zella_sensitive_industry(uuid)');
-  if v is null or v not in ('0f069e0c8c1819f5b1e3247b1fdc0c10', '3f15f600ed429815b2e390fda889ad04') then
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_sensitive_industry(uuid)');
+  if v is null or v not in ('7a6c1c0c93afcc384a121ea74b51639d', 'ad2e363ec6fa112404cc2710cc7132e4') then
     raise exception 'VERSION_MISMATCH: public.zella_sensitive_industry(uuid) is not the version this file was written against (rollback)';
   end if;
-  select md5(prosrc) into v from pg_proc where oid = to_regprocedure('public.zella_today_operations(uuid)');
-  if v is null or v not in ('dfc7fb1a1c68be1c7c1633407094ed6b', 'fa972b0670fac6cf72372fdbe8d3575f') then
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_today_operations(uuid)');
+  if v is null or v not in ('7e7639036d93663d36643de8c1974033', 'd2d9e704b0b4427aee6c491ab0fe94ad') then
     raise exception 'VERSION_MISMATCH: public.zella_today_operations(uuid) is not the version this file was written against (rollback)';
   end if;
-  select md5(prosrc) into v from pg_proc where oid = to_regprocedure('public.zella_merge_customers(uuid,uuid,uuid)');
-  if v is null or v not in ('e5203dc5e23b975fd40f59bed3d0f488', '1ffffe1f411350deb30e83abb6ab25d6') then
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_merge_customers(uuid,uuid,uuid)');
+  if v is null or v not in ('67c12a63703abad917d36110772d227b', '08ab5747bb24046eb2e7af03bd623a72') then
     raise exception 'VERSION_MISMATCH: public.zella_merge_customers(uuid,uuid,uuid) is not the version this file was written against (rollback)';
   end if;
-  select md5(prosrc) into v from pg_proc where oid = to_regprocedure('public.zella_log_customer_request(uuid,uuid,text,text,text,uuid,text)');
-  if v is null or v not in ('f02d95957f35e01ec96624db1dd14922', '464765fe77597e58606f2331c362d47e') then
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_log_customer_request(uuid,uuid,text,text,text,uuid,text)');
+  if v is null or v not in ('19885e7bd4c40cf1a4de7236a6e5d0bd', 'f2cdbb4b583b7df1e38abee7f4492a8a') then
     raise exception 'VERSION_MISMATCH: public.zella_log_customer_request(uuid,uuid,text,text,text,uuid,text) is not the version this file was written against (rollback)';
   end if;
-  select md5(prosrc) into v from pg_proc where oid = to_regprocedure('public.zella_update_customer_request(uuid,text,text)');
-  if v is null or v not in ('6b392bb4a8ae5a7569dd8c310e6bb463', '6c9a507452eb1486582bff6df9e59517') then
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_update_customer_request(uuid,text,text)');
+  if v is null or v not in ('fc9582465472459ba67e2da8324ca9e9', '84069f6f320403339385701fd365deec') then
     raise exception 'VERSION_MISMATCH: public.zella_update_customer_request(uuid,text,text) is not the version this file was written against (rollback)';
   end if;
-  select md5(prosrc) into v from pg_proc where oid = to_regprocedure('public.zella_record_status_touches_trg()');
-  if v is null or v not in ('62367e9f9fa36454b7f6a3e1f70f5baf', 'a9a209fb6b333aec451d598262b0158e') then
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_record_status_touches_trg()');
+  if v is null or v not in ('a5bbc266be4840bde237a872c9640e7b', '2472798d91f5140634ae69388b8a1153') then
     raise exception 'VERSION_MISMATCH: public.zella_record_status_touches_trg() is not the version this file was written against (rollback)';
   end if;
-  select md5(prosrc) into v from pg_proc where oid = to_regprocedure('public.zella_queue_customer_touches(integer)');
-  if v is null or v not in ('66b07ecf937f27d9c4236ea56e3489e7', 'dfebe3b6dbacdb07be68d77bc34876e0') then
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_queue_customer_touches(integer)');
+  if v is null or v not in ('6ec47cae09b7b3bc01cef0ca7778db38', 'a67de53597d676091cad8a6d31381813') then
     raise exception 'VERSION_MISMATCH: public.zella_queue_customer_touches(integer) is not the version this file was written against (rollback)';
   end if;
-  select md5(prosrc) into v from pg_proc where oid = to_regprocedure('public.zella_check_engine_health()');
-  if v is null or v not in ('67061f0eeca63add98b314b98496590d', '8c3f9666bd1f4bc4b9f9f42c4f06b0ee') then
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_check_engine_health()');
+  if v is null or v not in ('94e9eb38a2fb2b7119b784ab8bbbf31d', '2241568c73e146a2fdaea422e102d2aa') then
     raise exception 'VERSION_MISMATCH: public.zella_check_engine_health() is not the version this file was written against (rollback)';
   end if;
-  select md5(prosrc) into v from pg_proc where oid = to_regprocedure('public.zella_ai_voice(text,uuid,text,jsonb)');
-  if v is null or v not in ('1995441567225e6380a6b84744fc196c', '9c06db95d2f765ac7fcbcb7eee0d9e37') then
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_ai_voice(text,uuid,text,jsonb)');
+  if v is null or v not in ('3d23f57e34634757c15ad593de16c280', '923639e65151324cdeb431e26367fea1') then
     raise exception 'VERSION_MISMATCH: public.zella_ai_voice(text,uuid,text,jsonb) is not the version this file was written against (rollback)';
   end if;
-  select md5(prosrc) into v from pg_proc where oid = to_regprocedure('public.zella_complete_followup_task(uuid,text,text,text,uuid,integer)');
-  if v is null or v not in ('b6df61bdd1635b64b5d2fdd29d624f57', 'e9f7374bbaeae258f623da3b5dae2964') then
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_complete_followup_task(uuid,text,text,text,uuid,integer)');
+  if v is null or v not in ('1de8764b263ee24cbb3c431a9892a5ac', 'bb10e661454ffe7079fce5d0f0925846') then
     raise exception 'VERSION_MISMATCH: public.zella_complete_followup_task(uuid,text,text,text,uuid,integer) is not the version this file was written against (rollback)';
   end if;
-  select md5(prosrc) into v from pg_proc where oid = to_regprocedure('public.zella_claim_reminders(integer,text)');
-  if v is null or v not in ('3e5e83a02e3f78d0f3d4b5ca91060972', 'df1e22ad22b09a5e86237e0a43c6d2b0') then
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_claim_reminders(integer,text)');
+  if v is null or v not in ('fa34d88946ef4b2760d9068f05a3163d', '50d4d7b4d66a4653bbbbc3a094a15e3a') then
     raise exception 'VERSION_MISMATCH: public.zella_claim_reminders(integer,text) is not the version this file was written against (rollback)';
   end if;
-  select md5(prosrc) into v from pg_proc where oid = to_regprocedure('public.zella_permission_check()');
-  if v is null or v not in ('0b4cd9f129e7203577d88420a42a9c2f', '56f7546c45e3880cbbc73798303f19d1') then
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_permission_check()');
+  if v is null or v not in ('c1d53645c82f97c2e4670cf1560a9133', '3d5d8247e2a85cfa0dc5851737d66051') then
     raise exception 'VERSION_MISMATCH: public.zella_permission_check() is not the version this file was written against (rollback)';
   end if;
-  select md5(prosrc) into v from pg_proc where oid = to_regprocedure('public.zella_apply_industry_automations(uuid)');
-  if v is null or v not in ('1cd857cf1c7a9943dbc407c5daa96cd5', '0e0e8b8f5aa6b386b37037688183a8f3') then
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_apply_industry_automations(uuid)');
+  if v is null or v not in ('62ae8b658e5dee0f1400abe6a91c7a79', '7faa67fef4a15ffaf0f3b40f6ce466bf') then
     raise exception 'VERSION_MISMATCH: public.zella_apply_industry_automations(uuid) is not the version this file was written against (rollback)';
   end if;
-  select md5(prosrc) into v from pg_proc where oid = to_regprocedure('public.zella_decide_draft(uuid,boolean,text)');
-  if v is null or v not in ('2d0abf26c70486d6ab1af6518e8d5817', '4cf309b1cc799a9e7790b01c07a8ff7f') then
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_decide_draft(uuid,boolean,text)');
+  if v is null or v not in ('f60a2781f1e5df564f399af6772d4688', '7b92fc3ca810755ab48ffe626cbaf2e2') then
     raise exception 'VERSION_MISMATCH: public.zella_decide_draft(uuid,boolean,text) is not the version this file was written against (rollback)';
   end if;
-  select md5(prosrc) into v from pg_proc where oid = to_regprocedure('public.zella_claim_events(integer)');
-  if v is null or v not in ('21962313b731f6168b5f321b8fd887ab', '7fc04a3da1928b2894fa329a1dec5b1b') then
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_claim_events(integer)');
+  if v is null or v not in ('23cf476399ce1591cdfd6e66ef23bd44', '38ef083e202f4450221debe02995e3bf') then
     raise exception 'VERSION_MISMATCH: public.zella_claim_events(integer) is not the version this file was written against (rollback)';
   end if;
-  select md5(prosrc) into v from pg_proc where oid = to_regprocedure('public.zella_complete_event(uuid,boolean,text,text)');
-  if v is null or v not in ('ff9ae32f589ac00c83cc1c781050f685', '77fab2a3a617026853faabfebbaba49a') then
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_complete_event(uuid,boolean,text,text)');
+  if v is null or v not in ('4fef2e3b8127d07d94138dca9fb3cdc0', 'bcad07cf4df1195bdda334f394c54fd9') then
     raise exception 'VERSION_MISMATCH: public.zella_complete_event(uuid,boolean,text,text) is not the version this file was written against (rollback)';
   end if;
-  select md5(prosrc) into v from pg_proc where oid = to_regprocedure('public.zella_record_consent(uuid,text,text,text,uuid,text,text,text,text,jsonb)');
-  if v is null or v not in ('dc3a5b030f66e0840e50a9356bf2b268', 'c0e226e6beaa383961ee5535b8ddc6b0') then
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_record_consent(uuid,text,text,text,uuid,text,text,text,text,jsonb)');
+  if v is null or v not in ('c0ecfe6b2a5a7b6d67c534d77cf30e74', '4044d26f09c28639deeffa61a4449beb') then
     raise exception 'VERSION_MISMATCH: public.zella_record_consent(uuid,text,text,text,uuid,text,text,text,text,jsonb) is not the version this file was written against (rollback)';
   end if;
-  select md5(prosrc) into v from pg_proc where oid = to_regprocedure('public.zella_calls_page(uuid,text,boolean,integer,jsonb)');
-  if v is null or v not in ('b9ae335d234eecf76afb291e3a9b9854', 'f3d6816ff1dd4b6169b18d8c159c1021') then
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_calls_page(uuid,text,boolean,integer,jsonb)');
+  if v is null or v not in ('418b00001fd73a641124d138807cca4e', '884c5119469f8a4c8462c39067c9c3f7') then
     raise exception 'VERSION_MISMATCH: public.zella_calls_page(uuid,text,boolean,integer,jsonb) is not the version this file was written against (rollback)';
   end if;
-  select md5(prosrc) into v from pg_proc where oid = to_regprocedure('public.zella_inbox_previews(uuid,uuid[])');
-  if v is null or v not in ('e8cd6f3e5f8eeabd949ad0c74e952e90', '58bbc9302a8d8d197b0c360f8264084c') then
+  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_inbox_previews(uuid,uuid[])');
+  if v is null or v not in ('4056e1f758f5da3886e4f5f1a883f562', 'c73ac566a70bcd0400d648e537189aeb') then
     raise exception 'VERSION_MISMATCH: public.zella_inbox_previews(uuid,uuid[]) is not the version this file was written against (rollback)';
   end if;
 end $guard$;

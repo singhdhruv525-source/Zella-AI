@@ -1813,6 +1813,41 @@ test('calendar sync keeps no execution history (its items carry refresh tokens)'
   assert.equal(s.saveExecutionProgress, false);
 });
 
+test('brain parser rejects present values of the wrong type', () => {
+  const ctx = { callId: 'test', fallbackBusinessId: BIZ, callerNumber: '' };
+  for (const [key, values, message] of [
+    ['seating', [null, 1, {}, []], 'seating must be a short preference, e.g. patio'],
+    ['party_size', [null, '2', {}, [], Infinity, NaN], 'party_size must be a whole number of people from 1 to 100'],
+  ]) for (const value of values) {
+    const r = sharedBrain.planBrainTool({ id: 't', function: { name: 'check_open_hours', arguments: { [key]: value } } }, ctx);
+    assert.equal(r.invalid, message);
+    assert.equal(r.record.p_tool, 'unknown');
+  }
+});
+test('calendar reconciliation patches existing events and refuses uncertain lookups', () => {
+  for (const provider of ['google', 'outlook']) {
+    const plan = csPlan({ ...CSI, provider });
+    assert.ok(plan.lookup_url.includes(provider === 'google' ? 'privateExtendedProperty' : '$filter'));
+    const resolve = (body, statusCode = 200) => runCode('calendar-sync-resolve.js', { json: { body, statusCode }, nodes: { 'Plan sync': plan } }).json.google;
+    const list = (events) => provider === 'google' ? { items: events } : { value: events };
+    assert.equal(resolve(list([])).method, 'POST');
+    const existing = resolve(list([{ id: 'already-created' }]));
+    assert.equal(existing.method, 'PATCH');
+    assert.ok(existing.url.endsWith('/already-created'));
+    assert.equal(existing.body.id, undefined);
+    assert.throws(() => resolve(list([]), 503), /calendar_reconciliation_failed/);
+    assert.throws(() => resolve({ ...list([]), nextPageToken: 'more' }), /calendar_reconciliation_failed/);
+    assert.throws(() => resolve(list([{ id: 'a' }, { id: 'b' }])), /calendar_reconciliation_failed/);
+  }
+});
+test('calendar unhandled failures use the imported sanitized error workflow', () => {
+  const alert = wfJson('zella-failure-alert.json');
+  assert.equal(wfJson('zella-calendar-sync.json').settings.errorWorkflow, alert.id);
+  const r = runCode('failure-alert.js', { json: { workflow: { name: 'Calendar Sync' }, execution: { error: { message: 'Bearer secret-value' } } } });
+  assert.ok(!JSON.stringify(r).includes('secret-value'));
+  assert.equal(alert.settings.saveDataErrorExecution, 'none');
+});
+
 console.log(`${passed} passed, ${failures.length} failed`);
 for (const f of failures) console.log('  FAIL ' + f);
 process.exit(failures.length ? 1 : 0);

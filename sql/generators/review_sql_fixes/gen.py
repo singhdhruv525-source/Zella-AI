@@ -5,7 +5,7 @@
 usage: gen.py <spec module> <out migration> <out rollback>
 spec module defines: NAME, HEADER (str), FUNCS = [(regprocedure, [(old, new), ...]), ...], EXTRA_UP (sql), EXTRA_DOWN (sql),
 ROLLBACK_HEADER (str)."""
-import hashlib, importlib.util, subprocess, sys
+import importlib.util, subprocess, sys
 
 PSQL = ["psql", "-h", "/var/lib/postgresql/zella-sec", "-p", "55433", "-U", "postgres", "-qtAX", "-v", "ON_ERROR_STOP=1", "-d"]
 
@@ -42,8 +42,8 @@ for sig, reps in spec.FUNCS:
                 sys.exit(f"{sig}: expected 1 match in {label}, found {n}: {old[:80]!r}")
         new_def = new_def.replace(old, new)
         new_src = new_src.replace(old, new)
-    old_md5 = hashlib.md5(src.encode()).hexdigest()
-    new_md5 = hashlib.md5(new_src.encode()).hexdigest()
+    old_md5 = q(db, f"select md5(pg_get_functiondef({lit(sig)}::regprocedure))").strip()
+    new_md5 = q(db, f"begin; {new_def}; select md5(pg_get_functiondef({lit(sig)}::regprocedure)); rollback;").strip()
     guards.append((sig, old_md5, new_md5))
     num = getattr(spec, "ORDER", {}).get(sig.replace("public.", "").split("(")[0])
     ups.append((f"-- CodeRabbit #{int(num)}\n" if num is not None else "") + new_def + ";\n")
@@ -53,7 +53,7 @@ for sig, reps in spec.FUNCS:
 def guard_block(accept_label):
     lines = ["do $guard$", "declare v text;", "begin"]
     for sig, o, n in guards:
-        lines.append(f"  select md5(prosrc) into v from pg_proc where oid = to_regprocedure({lit(sig)});")
+        lines.append(f"  select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure({lit(sig)});")
         lines.append(f"  if v is null or v not in ('{o}', '{n}') then")
         lines.append(f"    raise exception 'VERSION_MISMATCH: {sig} is not the version this file was written against ({accept_label})';")
         lines.append("  end if;")
