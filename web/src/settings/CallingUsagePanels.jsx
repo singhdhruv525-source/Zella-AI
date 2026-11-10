@@ -24,15 +24,15 @@ const secs = (s) => {
 };
 const CATEGORY = { inbound_ai: "Inbound AI calls", outbound_ai: "Outbound AI calls", other_ai: "Other AI calls" };
 
-function useRange() {
+function useRange(onChange) {
   const now = new Date();
   const [from, setFrom] = useState(day(new Date(now.getTime() - 29 * 86400000)));
   const [to, setTo] = useState(day(now));
   const ok = from && to && from <= to;
   const picker = (
     <div className="zs-grid" style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
-      <Field label="From"><input type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)} /></Field>
-      <Field label="To"><input type="date" value={to} min={from} onChange={(e) => setTo(e.target.value)} /></Field>
+      <Field label="From"><input type="date" value={from} max={to} onChange={(e) => { setFrom(e.target.value); onChange(); }} /></Field>
+      <Field label="To"><input type="date" value={to} min={from} onChange={(e) => { setTo(e.target.value); onChange(); }} /></Field>
     </div>
   );
   return { from, to, ok, picker, range: ok ? { p_from: startOf(from).toISOString(), p_to: endOf(to).toISOString() } : null };
@@ -64,8 +64,8 @@ function Allowance({ a }) {
 /* ---------------- CRM: Settings > Billing > Calling usage ---------------- */
 
 export function BusinessCallingUsage({ w }) {
-  const r = useRange();
   const [page, setPage] = useState(0);
+  const r = useRange(() => setPage(0));
   const summary = useAsync(() => (r.range ? rpc("zella_call_usage_summary", { p_business_id: w.id, ...r.range }) : Promise.resolve(null)), [w.id, r.from, r.to]);
   const rows = useAsync(() => (r.range ? rpc("zella_call_usage_records", { p_business_id: w.id, ...r.range, p_limit: PAGE, p_offset: page * PAGE }) : Promise.resolve(null)), [w.id, r.from, r.to, page]);
   return (
@@ -79,7 +79,7 @@ export function BusinessCallingUsage({ w }) {
                 ["Corrections", s.totals?.adjustments?.count ? `${s.totals.adjustments.count} (${mins(s.totals.adjustments.minutes)})` : "None"],
                 ["Waiting to be counted", s.pending ? `${s.pending} call(s): their final length hasn't arrived yet` : "None"],
                 ["Needs attention", (s.issues?.open ?? 0) + (s.issues?.escalated ?? 0) ? `${(s.issues?.open ?? 0) + (s.issues?.escalated ?? 0)} call(s) the Zella team is checking` : "None"],
-                ["Last updated", when(s.totals?.last_processed_at) || "Not yet"]]} />
+                ["Last updated", s.totals?.last_processed_at ? when(s.totals.last_processed_at) : "Not yet"]]} />
               {Object.keys(s.totals?.by_category ?? {}).length > 0 && (
                 <Table rowKey={(x) => x[0]} rows={Object.entries(s.totals.by_category)} columns={[["Kind", (x) => CATEGORY[x[0]] ?? words(x[0])], ["Calls", (x) => x[1].calls], ["Usage", (x) => mins(x[1].minutes)]]} />
               )}
@@ -110,9 +110,9 @@ export function BusinessCallingUsage({ w }) {
 /* ---------------- Admin: Settings > Billing > Calling usage ---------------- */
 
 export function AdminCallingUsage() {
-  const r = useRange();
   const [biz, setBiz] = useState("");
   const [page, setPage] = useState(0);
+  const r = useRange(() => setPage(0));
   const [retry, setRetry] = useState(null);
   const [notice, setNotice] = useState("");
   const state = useAsync(() => (r.range ? rpc("zella_admin_call_usage", { p_business_id: biz || null, ...r.range, p_limit: PAGE, p_offset: page * PAGE }) : Promise.resolve(null)),

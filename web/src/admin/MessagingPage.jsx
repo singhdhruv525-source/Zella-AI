@@ -29,6 +29,7 @@ export default function MessagingPage({ me, sub, onOpenBusiness }) {
   return (
     <section className="owner-page ao-page">
       <PageHeader title="Messaging" description="Texts and emails across every business: what was sent, what failed, the templates they use and the senders." />
+      <ErrorNote error={options.error} onRetry={options.reload} />
       <Tabs tabs={TABS} current={tab} onChange={(k) => { setFailedFilter(false); setTab(k); }} />
       {tab === "overview" && <Overview onTab={setTab} onFailed={openFailed} />}
       {(tab === "sms" || tab === "email") && <Messages key={`${tab}-${failedFilter}`} channel={tab} me={me} options={options.data} failedOnly={failedFilter} say={say} onOpenBusiness={onOpenBusiness} />}
@@ -94,7 +95,7 @@ function Overview({ onTab, onFailed }) {
         </>
       )}
       <div className="ao-two">
-        <Panel title="Needs attention"><ErrorNote error={alerts.error} onRetry={alerts.reload} /><AlertList alerts={alerts.data} onOpen={open} /></Panel>
+        <Panel title="Needs attention"><ErrorNote error={alerts.error} onRetry={alerts.reload} /><AlertList error={alerts.error} alerts={alerts.data} onOpen={open} /></Panel>
         <Panel title="Providers" action={<button type="button" className="owner-secondary-button" onClick={() => onTab("providers")}>Details</button>}>
           {o && <ProviderHealth rows={o.providers} checksLive={o.checks_live} names={[["telnyx", "Telnyx", "Texts"], ["resend", "Resend", "Emails"]]} />}
         </Panel>
@@ -124,7 +125,7 @@ function Messages({ channel, me, options, failedOnly, say, onOpenBusiness }) {
         <Select label="Type" value={f.kind} onChange={set("kind")} options={KINDS[channel]} />
       </Filters>
       <ErrorNote error={list.error} onRetry={list.reload} />
-      <DataTable loading={list.loading} rows={list.data?.rows} onRow={(r) => setOpen(r.id)}
+      <DataTable error={list.error} loading={list.loading} rows={list.data?.rows} onRow={(r) => setOpen(r.id)}
         empty={`No ${email ? "emails" : "texts"} in this period match these filters.`}
         columns={[
           ["When", (r) => when(r.created_at)], ["Business", (r) => r.business_name], ["Type", (r) => words(r.kind)],
@@ -200,7 +201,7 @@ function Templates({ options, say }) {
         <Select label="Whose" value={f.scope} any={null} onChange={set("scope")} options={[["platform", "Platform and industry"], ["business", "Business copies"], ["all", "All"]]} />
       </Filters>
       <ErrorNote error={list.error} onRetry={list.reload} />
-      <DataTable loading={list.loading} rows={list.data?.rows} onRow={setOpen} empty="No templates match."
+      <DataTable error={list.error} loading={list.loading} rows={list.data?.rows} onRow={setOpen} empty="No templates match."
         columns={[
           ["Key", (t) => <code>{t.key}</code>], ["Channel", (t) => (t.channel === "sms" ? "Text" : "Email")], ["Purpose", (t) => words(t.purpose)],
           ["For", (t) => (t.scope === "business" ? t.business_name : t.scope === "industry" ? t.industry_name : "All businesses")],
@@ -220,7 +221,7 @@ function TemplateDrawer({ t, canEdit, onClose, onSaved }) {
   const editable = canEdit && t.scope !== "business";
   const used = useMemo(() => [...new Set([...(body + " " + subject).matchAll(/\{\{\s*([^}]*?)\s*\}\}/g)].map((m) => m[1]))], [body, subject]);
   const unknown = used.filter((v) => !t.variables.includes(v));
-  const changed = body.trim() !== t.body || (t.channel === "email" && subject.trim() !== (t.subject ?? ""));
+  const changed = body !== t.body || (t.channel === "email" && subject !== (t.subject ?? ""));
   const segments = t.channel === "sms" ? Math.max(1, Math.ceil(fill(body, SAMPLE).length / 160)) : null;
   const insert = (v) => setBody((b) => `${b}{{${v}}}`);
   return (

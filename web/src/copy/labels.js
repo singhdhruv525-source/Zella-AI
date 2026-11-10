@@ -77,11 +77,11 @@ const US = [[/\bcancell(ed|ing)\b/gi, (m, end) => `${m[0]}ancel${end}`]];
 export function humanize(value) {
   if (value === null || value === undefined || value === "") return "";
   const raw = String(value);
-  const known = LABELS[raw] ?? LABELS[raw.toLowerCase()];
+  const known = Object.hasOwn(LABELS, raw) ? LABELS[raw] : Object.hasOwn(LABELS, raw.toLowerCase()) ? LABELS[raw.toLowerCase()] : undefined;
   if (known) return known;
   if (/^dry_run/i.test(raw)) return LABELS.dry_run;
   let text = raw.replace(/[_.]+/g, " ").replace(/\s+/g, " ").trim();
-  text = text.split(" ").map((w) => ACRONYMS[w.toLowerCase()] ?? w).join(" ");
+  text = text.split(" ").map((w) => Object.hasOwn(ACRONYMS, w.toLowerCase()) ? ACRONYMS[w.toLowerCase()] : w).join(" ");
   for (const [re, fix] of US) text = text.replace(re, fix);
   return text.replace(/^./, (c) => c.toUpperCase());
 }
