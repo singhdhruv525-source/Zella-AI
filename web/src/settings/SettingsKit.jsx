@@ -81,20 +81,23 @@ export function Needs({ title = "Not available yet", children, have }) {
 export function useAsync(loader, deps) {
   const [state, setState] = useState({ data: null, error: "", loading: true });
   const live = useRef(true);
+  const request = useRef(0);
   const run = useCallback(async () => {
+    const id = ++request.current;
     setState((s) => ({ ...s, loading: true, error: "" }));
     try {
       const data = await loader();
-      if (live.current) setState({ data, error: "", loading: false });
+      if (live.current && id === request.current) setState({ data, error: "", loading: false });
     } catch (err) {
-      if (live.current) setState((s) => ({ ...s, error: err?.message || String(err), loading: false }));
+      if (live.current && id === request.current) setState((s) => ({ ...s, error: err?.message || String(err), loading: false }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
   useEffect(() => {
     live.current = true;
+    setState({ data: null, error: "", loading: true });
     run();
-    return () => { live.current = false; };
+    return () => { live.current = false; ++request.current; };
   }, [run]);
   return { ...state, reload: run };
 }
@@ -125,7 +128,13 @@ export function useForm(initial) {
       const next = await fn(values);
       const kept = next && typeof next === "object" && !Array.isArray(next) ? { ...values, ...next } : values;
       setSaved(kept);
-      setValues(kept);
+      setValues((current) => {
+        const merged = { ...current };
+        for (const key of Object.keys(kept)) {
+          if (JSON.stringify(current[key]) === JSON.stringify(values[key])) merged[key] = kept[key];
+        }
+        return merged;
+      });
       setStatus({ text: message, error: "" });
     } catch (err) {
       setStatus({ text: "", error: err?.message || String(err) });
@@ -153,7 +162,7 @@ export function SaveBar({ form, onSave, disabled, label = "Save changes" }) {
 
 // Confirmation for consequential actions. With `word`, the person types it;
 // with `reason`, a reason is required and passed to onConfirm.
-export function Confirm({ title, children, confirmLabel = "Confirm", danger, word, reason, onConfirm, onClose }) {
+export function Confirm({ title, children, confirmLabel = "Confirm", danger, word, reason, onConfirm, onClose, keepOpenOnFalse = false }) {
   const [typed, setTyped] = useState("");
   const [why, setWhy] = useState("");
   const [busy, setBusy] = useState(false);
@@ -164,7 +173,10 @@ export function Confirm({ title, children, confirmLabel = "Confirm", danger, wor
     setBusy(true);
     setError("");
     try {
-      await onConfirm(why.trim());
+      if (await onConfirm(why.trim()) === false && keepOpenOnFalse) {
+        setBusy(false);
+        return;
+      }
       onClose();
     } catch (err) {
       setError(err?.message || String(err));

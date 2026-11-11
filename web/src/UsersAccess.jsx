@@ -78,9 +78,9 @@ export default function UsersAccess() {
 
   async function submitInvite(event) {
     event.preventDefault();
-    if (checkEmail(invite.email, { required: true })) return;
+    if (busy || checkEmail(invite.email, { required: true })) return;
     const label = ROLE_LABELS[invite.role] ?? invite.role;
-    const ok = await run("admin_invite", invite, (r) =>
+    const ok = await run("admin_invite", { ...invite, email: invite.email.trim() }, (r) =>
       r.resent
         ? `Invitation re-emailed to ${r.email}. Their existing role was not changed.`
         : r.invited

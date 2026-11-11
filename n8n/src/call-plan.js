@@ -20,7 +20,8 @@ if (!to) {
 }
 if (!c.live) return record('zella_release_call', { p_source: source, p_id: id, p_reason: 'dry_run', p_defer_minutes: 720 });
 
-const tz = (c.business && c.business.timezone) || 'America/New_York';
+let tz = (c.business && c.business.timezone) || 'America/New_York';
+try { new Intl.DateTimeFormat('en-US', { timeZone: tz }); } catch (e) { tz = 'America/New_York'; }
 const appt = c.appointment && c.appointment.start_time ? new Date(c.appointment.start_time) : null;
 const when = appt && !isNaN(appt.getTime())
   ? appt.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: tz }) + ' at ' + appt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: tz })

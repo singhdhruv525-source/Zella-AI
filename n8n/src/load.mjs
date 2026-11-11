@@ -29,9 +29,13 @@ export function runCode(file, { json = {}, nodes = {}, vars = {} } = {}) {
 
 // Same, for Code nodes that read the raw request body (they use await).
 const AsyncFn = Object.getPrototypeOf(async function () {}).constructor;
-export async function runCodeAsync(file, { json = {}, raw = '', vars = {} } = {}) {
+export async function runCodeAsync(file, { json = {}, raw = '', vars = {}, nodes = {} } = {}) {
   const fn = new AsyncFn('$json', '$', loadCode(file, vars));
-  return fn.call({ helpers: { getBinaryDataBuffer: async () => Buffer.from(raw) } }, json, () => ({ item: { json: {} } }));
+  const lookup = (name) => {
+    if (!(name in nodes)) throw new Error('Test did not provide node: ' + name);
+    return { item: { json: nodes[name] } };
+  };
+  return fn.call({ helpers: { getBinaryDataBuffer: async () => Buffer.from(raw) } }, json, lookup);
 }
 
 // Same, for Code nodes that run once for all items ("run once for all items"): they read $input.first() / $input.all().

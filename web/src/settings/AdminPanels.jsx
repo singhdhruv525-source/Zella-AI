@@ -1041,7 +1041,7 @@ function Readiness() {
           <ul className="zs-checklist">
             {READINESS.map(([key, label, hint]) => (
               <li key={key} className={r[key] ? "ok" : ""}>
-                <span className="zs-check" aria-hidden="true">{r[key] ? "✓" : ""}</span>
+                <span className="zs-check-marker" aria-hidden="true">{r[key] ? "✓" : ""}</span>
                 <span><strong>{label}</strong><small>{hint}</small></span>
                 <Pill tone={r[key] ? "success" : "warning"}>{r[key] ? "Ready" : "Not yet"}</Pill>
               </li>

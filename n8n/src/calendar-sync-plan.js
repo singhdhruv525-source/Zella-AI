@@ -1,6 +1,6 @@
 // Zella - Calendar Sync: turn one queued booking change into a request to the business's calendar provider
 // (Google Calendar, or Outlook / Microsoft 365 through Microsoft Graph). Nothing is sent from here.
-// The refresh token only lives in this run's data; it is never logged or stored.
+// The refresh token passes through execution data; this workflow does not save execution data.
 const it = $json;
 const provider = it && it.provider === 'outlook' ? 'outlook' : 'google';
 // Zella's marker on events it created (so busy-time reading leaves them out and edits find them)
@@ -27,13 +27,15 @@ const e = it.event;
 const update = !!it.event_id;
 let body;
 if (provider === 'outlook') {
-  const utc = (s) => new Date(s).toISOString().slice(0, 19); // Graph: a local date-time plus its time zone
+  const utc = (s) => { const d = new Date(s); return Number.isFinite(d.getTime()) ? d.toISOString().slice(0, 19) : null; };
+  const start = utc(e.start); const end = utc(e.end);
+  if (!start || !end) return none; // Graph: a local date-time plus its time zone
   body = {
     transactionId: String(it.queue_id),
     subject: String(e.summary || 'Appointment').slice(0, 200),
     body: { contentType: 'text', content: String(e.description || '').slice(0, 1000) },
-    start: { dateTime: utc(e.start), timeZone: 'UTC' },
-    end: { dateTime: utc(e.end), timeZone: 'UTC' },
+    start: { dateTime: start, timeZone: 'UTC' },
+    end: { dateTime: end, timeZone: 'UTC' },
     singleValueExtendedProperties: [{ id: MS_PROP, value: String(it.appointment_id || '') }],
   };
 } else {

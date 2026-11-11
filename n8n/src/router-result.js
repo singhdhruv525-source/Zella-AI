@@ -12,8 +12,8 @@ let error = null;
 const steps = [{ step: 'route', handler: route.plan ? route.plan.handler : null }];
 
 if (!route.plan) {
-  category = route.problem.category;
-  error = route.problem.message;
+  category = route.problem ? route.problem.category : 'invalid_input';
+  error = route.problem ? route.problem.message : 'No route plan or problem was provided.';
 } else {
   const r = $json;
   const status = Number(r.statusCode);

@@ -82,7 +82,7 @@
         "genericAuthType": "httpCustomAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json.lookup) }}",
+        "jsonBody": "={{ JSON.stringify({ ...$json.lookup, p_fallback: null }) }}",
         "options": {
           "response": {
             "response": {
@@ -112,7 +112,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Zella - Vapi tools: put the business found from the called number into the database call.\n// The lookup answers with the business id (or null). A number that is not registered keeps the id from the call\n// settings only if the database accepted it as a fallback; with no business the database call refuses to act.\nconst plan = $('Plan').item.json;\nconst b = $json.body;\nconst found = typeof b === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(b) ? b : null;\nreturn { json: { ...plan, record: { ...plan.record, p_business_id: found } } };\n"
+        "jsCode": "// Zella - Vapi tools: put the business found from the called number into the database call.\n// All callers query with p_fallback null: only a trusted registered phone association can return an id.\n// Unlinked call settings are rejected. Existing calls are resolved by the acting RPC even with a null business id.\nconst plan = $('Plan').item.json;\nconst b = $json.body;\nconst status = Number($json.statusCode);\nconst found = status >= 200 && status < 300 && typeof b === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(b) ? b : null;\nreturn { json: { ...plan, record: { ...plan.record, p_business_id: found } } };\n"
       },
       "id": "7f18e741-b5ba-4aff-8802-12c6f1fe9f2d",
       "name": "Use business",

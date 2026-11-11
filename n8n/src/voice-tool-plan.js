@@ -5,27 +5,19 @@
 // with action "invalid", which the database refuses before doing anything (zella_ai_voice raises BAD_ACTION).
 // Only known fields are passed on; the caller's words are data and are never run as instructions.
 // The voice-rules Supabase function answers the same requests without n8n (docs/VOICE_RELIABILITY.md).
+__VAPI_BRAIN_TOOLS__
 const body = (($input.first() || {}).json || {}).body;
 const m = body && typeof body === 'object' && body.message && typeof body.message === 'object' ? body.message : {};
-const list = Array.isArray(m.toolCallList) ? m.toolCallList : Array.isArray(m.toolCalls) ? m.toolCalls : [];
+const list = toolCallList(m);
 const nameOf = (t) => (t && (t.name || (t.function && t.function.name))) || '';
 const ACTIONS = ['rules', 'message', 'emergency', 'transfer'];
 if (m.type !== 'tool-calls' || !list.length) return [{ json: { reply: { results: [] }, record: null } }];
 
-const call = m.call && typeof m.call === 'object' ? m.call : {};
-const meta = call.metadata && typeof call.metadata === 'object' ? call.metadata : {};
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-// call variable values are settable by whoever starts a web call: never a source for the business
-const bid = [meta.business_id].find((v) => typeof v === 'string' && uuid.test(v)) || null;
-// Which number was called? Used to find the business (a registered number always wins over call settings).
-const pn = call.phoneNumber && typeof call.phoneNumber === 'object' ? call.phoneNumber : m.phoneNumber && typeof m.phoneNumber === 'object' ? m.phoneNumber : {};
-const calledNumber = typeof pn.number === 'string' && /^\+?[0-9() .-]{7,20}$/.test(pn.number) ? pn.number : null;
-const vapiNumberId = typeof call.phoneNumberId === 'string' ? call.phoneNumberId.slice(0, 100) : typeof pn.id === 'string' ? pn.id.slice(0, 100) : null;
-const lookup = { p_called_number: calledNumber, p_vapi_phone_number_id: vapiNumberId, p_fallback: bid };
-// The caller's own number comes from the phone network, never from what they say.
-const cn = call.customer && typeof call.customer === 'object' ? String(call.customer.number || '') : '';
-const callerNumber = /^\+?[0-9]{7,15}$/.test(cn) ? cn : null;
-const callId = typeof call.id === 'string' ? call.id.slice(0, 200) : null;
+const ctx = vapiCallContext(m);
+const bid = ctx.fallbackBusinessId;
+const callId = ctx.callId;
+const callerNumber = ctx.callerNumber;
+const lookup = { p_called_number: ctx.calledNumber, p_vapi_phone_number_id: ctx.vapiNumberId, p_fallback: bid };
 
 const out = [];
 const seen = new Set();

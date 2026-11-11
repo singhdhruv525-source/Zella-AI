@@ -36,14 +36,13 @@ export function readEmailLink() {
   const query = new URLSearchParams(LANDING_URL.search || window.location.search || "");
   const pick = (key) => hash.get(key) ?? query.get(key);
   const code = pick("error_code");
-  const description = pick("error_description");
   return {
     tokenHash: query.get("token_hash"),
     type: pick("type"),
-    error: code || description
+    error: code
       ? code === "otp_expired"
         ? "This link has expired or was already used. Email links work only once, and some mail apps open links early to scan them."
-        : (description || "This link could not be used.").replace(/\+/g, " ")
+        : code === "access_denied" ? "Access to this link was denied." : "This link could not be used."
       : "",
   };
 }

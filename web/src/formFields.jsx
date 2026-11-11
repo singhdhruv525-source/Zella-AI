@@ -1,16 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   checkEmail, checkPhone, checkUrl, countryByIso, countryList, defaultCountryFromBrowser, flag,
   passwordProblems, passwordRules, PASSWORD_MAX, splitPhone, timeZoneGroups,
 } from "./formValidation";
 import "./formFields.css";
-
-let counter = 0;
-const useId = (prefix) => {
-  const ref = useRef(null);
-  if (ref.current === null) ref.current = `${prefix}-${++counter}`;
-  return ref.current;
-};
 
 function FieldError({ id, text }) {
   if (!text) return null;
@@ -25,8 +18,8 @@ function FieldError({ id, text }) {
  * Show the error under the box once the person leaves it, or when showErrors is true.
  */
 export function PhoneField({ value, onChange, required = false, disabled = false, showErrors = false, placeholder, id, label = "Phone number" }) {
-  const errId = useId("ff-phone-err");
-  const ownId = useId("ff-phone");
+  const errId = `ff-phone-err-${useId()}`;
+  const ownId = `ff-phone-${useId()}`;
   const inputId = id || ownId;
   const [iso, setIso] = useState(() => splitPhone(value, defaultCountryFromBrowser()).iso);
   const [text, setText] = useState(() => splitPhone(value, defaultCountryFromBrowser()).national);
@@ -96,7 +89,7 @@ export function PhoneField({ value, onChange, required = false, disabled = false
 
 // label: the accessible name, for when the visible caption isn't a <label> around the field (a "bare" field).
 export function EmailField({ value, onChange, required = false, disabled = false, showErrors = false, placeholder = "name@business.com", id, autoComplete = "email", label }) {
-  const errId = useId("ff-email-err");
+  const errId = `ff-email-err-${useId()}`;
   const [touched, setTouched] = useState(false);
   const error = touched || showErrors ? checkEmail(value, { required }) : "";
   return (
@@ -123,7 +116,7 @@ export function EmailField({ value, onChange, required = false, disabled = false
 }
 
 export function UrlField({ value, onChange, required = false, disabled = false, showErrors = false, placeholder = "https://", id, label }) {
-  const errId = useId("ff-url-err");
+  const errId = `ff-url-err-${useId()}`;
   const [touched, setTouched] = useState(false);
   const error = touched || showErrors ? checkUrl(value, { required }) : "";
   return (
@@ -214,28 +207,30 @@ export function PasswordChecklist({ password }) {
   );
 }
 
-export function PasswordField({ value, onChange, disabled = false, showRules = true, autoComplete = "new-password", placeholder, id, showErrors = false }) {
+export function PasswordField({ value, onChange, disabled = false, showRules = true, autoComplete = "new-password", placeholder, id, label = "Password", showErrors = false }) {
   const [visible, setVisible] = useState(false);
   const [touched, setTouched] = useState(false);
-  const errId = useId("ff-pw-err");
+  const errId = `ff-pw-err-${useId()}`;
   const problems = passwordProblems(value);
-  const error = (touched || showErrors) && !value ? "Enter a password." : "";
+  const error = touched || showErrors ? (!value ? "Enter a password." : problems.join(" ")) : "";
   return (
     <div className={`ff ff-password ${error ? "has-error" : ""}`}>
       <div className="ff-password-row">
         <input
           id={id}
+          aria-label={id ? undefined : label}
           type={visible ? "text" : "password"}
           autoComplete={autoComplete}
           value={value}
           disabled={disabled}
           maxLength={PASSWORD_MAX + 20}
           placeholder={placeholder}
-          aria-invalid={Boolean(error) || (touched && problems.length > 0)}
+          aria-invalid={Boolean(error)}
+          aria-describedby={error ? errId : undefined}
           onChange={(e) => onChange(e.target.value)}
           onBlur={() => setTouched(true)}
         />
-        <button type="button" className="ff-reveal" onClick={() => setVisible((v) => !v)} aria-pressed={visible} disabled={disabled}>
+        <button type="button" className="ff-reveal" onClick={() => setVisible((v) => !v)} aria-label={`${visible ? "Hide" : "Show"} ${label}`} aria-pressed={visible} disabled={disabled}>
           {visible ? "Hide" : "Show"}
         </button>
       </div>
@@ -245,9 +240,9 @@ export function PasswordField({ value, onChange, disabled = false, showRules = t
   );
 }
 
-export function ConfirmPasswordField({ value, password, onChange, disabled = false, autoComplete = "new-password", id, showErrors = false }) {
+export function ConfirmPasswordField({ value, password, onChange, disabled = false, autoComplete = "new-password", id, label = "Confirm password", showErrors = false }) {
   const [touched, setTouched] = useState(false);
-  const errId = useId("ff-pw2-err");
+  const errId = `ff-pw2-err-${useId()}`;
   const mismatch = value && value !== password;
   const error = (touched || showErrors) ? (!value ? "Enter the password again." : mismatch ? "The passwords don't match." : "") : (mismatch && value.length >= password.length ? "The passwords don't match." : "");
   const matches = value && !mismatch;
@@ -255,6 +250,7 @@ export function ConfirmPasswordField({ value, password, onChange, disabled = fal
     <div className={`ff ${error ? "has-error" : ""}`}>
       <input
         id={id}
+        aria-label={id ? undefined : label}
         type="password"
         autoComplete={autoComplete}
         value={value}

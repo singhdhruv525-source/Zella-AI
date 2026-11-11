@@ -1035,7 +1035,7 @@ function registry(w) {
       page("profile", "My profile", (c) => <MyProfilePanel email={c.email} />, "name picture"),
       page("security", "Personal security", (c) => <AccountSecurityPanel email={c.email} />, "password mfa"),
       page("appearance", "Appearance", () => <AppearancePanel />, "theme glass dark background wallpaper picture sidebar dock look notification sound chime"),
-      page("logout", "Sign out", (c) => <SignOutPanel who="you" onSignOut={c.onSignOut} />, "logout"),
+      page("logout", "Sign out", (c) => <SignOutPanel who="you" onSignOut={c.onSignOut} signOutError={c.signOutError} />, "logout"),
     ] },
   ];
 }
@@ -1083,7 +1083,7 @@ function Templates({ w }) {
   );
 }
 
-export function BusinessSettingsPage({ workspace, email, userId, records, onSignOut, section, sub, onGo, onReload, onOpenPerson, onNotice }) {
+export function BusinessSettingsPage({ workspace, email, userId, records, onSignOut, signOutError, section, sub, onGo, onReload, onOpenPerson, onNotice }) {
   const reg = registry(workspace);
   return (
     <SettingsWorkspace
@@ -1091,6 +1091,6 @@ export function BusinessSettingsPage({ workspace, email, userId, records, onSign
       registry={reg} category={section} item={sub} base={window.location.pathname.startsWith("/app/preview") ? "/app/preview/settings" : "/app/settings"}
       go={(path) => onGo(path.replace(/^\/app(\/preview)?\//, ""))}
       Icon={({ name }) => <Icon name={name} size="sm" />}
-      context={{ email, userId, records, onSignOut, onGo, onReload, onOpenPerson, onNotice }} />
+      context={{ email, userId, records, onSignOut, signOutError, onGo, onReload, onOpenPerson, onNotice }} />
   );
 }

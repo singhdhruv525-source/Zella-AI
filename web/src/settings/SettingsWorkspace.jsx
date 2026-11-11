@@ -92,7 +92,7 @@ export default function SettingsWorkspace({ title = "Settings", description, reg
                         return (
                           <li key={i.key}>
                             <a href={href(c, i)} className={active ? "active" : ""} aria-current={active ? "page" : undefined}
-                              onClick={(e) => { e.preventDefault(); pick(c, i); }}>{i.label}</a>
+                              onClick={(e) => { if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return; e.preventDefault(); pick(c, i); }}>{i.label}</a>
                           </li>
                         );
                       })}
@@ -106,9 +106,9 @@ export default function SettingsWorkspace({ title = "Settings", description, reg
 
         <div className="zs-body">
           <div className="zs-crumbs" aria-label="Breadcrumb">
-            <a href={base} onClick={(e) => { e.preventDefault(); go(href(registry[0], registry[0].items[0])); }}>{title}</a>
+            <a href={base} onClick={(e) => { if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return; e.preventDefault(); go(href(registry[0], registry[0].items[0])); }}>{title}</a>
             <span>/</span>
-            <a href={href(cat, cat.items[0])} onClick={(e) => { e.preventDefault(); go(href(cat, cat.items[0])); }}>{cat.label}</a>
+            <a href={href(cat, cat.items[0])} onClick={(e) => { if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return; e.preventDefault(); go(href(cat, cat.items[0])); }}>{cat.label}</a>
             <span>/</span>
             <strong>{sub.label}</strong>
           </div>

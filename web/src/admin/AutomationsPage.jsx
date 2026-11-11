@@ -22,6 +22,7 @@ export default function AutomationsPage({ me, sub, onOpenBusiness }) {
   return (
     <section className="owner-page ao-page">
       <PageHeader title="Automations" description="Reminders, follow-ups and other automations for every business: their status, every run, failures and the scheduler." />
+      <ErrorNote error={options.error} onRetry={options.reload} />
       <Tabs tabs={TABS} current={tab} onChange={setTab} />
       {tab === "overview" && <Overview onTab={setTab} />}
       {tab === "directory" && <Directory me={me} options={options.data} say={say} onOpenBusiness={onOpenBusiness} />}
@@ -75,7 +76,7 @@ function Overview({ onTab }) {
         <NotAvailable title={`Latest failure: ${o.latest_failure.workflow} at ${when(o.latest_failure.at)}`}>{o.latest_failure.error ?? "No error message recorded."}</NotAvailable>
       )}
       <div className="ao-two">
-        <Panel title="Needs attention"><ErrorNote error={health.error} onRetry={health.reload} /><AlertList alerts={alerts} onOpen={(a) => onTab(a.link)} /></Panel>
+        <Panel title="Needs attention"><ErrorNote error={health.error} onRetry={health.reload} /><AlertList error={health.error} alerts={alerts} onOpen={(a) => onTab(a.link)} /></Panel>
         <Panel title="Scheduler" action={<button type="button" className="owner-secondary-button" onClick={() => onTab("infrastructure")}>Details</button>}>
           {h && <Facts rows={[["Scheduled jobs on", `${jobsOn} of ${h.jobs.length}`], ["Dispatcher switch", h.dispatch_switch ? "On" : "Off"],
             ["n8n address", h.n8n_address_set ? "Set" : "Not set"], ["n8n secret stored", h.n8n_secret_stored ? "Yes" : "No"]]} />}
@@ -106,7 +107,7 @@ function Directory({ me, options, say, onOpenBusiness }) {
       </Filters>
       <p className="op-muted">Automations are created from templates when a business is set up, and changed by the business in their app. There is no "create automation" here.</p>
       <ErrorNote error={list.error} onRetry={list.reload} />
-      <DataTable loading={list.loading} rows={list.data?.rows} onRow={(r) => setOpen(r.id)} empty="No automations match these filters."
+      <DataTable error={list.error} loading={list.loading} rows={list.data?.rows} onRow={(r) => setOpen(r.id)} empty="No automations match these filters."
         columns={[
           ["Automation", (r) => <strong>{r.name}</strong>], ["Business", (r) => r.business_name], ["Industry", (r) => r.industry_name ?? "—"],
           ["Trigger", (r) => words(r.trigger_type)], ["Status", (r) => <span className="ao-flags"><Pill tone={tone(r.status)}>{STATUS_LABEL[r.status] ?? r.status}</Pill>
@@ -190,7 +191,7 @@ function Runs({ failed, me, options, say, onOpenBusiness }) {
         <Select label="Business" value={f.business} onChange={set("business")} options={(options?.businesses ?? []).map((b) => [b.id, b.name])} />
       </Filters>
       <ErrorNote error={list.error} onRetry={list.reload} />
-      <DataTable loading={list.loading} rows={list.data?.rows} rowKey={(r) => `${r.kind}-${r.id}`} onRow={setOpen}
+      <DataTable error={list.error} loading={list.loading} rows={list.data?.rows} rowKey={(r) => `${r.kind}-${r.id}`} onRow={setOpen}
         empty={failed ? "No failed runs in this period." : "No runs recorded in this period."}
         columns={[
           ["Started", (r) => when(r.started_at)], ["Workflow", (r) => <strong>{r.name}</strong>], ["Business", (r) => r.business_name ?? "Platform"],
@@ -272,7 +273,7 @@ function Templates() {
         <Select label="Industry" value={f.industry} onChange={(v) => { setOffset(0); setF((x) => ({ ...x, industry: v })); }} options={(list.data?.industries ?? []).map((i) => [i, words(i)])} />
       </Filters>
       <ErrorNote error={list.error} onRetry={list.reload} />
-      <DataTable loading={list.loading} rows={rows?.slice(offset, offset + PAGE)} onRow={setOpen} empty="No templates match."
+      <DataTable error={list.error} loading={list.loading} rows={rows?.slice(offset, offset + PAGE)} onRow={setOpen} empty="No templates match."
         columns={[["Template", (t) => <strong>{t.name}</strong>], ["Industry", (t) => words(t.industry_key)], ["Trigger", (t) => words(t.trigger_type)],
           ["Businesses using it", (t) => num(t.in_use)], ["Active", (t) => num(t.active)]]} />
       <Pager total={rows?.length} offset={offset} onChange={setOffset} />
@@ -295,7 +296,7 @@ function Infrastructure() {
     <>
       <Panel title="Scheduled jobs" description="Jobs inside the database. They find due work and hand it to n8n." action={<button type="button" className="owner-secondary-button" onClick={h.reload}>Refresh</button>}>
         <ErrorNote error={h.error} onRetry={h.reload} />
-        {s && <DataTable rows={s.jobs} rowKey={(j) => j.name} empty="No Zella jobs found."
+        {s && <DataTable error={h.error} rows={s.jobs} rowKey={(j) => j.name} empty="No Zella jobs found."
           columns={[["Job", (j) => <code>{j.name}</code>], ["Schedule", (j) => <code>{j.schedule}</code>], ["State", (j) => <Pill tone={j.active ? "success" : "neutral"}>{j.active ? "Running" : "Off"}</Pill>],
             ["Last run", (j) => (j.last_run ? <span><Pill tone={j.last_run.status === "succeeded" ? "success" : "danger"}>{words(j.last_run.status)}</Pill> {when(j.last_run.at)}</span> : "Never")],
             ["Last success", (j) => when(j.last_success)], ["Failures (24 h)", (j) => (j.failures_24h ? <Pill tone="danger">{j.failures_24h}</Pill> : 0)]]} />}
@@ -310,7 +311,7 @@ function Infrastructure() {
             <Metric label="Failed runs (24 h)" value={num(s.failed_24h.workflows)} tone={s.failed_24h.workflows ? "danger" : null} />
             <Metric label="Failed events (24 h)" value={num(s.failed_24h.events)} tone={s.failed_24h.events ? "danger" : null} />
           </div>
-          <DataTable rows={s.dispatch} rowKey={(d) => d.workflow} empty="Nothing has been handed to n8n yet."
+          <DataTable error={h.error} rows={s.dispatch} rowKey={(d) => d.workflow} empty="Nothing has been handed to n8n yet."
             columns={[["n8n workflow", (d) => words(d.workflow)], ["Last handed over", (d) => when(d.last_triggered_at)], ["Waiting then", (d) => num(d.waiting)],
               ["Total", (d) => num(d.total)], ["", (d) => d.stuck && <Pill tone="warning">Looks stuck</Pill>]]} />
         </Panel>
