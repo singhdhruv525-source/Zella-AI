@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { supabase } from "./supabase";
+import { isOwnPicture as checkOwnPicture } from "./pictureUrl.js";
 
 // Personal look of Zella: theme, background picture, how much the picture is dimmed, whether the colours follow the
 // picture, and whether the sidebar is a slim dock or the full list. Each person has their own, and the admin dashboard
@@ -29,6 +30,8 @@ const PALETTE_VARS = ["--zella-primary", "--zella-primary-hover", "--zella-prima
   "--zella-on-primary", "--zella-nav-active", "--zella-card", "--zella-sidebar", "--zella-subtle", "--glass-solid", "--zella-glass-base",
   "--zella-text", "--zella-text-2", "--zella-text-secondary", "--zella-text-faint", "--zella-border", "--zella-border-strong"];
 const COLOUR = /^hsla?\(\s*[0-9.]+(deg)?\s*,\s*[0-9.]+%\s*,\s*[0-9.]+%\s*(,\s*[0-9.]+\s*)?\)$/;
+// Origin of this project's own Supabase (the URL supabase.js uses); unset in unit tests, where no picture is accepted.
+const SUPABASE_ORIGIN = (() => { try { return new URL(import.meta.env?.VITE_SUPABASE_URL).origin; } catch { return null; } })();
 const listeners = new Set();
 const local = readLocal();
 let owner = local?.user ?? null;   // whose look this is (a user id), once sign-in is known
@@ -49,12 +52,16 @@ function normalisePalette(p) {
   return { for: p.for.slice(0, 500), vars, swatches };
 }
 
+// The check lives in pictureUrl.js (no imports, so it can be unit tested); this project's storage origin is the default.
+// A hoisted declaration: `current` (above) is normalised while the module loads and calls this.
+export function isOwnPicture(u, origin = SUPABASE_ORIGIN) { return checkOwnPicture(u, origin); }
+
 function normalise(p) {
   const v = { ...DEFAULT_APPEARANCE, ...(p && typeof p === "object" ? p : {}) };
   if (!["zella", "classic", "glass"].includes(v.theme)) v.theme = DEFAULT_APPEARANCE.theme;
   if (v.background !== "custom" && !BACKGROUNDS.some((b) => b.key === v.background)) v.background = DEFAULT_APPEARANCE.background;
   // only a picture uploaded to Zella's own storage is used as a background
-  if (typeof v.customUrl !== "string" || !/^https:\/\/[^/]+\.supabase\.co\/storage\/v1\/object\/public\/brand-assets\/user\//.test(v.customUrl)) v.customUrl = null;
+  if (!isOwnPicture(v.customUrl)) v.customUrl = null;
   if (v.background === "custom" && !v.customUrl) v.background = DEFAULT_APPEARANCE.background;
   v.dim = Math.min(80, Math.max(0, Math.round(Number(v.dim) || 0)));
   if (!["compact", "full", null].includes(v.sidebar)) v.sidebar = null;

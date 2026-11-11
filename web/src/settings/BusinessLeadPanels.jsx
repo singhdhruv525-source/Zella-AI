@@ -151,15 +151,17 @@ export function LeadRules({ w }) {
     supabase.from("lead_rules").select("id, name, sort_order, match, assign_to, set_priority, is_active, created_at").eq("business_id", w.id).order("sort_order").order("created_at")
       .then(({ data, error }) => { if (error) throw new Error(say(error)); return data ?? []; }),
     roster(w),
-    supabase.from("lead_questions").select("key").eq("business_id", w.id).then(({ data }) => (data ?? []).map((q) => q.key)),
+    supabase.from("lead_questions").select("key").eq("business_id", w.id).then(({ data, error }) => { if (error) throw new Error(say(error)); return (data ?? []).map((q) => q.key); }),
   ]), [w.id]);
   const [editing, setEditing] = useState(null);
   const [removing, setRemoving] = useState(null);
   const [error, setError] = useState("");
   const edit = can(w, LEAD);
 
+  const [moving, setMoving] = useState(false);
   async function move(rules, i, dir) {
-    if (!rules[i + dir]) return;
+    if (moving || !rules[i + dir]) return;
+    setMoving(true);
     setError("");
     try {
       // Positions are rewritten for the whole list so equal numbers can't leave the order ambiguous.
@@ -167,7 +169,7 @@ export function LeadRules({ w }) {
       [order[i], order[i + dir]] = [order[i + dir], order[i]];
       for (const [n, id] of order.entries()) await write(supabase.from("lead_rules").update({ sort_order: (n + 1) * 10 }).eq("id", id).eq("business_id", w.id));
       state.reload();
-    } catch (err) { setError(friendly(err)); }
+    } catch (err) { setError(friendly(err)); state.reload(); } finally { setMoving(false); }
   }
 
   return (
@@ -186,8 +188,8 @@ export function LeadRules({ w }) {
               ["State", (r) => <Pill tone={r.is_active ? "success" : ""}>{r.is_active ? "On" : "Off"}</Pill>],
               ["", (r) => edit && (
                 <div className="zs-actions">
-                  <button type="button" className="zs-btn sm" aria-label={`Move ${r.name} up`} disabled={rules.indexOf(r) === 0} onClick={() => move(rules, rules.indexOf(r), -1)}>↑</button>
-                  <button type="button" className="zs-btn sm" aria-label={`Move ${r.name} down`} disabled={rules.indexOf(r) === rules.length - 1} onClick={() => move(rules, rules.indexOf(r), 1)}>↓</button>
+                  <button type="button" className="zs-btn sm" aria-label={`Move ${r.name} up`} disabled={moving || state.loading || rules.indexOf(r) === 0} onClick={() => move(rules, rules.indexOf(r), -1)}>↑</button>
+                  <button type="button" className="zs-btn sm" aria-label={`Move ${r.name} down`} disabled={moving || state.loading || rules.indexOf(r) === rules.length - 1} onClick={() => move(rules, rules.indexOf(r), 1)}>↓</button>
                   <button type="button" className="zs-btn sm" onClick={() => setEditing(r)}>Edit</button>
                   <button type="button" className="zs-btn sm danger-outline" onClick={() => setRemoving(r)}>Delete</button>
                 </div>
@@ -239,10 +241,17 @@ function RuleEditor({ w, rule, people, keys, next, onClose, onSaved }) {
       </div>
       {empty && <Banner tone="warn">Choose a person or a priority, or the rule won't change anything.</Banner>}
       <SaveBar form={form} disabled={!v.name.trim() || empty} onSave={() => form.save(async (x) => {
-        const match = {};
+        const match = { ...rule.match };
+        delete match.source;
+        delete match.keyword;
+        const answers = { ...match.answer_equals };
+        const originalKey = Object.keys(rule.match?.answer_equals ?? {})[0];
+        if (originalKey) delete answers[originalKey];
+        if (x.answerKey.trim() && x.answerValue.trim()) answers[x.answerKey.trim()] = x.answerValue.trim();
+        if (Object.keys(answers).length) match.answer_equals = answers;
+        else delete match.answer_equals;
         if (x.source.trim()) match.source = x.source.trim();
         if (x.keyword.trim()) match.keyword = x.keyword.trim();
-        if (x.answerKey.trim() && x.answerValue.trim()) match.answer_equals = { [x.answerKey.trim()]: x.answerValue.trim() };
         const row = { name: x.name.trim(), match, assign_to: x.assign_to || null, set_priority: x.set_priority || null, is_active: x.is_active };
         if (rule.id) await write(supabase.from("lead_rules").update(row).eq("id", rule.id).eq("business_id", w.id));
         else await write(supabase.from("lead_rules").insert({ ...row, business_id: w.id, sort_order: next }));
@@ -347,13 +356,15 @@ function AssignmentForm({ w, r }) {
           ))}
         </div>
         <div className="zs-grid">
-          <Field label="Roles that take new work" hint="People marked away are skipped.">
+          <fieldset className="zs-field" style={{ border: 0, padding: 0, margin: 0 }}>
+            <legend>Roles that take new work</legend>
             <div className="zs-actions">{["owner", "admin", "manager", "staff"].map((role) => (
               <label key={role} style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
                 <input type="checkbox" checked={v.roles.includes(role)} onChange={() => toggleRole(role)} disabled={v.mode === "off"} />{words(role)}
               </label>
             ))}</div>
-          </Field>
+            <small>People marked away are skipped.</small>
+          </fieldset>
           <Field label="Flag unassigned work after (minutes)" hint="5 to 1440." error={v.minutes && !(minutes >= 5 && minutes <= 1440) ? "Enter 5 to 1440." : ""}>
             <input value={v.minutes} onChange={form.set("minutes")} inputMode="numeric" />
           </Field>

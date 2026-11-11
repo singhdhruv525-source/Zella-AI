@@ -59,9 +59,9 @@ export function useLoad(loader, deps) {
   const [tick, setTick] = useState(0);
   useEffect(() => {
     let live = true;
-    setState((s) => ({ ...s, loading: true, error: "" }));
+    setState({ data: null, loading: true, error: "" });
     loader().then((data) => live && setState({ data, error: "", loading: false }))
-      .catch((e) => live && setState((s) => ({ data: s.data, error: friendlyError(e), loading: false })));
+      .catch((e) => live && setState({ data: null, error: friendlyError(e), loading: false }));
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [...deps, tick]);
@@ -203,8 +203,9 @@ export function Pager({ total, offset, onChange }) {
 }
 
 // columns: [header, (row) => cell, className?]
-export function DataTable({ columns, rows, empty, onRow, loading, rowKey = (r) => r.id }) {
-  if (loading && !rows) return <p className="op-muted">Loading…</p>;
+export function DataTable({ columns, rows, empty, onRow, loading, error, rowKey = (r) => r.id }) {
+  if (error) return <div className="op-empty" role="status">Results are unavailable. Try again.</div>;
+  if (loading) return <p className="op-muted">Loading…</p>;
   if (!rows?.length) return <div className="op-empty">{empty}</div>;
   return (
     <div className="owner-table-wrap" tabIndex={0}>
@@ -300,7 +301,8 @@ export function useToast() {
   return [node, (text, tone) => setToast({ text, tone })];
 }
 
-export function AlertList({ alerts, onOpen, empty = "Nothing needs attention." }) {
+export function AlertList({ alerts, error, onOpen, empty = "Nothing needs attention." }) {
+  if (!alerts && error) return <p className="op-muted">Alerts are unavailable. Try again.</p>;
   if (!alerts) return <p className="op-muted">Loading…</p>;
   if (!alerts.length) return <div className="op-empty ao-ok"><Icon name="check_circle" size="sm" /> {empty}</div>;
   return (

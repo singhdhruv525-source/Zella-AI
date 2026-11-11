@@ -67,19 +67,26 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [verifying, rejecting, closeDialog]);
 
+  const request = useRef(0);
   const load = useCallback(async () => {
+    const id = ++request.current;
     setLoading(true);
     setError("");
     try {
-      setData(await callOwnerFunction("documents_queue", { status }));
+      const result = await callOwnerFunction("documents_queue", { status });
+      if (id === request.current) setData(result);
     } catch (err) {
-      setError(friendlyError(err));
+      if (id === request.current) { setData(null); setError(friendlyError(err)); }
     } finally {
-      setLoading(false);
+      if (id === request.current) setLoading(false);
     }
   }, [status]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    setData(null);
+    load();
+    return () => { ++request.current; };
+  }, [load]);
 
   async function view(doc) {
     setError("");

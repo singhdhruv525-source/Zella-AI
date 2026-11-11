@@ -75,7 +75,7 @@ const pageUrl = (base, key) =>
 // Pages whose list the header search filters.
 const SEARCHABLE = (key) => key === "customers" || key === "leads" || key.startsWith("rec:");
 
-function Blocked({ workspace, onSignOut }) {
+function Blocked({ workspace, onSignOut, signOutError }) {
   const canceled = Boolean(workspace.cancelled_at);
   return (
     <main className="ba-auth">
@@ -92,6 +92,7 @@ function Blocked({ workspace, onSignOut }) {
             : "Your workspace and AI receptionist are paused for now. Please contact the Zella team to get it running again."}
         </p>
         <button type="button" className="ba-btn block" onClick={onSignOut}>Sign out</button>
+        {signOutError && <p className="ba-error" role="alert">{signOutError}</p>}
       </section>
     </main>
   );
@@ -102,7 +103,7 @@ function Blocked({ workspace, onSignOut }) {
  * Refresh the waiting-caller count on entry, refresh requests, and every minute;
  * failed checks show an unavailable or stale-count notice with a retry action.
  */
-function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackName, onSignOut, onReload, base = "/app", navPreview, invites }) {
+function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackName, onSignOut, signOutError, onReload, base = "/app", navPreview, invites }) {
   const path = usePath();
   const route = readPage(path, base);
   const page = route.key;
@@ -297,6 +298,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
 
         <main className="ba-content">
           <AppearanceSaveNotice />
+          {signOutError && <p className="ba-error" role="alert">{signOutError}</p>}
           <ErrorBoundary resetKey={`${workspace.id}:${path}`}>
           {maintenance && <div className="ba-banner" role="status"><span>{maintenance}</span></div>}
           {workspace.cancel_at && !workspace.cancelled_at && (
@@ -422,7 +424,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
           {current.key === "lead-sources" && <LeadSourcesPage workspace={workspace} refreshKey={refreshKey} />}
           {current.key === "reports" && <ReportsPage workspace={workspace} refreshKey={refreshKey} />}
           {current.key === "integrations" && <IntegrationsPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
-          {current.key === "settings" && <BusinessSettingsPage workspace={workspace} email={email} userId={userId} records={records} onSignOut={onSignOut} section={route.section} sub={route.sub} onGo={setPage} onReload={onReload} onOpenPerson={openPerson} onNotice={setNotice} />}
+          {current.key === "settings" && <BusinessSettingsPage workspace={workspace} email={email} userId={userId} records={records} onSignOut={onSignOut} signOutError={signOutError} section={route.section} sub={route.sub} onGo={setPage} onReload={onReload} onOpenPerson={openPerson} onNotice={setNotice} />}
           </ErrorBoundary>
         </main>
       </div>
@@ -491,6 +493,7 @@ function BusinessHome() {
     return id;
   });
   const [error, setError] = useState("");
+  const [signOutError, setSignOutError] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
   const [invites, setInvites] = useState(null);
 
@@ -532,8 +535,19 @@ function BusinessHome() {
     else if (!session) setWorkspaces(null);
   }, [session, mfa.state, loadWorkspaces]);
 
+  // Signs out. If the server can't be reached, the session is still cleared on this device; if even that fails, the
+  // person is told, and the screen does not claim they are signed out.
   async function signOut() {
-    await supabase.auth.signOut();
+    setSignOutError("");
+    let failed = false;
+    try { const { error: e } = await supabase.auth.signOut(); if (e) failed = true; } catch { failed = true; }
+    if (failed) {
+      try { const { error: e } = await supabase.auth.signOut({ scope: "local" }); if (e) throw e; }
+      catch {
+        setSignOutError("We couldn't sign you out. Your session may still be active on this device. Check your connection and try again.");
+        return false;
+      }
+    }
     setWorkspaces(null);
   }
 
@@ -541,6 +555,17 @@ function BusinessHome() {
   if (!session) return <BusinessSignIn />;
   if (mfa.state === "checking") return <Loading text="Loading..." />;
   if (mfa.state === "needs_code") return <MfaCodeCard email={session.user.email} onDone={mfa.recheck} />;
+  if (mfa.state === "error") return (
+    <main className="ba-auth">
+      <section className="ba-auth-card" role="alert">
+        <h1>Couldn't verify sign-in</h1>
+        <p className="ba-auth-description">Your sign-in security check failed. Try again to open your workspace.</p>
+        <button type="button" className="ba-btn primary block" onClick={mfa.recheck}>Try again</button>
+        <button type="button" className="ba-btn block" onClick={signOut}>Sign out</button>
+        {signOutError && <p className="ba-error" role="alert">{signOutError}</p>}
+      </section>
+    </main>
+  );
   if (workspaces === null) return <Loading text="Loading your workspace..." />;
 
   if (!workspaces.length) {
@@ -562,13 +587,14 @@ function BusinessHome() {
           <InviteBanner status={invites} email={session.user.email} onRetry={loadWorkspaces} />
           {isAdmin && <a className="ba-btn primary block" href="/">Open the admin dashboard</a>}
           <button type="button" className="ba-btn block" onClick={signOut}>Sign out</button>
+          {signOutError && <p className="ba-error" role="alert">{signOutError}</p>}
         </section>
       </main>
     );
   }
 
   const workspace = workspaces.find((w) => w.id === selectedId) ?? workspaces[0];
-  if (workspace.cancelled_at || workspace.suspended_at) return <Blocked workspace={workspace} onSignOut={signOut} />;
+  if (workspace.cancelled_at || workspace.suspended_at) return <Blocked workspace={workspace} onSignOut={signOut} signOutError={signOutError} />;
 
   return (
     <Workspace
@@ -580,6 +606,7 @@ function BusinessHome() {
       userId={session.user.id}
       fallbackName={session.user.user_metadata?.full_name ?? session.user.user_metadata?.name ?? ""}
       onSignOut={signOut}
+      signOutError={signOutError}
       onReload={loadWorkspaces}
       invites={invites}
     />

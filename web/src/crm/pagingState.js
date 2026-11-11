@@ -3,7 +3,8 @@
 //   cursors[i]   the cursor that loads page i (page 0 has none)
 //   seq          the newest request; an answer for an older one (filters changed meanwhile) is dropped
 //   data         the last page received for the current filters; kept while a refresh runs or fails ("stale")
-export const PAGE_START = { key: null, page: 0, cursors: [null], seq: 0, data: null, error: "", loading: true };
+//   dataPage     the page that data belongs to; Next is refused while they differ (a failed load keeps the old page)
+export const PAGE_START = { key: null, page: 0, dataPage: 0, cursors: [null], seq: 0, data: null, error: "", loading: true };
 
 /**
  * Track a zero-based page and its server cursors. Filter changes clear prior data;
@@ -19,13 +20,13 @@ export function pageReduce(state, event) {
       return { ...state, seq: event.seq, loading: true, error: "" };
     case "ok":
       if (event.seq !== state.seq || event.key !== state.key) return state;
-      return { ...state, data: event.data, loading: false, error: "" };
+      return { ...state, data: event.data, dataPage: state.page, loading: false, error: "" };
     case "fail":
       if (event.seq !== state.seq || event.key !== state.key) return state;
       return { ...state, loading: false, error: event.error || "Couldn't load this list." };
     case "next": {
       const next = state.data?.next;
-      if (!next || state.loading) return state;
+      if (!next || state.loading || state.page !== state.dataPage) return state;
       const cursors = state.cursors.slice(0, state.page + 1).concat([next]);
       return { ...state, page: state.page + 1, cursors, seq: state.seq + 1 };
     }

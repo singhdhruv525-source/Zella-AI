@@ -227,12 +227,15 @@ function SessionsCard() {
   );
 }
 
-export function SignOutPanel({ onSignOut, who }) {
+export function SignOutPanel({ onSignOut, signOutError, who }) {
   const [open, setOpen] = useState(false);
   return (
     <Card title="Sign out" sub={`Signs ${who} out of this device only. Other people and the subscription aren't affected.`}>
       <button type="button" className="zs-btn primary" onClick={() => setOpen(true)}>Sign out</button>
-      {open && <Confirm title="Sign out of Zella?" confirmLabel="Sign out" onClose={() => setOpen(false)} onConfirm={onSignOut}>You'll go back to the sign-in page.</Confirm>}
+      {open && <Confirm title="Sign out of Zella?" confirmLabel="Sign out" onClose={() => setOpen(false)} onConfirm={onSignOut} keepOpenOnFalse>
+        <p>You'll go back to the sign-in page.</p>
+        {signOutError && <Banner tone="error">{signOutError}</Banner>}
+      </Confirm>}
     </Card>
   );
 }

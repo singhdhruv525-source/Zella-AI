@@ -110,19 +110,32 @@ export function SidebarState({ status, error, onRetry }) {
   );
 }
 
-// A small menu that opens under its button and closes on Escape or a click elsewhere.
+// A small disclosure that opens under its button: focus moves into it when it opens; Escape closes it and returns focus
+// to the button; a click elsewhere or Tab out of it closes it. Plain buttons, so no menu roles (no arrow-key model).
 function useMenu() {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
+  const pointerOpen = useRef(false);
+  // Focus-out may close the menu between pointer-down and click on its trigger.
+  const onTriggerPointerDown = () => { pointerOpen.current = open; };
+  const onTriggerClick = (e) => setOpen(e.detail > 0 ? !pointerOpen.current : !open);
   useEffect(() => {
     if (!open) return undefined;
-    const onDown = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
+    const box = ref.current;
+    box?.querySelector(".ba-menu button")?.focus();
+    const trigger = () => box?.querySelector("button[aria-expanded]");
+    const onDown = (e) => { if (box && !box.contains(e.target)) setOpen(false); };
+    const onKey = (e) => { if (e.key === "Escape") { setOpen(false); trigger()?.focus(); } };
+    const onFocusOut = (e) => { if (!e.relatedTarget || !box?.querySelector(".ba-menu")?.contains(e.relatedTarget)) setOpen(false); };
     document.addEventListener("mousedown", onDown);
     window.addEventListener("keydown", onKey);
-    return () => { document.removeEventListener("mousedown", onDown); window.removeEventListener("keydown", onKey); };
+    box?.addEventListener("focusout", onFocusOut);
+    return () => {
+      document.removeEventListener("mousedown", onDown); window.removeEventListener("keydown", onKey);
+      box?.removeEventListener("focusout", onFocusOut);
+    };
   }, [open]);
-  return { open, setOpen, ref };
+  return { open, setOpen, ref, onTriggerPointerDown, onTriggerClick };
 }
 
 const initialsOf = (name) => (name || "?").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
@@ -134,7 +147,7 @@ export function BusinessSwitcher({ workspace, workspaces, config, onSwitch, onGo
   const others = workspaces.filter((w) => w.id !== workspace.id);
   return (
     <div className="ba-switcher" ref={ref}>
-      <button type="button" className="ba-switcher-btn" aria-haspopup="menu" aria-expanded={menu.open} onClick={() => menu.setOpen(!menu.open)}>
+      <button type="button" className="ba-switcher-btn" aria-expanded={menu.open} onPointerDown={menu.onTriggerPointerDown} onClick={menu.onTriggerClick}>
         {config?.logo_url ? <img src={config.logo_url} alt="" className="ba-switcher-logo" /> : <span className="ba-switcher-logo">{initialsOf(workspace.name)}</span>}
         <span className="ba-switcher-text">
           <strong>{workspace.name}</strong>
@@ -143,27 +156,27 @@ export function BusinessSwitcher({ workspace, workspaces, config, onSwitch, onGo
         <Icon name="expand_more" size="sm" />
       </button>
       {menu.open && (
-        <div className="ba-menu" role="menu">
+        <div className="ba-menu">
           {others.length > 0 && <div className="ba-menu-label">Switch business</div>}
           {others.map((w) => (
-            <button key={w.id} type="button" role="menuitem" className="ba-menu-item" onClick={() => { menu.setOpen(false); onSwitch(w.id); }}>
+            <button key={w.id} type="button" className="ba-menu-item" onClick={() => { menu.setOpen(false); onSwitch(w.id); }}>
               <span className="ba-switcher-logo sm">{initialsOf(w.name)}</span>
               <span><strong>{w.name}</strong><small>{w.industry ?? "Industry not set"} · {w.role}</small></span>
             </button>
           ))}
           {others.length > 0 && <div className="ba-menu-sep" />}
-          <button type="button" role="menuitem" className="ba-menu-item" onClick={() => { menu.setOpen(false); onGo("settings/profile/info"); }}>
+          <button type="button" className="ba-menu-item" onClick={() => { menu.setOpen(false); onGo("settings/profile/info"); }}>
             <Icon name="storefront" size="sm" /><span>Business profile</span>
           </button>
-          <button type="button" role="menuitem" className="ba-menu-item" onClick={() => { menu.setOpen(false); onGo("settings/industry/modules"); }}>
+          <button type="button" className="ba-menu-item" onClick={() => { menu.setOpen(false); onGo("settings/industry/modules"); }}>
             <Icon name="widgets" size="sm" /><span>Modules and industry</span>
           </button>
           {canManage && (
-            <button type="button" role="menuitem" className="ba-menu-item" onClick={() => { menu.setOpen(false); onGo("settings/team/members"); }}>
+            <button type="button" className="ba-menu-item" onClick={() => { menu.setOpen(false); onGo("settings/team/members"); }}>
               <Icon name="group_add" size="sm" /><span>Team members</span>
             </button>
           )}
-          <button type="button" role="menuitem" className="ba-menu-item" onClick={() => { menu.setOpen(false); onGo("settings/billing/plan"); }}>
+          <button type="button" className="ba-menu-item" onClick={() => { menu.setOpen(false); onGo("settings/billing/plan"); }}>
             <Icon name="credit_card" size="sm" /><span>Plan and billing</span>
           </button>
         </div>
@@ -177,25 +190,25 @@ export function ProfileMenu({ email, name, role, onGo, onSignOut }) {
   const { ref, ...menu } = useMenu();
   return (
     <div className="ba-profile" ref={ref}>
-      <button type="button" className="ba-profile-btn" aria-haspopup="menu" aria-expanded={menu.open} onClick={() => menu.setOpen(!menu.open)}>
+      <button type="button" className="ba-profile-btn" aria-expanded={menu.open} onPointerDown={menu.onTriggerPointerDown} onClick={menu.onTriggerClick}>
         <span className="ba-avatar">{initialsOf(name || email)}</span>
         <span className="ba-profile-text"><strong title={email}>{name || email}</strong><small>{role}</small></span>
         <Icon name="expand_more" size="sm" />
       </button>
       {menu.open && (
-        <div className="ba-menu right" role="menu">
+        <div className="ba-menu right">
           <div className="ba-menu-label" title={email}>{email}</div>
-          <button type="button" role="menuitem" className="ba-menu-item" onClick={() => { menu.setOpen(false); onGo("settings/me/profile"); }}>
+          <button type="button" className="ba-menu-item" onClick={() => { menu.setOpen(false); onGo("settings/me/profile"); }}>
             <Icon name="person" size="sm" /><span>My profile</span>
           </button>
-          <button type="button" role="menuitem" className="ba-menu-item" onClick={() => { menu.setOpen(false); onGo("settings/me/security"); }}>
+          <button type="button" className="ba-menu-item" onClick={() => { menu.setOpen(false); onGo("settings/me/security"); }}>
             <Icon name="lock" size="sm" /><span>Password and security</span>
           </button>
-          <button type="button" role="menuitem" className="ba-menu-item" onClick={() => { menu.setOpen(false); onGo("settings/me/appearance"); }}>
+          <button type="button" className="ba-menu-item" onClick={() => { menu.setOpen(false); onGo("settings/me/appearance"); }}>
             <Icon name="palette" size="sm" /><span>Appearance and theme</span>
           </button>
           <div className="ba-menu-sep" />
-          <button type="button" role="menuitem" className="ba-menu-item" onClick={() => { menu.setOpen(false); onSignOut(); }}>
+          <button type="button" className="ba-menu-item" onClick={() => { menu.setOpen(false); onSignOut(); }}>
             <Icon name="logout" size="sm" /><span>Sign out</span>
           </button>
         </div>

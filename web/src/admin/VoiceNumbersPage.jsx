@@ -21,6 +21,7 @@ export default function VoiceNumbersPage({ me, sub, onOpenBusiness }) {
   const setTab = (k) => navigate(k === "overview" ? "/voice" : `/voice/${k}`);
   const [toast, say] = useToast();
   const options = useOptions();
+  const [refresh, setRefresh] = useState(0);
   const [assign, setAssign] = useState(null);
   const [callFilter, setCallFilter] = useState(null);
   const manage = can(me, "telephony.manage");
@@ -30,13 +31,14 @@ export default function VoiceNumbersPage({ me, sub, onOpenBusiness }) {
     <section className="owner-page ao-page">
       <PageHeader title="Voice & numbers" description="Every business's phone numbers, the calls the AI receptionist handled and who callers are put through to."
         actions={manage && <button type="button" className="owner-primary-button" onClick={() => setAssign({ e164: "", businessId: "", vapiPhoneNumberId: "", label: "" })}>Assign a number</button>} />
+      <ErrorNote error={options.error} onRetry={options.reload} />
       <Tabs tabs={TABS} current={tab} onChange={setTab} />
       {tab === "overview" && <Overview onTab={setTab} onOpenCalls={openCalls} />}
-      {tab === "numbers" && <Numbers me={me} options={options.data} onAssign={setAssign} onOpenCalls={openCalls} say={say} onOpenBusiness={onOpenBusiness} />}
+      {tab === "numbers" && <Numbers key={refresh} me={me} options={options.data} onAssign={setAssign} onOpenCalls={openCalls} say={say} onOpenBusiness={onOpenBusiness} />}
       {tab === "calls" && <Calls me={me} options={options.data} initial={callFilter} onOpenBusiness={onOpenBusiness} />}
       {tab === "routing" && <Routing me={me} options={options.data} say={say} />}
       {tab === "providers" && <Providers me={me} />}
-      {assign && <AssignDialog edit={assign} options={options.data} onClose={() => setAssign(null)} onDone={(m) => { say(m); setTab("numbers"); }} />}
+      {assign && <AssignDialog edit={assign} options={options.data} onClose={() => setAssign(null)} onDone={(m) => { say(m); setRefresh((n) => n + 1); setTab("numbers"); }} />}
       {toast}
     </section>
   );
@@ -78,7 +80,7 @@ function Overview({ onTab, onOpenCalls }) {
       <div className="ao-two">
         <Panel title="Needs attention" description="From provider checks, numbers and the last 24 hours of calls.">
           <ErrorNote error={alerts.error} onRetry={alerts.reload} />
-          <AlertList alerts={alerts.data} onOpen={(a) => (a.link === "calls" ? onOpenCalls({ business: a.business_id ?? null, failedOnly: a.kind !== "call_volume_spike" }) : onTab(a.link))} />
+          <AlertList error={alerts.error} alerts={alerts.data} onOpen={(a) => (a.link === "calls" ? onOpenCalls({ business: a.business_id ?? null, failedOnly: a.kind !== "call_volume_spike" }) : onTab(a.link))} />
         </Panel>
         <Panel title="Providers" action={<button type="button" className="owner-secondary-button" onClick={() => onTab("providers")}>Details</button>}>
           {o && <ProviderHealth rows={o.providers} checksLive={o.checks_live} names={[["vapi", "Vapi", "AI voice and phone numbers"], ["telnyx", "Telnyx", "Numbers and carrier"]]} />}
@@ -106,7 +108,7 @@ function Numbers({ me, options, onAssign, onOpenCalls, say, onOpenBusiness }) {
         <Select label="Business" value={f.business} onChange={set("business")} options={(options?.businesses ?? []).map((b) => [b.id, b.name])} />
       </Filters>
       <ErrorNote error={list.error} onRetry={list.reload} />
-      <DataTable loading={list.loading} rows={list.data?.rows} onRow={setOpen}
+      <DataTable error={list.error} loading={list.loading} rows={list.data?.rows} onRow={setOpen}
         empty={f.q || f.status || f.business ? "No numbers match these filters." : "No phone numbers are assigned to any business yet."}
         columns={[
           ["Number", (r) => <strong>{r.e164}</strong>], ["Business", (r) => r.business_name], ["Label", (r) => r.label ?? "—"],
@@ -205,7 +207,7 @@ function Calls({ me, options, initial, onOpenBusiness }) {
         <Toggle label="Problems only" checked={f.failedOnly} onChange={set("failedOnly")} />
       </Filters>
       <ErrorNote error={list.error} onRetry={list.reload} />
-      <DataTable loading={list.loading} rows={list.data?.rows} onRow={(r) => setOpen(r.id)} empty="No calls in this period match these filters."
+      <DataTable error={list.error} loading={list.loading} rows={list.data?.rows} onRow={(r) => setOpen(r.id)} empty="No calls in this period match these filters."
         columns={[
           ["When", (r) => when(r.created_at)], ["Business", (r) => r.business_name], ["Direction", (r) => words(r.direction)], ["Caller", (r) => r.caller ?? "Unknown"],
           ["Number", (r) => r.number ?? "—"], ["Status", (r) => <Pill tone={statusTone(r.status)}>{words(r.status)}</Pill>], ["Length", (r) => duration(r.duration_seconds)],
