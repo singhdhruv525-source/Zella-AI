@@ -1112,13 +1112,13 @@ test('messaging extras: unsubscribe link, preferred channel, failed-text fallbac
   const sent = runCode('email-task-after-log.js', { json: { statusCode: 200, body: { id: 'm1' } }, nodes: { Decide: { task_id: 't1', live: true, from: 'a@b.co', to: 'c@d.co', subject: 's', text: 't', html: 'h', unsubscribe_url: 'https://app.example.com/u/' + 'a'.repeat(32) } } }).json;
   assert.ok(sent.resend.headers['List-Unsubscribe'].includes('/u/'));
 });
-test('meta window: a closed window tells the team, and WhatsApp can send an approved template', () => {
+test('meta window: a closed window tells the team, and WhatsApp templates stay disabled', () => {
   const w = readFileSync(new URL('../sql/zella_meta_window.sql', import.meta.url), 'utf8');
   assert.ok(w.includes("upper(status) = 'APPROVED'") && w.includes("'social_window_closed'") && w.includes('TEMPLATE_HAS_VALUES'));
   const p = (j) => runCode('meta-send-plan.js', { json: j }).json;
   const base = { id: '3f1c2b4e-5a6d-4e7f-8a9b-0c1d2e3f4a5b', page_id: '123456', channel: 'whatsapp', recipient: '15551230000', text: 'Hi', whatsapp_phone_id: '1234567890' };
   const ok = p({ ...base, kind: 'template', template_name: 'hello_again', template_language: 'en_US' });
-  assert.equal(ok.valid, true); assert.equal(ok.body.type, 'template'); assert.equal(ok.body.template.language.code, 'en_US');
+  assert.equal(ok.valid, false); assert.equal(ok.url, null); assert.equal(ok.body, null);
   assert.equal(p({ ...base, kind: 'template', template_name: 'Bad Name;', template_language: 'en_US' }).valid, false);
   assert.equal(p({ ...base, kind: 'template', template_name: 'hello_again', template_language: 'english' }).valid, false);
 });
@@ -1862,9 +1862,13 @@ test('assistant tools: failed writes return errors while non-loggable calls reta
   assert.equal(vtReply({ loggable: true, reply_text: 'Noted' }).result, 'Noted');
   assert.equal(runCode('vapi-tool-reply.js', { nodes: { 'Use business': { loggable: false, reply_text: 'No action' } } }).json.result, 'No action');
 });
-test('Meta: WhatsApp templates need no text, but ordinary messages do', () => {
+test('Meta: WhatsApp templates stay disabled with or without text; ordinary messages require text', () => {
   const base = { id: BIZ, page_id: '123456', whatsapp_phone_id: '234567', recipient: '14155550123', channel: 'whatsapp', template_name: 'hello', template_language: 'en' };
-  assert.equal(runCode('meta-send-plan.js', { json: { ...base, kind: 'template', text: '' } }).json.body.type, 'template');
+  for (const text of ['', 'Hello']) {
+    const p = runCode('meta-send-plan.js', { json: { ...base, kind: 'template', text } }).json;
+    assert.equal(p.valid, false); assert.equal(p.url, null); assert.equal(p.body, null);
+  }
+  assert.equal(runCode('meta-send-plan.js', { json: { ...base, kind: 'message', text: 'Hello' } }).json.valid, true);
   assert.equal(runCode('meta-send-plan.js', { json: { ...base, kind: 'message', text: '' } }).json.valid, false);
 });
 test('failure alerts: keyword separators and long tokens are hidden', () => {
@@ -1931,6 +1935,43 @@ const missingResendAuth = await runCodeAsync('email-event-plan.js').then(
 test('Resend: a missing auth node rejects execution', () => {
   assert.equal(missingResendAuth.rejected, true);
   assert.equal(missingResendAuth.error.message, 'Test did not provide node: Check Resend auth');
+});
+
+// Byte limits must be applied before decoding, including multibyte UTF-8 bodies.
+for (const [body, accepted] of [['é'.repeat(250000), true], ['é'.repeat(250000) + 'x', false], ['x'.repeat(500001), false]]) {
+  const meta = await metaRead(async () => Buffer.from(body));
+  const resend = await runCodeAsync('resend-auth-read.js', { raw: body });
+  test(`webhook byte limit: ${Buffer.byteLength(body)} bytes`, () => {
+    assert.equal(meta.ok, accepted);
+    assert.equal(meta.reason, accepted ? null : 'body_too_large');
+    assert.equal(meta.record.p_raw, accepted ? body : '');
+    assert.equal(resend.json.record.p_raw, accepted ? body : null);
+  });
+}
+let decoded = false;
+const tooLargeBuffer = { length: 500001, toString() { decoded = true; throw new Error('must not decode'); } };
+const metaBeforeDecode = await metaRead(async () => tooLargeBuffer);
+const resendBeforeDecode = await new AsyncFunction('$json', loadCode('resend-auth-read.js')).call(
+  { helpers: { getBinaryDataBuffer: async () => tooLargeBuffer } }, {});
+test('oversized webhook buffers are discarded before decoding', () => {
+  assert.equal(decoded, false);
+  assert.equal(metaBeforeDecode.reason, 'body_too_large');
+  assert.equal(resendBeforeDecode.json.record.p_raw, null);
+});
+test('booking: malformed party sizes are refused before filtering; valid integers and omission survive', () => {
+  for (const party_size of ['2', 'many', '', null, true, [], {}, NaN, Infinity, 0, 101, 1.5]) {
+    const message = { type: 'tool-calls', call: BCALL, toolCallList: [{ id: 'party', name: 'check_availability', arguments: { party_size } }] };
+    const edge = sharedBrain.planBrainTool(message.toolCallList[0], sharedBrain.vapiCallContext(message));
+    const inline = brainPlan(message)[0];
+    assert.match(edge.invalid, /party_size/);
+    assert.equal(inline.invalid, edge.invalid);
+    assert.equal(inline.record.p_tool, 'unknown');
+  }
+  for (const args of [{}, { party_size: 1 }, { party_size: 100 }]) {
+    const p = sharedBrain.planBrainTool({ id: 'party', name: 'check_availability', arguments: args }, sharedBrain.vapiCallContext({ call: BCALL }));
+    assert.equal(p.invalid, null);
+    assert.equal(p.record.p_args.party_size, args.party_size);
+  }
 });
 
 console.log(`${passed} passed, ${failures.length} failed`);

@@ -71,13 +71,15 @@ function invalidField(clean) {
 export function planBrainTool(tc, ctx, allowed = TOOLS) {
   const name = toolName(tc);
   const args = toolArgs(tc);
+  const malformedPartySize = Object.prototype.hasOwnProperty.call(args, 'party_size')
+    && (typeof args.party_size !== 'number' || !Number.isFinite(args.party_size));
   const clean = {};
   for (const k of STRINGS) if (typeof args[k] === 'string') clean[k] = args[k].replace(/\s+/g, ' ').trim().slice(0, k === 'query' ? 300 : 1500);
   for (const k of NUMBERS) if (typeof args[k] === 'number' && Number.isFinite(args[k])) clean[k] = args[k];
   // the caller's yes must be a real boolean from the assistant; anything else counts as "not confirmed"
   clean.confirmed = args.confirmed === true;
   const known = TOOLS.includes(name) && allowed.includes(name);
-  const invalid = known ? invalidField(clean) : null;
+  const invalid = known ? (malformedPartySize ? 'party_size must be a whole number of people from 1 to 100' : invalidField(clean)) : null;
   return {
     toolCallId: tc.id, name, known, invalid,
     record: { p_provider_call_id: ctx.callId, p_business_id: ctx.fallbackBusinessId, p_tool: known && !invalid ? name : 'unknown',

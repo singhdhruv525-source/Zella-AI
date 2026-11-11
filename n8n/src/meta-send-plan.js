@@ -10,7 +10,8 @@ const to = typeof $json.recipient === 'string' ? $json.recipient.slice(0, 200) :
 const text = typeof $json.text === 'string' ? $json.text.slice(0, 1000) : '';
 const base = 'https://graph.facebook.com/v21.0/';
 let url = null; let body = null;
-if (page && to && (text || (ch === 'whatsapp' && kind === 'template'))) {
+// WhatsApp templates stay disabled until an approved release authorizes live sending.
+if (page && to && text && !(ch === 'whatsapp' && kind === 'template')) {
   if (ch === 'whatsapp') {
     const phone = id($json.whatsapp_phone_id, /^[0-9]{5,30}$/);
     // An approved template with no fill-in values, for a customer whose 24-hour window has closed.

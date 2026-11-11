@@ -6,8 +6,8 @@ const sig = typeof headers['x-hub-signature-256'] === 'string' ? headers['x-hub-
 let raw = ''; let reason = null;
 try {
   const buf = await this.helpers.getBinaryDataBuffer(0, 'data');
-  raw = buf.toString('utf8');
+  if (buf.length > 500000) reason = 'body_too_large';
+  else raw = buf.toString('utf8');
 } catch (e) { raw = ''; reason = 'body_unreadable'; }
-if (raw.length > 500000) { raw = ''; reason = 'body_too_large'; }
 if (reason) console.warn('Meta webhook rejected: ' + reason);
 return [{ json: { ok: !!raw && !!sig, reason, record: { p_raw: raw, p_signature: sig } } }];
