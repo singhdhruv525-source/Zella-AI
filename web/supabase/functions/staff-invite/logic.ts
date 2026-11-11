@@ -12,6 +12,7 @@ export type Invitation = { id: string; business_id: string; email: string; owner
 export type AuthUser = { id: string; email?: string | null; email_confirmed_at?: string | null; last_sign_in_at?: string | null; invited_at?: string | null };
 
 export interface Deps {
+  mfaSatisfied(): Promise<boolean>;                                          // the database's own rule, run as the caller
   getInvitation(id: string): Promise<Invitation | null>;
   callerRole(businessId: string, userId: string): Promise<string | null>;   // active membership role, or null
   businessOpen(businessId: string): Promise<boolean>;
@@ -38,6 +39,12 @@ const FINALIZE_MESSAGES: Record<string, [number, string]> = {
 };
 
 export async function sendInvitation(deps: Deps, callerId: string, invitationId: string): Promise<Result> {
+  // Two-step sign-in comes first: everything after this runs with the service role, which the database's MFA rules
+  // do not cover. An error checking it refuses (fails closed).
+  let mfaOk = false;
+  try { mfaOk = await deps.mfaSatisfied(); } catch { mfaOk = false; }
+  if (!mfaOk) return err(403, "Finish two-step sign-in first, then try again.", "MFA_REQUIRED");
+
   const invitation = await deps.getInvitation(invitationId);
   if (!invitation) return err(404, "Invitation not found");
 

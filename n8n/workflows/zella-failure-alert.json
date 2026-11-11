@@ -15,7 +15,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Zella - Failure Alert: turn an n8n failure into one platform alert. No customer data is copied; only the workflow, the step and a short error.\nconst j = $json || {};\nconst wf = String((j.workflow && j.workflow.name) || 'Unknown workflow').slice(0, 80);\nconst ex = j.execution && typeof j.execution === 'object' ? j.execution : {};\nconst err = ex.error && typeof ex.error === 'object' ? ex.error : (j.trigger && j.trigger.error) || {};\nconst step = String(ex.lastNodeExecuted || (j.trigger && 'trigger') || 'unknown step').slice(0, 80);\nconst msg = String(err.message || 'No message').replace(/[\\u0000-\\u001f\\u007f]/g, ' ').replace(/\\b(?:[a-z_]*(?:key|token|secret)|password|credential|authorization|bearer)\\b[^a-z0-9]*(?:Bearer\\s+)?[^\\s,;\"'<>]+/gi, '[hidden]').replace(/[A-Za-z0-9_+/=-]{32,}/g, '[hidden]').slice(0, 200);\nconst runId = String(ex.id || '').slice(0, 40);\n// Anything that sends to a customer or takes a call matters more than a background check.\nconst urgent = /SMS|Email|Follow-up|Outbound|Brain|Booking|Event Router|Meta Sender/i.test(wf);\nreturn { json: { alert: {\n  p_kind: 'workflow_failed',\n  p_title: ('Automation failed: ' + wf).slice(0, 120),\n  p_detail: ('Step \"' + step + '\": ' + msg + (runId ? ' (run ' + runId + ')' : '')).slice(0, 400),\n  p_severity: urgent ? 'urgent' : 'warning',\n  p_dedupe_key: (wf + '|' + step).slice(0, 160),\n  p_meta: { workflow: wf, step, run_id: runId },\n} } };\n"
+        "jsCode": "// Zella - Failure Alert: turn an n8n failure into one platform alert. No customer data is copied; only the workflow, the step and a short error.\nconst j = $json || {};\nconst wf = String((j.workflow && j.workflow.name) || 'Unknown workflow').slice(0, 80);\nconst ex = j.execution && typeof j.execution === 'object' ? j.execution : {};\nconst err = ex.error && typeof ex.error === 'object' ? ex.error : (j.trigger && j.trigger.error) || {};\nconst step = String(ex.lastNodeExecuted || (j.trigger && 'trigger') || 'unknown step').slice(0, 80);\nconst msg = 'Execution failed; check the step configuration and provider health.';\nconst runId = String(ex.id || '').slice(0, 40);\n// Anything that sends to a customer or takes a call matters more than a background check.\nconst urgent = /SMS|Email|Follow-up|Outbound|Brain|Booking|Event Router|Meta Sender/i.test(wf);\nreturn { json: { alert: {\n  p_kind: 'workflow_failed',\n  p_title: ('Automation failed: ' + wf).slice(0, 120),\n  p_detail: ('Step \"' + step + '\": ' + msg + (runId ? ' (run ' + runId + ')' : '')).slice(0, 400),\n  p_severity: urgent ? 'urgent' : 'warning',\n  p_dedupe_key: (wf + '|' + step).slice(0, 160),\n  p_meta: { workflow: wf, step, run_id: runId },\n} } };\n"
       },
       "id": "e28c710b-4ab9-4503-8765-f4b8af88f493",
       "name": "Describe failure",
@@ -36,13 +36,6 @@
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json.alert) }}",
         "options": {
-          "response": {
-            "response": {
-              "fullResponse": true,
-              "neverError": true,
-              "responseFormat": "json"
-            }
-          },
           "timeout": 30000
         }
       },
@@ -59,7 +52,25 @@
           "id": "",
           "name": "Zella Supabase service role"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "errorType": "errorMessage",
+        "errorMessage": "workflow_alert_delivery_failed: platform alert delivery exhausted retries"
+      },
+      "id": "36fafb19-7509-469c-8d6e-4fd2c3ec6b2d",
+      "name": "Alert delivery failed",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        720,
+        300
+      ]
     }
   ],
   "connections": {
@@ -84,15 +95,32 @@
           }
         ]
       ]
+    },
+    "Raise alert": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Alert delivery failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
   "settings": {
     "executionOrder": "v1",
-    "executionTimeout": 300
+    "executionTimeout": 300,
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "none",
+    "saveManualExecutions": false,
+    "saveExecutionProgress": false
   },
   "pinData": {},
   "meta": {
     "templateCredsSetupCompleted": false
-  }
+  },
+  "id": "4faaad69-b218-457c-86b2-974fd4ad915f"
 }

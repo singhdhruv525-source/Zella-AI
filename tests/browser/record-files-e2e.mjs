@@ -4,13 +4,15 @@
 // Usage: node tests/browser/record-files-e2e.mjs   (stack running: start-stack.sh with record-files on)
 import crypto from "node:crypto";
 import { execFileSync } from "node:child_process";
+import { PSQL_ENV, requireIsolated } from "./isolated-db.cjs";
 import zlib from "node:zlib";
 const API = process.env.API ?? "http://localhost:54321", ANON = "sb_publishable_local_test_only", SERVER = "sb_secret_local_test_only";
 const SECRET = "zella-local-test-secret-not-for-production";
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
 const jwt = (sub) => { const h = b64({ alg: "HS256", typ: "JWT" }), b = b64({ sub, role: "authenticated", aal: "aal1", exp: Math.floor(Date.now() / 1000) + 3600 });
   return `${h}.${b}.${crypto.createHmac("sha256", SECRET).update(`${h}.${b}`).digest("base64url")}`; };
-const sql = (q) => execFileSync("psql", ["-X", "-At", "-v", "ON_ERROR_STOP=1", "-h", "/var/lib/postgresql/zella-sec", "-p", "55433", "-U", "postgres", "-d", process.env.ZDB ?? "zella_ui", "-c", q]).toString().trim();
+requireIsolated("/var/lib/postgresql/zella-sec", "55433", process.env.ZDB ?? "zella_ui");
+const sql = (q) => execFileSync("psql", ["-X", "-At", "-v", "ON_ERROR_STOP=1", "-h", "/var/lib/postgresql/zella-sec", "-p", "55433", "-U", "postgres", "-d", process.env.ZDB ?? "zella_ui", "-c", q], { env: PSQL_ENV }).toString().trim();
 let fails = 0; const ok = (cond, what) => { console.log(`${cond ? "ok  " : "FAIL"} ${what}`); if (!cond) fails++; };
 const BIZ = "c0000000-0000-0000-0000-000000000004", OTHER_OWNER = "a0000000-0000-0000-0000-000000000002";
 const STAFF = "e2e00000-0000-0000-0000-0000000000f1", OUTSIDER = "e2e00000-0000-0000-0000-0000000000f2";

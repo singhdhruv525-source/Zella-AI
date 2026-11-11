@@ -66,6 +66,11 @@ Deno.serve(withCors(async (req: Request) => {
   const publicClient = createClient(supabaseUrl, publishableKey, { auth: { persistSession: false, autoRefreshToken: false } });
 
   const deps: Deps = {
+    async mfaSatisfied() {
+      const { data, error } = await caller.rpc("zella_mfa_satisfied");
+      if (error) throw error;
+      return data === true;
+    },
     async getInvitation(id) {
       const { data, error } = await admin.from("business_invitations").select("id, business_id, email, owner_name, role, status, expires_at").eq("id", id).maybeSingle();
       if (error) throw error;

@@ -4,6 +4,7 @@
 // verify_jwt is off because Google has no Zella login. Replies: 200 stored / already seen / test, 401 wrong or revoked
 // key, 429 too many, 400 not a lead, 503 try again (Google retries non-200 answers).
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { readBodyLimited } from "../_shared/body.ts";
 
 const json = (body: unknown, status: number) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
@@ -12,8 +13,8 @@ export async function handle(req: Request): Promise<Response> {
   const serverKey = Deno.env.get("ZELLA_SERVER_SECRET_KEY");
   if (!serverKey) return json({ ok: false, error: "try_again" }, 503);
 
-  const raw = await req.text();
-  if (raw.length > 50000) return json({ ok: false, error: "too_large" }, 413);
+  const raw = await readBodyLimited(req, 50000);
+  if (raw === null) return json({ ok: false, error: "too_large" }, 413);
   let payload: unknown;
   try { payload = JSON.parse(raw); } catch { return json({ ok: false, error: "bad_json" }, 400); }
   if (typeof payload !== "object" || payload === null || Array.isArray(payload)) return json({ ok: false, error: "bad_json" }, 400);

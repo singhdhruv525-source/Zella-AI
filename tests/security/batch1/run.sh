@@ -12,7 +12,7 @@ eval "$(grep -A3 '^PENDING=' "$REPO/tests/deploy/run_all.sh" | sed '/^ROLLBACK=/
 for m in "${PENDING[@]}"; do out=$($P -d "$DB" -f "$REPO/sql/$m.sql" 2>&1) || { echo "FAIL apply $m: $(echo "$out" | grep -m1 ERROR)"; exit 1; }; done
 fails=0
 for i in 1 2; do out=$($P -d "$DB" -f "$REPO/sql/zella_batch1_security.sql" 2>&1) || { echo "FAIL batch1 migration run $i: $out"; fails=1; }; done
-echo "PASS sql/zella_batch1_security.sql applies twice"
+[ "$fails" = 0 ] && echo "PASS sql/zella_batch1_security.sql applies twice"
 out=$($P -d "$DB" -f "$HERE/test.sql" 2>&1); code=$?
 echo "$out" | grep -o 'PASS .*'
 [ $code -ne 0 ] && { echo "FAIL batch1_test: $(echo "$out" | grep -m3 -E 'ERROR|CONTEXT' | tr '\n' ' ')"; fails=$((fails + 1)); }

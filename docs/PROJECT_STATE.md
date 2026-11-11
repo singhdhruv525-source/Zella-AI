@@ -11,7 +11,8 @@ Last updated: 30 October 2026.
   in the provider dashboards.
 - Back up before any destructive or production change. Never drop or recreate tables. Never disable RLS.
 - Don't fabricate test results. No fake or seeded production data.
-- Don't change the live Vapi assistants; use the test assistant (`tests/vapi/load-test-assistant.mjs`).
+- Don't change the live Vapi assistants; use the test assistant for testing. Its loader
+  (`tests/vapi/load-test-assistant.mjs`) is disabled and must not be used to update assistants.
 - Don't switch on `sms_live`, `email_live`, `calls_live`, schedulers, the `zella_dispatch` job or n8n workflows,
   and don't send real SMS/email or place calls, without the owner's approval.
 - Don't create plans or prices. Don't invent voice IDs or model names.
@@ -43,9 +44,9 @@ Last updated: 30 October 2026.
   (`tests/vapi/switch-credential-to-bearer.mjs`); token in vault `zella_vapi_bearer_token`; setting
   `vapi_auth_mode` = "bearer" (set it back to "hmac" to undo). Database check passes (right token ok, wrong refused,
   missing refused). A test call after that was still refused: Vapi sent no Authorization header at all, so it
-  doesn't apply the linked credential. Fix: the loader now puts the token straight into each server's headers
-  (`ZELLA_VAPI_TOKEN=... node tests/vapi/load-test-assistant.mjs <id>`); test assistant
-  `edd2c398-deed-453f-8832-dc69517054a3` reloaded 30 Oct with the token on all 16 servers.
+  doesn't apply the linked credential. On 30 Oct, test assistant
+  `edd2c398-deed-453f-8832-dc69517054a3` was reloaded with the token in all 16 servers' headers.
+  The test assistant loader is now disabled and cannot update assistants.
   **Next (owner, 31 Oct):** Talk to the test assistant, ask "Are you open tomorrow?" (don't book), then check
   voice-rules logs for 200s. If they pass, real assistants need the same headers: send them from the server side
   (token from vault) instead of the test loader.

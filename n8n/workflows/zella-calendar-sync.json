@@ -56,7 +56,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Zella - Calendar Sync: turn one queued booking change into a request to the business's calendar provider\n// (Google Calendar, or Outlook / Microsoft 365 through Microsoft Graph). Nothing is sent from here.\n// The refresh token passes through execution data; this workflow does not save execution data.\nconst it = $json;\nconst provider = it && it.provider === 'outlook' ? 'outlook' : 'google';\n// Zella's marker on events it created (so busy-time reading leaves them out and edits find them)\nconst MS_PROP = 'String {6f1d2c9a-3b7e-4a51-9c0d-8e2f4b6a1c35} Name zella_appointment_id';\nconst none = { json: { queue_id: it && it.queue_id ? it.queue_id : null, provider, needs_google: false, token_form: null, google: null, skip_ok: false } };\nif (!it || !it.queue_id || !it.refresh_token || !it.calendar_id) return none;\nconst tokenForm = { refresh_token: String(it.refresh_token) };\nconst ask = (google) => ({ json: { queue_id: it.queue_id, provider, needs_google: true, token_form: tokenForm, skip_ok: false, google } });\nlet base;\nif (provider === 'outlook') {\n  base = String(it.calendar_id) === 'primary' ? 'https://graph.microsoft.com/v1.0/me/events'\n    : 'https://graph.microsoft.com/v1.0/me/calendars/' + encodeURIComponent(String(it.calendar_id)) + '/events';\n} else {\n  base = 'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(String(it.calendar_id)) + '/events';\n}\n// Graph addresses an event by id alone, whichever calendar holds it\nconst eventUrl = (id) => provider === 'outlook' ? 'https://graph.microsoft.com/v1.0/me/events/' + encodeURIComponent(String(id)) : base + '/' + encodeURIComponent(String(id));\nif (it.action === 'delete') {\n  if (!it.event_id) return { json: { queue_id: it.queue_id, provider, needs_google: false, token_form: null, google: null, skip_ok: true } };\n  return ask({ action: 'delete', method: 'DELETE', url: eventUrl(it.event_id), body: null });\n}\nif (it.action !== 'upsert' || !it.event || !it.event.start || !it.event.end) return none;\nconst e = it.event;\nconst update = !!it.event_id;\nlet body;\nif (provider === 'outlook') {\n  const utc = (s) => { const d = new Date(s); return Number.isFinite(d.getTime()) ? d.toISOString().slice(0, 19) : null; };\n  const start = utc(e.start); const end = utc(e.end);\n  if (!start || !end) return none; // Graph: a local date-time plus its time zone\n  body = {\n    subject: String(e.summary || 'Appointment').slice(0, 200),\n    body: { contentType: 'text', content: String(e.description || '').slice(0, 1000) },\n    start: { dateTime: start, timeZone: 'UTC' },\n    end: { dateTime: end, timeZone: 'UTC' },\n    singleValueExtendedProperties: [{ id: MS_PROP, value: String(it.appointment_id || '') }],\n  };\n} else {\n  body = {\n    summary: String(e.summary || 'Appointment').slice(0, 200),\n    description: String(e.description || '').slice(0, 1000),\n    start: { dateTime: e.start, timeZone: e.timezone || 'America/New_York' },\n    end: { dateTime: e.end, timeZone: e.timezone || 'America/New_York' },\n    extendedProperties: { private: { zella_appointment_id: String(it.appointment_id || '') } },\n  };\n}\nreturn ask({ action: 'upsert', method: update ? 'PATCH' : 'POST', url: update ? eventUrl(it.event_id) : base, body });\n"
+        "jsCode": "// Zella - Calendar Sync: turn one queued booking change into a request to the business's calendar provider\n// (Google Calendar, or Outlook / Microsoft 365 through Microsoft Graph). Nothing is sent from here.\n// The refresh token passes through execution data; this workflow does not save execution data.\nconst it = $json;\nconst provider = it && it.provider === 'outlook' ? 'outlook' : 'google';\n// Zella's marker on events it created (so busy-time reading leaves them out and edits find them)\nconst MS_PROP = 'String {6f1d2c9a-3b7e-4a51-9c0d-8e2f4b6a1c35} Name zella_appointment_id';\nconst none = { json: { queue_id: it && it.queue_id ? it.queue_id : null, provider, needs_google: false, token_form: null, google: null, skip_ok: false } };\nif (!it || !it.queue_id || !it.refresh_token || !it.calendar_id) return none;\nconst tokenForm = { refresh_token: String(it.refresh_token) };\nconst ask = (google) => ({ json: { queue_id: it.queue_id, provider, needs_google: true, token_form: tokenForm, skip_ok: false, google, lookup_url: !it.event_id && it.action === 'upsert' ? (provider === 'outlook' ? base + '?$filter=' + encodeURIComponent(\"singleValueExtendedProperties/Any(ep: ep/id eq '\" + MS_PROP + \"' and ep/value eq '\" + String(it.appointment_id) + \"')\") : base + '?privateExtendedProperty=' + encodeURIComponent('zella_appointment_id=' + String(it.appointment_id))) : null } });\nlet base;\nif (provider === 'outlook') {\n  base = String(it.calendar_id) === 'primary' ? 'https://graph.microsoft.com/v1.0/me/events'\n    : 'https://graph.microsoft.com/v1.0/me/calendars/' + encodeURIComponent(String(it.calendar_id)) + '/events';\n} else {\n  base = 'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(String(it.calendar_id)) + '/events';\n}\n// Graph addresses an event by id alone, whichever calendar holds it\nconst eventUrl = (id) => provider === 'outlook' ? 'https://graph.microsoft.com/v1.0/me/events/' + encodeURIComponent(String(id)) : base + '/' + encodeURIComponent(String(id));\nif (it.action === 'delete') {\n  if (!it.event_id) return { json: { queue_id: it.queue_id, provider, needs_google: false, token_form: null, google: null, skip_ok: true } };\n  return ask({ action: 'delete', method: 'DELETE', url: eventUrl(it.event_id), body: null });\n}\nif (it.action !== 'upsert' || !it.event || !it.event.start || !it.event.end) return none;\nconst e = it.event;\nconst update = !!it.event_id;\nlet body;\nif (provider === 'outlook') {\n  const utc = (s) => { const d = new Date(s); return Number.isFinite(d.getTime()) ? d.toISOString().slice(0, 19) : null; };\n  const start = utc(e.start); const end = utc(e.end);\n  if (!start || !end) return none; // Graph: a local date-time plus its time zone\n  body = {\n    transactionId: String(it.queue_id),\n    subject: String(e.summary || 'Appointment').slice(0, 200),\n    body: { contentType: 'text', content: String(e.description || '').slice(0, 1000) },\n    start: { dateTime: start, timeZone: 'UTC' },\n    end: { dateTime: end, timeZone: 'UTC' },\n    singleValueExtendedProperties: [{ id: MS_PROP, value: String(it.appointment_id || '') }],\n  };\n} else {\n  body = {\n    ...(!update ? { id: String(it.appointment_id).replace(/-/g, '').toLowerCase() } : {}),\n    summary: String(e.summary || 'Appointment').slice(0, 200),\n    description: String(e.description || '').slice(0, 1000),\n    start: { dateTime: e.start, timeZone: e.timezone || 'America/New_York' },\n    end: { dateTime: e.end, timeZone: e.timezone || 'America/New_York' },\n    extendedProperties: { private: { zella_appointment_id: String(it.appointment_id || '') } },\n  };\n}\nreturn ask({ action: 'upsert', method: update ? 'PATCH' : 'POST', url: update ? eventUrl(it.event_id) : base, body });\n"
       },
       "id": "5c2780ea-75f8-4ada-8343-1c82543a0f17",
       "name": "Plan sync",
@@ -315,6 +315,158 @@
     },
     {
       "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "127bf807-6658-4fb7-8ab0-a9af31ad37bd",
+              "leftValue": "={{ !!$('Plan sync').item.json.lookup_url }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "ce006152-e85f-42f6-8a7a-2c7d8c50af7c",
+      "name": "Needs lookup",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1500,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Plan sync').item.json.lookup_url }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.body.access_token }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "182d0640-81a2-452e-8f8a-5279ace4516e",
+      "name": "Find existing event",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1560,
+        -300
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Only a complete, successful lookup permits creating an event.\nconst plan = $('Plan sync').item.json;\nconst failed = () => ({ json: { record: { p_queue_id: plan.queue_id, p_ok: false, p_event_id: null, p_error: 'calendar_reconciliation_failed' } } });\nconst b = $json.body || {};\nconst events = plan.provider === 'outlook' ? b.value : b.items;\nif ($json.statusCode !== 200 || !Array.isArray(events) || b.nextPageToken || b['@odata.nextLink'] || events.length > 1) {\n  return failed();\n}\nconst google = { ...plan.google };\nif (events.length) {\n  if (typeof events[0].id !== 'string' || !events[0].id) return failed();\n  google.method = 'PATCH';\n  google.url = plan.provider === 'outlook' ? 'https://graph.microsoft.com/v1.0/me/events/' + encodeURIComponent(events[0].id) : google.url + '/' + encodeURIComponent(events[0].id);\n  google.body = { ...google.body };\n  delete google.body.id;\n  delete google.body.transactionId;\n}\nreturn { json: { google } };\n"
+      },
+      "id": "6a39b642-5928-4ef6-8957-921d87ec0768",
+      "name": "Resolve event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        -300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "954e93d4-5669-41cf-83af-34bffb37b4e4",
+              "leftValue": "={{ !!$json.google }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "93a002a5-f9fd-4c11-8276-d8dee8ea7c21",
+      "name": "Lookup succeeded",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1740,
+        -400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "={{ $json.google.method }}",
+        "url": "={{ $json.google.url }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Token ok').item.json.body.access_token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.google.body) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "3de572dc-2cf5-4757-82f9-e89a2be10996",
+      "name": "Reconciled call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1800,
+        -300
+      ]
+    },
+    {
+      "parameters": {
         "method": "={{ $('Plan sync').item.json.google.method }}",
         "url": "={{ $('Plan sync').item.json.google.url }}",
         "authentication": "none",
@@ -387,7 +539,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Zella - Calendar Sync: read the calendar provider's answer and report it back to the database (which retries or\n// raises an alert). Only a short error name is kept; the provider's response text is never stored.\nconst plan = $('Plan sync').item.json;\nconst name = plan.provider === 'outlook' ? 'microsoft' : 'google';\nconst rec = (ok, eventId, error) => ({ json: { record: { p_queue_id: plan.queue_id, p_ok: ok, p_event_id: eventId || null, p_error: ok ? null : String(error).slice(0, 80) } } });\nif (!plan.queue_id) return { json: { record: null } };\nif (!plan.needs_google) return plan.skip_ok ? rec(true, null) : rec(false, null, 'bad_queue_item');\nlet tok = null;\ntry { tok = $(plan.provider === 'outlook' ? 'Get Microsoft token' : 'Get Google token').item.json; } catch (e) { tok = null; }\nconst tb = tok && tok.body && typeof tok.body === 'object' ? tok.body : {};\nif (!tb.access_token) return rec(false, null, name + '_token_' + (typeof tb.error === 'string' ? tb.error.replace(/[^a-z_]/gi, '').slice(0, 30) : 'failed'));\nconst status = Number($json.statusCode);\nconst b = $json.body && typeof $json.body === 'object' ? $json.body : {};\nif (plan.google.action === 'delete') return (status >= 200 && status < 300) || status === 404 || status === 410 ? rec(true, null) : rec(false, null, name + '_' + (status || 'no_answer'));\nif (status >= 200 && status < 300 && typeof b.id === 'string') return rec(true, b.id);\nreturn rec(false, null, name + '_' + (status || 'no_answer'));\n"
+        "jsCode": "// Zella - Calendar Sync: read the calendar provider's answer and report it back to the database (which retries or\n// raises an alert). Only a short error name is kept; the provider's response text is never stored.\nconst plan = $('Plan sync').item.json;\nconst name = plan.provider === 'outlook' ? 'microsoft' : 'google';\nconst rec = (ok, eventId, error) => ({ json: { record: { p_queue_id: plan.queue_id, p_ok: ok, p_event_id: eventId || null, p_error: ok ? null : String(error).slice(0, 80) } } });\nif (!plan.queue_id) return { json: { record: null } };\nif ($json.record?.p_error === 'calendar_reconciliation_failed') return rec(false, null, 'calendar_reconciliation_failed');\nif (!plan.needs_google) return plan.skip_ok ? rec(true, null) : rec(false, null, 'bad_queue_item');\nlet tok = null;\ntry { tok = $(plan.provider === 'outlook' ? 'Get Microsoft token' : 'Get Google token').item.json; } catch (e) { tok = null; }\nconst tb = tok && tok.body && typeof tok.body === 'object' ? tok.body : {};\nif (!tb.access_token) return rec(false, null, name + '_token_' + (typeof tb.error === 'string' ? tb.error.replace(/[^a-z_]/gi, '').slice(0, 30) : 'failed'));\nconst status = Number($json.statusCode);\nconst b = $json.body && typeof $json.body === 'object' ? $json.body : {};\nif (plan.google.action === 'delete') return (status >= 200 && status < 300) || status === 404 || status === 410 ? rec(true, null) : rec(false, null, name + '_' + (status || 'no_answer'));\nif (status >= 200 && status < 300 && typeof b.id === 'string') return rec(true, b.id);\nreturn rec(false, null, name + '_' + (status || 'no_answer'));\n"
       },
       "id": "4c6d268d-614a-4f2c-88a7-3ba8dafbadc2",
       "name": "Read result",
@@ -1003,7 +1155,76 @@
         ],
         [
           {
+            "node": "Needs lookup",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs lookup": {
+      "main": [
+        [
+          {
+            "node": "Find existing event",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
             "node": "Google call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find existing event": {
+      "main": [
+        [
+          {
+            "node": "Resolve event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve event": {
+      "main": [
+        [
+          {
+            "node": "Lookup succeeded",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lookup succeeded": {
+      "main": [
+        [
+          {
+            "node": "Reconciled call",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Read result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reconciled call": {
+      "main": [
+        [
+          {
+            "node": "Read result",
             "type": "main",
             "index": 0
           }
@@ -1192,6 +1413,7 @@
   "settings": {
     "executionOrder": "v1",
     "executionTimeout": 300,
+    "errorWorkflow": "4faaad69-b218-457c-86b2-974fd4ad915f",
     "saveDataSuccessExecution": "none",
     "saveDataErrorExecution": "none",
     "saveManualExecutions": false,

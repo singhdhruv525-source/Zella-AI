@@ -52,8 +52,8 @@ const ifBool = (name, position, expr) =>
     options: {},
   });
 const link = (to, index = 0) => ({ node: to, type: 'main', index });
-const wf = (name, nodes, connections, settings = {}) => ({
-  name, nodes, connections, active: false, settings: { executionOrder: 'v1', executionTimeout: 300, ...settings }, pinData: {},
+const wf = (name, nodes, connections, extraSettings = {}) => ({
+  name, nodes, connections, active: false, settings: { executionOrder: 'v1', executionTimeout: 300, ...extraSettings }, pinData: {},
   meta: { templateCredsSetupCompleted: false },
 });
 
@@ -518,6 +518,11 @@ const secureResend = (workflow, hook, endpoint) => {
 secureResend(inboundEmail, 'Resend inbound', 'inbound');
 secureResend(emailEvents, 'Resend event', 'events');
 
+// Calendar Sync never keeps its runs in n8n's execution history: the claim RPCs hand it each calendar's refresh token
+// (the token exchange happens in this workflow), and a saved execution would store that token in n8n's database.
+// Failures are still recorded in Zella (Finish sync / Mark error write them to calendar_sync_queue and calendar_connections).
+const FAILURE_WORKFLOW_ID = id('Zella - Failure Alert');
+const NO_SAVED_RUNS = { errorWorkflow: FAILURE_WORKFLOW_ID, saveDataSuccessExecution: 'none', saveDataErrorExecution: 'none', saveManualExecutions: false, saveExecutionProgress: false };
 // Calendar Sync: copies bookings to the business's Google Calendar or Outlook calendar and reads its busy times back into Zella.
 // Started by the dispatcher only when a booking change or a refresh is waiting (and calendar_sync_live is true).
 // Select the provider Custom Auth credential on both token boxes; client credentials stay in n8n credentials.
@@ -555,6 +560,20 @@ const calendarSync = wf('Zella - Calendar Sync', [
   microsoftToken('Get Microsoft token', [960, -120], "={{ $('Plan sync').item.json.token_form.refresh_token }}"),
   ifBool('Token ok', [1200, 0], '={{ !!$json.body && !!$json.body.access_token }}'),
   ifBool('Is delete', [1440, -60], "={{ $('Plan sync').item.json.google.method === 'DELETE' }}"),
+  ifBool('Needs lookup', [1500, -200], "={{ !!$('Plan sync').item.json.lookup_url }}"),
+  node('Find existing event', 'n8n-nodes-base.httpRequest', 4.2, [1560, -300], {
+    method: 'GET', url: "={{ $('Plan sync').item.json.lookup_url }}", authentication: 'none',
+    ...googleAuthHeader,
+    options: { response: { response: { fullResponse: true, neverError: true, responseFormat: 'json' } } },
+  }, { onError: 'continueRegularOutput' }),
+  code('Resolve event', [1680, -300], 'calendar-sync-resolve.js'),
+  ifBool('Lookup succeeded', [1740, -400], '={{ !!$json.google }}'),
+  node('Reconciled call', 'n8n-nodes-base.httpRequest', 4.2, [1800, -300], {
+    method: '={{ $json.google.method }}', url: '={{ $json.google.url }}', authentication: 'none',
+    sendHeaders: true, headerParameters: { parameters: [{ name: 'Authorization', value: "=Bearer {{ $('Token ok').item.json.body.access_token }}" }] },
+    sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify($json.google.body) }}',
+    options: { response: { response: { fullResponse: true, neverError: true, responseFormat: 'json' } } },
+  }),
   node('Google call', 'n8n-nodes-base.httpRequest', 4.2, [1680, -140], {
     method: "={{ $('Plan sync').item.json.google.method }}", url: "={{ $('Plan sync').item.json.google.url }}", authentication: 'none',
     ...googleAuthHeader,
@@ -595,7 +614,12 @@ const calendarSync = wf('Zella - Calendar Sync', [
   'Get Google token': { main: [[link('Token ok')]] },
   'Get Microsoft token': { main: [[link('Token ok')]] },
   'Token ok': { main: [[link('Is delete')], [link('Read result')]] },
-  'Is delete': { main: [[link('Google delete')], [link('Google call')]] },
+  'Is delete': { main: [[link('Google delete')], [link('Needs lookup')]] },
+  'Needs lookup': { main: [[link('Find existing event')], [link('Google call')]] },
+  'Find existing event': { main: [[link('Resolve event')]] },
+  'Resolve event': { main: [[link('Lookup succeeded')]] },
+  'Lookup succeeded': { main: [[link('Reconciled call')], [link('Read result')]] },
+  'Reconciled call': { main: [[link('Read result')]] },
   'Google delete': { main: [[link('Read result')]] },
   'Google call': { main: [[link('Read result')]] },
   'Read result': { main: [[link('Has result')]] },
@@ -610,7 +634,7 @@ const calendarSync = wf('Zella - Calendar Sync', [
   'Map busy': { main: [[link('Has events')]] },
   'Has events': { main: [[link('Replace busy times')], [link('Has error')]] },
   'Has error': { main: [[link('Mark error')], []] },
-}, { saveDataSuccessExecution: 'none', saveDataErrorExecution: 'none', saveManualExecutions: false, saveExecutionProgress: false });
+}, NO_SAVED_RUNS);
 
 
 // ------------------------------------------------------------------ Connection Tests
@@ -870,11 +894,20 @@ const websiteCrawler = wf('Zella - Website Crawler', [
 const failureAlert = wf('Zella - Failure Alert', [
   node('A workflow failed', 'n8n-nodes-base.errorTrigger', 1, [0, 200], {}),
   code('Describe failure', [240, 200], 'failure-alert.js'),
-  rpcNode('Raise alert', [480, 200], 'zella_platform_alert', '={{ JSON.stringify($json.alert) }}', { full: true }),
+  { ...rpcNode('Raise alert', [480, 200], 'zella_platform_alert', '={{ JSON.stringify($json.alert) }}'),
+    retryOnFail: true, maxTries: 3, waitBetweenTries: 5000, onError: 'continueErrorOutput' },
+  node('Alert delivery failed', 'n8n-nodes-base.stopAndError', 1, [720, 300], {
+    errorType: 'errorMessage', errorMessage: 'workflow_alert_delivery_failed: platform alert delivery exhausted retries',
+  }),
 ], {
   'A workflow failed': { main: [[link('Describe failure')]] },
   'Describe failure': { main: [[link('Raise alert')]] },
+  'Raise alert': { main: [[], [link('Alert delivery failed')]] },
 });
+
+failureAlert.id = FAILURE_WORKFLOW_ID;
+failureAlert.settings = { ...failureAlert.settings, ...NO_SAVED_RUNS };
+delete failureAlert.settings.errorWorkflow;
 
 // Admin alerts: one plain-text digest email to the active Zella admins with the platform alerts that are waiting
 // (offers ending soon, limits reached, unusual claims, offers that could not go live, failed jobs, provider problems).

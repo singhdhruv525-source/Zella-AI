@@ -7,6 +7,7 @@ function fake(over: Partial<Deps> = {}, inv: Partial<Invitation> = {}) {
   const calls: string[] = [];
   const invitation: Invitation = { id: "i1", business_id: "b1", email: "Person@Example.com", owner_name: "Pat", role: "staff", status: "pending", expires_at: null, ...inv };
   const deps: Deps = {
+    mfaSatisfied: async () => true,
     getInvitation: async () => invitation,
     callerRole: async (_b, u) => (u === OWNER ? "owner" : u === ADMIN ? "admin" : null),
     businessOpen: async () => true,
@@ -100,4 +101,18 @@ Deno.test("each finalize refusal maps to a clear answer", async () => {
     assertEquals(r.status, status, code);
     assertEquals(typeof r.body.error, "string");
   }
+});
+
+Deno.test("a session that has not finished two-step sign-in is refused before anything else", async () => {
+  const { deps, calls } = fake({ mfaSatisfied: async () => false });
+  const r = await sendInvitation(deps, OWNER, "i1");
+  assertEquals(r, { status: 403, body: { error: "Finish two-step sign-in first, then try again.", code: "MFA_REQUIRED" } });
+  assertEquals(calls, []);
+});
+
+Deno.test("an error checking two-step sign-in refuses (fails closed)", async () => {
+  const { deps, calls } = fake({ mfaSatisfied: async () => { throw new Error("rpc down"); } });
+  const r = await sendInvitation(deps, OWNER, "i1");
+  assertEquals(r.status, 403);
+  assertEquals(calls, []);
 });

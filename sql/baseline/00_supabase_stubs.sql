@@ -28,7 +28,8 @@ create table if not exists auth.mfa_factors (
   created_at timestamptz default now(), updated_at timestamptz default now());
 create table if not exists auth.sessions (id uuid primary key default gen_random_uuid(), user_id uuid references auth.users(id) on delete cascade,
   created_at timestamptz default now(), updated_at timestamptz default now(), aal text, not_after timestamptz, user_agent text, ip inet, refreshed_at timestamp);
-create table if not exists auth.identities (id uuid primary key default gen_random_uuid(), user_id uuid references auth.users(id) on delete cascade, provider text, email text);
+create table if not exists auth.identities (id uuid primary key default gen_random_uuid(), user_id uuid references auth.users(id) on delete cascade, provider text, email text,
+  identity_data jsonb not null default '{}'::jsonb);  -- as in Supabase: the provider's claims, including email_verified
 
 -- request.jwt.claims is what PostgREST sets; tests set it with set_config.
 create or replace function auth.jwt() returns jsonb language sql stable as $$
