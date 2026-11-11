@@ -4,7 +4,7 @@ const wf = String((j.workflow && j.workflow.name) || 'Unknown workflow').slice(0
 const ex = j.execution && typeof j.execution === 'object' ? j.execution : {};
 const err = ex.error && typeof ex.error === 'object' ? ex.error : (j.trigger && j.trigger.error) || {};
 const step = String(ex.lastNodeExecuted || (j.trigger && 'trigger') || 'unknown step').slice(0, 80);
-const msg = String(err.message || 'No message').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/(key|token|secret|authorization|bearer)\S*/gi, '[hidden]').slice(0, 200);
+const msg = 'Execution failed; check the step configuration and provider health.';
 const runId = String(ex.id || '').slice(0, 40);
 // Anything that sends to a customer or takes a call matters more than a background check.
 const urgent = /SMS|Email|Follow-up|Outbound|Brain|Booking|Event Router|Meta Sender/i.test(wf);

@@ -12,6 +12,9 @@
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"; REPO="$(cd "$HERE/../.." && pwd)"
 H=${ZPG_HOST:-/var/lib/postgresql/zella-sec}; PT=${ZPG_PORT:-55433}
+. "$REPO/tests/lib/isolated_guard.sh"
+zella_require_isolated "$H" "$PT" zstg || exit 1
+export ZPG_HOST="$H" ZPG_PORT="$PT"
 PSQL="psql -h $H -p $PT -U postgres -qtAX -v ON_ERROR_STOP=1"
 REF=${REF:?set REF to the reference data export}
 OUT=${OUT:-$HERE/out}; mkdir -p "$OUT"

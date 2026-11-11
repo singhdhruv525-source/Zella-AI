@@ -19,6 +19,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { lookupOrder } from "./orders.ts";
 import { assistantReply, AUTH_OK, authHeaders, brainInvalidReply, brainToolReply, plan, type ToolCall, toolResult, transferReply, unsupported } from "./logic.ts";
+import { readBodyLimited } from "../_shared/body.ts";
 
 const json = (data: unknown, status = 200) => Response.json(data, { status });
 const MAX_BODY = 256 * 1024;
@@ -67,9 +68,9 @@ Deno.serve(async (req: Request) => {
   }
   if (Number(req.headers.get("content-length") ?? 0) > MAX_BODY) return json({ error: "Too large" }, 413);
   // the exact bytes are needed for the signature, so the body is read as text first
-  let raw: string;
-  try { raw = await req.text(); } catch { return json({ error: "Bad request" }, 400); }
-  if (new TextEncoder().encode(raw).length > MAX_BODY) return json({ error: "Too large" }, 413);
+  let raw: string | null;
+  try { raw = await readBodyLimited(req, MAX_BODY); } catch { return json({ error: "Bad request" }, 400); }
+  if (raw === null) return json({ error: "Too large" }, 413);
 
   const db = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
   const auth = await timed(t, "auth", () => call(db, "zella_vapi_authenticate", { p_raw: raw, p_headers: authHeaders(req.headers) }));

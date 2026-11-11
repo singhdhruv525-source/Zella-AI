@@ -1819,6 +1819,77 @@ test('brain tools preserve seating constraints and accept three-digit parties fo
   assert.match(sharedBrain.planBrainTool({ id: 'x', name: 'check_availability', arguments: { seating: 'x'.repeat(41) } }, ctx).invalid, /seating/);
 });
 
+test('calendar sync keeps no execution history (its items carry refresh tokens)', () => {
+  const s = wfJson('zella-calendar-sync.json').settings;
+  assert.equal(s.saveDataSuccessExecution, 'none');
+  assert.equal(s.saveDataErrorExecution, 'none');
+  assert.equal(s.saveManualExecutions, false);
+  assert.equal(s.saveExecutionProgress, false);
+});
+
+test('brain parser rejects present values of the wrong type', () => {
+  const ctx = { callId: 'test', fallbackBusinessId: BIZ, callerNumber: '' };
+  for (const [key, values, message] of [
+    ['seating', [null, 1, {}, []], 'seating must be a string preference'],
+    ['party_size', [null, '2', {}, [], Infinity, NaN], 'party_size must be a whole number of people from 1 to 999'],
+  ]) for (const value of values) {
+    const r = sharedBrain.planBrainTool({ id: 't', function: { name: 'check_availability', arguments: { [key]: value } } }, ctx);
+    assert.equal(r.invalid, message);
+    assert.equal(r.record.p_tool, 'unknown');
+  }
+});
+test('calendar reconciliation patches existing events and refuses uncertain lookups', () => {
+  for (const provider of ['google', 'outlook']) {
+    const plan = csPlan({ ...CSI, provider });
+    assert.ok(plan.lookup_url.includes(provider === 'google' ? 'privateExtendedProperty' : '$filter'));
+    const resolve = (body, statusCode = 200) => runCode('calendar-sync-resolve.js', { json: { body, statusCode }, nodes: { 'Plan sync': plan } }).json.google;
+    const list = (events) => provider === 'google' ? { items: events } : { value: events };
+    assert.equal(resolve(list([])).method, 'POST');
+    const existing = resolve(list([{ id: 'already-created' }]));
+    assert.equal(existing.method, 'PATCH');
+    assert.ok(existing.url.endsWith('/already-created'));
+    assert.equal(existing.body.id, undefined);
+    assert.equal(existing.body.transactionId, undefined);
+    for (const [body, statusCode] of [[list([]), 503], [{ ...list([]), nextPageToken: 'more' }, 200],
+      [{ ...list([]), '@odata.nextLink': 'more' }, 200], [list([{ id: 'a' }, { id: 'b' }]), 200], [list([{}]), 200], [{}, 200]]) {
+      const failed = runCode('calendar-sync-resolve.js', { json: { body, statusCode }, nodes: { 'Plan sync': plan } }).json;
+      assert.equal(failed.google, undefined);
+      assert.equal(failed.record.p_ok, false);
+      assert.equal(failed.record.p_queue_id, plan.queue_id);
+      const result = runCode('calendar-sync-after.js', { json: failed, nodes: { 'Plan sync': plan } }).json.record;
+      assert.equal(result.p_ok, false);
+      assert.equal(result.p_event_id, null);
+      assert.equal(result.p_error, 'calendar_reconciliation_failed');
+    }
+    const workflow = wfJson('zella-calendar-sync.json');
+    assert.equal(workflow.nodes.find(n => n.name === 'Find existing event').onError, 'continueRegularOutput');
+    assert.equal(workflow.connections['Resolve event'].main[0][0].node, 'Lookup succeeded');
+    assert.equal(workflow.connections['Lookup succeeded'].main[1][0].node, 'Read result');
+    assert.equal(workflow.connections['Lookup succeeded'].main[0][0].node, 'Reconciled call');
+  }
+});
+test('calendar unhandled failures use the imported sanitized error workflow', () => {
+  const alert = wfJson('zella-failure-alert.json');
+  assert.equal(wfJson('zella-calendar-sync.json').settings.errorWorkflow, alert.id);
+  const r = runCode('failure-alert.js', { json: { workflow: { name: 'Calendar Sync' }, execution: { error: { message: 'Bearer secret-value' } } } });
+  assert.ok(!JSON.stringify(r).includes('secret-value'));
+  const delivery = alert.nodes.find(n => n.name === 'Raise alert');
+  assert.equal(delivery.retryOnFail, true);
+  assert.equal(delivery.maxTries, 3);
+  assert.equal(delivery.waitBetweenTries, 5000);
+  assert.equal(delivery.parameters.options.response?.response?.neverError, undefined);
+  assert.equal(delivery.onError, 'continueErrorOutput');
+  assert.equal(alert.connections['Raise alert'].main[1][0].node, 'Alert delivery failed');
+  const signal = alert.nodes.find(n => n.name === 'Alert delivery failed');
+  assert.equal(signal.type, 'n8n-nodes-base.stopAndError');
+  assert.ok(signal.parameters.errorMessage.startsWith('workflow_alert_delivery_failed:'));
+  assert.ok(!signal.parameters.errorMessage.includes('{{'));
+  assert.equal(alert.settings.saveDataSuccessExecution, 'none');
+  assert.equal(alert.settings.saveManualExecutions, false);
+  assert.equal(alert.settings.saveExecutionProgress, false);
+  assert.equal(alert.settings.saveDataErrorExecution, 'none');
+});
+
 console.log(`${passed} passed, ${failures.length} failed`);
 for (const f of failures) console.log('  FAIL ' + f);
 process.exit(failures.length ? 1 : 0);

@@ -14,6 +14,7 @@
 
 import { withCors } from "../_shared/cors.ts";
 import { createClient } from "@supabase/supabase-js";
+import { readBodyLimited } from "../_shared/body.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -36,7 +37,9 @@ Deno.serve(withCors(async (req: Request) => {
 
   let body: Record<string, unknown>;
   try {
-    body = await req.json();
+    const raw = await readBodyLimited(req, 8000);
+    if (raw === null) return respond({ error: "Invalid request" }, 413);
+    body = JSON.parse(raw);
   } catch {
     return respond({ error: "Invalid request" }, 400);
   }

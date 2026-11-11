@@ -124,5 +124,5 @@ do $$ begin
 end $$;
 reset role;
 delete from public.customer_charges where business_id = md5('stg-s-plumbing')::uuid;
-delete from public.audit_logs where action = 'charge_created';
+delete from public.audit_logs where business_id = md5('stg-s-plumbing')::uuid and action = 'charge_created';
 do $$ begin raise notice 'PASS roles on staging data: staff no transcripts or codes, manager both, viewer no writes or money, other businesses nothing'; end $$;

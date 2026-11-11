@@ -2,6 +2,7 @@
 // It holds no secrets of its own: the form key identifies the business, and the database does every check
 // (allowed websites, spam, rate limits, duplicates, consent). verify_jwt is off because visitors have no login.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { readBodyLimited } from "../_shared/body.ts";
 
 const cors = (origin: string | null) => ({
   "Access-Control-Allow-Origin": origin ?? "*",
@@ -21,23 +22,9 @@ export async function handle(req: Request): Promise<Response> {
   const base = Deno.env.get("SUPABASE_URL");
   if (!serverKey || !base) return json({ ok: false, error: "try_again", message: "Something went wrong. Please try again or call us." }, 503, origin);
 
-  let raw = "";
-  const reader = req.body?.getReader();
-  if (reader) {
-    const decoder = new TextDecoder();
-    let bytes = 0;
-    try {
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        bytes += value.byteLength;
-        if (bytes > 12000) { await reader.cancel(); return json({ ok: false, error: "too_large" }, 413, origin); }
-        raw += decoder.decode(value, { stream: true });
-      }
-      raw += decoder.decode();
-    } catch { return json({ ok: false, error: "bad_json" }, 400, origin); }
-    finally { reader.releaseLock(); }
-  }
+  let raw: string | null;
+  try { raw = await readBodyLimited(req, 12000); } catch { return json({ ok: false, error: "bad_json" }, 400, origin); }
+  if (raw === null) return json({ ok: false, error: "too_large" }, 413, origin);
   let b: Record<string, unknown>;
   try { b = JSON.parse(raw); } catch { return json({ ok: false, error: "bad_json" }, 400, origin); }
   if (typeof b !== "object" || b === null || Array.isArray(b)) return json({ ok: false, error: "bad_json" }, 400, origin);
