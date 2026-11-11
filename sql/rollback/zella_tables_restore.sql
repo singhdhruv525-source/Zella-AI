@@ -53,8 +53,11 @@ begin
        where c.table_schema = 'public' and c.table_name = t
          and exists (select 1 from information_schema.columns a where a.table_schema = 'public'
                        and a.table_name = t || '_rolled_back' and a.column_name = c.column_name);
-      execute format('insert into public.%I (%s) %s select %s from public.%I a where not ($1 ? a.id::text) on conflict do nothing',
-                     t, v_cols, case when t = 'table_events' then 'overriding system value' else '' end, v_cols, t || '_rolled_back')
+      execute format('insert into public.%I (%s) %s select %s from public.%I a where not ($1 ? a.id::text) %s on conflict do nothing',
+                     t, v_cols, case when t = 'table_events' then 'overriding system value' else '' end, v_cols, t || '_rolled_back',
+                     case when t = 'table_blocks' then
+                       'and exists (select 1 from public.restaurant_tables rt where rt.id = a.table_id)'
+                       else '' end)
         using coalesce(v_completed -> t, '[]'::jsonb);
       get diagnostics v_n = row_count; v_total := v_total + v_n;
       raise notice 'restored % rows into %', v_n, t;
@@ -165,9 +168,16 @@ begin
   raise notice '% assignments unresolved because archived table IDs could not be matched', v_unmatched;
   -- Other categories committed in this transaction must never be replayed on assignment retries.
   update public.table_data_rolled_back set restore_completed = true
-   where generation_id = v_generation and source_table <> 'appointments';
+   where generation_id = v_generation and source_table <> 'appointments'
+     and (source_table <> 'table_states' or exists (
+       select 1 from public.restaurant_tables rt
+       join public.table_states s on s.table_id = rt.id and s.business_id = rt.business_id
+        where rt.id = (row_data ->> 'table_id')::uuid
+          and rt.business_id = (row_data ->> 'business_id')::uuid));
   -- Both booking refusals and unmatched IDs keep the generation pending for retry.
-  if v_seating_restored and v_skipped = 0 and v_unmatched = 0 then
+  if v_seating_restored and v_skipped = 0 and v_unmatched = 0
+     and not exists (select 1 from public.table_data_rolled_back
+                      where generation_id = v_generation and not restore_completed) then
     update public.table_data_rolled_back set row_data = row_data || '{"restored": true}'::jsonb
      where id = v_generation;
   end if;

@@ -142,6 +142,13 @@ for i in 1 2; do
     || bad "empty generation restore $i recovered older values"
 done
 # A secondary unique conflict must leave the archived ID retryable, even without assignments.
+# Archive a block and the full needs-clearing state for the parent that will collide by name.
+$P -d $DB -c "insert into table_blocks (business_id, table_id, starts_at, ends_at, reason)
+ select business_id, id, '2099-01-01 10:00Z', '2099-01-01 11:00Z', 'deferred restore'
+ from restaurant_tables where name = 'Replacement';
+ insert into table_states (table_id, business_id, state, since, by_user)
+ select id, business_id, 'needs_clearing', '2026-01-01 10:00Z', gen_random_uuid()
+ from restaurant_tables where name = 'Replacement';" >/dev/null || exit 1
 out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_rollback.sql" 2>&1) || { bad "conflict rollback: $out"; exit 1; }
 out=$($P -d $DB -f "$REPO/sql/zella_tables.sql" 2>&1) || { bad "conflict reapply: $out"; exit 1; }
 CONFLICTED=$($P -d $DB -c "select id from restaurant_tables_rolled_back t
@@ -153,6 +160,15 @@ out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_restore.sql" 2>&1) || { bad 
  and not exists (select 1 from restaurant_tables where id = '$CONFLICTED')
  from table_data_rolled_back where source_table = 'rollback_generation' order by id desc limit 1")" = t ] \
  && ok "unique conflict keeps seating and generation pending without assignments" || bad "conflict completed prematurely"
+[ "$($P -d $DB -c "select not a.restore_completed
+ and not exists (select 1 from table_states where table_id = '$CONFLICTED')
+ and not exists (select 1 from table_blocks where table_id = '$CONFLICTED')
+ and not exists (select 1 from table_blocks_rolled_back b where b.table_id = '$CONFLICTED'
+   and (g.row_data -> 'seating_completed' -> 'table_blocks') ? b.id::text)
+ from table_data_rolled_back a join table_data_rolled_back g on g.id = a.generation_id
+ where a.source_table = 'table_states' and a.row_data ->> 'table_id' = '$CONFLICTED'
+ and g.id = (select max(id) from table_data_rolled_back where source_table = 'rollback_generation')")" = t ] \
+ && ok "missing original parent leaves archived block and state pending despite same-name replacement" || bad "deferred block or state lost"
 # An assignment that references the skipped ID must stay pending until that ID is restored.
 $P -d $DB -c "insert into table_data_rolled_back (source_table, business_id, row_data, generation_id)
  select 'appointments', business_id, to_jsonb(a) || jsonb_build_object('table_ids', jsonb_build_array('$CONFLICTED')),
@@ -170,6 +186,14 @@ out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_restore.sql" 2>&1) || { bad 
  and exists (select 1 from appointments where id = '$MISSING' and table_ids = array['$CONFLICTED'::uuid])
  from table_data_rolled_back where source_table = 'rollback_generation' order by id desc limit 1")" = t ] \
  && ok "retry restores skipped ID without replaying completed event rows" || bad "conflict retry lost data or replayed completed rows"
+[ "$($P -d $DB -c "select exists (
+ select 1 from table_states s join table_data_rolled_back a on a.row_data = to_jsonb(s)
+ where s.table_id = '$CONFLICTED' and s.state = 'needs_clearing' and a.restore_completed
+ and a.source_table = 'table_states' and a.generation_id =
+ (select max(id) from table_data_rolled_back where source_table = 'rollback_generation'))
+ and exists (select 1 from table_blocks b join table_blocks_rolled_back a on to_jsonb(a) = to_jsonb(b)
+ where b.table_id = '$CONFLICTED' and b.reason = 'deferred restore')")" = t ] \
+ && ok "retry restores archived block and complete needs-clearing state after original parent returns" || bad "retry lost archived block or state"
 out=$($P -d $DB -c "drop table public.restaurant_tables cascade" 2>&1); out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_restore.sql" 2>&1) \
   && bad "restore ran without the re-apply" || { echo "$out" | grep -q TABLES_NOT_APPLIED && ok "restore refuses to run before sql/zella_tables.sql is re-applied" || bad "restore without re-apply: $(echo "$out" | grep -m1 ERROR)"; }
 echo; [ $fails -eq 0 ] && echo "ALL PASSED" || { echo "$fails FAILED"; exit 1; }
