@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { supabase } from "./supabase";
+import { isOwnPicture as checkOwnPicture } from "./pictureUrl.js";
 
 // Personal look of Zella: theme, background picture, how much the picture is dimmed, whether the colours follow the
 // picture, and whether the sidebar is a slim dock or the full list. Each person has their own, and the admin dashboard
@@ -51,14 +52,8 @@ function normalisePalette(p) {
   return { for: p.for.slice(0, 500), vars, swatches };
 }
 
-// Only a public picture under brand-assets/user/ in this project's own storage, with no whitespace or backslash.
-export function isOwnPicture(u, origin = SUPABASE_ORIGIN) {
-  if (typeof u !== "string" || !origin || /[\\\s]/.test(u)) return false;
-  try {
-    const x = new URL(u);
-    return x.protocol === "https:" && x.origin === origin && x.pathname.startsWith("/storage/v1/object/public/brand-assets/user/");
-  } catch { return false; }
-}
+// The check lives in pictureUrl.js (no imports, so it can be unit tested); this project's storage origin is the default.
+export const isOwnPicture = (u, origin = SUPABASE_ORIGIN) => checkOwnPicture(u, origin);
 
 function normalise(p) {
   const v = { ...DEFAULT_APPEARANCE, ...(p && typeof p === "object" ? p : {}) };
