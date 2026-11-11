@@ -138,3 +138,41 @@ Deno.test("the caller can't supply the number that is checked: only the phone ne
   const bad = planBrainTool({ id: "t2", name: "lookup_order", arguments: { order_number: "1001; drop" } }, ctxCall);
   assert(bad.invalid?.includes("order_number"));
 });
+
+// A failed guess that can't be recorded leaves the counters unchanged; that call must get no more lookups (fail closed).
+Deno.test("a failed guess that can't be recorded stops further lookups on that call", async () => {
+  const { _resetUnrecorded } = await import("./orders.ts");
+  _resetUnrecorded();
+  let logWrites = 0;
+  const failingLog = (fn: string, _args: Record<string, unknown>) => {
+    if (fn === "zella_store_lookup_context") return Promise.resolve({ data: ctx, error: null });
+    logWrites++;
+    return Promise.resolve({ data: null, error: { message: "log down" } });
+  };
+  const empty = shop(200, { data: { orders: { nodes: [] } } });
+  const first = await lookupOrder(failingLog, "b1", "call-x", { order_number: "9999" }, empty);
+  assertEquals(first.status, "unverified");
+  assert(String(first.say).includes("can't check orders"), String(first.say));   // refused, not "couldn't confirm"
+  assertEquals(logWrites, 2);                                                       // one retry, then refuse
+  const n = never();
+  const second = await lookupOrder(db().rpc, "b1", "call-x", { order_number: "1001" }, n.f);
+  assertEquals(second.status, "unverified");
+  assertEquals(n.s.called, false);                                                  // Shopify is not asked again
+  const other = await lookupOrder(db().rpc, "b1", "call-y", { order_number: "1001" }, found());
+  assertEquals(other.status, "found");                                              // other calls are unaffected
+  _resetUnrecorded();
+});
+Deno.test("a log write that succeeds on retry does not block the call", async () => {
+  const { _resetUnrecorded } = await import("./orders.ts");
+  _resetUnrecorded();
+  let fails = 1;
+  const flaky = (fn: string) => {
+    if (fn === "zella_store_lookup_context") return Promise.resolve({ data: ctx, error: null });
+    return Promise.resolve(fails-- > 0 ? { data: null, error: { message: "blip" } } : { data: null, error: null });
+  };
+  const r = await lookupOrder(flaky, "b1", "call-z", { order_number: "9999" }, shop(200, { data: { orders: { nodes: [] } } }));
+  assert(String(r.say).includes("couldn't confirm"), String(r.say));
+  const again = await lookupOrder(db().rpc, "b1", "call-z", { order_number: "1001" }, found());
+  assertEquals(again.status, "found");
+  _resetUnrecorded();
+});

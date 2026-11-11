@@ -80,7 +80,9 @@ async function hasAdminAccess() {
   if (!error) return typeof data === "string";
   if (!["PGRST202", "42883"].includes(error.code)) return "unavailable";
   const legacy = await supabase.rpc("is_platform_admin");
-  return !legacy.error && legacy.data === true;
+  // A failed legacy check is not a "no": callers must not sign the person out on it.
+  if (legacy.error) return "unavailable";
+  return legacy.data === true;
 }
 
 // The session needs the authenticator code before it may continue. If the check itself fails, nothing opens (it fails
