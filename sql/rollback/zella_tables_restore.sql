@@ -56,7 +56,7 @@ begin
       execute format('insert into public.%I (%s) %s select %s from public.%I a where not ($1 ? a.id::text) %s on conflict do nothing',
                      t, v_cols, case when t = 'table_events' then 'overriding system value' else '' end, v_cols, t || '_rolled_back',
                      case when t = 'table_blocks' then
-                       'and exists (select 1 from public.restaurant_tables rt where rt.id = a.table_id)'
+                       'and exists (select 1 from public.restaurant_tables rt where rt.id = a.table_id and rt.business_id = a.business_id)'
                        else '' end)
         using coalesce(v_completed -> t, '[]'::jsonb);
       get diagnostics v_n = row_count; v_total := v_total + v_n;
