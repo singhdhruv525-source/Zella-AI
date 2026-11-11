@@ -13,16 +13,23 @@
 --     booking checks now refuse (for example a table taken again since) is left out and reported, never forced.
 -- Only the latest rollback's explicit generation is used, including when it archived no data rows,
 -- so an older generation can never put back a value that a later rollback no longer had.
--- The archives themselves stay as they are, so nothing can be lost by running this.
+-- Archive data is kept; the generation marker records a completed restore to allow another rollback.
 begin;
 set local lock_timeout = '10s';
 
 do $restore$
 declare
-  t text; v_cols text; v_n bigint; v_total bigint := 0; r record; v_skipped int := 0;
+  t text; v_generation bigint; v_cols text; v_n bigint; v_total bigint := 0; r record; v_skipped int := 0;
 begin
   if to_regclass('public.restaurant_tables') is null then
     raise exception 'TABLES_NOT_APPLIED: re-apply sql/zella_tables.sql before restoring its data';
+  end if;
+
+  -- Serialize with rollback before locking active tables or reading archive names.
+  if to_regclass('public.table_data_rolled_back') is not null then
+    lock table public.table_data_rolled_back in share row exclusive mode;
+    select max(id) into v_generation from public.table_data_rolled_back
+     where source_table = 'rollback_generation';
   end if;
 
   -- 1. the seating tables, parents first, by their original ids
@@ -48,11 +55,9 @@ begin
     raise notice 'no archived seating details to restore';
     return;
   end if;
-  lock table public.table_data_rolled_back in share mode;
   create temp table zella_tables_batch on commit drop as
     select * from public.table_data_rolled_back
-     where generation_id = (select max(id) from public.table_data_rolled_back
-                             where source_table = 'rollback_generation');
+     where generation_id = v_generation;
 
   -- 2. needs-clearing states: the newest archived copy of each table that is back
   insert into public.table_states (table_id, business_id, state, appointment_id, since, by_user)
@@ -112,6 +117,11 @@ begin
     end;
   end loop;
   raise notice 'restored table assignments on % appointments (% refused by the booking checks)', v_n, v_skipped;
+  -- Refused assignments keep this generation pending so its archives remain available for retry.
+  if v_skipped = 0 then
+    update public.table_data_rolled_back set row_data = row_data || '{"restored": true}'::jsonb
+     where id = v_generation;
+  end if;
 end $restore$;
 
 commit;

@@ -42,6 +42,15 @@ out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_rollback.sql" 2>&1) || { bad
 [ "$(archive_snapshot)" = "$archive_before" ] && ok "populated rollback retry preserves the archive and generation" || bad "populated rollback retry changed the archive"
 out=$($P -d $DB -f "$REPO/sql/zella_tables.sql" 2>&1) && ok "re-apply sql/zella_tables.sql" || bad "re-apply: $(echo "$out" | grep -m1 ERROR)"
 [ "$($P -d $DB -c "select count(*) from restaurant_tables")" = 0 ] && ok "control: after the re-apply alone the seating data is not back" || bad "control: re-apply already restored data"
+# Reapplication before restore must not replace the populated generation or rotate its tables.
+archive_before=$(archive_snapshot)
+seating_archive_before=$($P -d $DB -c "select md5(string_agg(to_jsonb(t)::text, '|' order by id)) from restaurant_tables_rolled_back t")
+out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_rollback.sql" 2>&1) \
+  && bad "rollback allowed while restore pending" \
+  || { echo "$out" | grep -q TABLES_RESTORE_PENDING && ok "rollback refuses to replace a pending generation" || bad "unexpected pending rollback error: $out"; }
+[ "$(archive_snapshot)" = "$archive_before" ] && ok "pending rollback preserves generation and detail archives" || bad "pending rollback changed detail archives"
+[ "$($P -d $DB -c "select md5(string_agg(to_jsonb(t)::text, '|' order by id)) from restaurant_tables_rolled_back t")" = "$seating_archive_before" ] \
+  && ok "pending rollback preserves populated seating archive" || bad "pending rollback rotated seating archive"
 # an older rollback's archive row for an entry the latest rollback had no details for must not come back
 STALE=$($P -d $DB -c "set session_replication_role = replica;
   insert into waitlist_entries select (jsonb_populate_record(null::waitlist_entries, to_jsonb(w) || jsonb_build_object('id', gen_random_uuid()))).* from waitlist_entries w limit 1 returning id" | head -1)
