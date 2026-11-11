@@ -1174,7 +1174,7 @@ test('phone link workflows: both Vapi tool workflows look the business up before
   for (const [f, last] of [['zella-assistant-tools.json', 'Log question'], ['zella-appointment-booking.json', 'Run booking']]) {
     const w = wfJson(f); const c = w.connections;
     assert.ok(w.nodes.some((n) => n.name === 'Find business' && n.parameters.url.endsWith('/zella_business_for_number')), f);
-    assert.equal(c['Find business'].main[0][0].node, 'Use business'); assert.equal(c['Use business'].main[0][0].node, last);
+    assert.equal(c['Find business'].main[0][0].node, 'Use business'); assert.equal(c['Use business'].main[0][0].node, last === 'Log question' ? 'Valid arguments' : last);
   }
 });
 test('phone link sql: registered numbers win, paused numbers never fall back, service role only', () => {
@@ -1815,13 +1815,52 @@ test('reviews: the workflow posts nothing without an approved claim and ships wi
 });
 
 // Regression checks for review fixes; exercise refused inputs as well as successful paths.
-test('calendar: pagination never replaces busy times for either provider', () => {
+test('calendar: all pages accumulate before replacement; later failures keep old blocks', () => {
   for (const provider of ['google', 'outlook']) {
-    const marker = provider === 'google' ? { nextPageToken: 'next', items: [] } : { '@odata.nextLink': 'next', value: [] };
+    const plan = cpPlan({ ...CPC, provider });
     const tokenNode = provider === 'google' ? 'Get pull token' : 'Get Microsoft pull token';
-    const r = runCode('calendar-pull-map.js', { json: { statusCode: 200, body: marker }, nodes: { 'Plan pull': { connection_id: 'c', url: 'url', provider }, [tokenNode]: { body: { access_token: 't' } } } }).json;
-    assert.equal(r.events, null); assert.equal(r.error.p_error, (provider === 'google' ? 'google' : 'microsoft') + '_truncated'); assert.equal(r.error.p_fatal, false);
+    const event = (id) => provider === 'google'
+      ? { id, start: { dateTime: '2026-11-01T10:00:00Z' }, end: { dateTime: '2026-11-01T11:00:00Z' } }
+      : { id, start: { dateTime: '2026-11-01T10:00:00' }, end: { dateTime: '2026-11-01T11:00:00' } };
+    const page = (id, next) => provider === 'google' ? { items: [event(id)], nextPageToken: next } : { value: [event(id)], '@odata.nextLink': next && plan.url + '&$skiptoken=' + next };
+    const map = (body, state, statusCode = 200) => runCode('calendar-pull-map.js', { json: { statusCode, body }, nodes: { 'Plan pull': plan, 'Pull page': state, [tokenNode]: { body: { access_token: 't' } } } }).json;
+    const first = map(page('a', 'one'), { url: plan.url, pages: [], seen: [] });
+    assert.equal(first.events, null); assert.ok(first.next_url);
+    assert.equal(new URL(first.next_url).searchParams.get(provider === 'google' ? 'pageToken' : '$skiptoken'), 'one');
+    const second = map(page('b', 'two'), { ...first, url: first.next_url });
+    assert.equal(second.events, null);
+    const final = map(page('c'), { ...second, url: second.next_url });
+    assert.deepEqual(final.events.p_events.map((e) => e.id), ['a', 'b', 'c']);
+    assert.equal(map({}, first, 500).events, null);
+    assert.equal(map(page('b', 'one'), first).error.p_error, (provider === 'google' ? 'google' : 'microsoft') + '_bad_pagination');
+    if (provider === 'outlook') assert.equal(map({ value: [], '@odata.nextLink': 'https://evil.example/path' }, first).events, null);
   }
+  const w = wfJson('zella-calendar-sync.json');
+  assert.equal(w.connections['More pages'].main[0][0].node, 'Pull page');
+  assert.equal(w.connections['More pages'].main[1][0].node, 'Has events');
+});
+test('calendar: more than 500 busy intervals fit the RPC without losing busy time', () => {
+  const input = Array.from({ length: 1201 }, (_, i) => ({ id: String(i), start: { dateTime: new Date(Date.UTC(2026, 10, 1) + i * 120000).toISOString() }, end: { dateTime: new Date(Date.UTC(2026, 10, 1) + i * 120000 + 60000).toISOString() } }));
+  const result = cpMap(cpPlan(CPC), { statusCode: 200, body: { items: input } }).events.p_events;
+  assert.equal(result.length, 500);
+  for (const e of input) assert.ok(result.some((b) => Date.parse(b.start) <= Date.parse(e.start.dateTime) && Date.parse(b.end) >= Date.parse(e.end.dateTime)));
+});
+test('Resend hooks keep no execution data', () => {
+  for (const file of ['zella-inbound-email.json', 'zella-email-events.json']) {
+    const s = wfJson(file).settings;
+    assert.equal(s.saveDataSuccessExecution, 'none'); assert.equal(s.saveDataErrorExecution, 'none');
+    assert.equal(s.saveManualExecutions, false); assert.equal(s.saveExecutionProgress, false);
+  }
+});
+test('invalid customer requests return argument errors without routing to the unanswered RPC', () => {
+  for (const args of [{}, { kind: 'complaint' }, { kind: 'complaint', summary: ' a ' }, { kind: 'nope', summary: 'A long summary' }, { kind: 'complaint', summary: 123 }]) {
+    const plan = vtAll(reqMsg(args))[0];
+    assert.ok(plan.invalid); assert.equal(plan.loggable, false); assert.equal(plan.rpc, 'zella_ai_log_request');
+    const reply = vtReply(plan); assert.match(reply.error, /Invalid arguments/); assert.equal(reply.result, undefined);
+  }
+  const w = wfJson('zella-assistant-tools.json');
+  assert.equal(w.connections['Valid arguments'].main[1][0].node, 'Build reply');
+  assert.equal(w.connections['Valid arguments'].main[0][0].node, 'Log question');
 });
 test('outlook: an invalid start or end is skipped without throwing', () => {
   for (const field of ['start', 'end']) assert.equal(csPlan({ ...CSI, provider: 'outlook', event: { ...CSI.event, [field]: 'bad-date' } }).needs_google, false);

@@ -2,8 +2,8 @@
 // (report_unanswered_question) or (2) when the caller wants to complain, correct their details, or ask to see or
 // remove their data (log_customer_request). Neither tool changes or releases any customer data.
 // Runs once for the whole request and returns ONE ITEM PER TOOL CALL, each with its own tool call id and its own
-// answer. Input that can't be logged (no question, unknown kind, other tool) is sent as an empty question, which the
-// database refuses before doing anything; the assistant still gets a valid answer. Nothing is run as instructions.
+// answer. Invalid customer-request arguments return an error before any logging RPC. Other non-loggable reports
+// are sent as an empty question, which the database refuses. Nothing is run as instructions.
 __VAPI_BRAIN_TOOLS__
 const body = (($input.first() || {}).json || {}).body;
 const m = body && typeof body === 'object' && body.message && typeof body.message === 'object' ? body.message : {};
@@ -35,10 +35,11 @@ for (const tc of list.slice(0, 10)) {
   args = args && typeof args === 'object' && !Array.isArray(args) ? args : {};
   const question = String((isRequest ? args.summary : args.question) || '').replace(/\s+/g, ' ').trim().slice(0, isRequest ? 1000 : 500);
   const kind = typeof args.kind === 'string' ? args.kind.trim().toLowerCase() : '';
-  const loggable = ALLOWED_TOOLS.includes(name) && question.length >= 3 && (!isRequest || kinds.includes(kind));
-  out.push({ json: { tool_call_id: tc.id, tool: name.slice(0, 80), reply_text: ok, loggable, lookup,
-    rpc: loggable && isRequest ? 'zella_ai_log_request' : 'zella_report_unanswered',
-    record: loggable && isRequest
+  const invalid = isRequest && (typeof args.summary !== 'string' || question.length < 3 || !kinds.includes(kind)) ? 'Invalid arguments: provide a summary of at least 3 characters and a supported kind.' : null;
+  const loggable = !invalid && ALLOWED_TOOLS.includes(name) && question.length >= 3 && (!isRequest || kinds.includes(kind));
+  out.push({ json: { tool_call_id: tc.id, tool: name.slice(0, 80), reply_text: ok, loggable, lookup, invalid,
+    rpc: isRequest ? 'zella_ai_log_request' : 'zella_report_unanswered',
+    record: isRequest
       ? { p_provider_call_id: callId, p_business_id: bid, p_kind: kind, p_summary: question }
       : { p_provider_call_id: callId, p_business_id: bid, p_question: loggable ? question : '' } } });
 }

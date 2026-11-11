@@ -842,15 +842,29 @@
     },
     {
       "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "if ($json.next_url) return { json: { ...$json, url: $json.next_url } };\nreturn { json: { url: $('Plan pull').item.json.url, access_token: $json.body.access_token, pages: [], seen: [] } };"
+      },
+      "id": "082d9a7a-0f14-43e4-8946-6d168ce5276d",
+      "name": "Pull page",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1080,
+        400
+      ]
+    },
+    {
+      "parameters": {
         "method": "GET",
-        "url": "={{ $('Plan pull').item.json.url }}",
+        "url": "={{ $json.url }}",
         "authentication": "none",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "Authorization",
-              "value": "=Bearer {{ $json.body.access_token }}"
+              "value": "=Bearer {{ $json.access_token }}"
             },
             {
               "name": "Prefer",
@@ -881,7 +895,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Zella - Calendar Sync: turn the calendar's events into busy blocks. Cancelled, \"free\" and Zella-made events are left out.\nconst plan = $('Plan pull').item.json;\nconst outlook = plan.provider === 'outlook';\nconst name = outlook ? 'microsoft' : 'google';\nconst fail = (error, fatal) => ({ json: { events: null, error: { p_connection_id: plan.connection_id, p_error: String(error).slice(0, 80), p_fatal: !!fatal } } });\nif (!plan.connection_id || !plan.url) return { json: { events: null, error: null } };\nlet tok = null;\nfor (const node of outlook ? ['Get Microsoft pull token'] : ['Get pull token']) { try { tok = $(node).item.json; } catch (e) { tok = null; } }\nconst tb = tok && tok.body && typeof tok.body === 'object' ? tok.body : {};\nif (!tb.access_token) { const err = typeof tb.error === 'string' ? tb.error.replace(/[^a-z_]/gi, '').slice(0, 30) : 'failed'; return fail(name + '_token_' + err, err === 'invalid_grant'); }\nconst status = Number($json.statusCode);\nconst b = $json.body && typeof $json.body === 'object' ? $json.body : {};\nconst list = outlook ? b.value : b.items;\nif (!(status >= 200 && status < 300) || !Array.isArray(list)) return fail(name + '_' + (status || 'no_answer'), status === 404);\nif (b.nextPageToken || b['@odata.nextLink']) return fail(name + '_truncated', false);\nconst events = [];\nfor (const e of list) {\n  if (!e || typeof e.id !== 'string') continue;\n  if (outlook) {\n    if (e.isCancelled || e.showAs === 'free') continue;\n    if (Array.isArray(e.singleValueExtendedProperties) && e.singleValueExtendedProperties.some((p) => p && p.value)) continue;\n    if (!e.start || !e.end || typeof e.start.dateTime !== 'string' || typeof e.end.dateTime !== 'string') continue;\n    // with Prefer: outlook.timezone=\"UTC\" the times come back in UTC, without a zone suffix\n    events.push({ id: e.id, start: e.start.dateTime.slice(0, 19) + 'Z', end: e.end.dateTime.slice(0, 19) + 'Z', all_day: !!e.isAllDay });\n    continue;\n  }\n  if (e.status === 'cancelled' || e.transparency === 'transparent') continue;\n  if (e.extendedProperties && e.extendedProperties.private && e.extendedProperties.private.zella_appointment_id) continue;\n  if (e.start && e.start.dateTime && e.end && e.end.dateTime) events.push({ id: e.id, start: e.start.dateTime, end: e.end.dateTime, all_day: false });\n  else if (e.start && e.start.date && e.end && e.end.date) events.push({ id: e.id, start: e.start.date + 'T00:00:00Z', end: e.end.date + 'T00:00:00Z', all_day: true });\n}\nreturn { json: { events: { p_connection_id: plan.connection_id, p_events: events }, error: null } };\n"
+        "jsCode": "// Zella - Calendar Sync: turn the calendar's events into busy blocks. Cancelled, \"free\" and Zella-made events are left out.\nconst plan = $('Plan pull').item.json;\nconst outlook = plan.provider === 'outlook';\nconst name = outlook ? 'microsoft' : 'google';\nconst fail = (error, fatal) => ({ json: { events: null, error: { p_connection_id: plan.connection_id, p_error: String(error).slice(0, 80), p_fatal: !!fatal } } });\nif (!plan.connection_id || !plan.url) return { json: { events: null, error: null } };\nlet tok = null;\nfor (const node of outlook ? ['Get Microsoft pull token'] : ['Get pull token']) { try { tok = $(node).item.json; } catch (e) { tok = null; } }\nconst tb = tok && tok.body && typeof tok.body === 'object' ? tok.body : {};\nif (!tb.access_token) { const err = typeof tb.error === 'string' ? tb.error.replace(/[^a-z_]/gi, '').slice(0, 30) : 'failed'; return fail(name + '_token_' + err, err === 'invalid_grant'); }\nconst status = Number($json.statusCode);\nconst b = $json.body && typeof $json.body === 'object' ? $json.body : {};\nconst list = outlook ? b.value : b.items;\nif (!(status >= 200 && status < 300) || !Array.isArray(list)) return fail(name + '_' + (status || 'no_answer'), status === 404);\nlet state = { pages: [], seen: [] };\ntry { state = $('Pull page').item.json; } catch {}\nconst marker = outlook ? b['@odata.nextLink'] : b.nextPageToken;\nlet next = null;\nif (marker) {\n  try {\n    const url = new URL(outlook ? marker : plan.url);\n    if (!outlook) url.searchParams.set('pageToken', marker);\n    const base = new URL(plan.url);\n    if (url.origin !== base.origin || url.pathname !== base.pathname || url.username || url.password || url.hash) throw new Error();\n    next = url.toString();\n    if (state.seen.includes(next) || next === state.url) throw new Error();\n  } catch { return fail(name + '_bad_pagination', false); }\n}\nconst events = [];\nfor (const e of list) {\n  if (!e || typeof e.id !== 'string') continue;\n  if (outlook) {\n    if (e.isCancelled || e.showAs === 'free') continue;\n    if (Array.isArray(e.singleValueExtendedProperties) && e.singleValueExtendedProperties.some((p) => p && p.value)) continue;\n    if (!e.start || !e.end || typeof e.start.dateTime !== 'string' || typeof e.end.dateTime !== 'string') continue;\n    // with Prefer: outlook.timezone=\"UTC\" the times come back in UTC, without a zone suffix\n    events.push({ id: e.id, start: e.start.dateTime.slice(0, 19) + 'Z', end: e.end.dateTime.slice(0, 19) + 'Z', all_day: !!e.isAllDay });\n    continue;\n  }\n  if (e.status === 'cancelled' || e.transparency === 'transparent') continue;\n  if (e.extendedProperties && e.extendedProperties.private && e.extendedProperties.private.zella_appointment_id) continue;\n  if (e.start && e.start.dateTime && e.end && e.end.dateTime) events.push({ id: e.id, start: e.start.dateTime, end: e.end.dateTime, all_day: false });\n  else if (e.start && e.start.date && e.end && e.end.date) events.push({ id: e.id, start: e.start.date + 'T00:00:00Z', end: e.end.date + 'T00:00:00Z', all_day: true });\n}\nconst complete = [...state.pages, ...events];\nif (next) return { json: { next_url: next, access_token: tb.access_token, pages: complete, seen: [...state.seen, next], events: null, error: null } };\n// The replacement RPC accepts 500 entries. Merge intervals conservatively when over capacity:\n// joining gaps may block extra time, but never drops a busy interval.\nlet blocks = complete;\nif (blocks.length > 500) {\n  blocks = blocks.map((e) => ({ ...e, s: Date.parse(e.start), t: Date.parse(e.end) }));\n  if (blocks.some((e) => !Number.isFinite(e.s) || !Number.isFinite(e.t) || e.t <= e.s)) return fail(name + '_bad_event_time', false);\n  blocks.sort((a, b) => a.s - b.s);\n  const merged = [];\n  for (const e of blocks) {\n    const last = merged[merged.length - 1];\n    if (last && e.s <= last.t) last.t = Math.max(last.t, e.t);\n    else merged.push({ s: e.s, t: e.t });\n  }\n  const joins = new Set(merged.slice(1).map((e, i) => ({ i, gap: e.s - merged[i].t }))\n    .sort((a, b) => a.gap - b.gap).slice(0, Math.max(0, merged.length - 500)).map((e) => e.i));\n  const compact = [];\n  for (let i = 0; i < merged.length; i++) {\n    if (i && joins.has(i - 1)) compact[compact.length - 1].t = merged[i].t;\n    else compact.push({ ...merged[i] });\n  }\n  blocks = compact.map((e, i) => ({ id: 'zella-busy-union-' + i, start: new Date(e.s).toISOString(), end: new Date(e.t).toISOString(), all_day: false }));\n}\nreturn { json: { events: { p_connection_id: plan.connection_id, p_events: blocks }, error: null } };\n"
       },
       "id": "1acc5142-4008-49f1-8cc5-dc8b9e246036",
       "name": "Map busy",
@@ -889,6 +903,39 @@
       "typeVersion": 2,
       "position": [
         1440,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "9f19fde7-bd12-4dcf-8f35-c67ac774816b",
+              "leftValue": "={{ !!$json.next_url }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "1fd2b5b5-54e8-493e-84ca-f3f366d0b547",
+      "name": "More pages",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1560,
         500
       ]
     },
@@ -1342,7 +1389,7 @@
       "main": [
         [
           {
-            "node": "List events",
+            "node": "Pull page",
             "type": "main",
             "index": 0
           }
@@ -1350,6 +1397,17 @@
         [
           {
             "node": "Map busy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pull page": {
+      "main": [
+        [
+          {
+            "node": "List events",
             "type": "main",
             "index": 0
           }
@@ -1369,6 +1427,24 @@
     },
     "Map busy": {
       "main": [
+        [
+          {
+            "node": "More pages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "More pages": {
+      "main": [
+        [
+          {
+            "node": "Pull page",
+            "type": "main",
+            "index": 0
+          }
+        ],
         [
           {
             "node": "Has events",

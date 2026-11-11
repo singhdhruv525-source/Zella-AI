@@ -374,6 +374,7 @@ const assistantTools = secureVapi(wf('Zella - Assistant Tools', [
   rpcNode('Find business', [720, 100], 'zella_business_for_number', '={{ JSON.stringify({ ...$json.lookup, p_fallback: null }) }}', { full: true }),
   code('Use business', [960, 100], 'business-apply.js'),
   rpcNode('Log question', [1200, 100], '', '={{ JSON.stringify($json.record) }}', { full: true, urlExpr: `={{ '${SUPABASE}/rest/v1/rpc/' + $json.rpc }}` }),
+  ifBool('Valid arguments', [1080, 100], '={{ !$json.invalid }}'),
   code('Build reply', [1440, 100], 'vapi-tool-reply.js'),
   codeAll('Collect replies', [1680, 100], 'brain-tool-collect.js'),
   node('Reply', 'n8n-nodes-base.respondToWebhook', 1.1, [1920, 200], {
@@ -384,7 +385,8 @@ const assistantTools = secureVapi(wf('Zella - Assistant Tools', [
   'Plan': { main: [[link('Has question')]] },
   'Has question': { main: [[link('Find business')], [link('Reply')]] },
   'Find business': { main: [[link('Use business')]] },
-  'Use business': { main: [[link('Log question')]] },
+  'Use business': { main: [[link('Valid arguments')]] },
+  'Valid arguments': { main: [[link('Log question')], [link('Build reply')]] },
   'Log question': { main: [[link('Build reply')]] },
   'Build reply': { main: [[link('Collect replies')]] },
   'Collect replies': { main: [[link('Reply')]] },
@@ -501,6 +503,7 @@ const emailEvents = wf('Zella - Email Events', [
 
 // Require configured signing secrets and a valid URL key before any Resend work.
 const secureResend = (workflow, hook, endpoint) => {
+  workflow.settings = { ...workflow.settings, saveDataSuccessExecution: 'none', saveDataErrorExecution: 'none', saveManualExecutions: false, saveExecutionProgress: false };
   const next = workflow.connections[hook].main[0];
   workflow.nodes.push(
     code('Read Resend auth', [120, -300], 'resend-auth-read.js', { ENDPOINT: endpoint }),
@@ -594,13 +597,16 @@ const calendarSync = wf('Zella - Calendar Sync', [
   googleToken('Get pull token', [720, 500], "={{ $('Plan pull').item.json.token_form ? $('Plan pull').item.json.token_form.refresh_token : '' }}"),
   microsoftToken('Get Microsoft pull token', [720, 380], "={{ $('Plan pull').item.json.token_form ? $('Plan pull').item.json.token_form.refresh_token : '' }}"),
   ifBool('Pull token ok', [960, 500], '={{ !!$json.body && !!$json.body.access_token }}'),
+  node('Pull page', 'n8n-nodes-base.code', 2, [1080, 400], { mode: 'runOnceForEachItem', jsCode: `if ($json.next_url) return { json: { ...$json, url: $json.next_url } };
+return { json: { url: $('Plan pull').item.json.url, access_token: $json.body.access_token, pages: [], seen: [] } };` }),
   node('List events', 'n8n-nodes-base.httpRequest', 4.2, [1200, 400], {
-    method: 'GET', url: "={{ $('Plan pull').item.json.url }}", authentication: 'none',
-    sendHeaders: true, headerParameters: { parameters: [{ name: 'Authorization', value: '=Bearer {{ $json.body.access_token }}' },
+    method: 'GET', url: "={{ $json.url }}", authentication: 'none',
+    sendHeaders: true, headerParameters: { parameters: [{ name: 'Authorization', value: '=Bearer {{ $json.access_token }}' },
       { name: 'Prefer', value: "={{ $('Plan pull').item.json.prefer || 'return=representation' }}" }] },
     options: { response: { response: { fullResponse: true, neverError: true, responseFormat: 'json' } } },
   }),
   code('Map busy', [1440, 500], 'calendar-pull-map.js'),
+  ifBool('More pages', [1560, 500], '={{ !!$json.next_url }}'),
   ifBool('Has events', [1680, 500], '={{ !!$json.events }}'),
   rpcNode('Replace busy times', [1920, 400], 'zella_replace_calendar_busy', '={{ JSON.stringify($json.events) }}', { full: true }),
   ifBool('Has error', [1920, 620], '={{ !!$json.error }}'),
@@ -629,9 +635,11 @@ const calendarSync = wf('Zella - Calendar Sync', [
   'Pull is Outlook': { main: [[link('Get Microsoft pull token')], [link('Get pull token')]] },
   'Get pull token': { main: [[link('Pull token ok')]] },
   'Get Microsoft pull token': { main: [[link('Pull token ok')]] },
-  'Pull token ok': { main: [[link('List events')], [link('Map busy')]] },
+  'Pull token ok': { main: [[link('Pull page')], [link('Map busy')]] },
+  'Pull page': { main: [[link('List events')]] },
   'List events': { main: [[link('Map busy')]] },
-  'Map busy': { main: [[link('Has events')]] },
+  'Map busy': { main: [[link('More pages')]] },
+  'More pages': { main: [[link('Pull page')], [link('Has events')]] },
   'Has events': { main: [[link('Replace busy times')], [link('Has error')]] },
   'Has error': { main: [[link('Mark error')], []] },
 }, NO_SAVED_RUNS);
