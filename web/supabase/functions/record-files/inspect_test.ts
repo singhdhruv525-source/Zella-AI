@@ -222,3 +222,13 @@ Deno.test("a stream marker inside a string or comment cannot hide a later compre
   // Without a decoy the same stream is opened and its active content found.
   assertEquals(await inspect("application/pdf", cat(enc("%PDF-1.7\n"), real, enc("%%EOF"))), { ok: false, reason: "PDF with active content (in a compressed stream)" });
 });
+Deno.test("a very wide predictor row with little data is refused quickly", async () => {
+  // Rows wider than the data never complete; the decoder must not allocate a row-sized buffer per piece.
+  const started = performance.now();
+  let seed = 11;
+  const bytes = new Uint8Array(200000).map(() => { seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5; return seed & 255; });
+  bytes[0] = 2;
+  assertEquals(await inspect("application/pdf", await predictedPdf(bytes, "/Predictor 12 /Columns 9000000")),
+    { ok: false, reason: "damaged PDF (a compressed part can't be read)" });
+  assert(performance.now() - started < 5000, "refused without per-piece row allocations");
+});

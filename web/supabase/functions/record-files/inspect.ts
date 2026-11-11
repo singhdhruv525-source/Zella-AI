@@ -39,11 +39,12 @@ function predictorDecoder(p: Predictor) {
   return {
     complete: () => offset === 0 && (p.value === 2 || filter === -1),
     decode(chunk: Uint8Array) {
-      // At most the bytes in progress plus this chunk become complete rows (a row also consumes its filter byte).
-      const pending = offset + chunk.length;
-      const out = new Uint8Array(Math.floor(pending / (p.value === 2 ? rowBytes : rowBytes + 1) + 1) * rowBytes);
-      let written = 0;
-      for (const byte of chunk) {
+      // The output is allocated only when a row completes, for the rows the rest of the chunk can still complete
+      // (each row also consumes a filter byte), so chunks that finish no row allocate nothing.
+      const stride = p.value === 2 ? rowBytes : rowBytes + 1;
+      let out: Uint8Array | null = null, written = 0;
+      for (let i = 0; i < chunk.length; i++) {
+        const byte = chunk[i];
         if (filter === -1) { if (byte > 4) throw new Error("Invalid PNG filter"); filter = byte; continue; }
         const left = offset >= pixelBytes ? row[offset - pixelBytes] : 0;
         const up = previous[offset], upperLeft = offset >= pixelBytes ? previous[offset - pixelBytes] : 0;
@@ -66,11 +67,12 @@ function predictorDecoder(p: Predictor) {
               else { const shift = 8 - p.bits - bit % 8; row[bit >> 3] = (row[bit >> 3] & ~(mask << shift)) | (value << shift); }
             }
           }
+          out ??= new Uint8Array((1 + Math.floor((chunk.length - i - 1) / stride)) * rowBytes);
           out.set(row, written); written += rowBytes;
           [previous, row] = [row, previous]; offset = 0; filter = p.value === 2 ? 0 : -1;
         }
       }
-      return out.subarray(0, written);
+      return out ? out.subarray(0, written) : new Uint8Array(0);
     },
   };
 }
