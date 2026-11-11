@@ -7,16 +7,25 @@ create table if not exists public.store_lookup_guards (
   reservation_id uuid,
   primary key (business_id, provider_call_id)
 );
+-- Persist bucket identities so unresolved work remains charged even beyond a time window.
+-- Null identities on reservations from an earlier deployment count conservatively in every bucket.
+alter table public.store_lookup_guards add column if not exists caller_number text;
+alter table public.store_lookup_guards add column if not exists lookup_ref text;
 alter table public.store_lookup_guards enable row level security;
 revoke all on public.store_lookup_guards from public, anon, authenticated, service_role;
 
 create or replace function public.zella_store_lookup_begin(p_provider_call_id text, p_business_id uuid, p_order_ref text)
 returns jsonb language plpgsql security definer set search_path = public as $$
-declare c jsonb; pending uuid; token uuid;
+declare c jsonb; pending uuid; token uuid; pending_number bigint; pending_order bigint; pending_business bigint;
 begin
   if p_business_id is null or nullif(trim(p_provider_call_id), '') is null or length(p_provider_call_id) > 200 then
     return jsonb_build_object('ok', false, 'status', 'limited');
   end if;
+  -- Every bucket is scoped to a business. Lock it before any guard, in begin and finish,
+  -- so admissions and pending-to-completed transitions see a consistent set of counters.
+  -- NO KEY UPDATE remains compatible with foreign-key checks on the business.
+  perform 1 from public.businesses where id = p_business_id for no key update;
+  if not found then return jsonb_build_object('ok', false, 'status', 'limited'); end if;
   insert into public.store_lookup_guards(business_id, provider_call_id)
     values(p_business_id, p_provider_call_id) on conflict do nothing;
   select reservation_id into pending from public.store_lookup_guards
@@ -24,6 +33,15 @@ begin
   if pending is not null then return jsonb_build_object('ok', false, 'status', 'limited'); end if;
   c := public.zella_store_lookup_context(p_provider_call_id, p_business_id, p_order_ref);
   if (c->>'ok')::boolean is distinct from true then return c; end if;
+  select count(*) filter (where g.caller_number is null or g.caller_number = c->>'caller_number'),
+         count(*) filter (where g.lookup_ref is null or g.lookup_ref = left(p_order_ref, 64)), count(*)
+    into pending_number, pending_order, pending_business
+    from public.store_lookup_guards g
+    where g.business_id = p_business_id and g.reservation_id is not null;
+  c := c || jsonb_build_object(
+    'failed_this_number_day', (c->>'failed_this_number_day')::bigint + pending_number,
+    'failed_this_order_day', (c->>'failed_this_order_day')::bigint + pending_order,
+    'failed_business_hour', (c->>'failed_business_hour')::bigint + pending_business);
   -- Missing counters cannot establish that a caller is within the policy.
   if c->>'failed_this_call' is null or c->>'failed_this_number_day' is null
      or c->>'failed_this_order_day' is null or c->>'failed_business_hour' is null
@@ -32,7 +50,8 @@ begin
     return jsonb_build_object('ok', false, 'status', 'limited');
   end if;
   token := gen_random_uuid();
-  update public.store_lookup_guards set reservation_id = token
+  update public.store_lookup_guards set reservation_id = token, caller_number = c->>'caller_number',
+    lookup_ref = left(p_order_ref, 64)
     where business_id = p_business_id and provider_call_id = p_provider_call_id;
   return c || jsonb_build_object('reservation_id', token);
 end $$;
@@ -42,6 +61,7 @@ create or replace function public.zella_store_lookup_finish(p_business_id uuid, 
 returns void language plpgsql security definer set search_path = public as $$
 declare pending uuid;
 begin
+  perform 1 from public.businesses where id = p_business_id for no key update;
   select reservation_id into pending from public.store_lookup_guards
     where business_id = p_business_id and provider_call_id = p_provider_call_id for update;
   -- Idempotent retry after a committed write whose response was lost; never release a newer reservation.

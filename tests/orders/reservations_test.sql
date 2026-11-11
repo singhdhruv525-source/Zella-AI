@@ -58,3 +58,23 @@ begin
 end $$;
 drop trigger fail_lookup_test on public.ai_tool_calls;
 drop function public.fail_lookup_test();
+
+-- Pre-upgrade unresolved rows lack bucket identities and must still consume capacity.
+do $$
+declare b uuid := 'e9000000-0000-0000-0000-000000000002'; c jsonb;
+begin
+  insert into store_lookup_guards(business_id, provider_call_id, reservation_id)
+    select b, 'legacy-' || g, gen_random_uuid() from generate_series(1, 5) g;
+  assert zella_store_lookup_begin('v2call-5', b, 'new-ref')->>'status' = 'limited',
+    'legacy pending reservations lost order capacity';
+  delete from store_lookup_guards where provider_call_id like 'legacy-%';
+  c := zella_store_lookup_begin('v2call-5', b, 'ref-release');
+  assert c->>'ok' = 'true', 'fresh lookup refused';
+  perform zella_store_lookup_finish(b, 'v2call-5', null, 'not_found', false, 'ref-release', (c->>'reservation_id')::uuid);
+  c := zella_store_lookup_begin('v2call-6', b, 'ref-release');
+  assert (c->>'failed_this_order_day')::int = 1, 'finish did not convert pending to one failure';
+  perform zella_store_lookup_finish(b, 'v2call-6', null, 'found_one_factor', true, 'ref-release', (c->>'reservation_id')::uuid);
+  c := zella_store_lookup_begin('v2call-7', b, 'ref-release');
+  assert (c->>'failed_this_order_day')::int = 1, 'success did not release pending capacity';
+  raise notice 'PASS legacy pending capacity and completion transitions';
+end $$;
