@@ -29,6 +29,8 @@ const PALETTE_VARS = ["--zella-primary", "--zella-primary-hover", "--zella-prima
   "--zella-on-primary", "--zella-nav-active", "--zella-card", "--zella-sidebar", "--zella-subtle", "--glass-solid", "--zella-glass-base",
   "--zella-text", "--zella-text-2", "--zella-text-secondary", "--zella-text-faint", "--zella-border", "--zella-border-strong"];
 const COLOUR = /^hsla?\(\s*[0-9.]+(deg)?\s*,\s*[0-9.]+%\s*,\s*[0-9.]+%\s*(,\s*[0-9.]+\s*)?\)$/;
+// Origin of this project's own Supabase (the URL supabase.js uses); unset in unit tests, where no picture is accepted.
+const SUPABASE_ORIGIN = (() => { try { return new URL(import.meta.env?.VITE_SUPABASE_URL).origin; } catch { return null; } })();
 const listeners = new Set();
 const local = readLocal();
 let owner = local?.user ?? null;   // whose look this is (a user id), once sign-in is known
@@ -49,8 +51,6 @@ function normalisePalette(p) {
   return { for: p.for.slice(0, 500), vars, swatches };
 }
 
-// Origin of this project's own Supabase (the URL supabase.js uses); unset in unit tests, where no picture is accepted.
-const SUPABASE_ORIGIN = (() => { try { return new URL(import.meta.env?.VITE_SUPABASE_URL).origin; } catch { return null; } })();
 // Only a public picture under brand-assets/user/ in this project's own storage, with no whitespace or backslash.
 export function isOwnPicture(u, origin = SUPABASE_ORIGIN) {
   if (typeof u !== "string" || !origin || /[\\\s]/.test(u)) return false;

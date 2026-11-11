@@ -16,15 +16,6 @@ async function setup(browser, workspaces, path = "/app") {
   }, user);
   const page = await context.newPage();
   page.on("pageerror", (error) => console.error("Page error:", error.message));
-  // The current checkout has an unrelated initialization-order error in appearance.js. Move the
-  // declaration in the served test response only so sign-out behavior can be exercised.
-  await page.route("**/src/appearance.js", async (route) => {
-    const response = await route.fetch();
-    const source = await response.text();
-    const declaration = source.match(/const SUPABASE_ORIGIN = [\s\S]*?\}\)\(\);/)[0];
-    const corrected = source.replace(declaration, "").replace("let current = normalise(local?.pref);", `${declaration}let current = normalise(local?.pref);`);
-    await route.fulfill({ response, body: corrected });
-  });
   await page.route("**/auth/v1/**", (route) => route.fulfill({ json: user }));
   await page.route("**/rest/v1/**", (route) => {
     const url = route.request().url();
