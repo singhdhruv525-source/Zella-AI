@@ -232,3 +232,49 @@ Deno.test("a very wide predictor row with little data is refused quickly", async
     { ok: false, reason: "damaged PDF (a compressed part can't be read)" });
   assert(performance.now() - started < 5000, "refused without per-piece row allocations");
 });
+Deno.test("the row decoder matches a whole-buffer decode for any chunk boundaries", async () => {
+  const { predictorDecoder } = await import("./inspect.ts");
+  let seed = 23;
+  const rand = (n: number) => { seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5; return (seed >>> 0) % n; };
+  // Reference: decode the whole buffer at once, straight from the PNG and TIFF predictor definitions.
+  const reference = (value: number, colors: number, bits: number, columns: number, data: Uint8Array) => {
+    const rowBytes = Math.ceil(colors * columns * bits / 8), pixel = Math.ceil(colors * bits / 8), out: number[] = [];
+    let previous = new Array(rowBytes).fill(0), at = 0;
+    while (at < data.length) {
+      const filter = value === 2 ? 0 : data[at++], row: number[] = [];
+      for (let x = 0; x < rowBytes; x++) {
+        const raw = data[at++], left = x >= pixel ? row[x - pixel] : 0, up = previous[x], upperLeft = x >= pixel ? previous[x - pixel] : 0;
+        const pa = Math.abs(up - upperLeft), pb = Math.abs(left - upperLeft), pc = Math.abs(left + up - 2 * upperLeft);
+        const paeth = pa <= pb && pa <= pc ? left : pb <= pc ? up : upperLeft;
+        row.push((raw + (value === 2 ? 0 : [0, left, up, (left + up) >> 1, paeth][filter])) & 255);
+      }
+      if (value === 2) {
+        const samples = colors * columns, read = (i: number) => bits === 16 ? row[i * 2] * 256 + row[i * 2 + 1] : row[i];
+        for (let i = colors; i < samples; i++) {
+          const v = (read(i) + read(i - colors)) & (bits === 16 ? 0xffff : 0xff);
+          if (bits === 16) { row[i * 2] = v >> 8; row[i * 2 + 1] = v & 255; } else row[i] = v;
+        }
+      }
+      out.push(...row); previous = row;
+    }
+    return new Uint8Array(out);
+  };
+  for (let trial = 0; trial < 300; trial++) {
+    const value = [2, 10, 11, 12, 13, 14, 15][rand(7)], colors = 1 + rand(3), columns = 1 + rand(6);
+    const bits = value === 2 ? [8, 16][rand(2)] : 8, rowBytes = Math.ceil(colors * columns * bits / 8);
+    const rows = 1 + rand(12), data: number[] = [];
+    for (let r = 0; r < rows; r++) {
+      if (value !== 2) data.push(rand(5));
+      for (let x = 0; x < rowBytes; x++) data.push(rand(256));
+    }
+    const input = new Uint8Array(data), decoder = predictorDecoder({ value, colors, bits, columns }), parts: number[] = [];
+    // Random boundaries, including pieces that finish a partial row and then hold further complete rows.
+    for (let at = 0; at < input.length;) {
+      const size = 1 + rand(Math.max(1, 3 * (rowBytes + 1)));
+      parts.push(...decoder.decode(input.subarray(at, at + size)));
+      at += size;
+    }
+    assert(decoder.complete(), `trial ${trial}: decoder left a partial row`);
+    assertEquals(new Uint8Array(parts), reference(value, colors, bits, columns, input), `trial ${trial}: predictor ${value}, ${colors}x${columns}x${bits}`);
+  }
+});

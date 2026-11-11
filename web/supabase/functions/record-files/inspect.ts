@@ -24,10 +24,10 @@ const latin1 = (b: Uint8Array) => { let s = ""; for (let i = 0; i < b.length; i 
 // PDF names may hide letters as #xx ("/J#61vaScript")
 const unescapeNames = (s: string) => s.replace(/#([0-9A-Fa-f]{2})/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
 
-type Predictor = { value: number; colors: number; bits: number; columns: number };
+export type Predictor = { value: number; colors: number; bits: number; columns: number };
 
 // Decode one row at a time, preserving state across decompressor chunks.
-function predictorDecoder(p: Predictor) {
+export function predictorDecoder(p: Predictor) {
   const rowBytes = Math.ceil(p.colors * p.columns * p.bits / 8);
   const pixelBytes = Math.ceil(p.colors * p.bits / 8);
   let previous = new Uint8Array(rowBytes), row = new Uint8Array(rowBytes);
