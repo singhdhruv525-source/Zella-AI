@@ -104,9 +104,11 @@ out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_restore.sql" 2>&1) || { bad 
  and not exists (select 1 from table_data_rolled_back where source_table = 'rollback_generation' and id = (select max(id) from table_data_rolled_back where source_table = 'rollback_generation') and row_data ->> 'restored' = 'true')")" = t ] \
  && ok "retry restores refused assignment without replaying committed data; unmatched ID keeps generation pending" || bad "retry replayed data or completed prematurely"
 # A user replacement resolves an unmatched assignment without overwriting their choice.
-$P -d $DB -c "set session_replication_role = replica; update appointments set table_ids = '{}' where id = '$MISSING';" >/dev/null || exit 1
+REPLACEMENT=$($P -d $DB -c "insert into restaurant_tables (business_id, name, max_party)
+ select business_id, 'Replacement', 100 from appointments where id = '$MISSING' returning id")
+$P -d $DB -c "update appointments set table_ids = array['$REPLACEMENT'::uuid] where id = '$MISSING';" >/dev/null || exit 1
 out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_restore.sql" 2>&1) || { bad "resolve missing assignment: $out"; exit 1; }
-[ "$($P -d $DB -c "select row_data ->> 'restored' = 'true' from table_data_rolled_back where source_table = 'rollback_generation' order by id desc limit 1")" = t ] \
+[ "$($P -d $DB -c "select row_data ->> 'restored' = 'true' and exists (select 1 from appointments where id = '$MISSING' and table_ids = array['$REPLACEMENT'::uuid]) from table_data_rolled_back where source_table = 'rollback_generation' order by id desc limit 1")" = t ] \
  && ok "user replacement resolves unmatched assignment and completes generation" || bad "resolved generation remains pending"
 
 # A second, empty archive generation must not recover details from the populated first one.
@@ -139,6 +141,35 @@ for i in 1 2; do
     && ok "empty generation restore $i leaves old states, capability, assignments and waitlist details archived" \
     || bad "empty generation restore $i recovered older values"
 done
+# A secondary unique conflict must leave the archived ID retryable, even without assignments.
+out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_rollback.sql" 2>&1) || { bad "conflict rollback: $out"; exit 1; }
+out=$($P -d $DB -f "$REPO/sql/zella_tables.sql" 2>&1) || { bad "conflict reapply: $out"; exit 1; }
+CONFLICTED=$($P -d $DB -c "select id from restaurant_tables_rolled_back t
+ where name = 'Replacement' order by id limit 1")
+COLLISION=$($P -d $DB -c "insert into restaurant_tables (business_id, name, max_party)
+ select business_id, name, max_party from restaurant_tables_rolled_back where id = '$CONFLICTED' returning id")
+out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_restore.sql" 2>&1) || { bad "conflicted restore: $out"; exit 1; }
+[ "$($P -d $DB -c "select row_data ->> 'seating_restored' = 'false' and coalesce(row_data ->> 'restored', 'false') = 'false'
+ and not exists (select 1 from restaurant_tables where id = '$CONFLICTED')
+ from table_data_rolled_back where source_table = 'rollback_generation' order by id desc limit 1")" = t ] \
+ && ok "unique conflict keeps seating and generation pending without assignments" || bad "conflict completed prematurely"
+# An assignment that references the skipped ID must stay pending until that ID is restored.
+$P -d $DB -c "insert into table_data_rolled_back (source_table, business_id, row_data, generation_id)
+ select 'appointments', business_id, to_jsonb(a) || jsonb_build_object('table_ids', jsonb_build_array('$CONFLICTED')),
+ (select max(id) from table_data_rolled_back where source_table = 'rollback_generation')
+ from appointments a where id = '$MISSING';" >/dev/null || exit 1
+out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_restore.sql" 2>&1) || { bad "conflicted assignment: $out"; exit 1; }
+[ "$($P -d $DB -c "select not restore_completed and exists (select 1 from appointments where id = '$MISSING' and table_ids is null)
+ from table_data_rolled_back where source_table = 'appointments' and generation_id =
+ (select max(id) from table_data_rolled_back where source_table = 'rollback_generation')")" = t ] \
+ && ok "assignment referencing skipped table remains pending" || bad "conflicted assignment lost"
+$P -d $DB -c "delete from restaurant_tables where id = '$COLLISION'; delete from table_events;" >/dev/null || exit 1
+out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_restore.sql" 2>&1) || { bad "conflict retry: $out"; exit 1; }
+[ "$($P -d $DB -c "select row_data ->> 'restored' = 'true'
+ and exists (select 1 from restaurant_tables where id = '$CONFLICTED') and not exists (select 1 from table_events)
+ and exists (select 1 from appointments where id = '$MISSING' and table_ids = array['$CONFLICTED'::uuid])
+ from table_data_rolled_back where source_table = 'rollback_generation' order by id desc limit 1")" = t ] \
+ && ok "retry restores skipped ID without replaying completed event rows" || bad "conflict retry lost data or replayed completed rows"
 out=$($P -d $DB -c "drop table public.restaurant_tables cascade" 2>&1); out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_restore.sql" 2>&1) \
   && bad "restore ran without the re-apply" || { echo "$out" | grep -q TABLES_NOT_APPLIED && ok "restore refuses to run before sql/zella_tables.sql is re-applied" || bad "restore without re-apply: $(echo "$out" | grep -m1 ERROR)"; }
 echo; [ $fails -eq 0 ] && echo "ALL PASSED" || { echo "$fails FAILED"; exit 1; }

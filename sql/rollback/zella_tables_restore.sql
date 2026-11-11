@@ -20,7 +20,7 @@ set local lock_timeout = '10s';
 
 do $restore$
 declare
-  t text; v_generation bigint; v_cols text; v_n bigint; v_total bigint := 0; r record; v_skipped int := 0; v_unmatched int := 0; v_appointment public.appointments%rowtype; v_seating_restored boolean := false;
+  t text; v_generation bigint; v_cols text; v_n bigint; v_total bigint := 0; r record; v_skipped int := 0; v_unmatched int := 0; v_appointment public.appointments%rowtype; v_seating_restored boolean := false; v_completed jsonb := '{}'::jsonb; v_ids jsonb; v_pending boolean;
 begin
   if to_regclass('public.restaurant_tables') is null then
     raise exception 'TABLES_NOT_APPLIED: re-apply sql/zella_tables.sql before restoring its data';
@@ -32,7 +32,8 @@ begin
     select max(id) into v_generation from public.table_data_rolled_back
      where source_table = 'rollback_generation';
     alter table public.table_data_rolled_back add column if not exists restore_completed boolean not null default false;
-    select coalesce(row_data ->> 'seating_restored' = 'true', false) into v_seating_restored
+    select coalesce(row_data ->> 'seating_restored' = 'true', false), coalesce(row_data -> 'seating_completed', '{}'::jsonb)
+      into v_seating_restored, v_completed
       from public.table_data_rolled_back where id = v_generation;
     if exists (select 1 from public.table_data_rolled_back where id = v_generation and row_data ->> 'restored' = 'true') then
       raise notice 'latest seating generation is already restored';
@@ -40,8 +41,9 @@ begin
     end if;
   end if;
 
-  -- Seating archives are committed as a category; retries must not replay deleted rows.
+  -- Record completed IDs so retries never replay rows deleted after a partial restore.
   if not coalesce(v_seating_restored, false) then
+    v_seating_restored := true;
     -- 1. the seating tables, parents first, by their original ids
     foreach t in array array['restaurant_tables', 'table_combinations', 'table_blocks', 'table_events'] loop
       continue when to_regclass('public.' || t || '_rolled_back') is null;
@@ -51,10 +53,20 @@ begin
        where c.table_schema = 'public' and c.table_name = t
          and exists (select 1 from information_schema.columns a where a.table_schema = 'public'
                        and a.table_name = t || '_rolled_back' and a.column_name = c.column_name);
-      execute format('insert into public.%I (%s) %s select %s from public.%I on conflict do nothing',
-                     t, v_cols, case when t = 'table_events' then 'overriding system value' else '' end, v_cols, t || '_rolled_back');
+      execute format('insert into public.%I (%s) %s select %s from public.%I a where not ($1 ? a.id::text) on conflict do nothing',
+                     t, v_cols, case when t = 'table_events' then 'overriding system value' else '' end, v_cols, t || '_rolled_back')
+        using coalesce(v_completed -> t, '[]'::jsonb);
       get diagnostics v_n = row_count; v_total := v_total + v_n;
       raise notice 'restored % rows into %', v_n, t;
+      execute format('select coalesce(jsonb_agg(a.id::text), ''[]''::jsonb)
+                        from public.%I a left join public.%I b on b.id = a.id
+                       where b.id is not null or $1 ? a.id::text', t || '_rolled_back', t)
+        into v_ids using coalesce(v_completed -> t, '[]'::jsonb);
+      -- Check unresolved IDs separately, including rows skipped by a secondary unique constraint.
+      execute format('select exists (select 1 from public.%I a where not ($1 ? a.id::text))', t || '_rolled_back')
+        into v_pending using v_ids;
+      v_completed := jsonb_set(v_completed, array[t], v_ids);
+      if v_pending then v_seating_restored := false; end if;
     end loop;
     if to_regclass('public.table_events_rolled_back') is not null then
       -- keep new events numbered after the restored ones
@@ -66,7 +78,7 @@ begin
     raise notice 'no archived seating details to restore';
     return;
   end if;
-  update public.table_data_rolled_back set row_data = row_data || '{"seating_restored": true}'::jsonb
+  update public.table_data_rolled_back set row_data = row_data || jsonb_build_object('seating_restored', v_seating_restored, 'seating_completed', v_completed)
    where id = v_generation;
   create temp table zella_tables_batch on commit drop as
     select * from public.table_data_rolled_back
@@ -155,7 +167,7 @@ begin
   update public.table_data_rolled_back set restore_completed = true
    where generation_id = v_generation and source_table <> 'appointments';
   -- Both booking refusals and unmatched IDs keep the generation pending for retry.
-  if v_skipped = 0 and v_unmatched = 0 then
+  if v_seating_restored and v_skipped = 0 and v_unmatched = 0 then
     update public.table_data_rolled_back set row_data = row_data || '{"restored": true}'::jsonb
      where id = v_generation;
   end if;
