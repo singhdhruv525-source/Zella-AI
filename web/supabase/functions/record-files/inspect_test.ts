@@ -164,7 +164,8 @@ Deno.test("JPEG filters are refused outside real image streams", async () => {
     assertEquals(await inspect("application/pdf", imagePdf(dict, bytes)), { ok: false, reason: "unsupported PDF stream filter" }, dict);
   }
   // The raw bytes of an image stream are still scanned with the rest of the file.
-  assertEquals((await inspect("application/pdf", imagePdf("/Subtype /Image /Filter /DCTDecode", cat(jpeg, enc("/JavaScript"))))).ok, false);
+  assertEquals(await inspect("application/pdf", imagePdf("/Subtype /Image /Filter /DCTDecode", cat(jpeg, enc("/JavaScript")))),
+    { ok: false, reason: "PDF with active content (JavaScript)" });
 });
 Deno.test("TIFF packed, byte, and 16-bit differences are reversed", async () => {
   // Byte samples with horizontal differences hide the active name.
@@ -210,4 +211,14 @@ Deno.test("each PNG row filter is reversed before scanning", async () => {
     assertEquals(await inspect("application/pdf", await predictedPdf(new Uint8Array(encoded), `/Predictor 15 /Columns ${columns}`)),
       { ok: false, reason: "PDF with active content (in a compressed stream)" });
   }
+});
+Deno.test("a stream marker inside a string or comment cannot hide a later compressed stream", async () => {
+  const z = await deflate("<< /S /J#61vaScript /JS (app.alert(1)) >>");
+  const real = cat(enc(`2 0 obj << /Type /ObjStm /Filter /FlateDecode /Length ${z.length} >>\nstream\n`), z, enc("\nendstream\nendobj\n"));
+  for (const decoy of ["1 0 obj << /Title (decoy stream\n) >> endobj\n", "1 0 obj << >> endobj\n% stream\n", "1 0 obj << /T (unbalanced\n"]) {
+    const file = cat(enc(`%PDF-1.7\n${decoy}`), real, enc("%%EOF"));
+    assertEquals(await inspect("application/pdf", file), { ok: false, reason: "PDF stream marker inside a string or comment" }, decoy);
+  }
+  // Without a decoy the same stream is opened and its active content found.
+  assertEquals(await inspect("application/pdf", cat(enc("%PDF-1.7\n"), real, enc("%%EOF"))), { ok: false, reason: "PDF with active content (in a compressed stream)" });
 });

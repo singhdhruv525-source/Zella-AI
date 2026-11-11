@@ -39,7 +39,10 @@ function predictorDecoder(p: Predictor) {
   return {
     complete: () => offset === 0 && (p.value === 2 || filter === -1),
     decode(chunk: Uint8Array) {
-      const out: number[] = [];
+      // At most the bytes in progress plus this chunk become complete rows (a row also consumes its filter byte).
+      const pending = offset + chunk.length;
+      const out = new Uint8Array(Math.floor(pending / (p.value === 2 ? rowBytes : rowBytes + 1) + 1) * rowBytes);
+      let written = 0;
       for (const byte of chunk) {
         if (filter === -1) { if (byte > 4) throw new Error("Invalid PNG filter"); filter = byte; continue; }
         const left = offset >= pixelBytes ? row[offset - pixelBytes] : 0;
@@ -63,11 +66,11 @@ function predictorDecoder(p: Predictor) {
               else { const shift = 8 - p.bits - bit % 8; row[bit >> 3] = (row[bit >> 3] & ~(mask << shift)) | (value << shift); }
             }
           }
-          for (const decoded of row) out.push(decoded);
+          out.set(row, written); written += rowBytes;
           [previous, row] = [row, previous]; offset = 0; filter = p.value === 2 ? 0 : -1;
         }
       }
-      return new Uint8Array(out);
+      return out.subarray(0, written);
     },
   };
 }
@@ -133,7 +136,10 @@ export async function inspectPdf(b: Uint8Array): Promise<Verdict> {
   while ((m = re.exec(text))) {
     if (++streams > 2000) return { ok: false, reason: "PDF has too many streams to check" };
     // Read from the enclosing object's start, not the last nested dictionary or a fixed window.
-    const prefix = dictionaryTokens(text.slice(previousEnd, m.index));
+    const prefix = dictionaryTokens(text.slice(previousEnd, m.index + "stream".length));
+    // A "stream" inside a string or comment would make this scan skip ahead to a later endstream, past a real stream.
+    // Ignoring it instead would let an unbalanced string hide a real one, so the file is refused either way.
+    if (!prefix.endsWith("stream")) return { ok: false, reason: "PDF stream marker inside a string or comment" };
     const objects = [...prefix.matchAll(/\b\d+\s+\d+\s+obj\b/g)];
     const object = objects[0];
     if (!object) return { ok: false, reason: "damaged PDF stream dictionary" };
