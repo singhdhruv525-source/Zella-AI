@@ -11,6 +11,8 @@
 --   * the 'tables' capability choice, unless the business has made a new choice since;
 --   * appointment table assignments and waitlist details, only where the column is still empty. An assignment the
 --     booking checks now refuse (for example a table taken again since) is left out and reported, never forced.
+-- Only the latest rollback's archive is used: every row one rollback archives shares its transaction's
+-- archived_at, so an older generation can never put back a value that a later rollback no longer had.
 -- The archives themselves stay as they are, so nothing can be lost by running this.
 begin;
 set local lock_timeout = '10s';
@@ -47,12 +49,15 @@ begin
     return;
   end if;
   lock table public.table_data_rolled_back in share mode;
+  create temp table zella_tables_batch on commit drop as
+    select * from public.table_data_rolled_back
+     where archived_at = (select max(archived_at) from public.table_data_rolled_back);
 
   -- 2. needs-clearing states: the newest archived copy of each table that is back
   insert into public.table_states (table_id, business_id, state, appointment_id, since, by_user)
   select s.table_id, s.business_id, s.state, s.appointment_id, s.since, s.by_user
     from (select distinct on (x.table_id) x.*
-            from public.table_data_rolled_back a,
+            from pg_temp.zella_tables_batch a,
                  jsonb_populate_record(null::public.table_states, a.row_data) x
            where a.source_table = 'table_states'
            order by x.table_id, a.archived_at desc) s
@@ -65,7 +70,7 @@ begin
     insert into public.business_capabilities (business_id, capability, enabled, updated_by, updated_at)
     select c.business_id, c.capability, c.enabled, c.updated_by, c.updated_at
       from (select distinct on (x.business_id) x.*
-              from public.table_data_rolled_back a,
+              from pg_temp.zella_tables_batch a,
                    jsonb_populate_record(null::public.business_capabilities, a.row_data) x
              where a.source_table = 'business_capabilities' and x.capability = 'tables'
              order by x.business_id, a.archived_at desc) c
@@ -79,9 +84,9 @@ begin
      set party_size = coalesce(w.party_size, (a.row_data ->> 'party_size')::integer),
          preferences = coalesce(w.preferences, a.row_data ->> 'preferences'),
          contact_ok = coalesce(w.contact_ok, (a.row_data ->> 'contact_ok')::boolean)
-    from (select distinct on (row_data ->> 'id') row_data from public.table_data_rolled_back
+    from (select distinct on (row_data ->> 'id') row_data from pg_temp.zella_tables_batch
            where source_table = 'waitlist_entries' order by row_data ->> 'id', archived_at desc) a
-   where w.id = (a.row_data ->> 'id')::uuid
+   where w.id = (a.row_data ->> 'id')::uuid and w.business_id = (a.row_data ->> 'business_id')::uuid
      and (w.party_size is null or w.preferences is null or w.contact_ok is null);
   get diagnostics v_n = row_count; raise notice 'restored details on % waitlist entries', v_n;
 
@@ -89,17 +94,20 @@ begin
   v_n := 0;
   for r in select distinct on (a.row_data ->> 'id') (a.row_data ->> 'id')::uuid id,
                   array(select jsonb_array_elements_text(a.row_data -> 'table_ids'))::uuid[] table_ids
-             from public.table_data_rolled_back a
+             from pg_temp.zella_tables_batch a
             where a.source_table = 'appointments' and jsonb_typeof(a.row_data -> 'table_ids') = 'array'
             order by a.row_data ->> 'id', a.archived_at desc loop
     begin
       update public.appointments p set table_ids = r.table_ids
        where p.id = r.id and p.table_ids is null
-         and not exists (select 1 from unnest(r.table_ids) u(id) where not exists (select 1 from public.restaurant_tables rt where rt.id = u.id));
+         and not exists (select 1 from unnest(r.table_ids) u(id)
+                          where not exists (select 1 from public.restaurant_tables rt where rt.id = u.id and rt.business_id = p.business_id));
       if found then v_n := v_n + 1; end if;
-    exception when others then
-      v_skipped := v_skipped + 1;
-      raise notice 'appointment % keeps no table assignment: %', r.id, sqlerrm;
+    exception
+      when lock_not_available or query_canceled then raise; -- a lock wait is not a refusal: stop and run it again
+      when others then
+        v_skipped := v_skipped + 1;
+        raise notice 'appointment % keeps no table assignment (%): %', r.id, sqlstate, sqlerrm;
     end;
   end loop;
   raise notice 'restored table assignments on % appointments (% refused by the booking checks)', v_n, v_skipped;

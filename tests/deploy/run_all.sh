@@ -76,6 +76,12 @@ check_approval() {
 }
 
 # 6. roll the whole sequence back, newest first, and compare with the state before
+SEATING="select md5(string_agg(x, '|' order by x)) from (
+  select 'rt:' || to_jsonb(t)::text x from restaurant_tables t union all select 'tc:' || to_jsonb(t)::text from table_combinations t
+  union all select 'tb:' || to_jsonb(t)::text from table_blocks t union all select 'ts:' || to_jsonb(t)::text from table_states t
+  union all select 'ap:' || id || ':' || table_ids::text from appointments where table_ids is not null
+  union all select 'wl:' || id || ':' || concat_ws(',', party_size, preferences, contact_ok) from waitlist_entries where party_size is not null or preferences is not null or contact_ok is not null) s"
+seating_before=$($P -d $DB -c "$SEATING")
 for r in "${ROLLBACK[@]}"; do out=$($P -d $DB -f "$REPO/sql/rollback/$r.sql" 2>&1) || { bad "rollback $r: $(echo "$out" | grep -m1 ERROR)"; break; }; done
 check_approval "after rollback"
 now=$($P -d $DB -c "$STATE")
@@ -89,6 +95,11 @@ fi
 # 7. and the sequence applies again after a rollback
 for m in "${PENDING[@]}"; do out=$($P -d $DB -f "$REPO/sql/$m.sql" 2>&1) || { bad "re-apply $m after rollback: $(echo "$out" | grep -m1 ERROR)"; break; }; done
 check_approval "after reapply"
-out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_restore.sql" 2>&1) && ok "seating data restored after the re-apply (tests/tables/restore_test.sh checks it row for row)" || bad "seating restore: $(echo "$out" | grep -m1 ERROR)"
+if out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_restore.sql" 2>&1); then
+  seating_after=$($P -d $DB -c "$SEATING")
+  [[ "$seating_before" =~ ^[0-9a-f]{32}$ ]] && [ "$seating_after" = "$seating_before" ] \
+    && ok "seating data (tables, combinations, blocks, states, assignments, waitlist details) identical after rollback, re-apply and restore" \
+    || bad "seating data differs after restore ($seating_before vs $seating_after)"
+else bad "seating restore: $(echo "$out" | grep -m1 ERROR)"; fi
 [ "$($P -d $DB -c "$STATE")" = "$after" ] && ok "re-apply after the rollback" || bad "re-apply differs from the first apply"
 echo; [ $fails -eq 0 ] && echo "ALL PASSED" || { echo "$fails FAILED"; exit 1; }

@@ -28,17 +28,28 @@ SNAP="select md5(string_agg(x, '|' order by x)) from (
 COUNTS="select (select count(*) from restaurant_tables) || ' tables, ' || (select count(*) from table_combinations) || ' combinations, ' || (select count(*) from table_blocks) || ' blocks, '
   || (select count(*) from table_events) || ' events, ' || (select count(*) from table_states) || ' states, ' || (select count(*) from appointments where table_ids is not null) || ' assignments, '
   || (select count(*) from waitlist_entries where party_size is not null) || ' waitlist details'"
-before=$($P -d $DB -c "$SNAP"); counts=$($P -d $DB -c "$COUNTS")
+hash() { [[ "$1" =~ ^[0-9a-f]{32}$ ]]; }
+before=$($P -d $DB -c "$SNAP" 2>&1); counts=$($P -d $DB -c "$COUNTS")
+hash "$before" || { echo "FAIL snapshot before the rollback is not a hash: $before"; exit 1; }
 echo "$counts" | grep -qE '^[1-9][0-9]* tables, [1-9][0-9]* combinations, [1-9][0-9]* blocks, [1-9][0-9]* events, [1-9][0-9]* states, [1-9][0-9]* assignments, [1-9][0-9]* waitlist' \
   && ok "fixture covers every kind of seating data ($counts)" || bad "fixture is missing a kind of seating data ($counts)"
 out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_rollback.sql" 2>&1) && ok "rollback" || bad "rollback: $(echo "$out" | grep -m1 ERROR)"
 out=$($P -d $DB -f "$REPO/sql/zella_tables.sql" 2>&1) && ok "re-apply sql/zella_tables.sql" || bad "re-apply: $(echo "$out" | grep -m1 ERROR)"
 [ "$($P -d $DB -c "select count(*) from restaurant_tables")" = 0 ] && ok "control: after the re-apply alone the seating data is not back" || bad "control: re-apply already restored data"
+# an older rollback's archive row for an entry the latest rollback had no details for must not come back
+STALE=$($P -d $DB -c "set session_replication_role = replica;
+  insert into waitlist_entries select (jsonb_populate_record(null::waitlist_entries, to_jsonb(w) || jsonb_build_object('id', gen_random_uuid()))).* from waitlist_entries w limit 1 returning id" | head -1)
+$P -d $DB -c "insert into table_data_rolled_back (source_table, business_id, row_data, archived_at)
+  select 'waitlist_entries', business_id, to_jsonb(w) || '{\"party_size\": 9, \"preferences\": \"stale\"}', now() - interval '1 day' from waitlist_entries w where id = '$STALE'" > /dev/null \
+  || bad "stale archive fixture"
 for i in 1 2; do
   out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_restore.sql" 2>&1) || { bad "restore run $i: $(echo "$out" | grep -m1 ERROR)"; continue; }
-  [ "$($P -d $DB -c "$SNAP")" = "$before" ] && ok "restore run $i: tables, combinations, blocks, events, states, capability, assignments and waitlist details identical to before the rollback" \
+  now=$($P -d $DB -c "$SNAP" 2>&1); hash "$now" || { bad "restore run $i: snapshot is not a hash: $now"; continue; }
+  [ "$now" = "$before" ] && ok "restore run $i: tables, combinations, blocks, events, states, capability, assignments and waitlist details identical to before the rollback" \
     || bad "restore run $i: data differs ($($P -d $DB -c "$COUNTS") vs $counts)"
 done
+[ "$($P -d $DB -c "select party_size is null and preferences is null from waitlist_entries where id = '$STALE'")" = t ] \
+  && ok "an older rollback's archive is never restored (only the latest rollback's rows are used)" || bad "a stale archive row was restored"
 r=$($P -d $DB -c "begin;
   select set_config('request.jwt.claims', '{\"sub\":\"5f300000-0000-0000-0000-0000000000c1\",\"role\":\"authenticated\",\"aal\":\"aal1\"}', true) is not null;
   set local role authenticated;
