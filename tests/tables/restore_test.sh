@@ -70,6 +70,45 @@ r=$($P -d $DB -c "begin;
   set local role authenticated;
   select jsonb_array_length(public.zella_table_board('5f000000-0000-0000-0000-0000000000c1', now()) -> 'tables') > 0; rollback;" 2>&1 | tail -1)
 [ "$r" = t ] && ok "the seating board works on the restored tables" || bad "seating board after restore: $r"
+# Partial restores commit progress while refused and unmatched assignments remain pending.
+out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_rollback.sql" 2>&1) || { bad "retry fixture rollback: $out"; exit 1; }
+out=$($P -d $DB -f "$REPO/sql/zella_tables.sql" 2>&1) || { bad "retry fixture reapply: $out"; exit 1; }
+MISSING=$($P -d $DB -c "select row_data ->> 'id' from table_data_rolled_back where source_table = 'appointments' and generation_id = (select max(id) from table_data_rolled_back where source_table = 'rollback_generation') order by id limit 1")
+REFUSED=$($P -d $DB -c "select row_data ->> 'id' from table_data_rolled_back where source_table = 'appointments' and generation_id = (select max(id) from table_data_rolled_back where source_table = 'rollback_generation') order by id offset 1 limit 1")
+$P -d $DB <<SQL >/dev/null || { bad "partial restore fixture"; exit 1; }
+update table_data_rolled_back set row_data = jsonb_set(row_data, '{table_ids}', jsonb_build_array(gen_random_uuid()))
+ where source_table = 'appointments' and row_data ->> 'id' = '$MISSING';
+insert into table_data_rolled_back (source_table, business_id, row_data, generation_id)
+ select source_table, business_id, jsonb_set(row_data, '{id}', to_jsonb(gen_random_uuid())), generation_id
+ from table_data_rolled_back where source_table = 'appointments' and row_data ->> 'id' = '$MISSING'
+ and generation_id = (select max(id) from table_data_rolled_back where source_table = 'rollback_generation');
+create function public.test_restore_refusal() returns trigger language plpgsql as \$\$
+begin if new.id = '$REFUSED' then raise exception 'TEST_BOOKING_REFUSAL'; end if; return new; end \$\$;
+create trigger test_restore_refusal before update on appointments for each row execute function public.test_restore_refusal();
+SQL
+out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_restore.sql" 2>&1) || { bad "partial restore: $out"; exit 1; }
+[[ "$out" == *"unresolved archived table IDs"* && "$out" == *"TEST_BOOKING_REFUSAL"* ]] && ok "unmatched IDs and booking refusals are reported separately" || bad "missing refusal diagnostics: $out"
+[ "$($P -d $DB -c "select count(*) = 2 from table_data_rolled_back where source_table = 'appointments' and not restore_completed")" = t ] \
+  && ok "only unmatched and refused assignments remain unresolved" || bad "partial restore progress"
+$P -d $DB -c "drop trigger test_restore_refusal on appointments; drop function public.test_restore_refusal();
+ set session_replication_role = replica;
+ delete from table_events; delete from table_states; delete from business_capabilities where capability = 'tables';
+ update waitlist_entries set party_size = null, preferences = null, contact_ok = null;
+ update appointments set table_ids = null where id not in ('$MISSING', '$REFUSED');" >/dev/null || { bad "post-restore edits"; exit 1; }
+out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_restore.sql" 2>&1) || { bad "partial retry: $out"; exit 1; }
+[ "$($P -d $DB -c "select not exists (select 1 from table_events) and not exists (select 1 from table_states)
+ and not exists (select 1 from business_capabilities where capability = 'tables')
+ and not exists (select 1 from waitlist_entries where party_size is not null or preferences is not null or contact_ok is not null)
+ and not exists (select 1 from appointments where id not in ('$MISSING', '$REFUSED') and table_ids is not null)
+ and exists (select 1 from appointments where id = '$REFUSED' and table_ids is not null)
+ and not exists (select 1 from table_data_rolled_back where source_table = 'rollback_generation' and id = (select max(id) from table_data_rolled_back where source_table = 'rollback_generation') and row_data ->> 'restored' = 'true')")" = t ] \
+ && ok "retry restores refused assignment without replaying committed data; unmatched ID keeps generation pending" || bad "retry replayed data or completed prematurely"
+# A user replacement resolves an unmatched assignment without overwriting their choice.
+$P -d $DB -c "set session_replication_role = replica; update appointments set table_ids = '{}' where id = '$MISSING';" >/dev/null || exit 1
+out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_restore.sql" 2>&1) || { bad "resolve missing assignment: $out"; exit 1; }
+[ "$($P -d $DB -c "select row_data ->> 'restored' = 'true' from table_data_rolled_back where source_table = 'rollback_generation' order by id desc limit 1")" = t ] \
+ && ok "user replacement resolves unmatched assignment and completes generation" || bad "resolved generation remains pending"
+
 # A second, empty archive generation must not recover details from the populated first one.
 out=$($P -d $DB -c "set session_replication_role = replica;
   delete from table_states;
