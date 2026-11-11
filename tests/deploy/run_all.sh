@@ -79,8 +79,20 @@ check_approval() {
 SEATING="select md5(string_agg(x, '|' order by x)) from (
   select 'rt:' || to_jsonb(t)::text x from restaurant_tables t union all select 'tc:' || to_jsonb(t)::text from table_combinations t
   union all select 'tb:' || to_jsonb(t)::text from table_blocks t union all select 'ts:' || to_jsonb(t)::text from table_states t
+  union all select 'te:' || to_jsonb(t)::text from table_events t
+  union all select 'cap:' || to_jsonb(c)::text from business_capabilities c where capability = 'tables'
   union all select 'ap:' || id || ':' || table_ids::text from appointments where table_ids is not null
   union all select 'wl:' || id || ':' || concat_ws(',', party_size, preferences, contact_ok) from waitlist_entries where party_size is not null or preferences is not null or contact_ok is not null) s"
+out=$($P -d $DB -c "set session_replication_role = replica;
+  insert into table_states (table_id, business_id, state, since) select id, business_id, 'needs_clearing', '2026-11-05 20:00+00' from restaurant_tables
+   where business_id = '5f000000-0000-0000-0000-0000000000c1' order by name limit 1
+   on conflict (table_id) do update set state = 'needs_clearing', since = excluded.since;
+  insert into business_capabilities (business_id, capability, enabled, updated_at) values ('5f000000-0000-0000-0000-0000000000c1', 'tables', true, '2026-11-05 12:00+00')
+   on conflict (business_id, capability) do update set enabled = true;
+  do \$\$ begin
+    assert exists (select 1 from table_states where business_id = '5f000000-0000-0000-0000-0000000000c1' and state = 'needs_clearing' and since = timestamptz '2026-11-05 20:00+00');
+    assert exists (select 1 from business_capabilities where business_id = '5f000000-0000-0000-0000-0000000000c1' and capability = 'tables' and enabled);
+  end \$\$;" 2>&1) || { bad "seed seating snapshot: $out"; exit 1; }
 seating_before=$($P -d $DB -c "$SEATING")
 for r in "${ROLLBACK[@]}"; do out=$($P -d $DB -f "$REPO/sql/rollback/$r.sql" 2>&1) || { bad "rollback $r: $(echo "$out" | grep -m1 ERROR)"; break; }; done
 check_approval "after rollback"
@@ -98,7 +110,7 @@ check_approval "after reapply"
 if out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_restore.sql" 2>&1); then
   seating_after=$($P -d $DB -c "$SEATING")
   [[ "$seating_before" =~ ^[0-9a-f]{32}$ ]] && [ "$seating_after" = "$seating_before" ] \
-    && ok "seating data (tables, combinations, blocks, states, assignments, waitlist details) identical after rollback, re-apply and restore" \
+    && ok "seating data (tables, combinations, blocks, events, states, capability, assignments, waitlist details) identical after rollback, re-apply and restore" \
     || bad "seating data differs after restore ($seating_before vs $seating_after)"
 else bad "seating restore: $(echo "$out" | grep -m1 ERROR)"; fi
 [ "$($P -d $DB -c "$STATE")" = "$after" ] && ok "re-apply after the rollback" || bad "re-apply differs from the first apply"

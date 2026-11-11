@@ -11,8 +11,8 @@
 --   * the 'tables' capability choice, unless the business has made a new choice since;
 --   * appointment table assignments and waitlist details, only where the column is still empty. An assignment the
 --     booking checks now refuse (for example a table taken again since) is left out and reported, never forced.
--- Only the latest rollback's archive is used: every row one rollback archives shares its transaction's
--- archived_at, so an older generation can never put back a value that a later rollback no longer had.
+-- Only the latest rollback's explicit generation is used, including when it archived no data rows,
+-- so an older generation can never put back a value that a later rollback no longer had.
 -- The archives themselves stay as they are, so nothing can be lost by running this.
 begin;
 set local lock_timeout = '10s';
@@ -51,7 +51,8 @@ begin
   lock table public.table_data_rolled_back in share mode;
   create temp table zella_tables_batch on commit drop as
     select * from public.table_data_rolled_back
-     where archived_at = (select max(archived_at) from public.table_data_rolled_back);
+     where generation_id = (select max(id) from public.table_data_rolled_back
+                             where source_table = 'rollback_generation');
 
   -- 2. needs-clearing states: the newest archived copy of each table that is back
   insert into public.table_states (table_id, business_id, state, appointment_id, since, by_user)

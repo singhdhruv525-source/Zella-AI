@@ -55,6 +55,33 @@ r=$($P -d $DB -c "begin;
   set local role authenticated;
   select jsonb_array_length(public.zella_table_board('5f000000-0000-0000-0000-0000000000c1', now()) -> 'tables') > 0; rollback;" 2>&1 | tail -1)
 [ "$r" = t ] && ok "the seating board works on the restored tables" || bad "seating board after restore: $r"
+# A second, empty archive generation must not recover details from the populated first one.
+out=$($P -d $DB -c "set session_replication_role = replica;
+  delete from table_states;
+  delete from business_capabilities where capability = 'tables';
+  update appointments set table_ids = null;
+  update waitlist_entries set party_size = null, preferences = null, contact_ok = null;" 2>&1) \
+  || { bad "empty generation fixture: $out"; exit 1; }
+previous_generation=$($P -d $DB -c "select max(id) from table_data_rolled_back where source_table = 'rollback_generation'")
+# Archive timestamps do not determine the current generation (even with clock skew).
+$P -d $DB -c "update table_data_rolled_back set archived_at = now() + interval '1 day' where generation_id = $previous_generation" > /dev/null \
+  || { bad "older generation timestamp fixture"; exit 1; }
+out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_rollback.sql" 2>&1) || { bad "empty generation rollback: $out"; exit 1; }
+[ "$($P -d $DB -c "select max(id) > $previous_generation and not exists (
+  select 1 from table_data_rolled_back where generation_id = (select max(id) from table_data_rolled_back where source_table = 'rollback_generation'))
+  from table_data_rolled_back where source_table = 'rollback_generation'")" = t ] \
+  && ok "an empty rollback records a distinct generation without archived data rows" || bad "empty rollback generation marker"
+out=$($P -d $DB -f "$REPO/sql/zella_tables.sql" 2>&1) || { bad "empty generation re-apply: $out"; exit 1; }
+for i in 1 2; do
+  out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_restore.sql" 2>&1) || { bad "empty generation restore $i: $out"; continue; }
+  [ "$($P -d $DB -c "select not exists (select 1 from table_states)
+    and not exists (select 1 from business_capabilities where capability = 'tables')
+    and not exists (select 1 from appointments where table_ids is not null)
+    and not exists (select 1 from waitlist_entries where party_size is not null or preferences is not null or contact_ok is not null)
+    and exists (select 1 from table_data_rolled_back where generation_id = $previous_generation)")" = t ] \
+    && ok "empty generation restore $i leaves old states, capability, assignments and waitlist details archived" \
+    || bad "empty generation restore $i recovered older values"
+done
 out=$($P -d $DB -c "drop table public.restaurant_tables cascade" 2>&1); out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_restore.sql" 2>&1) \
   && bad "restore ran without the re-apply" || { echo "$out" | grep -q TABLES_NOT_APPLIED && ok "restore refuses to run before sql/zella_tables.sql is re-applied" || bad "restore without re-apply: $(echo "$out" | grep -m1 ERROR)"; }
 echo; [ $fails -eq 0 ] && echo "ALL PASSED" || { echo "$fails FAILED"; exit 1; }

@@ -143,15 +143,20 @@ end $$;
 update public.industry_configurations set features = jsonb_set(features, '{capabilities,on}', (features #> '{capabilities,on}') - 'tables') where features #> '{capabilities,on}' ? 'tables';
 update public.industry_configurations set features = jsonb_set(features, '{capabilities,optional}', (features #> '{capabilities,optional}') - 'tables') where features #> '{capabilities,optional}' ? 'tables';
 do $$
-declare t text;
+declare t text; v_generation bigint;
 begin
   create table if not exists public.table_data_rolled_back (source_table text not null, business_id uuid, row_data jsonb not null, archived_at timestamptz not null default now());
+  alter table public.table_data_rolled_back add column if not exists id bigint generated always as identity;
+  alter table public.table_data_rolled_back add column if not exists generation_id bigint;
+  lock table public.table_data_rolled_back in share row exclusive mode;
   alter table public.table_data_rolled_back enable row level security;
   revoke all on public.table_data_rolled_back from public, anon, authenticated;
+  -- Record a generation even when every archive query is empty.
+  insert into public.table_data_rolled_back (source_table, row_data) values ('rollback_generation', '{}') returning id into v_generation;
   foreach t in array array['business_capabilities', 'appointments', 'waitlist_entries', 'table_states'] loop
     continue when to_regclass('public.' || t) is null;
     execute format('lock table public.%I in share row exclusive mode', t);
-    execute format('insert into public.table_data_rolled_back (source_table, business_id, row_data) select %L, business_id, to_jsonb(r) from public.%I r where %s', t, t,
+    execute format('insert into public.table_data_rolled_back (source_table, business_id, row_data, generation_id) select %L, business_id, to_jsonb(r), %L from public.%I r where %s', t, v_generation, t,
       case t when 'business_capabilities' then 'capability = ''tables'''
       when 'appointments' then 'to_jsonb(r) ->> ''table_ids'' is not null'
       when 'waitlist_entries' then '(to_jsonb(r) ->> ''party_size'' is not null or to_jsonb(r) ->> ''preferences'' is not null or to_jsonb(r) ->> ''contact_ok'' is not null)'
