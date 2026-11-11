@@ -34,6 +34,11 @@ hash "$before" || { echo "FAIL snapshot before the rollback is not a hash: $befo
 echo "$counts" | grep -qE '^[1-9][0-9]* tables, [1-9][0-9]* combinations, [1-9][0-9]* blocks, [1-9][0-9]* events, [1-9][0-9]* states, [1-9][0-9]* assignments, [1-9][0-9]* waitlist' \
   && ok "fixture covers every kind of seating data ($counts)" || bad "fixture is missing a kind of seating data ($counts)"
 out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_rollback.sql" 2>&1) && ok "rollback" || bad "rollback: $(echo "$out" | grep -m1 ERROR)"
+# A retry must preserve the generation and all archived data before reapplication.
+archive_snapshot() { $P -d $DB -c "select md5(string_agg(to_jsonb(a)::text, '|' order by id)) from table_data_rolled_back a"; }
+archive_before=$(archive_snapshot)
+out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_rollback.sql" 2>&1) || { bad "populated rollback retry: $out"; exit 1; }
+[ "$(archive_snapshot)" = "$archive_before" ] && ok "populated rollback retry preserves the archive and generation" || bad "populated rollback retry changed the archive"
 out=$($P -d $DB -f "$REPO/sql/zella_tables.sql" 2>&1) && ok "re-apply sql/zella_tables.sql" || bad "re-apply: $(echo "$out" | grep -m1 ERROR)"
 [ "$($P -d $DB -c "select count(*) from restaurant_tables")" = 0 ] && ok "control: after the re-apply alone the seating data is not back" || bad "control: re-apply already restored data"
 # an older rollback's archive row for an entry the latest rollback had no details for must not come back
@@ -71,6 +76,9 @@ out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_rollback.sql" 2>&1) || { bad
   select 1 from table_data_rolled_back where generation_id = (select max(id) from table_data_rolled_back where source_table = 'rollback_generation'))
   from table_data_rolled_back where source_table = 'rollback_generation'")" = t ] \
   && ok "an empty rollback records a distinct generation without archived data rows" || bad "empty rollback generation marker"
+archive_before=$(archive_snapshot)
+out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_rollback.sql" 2>&1) || { bad "empty rollback retry: $out"; exit 1; }
+[ "$(archive_snapshot)" = "$archive_before" ] && ok "empty rollback retry preserves the archive and generation" || bad "empty rollback retry changed the archive"
 out=$($P -d $DB -f "$REPO/sql/zella_tables.sql" 2>&1) || { bad "empty generation re-apply: $out"; exit 1; }
 for i in 1 2; do
   out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_restore.sql" 2>&1) || { bad "empty generation restore $i: $out"; continue; }
