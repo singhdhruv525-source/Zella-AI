@@ -64,8 +64,13 @@ end $$;
 do $$ declare r jsonb; begin
   r := public.zella_ai_booking(null, '5f000000-0000-0000-0000-00000000000a', 'availability', jsonb_build_object('date', pg_temp.day(), 'days', 1, 'party_size', 8));
   assert r ->> 'status' = 'large_party', 'large party: ' || r::text;
-  r := pg_temp.book(8, '17:00', 'Big');
+  r := public.zella_ai_tool(null, '5f000000-0000-0000-0000-00000000000a', 'book_appointment',
+    jsonb_build_object('start', pg_temp.at('17:00'), 'party_size', 8, 'seating', 'accessible',
+      'notes', 'Birthday celebration', 'first_name', 'Big', 'phone', '+12125550188', 'confirmed', true), null);
   assert r ->> 'status' = 'requested' and (select booking_state from appointments where id = (r ->> 'appointment_id')::uuid) = 'requested', 'party of 8 booked: ' || r::text;
+  assert (select metadata ->> 'seating' = 'accessible' and party_size = 8
+      and description like '%Birthday celebration%' and coalesce(cardinality(table_ids), 0) = 0
+    from appointments where id = (r ->> 'appointment_id')::uuid), 'handoff lost seating, party, notes or assigned tables';
   r := pg_temp.book(6, '17:00', 'Six');
   assert r ->> 'status' = 'booked' and (select t.name from appointments a join restaurant_tables t on t.id = any (a.table_ids) where a.id = (r ->> 'appointment_id')::uuid) = 'Booth', 'party of 6: ' || r::text;
   raise notice 'PASS a party of 8 (over the AI limit of 6) is passed to the team as a request; a party of 6 is seated in the booth';

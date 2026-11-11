@@ -227,6 +227,10 @@ function AdminApp() {
     try {
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
+      // The save is complete even if the access check fails. Retry through sign-in.
+      setMode("signin");
+      setPassword("");
+      setConfirmPassword("");
       const access = await hasAdminAccess();
       if (access === "unavailable") throw new Error("Admin access could not be checked. Please try again.");
       if (!access) {
