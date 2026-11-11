@@ -188,3 +188,9 @@ Deno.test("unknown reservation state fails closed before Shopify", async () => {
     assertEquals(n.s.called, false);
   }
 });
+
+Deno.test("admission receives the trusted provider caller fallback", async () => {
+  const d = db();
+  await lookupOrder(d.rpc, "b1", "call-early", { order_number: "1001", caller_number: "+15125550199" }, found());
+  assertEquals(d.calls[0].args.p_caller_number, "+15125550199");
+});

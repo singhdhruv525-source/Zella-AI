@@ -34,7 +34,7 @@ begin
   assert zella_store_lookup_begin('v2call-4', b, 'ref-next')->>'status' = 'limited', 'stale retry released newer reservation';
   assert zella_store_lookup_begin(null, b, 'ref')->>'status' = 'limited', 'missing identity admitted';
   assert not has_table_privilege('authenticated', 'store_lookup_guards', 'select'), 'guard exposed';
-  assert not has_function_privilege('authenticated', 'zella_store_lookup_begin(text,uuid,text)', 'execute'), 'RPC exposed';
+  assert not has_function_privilege('authenticated', 'zella_store_lookup_begin(text,uuid,text,text)', 'execute'), 'RPC exposed';
   raise notice 'PASS three guesses, pending refusal, idempotence and permissions';
 end $$;
 
@@ -78,3 +78,63 @@ begin
   assert (c->>'failed_this_order_day')::int = 1, 'success did not release pending capacity';
   raise notice 'PASS legacy pending capacity and completion transitions';
 end $$;
+
+-- Provider fallback must consume the same number bucket before calls are persisted.
+begin;
+delete from store_lookup_guards;
+delete from ai_tool_calls;
+do $$
+declare b uuid := 'e9000000-0000-0000-0000-000000000002'; c jsonb; first_token uuid;
+begin
+  for i in 1..6 loop
+    c := zella_store_lookup_begin('early-' || i, b, 'early-ref-' || i, '+15125559999');
+    assert c->>'ok' = 'true', 'fallback number refused within capacity';
+    assert c->>'caller_number' = '+15125559999', 'fallback identity lost';
+    if i = 1 then first_token := (c->>'reservation_id')::uuid; end if;
+  end loop;
+  assert zella_store_lookup_begin('early-7', b, 'early-ref-7', '+15125559999')->>'status' = 'limited',
+    'pending fallback number limit bypassed';
+  perform zella_store_lookup_finish(b, 'early-1', null, 'not_found', false, 'early-ref-1', first_token);
+  assert zella_store_lookup_begin('early-7', b, 'early-ref-7', '+15125559999')->>'status' = 'limited',
+    'completed fallback failure lost number capacity';
+  delete from store_lookup_guards where reservation_id is not null;
+  c := zella_store_lookup_begin('early-8', b, 'early-ref-8', '+15125559999');
+  assert (c->>'failed_this_number_day')::int = 1, 'completed fallback failure not counted';
+  c := zella_store_lookup_begin('v2call-8', b, 'persisted-ref', '+15125559999');
+  assert c->>'caller_number' = '+15125550008', 'fallback overrode persisted identity';
+  assert (c->>'failed_this_number_day')::int = 0, 'unrelated number charged';
+  raise notice 'PASS fallback identity, pending and completed number limits, persisted identity precedence';
+end $$;
+rollback;
+
+begin;
+insert into businesses (id, name, industry_id, timezone, is_active, onboarding_status)
+select 'e9000000-0000-0000-0000-000000000003', 'Other Shop', i.id, 'UTC', true, 'active' from industries i where i.slug = 'ecommerce';
+insert into integrations (id, business_id, provider, integration_type, status, external_account_id, configuration)
+values ('e9100000-0000-0000-0000-000000000003', 'e9000000-0000-0000-0000-000000000003', 'shopify', 'store', 'active', 'other.myshopify.com', '{}');
+do $$
+declare b uuid := 'e9000000-0000-0000-0000-000000000002'; c jsonb; before_count bigint;
+begin
+  c := zella_store_lookup_begin('v2call-9', b, 'integration-ref');
+  assert c->>'ok' = 'true', 'integration test reservation refused';
+  select count(*) into before_count from ai_tool_calls;
+  begin
+    perform zella_store_lookup_finish(b, 'v2call-9', 'e9100000-0000-0000-0000-000000000003',
+      'store_unauthorized', false, 'integration-ref', (c->>'reservation_id')::uuid);
+    raise exception 'expected integration rejection';
+  exception when raise_exception then
+    if sqlerrm <> 'INTEGRATION_BUSINESS_MISMATCH' then raise; end if;
+  end;
+  assert (select count(*) from ai_tool_calls) = before_count, 'mismatch recorded outcome';
+  assert (select status = 'active' and error_count = 0 from integrations where id = 'e9100000-0000-0000-0000-000000000003'),
+    'mismatch changed foreign integration';
+  assert (select reservation_id = (c->>'reservation_id')::uuid from store_lookup_guards where business_id = b and provider_call_id = 'v2call-9'),
+    'mismatch released reservation';
+  perform zella_store_lookup_finish(b, 'v2call-9', 'e9100000-0000-0000-0000-000000000002',
+    'store_error', false, 'integration-ref', (c->>'reservation_id')::uuid);
+  assert (select count(*) from ai_tool_calls) = before_count + 1, 'matching integration did not log';
+  assert (select error_count = 1 from integrations where id = 'e9100000-0000-0000-0000-000000000002'),
+    'matching integration did not update health';
+  raise notice 'PASS integration ownership rejection and matching logging path';
+end $$;
+rollback;

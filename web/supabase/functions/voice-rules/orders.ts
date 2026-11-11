@@ -90,7 +90,7 @@ export async function lookupOrder(rpc: Rpc, businessId: string | null, providerC
   const orderNumber = typeof args.order_number === "string" ? args.order_number : "";
   if (!orderNumber) return { ok: false, status: "need_info", say: "Ask for the order number." };
   const ref = await orderRef(businessId ?? "", orderNumber);
-  const ctx = await rpc("zella_store_lookup_begin", { p_provider_call_id: providerCallId, p_business_id: businessId, p_order_ref: ref }).catch((error) => ({ data: null, error }));
+  const ctx = await rpc("zella_store_lookup_begin", { p_provider_call_id: providerCallId, p_business_id: businessId, p_order_ref: ref, p_caller_number: typeof args.caller_number === "string" ? args.caller_number : null }).catch((error) => ({ data: null, error }));
   const c = (ctx.data ?? {}) as Json;
   if (ctx.error || c.status === "limited") return LIMITED;
   if (c.ok !== true) {

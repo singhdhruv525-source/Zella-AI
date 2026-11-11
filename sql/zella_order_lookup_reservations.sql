@@ -14,9 +14,12 @@ alter table public.store_lookup_guards add column if not exists lookup_ref text;
 alter table public.store_lookup_guards enable row level security;
 revoke all on public.store_lookup_guards from public, anon, authenticated, service_role;
 
-create or replace function public.zella_store_lookup_begin(p_provider_call_id text, p_business_id uuid, p_order_ref text)
+-- Replace the old signature so three-argument callers use the default fallback too.
+drop function if exists public.zella_store_lookup_begin(text, uuid, text);
+create or replace function public.zella_store_lookup_begin(p_provider_call_id text, p_business_id uuid, p_order_ref text,
+  p_caller_number text default null)
 returns jsonb language plpgsql security definer set search_path = public as $$
-declare c jsonb; pending uuid; token uuid; pending_number bigint; pending_order bigint; pending_business bigint;
+declare c jsonb; pending uuid; token uuid; pending_number bigint; pending_order bigint; pending_business bigint; v_caller text;
 begin
   if p_business_id is null or nullif(trim(p_provider_call_id), '') is null or length(p_provider_call_id) > 200 then
     return jsonb_build_object('ok', false, 'status', 'limited');
@@ -33,6 +36,15 @@ begin
   if pending is not null then return jsonb_build_object('ok', false, 'status', 'limited'); end if;
   c := public.zella_store_lookup_context(p_provider_call_id, p_business_id, p_order_ref);
   if (c->>'ok')::boolean is distinct from true then return c; end if;
+  -- The service supplies only the signed provider number; persisted call identity wins.
+  v_caller := coalesce(c->>'caller_number', nullif(left(p_caller_number, 30), ''));
+  c := c || jsonb_build_object('caller_number', v_caller,
+    'failed_this_number_day', (select count(*) from public.ai_tool_calls t
+      left join public.calls k on k.business_id = t.business_id and k.external_call_id = t.provider_call_id
+      left join public.store_lookup_guards g on g.business_id = t.business_id and g.provider_call_id = t.provider_call_id
+      where t.business_id = p_business_id and t.tool = 'lookup_order'
+        and t.created_at > now() - interval '1 day' and t.result_status in ('unverified', 'not_found')
+        and coalesce(k.from_number, g.caller_number) = v_caller));
   select count(*) filter (where g.caller_number is null or g.caller_number = c->>'caller_number'),
          count(*) filter (where g.lookup_ref is null or g.lookup_ref = left(p_order_ref, 64)), count(*)
     into pending_number, pending_order, pending_business
@@ -66,12 +78,16 @@ begin
     where business_id = p_business_id and provider_call_id = p_provider_call_id for update;
   -- Idempotent retry after a committed write whose response was lost; never release a newer reservation.
   if pending is null or pending is distinct from p_reservation_id then return; end if;
+  if p_integration_id is not null then
+    perform 1 from public.integrations where id = p_integration_id and business_id = p_business_id for share;
+    if not found then raise exception 'INTEGRATION_BUSINESS_MISMATCH'; end if;
+  end if;
   perform public.zella_store_lookup_log(p_business_id, p_provider_call_id, p_integration_id, p_result, p_verified, p_order_ref);
   update public.store_lookup_guards set reservation_id = null
     where business_id = p_business_id and provider_call_id = p_provider_call_id;
 end $$;
-revoke all on function public.zella_store_lookup_begin(text, uuid, text),
+revoke all on function public.zella_store_lookup_begin(text, uuid, text, text),
   public.zella_store_lookup_finish(uuid, text, uuid, text, boolean, text, uuid) from public, anon, authenticated;
-grant execute on function public.zella_store_lookup_begin(text, uuid, text),
+grant execute on function public.zella_store_lookup_begin(text, uuid, text, text),
   public.zella_store_lookup_finish(uuid, text, uuid, text, boolean, text, uuid) to service_role;
 commit;
