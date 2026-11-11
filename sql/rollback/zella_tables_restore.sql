@@ -56,7 +56,7 @@ begin
       execute format('insert into public.%I (%s) %s select %s from public.%I a where not ($1 ? a.id::text) %s on conflict do nothing',
                      t, v_cols, case when t = 'table_events' then 'overriding system value' else '' end, v_cols, t || '_rolled_back',
                      case when t = 'table_blocks' then
-                       'and exists (select 1 from public.restaurant_tables rt where rt.id = a.table_id)'
+                       'and exists (select 1 from public.restaurant_tables rt where rt.id = a.table_id and rt.business_id = a.business_id)'
                        else '' end)
         using coalesce(v_completed -> t, '[]'::jsonb);
       get diagnostics v_n = row_count; v_total := v_total + v_n;
@@ -169,7 +169,9 @@ begin
   -- Other categories committed in this transaction must never be replayed on assignment retries.
   update public.table_data_rolled_back set restore_completed = true
    where generation_id = v_generation and source_table <> 'appointments'
-     and (source_table <> 'table_states' or exists (
+     and (source_table <> 'table_states' or not exists (
+       select 1 from public.businesses b where b.id = (row_data ->> 'business_id')::uuid)
+       or exists (
        select 1 from public.restaurant_tables rt
        join public.table_states s on s.table_id = rt.id and s.business_id = rt.business_id
         where rt.id = (row_data ->> 'table_id')::uuid

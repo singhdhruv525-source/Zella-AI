@@ -169,7 +169,26 @@ out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_restore.sql" 2>&1) || { bad 
  where a.source_table = 'table_states' and a.row_data ->> 'table_id' = '$CONFLICTED'
  and g.id = (select max(id) from table_data_rolled_back where source_table = 'rollback_generation')")" = t ] \
  && ok "missing original parent leaves archived block and state pending despite same-name replacement" || bad "deferred block or state lost"
+# The original ID under a different business must not resolve the archived block or state.
+$P -d $DB -c "insert into businesses (id, name, industry_id, timezone, is_active, onboarding_status)
+ select '5f000000-0000-0000-0000-0000000000c3', 'Other Grill', industry_id, timezone, true, 'active'
+ from businesses where id = '5f000000-0000-0000-0000-0000000000c1';
+ insert into restaurant_tables (id, business_id, name, max_party)
+ values ('$CONFLICTED', '5f000000-0000-0000-0000-0000000000c3', 'Foreign parent', 100);" >/dev/null || exit 1
+out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_restore.sql" 2>&1) || { bad "mismatched parent restore: $out"; exit 1; }
+[ "$($P -d $DB -c "select not a.restore_completed
+ and not exists (select 1 from table_blocks where table_id = '$CONFLICTED')
+ and not exists (select 1 from table_blocks_rolled_back b where b.table_id = '$CONFLICTED'
+   and (g.row_data -> 'seating_completed' -> 'table_blocks') ? b.id::text)
+ from table_data_rolled_back a join table_data_rolled_back g on g.id = a.generation_id
+ where a.source_table = 'table_states' and a.row_data ->> 'table_id' = '$CONFLICTED'
+ and g.id = (select max(id) from table_data_rolled_back where source_table = 'rollback_generation')")" = t ] \
+ && ok "different-business parent leaves archived block and state pending" || bad "mismatched parent resolved archived data"
 # An assignment that references the skipped ID must stay pending until that ID is restored.
+# Isolate the assignment from other fixture bookings that can overlap the randomly selected appointment.
+$P -d $DB -c "set session_replication_role = replica;
+ update appointments set start_time = '2098-01-01 10:00Z', end_time = '2098-01-01 11:00Z', table_ids = null
+ where id = '$MISSING';" >/dev/null || exit 1
 $P -d $DB -c "insert into table_data_rolled_back (source_table, business_id, row_data, generation_id)
  select 'appointments', business_id, to_jsonb(a) || jsonb_build_object('table_ids', jsonb_build_array('$CONFLICTED')),
  (select max(id) from table_data_rolled_back where source_table = 'rollback_generation')
@@ -179,7 +198,10 @@ out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_restore.sql" 2>&1) || { bad 
  from table_data_rolled_back where source_table = 'appointments' and generation_id =
  (select max(id) from table_data_rolled_back where source_table = 'rollback_generation')")" = t ] \
  && ok "assignment referencing skipped table remains pending" || bad "conflicted assignment lost"
-$P -d $DB -c "delete from restaurant_tables where id = '$COLLISION'; delete from table_events;" >/dev/null || exit 1
+$P -d $DB -c "delete from restaurant_tables where id = '$COLLISION';
+ update restaurant_tables rt set business_id = a.business_id, name = a.name
+ from restaurant_tables_rolled_back a where rt.id = '$CONFLICTED' and a.id = rt.id;
+ delete from table_events;" >/dev/null || exit 1
 out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_restore.sql" 2>&1) || { bad "conflict retry: $out"; exit 1; }
 [ "$($P -d $DB -c "select row_data ->> 'restored' = 'true'
  and exists (select 1 from restaurant_tables where id = '$CONFLICTED') and not exists (select 1 from table_events)
@@ -194,6 +216,29 @@ out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_restore.sql" 2>&1) || { bad 
  and exists (select 1 from table_blocks b join table_blocks_rolled_back a on to_jsonb(a) = to_jsonb(b)
  where b.table_id = '$CONFLICTED' and b.reason = 'deferred restore')")" = t ] \
  && ok "retry restores archived block and complete needs-clearing state after original parent returns" || bad "retry lost archived block or state"
+# Business deletion between rollback and restore resolves its archived state permanently.
+$P -d $DB -c "insert into restaurant_tables (business_id, name, max_party)
+ values ('5f000000-0000-0000-0000-0000000000c3', 'Deleted parent', 2);
+ insert into table_states (table_id, business_id, state)
+ select id, business_id, 'needs_clearing' from restaurant_tables
+ where business_id = '5f000000-0000-0000-0000-0000000000c3';" >/dev/null || exit 1
+out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_rollback.sql" 2>&1) || { bad "deleted business rollback: $out"; exit 1; }
+# The baseline audit trigger writes a business FK after deletion; bypass only that trigger.
+$P -d $DB -c "begin;
+ alter table businesses disable trigger zella_audit_privileged_trg;
+ delete from businesses where id = '5f000000-0000-0000-0000-0000000000c3';
+ alter table businesses enable trigger zella_audit_privileged_trg;
+ commit;" >/dev/null || exit 1
+out=$($P -d $DB -f "$REPO/sql/zella_tables.sql" 2>&1) || { bad "deleted business reapply: $out"; exit 1; }
+for i in 1 2; do
+  out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_restore.sql" 2>&1) || { bad "deleted business restore $i: $out"; exit 1; }
+  [ "$($P -d $DB -c "select a.restore_completed and g.row_data ->> 'restored' = 'true'
+   and not exists (select 1 from table_states where business_id = a.business_id)
+   from table_data_rolled_back a join table_data_rolled_back g on g.id = a.generation_id
+   where a.source_table = 'table_states' and a.business_id = '5f000000-0000-0000-0000-0000000000c3'
+   and g.id = (select max(id) from table_data_rolled_back where source_table = 'rollback_generation')")" = t ] \
+   && ok "deleted business restore $i handles archived state and completes generation" || bad "deleted business state remains pending"
+done
 out=$($P -d $DB -c "drop table public.restaurant_tables cascade" 2>&1); out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_restore.sql" 2>&1) \
   && bad "restore ran without the re-apply" || { echo "$out" | grep -q TABLES_NOT_APPLIED && ok "restore refuses to run before sql/zella_tables.sql is re-applied" || bad "restore without re-apply: $(echo "$out" | grep -m1 ERROR)"; }
 echo; [ $fails -eq 0 ] && echo "ALL PASSED" || { echo "$fails FAILED"; exit 1; }
