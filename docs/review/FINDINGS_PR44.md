@@ -8,6 +8,8 @@ Fix list, in the order CodeRabbit posted them. CodeRabbit fixes them on this bra
 
 Status audit (2026-11-10): verified against current code in the original order. Open boxes record existing implementations whose validation or re-review remains outstanding; none claims completion without both.
 
+Status update (2026-11-11): every finding below has a recorded resolution. Checked again on an isolated database: `tests/rollback_security/run.sh` (all passed, including the starter-automation order for insurance businesses) and `tests/tables/restore_test.sh` (seating data restored row for row after rollback and re-apply). Boxes stay open until CodeRabbit's re-review of this PR is clean.
+
 - [ ] `sql/baseline/01_tables.sql:413` — Generate `inbound_email_token` with a cryptographic random source.
   - Resolution: Implemented in `sql/zella_rollback_security.sql` with `gen_random_bytes(16)` and compatible address parsing; the baseline intentionally preserves the historical production snapshot. Security tests passed. Existing migration still awaits re-review.
 - [ ] `sql/baseline/10_table_grants.sql:629` — Restrict direct access to call content.
@@ -33,13 +35,7 @@ Status audit (2026-11-10): verified against current code in the original order. 
 - [ ] `sql/rollback/zella_message_settings_fix_rollback.sql:10` — Two `replace()` calls can fail silently and leave the patch partly in place.
   - Resolution: Already implemented: each replacement has a no-op guard before execution. Affected-function rollback validation and re-review remain outstanding.
 - [ ] `sql/rollback/zella_order_lookup_v2_rollback.sql:7` — Do not drop `ai_tool_calls.lookup_ref`. The rollback deletes customer data.
-  - Resolution: Already implemented: <!-- coderabbit-ai-generated:v1 -->
-
-<!-- coderabbit-ai-generated-section:v1:9f81bc0441dcd249451a53a0a0c43e491515583fb7b280c5f9a862efc1f57631 -->
-
-`lookup_ref` is renamed in place
-
-<!-- /coderabbit-ai-generated:v1 -->, preserving older archive generations. Data-boundary repeat-rename tests passed; existing fix awaits re-review.
+  - Resolution: Already implemented: `lookup_ref` is renamed in place, preserving older archive generations. Data-boundary repeat-rename tests passed; existing fix awaits re-review.
 - [ ] `sql/rollback/zella_platform_roles_fix_rollback.sql:9` — Add a pre-check for admin rows whose role the restored trigger rejects.
   - Resolution: Already implemented: pre-check counts unsupported admin roles and emits a NOTICE before restoring the trigger. This is advisory: updates to unsupported rows can still fail. Runtime validation and re-review remain outstanding.
 - [ ] `sql/rollback/zella_relationships_rollback.sql:14` — Verify the second text replacement before executing the edited definition.

@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# Seating data survives sql/rollback/zella_tables_rollback.sql, a re-apply of sql/zella_tables.sql and
+# sql/rollback/zella_tables_restore.sql, on an ISOLATED copy of production filled by tests/tables/seating_test.sql.
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")" && pwd)"; REPO="$(cd "$HERE/../.." && pwd)"
+export ZPG_HOST=${ZPG_HOST:-/var/lib/postgresql/zella-sec} ZPG_PORT=${ZPG_PORT:-55433}; DB=ztables_restore
+P="psql -h $ZPG_HOST -p $ZPG_PORT -U postgres -qtAX -v ON_ERROR_STOP=1"
+APPLIED=(zella_platform_roles_fix zella_booking_buffers zella_channel_review zella_escalation_rules zella_knowledge_live zella_order_lookup_v2 zella_config_migration
+  zella_report_schedules zella_knowledge_learning zella_assistant_delivery zella_plan_languages zella_holiday_availability zella_delivery_evidence zella_arrival_windows zella_tables)
+"$REPO/tests/lib/build_full.sh" $DB $(for m in "${APPLIED[@]}"; do echo "$REPO/sql/$m.sql"; done) || exit 1
+fails=0; ok() { echo "PASS $*"; }; bad() { echo "FAIL $*"; fails=$((fails + 1)); }
+out=$($P -d $DB -f "$HERE/seating_test.sql" 2>&1) || { echo "FAIL seating fixture: $(echo "$out" | grep -m2 ERROR)"; exit 1; }
+# a needs-clearing state, the 'tables' capability, a table assignment and waitlist details, so every archived kind is covered
+$P -d $DB -c "set session_replication_role = replica;
+  insert into table_states (table_id, business_id, state, since) select id, business_id, 'needs_clearing', '2026-11-05 20:00+00' from restaurant_tables
+   where business_id = '5f000000-0000-0000-0000-0000000000c1' order by name limit 1 on conflict (table_id) do nothing;
+  insert into business_capabilities (business_id, capability, enabled, updated_at) values ('5f000000-0000-0000-0000-0000000000c1', 'tables', true, '2026-11-05 12:00+00')
+   on conflict (business_id, capability) do update set enabled = true;" > /dev/null || { echo "FAIL extra fixture"; exit 1; }
+SNAP="select md5(string_agg(x, '|' order by x)) from (
+  select 'rt:' || to_jsonb(t)::text x from restaurant_tables t
+  union all select 'tc:' || to_jsonb(t)::text from table_combinations t
+  union all select 'tb:' || to_jsonb(t)::text from table_blocks t
+  union all select 'te:' || to_jsonb(t)::text from table_events t
+  union all select 'ts:' || to_jsonb(t)::text from table_states t
+  union all select 'cap:' || to_jsonb(c)::text from business_capabilities c where capability = 'tables'
+  union all select 'ap:' || id || ':' || table_ids::text from appointments where table_ids is not null
+  union all select 'wl:' || id || ':' || concat_ws(',', party_size, preferences, contact_ok) from waitlist_entries where party_size is not null or preferences is not null or contact_ok is not null) s"
+COUNTS="select (select count(*) from restaurant_tables) || ' tables, ' || (select count(*) from table_combinations) || ' combinations, ' || (select count(*) from table_blocks) || ' blocks, '
+  || (select count(*) from table_events) || ' events, ' || (select count(*) from table_states) || ' states, ' || (select count(*) from appointments where table_ids is not null) || ' assignments, '
+  || (select count(*) from waitlist_entries where party_size is not null) || ' waitlist details'"
+before=$($P -d $DB -c "$SNAP"); counts=$($P -d $DB -c "$COUNTS")
+echo "$counts" | grep -qE '^[1-9][0-9]* tables, [1-9][0-9]* combinations, [1-9][0-9]* blocks, [1-9][0-9]* events, [1-9][0-9]* states, [1-9][0-9]* assignments, [1-9][0-9]* waitlist' \
+  && ok "fixture covers every kind of seating data ($counts)" || bad "fixture is missing a kind of seating data ($counts)"
+out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_rollback.sql" 2>&1) && ok "rollback" || bad "rollback: $(echo "$out" | grep -m1 ERROR)"
+out=$($P -d $DB -f "$REPO/sql/zella_tables.sql" 2>&1) && ok "re-apply sql/zella_tables.sql" || bad "re-apply: $(echo "$out" | grep -m1 ERROR)"
+[ "$($P -d $DB -c "select count(*) from restaurant_tables")" = 0 ] && ok "control: after the re-apply alone the seating data is not back" || bad "control: re-apply already restored data"
+for i in 1 2; do
+  out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_restore.sql" 2>&1) || { bad "restore run $i: $(echo "$out" | grep -m1 ERROR)"; continue; }
+  [ "$($P -d $DB -c "$SNAP")" = "$before" ] && ok "restore run $i: tables, combinations, blocks, events, states, capability, assignments and waitlist details identical to before the rollback" \
+    || bad "restore run $i: data differs ($($P -d $DB -c "$COUNTS") vs $counts)"
+done
+r=$($P -d $DB -c "begin;
+  select set_config('request.jwt.claims', '{\"sub\":\"5f300000-0000-0000-0000-0000000000c1\",\"role\":\"authenticated\",\"aal\":\"aal1\"}', true) is not null;
+  set local role authenticated;
+  select jsonb_array_length(public.zella_table_board('5f000000-0000-0000-0000-0000000000c1', now()) -> 'tables') > 0; rollback;" 2>&1 | tail -1)
+[ "$r" = t ] && ok "the seating board works on the restored tables" || bad "seating board after restore: $r"
+out=$($P -d $DB -c "drop table public.restaurant_tables cascade" 2>&1); out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_restore.sql" 2>&1) \
+  && bad "restore ran without the re-apply" || { echo "$out" | grep -q TABLES_NOT_APPLIED && ok "restore refuses to run before sql/zella_tables.sql is re-applied" || bad "restore without re-apply: $(echo "$out" | grep -m1 ERROR)"; }
+echo; [ $fails -eq 0 ] && echo "ALL PASSED" || { echo "$fails FAILED"; exit 1; }

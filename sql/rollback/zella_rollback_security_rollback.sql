@@ -4,6 +4,10 @@
 -- emails already sent, so the receiver that matches both forms is kept: putting back the old one would stop replies
 -- to those addresses from reaching the business. Only the default for new tokens goes back in that case. One transaction.
 begin;
+-- The default goes back first: ALTER TABLE holds an exclusive lock until commit, so no business can be given a
+-- 32-character token between the check below and the end of the rollback. A bounded wait instead of queueing forever.
+set local lock_timeout = '10s';
+alter table public.businesses alter column inbound_email_token set default substr(md5(((random())::text || (clock_timestamp())::text)), 1, 12);
 do $rollback$
 begin
   if exists (select 1 from public.businesses where inbound_email_token ~ '^[a-f0-9]{32}$') then
@@ -100,5 +104,4 @@ end $function$
 $def$;
   end if;
 end $rollback$;
-alter table public.businesses alter column inbound_email_token set default substr(md5(((random())::text || (clock_timestamp())::text)), 1, 12);
 commit;

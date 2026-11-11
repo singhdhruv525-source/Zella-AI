@@ -89,5 +89,6 @@ fi
 # 7. and the sequence applies again after a rollback
 for m in "${PENDING[@]}"; do out=$($P -d $DB -f "$REPO/sql/$m.sql" 2>&1) || { bad "re-apply $m after rollback: $(echo "$out" | grep -m1 ERROR)"; break; }; done
 check_approval "after reapply"
+out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_restore.sql" 2>&1) && ok "seating data restored after the re-apply (tests/tables/restore_test.sh checks it row for row)" || bad "seating restore: $(echo "$out" | grep -m1 ERROR)"
 [ "$($P -d $DB -c "$STATE")" = "$after" ] && ok "re-apply after the rollback" || bad "re-apply differs from the first apply"
 echo; [ $fails -eq 0 ] && echo "ALL PASSED" || { echo "$fails FAILED"; exit 1; }

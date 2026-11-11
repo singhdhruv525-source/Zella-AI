@@ -14,7 +14,7 @@ run('''create table crm_records(id int, business_id int, data jsonb);
 create table crm_record_secrets(record_id int,business_id int,field_key text,value text);
 insert into crm_records values (1,1,'{"existing":42}'),(2,1,'[]');
 insert into crm_record_secrets values (1,1,'new','secret'),(1,1,'existing','different'),(1,2,'foreign','secret'),(2,1,'array','secret'),(99,1,'orphan','secret');
-'''+part[part.index('-- 1. private') if '-- 1. private' in part else part.index('-- 1. Copy'):part.index('-- 2. presets')]+'''
+'''+part[part.index('-- 1. private') if '-- 1. private' in part else part.index('-- 1. Copy'):part.index('-- 2. the 15 starter')]+'''
 do $$ begin
  assert (select data='{"existing":42,"new":"secret"}'::jsonb from crm_records where id=1);
  assert (select data='[]'::jsonb from crm_records where id=2);
@@ -36,7 +36,7 @@ alter table crm_record_types add fields_seen text[] not null default '{}';
 delete from crm_record_types;
 alter table crm_records add type_key text;
 alter table crm_records alter business_id type uuid using '00000000-0000-0000-0000-000000000001'::uuid;
-'''+part[part.index('-- 2. presets'):part.index('-- 4. capability')]+'''
+'''+part[part.index('-- 3. presets'):part.index('-- 5. capability')]+'''
 do $$ begin
  assert (select count(*)=2 from industry_crm_presets);
  assert (select count(*)=1 from crm_record_types);
@@ -48,7 +48,7 @@ alter table crm_record_types add unique (business_id,key);
 insert into backup_20261104_types select gen_random_uuid(), business_id, 'collision', singular, plural, icon, title_label, link_person, statuses, closed_statuses, fields, columns, notice, enabled, position, preset_key, created_at, updated_at from backup_20261104_types limit 1;
 insert into crm_record_types(business_id,key,singular,plural,statuses) values ('00000000-0000-0000-0000-000000000001','collision','Replacement','Replacements','[]');
 update crm_records set type_key='collision';
-'''+part[part.index('-- 3.'):part.index('-- 4. capability')]+'''
+'''+part[part.index('-- 4. Restore'):part.index('-- 5. capability')]+'''
 do $$ begin
  assert (select count(*)=2 from crm_record_types);
  assert (select count(*)=2 from crm_records r join crm_record_types t on t.business_id=r.business_id and t.key=r.type_key);
@@ -72,8 +72,30 @@ update automations set description='Owner edited' where id=7;
 update automations set status='disabled' where id=8;
 update automations set actions='[{"type":"email"}]' where id=9;
 update automations set conditions='{"owner":true}' where id=10;
-'''+part[part.index('with v(industry_key'):part.index('-- 7. photos')]+'''
+'''+part[part.index('with v(industry_key'):part.index('-- 3. presets')]+'''
 do $$ begin assert (select array_agg(id order by id)=array[2,3,4,5,6,7,8,9,10] from automations); assert not exists(select from industry_automation_presets); end $$;''')
+# Starter automations are removed while the deployed presets still decide the industry (CodeRabbit #49): an
+# insurance business is only recognised by a preset the rollback then removes, so the old order (presets first) kept
+# its starter rules. The control runs the old order and keeps the rule; the rollback's order removes it.
+assert part.index('-- 2. the 15 starter') < part.index('-- 3. presets'), 'starter automations must go before the presets are restored'
+automations_part=part[part.index('with v(industry_key'):part.index('-- 3. presets')]
+presets_part=part[part.index('-- 3. presets'):part.index('-- 4. Restore')]
+setup='''
+truncate automations, industry_automation_presets, industry_automation_runs;
+delete from industry_crm_presets; delete from backup_20261104_presets;
+insert into industry_crm_presets(key,match,config) values ('insurance_v2','{insurance}','{}');
+insert into businesses values (3,null);
+create or replace function zella_industry_key_for(int) returns text language sql as $$
+  select 'insurance' from industry_crm_presets where key = 'insurance_v2' and $1 = 3 $$;
+insert into industry_automation_presets values ('insurance','Policy renewal coming up','Starter','renewal','{"days":30}');
+insert into automations(id,business_id,name,trigger_type,trigger_config) values (20,3,'Policy renewal coming up','renewal','{"days":30}');
+'''
+run('begin;'+setup+presets_part+automations_part+'''
+do $$ begin assert exists(select from automations where id=20), 'control: restoring presets first hides the insurance industry'; end $$;
+rollback;''')
+run('begin;'+setup+automations_part+presets_part+'''
+do $$ begin assert not exists(select from automations where id=20); assert not exists(select from industry_crm_presets); end $$;
+commit;''')
 # Resource-only blocks are archived, others remain; repeat is a no-op.
 sched=(ROOT/'sql/rollback/zella_scheduling_rollback.sql').read_text()
 block=sched[sched.index('do $$'):sched.index('end $$;')+7]

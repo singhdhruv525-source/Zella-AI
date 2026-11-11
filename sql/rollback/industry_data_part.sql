@@ -48,34 +48,9 @@ do $$ begin
   end if;
 end $$;
 
--- 2. presets as they were
-delete from public.industry_crm_presets p where not exists (select 1 from public.backup_20261104_presets b where b.key = p.key);
-update public.industry_crm_presets p set match = b.match, config = b.config from public.backup_20261104_presets b where b.key = p.key;
-
-insert into public.industry_crm_presets select * from public.backup_20261104_presets on conflict (key) do nothing;
-
--- 3. Restore by ID or the business/key used by records; keep a replacement ID on key collisions.
--- Added types go only when empty.
-update public.crm_record_types t set singular = b.singular, plural = b.plural, icon = b.icon, title_label = b.title_label, link_person = b.link_person,
-       statuses = b.statuses, closed_statuses = b.closed_statuses, fields = b.fields, columns = b.columns, notice = b.notice, enabled = b.enabled,
-       position = b.position, preset_key = b.preset_key, updated_at = b.updated_at
-  from public.backup_20261104_types b where b.id = t.id or (b.business_id = t.business_id and b.key = t.key);
-insert into public.crm_record_types (id, business_id, key, singular, plural, icon, title_label, link_person, statuses, closed_statuses, fields, columns, notice, enabled, position, preset_key, created_at, updated_at)
-select b.id, b.business_id, b.key, b.singular, b.plural, b.icon, b.title_label, b.link_person, b.statuses, b.closed_statuses, b.fields, b.columns, b.notice, b.enabled, b.position, b.preset_key, b.created_at, b.updated_at
-  from public.backup_20261104_types b where not exists (select 1 from public.crm_record_types t where t.id = b.id or (t.business_id = b.business_id and t.key = b.key));
-delete from public.crm_record_types t
- where not exists (select 1 from public.backup_20261104_types b where b.id = t.id or (b.business_id = t.business_id and b.key = t.key))
-   and not exists (select 1 from public.crm_records r where r.business_id = t.business_id and r.type_key = t.key);
-
--- 4. capability defaults off the industry configuration
-update public.industry_configurations set features = features - 'capabilities' where features ? 'capabilities';
-
--- 5. the staff transcript opt-in
-update public.businesses set setup_data = case when (setup_data -> 'privacy') - 'staff_read_call_content' = '{}'::jsonb then setup_data - 'privacy'
-                                               else setup_data #- '{privacy,staff_read_call_content}' end
- where setup_data -> 'privacy' ? 'staff_read_call_content';
-
--- 6. the 15 starter automations added by zella_automation_presets_v2.sql (and copies installed but never run)
+-- 2. the 15 starter automations added by zella_automation_presets_v2.sql (and copies installed but never run).
+--    Runs before the presets are restored: zella_industry_key_for() reads the presets, so this must see the
+--    deployed ones (an insurance business only matches as insurance while the new presets are still in place).
 with v(industry_key, name) as (values ('legal', 'Deadline in 30 days'), ('legal', 'Deadline in 7 days'), ('legal', 'Deadline tomorrow'),
   ('insurance', 'Policy renewal coming up'), ('insurance', 'New claim not yet submitted'), ('insurance', 'Quote waiting for an answer'),
   ('healthcare', 'Refill request waiting'), ('healthcare', 'Prior authorization pending'), ('dental', 'Treatment plan not accepted'),
@@ -91,6 +66,33 @@ delete from public.automations a using gone p, public.businesses b
    and a.trigger_type = p.trigger_type and a.trigger_config = p.trigger_config
    and a.created_by is null
    and not exists (select 1 from public.industry_automation_runs r where r.automation_id = a.id);
+
+-- 3. presets as they were
+delete from public.industry_crm_presets p where not exists (select 1 from public.backup_20261104_presets b where b.key = p.key);
+update public.industry_crm_presets p set match = b.match, config = b.config from public.backup_20261104_presets b where b.key = p.key;
+
+insert into public.industry_crm_presets select * from public.backup_20261104_presets on conflict (key) do nothing;
+
+-- 4. Restore by ID or the business/key used by records; keep a replacement ID on key collisions.
+-- Added types go only when empty.
+update public.crm_record_types t set singular = b.singular, plural = b.plural, icon = b.icon, title_label = b.title_label, link_person = b.link_person,
+       statuses = b.statuses, closed_statuses = b.closed_statuses, fields = b.fields, columns = b.columns, notice = b.notice, enabled = b.enabled,
+       position = b.position, preset_key = b.preset_key, updated_at = b.updated_at
+  from public.backup_20261104_types b where b.id = t.id or (b.business_id = t.business_id and b.key = t.key);
+insert into public.crm_record_types (id, business_id, key, singular, plural, icon, title_label, link_person, statuses, closed_statuses, fields, columns, notice, enabled, position, preset_key, created_at, updated_at)
+select b.id, b.business_id, b.key, b.singular, b.plural, b.icon, b.title_label, b.link_person, b.statuses, b.closed_statuses, b.fields, b.columns, b.notice, b.enabled, b.position, b.preset_key, b.created_at, b.updated_at
+  from public.backup_20261104_types b where not exists (select 1 from public.crm_record_types t where t.id = b.id or (t.business_id = b.business_id and t.key = b.key));
+delete from public.crm_record_types t
+ where not exists (select 1 from public.backup_20261104_types b where b.id = t.id or (b.business_id = t.business_id and b.key = t.key))
+   and not exists (select 1 from public.crm_records r where r.business_id = t.business_id and r.type_key = t.key);
+
+-- 5. capability defaults off the industry configuration
+update public.industry_configurations set features = features - 'capabilities' where features ? 'capabilities';
+
+-- 6. the staff transcript opt-in
+update public.businesses set setup_data = case when (setup_data -> 'privacy') - 'staff_read_call_content' = '{}'::jsonb then setup_data - 'privacy'
+                                               else setup_data #- '{privacy,staff_read_call_content}' end
+ where setup_data -> 'privacy' ? 'staff_read_call_content';
 
 -- 7. photos and files (zella_record_files.sql): the storage policies go, so signed-in users can no longer reach the
 --    bucket; the bucket and any files already in it are kept (nothing a customer uploaded is deleted). The file list

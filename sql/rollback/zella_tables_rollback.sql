@@ -180,7 +180,8 @@ drop function if exists public.zella_pick_tables(uuid, integer, timestamptz, tim
 drop function if exists public.zella_tables_fit(uuid, uuid[], integer, text, text[]);
 drop function if exists public.zella_tables_free(uuid[], timestamptz, timestamptz, uuid);
 drop function if exists public.zella_table_mode(uuid);
--- Reservation, waitlist, capability and state data are archived privately before removal.
+-- Reservation, waitlist, capability and state data are archived privately before removal. To bring them back,
+-- re-apply sql/zella_tables.sql and then run sql/rollback/zella_tables_restore.sql.
 drop index if exists public.appointments_table_ids_idx;
 alter table public.appointments drop column if exists table_ids;
 alter table public.waitlist_entries drop column if exists party_size, drop column if exists preferences, drop column if exists contact_ok;
