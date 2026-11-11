@@ -6,7 +6,7 @@ import { createServer } from "vite";
 
 test("appearance.js loads and checks pictures at import time", async () => {
   process.env.VITE_SUPABASE_URL ??= "https://abcd.supabase.co";
-  process.env.VITE_SUPABASE_ANON_KEY ??= "test-anon-key";
+  process.env.VITE_SUPABASE_PUBLISHABLE_KEY ??= "fake-test-publishable-key";
   const server = await createServer({ server: { middlewareMode: true }, appType: "custom", logLevel: "silent" });
   try {
     const m = await server.ssrLoadModule("/src/appearance.js");
