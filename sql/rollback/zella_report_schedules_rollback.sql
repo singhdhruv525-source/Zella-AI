@@ -52,6 +52,21 @@ drop function if exists public.zella_report_schedules(uuid);
 drop function if exists public.zella_run_daily_reports(timestamptz);
 drop function if exists public.zella_report_build(uuid, text, timestamptz);
 drop function if exists public.zella_report_next_run(uuid, timestamptz);
-alter table if exists public.business_report_runs rename to business_report_runs_rolled_back;
-alter table if exists public.business_report_schedules rename to business_report_schedules_rolled_back;
+do $$
+declare t text; i record; v_stamp text := to_char(clock_timestamp(), 'YYYYMMDDHH24MISSUS');
+begin
+  foreach t in array array['business_report_runs', 'business_report_schedules'] loop
+    continue when to_regclass('public.' || t) is null;
+    for i in select ix.relname, ix.oid from pg_index x join pg_class ix on ix.oid = x.indexrelid
+      where x.indrelid = to_regclass('public.' || t) and not x.indisprimary loop
+      execute format('alter index public.%I rename to %I', i.relname, left(i.relname, 20) || '_rb' || i.oid || '_' || v_stamp);
+    end loop;
+    if to_regclass('public.' || t || '_rolled_back') is not null then
+      execute format('alter table public.%I rename to %I', t || '_rolled_back', t || '_rb_' || v_stamp);
+    end if;
+    execute format('alter table public.%I rename to %I', t, t || '_rolled_back');
+    execute format('alter table public.%I enable row level security', t || '_rolled_back');
+    execute format('revoke all on public.%I from public, anon, authenticated', t || '_rolled_back');
+  end loop;
+end $$;
 commit;

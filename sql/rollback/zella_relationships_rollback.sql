@@ -11,7 +11,7 @@ begin
   if position('zella_relationships_merge' in def) > 0 then
     def := replace(def, E'\n  perform public.zella_people_merge(p_business_id, p_keep, p_drop); /* zella_relationships_merge */', '');
     def := replace(def, $a$'contact_consents', 'data_rights_requests', 'customer_relationships')$a$, $a$'contact_consents', 'data_rights_requests')$a$);
-    if position('zella_relationships_merge' in def) > 0 then raise exception 'could not take the merge step out; review'; end if;
+    if position('zella_relationships_merge' in def) > 0 or position('customer_relationships' in def) > 0 then raise exception 'could not take the merge step out; review'; end if;
     execute def;
   end if;
 end $$;

@@ -3,41 +3,58 @@
 -- created goes (see below).
 begin;
 do $$
-declare def text;
+declare def text; previous_def text;
 begin
   def := pg_get_functiondef('public.zella_capability_catalog()'::regprocedure);
   if position('zella_tables_capability' in def) > 0 then
+    previous_def := def;
     def := replace(def, $a$"access_vault": {"label": "Access codes and keys", "order": 8},
     "tables":       {"label": "Tables and seating", "needs": "scheduling", "order": 9}$a$, $a$"access_vault": {"label": "Access codes and keys", "order": 8}$a$);
+    if def = previous_def then raise exception 'rollback replacement did not match'; end if;
+    previous_def := def;
     def := replace(def, $a$  select /* zella_tables_capability */ '{$a$, $a$  select '{$a$);
+    if def = previous_def then raise exception 'rollback replacement did not match'; end if;
     if position('zella_tables_capability' in def) > 0 then raise exception 'public.zella_capability_catalog(): could not remove this patch'; end if;
     execute def;
   end if;
   def := pg_get_functiondef('public.zella_seed_capability_defaults()'::regprocedure);
   if position('zella_tables_capability' in def) > 0 then
+    previous_def := def;
     def := replace(def, $a$('restaurant',            '{"on": ["scheduling","checkins","waitlist","money","tables"], "optional": []}'),$a$, $a$('restaurant',            '{"on": ["scheduling","checkins","waitlist","money"], "optional": []}'),$a$);
+    if def = previous_def then raise exception 'rollback replacement did not match'; end if;
+    previous_def := def;
     def := replace(def, $a$('hospitality',           '{"on": ["scheduling","checkins","money"], "optional": ["waitlist","tables"]}'),$a$, $a$('hospitality',           '{"on": ["scheduling","checkins","money"], "optional": ["waitlist"]}'),$a$);
+    if def = previous_def then raise exception 'rollback replacement did not match'; end if;
+    previous_def := def;
     def := replace(def, $a$  with d(slug, caps) as (values   /* zella_tables_capability */$a$, $a$  with d(slug, caps) as (values$a$);
+    if def = previous_def then raise exception 'rollback replacement did not match'; end if;
     if position('zella_tables_capability' in def) > 0 then raise exception 'public.zella_seed_capability_defaults(): could not remove this patch'; end if;
     execute def;
   end if;
   def := pg_get_functiondef('public.zella_available_slots(uuid, timestamptz, timestamptz, integer, uuid, integer, integer, uuid)'::regprocedure);
   if position('zella_tables' in def) > 0 then
+    previous_def := def;
     def := replace(def, $a$          and a.start_time < r.t + v_duration + v_buffer and a.end_time + v_buffer > r.t
      ))
    order by$a$, $a$          and a.start_time < r.t + v_duration + v_buffer and a.end_time + v_buffer > r.t
      )
    order by$a$);
+    if def = previous_def then raise exception 'rollback replacement did not match'; end if;
+    previous_def := def;
     def := replace(def, $a$     and (v_tables or not exists (
        select 1 from public.appointments a$a$, $a$     and not exists (
        select 1 from public.appointments a$a$);
+    if def = previous_def then raise exception 'rollback replacement did not match'; end if;
+    previous_def := def;
     def := replace(def, $a$  v_has_hours boolean;
   v_tables boolean := public.zella_table_mode(p_business_id);   /* zella_tables */$a$, $a$  v_has_hours boolean;$a$);
+    if def = previous_def then raise exception 'rollback replacement did not match'; end if;
     if position('zella_tables' in def) > 0 then raise exception 'public.zella_available_slots(uuid, timestamptz, timestamptz, integer, uuid, integer, integer, uuid): could not remove this patch'; end if;
     execute def;
   end if;
   def := pg_get_functiondef('public.zella_appointment_conflict_guard()'::regprocedure);
   if position('zella_tables' in def) > 0 then
+    previous_def := def;
     def := replace(def, $a$  if public.zella_table_mode(new.business_id) then   /* zella_tables */
     if new.party_size is null or new.party_size < 1 then
       raise exception 'PARTY_SIZE_REQUIRED' using hint = 'Enter how many people the reservation is for.';
@@ -58,13 +75,19 @@ begin
     return new;
   end if;
   v_has_staff := exists (select 1 from public.staff_members s where s.business_id = new.business_id and s.is_active);$a$, $a$  v_has_staff := exists (select 1 from public.staff_members s where s.business_id = new.business_id and s.is_active);$a$);
+    if def = previous_def then raise exception 'rollback replacement did not match'; end if;
+    previous_def := def;
     def := replace(def, $a$and new.staff_id is not distinct from old.staff_id and new.table_ids is not distinct from old.table_ids and new.party_size is not distinct from old.party_size$a$, $a$and new.staff_id is not distinct from old.staff_id$a$);
+    if def = previous_def then raise exception 'rollback replacement did not match'; end if;
     if position('zella_tables' in def) > 0 then raise exception 'public.zella_appointment_conflict_guard(): could not remove this patch'; end if;
     execute def;
   end if;
   def := pg_get_functiondef('public.zella_ai_booking(text, uuid, text, jsonb)'::regprocedure);
   if position('zella_tables' in def) > 0 then
+    previous_def := def;
     def := replace(def, $a$    v_appt := public.zella_book_appointment(v_biz, v_cust, v_title, v_start, v_dur, null, v_party, v_notes, coalesce(v_pref, '{}') || jsonb_build_object('source', 'ai_call', 'seating', v_args ->> 'seating'));$a$, $a$    v_appt := public.zella_book_appointment(v_biz, v_cust, v_title, v_start, v_dur, null, null, v_notes);$a$);
+    if def = previous_def then raise exception 'rollback replacement did not match'; end if;
+    previous_def := def;
     def := replace(def, $a$  if v_first is null then return jsonb_build_object('ok', false, 'status', 'need_info', 'say', 'Ask the caller for their name.'); end if;
   if v_tables and v_party > public.zella_max_party_ai(v_biz) then   -- zella_tables: a large party is the team's to arrange
     v_appt := public.zella_request_appointment(v_biz, null, coalesce(v_phone, v_call_phone), 'Reservation - party of ' || v_party, v_start,
@@ -73,8 +96,14 @@ begin
     return jsonb_build_object('ok', true, 'status', 'requested', 'appointment_id', v_appt, 'say',
       'The request for a party of ' || v_party || ' was passed to the team, who will call to confirm. Do not say it is booked.');
   end if;$a$, $a$  if v_first is null then return jsonb_build_object('ok', false, 'status', 'need_info', 'say', 'Ask the caller for their name.'); end if;$a$);
+    if def = previous_def then raise exception 'rollback replacement did not match'; end if;
+    previous_def := def;
     def := replace(def, $a$from public.zella_offer_times(v_tables, v_party, v_biz, greatest(now(), v_start - interval '1 day'), v_start + interval '3 days', v_dur, v_window, v_args ->> 'seating') s;$a$, $a$from public.zella_booking_choices(v_biz, greatest(now(), v_start - interval '1 day'), v_start + interval '3 days', v_dur, v_window) s;$a$);
+    if def = previous_def then raise exception 'rollback replacement did not match'; end if;
+    previous_def := def;
     def := replace(def, $a$from public.zella_offer_times(v_tables, v_party, v_biz, v_from, v_to, v_dur, v_window, v_args ->> 'seating') s;$a$, $a$from public.zella_booking_choices(v_biz, v_from, v_to, v_dur, v_window) s;$a$);
+    if def = previous_def then raise exception 'rollback replacement did not match'; end if;
+    previous_def := def;
     def := replace(def, $a$  if v_window is not null then v_dur := v_window; end if;
   v_tables := public.zella_table_mode(v_biz);   /* zella_tables */
   v_party := case when (v_args ->> 'party_size') ~ '^\d{1,3}$' then (v_args ->> 'party_size')::int end;
@@ -88,24 +117,60 @@ begin
     end if;
     v_pref := public.zella_seating_pref(v_biz, v_args ->> 'seating');
   end if;$a$, $a$  if v_window is not null then v_dur := v_window; end if;$a$);
+    if def = previous_def then raise exception 'rollback replacement did not match'; end if;
+    previous_def := def;
     def := replace(def, $a$v_notice integer; v_ahead integer; v_window integer; v_tables boolean; v_party integer; v_pref jsonb;$a$, $a$v_notice integer; v_ahead integer; v_window integer;$a$);
+    if def = previous_def then raise exception 'rollback replacement did not match'; end if;
     if position('zella_tables' in def) > 0 then raise exception 'public.zella_ai_booking(text, uuid, text, jsonb): could not remove this patch'; end if;
     execute def;
   end if;
   def := pg_get_functiondef('public.zella_brain_tool_defs()'::regprocedure);
   if position('party_size' in def) > 0 then
+    previous_def := def;
     def := replace(def, $a$'title', jsonb_build_object('type', 'string'), 'notes', jsonb_build_object('type', 'string'), 'duration_minutes', jsonb_build_object('type', 'integer'),
       'party_size', jsonb_build_object('type', 'integer', 'description', 'Number of people, as used for check_availability'),
       'seating', jsonb_build_object('type', 'string', 'description', 'The seating preference used for check_availability, if any'),$a$, $a$'title', jsonb_build_object('type', 'string'), 'notes', jsonb_build_object('type', 'string'), 'duration_minutes', jsonb_build_object('type', 'integer'),$a$);
+    if def = previous_def then raise exception 'rollback replacement did not match'; end if;
+    previous_def := def;
     def := replace(def, $a$'days', jsonb_build_object('type', 'integer'), 'duration_minutes', jsonb_build_object('type', 'integer'),
       'party_size', jsonb_build_object('type', 'integer', 'description', 'Number of people. Restaurants and anyone who seats guests: always ask first.'),
       'seating', jsonb_build_object('type', 'string', 'description', 'Optional seating preference the caller asked for, e.g. patio, accessible, window')))),$a$, $a$'days', jsonb_build_object('type', 'integer'), 'duration_minutes', jsonb_build_object('type', 'integer')))),$a$);
+    if def = previous_def then raise exception 'rollback replacement did not match'; end if;
     if position('party_size' in def) > 0 then raise exception 'public.zella_brain_tool_defs(): could not remove this patch'; end if;
     execute def;
   end if;
 end $$;
 update public.industry_configurations set features = jsonb_set(features, '{capabilities,on}', (features #> '{capabilities,on}') - 'tables') where features #> '{capabilities,on}' ? 'tables';
 update public.industry_configurations set features = jsonb_set(features, '{capabilities,optional}', (features #> '{capabilities,optional}') - 'tables') where features #> '{capabilities,optional}' ? 'tables';
+do $$
+declare t text; v_generation bigint;
+begin
+  create table if not exists public.table_data_rolled_back (source_table text not null, business_id uuid, row_data jsonb not null, archived_at timestamptz not null default now());
+  alter table public.table_data_rolled_back add column if not exists id bigint generated always as identity;
+  alter table public.table_data_rolled_back add column if not exists generation_id bigint;
+  lock table public.table_data_rolled_back in share row exclusive mode;
+  alter table public.table_data_rolled_back enable row level security;
+  revoke all on public.table_data_rolled_back from public, anon, authenticated;
+  -- Rollback renames restaurant_tables; reapplication recreates it, even without data.
+  -- Its presence distinguishes a new rollback from a retry of the completed rollback.
+  select max(id) into v_generation from public.table_data_rolled_back where source_table = 'rollback_generation';
+  if v_generation is not null and to_regclass('public.restaurant_tables') is not null
+     and not exists (select 1 from public.table_data_rolled_back where id = v_generation and row_data ->> 'restored' = 'true') then
+    raise exception 'TABLES_RESTORE_PENDING: run sql/rollback/zella_tables_restore.sql before another rollback';
+  end if;
+  if v_generation is null or to_regclass('public.restaurant_tables') is not null then
+    insert into public.table_data_rolled_back (source_table, row_data) values ('rollback_generation', '{}') returning id into v_generation;
+  end if;
+  foreach t in array array['business_capabilities', 'appointments', 'waitlist_entries', 'table_states'] loop
+    continue when to_regclass('public.' || t) is null;
+    execute format('lock table public.%I in share row exclusive mode', t);
+    execute format('insert into public.table_data_rolled_back (source_table, business_id, row_data, generation_id) select %L, business_id, to_jsonb(r), %L from public.%I r where %s', t, v_generation, t,
+      case t when 'business_capabilities' then 'capability = ''tables'''
+      when 'appointments' then 'to_jsonb(r) ->> ''table_ids'' is not null'
+      when 'waitlist_entries' then '(to_jsonb(r) ->> ''party_size'' is not null or to_jsonb(r) ->> ''preferences'' is not null or to_jsonb(r) ->> ''contact_ok'' is not null)'
+      else 'true' end);
+  end loop;
+end $$;
 delete from public.business_capabilities where capability = 'tables';
 drop trigger if exists zella_table_clearing_trg on public.appointments;
 drop function if exists public.zella_table_clearing_trg();
@@ -128,13 +193,27 @@ drop function if exists public.zella_pick_tables(uuid, integer, timestamptz, tim
 drop function if exists public.zella_tables_fit(uuid, uuid[], integer, text, text[]);
 drop function if exists public.zella_tables_free(uuid[], timestamptz, timestamptz, uuid);
 drop function if exists public.zella_table_mode(uuid);
--- which tables each reservation had, and the waitlist's party sizes, are lost; the table list, blocks and history are kept (renamed)
+-- Reservation, waitlist, capability and state data are archived privately before removal. To bring them back,
+-- re-apply sql/zella_tables.sql and then run sql/rollback/zella_tables_restore.sql.
 drop index if exists public.appointments_table_ids_idx;
 alter table public.appointments drop column if exists table_ids;
 alter table public.waitlist_entries drop column if exists party_size, drop column if exists preferences, drop column if exists contact_ok;
 drop table if exists public.table_states;
-alter table if exists public.table_events rename to table_events_rolled_back;
-alter table if exists public.table_blocks rename to table_blocks_rolled_back;
-alter table if exists public.table_combinations rename to table_combinations_rolled_back;
-alter table if exists public.restaurant_tables rename to restaurant_tables_rolled_back;
+do $$
+declare t text; i record; v_stamp text := to_char(clock_timestamp(), 'YYYYMMDDHH24MISSUS');
+begin
+  foreach t in array array['table_events', 'table_blocks', 'table_combinations', 'restaurant_tables'] loop
+    continue when to_regclass('public.' || t) is null;
+    for i in select ix.relname, ix.oid from pg_index x join pg_class ix on ix.oid = x.indexrelid
+      where x.indrelid = to_regclass('public.' || t) and not x.indisprimary loop
+      execute format('alter index public.%I rename to %I', i.relname, left(i.relname, 20) || '_rb' || i.oid || '_' || v_stamp);
+    end loop;
+    if to_regclass('public.' || t || '_rolled_back') is not null then
+      execute format('alter table public.%I rename to %I', t || '_rolled_back', t || '_rb_' || v_stamp);
+    end if;
+    execute format('alter table public.%I rename to %I', t, t || '_rolled_back');
+    execute format('alter table public.%I enable row level security', t || '_rolled_back');
+    execute format('revoke all on public.%I from public, anon, authenticated', t || '_rolled_back');
+  end loop;
+end $$;
 commit;

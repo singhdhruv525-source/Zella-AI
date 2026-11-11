@@ -22,7 +22,7 @@ ITEMS="select x from (
   union all select 't:' || tgrelid::regclass::text || '.' || tgname from pg_trigger where not tgisinternal and tgrelid::regclass::text not like 'pg_%'
   union all select 'p:' || tablename || '.' || policyname from pg_policies where schemaname in ('public', 'storage')) s
   where x not like '%_rolled_back%'
-    and x not in ('c:appointments.resource_ids:ARRAY', 'c:appointments.crew_staff_ids:ARRAY', 'c:blocked_times.resource_id:uuid', 'c:crm_record_types.workflow:jsonb')"   # what a rollback keeps on purpose: renamed tables, the Release 2 columns with their values, and each record type's Release 3 workflow setting
+    and x not in ('c:appointments.resource_ids:ARRAY', 'c:appointments.crew_staff_ids:ARRAY', 'c:blocked_times.resource_id:uuid', 'c:crm_record_types.workflow:jsonb', 'c:calls.transfer_approved_at:timestamp with time zone')"   # what a rollback keeps on purpose: renamed tables, the Release 2 columns with their values, each record type's Release 3 workflow setting, and when a transfer was approved (CodeRabbit #44 finding 11: never delete customer data)
 STATE="select md5(string_agg(x, ',' order by x)) from ($ITEMS) y"
 
 # 1. production state, plus settings that existed before the pending files (they must find them)
@@ -68,8 +68,34 @@ git -C "$REPO" worktree remove --force "$SCR/old" > /dev/null 2>&1
 for f in voice-rules owner-provision-business; do (cd "$REPO/web/supabase/functions/$f" && deno check --no-lock index.ts > /dev/null 2>&1) && ok "deno check $f" || bad "deno check $f"; done
 (cd "$REPO/web" && npm run build > "$SCR/web.log" 2>&1) && ok "web build" || bad "web build: $(tail -3 "$SCR/web.log")"
 
+# Seed an approval independently of the schema comparison's intentional column exclusion.
+APPROVAL_ID=97000000-0000-0000-0000-000000000001
+out=$($P -d $DB -c "set session_replication_role = replica; insert into public.calls (id, business_id, direction, transfer_approved_at) values ('$APPROVAL_ID', '97000000-0000-0000-0000-000000000002', 'inbound', '2026-11-05 12:34:56+00');" 2>&1) || { bad "seed transfer approval: $out"; exit 1; }
+check_approval() {
+  out=$($P -d $DB -c "do \$\$ begin assert exists (select 1 from information_schema.columns where table_schema='public' and table_name='calls' and column_name='transfer_approved_at'); assert (select transfer_approved_at = timestamptz '2026-11-05 12:34:56+00' from public.calls where id='$APPROVAL_ID'); end \$\$;" 2>&1) && ok "transfer approval timestamp retained $1" || bad "transfer approval $1: $out"
+}
+
 # 6. roll the whole sequence back, newest first, and compare with the state before
+SEATING="select md5(string_agg(x, '|' order by x)) from (
+  select 'rt:' || to_jsonb(t)::text x from restaurant_tables t union all select 'tc:' || to_jsonb(t)::text from table_combinations t
+  union all select 'tb:' || to_jsonb(t)::text from table_blocks t union all select 'ts:' || to_jsonb(t)::text from table_states t
+  union all select 'te:' || to_jsonb(t)::text from table_events t
+  union all select 'cap:' || to_jsonb(c)::text from business_capabilities c where capability = 'tables'
+  union all select 'ap:' || id || ':' || table_ids::text from appointments where table_ids is not null
+  union all select 'wl:' || id || ':' || concat_ws(',', party_size, preferences, contact_ok) from waitlist_entries where party_size is not null or preferences is not null or contact_ok is not null) s"
+out=$($P -d $DB -c "set session_replication_role = replica;
+  insert into table_states (table_id, business_id, state, since) select id, business_id, 'needs_clearing', '2026-11-05 20:00+00' from restaurant_tables
+   where business_id = '5f000000-0000-0000-0000-0000000000c1' order by name limit 1
+   on conflict (table_id) do update set state = 'needs_clearing', since = excluded.since;
+  insert into business_capabilities (business_id, capability, enabled, updated_at) values ('5f000000-0000-0000-0000-0000000000c1', 'tables', true, '2026-11-05 12:00+00')
+   on conflict (business_id, capability) do update set enabled = true;
+  do \$\$ begin
+    assert exists (select 1 from table_states where business_id = '5f000000-0000-0000-0000-0000000000c1' and state = 'needs_clearing' and since = timestamptz '2026-11-05 20:00+00');
+    assert exists (select 1 from business_capabilities where business_id = '5f000000-0000-0000-0000-0000000000c1' and capability = 'tables' and enabled);
+  end \$\$;" 2>&1) || { bad "seed seating snapshot: $out"; exit 1; }
+seating_before=$($P -d $DB -c "$SEATING")
 for r in "${ROLLBACK[@]}"; do out=$($P -d $DB -f "$REPO/sql/rollback/$r.sql" 2>&1) || { bad "rollback $r: $(echo "$out" | grep -m1 ERROR)"; break; }; done
+check_approval "after rollback"
 now=$($P -d $DB -c "$STATE")
 kept=$($P -d $DB -c "select string_agg(table_name, ', ') from information_schema.tables where table_schema = 'public' and table_name like '%_rolled_back'")
 if [ "$now" = "$before" ]; then ok "full rollback, newest first: every function, column, trigger and policy identical to before (kept on purpose, renamed: $kept)"
@@ -80,5 +106,12 @@ else
 fi
 # 7. and the sequence applies again after a rollback
 for m in "${PENDING[@]}"; do out=$($P -d $DB -f "$REPO/sql/$m.sql" 2>&1) || { bad "re-apply $m after rollback: $(echo "$out" | grep -m1 ERROR)"; break; }; done
+check_approval "after reapply"
+if out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_restore.sql" 2>&1); then
+  seating_after=$($P -d $DB -c "$SEATING")
+  [[ "$seating_before" =~ ^[0-9a-f]{32}$ ]] && [ "$seating_after" = "$seating_before" ] \
+    && ok "seating data (tables, combinations, blocks, events, states, capability, assignments, waitlist details) identical after rollback, re-apply and restore" \
+    || bad "seating data differs after restore ($seating_before vs $seating_after)"
+else bad "seating restore: $(echo "$out" | grep -m1 ERROR)"; fi
 [ "$($P -d $DB -c "$STATE")" = "$after" ] && ok "re-apply after the rollback" || bad "re-apply differs from the first apply"
 echo; [ $fails -eq 0 ] && echo "ALL PASSED" || { echo "$fails FAILED"; exit 1; }
