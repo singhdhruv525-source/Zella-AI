@@ -1,6 +1,6 @@
 // What the record-files check accepts and refuses, from crafted files (no real customer files).
 import { assert, assertEquals } from "jsr:@std/assert@1";
-import { inspect, MAX_BYTES, sha256 } from "./inspect.ts";
+import { INFLATE_PIECE, inspect, MAX_BYTES, sha256 } from "./inspect.ts";
 
 const enc = (s: string) => new TextEncoder().encode(s);
 const cat = (...parts: Uint8Array[]) => { const o = new Uint8Array(parts.reduce((n, p) => n + p.length, 0)); let a = 0; for (const p of parts) { o.set(p, a); a += p.length; } return o; };
@@ -119,8 +119,13 @@ Deno.test("predictor 12 cross-reference stream is accepted", async () => {
   assertEquals(await inspect("application/pdf", await predictedPdf(bytes, "/Predictor 12 /Columns 4")), { ok: true });
 });
 Deno.test("all supported predictors reveal active content, across rows and chunks", async () => {
+  // Varied filler keeps the compressed stream large, so it is decompressed in many pieces and the name, well past the
+  // midpoint, is only found if row state carries across chunk boundaries.
+  let seed = 7;
+  const next = () => { seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5; return (seed >>> 0) % 26; };
+  const filler = Array.from({ length: 120000 }, () => String.fromCharCode(97 + next())).join("");
+  const plain = enc(filler + "/J#61vaScript " + "y".repeat(1000));
   for (const predictor of [2, 10, 11, 12, 13, 14, 15]) {
-    const plain = enc("x".repeat(20000) + "/J#61vaScript");
     const encoded: number[] = [];
     let previous = 0;
     for (const byte of plain) {
@@ -129,9 +134,37 @@ Deno.test("all supported predictors reveal active content, across rows and chunk
       encoded.push(predictor === 2 ? byte : (byte - previous + 256) % 256);
       previous = byte;
     }
-    assertEquals(await inspect("application/pdf", await predictedPdf(new Uint8Array(encoded), `/Predictor ${predictor}`)),
-      { ok: false, reason: "PDF with active content (in a compressed stream)" });
+    const file = await predictedPdf(new Uint8Array(encoded), `/Predictor ${predictor}`);
+    assert(file.length > 20 * INFLATE_PIECE, `the compressed stream must span many decompressor pieces (${file.length} bytes)`);
+    assertEquals(await inspect("application/pdf", file), { ok: false, reason: "PDF with active content (in a compressed stream)" });
   }
+});
+Deno.test("indirect predictor parameters fail closed", async () => {
+  const z = await deflate("/J#61vaScript");
+  for (const parameters of ["/Predictor 12 /Columns 5 0 R", "/Predictor 12 0 R", "/Predictor 12 /Colors 1 0 R"]) {
+    const b = cat(enc(`%PDF-1.7\n1 0 obj << /Filter /FlateDecode /DecodeParms << ${parameters} >> >> stream\n`), z, enc("\nendstream endobj"));
+    assertEquals(await inspect("application/pdf", b), { ok: false, reason: "unsupported PDF stream predictor" }, parameters);
+  }
+});
+const imagePdf = (dict: string, bytes: Uint8Array) =>
+  cat(enc(`%PDF-1.7\n5 0 obj << ${dict} /Length ${bytes.length} >> stream\n`), bytes, enc("\nendstream endobj\n%%EOF"));
+const jp2 = cat(new Uint8Array([0, 0, 0, 0x0c, 0x6a, 0x50, 0x20, 0x20, 0x0d, 0x0a, 0x87, 0x0a]), enc("image data"));
+Deno.test("JPEG and JPEG 2000 images in a PDF are accepted", async () => {
+  for (const [filter, bytes] of [["/DCTDecode", jpeg], ["[/DCTDecode]", jpeg], ["/JPXDecode", jp2]] as const) {
+    assertEquals(await inspect("application/pdf", imagePdf(`/Type /XObject /Subtype /Image /Width 1 /Height 1 /Filter ${filter}`, bytes)), { ok: true }, filter);
+  }
+});
+Deno.test("JPEG filters are refused outside real image streams", async () => {
+  for (const [dict, bytes] of [
+    ["/Type /ObjStm /N 1 /First 4 /Filter /DCTDecode", jpeg], // an object stream would be parsed as PDF syntax
+    ["/Filter /DCTDecode", jpeg], // no image subtype
+    ["/Subtype /Image /Filter /DCTDecode", enc("not a jpeg")], // no JPEG signature
+    ["/Subtype /Image /Filter [/FlateDecode /DCTDecode]", jpeg], // filter chains are not checked
+  ] as const) {
+    assertEquals(await inspect("application/pdf", imagePdf(dict, bytes)), { ok: false, reason: "unsupported PDF stream filter" }, dict);
+  }
+  // The raw bytes of an image stream are still scanned with the rest of the file.
+  assertEquals((await inspect("application/pdf", imagePdf("/Subtype /Image /Filter /DCTDecode", cat(jpeg, enc("/JavaScript"))))).ok, false);
 });
 Deno.test("TIFF packed, byte, and 16-bit differences are reversed", async () => {
   // Byte samples with horizontal differences hide the active name.

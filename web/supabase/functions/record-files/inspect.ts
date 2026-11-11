@@ -44,7 +44,14 @@ function predictorDecoder(p: Predictor) {
         if (filter === -1) { if (byte > 4) throw new Error("Invalid PNG filter"); filter = byte; continue; }
         const left = offset >= pixelBytes ? row[offset - pixelBytes] : 0;
         const up = previous[offset], upperLeft = offset >= pixelBytes ? previous[offset - pixelBytes] : 0;
-        row[offset++] = byte + (p.value === 2 ? 0 : [0, left, up, Math.floor((left + up) / 2), paeth(left, up, upperLeft)][filter]);
+        let prediction = 0;
+        if (p.value !== 2) {
+          if (filter === 1) prediction = left;
+          else if (filter === 2) prediction = up;
+          else if (filter === 3) prediction = (left + up) >> 1;
+          else if (filter === 4) prediction = paeth(left, up, upperLeft);
+        }
+        row[offset++] = byte + prediction;
         if (offset === rowBytes) {
           if (p.value === 2) {
             // TIFF differences are per component, including packed and 16-bit samples.
@@ -65,9 +72,19 @@ function predictorDecoder(p: Predictor) {
   };
 }
 
+// Compressed bytes are fed in small pieces: each decompressed chunk then stays bounded (deflate expands at most
+// ~1032x), so the size budget stops a compression bomb early instead of after it is fully expanded in memory.
+export const INFLATE_PIECE = 1024;
 async function inflate(data: Uint8Array, limit: number, predictor?: Predictor): Promise<number | "active" | "too_big" | null> {
   try {
-    const stream = new Blob([data as Uint8Array<ArrayBuffer>]).stream().pipeThrough(new DecompressionStream("deflate"));
+    let at = 0;
+    const source = new ReadableStream<BufferSource>({
+      pull(controller) {
+        if (at >= data.length) { controller.close(); return; }
+        controller.enqueue(data.slice(at, at + INFLATE_PIECE)); at += INFLATE_PIECE;
+      },
+    });
+    const stream = source.pipeThrough(new DecompressionStream("deflate"));
     const decoder = predictor ? predictorDecoder(predictor) : null;
     const reader = stream.getReader(); let n = 0, tail = "";
     try {
@@ -130,10 +147,22 @@ export async function inspectPdf(b: Uint8Array): Promise<Verdict> {
     if (b[stop - 1] === 0x0d) stop--;
     const filters = [...dict.matchAll(/\/Filter(?=[\s<>\[\]()/]|$)\s*(\[[^\]]{0,1024}\]|\/[^\s<>\[\]()]+|[^\s]*)/g)];
     if (!filters.length) continue; // unfiltered bytes were scanned above
+    // A JPEG or JPEG 2000 image is decoded to pixels, never parsed as PDF syntax, so it cannot carry PDF actions; its raw
+    // bytes were scanned above with the rest of the file. Accept it only as a real image XObject with a real image signature.
+    const image = filters.length === 1 && filters[0][1].match(/^(?:\/(DCTDecode|JPXDecode)|\[\s*\/(DCTDecode|JPXDecode)\s*\])$/);
+    if (image) {
+      const kind = image[1] ?? image[2], types = [...dict.matchAll(/\/Type\s*\/([^\s<>\[\]()/]+)/g)].map((t) => t[1]);
+      const subtypes = [...dict.matchAll(/\/Subtype\s*\/([^\s<>\[\]()/]+)/g)].map((t) => t[1]);
+      const signature = kind === "DCTDecode" ? startsWith(b, [0xff, 0xd8, 0xff], start)
+        : startsWith(b, [0, 0, 0, 0x0c, 0x6a, 0x50, 0x20, 0x20], start) || startsWith(b, [0xff, 0x4f, 0xff, 0x51], start);
+      if (subtypes.length === 1 && subtypes[0] === "Image" && types.every((t) => t === "XObject") && signature) continue;
+      return { ok: false, reason: "unsupported PDF stream filter" };
+    }
     if (filters.some((filter) => !/^\/FlateDecode$|^\[\s*\/FlateDecode\s*\]$/.test(filter[1]))) return { ok: false, reason: "unsupported PDF stream filter" };
     if (/\/DecodeParms\s*(?:\[\s*)?\d+\s+\d+\s+R\b/.test(dict)) return { ok: false, reason: "unsupported PDF stream parameters" };
     const parameter = (key: string, fallback: number) => {
-      const matches = [...dict.matchAll(new RegExp(`/${key}(?=[\\s<>\\[\\]()/]|$)\\s*([^\\s<>\\[\\]()/]*)`, "g"))];
+      // An indirect reference ("5 0 R") is captured whole, so it fails the number check instead of reading as 5.
+      const matches = [...dict.matchAll(new RegExp(`/${key}(?=[\\s<>\\[\\]()/]|$)\\s*([^\\s<>\\[\\]()/]*(?:\\s+\\d+\\s+R(?![A-Za-z0-9]))?)`, "g"))];
       if (!matches.length) return fallback;
       return matches.length === 1 && /^\d+$/.test(matches[0][1]) ? Number(matches[0][1]) : NaN;
     };
