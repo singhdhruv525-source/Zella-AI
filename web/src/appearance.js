@@ -53,7 +53,8 @@ function normalisePalette(p) {
 }
 
 // The check lives in pictureUrl.js (no imports, so it can be unit tested); this project's storage origin is the default.
-export const isOwnPicture = (u, origin = SUPABASE_ORIGIN) => checkOwnPicture(u, origin);
+// A hoisted declaration: `current` (above) is normalised while the module loads and calls this.
+export function isOwnPicture(u, origin = SUPABASE_ORIGIN) { return checkOwnPicture(u, origin); }
 
 function normalise(p) {
   const v = { ...DEFAULT_APPEARANCE, ...(p && typeof p === "object" ? p : {}) };
