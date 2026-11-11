@@ -106,6 +106,7 @@ function AdminApp() {
   const [checkingSession, setCheckingSession] = useState(true);
   const [mode, setMode] = useState(LANDING.setup ? "setpassword" : "signin"); // "signin", "reset", "setpassword" or "mfa"
   const [code, setCode] = useState("");
+  const [mfaVerified, setMfaVerified] = useState(false);
   const platform = usePlatformInfo();
 
   // Keep an existing owner session after a page refresh,
@@ -168,7 +169,7 @@ function AdminApp() {
     restoreSession();
 
     const { data: listener } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_OUT") setIsAuthorized(false);
+      if (event === "SIGNED_OUT") { setIsAuthorized(false); setMfaVerified(false); }
     });
 
     return () => {
@@ -229,6 +230,7 @@ function AdminApp() {
     try {
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
       // The save is complete even if the access check fails. Retry through sign-in.
       setMode("signin");
       setPassword("");
@@ -240,7 +242,6 @@ function AdminApp() {
         setMode("signin");
         throw new Error("Your password is saved, but this account is not an authorized Zella admin yet.");
       }
-      window.history.replaceState(null, "", window.location.pathname);
       setPassword("");
       setConfirmPassword("");
       setIsAuthorized(true);
@@ -257,7 +258,14 @@ function AdminApp() {
     setMessage("");
     setLoading(true);
     try {
-      await verifyMfaCode(code);
+      if (!mfaVerified) {
+        await verifyMfaCode(code);
+        setMfaVerified(true);
+        setCode("");
+      } else if (await needsMfaCode()) {
+        setMfaVerified(false);
+        throw new Error("Please enter a new authenticator code.");
+      }
       const access = await hasAdminAccess();
       if (access === "unavailable") throw new Error("Admin access could not be checked. Please try again.");
       if (!access) {
@@ -277,6 +285,7 @@ function AdminApp() {
 
   function switchMode(next) {
     setMode(next);
+    setMfaVerified(false);
     setMessage("");
     setEmailTouched(false);
   }
@@ -415,19 +424,19 @@ function AdminApp() {
             {maintenanceText(platform) && <div className="login-message error" role="status">{maintenanceText(platform)}</div>}
             {platform.logo_url ? <img src={platform.logo_url} alt={platform.display_name ?? "Zella Voice"} style={{ maxHeight: 48, marginBottom: 12 }} /> : <div className="form-symbol"><Icon name="login" /></div>}
             <div className="form-eyebrow">Owner access</div>
-            <h2>{mode === "reset" ? "Reset your password" : mode === "setpassword" ? "Choose your password" : mode === "mfa" ? "Enter your code" : "Welcome back"}</h2>
+            <h2>{mode === "reset" ? "Reset your password" : mode === "setpassword" ? "Choose your password" : mode === "mfa" ? mfaVerified ? "Check admin access" : "Enter your code" : "Welcome back"}</h2>
             <p className="form-description">
               {mode === "reset"
                 ? "Enter your email and we'll send you a link to set a new password."
                 : mode === "setpassword"
                   ? "You're invited as a Zella admin. Choose a password to finish."
                   : mode === "mfa"
-                    ? "Open your authenticator app and enter the 6-digit code for Zella."
+                    ? mfaVerified ? "Your code was verified. Retry checking your admin access." : "Open your authenticator app and enter the 6-digit code for Zella."
                     : platform.login_headline || "Sign in to your Zella platform workspace."}
             </p>
 
             <form onSubmit={mode === "reset" ? handleReset : mode === "setpassword" ? handleSetPassword : mode === "mfa" ? handleMfa : handleLogin}>
-              {mode === "mfa" ? (
+              {mode === "mfa" ? (mfaVerified ? null : (
                 <>
                   <label htmlFor="mfa-code">Authenticator code</label>
                   <div className="input-wrap">
@@ -436,7 +445,7 @@ function AdminApp() {
                       onChange={(e) => setCode(e.target.value)} placeholder="123456" autoFocus required />
                   </div>
                 </>
-              ) : mode === "setpassword" ? (
+              )) : mode === "setpassword" ? (
                 <>
                   <label htmlFor="new-password">New password</label>
                   <div className="input-wrap">
@@ -506,7 +515,7 @@ function AdminApp() {
               )}
               <button className="login-button" type="submit" disabled={loading}>
                 {mode === "mfa"
-                  ? loading ? "Checking..." : "Verify and continue"
+                  ? loading ? "Checking..." : mfaVerified ? "Retry access check" : "Verify and continue"
                   : mode === "setpassword"
                   ? loading ? "Saving..." : "Save password and continue"
                   : mode === "reset"
