@@ -1,5 +1,7 @@
 // Zella - Inbound Email: Resend tells us an email arrived (event email.received). The event only says WHO and WHICH email,
 // so the next step fetches the email itself. The secret key in the webhook address is checked by the database.
+const auth = $('Check Resend auth').item.json;
+if (auth.statusCode !== 200 || auth.body !== 'ok') return { json: { fetch: null, record: null } };
 const key = typeof ($json.query && $json.query.key) === 'string' ? $json.query.key.slice(0, 200) : '';
 const event = $json.body && typeof $json.body === 'object' && !Array.isArray($json.body) ? $json.body : null;
 const data = event && event.data && typeof event.data === 'object' ? event.data : {};

@@ -11,6 +11,6 @@ if (provider === 'outlook') {
     url: 'https://graph.microsoft.com/v1.0/' + where + '?' + q.toString(), prefer: 'outlook.timezone="UTC"' } };
 }
 const q = new URLSearchParams({ timeMin: c.from, timeMax: c.to, singleEvents: 'true', orderBy: 'startTime', maxResults: '250',
-  fields: 'items(id,status,transparency,start,end,extendedProperties)' });
+  fields: 'nextPageToken,items(id,status,transparency,start,end,extendedProperties)' });
 return { json: { connection_id: c.connection_id, provider, token_form: { refresh_token: String(c.refresh_token) },
   url: 'https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(String(c.calendar_id)) + '/events?' + q.toString(), prefer: '' } };

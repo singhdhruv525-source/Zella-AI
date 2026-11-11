@@ -71,6 +71,8 @@ function invalidField(clean) {
 export function planBrainTool(tc, ctx, allowed = TOOLS) {
   const name = toolName(tc);
   const args = toolArgs(tc);
+  const malformedPartySize = Object.prototype.hasOwnProperty.call(args, 'party_size')
+    && (typeof args.party_size !== 'number' || !Number.isFinite(args.party_size));
   const clean = {};
   for (const k of STRINGS) if (typeof args[k] === 'string') clean[k] = args[k].replace(/\s+/g, ' ').trim().slice(0, k === 'query' ? 300 : 1500);
   for (const k of NUMBERS) if (typeof args[k] === 'number' && Number.isFinite(args[k])) clean[k] = args[k];
@@ -79,8 +81,7 @@ export function planBrainTool(tc, ctx, allowed = TOOLS) {
   const known = TOOLS.includes(name) && allowed.includes(name);
   const typeError = Object.hasOwn(args, 'seating') && typeof args.seating !== 'string'
     ? 'seating must be a short preference, e.g. patio'
-    : Object.hasOwn(args, 'party_size') && (typeof args.party_size !== 'number' || !Number.isFinite(args.party_size))
-      ? 'party_size must be a whole number of people from 1 to 100' : null;
+    : malformedPartySize ? 'party_size must be a whole number of people from 1 to 100' : null;
   const invalid = known ? typeError || invalidField(clean) : null;
   return {
     toolCallId: tc.id, name, known, invalid,
