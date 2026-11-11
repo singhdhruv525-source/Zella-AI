@@ -161,7 +161,8 @@ export default function OffersPage({ onOpenBusiness }) {
       setList(await rpc("zella_offers_list"));
     } catch (err) {
       setError(friendly(err));
-      setList({ offers: [], capabilities: {} });
+      // keep what was shown before; with nothing shown yet, mark the list as failed (not as "no offers")
+      setList((cur) => cur ?? { failed: true, offers: [], capabilities: null });
     }
   }, []);
 
@@ -172,7 +173,7 @@ export default function OffersPage({ onOpenBusiness }) {
         businesses: (d.businesses ?? []).map((b) => ({ id: b.id, name: b.name })).sort((a, b) => a.name.localeCompare(b.name)),
         industries: (d.industries ?? []).map((i) => ({ id: i.id, name: i.name })),
       }))
-      .catch(() => {});
+      .catch((err) => setLookups((l) => ({ ...l, error: friendly(err) })));
   }, [load]);
 
   const offers = useMemo(() => {
@@ -202,7 +203,7 @@ export default function OffersPage({ onOpenBusiness }) {
         )}
       </div>
 
-      {!caps.billing && (
+      {list?.capabilities && !caps.billing && (
         <div className="wiz-note op-gap">
           <strong>No payment provider connected yet.</strong> Businesses can claim offers, and each claim waits as
           "Waiting for payment". It becomes "Paid" only when a real payment arrives from the payment provider, and
@@ -234,6 +235,11 @@ export default function OffersPage({ onOpenBusiness }) {
 
           {list === null ? (
             <div className="owner-loading op-gap">Loading offers...</div>
+          ) : list.failed ? (
+            <div className="owner-empty-state op-gap">
+              <strong>Offers couldn't be loaded.</strong>
+              <p>Nothing was changed. <button type="button" className="ba-link" onClick={load}>Try again</button></p>
+            </div>
           ) : offers.length === 0 ? (
             <div className="owner-empty-state op-gap">
               <strong>No offers here.</strong>
@@ -576,7 +582,8 @@ function EligibilityEditor({ match, rules, lookups, onChange }) {
                     <span>{label}</span>
                   </label>
                 ))}
-                {opts && opts.length === 0 && <span className="op-muted">Nothing to choose from yet.</span>}
+                {lookups.error && (r.field === "industry" || r.field === "business") ? <span className="op-muted" role="alert">Couldn't load the list: {lookups.error}</span>
+                  : opts && opts.length === 0 && <span className="op-muted">Nothing to choose from yet.</span>}
               </div>
             )}
           </div>
@@ -774,6 +781,7 @@ function OfferDetail({ offerId, me, isOwner, lookups, onClose, onEdit, onChanged
         {s === "active" && (o.channels ?? []).some((c) => c === "sales" || c === "dashboard") && (
           <div className="wiz-section">
             <div className="wiz-section-head"><div><h3>Apply to a business</h3><p>For negotiated deals. The business must still qualify.</p></div></div>
+            {lookups.error && <p className="owner-form-error" role="alert">The list of businesses couldn't be loaded: {lookups.error}</p>}
             <div className="owner-form-grid">
               <label className="owner-field">
                 <span>Business</span>

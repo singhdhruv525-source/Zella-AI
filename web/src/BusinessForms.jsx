@@ -263,7 +263,8 @@ export function BookAppointmentModal({ workspace, term, onClose, onSaved, initia
     if (!force) {
       const blockResult = await supabase.from("blocked_times").select("*").eq("business_id", workspace.id)
         .lt("start_time", end.toISOString()).gt("end_time", start.toISOString());
-      const message = findConflict({ staff, blocks: blockResult.error ? [] : blockResult.data ?? [], start, end, staffId: form.staffId, timeZone: tz });
+      if (blockResult.error || !blockResult.data) { setBusy(false); return setError("Couldn't check for blocked times. Try again."); }
+      const message = findConflict({ staff, blocks: blockResult.data, start, end, staffId: form.staffId, timeZone: tz, resourceIds });
       if (message) {
         setBusy(false);
         setConflict(message);

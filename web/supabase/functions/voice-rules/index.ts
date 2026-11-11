@@ -132,6 +132,7 @@ Deno.serve(async (req: Request) => {
     ]));
   }
   const fail = (c: ToolCall) => c.kind === "brain" ? brainToolReply(c.name, c.toolCallId, false, null) : toolResult(c.toolCallId, false, null, c.name);
+  let orderChain: Promise<unknown> = Promise.resolve();
   const runOne = async (c: ToolCall): Promise<Record<string, unknown>> => {
     if (c.kind === "unsupported") return unsupported(c.toolCallId, c.name);
     if (c.kind === "invalid") return brainInvalidReply(c.name, c.toolCallId, c.why ?? "bad arguments");
@@ -141,10 +142,17 @@ Deno.serve(async (req: Request) => {
       return toolResult(c.toolCallId, !r.error, r.data as Record<string, unknown>, c.name);
     }
     if (c.name === "lookup_order") {
-      // the store lookup happens here (the database can't call Shopify); the database gives the store and records the outcome
-      const args = (c.record?.p_args ?? {}) as Record<string, unknown>;
-      const out = await lookupOrder((fn, a) => call(db, fn, a, left()), businessId, p.providerCallId, args, fetch, Math.max(500, left() - 300));
-      return brainToolReply(c.name, c.toolCallId, true, out);
+      // the store lookup happens here (the database can't call Shopify); the database gives the store and records the outcome.
+      // One at a time: each lookup reads the failure counters before it records its own outcome, so parallel lookups
+      // in one request could all see the same low count and go past the per-call guess limit.
+      const run = orderChain.then(async () => {
+        if (left() < 200) return fail(c);
+        const args = (c.record?.p_args ?? {}) as Record<string, unknown>;
+        const out = await lookupOrder((fn, a) => call(db, fn, a, left()), businessId, p.providerCallId, args, fetch, Math.max(500, left() - 300));
+        return brainToolReply(c.name, c.toolCallId, true, out);
+      });
+      orderChain = run.catch(() => undefined);
+      return run;
     }
     const r = await call(db, "zella_ai_tool", { ...c.record, p_business_id: businessId }, left());
     return brainToolReply(c.name, c.toolCallId, !r.error, r.data);

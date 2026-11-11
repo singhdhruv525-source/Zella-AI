@@ -181,7 +181,9 @@ export function MoneyPage({ workspace, refreshKey, onNotice, onOpenPerson }) {
   const [version, setVersion] = useState(0);
   const currency = useLoad(async () => {
     const r = await supabase.rpc("zella_business_currency", { p_business_id: workspace.id });
-    return r.error ? "USD" : r.data || "USD";
+    if (r.error) throw r.error;
+    if (!r.data) throw new Error("Business currency unavailable.");
+    return r.data;
   }, [workspace.id]);
   const { data, error, loading } = useLoad(async () => orThrow(await supabase.from("customer_charges")
     .select("*, customers(id, first_name, last_name, company_name)").eq("business_id", workspace.id).order("created_at", { ascending: false }).limit(500)),
@@ -198,8 +200,9 @@ export function MoneyPage({ workspace, refreshKey, onNotice, onOpenPerson }) {
   return (
     <>
       <PageHead crumb="CRM / Money" title="Money" sub="Estimates, invoices, deposits, fees and gift cards your team records. Zella never takes card details or charges anyone.">
-        {workspace.role !== "viewer" && <button type="button" className="ba-btn primary" onClick={() => setModal({ new: true })}><Icon name="add" size="sm" />Add</button>}
+        {workspace.role !== "viewer" && <button type="button" className="ba-btn primary" disabled={!currency.data || Boolean(currency.error) || currency.loading} onClick={() => setModal({ new: true })}><Icon name="add" size="sm" />Add</button>}
       </PageHead>
+      {currency.error && <div className="ba-banner error">{explain(currency.error)} <button type="button" className="ba-btn sm" onClick={currency.reload}>Try again</button></div>}
       <div className="ba-toolbar">
         <label className="ba-inline">Show <select value={filter} onChange={(e) => setFilter(e.target.value)}>
           <option value="open">Open</option><option value="all">All</option>{KINDS.map(([v, l]) => <option key={v} value={v}>{l}s</option>)}
@@ -230,7 +233,7 @@ export function MoneyPage({ workspace, refreshKey, onNotice, onOpenPerson }) {
           </table>
         </div>
       )}
-      {modal?.new && <NewCharge workspace={workspace} currency={currency.data ?? "USD"} onClose={() => setModal(null)} onSaved={(m) => { setModal(null); changed(m); }} />}
+      {modal?.new && currency.data && !currency.error && !currency.loading && <NewCharge workspace={workspace} currency={currency.data} onClose={() => setModal(null)} onSaved={(m) => { setModal(null); changed(m); }} />}
       {current && <ChargeDetail workspace={workspace} charge={current} onClose={() => setModal(null)} onChanged={changed} />}
     </>
   );

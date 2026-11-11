@@ -238,7 +238,7 @@ function LeadPanel({ person, workspace, roster, onClose, onChanged, onNotice, on
       supabase.from("crm_tasks").select("*").eq("customer_id", person.id).eq("status", "open").order("due_at", { ascending: true, nullsFirst: false }).limit(20),
       supabase.from("callbacks").select("*").eq("customer_id", person.id).not("status", "in", "(completed,cancelled)").order("due_at").limit(10),
     ]);
-    return { calls: calls.error ? [] : calls.data, tasks: tasks.error ? [] : tasks.data, cbs: cbs.error ? [] : cbs.data };
+    return { calls: calls.data ?? [], tasks: tasks.data ?? [], cbs: cbs.data ?? [], callsFailed: Boolean(calls.error), tasksFailed: Boolean(tasks.error), callbacksFailed: Boolean(cbs.error) };
   }, [person?.id]);
 
   if (!person) return null;
@@ -336,6 +336,7 @@ function LeadPanel({ person, workspace, roster, onClose, onChanged, onNotice, on
         </form>
 
         <h3 className="ba-sub">Callback</h3>
+        {data?.callbacksFailed && <p className="ba-muted">Couldn't load</p>}
         {data?.cbs.length > 0 && (
           <ul className="ba-threads">
             {data.cbs.map((c) => <li key={c.id}><span className="ba-thread-icon"><Icon name="phone_callback" size="sm" /></span><div><strong>Call back {when(c.due_at, tz)}</strong><small>{c.attempts} of {c.max_attempts} tries{c.summary ? ` · ${c.summary}` : ""}</small></div></li>)}
@@ -363,14 +364,14 @@ function LeadPanel({ person, workspace, roster, onClose, onChanged, onNotice, on
         {person.notes ? <p className="ba-item-text ba-notes">{person.notes}</p> : <p className="ba-muted">No notes yet.</p>}
 
         <h3 className="ba-sub">Open to-dos</h3>
-        {!data?.tasks.length ? <p className="ba-muted">{loading && !data ? "Loading…" : "Nothing open."}</p> : (
+        {!data?.tasks.length ? <p className="ba-muted">{loading && !data ? "Loading…" : data?.tasksFailed ? "Couldn't load" : "Nothing open."}</p> : (
           <ul className="ba-threads">
             {data.tasks.map((t) => <li key={t.id}><span className="ba-thread-icon"><Icon name="task_alt" size="sm" /></span><div><strong>{t.title}</strong><small>{t.due_at ? `Due ${when(t.due_at, tz)}` : "No due time"}{t.assigned_to && roster.nameOf[t.assigned_to] ? ` · ${roster.nameOf[t.assigned_to]}` : ""}</small></div></li>)}
           </ul>
         )}
 
         <h3 className="ba-sub">Call history</h3>
-        {!data?.calls.length ? <p className="ba-muted">{loading && !data ? "Loading…" : `No calls from this ${term("customer").toLowerCase()} yet.`}</p> : (
+        {!data?.calls.length ? <p className="ba-muted">{loading && !data ? "Loading…" : data?.callsFailed ? "Couldn't load" : `No calls from this ${term("customer").toLowerCase()} yet.`}</p> : (
           <ul className="ba-threads">
             {data.calls.map((c) => (
               <li key={c.id}>

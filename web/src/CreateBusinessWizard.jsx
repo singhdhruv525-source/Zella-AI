@@ -1530,10 +1530,11 @@ function TeamStep({ value, onChange, config, terminology, showErrors }) {
             <button type="button" className="wiz-link-danger" onClick={() => onChange(value.filter((_, n) => n !== i))}>Remove</button>
           </div>
         ))}
-        <button type="button" className="owner-secondary-button" onClick={() => onChange([...value, { id: "", name: "", title: "", phone: "", email: "" }])}>
+        <button type="button" className="owner-secondary-button" disabled={value.length >= 50} onClick={() => { if (value.length < 50) onChange([...value, { id: "", name: "", title: "", phone: "", email: "" }]); }}>
           ＋ Add {staffWord.toLowerCase()}
         </button>
       </div>
+      {value.length >= 50 && <p role="alert">The team limit is 50 members. {value.length > 50 ? "All existing members are shown. Remove members explicitly to save this list." : "Remove a member before adding another."}</p>}
       <p className="wiz-hint">Each person works the opening hours until their own hours are set in the CRM. Removing someone here switches them off; past bookings keep their name.</p>
     </Section>
   );
@@ -1852,7 +1853,7 @@ function UnsavedDialog({ stepLabel, closing, onSave, onDiscard, onStay }) {
   );
 }
 
-export default function CreateBusinessWizard({ businessId: initialBusinessId, industries, onClose }) {
+export default function CreateBusinessWizard({ businessId: initialBusinessId, industries, industryError, onRetryIndustries, loadingIndustries, onClose }) {
   const [setup, setSetup] = useState(emptySetup);
   const [businessId, setBusinessId] = useState(initialBusinessId || null);
   const [step, setStep] = useState(0);
@@ -1954,6 +1955,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
       if (bad) return `${bad.label}: enter a number from ${bad.min} to ${bad.max}.`;
     }
     if (key === "team") {
+      if (setup.team.length > 50) return "The team limit is 50 members. Remove members explicitly before saving.";
       for (const m of setup.team) {
         if (!m.name.trim() && (m.title || m.phone || m.email)) return "Every team member needs a name, or remove the empty row.";
         if (checkEmail(m.email)) return `${m.name || "Team member"} email: ${checkEmail(m.email)}`;
@@ -2198,6 +2200,9 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
         </button>
       </div>
 
+      {industryError && <div className="owner-form-error" role="alert">
+        {industryError} <button type="button" className="owner-secondary-button" onClick={onRetryIndustries} disabled={loadingIndustries}>{loadingIndustries ? "Loading..." : "Retry"}</button>
+      </div>}
       <div className="wiz-progress" role="progressbar" aria-label="Setup progress" aria-valuemin={1} aria-valuemax={STEPS.length} aria-valuenow={step + 1}>
         <span style={{ width: `${((step + 1) / STEPS.length) * 100}%` }} />
         <small>Step {step + 1} of {STEPS.length} · {STEPS[step].label}</small>

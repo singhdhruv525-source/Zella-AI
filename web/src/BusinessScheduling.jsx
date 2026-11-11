@@ -208,7 +208,10 @@ function ChecklistModal({ job, busy, onClose, onSave }) {
 function ReturnVisitModal({ job, tz, technicians, busy, onClose, onSave }) {
   const [date, setDate] = useState(() => todayInput(tz));
   const [time, setTime] = useState("09:00");
-  const [minutes, setMinutes] = useState(String(Math.max(30, Math.round((new Date(job.end) - new Date(job.start)) / 60000)) || 60));
+  const [minutes, setMinutes] = useState(() => {
+    const m = Math.round((new Date(job.end) - new Date(job.start)) / 60000);
+    return String(Number.isFinite(m) ? Math.max(30, m) : 60);
+  });
   const [staff, setStaff] = useState(job.staff_id ?? "");
   const [reason, setReason] = useState("");
   return (
@@ -222,6 +225,7 @@ function ReturnVisitModal({ job, tz, technicians, busy, onClose, onSave }) {
         <Field label="Minutes"><input type="number" min={5} max={720} value={minutes} onChange={(e) => setMinutes(e.target.value)} required /></Field>
         <Field label="Technician">
           <select value={staff} onChange={(e) => setStaff(e.target.value)}>
+            <option value="">Same technician</option>
             {technicians.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
         </Field>

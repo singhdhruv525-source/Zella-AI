@@ -147,8 +147,9 @@ do $$ begin
   assert not exists (select 1 from storage.objects where name = (select v ->> 'path' from ids where k = 'a')), 'the removed photo is gone from storage';
   assert exists (select 1 from storage.objects where name = (select v ->> 'path' from ids where k = 'p')), 'the private file is still there';
 end $$;
--- cleanup (server): lists the rejected PDF's stored copy, an abandoned upload and an orphan object; the removed photo
--- whose object the manager already deleted is not listed; purging is audited
+-- cleanup (server): lists the rejected PDF's stored copy, an abandoned upload, an orphan object and the removed photo
+-- whose object the manager already deleted but whose purge was never recorded (sql/zella_record_files_purge_retry.sql);
+-- purging is audited
 do $$ declare ab jsonb; list jsonb; n int; begin
   insert into storage.objects (bucket_id, name, metadata, created_at) values ('record-files', 'ea000000-0000-0000-0000-0000000000a1/ea000000-0000-0000-0000-0000000000f1/orphan.png', '{}', now() - interval '2 days');
   insert into public.crm_record_files (business_id, record_id, path, file_name, mime_type, size_bytes, kind, status, uploaded_by, created_at)
@@ -161,13 +162,15 @@ do $$ declare ab jsonb; list jsonb; n int; begin
   assert list ? 'ea000000-0000-0000-0000-0000000000a1/ea000000-0000-0000-0000-0000000000f1/orphan.png', 'orphan listed';
   assert list ? 'ea000000-0000-0000-0000-0000000000a1/ea000000-0000-0000-0000-0000000000f1/left.jpg', 'abandoned upload listed';
   assert not list ? ((select v from ids where k = 'p') ->> 'path'), 'a live file is never listed';
-  assert jsonb_array_length(list) = 3, 'exactly those three: ' || list::text;
+  assert list ? ((select v from ids where k = 'a') ->> 'path'), 'removed photo without a recorded purge listed';
+  assert jsonb_array_length(list) = 4, 'exactly those four: ' || list::text;
   delete from storage.objects where name in (select jsonb_array_elements_text(list)); -- what the storage API does
+  assert public.zella_record_file_cleanup() ? ((select v from ids where k = 'bad') ->> 'path'), 'deleted object with unpurged record is retried';
   n := public.zella_record_files_purged(array(select jsonb_array_elements_text(list)));
-  assert n = 2, 'two file records purged (the orphan had none)';
+  assert n = 3, 'three file records purged (the orphan had none)';
   assert jsonb_array_length(public.zella_record_file_cleanup()) = 0, 'nothing left to clean';
   reset role;
-  assert exists (select 1 from public.audit_logs where action = 'record_files_purged' and (new_data ->> 'objects')::int = 3), 'purge audited';
+  assert exists (select 1 from public.audit_logs where action = 'record_files_purged' and (new_data ->> 'objects')::int = 4 and (new_data ->> 'file_records')::int = 3), 'purge audited';
 end $$;
 
 -- a tech removed from the business can no longer see or open anything, even files on records they were assigned to

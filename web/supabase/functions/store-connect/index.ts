@@ -5,14 +5,15 @@
 // stored by the database with the server key. It is never logged or sent back.
 // verify_jwt is off (config.toml), like the other functions that check the caller through the database.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { withCors } from "../_shared/cors.ts";
 
 export const SHOPIFY_API_VERSION = "2026-07";
 export const NEEDED_SCOPES = ["read_orders", "read_customers"];
-const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info", "Access-Control-Allow-Methods": "POST, OPTIONS" };
-const json = (body: unknown, status: number) => new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
+// Which websites may read the answer comes from the shared origin policy (withCors, below), like the other
+// browser-facing functions; this function still checks the sign-in token and zella_store_can_manage itself.
+const json = (body: unknown, status: number) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
 export async function handle(req: Request): Promise<Response> {
-  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
   if (req.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405);
   const base = Deno.env.get("SUPABASE_URL"), server = Deno.env.get("ZELLA_SERVER_SECRET_KEY"), anon = Deno.env.get("SUPABASE_ANON_KEY");
   if (!base || !server || !anon) return json({ ok: false, error: "not_configured" }, 503);
@@ -54,4 +55,4 @@ export async function handle(req: Request): Promise<Response> {
   return json({ ok: true, shop: shop, shop_name: shopName, more_access_than_needed: extra }, 200);
 }
 
-if (import.meta.main) Deno.serve(handle);
+if (import.meta.main) Deno.serve(withCors(handle));

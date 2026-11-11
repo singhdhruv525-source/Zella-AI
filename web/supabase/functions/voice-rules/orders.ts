@@ -84,19 +84,29 @@ export async function orderRef(businessId: string, orderNumber: string): Promise
 }
 
 type Rpc = (fn: string, args: Json) => Promise<{ data: unknown; error: unknown }>;
+
 // one lookup, end to end; never throws, never returns the token or order content beyond the disclosure
 export async function lookupOrder(rpc: Rpc, businessId: string | null, providerCallId: string | null, args: Json, fetcher: typeof fetch = fetch, ms = 4000): Promise<Json> {
   const orderNumber = typeof args.order_number === "string" ? args.order_number : "";
   if (!orderNumber) return { ok: false, status: "need_info", say: "Ask for the order number." };
   const ref = await orderRef(businessId ?? "", orderNumber);
-  const ctx = await rpc("zella_store_lookup_context", { p_provider_call_id: providerCallId, p_business_id: businessId, p_order_ref: ref });
+  const ctx = await rpc("zella_store_lookup_begin", { p_provider_call_id: providerCallId, p_business_id: businessId, p_order_ref: ref, p_caller_number: typeof args.caller_number === "string" ? args.caller_number : null }).catch((error) => ({ data: null, error }));
   const c = (ctx.data ?? {}) as Json;
-  if (ctx.error || c.ok !== true) {
+  if (ctx.error || c.status === "limited") return LIMITED;
+  if (c.ok !== true) {
     return { ok: false, status: c.status === "not_available" ? "not_available" : "no_store",
       say: "Order status can't be checked right now. Take a message with the order number and say the team will get back to them." };
   }
-  const log = (result: string, verified: boolean, integration: unknown = c.integration_id) =>
-    rpc("zella_store_lookup_log", { p_business_id: businessId, p_provider_call_id: providerCallId, p_integration_id: integration, p_result: result, p_verified: verified, p_order_ref: ref });
+  if (typeof c.reservation_id !== "string" || !c.reservation_id) return LIMITED;
+  const write = (result: string, verified: boolean, integration: unknown) =>
+    rpc("zella_store_lookup_finish", { p_reservation_id: c.reservation_id, p_business_id: businessId, p_provider_call_id: providerCallId, p_integration_id: integration, p_result: result, p_verified: verified, p_order_ref: ref });
+  // The durable reservation stays locked until the outcome commits, including after both writes fail.
+  const log = async (result: string, verified: boolean, integration: unknown = c.integration_id): Promise<boolean> => {
+    let w = await write(result, verified, integration).catch((e) => ({ data: null, error: e }));
+    if (w.error) w = await write(result, verified, integration).catch((e) => ({ data: null, error: e }));
+    if (!w.error) return true;
+    return false;
+  };
   if (Number(c.failed_this_call ?? 0) >= MAX_FAILED_PER_CALL || Number(c.failed_this_number_day ?? 0) >= MAX_FAILED_PER_NUMBER_DAY
       || Number(c.failed_this_order_day ?? 0) >= MAX_FAILED_PER_ORDER_DAY || Number(c.failed_business_hour ?? 0) >= MAX_FAILED_BUSINESS_HOUR) {
     await log("limited", false, null);
@@ -121,7 +131,7 @@ export async function lookupOrder(rpc: Rpc, businessId: string | null, providerC
   const a = order ? assess(order, caller, typeof args.email === "string" ? args.email : null) : null;
   const d = order && a ? disclosure(order, a.level) : null;
   if (!order || !a || !d) {   // not found and not matching: the same answer, so order numbers can't be probed
-    await log(order ? "unverified" : "not_found", false);
+    if (!await log(order ? "unverified" : "not_found", false)) return LIMITED;
     return UNVERIFIED;
   }
   await log(`found_${a.level}`, true);   // found_recipient / found_one_factor / found_two_factor

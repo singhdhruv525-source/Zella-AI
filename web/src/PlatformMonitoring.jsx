@@ -45,15 +45,20 @@ const loadHealth = async () => {
 
 export function HealthPanel() {
   const { data, error, loading } = useAsync(loadHealth);
-  const alerts = data?.open_alerts ?? {};
+  const rawAlerts = data?.open_alerts;
+  const validAlerts = rawAlerts && typeof rawAlerts === "object" && !Array.isArray(rawAlerts);
+  const alerts = Object.fromEntries(["urgent", "warning", "info"].map((k) => [k,
+    validAlerts ? (Object.hasOwn(rawAlerts, k) ? rawAlerts[k] : 0) : null]));
+  const counted = Object.values(alerts).every((n) => Number.isInteger(n) && n >= 0);
+  const count = (k) => (Number.isInteger(alerts[k]) && alerts[k] >= 0 ? alerts[k] : "—");
   return (
     <section className="owner-panel op-card">
       <div className="owner-panel-heading"><div><h2>Providers and alerts</h2><p>From the scheduled provider checks and open platform alerts.</p></div></div>
       {error && <div className="owner-form-error op-gap-top">{error}</div>}
       <ul className="op-list">
         {loading && !data && <li><span className="op-muted">Checking...</span></li>}
-        {data && <li><div><strong>Open alerts</strong><span>Urgent {alerts.urgent ?? 0} · warning {alerts.warning ?? 0} · info {alerts.info ?? 0}</span></div>
-          <Pill tone={alerts.urgent ? "danger" : alerts.warning ? "warning" : "success"}>{alerts.urgent || alerts.warning ? "Needs a look" : "Clear"}</Pill></li>}
+        {data && <li><div><strong>Open alerts</strong><span>Urgent {count("urgent")} · warning {count("warning")} · info {count("info")}</span></div>
+          <Pill tone={!counted ? "neutral" : alerts.urgent ? "danger" : alerts.warning ? "warning" : "success"}>{!counted ? "Unknown" : alerts.urgent || alerts.warning ? "Needs a look" : "Clear"}</Pill></li>}
         {data && <li><div><strong>Failed events (24 h)</strong><span>Automation events that failed for good</span></div><Pill tone={data.failed_events_24h ? "danger" : "success"}>{data.failed_events_24h || "None"}</Pill></li>}
         {data && <li><div><strong>Businesses with failed texts (24 h)</strong><span>Outbound texts that couldn't be delivered</span></div><Pill tone={data.businesses_with_failed_messages_24h ? "warning" : "success"}>{data.businesses_with_failed_messages_24h || "None"}</Pill></li>}
         {(data?.providers ?? []).map((p) => (

@@ -16,6 +16,9 @@ Deno.test("signature: valid, wrong secret, old, missing, tampered body", async (
   assertEquals(await verifySignature(raw, await sign(raw, "whsec_test", now - 301), "whsec_test", now), false);
   assertEquals(await verifySignature(raw, null, "whsec_test", now), false);
   assertEquals(await verifySignature(raw + " ", await sign(raw, "whsec_test", now), "whsec_test", now), false);
+  assertEquals(await verifySignature(raw, "v1=deadbeef", "whsec_test", now), false);
+  assertEquals(await verifySignature(raw, "t=nope,v1=deadbeef", "whsec_test", now), false);
+  assertEquals(await verifySignature(raw, await sign(raw, "whsec_test", now + 301), "whsec_test", now), false);
   // several v1 values (secret rotation): any match passes
   const good = await sign(raw, "whsec_test", now);
   assertEquals(await verifySignature(raw, `${good.split(",")[0]},v1=deadbeef,${good.split(",")[1]}`, "whsec_test", now), true);
@@ -70,4 +73,10 @@ Deno.test("subscription events; unknown events ignored", () => {
 Deno.test("HTTP answers: waiting is 200 (Zella retries itself), failure is 500 (provider retries)", () => {
   assertEquals([httpStatusFor("processed"), httpStatusFor("pending"), httpStatusFor("duplicate"), httpStatusFor("ignored"), httpStatusFor("failed"), httpStatusFor("??")],
     [200, 200, 200, 200, 500, 500]);
+});
+
+Deno.test("subscription RPC args require a subscription id", () => {
+  for (const type of ["customer.subscription.deleted", "customer.subscription.updated"]) {
+    assertEquals("invalid" in mapEvent(inv(type, { status: "active" })), true);
+  }
 });

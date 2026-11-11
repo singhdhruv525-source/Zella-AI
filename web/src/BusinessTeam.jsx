@@ -137,10 +137,14 @@ export function TeamPage({ workspace, email, refreshKey, onNotice }) {
     const blocksResult = await supabase.from("blocked_times").select("*").eq("business_id", workspace.id)
       .gt("end_time", new Date(Date.now() - 3600000).toISOString()).order("start_time").limit(200);
     const logins = orThrow(await supabase.from("business_members").select("id, user_id, role, status, created_at").eq("business_id", workspace.id).order("created_at"));
+    // Only a table that isn't installed yet means "needs the latest update"; any other failure is shown as a failure.
+    const notInstalled = (e) => Boolean(e) && ["42P01", "PGRST205"].includes(e.code);
+    if (staffResult.error && !notInstalled(staffResult.error)) throw staffResult.error;
+    if (blocksResult.error && !notInstalled(blocksResult.error)) throw blocksResult.error;
     return {
-      staff: staffResult.error ? [] : staffResult.data ?? [],
-      staffMissing: Boolean(staffResult.error),
-      blocks: blocksResult.error ? [] : blocksResult.data ?? [],
+      staff: staffResult.data ?? [],
+      staffMissing: notInstalled(staffResult.error),
+      blocks: blocksResult.data ?? [],
       logins,
     };
   }, [workspace.id, refreshKey]);

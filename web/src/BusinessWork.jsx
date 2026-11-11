@@ -403,14 +403,20 @@ export function NotificationsBell({ workspace, onGo }) {
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState([]);
   const [missing, setMissing] = useState(false);
+  const [failed, setFailed] = useState(false);
   const [toasts, setToasts] = useState([]);
   const [quiet] = useState(() => pickQuiet());
   const seen = useRef(null);
 
   async function load() {
     const { data, error } = await supabase.from("staff_notifications").select("*").eq("business_id", workspace.id).order("created_at", { ascending: false }).limit(30);
-    if (error) { setMissing(true); return; }
-    setMissing(false);
+    // Only a table that isn't installed hides the bell; a passing network error keeps the last rows and says so.
+    if (error) {
+      if (["42P01", "PGRST205"].includes(error.code)) setMissing(true);
+      else setFailed(true);
+      return;
+    }
+    setMissing(false); setFailed(false);
     const list = data ?? [];
     // Anything new since the last look (not on the first load) announces itself.
     if (seen.current) {
@@ -465,7 +471,8 @@ export function NotificationsBell({ workspace, onGo }) {
       {open && (
         <div className="ba-bell-panel" role="dialog" aria-label="Notifications">
           <div className="ba-bell-head"><strong>Notifications</strong>{unread.length > 0 && <button type="button" className="ba-link" onClick={markAll}>Mark all read</button>}</div>
-          {!rows.length ? <p className="ba-muted pad">{quiet}</p> : (
+          {failed && <p className="ba-muted pad" role="status">Notifications couldn't be checked just now. Zella Voice will try again shortly.</p>}
+          {!rows.length ? (!failed && <p className="ba-muted pad">{quiet}</p>) : (
             <ul>
               {rows.map((n) => {
                 const { icon, tone } = noteIcon(n);

@@ -539,6 +539,8 @@ function Automation({ info, canSave, onSaved }) {
   const [error, setError] = useState("");
   const [limit, setLimit] = useState(info?.ai_monthly_limit ?? 200);
   const [confirmAi, setConfirmAi] = useState(false);
+  const [confirmLive, setConfirmLive] = useState(false);
+  const [reason, setReason] = useState("");
   if (!info?.available) {
     return <section className="owner-panel sa-panel"><p className="op-muted">The automation columns come with the current <strong>sql/zella_spam_protection.sql</strong>. Apply it (after a backup) to see the queue here.</p></section>;
   }
@@ -546,8 +548,10 @@ function Automation({ info, canSave, onSaved }) {
     setBusy(true);
     setError("");
     try {
-      await callOwnerFunction("spam_admin_automation_save", { automation: patch });
+      await callOwnerFunction("spam_admin_automation_save", { automation: patch, reason: reason.trim() });
       setConfirmAi(false);
+      setConfirmLive(false);
+      setReason("");
       onSaved(message);
     } catch (err) {
       setError(friendlyError(err));
@@ -555,6 +559,7 @@ function Automation({ info, canSave, onSaved }) {
       setBusy(false);
     }
   }
+  const closeConfirm = () => { setConfirmLive(false); setConfirmAi(false); setError(""); setReason(""); };
   const q = info.queue ?? {};
   return (
     <section className="owner-panel sa-panel">
@@ -568,7 +573,7 @@ function Automation({ info, canSave, onSaved }) {
         <li>
           <span className="sa-stack"><strong>Spam Response workflow</strong><small className="op-muted">{info.live ? "On: medium and high incidents are queued for it" : "Off: everything is handled in the database, as before"}</small></span>
           <Pill tone={info.live ? "success" : "neutral"}>{info.live ? "On" : "Off"}</Pill>
-          {canSave && <button type="button" className="owner-secondary-button" disabled={busy} onClick={() => save({ live: !info.live }, info.live ? "Spam Response switched off." : "Spam Response switched on. Make sure the workflow is published in n8n.")}>{info.live ? "Switch off" : "Switch on"}</button>}
+          {canSave && <button type="button" className="owner-secondary-button" disabled={busy} onClick={() => (info.live ? save({ live: false }, "Spam Response switched off.") : setConfirmLive(true))}>{info.live ? "Switch off" : "Switch on"}</button>}
         </li>
         <li>
           <span className="sa-stack"><strong>AI second opinion</strong><small className="op-muted">{info.ai_live ? `On (${info.ai_model ?? "default model"}), for businesses that opt in` : "Off"}. Only medium-risk texts and emails, details removed first; never blocks anyone.</small></span>
@@ -597,15 +602,37 @@ function Automation({ info, canSave, onSaved }) {
         </label>
       )}
       {!canSave && <p className="op-muted">Your role can view this but not change it.</p>}
+      {confirmLive && createPortal(
+        <DialogFocus onClose={closeConfirm} busy={busy}><div className="owner-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && !busy && closeConfirm()}>
+          <div className="bd-confirm owner-modal" role="dialog" aria-modal="true" aria-label="Switch on the Spam Response workflow">
+            <div className="zs-dialog-head"><span className="zs-dialog-icon"><Icon name="warning" /></span><h3>Switch on live spam alerts?</h3></div>
+            <p>From now on, medium and high incidents for <strong>every business</strong> are queued for the Spam Response workflow in n8n, which sends
+              real alerts to the businesses' teams. Make sure the workflow is published and tested in n8n first. You can switch it off again at any time.
+              Only a Zella owner or super admin can switch it on.</p>
+            {error && <div className="owner-form-error" role="alert">{error}</div>}
+            <label className="owner-field"><span>Reason (kept in the audit log)</span>
+              <input value={reason} maxLength={300} onChange={(e) => setReason(e.target.value)} disabled={busy} autoFocus /></label>
+            <div className="ic-actions">
+              <button type="button" className="owner-secondary-button" onClick={closeConfirm} disabled={busy}>Go back</button>
+              <button type="button" className="owner-primary-button" disabled={busy || reason.trim().length < 3} onClick={() => save({ live: true }, "Spam Response switched on. Live alerts will now be sent.")}>{busy ? "Saving..." : "Switch on live alerts"}</button>
+            </div>
+          </div>
+        </div></DialogFocus>,
+        document.body
+      )}
       {confirmAi && createPortal(
-        <DialogFocus onClose={() => setConfirmAi(false)} busy={busy}><div className="owner-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && !busy && setConfirmAi(false)}>
+        <DialogFocus onClose={closeConfirm} busy={busy}><div className="owner-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && !busy && closeConfirm()}>
           <div className="bd-confirm owner-modal" role="dialog" aria-modal="true" aria-label="Switch on AI second opinion">
             <div className="zs-dialog-head"><span className="zs-dialog-icon"><Icon name="psychology" /></span><h3>Switch on AI second opinion?</h3></div>
             <p>For businesses that opt in, medium-risk texts and emails are sent to the AI provider (Anthropic) with names, numbers and email addresses removed first.
-              The answer is shown to the team as a suggestion and never blocks anyone. Add the Anthropic key to the "Ask AI" box in n8n first.</p>
+              The answer is shown to the team as a suggestion and never blocks anyone. Add the Anthropic key to the "Ask AI" box in n8n first.
+              Only a Zella owner or super admin can switch it on.</p>
+            {error && <div className="owner-form-error" role="alert">{error}</div>}
+            <label className="owner-field"><span>Reason (kept in the audit log)</span>
+              <input value={reason} maxLength={300} onChange={(e) => setReason(e.target.value)} disabled={busy} autoFocus /></label>
             <div className="ic-actions">
-              <button type="button" className="owner-secondary-button" onClick={() => setConfirmAi(false)} disabled={busy}>Go back</button>
-              <button type="button" className="owner-primary-button" disabled={busy} onClick={() => save({ ai_live: true }, "AI second opinion switched on.")}>{busy ? "Saving..." : "Switch on"}</button>
+              <button type="button" className="owner-secondary-button" onClick={closeConfirm} disabled={busy}>Go back</button>
+              <button type="button" className="owner-primary-button" disabled={busy || reason.trim().length < 3} onClick={() => save({ ai_live: true }, "AI second opinion switched on.")}>{busy ? "Saving..." : "Switch on"}</button>
             </div>
           </div>
         </div></DialogFocus>,

@@ -23,6 +23,8 @@ export default function SupportTickets({ onOpenBusiness }) {
   const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState(EMPTY_TICKET);
   const [note, setNote] = useState("");
+  // a note draft belongs to one ticket: switching tickets (or closing) starts a fresh one
+  const selectTicket = (id) => { setSelectedId(id); setNote(""); };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -88,7 +90,7 @@ export default function SupportTickets({ onOpenBusiness }) {
           <button type="button" className="owner-secondary-button" onClick={load} disabled={loading}>
             {loading ? "Loading..." : "↻ Refresh"}
           </button>
-          <button type="button" className="owner-primary-button" onClick={() => { setCreating(true); setSelectedId(null); }}>
+          <button type="button" className="owner-primary-button" onClick={() => { setCreating(true); selectTicket(null); }}>
             ＋ New ticket
           </button>
         </div>
@@ -111,10 +113,10 @@ export default function SupportTickets({ onOpenBusiness }) {
               <thead><tr><th>Ticket</th><th>Business</th><th>Priority</th><th>Status</th><th>Assigned</th></tr></thead>
               <tbody>
                 {tickets.map((t) => (
-                  <tr key={t.id} className={`st-row ${t.id === selectedId ? "selected" : ""}`} onClick={() => { setSelectedId(t.id); setCreating(false); }}>
+                  <tr key={t.id} className={`st-row ${t.id === selectedId ? "selected" : ""}`}>
                     <td>
                       <div className="owner-business-cell">
-                        <strong>{t.subject}</strong>
+                        <button type="button" className="owner-secondary-button" onClick={() => { if (t.id !== selectedId) selectTicket(t.id); setCreating(false); }}>{t.subject}</button>
                         <span>{t.category ? `${t.category} · ` : ""}{timeAgo(t.created_at)}</span>
                       </div>
                     </td>
@@ -179,7 +181,7 @@ export default function SupportTickets({ onOpenBusiness }) {
                   {" · "}opened {formatDateTime(selected.created_at)}{selected.creator ? ` by ${selected.creator}` : ""}
                 </p>
               </div>
-              <button type="button" className="owner-modal-close" aria-label="Close ticket" onClick={() => setSelectedId(null)}>×</button>
+              <button type="button" className="owner-modal-close" aria-label="Close ticket" onClick={() => selectTicket(null)}>×</button>
             </div>
 
             {selected.description && <p className="st-description">{selected.description}</p>}

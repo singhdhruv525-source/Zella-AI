@@ -46,6 +46,8 @@ export default function Reschedule() {
   const token = (window.location.pathname.match(/^\/r\/([0-9a-fA-F]{64})\/?$/) || [])[1] || "";
   const [info, setInfo] = useState(null);
   const [slots, setSlots] = useState([]);
+  // a failed lookup of free times is not "no free times"
+  const [slotsFailed, setSlotsFailed] = useState(false);
   const [problem, setProblem] = useState(token ? "" : "invalid");
   const [error, setError] = useState("");
   const [day, setDay] = useState("");
@@ -69,6 +71,7 @@ export default function Reschedule() {
         if (!active) return;
         setInfo(looked);
         setSlots(free.ok ? free.slots : []);
+        setSlotsFailed(!free.ok);
       } catch (err) {
         if (active) setError(err.message);
       }
@@ -93,6 +96,14 @@ export default function Reschedule() {
     if (!day && days.length) setDay(days[0][0]);
   }, [days, day]);
 
+  async function retrySlots() {
+    setWorking(true);
+    try {
+      const free = await call(token, "slots");
+      if (free.ok) { setSlots(free.slots); setSlotsFailed(false); } else setSlotsFailed(true);
+    } catch { setSlotsFailed(true); } finally { setWorking(false); }
+  }
+
   async function confirm() {
     setWorking(true);
     setError("");
@@ -104,7 +115,7 @@ export default function Reschedule() {
         setError("Sorry, that time was just taken. Please pick another one.");
         setPicked("");
         const free = await call(token, "slots");
-        if (free.ok) setSlots(free.slots);
+        if (free.ok) { setSlots(free.slots); setSlotsFailed(false); }
       } else {
         setProblem(res.reason || "invalid");
       }
@@ -165,7 +176,10 @@ export default function Reschedule() {
               </p>
             )}
 
-            {days.length === 0 && (
+            {slotsFailed && days.length === 0 && (
+              <p>We couldn't load the free times just now. <button type="button" className="ba-link" onClick={retrySlots} disabled={working}>Try again</button></p>
+            )}
+            {!slotsFailed && days.length === 0 && (
               <p>There are no free times in the next two weeks. Please contact {info.business} to find one.</p>
             )}
 

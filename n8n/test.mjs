@@ -567,9 +567,11 @@ test('assistant tools: a complaint or data request is logged with its kind, and 
 test('assistant tools: unknown kinds and empty summaries log nothing, but the assistant still gets a valid answer', () => {
   for (const a of [{ kind: 'hack', summary: 'abc def' }, { kind: 'complaint', summary: 'a' }, { kind: 'complaint' }, {}]) { const r = vt(reqMsg(a)); assert.equal(r.record, null); assert.equal(r.reply.results[0].toolCallId, 'tc2'); }
 });
-test('assistant tools: arguments as text, the business id from assistant variables, and bad input all behave', () => {
+test('assistant tools: arguments as text, a caller-set business id is ignored, and bad input all behave', () => {
   assert.equal(vt(tcm('{"question":"Is parking free?"}')).record.p_question, 'Is parking free?');
-  assert.equal(vt(tcm({ question: 'Is parking free?' }, { call: { id: 'c', assistantOverrides: { variableValues: { business_id: BIZ2 } } } })).record.p_business_id, BIZ2);
+  // variable values can be set by whoever starts a web call: never a source for the business
+  assert.equal(vt(tcm({ question: 'Is parking free?' }, { call: { id: 'c', assistantOverrides: { variableValues: { business_id: BIZ2 } } } })).record.p_business_id, null);
+  assert.equal(vt(tcm({ question: 'Is parking free?' }, { call: { id: 'c', metadata: { business_id: BIZ2 } } })).record.p_business_id, BIZ2);
   assert.equal(vt(tcm({ question: 'Is parking free?' }, { call: { id: 'c', metadata: { business_id: 'not-a-uuid' } } })).record.p_business_id, null);
   assert.equal(vt(tcm({ question: 'x' })).record, null); assert.equal(vt(tcm({})).reply.results[0].toolCallId, 'tc1');
   assert.equal(vt({ type: 'status-update' }).record, null); assert.deepEqual(vt({ type: 'status-update' }).reply, { results: [] });
@@ -1814,6 +1816,18 @@ test('reviews: the workflow posts nothing without an approved claim and ships wi
   assert.equal(w.active, false);
 });
 
+test('brain tools preserve seating constraints and accept three-digit parties for database handoff', () => {
+  const ctx = sharedBrain.vapiCallContext({});
+  for (const seating of [null, 12, [], {}]) {
+    const p = sharedBrain.planBrainTool({ id: 'x', name: 'check_availability', arguments: { seating } }, ctx);
+    assert.match(p.invalid, /seating/);
+    assert.equal(p.record.p_tool, 'unknown');
+  }
+  for (const party_size of [1, 100, 101, 999]) assert.equal(sharedBrain.planBrainTool({ id: 'x', name: 'check_availability', arguments: { party_size, seating: 'patio' } }, ctx).invalid, null);
+  for (const party_size of [0, -1, 1.5, 1000]) assert.match(sharedBrain.planBrainTool({ id: 'x', name: 'check_availability', arguments: { party_size } }, ctx).invalid, /party_size/);
+  assert.match(sharedBrain.planBrainTool({ id: 'x', name: 'check_availability', arguments: { seating: 'x'.repeat(41) } }, ctx).invalid, /seating/);
+});
+
 // Regression checks for review fixes; exercise refused inputs as well as successful paths.
 test('calendar: all pages accumulate before replacement; later failures keep old blocks', () => {
   for (const provider of ['google', 'outlook']) {
@@ -1998,7 +2012,7 @@ test('oversized webhook buffers are discarded before decoding', () => {
   assert.equal(resendBeforeDecode.json.record.p_raw, null);
 });
 test('booking: malformed party sizes are refused before filtering; valid integers and omission survive', () => {
-  for (const party_size of ['2', 'many', '', null, true, [], {}, NaN, Infinity, 0, 101, 1.5]) {
+  for (const party_size of ['2', 'many', '', null, true, [], {}, NaN, Infinity, 0, 1000, 1.5]) {
     const message = { type: 'tool-calls', call: BCALL, toolCallList: [{ id: 'party', name: 'check_availability', arguments: { party_size } }] };
     const edge = sharedBrain.planBrainTool(message.toolCallList[0], sharedBrain.vapiCallContext(message));
     const inline = brainPlan(message)[0];
@@ -2023,10 +2037,10 @@ test('calendar sync keeps no execution history (its items carry refresh tokens)'
 test('brain parser rejects present values of the wrong type', () => {
   const ctx = { callId: 'test', fallbackBusinessId: BIZ, callerNumber: '' };
   for (const [key, values, message] of [
-    ['seating', [null, 1, {}, []], 'seating must be a short preference, e.g. patio'],
-    ['party_size', [null, '2', {}, [], Infinity, NaN], 'party_size must be a whole number of people from 1 to 100'],
+    ['seating', [null, 1, {}, []], 'seating must be a string preference'],
+    ['party_size', [null, '2', {}, [], Infinity, NaN], 'party_size must be a whole number of people from 1 to 999'],
   ]) for (const value of values) {
-    const r = sharedBrain.planBrainTool({ id: 't', function: { name: 'check_open_hours', arguments: { [key]: value } } }, ctx);
+    const r = sharedBrain.planBrainTool({ id: 't', function: { name: 'check_availability', arguments: { [key]: value } } }, ctx);
     assert.equal(r.invalid, message);
     assert.equal(r.record.p_tool, 'unknown');
   }

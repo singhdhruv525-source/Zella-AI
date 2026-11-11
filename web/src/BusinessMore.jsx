@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { supabase } from "./supabase";
 import { Field, Icon, Modal, Pill, initials, personName } from "./BusinessUI";
 import { makeTerm } from "./businessWorkspace";
@@ -87,6 +87,9 @@ export function WalkInModal({ workspace, staff, hospitality, onClose, onSaved })
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
+  // The customer found or created on an earlier try: if the check-in itself failed, "Check in" again reuses
+  // them instead of creating a second customer.
+  const made = useRef(null);
 
   async function save(event) {
     event.preventDefault();
@@ -95,15 +98,29 @@ export function WalkInModal({ workspace, staff, hospitality, onClose, onSaved })
     try {
       let customerId = null;
       const name = form.name.trim();
-      if (name || form.phone.trim()) {
+      const phone = form.phone.trim();
+      const key = `${name}|${phone}`;
+      if (made.current?.key === key) customerId = made.current.id;
+      else if (phone) {
+        // with a phone number, the duplicate check finds a returning customer instead of creating a new one
+        const [first, ...rest] = (name || "Walk-in").split(/\s+/);
+        const added = await supabase.rpc("zella_staff_add_customer", {
+          p_business_id: workspace.id, p_first_name: first, p_last_name: rest.join(" ") || null,
+          p_phone: phone, p_email: null, p_notes: null,
+        });
+        if (added.error) throw added.error;
+        customerId = ["exists", "created"].includes(added.data?.result) ? added.data.customer_id ?? null : null;
+      } else if (name) {
+        // a name alone can't be matched safely, so a new customer is recorded
         const [first, ...rest] = name.split(/\s+/);
         const inserted = await supabase.from("customers").insert({
           business_id: workspace.id, first_name: first || null, last_name: rest.join(" ") || null,
-          phone: form.phone.trim() || null, source: "walk_in", status: "active",
+          source: "walk_in", status: "active",
         }).select("id").single();
         if (inserted.error) throw inserted.error;
         customerId = inserted.data.id;
       }
+      if (customerId) made.current = { key, id: customerId };
       const now = new Date();
       const inserted = await supabase.from("appointments").insert({
         business_id: workspace.id, customer_id: customerId, title: "Walk-in", status: "confirmed",

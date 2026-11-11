@@ -25,15 +25,26 @@ export async function handle(req: Request): Promise<Response> {
   if (req.method === "POST") {
     let body: Record<string, unknown>;
     try { body = await req.json(); } catch { return json({ ok: false, error: "bad_json" }, 400); }
+    if (!body || typeof body !== "object" || Array.isArray(body)) return json({ ok: false, error: "bad_request" }, 400);
     const p = body.provider as Provider, biz = String(body.business_id ?? "");
     if (body.action !== "start" || !PROVIDERS.includes(p) || !/^[0-9a-f-]{36}$/i.test(biz)) return json({ ok: false, error: "bad_request" }, 400);
     const auth = req.headers.get("authorization") ?? "";
     if (!/^Bearer\s+\S+/i.test(auth) || auth.includes(server)) return json({ ok: false, error: "sign_in_required" }, 401);
-    const who = await fetch(`${base}/auth/v1/user`, { headers: { apikey: anon, Authorization: auth } });
-    if (!who.ok) return json({ ok: false, error: "sign_in_required" }, 401);
-    const user = await who.json();
-    const can = await fetch(`${base}/rest/v1/rpc/zella_calendar_can_manage`, { method: "POST", headers: { "Content-Type": "application/json", apikey: anon, Authorization: auth }, body: JSON.stringify({ p_business_id: biz }) });
-    if (!can.ok || (await can.json()) !== true) return json({ ok: false, error: "not_allowed" }, 403);
+    let user: { id: string };
+    try {
+      const who = await fetch(`${base}/auth/v1/user`, { headers: { apikey: anon, Authorization: auth }, signal: AbortSignal.timeout(10_000) });
+      if (who.status === 401 || who.status === 403) return json({ ok: false, error: "sign_in_required" }, 401);
+      if (!who.ok) return json({ ok: false, error: "try_again" }, 502);
+      user = await who.json();
+      if (!user || typeof user.id !== "string" || !user.id) return json({ ok: false, error: "sign_in_required" }, 401);
+      const can = await fetch(`${base}/rest/v1/rpc/zella_calendar_can_manage`, { method: "POST", headers: { "Content-Type": "application/json", apikey: anon, Authorization: auth }, body: JSON.stringify({ p_business_id: biz }), signal: AbortSignal.timeout(10_000) });
+      if (can.status === 401) return json({ ok: false, error: "sign_in_required" }, 401);
+      if (can.status === 403) return json({ ok: false, error: "not_allowed" }, 403);
+      if (!can.ok) return json({ ok: false, error: "try_again" }, 502);
+      const allowed = await can.json();
+      if (allowed === false) return json({ ok: false, error: "not_allowed" }, 403);
+      if (allowed !== true) return json({ ok: false, error: "try_again" }, 502);
+    } catch (error) { console.error(error instanceof Error ? error.name : "unknown"); return json({ ok: false, error: "try_again" }, 502); }
     const c = client(p);
     if (!c.id || !c.secret) return json({ ok: false, error: "provider_not_configured", provider: p }, 503);
     const state = await signState(linkSecret, { b: biz, p, u: String(user.id) });

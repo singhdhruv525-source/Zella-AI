@@ -1417,7 +1417,7 @@ export function SystemConfig() {
         </Card>
         <Card title="Change history">
           <Table rowKey={(h) => h.created_at + h.action} rows={d.history} empty="No configuration changes recorded yet." columns={[["When", (h) => when(h.created_at)], ["Change", (h) => words(h.action.replace(/\./g, " "))],
-            ["What", (h) => h.new_data?.key ?? h.new_data?.section ?? h.new_data?.role ?? "—"]]} />
+            ["What", (h) => h.key ?? h.section ?? h.role ?? "—"]]} />
         </Card>
       </>
     )}</LoadState>

@@ -127,7 +127,7 @@ export function BookingPanel({ workspace, industry, appt, person, staff, blocks,
         supabase.from("conversations").select("id, channel, subject, status, last_message_at, ai_handled").eq("business_id", workspace.id)
           .eq("customer_id", appt.customer_id).order("last_message_at", { ascending: false, nullsFirst: false }).limit(4),
       ]);
-      if (live) setActivity({ calls: calls.data ?? [], convos: convos.data ?? [] });
+      if (live) setActivity({ calls: calls.data ?? [], convos: convos.data ?? [], failed: Boolean(calls.error || convos.error) });
     })();
     return () => { live = false; };
   }, [appt.customer_id, workspace.id]);
@@ -287,7 +287,8 @@ export function BookingPanel({ workspace, industry, appt, person, staff, blocks,
                 <li key={`h${text}`}><Icon name="history" size="sm" /><span>{text}</span><time>{timeAgo(at)}</time></li>
               ))}
             </ul>
-            {activity && !activity.calls.length && !activity.convos.length && <p className="ba-muted">No calls or messages with this {term("customer").toLowerCase()} yet.</p>}
+            {activity?.failed && <p className="ba-muted">Activity couldn't be loaded</p>}
+            {activity && !activity.failed && !activity.calls.length && !activity.convos.length && <p className="ba-muted">No calls or messages with this {term("customer").toLowerCase()} yet.</p>}
           </Section>
 
           {editing && <EditBooking appt={appt} staff={staff} cfg={cfg} industry={industry} term={term} busy={busy}

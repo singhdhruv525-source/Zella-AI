@@ -10,11 +10,11 @@ const TRACKING = "1Z999AA10123456784";
 const ORDER = { name: "#1001", createdAt: "2026-11-02T15:00:00Z", cancelledAt: null, displayFulfillmentStatus: "FULFILLED", displayFinancialStatus: "PAID",
   phone: null, email: "ana@example.test", customer: { phone: "+1 (512) 555-0101", email: "Ana@Example.test" }, shippingAddress: { phone: "+1 512 555 0177" },
   fulfillments: [{ status: "SUCCESS", trackingInfo: [{ company: "UPS", number: TRACKING, url: "https://ups.test/x" }] }] };
-const ctx = { ok: true, integration_id: "i1", shop_domain: "demo-store.myshopify.com", access_token: "test_store_token_not_real_0002", caller_number: "+15125550101" };
+const ctx = { ok: true, reservation_id: "reservation-1", integration_id: "i1", shop_domain: "demo-store.myshopify.com", access_token: "test_store_token_not_real_0002", caller_number: "+15125550101" };
 type Call = { fn: string; args: Record<string, unknown> };
 function db(context: unknown = ctx) {
   const calls: Call[] = [];
-  const rpc = (fn: string, args: Record<string, unknown>) => { calls.push({ fn, args }); return Promise.resolve({ data: fn === "zella_store_lookup_context" ? context : null, error: null }); };
+  const rpc = (fn: string, args: Record<string, unknown>) => { calls.push({ fn, args }); return Promise.resolve({ data: fn === "zella_store_lookup_begin" ? context : null, error: null }); };
   return { rpc, calls };
 }
 const shop = (status: number, body: unknown, seen: { url?: string; init?: RequestInit }[] = []) =>
@@ -58,7 +58,7 @@ Deno.test("shared or spoofed caller ID (the buyer's number, someone else on it):
   assert(String(r.say).includes("has shipped") && !/November|UPS|placed/.test(String(r.say)), String(r.say));
   assertEquals(Object.keys(r.order as object).sort(), ["order", "state"]);
   assertEquals(leaks(r), []);
-  assertEquals(d.calls.find((c) => c.fn === "zella_store_lookup_log")!.args.p_result, "found_one_factor");
+  assertEquals(d.calls.find((c) => c.fn === "zella_store_lookup_finish")!.args.p_result, "found_one_factor");
 });
 Deno.test("email alone (it may be known to others): the same, no more", async () => {
   const r = await lookupOrder(db({ ...ctx, caller_number: null }).rpc, "b1", "c", { order_number: "1001", email: "ana@example.test" }, found());
@@ -92,7 +92,7 @@ Deno.test("limits: per call, per caller number, per order number, per business; 
     const n = never(); const d = db({ ...ctx, ...extra });
     const r = await lookupOrder(d.rpc, "b1", "c", { order_number: "1001", email: "ana@example.test" }, n.f);
     assertEquals([r.status, n.s.called], ["unverified", false], JSON.stringify(extra));
-    const log = d.calls.find((c) => c.fn === "zella_store_lookup_log")!;
+    const log = d.calls.find((c) => c.fn === "zella_store_lookup_finish")!;
     assertEquals([log.args.p_result, log.args.p_integration_id], ["limited", null]);
   }
   // below the limits, or an older database that gives no counts: looked up as usual
@@ -112,7 +112,7 @@ Deno.test("store refuses the token: logged as unauthorized, caller offered a mes
   const d = db();
   const r = await lookupOrder(d.rpc, "b1", "c", { order_number: "1001" }, shop(401, { errors: "Invalid API key" }));
   assertEquals(r.status, "store_unavailable");
-  assertEquals(d.calls.find((c) => c.fn === "zella_store_lookup_log")!.args.p_result, "store_unauthorized");
+  assertEquals(d.calls.find((c) => c.fn === "zella_store_lookup_finish")!.args.p_result, "store_unauthorized");
 });
 Deno.test("store down or slow: a message is taken, nothing guessed", async () => {
   const slow = (() => Promise.reject(new DOMException("timeout", "TimeoutError"))) as unknown as typeof fetch;
@@ -137,4 +137,60 @@ Deno.test("the caller can't supply the number that is checked: only the phone ne
   assertEquals((p.record.p_args as Record<string, unknown>).caller_number, "+15125550199");
   const bad = planBrainTool({ id: "t2", name: "lookup_order", arguments: { order_number: "1001; drop" } }, ctxCall);
   assert(bad.invalid?.includes("order_number"));
+});
+
+// A failed guess that can't be recorded leaves the counters unchanged; that call must get no more lookups (fail closed).
+Deno.test("a failed guess that can't be recorded stops further lookups on that call", async () => {
+  let logWrites = 0;
+  let pending = false;
+  const failingLog = (fn: string, _args: Record<string, unknown>) => {
+    if (fn === "zella_store_lookup_begin") {
+      const data = pending ? { ok: false, status: "limited" } : ctx;
+      pending = true;
+      return Promise.resolve({ data, error: null });
+    }
+    logWrites++;
+    return Promise.resolve({ data: null, error: { message: "log down" } });
+  };
+  const empty = shop(200, { data: { orders: { nodes: [] } } });
+  const first = await lookupOrder(failingLog, "b1", "call-x", { order_number: "9999" }, empty);
+  assertEquals(first.status, "unverified");
+  assert(String(first.say).includes("can't check orders"), String(first.say));   // refused, not "couldn't confirm"
+  assertEquals(logWrites, 2);                                                       // one retry, then refuse
+  const n = never();
+  const second = await lookupOrder(failingLog, "b1", "call-x", { order_number: "1001" }, n.f);
+  assertEquals(second.status, "unverified");
+  assertEquals(n.s.called, false);                                                  // Shopify is not asked again
+  const other = await lookupOrder(db().rpc, "b1", "call-y", { order_number: "1001" }, found());
+  assertEquals(other.status, "found");                                              // other calls are unaffected
+});
+Deno.test("a log write that succeeds on retry does not block the call", async () => {
+  let fails = 1;
+  const flaky = (fn: string) => {
+    if (fn === "zella_store_lookup_begin") return Promise.resolve({ data: ctx, error: null });
+    return Promise.resolve(fails-- > 0 ? { data: null, error: { message: "blip" } } : { data: null, error: null });
+  };
+  const r = await lookupOrder(flaky, "b1", "call-z", { order_number: "9999" }, shop(200, { data: { orders: { nodes: [] } } }));
+  assert(String(r.say).includes("couldn't confirm"), String(r.say));
+  const again = await lookupOrder(db().rpc, "b1", "call-z", { order_number: "1001" }, found());
+  assertEquals(again.status, "found");
+});
+
+
+Deno.test("unknown reservation state fails closed before Shopify", async () => {
+  for (const rpc of [
+    db({ ...ctx, reservation_id: undefined }).rpc,
+    async () => ({ data: null, error: new Error("offline") }),
+    async () => { throw new Error("transport failed"); },
+  ]) {
+    const n = never();
+    assertEquals((await lookupOrder(rpc, "b1", "c", { order_number: "1001" }, n.f)).status, "unverified");
+    assertEquals(n.s.called, false);
+  }
+});
+
+Deno.test("admission receives the trusted provider caller fallback", async () => {
+  const d = db();
+  await lookupOrder(d.rpc, "b1", "call-early", { order_number: "1001", caller_number: "+15125550199" }, found());
+  assertEquals(d.calls[0].args.p_caller_number, "+15125550199");
 });

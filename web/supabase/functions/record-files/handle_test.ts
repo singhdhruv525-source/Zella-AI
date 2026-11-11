@@ -89,3 +89,10 @@ Deno.test("cleanup: storage delete fails, nothing marked purged (next run retrie
   assertEquals((await call({ action: "cleanup" }, "Bearer server-key")).status, 503);
   assertEquals(calls.some((c) => c.url.endsWith("zella_record_files_purged")), false);
 }));
+
+Deno.test("cleanup: purge record failure is distinct and retryable", mock((c) =>
+  c.url.endsWith("zella_record_file_cleanup") ? j(["b/r/old.pdf"]) : c.method === "DELETE" ? j([]) : j({}, 500), async () => {
+  const r = await call({ action: "cleanup" }, "Bearer server-key");
+  assertEquals(r.status, 503);
+  assertEquals(await r.json(), { ok: false, error: "purge_record_failed" });
+}));

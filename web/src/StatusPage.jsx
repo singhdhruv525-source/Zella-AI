@@ -22,7 +22,7 @@ export default function StatusPage() {
   const [state, setState] = useState({ loading: true });
   const load = useCallback(async () => {
     const { data, error } = await supabase.rpc("zella_public_status");
-    setState(error ? { error: true } : { data });
+    setState(error || !data ? { error: true } : { data });
   }, []);
   useEffect(() => {
     load();
@@ -40,14 +40,15 @@ export default function StatusPage() {
         {(d || state.error) && (
           <div className={`stp-overall ${STATES[overall]?.[0] ?? ""}`} role="status">
             <span className="stp-dot" aria-hidden="true" />
-            <strong>{state.error ? "We can't reach Zella right now" : OVERALL[overall]}</strong>
+            <strong>{state.error ? "We can't reach Zella right now" : OVERALL[overall] ?? "Status not available yet"}</strong>
           </div>
         )}
         {state.error && <p>The app or its database isn't answering. This page checks again every minute.</p>}
         {d && (
           <>
             <ul className="stp-list">
-              {d.components.map((c) => {
+              {!Array.isArray(d.components) && <li><span>Component status isn't available right now.</span></li>}
+              {(Array.isArray(d.components) ? d.components : []).map((c) => {
                 const [tone, label] = STATES[c.state] ?? STATES.unknown;
                 return (
                   <li key={c.key}>
@@ -58,7 +59,7 @@ export default function StatusPage() {
               })}
             </ul>
             <h2 className="stp-h2">Incidents</h2>
-            {!d.incidents.length ? <p>No incidents in the last 14 days.</p> : (
+            {!Array.isArray(d.incidents) ? <p>The incident list isn't available right now.</p> : !d.incidents.length ? <p>No incidents in the last 14 days.</p> : (
               <ul className="stp-incidents">
                 {d.incidents.map((i) => (
                   <li key={`${i.started_at}-${i.title}`}>

@@ -23,13 +23,13 @@ export function vapiCallContext(message) {
   const m = o(message);
   const call = o(m.call);
   const meta = o(call.metadata);
-  const vars = o(o(call.assistantOverrides).variableValues);
   const pn = isObj(call.phoneNumber) ? call.phoneNumber : o(m.phoneNumber);
   const cn = String(o(call.customer).number || '');
   // the assistant's own metadata (set by Zella when the assistant is configured) also counts: web test calls have no
-  // phone number and no call metadata
+  // phone number and no call metadata. The call's variable values are NOT used: whoever starts a web call can set
+  // them, so a business id there could point the tools at another business. Zella never puts one there.
   const asst = o(o(m.assistant).metadata);
-  const bid = [meta.business_id, vars.business_id, asst.business_id].find((v) => typeof v === 'string' && UUID.test(v)) || null;
+  const bid = [meta.business_id, asst.business_id].find((v) => typeof v === 'string' && UUID.test(v)) || null;
   return {
     callId: typeof call.id === 'string' && call.id ? call.id.slice(0, 200) : null,
     calledNumber: typeof pn.number === 'string' && /^\+?[0-9() .-]{7,20}$/.test(pn.number) ? pn.number : null,
@@ -58,7 +58,7 @@ function invalidField(clean) {
   if (clean.duration_minutes !== undefined && !(Number.isInteger(clean.duration_minutes) && clean.duration_minutes >= 5 && clean.duration_minutes <= 480)) return 'duration_minutes must be a whole number from 5 to 480';
   if (clean.preferred_contact_method !== undefined && !['call', 'sms', 'email'].includes(clean.preferred_contact_method)) return 'preferred_contact_method must be call, sms or email';
   if (clean.email !== undefined && clean.email.length > 200) return 'email is too long';
-  if (clean.party_size !== undefined && !(Number.isInteger(clean.party_size) && clean.party_size >= 1 && clean.party_size <= 100)) return 'party_size must be a whole number of people from 1 to 100';
+  if (clean.party_size !== undefined && !(Number.isInteger(clean.party_size) && clean.party_size >= 1 && clean.party_size <= 999)) return 'party_size must be a whole number of people from 1 to 999';
   if (clean.seating !== undefined && clean.seating.length > 40) return 'seating must be a short preference, e.g. patio';
   if (clean.order_number !== undefined && !/^#?[A-Za-z0-9-]{1,30}$/.test(clean.order_number)) return 'order_number must be the order number only, e.g. 1001';
   return null;
@@ -71,17 +71,18 @@ function invalidField(clean) {
 export function planBrainTool(tc, ctx, allowed = TOOLS) {
   const name = toolName(tc);
   const args = toolArgs(tc);
-  const malformedPartySize = Object.prototype.hasOwnProperty.call(args, 'party_size')
-    && (typeof args.party_size !== 'number' || !Number.isFinite(args.party_size));
+  const usesSeating = ['check_availability', 'book_appointment'].includes(name);
+  const malformedSeating = usesSeating && Object.hasOwn(args, 'seating') && typeof args.seating !== 'string';
   const clean = {};
   for (const k of STRINGS) if (typeof args[k] === 'string') clean[k] = args[k].replace(/\s+/g, ' ').trim().slice(0, k === 'query' ? 300 : 1500);
   for (const k of NUMBERS) if (typeof args[k] === 'number' && Number.isFinite(args[k])) clean[k] = args[k];
+  if (!usesSeating) delete clean.seating;
   // the caller's yes must be a real boolean from the assistant; anything else counts as "not confirmed"
   clean.confirmed = args.confirmed === true;
   const known = TOOLS.includes(name) && allowed.includes(name);
-  const typeError = Object.hasOwn(args, 'seating') && typeof args.seating !== 'string'
-    ? 'seating must be a short preference, e.g. patio'
-    : malformedPartySize ? 'party_size must be a whole number of people from 1 to 100' : null;
+  const typeError = malformedSeating ? 'seating must be a string preference'
+    : Object.hasOwn(args, 'party_size') && (typeof args.party_size !== 'number' || !Number.isFinite(args.party_size))
+      ? 'party_size must be a whole number of people from 1 to 999' : null;
   const invalid = known ? typeError || invalidField(clean) : null;
   return {
     toolCallId: tc.id, name, known, invalid,

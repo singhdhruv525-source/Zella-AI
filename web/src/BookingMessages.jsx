@@ -62,7 +62,9 @@ export function BookingMessages({ workspace, appt, tz, term }) {
         ...(reminders.data ?? []).map((r) => ({ ...r, retryKind: "reminder", label: r.kind === "confirmation" ? `${oneWord} confirmation` : `Reminder${r.hours_before ? ` (${r.hours_before < 1 ? `${Math.round(r.hours_before * 60)} min` : `${Number(r.hours_before)} h`} before)` : ""}` })),
         ...(tasks.data ?? []).map((t) => ({ ...t, retryKind: "task", label: TASK_LABEL[t.kind] ?? words(t.kind) })),
       ].map((r) => ({ ...r, tz })),
-      failedToLoad: Boolean(reminders.error && tasks.error),
+      remindersError: reminders.error,
+      tasksError: tasks.error,
+      failedToLoad: Boolean(reminders.error || tasks.error),
       // Older databases don't have the status function yet: the lines still show, without the connection notes.
       status: status.error ? null : status.data,
     });
@@ -101,6 +103,7 @@ export function BookingMessages({ workspace, appt, tz, term }) {
         </div>
       )}
       {error && <div className="ba-banner error">{error}</div>}
+      {data.failedToLoad && <p className="ba-error" role="alert">Some messages couldn't be loaded</p>}
       {rows.length ? (
         <ul className="bp-msgs">
           {rows.map((row) => {
@@ -119,12 +122,12 @@ export function BookingMessages({ workspace, appt, tz, term }) {
             );
           })}
         </ul>
-      ) : (
+      ) : data.failedToLoad ? null : (
         <div className="bp-empty">
           <Icon name="forward_to_inbox" />
           <p>
-            {data.failedToLoad ? "Messages couldn't be loaded." : `No messages for this ${oneWord.toLowerCase()}.`}
-            {!data.failedToLoad && status && auto.appointment_reminder !== "active" && auto.appointment_confirmation !== "active"
+            { `No messages for this ${oneWord.toLowerCase()}.` }
+            {status && auto.appointment_reminder !== "active" && auto.appointment_confirmation !== "active"
               ? " Confirmations and reminders are off for this business. Turn them on in Automations." : ""}
           </p>
         </div>

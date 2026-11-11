@@ -86,3 +86,21 @@ Deno.test("return: the provider refuses the code", mock(() => j({ error: "invali
 Deno.test("other methods: 405", mock(() => j({}), async () => {
   assertEquals((await handle(new Request("http://fn/calendar-connect", { method: "PUT" }))).status, 405);
 }));
+
+Deno.test("start: invalid body shapes", mock(() => j(true), async (calls) => {
+  for (const body of [null, [], "start", 1]) assertEquals((await start(body)).status, 400);
+  assertEquals(calls.length, 0);
+}));
+Deno.test("start: network and malformed upstream responses fail closed", async () => {
+  for (const stage of ["auth", "manage"]) {
+    for (const malformed of [false, true]) {
+      await mock((c) => {
+        if (stage === "manage" && c.url.endsWith("/auth/v1/user")) return j({ id: U });
+        if (malformed) return new Response("{");
+        throw new Error("network");
+      }, async () => {
+        assertEquals((await start({ action: "start", business_id: B, provider: "google" })).status, 502);
+      })();
+    }
+  }
+});

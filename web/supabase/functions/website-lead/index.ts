@@ -13,15 +13,17 @@ const cors = (origin: string | null) => ({
 const json = (body: unknown, status: number, origin: string | null) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors(origin), "Content-Type": "application/json" } });
 
-Deno.serve(async (req: Request) => {
+export async function handle(req: Request): Promise<Response> {
   const origin = req.headers.get("origin");
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors(origin) });
   if (req.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405, origin);
 
   const serverKey = Deno.env.get("ZELLA_SERVER_SECRET_KEY");
-  if (!serverKey) return json({ ok: false, error: "try_again", message: "Something went wrong. Please try again or call us." }, 503, origin);
+  const base = Deno.env.get("SUPABASE_URL");
+  if (!serverKey || !base) return json({ ok: false, error: "try_again", message: "Something went wrong. Please try again or call us." }, 503, origin);
 
-  const raw = await readBodyLimited(req, 12000);
+  let raw: string | null;
+  try { raw = await readBodyLimited(req, 12000); } catch { return json({ ok: false, error: "bad_json" }, 400, origin); }
   if (raw === null) return json({ ok: false, error: "too_large" }, 413, origin);
   let b: Record<string, unknown>;
   try { b = JSON.parse(raw); } catch { return json({ ok: false, error: "bad_json" }, 400, origin); }
@@ -31,29 +33,41 @@ Deno.serve(async (req: Request) => {
   const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || null;
   const source = typeof b.source === "object" && b.source !== null ? b.source : {};
 
-  const res = await fetch(`${Deno.env.get("SUPABASE_URL")}/rest/v1/rpc/zella_capture_web_lead`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      apikey: serverKey,
-    },
-    body: JSON.stringify({
-      p_public_key: str(b.key, 64),
-      p_kind: str(b.kind, 40),
-      p_name: str(b.name, 120),
-      p_phone: str(b.phone, 40),
-      p_email: str(b.email, 254),
-      p_message: str(b.message, 2000),
-      p_source: source,
-      p_marketing_consent: b.marketing_consent === true,
-      p_origin: origin,
-      p_ip: ip,
-      p_honeypot: str(b.website_url, 200),
-      p_channel: b.channel === "website_chat" ? "website_chat" : "website",
-    }),
-  });
-  if (!res.ok) return json({ ok: false, error: "try_again", message: "Something went wrong. Please try again or call us." }, 502, origin);
-  const out = await res.json();
-  const status = out.ok ? 200 : out.error === "too_many_requests" ? 429 : out.error === "origin_not_allowed" ? 403 : 400;
-  return json(out, status, origin);
-});
+  try {
+    const url = new URL(base);
+    if (!["https:", "http:"].includes(url.protocol)) throw new Error("Invalid URL");
+    const res = await fetch(`${base}/rest/v1/rpc/zella_capture_web_lead`, {
+      method: "POST", signal: AbortSignal.timeout(10_000),
+      headers: {
+        "Content-Type": "application/json",
+        apikey: serverKey,
+      },
+      body: JSON.stringify({
+        p_public_key: str(b.key, 64),
+        p_kind: str(b.kind, 40),
+        p_name: str(b.name, 120),
+        p_phone: str(b.phone, 40),
+        p_email: str(b.email, 254),
+        p_message: str(b.message, 2000),
+        p_source: source,
+        p_marketing_consent: b.marketing_consent === true,
+        p_origin: origin,
+        p_ip: ip,
+        p_honeypot: str(b.website_url, 200),
+        p_channel: b.channel === "website_chat" ? "website_chat" : "website",
+      }),
+    });
+    if (!res.ok) { console.error("rpc_http_failure"); return json({ ok: false, error: "try_again", message: "Something went wrong. Please try again or call us." }, 502, origin); }
+    const out = await res.json();
+    if (!out || typeof out !== "object" || Array.isArray(out) || typeof out.ok !== "boolean") throw new Error("Invalid response");
+    const known = ["too_many_requests", "origin_not_allowed", "bad_request", "invalid_key", "consent_required", "try_again", "unknown_form", "unknown_kind", "invalid_phone", "invalid_email", "no_contact"];
+    const error = typeof out.error === "string" && known.includes(out.error) ? out.error : "try_again";
+    const status = out.ok ? 200 : error === "try_again" ? 502 : out.error === "too_many_requests" ? 429 : out.error === "origin_not_allowed" ? 403 : 400;
+    return json({ ok: out.ok, ...(out.ok ? {} : { error }), ...(typeof out.message === "string" ? { message: out.message } : {}) }, status, origin);
+  } catch (error) {
+    console.error(error instanceof Error ? error.name : "unknown");
+    return json({ ok: false, error: "try_again", message: "Something went wrong. Please try again or call us." }, 502, origin);
+  }
+}
+
+if (import.meta.main) Deno.serve(handle);

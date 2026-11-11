@@ -79,6 +79,7 @@ export function onboardingHandlers(admin: SupabaseClient, fields: Json, userId: 
     const business = await kit.getBusiness(admin, businessId);
     // the receptionist is checked first: a business without one is refused before anything is written
     const { agent, config } = await kit.getReceptionist(admin, businessId);
+    if (!fields.operations || typeof fields.operations !== "object" || Array.isArray(fields.operations)) throw new InputError("Enter operations");
     const input = obj(fields.operations);
     const { rows, kb: hoursKb } = cleanHours(obj(input.hours), kit);
 
@@ -112,12 +113,17 @@ export function onboardingHandlers(admin: SupabaseClient, fields: Json, userId: 
     const area = details.find((d) => d.key === "service_area" || d.key === "areas_covered");
 
     // 1. Opening hours: the table the open/closed check, after-hours replies and bookings read.
-    const { error: delError } = await admin.from("business_hours").delete().eq("business_id", businessId);
-    if (delError) throw delError;
-    if (rows.length) {
-      const { error } = await admin.from("business_hours").insert(rows.map((r) => ({ ...r, business_id: businessId })));
-      if (error) throw error;
-    }
+    // In one transaction (sql/zella_replace_business_hours.sql), so a failed insert can't leave no hours.
+    const { error: hoursError } = await admin.rpc("zella_replace_business_hours", { p_business_id: businessId, p_hours: rows });
+    if (hoursError?.code === "PGRST202") {
+      // the database update isn't applied yet: the previous delete-then-insert, as before
+      const { error: delError } = await admin.from("business_hours").delete().eq("business_id", businessId);
+      if (delError) throw delError;
+      if (rows.length) {
+        const { error } = await admin.from("business_hours").insert(rows.map((r) => ({ ...r, business_id: businessId })));
+        if (error) throw error;
+      }
+    } else if (hoursError) throw hoursError;
 
     // 2. The business record and its setup answers.
     const { error: bizError } = await admin.from("businesses")
@@ -146,7 +152,8 @@ export function onboardingHandlers(admin: SupabaseClient, fields: Json, userId: 
   const saveTeam = async () => {
     const businessId = requireId(fields.businessId);
     await kit.getBusiness(admin, businessId);
-    const input = (Array.isArray(fields.team) ? fields.team : []).slice(0, 50).map((item) => {
+    if (!Array.isArray(fields.team) || fields.team.length > 50) throw new InputError("Enter a team list of at most 50 members");
+    const input = fields.team.map((item) => {
       const s = obj(item);
       const email = text(s.email, 254).toLowerCase();
       if (email && !kit.EMAIL_RE.test(email)) throw new InputError(`Enter a valid email for ${text(s.name, 80) || "each team member"}`);
@@ -233,14 +240,18 @@ export function onboardingHandlers(admin: SupabaseClient, fields: Json, userId: 
     const folder = `${businessId}/${kind}`;
     const { data: found, error: listError } = await admin.storage.from(DOCUMENT_BUCKET).list(folder, { search: path.slice(folder.length + 1) });
     if (listError) throw listError;
-    if (!found?.some((o) => `${folder}/${o.name}` === path)) throw new InputError("The file didn't finish uploading. Try again.");
+    const stored = found?.find((o) => `${folder}/${o.name}` === path);
+    if (!stored) throw new InputError("The file didn't finish uploading. Try again.");
 
+    const size = stored.metadata?.size;
+    const mime = stored.metadata?.mimetype;
+    if (typeof size !== "number" || !Number.isSafeInteger(size) || size < 1 || size > MAX_BYTES || typeof mime !== "string" || !DOCUMENT_TYPES[mime] || size !== file.size || mime !== file.mime) throw new InputError("Uploaded file metadata does not match");
     const now = new Date().toISOString();
     const { error: oldError } = await admin.from("business_verification_documents")
       .update({ status: "replaced", updated_at: now }).eq("business_id", businessId).eq("kind", kind).neq("status", "replaced");
     if (oldError) throw oldError;
     const { data, error } = await admin.from("business_verification_documents").insert({
-      business_id: businessId, kind, file_path: path, file_name: file.name, mime_type: file.mime, size_bytes: file.size, uploaded_by: userId,
+      business_id: businessId, kind, file_path: path, file_name: file.name, mime_type: mime, size_bytes: size, uploaded_by: userId,
     }).select("id, kind, file_name, mime_type, size_bytes, status, review_note, created_at, reviewed_at").single();
     if (error) throw error;
     return { businessId, document: data };

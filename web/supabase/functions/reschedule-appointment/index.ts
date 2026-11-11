@@ -17,7 +17,6 @@ import { createClient } from "@supabase/supabase-js";
 import { readBodyLimited } from "../_shared/body.ts";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
@@ -27,7 +26,6 @@ function respond(data: unknown, status = 200) {
 }
 
 Deno.serve(withCors(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return respond({ error: "Method not allowed" }, 405);
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -59,7 +57,7 @@ Deno.serve(withCors(async (req: Request) => {
   const writes = body.action === "confirm" || body.action === "offer_accept" || body.action === "offer_decline";
   for (const [key, max] of [[`resched:ip:${ip}`, 60], [`resched:token:${token.slice(0, 16)}`, writes ? 10 : 40]] as const) {
     const { data: ok, error: limitError } = await admin.rpc("zella_rate_limit", { p_key: key, p_max: max, p_window_seconds: 60 });
-    if (limitError) { console.error("rate limit check failed", limitError.message); break; }
+    if (limitError) { console.error("rate limit check failed", limitError.message); continue; }
     if (ok === false) return respond({ ok: false, reason: "busy", error: "Too many tries. Please wait a minute and try again." }, 429);
   }
 

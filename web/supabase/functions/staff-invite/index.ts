@@ -24,9 +24,9 @@ async function findUserByEmail(admin: SupabaseClient, email: string): Promise<Au
     const users = data?.users ?? [];
     const match = users.find((u: { email?: string }) => u.email?.toLowerCase() === email);
     if (match) return match as AuthUser;
-    if (users.length < 1000) return null;
+    if (data.nextPage === null) return null;
   }
-  return null;
+  throw new Error("User lookup page limit reached");
 }
 
 async function rpcText(admin: SupabaseClient, fn: string, args: Record<string, unknown>): Promise<string> {
@@ -86,7 +86,8 @@ Deno.serve(withCors(async (req: Request) => {
     },
     findUser: (email) => findUserByEmail(admin, email),
     async isActiveMember(businessId, userId) {
-      const { data } = await admin.from("business_members").select("status").eq("business_id", businessId).eq("user_id", userId).maybeSingle();
+      const { data, error } = await admin.from("business_members").select("status").eq("business_id", businessId).eq("user_id", userId).maybeSingle();
+      if (error) throw error;
       return data?.status === "active";
     },
     async inviteNewUser(email, name) {

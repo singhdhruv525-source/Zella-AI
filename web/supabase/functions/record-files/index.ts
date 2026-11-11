@@ -60,7 +60,8 @@ export async function handle(req: Request): Promise<Response> {
     if (paths.length) {
       const del = await removeStored(paths);
       if (!del.ok) return withCors(json({ ok: false, error: "storage_delete_failed" }, 503));
-      await rpc("zella_record_files_purged", { p_paths: paths }, asServer);
+      const purged = await rpc("zella_record_files_purged", { p_paths: paths }, asServer).catch(() => null);
+      if (!purged?.ok) return withCors(json({ ok: false, error: "purge_record_failed" }, 503));
     }
     return withCors(json({ ok: true, deleted: paths.length }, 200));
   }

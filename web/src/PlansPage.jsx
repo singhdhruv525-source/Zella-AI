@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import "./OwnerPages.css";
 import { callOwnerFunction } from "./CreateBusinessWizard";
 import { Pill } from "./OwnerOverview";
@@ -28,15 +28,18 @@ export default function PlansPage({ onOpenBusiness }) {
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(null);
 
+  const loadId = useRef(0);
   const load = useCallback(async () => {
+    const id = ++loadId.current;
     setLoading(true);
     setError("");
     try {
-      setData(await callOwnerFunction("plans_list"));
+      const result = await callOwnerFunction("plans_list");
+      if (id === loadId.current) setData(result);
     } catch (err) {
-      setError(friendlyError(err));
+      if (id === loadId.current) setError(friendlyError(err));
     } finally {
-      setLoading(false);
+      if (id === loadId.current) setLoading(false);
     }
   }, []);
 
@@ -67,9 +70,12 @@ export default function PlansPage({ onOpenBusiness }) {
           <h1>Plans & subscriptions</h1>
           <p>The plans businesses can be on, and which business is on which plan.</p>
         </div>
-        <button type="button" className="owner-primary-button" onClick={() => setEditing({ ...EMPTY_PLAN })} disabled={busy}>
-          ＋ New plan
-        </button>
+        <div className="op-heading-actions">
+          <button type="button" className="owner-secondary-button" onClick={load} disabled={loading}>{loading ? "Loading..." : "↻ Refresh"}</button>
+          <button type="button" className="owner-primary-button" onClick={() => setEditing({ ...EMPTY_PLAN })} disabled={busy}>
+            ＋ New plan
+          </button>
+        </div>
       </div>
 
       <div className="wiz-note op-gap">
