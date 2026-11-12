@@ -17,8 +17,8 @@ ROLLBACK=(zella_record_workflows_rollback zella_slots_resource_blocks_rollback z
 # Files applied after the pending list, in production's order (DB-14). Kept apart from PENDING because other suites read
 # PENDING and apply some of these themselves (tests/review_sql, tests/rollback_security, tests/batch3, ...).
 # zella_brand_name goes before zella_review_sql_fixes: that file's version guards expect the branded wording.
-LATER=(zella_batch1_security zella_batch3_pagination zella_brand_name zella_rollback_security zella_n8n_webhook_auth zella_record_files_purge_retry zella_replace_business_hours zella_order_lookup_reservations zella_review_sql_fixes zella_seating_handoff)
-LATER_ROLLBACK=(zella_seating_handoff_rollback zella_review_sql_fixes_rollback zella_order_lookup_reservations_rollback zella_replace_business_hours_rollback zella_record_files_purge_retry_rollback zella_n8n_webhook_auth_rollback zella_rollback_security_rollback zella_brand_name_rollback zella_batch3_pagination_rollback zella_batch1_security_rollback)
+LATER=(zella_batch1_security zella_batch3_pagination zella_brand_name zella_rollback_security zella_n8n_webhook_auth zella_record_files_purge_retry zella_replace_business_hours zella_order_lookup_reservations zella_review_sql_fixes zella_seating_handoff zella_workflow_alert_email)
+LATER_ROLLBACK=(zella_workflow_alert_email_rollback zella_seating_handoff_rollback zella_review_sql_fixes_rollback zella_order_lookup_reservations_rollback zella_replace_business_hours_rollback zella_record_files_purge_retry_rollback zella_n8n_webhook_auth_rollback zella_rollback_security_rollback zella_brand_name_rollback zella_batch3_pagination_rollback zella_batch1_security_rollback)
 ALL=("${PENDING[@]}" "${LATER[@]}"); ALL_ROLLBACK=("${LATER_ROLLBACK[@]}" "${ROLLBACK[@]}")
 fails=0; ok() { echo "PASS $*"; }; bad() { echo "FAIL $*"; fails=$((fails + 1)); }
 ITEMS="select x from (
@@ -43,6 +43,9 @@ for m in "${ALL[@]}"; do for i in 1 2; do
   out=$($P -d $DB -f "$REPO/sql/$m.sql" 2>&1) || { bad "apply $m (run $i): $(echo "$out" | grep -m1 ERROR)"; exit 1; }
 done; done; ok "the ${#ALL[@]} pending and later files apply in order, each twice (safe to re-run)"
 after=$($P -d $DB -c "$STATE")
+# Capture the known migrated receiver before rollback; a retained receiver must match it exactly.
+inbound_retained=$($P -d $DB -c "$INBOUND") || { bad "read expected retained inbound-email receiver"; exit 1; }
+[[ "$inbound_retained" =~ ^[0-9a-f]{32}$ ]] || { bad "invalid expected retained receiver hash"; exit 1; }
 
 # 3. every suite's checks on the one database (each fixture uses its own ids)
 for t in tests/setup/setup_enforcement_test.sql tests/booking/buffers_test.sql tests/channel/channel_review_test.sql tests/escalation/escalation_test.sql \
@@ -108,7 +111,11 @@ for r in "${ALL_ROLLBACK[@]}"; do out=$($P -d $DB -f "$REPO/sql/rollback/$r.sql"
 check_approval "after rollback"
 # the inbound-email receiver goes back exactly, unless a business already has a 32-character address (then it is kept on purpose)
 if [ "$($P -d $DB -c "$INBOUND")" = "$inbound_before" ]; then ok "inbound-email receiver restored exactly"
-elif [ "$($P -d $DB -c "$LONG_TOKENS")" = t ]; then ok "inbound-email receiver kept on purpose: 32-character addresses are in use"
+elif [ "$($P -d $DB -c "$LONG_TOKENS")" = t ]; then
+  if inbound_now=$($P -d $DB -c "$INBOUND"); then
+    [ "$inbound_now" = "$inbound_retained" ] && ok "inbound-email receiver kept on purpose: verified definition; 32-character addresses are in use" \
+      || bad "retained inbound-email receiver differs from the expected definition"
+  else bad "could not read retained inbound-email receiver definition"; fi
 else bad "inbound-email receiver neither restored nor justified"; fi
 now=$($P -d $DB -c "$STATE")
 kept=$($P -d $DB -c "select string_agg(table_name, ', ') from information_schema.tables where table_schema = 'public' and table_name like '%_rolled_back'")

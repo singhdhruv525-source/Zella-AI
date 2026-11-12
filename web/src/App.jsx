@@ -362,7 +362,7 @@ function AdminApp() {
         <div className="brand-panel">
           <div className="brand">
             <div className="brand-mark">Z</div>
-            <span>Zella Voice <span className="brand-ai">Voice</span></span>
+            <span>Zella <span className="brand-ai">Voice</span></span>
           </div>
 
           <div className="brand-message">
@@ -417,7 +417,7 @@ function AdminApp() {
           <div className="mobile-brand">
             {platform.logo_url ? <img src={platform.logo_url} alt={platform.display_name ?? "Zella Voice"} style={{ maxHeight: 36 }} /> : <>
             <div className="brand-mark">Z</div>
-            <span>Zella Voice <span className="brand-ai">Voice</span></span></>}
+            <span>Zella <span className="brand-ai">Voice</span></span></>}
           </div>
 
           <div className="form-content">

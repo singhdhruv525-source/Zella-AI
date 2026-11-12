@@ -2128,9 +2128,15 @@ stable error codes (§38).
 | Messaging (*server*) | `message_inbound`, `message_status`, `ai_reply_prepare`, `ai_reply_commit` |
 | Platform admin | `admin_me`, `admin_business_list`, `admin_business_get`, `admin_business_create_*` (one per wizard step), `admin_business_set_status`, `admin_number_assign`, `admin_number_release`, `admin_queue_overview`, `admin_dead_letter_retry`, `admin_setting_set`, `admin_audit_list` |
 
-**Functions callable without sign-in (SEC-6).** Execute is revoked from `public` and granted deliberately. As of
-2026-11-12 the production database grants `anon` exactly the 26 functions below (checked with
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:14fe1477dba480bed27d7f80881579a5008efb6721437be86aed6d7814ce9c76 -->
+
+**Functions callable without sign-in (SEC-6).** Execute is revoked from `public` and granted deliberately. The list below is a source-level inventory of the 26 functions granted to `anon`. Production status must be
+verified and documented before presenting this as a production inventory (for example, using
 `has_function_privilege('anon', …)`). A new grant to `anon` must be added to this list in the same pull request.
+
+<!-- /coderabbit-ai-generated:v1 -->
 
 | Function | Kind | Purpose | Tenant data |
 |---|---|---|---|
