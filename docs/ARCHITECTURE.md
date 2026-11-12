@@ -2128,6 +2128,23 @@ stable error codes (§38).
 | Messaging (*server*) | `message_inbound`, `message_status`, `ai_reply_prepare`, `ai_reply_commit` |
 | Platform admin | `admin_me`, `admin_business_list`, `admin_business_get`, `admin_business_create_*` (one per wizard step), `admin_business_set_status`, `admin_number_assign`, `admin_number_release`, `admin_queue_overview`, `admin_dead_letter_retry`, `admin_setting_set`, `admin_audit_list` |
 
+**Functions callable without sign-in (SEC-6).** Execute is revoked from `public` and granted deliberately. As of
+2026-11-12 the production database grants `anon` exactly the 26 functions below (checked with
+`has_function_privilege('anon', …)`). A new grant to `anon` must be added to this list in the same pull request.
+
+| Function | Kind | Purpose | Tenant data |
+|---|---|---|---|
+| `zella_pre_request` | definer | PostgREST pre-request hook: refuses a signed-in user who has two-step sign-in set up but hasn't entered the code (`MFA_REQUIRED`) | none |
+| `zella_mfa_satisfied` | definer | the check `zella_pre_request` and the restrictive row policies use; true for anonymous callers | none (reads only the caller's own factors) |
+| `zella_platform_public_info` | definer | the login page's platform name, support contacts, logo, headline and maintenance notice | none (platform settings only) |
+| `zella_public_status` | definer | the public status page: component health and incidents an admin marked public, with their public wording | none |
+| `zella_unsubscribe_lookup` | definer | the unsubscribe page: given a link token, shows the business's name | the business name, only to the token holder |
+| `zella_unsubscribe_email` | definer | records a marketing-email opt-out for the token's customer | writes one consent record; returns the business name |
+| `zella_appointment_holds_time`, `zella_b3_like`, `zella_brain_tool_defs`, `zella_capability_catalog`, `zella_channel_supported`, `zella_currency_exponent`, `zella_digits`, `zella_escalation_trigger_keys`, `zella_language_catalog`, `zella_minor_to_amount`, `zella_offer_channel_requires`, `zella_offer_reason_text`, `zella_offer_rule_requires`, `zella_offer_rule_results`, `zella_offer_summary`, `zella_offer_terms`, `zella_offer_type_requires`, `zella_record_due`, `zella_slot_say`, `zella_valid_email` | invoker | pure helpers: fixed catalogues, formatting and validation of their arguments. They run with the caller's own rights, so they reach no table the caller couldn't already (`zella_offer_summary` / `_terms` take an `offers` row the caller must already be able to read) | none |
+
+Known gap: the two unsubscribe functions are protected by a 128-bit random token (guessing is impractical) but have
+no database rate limit yet, which SEC-6 asks for. Adding one is a production migration and needs the owner's approval.
+
 **Edge endpoints:**
 
 | Endpoint | Caller | Auth |
