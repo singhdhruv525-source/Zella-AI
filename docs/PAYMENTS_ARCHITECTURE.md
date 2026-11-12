@@ -105,7 +105,6 @@ Existing tables are kept and extended; nothing is dropped (`DB` rules: expand, t
 
 ```mermaid
 erDiagram
-  plan_templates ||--o{ business_plans : "pre-fills (Base, Pro)"
   businesses ||--o{ business_plans : "has versions"
   businesses ||--|| subscriptions : has
   business_plans ||--o{ subscriptions : "current version"
@@ -126,8 +125,7 @@ erDiagram
 
 | Table | New or existing | Purpose | Key rules |
 |---|---|---|---|
-| `plan_templates` | new | Base and Pro starting values (D-54) | platform admin only; changing a template never changes existing businesses |
-| `business_plans` | new | The business's own plan, **versioned**: tier, interval, price, setup fee, allowances, languages, caps | append a new version per change, never edit; `effective_from`; integer cents |
+| `business_plans` | new | The business's own plan, **versioned**: tier label (Base or Pro), interval, price, setup fee, allowances, languages, caps, trial on/off; every value entered per business, no presets | append a new version per change, never edit; `effective_from`; integer cents |
 | `plans` | existing | stays for compatibility; prices move to integer cents (`BIL-7`) | its "anyone can view active plans" policy must not expose per-business prices |
 | `subscriptions` | existing | state machine (§7) | one per business (existing unique key); state changes only through functions |
 | `invoices`, `invoice_lines` | new | what was charged and why: plan, setup fee, pack, overage, proration, credit, tax | immutable once `issued`; corrections are credit notes |
@@ -180,7 +178,7 @@ sequenceDiagram
   participant WH as billing-webhook
   participant WK as billing-worker
 
-  ZO->>ADM: Step 11: choose Base / Pro / Custom, adjust values, trial on/off
+  ZO->>ADM: Step 11: label Base or Pro, enter price, setup fee, caps, trial on/off
   ADM->>DB: admin_business_plan_set (audited) → business_plans v1
   DB-->>ADM: plan saved · invite owner
   BO->>DB: open invite link, create password (billing date if no trial)
@@ -555,7 +553,6 @@ production or real money (`NN-3`, `NN-4`).
 |---|---|---|
 | D-51 | Razorpay: recurring USD on international cards is supported per Razorpay's docs (first payment authenticated with 3-D Secure; settled in INR). Still to confirm: international payments activated on the account; a trial with a future start date in test mode; charging the saved card for auto-reload packs | step 3 |
 | D-50 | Tax rules (GST on exported services; US state sales tax) | invoices with tax |
-| D-54 | Base and Pro starting values | step 2 |
 | D-42…D-48 | pack expiry, texts/emails at 100%, overage, fair-use multiple, annual allowances, founding customers, trial limits | step 1 |
 | — | Refund approval threshold that needs the Zella Voice owner personally | step 1 |
 | — | Exact Razorpay event names and payloads, confirmed against Razorpay's current documentation at build time | step 3 |

@@ -385,7 +385,7 @@ live switch, then the provider. Off means dry run: the message is logged as "wou
 
 | Feature | Status |
 |---|---|
-| Plans, prices and allowances | **Policy decided, not built** (12 Nov 2026, D-34, D-41): every plan customised per business by the Zella Voice team at Create Business, starting from the **Base** or **Pro** tier's suggested values (not set yet, D-54) or from Custom/Enterprise; 5-day trial with 20 minutes, 5 texts, 5 emails; fixed add-on pack prices; rollover, auto-reload, fair use, refunds and service credits. The full policy is in `docs/ARCHITECTURE.md` §17. No plan exists in the database yet. |
+| Plans, prices and allowances | **Policy decided, not built** (12 Nov 2026, D-34, D-41): every plan customised per business by the Zella Voice team on the plan page of Create Business, with no preset prices or values: the team picks the label (**Base** or **Pro**) and sets the price, setup fee, caps and trial for that business; 5-day trial with 20 minutes, 5 texts, 5 emails; fixed add-on pack prices; rollover, auto-reload, fair use, refunds and service credits. The full policy is in `docs/ARCHITECTURE.md` §17. No plan exists in the database yet. |
 | Add-on packs | **Prices decided, not built:** minutes $29/100, $89/250, $149/500, $269/1,000; texts $18/500, $34/1,000, $80/2,500, $150/5,000; emails $25/10,000, $59/25,000, $115/50,000; extra location $30/month; extra user $10/month |
 | Billing & Subscription page for owners (plan, usage, packs, auto-reload, invoices, cancel, refund request with server-side eligibility) | Not built (architecture §17, REQ-BIL-05, REQ-BIL-45) |
 | Razorpay checkout, trial auto-charge, auto-reload and refunds | Not built; needs the owner's approval to take real payments, and the check in D-51 |

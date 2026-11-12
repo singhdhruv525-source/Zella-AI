@@ -112,8 +112,8 @@ The owner's decisions of 9 Nov 2026 are in `docs/ARCHITECTURE.md` §23.1, and th
 most often needed:
 
 - **Billing policy decided on 12 Nov 2026** (D-34 Razorpay, D-41 policy, D-25 no pause): full text in
-  `docs/ARCHITECTURE.md` §17. Every plan is customised per business; the **Base** and **Pro** tiers only pre-fill
-  suggested values in Create Business (values not set yet, D-54); 5-day trial (20 min, 5 texts, 5 emails, card at start); fixed pack
+  `docs/ARCHITECTURE.md` §17. Every plan is customised per business, with **no preset prices or values**: on the plan
+  page of Create Business the team picks the label (**Base** or **Pro**) and sets price, setup fee, caps and trial; 5-day trial (20 min, 5 texts, 5 emails, card at start); fixed pack
   prices. Open billing decisions: D-42 to D-51. Nothing is built or charged yet; real charges need the owner's
   approval. Never invent a price that isn't in §17.
 - United States only at launch (D-14). Lower-risk industries first; regulated industries after legal review (D-20).
