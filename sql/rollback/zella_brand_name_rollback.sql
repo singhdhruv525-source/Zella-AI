@@ -3,6 +3,9 @@ begin;
 do $$
 declare f record; x record; v_def text;
 begin
+  if to_regprocedure('public.zella_brand_name_pairs()') is null then
+    return;
+  end if;
   for f in select distinct p.oid, p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
              join public.zella_brand_name_pairs() b on b.fn = p.proname
             where n.nspname = 'public' and position(b.new_text in p.prosrc) > 0
