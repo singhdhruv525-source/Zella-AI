@@ -134,10 +134,11 @@ erDiagram
 | `disputes` | new | chargebacks; suspend while open (`REQ-BIL-37`) | from webhooks only |
 | `pack_purchases` | new | each pack bought: kind, quantity, price, purchased_at, expires_at (D-42), remaining | refundable only if unused and ≤ 14 days |
 | `allowance_buckets` | new | **current balances** per business and resource: rollover, plan, each pack | one row per bucket; updated in the same transaction as the ledger entry (§11) |
-| `usage_records` | existing | append-only usage ledger | idempotency key unique; adjustments, never edits |
+| `usage_records` | existing | append-only usage ledger | idempotency key unique; adjustments, never edits; if partitioned (§11), uniqueness is kept in `usage_keys` |
 | `service_credits` | new | outage credits (`REQ-BIL-46`) | capped at one month's fee; applied to next invoices |
 | `auto_reload_settings` | new | threshold, pack, monthly spend cap, on/off | owner only; changes audited |
-| `billing_events` | existing | **webhook inbox**; unique `(provider, external_event_id)` | applied once, in order, never backwards |
+| `billing_events` | existing | **webhook inbox**; unique `(provider, external_event_id)` | applied once, in order, never backwards; **never partitioned** (processed events are archived after a retention period, keeping their keys) |
+| `usage_keys` | new, when partitioning | one row per usage idempotency key, **not partitioned** | inserted in the same transaction as the usage entry, so a duplicate is rejected across all months |
 | `billing_outbox` | new | **commands to Razorpay** (create order, charge, refund, cancel) | written in the same transaction as the business change (§8) |
 | `idempotency_keys` | new | user request keys with request hash and stored response | 24 h retention; same key + different body = 409 |
 | `money_ledger` | new | **double-entry** journal: every cent in or out (charge, payment, refund, credit, tax) | each posting balances to zero; the books can be rebuilt from it |
@@ -219,15 +220,21 @@ sequenceDiagram
   participant WH as billing-webhook
 
   BO->>DB: accept trial (5 days · 20 min · 5 texts · 5 emails)
-  DB->>DB: subscription = trialing, trial buckets granted, trial_end_at set
-  WK->>RZ: create subscription with start date = trial end (mandate / card authorised)
-  RZ-->>BO: hosted page: authorise card, no charge now
+  DB->>DB: trial requested · subscription stays pending_payment · nothing granted yet
+  WK->>RZ: create subscription with start date = trial end (notes.outbox_id = outbox row)
+  RZ-->>BO: hosted page: authorise card (3-D Secure), no charge now
+  RZ->>WH: webhook: subscription authenticated (signed)
+  WH->>DB: inbox → subscription = trialing, trial_end_at set, trial buckets granted
+  Note over DB: abandoned or failed authorisation → still pending_payment, no trial, no buckets
   Note over DB: trial reminders at day 3 and day 4 (email + in-app)
   alt owner cancels before trial end
     BO->>DB: cancel → outbox "cancel subscription" · nothing charged
-  else trial ends
+  else trial ends, charge succeeds
     RZ->>WH: subscription.charged (first charge)
     WH->>DB: inbox → subscription active, billing date = trial end, plan buckets granted
+  else trial ends, charge fails
+    RZ->>WH: payment.failed
+    WH->>DB: trialing → past_due · trial buckets end · same retries and 5-day pause as §6.3
   end
 ```
 
@@ -286,7 +293,7 @@ impossible while one is in flight, however many calls finish at the same moment.
 
 ```mermaid
 flowchart LR
-  in[Inbound call] --> a{assistant assembly:<br/>minutes left > 0<br/>or auto-reload pending?}
+  in[Inbound call] --> a{assistant assembly:<br/>minutes left > 0?<br/>a pending reload does not count}
   a -- yes --> ai[AI answers<br/>call never cut]
   a -- no --> fb[Forward to the business's<br/>fallback number]
   ai --> end1[Call finalised → usage entry]
@@ -349,6 +356,7 @@ stateDiagram-v2
   pending_payment --> active: first payment confirmed
   trialing --> active: trial-end charge confirmed
   trialing --> cancelled: cancelled during trial
+  trialing --> past_due: trial-end charge failed
   active --> past_due: renewal failed
   past_due --> active: paid
   past_due --> paused_nonpayment: 5 days overdue
@@ -358,12 +366,24 @@ stateDiagram-v2
   cancel_scheduled --> active: "continue my plan"
   cancel_scheduled --> cancelled: period ends
   active --> suspended_dispute: chargeback opened
-  suspended_dispute --> active: dispute won or settled
+  past_due --> suspended_dispute: chargeback opened
+  paused_nonpayment --> suspended_dispute: chargeback opened
+  cancel_scheduled --> suspended_dispute: chargeback opened
+  trialing --> suspended_dispute: chargeback opened
+  suspended_dispute --> restored: won or settled
+  restored --> [*]: back to the saved previous state
+  suspended_dispute --> cancelled: dispute lost and unpaid 30 days
   cancelled --> [*]: data exportable 30 days, then deleted
 ```
 
 Transitions are allowed only by a table of `(from, to, cause)` checked in one database function. An event that would
 move a subscription backwards (an older event arriving late) is recorded and ignored.
+
+**Disputes from any state.** A chargeback can arrive in any state except `cancelled`. The subscription moves to
+`suspended_dispute` and the state it came from is saved with the dispute. When the dispute is won or settled, it
+returns to that saved state, then the normal rules apply at once: for example a `cancel_scheduled` subscription whose
+period ended during the dispute becomes `cancelled`, and a `past_due` one continues its retries and 5-day pause. A
+dispute on a `cancelled` subscription is recorded and handled by money only (ledger postings), with no state change.
 
 ```mermaid
 stateDiagram-v2
@@ -406,6 +426,7 @@ flowchart TB
 | Owner double-clicks "Buy pack" | Same `Idempotency-Key` → the stored response is returned; one purchase. |
 | Same key, different body | `409 idempotency_key_reused`. |
 | Worker crashes after Razorpay accepted the charge but before saving | The outbox row is still `sending`. The reconciler **fetches the order/payment from Razorpay by receipt** before any retry, then records the real outcome. Never blind-retry a charge. |
+| Worker loses the reply to **create subscription** | Razorpay subscriptions have no receipt lookup. Each create carries `notes.outbox_id`; the reconciler lists the subscriptions created since the attempt (by time window and customer) and matches that note. Found → record it. Not found after the window → a retry is allowed, because an unauthenticated subscription charges nothing; any duplicate found later that was never authenticated is cancelled. **This lookup must be proven in Razorpay test mode before the trial path ships** (D-51); if it cannot be, the trial path waits for another recovery method. |
 | Razorpay sends a webhook twice | Second insert hits the unique key → acknowledged, no effect. |
 | Webhooks arrive out of order | Each event carries the provider's creation time; state only moves forward (§7). An event for an unknown payment is kept and applied when its parent arrives. |
 | Our webhook handler times out | Razorpay retries; the inbox makes it safe. The handler only inserts, so it answers in milliseconds. |
@@ -427,7 +448,7 @@ receipt → mark `sent` with the provider ID. A lease that expires sends the row
 | Authorization | Business billing: **owner role only** (`TEN-9`), checked in the database. Admin billing: `billing.view` / `billing.manage`, MFA, audit. Row security on every billing table; server-only tables have no client policies. |
 | Sensitive actions | Refunds, credits, plan overrides, trial extensions: reason, second confirmation, audit (`SEC-18`). Refunds above a threshold need the Zella Voice owner. |
 | Secrets | Razorpay key secret and webhook secret only in edge function secrets; never in tables, code, logs or chat (`NN-2`). Rotation: two webhook secrets accepted during a rotation window. |
-| Data minimisation | Store provider IDs, status, amount, last 4 digits and card brand **only if Razorpay returns them**, nothing else. |
+| Data minimisation | Store only provider IDs, status and amounts. **No card details of any kind**, not even the last 4 digits or the card brand; the owner manages the card on Razorpay's own page. |
 | Rate limits | Checkout start, pack purchase and refund request: per user and per business limits; 429 with retry-after. |
 | Fraud | Trial guard (D-48); velocity checks on pack purchases; spend cap on auto-reload; alerts on unusual refund or dispute rates. |
 | Logging | Structured logs with business ID and correlation ID; no personal data, no tokens, no full provider payloads. |
@@ -482,7 +503,7 @@ flowchart TB
 | Hot path at call time | `allowance_buckets`: one balance row per business and resource, updated with the ledger in one transaction | O(1) reads; locks are per business, so businesses never wait for each other. |
 | Webhook bursts | Handler only inserts into the inbox; workers apply | Thousands of events a minute are absorbed; processing catches up safely. |
 | Background work | Queues with `FOR UPDATE SKIP LOCKED`, leases and back-off | Add workers to go faster; no double processing. |
-| Large tables | `usage_records`, `money_ledger`, `billing_events` partitioned by month when they pass ~10 M rows | Old months stay cold; indexes stay small. |
+| Large tables | `usage_records` and `money_ledger` partitioned by month when they pass ~10 M rows. PostgreSQL enforces uniqueness only within a partition, so their idempotency keys live in a small non-partitioned registry (`usage_keys`) written in the same transaction. The webhook inbox `billing_events` is not partitioned. | Old months stay cold; indexes stay small; duplicates are still rejected across months. |
 | Reports and exports | Run against a read replica when load requires | Heavy reads never slow down calls or payments. |
 | Realtime screens | Subscriptions filtered by row security, only on the pages that need them | No broadcast of other businesses' data, bounded fan-out. |
 | Limits | Per-user and per-business rate limits on write endpoints | One noisy business cannot starve others. |
