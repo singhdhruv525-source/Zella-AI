@@ -80,7 +80,7 @@ do $guard$
 declare v text;
 begin
   select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_claim_admin_alert_email(integer)');
-  if v is null or v not in ('78b170185fbbee0396f5217f91b7980f', '7475a9a1192c1640d4a34c2cd43ac199') then
+  if v is null or v not in ('78b170185fbbee0396f5217f91b7980f', 'cd96d330aa78de5fbb9e4091e1ab77c1', '93b8333cf501c0a1406afa4f2c055fd1') then
     raise exception 'VERSION_MISMATCH: public.zella_claim_admin_alert_email(integer) is not the version this file was written against (expected the live version or this file version)';
   end if;
   select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_admin_routing_save(uuid,jsonb,text)');
@@ -164,7 +164,7 @@ begin
     raise exception 'VERSION_MISMATCH: public.zella_queue_calendar_sync() is not the version this file was written against (expected the live version or this file version)';
   end if;
   select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_claim_calendar_sync(integer)');
-  if v is null or v not in ('dc2640b340530c2cdfbf663d1b6bc71b', 'b92d1471d2570e0d62eb78d1427309cc') then
+  if v is null or v not in ('dc2640b340530c2cdfbf663d1b6bc71b', '66620bb6e2f5d5d71296148dbe7a8657', 'eca0b1e773e5994d3716c10423ad7728') then
     raise exception 'VERSION_MISMATCH: public.zella_claim_calendar_sync(integer) is not the version this file was written against (expected the live version or this file version)';
   end if;
   select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_replace_calendar_busy(uuid,jsonb)');
@@ -260,7 +260,7 @@ begin
     raise exception 'VERSION_MISMATCH: public.zella_dispatch_n8n() is not the version this file was written against (expected the live version or this file version)';
   end if;
   select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_platform_admin_email_check()');
-  if v is null or v not in ('8afa557d293ef3e92a310842c461b6d6', 'b90210c5a2693e974f284f9f33b5fe26') then
+  if v is null or v not in ('8afa557d293ef3e92a310842c461b6d6', 'b90210c5a2693e974f284f9f33b5fe26', '45e9505a00a2fbd41d341c1ff1259c0c') then
     raise exception 'VERSION_MISMATCH: public.zella_platform_admin_email_check() is not the version this file was written against (expected the live version or this file version)';
   end if;
   select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_session_proved_email()');
@@ -292,7 +292,7 @@ begin
     raise exception 'VERSION_MISMATCH: public.zella_offboard_member(uuid,uuid,uuid) is not the version this file was written against (expected the live version or this file version)';
   end if;
   select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_public_status()');
-  if v is null or v not in ('5bffa7615dd51d83d6a0cdfe9131c9b8', 'a6b97350537ab1f77f40430f032b98af') then
+  if v is null or v not in ('5bffa7615dd51d83d6a0cdfe9131c9b8', 'd9eb2c7f751741c15ce7b53d1926e86d', 'e41a3a8ad74e2b0d171f82d6ff5266eb') then
     raise exception 'VERSION_MISMATCH: public.zella_public_status() is not the version this file was written against (expected the live version or this file version)';
   end if;
   select md5(pg_get_functiondef(oid)) into v from pg_proc where oid = to_regprocedure('public.zella_check_uptime()');
@@ -344,7 +344,7 @@ begin
            'occurrences', c.occurrences, 'first_seen_at', c.first_seen_at, 'last_seen_at', c.last_seen_at, 'business', b.name)
            order by case c.severity when 'urgent' then 0 when 'warning' then 1 else 2 end, c.first_seen_at), '[]'::jsonb)
     into v_alerts from c left join public.businesses b on b.id = c.business_id;
-  return jsonb_build_object('alerts', v_alerts, 'to', v_to, 'live', true, 'from', v_from, 'from_name', 'Zella');
+  return jsonb_build_object('alerts', v_alerts, 'to', v_to, 'live', true, 'from', v_from, 'from_name', 'Zella Voice');
 end $function$;
 
 -- CodeRabbit #1
@@ -1201,7 +1201,7 @@ begin
       'calendar_id', c.calendar_id, 'provider', c.provider, 'refresh_token', v_token,
       'event', jsonb_build_object(
         'summary', left(coalesce(nullif(trim(a.title), ''), 'Appointment') || coalesce(' - ' || cu.nm, ''), 200),
-        'description', left('Booked with Zella.' || coalesce(E'\nCustomer: ' || cu.nm, '') || coalesce(E'\nPhone: ' || cu.phone, '') || coalesce(E'\nNotes: ' || a.description, ''), 1000),
+        'description', left('Booked with Zella Voice.' || coalesce(E'\nCustomer: ' || cu.nm, '') || coalesce(E'\nPhone: ' || cu.phone, '') || coalesce(E'\nNotes: ' || a.description, ''), 1000),
         'start', a.start_time, 'end', a.end_time, 'timezone', b.tz)));
   end loop;
   return v_res;
@@ -2530,7 +2530,7 @@ begin
     when exists (select 1 from public.platform_alerts a where a.status <> 'resolved' and a.kind = 'queue_backlog') then 'degraded'
     when v_n8n then 'operational' else 'unknown' end;
   v_components := v_components || jsonb_build_object('key', 'automations', 'label', 'Reminders and follow-ups', 'state', v_state);
-  v_components := v_components || jsonb_build_object('key', 'app', 'label', 'Zella app', 'state', 'operational');
+  v_components := v_components || jsonb_build_object('key', 'app', 'label', 'Zella Voice app', 'state', 'operational');
 
   for c in select distinct i.component from public.platform_incidents i where i.is_public and i.status = 'open' and i.component is not null loop
     select coalesce(jsonb_agg(case when x ->> 'key' = c.component and x ->> 'state' in ('operational', 'unknown') then x || '{"state": "degraded"}'::jsonb else x end), '[]'::jsonb)
