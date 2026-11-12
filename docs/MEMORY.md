@@ -156,6 +156,7 @@ Waiting on the owner:
 | What the product does | `docs/PRODUCT.md` |
 | Rules for every change | `ZELLA_VOICE_RULES.md` |
 | How it is designed | `docs/ARCHITECTURE.md` |
+| Payments, idempotency and scale (draft for the owner's review) | `docs/PAYMENTS_ARCHITECTURE.md`, `docs/ARCHITECTURE.md` §17 and §21.1 |
 | Look and feel | `docs/DESIGN_SYSTEM.md`, `docs/ZELLA_PRODUCT_VOICE.md`, `docs/ZELLA_STATUS_LANGUAGE_GUIDE.md` |
 | Database reference | `docs/BACKEND_SCHEMA.md` (generated) and `docs/SCHEMA_STATUS.md` (what is applied) |
 | Going live | `docs/GO_LIVE.md`, `n8n/GO-LIVE.md` |

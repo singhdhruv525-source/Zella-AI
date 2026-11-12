@@ -1802,6 +1802,54 @@ flowchart TD
 | Deploys | owner-approved, one at a time; verify the deployed version equals the reviewed source; smoke test after |
 | Kill switches | per channel, per business, per automation, platform-wide |
 
+### 21.1 Scaling from 1 to 10,000 people
+
+The platform behaves the same whether one owner or 10,000 people (owners, staff, platform admins) are using it at
+once, and whether one call or hundreds arrive together. Nothing in the design holds per-user state on a server, and
+every tenant query touches only one business's rows.
+
+```mermaid
+flowchart TB
+  people[1 … 10,000 people<br/>admin + CRM] --> cdn[Cloudflare CDN<br/>static app cached at the edge]
+  people --> edge[Edge functions<br/>stateless · scale out automatically]
+  callers[Callers] --> vapi[Vapi + Telnyx] -->|signed events| edge
+  prov[Razorpay · Resend · Telnyx<br/>webhooks, bursts] -->|signed| edge
+  edge -->|insert only, fast ack| q[(Inbox · outbox ·<br/>work items)]
+  edge --> pool[Connection pooler<br/>transaction mode]
+  pool --> pg[(Postgres primary<br/>RLS · tenant indexes ·<br/>per-business balance rows)]
+  q --> wk[Workers<br/>claim with SKIP LOCKED · leases ·<br/>scale by adding workers]
+  wk --> pg
+  wk --> ext[Providers<br/>timeouts · idempotent receipts]
+  pg -. when load requires .-> rr[(Read replica<br/>reports · exports · analytics)]
+```
+
+| ID | Requirement |
+|---|---|
+| REQ-SCL-01 | **Stateless compute.** Edge functions and workers keep no per-user state between requests, so adding instances adds capacity. Sessions are verified on every request (REQ-ISO-01). |
+| REQ-SCL-02 | **Static web apps on the CDN.** The admin and CRM are static builds served from Cloudflare; the number of people never adds server load for page delivery. |
+| REQ-SCL-03 | **Pooled database connections** in transaction mode for every edge function and worker; no long-lived connection per user. |
+| REQ-SCL-04 | **Tenant-scoped indexes.** Every table read by a business is indexed on `business_id` (plus its time or status column where lists are paged). New queries are checked with `EXPLAIN` in review; list endpoints are paged with keyset cursors, never offset. |
+| REQ-SCL-05 | **O(1) hot paths.** What a call or message needs at the moment it happens (minutes left, contact limits, business status, assistant config) is read from one indexed row per business, maintained in the same transaction as its ledger entry; never by summing history. Locks on those rows are per business, so businesses never wait for each other. |
+| REQ-SCL-06 | **Fast acknowledgement, async work.** Webhooks and provider events are verified, inserted into an inbox with a unique event key, and acknowledged; workers apply them. Bursts are absorbed by the queue, not by the request path. |
+| REQ-SCL-07 | **Queues that scale out:** claim with `FOR UPDATE SKIP LOCKED`, leases, back-off and dead-letter (§8). More workers means more throughput with no double processing. |
+| REQ-SCL-08 | **Fairness.** Per-user and per-business rate limits on write endpoints and per-business caps on queued work, so one busy business cannot slow another (`ISO` principles). |
+| REQ-SCL-09 | **Large tables** (usage ledger, money ledger, events, messages, audit) are partitioned by month once they pass about 10 million rows; retention jobs drop or archive whole partitions. |
+| REQ-SCL-10 | **Heavy reads off the primary:** reports, exports and analytics move to a read replica when load requires, so they never slow calls or payments. |
+| REQ-SCL-11 | **Realtime only where needed,** filtered by row security, with bounded subscriptions per page. |
+| REQ-SCL-12 | **Workflow capacity:** time-critical and high-volume jobs (billing, dispatch, reconciliation) run as database-claimed workers, not as n8n runs. n8n Cloud Starter allows about 2,500 runs a month (`docs/MEMORY.md`), so it carries only low-volume workflows until it moves to a larger plan. |
+| REQ-SCL-13 | **Load-tested before launch** in staging with synthetic data: 10,000 virtual CRM users, 1,000 webhooks a minute, 500 call finalisations at once. Targets: CRM reads p95 < 300 ms, webhook acknowledgement p95 < 200 ms, entitlement check p95 < 20 ms, queue age < 60 s. |
+
+**Capacity stages** (each step is triggered by measured load, not by date):
+
+| Stage | People at once | Changes |
+|---|---|---|
+| Pilot | 1–50 | current setup; pooler on; slow-query log reviewed weekly |
+| Launch | 50–1,000 | billing and dispatch workers outside n8n; indexes verified with `EXPLAIN`; alerts on queue age and p95 latency |
+| Growth | 1,000–10,000 | larger database compute; read replica for reports; monthly partitions on the ledgers and events; more workers; n8n on a larger plan or replaced for high-volume flows |
+
+The payment-specific design (idempotency layers, webhook inbox, outbox, reconciliation) is detailed in
+`docs/PAYMENTS_ARCHITECTURE.md` (draft for the owner's review).
+
 **Test plan (acceptance):**
 - two-business isolation;
 - inbound call on a real test number;
