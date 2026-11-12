@@ -43,9 +43,9 @@ for m in "${ALL[@]}"; do for i in 1 2; do
   out=$($P -d $DB -f "$REPO/sql/$m.sql" 2>&1) || { bad "apply $m (run $i): $(echo "$out" | grep -m1 ERROR)"; exit 1; }
 done; done; ok "the ${#ALL[@]} pending and later files apply in order, each twice (safe to re-run)"
 after=$($P -d $DB -c "$STATE")
-# Capture the known migrated receiver before rollback; a retained receiver must match it exactly.
-inbound_retained=$($P -d $DB -c "$INBOUND") || { bad "read expected retained inbound-email receiver"; exit 1; }
-[[ "$inbound_retained" =~ ^[0-9a-f]{32}$ ]] || { bad "invalid expected retained receiver hash"; exit 1; }
+# Capture the migrated receiver; a retained definition must match it exactly.
+inbound_applied=$($P -d $DB -c "$INBOUND") || { bad "read the applied inbound-email receiver"; exit 1; }
+[[ "$inbound_applied" =~ ^[0-9a-f]{32}$ ]] || { bad "invalid applied receiver hash"; exit 1; }
 
 # 3. every suite's checks on the one database (each fixture uses its own ids)
 for t in tests/setup/setup_enforcement_test.sql tests/booking/buffers_test.sql tests/channel/channel_review_test.sql tests/escalation/escalation_test.sql \
@@ -110,13 +110,12 @@ seating_before=$($P -d $DB -c "$SEATING")
 for r in "${ALL_ROLLBACK[@]}"; do out=$($P -d $DB -f "$REPO/sql/rollback/$r.sql" 2>&1) || { bad "rollback $r: $(echo "$out" | grep -m1 ERROR)"; break; }; done
 check_approval "after rollback"
 # the inbound-email receiver goes back exactly, unless a business already has a 32-character address (then it is kept on purpose)
-if [ "$($P -d $DB -c "$INBOUND")" = "$inbound_before" ]; then ok "inbound-email receiver restored exactly"
-elif [ "$($P -d $DB -c "$LONG_TOKENS")" = t ]; then
-  if inbound_now=$($P -d $DB -c "$INBOUND"); then
-    [ "$inbound_now" = "$inbound_retained" ] && ok "inbound-email receiver kept on purpose: verified definition; 32-character addresses are in use" \
-      || bad "retained inbound-email receiver differs from the expected definition"
-  else bad "could not read retained inbound-email receiver definition"; fi
-else bad "inbound-email receiver neither restored nor justified"; fi
+inbound_now=$($P -d $DB -c "$INBOUND") || { bad "read the inbound-email receiver after rollback"; inbound_now=; }
+long_tokens=$($P -d $DB -c "$LONG_TOKENS") || { bad "check for 32-character inbound addresses"; long_tokens=; }
+if [ -n "$inbound_now" ] && [ "$inbound_now" = "$inbound_before" ]; then ok "inbound-email receiver restored exactly"
+elif [ -n "$inbound_now" ] && [ "$long_tokens" = t ] && [ "$inbound_now" = "$inbound_applied" ]; then
+  ok "inbound-email receiver kept on purpose (32-character addresses are in use): exactly the applied version"
+else bad "inbound-email receiver is neither the original nor the applied version kept on purpose"; fi
 now=$($P -d $DB -c "$STATE")
 kept=$($P -d $DB -c "select string_agg(table_name, ', ') from information_schema.tables where table_schema = 'public' and table_name like '%_rolled_back'")
 if [ "$now" = "$before" ]; then ok "full rollback, newest first: every function, column, trigger and policy identical to before (kept on purpose, renamed: $kept)"
