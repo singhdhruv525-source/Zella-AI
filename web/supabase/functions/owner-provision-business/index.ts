@@ -2,6 +2,7 @@ import { latestOwnerInvitation, moveOwnerInvitation } from "./ownerInvitation.ts
 import { FinishError, finishSetupWith } from "./owner_invite.ts";
 import { transferPatch } from "./setup_sync.ts";
 import { withCors } from "../_shared/cors.ts";
+import { readJsonLimited } from "../_shared/body.ts";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { PERMISSIONS, RESTRICTED_ROLES, settingsHandlers } from "./settings.ts";
 import { ONBOARDING_PERMISSIONS, documentsReady, loadOnboarding, onboardingHandlers } from "./onboarding.ts";
@@ -2980,14 +2981,13 @@ Deno.serve(withCors(async (req: Request) => {
 
     let body: unknown;
 
-    try {
-      body = await req.json();
-    } catch {
-      return respond(
-        { error: "Request body must be valid JSON" },
-        400,
-      );
+    const read = await readJsonLimited(req, 1_000_000);   // SEC-12: settings and setup payloads stay well under 1 MB
+    if (!read.ok) {
+      return read.error === "too_large"
+        ? respond({ error: "Request body is too large" }, 413)
+        : respond({ error: "Request body must be valid JSON" }, 400);
     }
+    body = read.value;
 
     if (
       typeof body !== "object" ||

@@ -19,13 +19,19 @@ export async function handle(req: Request): Promise<Response> {
   try { payload = JSON.parse(raw); } catch { return json({ ok: false, error: "bad_json" }, 400); }
   if (typeof payload !== "object" || payload === null || Array.isArray(payload)) return json({ ok: false, error: "bad_json" }, 400);
 
-  const res = await fetch(`${Deno.env.get("SUPABASE_URL")}/rest/v1/rpc/zella_capture_google_lead`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", apikey: serverKey, Authorization: `Bearer ${serverKey}` },
-    body: JSON.stringify({ p_payload: payload }),
-  });
-  if (!res.ok) return json({ ok: false, error: "try_again" }, 503);
-  const out = await res.json();
+  let out;
+  try {
+    const res = await fetch(`${Deno.env.get("SUPABASE_URL")}/rest/v1/rpc/zella_capture_google_lead`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: serverKey, Authorization: `Bearer ${serverKey}` },
+      body: JSON.stringify({ p_payload: payload }),
+      signal: AbortSignal.timeout(8000),   // BE-3
+    });
+    if (!res.ok) return json({ ok: false, error: "try_again" }, 503);
+    out = await res.json();
+  } catch {
+    return json({ ok: false, error: "try_again" }, 503);   // timed out or unreachable: Google retries
+  }
   // never echo customer data back
   const status = out.ok ? 200 : out.error === "bad_key" ? 401 : out.error === "too_many_requests" ? 429
     : out.error === "bad_payload" ? 400 : out.error === "business_unavailable" ? 410 : 503;

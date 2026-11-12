@@ -9,6 +9,7 @@
 //   POST { token, action: "continue" } -> removes the scheduled cancellation
 
 import { withCors } from "../_shared/cors.ts";
+import { asObject, readJsonLimited } from "../_shared/body.ts";
 import { createClient } from "@supabase/supabase-js";
 
 const corsHeaders = {
@@ -69,11 +70,11 @@ Deno.serve(withCors(async (req: Request) => {
   }
 
   let body: Record<string, unknown>;
-  try {
-    body = await req.json();
-  } catch {
-    return respond({ error: "Invalid request" }, 400);
-  }
+  const read = await readJsonLimited(req, 8_000);   // SEC-12
+  if (!read.ok) return respond({ error: read.error === "too_large" ? "Request too large" : "Invalid request" }, read.error === "too_large" ? 413 : 400);
+  const obj = asObject(read.value);
+  if (!obj) return respond({ error: "Invalid request" }, 400);
+  body = obj;
 
   const token = typeof body.token === "string" ? body.token.slice(0, 2000) : "";
   const action = body.action === "continue" ? "continue" : "preview";

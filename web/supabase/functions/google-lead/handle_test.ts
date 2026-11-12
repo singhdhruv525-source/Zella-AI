@@ -47,3 +47,13 @@ Deno.test("server key missing: 503", withDb({}, async (calls) => {
   Deno.env.delete("ZELLA_SERVER_SECRET_KEY");
   try { assertEquals((await post(lead)).status, 503); assertEquals(calls.length, 0); } finally { Deno.env.set("ZELLA_SERVER_SECRET_KEY", "server-key"); }
 }));
+Deno.test("database call times out or throws: 503 so Google retries, and the call carries a time limit (BE-3)", async () => {
+  let signal: AbortSignal | undefined;
+  globalThis.fetch = ((_url: string, init: RequestInit) => { signal = init.signal ?? undefined; return Promise.reject(new DOMException("timed out", "TimeoutError")); }) as typeof fetch;
+  try {
+    const r = await post(lead);
+    assertEquals(r.status, 503);
+    assertEquals(await r.json(), { ok: false, error: "try_again" });
+    assertEquals(signal instanceof AbortSignal, true);
+  } finally { globalThis.fetch = realFetch; }
+});

@@ -96,3 +96,18 @@ Deno.test("cleanup: purge record failure is distinct and retryable", mock((c) =>
   assertEquals(r.status, 503);
   assertEquals(await r.json(), { ok: false, error: "purge_record_failed" });
 }));
+Deno.test("an outbound call that times out answers 503 try_again with CORS, not an unhandled error (BE-3)", async () => {
+  let signal: AbortSignal | undefined;
+  globalThis.fetch = ((_url: string, init: RequestInit = {}) => { signal = init.signal ?? undefined; return Promise.reject(new DOMException("timed out", "TimeoutError")); }) as typeof fetch;
+  try {
+    const r = await call({ action: "check", file_id: ID }, "Bearer member-jwt");
+    assertEquals(r.status, 503);
+    assertEquals(await r.json(), { ok: false, error: "try_again" });
+    assertEquals(r.headers.get("access-control-allow-origin"), "*");
+    assertEquals(signal instanceof AbortSignal, true);
+  } finally { globalThis.fetch = realFetch; }
+});
+Deno.test("a body over the size limit answers 413 (SEC-12)", async () => {
+  const r = await handle(new Request("http://fn/record-files", { method: "POST", body: JSON.stringify({ action: "check", pad: "x".repeat(20_000) }), headers: { "content-type": "application/json" } }));
+  assertEquals(r.status, 413);
+});

@@ -7,25 +7,41 @@
 // verify_jwt is off (config.toml): the server key is not a JWT. "check" is verified by the database with the member's own
 // sign-in; "cleanup" compares the server key.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { asObject, readJsonLimited } from "../_shared/body.ts";
 import { inspect, sha256 } from "./inspect.ts";
 
 const json = (body: unknown, status: number) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info", "Access-Control-Allow-Methods": "POST, OPTIONS" };
 
+const TIMEOUT_MS = 10_000;   // BE-3: every outbound call has a time limit
+
+// A timed-out or failed outbound call answers 503 "try_again" rather than an unhandled 500.
 export async function handle(req: Request): Promise<Response> {
+  try { return await route(req); } catch {
+    const r = json({ ok: false, error: "try_again" }, 503);
+    for (const [k, v] of Object.entries(cors)) r.headers.set(k, v);
+    return r;
+  }
+}
+
+async function route(req: Request): Promise<Response> {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
   const withCors = (r: Response) => { for (const [k, v] of Object.entries(cors)) r.headers.set(k, v); return r; };
   if (req.method !== "POST") return withCors(json({ ok: false, error: "method_not_allowed" }, 405));
   const base = Deno.env.get("SUPABASE_URL"), server = Deno.env.get("ZELLA_SERVER_SECRET_KEY"), anon = Deno.env.get("SUPABASE_ANON_KEY");
   if (!base || !server || !anon) return withCors(json({ ok: false, error: "try_again" }, 503));
   let body: Record<string, unknown>;
-  try { body = await req.json(); } catch { return withCors(json({ ok: false, error: "bad_json" }, 400)); }
+  const read = await readJsonLimited(req, 16_000);   // SEC-12
+  if (!read.ok) return withCors(json({ ok: false, error: read.error }, read.error === "too_large" ? 413 : 400));
+  const obj = asObject(read.value);
+  if (!obj) return withCors(json({ ok: false, error: "bad_request" }, 400));
+  body = obj;
   const userAuth = req.headers.get("authorization") ?? "";
   const asServer = { apikey: server, Authorization: `Bearer ${server}` };
   const rpc = (fn: string, args: unknown, headers: Record<string, string>) =>
-    fetch(`${base}/rest/v1/rpc/${fn}`, { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify(args) });
+    fetch(`${base}/rest/v1/rpc/${fn}`, { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify(args), signal: AbortSignal.timeout(TIMEOUT_MS) });
   const removeStored = (paths: string[]) => fetch(`${base}/storage/v1/object/record-files`, {
-    method: "DELETE", headers: { "Content-Type": "application/json", ...asServer }, body: JSON.stringify({ prefixes: paths }) });
+    method: "DELETE", headers: { "Content-Type": "application/json", ...asServer }, body: JSON.stringify({ prefixes: paths }), signal: AbortSignal.timeout(TIMEOUT_MS) });
 
   if (body.action === "check") {
     if (typeof body.file_id !== "string" || !/^[0-9a-f-]{36}$/i.test(body.file_id)) return withCors(json({ ok: false, error: "bad_request" }, 400));
@@ -41,7 +57,7 @@ export async function handle(req: Request): Promise<Response> {
     const f = await fin.json();
     if (f.status !== "checking") return withCors(json({ ok: f.status === "ready", status: f.status }, 200));
     // 2. the stored bytes, read with the server key
-    const obj = await fetch(`${base}/storage/v1/object/record-files/${f.path}`, { headers: asServer });
+    const obj = await fetch(`${base}/storage/v1/object/record-files/${f.path}`, { headers: asServer, signal: AbortSignal.timeout(TIMEOUT_MS) });
     if (!obj.ok) return withCors(json({ ok: false, error: "try_again" }, 503));
     const bytes = new Uint8Array(await obj.arrayBuffer());
     const verdict = await inspect(f.mime_type, bytes);
