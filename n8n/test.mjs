@@ -2097,6 +2097,18 @@ test('calendar unhandled failures use the imported sanitized error workflow', ()
   assert.equal(alert.settings.saveDataErrorExecution, 'none');
 });
 
+test('every workflow reports failures to Failure Alert and keeps no successful-run data (AUT-9, AUT-10)', () => {
+  const alert = wfJson('zella-failure-alert.json');
+  const files = readdirSync(new URL('./workflows/', import.meta.url)).filter((f) => f.endsWith('.json'));
+  assert.ok(files.length >= 29);
+  for (const f of files) {
+    const s = wfJson(f).settings;
+    assert.equal(s.saveDataSuccessExecution, 'none', f);
+    if (f === 'zella-failure-alert.json') assert.equal(s.errorWorkflow, undefined, f); // no loop back into itself
+    else assert.equal(s.errorWorkflow, alert.id, f);
+  }
+});
+
 console.log(`${passed} passed, ${failures.length} failed`);
 for (const f of failures) console.log('  FAIL ' + f);
 process.exit(failures.length ? 1 : 0);

@@ -382,6 +382,7 @@
   "settings": {
     "executionOrder": "v1",
     "executionTimeout": 300,
+    "errorWorkflow": "4faaad69-b218-457c-86b2-974fd4ad915f",
     "saveDataSuccessExecution": "none",
     "saveDataErrorExecution": "none"
   },
