@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Checks sql/zella_review_sql_fixes.sql on an ISOLATED copy of the production state: tests/lib/build_full.sh plus every
-# file applied since (tests/deploy/run_all.sh's pending list, Batch 1, Batch 3), then the migration twice,
+# file applied since (tests/deploy/run_all.sh's pending list, Batch 1, Batch 3, the 9 Nov brand-name patch), then the migration twice,
 # tests/review_sql/test.sql, the rollback (every function and grant back exactly), and a second apply after it.
 # Never point this at production.
 set -uo pipefail
@@ -11,7 +11,7 @@ P=(psql -h "$ZPG_HOST" -p "$ZPG_PORT" -U postgres -qtAX -v ON_ERROR_STOP=1)
 read -r -a PENDING <<< "$(sed -n '/^PENDING=(/,/)/p' "$REPO/tests/deploy/run_all.sh" | tr -d '()' | sed 's/^PENDING=//' | tr '\n' ' ')"
 for m in "${PENDING[@]}"; do [[ "$m" =~ ^zella_[a-z0-9_]+$ ]] || { echo "FAIL unexpected pending entry: $m"; exit 1; }; done
 "$REPO/tests/lib/build_full.sh" "$DB" "$REPO/tests/channel/fixture.sql" || exit 1
-for m in "${PENDING[@]}" zella_batch1_security zella_batch3_pagination; do
+for m in "${PENDING[@]}" zella_batch1_security zella_batch3_pagination zella_brand_name; do
   [ -f "$REPO/sql/$m.sql" ] || { echo "FAIL missing migration: $REPO/sql/$m.sql" >&2; exit 1; }
   out=$("${P[@]}" -d "$DB" -f "$REPO/sql/$m.sql" 2>&1) || { echo "FAIL apply $m: $(echo "$out" | grep -m1 ERROR)"; exit 1; }
 done
