@@ -76,7 +76,9 @@ flowchart LR
 2. `NN-2` **No secret is ever written where a person or AI could read it later**: code, chat, logs, tests, tickets, docs, commit messages, screenshots.
 3. `NN-3` **Nothing reaches the real world without approval.** No person or AI agent makes a real call, text or email, turns on a live switch, or changes a live voice assistant without the owner's explicit approval for that specific action. Repository code, scripts and tests never do these things on their own; the product reaches the real world only through its live switches (`ARC-8`), each turned on by the owner.
 4. `NN-4` **Production is changed only with the owner's explicit approval, one change at a time**, with a backup before and proof after.
-5. `NN-5` **Nobody pushes to `main`.** All work goes through a branch and a reviewed pull request that the owner merges.
+5. `NN-5` **Nobody pushes to `main`.** All work goes through a branch and a reviewed pull request. The owner merges it, or
+   tells an AI agent to merge it once the automated review is clean and the required checks pass (owner's standing
+   permission, 12 Nov 2026).
 6. `NN-6` **The database is the single source of truth and the single enforcer of rules.** The UI, edge functions and workflows never decide; they ask.
 7. `NN-7` **The AI receptionist never invents a fact.** If it doesn't know, it says so and takes a message.
 8. `NN-8` **Opt-out always wins.** STOP, "don't call me" and do-not-contact are honoured instantly and permanently, for the business the person opted out of: STOP stops that business's texts, "don't call me" its calls, do-not-contact everything from it. A separate platform legal block list, when used, applies to every business (§6.6).
@@ -708,7 +710,7 @@ flowchart LR
   ci -- no --> br
   ci -- yes --> rv{Automated review<br/>findings resolved?}
   rv -- no --> br
-  rv -- yes --> mg{Owner merges<br/>to main}
+  rv -- yes --> mg{Owner merges, or tells<br/>the agent to merge}
   mg --> dep{Owner approves<br/>each deploy}
   dep --> same{Deployed version =<br/>reviewed source?}
   same -- no --> stop([Stop · report])
@@ -716,9 +718,11 @@ flowchart LR
   ship --> ver[Harmless real request ·<br/>evidence recorded]
   main[(main)] -. never pushed directly .-x br
 ```
-- `REL-4` **Never push to `main`.** Branch, pull request, automated review, green checks, owner merge.
+- `REL-4` **Never push to `main`.** Branch, pull request, automated review, green checks, then the owner merges or tells
+  the agent to merge (`NN-5`).
 - `REL-5` **Small pull requests**: one purpose each, with what changed, why, tests and results, production impact, rollback and the rule IDs involved.
-- `REL-6` **Never force-push shared branches**, rewrite others' history, or merge your own pull request.
+- `REL-6` **Never force-push shared branches** or rewrite others' history. Merge your own pull request only under the
+  owner's permission in `NN-5`, after the review is clean and the checks pass.
 - `REL-7` **Deploy only what was reviewed.** Confirm the deployed version equals the reviewed source; if the repo holds other undeployed changes, stop and report.
 - `REL-8` **Ship only what changed**; never redeploy for a comment, never bundle unrelated changes into a deploy.
 - `REL-9` **Verify after every deploy** with a harmless real request and record the evidence.

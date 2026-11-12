@@ -1,5 +1,7 @@
 # Zella AI: where things stand (handoff notes)
 
+> **Superseded on 12 November 2026 by `docs/MEMORY.md`.** Kept for history only; it is out of date.
+
 Kept up to date so work can continue in a new session without losing anything. No secrets are kept here:
 keys and passwords live only in Supabase secrets/vault, Vapi, GoDaddy and Resend.
 
