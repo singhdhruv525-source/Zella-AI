@@ -2040,7 +2040,7 @@ Knowledge, Automations, Reports, Team, Settings.
 | D-48 | Trial limits: one trial per business, phone number and card (proposed) | owner |
 | D-49 | HIPAA add-on: price, and business associate agreements with every vendor handling the data | owner + counsel |
 | D-50 | Tax treatment: GST on services exported from India; US state sales tax on software | owner + chartered accountant |
-| D-51 | Confirm Razorpay supports recurring USD card payments from US customers (international payments, subscriptions with a trial) before building checkout | owner |
+| D-51 | Razorpay for US customers. **Confirmed from Razorpay's documentation (12 Nov 2026):** Subscriptions take recurring payments in USD on international cards (Visa, Mastercard, Amex) after the customer authenticates the first payment with 3-D Secure; UPI and eMandate are INR only; **settlement to Zella Voice is in INR** at the exchange rate when the payment is created. **Still to confirm:** international payments activated on the Zella Voice account (KYC and banking-partner approval), and a trial with a future start date tested with a foreign test card in test mode | owner |
 | D-52 | Inbound call routing when a call's number and Vapi phone ID match two different businesses' rows (each is unique on its own): proposed, route only when both agree, otherwise treat as an unknown number | owner |
 | D-54 | Starting values for the **Base** and **Pro** tiers (suggested monthly and yearly price, setup fee, minutes, texts, emails, users, numbers, locations, languages) | owner |
 | D-53 | Whether n8n workflow failures are emailed to platform admins once email is live, or shown in the dashboard only (`sql/zella_workflow_alert_email.sql`, merged, not applied) | owner |

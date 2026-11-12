@@ -155,7 +155,7 @@ non-zero balance, which makes reconciliation with Razorpay exact and auditable.
 | Rule | Detail |
 |---|---|
 | Amounts | `bigint` cents plus a currency code (`BIL-7`). Never floats. Display in the business's locale. |
-| Currency | USD (`REQ-BIL-28`). Razorpay amounts are also in the smallest unit (cents), so no conversion inside our code. |
+| Currency | Customers are charged in USD (`REQ-BIL-28`); Razorpay amounts are in the smallest unit (cents), so no conversion inside our code. **Razorpay settles to Zella Voice in INR** at the exchange rate when the payment is created: each payment stores the USD amount charged and, from the settlement report, the INR amount, rate and fees, so reconciliation (§10) matches both. |
 | Rounding | Proration and per-day credits use integer maths, rounding **half up to the cent once, at the line level**; the invoice total is the sum of rounded lines. |
 | Proration (upgrade) | `charge = round((new_price − old_price) × remaining_seconds / period_seconds)`; extra allowance for the rest of the cycle is prorated the same way (`REQ-BIL-30`). |
 | Service credit | `round(monthly_fee / 30) × affected_days`, capped at `monthly_fee` (`REQ-BIL-46`). |
@@ -553,7 +553,7 @@ production or real money (`NN-3`, `NN-4`).
 
 | # | Point | Needed for |
 |---|---|---|
-| D-51 | Razorpay: recurring USD card payments from US customers, subscriptions with a trial start date, saved-card charges for auto-reload | step 3 |
+| D-51 | Razorpay: recurring USD on international cards is supported per Razorpay's docs (first payment authenticated with 3-D Secure; settled in INR). Still to confirm: international payments activated on the account; a trial with a future start date in test mode; charging the saved card for auto-reload packs | step 3 |
 | D-50 | Tax rules (GST on exported services; US state sales tax) | invoices with tax |
 | D-54 | Base and Pro starting values | step 2 |
 | D-42…D-48 | pack expiry, texts/emails at 100%, overage, fair-use multiple, annual allowances, founding customers, trial limits | step 1 |
