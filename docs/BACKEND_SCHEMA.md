@@ -732,7 +732,7 @@ Copy of a business's settings before a configuration upgrade, so it can be resto
 
 - Primary key: `id`.
 - `business_id` → `public.businesses` (on delete cascade).
-- Row security: on; no policies, so signed-in users and anon get no rows directly; only security definer functions and the server key reach it.
+- Row security: on; no policies, so roles subject to row security (signed-in users and anon) get no rows directly. Roles that bypass it (table owners, superusers, `BYPASSRLS` roles such as the server key) are not limited by it; security definer functions run as the owner.
 
 ### `zella_milestones`
 
@@ -1145,7 +1145,7 @@ Default approvals, milestones and checks per record type.
 | `config` | jsonb | yes |  |
 
 - Primary key: `preset_key, type_key`.
-- Row security: on; no policies, so signed-in users and anon get no rows directly; only security definer functions and the server key reach it.
+- Row security: on; no policies, so roles subject to row security (signed-in users and anon) get no rows directly. Roles that bypass it (table owners, superusers, `BYPASSRLS` roles such as the server key) are not limited by it; security definer functions run as the owner.
 
 ### `record_approvals`
 
@@ -1556,7 +1556,7 @@ Keys for Google Ads lead form webhooks (stored hashed).
 - Primary key: `business_id`.
 - Unique: `(key_hash)`.
 - `business_id` → `public.businesses` (on delete cascade).
-- Row security: on; no policies, so signed-in users and anon get no rows directly; only security definer functions and the server key reach it.
+- Row security: on; no policies, so roles subject to row security (signed-in users and anon) get no rows directly. Roles that bypass it (table owners, superusers, `BYPASSRLS` roles such as the server key) are not limited by it; security definer functions run as the owner.
 
 ### `google_lead_events`
 
@@ -1571,7 +1571,7 @@ Google lead deliveries received, for de-duplication.
 
 - Primary key: `business_id, lead_id`.
 - `business_id` → `public.businesses` (on delete cascade).
-- Row security: on; no policies, so signed-in users and anon get no rows directly; only security definer functions and the server key reach it.
+- Row security: on; no policies, so roles subject to row security (signed-in users and anon) get no rows directly. Roles that bypass it (table owners, superusers, `BYPASSRLS` roles such as the server key) are not limited by it; security definer functions run as the owner.
 
 ### `assignment_rules`
 
@@ -1857,7 +1857,7 @@ Which configuration version each call actually received.
 - Primary key: `id`.
 - `business_id` → `public.businesses` (on delete cascade).
 - `version_id` → `public.agent_config_versions` (on delete set null).
-- Row security: on; no policies, so signed-in users and anon get no rows directly; only security definer functions and the server key reach it.
+- Row security: on; no policies, so roles subject to row security (signed-in users and anon) get no rows directly. Roles that bypass it (table owners, superusers, `BYPASSRLS` roles such as the server key) are not limited by it; security definer functions run as the owner.
 
 ### `ai_tool_calls`
 
@@ -2024,7 +2024,7 @@ Limits on order lookups by phone, per call and caller.
 
 - Primary key: `business_id, provider_call_id`.
 - `business_id` → `public.businesses` (on delete cascade).
-- Row security: on; no policies, so signed-in users and anon get no rows directly; only security definer functions and the server key reach it.
+- Row security: on; no policies, so roles subject to row security (signed-in users and anon) get no rows directly. Roles that bypass it (table owners, superusers, `BYPASSRLS` roles such as the server key) are not limited by it; security definer functions run as the owner.
 
 ## Knowledge
 
@@ -3967,7 +3967,7 @@ Which reports a business gets and when.
 - Primary key: `id`.
 - Unique: `(business_id, kind)`.
 - `business_id` → `public.businesses` (on delete cascade).
-- Row security: on; no policies, so signed-in users and anon get no rows directly; only security definer functions and the server key reach it.
+- Row security: on; no policies, so roles subject to row security (signed-in users and anon) get no rows directly. Roles that bypass it (table owners, superusers, `BYPASSRLS` roles such as the server key) are not limited by it; security definer functions run as the owner.
 
 ### `business_report_runs`
 
@@ -3984,7 +3984,7 @@ Reports produced.
 
 - Primary key: `schedule_id, local_date`.
 - `schedule_id` → `public.business_report_schedules` (on delete cascade).
-- Row security: on; no policies, so signed-in users and anon get no rows directly; only security definer functions and the server key reach it.
+- Row security: on; no policies, so roles subject to row security (signed-in users and anon) get no rows directly. Roles that bypass it (table owners, superusers, `BYPASSRLS` roles such as the server key) are not limited by it; security definer functions run as the owner.
 
 ### `support_tickets`
 
