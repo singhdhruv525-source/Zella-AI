@@ -1,4 +1,4 @@
-// Zella - connect a business's Shopify store for order status (sql/zella_store_orders.sql).
+// Zella Voice - connect a business's Shopify store for order status (sql/zella_store_orders.sql).
 //   POST { action: "connect", business_id, shop_domain, access_token }   signed-in owner or admin
 // The token is the Admin API access token of a custom app the owner creates in their Shopify admin with read-only
 // scopes. It is checked with Shopify (the store answers, and the scopes order lookup needs are granted) before it is
@@ -6,6 +6,7 @@
 // verify_jwt is off (config.toml), like the other functions that check the caller through the database.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { withCors } from "../_shared/cors.ts";
+import { asObject, readJsonLimited } from "../_shared/body.ts";
 
 export const SHOPIFY_API_VERSION = "2026-07";
 export const NEEDED_SCOPES = ["read_orders", "read_customers"];
@@ -18,7 +19,11 @@ export async function handle(req: Request): Promise<Response> {
   const base = Deno.env.get("SUPABASE_URL"), server = Deno.env.get("ZELLA_SERVER_SECRET_KEY"), anon = Deno.env.get("SUPABASE_ANON_KEY");
   if (!base || !server || !anon) return json({ ok: false, error: "not_configured" }, 503);
   let b: Record<string, unknown>;
-  try { b = await req.json(); } catch { return json({ ok: false, error: "bad_json" }, 400); }
+  const read = await readJsonLimited(req, 16_000);   // SEC-12
+  if (!read.ok) return json({ ok: false, error: read.error }, read.error === "too_large" ? 413 : 400);
+  const obj = asObject(read.value);
+  if (!obj) return json({ ok: false, error: "bad_request" }, 400);
+  b = obj;
   const biz = String(b.business_id ?? ""), shop = String(b.shop_domain ?? "").trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, ""), token = String(b.access_token ?? "").trim();
   if (b.action !== "connect" || !/^[0-9a-f-]{36}$/i.test(biz)) return json({ ok: false, error: "bad_request" }, 400);
   if (!/^[a-z0-9][a-z0-9-]{0,60}\.myshopify\.com$/.test(shop)) return json({ ok: false, error: "bad_shop_domain" }, 400);

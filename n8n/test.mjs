@@ -1262,6 +1262,10 @@ test('data rights: requests have a 30 day deadline, a reminder, and export/erase
 
 test('inbound calls: a customer call becomes a wrap-up record, an outbound or unknown call does not', () => {
   const inb = (over = {}, callOver = {}) => rplan({ type: 'end-of-call-report', endedReason: 'customer-ended-call', durationSeconds: 61.4, summary: 'Caller asked for a call back tomorrow.', startedAt: '2026-10-24T10:00:00Z', endedAt: '2026-10-24T10:01:01Z', phoneNumber: { number: '+14155550100' }, recordingUrl: 'https://example.com/r.mp3', transcript: 'hi', call: { id: 'call_in_1', type: 'inboundPhoneCall', phoneNumberId: 'pn_1', customer: { number: '+14155550111' }, ...callOver }, ...over });
+  assert.equal(inb({ phoneNumber: { id: 'fallback' } }, { phoneNumberId: undefined }).inbound.p_vapi_phone_number_id, 'fallback');
+  assert.equal(inb({ phoneNumber: { id: 'fallback' } }).inbound.p_vapi_phone_number_id, 'pn_1');
+  assert.equal(inb({ phoneNumber: { id: 'x'.repeat(101) } }, { phoneNumberId: 123 }).inbound.p_vapi_phone_number_id, 'x'.repeat(100));
+  assert.equal(inb({ phoneNumber: { id: 123 } }, { phoneNumberId: undefined }).inbound.p_vapi_phone_number_id, null);
   const r = inb();
   assert.equal(r.record, null);
   assert.equal(r.inbound.p_provider_call_id, 'call_in_1'); assert.equal(r.inbound.p_seconds, 61); assert.equal(r.inbound.p_from_number, '+14155550111');
@@ -2095,6 +2099,18 @@ test('calendar unhandled failures use the imported sanitized error workflow', ()
   assert.equal(alert.settings.saveManualExecutions, false);
   assert.equal(alert.settings.saveExecutionProgress, false);
   assert.equal(alert.settings.saveDataErrorExecution, 'none');
+});
+
+test('every workflow reports failures to Failure Alert and keeps no successful-run data (AUT-9, AUT-10)', () => {
+  const alert = wfJson('zella-failure-alert.json');
+  const files = readdirSync(new URL('./workflows/', import.meta.url)).filter((f) => f.endsWith('.json'));
+  assert.ok(files.length >= 29);
+  for (const f of files) {
+    const s = wfJson(f).settings;
+    assert.equal(s.saveDataSuccessExecution, 'none', f);
+    if (f === 'zella-failure-alert.json') assert.equal(s.errorWorkflow, undefined, f); // no loop back into itself
+    else assert.equal(s.errorWorkflow, alert.id, f);
+  }
 });
 
 console.log(`${passed} passed, ${failures.length} failed`);

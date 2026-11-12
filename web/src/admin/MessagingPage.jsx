@@ -6,7 +6,7 @@ import {
   ProviderHealth, ReasonDialog, Search, Select, Tabs, can, num, pct, rpc, since, useLoad, useOptions, useToast, when, words,
 } from "./adminOps";
 
-// Admin page: every text and email Zella recorded, the platform templates and the senders. Data comes from the
+// Admin page: every text and email Zella Voice recorded, the platform templates and the senders. Data comes from the
 // zella_admin_* functions (sql/zella_admin_ops.sql). Previewing a template fills in sample values in the browser;
 // nothing on this page sends a message. A retry puts the original reminder or follow-up back in the queue, and the
 // sender checks consent, opt-outs and quiet hours again before anything goes out.
@@ -58,7 +58,7 @@ function Overview({ onTab, onFailed }) {
         <>
           {(!o.live.sms || !o.live.email) && (
             <NotAvailable title="Sending is in test mode">
-              {[!o.live.sms && "Texts (sms_live is off)", !o.live.email && "Emails (email_live is off)"].filter(Boolean).join(" and ")}: Zella records each message as "Test mode (not sent)" and nothing reaches customers.
+              {[!o.live.sms && "Texts (sms_live is off)", !o.live.email && "Emails (email_live is off)"].filter(Boolean).join(" and ")}: Zella Voice records each message as "Test mode (not sent)" and nothing reaches customers.
             </NotAvailable>
           )}
           <h3 className="ao-h3">Texts</h3>

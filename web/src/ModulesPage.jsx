@@ -19,7 +19,7 @@ export default function ModulesPage({ onNavigate }) {
         <div>
           <div className="owner-eyebrow">Configuration</div>
           <h1>Modules & features</h1>
-          <p>Every CRM module on Zella, which industries offer it, and how many businesses use it.</p>
+          <p>Every CRM module on Zella Voice, which industries offer it, and how many businesses use it.</p>
         </div>
         <div className="op-heading-actions">
           <UpdatedAt r={state} />

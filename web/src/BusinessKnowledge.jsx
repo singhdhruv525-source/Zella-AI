@@ -27,7 +27,7 @@ function AnswerModal({ title, description, initial, askKind, submitLabel, onClos
 
   async function submit(event) {
     event.preventDefault();
-    if (!form.answer.trim()) return setError("Write the answer Zella should give.");
+    if (!form.answer.trim()) return setError("Write the answer Zella Voice should give.");
     if (askKind && !form.title.trim()) return setError("Give this a short title.");
     setBusy(true);
     setError("");
@@ -58,12 +58,12 @@ function AnswerModal({ title, description, initial, askKind, submitLabel, onClos
               <Field label="Type">
                 <select value={form.kind} onChange={set("kind")}>{KINDS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
               </Field>
-              <Field label="Question callers ask" full hint="Optional. Helps Zella match the right answer.">
+              <Field label="Question callers ask" full hint="Optional. Helps Zella Voice match the right answer.">
                 <input value={form.question} onChange={set("question")} />
               </Field>
             </>
           )}
-          <Field label="Answer Zella should give" full>
+          <Field label="Answer Zella Voice should give" full>
             <textarea rows={5} value={form.answer} onChange={set("answer")} autoFocus={!askKind} />
           </Field>
         </div>
@@ -109,7 +109,7 @@ export function KnowledgePage({ workspace, refreshKey, onNotice }) {
       const { error: failure } = await supabase.rpc("zella_answer_knowledge_gap", { p_gap_id: gap.id, p_answer: v.answer, p_kind: v.kind, p_title: v.title });
       if (failure) return friendly(failure);
       setModal(null);
-      onNotice?.("Submitted. Zella will use it once it has been checked.");
+      onNotice?.("Submitted. Zella Voice will use it once it has been checked.");
       reload();
       return "";
     },
@@ -129,7 +129,7 @@ export function KnowledgePage({ workspace, refreshKey, onNotice }) {
       });
       if (failure) return checked(failure);
       setModal(null);
-      onNotice?.("Added. Zella uses it from the next call.");
+      onNotice?.("Added. Zella Voice uses it from the next call.");
       reload();
       return "";
     },
@@ -142,14 +142,14 @@ export function KnowledgePage({ workspace, refreshKey, onNotice }) {
         .update({ title: v.title, kind: v.kind, question: v.question || null, answer: v.answer }).eq("id", item.id));
       if (failure) return checked(failure);
       setModal(null);
-      onNotice?.("Saved. Zella uses the new version from the next call.");
+      onNotice?.("Saved. Zella Voice uses the new version from the next call.");
       reload();
       return "";
     },
   });
 
   const retry = (item) => run(`r-${item.id}`, () => changed(supabase.from("knowledge_items").update({ status: "processing" }).eq("id", item.id)), "Checking again.");
-  const archive = (item) => run(`a-${item.id}`, () => changed(supabase.from("knowledge_items").update({ status: "archived" }).eq("id", item.id)), "Removed. Zella will stop using it.");
+  const archive = (item) => run(`a-${item.id}`, () => changed(supabase.from("knowledge_items").update({ status: "archived" }).eq("id", item.id)), "Removed. Zella Voice will stop using it.");
 
   return (
     <>
@@ -162,7 +162,7 @@ export function KnowledgePage({ workspace, refreshKey, onNotice }) {
         <Segment label="Knowledge view" value={tab} onChange={setTab} options={[["gaps", `Questions to review (${openGaps.length})`], ["items", `Approved answers (${items.length})`]]} />
       </PageHead>
       <Notice error={error || actionError} onRetry={reload} />
-      {waiting > 0 && tab === "items" && <p className="ba-muted">{plural(waiting, "answer")} being checked. Zella can't use {waiting === 1 ? "it" : "them"} yet.</p>}
+      {waiting > 0 && tab === "items" && <p className="ba-muted">{plural(waiting, "answer")} being checked. Zella Voice can't use {waiting === 1 ? "it" : "them"} yet.</p>}
 
       {loading && !data ? <p className="ba-muted">Loading…</p> : tab === "gaps" ? (
         <>
@@ -171,7 +171,7 @@ export function KnowledgePage({ workspace, refreshKey, onNotice }) {
           </div>
           {!shownGaps.length ? (
             <Empty title={gapFilter === "open" ? "No questions to review" : "Nothing resolved yet"}>
-              {gapFilter === "open" ? "When a caller asks something Zella can't answer, the question shows up here for you to approve an answer." : "Answered and dismissed questions are kept here."}
+              {gapFilter === "open" ? "When a caller asks something Zella Voice can't answer, the question shows up here for you to approve an answer." : "Answered and dismissed questions are kept here."}
             </Empty>
           ) : (
             <div className="ba-stack">
@@ -186,14 +186,14 @@ export function KnowledgePage({ workspace, refreshKey, onNotice }) {
                     {g.status === "open" && g.suggested_answer && (
                       <div className="ba-draft">
                         <p className="ba-draft-label">
-                          Zella's draft{g.suggestion_source ? ` · from ${g.suggestion_source}` : ""}
+                          Zella Voice's draft{g.suggestion_source ? ` · from ${g.suggestion_source}` : ""}
                           {g.suggestion_confidence === "low" && <Pill tone="warning">Check the facts</Pill>}
                         </p>
                         <p className="ba-item-text">{g.suggested_answer}</p>
                       </div>
                     )}
                     {g.status === "open" && !g.suggested_answer && (
-                      <p className="ba-muted">{g.suggested_at ? "Zella couldn't find this in your information, so it needs your answer." : "Zella is drafting an answer…"}</p>
+                      <p className="ba-muted">{g.suggested_at ? "Zella Voice couldn't find this in your information, so it needs your answer." : "Zella Voice is drafting an answer…"}</p>
                     )}
                     {g.status === "open" && (
                       <div className="ba-form-actions">
@@ -208,7 +208,7 @@ export function KnowledgePage({ workspace, refreshKey, onNotice }) {
           )}
         </>
       ) : !items.length ? (
-        <Empty title="No approved answers yet">Add the questions your callers ask most, plus your services and policies. Zella answers from these and nothing else.</Empty>
+        <Empty title="No approved answers yet">Add the questions your callers ask most, plus your services and policies. Zella Voice answers from these and nothing else.</Empty>
       ) : (
         <div className="ba-stack">
           {items.map((i) => {
@@ -238,14 +238,14 @@ export function KnowledgePage({ workspace, refreshKey, onNotice }) {
       )}
 
       {modal?.kind === "answer" && (
-        <AnswerModal title={modal.gap.suggested_answer ? "Check Zella's draft" : "Answer this question"} description={modal.gap.suggested_answer ? `${modal.gap.question} Edit anything that isn't right, then submit.` : modal.gap.question} askKind submitLabel="Submit answer"
+        <AnswerModal title={modal.gap.suggested_answer ? "Check Zella Voice's draft" : "Answer this question"} description={modal.gap.suggested_answer ? `${modal.gap.question} Edit anything that isn't right, then submit.` : modal.gap.question} askKind submitLabel="Submit answer"
           initial={{ title: modal.gap.suggested_title || modal.gap.question.slice(0, 60), kind: modal.gap.suggested_kind || "faq", question: modal.gap.question, answer: modal.gap.suggested_answer || "" }} onClose={() => setModal(null)} onSubmit={modal.submit} />
       )}
       {modal?.kind === "add" && (
-        <AnswerModal title="Add an answer" description="Zella will use this once it has been checked." askKind submitLabel="Add answer" onClose={() => setModal(null)} onSubmit={modal.submit} />
+        <AnswerModal title="Add an answer" description="Zella Voice will use this once it has been checked." askKind submitLabel="Add answer" onClose={() => setModal(null)} onSubmit={modal.submit} />
       )}
       {modal?.kind === "edit" && (
-        <AnswerModal title="Edit answer" description="Zella stops using the old version until the new one is checked." askKind initial={modal.item} submitLabel="Save changes" onClose={() => setModal(null)} onSubmit={modal.submit} />
+        <AnswerModal title="Edit answer" description="Zella Voice stops using the old version until the new one is checked." askKind initial={modal.item} submitLabel="Save changes" onClose={() => setModal(null)} onSubmit={modal.submit} />
       )}
     </>
   );

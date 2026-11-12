@@ -483,7 +483,7 @@ export function RecordsPage({ workspace, type, query, refreshKey, canManage, onN
         {list.loading && !list.data ? <div className="ba-panel-body"><p className="ba-muted">Loading…</p></div> : list.status === "failed" ? null : !visible.length ? (
           <div className="ba-panel-body">
             <Empty title={query || filter !== "open" ? "No matches" : `No ${type.plural.toLowerCase()} yet`}>
-              {query || filter !== "open" ? "Try a different search or filter." : `Add the first ${type.singular.toLowerCase()}. Zella's AI receptionist can add them from calls too, once it's live.`}
+              {query || filter !== "open" ? "Try a different search or filter." : `Add the first ${type.singular.toLowerCase()}. Zella Voice's AI receptionist can add them from calls too, once it's live.`}
             </Empty>
           </div>
         ) : (

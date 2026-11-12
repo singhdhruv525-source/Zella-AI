@@ -130,8 +130,8 @@ export function CallCard({ call, tz, role, defaultOpen, onChanged, onNotice }) {
 
 function followLabel(f) {
   const tries = `${f.attempts ?? 0} of ${f.max_attempts ?? 2} tries`;
-  if (f.status === "pending") return "Zella will call to offer a new time";
-  if (f.status === "in_progress") return "Zella is calling to offer a new time";
+  if (f.status === "pending") return "Zella Voice will call to offer a new time";
+  if (f.status === "in_progress") return "Zella Voice is calling to offer a new time";
   if (f.status === "cancelled") return "Follow-up call canceled";
   const o = { rescheduled: "Rebooked after the follow-up call", wants_callback: "Asked for a call from the team", declined: "Declined a new time", no_answer: `No answer after ${tries}`, voicemail: `Voicemail after ${tries}`, failed: `Call failed after ${tries}`, sms_sent: "Text sent offering a new time" };
   return o[f.outcome] ?? "Follow-up finished";

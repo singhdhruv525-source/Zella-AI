@@ -230,13 +230,13 @@ export function ReceptionistCard({ workspace, agent, term, onTest }) {
       </div>
       <span>{agent.live
         ? `Handling calls, ${term("appointments").toLowerCase()} and ${term("customer").toLowerCase()} questions 24/7`
-        : "Zella connects your phone line before it goes live"}</span>
+        : "Zella Voice connects your phone line before it goes live"}</span>
       <button type="button" className="ba-btn block" onClick={onTest}><Icon name="call" size="sm" />Test AI Voice</button>
     </div>
   );
 }
 
-// Test AI Voice: a real call to the business's own Zella number. There is no in-browser call yet, so nothing here
+// Test AI Voice: a real call to the business's own Zella Voice number. There is no in-browser call yet, so nothing here
 // pretends to place one.
 export function TestVoiceModal({ workspace, phone, agent, onClose, onGo }) {
   const name = workspace.receptionist?.name ?? "your AI receptionist";
@@ -249,8 +249,8 @@ export function TestVoiceModal({ workspace, phone, agent, onClose, onGo }) {
       <div className="ba-modal-body">
         {phone ? (
           <>
-            <p className="ba-note">Call your Zella number from your own phone: <strong>{phone}</strong></p>
-            {!agent.live && <div className="ba-banner">The receptionist isn't live yet, so the call may not be answered by Zella.</div>}
+            <p className="ba-note">Call your Zella Voice number from your own phone: <strong>{phone}</strong></p>
+            {!agent.live && <div className="ba-banner">The receptionist isn't live yet, so the call may not be answered by Zella Voice.</div>}
             <ul className="ba-test-list">
               <li>Ask for your opening hours.</li>
               <li>Book a time, then check it appears in your Calendar.</li>
@@ -260,7 +260,7 @@ export function TestVoiceModal({ workspace, phone, agent, onClose, onGo }) {
             <p className="ba-muted">Test calls are real calls: they appear in Calls and count toward your AI minutes.</p>
           </>
         ) : (
-          <p className="ba-note">No Zella phone number is connected to this business yet. The Zella team connects it; once it's live you can call it from here.</p>
+          <p className="ba-note">No Zella Voice phone number is connected to this business yet. The Zella Voice team connects it; once it's live you can call it from here.</p>
         )}
       </div>
     </Modal>

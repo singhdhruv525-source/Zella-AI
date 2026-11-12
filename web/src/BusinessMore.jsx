@@ -307,7 +307,7 @@ export function ReportsPage({ workspace, refreshKey }) {
         <>
           {review.data && (
             <section className="ba-panel ba-gap">
-              <div className="ba-panel-head"><div className="ba-panel-title"><div><h2>Zella's review</h2><p>{review.data.issues?.length ? "Things worth a look" : "Nothing needs attention"}</p></div></div></div>
+              <div className="ba-panel-head"><div className="ba-panel-title"><div><h2>Zella Voice's review</h2><p>{review.data.issues?.length ? "Things worth a look" : "Nothing needs attention"}</p></div></div></div>
               {review.data.issues?.length > 0 && <ul className="ba-checklist">{review.data.issues.map((t) => <li key={t}>{t}</li>)}</ul>}
             </section>
           )}
@@ -346,7 +346,7 @@ export function ReportsPage({ workspace, refreshKey }) {
 /* ---------------------------------------------------------------- */
 
 const CATALOG = [
-  { match: ["telnyx"], icon: "call", name: "Phone line", text: "Your business number, new or forwarded to Zella." },
+  { match: ["telnyx"], icon: "call", name: "Phone line", text: "Your business number, new or forwarded to Zella Voice." },
   { match: ["vapi"], icon: "record_voice_over", name: "Voice assistant", text: "The AI receptionist that answers your calls." },
   { match: ["google_calendar", "gcal", "google"], not: ["ads", "lead", "profile", "mail"], icon: "calendar_month", name: "Google Calendar", text: "Keeps bookings and your calendar in sync." },
   { match: ["outlook_calendar", "microsoft_calendar", "outlook", "microsoft"], not: ["mail"], icon: "event", name: "Outlook / Microsoft Calendar", text: "Keeps bookings and your calendar in sync." },
@@ -372,7 +372,7 @@ function IntegrationCard({ item, row, canManage, loading, onNotice, onChanged, w
     setError("");
     const { error: failure } = await supabase.rpc("zella_set_integration", { p_business_id: workspace.id, p_integration_id: row.id, p_action: action });
     setBusy(false);
-    if (failure) return setError(/NEEDS_RECONNECT/.test(failure.message) ? "This was removed, so it needs the Zella team to connect it again." : explain(failure));
+    if (failure) return setError(/NEEDS_RECONNECT/.test(failure.message) ? "This was removed, so it needs the Zella Voice team to connect it again." : explain(failure));
     setConfirming(false);
     onNotice?.(action === "remove" ? `${item.name} was removed.` : `${item.name} is ${action === "on" ? "on" : "off"}.`);
     onChanged();
@@ -391,12 +391,12 @@ function IntegrationCard({ item, row, canManage, loading, onNotice, onChanged, w
       {canManage && row && (
         <div className="ba-integration-actions">
           {row.status === "disconnected" ? (
-            <small>Removed. Ask the Zella team to connect it again.</small>
+            <small>Removed. Ask the Zella Voice team to connect it again.</small>
           ) : confirming ? (
             <div className="ba-confirm" role="alertdialog" aria-label={`Remove ${item.name}`}>
               <p>
                 Remove {item.name}? Its saved sign-in details are deleted.
-                {core && " Your AI receptionist can't take calls without it."} The Zella team has to connect it again.
+                {core && " Your AI receptionist can't take calls without it."} The Zella Voice team has to connect it again.
               </p>
               <div className="ba-auto-actions">
                 <button type="button" className="ba-btn" disabled={busy} onClick={() => setConfirming(false)}>Keep it</button>
@@ -419,14 +419,14 @@ function IntegrationCard({ item, row, canManage, loading, onNotice, onChanged, w
 }
 
 // Google Ads lead forms (sql/zella_google_leads.sql): owners and admins create the key Google sends with each lead.
-// It is shown once; Zella keeps only a hash. Managers see whether leads are arriving.
+// It is shown once; Zella Voice keeps only a hash. Managers see whether leads are arriving.
 // Shopify store for order status (e-commerce): owners and admins paste the store address and a read-only custom app
 // token; the store-connect function checks it with Shopify before it is stored (server-only). The token is never shown.
 const STORE_ERRORS = { bad_shop_domain: "Enter the store's address ending in .myshopify.com.", bad_token: "That doesn't look like an Admin API access token.",
   token_refused: "Shopify didn't accept that token. Copy it again from the custom app.", store_not_found: "No store answers at that address.",
   missing_scopes: "The custom app needs read access to orders and customers (read_orders, read_customers).", not_allowed: "Only owners and admins can connect the store.",
   store_unreachable: "Shopify couldn't be reached. Try again in a minute.",
-  not_configured: "Store connections aren't switched on for Zella yet. Contact Zella support." };
+  not_configured: "Store connections aren't switched on for Zella Voice yet. Contact Zella Voice support." };
 function StoreCard({ workspace, onNotice }) {
   const canManage = ["owner", "admin"].includes(workspace.role);
   const [version, setVersion] = useState(0);
@@ -452,7 +452,7 @@ function StoreCard({ workspace, onNotice }) {
       return setProblem(STORE_ERRORS[answer?.error] ?? "The store couldn't be connected. Try again.");
     }
     setToken(""); setShop(""); setVersion((v) => v + 1);
-    onNotice(`Store connected: ${data.shop_name ?? data.shop}.${data.more_access_than_needed?.length ? " The token can also change things in your store; Zella only reads orders, so a read-only token is safer." : ""}`);
+    onNotice(`Store connected: ${data.shop_name ?? data.shop}.${data.more_access_than_needed?.length ? " The token can also change things in your store; Zella Voice only reads orders, so a read-only token is safer." : ""}`);
   }
   async function disconnect() {
     if (!window.confirm("Disconnect the store? The assistant stops checking order status and takes messages instead. The access token is deleted.")) return;
@@ -505,7 +505,7 @@ function GoogleLeadsCard({ workspace, onNotice }) {
     setFresh(r.data.key); setVersion((v) => v + 1);
   }
   async function revoke() {
-    if (!window.confirm("Stop accepting Google leads? Forms keep collecting them in Google Ads; Zella refuses them until you make a new key.")) return;
+    if (!window.confirm("Stop accepting Google leads? Forms keep collecting them in Google Ads; Zella Voice refuses them until you make a new key.")) return;
     const r = await supabase.rpc("zella_google_lead_key_revoke", { p_business_id: workspace.id });
     if (r.error) return setProblem(explain(r.error));
     setFresh(null); setVersion((v) => v + 1); onNotice("Google leads stopped.");
@@ -563,7 +563,7 @@ export function IntegrationsPage({ workspace, refreshKey, onNotice }) {
             onNotice={onNotice} onChanged={reload} workspace={workspace} />
         ))}
       </div>
-      <p className="ba-muted ba-gap">Want one connected or connected again? Ask the Zella team and it will be set up for you.</p>
+      <p className="ba-muted ba-gap">Want one connected or connected again? Ask the Zella Voice team and it will be set up for you.</p>
     </>
   );
 }

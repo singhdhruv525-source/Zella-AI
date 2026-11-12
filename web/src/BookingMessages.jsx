@@ -5,7 +5,7 @@ import { formatDay, formatTime, timeAgo } from "./businessTime";
 import { friendly } from "./BusinessShared";
 import { humanize } from "./copy/labels";
 
-// The messages Zella sends for one booking: its confirmation and reminders (appointment_reminders) and its follow-ups
+// The messages Zella Voice sends for one booking: its confirmation and reminders (appointment_reminders) and its follow-ups
 // (followup_tasks: no-show, thank-you). Every line shows what really happened, as the sending workflows recorded it.
 // Nothing here sends anything: sending is done by the database and the n8n workflows. When texting or email is not
 // connected yet, the workflows record "not sent" and this says so, instead of showing the message as delivered.
@@ -97,7 +97,7 @@ export function BookingMessages({ workspace, appt, tz, term }) {
           <Icon name="info" size="sm" />
           <span>
             {off.length === 2 ? "Texts and emails aren't" : off.length ? `${words(off[0])} aren't` : "Messages aren't"} being sent yet
-            {off.length ? ": no provider is connected" : ": automatic sending is switched off"}. Zella records each message it would send, and
+            {off.length ? ": no provider is connected" : ": automatic sending is switched off"}. Zella Voice records each message it would send, and
             marks it not sent. Nothing is shown as delivered unless it really went.
           </span>
         </div>

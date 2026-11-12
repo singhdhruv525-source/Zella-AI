@@ -14,6 +14,12 @@ PENDING=(zella_platform_roles_fix zella_booking_buffers zella_channel_review zel
   zella_holiday_availability zella_delivery_evidence zella_arrival_windows zella_tables zella_relationships zella_scheduling zella_slots_resource_blocks zella_record_workflows)
 ROLLBACK=(zella_record_workflows_rollback zella_slots_resource_blocks_rollback zella_scheduling_rollback zella_relationships_rollback zella_tables_rollback zella_arrival_windows_rollback zella_delivery_evidence_rollback zella_holiday_availability_rollback zella_plan_languages_rollback zella_assistant_delivery_rollback zella_knowledge_learning_rollback zella_report_schedules_rollback zella_config_migration_rollback zella_order_lookup_v2_rollback zella_knowledge_live_rollback zella_escalation_rules_rollback zella_channel_review_rollback
   zella_booking_buffers_rollback zella_platform_roles_fix_rollback)
+# Files applied after the pending list, in production's order (DB-14). Kept apart from PENDING because other suites read
+# PENDING and apply some of these themselves (tests/review_sql, tests/rollback_security, tests/batch3, ...).
+# zella_brand_name goes before zella_review_sql_fixes: that file's version guards expect the branded wording.
+LATER=(zella_batch1_security zella_batch3_pagination zella_brand_name zella_rollback_security zella_n8n_webhook_auth zella_record_files_purge_retry zella_replace_business_hours zella_order_lookup_reservations zella_review_sql_fixes zella_seating_handoff zella_workflow_alert_email)
+LATER_ROLLBACK=(zella_workflow_alert_email_rollback zella_seating_handoff_rollback zella_review_sql_fixes_rollback zella_order_lookup_reservations_rollback zella_replace_business_hours_rollback zella_record_files_purge_retry_rollback zella_n8n_webhook_auth_rollback zella_rollback_security_rollback zella_brand_name_rollback zella_batch3_pagination_rollback zella_batch1_security_rollback)
+ALL=("${PENDING[@]}" "${LATER[@]}"); ALL_ROLLBACK=("${LATER_ROLLBACK[@]}" "${ROLLBACK[@]}")
 fails=0; ok() { echo "PASS $*"; }; bad() { echo "FAIL $*"; fails=$((fails + 1)); }
 ITEMS="select x from (
   select 'f:' || p.oid::regprocedure::text || ':' || md5(regexp_replace(regexp_replace(pg_get_functiondef(p.oid), '--[^\n]*', '', 'g'), '\s+', '', 'g')) x
@@ -22,17 +28,24 @@ ITEMS="select x from (
   union all select 't:' || tgrelid::regclass::text || '.' || tgname from pg_trigger where not tgisinternal and tgrelid::regclass::text not like 'pg_%'
   union all select 'p:' || tablename || '.' || policyname from pg_policies where schemaname in ('public', 'storage')) s
   where x not like '%_rolled_back%'
-    and x not in ('c:appointments.resource_ids:ARRAY', 'c:appointments.crew_staff_ids:ARRAY', 'c:blocked_times.resource_id:uuid', 'c:crm_record_types.workflow:jsonb', 'c:calls.transfer_approved_at:timestamp with time zone')"   # what a rollback keeps on purpose: renamed tables, the Release 2 columns with their values, each record type's Release 3 workflow setting, and when a transfer was approved (CodeRabbit #44 finding 11: never delete customer data)
+    and x not in ('c:appointments.resource_ids:ARRAY', 'c:appointments.crew_staff_ids:ARRAY', 'c:blocked_times.resource_id:uuid', 'c:crm_record_types.workflow:jsonb', 'c:calls.transfer_approved_at:timestamp with time zone')
+    and x not like 'c:store_lookup_guards.%'
+    and x not like 'f:zella_receive_inbound_email(text,jsonb):%'"   # checked on its own below (INBOUND)   # what a rollback keeps on purpose: order-lookup guard rows (an unresolved lookup must survive a re-apply), the inbound-email receiver once any business has a 32-character address (zella_rollback_security_rollback), and also renamed tables, the Release 2 columns with their values, each record type's Release 3 workflow setting, and when a transfer was approved (CodeRabbit #44 finding 11: never delete customer data)
 STATE="select md5(string_agg(x, ',' order by x)) from ($ITEMS) y"
+INBOUND="select md5(pg_get_functiondef('public.zella_receive_inbound_email(text,jsonb)'::regprocedure))"
+LONG_TOKENS="select exists (select 1 from public.businesses where inbound_email_token ~ '^[a-f0-9]{32}\$')"
 
 # 1. production state, plus settings that existed before the pending files (they must find them)
 "$REPO/tests/lib/build_full.sh" $DB "$REPO/tests/channel/fixture.sql" || exit 1
-before=$($P -d $DB -c "$STATE")
+before=$($P -d $DB -c "$STATE"); inbound_before=$($P -d $DB -c "$INBOUND")
 # 2. the pending files, in order, each twice
-for m in "${PENDING[@]}"; do for i in 1 2; do
+for m in "${ALL[@]}"; do for i in 1 2; do
   out=$($P -d $DB -f "$REPO/sql/$m.sql" 2>&1) || { bad "apply $m (run $i): $(echo "$out" | grep -m1 ERROR)"; exit 1; }
-done; done; ok "the ${#PENDING[@]} pending files apply in manifest order, each twice (safe to re-run)"
+done; done; ok "the ${#ALL[@]} pending and later files apply in order, each twice (safe to re-run)"
 after=$($P -d $DB -c "$STATE")
+# Capture the migrated receiver; a retained definition must match it exactly.
+inbound_applied=$($P -d $DB -c "$INBOUND") || { bad "read the applied inbound-email receiver"; exit 1; }
+[[ "$inbound_applied" =~ ^[0-9a-f]{32}$ ]] || { bad "invalid applied receiver hash"; exit 1; }
 
 # 3. every suite's checks on the one database (each fixture uses its own ids)
 for t in tests/setup/setup_enforcement_test.sql tests/booking/buffers_test.sql tests/channel/channel_review_test.sql tests/escalation/escalation_test.sql \
@@ -94,8 +107,16 @@ out=$($P -d $DB -c "set session_replication_role = replica;
     assert exists (select 1 from business_capabilities where business_id = '5f000000-0000-0000-0000-0000000000c1' and capability = 'tables' and enabled);
   end \$\$;" 2>&1) || { bad "seed seating snapshot: $out"; exit 1; }
 seating_before=$($P -d $DB -c "$SEATING")
-for r in "${ROLLBACK[@]}"; do out=$($P -d $DB -f "$REPO/sql/rollback/$r.sql" 2>&1) || { bad "rollback $r: $(echo "$out" | grep -m1 ERROR)"; break; }; done
+for r in "${ALL_ROLLBACK[@]}"; do out=$($P -d $DB -f "$REPO/sql/rollback/$r.sql" 2>&1) || { bad "rollback $r: $(echo "$out" | grep -m1 ERROR)"; break; }; done
 check_approval "after rollback"
+# the inbound-email receiver goes back exactly, unless a business already has a 32-character address (then it is kept on purpose)
+inbound_now=$($P -d $DB -c "$INBOUND") || { bad "read the inbound-email receiver after rollback"; inbound_now=; }
+long_tokens=$($P -d $DB -c "$LONG_TOKENS") || { bad "check for 32-character inbound addresses"; long_tokens=; }
+# with 32-character addresses in use the rollback must keep the applied receiver; otherwise it must restore the original
+if [ "$long_tokens" = t ]; then expected=$inbound_applied; what="kept on purpose (32-character addresses are in use): exactly the applied version"
+else expected=$inbound_before; what="restored exactly"; fi
+if [ -n "$inbound_now" ] && [ -n "$long_tokens" ] && [ "$inbound_now" = "$expected" ]; then ok "inbound-email receiver $what"
+else bad "inbound-email receiver: expected the $([ "$long_tokens" = t ] && echo applied || echo original) version after rollback"; fi
 now=$($P -d $DB -c "$STATE")
 kept=$($P -d $DB -c "select string_agg(table_name, ', ') from information_schema.tables where table_schema = 'public' and table_name like '%_rolled_back'")
 if [ "$now" = "$before" ]; then ok "full rollback, newest first: every function, column, trigger and policy identical to before (kept on purpose, renamed: $kept)"
@@ -105,7 +126,7 @@ else
   bad "full rollback differs: $(diff "$SCR/before.txt" "$SCR/after_rollback.txt" | grep '^[<>]' | head -8 | tr '\n' ' ')"
 fi
 # 7. and the sequence applies again after a rollback
-for m in "${PENDING[@]}"; do out=$($P -d $DB -f "$REPO/sql/$m.sql" 2>&1) || { bad "re-apply $m after rollback: $(echo "$out" | grep -m1 ERROR)"; break; }; done
+for m in "${ALL[@]}"; do out=$($P -d $DB -f "$REPO/sql/$m.sql" 2>&1) || { bad "re-apply $m after rollback: $(echo "$out" | grep -m1 ERROR)"; break; }; done
 check_approval "after reapply"
 if out=$($P -d $DB -f "$REPO/sql/rollback/zella_tables_restore.sql" 2>&1); then
   seating_after=$($P -d $DB -c "$SEATING")

@@ -1,4 +1,4 @@
-// The words people see for Zella's internal values: statuses, roles, channels, providers, kinds.
+// The words people see for Zella Voice's internal values: statuses, roles, channels, providers, kinds.
 // Internal values (database enums, API fields) never change for the sake of wording; only their labels live here.
 // Meanings: docs/ZELLA_STATUS_LANGUAGE_GUIDE.md. A value that isn't listed is still shown readably (humanize), so an
 // unknown status never appears as raw code.

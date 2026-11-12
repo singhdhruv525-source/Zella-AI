@@ -83,7 +83,7 @@ export function mapEvent(ev: Json): Mapped {
   return { ignore: "event type not used" };
 }
 
-// The database's answer -> the HTTP status for the provider. "pending" is stored and applied later by Zella
+// The database's answer -> the HTTP status for the provider. "pending" is stored and applied later by Zella Voice
 // (200, so the provider doesn't keep retrying); "failed" asks the provider to retry (500).
 export function httpStatusFor(result: string): number {
   return ["processed", "pending", "duplicate", "ignored"].includes(result) ? 200 : 500;

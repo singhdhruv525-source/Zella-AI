@@ -25,9 +25,9 @@ export function vapiCallContext(message) {
   const meta = o(call.metadata);
   const pn = isObj(call.phoneNumber) ? call.phoneNumber : o(m.phoneNumber);
   const cn = String(o(call.customer).number || '');
-  // the assistant's own metadata (set by Zella when the assistant is configured) also counts: web test calls have no
+  // the assistant's own metadata (set by Zella Voice when the assistant is configured) also counts: web test calls have no
   // phone number and no call metadata. The call's variable values are NOT used: whoever starts a web call can set
-  // them, so a business id there could point the tools at another business. Zella never puts one there.
+  // them, so a business id there could point the tools at another business. Zella Voice never puts one there.
   const asst = o(o(m.assistant).metadata);
   const bid = [meta.business_id, asst.business_id].find((v) => typeof v === 'string' && UUID.test(v)) || null;
   return {

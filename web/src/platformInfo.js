@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "./supabase";
 
-// Zella's public details (name, support contacts, logo, sign-in headline) and
+// Zella Voice's public details (name, support contacts, logo, sign-in headline) and
 // any maintenance notice, set by admins in Settings. Safe for anyone to read.
 let cached = null;
 

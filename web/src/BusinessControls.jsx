@@ -49,7 +49,7 @@ function ChannelReview({ row, canDecide, onNotice, onChanged }) {
   return (
     <div className="ba-auto-review" role="alert">
       <strong><Icon name="pause_circle" size="sm" /> Nothing is being sent for this</strong>
-      <p>It was set to {review.requested_channel === "sms_and_call" ? "text and AI call" : "AI call"}, which isn't available yet. Zella didn't switch it to text
+      <p>It was set to {review.requested_channel === "sms_and_call" ? "text and AI call" : "AI call"}, which isn't available yet. Zella Voice didn't switch it to text
         for you, because your customers may only have agreed to calls. Choose how it should be sent, or turn it off.</p>
       {canDecide ? (
         <>
@@ -245,7 +245,7 @@ export function AutomationsPage({ workspace, refreshKey, onNotice }) {
       )}
       <section className="ba-panel">
         {loading && !data ? <div className="ba-panel-body"><p className="ba-muted">Loading…</p></div> : !data?.list.length ? (
-          <div className="ba-panel-body"><Empty title="No automations yet">Zella sets up reminders, missed-call callbacks and no-show follow-ups for you.</Empty></div>
+          <div className="ba-panel-body"><Empty title="No automations yet">Zella Voice sets up reminders, missed-call callbacks and no-show follow-ups for you.</Empty></div>
         ) : tab === "failed" && data?.runsFailed ? <p className="ba-muted">Run history unavailable</p> : !shown.length ? (
           <div className="ba-panel-body"><Empty title={tab === "failed" ? "Nothing has failed" : "Nothing here"}>{tab === "failed" ? "Failed runs from the last 7 days would show up here." : "No automations match this view."}</Empty></div>
         ) : (

@@ -340,12 +340,12 @@ export function platformHandlers(admin: SupabaseClient, fields: Json, kit: Platf
       if (typeof input[field] !== "boolean") throw new InputError(`${field} must be true or false`);
       next[key] = input[field];
     }
-    // Switching one ON sends real alerts or data to an outside service for every business: only a Zella owner or
+    // Switching one ON sends real alerts or data to an outside service for every business: only a Zella Voice owner or
     // super admin may, with a reason that goes into the audit log. Switching off stays open to platform.configure.
     const turningOn = next.spam_workflow_live === true || next.spam_ai_live === true;
     const reason = text(fields.reason, 300);
     if (turningOn) {
-      if (!["zella_owner", "super_admin"].includes(kitRole ?? "")) throw new InputError("Only a Zella owner or super admin can switch this on", 403);
+      if (!["zella_owner", "super_admin"].includes(kitRole ?? "")) throw new InputError("Only a Zella Voice owner or super admin can switch this on", 403);
       if (reason.length < 3) throw new InputError("Give a reason (kept in the audit log)");
     }
     if ("ai_monthly_limit" in input) {

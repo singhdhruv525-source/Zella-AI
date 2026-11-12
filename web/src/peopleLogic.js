@@ -79,11 +79,11 @@ const ERRORS = [
   [/NOT_VALID/, "That person or record isn't part of this business, or the record is archived."],
   [/NOT_ALLOWED|permission denied|42501/, "You don't have permission to do that here."],
   [/MFA_REQUIRED/, "Enter the code from your authenticator app first: sign out and sign in again."],
-  [/failed to fetch|network|load failed/i, "Couldn't reach Zella. Nothing was changed; try again."],
-  [/zella_people_panel|zella_relationship|zella_consent|schema cache|Could not find the function/, "People & consent isn't available on this workspace yet. Ask the Zella team."],
+  [/failed to fetch|network|load failed/i, "Couldn't reach Zella Voice. Nothing was changed; try again."],
+  [/zella_people_panel|zella_relationship|zella_consent|schema cache|Could not find the function/, "People & consent isn't available on this workspace yet. Ask the Zella Voice team."],
 ];
 export function peopleError(error) {
   const text = `${error?.message ?? ""} ${error?.code ?? ""} ${error?.details ?? ""}`;
   for (const [re, msg] of ERRORS) if (re.test(text)) return msg;
-  return "That didn't work. Try again, or contact Zella support if it keeps happening.";
+  return "That didn't work. Try again, or contact Zella Voice support if it keeps happening.";
 }

@@ -171,9 +171,9 @@ export function BookingPanel({ workspace, industry, appt, person, staff, blocks,
   const showAssignment = Boolean(appt.staff_id) || (staff.length > 0 && cfg.staffColumn);
   const byAi = ["zella", "ai_receptionist"].includes(appt.metadata?.source);
 
-  // History from the booking's own timestamps (Zella keeps no separate log of every status change).
+  // History from the booking's own timestamps (Zella Voice keeps no separate log of every status change).
   const history = [
-    [appt.created_at, byAi ? "Booked by Zella" : appt.metadata?.source === "staff" ? "Booked by the team" : "Booked"],
+    [appt.created_at, byAi ? "Booked by Zella Voice" : appt.metadata?.source === "staff" ? "Booked by the team" : "Booked"],
     appt.original_start_time && [appt.rescheduled_at, `Moved from ${formatLongDate(appt.original_start_time, tz)} ${formatTime(appt.original_start_time, tz)}${appt.reschedule_requested_by === "ai" ? " (asked by phone)" : ""}`],
     appt.checked_in_at && [appt.checked_in_at, cfg.arrived],
     appt.cancelled_at && [appt.cancelled_at, `Canceled${appt.cancel_reason ? `: ${appt.cancel_reason}` : ""}`],
@@ -242,7 +242,7 @@ export function BookingPanel({ workspace, industry, appt, person, staff, blocks,
               {bookingFields(industry, term("staff")).filter(([, key]) => key !== "staff" && key !== "notes").map(([label, key]) => (
                 <Row key={key} label={label}>{fieldValue(key, appt, person, staffName)}</Row>
               ))}
-              <Row label="Booked by">{byAi ? <><Icon name="smart_toy" size="sm" /> Zella (AI receptionist or online)</> : appt.metadata?.source === "staff" ? "Your team" : null}</Row>
+              <Row label="Booked by">{byAi ? <><Icon name="smart_toy" size="sm" /> Zella Voice (AI receptionist or online)</> : appt.metadata?.source === "staff" ? "Your team" : null}</Row>
             </dl>
           </Section>
 

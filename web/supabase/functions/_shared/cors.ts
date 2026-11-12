@@ -1,4 +1,4 @@
-// Zella - which websites may call the browser-facing functions (owner-provision-business, continue-plan,
+// Zella Voice - which websites may call the browser-facing functions (owner-provision-business, continue-plan,
 // reschedule-appointment). CORS only stops other websites' pages from reading the answer; every function still
 // checks a sign-in token or a private link code itself.
 //

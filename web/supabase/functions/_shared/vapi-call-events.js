@@ -70,7 +70,7 @@ export function planCallEvent(message) {
     const tr = typeof art.transcript === 'string' ? art.transcript : m.transcript;
     return { ...none, inbound: {
       p_provider_call_id: callId, p_called_number: typeof pn.number === 'string' ? pn.number.slice(0, 30) : null,
-      p_vapi_phone_number_id: typeof call.phoneNumberId === 'string' ? call.phoneNumberId.slice(0, 100) : null,
+      p_vapi_phone_number_id: typeof call.phoneNumberId === 'string' ? call.phoneNumberId.slice(0, 100) : typeof pn.id === 'string' ? pn.id.slice(0, 100) : null,
       p_from_number: typeof o(call.customer).number === 'string' ? call.customer.number.slice(0, 30) : null,
       p_started_at: iso(m.startedAt || call.startedAt), p_ended_at: iso(m.endedAt || call.endedAt),
       p_seconds: secs, p_reason: reasonRaw.slice(0, 80), p_summary: sum || null,
@@ -78,7 +78,7 @@ export function planCallEvent(message) {
       p_transcript: typeof tr === 'string' ? tr.slice(0, 60000) : null, p_wants_callback: ask } };
   }
 
-  // a call Zella placed (a callback or a follow-up task)
+  // a call Zella Voice placed (a callback or a follow-up task)
   const reason = reasonRaw.toLowerCase();
   const talked = secs !== null && secs >= 8;
   let outcome;

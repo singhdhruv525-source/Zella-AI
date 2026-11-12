@@ -38,4 +38,13 @@ out=$("$REPO/sql/rollback/run.sh" "$REPO/sql/rollback/zella_review_sql_fixes_rol
 [ "$("${P[@]}" -d "$DB" -c "$SNAP")" = "$before" ] && echo "PASS rollback restores every function and grant exactly" || { echo "FAIL rollback differs"; fails=$((fails + 1)); }
 [ "$("${P[@]}" -d "$DB" -c "$TRG")" = "$t0" ] && echo "PASS rollback removes the platform_admins audit trigger" || { echo "FAIL trigger left"; fails=$((fails + 1)); }
 out=$("${P[@]}" -d "$DB" -f "$REPO/sql/zella_review_sql_fixes.sql" 2>&1) && echo "PASS applies again after the rollback" || { echo "FAIL re-apply: $(echo "$out" | grep -m1 ERROR)"; fails=$((fails + 1)); }
+# Workflow failures stay in the dashboard; the separate patch preserves all other claim behavior.
+claim_before=$("${P[@]}" -d "$DB" -c "$SNAP")
+for i in 1 2; do
+  "${P[@]}" -d "$DB" -f "$REPO/sql/zella_workflow_alert_email.sql" || exit 1
+done
+"${P[@]}" -d "$DB" -f "$REPO/tests/review_sql/workflow_alert_email_test.sql" || exit 1
+"${P[@]}" -d "$DB" -f "$REPO/sql/rollback/zella_workflow_alert_email_rollback.sql" || exit 1
+[ "$("${P[@]}" -d "$DB" -c "$SNAP")" = "$claim_before" ] && echo "PASS workflow email rollback restores functions and grants exactly" || { echo "FAIL workflow email rollback differs"; fails=$((fails + 1)); }
+"${P[@]}" -d "$DB" -f "$REPO/sql/zella_workflow_alert_email.sql" || exit 1
 echo; [ $fails = 0 ] && echo "ALL PASSED" || { echo "$fails FAILED"; exit 1; }

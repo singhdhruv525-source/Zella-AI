@@ -376,7 +376,7 @@ export function CalendarPage({ workspace, industry, refreshKey, onNotice, onOpen
   const { data, error, loading, reload } = useLoad(async () => {
     const appts = orThrow(await supabase.from("appointments").select("*").eq("business_id", workspace.id)
       .gte("start_time", rangeStart.toISOString()).lt("start_time", rangeEnd.toISOString()).order("start_time"));
-    // Blocked time and team are optional until the latest Zella update is applied.
+    // Blocked time and team are optional until the latest Zella Voice update is applied.
     const blockResult = await supabase.from("blocked_times").select("*").eq("business_id", workspace.id)
       .lt("start_time", rangeEnd.toISOString()).gt("end_time", rangeStart.toISOString()).order("start_time");
     const staffResult = await supabase.from("staff_members").select("*").eq("business_id", workspace.id)
@@ -745,9 +745,9 @@ export function ReceptionistPage({ workspace, onNotice, onReload }) {
   const missed = calls.filter((c) => c.status === "missed").length;
   const primary = data?.agents?.[0];
   const checks = [
-    ["Receptionist created", Boolean(workspace.receptionist), "Zella sets this up for you."],
-    ["Phone line connected", workspace.phone_connected, "Zella connects your number before going live."],
-    ["Voice assistant connected", workspace.voice_connected, "Zella links the voice assistant to your number."],
+    ["Receptionist created", Boolean(workspace.receptionist), "Zella Voice sets this up for you."],
+    ["Phone line connected", workspace.phone_connected, "Zella Voice connects your number before going live."],
+    ["Voice assistant connected", workspace.voice_connected, "Zella Voice links the voice assistant to your number."],
     ["Receptionist switched on", workspace.receptionist?.status === "active", "It starts answering once everything above is done."],
   ];
 

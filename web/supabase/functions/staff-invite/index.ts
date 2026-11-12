@@ -1,4 +1,4 @@
-// Zella: sends the email for a team invitation made in the business app (Team access > Invite someone).
+// Zella Voice: sends the email for a team invitation made in the business app (Team access > Invite someone).
 //
 // zella_invite_staff / zella_resend_invitation only write the invitation row. This function sends the email and
 // ties the invitation to the account that owns that email address (auth_user_id). The decisions live in logic.ts;
@@ -12,6 +12,7 @@
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { withCors } from "../_shared/cors.ts";
+import { asObject, readJsonLimited } from "../_shared/body.ts";
 import { type AuthUser, type Deps, sendInvitation } from "./logic.ts";
 
 const respond = (data: unknown, status = 200) => Response.json(data, { status });
@@ -55,10 +56,14 @@ Deno.serve(withCors(async (req: Request) => {
   });
   const { data: { user }, error: userError } = await caller.auth.getUser();
   if (userError || !user) return respond({ error: "Please sign in first" }, 401);
-  if (!appUrl) return respond({ error: "The app address (ZELLA_APP_URL) is not set, so the invitation link would not open. Ask the Zella team." }, 503);
+  if (!appUrl) return respond({ error: "The app address (ZELLA_APP_URL) is not set, so the invitation link would not open. Ask the Zella Voice team." }, 503);
 
   let body: Record<string, unknown>;
-  try { body = await req.json(); } catch { return respond({ error: "Invalid request" }, 400); }
+  const read = await readJsonLimited(req, 8_000);   // SEC-12
+  if (!read.ok) return respond({ error: read.error === "too_large" ? "Request too large" : "Invalid request" }, read.error === "too_large" ? 413 : 400);
+  const obj = asObject(read.value);
+  if (!obj) return respond({ error: "Invalid request" }, 400);
+  body = obj;
   const invitationId = typeof body?.invitationId === "string" ? body.invitationId : "";
   if (!UUID_RE.test(invitationId)) return respond({ error: "Invalid request" }, 400);
 

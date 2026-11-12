@@ -1,4 +1,4 @@
-// Zella - connect a business's Google Calendar or Outlook calendar (sql/zella_calendar_providers.sql).
+// Zella Voice - connect a business's Google Calendar or Outlook calendar (sql/zella_calendar_providers.sql).
 //   POST { action: "start", business_id, provider }   signed-in owner or admin; answers { url } for the provider's sign-in
 //   GET  ?code=...&state=...                         the provider sends the person back here; the code is exchanged for a
 //                                                    refresh token, stored in Vault by the database (server key), and the
@@ -7,6 +7,7 @@
 // sign-in through the database; the redirect is trusted only with a valid signed state, and the database checks again
 // that the person is still an owner or admin when the token is stored. Tokens are never logged or returned.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { asObject, readJsonLimited } from "../_shared/body.ts";
 import { accountEmail, authorizeUrl, PROVIDER, PROVIDERS, problem, type Provider, signState, tokenForm, verifyState } from "./logic.ts";
 
 const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info", "Access-Control-Allow-Methods": "POST, OPTIONS" };
@@ -24,8 +25,11 @@ export async function handle(req: Request): Promise<Response> {
 
   if (req.method === "POST") {
     let body: Record<string, unknown>;
-    try { body = await req.json(); } catch { return json({ ok: false, error: "bad_json" }, 400); }
-    if (!body || typeof body !== "object" || Array.isArray(body)) return json({ ok: false, error: "bad_request" }, 400);
+    const read = await readJsonLimited(req, 16_000);   // SEC-12
+    if (!read.ok) return json({ ok: false, error: read.error }, read.error === "too_large" ? 413 : 400);
+    const obj = asObject(read.value);
+    if (!obj) return json({ ok: false, error: "bad_request" }, 400);
+    body = obj;
     const p = body.provider as Provider, biz = String(body.business_id ?? "");
     if (body.action !== "start" || !PROVIDERS.includes(p) || !/^[0-9a-f-]{36}$/i.test(biz)) return json({ ok: false, error: "bad_request" }, 400);
     const auth = req.headers.get("authorization") ?? "";

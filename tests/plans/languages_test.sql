@@ -58,8 +58,12 @@ update subscriptions set plan_id = '5c900000-0000-0000-0000-000000000003' where 
 select pg_temp.as_owner('5c300000-0000-0000-0000-000000000002'); set role authenticated;
 select public.zella_business_language_save('5c000000-0000-0000-0000-00000000000b', 'en-US', array['es', 'fr', 'de'], null);
 reset role;
+-- zella_language_allowance answers only a member of the business (zella_review_sql_fixes), so each is asked by its own owner
 do $$ begin
-  assert public.zella_language_allowance('5c000000-0000-0000-0000-00000000000a') is null and public.zella_language_allowance('5c000000-0000-0000-0000-00000000000b') is null, 'a limit was assumed';
+  perform pg_temp.as_owner('5c300000-0000-0000-0000-000000000001');
+  assert public.zella_language_allowance('5c000000-0000-0000-0000-00000000000a') is null, 'a limit was assumed (plan without one)';
+  perform pg_temp.as_owner('5c300000-0000-0000-0000-000000000002');
+  assert public.zella_language_allowance('5c000000-0000-0000-0000-00000000000b') is null, 'a limit was assumed (no subscription)';
   assert jsonb_array_length(pg_temp.langs('5c000000-0000-0000-0000-00000000000b')) = 4, 'unplanned business lost languages';
   raise notice 'PASS no limit is assumed: a plan without one, or no subscription, keeps today''s behaviour (up to four)';
 end $$;

@@ -6,7 +6,7 @@ import { Empty, PageHead, explain, orThrow, useLoad } from "./BusinessShared";
 import { PersonPicker } from "./BusinessWork";
 
 // Money the team records: estimates, invoices, deposits, no-show fees and gift cards, and payments against them
-// (zella_money.sql). Zella never takes card details and never charges anyone; payments here are what the team took
+// (zella_money.sql). Zella Voice never takes card details and never charges anyone; payments here are what the team took
 // elsewhere (cash, a card terminal, a bank transfer), or what a payment provider confirmed. Staff add charges, managers
 // record payments, owners and admins refund. The database checks every one of these again.
 
@@ -59,7 +59,7 @@ function NewCharge({ workspace, currency, onClose, onSaved }) {
   }
 
   return (
-    <Modal title="Add to Money" description="A record for your team. Zella doesn't send it or charge anyone." onClose={onClose} busy={busy}
+    <Modal title="Add to Money" description="A record for your team. Zella Voice doesn't send it or charge anyone." onClose={onClose} busy={busy}
       footer={<><button type="button" className="ba-btn" onClick={onClose} disabled={busy}>Cancel</button>
         <button type="submit" form="ba-money-form" className="ba-btn primary" disabled={busy}>{busy ? "Saving…" : "Add"}</button></>}>
       <form id="ba-money-form" className="ba-modal-body" onSubmit={save}>
@@ -73,7 +73,7 @@ function NewCharge({ workspace, currency, onClose, onSaved }) {
           {kind !== "estimate" && kind !== "gift_card" && <Field label="Due"><input type="date" value={due} onChange={(e) => setDue(e.target.value)} /></Field>}
         </div>
         <PersonPicker businessId={workspace.id} label={workspace.terminology?.customer ?? "Customer"} value={person} onChange={setPerson} hint="Optional." />
-        {kind === "no_show_fee" && <p className="ba-muted">This records a fee. Zella doesn't charge it; collect it the way you normally take payment.</p>}
+        {kind === "no_show_fee" && <p className="ba-muted">This records a fee. Zella Voice doesn't charge it; collect it the way you normally take payment.</p>}
       </form>
     </Modal>
   );
@@ -168,7 +168,7 @@ function ChargeDetail({ workspace, charge, onClose, onChanged }) {
           </form>
         )}
         {payable && !canPay && <p className="ba-muted">Managers and above record payments.</p>}
-        <p className="ba-muted">Never type card numbers here. Zella records payments; it doesn't take them.</p>
+        <p className="ba-muted">Never type card numbers here. Zella Voice records payments; it doesn't take them.</p>
       </div>
     </Modal>
   );
@@ -199,7 +199,7 @@ export function MoneyPage({ workspace, refreshKey, onNotice, onOpenPerson }) {
 
   return (
     <>
-      <PageHead crumb="CRM / Money" title="Money" sub="Estimates, invoices, deposits, fees and gift cards your team records. Zella never takes card details or charges anyone.">
+      <PageHead crumb="CRM / Money" title="Money" sub="Estimates, invoices, deposits, fees and gift cards your team records. Zella Voice never takes card details or charges anyone.">
         {workspace.role !== "viewer" && <button type="button" className="ba-btn primary" disabled={!currency.data || Boolean(currency.error) || currency.loading} onClick={() => setModal({ new: true })}><Icon name="add" size="sm" />Add</button>}
       </PageHead>
       {currency.error && <div className="ba-banner error">{explain(currency.error)} <button type="button" className="ba-btn sm" onClick={currency.reload}>Try again</button></div>}

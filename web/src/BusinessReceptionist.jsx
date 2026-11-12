@@ -97,7 +97,7 @@ function Editor({ agent, base, onSaved }) {
   }
 
   async function publish() {
-    if (!window.confirm("Publish these changes? Booking, handover and knowledge rules apply from the next call. Changes to what it says (instructions, greeting, owner's rules) reach the phone line once the assistant is updated, which Zella support does for now.")) return;
+    if (!window.confirm("Publish these changes? Booking, handover and knowledge rules apply from the next call. Changes to what it says (instructions, greeting, owner's rules) reach the phone line once the assistant is updated, which Zella Voice support does for now.")) return;
     setBusy(true);
     setProblem("");
     const { data, error } = await supabase.rpc("zella_publish_agent_config", { p_version_id: result.versionId });
@@ -130,18 +130,18 @@ function Editor({ agent, base, onSaved }) {
           {form.transfer_enabled && (
             <fieldset className="ba-fieldset full">
               <legend>Pass a call to a person only when</legend>
-              <p className="ba-muted">Zella checks this on every call: other calls get a message or a callback instead. Emergencies follow the setting above.</p>
+              <p className="ba-muted">Zella Voice checks this on every call: other calls get a message or a callback instead. Emergencies follow the setting above.</p>
               {HANDOVER.map(([k, label]) => (
                 <label key={k} className="ba-check"><input type="checkbox" checked={form.triggers.includes(k)}
                   onChange={(e) => setForm({ ...form, triggers: e.target.checked ? [...form.triggers, k] : form.triggers.filter((t) => t !== k) })} /><span>{label}</span></label>
               ))}
             </fieldset>
           )}
-          <Field label="Things it must never say or do" hint="One per line. The receptionist follows these as instructions; Zella can't check them on its own, so keep anything that must be enforced in the booking rules below." full>
+          <Field label="Things it must never say or do" hint="One per line. The receptionist follows these as instructions; Zella Voice can't check them on its own, so keep anything that must be enforced in the booking rules below." full>
             <textarea rows={4} value={form.restrictions} onChange={set("restrictions")} maxLength={15000} placeholder={"Never give medical advice\nNever promise a same-day appointment"} />
           </Field>
           <fieldset className="ba-fieldset full">
-            <legend>Booking rules (Zella enforces these)</legend>
+            <legend>Booking rules (Zella Voice enforces these)</legend>
             <p className="ba-muted">Times offered, bookings and moves always keep to these. Leave a box empty for no limit.</p>
             <div className="ba-form-grid">
               <Field label="Usual length (minutes)"><input type="number" min={5} max={480} value={form.default_minutes} onChange={set("default_minutes")} /></Field>

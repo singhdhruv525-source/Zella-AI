@@ -20,3 +20,11 @@ Deno.test("a streamed body without a length is cut off once it passes the limit"
 Deno.test("no body reads as empty", async () => {
   assertEquals(await readBodyLimited(new Request("http://x", { method: "POST" }), 10), "");
 });
+Deno.test("readJsonLimited: parses, refuses oversize and bad JSON", async () => {
+  const { readJsonLimited, asObject } = await import("./body.ts");
+  assertEquals(await readJsonLimited(new Request("http://x", { method: "POST", body: '{"a":1}' }), 100), { ok: true, value: { a: 1 } });
+  assertEquals(await readJsonLimited(new Request("http://x", { method: "POST", body: '{"a":"' + "x".repeat(200) + '"}' }), 100), { ok: false, error: "too_large" });
+  assertEquals(await readJsonLimited(new Request("http://x", { method: "POST", body: "{nope" }), 100), { ok: false, error: "bad_json" });
+  assertEquals(asObject({ a: 1 }), { a: 1 });
+  for (const v of [null, [], 3, "s"]) assertEquals(asObject(v), null);
+});

@@ -13,7 +13,7 @@ export default function Unsubscribe() {
   useEffect(() => {
     if (!token) return;
     supabase.rpc("zella_unsubscribe_lookup", { p_token: token }).then(({ data, error }) => {
-      // Zella not answering is not the same as a wrong link: the person can still unsubscribe once it answers.
+      // Zella Voice not answering is not the same as a wrong link: the person can still unsubscribe once it answers.
       if (error) setState("unreachable");
       else if (data?.ok) setBusiness(data.business || "");
       else setState("invalid");
@@ -33,7 +33,7 @@ export default function Unsubscribe() {
       <section className="cp-card">
         {business && <div className="cp-brand"><span>{business}</span></div>}
         {state === "invalid" && (<><div className="cp-icon">!</div><h1>This link isn't valid</h1><p>Please open the full link from your email, or reply to the email and ask to be removed.</p></>)}
-        {state === "unreachable" && (<><h1>We can't reach Zella right now</h1><p>Your link looks fine. Please try again in a few minutes, or reply to the email and ask to be removed.</p><button type="button" className="owner-primary-button cp-button" onClick={() => window.location.reload()}>Try again</button></>)}
+        {state === "unreachable" && (<><h1>We can't reach Zella Voice right now</h1><p>Your link looks fine. Please try again in a few minutes, or reply to the email and ask to be removed.</p><button type="button" className="owner-primary-button cp-button" onClick={() => window.location.reload()}>Try again</button></>)}
         {state === "error" && (<><h1>Something went wrong</h1><p>Please try again, or reply to the email and ask to be removed.</p><button type="button" className="owner-primary-button cp-button" onClick={confirm}>Try again</button></>)}
         {(state === "ready" || state === "working") && (
           <>

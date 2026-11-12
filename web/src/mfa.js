@@ -48,7 +48,7 @@ export async function startMfaEnrollment() {
   const { data } = await supabase.auth.mfa.listFactors();
   for (const f of data?.all ?? []) if (f.status !== "verified") await supabase.auth.mfa.unenroll({ factorId: f.id });
   const { data: enrolled, error } = await supabase.auth.mfa.enroll({ factorType: "totp", friendlyName: `Authenticator ${new Date().toISOString().slice(0, 10)}` });
-  if (error) throw new Error(/disabled|not enabled/i.test(error.message) ? "Two-step sign-in isn't switched on for this Zella project yet (Supabase, Authentication, Multi-factor)." : error.message);
+  if (error) throw new Error(/disabled|not enabled/i.test(error.message) ? "Two-step sign-in isn't switched on for this Zella Voice project yet (Supabase, Authentication, Multi-factor)." : error.message);
   return { factorId: enrolled.id, qr: enrolled.totp.qr_code, secret: enrolled.totp.secret };
 }
 

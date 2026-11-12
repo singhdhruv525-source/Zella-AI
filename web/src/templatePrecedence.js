@@ -1,5 +1,5 @@
 // Which message templates apply to one business, in the same order the database picks them (zella_resolve_template):
-// the business's own version, then Zella's version for its industry, then Zella's general version; newest first.
+// the business's own version, then Zella Voice's version for its industry, then Zella Voice's general version; newest first.
 // A person in several businesses can read every one of their businesses' templates (row security allows it), so the
 // list is always narrowed to the business being viewed here.
 
@@ -14,7 +14,7 @@ export function templatesForBusiness(rows, businessId, industryId) {
     if (!inUse.has(slot)) inUse.set(slot, t.id);
   }
   return mine
-    .map((t) => ({ ...t, source: t.business_id ? "Yours" : t.industry_id ? "Zella (your industry)" : "Zella",
+    .map((t) => ({ ...t, source: t.business_id ? "Yours" : t.industry_id ? "Zella Voice (your industry)" : "Zella Voice",
       inUse: inUse.get(`${t.key}|${t.channel}|${t.locale || "en-US"}`) === t.id }))
     .sort((a, b) => a.key.localeCompare(b.key) || a.channel.localeCompare(b.channel) || cmp(a, b));
 }

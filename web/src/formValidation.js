@@ -1,5 +1,5 @@
 // Checks for phone numbers, emails, passwords and time zones.
-// Plain functions with no screen code, so every form in Zella uses the same rules.
+// Plain functions with no screen code, so every form in Zella Voice uses the same rules.
 
 /* ------------------------------------------------------------------ */
 /* Countries: ISO code, calling code, and the digits after the code      */

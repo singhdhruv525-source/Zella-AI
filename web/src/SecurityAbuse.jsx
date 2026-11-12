@@ -608,7 +608,7 @@ function Automation({ info, canSave, onSaved }) {
             <div className="zs-dialog-head"><span className="zs-dialog-icon"><Icon name="warning" /></span><h3>Switch on live spam alerts?</h3></div>
             <p>From now on, medium and high incidents for <strong>every business</strong> are queued for the Spam Response workflow in n8n, which sends
               real alerts to the businesses' teams. Make sure the workflow is published and tested in n8n first. You can switch it off again at any time.
-              Only a Zella owner or super admin can switch it on.</p>
+              Only a Zella Voice owner or super admin can switch it on.</p>
             {error && <div className="owner-form-error" role="alert">{error}</div>}
             <label className="owner-field"><span>Reason (kept in the audit log)</span>
               <input value={reason} maxLength={300} onChange={(e) => setReason(e.target.value)} disabled={busy} autoFocus /></label>
@@ -626,7 +626,7 @@ function Automation({ info, canSave, onSaved }) {
             <div className="zs-dialog-head"><span className="zs-dialog-icon"><Icon name="psychology" /></span><h3>Switch on AI second opinion?</h3></div>
             <p>For businesses that opt in, medium-risk texts and emails are sent to the AI provider (Anthropic) with names, numbers and email addresses removed first.
               The answer is shown to the team as a suggestion and never blocks anyone. Add the Anthropic key to the "Ask AI" box in n8n first.
-              Only a Zella owner or super admin can switch it on.</p>
+              Only a Zella Voice owner or super admin can switch it on.</p>
             {error && <div className="owner-form-error" role="alert">{error}</div>}
             <label className="owner-field"><span>Reason (kept in the audit log)</span>
               <input value={reason} maxLength={300} onChange={(e) => setReason(e.target.value)} disabled={busy} autoFocus /></label>

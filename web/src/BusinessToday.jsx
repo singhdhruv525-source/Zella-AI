@@ -14,7 +14,7 @@ import { FloorPlan } from "./FloorPlan";
 
 // Today dashboard, built only from this business's real records, read with the member's own session so row level
 // security returns this business's data only. Words follow the industry (Reservations, Patients, Technicians ...)
-// and todayConfig.js decides the few industry-specific columns and cards. Where Zella has no data source yet it says
+// and todayConfig.js decides the few industry-specific columns and cards. Where Zella Voice has no data source yet it says
 // so plainly instead of showing numbers.
 
 const SOURCE = {

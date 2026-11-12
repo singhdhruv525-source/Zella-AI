@@ -20,3 +20,17 @@ export async function readBodyLimited(req: Request, max: number): Promise<string
   for (const c of chunks) { all.set(c, at); at += c.byteLength; }
   return new TextDecoder().decode(all);
 }
+
+// Reads a JSON request body of at most `max` bytes (SEC-12). "too_large" -> answer 413; "bad_json" -> 400.
+export type JsonRead = { ok: true; value: unknown } | { ok: false; error: "too_large" | "bad_json" };
+export async function readJsonLimited(req: Request, max: number): Promise<JsonRead> {
+  let raw: string | null;
+  try { raw = await readBodyLimited(req, max); } catch { return { ok: false, error: "bad_json" }; }
+  if (raw === null) return { ok: false, error: "too_large" };
+  try { return { ok: true, value: JSON.parse(raw) }; } catch { return { ok: false, error: "bad_json" }; }
+}
+
+// A JSON object (not an array, null or a scalar), or null.
+export function asObject(v: unknown): Record<string, unknown> | null {
+  return v && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : null;
+}

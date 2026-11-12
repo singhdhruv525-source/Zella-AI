@@ -52,8 +52,13 @@ const ifBool = (name, position, expr) =>
     options: {},
   });
 const link = (to, index = 0) => ({ node: to, type: 'main', index });
+// AUT-9 / AUT-10: every workflow reports unhandled failures to Zella - Failure Alert (which raises a platform alert) and
+// keeps no data from successful runs, since nearly every workflow handles customer details. Failure Alert itself has
+// no error workflow (see below).
+const FAILURE_WORKFLOW_ID = id('Zella - Failure Alert');
 const wf = (name, nodes, connections, extraSettings = {}) => ({
-  name, nodes, connections, active: false, settings: { executionOrder: 'v1', executionTimeout: 300, ...extraSettings }, pinData: {},
+  name, nodes, connections, active: false,
+  settings: { executionOrder: 'v1', executionTimeout: 300, errorWorkflow: FAILURE_WORKFLOW_ID, saveDataSuccessExecution: 'none', ...extraSettings }, pinData: {},
   meta: { templateCredsSetupCompleted: false },
 });
 
@@ -524,7 +529,6 @@ secureResend(emailEvents, 'Resend event', 'events');
 // Calendar Sync never keeps its runs in n8n's execution history: the claim RPCs hand it each calendar's refresh token
 // (the token exchange happens in this workflow), and a saved execution would store that token in n8n's database.
 // Failures are still recorded in Zella (Finish sync / Mark error write them to calendar_sync_queue and calendar_connections).
-const FAILURE_WORKFLOW_ID = id('Zella - Failure Alert');
 const NO_SAVED_RUNS = { errorWorkflow: FAILURE_WORKFLOW_ID, saveDataSuccessExecution: 'none', saveDataErrorExecution: 'none', saveManualExecutions: false, saveExecutionProgress: false };
 // Calendar Sync: copies bookings to the business's Google Calendar or Outlook calendar and reads its busy times back into Zella.
 // Started by the dispatcher only when a booking change or a refresh is waiting (and calendar_sync_live is true).
@@ -897,7 +901,7 @@ const websiteCrawler = wf('Zella - Website Crawler', [
 });
 
 
-// Failure alert: n8n runs this whenever another Zella workflow fails (set as that workflow's error workflow at go-live).
+// Failure alert: n8n runs this whenever another Zella workflow fails (every workflow names it as its error workflow).
 // It raises one platform alert in the database (deduped per workflow and step). No customer data is copied.
 const failureAlert = wf('Zella - Failure Alert', [
   node('A workflow failed', 'n8n-nodes-base.errorTrigger', 1, [0, 200], {}),

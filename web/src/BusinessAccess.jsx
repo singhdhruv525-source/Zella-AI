@@ -36,7 +36,7 @@ async function sendInvitationEmail(invitationId) {
   return data ?? {};
 }
 const sentMessage = (email, result) => result.existingAccount
-  ? `${email} already has a Zella account. They'll see this workspace the next time they sign in.`
+  ? `${email} already has a Zella Voice account. They'll see this workspace the next time they sign in.`
   : `Invitation emailed to ${email}. The link works once and the invitation is valid for 14 days.`;
 
 const words = humanize;
@@ -314,7 +314,7 @@ export function FailedWorkPage({ workspace, refreshKey, onNotice }) {
 
   return (
     <>
-      <PageHead crumb="Calls & messages / Sending failed" title="Sending failed" sub="Follow-ups, appointment reminders and social messages that Zella tried to send in the last 7 days but couldn't. Fix the cause first (for example, reconnect the account), then retry." />
+      <PageHead crumb="Calls & messages / Sending failed" title="Sending failed" sub="Follow-ups, appointment reminders and social messages that Zella Voice tried to send in the last 7 days but couldn't. Fix the cause first (for example, reconnect the account), then retry." />
       <Notice error={error} onRetry={reload} />
       <section className="ba-panel">
         {loading || error || !data ? <p className="ba-muted">{loading ? "Loading…" : "Failed messages unavailable"}</p> : !rows.length ? (

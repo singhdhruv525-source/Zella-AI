@@ -60,7 +60,7 @@ export function DraftsPage({ workspace, refreshKey, onNotice }) {
   return (
     <>
       <PageHead crumb="Calls & messages / Suggested messages" title="Suggested messages"
-        sub="Zella writes these when a follow-up is due. Nothing is sent until you check it and press Send." />
+        sub="Zella Voice writes these when a follow-up is due. Nothing is sent until you check it and press Send." />
       <Notice error={error} onRetry={reload} />
       <section className="ba-panel">
         <div className="ba-panel-head"><div className="ba-panel-title"><div><h2>Waiting for you</h2><p>{loading && !data ? "Loading…" : plural(data?.length ?? 0, "message")}</p></div></div></div>

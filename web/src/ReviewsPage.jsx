@@ -83,11 +83,11 @@ function GoogleSetup({ workspace, source, onClose, onSaved }) {
     });
     setBusy(false);
     if (saveError) return setError(say(saveError));
-    onSaved(disconnect ? "Google reviews disconnected." : "Google Business Profile connected. Reviews are read every 6 hours once the Zella team switches syncing on.");
+    onSaved(disconnect ? "Google reviews disconnected." : "Google Business Profile connected. Reviews are read every 6 hours once the Zella Voice team switches syncing on.");
   }
   return (
     <Modal icon="storefront" title="Connect Google reviews" busy={busy} onClose={onClose}
-      description="First add Zella's Google account as a manager of your Google Business Profile (the Zella team sends you the address). Then enter the two numbers from your profile.">
+      description="First add Zella Voice's Google account as a manager of your Google Business Profile (the Zella Voice team sends you the address). Then enter the two numbers from your profile.">
       <form className="ba-form-grid ba-modal-body" onSubmit={save}>
         {error && <div className="ba-banner error full">{error}</div>}
         <Field label="Account id"><input inputMode="numeric" value={form.account} onChange={(e) => setForm({ ...form, account: e.target.value })} required /></Field>
@@ -178,7 +178,7 @@ export default function ReviewsPage({ workspace, onNotice }) {
     </PageHead>
   );
   if (data?.missing) {
-    return <>{head}<Empty icon="rate_review" title="Reviews aren't set up yet">The Zella team needs to apply its latest database update.</Empty></>;
+    return <>{head}<Empty icon="rate_review" title="Reviews aren't set up yet">The Zella Voice team needs to apply its latest database update.</Empty></>;
   }
   const counts = data?.counts ?? {};
   const source = data?.source;
@@ -194,8 +194,8 @@ export default function ReviewsPage({ workspace, onNotice }) {
           <Icon name="storefront" size="sm" />
           <span>
             {!source ? "Google not connected: add reviews by hand, or connect Google."
-              : source.status === "error" ? "Google stopped syncing. Check Zella is still a manager of your profile."
-                : !data.live ? "Google connected. Syncing starts when the Zella team switches it on."
+              : source.status === "error" ? "Google stopped syncing. Check Zella Voice is still a manager of your profile."
+                : !data.live ? "Google connected. Syncing starts when the Zella Voice team switches it on."
                   : source.last_fetched_at ? `Google checked ${timeAgo(source.last_fetched_at)}.` : "Google connected. First check soon."}
           </span>
         </div>

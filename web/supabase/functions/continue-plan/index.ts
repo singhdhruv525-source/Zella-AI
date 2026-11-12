@@ -1,4 +1,4 @@
-// Zella: "Continue my plan" link from the cancellation email.
+// Zella Voice: "Continue my plan" link from the cancellation email.
 //
 // Public function (deploy with --no-verify-jwt): the business owner is not
 // signed in when they click the email link. Access is controlled by the
@@ -9,6 +9,7 @@
 //   POST { token, action: "continue" } -> removes the scheduled cancellation
 
 import { withCors } from "../_shared/cors.ts";
+import { asObject, readJsonLimited } from "../_shared/body.ts";
 import { createClient } from "@supabase/supabase-js";
 
 const corsHeaders = {
@@ -65,15 +66,15 @@ Deno.serve(withCors(async (req: Request) => {
 
   if (!supabaseUrl || !serverSecretKey || !linkSecret) {
     console.error("continue-plan configuration is missing");
-    return respond({ error: "This link can't be used right now. Please contact Zella support." }, 500);
+    return respond({ error: "This link can't be used right now. Please contact Zella Voice support." }, 500);
   }
 
   let body: Record<string, unknown>;
-  try {
-    body = await req.json();
-  } catch {
-    return respond({ error: "Invalid request" }, 400);
-  }
+  const read = await readJsonLimited(req, 8_000);   // SEC-12
+  if (!read.ok) return respond({ error: read.error === "too_large" ? "Request too large" : "Invalid request" }, read.error === "too_large" ? 413 : 400);
+  const obj = asObject(read.value);
+  if (!obj) return respond({ error: "Invalid request" }, 400);
+  body = obj;
 
   const token = typeof body.token === "string" ? body.token.slice(0, 2000) : "";
   const action = body.action === "continue" ? "continue" : "preview";
