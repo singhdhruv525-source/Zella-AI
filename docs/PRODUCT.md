@@ -433,11 +433,11 @@ secrets, never in tables, code, logs or chat (`NN-2`).
 
 | Feature | Status |
 |---|---|
-| No business ever sees another's data: row security on every table (163 of 163) and membership checks in every function (`NN-1`) | Built and tested (cross-tenant suite) |
+| No business ever sees another's data: row security on every table (163 of 163); business functions check the caller's membership and role; public-link functions (reschedule, waitlist offer, unsubscribe, continue plan) authorise by a private, hashed link code that opens one item only; public platform functions return platform-level facts only (`NN-1`) | Built and tested (cross-tenant suite) |
 | Audit log of every privileged action, append-only | Built |
 | Private fields (access codes, member IDs, children's details) kept apart and never read aloud | Built |
 | Files on records checked after upload; refused files deleted | Built |
-| Customer data export and erasure (consent history kept, as the law requires) | Built |
+| Customer data export and erasure (consent and opt-out history is kept so opt-outs keep working; the retention basis is for counsel to confirm) | Built |
 | Two-person approval for risky actions | Built |
 | Retention: recordings 30 days, transcripts 90 days, message bodies 2 years, audit and security logs 7 years, cancelled business 30 days (D-27, pending legal review) | Partial: retention is listed; nothing deletes automatically yet |
 | Public status page and uptime alerts | Built |
@@ -475,4 +475,5 @@ A feature is done only when all of these hold (rulebook Part 21):
 6. The UI shows loading, error and unavailable states honestly; a failed load is never shown as zero or "all good".
 7. This document, `docs/ARCHITECTURE.md`, `docs/BACKEND_SCHEMA.md` and `docs/MEMORY.md` are updated in the same
    pull request.
-8. CodeRabbit has reviewed it and the owner has merged it.
+8. CodeRabbit has reviewed it, and it is merged by the owner or, with the owner's standing permission, by Claude
+   once the review is clean and the tests pass.

@@ -263,7 +263,7 @@ def main():
     ap.add_argument("--db", required=True)
     ap.add_argument("--user", default="postgres")
     args = ap.parse_args()
-    out = subprocess.run(["psql", "-h", args.host, "-p", args.port, "-U", args.user, "-d", args.db, "-Atq", "-c", SQL],
+    out = subprocess.run(["psql", "-X", "-h", args.host, "-p", args.port, "-U", args.user, "-d", args.db, "-Atq", "-c", SQL],
                          check=True, capture_output=True, text=True).stdout
     data = json.loads(out)
     tables = {t["name"]: t for t in data["tables"]}
@@ -347,9 +347,15 @@ def main():
         for f in t["fks"] or []:
             bits.append(f"`{f['cols']}` → `{f['ref']}` (on delete {DEL.get(f['del'], f['del'])}).")
         pols = t["pol"] or []
-        bits.append(f"Row security: {'on' if t['rls'] else '**off**'}"
-                    + (f"; policies: {', '.join(f'{esc(p['n'])} ({p['c'].lower()})' for p in pols)}." if pols
-                       else "; no policies, so only server functions can reach it."))
+        rls = "on" if t["rls"] else "**off**"
+        if pols:
+            names = ", ".join("{} ({})".format(esc(p["n"]), p["c"].lower()) for p in pols)
+            bits.append("Row security: {}; policies: {}.".format(rls, names))
+        elif t["rls"]:
+            bits.append("Row security: on; no policies, so signed-in users and anon get no rows directly; only "
+                        "security definer functions and the server key reach it.")
+        else:
+            bits.append("Row security: **off**; no policies. Access depends on table grants alone: a defect.")
         if t["trg"]:
             bits.append(f"Triggers: {', '.join(f'`{x}`' for x in t['trg'])}.")
         w("\n".join(f"- {b}" for b in bits) + "\n\n")
@@ -386,7 +392,8 @@ def main():
         w(f"### {label} ({len(fs)})\n\n")
         w("| Function | Returns | SD | Who may call |\n|---|---|---|---|\n")
         for f in fs:
-            who = "anon, signed in" if f["anon"] else ("signed in" if f["auth"] else "server only")
+            callers = [name for name, ok in (("anon", f["anon"]), ("signed in", f["auth"])) if ok]
+            who = ", ".join(callers) if callers else "server only"
             kind = " (procedure)" if f["k"] == "p" else ""
             w(f"| `{f['n']}({esc(f['a'])})`{kind} | {esc(f['r'] or '')} | {'yes' if f['sd'] else ''} | {who} |\n")
         w("\n")

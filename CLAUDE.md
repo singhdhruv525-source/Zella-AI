@@ -31,13 +31,14 @@ Update them in the same pull request as the change:
 - Real calls, texts, emails or notifications; changes to live voice assistants or phone numbers.
 - Billing changes, or destructive actions.
 
-Also:
+## Never, even with approval
 
 - Never print, commit or ask for secrets, and never copy customer data into fixtures or docs.
 - Database tests run only in the isolated test database.
 - Never disable tests or weaken authorization to get a pass.
 - Never claim what didn't happen, and say which kind of test proved it (local, staging or real provider).
 - Never edit an applied migration. Write a new, version-guarded one with an exact rollback in `sql/rollback/`.
-- All work goes through a pull request reviewed by CodeRabbit.
+- All work goes through a pull request reviewed by CodeRabbit. The owner merges, or has allowed Claude to merge
+  once the review is clean and the tests pass.
 - No model IDs in commits, PRs, code or docs.
 - The brand is always "Zella Voice", in full.
