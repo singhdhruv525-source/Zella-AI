@@ -38,7 +38,7 @@ Update them in the same pull request as the change:
 - Never disable tests or weaken authorization to get a pass.
 - Never claim what didn't happen, and say which kind of test proved it (local, staging or real provider).
 - Never edit an applied migration. Write a new, version-guarded one with an exact rollback in `sql/rollback/`.
-- All work goes through a pull request reviewed by CodeRabbit. The owner merges, or has allowed Claude to merge
-  once the review is clean and the tests pass.
+- All work goes through a pull request reviewed by CodeRabbit. The owner merges it, or tells Claude to merge it once
+  the review is clean and the tests pass (`NN-5`).
 - No model IDs in commits, PRs, code or docs.
 - The brand is always "Zella Voice", in full.

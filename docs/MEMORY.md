@@ -23,7 +23,7 @@ history.
 - **Say which kind of test proved something:** automated local, staging, or real provider. Never say "everything is
   fixed" or "production-ready" unless the evidence supports it (`NN-11`).
 - **Every change goes through a pull request** that CodeRabbit reviews. The owner has allowed Claude to merge once the
-  review is clean and the tests pass ("if it needs to be merged you can merge"). CodeRabbit fixes its own findings when
+  review is clean and the tests pass ("if it needs to be merged you can merge"; `NN-5`). CodeRabbit fixes its own findings when
   the owner ticks "Fix comments".
 - **Never edit an applied migration.** Write a new one. Every migration is version-guarded (it refuses to run on a
   function body it wasn't written for) and has an exact rollback in `sql/rollback/` that deletes no data.

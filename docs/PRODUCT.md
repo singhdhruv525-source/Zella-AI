@@ -475,5 +475,5 @@ A feature is done only when all of these hold (rulebook Part 21):
 6. The UI shows loading, error and unavailable states honestly; a failed load is never shown as zero or "all good".
 7. This document, `docs/ARCHITECTURE.md`, `docs/BACKEND_SCHEMA.md` and `docs/MEMORY.md` are updated in the same
    pull request.
-8. CodeRabbit has reviewed it, and it is merged by the owner or, with the owner's standing permission, by Claude
-   once the review is clean and the tests pass.
+8. CodeRabbit has reviewed it, and the owner merged it or told Claude to merge it once the review was clean and the
+   tests passed (`NN-5`).
