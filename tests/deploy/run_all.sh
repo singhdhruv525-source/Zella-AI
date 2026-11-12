@@ -112,10 +112,11 @@ check_approval "after rollback"
 # the inbound-email receiver goes back exactly, unless a business already has a 32-character address (then it is kept on purpose)
 inbound_now=$($P -d $DB -c "$INBOUND") || { bad "read the inbound-email receiver after rollback"; inbound_now=; }
 long_tokens=$($P -d $DB -c "$LONG_TOKENS") || { bad "check for 32-character inbound addresses"; long_tokens=; }
-if [ -n "$inbound_now" ] && [ "$inbound_now" = "$inbound_before" ]; then ok "inbound-email receiver restored exactly"
-elif [ -n "$inbound_now" ] && [ "$long_tokens" = t ] && [ "$inbound_now" = "$inbound_applied" ]; then
-  ok "inbound-email receiver kept on purpose (32-character addresses are in use): exactly the applied version"
-else bad "inbound-email receiver is neither the original nor the applied version kept on purpose"; fi
+# with 32-character addresses in use the rollback must keep the applied receiver; otherwise it must restore the original
+if [ "$long_tokens" = t ]; then expected=$inbound_applied; what="kept on purpose (32-character addresses are in use): exactly the applied version"
+else expected=$inbound_before; what="restored exactly"; fi
+if [ -n "$inbound_now" ] && [ -n "$long_tokens" ] && [ "$inbound_now" = "$expected" ]; then ok "inbound-email receiver $what"
+else bad "inbound-email receiver: expected the $([ "$long_tokens" = t ] && echo applied || echo original) version after rollback"; fi
 now=$($P -d $DB -c "$STATE")
 kept=$($P -d $DB -c "select string_agg(table_name, ', ') from information_schema.tables where table_schema = 'public' and table_name like '%_rolled_back'")
 if [ "$now" = "$before" ]; then ok "full rollback, newest first: every function, column, trigger and policy identical to before (kept on purpose, renamed: $kept)"

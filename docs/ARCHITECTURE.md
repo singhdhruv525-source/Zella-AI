@@ -819,7 +819,7 @@ It checks, in order:
      owner and never raised by a plan [D-38]. It covers attempts per sequence, unprompted messages per day and
      check-ins per visit.
    - The effective limit is the **lower** of the two.
-   - **Until plans exist**, these defaults apply:
+   - **Where a business's plan sets no value for these contact limits**, these defaults apply:
      - at most 2 call attempts per sequence, each followed by at most one message;
      - one unprompted message per customer per day per business;
      - one after-visit check-in per visit.
@@ -840,8 +840,9 @@ It checks, in order:
    The calling window must also satisfy US calling-time rules (federal and state) for the called person's local time;
    counsel confirms which call types they cover [D-04]. Emergency inbound availability **never** grants permission for
    outbound calls.
-8. Plan limits (REQ-BIL-08): enforced from the business's plan (§17); where the plan sets no value, the defaults in item 5
-   apply.
+8. Plan limits (REQ-BIL-08): enforced from the business's plan (§17). Contact limits without a plan value use the
+   defaults in item 5. Minutes, texts, emails, seats, phone numbers and locations have **no default**: Create Business
+   step 11 requires a value for each, and a business cannot go live without them (REQ-BIL-01).
 9. Template completeness (no unfilled placeholders).
 
 **REQ-MSG-02 Opt-outs are immediate and cross-channel by purpose:**
@@ -1438,7 +1439,7 @@ flowchart LR
 
 | ID | Requirement |
 |---|---|
-| REQ-BIL-01 | **Plans are set per business** by the Zella Voice team during Create Business, within this policy (D-41): a tier (Trial, Small, Medium, Large, or Custom/Enterprise), the monthly or yearly price, an optional one-time setup fee, and the allowances and caps of §17.1. Price depends on how much automation the business takes and on languages (English, Spanish, or both). Amounts in examples (such as $299/month + $599 setup) are illustrations, not list prices. |
+| REQ-BIL-01 | **Plans are set per business** by the Zella Voice team during Create Business, within this policy (D-41): a tier (Trial, Small, Medium, Large, or Custom/Enterprise), the monthly or yearly price, an optional one-time setup fee, and the allowances and caps of §17.1. Minutes, texts, emails, seats, phone numbers and locations must each have a value; contact limits left blank use the defaults in §9.3 item 5. Price depends on how much automation the business takes and on languages (English, Spanish, or both). Amounts in examples (such as $299/month + $599 setup) are illustrations, not list prices. |
 | REQ-BIL-02 | Usage is metered from an append-only ledger (one entry per finalised call; adjustments, never edits). Our failures are never billable. |
 | REQ-BIL-03 | Entitlement **check points** sit at use time: assistant assembly, outbound claims, messaging claims, AI features. The core receptionist is never cut mid-call. |
 | REQ-BIL-04 | The payment provider (**Razorpay**, D-34) handles cards, mandates and invoices; Zella Voice stores no card data (`NN-9`). Webhooks are signed and idempotent. No real charge, refund or new payment integration goes live without the owner's explicit approval. |
@@ -1481,7 +1482,7 @@ Each business's plan is set by the Zella Voice team in Create Business (§18.6, 
 
 | Pack | Prices |
 |---|---|
-| AI minutes | $25 = 100 min · $70 = 250 min · $130 = 500 min · $250 = 1,000 min |
+| AI minutes | $29 = 100 min · $89 = 250 min · $149 = 500 min · $269 = 1,000 min |
 | Texts | $18 = 500 · $34 = 1,000 · $80 = 2,500 · $150 = 5,000 |
 | Emails | $25 = 10,000 · $59 = 25,000 · $115 = 50,000 (at least a 60% margin over the email provider's cost of about $0.90 per 1,000; re-check if that cost changes) |
 | Extra location | $30 per month: its own number and texting registration; the same CRM; minutes come from the business's one account |
@@ -1497,7 +1498,7 @@ Pack prices are fixed for every business. Packs are charged when bought. Pack ex
 | REQ-BIL-14 | **Calls:** counted per call, rounded up to the next full minute. Calls under 15 seconds and calls flagged as spam are not counted. |
 | REQ-BIL-15 | **Texts:** counted by message part: about 160 characters per part, or about 70 when the text has accented or non-Latin letters. |
 | REQ-BIL-16 | **Emails:** one per email sent, regardless of language. |
-| REQ-BIL-17 | **Billing date:** the day the business owner first signs in through the invite link (creates their password). Allowances reset on each billing date. |
+| REQ-BIL-17 | **Billing date:** without a trial, the day the business owner first signs in through the invite link (creates their password); with a trial (REQ-BIL-12), the day the trial ends, which is also the first charge. Later charges fall on the same day each month (or year); in a month without that day, on its last day. **Monthly plans** reset allowances on each billing date; how **annual plans** reset allowances is **open** (D-46). |
 
 ### 17.5 Order of use, rollover and expiry
 
@@ -2458,7 +2459,7 @@ Required before launch (written and approved by the owner with counsel; not part
 | Monitoring provider (D-31) | uptime, logs, paging | request metadata only, no personal data |
 | n8n Cloud | workflow workers | work envelopes and message content in transit |
 | Cloudflare | web hosting | web traffic |
-| Razorpay (payments, D-34) | billing | business billing details and payment status; no card data stored by Zella Voice |
+| Razorpay (payments, D-34) | billing | business billing details and payment details (card or other payment method, entered on Razorpay's own page), payment status; Zella Voice never receives or stores card data |
 
 ## 40. Owner mobile experience and staff calling
 

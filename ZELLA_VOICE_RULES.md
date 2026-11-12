@@ -520,7 +520,7 @@ flowchart TD
 - `COM-4` **Frequency limits: two layers.**
   - **Plan limits:** the business's plan sets its quantities (minutes, calls, callbacks, call attempts per sequence, messages, AI usage).
   - **Platform contact ceiling:** the owner sets the most any single customer can be contacted (attempts per sequence, unprompted messages per day, check-ins per visit). **No plan can raise it.** The effective limit is the lower of the two.
-  - **Until plans exist**, the defaults are: at most 2 call attempts per sequence, each followed by at most one message; one unprompted message per customer per day per business; one after-visit check-in per visit.
+  - **Where a business's plan sets no value for these contact limits**, the defaults are: at most 2 call attempts per sequence, each followed by at most one message; one unprompted message per customer per day per business; one after-visit check-in per visit.
   - Replies to the customer are never capped.
 - `COM-5` **Sensitive industries** (health, dental, legal, financial, insurance, childcare): messages never reveal the nature of the relationship in the preview; follow-ups are drafts a person approves; review requests are off by default.
 - `COM-6` **Cancelled or moved bookings withdraw their own pending messages.**
