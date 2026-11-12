@@ -66,7 +66,7 @@ export function AddCustomerModal({ workspace, term, onClose, onDone }) {
   }
 
   return (
-    <Modal icon="person_add" title={`Add a ${noun}`} description="Zella checks for someone with the same phone or email first, so nobody is added twice." onClose={onClose} busy={busy}
+    <Modal icon="person_add" title={`Add a ${noun}`} description="Zella Voice checks for someone with the same phone or email first, so nobody is added twice." onClose={onClose} busy={busy}
       footer={<>
         <button type="button" className="ba-btn" onClick={onClose} disabled={busy}>Cancel</button>
         <button type="submit" form="ba-add-customer" className="ba-btn primary" disabled={busy}>{busy ? "Saving..." : `Add ${noun}`}</button>

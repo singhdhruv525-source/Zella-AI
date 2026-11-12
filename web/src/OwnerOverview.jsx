@@ -63,7 +63,7 @@ export default function OwnerOverview({ onCreateBusiness, onOpenBusiness, onCont
         <div>
           <div className="owner-eyebrow">Platform control center</div>
           <h1>Overview</h1>
-          <p>Every client business on Zella, where its setup stands, and what needs attention.</p>
+          <p>Every client business on Zella Voice, where its setup stands, and what needs attention.</p>
         </div>
         <div className="op-heading-actions">
           <UpdatedAt r={r} />

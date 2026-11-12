@@ -139,7 +139,7 @@ export function transcriptLines(transcript) {
 }
 
 
-const NEEDS_UPDATE = "Your workspace needs the latest Zella update before this can be saved. Please ask the Zella team.";
+const NEEDS_UPDATE = "Your workspace needs the latest Zella Voice update before this can be saved. Please ask the Zella Voice team.";
 // Short codes raised by the database functions, in plain words.
 const CODES = {
   NOT_ALLOWED: "You don't have permission to do that in this workspace.",
@@ -161,10 +161,10 @@ export const friendly = (error) => {
   const message = error?.message ?? String(error);
   if (/does not exist|schema cache|Could not find the/i.test(message)) return NEEDS_UPDATE;
   if (/JWT expired|invalid JWT|refresh token/i.test(message)) return CODES.NOT_SIGNED_IN;
-  if (/failed to fetch|network|load failed/i.test(message)) return "Couldn't reach Zella. Check your internet connection and try again.";
+  if (/failed to fetch|network|load failed/i.test(message)) return "Couldn't reach Zella Voice. Check your internet connection and try again.";
   if (CODES[message.trim()]) return CODES[message.trim()];
   // an internal code no screen explains yet: say what happened and keep the code for support
-  if (/^[A-Z][A-Z0-9_]{2,}$/.test(message.trim())) return `That didn't work (code ${message.trim()}). Try again, or contact Zella support if it keeps happening.`;
+  if (/^[A-Z][A-Z0-9_]{2,}$/.test(message.trim())) return `That didn't work (code ${message.trim()}). Try again, or contact Zella Voice support if it keeps happening.`;
   return message;
 };
 
@@ -249,7 +249,7 @@ export function findConflict({ staff, blocks, start, end, staffId, timeZone, res
   return null;
 }
 
-// After someone is marked a no-show: say what Zella will do next. The
+// After someone is marked a no-show: say what Zella Voice will do next. The
 // follow-up is queued by the database only when the "No-show follow-up"
 // automation is live, so this reports what is really going to happen.
 export async function noShowNotice(appointmentId, who, timeZone) {
@@ -265,7 +265,7 @@ export async function noShowNotice(appointmentId, who, timeZone) {
   const due = new Date(data[0].due_at);
   const sameDay = due.toLocaleDateString("en-US", { timeZone }) === new Date().toLocaleDateString("en-US", { timeZone });
   const when = `${sameDay ? "" : `${due.toLocaleDateString("en-US", { timeZone, weekday: "short" })} `}${due.toLocaleTimeString("en-US", { timeZone, hour: "numeric", minute: "2-digit" })}`;
-  return `${base} Zella will ${data[0].channel === "sms" ? "text" : "call"} around ${when} to offer a new time.`;
+  return `${base} Zella Voice will ${data[0].channel === "sms" ? "text" : "call"} around ${when} to offer a new time.`;
 }
 
 // Plain-language messages for the workflow functions' error codes.

@@ -32,7 +32,7 @@ function formatDay(value) {
 const MESSAGES = {
   continued: (name) => ({
     title: "Your plan continues",
-    body: `Thanks for staying with Zella. ${name} will keep running as normal, including your AI receptionist.`,
+    body: `Thanks for staying with Zella Voice. ${name} will keep running as normal, including your AI receptionist.`,
   }),
   already_continued: (name) => ({
     title: "You're all set",
@@ -40,7 +40,7 @@ const MESSAGES = {
   }),
   ended: (name) => ({
     title: "This plan has already ended",
-    body: `${name}'s membership has ended. To start again, reply to the email or contact the Zella team.`,
+    body: `${name}'s membership has ended. To start again, reply to the email or contact the Zella Voice team.`,
   }),
   outdated: () => ({
     title: "This link is out of date",
@@ -48,7 +48,7 @@ const MESSAGES = {
   }),
   invalid: () => ({
     title: "This link isn't valid",
-    body: "Please check you opened the full link from your email, or contact the Zella team.",
+    body: "Please check you opened the full link from your email, or contact the Zella Voice team.",
   }),
 };
 
@@ -88,7 +88,7 @@ export default function ContinuePlan() {
       <section className="cp-card">
         <div className="cp-brand">
           <div className="owner-brand-mark">Z</div>
-          <span>Zella <span className="cp-ai">Voice</span></span>
+          <span>Zella Voice <span className="cp-ai">Voice</span></span>
         </div>
 
         {state.status === "loading" && <p className="op-muted">Checking your link...</p>}
@@ -102,7 +102,7 @@ export default function ContinuePlan() {
 
         {state.status === "scheduled" && (
           <>
-            <div className="owner-eyebrow">Your Zella plan</div>
+            <div className="owner-eyebrow">Your Zella Voice plan</div>
             <h1>Keep {state.businessName} running?</h1>
             <p>
               Your plan is set to end on <strong>{formatDay(state.cancelAt)}</strong>. After that, your AI

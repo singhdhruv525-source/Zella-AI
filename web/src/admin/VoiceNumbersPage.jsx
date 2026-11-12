@@ -58,7 +58,7 @@ function Overview({ onTab, onOpenCalls }) {
       <ErrorNote error={data.error} onRetry={data.reload} />
       {o && (
         <>
-          {!o.calls_live && <NotAvailable title="Outbound AI calls are off">The calls_live switch is off, so Zella places no outbound calls. Inbound calls are answered by each business's receptionist once its number is linked in Vapi.</NotAvailable>}
+          {!o.calls_live && <NotAvailable title="Outbound AI calls are off">The calls_live switch is off, so Zella Voice places no outbound calls. Inbound calls are answered by each business's receptionist once its number is linked in Vapi.</NotAvailable>}
           <div className="owner-stat-grid ao-stats">
             <Metric label="Active numbers" value={num(o.numbers_active)} note={o.numbers_paused ? `${o.numbers_paused} paused` : "None paused"} />
             <Metric label="Inbound calls" value={num(o.inbound)} note={`Answer rate ${pct(o.answer_rate)}`} />
@@ -70,7 +70,7 @@ function Overview({ onTab, onOpenCalls }) {
             <Metric label="Transfers that didn't connect" value={num(o.transfers_failed)} tone={o.transfers_failed ? "warning" : null} />
           </div>
           {o.numbers_active === 0 && (
-            <NotAvailable title="No phone numbers yet">Numbers bought in Telnyx or Vapi are assigned to a business with "Assign a number". Until then no calls can reach Zella.</NotAvailable>
+            <NotAvailable title="No phone numbers yet">Numbers bought in Telnyx or Vapi are assigned to a business with "Assign a number". Until then no calls can reach Zella Voice.</NotAvailable>
           )}
           {o.numbers_without_vapi > 0 && (
             <NotAvailable title={`${o.numbers_without_vapi} active number${o.numbers_without_vapi === 1 ? "" : "s"} not linked to Vapi`}>Add the Vapi phone number id under Numbers so calls are matched to the business.</NotAvailable>
@@ -131,7 +131,7 @@ function Numbers({ me, options, onAssign, onOpenCalls, say, onOpenBusiness }) {
             {manage && <>
               <button type="button" className="owner-secondary-button" onClick={() => onAssign({ id: open.id, e164: open.e164, businessId: open.business_id, vapiPhoneNumberId: open.vapi_phone_number_id ?? "", label: open.label ?? "" })}>Reassign or edit</button>
               <button type="button" className="owner-secondary-button" onClick={() => setAction({ kind: "status", row: open })}>{open.status === "active" ? "Pause" : "Activate"}</button>
-              {open.status === "paused" && <button type="button" className="bd-danger-button" onClick={() => setAction({ kind: "release", row: open })}>Release from Zella</button>}
+              {open.status === "paused" && <button type="button" className="bd-danger-button" onClick={() => setAction({ kind: "release", row: open })}>Release from Zella Voice</button>}
             </>}
           </div>
           {!manage && <p className="op-muted">Your admin role can see numbers but not change them.</p>}
@@ -145,13 +145,13 @@ function Numbers({ me, options, onAssign, onOpenCalls, say, onOpenBusiness }) {
             done(action.row.status === "active" ? "Number paused." : "Number activated.");
           }}>
           {action.row.status === "active"
-            ? <p>Zella stops treating this as {action.row.business_name}'s number. It stays with the carrier; calls to it will no longer be matched to the business.</p>
+            ? <p>Zella Voice stops treating this as {action.row.business_name}'s number. It stays with the carrier; calls to it will no longer be matched to the business.</p>
             : <p>The business's plan must include another number.</p>}
         </ReasonDialog>
       )}
       {action?.kind === "release" && (
-        <ReasonDialog title={`Release ${action.row.e164} from Zella?`} icon="delete" danger word="RELEASE" confirmLabel="Release" onClose={() => setAction(null)}
-          onConfirm={async (reason) => { await rpc("zella_admin_number_release", { p_id: action.row.id, p_reason: reason }); done(`${action.row.e164} released from Zella.`); }}>
+        <ReasonDialog title={`Release ${action.row.e164} from Zella Voice?`} icon="delete" danger word="RELEASE" confirmLabel="Release" onClose={() => setAction(null)}
+          onConfirm={async (reason) => { await rpc("zella_admin_number_release", { p_id: action.row.id, p_reason: reason }); done(`${action.row.e164} released from Zella Voice.`); }}>
           <p>The number is removed from {action.row.business_name}. Its past calls are kept. This doesn't cancel it at the carrier — do that in the Telnyx or Vapi dashboard, or it keeps costing money.</p>
         </ReasonDialog>
       )}
@@ -181,7 +181,7 @@ function AssignDialog({ edit: initial, options, onClose, onDone }) {
         <label className="owner-field"><span>Vapi phone number id</span><input value={edit.vapiPhoneNumberId} onChange={field("vapiPhoneNumberId")} placeholder="From the Vapi dashboard" /></label>
         <label className="owner-field"><span>Label</span><input value={edit.label} onChange={field("label")} placeholder="Main line" /></label>
       </div>
-      <p className="op-muted">The number must already be bought in Telnyx or Vapi; Zella doesn't buy numbers.{initial.id ? " Calls reach the new business's receptionist once Vapi points at it." : ""}</p>
+      <p className="op-muted">The number must already be bought in Telnyx or Vapi; Zella Voice doesn't buy numbers.{initial.id ? " Calls reach the new business's receptionist once Vapi points at it." : ""}</p>
     </ReasonDialog>
   );
 }
@@ -328,7 +328,7 @@ function Providers({ me }) {
   const data = useLoad(() => rpc("zella_admin_voice_overview", { p_from: since(1), p_to: null }), []);
   return (
     <>
-      <Panel title="Connection checks" description="Zella's own checks of each provider, run by the provider health job.">
+      <Panel title="Connection checks" description="Zella Voice's own checks of each provider, run by the provider health job.">
         <ErrorNote error={data.error} onRetry={data.reload} />
         {data.data && <ProviderHealth rows={data.data.providers} checksLive={data.data.checks_live} names={[["vapi", "Vapi", "AI voice and phone numbers"], ["telnyx", "Telnyx", "Numbers and carrier"]]} />}
         {data.data && !data.data.checks_live && <NotAvailable title="Provider checks are off">The provider health job isn't switched on, so connection status is unknown rather than healthy. A "test connection" button isn't offered because it would need the provider keys in the browser.</NotAvailable>}

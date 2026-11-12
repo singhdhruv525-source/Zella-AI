@@ -1,4 +1,4 @@
-// Zella - files on records. Two jobs (sql/zella_record_files.sql):
+// Zella Voice - files on records. Two jobs (sql/zella_record_files.sql):
 //   check    after an upload, as the uploader: confirms it arrived (their sign-in, so their permissions apply), reads the
 //            stored bytes with the server key, checks what the file really is (inspect.ts), and records the verdict.
 //            A refused file is rejected and its stored copy deleted.

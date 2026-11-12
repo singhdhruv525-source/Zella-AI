@@ -70,7 +70,7 @@ Deno.test("subscription events; unknown events ignored", () => {
   assertEquals("ignore" in mapEvent(inv("customer.created", {})), true);
 });
 
-Deno.test("HTTP answers: waiting is 200 (Zella retries itself), failure is 500 (provider retries)", () => {
+Deno.test("HTTP answers: waiting is 200 (Zella Voice retries itself), failure is 500 (provider retries)", () => {
   assertEquals([httpStatusFor("processed"), httpStatusFor("pending"), httpStatusFor("duplicate"), httpStatusFor("ignored"), httpStatusFor("failed"), httpStatusFor("??")],
     [200, 200, 200, 200, 500, 500]);
 });

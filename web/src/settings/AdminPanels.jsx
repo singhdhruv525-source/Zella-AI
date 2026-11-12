@@ -30,7 +30,7 @@ function ProfileForm({ initial, canEdit }) {
   });
   const f = form.values;
   return (
-    <Card title="Platform profile" sub="Zella's own details, shown on sign-in pages and to businesses in Help. Each business's own details are separate.">
+    <Card title="Platform profile" sub="Zella Voice's own details, shown on sign-in pages and to businesses in Help. Each business's own details are separate.">
       {!canEdit && <Banner tone="warn">{ROLE_NOTE}</Banner>}
       <fieldset disabled={!canEdit} style={{ border: 0, padding: 0, margin: 0 }}>
         <div className="zs-grid">
@@ -59,7 +59,7 @@ export function Branding({ me }) {
     <>
       <LoadState state={state}>{(d) => <BrandingForm initial={d.branding} canEdit={can(me, "platform.configure")} />}</LoadState>
       <Needs title="Themes, accent color, typography, density and dashboard layout aren't adjustable yet"
-        have="Zella uses one fixed theme (Oat & Slate). Making it adjustable needs a theme layer that reads saved settings instead of fixed CSS. Each business's branding stays its own either way.">
+        have="Zella Voice uses one fixed theme (Oat & Slate). Making it adjustable needs a theme layer that reads saved settings instead of fixed CSS. Each business's branding stays its own either way.">
         These would change the look for every admin and business, so they need that theme layer first.
       </Needs>
       <Needs title="Email branding isn't adjustable yet" have="Emails are plain text with a simple layout (sql/zella_owner_emails.sql).">
@@ -150,10 +150,10 @@ function MaintenanceForm({ initial, allowed, reload }) {
           ["Message", initial.message], ["Starts", when(initial.starts_at)], ["Ends", when(initial.ends_at)], ["Last changed", when(initial.set_at)]]} />
       </Card>
       <Card title="Announce maintenance" sub="Shows a notice on every sign-in page, in the admin dashboard and in every business's workspace. It does not stop the app or block saving.">
-        {!allowed && <Banner tone="warn">Only a Zella owner or super admin can change maintenance.</Banner>}
+        {!allowed && <Banner tone="warn">Only a Zella Voice owner or super admin can change maintenance.</Banner>}
         <fieldset disabled={!allowed} style={{ border: 0, padding: 0, margin: 0 }}>
           <div className="zs-grid">
-            <Field label="Message people will see" full><textarea rows={2} maxLength={300} value={draft.message} onChange={(e) => setDraft({ ...draft, message: e.target.value })} placeholder="Zella will be unavailable from 10 PM to 11 PM ET for an upgrade." /></Field>
+            <Field label="Message people will see" full><textarea rows={2} maxLength={300} value={draft.message} onChange={(e) => setDraft({ ...draft, message: e.target.value })} placeholder="Zella Voice will be unavailable from 10 PM to 11 PM ET for an upgrade." /></Field>
             <Field label="Starts" hint="Empty: now"><input type="datetime-local" value={draft.starts} onChange={(e) => setDraft({ ...draft, starts: e.target.value })} /></Field>
             <Field label="Ends" hint="Empty: until you turn it off"><input type="datetime-local" value={draft.ends} onChange={(e) => setDraft({ ...draft, ends: e.target.value })} /></Field>
           </div>
@@ -397,7 +397,7 @@ export function SettingNumber({ me, keyName, label, current, hint }) {
   const owner = me?.role === "zella_owner";
   return (
     <Card title={label} sub={hint}>
-      <div className="zs-grid"><Field label={label} hint={owner ? `Setting ${keyName}` : "Only a Zella owner can change this."}><input value={form.values.value} onChange={form.set("value")} inputMode="numeric" disabled={!owner} /></Field></div>
+      <div className="zs-grid"><Field label={label} hint={owner ? `Setting ${keyName}` : "Only a Zella Voice owner can change this."}><input value={form.values.value} onChange={form.set("value")} inputMode="numeric" disabled={!owner} /></Field></div>
       {owner && <SaveBar form={form} onSave={() => form.save(async (v) => { await call("platform_setting_save", { key: keyName, value: v.value }); })} />}
     </Card>
   );
@@ -435,8 +435,8 @@ function RoleMatrix({ data, reload, canEdit }) {
   const form = useForm(initial);
   const toggle = (role, perm) => form.setValues((v) => ({ ...v, [role]: v[role].includes(perm) ? v[role].filter((p) => p !== perm) : [...v[role], perm] }));
   return (
-    <Card title="Permission matrix" sub="Zella owner and super admin are fixed. The five restricted roles only get what is ticked. Checked on the server for every action.">
-      {!canEdit && <Banner tone="warn">Only a Zella owner can change role permissions.</Banner>}
+    <Card title="Permission matrix" sub="Zella Voice owner and super admin are fixed. The five restricted roles only get what is ticked. Checked on the server for every action.">
+      {!canEdit && <Banner tone="warn">Only a Zella Voice owner can change role permissions.</Banner>}
       <div className="zs-table-wrap" tabIndex={0}>
         <table className="zs-matrix">
           <thead><tr><th>Permission</th>{data.roles.map((r) => <th key={r.key}>{r.label}<br /><small className="zs-muted">{r.admins} admin{r.admins === 1 ? "" : "s"}</small></th>)}</tr></thead>
@@ -467,11 +467,11 @@ export function Permissions() {
       <>
         <Card title="What each permission covers" sub="Platform roles only. Business roles (owner, admin, manager, staff, viewer) are separate and set inside each business.">
           <ul className="zs-rows">{d.catalog.map(([p, label]) => <li key={p}><div><strong>{label}</strong><small>{p}</small></div></li>)}
-            <li><div><strong>Manage admins and roles</strong><small>Zella owner only</small></div></li></ul>
+            <li><div><strong>Manage admins and roles</strong><small>Zella Voice owner only</small></div></li></ul>
         </Card>
         <Card title="Where it's enforced">
           <Facts rows={[["Admin dashboard actions", "owner-provision-business checks the role and permission before every action"],
-            ["Direct database tools (health, incidents, offers)", "Need a Zella owner or super admin (is_platform_admin)"],
+            ["Direct database tools (health, incidents, offers)", "Need a Zella Voice owner or super admin (is_platform_admin)"],
             ["Business data", "Row level security and role checks inside each business"]]} />
         </Card>
       </>
@@ -485,7 +485,7 @@ export function AuthPolicies() {
     <>
       <Card title="What's in place">
         <LoadState state={state}>{(s) => (
-          <Facts rows={[["Password rules (Zella screens)", "At least 8 characters with upper and lower case letters and a number"],
+          <Facts rows={[["Password rules (Zella Voice screens)", "At least 8 characters with upper and lower case letters and a number"],
             ["Two-step sign-in", "Authenticator apps. Admins who turn it on must use it; the server checks"],
             ["Admins without two-step sign-in", `${s.adminsWithoutMfa} of ${s.adminCount}`],
             ["Sign-in options", "Email and password; Google, Microsoft, Apple and Okta buttons work once switched on in Supabase"],
@@ -493,7 +493,7 @@ export function AuthPolicies() {
         )}</LoadState>
       </Card>
       <Needs title="Session length, sign-up policy, leaked-password checks and failed sign-in monitoring are set in Supabase, not here"
-        have="Check them in the Supabase dashboard > Authentication. Zella can't see their current state, so it isn't shown here. Recommended: turn leaked-password protection on.">
+        have="Check them in the Supabase dashboard > Authentication. Zella Voice can't see their current state, so it isn't shown here. Recommended: turn leaked-password protection on.">
         Supabase doesn't let the app read or change these settings, and sign-in attempt logs aren't stored in the database for this project.
         Showing them here would need the Supabase Management API with a server-side token.
       </Needs>
@@ -671,7 +671,7 @@ export function Payments({ status: fixed }) {
 }
 
 export function Invoices() {
-  return <Needs title="Invoices aren't stored in Zella yet" have="Payments (with the provider's reference) are recorded under Payments.">Invoice records, tax lines and downloadable PDFs come from the payment provider. They need the provider's invoice events added to the billing webhook and an invoices table.</Needs>;
+  return <Needs title="Invoices aren't stored in Zella Voice yet" have="Payments (with the provider's reference) are recorded under Payments.">Invoice records, tax lines and downloadable PDFs come from the payment provider. They need the provider's invoice events added to the billing webhook and an invoices table.</Needs>;
 }
 
 export function Refunds() {
@@ -679,7 +679,7 @@ export function Refunds() {
     <>
       <Payments status="refunded" />
       <Needs title="Refund requests and approvals aren't built" have="Refunds made in the payment provider arrive through the webhook and appear above.">
-        Issuing a refund from Zella needs the payment provider's API with a server-side key, an approval step, and an audit entry. Credits and adjustments need the same.
+        Issuing a refund from Zella Voice needs the payment provider's API with a server-side key, an approval step, and an audit entry. Credits and adjustments need the same.
       </Needs>
     </>
   );
@@ -698,7 +698,7 @@ export function BillingConfig({ me }) {
           </Card>
           <SettingNumber me={me} keyName="payment_grace_days" label="Grace days after a failed payment" current={val("payment_grace_days")} />
           <SettingNumber me={me} keyName="payment_suspend_after_days" label="Days past due before a workspace is paused" current={val("payment_suspend_after_days")} />
-          <Needs title="Tax, invoice numbering, payment retries and billing email templates are set in the payment provider" have="Grace and pause rules above are Zella's; the provider handles card retries.">
+          <Needs title="Tax, invoice numbering, payment retries and billing email templates are set in the payment provider" have="Grace and pause rules above are Zella Voice's; the provider handles card retries.">
             Managing them from here needs the provider's API.
           </Needs>
         </>
@@ -742,7 +742,7 @@ function SettingText({ me, row, hint = "Checked by the provider on first use." }
   const owner = me?.role === "zella_owner";
   return (
     <Card title={row.label ?? row.key} sub={`${row.key} · changed ${when(row.updated_at)}`}>
-      <div className="zs-grid"><Field label="Value" hint={owner ? hint : "Only a Zella owner can change this."}><input value={form.values.value} onChange={form.set("value")} disabled={!owner} /></Field></div>
+      <div className="zs-grid"><Field label="Value" hint={owner ? hint : "Only a Zella Voice owner can change this."}><input value={form.values.value} onChange={form.set("value")} disabled={!owner} /></Field></div>
       {owner && <SaveBar form={form} onSave={() => form.save(async (v) => { await call("platform_setting_save", { key: row.key, value: v.value }); })} />}
     </Card>
   );
@@ -804,7 +804,7 @@ export function TelephonyProviders() {
         <>
           <Card title="Providers">
             <Facts rows={[["Telnyx (numbers, texts)", n.telnyx ? "Key configured" : "Key not set"], ["Vapi (AI voice)", n.vapi ? "Key configured" : "Key not set"],
-              ["Numbers in Zella", n.rows.length], ["Outbound calls", val("calls_live") === true ? "On" : "Off (calls_live)"], ["Inbound routing", "Vapi answers each assigned number with that business's receptionist"]]} />
+              ["Numbers in Zella Voice", n.rows.length], ["Outbound calls", val("calls_live") === true ? "On" : "Off (calls_live)"], ["Inbound routing", "Vapi answers each assigned number with that business's receptionist"]]} />
           </Card>
           <Needs title="Buying numbers and provider error logs aren't built" have="Numbers bought in Telnyx/Vapi are assigned to businesses under Phone numbers.">
             Ordering numbers and reading provider errors need the Telnyx and Vapi APIs from a server action.
@@ -844,7 +844,7 @@ export function PhoneNumbers({ me }) {
         </Confirm>}
         {confirm && <Confirm title={confirm.status === "active" ? `Pause ${confirm.e164}?` : `Activate ${confirm.e164}?`} reason confirmLabel={confirm.status === "active" ? "Pause" : "Activate"} danger={confirm.status === "active"}
           onClose={() => setConfirm(null)} onConfirm={async (reason) => { await call("number_set_status", { id: confirm.id, status: confirm.status === "active" ? "paused" : "active", reason }); state.reload(); }}>
-          {confirm.status === "active" ? "Zella stops treating this as the business's number. Releasing it at the carrier is done in Telnyx." : "The business's plan must include another number."}
+          {confirm.status === "active" ? "Zella Voice stops treating this as the business's number. Releasing it at the carrier is done in Telnyx." : "The business's plan must include another number."}
         </Confirm>}
       </>
     )}</LoadState>
@@ -910,7 +910,7 @@ export function UsageLimits() {
         <Facts rows={[["Included allowances", "Plans, subscriptions & entitlements > Plan entitlements"], ["Business choice", "Stop, pay as you go, or automatic top-up, with a spending limit (the owner authorizes it)"],
           ["Notices", "70, 90 and 100% to the owners"], ["Additional usage rates", "Voice cost configuration"]]} />
       </Card>
-      <Needs title="Charging for extra usage and cutting off calls aren't built" have="Choices and limits are saved and audited; nothing is ever charged from Zella today.">
+      <Needs title="Charging for extra usage and cutting off calls aren't built" have="Choices and limits are saved and audited; nothing is ever charged from Zella Voice today.">
         Charging needs the payment provider; cutting off needs the start-of-call check described under Entitlement enforcement.
       </Needs>
     </>
@@ -1007,10 +1007,10 @@ export function IntegrationRegistry({ onNavigate }) {
 }
 
 export function OauthApps() {
-  return <Needs title="OAuth app settings are kept outside Zella" have="Google Calendar connections are stored per business (calendar_connections), with tokens in the database vault; only status and the account email are ever shown.">Client IDs and secrets live in Google Cloud and in Supabase secrets. Showing whether they're set needs those secret names added to the server configuration check.</Needs>;
+  return <Needs title="OAuth app settings are kept outside Zella Voice" have="Google Calendar connections are stored per business (calendar_connections), with tokens in the database vault; only status and the account email are ever shown.">Client IDs and secrets live in Google Cloud and in Supabase secrets. Showing whether they're set needs those secret names added to the server configuration check.</Needs>;
 }
 
-// The go-live checklist: each step that must be true before Zella's automations really reach customers. Read from
+// The go-live checklist: each step that must be true before Zella Voice's automations really reach customers. Read from
 // the database (zella_automation_readiness, platform admins only); on/off facts only, never a key or number.
 const READINESS = [
   ["dispatch_switch", "Dispatcher switch on", "Platform setting n8n_dispatch_enabled"],
@@ -1037,7 +1037,7 @@ function Readiness() {
       <Needs title="The go-live checklist needs a database update" have="The settings below still show what the server knows.">Apply sql/zella_messaging_status.sql, then this shows each step that must be on before messages and calls really go out.</Needs>
     ) : (
       <>
-        <Card title="Go-live checklist" sub={`${READINESS.filter(([k]) => r[k]).length} of ${READINESS.length} ready. Until every step is ready, Zella records messages as not sent and nothing reaches customers.`}>
+        <Card title="Go-live checklist" sub={`${READINESS.filter(([k]) => r[k]).length} of ${READINESS.length} ready. Until every step is ready, Zella Voice records messages as not sent and nothing reaches customers.`}>
           <ul className="zs-checklist">
             {READINESS.map(([key, label, hint]) => (
               <li key={key} className={r[key] ? "ok" : ""}>
@@ -1049,7 +1049,7 @@ function Readiness() {
           </ul>
         </Card>
         <Card title="Scheduled database jobs" sub="They run inside Supabase and hand due work to n8n.">
-          <Table rowKey={(j) => j.name} rows={r.jobs ?? []} empty="No Zella jobs found. Run sql/zella_dispatcher.sql last." columns={[["Job", (j) => j.name], ["Schedule", (j) => j.schedule], ["State", (j) => <Pill tone={j.active ? "success" : "warning"}>{j.active ? "Running" : "Off"}</Pill>]]} />
+          <Table rowKey={(j) => j.name} rows={r.jobs ?? []} empty="No Zella Voice jobs found. Run sql/zella_dispatcher.sql last." columns={[["Job", (j) => j.name], ["Schedule", (j) => j.schedule], ["State", (j) => <Pill tone={j.active ? "success" : "warning"}>{j.active ? "Running" : "Off"}</Pill>]]} />
         </Card>
       </>
     )}</LoadState>
@@ -1069,7 +1069,7 @@ export function N8nConfig() {
         <Card title="Dispatcher state" sub="What the database sent to each n8n workflow most recently.">
           <Table rowKey={(r) => r.workflow ?? r.key ?? JSON.stringify(r)} rows={a.dispatch} empty="Nothing dispatched yet." columns={Object.keys(a.dispatch[0] ?? { workflow: 1 }).slice(0, 6).map((k) => [words(k), (r) => (typeof r[k] === "string" && /T\d\d:/.test(r[k]) ? when(r[k]) : String(r[k] ?? "—"))])} />
         </Card>
-        <Needs title="n8n workflow activation and execution logs aren't read from n8n" have="Workflow runs are recorded in Zella (workflow_executions) and shown under Automation monitoring.">Reading n8n's own status needs the n8n API with a server-side key.</Needs>
+        <Needs title="n8n workflow activation and execution logs aren't read from n8n" have="Workflow runs are recorded in Zella Voice (workflow_executions) and shown under Automation monitoring.">Reading n8n's own status needs the n8n API with a server-side key.</Needs>
       </>
     )}</LoadState>
   );
@@ -1426,7 +1426,7 @@ export function SystemConfig() {
 
 /* ---------------- Operational rules ---------------- */
 
-// Timings and thresholds the scheduled checks read from platform_settings. Saved by a Zella owner; each value is
+// Timings and thresholds the scheduled checks read from platform_settings. Saved by a Zella Voice owner; each value is
 // checked by the admin function before it is stored, and the jobs pick it up on their next run.
 const OPERATIONAL = [
   ["Leads and tasks", [
@@ -1437,7 +1437,7 @@ const OPERATIONAL = [
   ]],
   ["Calls", [
     ["missed_call_max_seconds", "Calls shorter than this count as missed and get a callback."],
-    ["transfer_failure_threshold", "Failed transfers to a person, in a day, before Zella flags the business."],
+    ["transfer_failure_threshold", "Failed transfers to a person, in a day, before Zella Voice flags the business."],
     ["call_intel_monthly_limit", "Calls per business per month that the AI summarizes."],
   ]],
   ["AI quality and knowledge", [
@@ -1457,7 +1457,7 @@ export function OperationalRules({ me }) {
   return (
     <LoadState state={state}>{(s) => (
       <>
-        {me?.role !== "zella_owner" && <Banner tone="warn">Only a Zella owner can change these. You can see the current values.</Banner>}
+        {me?.role !== "zella_owner" && <Banner tone="warn">Only a Zella Voice owner can change these. You can see the current values.</Banner>}
         {OPERATIONAL.map(([group, keys]) => (
           <div key={group}>
             <h3 className="zs-group">{group}</h3>
@@ -1485,9 +1485,9 @@ const OFFER_CAPS = [
   ["promo_sending", "Promotional sending", "Needed for promotional emails and win-back."],
 ];
 
-// Offers are run by the database for Zella owners and super admins only (is_platform_admin).
+// Offers are run by the database for Zella Voice owners and super admins only (is_platform_admin).
 export function OffersGate({ me, children }) {
-  if (!FULL_ADMIN.includes(me?.role)) return <Banner tone="warn">Offers and promotions are managed by Zella owners and super admins. Your role ({me?.roleLabel}) can't open them.</Banner>;
+  if (!FULL_ADMIN.includes(me?.role)) return <Banner tone="warn">Offers and promotions are managed by Zella Voice owners and super admins. Your role ({me?.roleLabel}) can't open them.</Banner>;
   return children;
 }
 
@@ -1517,7 +1517,7 @@ export function OffersOverview({ onNavigate }) {
             <Table rowKey={(c) => c[0]} rows={OFFER_CAPS} columns={[["Connection", (c) => c[1]], ["State", (c) => <Pill tone={d.capabilities?.[c[0]] ? "success" : "warning"}>{d.capabilities?.[c[0]] ? "Available" : "Not connected"}</Pill>], ["Used for", (c) => c[2]]]} />
           </Card>
           <Card title="Who can do what">
-            <Facts rows={[["Create and edit drafts", "Zella owners and super admins"], ["Approve offers over the limits", "Zella owners"], ["Change automation rules", "Zella owners"],
+            <Facts rows={[["Create and edit drafts", "Zella Voice owners and super admins"], ["Approve offers over the limits", "Zella Voice owners"], ["Change automation rules", "Zella Voice owners"],
               ["Claim an offer", "The business owner, in their Settings (Billing > Offers and promo codes)"], ["Prices", "Never changed by an offer alone: a claim is Paid only when the payment arrives"]]} />
           </Card>
         </>

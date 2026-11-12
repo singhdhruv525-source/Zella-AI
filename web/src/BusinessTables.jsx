@@ -285,7 +285,7 @@ export function TablesPage({ workspace, refreshKey, onNotice, onBook }) {
         {!history.events.length ? <Empty title="Nothing recorded yet" icon="history" /> : (
           <ul className="tb-history">{history.events.map((e, i) => (
             <li key={i}><span>{new Date(e.at).toLocaleString([], { timeZone: tz, dateStyle: "medium", timeStyle: "short" })}</span>
-              <strong>{e.action.replace(/_/g, " ")}</strong><span>{e.by ?? "Zella"}</span></li>))}</ul>
+              <strong>{e.action.replace(/_/g, " ")}</strong><span>{e.by ?? "Zella Voice"}</span></li>))}</ul>
         )}
       </Modal>}
     </>
@@ -401,7 +401,7 @@ function WalkInModal({ tables, preset, working, onClose, onSubmit }) {
             ...(tableId ? { table_ids: [tableId] } : {}), ...(preset.waitlist ? { waitlist_id: preset.waitlist.id } : {}) })}>Seat now</button></>}>
       <div className="ba-form-grid">
         <Field label="Party size"><input type="number" min={1} max={100} value={party} onChange={(e) => setParty(e.target.value)} autoFocus /></Field>
-        <Field label="Table" hint="Leave on Best fit and Zella picks the smallest free table or combination.">
+        <Field label="Table" hint="Leave on Best fit and Zella Voice picks the smallest free table or combination.">
           <select value={tableId} onChange={(e) => setTableId(e.target.value)}>
             <option value="">Best fit</option>
             {tables.map((t) => <option key={t.id} value={t.id}>{t.name} · {t.seats} seats</option>)}
@@ -440,7 +440,7 @@ function MoveModal({ reservation, tables, working, onClose, onSubmit }) {
   const toggle = (id) => setIds(ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]);
   return (
     <Modal title={`Tables for ${reservation.guest ?? "this party"} · party of ${reservation.party}`} onClose={onClose} busy={working}
-      description="Pick one table or an allowed combination. Zella refuses tables another booking already has; nobody is moved without you seeing it."
+      description="Pick one table or an allowed combination. Zella Voice refuses tables another booking already has; nobody is moved without you seeing it."
       footer={<><button type="button" className="ba-btn" onClick={onClose}>Cancel</button><button type="button" className="ba-btn primary" disabled={working || !ids.length} onClick={() => onSubmit(ids)}>Save tables</button></>}>
       <fieldset className="tb-pick"><legend className="ba-sr-only">Tables</legend>
         {tables.map((t) => (

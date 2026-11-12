@@ -1,4 +1,4 @@
-// Zella's voice for notifications and confirmations inside the CRM: warm, short, never robotic.
+// Zella Voice's voice for notifications and confirmations inside the CRM: warm, short, never robotic.
 // The facts (names, times, reasons) still come from the original message; only the wrapping changes.
 // Urgent and safety-related messages stay plain and direct, with warmth but no jokes.
 
@@ -11,7 +11,7 @@ const key = (name) => String(name ?? "").toLowerCase().replace(/[^a-z]/g, "");
 // Industry flavour: a restaurant talks about tables and guests, not appointments and customers.
 const BY_INDUSTRY = {
   restaurant: {
-    industry_alert: (n) => [`Kitchen-side heads up: ${n.title}`, `Front of house, take a look: ${n.title}`, `Zella spotted something: ${n.title}`],
+    industry_alert: (n) => [`Kitchen-side heads up: ${n.title}`, `Front of house, take a look: ${n.title}`, `Zella Voice spotted something: ${n.title}`],
     appointment_cancelled: ["A reservation was canceled. A table just opened up.", "One cancellation. That table is free again."],
     appointment_rescheduled: ["A guest picked a different time. Reservations are updated."],
     customer_arrived: (n) => [`${n.title}. Time to show them to their table!`, `${n.title}. A warm welcome awaits.`],
@@ -93,15 +93,15 @@ const TITLES = {
   unassigned_work: ["Some work needs an owner. Who's up for it?"],
   work_reassigned: ["Some work was handed to someone new."],
   slow_reply: ["A customer's been waiting a little while for a reply."],
-  call_insight: ["Zella noticed something worth a look on a recent call.", "A recent call has something worth your attention."],
+  call_insight: ["Zella Voice noticed something worth a look on a recent call.", "A recent call has something worth your attention."],
   approval_requested: ["Someone is asking for your thumbs up."],
   approval_waiting: ["A thumbs-up is still waiting on you."],
   time_off_request: ["A teammate is hoping for some time off.", "Someone on your team has asked for time off."],
   time_off_decision: ["There's an answer on your time-off request."],
   staff_joined: ["A new teammate just joined. Welcome them in!", "Say hello! Someone new has joined the team."],
   staff_unavailable: ["Someone on your team is away. We've kept things covered."],
-  went_live: ["You're live! Zella is picking up the phone.", "It's official: Zella is on the line for you."],
-  business_welcome: ["Welcome aboard! We're glad you're here.", "Welcome to Zella. We're right here with you."],
+  went_live: ["You're live! Zella Voice is picking up the phone.", "It's official: Zella Voice is on the line for you."],
+  business_welcome: ["Welcome aboard! We're glad you're here.", "Welcome to Zella Voice. We're right here with you."],
   setup_incomplete: ["A few small steps left before you go live."],
   setup_reminder: ["Almost there. A few steps are left to finish setup."],
   trial_ending: ["Your trial is wrapping up. We'd love to keep you."],
@@ -125,8 +125,8 @@ const TITLES = {
   agent_config_published: ["Your AI receptionist has a fresh update. She's ready!"],
   knowledge_report: ["Your knowledge report is ready."],
   duplicate: ["Two records look like the same person. Want to tidy up?"],
-  industry_alert: (n) => [`Zella spotted something: ${n.title}`, `Heads up! ${n.title}`, `Worth a look: ${n.title}`, `A little nudge from Zella: ${n.title}`],
-  draft_ready: ["Zella wrote a message for you. Give it a look and send it!", "A message is warmed up and waiting for your OK.", "Fresh draft on your desk. Edit it, send it, or skip it.", "We've done the writing. You make the call."],
+  industry_alert: (n) => [`Zella Voice spotted something: ${n.title}`, `Heads up! ${n.title}`, `Worth a look: ${n.title}`, `A little nudge from Zella Voice: ${n.title}`],
+  draft_ready: ["Zella Voice wrote a message for you. Give it a look and send it!", "A message is warmed up and waiting for your OK.", "Fresh draft on your desk. Edit it, send it, or skip it.", "We've done the writing. You make the call."],
   shift_handover: ["Work was handed to you. Your team is counting on you!", "A handover just landed on your desk. Welcome to the next leg.", "Baton passed! Some work is yours now."],
 };
 
@@ -134,11 +134,11 @@ const TITLES = {
 // Kinds whose title carries the facts (a name, a number) keep it: the function gets the original notification.
 Object.assign(TITLES, {
   // account and plan
-  account_cancelled: ["Your Zella plan has been canceled. We're sorry to see you go."],
+  account_cancelled: ["Your Zella Voice plan has been canceled. We're sorry to see you go."],
   account_reactivated: ["Welcome back! Your workspace is active again.", "You're back! Everything is switched on again."],
   account_suspended: ["Your workspace is paused. Let's get it sorted together."],
   subscription_cancelled: ["Your subscription was canceled. Your records are safe for now."],
-  cancellation_coming: ["Your plan is ending soon. Want to keep Zella answering?"],
+  cancellation_coming: ["Your plan is ending soon. Want to keep Zella Voice answering?"],
   trial_ended: ["Your trial has ended. We'd love to keep helping you."],
   usage_threshold: (n) => [`Minutes check-in: ${n.title}`, `Heads up on your minutes: ${n.title}`],
   // calls, callbacks and the AI receptionist
@@ -174,7 +174,7 @@ Object.assign(TITLES, {
   knowledge_repeat: ["The same question keeps coming up. Worth adding to Knowledge?"],
   knowledge_conflict: ["Two answers in Knowledge disagree. Which one is right?"],
   knowledge_failed: ["A knowledge update didn't go through. Let's try again."],
-  integration_reminder: ["One small connection would make Zella even more helpful."],
+  integration_reminder: ["One small connection would make Zella Voice even more helpful."],
   reconnect_reminder: ["A connection is still waiting to be reconnected."],
   data_rights_due: ["A privacy request is due soon. Please take a look."],
   website_review: ["New pages from your website are ready for a look."],
@@ -188,7 +188,7 @@ Object.assign(TITLES, {
   meta_lead_failed: ["A lead from Facebook didn't come through. Let's take a look."],
   meta_lead_incomplete: ["A Facebook lead arrived with missing details."],
   meta_permissions_missing: ["Facebook needs a little more permission to keep things running."],
-  spam_high_risk: ["Zella blocked something suspicious. Have a quick look."],
+  spam_high_risk: ["Zella Voice blocked something suspicious. Have a quick look."],
   spam_unreviewed: ["A few suspicious contacts are waiting for your call on them."],
   spam_weekly_report: ["Your spam protection week in review is ready."],
   low_review: (n) => [`${n.title}. A kind reply can turn it around.`, `${n.title}. Your reply draft is ready.`],
@@ -214,12 +214,12 @@ const EXTRA = {
   customer_email: ["A customer's email just arrived.", "Mail call! A customer wrote to you."],
   customer_request: ["A customer has a little ask for you.", "A request came in. Let's make someone's day."],
   emergency_call: ["This is an emergency. Please look first.", "An emergency call is in. Everything else can wait."],
-  lead_escalated: ["A conversation needs your human touch.", "Zella's passing this one to you. It's a good one."],
+  lead_escalated: ["A conversation needs your human touch.", "Zella Voice's passing this one to you. It's a good one."],
   task_overdue: ["A task is feeling a bit forgotten. A small nudge will do.", "One task is running behind, and it'd love your attention."],
   lead_overdue: ["A lead is still waiting for hello number one.", "Don't let this lead go cold. A quick hello will do it."],
-  call_insight: ["Zella was listening and noticed something worth a look.", "A recent call taught us something. Take a peek."],
+  call_insight: ["Zella Voice was listening and noticed something worth a look.", "A recent call taught us something. Take a peek."],
   staff_joined: ["Team news: someone new has joined. Wave hello!"],
-  went_live: ["We're live! The phone is ours now.", "Go time! Zella is answering calls for you."],
+  went_live: ["We're live! The phone is ours now.", "Go time! Zella Voice is answering calls for you."],
   payment_received: ["Payment received. You're a star.", "Thank you! That payment arrived safely."],
   daily_summary: ["Your day, wrapped up neatly.", "Today's recap is ready, with everything that mattered."],
   weekly_review: ["Your week, all tied up with a bow. Take a look!", "Weekly review is ready. It was a good one."],
@@ -240,7 +240,7 @@ export function voiceTitle(n, workspace) {
   return localize(choose(list, n.id ?? n.title), term);
 }
 
-// Short confirmations ("Saved.") in Zella's voice. Unknown messages are left alone.
+// Short confirmations ("Saved.") in Zella Voice's voice. Unknown messages are left alone.
 const RULES = [
   [/^Details saved\.?$/, () => roll(["Saved. Looking good.", "All saved. Nicely done."])],
   [/^Callback scheduled\.?$/, () => roll(["Callback scheduled. They'll be glad to hear from you.", "Callback set. A friendly call is on its way."])],
@@ -251,7 +251,7 @@ const RULES = [
   [/^Lead created\.?$/, () => roll(["Lead added. A promising start.", "New lead saved. Welcome them in!"])],
   [/^Removed\. The time is open again\.?$/, () => "Done. That time is open again."],
   [/^Block removed\. The time is open again\.?$/, () => "Done. That time is open again."],
-  [/^You're live\./, () => "You're live! Zella is picking up the phone."],
+  [/^You're live\./, () => "You're live! Zella Voice is picking up the phone."],
   [/^Run queued to try again\.?$/, () => "Trying again. Fingers crossed!"],
   [/^Submitted\. /, (m) => m.replace(/^Submitted\./, "Thanks, submitted.")],
   [/^Added\. /, (m) => m.replace(/^Added\./, "Added. Nice one.")],

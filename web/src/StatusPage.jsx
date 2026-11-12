@@ -3,8 +3,8 @@ import "./OwnerDashboard.css";
 import "./OwnerPages.css";
 import { supabase } from "./supabase";
 
-// Public status page (/status): is Zella working right now. Readable without signing in. Shows only the state of each
-// part and incidents a Zella admin published, in the words they wrote (zella_public_status, sql/zella_status.sql).
+// Public status page (/status): is Zella Voice working right now. Readable without signing in. Shows only the state of each
+// part and incidents a Zella Voice admin published, in the words they wrote (zella_public_status, sql/zella_status.sql).
 const STATES = {
   operational: ["ok", "Working"],
   degraded: ["warn", "Slower than usual"],
@@ -14,7 +14,7 @@ const STATES = {
 const OVERALL = {
   operational: "Everything is working",
   degraded: "Some things are slower than usual",
-  outage: "Part of Zella isn't working right now",
+  outage: "Part of Zella Voice isn't working right now",
 };
 const when = (v) => (v ? new Date(v).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "");
 
@@ -35,12 +35,12 @@ export default function StatusPage() {
   return (
     <main className="cp-page">
       <section className="cp-card stp-card">
-        <div className="cp-brand"><span>Zella <span className="cp-ai">Voice</span> status</span></div>
+        <div className="cp-brand"><span>Zella Voice <span className="cp-ai">Voice</span> status</span></div>
         {state.loading && <p>Checking…</p>}
         {(d || state.error) && (
           <div className={`stp-overall ${STATES[overall]?.[0] ?? ""}`} role="status">
             <span className="stp-dot" aria-hidden="true" />
-            <strong>{state.error ? "We can't reach Zella right now" : OVERALL[overall] ?? "Status not available yet"}</strong>
+            <strong>{state.error ? "We can't reach Zella Voice right now" : OVERALL[overall] ?? "Status not available yet"}</strong>
           </div>
         )}
         {state.error && <p>The app or its database isn't answering. This page checks again every minute.</p>}

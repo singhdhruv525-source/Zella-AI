@@ -402,10 +402,10 @@ export function WebsiteSources({ w }) {
   return (
     <LoadState state={state}>{([s, pending]) => (
       <>
-        {!s.live && <Banner tone="warn">Reading websites isn't switched on for Zella yet (it starts at go-live). You can add and approve your site now; pages are read once it starts.</Banner>}
+        {!s.live && <Banner tone="warn">Reading websites isn't switched on for Zella Voice yet (it starts at go-live). You can add and approve your site now; pages are read once it starts.</Banner>}
         <Banner tone="error">{msg.error}</Banner>
         {msg.text && <Banner tone="success">{msg.text}</Banner>}
-        <Card title="Your websites" sub="Zella reads approved pages and drafts answers for your receptionist. Drafts wait in Business knowledge until someone approves them.">
+        <Card title="Your websites" sub="Zella Voice reads approved pages and drafts answers for your receptionist. Drafts wait in Business knowledge until someone approves them.">
           <Facts rows={[["Pages being read", s.pages?.approved ?? 0], ["Found, waiting for a decision", s.pages?.pending ?? 0], ["Broken or missing", (s.pages?.broken ?? 0) + (s.pages?.missing ?? 0)],
             ["Draft answers waiting", s.drafts_waiting], ["Answers to re-check (page changed)", s.needs_check]]} />
           <Table rows={s.sources} empty="No websites added." columns={[["Website", (x) => x.url], ["State", (x) => <Pill tone={x.status === "active" ? "success" : "warning"}>{x.status === "pending_approval" ? "Waiting for approval" : words(x.status)}</Pill>],
@@ -429,7 +429,7 @@ export function WebsiteSources({ w }) {
         {removing && (
           <Confirm title={`Stop reading ${removing.url}?`} danger confirmLabel="Stop reading" onClose={() => setRemoving(null)}
             onConfirm={async () => { await rpc("zella_website_remove_source", { p_source_id: removing.id }); state.reload(); }}>
-            Zella stops reading this site and ignores its pages. Answers already made from it stay in Business knowledge for you to keep or archive.
+            Zella Voice stops reading this site and ignores its pages. Answers already made from it stay in Business knowledge for you to keep or archive.
           </Confirm>
         )}
       </>
@@ -445,7 +445,7 @@ function SourceActions({ x, busy, act, onRemove }) {
       <div className="zs-actions">
         <select aria-label="How often" value={freq} onChange={(e) => setFreq(Number(e.target.value))}>{FREQUENCY.map(([h, l]) => <option key={h} value={h}>{l}</option>)}</select>
         <label style={{ display: "inline-flex", gap: 6, alignItems: "center" }}><input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} />Read new pages automatically</label>
-        <button type="button" className="zs-btn sm primary" disabled={busy} onClick={() => act(x.id, () => rpc("zella_website_approve_source", { p_source_id: x.id, p_auto_approve_new: auto, p_frequency_hours: freq }), "Approved. Zella may read this site.")}>Approve: this is my site</button>
+        <button type="button" className="zs-btn sm primary" disabled={busy} onClick={() => act(x.id, () => rpc("zella_website_approve_source", { p_source_id: x.id, p_auto_approve_new: auto, p_frequency_hours: freq }), "Approved. Zella Voice may read this site.")}>Approve: this is my site</button>
         <button type="button" className="zs-btn sm danger-outline" disabled={busy} onClick={onRemove}>Remove</button>
       </div>
     );
@@ -467,12 +467,12 @@ function SourceActions({ x, busy, act, onRemove }) {
 /* ---------- Offers ---------- */
 
 export function BusinessOffersSettings({ w }) {
-  if (!can(w, MANAGE)) return <Banner tone="warn">Offers from Zella are shown to owners and admins. Ask your business owner.</Banner>;
+  if (!can(w, MANAGE)) return <Banner tone="warn">Offers from Zella Voice are shown to owners and admins. Ask your business owner.</Banner>;
   return (
     <>
       <OffersPanel workspace={w} />
       <Card title="How offers work">
-        <Facts rows={[["Who qualifies", "Zella checks your plan, size and industry when you claim"], ["Claiming", w.role === "owner" ? "You can claim offers and enter promo codes" : "Only the business owner can claim; admins can see offers"],
+        <Facts rows={[["Who qualifies", "Zella Voice checks your plan, size and industry when you claim"], ["Claiming", w.role === "owner" ? "You can claim offers and enter promo codes" : "Only the business owner can claim; admins can see offers"],
           ["Price changes", "None until the payment provider confirms the payment"], ["Unpaid claims", "Released after the hold period, so they don't count"]]} />
       </Card>
     </>

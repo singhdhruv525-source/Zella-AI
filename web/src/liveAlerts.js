@@ -1,4 +1,4 @@
-// How new notifications announce themselves: a pop-up in the corner, a soft chime and a desktop notification when Zella
+// How new notifications announce themselves: a pop-up in the corner, a soft chime and a desktop notification when Zella Voice
 // is in a background tab. All on by default. Browsers only allow sound and the desktop-notification question after the
 // person clicks something, so both are unlocked on the first click (unlockAlerts). A stored per-browser choice is
 // still honoured if one exists; the sound is switched in Settings > Appearance > Notification sound. Storage can be unavailable (private windows): defaults are used.
@@ -37,7 +37,7 @@ export function chime(tone = "info") {
   } catch { /* sound is optional */ }
 }
 
-// On the first click anywhere: wake the audio (so later chimes can play) and, once, ask whether Zella may show
+// On the first click anywhere: wake the audio (so later chimes can play) and, once, ask whether Zella Voice may show
 // desktop notifications. Nothing is asked again after the person answers.
 let unlocked = false;
 export function unlockAlerts() {
@@ -58,7 +58,7 @@ export function unlockAlerts() {
 export function desktopSupported() {
   return typeof window !== "undefined" && "Notification" in window;
 }
-// Only when the tab is in the background; clicking it brings Zella forward.
+// Only when the tab is in the background; clicking it brings Zella Voice forward.
 export function desktopAlert(title, body, onClick) {
   if (!desktopSupported() || Notification.permission !== "granted" || !document.hidden) return;
   try {

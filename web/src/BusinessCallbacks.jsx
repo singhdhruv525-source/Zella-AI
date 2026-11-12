@@ -7,7 +7,7 @@ import { ATTEMPT_LABEL, CB_CLOSED, CB_REASON, CB_STATUS, NewCallbackModal, PRIOR
 import { Assignee, useRoster } from "./BusinessLeads";
 
 /* The callback work queue: what is due now, what is coming, what slipped, and
-   what needs a person. Zella's own retries follow the business's rules (tries
+   what needs a person. Zella Voice's own retries follow the business's rules (tries
    allowed, delay between tries, calling hours); people never bypass an opt-out here. */
 
 const HOUR = 3600000;
@@ -113,8 +113,8 @@ function CallbackDetail({ cb, person, last, roster, workspace, startFinishing, o
           <Pill tone={tone}>{label}</Pill>
           {cb.priority !== "normal" && <Pill tone={PRIORITY_TONE[cb.priority]}>{cb.priority === "urgent" ? "Urgent" : "High priority"}</Pill>}
           <Pill>{cb.attempts} of {cb.max_attempts} tries</Pill>
-          {cb.status === "retry_scheduled" && <Pill tone="info">Zella retries {when(cb.due_at, tz)}</Pill>}
-          {cb.auto_call && !closed && <Pill tone="info">Zella will call</Pill>}
+          {cb.status === "retry_scheduled" && <Pill tone="info">Zella Voice retries {when(cb.due_at, tz)}</Pill>}
+          {cb.auto_call && !closed && <Pill tone="info">Zella Voice will call</Pill>}
           {cb.contact_number && !blocked && <a className="ba-btn sm" href={`tel:${cb.contact_number}`}><Icon name="call" size="sm" />{cb.contact_number}</a>}
           {person && <button type="button" className="ba-btn sm" onClick={() => { onClose(); onOpenPerson(person.id); }}>Open profile</button>}
         </div>
@@ -128,7 +128,7 @@ function CallbackDetail({ cb, person, last, roster, workspace, startFinishing, o
             {data.map((a) => (
               <li key={a.id}>
                 <span className="ba-thread-icon"><Icon name={a.outcome === "connected" ? "call" : "phone_missed"} size="sm" /></span>
-                <div><strong>{ATTEMPT_LABEL[a.outcome] ?? a.outcome}</strong><small>Try {a.attempt_no} · {when(a.attempted_at, tz)}{a.initiated_by === "system" ? " · Zella" : ""}{a.notes ? ` · ${a.notes}` : ""}</small></div>
+                <div><strong>{ATTEMPT_LABEL[a.outcome] ?? a.outcome}</strong><small>Try {a.attempt_no} · {when(a.attempted_at, tz)}{a.initiated_by === "system" ? " · Zella Voice" : ""}{a.notes ? ` · ${a.notes}` : ""}</small></div>
               </li>
             ))}
           </ul>
@@ -230,7 +230,7 @@ export function CallbacksPage({ workspace, refreshKey, onNotice, onOpenPerson, o
   return (
     <>
       <PageHead crumb="Calls & messages / Callbacks" title="Callbacks"
-        sub={needPerson ? `${needPerson === 1 ? "1 callback needs" : `${needPerson} callbacks need`} a person. Zella has stopped calling.` : "People waiting for a call back, and what happened on each try."}>
+        sub={needPerson ? `${needPerson === 1 ? "1 callback needs" : `${needPerson} callbacks need`} a person. Zella Voice has stopped calling.` : "People waiting for a call back, and what happened on each try."}>
         <button type="button" className="ba-btn primary" onClick={() => setAdding(true)}><Icon name="add_call" size="sm" />Add callback</button>
       </PageHead>
       <div className="ba-toolbar ba-lead-tools">
@@ -240,7 +240,7 @@ export function CallbacksPage({ workspace, refreshKey, onNotice, onOpenPerson, o
       <Notice error={error} onRetry={reload} />
       {loading && !data ? <p className="ba-muted">Loading…</p> : !shown.length ? (
         <Empty title={active === "done" ? "Nothing finished yet" : "Nothing here"}>
-          {active === "person" ? "When Zella can't reach someone after its tries, or you escalate one, it shows up here."
+          {active === "person" ? "When Zella Voice can't reach someone after its tries, or you escalate one, it shows up here."
             : active === "done" ? "Finished callbacks are kept here, with what happened."
             : "Missed calls, requests for a call back and failed transfers appear here with a time to call."}
         </Empty>

@@ -9,7 +9,7 @@ import { maintenanceText, usePlatformInfo } from "./platformInfo";
 
 // Sign-in, forgotten password and the welcome (set password) page for
 // business owners and staff. Platform admins use the admin sign-in at "/".
-// Joins every business that invited this account: owners set up by the Zella team
+// Joins every business that invited this account: owners set up by the Zella Voice team
 // (zella_accept_my_invitations) and team members invited from Team access
 // (zella_accept_staff_invitations). Both are safe to repeat. A failure here never
 // blocks sign-in; the workspace list simply stays as it was.
@@ -122,7 +122,7 @@ function SocialSignIn({ email, setError, disabled }) {
       const name = option.label.split(" (")[0];
       setError(
         /not enabled|unsupported provider|provider is not|no sso provider/i.test(err.message)
-          ? `${name} sign-in isn't switched on for this workspace yet. Use your email and password, or ask the Zella team.`
+          ? `${name} sign-in isn't switched on for this workspace yet. Use your email and password, or ask the Zella Voice team.`
           : err.message
       );
       setWorking("");
@@ -244,7 +244,7 @@ export function BusinessSignIn() {
   }
 
   return (
-    <AuthCard title="Welcome back." description="See what Zella handled while you were busy.">
+    <AuthCard title="Welcome back." description="See what Zella Voice handled while you were busy.">
       <form className="ba-form" onSubmit={signIn}>
         <label className="ba-field">
           <span>Email</span>
@@ -369,7 +369,7 @@ export function Welcome() {
     const resetting = link.type === "recovery";
     return (
       <AuthCard
-        title={resetting ? "Reset your password" : "Welcome to Zella"}
+        title={resetting ? "Reset your password" : "Welcome to Zella Voice"}
         description={resetting
           ? "Press continue to choose a new password."
           : link.type === "invite"
@@ -391,7 +391,7 @@ export function Welcome() {
         description={`${linkError ? `${linkError.replace(/\.$/, "")}. ` : ""}Ask the person who invited you to send a new invitation, or reset your password from the sign-in page.`}
       >
         <a className="ba-btn primary block" href="/app">Business sign in</a>
-        <a className="ba-link ba-center" href="/">Zella admin sign in</a>
+        <a className="ba-link ba-center" href="/">Zella Voice admin sign in</a>
       </AuthCard>
     );
   }

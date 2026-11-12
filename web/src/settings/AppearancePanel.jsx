@@ -14,7 +14,7 @@ import { chime, deviceAlerts, setDeviceAlerts } from "../liveAlerts";
 
 const THEMES = [
   { key: "zella", label: "Zella Voice", text: "Paper, midnight and coral. The official Zella Voice look." },
-  { key: "classic", label: "Classic", text: "Warm cream and copper. The earlier Zella look." },
+  { key: "classic", label: "Classic", text: "Warm cream and copper. The earlier Zella Voice look." },
   { key: "glass", label: "Glass", text: "Frosted panels over a background picture of your choice." },
 ];
 const SIDEBAR = [
@@ -27,11 +27,11 @@ const SIDEBAR = [
 function MatchColours({ look }) {
   const pal = activePalette(look);
   const url = wallpaperUrl(look);
-  const status = !look.matchPicture ? "Standard Zella colors."
+  const status = !look.matchPicture ? "Standard Zella Voice colors."
     : look.theme !== "glass" ? "Applies with the Glass theme."
     : !url ? "The Plain background has no picture to take colors from."
-    : look.palette?.for === url && look.palette.none ? "This picture has almost no color, so the standard Zella colors are kept."
-    : pal ? "Buttons, links, highlights, panels and text now use the picture's colors. The Zella logo keeps its own."
+    : look.palette?.for === url && look.palette.none ? "This picture has almost no color, so the standard Zella Voice colors are kept."
+    : pal ? "Buttons, links, highlights, panels and text now use the picture's colors. The Zella Voice logo keeps its own."
     : "Reading the picture's colors…";
   return (
     <div className="zs-match">
@@ -152,7 +152,7 @@ export function AppearancePanel() {
           {look.customUrl && <button type="button" className="zs-btn" disabled={pic.busy} onClick={removePicture}>Remove my picture</button>}
         </div>
         {pic.error && <Banner tone="error">{pic.error}</Banner>}
-        <p className="zs-hint">PNG, JPEG or WebP. Large photos are made smaller automatically. Stored with your Zella account; anyone with its
+        <p className="zs-hint">PNG, JPEG or WebP. Large photos are made smaller automatically. Stored with your Zella Voice account; anyone with its
           exact link could open it, so don't use a private photo.</p>
         <MatchColours look={look} />
         <Field label={`Dim the picture: ${look.dim}%`} hint="More dimming makes text easier to read.">

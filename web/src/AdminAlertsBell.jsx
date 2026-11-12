@@ -3,9 +3,9 @@ import { Icon } from "./BusinessUI";
 import { supabase } from "./supabase";
 import { chime, deviceAlerts, desktopAlert, tabCount, unlockAlerts } from "./liveAlerts";
 
-// The Zella admin dashboard's bell: open platform alerts (provider down, queues stuck, failed jobs...), newest and most
+// The Zella Voice admin dashboard's bell: open platform alerts (provider down, queues stuck, failed jobs...), newest and most
 // severe first. Acknowledge takes one off the list (zella_admin_acknowledge_alert); Monitoring has the full picture.
-// Platform alerts are readable by Zella admins only (row level security on platform_alerts).
+// Platform alerts are readable by Zella Voice admins only (row level security on platform_alerts).
 const RANK = { urgent: 0, warning: 1, info: 2 };
 const LABEL = { urgent: "Urgent", warning: "Heads up", info: "Info" };
 const ICON = {

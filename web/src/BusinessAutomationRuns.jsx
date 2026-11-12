@@ -109,7 +109,7 @@ export function describe(type, cfg = {}) {
       actions: `Contact affected customers by ${ch} to rebook.`,
     },
   };
-  return map[type] ?? describeIndustry(type, cfg) ?? { trigger: "Set by Zella", conditions: "—", actions: "—" };
+  return map[type] ?? describeIndustry(type, cfg) ?? { trigger: "Set by Zella Voice", conditions: "—", actions: "—" };
 }
 
 export const RUN_TONE = { completed: "success", failed: "danger", running: "info", queued: "warning", waiting: "warning", cancelled: "" };

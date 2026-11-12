@@ -86,7 +86,7 @@ Deno.test("end-of-call-report: Vapi's artifact and analysis fields, real duratio
   const noTimes = planCallEvent({ ...rep, startedAt: undefined, endedAt: undefined });
   eq(noTimes.inbound?.p_seconds, null, "no times: duration left empty, not 0");
 });
-Deno.test("end-of-call-report for a callback Zella placed: outcome from the real call length", () => {
+Deno.test("end-of-call-report for a callback Zella Voice placed: outcome from the real call length", () => {
   const cb = (extra: Record<string, unknown>) => planCallEvent({ type: "end-of-call-report", endedReason: "customer-ended-call",
     call: { id: "c-out", type: "outboundPhoneCall", metadata: { zella_source: "callback", zella_id: BIZ } }, ...extra }).record ?? {};
   eq(cb({ startedAt: "2026-11-02T15:00:00Z", endedAt: "2026-11-02T15:01:00Z" }).p_outcome, "connected", "60 s talk = connected (was no_answer when durationSeconds was absent)");

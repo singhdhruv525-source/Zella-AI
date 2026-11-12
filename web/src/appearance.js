@@ -2,7 +2,7 @@ import { useSyncExternalStore } from "react";
 import { supabase } from "./supabase";
 import { isOwnPicture as checkOwnPicture } from "./pictureUrl.js";
 
-// Personal look of Zella: theme, background picture, how much the picture is dimmed, whether the colours follow the
+// Personal look of Zella Voice: theme, background picture, how much the picture is dimmed, whether the colours follow the
 // picture, and whether the sidebar is a slim dock or the full list. Each person has their own, and the admin dashboard
 // and the CRM each have their own (changing one never changes the other). It is kept on the person's sign-in account
 // (auth user metadata, `zella_appearance: { admin, crm }`) so it follows them to any device, with a copy in this
@@ -12,7 +12,7 @@ import { isOwnPicture as checkOwnPicture } from "./pictureUrl.js";
 //
 // Applied as attributes on <html> (data-zella-theme, data-zella-sidebar), two CSS variables (--zella-wallpaper,
 // --zella-wallpaper-dim) and, with Glass and "match colours to the picture", the picture's palette as the shared
-// colour tokens. styles/glass.css does the rest. The Zella logo keeps its own colours.
+// colour tokens. styles/glass.css does the rest. The Zella Voice logo keeps its own colours.
 
 export const BACKGROUNDS = [
   { key: "lounge", label: "Lounge at dusk", src: "/backgrounds/lounge-dusk.svg" },
@@ -60,7 +60,7 @@ function normalise(p) {
   const v = { ...DEFAULT_APPEARANCE, ...(p && typeof p === "object" ? p : {}) };
   if (!["zella", "classic", "glass"].includes(v.theme)) v.theme = DEFAULT_APPEARANCE.theme;
   if (v.background !== "custom" && !BACKGROUNDS.some((b) => b.key === v.background)) v.background = DEFAULT_APPEARANCE.background;
-  // only a picture uploaded to Zella's own storage is used as a background
+  // only a picture uploaded to Zella Voice's own storage is used as a background
   if (!isOwnPicture(v.customUrl)) v.customUrl = null;
   if (v.background === "custom" && !v.customUrl) v.background = DEFAULT_APPEARANCE.background;
   v.dim = Math.min(80, Math.max(0, Math.round(Number(v.dim) || 0)));
@@ -276,7 +276,7 @@ async function pictureUsedElsewhere(url) {
 // band of clearly coloured pixels (vivid, neither near-black nor near-white); the base tint is the picture's overall
 // hue. Lightness is fixed by role so text stays readable whatever the picture: the accent is light (it is used as
 // text on the dark glass, with dark text on accent buttons), panels are dark and only lightly tinted.
-// A picture with almost no colour (black and white) keeps the standard Zella colours.
+// A picture with almost no colour (black and white) keeps the standard Zella Voice colours.
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const r1 = (v) => Math.round(v * 10) / 10;
 const hsl = (h, s, l, a) => (a === undefined ? `hsl(${r1(h)}, ${r1(s)}%, ${r1(l)}%)` : `hsla(${r1(h)}, ${r1(s)}%, ${r1(l)}%, ${a})`);
@@ -346,7 +346,7 @@ export function paletteFromPixels(data) {
 
 async function pictureColours(url) {
   const img = new Image();
-  img.crossOrigin = "anonymous";   // pictures in Zella's storage allow this; without it the pixels can't be read
+  img.crossOrigin = "anonymous";   // pictures in Zella Voice's storage allow this; without it the pixels can't be read
   img.decoding = "async";
   img.src = url;
   await img.decode();

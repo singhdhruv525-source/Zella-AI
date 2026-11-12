@@ -1,4 +1,4 @@
-// Zella: the Reschedule button in appointment texts and emails.
+// Zella Voice: the Reschedule button in appointment texts and emails.
 //
 // Public function (deploy with --no-verify-jwt): the customer is not signed in.
 // The long private code in the link identifies one appointment and nothing else.

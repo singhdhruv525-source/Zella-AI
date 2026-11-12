@@ -19,7 +19,7 @@ test("only the viewed business's own templates are listed as Yours", () => {
   assert.ok(!list.some((t) => t.id === "gx"), "another industry's template must not appear");
 });
 
-test("the business's own version is the one in use; Zella's stays listed but not in use", () => {
+test("the business's own version is the one in use; Zella Voice's stays listed but not in use", () => {
   const list = templatesForBusiness(rows, "A", "salon");
   assert.deepEqual(list.filter((t) => t.inUse).map((t) => t.id).sort(), ["a", "g2"]);
 });
@@ -29,7 +29,7 @@ test("without an override, the industry version beats the general one", () => {
   assert.equal(list.find((t) => t.inUse && t.key === "booking_confirmed").id, "gi");
 });
 
-test("an inactive own version doesn't hide Zella's active one", () => {
+test("an inactive own version doesn't hide Zella Voice's active one", () => {
   const list = templatesForBusiness(rows.map((t) => (t.id === "a" ? { ...t, status: "draft" } : t)), "A", "salon");
   assert.equal(list.find((t) => t.inUse && t.key === "booking_confirmed").id, "gi");
 });

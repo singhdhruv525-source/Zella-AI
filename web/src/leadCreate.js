@@ -10,15 +10,15 @@ const LEAD_ERRORS = [
   [/BAD_EMAIL/, "That email doesn't look right."],
   [/BUSINESS_NOT_AVAILABLE/, "This workspace is paused, so leads can't be added right now."],
   [/JWT expired|invalid JWT|refresh token|not signed in/i, "Your sign-in has expired. Sign in again and retry."],
-  [/failed to fetch|network|load failed|timeout/i, "Couldn't reach Zella. Check your connection and try again. The lead wasn't added."],
-  [/zella_staff_add_lead|schema cache|Could not find the function|does not exist/i, "Adding leads isn't available on this workspace yet. The lead wasn't added; please ask the Zella team."],
+  [/failed to fetch|network|load failed|timeout/i, "Couldn't reach Zella Voice. Check your connection and try again. The lead wasn't added."],
+  [/zella_staff_add_lead|schema cache|Could not find the function|does not exist/i, "Adding leads isn't available on this workspace yet. The lead wasn't added; please ask the Zella Voice team."],
 ];
 
 // A plain-language message; never the database's own wording.
 export function leadError(error) {
   const text = `${error?.message ?? ""} ${error?.code ?? ""} ${error?.details ?? ""}`;
   for (const [re, msg] of LEAD_ERRORS) if (re.test(text)) return msg;
-  return "The lead couldn't be added. Try again, or contact Zella support if it keeps happening.";
+  return "The lead couldn't be added. Try again, or contact Zella Voice support if it keeps happening.";
 }
 
 export function leadArgs(workspaceId, values) {

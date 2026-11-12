@@ -84,7 +84,7 @@ function MessageResults({ workspace, days, refreshKey }) {
   const { data, error, loading, reload } = useLoad(() => rpc("zella_workflow_effectiveness", { p_business_id: workspace.id, p_days: days }), [workspace.id, days, refreshKey]);
   return (
     <section className="ba-panel">
-      <div className="ba-panel-head"><div className="ba-panel-title"><div><h2>Automatic follow-ups</h2><p>What happened to the follow-ups Zella sent in the last {days} days, and how many led to a booking within a week.</p></div></div></div>
+      <div className="ba-panel-head"><div className="ba-panel-title"><div><h2>Automatic follow-ups</h2><p>What happened to the follow-ups Zella Voice sent in the last {days} days, and how many led to a booking within a week.</p></div></div></div>
       {error || (loading && !data) || !data?.length ? (
         <div className="ba-panel-body">
           <Notice error={error} onRetry={reload} />

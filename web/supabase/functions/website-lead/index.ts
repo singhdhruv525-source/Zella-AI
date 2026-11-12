@@ -1,4 +1,4 @@
-// Zella - public website lead endpoint. A business's website form or chat widget posts here.
+// Zella Voice - public website lead endpoint. A business's website form or chat widget posts here.
 // It holds no secrets of its own: the form key identifies the business, and the database does every check
 // (allowed websites, spam, rate limits, duplicates, consent). verify_jwt is off because visitors have no login.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";

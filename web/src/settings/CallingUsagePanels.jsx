@@ -78,7 +78,7 @@ export function BusinessCallingUsage({ w }) {
               <Facts rows={[["Calls counted", s.totals?.calls ?? 0], ["Call time", secs(s.totals?.duration_seconds)], ["Usage", mins(s.totals?.usage_minutes)],
                 ["Corrections", s.totals?.adjustments?.count ? `${s.totals.adjustments.count} (${mins(s.totals.adjustments.minutes)})` : "None"],
                 ["Waiting to be counted", s.pending ? `${s.pending} call(s): their final length hasn't arrived yet` : "None"],
-                ["Needs attention", (s.issues?.open ?? 0) + (s.issues?.escalated ?? 0) ? `${(s.issues?.open ?? 0) + (s.issues?.escalated ?? 0)} call(s) the Zella team is checking` : "None"],
+                ["Needs attention", (s.issues?.open ?? 0) + (s.issues?.escalated ?? 0) ? `${(s.issues?.open ?? 0) + (s.issues?.escalated ?? 0)} call(s) the Zella Voice team is checking` : "None"],
                 ["Last updated", s.totals?.last_processed_at ? when(s.totals.last_processed_at) : "Not yet"]]} />
               {Object.keys(s.totals?.by_category ?? {}).length > 0 && (
                 <Table rowKey={(x) => x[0]} rows={Object.entries(s.totals.by_category)} columns={[["Kind", (x) => CATEGORY[x[0]] ?? words(x[0])], ["Calls", (x) => x[1].calls], ["Usage", (x) => mins(x[1].minutes)]]} />

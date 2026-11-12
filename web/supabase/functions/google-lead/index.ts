@@ -1,7 +1,7 @@
-// Zella - Google Ads lead form webhook. Each lead form's webhook is set to this address with the business's Google key
+// Zella Voice - Google Ads lead form webhook. Each lead form's webhook is set to this address with the business's Google key
 // (created in Settings > Integrations, shown once). The key inside the payload identifies the business; the database
 // checks it, ignores Google's retries of the same lead, and creates the lead (sql/zella_google_leads.sql).
-// verify_jwt is off because Google has no Zella login. Replies: 200 stored / already seen / test, 401 wrong or revoked
+// verify_jwt is off because Google has no Zella Voice login. Replies: 200 stored / already seen / test, 401 wrong or revoked
 // key, 429 too many, 400 not a lead, 503 try again (Google retries non-200 answers).
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { readBodyLimited } from "../_shared/body.ts";

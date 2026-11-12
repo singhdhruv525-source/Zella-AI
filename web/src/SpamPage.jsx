@@ -55,7 +55,7 @@ export default function SpamPage({ workspace, onNotice, onOpenPerson }) {
     return (
       <>
         <PageHead crumb="Calls & messages / Spam protection" title="Spam protection" />
-        <Empty icon="gpp_maybe" title="Spam protection isn't set up yet">The Zella team needs to apply its latest database update. Nothing is being missed: until then, calls, texts and emails work as usual.</Empty>
+        <Empty icon="gpp_maybe" title="Spam protection isn't set up yet">The Zella Voice team needs to apply its latest database update. Nothing is being missed: until then, calls, texts and emails work as usual.</Empty>
       </>
     );
   }
@@ -243,7 +243,7 @@ function Inbox({ workspace, from, onChanged, onNotice, onOpenPerson }) {
         </div>
       ) : !state.loading && (
         <Empty icon="verified_user" title={filters.status === "open" && !filters.q && !filters.channel && !filters.risk ? "Nothing needs attention" : "No incidents match"}>
-          {filters.status === "open" ? "Suspicious calls, texts, emails and bookings show up here when Zella flags them." : "Try another filter or a longer date range."}
+          {filters.status === "open" ? "Suspicious calls, texts, emails and bookings show up here when Zella Voice flags them." : "Try another filter or a longer date range."}
         </Empty>
       )}
       {state.loading && !state.rows.length && <p className="ba-muted sp-quiet">Loading incidents…</p>}
@@ -536,7 +536,7 @@ function Lists({ workspace, onNotice }) {
         <Field label="Reason (optional)"><input value={form.reason} maxLength={300} onChange={(e) => setForm({ ...form, reason: e.target.value })} /></Field>
         <button type="submit" className="ba-btn primary" disabled={busy || !form.value.trim()}><Icon name="add" size="sm" />Add</button>
       </form>
-      <p className="ba-muted sp-small">Blocking is per channel: blocking a number for texts doesn't block its calls unless you choose all channels. Zella's own platform rules also apply and aren't listed here.</p>
+      <p className="ba-muted sp-small">Blocking is per channel: blocking a number for texts doesn't block its calls unless you choose all channels. Zella Voice's own platform rules also apply and aren't listed here.</p>
       <Notice error={error} onRetry={load} />
       {live.length ? (
         <div className="ba-table-wrap" tabIndex={0}>
@@ -590,9 +590,9 @@ function FollowUp({ inc }) {
         <ul className="sp-followup">
           <li><Icon name={r.notified ? "notifications_active" : "notifications_off"} size="sm" />{r.notified ? "Team notified" : r.fallback_notified ? "Team notified directly" : "No alert needed"}{r.severity ? ` · ${r.severity} severity` : ""}</li>
           {Number(f.here_confirmed) > 0 && <li><Icon name="history" size="sm" />Your team confirmed this sender as spam {f.here_confirmed} time{Number(f.here_confirmed) === 1 ? "" : "s"} before</li>}
-          {Number(f.other_businesses) > 0 && <li><Icon name="hub" size="sm" />Also seen at {f.other_businesses} other business{Number(f.other_businesses) === 1 ? "" : "es"} on Zella this month</li>}
+          {Number(f.other_businesses) > 0 && <li><Icon name="hub" size="sm" />Also seen at {f.other_businesses} other business{Number(f.other_businesses) === 1 ? "" : "es"} on Zella Voice this month</li>}
           {r.restricted && <li><Icon name="block" size="sm" />Temporarily restricted by your auto-restrict setting (confirmed twice before)</li>}
-          {r.escalated && <li><Icon name="shield" size="sm" />Reported to Zella's security team</li>}
+          {r.escalated && <li><Icon name="shield" size="sm" />Reported to Zella Voice's security team</li>}
         </ul>
       )}
       {r.ai && (
@@ -656,7 +656,7 @@ function Settings({ workspace, setup, loadError, onRetry, onSaved }) {
       {!can && <div className="ba-banner"><span>Only owners and admins can change these settings.</span></div>}
       {loadError && <div className="ba-banner error"><span>The latest refresh failed, so these may be out of date. {loadError}</span> <button type="button" className="ba-btn sm" onClick={onRetry}>Try again</button></div>}
       {error && <div className="ba-banner error">{error}</div>}
-      {toggle("enabled", "Spam protection for this business", "Checks calls, texts, emails and bookings for spam. Zella's platform rules and limits always apply, even when this is off.")}
+      {toggle("enabled", "Spam protection for this business", "Checks calls, texts, emails and bookings for spam. Zella Voice's platform rules and limits always apply, even when this is off.")}
       <fieldset className="sp-group" disabled={!form.enabled}>
         <legend>Calls</legend>
         {ch.call === false ? <p className="ba-muted sp-small">Calls aren't connected for this business.</p> : (
@@ -684,10 +684,10 @@ function Settings({ workspace, setup, loadError, onRetry, onSaved }) {
         <legend>Responses and alerts</legend>
         {toggle("auto_restrict", "Temporarily restrict clear abuse", "Only with two or more signals at high risk, or a sender your team confirmed as spam twice, for 24 hours, on that channel. Never permanent; undo by marking it not spam.")}
         {toggle("notify_high_risk", "Tell the team about high-risk incidents", "A few alerts an hour at most, without message content.")}
-        {toggle("notify_medium", "Also tell the team about medium-risk incidents", auto.live ? "Same hourly limit. Off by default to keep alerts useful." : "Needs Zella's spam automation, which isn't switched on yet.")}
-        {toggle("weekly_report", "Weekly spam summary", auto.live ? "Every Monday, if anything was flagged the week before." : "Needs Zella's spam automation, which isn't switched on yet.")}
+        {toggle("notify_medium", "Also tell the team about medium-risk incidents", auto.live ? "Same hourly limit. Off by default to keep alerts useful." : "Needs Zella Voice's spam automation, which isn't switched on yet.")}
+        {toggle("weekly_report", "Weekly spam summary", auto.live ? "Every Monday, if anything was flagged the week before." : "Needs Zella Voice's spam automation, which isn't switched on yet.")}
         {toggle("ai_review", "AI second opinion on unclear texts and emails",
-          auto.ai_available ? "Only medium-risk messages, with names, numbers and addresses removed first. A suggestion for your team; it never blocks anyone." : "Not available yet: Zella hasn't switched on AI review.", !auto.ai_available)}
+          auto.ai_available ? "Only medium-risk messages, with names, numbers and addresses removed first. A suggestion for your team; it never blocks anyone." : "Not available yet: Zella Voice hasn't switched on AI review.", !auto.ai_available)}
       </fieldset>
       {can && <div className="sp-save"><button type="button" className="ba-btn primary" disabled={busy} onClick={save}>{busy ? "Saving…" : "Save settings"}</button></div>}
     </section>

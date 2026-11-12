@@ -1,4 +1,4 @@
-// Zella: "Continue my plan" link from the cancellation email.
+// Zella Voice: "Continue my plan" link from the cancellation email.
 //
 // Public function (deploy with --no-verify-jwt): the business owner is not
 // signed in when they click the email link. Access is controlled by the
@@ -65,7 +65,7 @@ Deno.serve(withCors(async (req: Request) => {
 
   if (!supabaseUrl || !serverSecretKey || !linkSecret) {
     console.error("continue-plan configuration is missing");
-    return respond({ error: "This link can't be used right now. Please contact Zella support." }, 500);
+    return respond({ error: "This link can't be used right now. Please contact Zella Voice support." }, 500);
   }
 
   let body: Record<string, unknown>;

@@ -170,7 +170,7 @@ function AssignModal({ job, technicians, busy, onClose, onSave }) {
             <label key={t.id} className="ba-check"><input type="checkbox" checked={crew.includes(t.id)} onChange={() => toggle(t.id)} /><span>{t.name}</span></label>
           ))}
         </fieldset>
-        <p className="ba-muted ba-small">If someone is already on another job then, Zella refuses and says so.</p>
+        <p className="ba-muted ba-small">If someone is already on another job then, Zella Voice refuses and says so.</p>
       </form>
     </Modal>
   );
@@ -265,7 +265,7 @@ export function ResourcesPage({ workspace, refreshKey, onNotice }) {
 
   return (
     <>
-      <PageHead crumb="Workspace / Resources" title="Resources" sub="Rooms, chairs, bays, equipment and spaces that bookings use. Zella never books one twice at the same time, and keeps the gap you set after each booking.">
+      <PageHead crumb="Workspace / Resources" title="Resources" sub="Rooms, chairs, bays, equipment and spaces that bookings use. Zella Voice never books one twice at the same time, and keeps the gap you set after each booking.">
         {canManage && <button type="button" className="ba-btn primary" onClick={() => setEditing("new")}><Icon name="add" size="sm" />Add a resource</button>}
         {canManage && <button type="button" className="ba-btn" onClick={() => setNeedsOpen(true)}>What services need</button>}
       </PageHead>
@@ -344,7 +344,7 @@ function NeedsModal({ needs, busy, onClose, onSave }) {
   const set = (i, patch) => setRows((r) => r.map((x, n) => (n === i ? { ...x, ...patch } : x)));
   return (
     <Modal title="What services need" icon="rule" onClose={onClose} busy={busy} wide
-      description="When a booking's title or type mentions the service, Zella picks free resources of that kind, or refuses the time when none is free."
+      description="When a booking's title or type mentions the service, Zella Voice picks free resources of that kind, or refuses the time when none is free."
       footer={<><button type="button" className="ba-btn" onClick={onClose} disabled={busy}>Cancel</button>
         <button type="button" className="ba-btn primary" disabled={busy || rows.some((r) => r.service.trim().length < 2)} onClick={() => onSave(rows.map((r) => ({ ...r, quantity: Number(r.quantity) || 1 })))}>{busy ? "Saving…" : "Save"}</button></>}>
       <div className="ba-modal-body">
@@ -391,7 +391,7 @@ export function RecurringPage({ workspace, refreshKey, onNotice }) {
 
   return (
     <>
-      <PageHead crumb="Workspace / Recurring visits" title="Recurring visits" sub="Repeat work on a schedule: cleanings, maintenance, treatments. Zella books the next weeks as planned visits that hold the time; nothing is sent to the customer. Confirm each visit when it's agreed.">
+      <PageHead crumb="Workspace / Recurring visits" title="Recurring visits" sub="Repeat work on a schedule: cleanings, maintenance, treatments. Zella Voice books the next weeks as planned visits that hold the time; nothing is sent to the customer. Confirm each visit when it's agreed.">
         {canManage && <button type="button" className="ba-btn primary" onClick={() => setEditing("new")}><Icon name="add" size="sm" />Add a plan</button>}
         {canManage && d?.plans.some((p) => p.is_active) && <button type="button" className="ba-btn" disabled={busy} onClick={() => generate(null)}>Book the next 4 weeks</button>}
       </PageHead>

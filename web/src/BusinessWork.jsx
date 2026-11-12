@@ -201,7 +201,7 @@ export function TasksPage({ workspace, refreshKey, onNotice, onOpenPerson, onCha
 
   return (
     <>
-      <PageHead crumb="Workspace / Tasks & follow-ups" title="Tasks" sub={open.length ? `${plural(open.length, "thing")} to do.` : "Nothing waiting. Zella adds tasks when a lead needs contacting, a quote is open or a booking needs rearranging."}>
+      <PageHead crumb="Workspace / Tasks & follow-ups" title="Tasks" sub={open.length ? `${plural(open.length, "thing")} to do.` : "Nothing waiting. Zella Voice adds tasks when a lead needs contacting, a quote is open or a booking needs rearranging."}>
         <button type="button" className="ba-btn primary" onClick={() => setAdding(true)}><Icon name="add_task" size="sm" />Add task</button>
         <Segment label="Task filter" value={filter} onChange={setFilter} options={[["open", `To do (${open.length})`], ["done", "Done"]]} />
       </PageHead>
@@ -209,7 +209,7 @@ export function TasksPage({ workspace, refreshKey, onNotice, onOpenPerson, onCha
 
       {dups.length > 0 && filter === "open" && (
         <section className="ba-panel">
-          <div className="ba-panel-head"><div className="ba-panel-title"><div><h2>Possible duplicates ({dups.length})</h2><p className="ba-muted">Zella found a match it wasn't sure about, so it created nothing. You decide.</p></div></div></div>
+          <div className="ba-panel-head"><div className="ba-panel-title"><div><h2>Possible duplicates ({dups.length})</h2><p className="ba-muted">Zella Voice found a match it wasn't sure about, so it created nothing. You decide.</p></div></div></div>
           <div className="ba-panel-body ba-stack">
             {dups.map((d) => {
               const existing = data.people[d.customer_id];
@@ -294,7 +294,7 @@ function JoinWaitlistModal({ workspace, term, onClose, onSaved }) {
     onSaved("Added to the waitlist.");
   }
   return (
-    <Modal title="Add to the waitlist" description="If a time opens up, Zella can offer it to them." onClose={onClose} busy={busy}
+    <Modal title="Add to the waitlist" description="If a time opens up, Zella Voice can offer it to them." onClose={onClose} busy={busy}
       footer={<><button type="button" className="ba-btn" onClick={onClose} disabled={busy}>Cancel</button><button type="submit" form="ba-waitlist" className="ba-btn primary" disabled={busy}>{busy ? "Saving…" : "Add to waitlist"}</button></>}>
       <form id="ba-waitlist" className="ba-modal-body" onSubmit={save}>
         {error && <p className="ba-error" role="alert">{error}</p>}
@@ -326,7 +326,7 @@ export function WaitlistPage({ workspace, term, refreshKey, onNotice, onOpenPers
 
   return (
     <>
-      <PageHead crumb="Workspace / Waitlist" title="Waitlist" sub="People who want an earlier time. When someone cancels, Zella can offer the opening to the next person. Nothing is booked until they say yes.">
+      <PageHead crumb="Workspace / Waitlist" title="Waitlist" sub="People who want an earlier time. When someone cancels, Zella Voice can offer the opening to the next person. Nothing is booked until they say yes.">
         <button type="button" className="ba-btn primary" onClick={() => setAdding(true)}><Icon name="playlist_add" size="sm" />Add to waitlist</button>
         <Segment label="Waitlist filter" value={filter} onChange={setFilter} options={[["active", `Waiting (${active.length})`], ["past", "Booked or removed"]]} />
       </PageHead>
@@ -541,7 +541,7 @@ export function LeadTab({ person, workspace, onChanged, onNotice }) {
           {person.qualification_result && <Pill tone={person.qualification_result === "qualified" ? "success" : ""}>{person.qualification_result === "qualified" ? "Meets your criteria" : person.qualification_result === "unqualified" ? "Doesn't meet your criteria" : "Questions unanswered"}</Pill>}
           {person.contact_deadline_at && stage === "new" && <Pill tone="warning">Contact by {when(person.contact_deadline_at, tz)}</Pill>}
         </div>
-        {stage === "lost" && person.lost_reason && <p className="ba-item-text">Lost: {person.lost_reason}{person.reactivate_after ? ` · Zella may reach out again around ${formatDay(person.reactivate_after, tz)}` : ""}</p>}
+        {stage === "lost" && person.lost_reason && <p className="ba-item-text">Lost: {person.lost_reason}{person.reactivate_after ? ` · Zella Voice may reach out again around ${formatDay(person.reactivate_after, tz)}` : ""}</p>}
         <div className="ba-form-actions wrap">
           {STAGES.filter(([k]) => k !== "lost" && k !== stage && k !== "quote_sent").map(([k, l]) => (
             <button key={k} type="button" className="ba-btn sm" disabled={working === `s-${k}`} onClick={() => setStage(k)}>Mark {l.toLowerCase()}</button>
@@ -559,7 +559,7 @@ export function LeadTab({ person, workspace, onChanged, onNotice }) {
 
       <section>
         <h3 className="ba-sub">Quotes</h3>
-        <form className="ba-inline-form" onSubmit={(e) => { e.preventDefault(); if (!quoteTitle.trim()) return; run("quote", () => supabase.rpc("zella_issue_quote", { p_customer_id: person.id, p_title: quoteTitle.trim() }), "Quote recorded. Zella will follow up if that's switched on.").then((ok) => ok && setQuoteTitle("")); }}>
+        <form className="ba-inline-form" onSubmit={(e) => { e.preventDefault(); if (!quoteTitle.trim()) return; run("quote", () => supabase.rpc("zella_issue_quote", { p_customer_id: person.id, p_title: quoteTitle.trim() }), "Quote recorded. Zella Voice will follow up if that's switched on.").then((ok) => ok && setQuoteTitle("")); }}>
           <input value={quoteTitle} onChange={(e) => setQuoteTitle(e.target.value)} placeholder="What was quoted? e.g. Kitchen repair" aria-label="Quote description" />
           <button type="submit" className="ba-btn sm" disabled={working === "quote"}>Record quote</button>
         </form>
@@ -634,7 +634,7 @@ export function ActivationCard({ workspace, onNotice, onReload }) {
         <h2>{live && data?.ready ? "You're live" : live ? "Live, but something needs attention" : "Before you go live"}</h2>
         <p className="ba-muted">{live && data?.ready ? "Your AI receptionist is answering calls."
           : live ? "Some items below aren't in place, so calls may not be answered. Fix them, then check again."
-          : "Zella goes live only when everything below is done and a test call has passed."}</p></div></div></div>
+          : "Zella Voice goes live only when everything below is done and a test call has passed."}</p></div></div></div>
       <div className="ba-panel-body">
         <Notice error={error} onRetry={reload} />
         {problem && <p className="ba-error" role="alert">{problem}</p>}

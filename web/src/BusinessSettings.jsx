@@ -61,7 +61,7 @@ const noRole = (who = "an owner or admin") => <Banner tone="warn">Only {who} can
 /* ---------- Daily report schedule (sql/zella_report_schedules.sql) ---------- */
 
 const HOURS_OF_DAY = Array.from({ length: 24 }, (_, h) => [h, new Date(2000, 0, 1, h).toLocaleTimeString([], { hour: "numeric" })]);
-const REPORT_STATUS = { sent: "Sent", nothing_to_report: "Nothing to report", failed: "Failed", missed: "Missed (Zella was not running at that time)" };
+const REPORT_STATUS = { sent: "Sent", nothing_to_report: "Nothing to report", failed: "Failed", missed: "Missed (Zella Voice was not running at that time)" };
 
 function ReportSchedule({ w }) {
   // the server shows the schedule to owners, admins and managers (only owners and admins change it); staff and
@@ -153,7 +153,7 @@ function BusinessInfo({ w, onReload }) {
             <div className="zs-grid">
               <Field label="Business name"><input value={f.values.name} onChange={f.set("name")} maxLength={200} /></Field>
               <Field label="Legal business name"><input value={f.values.legal_name} onChange={f.set("legal_name")} maxLength={200} /></Field>
-              <Field label="Industry" hint="Set by the Zella team when your workspace was created."><input value={s.business.industry ?? w.industry ?? ""} disabled readOnly /></Field>
+              <Field label="Industry" hint="Set by the Zella Voice team when your workspace was created."><input value={s.business.industry ?? w.industry ?? ""} disabled readOnly /></Field>
               <Field label="Business type" hint="For example: family clinic, 24-hour plumbing."><input value={f.values.business_type} onChange={f.set("business_type")} maxLength={80} /></Field>
               <Field label="Description" full hint="One or two sentences about what you do."><textarea rows={3} value={f.values.description} onChange={f.set("description")} maxLength={1000} /></Field>
               <Field label="Website"><input value={f.values.website} onChange={f.set("website")} inputMode="url" placeholder="https://" /></Field>
@@ -281,7 +281,7 @@ function Branding({ w, onGo }) {
         <Facts rows={[["Brand name", w.name], ["Text messages", `Sent as ${w.name}`], ["Emails", `Sent with ${w.name} as the sender name`], ["Logo", "Business information"]]} />
       </Card>
       <LinkRows rows={[{ title: "Change the logo or name", detail: "Business information", onClick: () => onGo("settings/profile/info") }]} />
-      <Needs title="Brand colors and branded emails aren't available yet" have="Your name and logo are used. Zella's own branding never replaces yours.">They need an email template and booking pages that read your colors.</Needs>
+      <Needs title="Brand colors and branded emails aren't available yet" have="Your name and logo are used. Zella Voice's own branding never replaces yours.">They need an email template and booking pages that read your colors.</Needs>
     </>
   );
 }
@@ -303,7 +303,7 @@ function RolesPermissions() {
   const roles = ["owner", "admin", "manager", "staff", "viewer"];
   return (
     <>
-      <Card title="What each role can do" sub="Checked by the database on every change, not just hidden in the app. These are business roles; Zella's own admin roles are separate.">
+      <Card title="What each role can do" sub="Checked by the database on every change, not just hidden in the app. These are business roles; Zella Voice's own admin roles are separate.">
         <div className="zs-table-wrap" tabIndex={0}><table className="zs-matrix">
           <thead><tr><th>Can…</th>{roles.map((r) => <th key={r}>{words(r === "viewer" ? "view only" : r)}</th>)}</tr></thead>
           <tbody>{ROLE_ROWS.map(([label, who]) => <tr key={label}><td>{label}</td>{roles.map((r) => <td key={r}>{who.includes(r) ? "✓" : "—"}</td>)}</tr>)}</tbody>
@@ -336,10 +336,10 @@ function ReceptionistOverview({ w }) {
     <LoadState state={state}>{(d) => d.agent ? (
       <Card title={d.agent.name}>
         <Facts rows={[["Status", words(d.agent.status)], ["Phone number", d.phones.filter((p) => p.status === "active").map((p) => p.e164).join(", ") || "Not connected yet"],
-          ["Voice connection", w.voice_connected ? "Connected" : "Not connected yet"], ["Live version", d.versions.find((v) => v.status === "published") ? `Version ${d.versions.find((v) => v.status === "published").version}` : "Set up by Zella"],
+          ["Voice connection", w.voice_connected ? "Connected" : "Not connected yet"], ["Live version", d.versions.find((v) => v.status === "published") ? `Version ${d.versions.find((v) => v.status === "published").version}` : "Set up by Zella Voice"],
           ["Last change", when(d.versions[0]?.created_at ?? d.agent.updated_at)]]} />
       </Card>
-    ) : <Empty title="No receptionist yet">The Zella team creates it during setup.</Empty>}</LoadState>
+    ) : <Empty title="No receptionist yet">The Zella Voice team creates it during setup.</Empty>}</LoadState>
   );
 }
 
@@ -397,7 +397,7 @@ function AiTesting({ w }) {
   const state = useAsync(() => (roleIn(w, MANAGE) ? supabase.from("ai_eval_cases").select("id, question, expect_contains, expect_none, created_at").eq("business_id", w.id).then(orThrow) : Promise.resolve(null)), [w.id]);
   return (
     <>
-      <Card title="Test it yourself" sub="Call your Zella number and try: asking your opening hours, booking a time, asking for a person, and asking something it shouldn't know.">
+      <Card title="Test it yourself" sub="Call your Zella Voice number and try: asking your opening hours, booking a time, asking for a person, and asking something it shouldn't know.">
         <LoadState state={state}>{(rows) => rows === null ? <p className="zs-muted">Saved test questions are visible to owners and admins.</p> : (
           <Table rows={rows} empty="No saved test questions yet." columns={[["Question", (r) => r.question], ["Should say", (r) => (r.expect_none ? "That it doesn't know" : (r.expect_contains ?? []).join(", "))], ["Added", (r) => when(r.created_at)]]} />
         )}</LoadState>
@@ -414,7 +414,7 @@ function PhoneNumbers({ w }) {
   return (
     <LoadState state={state}>{(d) => (
       <Card title="Your numbers">
-        <Table rowKey={(p) => p.e164} rows={d.phones} empty="No number connected yet. The Zella team connects it (it needs carrier registration)." columns={[["Number", (p) => p.e164], ["Label", (p) => p.label ?? "—"],
+        <Table rowKey={(p) => p.e164} rows={d.phones} empty="No number connected yet. The Zella Voice team connects it (it needs carrier registration)." columns={[["Number", (p) => p.e164], ["Label", (p) => p.label ?? "—"],
           ["Status", (p) => <Pill tone={p.status === "active" ? "success" : ""}>{words(p.status)}</Pill>], ["Answered by", () => d.agent?.name ?? "AI receptionist"], ["Provider", () => "Telnyx with Vapi"]]} />
       </Card>
     )}</LoadState>
@@ -425,10 +425,10 @@ function PhoneSetup({ w }) {
   return (
     <>
       <Card title="Setting up your line">
-        <Facts rows={[["Status", w.phone_connected ? "Connected" : "Waiting for Zella to connect your number"], ["Keep your existing number", "Forward it to your Zella number: on most carriers dial *72 then the Zella number (check your carrier's instructions)"],
+        <Facts rows={[["Status", w.phone_connected ? "Connected" : "Waiting for Zella Voice to connect your number"], ["Keep your existing number", "Forward it to your Zella Voice number: on most carriers dial *72 then the Zella Voice number (check your carrier's instructions)"],
           ["Test", "Call your number after forwarding; the receptionist should answer"]]} />
       </Card>
-      <Needs title="Ordering a new number from here isn't available" have="The Zella team orders and connects numbers.">It needs Telnyx number ordering and carrier registration from a server action.</Needs>
+      <Needs title="Ordering a new number from here isn't available" have="The Zella Voice team orders and connects numbers.">It needs Telnyx number ordering and carrier registration from a server action.</Needs>
     </>
   );
 }
@@ -444,7 +444,7 @@ function UsageCard({ e }) {
   return (
     <Card title="This period" sub={`${when(e.period?.from)} to ${when(e.period?.to)}${e.period?.calendar_month ? " (calendar month; no subscription yet)" : ""}. Counted from your records.`}>
       <Facts rows={[["AI voice minutes", of("voice_minutes", "min")], ["Texts sent", of("sms_messages", "")], ["Phone numbers", of("phone_numbers", "")], ["Team seats", of("team_members", "")],
-        ["Active automations", of("automations", "")], ["Estimated extra charges", "None: Zella doesn't charge for extra usage yet"]]} />
+        ["Active automations", of("automations", "")], ["Estimated extra charges", "None: Zella Voice doesn't charge for extra usage yet"]]} />
     </Card>
   );
 }
@@ -467,7 +467,7 @@ function PhoneTroubleshooting({ w }) {
     <LoadState state={state}>{(s) => (
       <Card title="Connection check" sub="Live from your records.">
         <Table rowKey={(i) => i.key} rows={s.items} columns={[["Check", (i) => i.label], ["Result", (i) => <Pill tone={i.ok ? "success" : "warning"}>{i.ok ? "OK" : "Needs attention"}</Pill>], ["Detail", (i) => i.detail]]} />
-        <p className="zs-muted" style={{ marginTop: 10 }}>Calls not arriving? Check forwarding on your carrier, then call your Zella number directly. If that fails, contact Zella support (Help & support).</p>
+        <p className="zs-muted" style={{ marginTop: 10 }}>Calls not arriving? Check forwarding on your carrier, then call your Zella Voice number directly. If that fails, contact Zella Voice support (Help & support).</p>
       </Card>
     )}</LoadState>
   );
@@ -508,9 +508,9 @@ function ProtectionForm({ w, p }) {
   const save = () => form.save(async (x) => {
     await rpc("zella_save_usage_preferences", { p_business_id: w.id, p_thresholds: x.thresholds, p_mode: x.mode,
       p_spend_limit_cents: x.mode === "stop" ? null : Math.round(Number(x.limit) * 100), p_fallback: x.fallback });
-  }, "Saved. This is your authorization; Zella never charges more than this.");
+  }, "Saved. This is your authorization; Zella Voice never charges more than this.");
   return (
-    <Card title="When included AI minutes run out" sub="You decide. Zella never charges for extra usage without this choice from the owner.">
+    <Card title="When included AI minutes run out" sub="You decide. Zella Voice never charges for extra usage without this choice from the owner.">
       {!p.can_edit && noRole("the owner")}
       <fieldset disabled={!p.can_edit} style={{ border: 0, padding: 0, margin: 0 }}>
         <div className="zs-grid">
@@ -527,7 +527,7 @@ function ProtectionForm({ w, p }) {
       {p.authorized_at && <p className="zs-muted">Last authorized {when(p.authorized_at)}.</p>}
       {p.can_edit && <SaveBar form={form} disabled={v.mode !== "stop" && !(Number(v.limit) > 0)} onSave={() => (v.mode !== "stop" ? setConfirm(true) : save())} />}
       {confirm && <Confirm title="Allow paid extra usage?" confirmLabel="Authorize" onClose={() => setConfirm(false)} onConfirm={save}>
-        You authorize charges for AI usage beyond your plan, up to ${Number(v.limit).toFixed(2)} a month. Zella doesn't charge for extra usage yet; when it does, this limit applies.
+        You authorize charges for AI usage beyond your plan, up to ${Number(v.limit).toFixed(2)} a month. Zella Voice doesn't charge for extra usage yet; when it does, this limit applies.
       </Confirm>}
       <Banner>Stopping calls at the limit isn't enforced yet; you'll get the notices you choose above.</Banner>
     </Card>
@@ -560,15 +560,15 @@ function PlanChanges({ w }) {
       <>
         <Banner tone="success">{done}</Banner>
         <Card title="Compare plans" sub="Every plan has the full CRM. They differ by included usage and support.">
-          <Table rows={plans} empty="Plans aren't published yet. Ask Zella support." columns={[["Plan", (p) => <>{p.name}{e.plan?.id === p.id && <> · <Pill tone="accent">Current</Pill></>}</>],
+          <Table rows={plans} empty="Plans aren't published yet. Ask Zella Voice support." columns={[["Plan", (p) => <>{p.name}{e.plan?.id === p.id && <> · <Pill tone="accent">Current</Pill></>}</>],
             ["Monthly", (p) => (p.price_monthly != null ? `$${p.price_monthly}` : "—")], ["Annual", (p) => (p.price_yearly != null ? `$${p.price_yearly}` : "—")],
             ["AI minutes", (p) => p.limits?.voice_minutes ?? "—"], ["Team seats", (p) => p.limits?.team_members ?? "—"], ["Support", (p) => words(p.limits?.support_level ?? "—")],
             ["", (p) => w.role === "owner" && e.plan?.id !== p.id && <button type="button" className="zs-btn sm" onClick={() => setAsk(p)}>Request this plan</button>]]} />
         </Card>
         {ask && <Confirm title={`Request ${ask.name}?`} confirmLabel="Send request" onClose={() => setAsk(null)} onConfirm={async () => {
           await rpc("zella_business_request", { p_business_id: w.id, p_kind: "plan_change", p_subject: `Plan change to ${ask.name}`, p_description: `Requested from Settings. Current plan: ${e.plan?.name ?? "none"}.`, p_details: { plan_id: ask.id } });
-          setDone("Request sent. The Zella team confirms the price, any proration and the date it takes effect before changing anything.");
-        }}>Nothing changes until the Zella team confirms the price, proration and effective date with you.</Confirm>}
+          setDone("Request sent. The Zella Voice team confirms the price, any proration and the date it takes effect before changing anything.");
+        }}>Nothing changes until the Zella Voice team confirms the price, proration and effective date with you.</Confirm>}
       </>
     )}</LoadState>
   );
@@ -577,7 +577,7 @@ function PlanChanges({ w }) {
 function Cancellation({ w }) {
   const [open, setOpen] = useState(false);
   const [done, setDone] = useState("");
-  if (w.cancelled_at) return <Card title="Your plan has ended" sub="Contact Zella support to start again." />;
+  if (w.cancelled_at) return <Card title="Your plan has ended" sub="Contact Zella Voice support to start again." />;
   return (
     <>
       <Card title="Cancel your plan" sub="Your workspace and AI receptionist keep working until the end of the paid period. Your records are kept for 90 days afterwards so you can export them or come back.">
@@ -588,8 +588,8 @@ function Cancellation({ w }) {
       </Card>
       {open && <Confirm title="Request cancellation?" danger reason confirmLabel="Send request" onClose={() => setOpen(false)} onConfirm={async (reason) => {
         await rpc("zella_business_request", { p_business_id: w.id, p_kind: "cancellation", p_subject: "Cancellation request", p_description: reason });
-        setDone("Request sent. The Zella team confirms the end date with you; nothing stops until then.");
-      }}>The Zella team will confirm the end date with you before anything stops.</Confirm>}
+        setDone("Request sent. The Zella Voice team confirms the end date with you; nothing stops until then.");
+      }}>The Zella Voice team will confirm the end date with you before anything stops.</Confirm>}
     </>
   );
 }
@@ -608,20 +608,20 @@ function CalendarConnections({ w }) {
   const outcome = back.get("calendar"), reason = back.get("reason");
   const OUTCOME = { connected: ["success", "Calendar connected. Bookings will be copied to it and its busy times kept free once calendar sync is switched on."],
     cancelled: ["warning", "The calendar wasn't connected: the sign-in was canceled."],
-    error: ["error", `The calendar couldn't be connected (${(reason ?? "error").replace(/_/g, " ")}). Try again, or contact Zella support.`] };
+    error: ["error", `The calendar couldn't be connected (${(reason ?? "error").replace(/_/g, " ")}). Try again, or contact Zella Voice support.`] };
   async function connect(provider) {
     setProblem(""); setBusy(provider);
     const { data, error } = await supabase.functions.invoke("calendar-connect", { body: { action: "start", business_id: w.id, provider } });
     if (error || !data?.url) {
       let answer = null; try { answer = await error?.context?.json?.(); } catch { /* not JSON */ }
       setBusy("");
-      // "provider_not_configured": Zella's app with Google or Microsoft isn't registered; "not_configured": the
+      // "provider_not_configured": Zella Voice's app with Google or Microsoft isn't registered; "not_configured": the
       // connection service itself isn't set up. Either way trying again won't help, so it says so.
       const notSetUp = answer?.error === "provider_not_configured" || answer?.error === "not_configured";
-      return setProblem(notSetUp ? `${provider === "google" ? "Google" : "Outlook"} calendars can't be connected yet: Zella's connection with ${provider === "google" ? "Google" : "Microsoft"} isn't set up. Contact Zella support.`
+      return setProblem(notSetUp ? `${provider === "google" ? "Google" : "Outlook"} calendars can't be connected yet: Zella Voice's connection with ${provider === "google" ? "Google" : "Microsoft"} isn't set up. Contact Zella Voice support.`
         : answer?.error === "not_allowed" ? "Only owners and admins can connect a calendar." : "The calendar sign-in couldn't be started. Try again.");
     }
-    window.location.assign(data.url); // the provider's own sign-in page; Zella never sees the password
+    window.location.assign(data.url); // the provider's own sign-in page; Zella Voice never sees the password
   }
   async function disconnect() {
     const { error } = await supabase.rpc("zella_calendar_disconnect", { p_business_id: w.id });
@@ -646,7 +646,7 @@ function CalendarConnections({ w }) {
         </Card>
         {asking && (
           <Confirm title="Disconnect the calendar?" confirmLabel="Disconnect" danger onConfirm={disconnect} onClose={() => setAsking(false)}>
-            Zella stops copying bookings to it and stops reading its busy times. Bookings already copied stay in that calendar. Its access key is deleted.
+            Zella Voice stops copying bookings to it and stops reading its busy times. Bookings already copied stay in that calendar. Its access key is deleted.
           </Confirm>
         )}
       </>
@@ -808,10 +808,10 @@ function HelpCenter() {
   const p = usePlatformInfo();
   return (
     <>
-      <Card title="Get help from Zella">
+      <Card title="Get help from Zella Voice">
         <Facts rows={[["Email", p.support_email ?? "Not published yet"], ["Phone", p.support_phone ?? "Not published yet"], ["Website", p.website ?? "—"]]} />
       </Card>
-      <Needs title="A help center with guides isn't published yet" have="Contact Zella support, or open a support request.">Guides need a documentation site; links will appear here once it exists.</Needs>
+      <Needs title="A help center with guides isn't published yet" have="Contact Zella Voice support, or open a support request.">Guides need a documentation site; links will appear here once it exists.</Needs>
     </>
   );
 }
@@ -835,7 +835,7 @@ function SupportTickets({ w, kind = "support" }) {
             await rpc("zella_business_request", { p_business_id: w.id, p_kind: x.kind, p_subject: x.subject, p_description: x.description, p_details: { urgent: x.urgent } });
             state.reload();
             return { subject: "", description: "", urgent: false };
-          }, "Sent. The Zella team will reply by email.")} />
+          }, "Sent. The Zella Voice team will reply by email.")} />
         </>}
       </Card>
       <LoadState state={state}>{(rows) => (
@@ -844,7 +844,7 @@ function SupportTickets({ w, kind = "support" }) {
             ["Status", (t) => <Pill tone={["resolved", "closed"].includes(t.status) ? "success" : "warning"}>{words(t.status)}</Pill>], ["Opened", (t) => when(t.created_at)]]} />
         </Card>
       )}</LoadState>
-      <Needs title="Replies and attachments inside Zella aren't available" have="The Zella team replies by email.">A conversation thread needs ticket messages and file storage for attachments.</Needs>
+      <Needs title="Replies and attachments inside Zella Voice aren't available" have="The Zella Voice team replies by email.">A conversation thread needs ticket messages and file storage for attachments.</Needs>
     </>
   );
 }
@@ -872,7 +872,7 @@ function Privacy({ w, onOpenPerson, onNotice }) {
     <>
       <Card title="Your data">
         <Facts rows={[["Recordings and transcripts", "Managers and above"], ["Customer data requests", "Logged and handled below, within 30 days"], ["Erasing a customer", "Needs a second owner or admin when you have two"],
-          ["If you cancel", "Records kept 90 days, then the Zella team removes them"]]} />
+          ["If you cancel", "Records kept 90 days, then the Zella Voice team removes them"]]} />
       </Card>
       {roleIn(w, DATA_RIGHTS_ROLES) ? <DataRightsList workspace={w} onOpenPerson={onOpenPerson} onNotice={onNotice} /> : <p className="zs-muted">Managers and above handle customer data requests.</p>}
       <LegalDocs w={w} />
@@ -890,7 +890,7 @@ function LegalDocs({ w }) {
   const [error, setError] = useState("");
   return (
     <LoadState state={state}>{({ docs, accepted }) => (
-      <Card title="Zella's policies" sub="The versions in effect.">
+      <Card title="Zella Voice's policies" sub="The versions in effect.">
         <Banner tone="error">{error}</Banner>
         <Table rows={docs} empty="No policies published yet." columns={[["Policy", (d) => d.title], ["Version", (d) => d.version], ["Effective", (d) => when(d.effective_at)],
           ["Accepted for this business", (d) => (d.requires_acceptance ? (accepted.has(d.id) ? <Pill tone="success">Accepted</Pill> : roleIn(w, MANAGE)
@@ -955,8 +955,8 @@ function registry(w) {
       page("protection", "AI usage protection", () => <UsageProtection w={w} />, "top-up pay as you go spending limit 70 90 100"),
       page("rollover", "Rollover policy", () => <Rollover w={w} />, "reset remaining"),
       page("offers", "Offers and promo codes", () => <BusinessOffersSettings w={w} />, "offer promo code discount deal claim"),
-      page("payment-methods", "Payment methods", lazyNeeds("Payment methods aren't managed in Zella yet", "Nothing is charged from Zella today.", "Adding a card needs the payment provider's secure page; Zella never stores card numbers.")),
-      page("invoices", "Invoices", lazyNeeds("Invoices aren't available in Zella yet", "The Zella team sends invoices by email.", "They need the payment provider's invoice records.")),
+      page("payment-methods", "Payment methods", lazyNeeds("Payment methods aren't managed in Zella Voice yet", "Nothing is charged from Zella Voice today.", "Adding a card needs the payment provider's secure page; Zella Voice never stores card numbers.")),
+      page("invoices", "Invoices", lazyNeeds("Invoices aren't available in Zella Voice yet", "The Zella Voice team sends invoices by email.", "They need the payment provider's invoice records.")),
       page("changes", "Plan changes", () => <PlanChanges w={w} />, "upgrade downgrade compare"),
       page("cancellation", "Cancellation", () => <Cancellation w={w} />, "cancel"),
     ] },
@@ -975,7 +975,7 @@ function registry(w) {
       page("questions", "Qualifying questions", () => <LeadQuestions w={w} />, "qualify qualification questions required answer"),
       page("pipeline", "Pipeline", lazyNeeds("Pipeline stages aren't editable yet", "Leads move through the fixed stages on the Leads page; changing stage never changes the customer's details.", "Custom stages need a stage list per business that the Leads page and automations read.")),
       page("fields", "Custom fields", (c) => <RecordSettingsPage workspace={w} types={c.records.types} canManage={lead} onNotice={c.onNotice} onChanged={c.records.reload} loadError={c.records.error} />, "field type required"),
-      page("export", "Import and export", () => <><DataExport w={w} /><BillingNeeds title="Importing isn't available yet" have="Add people one at a time, or ask Zella to import a file for you.">Importing needs a file upload with field mapping, a preview and duplicate checks.</BillingNeeds></>, "csv import export"),
+      page("export", "Import and export", () => <><DataExport w={w} /><BillingNeeds title="Importing isn't available yet" have="Add people one at a time, or ask Zella Voice to import a file for you.">Importing needs a file upload with field mapping, a preview and duplicate checks.</BillingNeeds></>, "csv import export"),
       page("communication", "Customer communication", () => <Communication w={w} />, "consent unsubscribe opt-out"),
     ] },
     { key: "industry", label: "Industry and workflows", icon: "tune", items: [
@@ -1041,7 +1041,7 @@ function registry(w) {
 }
 
 // What really happens to texts and emails for this business, from the server (zella_messaging_status), not a fixed
-// description: until sending is switched on for Zella, messages are recorded but not sent.
+// description: until sending is switched on for Zella Voice, messages are recorded but not sent.
 function MessagingSetup({ w }) {
   const state = useAsync(() => supabase.rpc("zella_messaging_status", { p_business_id: w.id }).then(orThrow), [w.id]);
   return (
@@ -1049,8 +1049,8 @@ function MessagingSetup({ w }) {
       <Card title="Messaging">
         <Facts rows={[
           ["Texts", !w.phone_connected ? "Start once your number is connected"
-            : m?.texts ? "Sent from your Zella number" : "Not sent yet: Zella hasn't switched text sending on. Each text is recorded so you can see what would go out."],
-          ["Email", m?.emails ? "Sent with your business name" : "Not sent yet: Zella hasn't switched email sending on. Each email is recorded."],
+            : m?.texts ? "Sent from your Zella Voice number" : "Not sent yet: Zella Voice hasn't switched text sending on. Each text is recorded so you can see what would go out."],
+          ["Email", m?.emails ? "Sent with your business name" : "Not sent yet: Zella Voice hasn't switched email sending on. Each email is recorded."],
           ["Marketing texts", "Off"],
           ["Quiet hours", "Texts wait until morning"],
         ]} />

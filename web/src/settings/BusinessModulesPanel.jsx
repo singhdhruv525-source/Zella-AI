@@ -4,7 +4,7 @@ import { Banner, Card, Facts, LinkRows, LoadState, Needs, Pill, Table, useAsync,
 
 // Settings > Industry and workflows > Modules. Shows the three checks the sidebar uses, for this business only:
 // does the industry support the module, has the business switched it on, and may this person open its pages.
-// Read from zella_workspace_navigation, the same function the sidebar reads. Shared modules are set by the Zella team
+// Read from zella_workspace_navigation, the same function the sidebar reads. Shared modules are set by the Zella Voice team
 // for the industry and plan; a business's own operations (record types) are switched on and off in Customise records.
 
 const ABOUT = {
@@ -47,13 +47,13 @@ export function BusinessModulesPanel({ w, onGo }) {
       const types = n.record_types ?? [];
       return (
         <>
-          {!n.configured && <Banner tone="warn">This business's industry isn't fully set up, so only shared CRM pages are shown. The Zella team sets the industry.</Banner>}
+          {!n.configured && <Banner tone="warn">This business's industry isn't fully set up, so only shared CRM pages are shown. The Zella Voice team sets the industry.</Banner>}
           <Card title="Your industry" sub="Decides the words the CRM uses and which modules can be offered.">
             <Facts rows={[["Industry", n.industry?.name ?? "Not set"], ["Operations menu", n.operations_label ?? "—"],
               ["Customers are called", n.terminology?.customers ?? "Customers"], ["Bookings are called", n.terminology?.appointments ?? "Appointments"],
               ["Your access", words(n.role)]]} />
           </Card>
-          <Card title="Shared modules" sub="Supported by your industry. On or off is set by the Zella team for your plan.">
+          <Card title="Shared modules" sub="Supported by your industry. On or off is set by the Zella Voice team for your plan.">
             <Table rowKey={(m) => m.slug} rows={rows} empty="No modules are defined for this industry yet." columns={[
               ["Module", (m) => <><strong>{m.name ?? words(m.slug)}</strong><br /><small className="zs-muted">{ABOUT[m.slug] ?? ""}</small></>],
               ["Industry", (m) => (m.available ? <Pill tone="success">Supported</Pill> : <Pill>Not offered</Pill>)],
@@ -69,7 +69,7 @@ export function BusinessModulesPanel({ w, onGo }) {
               <LinkRows rows={[{ title: "Switch records on or off, or add your own", detail: "Customize records", onClick: () => onGo("record-settings") }]} />
             )}
           </Card>
-          <Needs title="Switching shared modules here isn't available" have="Ask the Zella team (Help and support) and they'll change it for your plan.">
+          <Needs title="Switching shared modules here isn't available" have="Ask the Zella Voice team (Help and support) and they'll change it for your plan.">
             Changing a shared module from here needs the plan's list of optional modules, checked on the server, so nothing is switched on outside your plan.
           </Needs>
           <Card title="Not built yet" sub="Not shown in your menu until they work.">

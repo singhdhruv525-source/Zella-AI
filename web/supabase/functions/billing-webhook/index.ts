@@ -1,4 +1,4 @@
-// Zella - billing webhook (Stripe-style events). Checks the provider's signature, turns the event into a plain type and
+// Zella Voice - billing webhook (Stripe-style events). Checks the provider's signature, turns the event into a plain type and
 // hands it to the database (zella_process_billing_event, sql/zella_billing_hardening.sql), which applies each event
 // once, keeps events it can't match yet and applies them later, and never moves a subscription or payment backwards.
 // Stays switched off (503) until STRIPE_WEBHOOK_SECRET is set. Deploy the SQL first.
@@ -37,7 +37,7 @@ export async function handle(req: Request): Promise<Response> {
   if (typeof ev?.id !== "string" || typeof ev?.type !== "string") return new Response("bad event", { status: 400 });
 
   const mapped = mapEvent(ev);
-  if ("ignore" in mapped) return new Response("ignored", { status: 200 });   // an event Zella does not use
+  if ("ignore" in mapped) return new Response("ignored", { status: 200 });   // an event Zella Voice does not use
   if ("invalid" in mapped) {
     console.error("billing event not understood", ev.type, mapped.invalid);
     return new Response("unprocessable", { status: 422 });

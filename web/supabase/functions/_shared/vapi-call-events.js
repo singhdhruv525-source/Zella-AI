@@ -78,7 +78,7 @@ export function planCallEvent(message) {
       p_transcript: typeof tr === 'string' ? tr.slice(0, 60000) : null, p_wants_callback: ask } };
   }
 
-  // a call Zella placed (a callback or a follow-up task)
+  // a call Zella Voice placed (a callback or a follow-up task)
   const reason = reasonRaw.toLowerCase();
   const talked = secs !== null && secs >= 8;
   let outcome;

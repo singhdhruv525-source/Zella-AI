@@ -8,7 +8,7 @@ const GENERAL = {
   guests: false,               // show a party-size column and a total-guests card
   walkIn: false,               // offer a Walk-in button (a booking that starts now)
   staffColumn: true,           // show who the booking is with
-  connect: ["revenue", "reviews"], // cards for data Zella can show once it's connected
+  connect: ["revenue", "reviews"], // cards for data Zella Voice can show once it's connected
 };
 
 const FIELD_WORK = { ...GENERAL, arrived: "On site", connect: ["revenue", "reviews"] };

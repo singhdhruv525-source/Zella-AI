@@ -219,8 +219,8 @@ export default function SupportTickets({ onOpenBusiness }) {
                     </li>
                   ))}
                 </ul>
-              ) : <p className="op-muted">No notes yet. Only Zella admins can see these.</p>}
-              <textarea className="wiz-textarea" value={note} placeholder="Add a note for the Zella team" onChange={(e) => setNote(e.target.value)} />
+              ) : <p className="op-muted">No notes yet. Only Zella Voice admins can see these.</p>}
+              <textarea className="wiz-textarea" value={note} placeholder="Add a note for the Zella Voice team" onChange={(e) => setNote(e.target.value)} />
               <button type="button" className="owner-secondary-button op-gap-top" disabled={busy || !note.trim()} onClick={() => update({ note })}>
                 {busy ? "Saving..." : "Add note"}
               </button>

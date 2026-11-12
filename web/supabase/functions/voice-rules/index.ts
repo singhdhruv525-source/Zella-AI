@@ -1,4 +1,4 @@
-// Zella: the Vapi server endpoint (assistant server URL and every tool's server URL). Answers, without n8n:
+// Zella Voice: the Vapi server endpoint (assistant server URL and every tool's server URL). Answers, without n8n:
 //   tool-calls                         every tool call in the request, each under its own toolCallId:
 //                                        call_rules -> zella_ai_voice; the 14 Receptionist Brain tools -> zella_ai_tool
 //   assistant-request                  the assistant for this call, built from the business's current settings

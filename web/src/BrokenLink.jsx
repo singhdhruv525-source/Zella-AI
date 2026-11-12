@@ -9,7 +9,7 @@ export default function BrokenLink() {
       <section className="cp-card" role="status">
         <div className="cp-brand">
           <div className="owner-brand-mark" aria-hidden="true">Z</div>
-          <span>Zella <span className="cp-ai">Voice</span></span>
+          <span>Zella Voice <span className="cp-ai">Voice</span></span>
         </div>
         <h1>This link isn't complete</h1>
         <p>Part of the link seems to be missing. Open the full link from your text or email (it may have been split across two lines), or contact the business directly.</p>

@@ -1,4 +1,4 @@
-// Zella - connect a business's Shopify store for order status (sql/zella_store_orders.sql).
+// Zella Voice - connect a business's Shopify store for order status (sql/zella_store_orders.sql).
 //   POST { action: "connect", business_id, shop_domain, access_token }   signed-in owner or admin
 // The token is the Admin API access token of a custom app the owner creates in their Shopify admin with read-only
 // scopes. It is checked with Shopify (the store answers, and the scopes order lookup needs are granted) before it is

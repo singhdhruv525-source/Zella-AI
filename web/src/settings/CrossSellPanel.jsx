@@ -16,7 +16,7 @@ const CODES = {
 };
 const say = (error) => {
   const message = error?.message?.trim() ?? String(error);
-  if (/does not exist|schema cache|Could not find the/i.test(message)) return "Suggestions need the latest Zella update. Please ask the Zella team.";
+  if (/does not exist|schema cache|Could not find the/i.test(message)) return "Suggestions need the latest Zella Voice update. Please ask the Zella Voice team.";
   return CODES[message] ?? message;
 };
 
@@ -58,7 +58,7 @@ function Rules({ w, data, reload }) {
 
   return (
     <>
-      <Card title="Your suggestions" sub="When an appointment that mentions the first service is marked done, Zella sends one friendly message suggesting the second.">
+      <Card title="Your suggestions" sub="When an appointment that mentions the first service is marked done, Zella Voice sends one friendly message suggesting the second.">
         <Table columns={columns} rows={data.rules} empty="No suggestions yet. Add one below or start from an idea." />
       </Card>
       {data.can_edit && (
@@ -100,7 +100,7 @@ function Rules({ w, data, reload }) {
           <li>Not if they already have the suggested service booked; a waiting suggestion is canceled if they book it.</li>
           <li>Never at night, and STOP or unsubscribe stops them for good.</li>
         </ul>
-        {!data.marketing_texts_allowed && <p><Pill tone="warning">Texts paused</Pill> Offer texts are switched off for all of Zella right now; email suggestions still go to people who opted in.</p>}
+        {!data.marketing_texts_allowed && <p><Pill tone="warning">Texts paused</Pill> Offer texts are switched off for all of Zella Voice right now; email suggestions still go to people who opted in.</p>}
       </Card>
     </>
   );

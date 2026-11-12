@@ -1,4 +1,4 @@
-// Zella - connect a business's Google Calendar or Outlook calendar (sql/zella_calendar_providers.sql).
+// Zella Voice - connect a business's Google Calendar or Outlook calendar (sql/zella_calendar_providers.sql).
 //   POST { action: "start", business_id, provider }   signed-in owner or admin; answers { url } for the provider's sign-in
 //   GET  ?code=...&state=...                         the provider sends the person back here; the code is exchanged for a
 //                                                    refresh token, stored in Vault by the database (server key), and the

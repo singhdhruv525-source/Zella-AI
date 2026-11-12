@@ -22,7 +22,7 @@ export function friendlyAuthError(error) {
     return "This link has expired or was already used. Ask for a new one, or use Forgot your password.";
   }
   if (/fetch|network|failed to load/i.test(message)) {
-    return "Couldn't reach Zella. Check your internet connection and try again.";
+    return "Couldn't reach Zella Voice. Check your internet connection and try again.";
   }
   return message || "Something went wrong. Please try again.";
 }

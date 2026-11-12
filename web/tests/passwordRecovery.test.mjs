@@ -50,7 +50,7 @@ test('successful access authorizes; denied access still signs out', async () => 
   assert.equal(s.mode, 'signin');
   assert.equal(s.signouts, 1);
   assert.equal(s.authorized, false);
-  assert.equal(s.message, 'Your password is saved, but this account is not an authorized Zella admin yet.');
+  assert.equal(s.message, 'Your password is saved, but this account is not an authorized Zella Voice admin yet.');
 });
 
 

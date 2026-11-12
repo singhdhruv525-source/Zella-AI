@@ -43,7 +43,7 @@ export default function App() {
   if (/^\/r\/[0-9a-fA-F]{64}\/?$/.test(window.location.pathname)) {
     return <Reschedule />;
   }
-  // Public status page: is Zella working right now (anyone, not signed in).
+  // Public status page: is Zella Voice working right now (anyone, not signed in).
   if (/^\/status\/?$/.test(window.location.pathname)) {
     return <StatusPage />;
   }
@@ -153,7 +153,7 @@ function AdminApp() {
           // Signed in to the business app in this browser. Don't sign them out of
           // it just for opening the admin page; point them to the right place.
           setMessageType("error");
-          setMessage(`You're signed in as ${data.session.user.email}, which isn't a Zella admin. Open your business workspace at /app, or sign in below with an admin account.`);
+          setMessage(`You're signed in as ${data.session.user.email}, which isn't a Zella Voice admin. Open your business workspace at /app, or sign in below with an admin account.`);
         }
       } catch (error) {
         console.error("Session check failed:", error);
@@ -203,7 +203,7 @@ function AdminApp() {
       if (error) throw error;
       // Same message whether or not the email exists, so accounts can't be discovered.
       setMessageType("success");
-      setMessage("If that email has a Zella account, a password reset link is on its way. Open the newest email only, once.");
+      setMessage("If that email has a Zella Voice account, a password reset link is on its way. Open the newest email only, once.");
     } catch (error) {
       setMessageType("error");
       setMessage(friendlyAuthError(error));
@@ -240,7 +240,7 @@ function AdminApp() {
       if (!access) {
         await supabase.auth.signOut();
         setMode("signin");
-        throw new Error("Your password is saved, but this account is not an authorized Zella admin yet.");
+        throw new Error("Your password is saved, but this account is not an authorized Zella Voice admin yet.");
       }
       setPassword("");
       setConfirmPassword("");
@@ -271,7 +271,7 @@ function AdminApp() {
       if (!access) {
         await supabase.auth.signOut();
         setMode("signin");
-        throw new Error("This account is not authorized to access the Zella Owner Admin.");
+        throw new Error("This account is not authorized to access the Zella Voice Owner Admin.");
       }
       setCode("");
       setIsAuthorized(true);
@@ -326,7 +326,7 @@ function AdminApp() {
       if (!access) {
         await supabase.auth.signOut();
         throw new Error(
-          "This account is not authorized to access the Zella Owner Admin."
+          "This account is not authorized to access the Zella Voice Owner Admin."
         );
       }
 
@@ -362,7 +362,7 @@ function AdminApp() {
         <div className="brand-panel">
           <div className="brand">
             <div className="brand-mark">Z</div>
-            <span>Zella <span className="brand-ai">Voice</span></span>
+            <span>Zella Voice <span className="brand-ai">Voice</span></span>
           </div>
 
           <div className="brand-message">
@@ -417,7 +417,7 @@ function AdminApp() {
           <div className="mobile-brand">
             {platform.logo_url ? <img src={platform.logo_url} alt={platform.display_name ?? "Zella Voice"} style={{ maxHeight: 36 }} /> : <>
             <div className="brand-mark">Z</div>
-            <span>Zella <span className="brand-ai">Voice</span></span></>}
+            <span>Zella Voice <span className="brand-ai">Voice</span></span></>}
           </div>
 
           <div className="form-content">
@@ -429,10 +429,10 @@ function AdminApp() {
               {mode === "reset"
                 ? "Enter your email and we'll send you a link to set a new password."
                 : mode === "setpassword"
-                  ? "You're invited as a Zella admin. Choose a password to finish."
+                  ? "You're invited as a Zella Voice admin. Choose a password to finish."
                   : mode === "mfa"
-                    ? mfaVerified ? "Your code was verified. Retry checking your admin access." : "Open your authenticator app and enter the 6-digit code for Zella."
-                    : platform.login_headline || "Sign in to your Zella platform workspace."}
+                    ? mfaVerified ? "Your code was verified. Retry checking your admin access." : "Open your authenticator app and enter the 6-digit code for Zella Voice."
+                    : platform.login_headline || "Sign in to your Zella Voice platform workspace."}
             </p>
 
             <form onSubmit={mode === "reset" ? handleReset : mode === "setpassword" ? handleSetPassword : mode === "mfa" ? handleMfa : handleLogin}>
@@ -520,7 +520,7 @@ function AdminApp() {
                   ? loading ? "Saving..." : "Save password and continue"
                   : mode === "reset"
                   ? loading ? "Sending..." : "Send reset link"
-                  : loading ? "Verifying access..." : "Sign in to Zella"}
+                  : loading ? "Verifying access..." : "Sign in to Zella Voice"}
                 {!loading && mode === "signin" && <span>→</span>}
               </button>
               {mode === "mfa" ? (
