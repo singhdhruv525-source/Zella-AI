@@ -840,8 +840,8 @@ It checks, in order:
    The calling window must also satisfy US calling-time rules (federal and state) for the called person's local time;
    counsel confirms which call types they cover [D-04]. Emergency inbound availability **never** grants permission for
    outbound calls.
-8. Plan limits (REQ-BIL-08): enforced once plans exist; until then the defaults in item 5 apply (REQ-BIL-01). The check point exists so plans can be
-   added later without redesign.
+8. Plan limits (REQ-BIL-08): enforced from the business's plan (§17); where the plan sets no value, the defaults in item 5
+   apply.
 9. Template completeness (no unfilled placeholders).
 
 **REQ-MSG-02 Opt-outs are immediate and cross-channel by purpose:**
@@ -935,7 +935,7 @@ flowchart LR
 | **10.14 Testing and activation** | REQ-LC-14: an activation checklist the server computes. Each item must pass before the business goes live: hours, at least one service or "no bookings", knowledge minimum, number routed, test inbound call answered and recorded, test message (dry run), transfer number verified, owner sign-off. Results are stored in `activation_tests`. |
 | **10.15–10.18 CRM, admin, billing, reports** | §18, §17, REQ-RPT below |
 | **10.19 Support and incidents** | REQ-LC-19: in-app support requests, tickets linked to the business, audited support access, incident status page, notification of affected businesses. |
-| **10.20 Pause, cancel, export, retention, offboarding** | REQ-LC-20: owner can pause (receptionist takes messages only [D-25]), schedule cancellation (signed "continue my plan" link), export everything (CSV/JSON + files), and data is deleted on the retention schedule after cancellation. All steps audited. |
+| **10.20 Pause, cancel, export, retention, offboarding** | REQ-LC-20: there is **no pause** (D-25); the owner can schedule cancellation (signed "continue my plan" link), export everything (CSV/JSON + files), and data is deleted on the retention schedule after cancellation. All steps audited. |
 
 **REQ-RPT-01 Reports:**
 - Daily summary at 08:00 business time: calls, missed, leads, bookings, overdue callbacks.
@@ -1420,47 +1420,162 @@ flowchart LR
 
 ## 17. Billing, plans and usage
 
+The owner's decisions of 12 Nov 2026 (D-34, D-41) set the commercial policy below. Values marked **open** are listed in
+§23.2 and are not built until the owner decides them. Every amount is in **USD**, stored as integer cents (`BIL-7`).
+
 ```mermaid
 flowchart LR
   ev[Call finalised · message sent ·<br/>AI used] --> led[(Usage ledger<br/>append-only, idempotent)]
   led --> ent{Entitlement check<br/>at use time}
   ent -- within --> ok[Proceed]
-  ent -- near limit --> warn[Warn at thresholds]
-  ent -- over --> lim[Owner-chosen limit behaviour<br/>never cut a live call]
-  pp[Payment provider] --> wh[Signed webhook<br/>idempotent] --> sub[(Subscription)]
-  sub --> grace[Grace policy: warn → read-only → suspend]
+  ent -- 80% / 100% --> warn[Alert in app + email]
+  ent -- at 100% --> ar{Auto-reload on<br/>and within spend cap?}
+  ar -- yes --> pack[Buy the owner's chosen pack] --> ok
+  ar -- no --> lim[Calls → fallback number<br/>a live call is never cut]
+  pp[Payment provider<br/>Razorpay] --> wh[Signed webhook<br/>idempotent] --> sub[(Subscription)]
+  sub --> grace[Failed payment: retries →<br/>AI paused → data kept 30 days]
 ```
 
 | ID | Requirement |
 |---|---|
-| REQ-BIL-01 | Subscription plans, prices and minute allowances are **defined later by the Zella Voice owner** (D-34). Until then no plans exist and no plan-based limits apply. The billing architecture (ledger, payment webhook, entitlement check points) is designed so plans and a payment provider can be added without redesign. |
+| REQ-BIL-01 | **Plans are set per business** by the Zella Voice team during Create Business, within this policy (D-41): a tier (Trial, Small, Medium, Large, or Custom/Enterprise), the monthly or yearly price, an optional one-time setup fee, and the allowances and caps of §17.1. Price depends on how much automation the business takes and on languages (English, Spanish, or both). Amounts in examples (such as $299/month + $599 setup) are illustrations, not list prices. |
 | REQ-BIL-02 | Usage is metered from an append-only ledger (one entry per finalised call; adjustments, never edits). Our failures are never billable. |
-| REQ-BIL-03 | Entitlement **check points** sit at use time: assistant assembly, outbound claims, messaging claims, AI features. They enforce limits only once plans exist; the core receptionist is never cut mid-call. |
-| REQ-BIL-04 | Payment provider handles cards and invoices; Zella Voice stores no card data. Webhooks are signed and idempotent. |
-| REQ-BIL-05 | Billing page for owners: plan, usage, invoices, payment method (provider portal), cancellation. |
-| REQ-BIL-06 | Grace policy on failed payment; no data deleted within the grace and export window. |
-| REQ-BIL-08 | **Plan-defined limits.** When the owner creates plans, each plan sets the business's quantities: AI voice minutes, inbound and outbound calls, callbacks, call attempts per follow-up sequence, messages (SMS and email), AI messaging and AI drafting. They are enforced at the entitlement check points (REQ-BIL-03). Plans choose values **within** the platform contact ceiling (REQ-MSG-08); they never raise it. Until plans exist, the defaults in REQ-MSG-08 and §13.3 apply. |
-| REQ-BIL-07 | **AI usage and cost tracking (now):** voice minutes, AI drafting, AI messaging and call intelligence are metered per business, with estimated cost, internal budgets, threshold alerts and a platform admin view. Budgets for optional features never stop the core receptionist. |
+| REQ-BIL-03 | Entitlement **check points** sit at use time: assistant assembly, outbound claims, messaging claims, AI features. The core receptionist is never cut mid-call. |
+| REQ-BIL-04 | The payment provider (**Razorpay**, D-34) handles cards, mandates and invoices; Zella Voice stores no card data (`NN-9`). Webhooks are signed and idempotent. No real charge, refund or new payment integration goes live without the owner's explicit approval. |
+| REQ-BIL-05 | **Billing & Subscription page** for business owners (owner role only, enforced by the database, `TEN-9`): plan and price, usage against every allowance, packs and their expiry, auto-reload settings and spend cap, invoices and receipts, payment method (provider-hosted), cancel, request a refund. |
+| REQ-BIL-06 | Failed payment follows §17.8; no data is deleted within the grace and export window. |
+| REQ-BIL-07 | **AI usage and cost tracking:** voice minutes, AI drafting, AI messaging and call intelligence are metered per business, with estimated cost, internal budgets, threshold alerts and a platform admin view. Budgets for optional features never stop the core receptionist. |
+| REQ-BIL-08 | **Plan-defined limits.** Each plan sets the business's quantities (§17.1). They are enforced at the entitlement check points (REQ-BIL-03). Plans choose values **within** the platform contact ceiling (REQ-MSG-08); they never raise it. |
+| REQ-BIL-09 | **Every charge has an invoice or receipt** from the payment provider, showing Zella Voice's business details and any tax (§17.8). |
+| REQ-BIL-10 | **Admin adjustments** (free minutes, waived fee, extended trial, service credit, discount) are made only through audited platform-admin functions with the `billing.manage` permission, with a reason; each is a separate ledger entry. |
 
 ### 17.1 What a plan controls
 
-The Zella Voice owner fills in the values when creating plans. Nothing below has a value until then; the system
-meters every dimension from day one so plans can be applied without rework.
+Each business's plan is set by the Zella Voice team in Create Business (§18.6, step 11) within the policy below
+(§17.2–17.12). The system meters every dimension from day one.
 
 | Plan dimension | Metered from | Checked at | When the limit is reached |
 |---|---|---|---|
-| AI voice minutes (inbound) | usage ledger, per finalised call | assistant assembly | warn at thresholds; owner-chosen behaviour; a live call is never cut |
+| AI voice minutes (inbound) | usage ledger, per finalised call | assistant assembly | warn at 80% and 100%; at 100% (and no auto-reload) new calls go to the business's fallback number (REQ-BIL-21); a live call is never cut |
 | AI voice minutes (outbound) | usage ledger | outbound claim | attempts wait; owner notified |
 | Missed-call callbacks per period | callbacks created | callback claim | staff task instead of an AI callback |
 | Call attempts per follow-up sequence | attempts | attempt claim | sequence ends → staff task (within the platform ceiling, REQ-MSG-08) |
 | Lead-call sequences per period | sequences started | sequence start | lead goes to staff |
-| SMS segments and emails | messages sent | message claim | service messages: owner-chosen behaviour; marketing: stopped |
+| SMS segments and emails | messages sent | message claim | marketing: stopped; service messages: see D-43 |
 | Two-way AI messaging conversations | AI replies | AI reply | conversation goes to staff |
 | AI knowledge drafts | drafts created | draft job | drafting pauses; receptionist unaffected |
-| Team seats | active members | invitation | invitation refused with a clear reason |
-| Phone numbers | assigned numbers | assignment | refused with a clear reason |
+| Team seats | active members | invitation | invitation refused with a clear reason, or an extra user added ($10/month, §17.3) |
+| Phone numbers and locations | assigned numbers, locations | assignment | refused with a clear reason, or an extra location added ($30/month, §17.3) |
 | Languages (English only, Spanish only, or both) | plan feature | receptionist setup and per call | languages outside the plan are not offered |
 | Premium voices, integrations | feature flags | setup | option not offered |
+
+### 17.2 Free trial
+
+| ID | Requirement |
+|---|---|
+| REQ-BIL-11 | **Trial:** 5 days with **20 AI minutes, 5 texts and 5 emails**. Offered when a business asks for it; the Zella Voice team switches it on in Create Business (step 11). Otherwise the plan is chosen with the business directly. |
+| REQ-BIL-12 | **Card required at the start, not charged until the trial ends.** The owner's invite link leads to: create password → see the plan, what is included and the amount that will be charged when the trial ends → add a payment method on the provider's hosted page (autopay mandate). The business can cancel at any time during the trial at no charge. |
+| REQ-BIL-13 | Texts to customers start only after the business's texting registration (10DLC) is approved (§19). Until then texts go to the business owner only. |
+
+### 17.3 Add-on packs and extras (prices decided, D-41)
+
+| Pack | Prices |
+|---|---|
+| AI minutes | $25 = 100 min · $70 = 250 min · $130 = 500 min · $250 = 1,000 min |
+| Texts | $18 = 500 · $34 = 1,000 · $80 = 2,500 · $150 = 5,000 |
+| Emails | $25 = 10,000 · $59 = 25,000 · $115 = 50,000 (at least a 60% margin over the email provider's cost of about $0.90 per 1,000; re-check if that cost changes) |
+| Extra location | $30 per month: its own number and texting registration; the same CRM; minutes come from the business's one account |
+| Extra user | $10 per month |
+| HIPAA add-on | priced per business (**open**, D-49); offered only once the agreements in §17.11 are in place |
+
+Pack prices are fixed for every business. Packs are charged when bought. Pack expiry is **open** (D-42).
+
+### 17.4 How usage is counted
+
+| ID | Requirement |
+|---|---|
+| REQ-BIL-14 | **Calls:** counted per call, rounded up to the next full minute. Calls under 15 seconds and calls flagged as spam are not counted. |
+| REQ-BIL-15 | **Texts:** counted by message part: about 160 characters per part, or about 70 when the text has accented or non-Latin letters. |
+| REQ-BIL-16 | **Emails:** one per email sent, regardless of language. |
+| REQ-BIL-17 | **Billing date:** the day the business owner first signs in through the invite link (creates their password). Allowances reset on each billing date. |
+
+### 17.5 Order of use, rollover and expiry
+
+| ID | Requirement |
+|---|---|
+| REQ-BIL-18 | **Minutes are used in this order:** rolled-over minutes, then plan minutes, then pack minutes (oldest pack first). |
+| REQ-BIL-19 | **Rollover:** up to **20% of plan minutes** roll over for **one** billing period, then expire. Plan texts and plan emails do not roll over. |
+| REQ-BIL-20 | Pack minutes, texts and emails expire after a fixed period from purchase: **open** (D-42; the notes say 30 days). |
+
+### 17.6 Alerts, limits and auto-reload
+
+| ID | Requirement |
+|---|---|
+| REQ-BIL-21 | **Alerts at 80% and 100%** of minutes, texts and emails, in the app and by email to the business owner. |
+| REQ-BIL-22 | **At 100% of minutes** (and no auto-reload): a call in progress is never cut (`BIL-5`); new calls go to the business's **fallback number** (REQ-BIL-34). What happens to texts and emails at 100% is **open** (D-43). |
+| REQ-BIL-23 | **Auto-reload** (optional, off by default): the business owner sets the **threshold** (e.g. 10 minutes left) and the **pack** bought when it is reached, plus a **monthly spend cap**. A reload never exceeds the cap; each reload is charged when made, receipted and shown on the billing page. |
+
+### 17.7 Fair use and plan suggestions
+
+| ID | Requirement |
+|---|---|
+| REQ-BIL-24 | **A single call lasts at most 20 minutes.** Before the limit the AI transfers the caller to the business's transfer destination (set at Create Business) or ends the call politely. |
+| REQ-BIL-25 | Usage far above the plan allowance two months in a row triggers an **account review** and a suggestion to upgrade. The multiple (2× or 3×) is **open** (D-45). |
+| REQ-BIL-26 | **Upgrade suggestion:** usage over 80% of minutes two months in a row, or packs bought two months in a row. **Downgrade offer:** usage under 40% three months in a row. Both are suggestions to the owner; nothing changes without their action. |
+| REQ-BIL-27 | **Discounts:** one at a time, and at most one per business per year. |
+
+### 17.8 Billing rules
+
+| ID | Requirement |
+|---|---|
+| REQ-BIL-28 | Paid **in advance**, monthly or yearly, in USD, by card or any method the provider supports, on the billing date. |
+| REQ-BIL-29 | **Signup to payment:** the Zella Voice team creates the business (setup fee, plan, allowances and caps chosen in step 11) → invite link → the owner creates a password → sees what they are getting → pays (or starts the trial, REQ-BIL-12). |
+| REQ-BIL-30 | **Upgrades** take effect immediately: the owner pays the prorated difference and gets the extra allowance for the rest of the cycle; full new allowances start next cycle. **Downgrades** take effect on the next billing date; features and add-ons above the lower plan end then. |
+| REQ-BIL-31 | **No pause.** A business that stops using Zella Voice cancels and can return later (D-25). |
+| REQ-BIL-32 | **Packs** are charged at purchase. **Overage** is billed at the end of the cycle; what counts as overage and at what rate is **open** (D-44). |
+| REQ-BIL-33 | **Failed payment:** retried on days 2, 3 and 4 after the due date, with an email and an in-app notice each time. After **5 days overdue** the AI receptionist pauses and calls go to the business's fallback number. Data is kept for 30 days. Paying the balance restores service. |
+| REQ-BIL-34 | **Fallback number:** every business sets one at Create Business; calls go there whenever the AI is paused or unavailable. |
+| REQ-BIL-35 | **Price changes:** 30 days' written notice, at most once in 12 months. **Founding customers** keep their price for 12 months (who counts as founding: **open**, D-47). |
+| REQ-BIL-36 | **Taxes:** the owner intends to add tax as an India-registered business selling to US customers. The treatment (GST on exported services, US state sales tax) is **open** for a chartered accountant's advice (D-50); no tax logic is built until then. |
+| REQ-BIL-37 | **Disputes:** the customer contacts support first. A chargeback suspends the account until it is resolved. |
+
+### 17.9 Refunds and cancellation
+
+| ID | Requirement |
+|---|---|
+| REQ-BIL-38 | **30-day money-back guarantee:** a full refund of the **first plan payment** (monthly or annual) if requested within 30 days of that payment. It covers the plan fee only. |
+| REQ-BIL-39 | **Setup fee:** refundable in full before onboarding work starts (within 48 hours of purchase); non-refundable once the Zella Voice team has started creating the business, including within the 30-day guarantee. |
+| REQ-BIL-40 | **Packs and overage:** used packs and overage are not refundable. An unused pack is refundable within 14 days of purchase. |
+| REQ-BIL-41 | **One guarantee per business.** A business that returns after a refund may sign up again but cannot use the guarantee again. |
+| REQ-BIL-42 | **After 30 days:** no refunds for the current period and no partial refunds for unused days. **Annual renewals:** a full refund if requested within 7 days of the renewal charge. Annual plans cancelled later are not refunded, except after prolonged service failures, where a prorated refund is at the Zella Voice owner's discretion. |
+| REQ-BIL-43 | **Errors:** duplicate or wrong charges are refunded in full after checking, within 5–10 business days, to the original payment method. **Outages** are handled with service credits (REQ-BIL-46), not refunds. |
+| REQ-BIL-44 | **Cancel** on the Billing & Subscription page (or Settings). It takes effect at the end of the current billing period; access continues until then. No cancellation fee and no contract. |
+| REQ-BIL-45 | **Request a refund** on the Billing & Subscription page. The button is active only when the business is eligible under REQ-BIL-38–43; otherwise it is greyed out, and pressing it shows why. **Eligibility is decided by the server**, not the page (`SEC-5`); a refund is a sensitive action (second confirmation, audit, `SEC-18`) and is paid out only through the provider after the owner's approval. |
+
+### 17.10 Support, service credits and data
+
+| ID | Requirement |
+|---|---|
+| REQ-BIL-46 | **Service credit:** if AI answering is down for more than 4 hours in a day because of Zella Voice or one of its providers, the business gets one day free (monthly fee ÷ 30) per affected day, on request within 30 days. Credits apply to the next invoices, have no cash value, and are capped at one month's fee. |
+| REQ-BIL-47 | **Support:** priority response within 4 business hours for every business, plus guided onboarding. **Uptime:** no formal uptime guarantee at launch; service credits are the remedy. |
+| REQ-BIL-48 | **Recordings and transcripts** are chosen per business at Create Business; they stay off until the recording rules are legally reviewed (D-27, REQ-VOX-09). |
+| REQ-BIL-49 | **Data:** CRM data and summaries are kept while the account is active. Owners can export contacts and call history as CSV at any time. After cancellation data stays available for export for 30 days, then it is deleted; backups are cleared within 90 days (§20). |
+| REQ-BIL-50 | **Phone numbers:** businesses can port numbers in or out at no charge (porting takes days to weeks, depending on the carrier). Zella Voice numbers are released 30 days after cancellation unless ported out. |
+
+### 17.11 Acceptable use and agreements
+
+| ID | Requirement |
+|---|---|
+| REQ-BIL-51 | **AI disclosure at the start of every call:** the receptionist says it is an AI receptionist for the business, using the name the business chose. A recording notice and consent question are added only when recording is on (REQ-BIL-48). Consent for confirmation texts is asked during the call before any are sent (`COM` rules). |
+| REQ-BIL-52 | **Emergencies:** Zella Voice is not an emergency service. The AI tells callers in an emergency to call 911, and urgent calls can be routed to staff. |
+| REQ-BIL-53 | **Prohibited use:** illegal activity, impersonation or deception, harassment, fraud and spam. Zella Voice can suspend an account that breaks these rules. Businesses are responsible for lawful use of their call data and for having consent to contact people. |
+| REQ-BIL-54 | **Industry agreements:** the Zella Voice owner personally sends each business its industry agreement by email (not from the admin dashboard). For healthcare, the HIPAA add-on is offered only after business associate agreements are in place with every vendor that would handle the data (Vapi, Supabase, Telnyx, n8n, Anthropic, the email and payment providers), reviewed by counsel (D-49). No compliance is claimed by this document. |
+
+### 17.12 Owner checks before charging real money
+
+Before the first real charge: Razorpay confirmed for recurring USD card payments from US customers (D-51); tax
+advice (D-50); terms of service, refund policy and privacy policy reviewed by counsel (§39); the owner's explicit
+approval to switch payments on.
 
 ---
 
@@ -1584,11 +1699,11 @@ flowchart TD
   h --> t[4 Team & roles<br/>optional]
   t --> r[5 AI receptionist<br/>voice · greeting · rules ·<br/>transfers · escalation]
   r --> k[6 Knowledge<br/>minimum set D-24]
-  k --> p[7 Phone<br/>new · port · forward ·<br/>outbound caller ID]
+  k --> p[7 Phone<br/>new · port · forward ·<br/>outbound caller ID · fallback number]
   p --> i[8 Integrations<br/>calendar · lead sources · store]
   i --> c[9 Communication settings<br/>SMS/email · consent policy ·<br/>missed-call follow-up ·<br/>lead calls · templates]
   c --> a[10 Automations<br/>each rule on/off + settings]
-  a --> pl[11 Plan<br/>once plans exist]
+  a --> pl[11 Plan & billing<br/>tier · price · setup fee ·<br/>allowances & caps · trial on/off]
   pl --> rv[12 Review & readiness<br/>server-computed checklist]
   rv --> act{All required<br/>checks pass?}
   act -- no --> save[Saved; resume later]
@@ -1603,6 +1718,7 @@ flowchart TD
 | Audit | Every step and every change is audited. |
 | Provider readiness | Numbers, calendar and lead sources are each checked, with a clear "not set up yet" state. |
 | Test call and message readiness | Part of the activation tests before go-live. |
+| Plan & billing (step 11) | The plan, price, setup fee, allowances, caps and trial chosen here are what the owner sees after creating their password, before paying (REQ-BIL-29). Recording and transcripts are chosen here too (REQ-BIL-48). |
 
 ---
 
@@ -1630,7 +1746,7 @@ flowchart TD
 | Store | Shopify | order lookup only |
 | Reviews | Google Business Profile | owner-approved replies |
 | AI model | Anthropic (through Vapi for voice; direct for drafts and insights) | caps per business; never trains on customer data |
-| Payments | chosen later by the owner (D-34) | hosted checkout and portal; signed webhooks. The current code has a Stripe-style billing webhook that stays off; that is not a decision |
+| Payments | **Razorpay** (D-34), pending the check in D-51 | hosted checkout and mandates; signed, idempotent webhooks; no card data in Zella Voice. The current code has a Stripe-style billing webhook that stays off; switching payments on needs the owner's approval |
 | Speech (through Vapi) | voices and transcription chosen in settings (AI-19), e.g. ElevenLabs, Deepgram | reached only through Vapi; listed as sub-processors |
 | Messaging apps | Meta: WhatsApp Business, Instagram, Messenger [D-39] | same rules as SMS: consent, opt-out, contact hours, one reply per inbound message; WhatsApp templates approved by Meta; per-business connection; signed webhooks |
 | Push notifications | Web Push to the installed web app [D-40] | the encrypted payload holds no personal data, only a title and a link to the item; the push service the phone's browser uses still sees the subscription and message metadata (timing, size); SMS and email stay the fallback |
@@ -1831,7 +1947,10 @@ Knowledge, Automations, Reports, Team, Settings.
 | D-06 | **Businesses are created by the Zella Voice team for now**; self-service signup is a later phase. No demo data in production. | §10.3 |
 | D-21 | Brand: always **Zella Voice** in full, everywhere (rulebook `BRD-1`). | all |
 | D-07 | At registration the business chooses **a new Zella Voice number (Telnyx)** or **forwarding its existing number**. Every business and location has its own dedicated Zella Voice number, used for outgoing calls and texts. | §10.10 |
-| D-09 | **No plans, prices or minute allowances now**; billing stays ready for later. AI usage and cost tracked per business. | §17 |
+| D-09 | *Superseded by D-41.* (Was: no plans, prices or minute allowances yet.) AI usage and cost are tracked per business. | §17 |
+| D-34 | **Payment provider: Razorpay** (hosted checkout and mandates; no card data stored by Zella Voice), subject to the check in D-51. Decided 12 Nov 2026. | §17, §19, §39 |
+| D-41 | **Commercial policy (12 Nov 2026):** custom per-business plans (Trial, Small, Medium, Large, Custom/Enterprise), monthly or yearly in advance in USD; 5-day trial with 20 minutes, 5 texts, 5 emails, card at start; fixed add-on pack prices; usage counting, rollover, alerts, auto-reload, fair use, billing, refund, cancellation, service-credit, support and data rules as written in §17. | §17 |
+| D-25 | **No pause.** A business that stops using Zella Voice cancels and can return later. (A business is paused by Zella Voice only for non-payment, REQ-BIL-33.) | §17.8, REQ-LC-20 |
 | D-10 | Leave a **short, professional voicemail** where permitted; no sensitive details; then one contextual message. | §13.7 |
 | D-11 | Not decided separately; missed-call rules apply only when the caller's number is known (REQ-MC-12). | §12 |
 | D-12 | **Immediate missed-call text** (consent permitting); AI callback 2–5 min later after verification; attempts from the plan (2 until plans exist), 2–3 h apart; a contextual text between them; anonymous callers → staff task; medium-risk spam → review queue, no callback. | §12 |
@@ -1857,14 +1976,22 @@ Knowledge, Automations, Reports, Team, Settings.
 | D-19 | Gmail/Outlook mailbox integration: build or drop | owner |
 | D-22, D-26, D-28 | Engineering thresholds: dispatcher "stuck" count, reconciliation delay, calendar staleness | engineering |
 | D-24 | Minimum knowledge set before activation | owner |
-| D-25 | Behaviour while a business is paused | owner |
 | D-29 | Waitlist ranking, offer expiry, broadcast mode | owner |
 | D-30 | Draft expiry for abandoned Create Business drafts | owner |
 | D-31 | Monitoring and pager provider | owner |
 | D-36 | Late-arrival minutes before staff are prompted to mark a no-show | owner |
 | D-32 | Limit on AI replies per conversation per hour | engineering |
 | D-33 | Default internal monthly AI budget per business and alert thresholds (75% / 90% proposed) | owner |
-| D-34 | Payment provider, plans and prices: **the owner adds these later**; nothing is built or invented until then | owner |
+| D-42 | Pack expiry: how long unused pack minutes, texts and emails last (notes say 30 days; proposed: 90 days) | owner |
+| D-43 | Texts and emails at 100%: stop everything, or keep appointment confirmations and reminders with a small buffer (proposed: keep them, about 5%) | owner |
+| D-44 | Overage: what is billed as overage when calls go to the fallback number at 100%, and at what rate | owner |
+| D-45 | Fair-use review multiple: 2× or 3× the allowance two months in a row (proposed: 3×) | owner |
+| D-46 | Annual plans: allowances reset monthly or one yearly bucket (proposed: monthly); any annual discount; rollover on downgrade | owner |
+| D-47 | Who counts as a founding customer (e.g. first N businesses or a sign-up date) | owner |
+| D-48 | Trial limits: one trial per business, phone number and card (proposed) | owner |
+| D-49 | HIPAA add-on: price, and business associate agreements with every vendor handling the data | owner + counsel |
+| D-50 | Tax treatment: GST on services exported from India; US state sales tax on software | owner + chartered accountant |
+| D-51 | Confirm Razorpay supports recurring USD card payments from US customers (international payments, subscriptions with a trial) before building checkout | owner |
 | D-35 | Whether a business may ever override a resource conflict (default: never) | owner |
 | D-38 | Platform contact-ceiling values (maximum attempts per sequence, unprompted messages per day) that no plan can exceed | owner |
 | D-39 | WhatsApp, Instagram and Messenger as messaging channels: in launch scope or later (the current code has Meta workers; not yet a decision) | owner + counsel |
@@ -1927,7 +2054,7 @@ Everything else in this document is specified. These items need a person's input
 
 | # | Item | Who | Needed by phase |
 |---|---|---|---|
-| 1 | Plan values for §17.1 and the platform contact ceiling (D-38); payment provider (D-34) | owner | before charging |
+| 1 | Platform contact ceiling (D-38); open billing decisions D-42 to D-51 | owner | before charging |
 | 2 | Review of the proposed consent wording (§34), templates (§33), voicemail and recording disclosures, retention periods and US calling and texting rules | counsel | 5, 6, 8, 11 |
 | 3 | Terms of service, privacy policy, data-processing terms and any agreements regulated industries require (§39) | owner + counsel | 12 |
 | 4 | Remaining open decisions in §23.2 | owner | as listed |
@@ -2331,7 +2458,7 @@ Required before launch (written and approved by the owner with counsel; not part
 | Monitoring provider (D-31) | uptime, logs, paging | request metadata only, no personal data |
 | n8n Cloud | workflow workers | work envelopes and message content in transit |
 | Cloudflare | web hosting | web traffic |
-| Payment provider (later) | billing | business billing details; no card data stored by Zella Voice |
+| Razorpay (payments, D-34) | billing | business billing details and payment status; no card data stored by Zella Voice |
 
 ## 40. Owner mobile experience and staff calling
 

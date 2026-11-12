@@ -625,8 +625,9 @@ flowchart LR
 - `BIL-5` **Limits are humane:** warn at 80% and 100% of a limit; never cut off a live call mid-sentence; the owner chooses what happens at the limit.
 - `BIL-6` **Payment failure follows a published grace policy**: warnings, then read-only, then suspension. Data is never deleted for non-payment inside the grace and export window.
 - `BIL-7` **Money amounts are integers in minor units with currency**, displayed in the business's locale.
-- `BIL-8` **Plans decide quantities (§17.1).** When the owner creates plans, each plan sets the business's limits: AI minutes, callbacks, call attempts per sequence, lead-call sequences, texts and emails, AI messaging, AI drafts, team seats, phone numbers, locations, languages and premium features. Plans never raise the platform contact ceiling (`COM-4`). Until plans exist, the documented defaults apply and no plan-based limit is enforced.
+- `BIL-8` **Plans decide quantities (§17.1).** When the owner creates plans, each plan sets the business's limits: AI minutes, callbacks, call attempts per sequence, lead-call sequences, texts and emails, AI messaging, AI drafts, team seats, phone numbers, locations, languages and premium features. Plans never raise the platform contact ceiling (`COM-4`). Each business's plan is set at Create Business within the owner's commercial policy (ARCHITECTURE §17, D-41); where a plan sets no value, the documented defaults apply.
 - `BIL-9` **Everything is metered from day one.** Voice minutes, messages and AI usage are recorded per business with estimated cost, so plans can be applied later without rework.
+- `BIL-10` **Refund eligibility and plan changes are decided by the server** under the published policy (§17.9); a greyed-out button is never the control. Real charges, refunds and auto-reloads run only through the payment provider and only after the owner switches payments on.
 
 ---
 
