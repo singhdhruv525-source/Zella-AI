@@ -179,6 +179,8 @@ sequenceDiagram
   participant WK as billing-worker
 
   ZO->>ADM: Step 11: label Base or Pro, enter price, setup fee, caps, trial on/off
+  ADM->>DB: margin and limit checks (REQ-BIL-55, 56) → warnings acknowledged with a reason
+  ZO->>ADM: review screen → confirm (REQ-BIL-57)
   ADM->>DB: admin_business_plan_set (audited) → business_plans v1
   DB-->>ADM: plan saved · invite owner
   BO->>DB: open invite link, create password (billing date if no trial)

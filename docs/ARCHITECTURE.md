@@ -1470,6 +1470,31 @@ Each business's plan is set by the Zella Voice team in Create Business (§18.6, 
 | Languages (English only, Spanish only, or both) | plan feature | receptionist setup and per call | languages outside the plan are not offered |
 | Premium voices, integrations | feature flags | setup | option not offered |
 
+### 17.1a Plan page safeguards (Create Business step 11)
+
+Every value is typed by hand, so the plan page protects against mistakes and loss-making deals. All checks run in the
+database (`NN-6`); the page only displays their results.
+
+```mermaid
+flowchart LR
+  in[Team enters price, setup fee,<br/>caps, languages, trial] --> m[Margin check<br/>estimated cost vs price]
+  in --> l[Sensible-limit check]
+  m --> w{Any warning?}
+  l --> w
+  w -- no --> rv[Review screen]
+  w -- yes --> ack[Shown in red · must be<br/>acknowledged with a reason]
+  ack --> rv
+  rv --> ok{Confirm?}
+  ok -- edit --> in
+  ok -- confirm --> save[Plan saved as a new version ·<br/>audit log · invite can be sent]
+```
+
+| ID | Requirement |
+|---|---|
+| REQ-BIL-55 | **Profit warning.** As values are entered, the page shows the plan's **estimated monthly cost, revenue and margin**: included minutes × cost per minute, texts × cost per text part, emails × cost per email, plus phone numbers and texting registration per location, against the monthly price (a yearly price counts as one twelfth; the setup fee is shown separately). Unit costs come from the platform's cost table (`voice_pricing` and equivalents), maintained by the Zella Voice owner. A plan that **would lose money** (margin below 0%) shows a red warning; a margin below the owner's **target margin** (a platform setting, 60% by default, the owner's email-pack target) shows a caution. The calculation is a database function, so the screen, the review step and the audit record all use the same numbers. |
+| REQ-BIL-56 | **Sensible limits.** Values outside platform-set bounds show a warning: for example **more than 10,000 minutes** a month, or **a price of $0**. The bounds are platform settings the Zella Voice owner can change (starting with these two; further bounds such as texts, emails, users and locations are added the same way). A warning never silently blocks: the team can continue only by acknowledging it with a written reason. |
+| REQ-BIL-57 | **Review screen before the invite.** Before the owner invite can be sent, the team sees one summary: tier label, price and interval, setup fee, every cap, languages, trial on or off, the estimated margin, and every acknowledged warning with its reason. Confirming saves the plan as a new `business_plans` version and writes an **audit record** with who confirmed it, when, the values and the acknowledged warnings. Any later change to a business's plan goes through the same review and audit. |
+
 ### 17.2 Free trial
 
 | ID | Requirement |
@@ -1719,7 +1744,7 @@ flowchart TD
 | Audit | Every step and every change is audited. |
 | Provider readiness | Numbers, calendar and lead sources are each checked, with a clear "not set up yet" state. |
 | Test call and message readiness | Part of the activation tests before go-live. |
-| Plan & billing (step 11) | The plan, price, setup fee, allowances, caps and trial chosen here are what the owner sees after creating their password, before paying (REQ-BIL-29). Recording and transcripts are chosen here too (REQ-BIL-48). |
+| Plan & billing (step 11) | The plan, price, setup fee, allowances, caps and trial chosen here are what the owner sees after creating their password, before paying (REQ-BIL-29). Recording and transcripts are chosen here too (REQ-BIL-48). Safeguards: profit warning, sensible limits and a review screen before the invite (REQ-BIL-55–57). |
 
 ---
 
