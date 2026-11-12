@@ -46,7 +46,8 @@ history.
 
 ## 3. What is live in production (12 Nov 2026)
 
-**Database:** all migrations on `main` are applied. The last seven were applied on 12 Nov 2026:
+**Database:** all migrations on `main` are applied **except `sql/zella_workflow_alert_email.sql`** (PR #57; keeps n8n
+workflow failures out of admin emails; waiting on the owner's decision and approval). The last seven applied were applied on 12 Nov 2026:
 
 | # | File | How |
 |---|---|---|
@@ -76,7 +77,9 @@ types, no plans.
 | `website-lead`, `reschedule-appointment` | earlier |
 | `smart-action` (named "zella-admin-check") and `zella-admin-check-v2` | old one-off checks with no source in the repo; candidates for removal, with approval |
 
-Changes merged after those dates (PRs #42, #49, #51, #53, #55) **have not been deployed to the edge functions or n8n**.
+Changes merged after those dates (PRs #42, #49, #51, #53, #55, #57) **have not been deployed to the edge functions or n8n**.
+PR #57 adds request-size limits and outbound timeouts to edge functions, an error workflow and no saved successful runs
+for every n8n workflow (needs a re-import), and the inbound call phone-ID fallback.
 Deploying needs the owner's approval.
 
 **Live switches (all off):** `calls_live`, `sms_live`, `email_live`, `calendar_sync_live`, `reviews_live`,
@@ -92,7 +95,12 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile`. `vapi_a
 | **Edge functions and n8n behind `main`** | Open | Deploy from `main` with approval. |
 | **Repo build vs production drift.** The isolated build from the repo differs from production in a few places: production is stricter on execute grants for `zella_arrival_window`, `zella_booking_choices` and `zella_capability_on` (server only) and `zella_cross_sell_ideas` (signed in, not anon); `zella_session_proved_email` is security definer in production; production has `zella_audit_privileged_trg` on `platform_admins`; and the repo build keeps an old `zella_calendar_connect(uuid,text,text,text)` that production dropped. | Open | Bring the repo build in line with production (a test-only change to the builder, or a new migration if the repo is right). |
 | About 20 database test scripts lack the isolation guard | Open | Add `tests/lib/isolated_guard.sh` to each. |
-| `tests/deploy/run_all.sh` doesn't apply `zella_seating_handoff.sql`; 2 checks fail on unmodified `main` too (the tables test expects seating, and `vite` is missing in that runner) | Open | Fix the runner. |
+| `tests/deploy/run_all.sh` didn't apply the newer migrations | Fixed in PR #57 (a `LATER` list applies, rolls back and re-applies them; all checks pass locally) | — |
+| **Inbound call routing:** a call whose number and Vapi phone ID match two different businesses' rows is routed by the ID (CodeRabbit, PR #57). Each column is already unique. | Open, owner's decision | Proposed: `zella_business_for_number` returns a business only when both agree; a guarded migration with rollback. |
+| **Workflow-failure emails:** `sql/zella_workflow_alert_email.sql` (merged, not applied) keeps n8n failures in the dashboard only | Open, owner's decision | Apply with approval, or drop it if admins should be emailed. |
+| **Unsubscribe functions have no rate limit** (SEC-6 gap, architecture §30) | Open | A guarded migration, with approval. |
+| Other rulebook gaps from the 12 Nov review: industry branches in database functions (BIZ-10); `business_id` missing on six business-owned tables (TEN-1) | Open | Plan each as its own PR. |
+| **Call-minute margins:** pack prices are below a 60% margin at an estimated $0.15/min cost, and the 250-minute pack costs more per minute than the 100-minute pack | Open, owner | Measure the real cost per minute from Vapi call logs, then revisit. |
 | PR #42 outside-diff finding: the webhook metadata business-ID fallback | Open | Review and fix. |
 | The last commit of PR #49 (`a5bcb54`, a merge commit) was never reviewed by CodeRabbit | Open | Low risk; re-review if touched. |
 | Audit follow-ups M-3, M-4, L-2, L-4, L-5 | Open | `docs/ZELLA_REMEDIATION_CHECKLIST.md` |
@@ -103,7 +111,10 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile`. `vapi_a
 The owner's decisions of 9 Nov 2026 are in `docs/ARCHITECTURE.md` §23.1, and the open ones are in §23.2. The ones
 most often needed:
 
-- No plans, prices or minute allowances until the owner adds them (D-09, D-34). Never invent any.
+- **Billing policy decided on 12 Nov 2026** (D-34 Razorpay, D-41 policy, D-25 no pause): full text in
+  `docs/ARCHITECTURE.md` §17. Per-business plans; 5-day trial (20 min, 5 texts, 5 emails, card at start); fixed pack
+  prices. Open billing decisions: D-42 to D-51. Nothing is built or charged yet; real charges need the owner's
+  approval. Never invent a price that isn't in §17.
 - United States only at launch (D-14). Lower-risk industries first; regulated industries after legal review (D-20).
 - Businesses are created by the Zella Voice team (D-06). No demo data in production.
 - Call recording is off until legal review. Retention: recordings 30 days, transcripts 90 days, message bodies 2
@@ -131,6 +142,9 @@ Waiting on the owner:
   merge with `gh api -X PUT .../pulls/N/merge`).
 - **CodeRabbit is limited to roughly 4–8 reviews an hour.** Batch changes rather than pushing many small commits.
 - **The isolated test database stops when the worker restarts.** Start it again before running tests.
+- **CodeRabbit's "Fix comments" can push commits to the PR branch.** In PR #57 it applied changes that had been held
+  for the owner (a new migration and a live call-handling change). Read every bot commit and run the tests before
+  merging.
 - **Production's text sort order differs from the test database.** Use `collate "C"` when comparing ordered lists or
   hashes between them.
 

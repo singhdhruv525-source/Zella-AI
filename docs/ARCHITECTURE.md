@@ -1993,6 +1993,8 @@ Knowledge, Automations, Reports, Team, Settings.
 | D-49 | HIPAA add-on: price, and business associate agreements with every vendor handling the data | owner + counsel |
 | D-50 | Tax treatment: GST on services exported from India; US state sales tax on software | owner + chartered accountant |
 | D-51 | Confirm Razorpay supports recurring USD card payments from US customers (international payments, subscriptions with a trial) before building checkout | owner |
+| D-52 | Inbound call routing when a call's number and Vapi phone ID match two different businesses' rows (each is unique on its own): proposed, route only when both agree, otherwise treat as an unknown number | owner |
+| D-53 | Whether n8n workflow failures are emailed to platform admins once email is live, or shown in the dashboard only (`sql/zella_workflow_alert_email.sql`, merged, not applied) | owner |
 | D-35 | Whether a business may ever override a resource conflict (default: never) | owner |
 | D-38 | Platform contact-ceiling values (maximum attempts per sequence, unprompted messages per day) that no plan can exceed | owner |
 | D-39 | WhatsApp, Instagram and Messenger as messaging channels: in launch scope or later (the current code has Meta workers; not yet a decision) | owner + counsel |
@@ -2055,7 +2057,7 @@ Everything else in this document is specified. These items need a person's input
 
 | # | Item | Who | Needed by phase |
 |---|---|---|---|
-| 1 | Platform contact ceiling (D-38); open billing decisions D-42 to D-51 | owner | before charging |
+| 1 | Platform contact ceiling (D-38); open billing decisions D-42 to D-51; D-52, D-53 | owner | before charging |
 | 2 | Review of the proposed consent wording (§34), templates (§33), voicemail and recording disclosures, retention periods and US calling and texting rules | counsel | 5, 6, 8, 11 |
 | 3 | Terms of service, privacy policy, data-processing terms and any agreements regulated industries require (§39) | owner + counsel | 12 |
 | 4 | Remaining open decisions in §23.2 | owner | as listed |

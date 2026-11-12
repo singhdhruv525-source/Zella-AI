@@ -308,7 +308,7 @@ only the pages they can use. Every admin action is written to the audit log.
 | Businesses | **Create Business wizard** | Business → Owner & verification → Hours & services → Team → AI receptionist → Phone & integrations (spam protection) → Automations → CRM setup → Review. Adapts its fields to the industry, saves drafts, guards unsaved changes, and invites the owner only once setup finishes. | `businesses.manage` |
 | Configuration | **Industry configuration** | The 28 industries' configurations | `businesses.view` |
 | Configuration | **Modules & features** | Modules per industry and business | `businesses.view` |
-| Configuration | **Plans & subscriptions** | Plans (none exist yet, D-34) | `billing.view` |
+| Configuration | **Plans & subscriptions** | Plans and subscriptions (policy decided in architecture §17; no plan created yet) | `billing.view` |
 | Configuration | **Offers & promotions** | Offers, rules, redemptions | `billing.view` |
 | AI & communications | **AI agents** | Receptionist agents and configurations | `businesses.view` |
 | AI & communications | **Voice & numbers** | Assign and release phone numbers, voice usage, alerts | `businesses.view` |
@@ -385,9 +385,12 @@ live switch, then the provider. Off means dry run: the message is logged as "wou
 
 | Feature | Status |
 |---|---|
-| Plans, prices and minute allowances | **None exist.** The Zella Voice owner sets them later (D-09, D-34). Nothing is invented. |
+| Plans, prices and allowances | **Policy decided, not built** (12 Nov 2026, D-34, D-41): per-business plans (Trial, Small, Medium, Large, Custom/Enterprise) set by the Zella Voice team at Create Business; 5-day trial with 20 minutes, 5 texts, 5 emails; fixed add-on pack prices; rollover, auto-reload, fair use, refunds and service credits. The full policy is in `docs/ARCHITECTURE.md` §17. No plan exists in the database yet. |
+| Add-on packs | **Prices decided, not built:** minutes $29/100, $89/250, $149/500, $269/1,000; texts $18/500, $34/1,000, $80/2,500, $150/5,000; emails $25/10,000, $59/25,000, $115/50,000; extra location $30/month; extra user $10/month |
+| Billing & Subscription page for owners (plan, usage, packs, auto-reload, invoices, cancel, refund request with server-side eligibility) | Not built (architecture §17, REQ-BIL-05, REQ-BIL-45) |
+| Razorpay checkout, trial auto-charge, auto-reload and refunds | Not built; needs the owner's approval to take real payments, and the check in D-51 |
 | Usage ledger: one append-only entry per finalised call; our failures are never billable | Built |
-| Usage thresholds and warnings; owner chooses what happens near or over a limit; a live call is never cut | Built |
+| Usage thresholds and warnings; a live call is never cut | Built (the 80%/100% alerts and "calls go to the fallback number at 100%" of §17.6 are not built yet) |
 | Voice cost estimates per business | Built |
 | Payment provider webhook: signed, applied once and in order, never moves a subscription backwards | Built, off until the webhook secret is set |
 | Scheduled cancellation and "Continue my plan" link | Built |
@@ -408,7 +411,7 @@ live switch, then the provider. Off means dry run: the message is logged as "wou
 | Vapi | Voice calls | Built; real-call authentication open |
 | Telnyx | Texts and phone numbers | Built, off |
 | Resend | Email | Built, off |
-| Stripe-style payment provider | Billing | Built, off |
+| Payment provider webhook (Stripe-style) | Billing | Built, off. The owner has chosen **Razorpay** (D-34); a Razorpay integration is not built yet |
 
 Every provider request sits behind an explicit setting. Tokens and keys live in Supabase Vault or edge function
 secrets, never in tables, code, logs or chat (`NN-2`).
@@ -450,7 +453,7 @@ secrets, never in tables, code, logs or chat (`NN-2`).
 | Item | Waiting on |
 |---|---|
 | Self-service sign-up | Later phase (D-06) |
-| Plans and prices | The owner (D-34) |
+| Billing build (plans in the database, usage rules, Billing & Subscription page, Razorpay) | Build, in steps (architecture §17); open billing decisions D-42 to D-51 |
 | Two-way AI messaging | Build (architecture §14.3) |
 | Voicemails page, AI agents beyond the receptionist, marketing campaigns | Build; hidden from the sidebar until they exist |
 | Meta channels in launch scope | Owner and counsel (D-39) |
