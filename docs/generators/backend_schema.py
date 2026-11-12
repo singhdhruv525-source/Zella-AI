@@ -353,8 +353,9 @@ def main():
             bits.append("Row security: {}; policies: {}.".format(rls, names))
         elif t["rls"]:
             bits.append("Row security: on; no policies, so roles subject to row security (signed-in users and anon) "
-                        "get no rows directly. Roles that bypass it (table owners, superusers, `BYPASSRLS` roles such "
-                        "as the server key) are not limited by it; security definer functions run as the owner.")
+                        "get no rows directly. Superusers and `BYPASSRLS` roles (such as the server key) are not "
+                        "limited by it, nor is the table owner unless `FORCE ROW LEVEL SECURITY` is set; a security "
+                        "definer function runs with its function owner's rights.")
         else:
             bits.append("Row security: **off**; no policies. Access depends on table grants alone: a defect.")
         if t["trg"]:
