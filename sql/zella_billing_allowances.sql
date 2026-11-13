@@ -739,13 +739,15 @@ create trigger zella_billing_call_spam_trg after update of outcome, status, meta
 -- else keeps it open for the next try.
 create or replace function public.zella_billing_retry_charges(p_limit integer default 100) returns integer
 language plpgsql security definer set search_path = public as $$
-declare i record; n integer := 0; m record; r jsonb; v_kind text;
+declare i record; n integer := 0; m record; r jsonb; v_kind text; v_none boolean;
 begin
   for i in select * from public.usage_processing_issues where kind = 'billing_charge_failed' and status <> 'resolved' and next_attempt_at <= now()
             order by next_attempt_at limit greatest(1, least(coalesce(p_limit, 100), 500)) for update skip locked loop
     begin
+      v_none := false;   -- set when a charge found no billing period: nothing was charged, so it is not "recorded"
       if i.call_id is not null then
         r := public.zella_billing_charge_call(i.call_id);
+        v_none := r ->> 'result' = 'not_configured';
         if coalesce(r ->> 'result', '') not in ('recorded', 'duplicate', 'released', 'unchanged', 'not_configured', 'nothing_charged', 'not_found', 'not_in_ledger') then
           raise exception 'NOT_COUNTED: %', coalesce(r ->> 'result', 'no answer');
         end if;
@@ -765,11 +767,18 @@ begin
           if coalesce(r ->> 'result', '') not in ('recorded', 'duplicate', 'not_configured') then
             raise exception 'NOT_COUNTED: % %', m.res, coalesce(r ->> 'result', 'no answer');
           end if;
+          v_none := v_none or r ->> 'result' = 'not_configured';
         end loop;
         perform public.zella_billing_evaluate_alerts(i.business_id, 'texts');
         perform public.zella_billing_evaluate_alerts(i.business_id, 'emails');
       end if;
-      update public.usage_processing_issues set status = 'resolved', resolved_at = now(), resolution = 'recorded', updated_at = now() where id = i.id;
+      -- no billing period yet (it may still open): keep the issue and try again; after 5 tries it is closed as
+      -- having no billing period, never as recorded, so nothing claims a charge that did not happen
+      if v_none and i.attempts < 4 then
+        raise exception 'NO_BILLING_PERIOD: nothing was charged yet';
+      end if;
+      update public.usage_processing_issues set status = 'resolved', resolved_at = now(),
+             resolution = case when v_none then 'no_billing_period' else 'recorded' end, updated_at = now() where id = i.id;
       n := n + 1;
     exception when others then
       update public.usage_processing_issues set attempts = attempts + 1, last_error = left(sqlerrm, 300),

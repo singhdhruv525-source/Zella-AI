@@ -386,6 +386,23 @@ do $$ declare m uuid; before numeric; begin
   assert public.zella_billing_retry_charges(10) = 0, 'retried twice';
   raise notice 'PASS a text the counter missed is listed as a problem and counted once by the hourly retry';
 end $$;
+-- 14b. A retry that finds no billing period charges nothing and never marks the issue "recorded" ------------------
+do $$ declare m uuid; iss uuid; r public.usage_processing_issues; begin
+  m := pg_temp.sms('b1000000-0000-4000-8000-0000000000ff', 'Outside any billing period');
+  update sms_messages set sent_at = now() - interval '50 days', created_at = now() - interval '50 days' where id = m;
+  perform public.zella_usage_open_issue('b1000000-0000-4000-8000-0000000000ff', null, 'billing_charge_failed', 'test failure', jsonb_build_object('table', 'sms_messages', 'id', m));
+  select id into iss from usage_processing_issues where kind = 'billing_charge_failed' and status <> 'resolved';
+  update usage_processing_issues set next_attempt_at = now() - interval '1 minute' where id = iss;
+  assert public.zella_billing_retry_charges(10) = 0, 'an issue with no billing period was resolved on the first try';
+  select * into r from usage_processing_issues where id = iss;
+  assert r.status <> 'resolved' and r.attempts = 1 and r.last_error like 'NO_BILLING_PERIOD%', 'kept for retry: ' || row_to_json(r)::text;
+  update usage_processing_issues set attempts = 4, next_attempt_at = now() - interval '1 minute' where id = iss;
+  assert public.zella_billing_retry_charges(10) = 1, 'the last try did not close the issue';
+  select * into r from usage_processing_issues where id = iss;
+  assert r.status = 'resolved' and r.resolution = 'no_billing_period', 'closed as: ' || coalesce(r.resolution, 'nothing');
+  assert not exists (select 1 from usage_charges where idempotency_key = 'sms:' || m), 'a text outside any period was charged';
+  raise notice 'PASS a retry with no billing period keeps the issue open, then closes it as no billing period, never as recorded';
+end $$;
 alter table sms_messages enable trigger zella_billing_sms_trg;
 
 -- 15. The plan page reads the saved plan (billing admins only) ------------------------------------------------------
