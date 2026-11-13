@@ -5,6 +5,8 @@ const { stripTypeScriptTypes } = require('node:module');
 const path = require('node:path');
 const vm = require('node:vm');
 const logic = require('../../web/supabase/functions/voice-rules/logic.ts');
+// the shared helper index.ts imports (its import line is stripped below), the shipped code, not a stand-in
+const { readBodyLimited } = require('../../web/supabase/functions/_shared/body.ts');
 
 // Run the shipped edge handler and reply helpers; only the backend is replaced.
 test('edge transfer tool reply excludes the backend destination from the model payload', async () => {
@@ -21,7 +23,7 @@ test('edge transfer tool reply excludes the backend destination from the model p
   };
   const source = readFileSync(path.join(__dirname, '../../web/supabase/functions/voice-rules/index.ts'), 'utf8');
   vm.runInNewContext(stripTypeScriptTypes(source).replace(/^import .*;\n/gm, ''), {
-    ...logic, Response, TextEncoder, AbortSignal,
+    ...logic, readBodyLimited, Response, TextEncoder, AbortSignal,
     console: { log() {}, error() {} },
     Deno: {
       env: { get: (key) => ({ SUPABASE_URL: 'http://backend.test', ZELLA_SERVER_SECRET_KEY: 'local-test-only' })[key] },

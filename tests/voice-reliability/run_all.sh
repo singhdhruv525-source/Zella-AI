@@ -1,10 +1,10 @@
 #!/bin/bash
 # Voice reliability phase 1 and 2 tests, on a STAGING copy of the live database functions (never production).
-# Needs a local Postgres (ZPSQL, default: the session's local cluster), node, python3 and deno (DENO).
+# Needs the isolated test server (tests/lib/zpsql.sh), node, python3 and deno (DENO).
 # Builds: zbase = live functions as they are; zvoice = live functions + sql/zella_voice_reliability.sql + sql/zella_vapi_auth.sql. Exits 1 on any failure.
 set -u
 cd "$(dirname "$0")"; HERE=$(pwd); REPO=$(cd ../.. && pwd)
-export ZPSQL=${ZPSQL:-"psql -q -At -v ON_ERROR_STOP=1 -h /var/tmp/zella-pg -p 54329 -U postgres"}
+. "$REPO/tests/lib/zpsql.sh"; zella_require_dbs zbase zvoice || exit 1
 DENO=${DENO:-deno}
 node --test transfer-privacy.test.cjs || exit 1
 FAILS=0; fail() { echo "FAIL $*"; FAILS=$((FAILS + 1)); }; pass() { echo "PASS $*"; }

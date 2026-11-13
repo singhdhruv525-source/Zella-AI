@@ -22,5 +22,10 @@ after, and runs the tests again on both.
 - `*_test.sql`: assertion blocks; `brain-flow.mjs`: the shipped Brain Tools code nodes against the patched functions;
   `edge-e2e.mjs` + `mock-rest.mjs`: the `voice-rules` function over HTTP against the staging database.
 
-Run: `DENO=<path to deno> tests/voice-reliability/run_all.sh` and `.../spam_compat.sh` (needs a local Postgres; set
-`ZPSQL` to its psql command). Secrets used are generated test values only.
+Run: `DENO=<path to deno> tests/voice-reliability/run_all.sh` and `.../spam_compat.sh`. They run only on the isolated
+test server (`tests/lib/zpsql.sh` builds the psql command from `ZPG_HOST`/`ZPG_PORT` and checks every database with
+`tests/lib/isolated_guard.sh`; a `ZPSQL` set in the environment is ignored). Secrets used are generated test values only.
+
+**Out of date (13 Nov 2026):** `run_all.sh` compares its staging build with production's function bodies as they were on
+28 Oct (`prod_md5.txt`). Five of those functions have changed in production since, so the build check fails on `main`
+before any test runs. The release rehearsal (`tests/deploy/run_all.sh`) and `tests/calls/run.sh` cover the voice path today.
