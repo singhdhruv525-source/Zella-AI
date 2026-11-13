@@ -1433,7 +1433,7 @@ flowchart LR
   ent -- at 100% --> ar{Auto-reload on<br/>and within spend cap?}
   ar -- yes --> pack[Buy the owner's chosen pack] --> ok
   ar -- no --> lim[Calls → fallback number<br/>a live call is never cut]
-  pp[Payment provider<br/>Razorpay] --> wh[Signed webhook<br/>idempotent] --> sub[(Subscription)]
+  pp[Payment provider<br/>Stripe] --> wh[Signed webhook<br/>idempotent] --> sub[(Subscription)]
   sub --> grace[Failed payment: retries →<br/>AI paused → data kept 30 days]
 ```
 
@@ -1442,7 +1442,7 @@ flowchart LR
 | REQ-BIL-01 | **Plans are set per business** by the Zella Voice team during Create Business, within this policy (D-41): a tier label (**Base** or **Pro**), the monthly or yearly price, an optional one-time setup fee, and the allowances and caps of §17.1. Minutes, texts, emails, seats, phone numbers and locations must each have a value; contact limits left blank use the defaults in §9.3 item 5. **Every plan is customised per business; there are no preset plan prices or values.** On the plan page of Create Business (step 11) the Zella Voice team chooses the tier label (Base or Pro) and enters every value for that business: price, interval, setup fee, each cap, languages, and whether the 5-day trial (REQ-BIL-11) is on. The tier is a label only; it fills in nothing. **This is the launch approach. Standard published plans with fixed values come later** (owner, 12 Nov 2026), based on the plans actually sold; the data model (`business_plans` versions and the §17.1a checks, `sql/zella_billing_allowances.sql`, built and not applied yet) lets a plan start from a standard plan's values without redesign. Price depends on how much automation the business takes and on languages (English, Spanish, or both). Amounts in examples (such as $299/month + $599 setup) are illustrations, not list prices. |
 | REQ-BIL-02 | Usage is metered from an append-only ledger (one entry per finalised call; adjustments, never edits). Our failures are never billable. |
 | REQ-BIL-03 | Entitlement **check points** sit at use time: assistant assembly, outbound claims, messaging claims, AI features. The core receptionist is never cut mid-call. |
-| REQ-BIL-04 | The payment provider (**Razorpay**, D-34) handles cards, mandates and invoices; Zella Voice stores no card data (`NN-9`). Webhooks are signed and idempotent. No real charge, refund or new payment integration goes live without the owner's explicit approval. |
+| REQ-BIL-04 | The payment provider (**Stripe**, D-34) handles cards, saved payment methods, subscriptions and invoices; Zella Voice stores no card data (`NN-9`). Webhooks are signed and idempotent. No real charge, refund or new payment integration goes live without the owner's explicit approval. |
 | REQ-BIL-05 | **Billing & Subscription page** for business owners (owner role only, enforced by the database, `TEN-9`): plan and price, usage against every allowance, packs and their expiry, auto-reload settings and spend cap, invoices and receipts, payment method (provider-hosted), cancel, request a refund. |
 | REQ-BIL-06 | Failed payment follows §17.8; no data is deleted within the grace and export window. |
 | REQ-BIL-07 | **AI usage and cost tracking:** voice minutes, AI drafting, AI messaging and call intelligence are metered per business, with estimated cost, internal budgets, threshold alerts and a platform admin view. Budgets for optional features never stop the core receptionist. |
@@ -1559,7 +1559,7 @@ Pack prices are fixed for every business. Packs are charged when bought. Unused 
 | REQ-BIL-30 | **Upgrades** take effect immediately: the owner pays the prorated difference and gets the extra allowance for the rest of the cycle; full new allowances start next cycle. *Until payments are built (step 4), every plan change, upgrade or downgrade, applies from the next billing date, so no extra allowance is given without the prorated charge.* **Downgrades** take effect on the next billing date; features and add-ons above the lower plan end then. |
 | REQ-BIL-31 | **No pause.** A business that stops using Zella Voice cancels and can return later (D-25). |
 | REQ-BIL-32 | **Packs** are charged at purchase. **At 100% of minutes the owner chooses one** (D-44): **stop** (new calls go to the fallback number), **auto-reload** a pack (REQ-BIL-23), or **pay as you go** (the AI keeps answering and each extra minute is billed at the business's own per-minute rate, set on the plan page in Create Business; offered only when that rate is set). One monthly spending limit applies to whichever is chosen. Pay-as-you-go minutes are billed at the end of the cycle. Minutes from a call already in progress when calls stop are not charged. |
-| REQ-BIL-33 | **Failed payment:** retried on days 2, 3 and 4 after the due date (by Razorpay itself, `docs/PAYMENTS_ARCHITECTURE.md` §6.3), with an email and an in-app notice each time. After **5 days overdue** the AI receptionist pauses and calls go to the business's fallback number. Data is kept for 30 days. Paying the balance restores service. |
+| REQ-BIL-33 | **Failed payment:** retried on days 2, 3 and 4 after the due date (by Stripe itself, with our retry schedule, `docs/PAYMENTS_ARCHITECTURE.md` §6.3), with an email and an in-app notice each time. After **5 days overdue** the AI receptionist pauses and calls go to the business's fallback number. Data is kept for 30 days. Paying the balance restores service. |
 | REQ-BIL-34 | **Fallback number:** every business sets one at Create Business; calls go there whenever the AI is paused or unavailable. |
 | REQ-BIL-35 | **Price changes:** 30 days' written notice, at most once in 12 months. **Founding customers** keep their price for 12 months (who counts as founding: **open**, D-47). |
 | REQ-BIL-36 | **Taxes:** the owner intends to add tax as an India-registered business selling to US customers. The treatment (GST on exported services, US state sales tax) is **open** for a chartered accountant's advice (D-50); no tax logic is built until then. |
@@ -1599,7 +1599,7 @@ Pack prices are fixed for every business. Packs are charged when bought. Unused 
 
 ### 17.12 Owner checks before charging real money
 
-Before the first real charge: Razorpay confirmed for recurring USD card payments from US customers (D-51); tax
+Before the first real charge: the Stripe account of the Wyoming LLC verified, with a US bank account for payouts (D-51); tax
 advice (D-50); terms of service, refund policy and privacy policy reviewed by counsel (§39); the owner's explicit
 approval to switch payments on.
 
@@ -1772,7 +1772,7 @@ flowchart TD
 | Store | Shopify | order lookup only |
 | Reviews | Google Business Profile | owner-approved replies |
 | AI model | Anthropic (through Vapi for voice; direct for drafts and insights) | caps per business; never trains on customer data |
-| Payments | **Razorpay** (D-34), pending the check in D-51 | hosted checkout and mandates; signed, idempotent webhooks; no card data in Zella Voice. The current code has a Stripe-style billing webhook that stays off; switching payments on needs the owner's approval |
+| Payments | **Stripe** (D-34), pending the account check in D-51 | hosted Checkout and saved cards; signed, idempotent webhooks; no card data in Zella Voice. The existing billing webhook already verifies Stripe signatures and stays off; switching payments on needs the owner's approval |
 | Speech (through Vapi) | voices and transcription chosen in settings (AI-19), e.g. ElevenLabs, Deepgram | reached only through Vapi; listed as sub-processors |
 | Messaging apps | Meta: WhatsApp Business, Instagram, Messenger [D-39] | same rules as SMS: consent, opt-out, contact hours, one reply per inbound message; WhatsApp templates approved by Meta; per-business connection; signed webhooks |
 | Push notifications | Web Push to the installed web app [D-40] | the encrypted payload holds no personal data, only a title and a link to the item; the push service the phone's browser uses still sees the subscription and message metadata (timing, size); SMS and email stay the fallback |
@@ -1838,7 +1838,7 @@ flowchart TB
   people[1 … 10,000 people<br/>admin + CRM] --> cdn[Cloudflare CDN<br/>static app cached at the edge]
   people --> edge[Edge functions<br/>stateless · scale out automatically]
   callers[Callers] --> vapi[Vapi + Telnyx] -->|signed events| edge
-  prov[Razorpay · Resend · Telnyx<br/>webhooks, bursts] -->|signed| edge
+  prov[Stripe · Resend · Telnyx<br/>webhooks, bursts] -->|signed| edge
   edge -->|insert only, fast ack| q[(Inbox · outbox ·<br/>work items)]
   edge --> pool[Connection pooler<br/>transaction mode]
   pool --> pg[(Postgres primary<br/>RLS · tenant indexes ·<br/>per-business balance rows)]
@@ -2022,7 +2022,7 @@ Knowledge, Automations, Reports, Team, Settings.
 | D-21 | Brand: always **Zella Voice** in full, everywhere (rulebook `BRD-1`). | all |
 | D-07 | At registration the business chooses **a new Zella Voice number (Telnyx)** or **forwarding its existing number**. Every business and location has its own dedicated Zella Voice number, used for outgoing calls and texts. | §10.10 |
 | D-09 | *Superseded by D-41.* (Was: no plans, prices or minute allowances yet.) AI usage and cost are tracked per business. | §17 |
-| D-34 | **Payment provider: Razorpay** (hosted checkout and mandates; no card data stored by Zella Voice), subject to the check in D-51. Decided 12 Nov 2026. | §17, §19, §39 |
+| D-34 | **Payment provider: Stripe** (hosted Checkout, saved cards and Billing subscriptions; no card data stored by Zella Voice). **Changed 13 Nov 2026** because Zella Voice is registered as a Wyoming LLC; Razorpay was chosen on 12 Nov 2026 when it was planned as an Indian business. Subject to the account check in D-51. | §17, §19, §39 |
 | D-41 | **Commercial policy (12 Nov 2026):** custom per-business plans with no preset prices or values (every value entered per business in Create Business; Base and Pro are labels only), an optional trial, monthly or yearly in advance in USD; 5-day trial with 20 minutes, 5 texts, 5 emails, card at start; fixed add-on pack prices; usage counting, rollover, alerts, auto-reload, fair use, billing, refund, cancellation, service-credit, support and data rules as written in §17. | §17 |
 | D-42 | **Monthly refresh and pack rollover (13 Nov 2026):** allowances refresh every billing month; up to 20% of plan minutes roll over for one period; packs follow the same rule (up to 20% of each minutes pack rolls over for one period; pack texts and emails expire at the refresh, like plan texts and emails). | §17.5 |
 | D-43 | **Texts and emails at 100% (13 Nov 2026):** marketing and routine messages stop; appointment confirmations and reminders continue within an unbilled 5% buffer that resets monthly; everything stops at 105%. | §17.6 |
@@ -2065,9 +2065,9 @@ Knowledge, Automations, Reports, Team, Settings.
 | D-47 | Who counts as a founding customer (e.g. first N businesses or a sign-up date) | owner |
 | D-48 | Trial limits: one trial per business, phone number and card (proposed) | owner |
 | D-49 | HIPAA add-on: price, and business associate agreements with every vendor handling the data | owner + counsel |
-| D-50 | Tax treatment: GST on services exported from India; US state sales tax on software | owner + chartered accountant |
-| D-51 | Razorpay for US customers. **Confirmed from Razorpay's documentation (12 Nov 2026):** Subscriptions take recurring payments in USD on international cards (Visa, Mastercard, Amex) after the customer authenticates the first payment with 3-D Secure; UPI and eMandate are INR only; **settlement to Zella Voice is in INR** at the exchange rate when the payment is created. **Still to confirm:** international payments activated on the Zella Voice account (KYC and banking-partner approval), and a trial with a future start date tested with a foreign test card in test mode | owner |
-| D-54 | **Variable charges in USD** (auto-reload packs, pay as you go, and when a trial business pays the setup fee). Razorpay's documentation (checked 13 Nov 2026) offers no off-session USD charge for a variable amount: subscription add-ons are deprecated and card-token charges take INR only. Options: A a payment link each month, B prepaid packs only, C ask Razorpay to enable add-ons or USD token charges (`docs/PAYMENTS_ARCHITECTURE.md` §6.9, §16.3) | owner |
+| D-50 | Tax treatment for the Wyoming LLC: US state sales tax on software (Stripe Tax can calculate and collect it) | owner + accountant |
+| D-51 | Stripe account for the Wyoming LLC: verified (EIN, the owner's identity, business address, a US bank account for USD payouts), Billing enabled, sandbox keys made; then the sandbox proofs in `docs/PAYMENTS_ARCHITECTURE.md` §16.8 | owner |
+| D-54 | ~~Variable charges in USD~~ **Closed 13 Nov 2026 with the move to Stripe:** auto-reload and yearly pay as you go are off-session charges on the saved card; monthly pay as you go is an invoice item on the renewal invoice (`docs/PAYMENTS_ARCHITECTURE.md` §6.4, §6.9) | — |
 | D-52 | Inbound call routing when a call's number and Vapi phone ID match two different businesses' rows (each is unique on its own): proposed, route only when both agree, otherwise treat as an unknown number | owner |
 | D-53 | Whether n8n workflow failures are emailed to platform admins once email is live, or shown in the dashboard only (`sql/zella_workflow_alert_email.sql`, merged, not applied) | owner |
 | D-35 | Whether a business may ever override a resource conflict (default: never) | owner |
@@ -2132,7 +2132,7 @@ Everything else in this document is specified. These items need a person's input
 
 | # | Item | Who | Needed by phase |
 |---|---|---|---|
-| 1 | Platform contact ceiling (D-38); open billing decisions D-45 to D-51 and D-54; D-52, D-53 | owner | before charging |
+| 1 | Platform contact ceiling (D-38); open billing decisions D-45 to D-51; D-52, D-53 | owner | before charging |
 | 2 | Review of the proposed consent wording (§34), templates (§33), voicemail and recording disclosures, retention periods and US calling and texting rules | counsel | 5, 6, 8, 11 |
 | 3 | Terms of service, privacy policy, data-processing terms and any agreements regulated industries require (§39) | owner + counsel | 12 |
 | 4 | Remaining open decisions in §23.2 | owner | as listed |
@@ -2536,7 +2536,7 @@ Required before launch (written and approved by the owner with counsel; not part
 | Monitoring provider (D-31) | uptime, logs, paging | request metadata only, no personal data |
 | n8n Cloud | workflow workers | work envelopes and message content in transit |
 | Cloudflare | web hosting | web traffic |
-| Razorpay (payments, D-34) | billing | business billing details and payment details (card or other payment method, entered on Razorpay's own page), payment status; Zella Voice never receives or stores card data |
+| Stripe (payments, D-34) | billing | business billing details and payment details (card entered on Stripe's own pages), payment status; Zella Voice never receives or stores card data |
 
 ## 40. Owner mobile experience and staff calling
 
