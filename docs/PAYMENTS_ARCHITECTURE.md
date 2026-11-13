@@ -807,6 +807,13 @@ acknowledged and ignored. Payloads carry `payload.subscription.entity` and, for 
 
 ### 16.8 Test-mode proofs before each flow ships
 
+**None of these flows or tests exist yet**: the cancellation worker, the state machine and the Razorpay calls are
+built in step 4, which needs the owner's approval. Each flow ships only with (1) database tests in the isolated test
+database for its state rules (for cancellation: "continue my plan" before the cut-off clears the cancel; a
+"continue" that waits on the worker's row lock is refused once the row is `cancel_sent`; after the send it is refused;
+a disputed subscription with a saved cancel is still sent; a late cancel is sent at once and a charged renewal raises a
+refund request), and (2) the Razorpay test-mode proof below. Both must pass before the flow is switched on.
+
 | Flow | Prove in Razorpay test mode |
 |---|---|
 | First payment | USD subscription on an international test card with 3-D Secure; `subscription.charged` carries the payment and invoice; binding check passes |
