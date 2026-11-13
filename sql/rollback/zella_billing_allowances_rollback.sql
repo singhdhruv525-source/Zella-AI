@@ -93,6 +93,7 @@ drop trigger if exists zella_billing_sms_trg on public.sms_messages;
 drop trigger if exists zella_billing_email_trg on public.email_messages;
 drop trigger if exists zella_billing_usage_trg on public.usage_records;
 drop trigger if exists zella_billing_call_spam_trg on public.calls;
+drop function if exists public.zella_admin_plan_get(uuid);
 drop function if exists public.zella_billing_overview(uuid);
 drop function if exists public.zella_auto_reload_save(uuid, text, boolean, integer, text, bigint);
 drop function if exists public.zella_admin_pack_grant(uuid, text, text, text);

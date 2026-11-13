@@ -218,3 +218,13 @@
 .zs-chip:disabled { opacity: 0.45; cursor: not-allowed; }
 .zs-ideas { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; color: var(--zs-text-2); font-size: 13px; }
 .zs-plain-list { margin: 0; padding-left: 18px; color: var(--zs-text-2); font-size: 13.5px; line-height: 1.6; }
+
+/* Billing: usage against an allowance (BillingPanels.jsx, PlanStep.jsx) */
+.zs-usage { display: grid; gap: 6px; padding: 10px 0; border-bottom: 1px solid var(--zs-border); }
+.zs-usage:last-of-type { border-bottom: 0; }
+.zs-usage-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.zs-usage-head span:not(.zs-pill) { color: var(--zs-text-2); font-size: 13px; }
+.zs-meter { height: 8px; border-radius: 999px; background: var(--zs-subtle); overflow: hidden; }
+.zs-meter > span { display: block; height: 100%; border-radius: inherit; background: var(--zs-accent); }
+.zs-meter.warning > span { background: var(--zs-warning); }
+.zs-meter.danger > span { background: var(--zs-danger); }

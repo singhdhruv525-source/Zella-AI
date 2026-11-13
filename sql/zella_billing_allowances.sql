@@ -826,6 +826,24 @@ begin
         order by c.resource, c.quantity) from public.billing_pack_catalog c where c.active), '[]'::jsonb));
 end $$;
 
+-- the plan page in Create Business (billing admins): the saved plan, its versions, and whether this admin may change it
+create or replace function public.zella_admin_plan_get(p_business_id uuid) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare b public.business_plans;
+begin
+  if auth.uid() is null or not public.zella_admin_can('billing.view') then raise exception 'NOT_ALLOWED'; end if;
+  b := public.zella_billing_plan_current(p_business_id);
+  return jsonb_build_object('can_edit', public.zella_admin_can('billing.manage'),
+    'settings', public.zella_billing_settings() - 'unit_costs',
+    'plan', case when b.id is not null then jsonb_build_object('version', b.version, 'tier', b.tier, 'billing_interval', b.billing_interval,
+      'price_cents', b.price_cents, 'setup_fee_cents', b.setup_fee_cents, 'minutes', b.minutes, 'texts', b.texts, 'emails', b.emails,
+      'team_seats', b.team_seats, 'phone_numbers', b.phone_numbers, 'locations', b.locations, 'languages', to_jsonb(b.languages),
+      'trial_enabled', b.trial_enabled, 'estimate', b.estimate, 'acknowledged_warnings', b.acknowledged_warnings, 'saved_at', b.created_at) end,
+    'versions', coalesce((select jsonb_agg(jsonb_build_object('version', v.version, 'tier', v.tier, 'price_cents', v.price_cents,
+        'billing_interval', v.billing_interval, 'saved_at', v.created_at) order by v.version desc)
+      from public.business_plans v where v.business_id = p_business_id), '[]'::jsonb));
+end $$;
+
 -- ---------------------------------------------------------------------------------------------------------------
 -- 9. Existing logic: patches (each checks the function is the version it was written against)
 -- ---------------------------------------------------------------------------------------------------------------
@@ -938,7 +956,7 @@ revoke all on function public.zella_billing_settings(), public.zella_plan_evalua
   public.zella_billing_balance(uuid, text, timestamptz), public.zella_message_allowance(uuid, text, text), public.zella_billing_evaluate_alerts(uuid, text),
   public.zella_billing_message_trg(), public.zella_billing_call_trg(), public.zella_billing_immutable_trg(),
   public.zella_admin_plan_save(uuid, jsonb, jsonb, text), public.zella_admin_pack_grant(uuid, text, text, text),
-  public.zella_auto_reload_save(uuid, text, boolean, integer, text, bigint), public.zella_billing_overview(uuid)
+  public.zella_auto_reload_save(uuid, text, boolean, integer, text, bigint), public.zella_billing_overview(uuid), public.zella_admin_plan_get(uuid)
   from public, anon, authenticated;
 grant execute on function public.zella_billing_settings(), public.zella_plan_evaluate(jsonb), public.zella_billing_plan_current(uuid),
   public.zella_billing_plan_at(uuid, timestamptz), public.zella_plan_limits(uuid), public.zella_billing_period_bounds(uuid, timestamptz),
@@ -946,12 +964,12 @@ grant execute on function public.zella_billing_settings(), public.zella_plan_eva
   public.zella_usage_release(uuid, text, numeric, text, text, uuid), public.zella_billing_charge_call(uuid), public.zella_billing_retry_charges(integer),
   public.zella_billing_balance(uuid, text, timestamptz), public.zella_message_allowance(uuid, text, text), public.zella_billing_evaluate_alerts(uuid, text),
   public.zella_admin_plan_save(uuid, jsonb, jsonb, text), public.zella_admin_pack_grant(uuid, text, text, text),
-  public.zella_auto_reload_save(uuid, text, boolean, integer, text, bigint), public.zella_billing_overview(uuid)
+  public.zella_auto_reload_save(uuid, text, boolean, integer, text, bigint), public.zella_billing_overview(uuid), public.zella_admin_plan_get(uuid)
   to service_role;
 -- signed in: the admin and owner functions check the caller themselves; the plan check holds no business data
 grant execute on function public.zella_plan_evaluate(jsonb), public.zella_admin_plan_save(uuid, jsonb, jsonb, text),
   public.zella_admin_pack_grant(uuid, text, text, text), public.zella_auto_reload_save(uuid, text, boolean, integer, text, bigint),
-  public.zella_billing_overview(uuid) to authenticated;
+  public.zella_billing_overview(uuid), public.zella_admin_plan_get(uuid) to authenticated;
 revoke all on function public.zella_sms_parts(text), public.zella_billing_message_kind(jsonb), public.zella_billing_bucket_rank(text, boolean) from public, anon;
 grant execute on function public.zella_sms_parts(text), public.zella_billing_message_kind(jsonb), public.zella_billing_bucket_rank(text, boolean) to authenticated, service_role;
 

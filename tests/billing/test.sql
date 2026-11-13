@@ -374,3 +374,18 @@ do $$ declare m uuid; before numeric; begin
   raise notice 'PASS a text the counter missed is listed as a problem and counted once by the hourly retry';
 end $$;
 alter table sms_messages enable trigger zella_billing_sms_trg;
+
+-- 15. The plan page reads the saved plan (billing admins only) ------------------------------------------------------
+do $$ declare r jsonb; begin
+  perform pg_temp.as_user('b1300000-0000-4000-8000-000000000009');
+  r := public.zella_admin_plan_get('b1000000-0000-4000-8000-00000000000a');
+  assert r ->> 'can_edit' = 'true' and r #>> '{plan,version}' = '1' and r #>> '{plan,price_cents}' = '29900' and jsonb_array_length(r -> 'versions') = 1, 'plan get: ' || r::text;
+  perform pg_temp.as_user('b1300000-0000-4000-8000-000000000008');
+  begin perform public.zella_admin_plan_get('b1000000-0000-4000-8000-00000000000a'); raise exception 'support admin read the plan';
+  exception when raise_exception then if sqlerrm <> 'NOT_ALLOWED' then raise; end if; end;
+  perform pg_temp.as_user('b1300000-0000-4000-8000-000000000001');
+  begin perform public.zella_admin_plan_get('b1000000-0000-4000-8000-00000000000a'); raise exception 'owner used the admin plan page';
+  exception when raise_exception then if sqlerrm <> 'NOT_ALLOWED' then raise; end if; end;
+  perform set_config('request.jwt.claims', '', false);
+  raise notice 'PASS the plan page reads the saved plan and its versions for billing admins only';
+end $$;

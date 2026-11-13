@@ -1744,7 +1744,7 @@ flowchart TD
 | Audit | Every step and every change is audited. |
 | Provider readiness | Numbers, calendar and lead sources are each checked, with a clear "not set up yet" state. |
 | Test call and message readiness | Part of the activation tests before go-live. |
-| Plan & billing (step 11) | The plan, price, setup fee, allowances, caps and trial chosen here are what the owner sees after creating their password, before paying (REQ-BIL-29). Recording and transcripts are chosen here too (REQ-BIL-48). Safeguards: profit warning, sensible limits and a review screen before the invite (REQ-BIL-55–57). |
+| Plan & billing (step 11) | The plan, price, setup fee, allowances, caps and trial chosen here are what the owner sees after creating their password, before paying (REQ-BIL-29). Recording and transcripts are chosen here too (REQ-BIL-48). Safeguards: profit warning, sensible limits and a review screen before the invite (REQ-BIL-55–57). Built (not deployed) as the wizard's **Plan & pricing** step (step 9 of today's 10-step wizard, which combines some of the steps above); `owner-provision-business` refuses to finish setup and invite the owner without a saved plan. |
 
 ---
 

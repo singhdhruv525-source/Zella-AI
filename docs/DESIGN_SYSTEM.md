@@ -32,6 +32,10 @@ semibold, body 13–14px, navigation 14px medium, KPI values 32px bold, labels 1
 
 Shape: 8px buttons and inputs, 10px small cards and banners, 14px cards, panels and modals. Shadows stay minimal.
 
+## Components added with billing
+
+- **Usage meter** (`.zs-usage`, `.zs-meter` in `web/src/settings/settings.css`): a label, "used of included", a bar, and what is left. The bar is mocha below 80%, amber from 80% and red at 100%, and the words say the same (a "Over 80%" or "Used up" badge), so colour never carries the meaning alone. It has `role="meter"` and an accessible label.
+
 ## Rules of use
 
 - Primary mocha is for primary buttons, the selected navigation item, key icons and important actions. Most

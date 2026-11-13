@@ -1029,6 +1029,12 @@ async function finishSetup(admin: SupabaseClient, fields: Json) {
         if (error) throw error;
         return new Set((data ?? []).map((h) => h.weekday)).size;
       },
+      async planSaved() {
+        // fails closed: no answer (for example the billing tables are not there yet) stops the finish
+        const { data, error } = await admin.from("business_plans").select("id").eq("business_id", businessId).limit(1);
+        if (error) throw new FinishError("The plan could not be checked. Make sure billing is set up, then try again.", 503);
+        return (data ?? []).length > 0;
+      },
       claim: (id) => moveOwnerInvitation(admin, id, { status: "sent", last_error: null, updated_at: iso() }),
       async sendInvite(email, name) {
         const appUrl = Deno.env.get("ZELLA_APP_URL");
