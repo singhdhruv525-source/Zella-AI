@@ -7,7 +7,7 @@
 
 Contents: [1 Goals](#1-goals-and-non-negotiables) · [2 Context](#2-system-context) · [3 Components](#3-components-and-trust-boundaries)
 · [4 Data model](#4-data-model) · [5 Money rules](#5-money-rules) · [6 Flows](#6-flows) · [7 State machines](#7-state-machines)
-· [8 Idempotency](#8-idempotency-and-exactly-once-effects) · [9 Security](#9-security) · [10 Reconciliation](#10-reconciliation-and-audit)
+· [8 Idempotency](#8-idempotency-and-safe-retries) · [9 Security](#9-security) · [10 Reconciliation](#10-reconciliation-and-audit)
 · [11 Scale](#11-scalable-architecture-1-to-10000-people) · [12 Failure modes](#12-failure-modes) · [13 Testing](#13-testing)
 · [14 Rollout](#14-rollout-and-gates) · [15 Open points](#15-open-points)
 
@@ -439,7 +439,7 @@ stateDiagram-v2
 
 ---
 
-## 8. Idempotency and exactly-once effects
+## 8. Idempotency and safe retries
 
 Four layers that work **together**; no single layer is relied on alone. Each money operation also has its own
 idempotency and recovery rule (table below).
