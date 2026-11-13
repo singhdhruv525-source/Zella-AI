@@ -1894,13 +1894,16 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
 
   // the plan is saved by its own step (a billing admin's review and confirm); loaded again on the plan and review steps
   const planStepKey = STEPS[step]?.key;
+  const planRequest = useRef(0);   // only the newest saved-plan check may update the screen
   const reloadPlan = () => {
     if (!businessId) return;
+    const id = ++planRequest.current;
     setPlanStatus((cur) => ({ ...(cur ?? {}), state: "loading" }));
     supabase.rpc("zella_setup_plan_saved", { p_business_id: businessId }).then(({ data, error: e }) => {
+      if (id !== planRequest.current) return;
       if (e || !data) setPlanStatus({ state: "error", saved: false, error: e ? friendlyError(e) : "no answer" });
       else setPlanStatus({ state: "ok", saved: Boolean(data.saved), version: data.version });
-    });
+    }, (err) => { if (id === planRequest.current) setPlanStatus({ state: "error", saved: false, error: friendlyError(err) }); });
     if (planStepKey === "plan") {
       setPlanError("");
       loadPlanInfo(businessId).then(setPlanInfo, (err) => setPlanError(err.message));

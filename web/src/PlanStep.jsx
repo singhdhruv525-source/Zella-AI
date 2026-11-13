@@ -41,7 +41,9 @@ function toValues(f) {
     minutes: whole(f.minutes), texts: whole(f.texts), emails: whole(f.emails), team_seats: whole(f.team_seats), phone_numbers: whole(f.phone_numbers),
     locations: whole(f.locations), languages: f.languages, trial_enabled: f.trial_enabled,
     // empty = pay as you go not offered (D-44)
-    overage_cents_per_minute: String(f.overage ?? "").trim() === "" ? null : dollarsToCents(f.overage) };
+    // empty = not offered; anything else must be a valid amount, or the check reports it (never silently dropped)
+    overage_cents_per_minute: String(f.overage ?? "").trim() === "" ? null
+      : Number.isNaN(dollarsToCents(f.overage)) ? "invalid" : dollarsToCents(f.overage) };
 }
 
 export async function loadPlanInfo(businessId) {
@@ -159,7 +161,7 @@ export default function PlanStep({ businessId, info, onSaved, onDirty, Section, 
           <div className="bp-grid" style={{ marginTop: 16 }}>
             <div>
               {num("Pay-as-you-go rate", "overage", { prefix: "$", suffix: "/ extra min", errKey: "overage_cents_per_minute" })}
-              <p className="bp-muted" style={{ marginTop: 6 }}>Optional. If set, the owner can choose to keep the AI answering after the minutes run out and pay this per extra minute, up to their monthly limit. Leave empty to not offer it.</p>
+              <p className="bp-muted" style={{ marginTop: 6 }}>Optional. Saved with the plan: the owner can choose pay as you go at this rate. Nothing is charged and calls are not kept going past the allowance until online payments and usage limits are switched on. Leave empty to not offer it.</p>
             </div>
           </div>
         </section>

@@ -458,3 +458,18 @@ do $$ declare r jsonb; begin
   perform set_config('request.jwt.claims', '', false);
   raise notice 'PASS pay as you go: the per-minute rate is set per business (a rate below cost is warned); the owner can choose it only when the plan has one';
 end $$;
+
+-- 18. A late charge to last month followed by a give-back restores this month's rollover ---------------------------
+do $$ declare src uuid := gen_random_uuid(); r jsonb; may_roll numeric; begin
+  -- business D (yearly): April was quiet (300 unused), so May rolled over 60; April's own 60 rolled-over minutes are used first, so 340 leaves 20 of the plan unused
+  may_roll := (select granted from allowance_buckets k join billing_periods p on p.id = k.period_id
+                where p.business_id = 'b1000000-0000-4000-8000-00000000000d' and p.period_start = '2026-04-30 00:00+00' and k.kind = 'rollover');
+  assert may_roll = 60, 'start: ' || may_roll;
+  r := public.zella_usage_consume('b1000000-0000-4000-8000-00000000000d', 'minutes', 340, 'test-d-late-april', 'admin', src, null, '2026-04-15 12:00+00');
+  assert (select granted from allowance_buckets k join billing_periods p on p.id = k.period_id
+           where p.business_id = 'b1000000-0000-4000-8000-00000000000d' and p.period_start = '2026-04-30 00:00+00' and k.kind = 'rollover') = 20, 'late charge did not lower the rollover';
+  r := public.zella_usage_release('b1000000-0000-4000-8000-00000000000d', 'minutes', 340, 'test-d-late-april-back', 'admin', src);
+  assert (select granted from allowance_buckets k join billing_periods p on p.id = k.period_id
+           where p.business_id = 'b1000000-0000-4000-8000-00000000000d' and p.period_start = '2026-04-30 00:00+00' and k.kind = 'rollover') = 60, 'give-back did not restore the rollover: ' || r::text;
+  raise notice 'PASS a late charge to last month lowers this month''s rollover (60 to 20), and giving it back restores it (20 to 60)';
+end $$;

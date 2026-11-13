@@ -497,11 +497,20 @@ function UsageProtection({ w }) {
   // the pay-as-you-go rate comes from the business's own plan (owners only; others see the choices without it)
   const state = useAsync(async () => {
     const p = await rpc("zella_usage_preferences", { p_business_id: w.id });
-    let rate = null;
-    try { rate = (await rpc("zella_billing_overview", { p_business_id: w.id }))?.plan?.overage_cents_per_minute ?? null; } catch { /* not the owner */ }
-    return { ...p, payg_cents: rate };
+    let rate = null, rateError = "";
+    if (w.role === "owner") {
+      // owners only: a failure is shown (with Retry), never mistaken for "not on your plan"; others are refused quietly
+      try { rate = (await rpc("zella_billing_overview", { p_business_id: w.id }))?.plan?.overage_cents_per_minute ?? null; }
+      catch (err) { rateError = say(err); }
+    }
+    return { ...p, payg_cents: rate, payg_error: rateError };
   }, [w.id]);
-  return <LoadState state={state}>{(p) => <ProtectionForm w={w} p={p} />}</LoadState>;
+  return <LoadState state={state}>{(p) => (
+    <>
+      {p.payg_error && <Banner tone="error">Your plan's pay-as-you-go rate couldn't be loaded ({p.payg_error}). <button type="button" className="zs-link" onClick={state.reload}>Try again</button></Banner>}
+      <ProtectionForm w={w} p={p} />
+    </>
+  )}</LoadState>;
 }
 
 function ProtectionForm({ w, p }) {
@@ -519,7 +528,7 @@ function ProtectionForm({ w, p }) {
         <div className="zs-grid">
           <Field label="Extra usage" full><select value={v.mode} onChange={form.set("mode")}>
             <option value="stop">Stop: no extra minutes</option>
-            <option value="pay_as_you_go" disabled={p.payg_cents == null && v.mode !== "pay_as_you_go"}>{p.payg_cents != null ? `Pay as you go: $${(p.payg_cents / 100).toFixed(2)} per extra minute, up to my limit` : "Pay as you go (not on your plan)"}</option>
+            <option value="pay_as_you_go" disabled={p.payg_cents == null && v.mode !== "pay_as_you_go"}>{p.payg_cents != null ? `Pay as you go: $${(p.payg_cents / 100).toFixed(2)} per extra minute, up to my limit` : p.payg_error ? "Pay as you go (rate unavailable, try again)" : "Pay as you go (not on your plan)"}</option>
             <option value="auto_top_up">Auto-reload a pack, up to my limit</option></select></Field>
           {v.mode !== "stop" && <Field label="Monthly spending limit (USD)" error={v.limit && !(Number(v.limit) > 0) ? "Enter an amount above 0" : ""}><input inputMode="decimal" value={v.limit} onChange={form.set("limit")} /></Field>}
           <Field label="If extra usage isn't allowed"><select value={v.fallback} onChange={form.set("fallback")}>

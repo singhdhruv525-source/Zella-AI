@@ -475,9 +475,10 @@ begin
   return p;
 end $$;
 
--- a late usage entry in a period whose next period already rolled over its unused minutes: the next period's rollover
--- comes down to what is really unused now (never below what was already used from it). Called with the earlier period
--- locked; locks the next one (earlier before later, as everywhere).
+-- the next period's rollover follows what is really unused in the earlier one, both ways: late usage there lowers it
+-- (never below what was already used from it), a give-back there raises it again (up to the 20% cap), and a rollover
+-- bucket that went to zero comes back. Called with the earlier period locked; locks the next one (earlier before
+-- later, as everywhere).
 create or replace function public.zella_billing_rollover_reconcile(p_period_id uuid) returns integer
 language plpgsql security definer set search_path = public as $$
 declare p public.billing_periods; n public.billing_periods; pb public.business_plans; s jsonb := public.zella_billing_settings(); x record; v_new numeric; c integer := 0;
@@ -488,19 +489,26 @@ begin
   if n.id is null then return 0; end if;
   select * into pb from public.business_plans where id = p.business_plan_id;
   for x in
-    select rb.id, rb.granted, rb.used,
-           least(k.granted - k.used, floor(case when k.kind = 'plan' then pb.minutes else pp.quantity end * (s ->> 'rollover_percent')::numeric / 100)) as should
-      from public.allowance_buckets rb
-      join public.allowance_buckets k on k.period_id = p.id and k.resource = 'minutes' and k.kind in ('plan', 'pack')
-           and k.pack_purchase_id is not distinct from rb.pack_purchase_id
+    select k.pack_purchase_id, rb.id as rid, rb.granted, rb.used,
+           greatest(0, least(k.granted - k.used, floor(case when k.kind = 'plan' then pb.minutes else pp.quantity end * (s ->> 'rollover_percent')::numeric / 100))) as should
+      from public.allowance_buckets k
       left join public.pack_purchases pp on pp.id = k.pack_purchase_id
-     where rb.period_id = n.id and rb.resource = 'minutes' and rb.kind = 'rollover'
-     for update of rb
+      left join public.allowance_buckets rb on rb.period_id = n.id and rb.resource = 'minutes' and rb.kind = 'rollover'
+           and rb.pack_purchase_id is not distinct from k.pack_purchase_id
+     where k.period_id = p.id and k.resource = 'minutes' and k.kind in ('plan', 'pack')
+     for update of k
   loop
-    continue when x.should >= x.granted;
+    if x.rid is null then
+      continue when x.should <= 0;
+      insert into public.allowance_buckets (business_id, period_id, resource, kind, pack_purchase_id, granted, expires_at)
+      values (p.business_id, n.id, 'minutes', 'rollover', x.pack_purchase_id, x.should, n.period_end);
+      c := c + 1;
+      continue;
+    end if;
     v_new := greatest(x.should, x.used);
-    if v_new <= 0 then delete from public.allowance_buckets where id = x.id;
-    else update public.allowance_buckets set granted = v_new where id = x.id; end if;
+    continue when v_new = x.granted;
+    if v_new <= 0 then delete from public.allowance_buckets where id = x.rid;
+    else update public.allowance_buckets set granted = v_new where id = x.rid; end if;
     c := c + 1;
   end loop;
   return c;
@@ -555,7 +563,8 @@ begin
 end $$;
 
 -- gives back up to p_quantity of what earlier charges for this source took: what no balance covered first, then the
--- buckets in reverse order of use (only while the period is open; afterwards it is recorded, nothing is given back)
+-- buckets in reverse order of use. A give-back to an earlier period restores that period's balance and so the next
+-- period's rollover (zella_billing_rollover_reconcile).
 create or replace function public.zella_usage_release(p_business_id uuid, p_resource text, p_quantity numeric, p_key text,
     p_source_kind text, p_source_id uuid) returns jsonb
 language plpgsql security definer set search_path = public as $$
@@ -583,7 +592,7 @@ begin
   loop
     exit when v_left <= 0;
     select b.id, least(v_left, a.qty, b.used) as back into c from public.allowance_buckets b
-     where b.id = a.bucket_id and b.expires_at > now() for update;
+     where b.id = a.bucket_id for update;
     continue when c.id is null or c.back <= 0;
     update public.allowance_buckets set used = used - c.back where id = c.id;
     v_alloc := v_alloc || jsonb_build_object('bucket_id', c.id, 'kind', a.kind, 'quantity', -c.back);
@@ -592,6 +601,9 @@ begin
   insert into public.usage_charges (business_id, period_id, resource, idempotency_key, quantity, allocations, over_quantity, source_kind, source_id, occurred_at)
   values (p_business_id, v_period, p_resource, p_key, -p_quantity, v_alloc, v_over, p_source_kind, p_source_id, now())
   returning id into v_id;
+  if p_resource = 'minutes' and (select period_end from public.billing_periods where id = v_period) <= now() then
+    perform public.zella_billing_rollover_reconcile(v_period);
+  end if;
   return jsonb_build_object('result', 'released', 'charge_id', v_id, 'allocations', v_alloc, 'not_given_back', v_left);
 end $$;
 
