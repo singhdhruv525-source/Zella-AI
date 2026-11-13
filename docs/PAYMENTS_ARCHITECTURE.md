@@ -535,7 +535,7 @@ flowchart TB
 | Upgrade (update subscription) | one pending update per subscription; Idempotency-Key = local change id | fetch the subscription's `pending_update` and latest invoice |
 | Create Checkout Session or subscription | Idempotency-Key = outbox id; `metadata.outbox_id` | §8 table above |
 | Refund | Idempotency-Key = our refund ID | resend with the same key, or list the PaymentIntent's refunds |
-| Cancel at period end / continue | the owner's **latest** choice wins: each click stores `desired_cancel_at_period_end` with an increasing version on the subscription row; one outbox row per subscription (unique), and the worker locks that row, sends the current desired value (not the value of the click that queued it), then fetches the subscription and resends if Stripe's `cancel_at_period_end` differs from the latest desired value | fetch the subscription and compare with the latest desired value |
+| Cancel at period end / continue | the owner's **latest** choice wins: each click stores `desired_cancel_at_period_end` with an increasing version on the subscription row; one outbox row per subscription (unique), and the worker locks that row, sends the current desired value (not the value of the click that queued it), then fetches the subscription and resends if Stripe's `cancel_at_period_end` differs from the latest desired value. **Each send has its own Idempotency-Key** `cancel:<subscription id>:<desired version>:<attempt>`; the same key is reused only to retry that same uncertain send (same body), and a resend after reconciliation takes a new attempt number | fetch the subscription and compare with the latest desired value |
 
 Each flow is enabled only after its provider behaviour is proven in a Stripe sandbox (§16.8).
 
@@ -732,7 +732,7 @@ pinned in the request header and changed only on purpose.
 | Dispute evidence | `POST /v1/disputes/:id` | evidence fields, `submit` | a person decides |
 | Look-ups | `GET` invoices, PaymentIntents, refunds, events, balance transactions | | reconciler (§10) |
 
-**Every POST carries `Idempotency-Key`** (our outbox, purchase or refund ID, at most 255 characters, no personal data).
+**Every POST carries `Idempotency-Key`** (our outbox, purchase or refund ID, or for cancel/continue the per-send key in §8; at most 255 characters, no personal data). A key is reused only to retry the identical request.
 Stripe returns the first result for a repeated key with the same parameters, errors if the parameters differ, and may
 forget keys after 24 hours.
 
@@ -799,6 +799,12 @@ yet is kept and applied when its parent arrives, fetching the object from the AP
 
 **None of these flows or tests exist yet**; they are built in step 4, which needs the owner's approval. Each flow
 ships only with database tests in the isolated test database for its state rules **and** the sandbox proof below.
+For cancellation the database tests are: cancel then continue then cancel (latest choice wins, versions increase);
+two clicks while the worker holds the lock (the worker sends the latest value); a lost reply retried with the same
+key; a mismatch found by reconciliation resent with a new key; a scheduled cancel on a disputed subscription (the
+dispute suspension is kept, the cancel still takes effect at period end); the final pay-as-you-go invoice after
+`customer.subscription.deleted`. (The Razorpay-era cut-off and late-cancel tests no longer apply: Stripe's
+`cancel_at_period_end` is reversible until the period ends.)
 
 | Flow | Prove in a Stripe sandbox |
 |---|---|
