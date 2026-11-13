@@ -237,7 +237,8 @@ select json_build_object(
  'funcs', (select json_agg(json_build_object('n', p.proname, 'a', pg_get_function_identity_arguments(p.oid),
              'r', pg_get_function_result(p.oid), 'sd', p.prosecdef, 'k', p.prokind,
              'anon', has_function_privilege('anon', p.oid, 'execute'),
-             'auth', has_function_privilege('authenticated', p.oid, 'execute')) order by p.proname, 2)
+             'auth', has_function_privilege('authenticated', p.oid, 'execute'))
+             order by p.proname, pg_get_function_identity_arguments(p.oid))
              from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public')
 )
 """
