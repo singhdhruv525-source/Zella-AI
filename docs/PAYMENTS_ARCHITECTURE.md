@@ -277,8 +277,9 @@ expires unused and a new one is created when the owner returns. The exact window
 test mode before the trial ships (D-51).
 
 **Razorpay mechanics (§16):** the trial is a subscription with `start_at` = trial end and `expire_by` = the 24-hour
-authorisation window. The owner completes an **authentication transaction** (a small amount, auto-refunded by Razorpay;
-nothing is captured), Razorpay sends `subscription.authenticated`, and the card is first charged at `start_at`
+authorisation window. The owner completes an **authentication transaction** (a small amount, ₹5 in Razorpay's docs for rupee plans, the USD amount confirmed in test mode, that is
+**charged to the card and then refunded automatically** by Razorpay, so the owner may briefly see it on their
+statement; the trial page says so), Razorpay sends `subscription.authenticated`, and the card is first charged at `start_at`
 (`subscription.activated`, then `subscription.charged`). A setup fee passed as the upfront amount (`addons` on create)
 is charged **during the authentication**, that is at the start of the trial, and the subscription stays `created` until
 it is paid; whether a trial business pays the setup fee at the start or at the end is part of D-54.
@@ -542,7 +543,7 @@ flowchart TB
 | Upgrade (update subscription) | one pending update per subscription (Razorpay refuses a second) | fetch the subscription and its pending update (`GET /v1/subscriptions/:id/retrieve_scheduled_changes`) |
 | Create subscription | `notes.outbox_id` | §8 table above; proven in test mode before shipping |
 | Refund | Razorpay's refund idempotency header (`X-Refund-Idempotency`) set to our refund ID | resend with the same key, or fetch the payment's refunds |
-| Cancel subscription | naturally idempotent | fetch the subscription and record its state |
+| Cancel subscription | naturally idempotent; sent only when it must take effect (§16.2) | fetch the subscription and record its state |
 
 Each flow is enabled only after its provider behaviour is proven in Razorpay test mode (D-51).
 
@@ -726,7 +727,7 @@ Razorpay yet: every row marked *prove* is confirmed in **test mode** before its 
 | Subscription invoices | `GET /v1/invoices?subscription_id=:id` | invoice `status`, `payment_id`, amounts | renewal recovery and reconciliation |
 | Update subscription | `PATCH /v1/subscriptions/:id` | `plan_id`, `schedule_change_at` (`now` / `cycle_end`), `customer_notify` | upgrade `now`, downgrade `cycle_end` (§6.6) |
 | Pending update | `GET /v1/subscriptions/:id/retrieve_scheduled_changes`; cancel: `POST /v1/subscriptions/:id/cancel_scheduled_changes` | | owner withdraws a scheduled downgrade |
-| Cancel subscription | `POST /v1/subscriptions/:id/cancel` | `cancel_at_cycle_end` `true` (owner cancels: runs to period end) or `false` (trial cancel: immediately) | a cancelled subscription cannot restart; "continue my plan" before the end calls nothing |
+| Cancel subscription | `POST /v1/subscriptions/:id/cancel` with `cancel_at_cycle_end: false` | | **A cancellation stays local until it must take effect**, because a Razorpay cancellation cannot be undone and a cancelled subscription cannot restart. The owner's cancel sets `cancel_scheduled` only; "continue my plan" clears it and nothing was sent. The worker sends the cancel **6 hours before `charge_at`** (a trial cancel is sent at once), then fetches the subscription to confirm `cancelled` before `charge_at`; if it is not confirmed, a platform alert fires, and a renewal charged after the owner's cancel is refunded in full. *Prove* the timing in test mode |
 | Pause / resume | `POST /v1/subscriptions/:id/pause` · `/resume` | | **not used**: our non-payment pause is our own service pause (D-25 has no owner pause) |
 | Create order (pack) | `POST /v1/orders` | `amount`, `currency: USD`, `receipt` = our purchase ID, `notes` | order ID stored before checkout opens |
 | Payments of an order | `GET /v1/orders/:id/payments` | `status`, `amount`, `currency` | recovery after a lost reply |
@@ -803,7 +804,8 @@ acknowledged and ignored. Payloads carry `payload.subscription.entity` and, for 
 | Flow | Prove in Razorpay test mode |
 |---|---|
 | First payment | USD subscription on an international test card with 3-D Secure; `subscription.charged` carries the payment and invoice; binding check passes |
-| Trial | future `start_at`; authentication refunded; `expire_by` window behaviour; first charge at `start_at` |
+| Trial | future `start_at`; authentication amount in USD charged and refunded; `expire_by` window behaviour; first charge at `start_at` |
+| Cancel | a cancel sent 6 hours before `charge_at` stops that charge; the owner's cancel before then sends nothing |
 | Lost create reply | listing subscriptions finds the one with our `notes.outbox_id` (§8) |
 | Failed renewal | test card failure → `pending` on T, retries T+1..T+3 → `halted`; card change charges the last invoice |
 | Upgrade | `schedule_change_at: now` charges Razorpay's prorated amount; our quote matches it |
