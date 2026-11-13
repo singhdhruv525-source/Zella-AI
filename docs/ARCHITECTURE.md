@@ -1462,7 +1462,7 @@ Each business's plan is set by the Zella Voice team in Create Business (§18.6, 
 | Missed-call callbacks per period | callbacks created | callback claim | staff task instead of an AI callback |
 | Call attempts per follow-up sequence | attempts | attempt claim | sequence ends → staff task (within the platform ceiling, REQ-MSG-08) |
 | Lead-call sequences per period | sequences started | sequence start | lead goes to staff |
-| SMS segments and emails | messages sent | message claim | marketing: stopped; service messages: see D-43 |
+| SMS segments and emails | messages sent | message claim | marketing and routine messages stopped; appointment confirmations and reminders continue within a 5% buffer (D-43) |
 | Two-way AI messaging conversations | AI replies | AI reply | conversation goes to staff |
 | AI knowledge drafts | drafts created | draft job | drafting pauses; receptionist unaffected |
 | Team seats | active members | invitation | invitation refused with a clear reason, or an extra user added ($10/month, §17.3) |
@@ -1538,7 +1538,7 @@ Pack prices are fixed for every business. Packs are charged when bought. Unused 
 | ID | Requirement |
 |---|---|
 | REQ-BIL-21 | **Alerts at 80% and 100%** of minutes, texts and emails, in the app and by email to the business owner. |
-| REQ-BIL-22 | **At 100% of minutes** (and no auto-reload): a call in progress is never cut (`BIL-5`); new calls go to the business's **fallback number** (REQ-BIL-34). What happens to texts and emails at 100% is **open** (D-43). |
+| REQ-BIL-22 | **At 100% of minutes** (and no auto-reload): a call in progress is never cut (`BIL-5`); new calls go to the business's **fallback number** (REQ-BIL-34). **Texts and emails at 100%** (D-43): marketing and routine messages (follow-ups, missed-call recovery, offers, win-backs) stop; **appointment confirmations and reminders** continue within a **buffer of 5%** of the plan's texts or emails (e.g. 50 texts on a 1,000-text plan). The buffer is not billed to the business (Zella Voice absorbs it), does not roll over and resets each month. At 105% every text or email stops until a pack is bought or the next month starts. |
 | REQ-BIL-23 | **Auto-reload** (optional, off by default): the business owner sets the **threshold** (e.g. 10 minutes left) and the **pack** bought when it is reached, plus a **monthly spend cap**. A reload never exceeds the cap; each reload is charged when made, receipted and shown on the billing page. |
 
 ### 17.7 Fair use and plan suggestions
@@ -2025,6 +2025,7 @@ Knowledge, Automations, Reports, Team, Settings.
 | D-34 | **Payment provider: Razorpay** (hosted checkout and mandates; no card data stored by Zella Voice), subject to the check in D-51. Decided 12 Nov 2026. | §17, §19, §39 |
 | D-41 | **Commercial policy (12 Nov 2026):** custom per-business plans with no preset prices or values (every value entered per business in Create Business; Base and Pro are labels only), an optional trial, monthly or yearly in advance in USD; 5-day trial with 20 minutes, 5 texts, 5 emails, card at start; fixed add-on pack prices; usage counting, rollover, alerts, auto-reload, fair use, billing, refund, cancellation, service-credit, support and data rules as written in §17. | §17 |
 | D-42 | **Monthly refresh and pack rollover (13 Nov 2026):** allowances refresh every billing month; up to 20% of plan minutes roll over for one period; packs follow the same rule (up to 20% of each minutes pack rolls over for one period; pack texts and emails expire at the refresh, like plan texts and emails). | §17.5 |
+| D-43 | **Texts and emails at 100% (13 Nov 2026):** marketing and routine messages stop; appointment confirmations and reminders continue within an unbilled 5% buffer that resets monthly; everything stops at 105%. | §17.6 |
 | D-25 | **No pause.** A business that stops using Zella Voice cancels and can return later. (A business is paused by Zella Voice only for non-payment, REQ-BIL-33.) | §17.8, REQ-LC-20 |
 | D-10 | Leave a **short, professional voicemail** where permitted; no sensitive details; then one contextual message. | §13.7 |
 | D-11 | Not decided separately; missed-call rules apply only when the caller's number is known (REQ-MC-12). | §12 |
@@ -2057,7 +2058,6 @@ Knowledge, Automations, Reports, Team, Settings.
 | D-36 | Late-arrival minutes before staff are prompted to mark a no-show | owner |
 | D-32 | Limit on AI replies per conversation per hour | engineering |
 | D-33 | Default internal monthly AI budget per business and alert thresholds (75% / 90% proposed) | owner |
-| D-43 | Texts and emails at 100%: stop everything, or keep appointment confirmations and reminders with a small buffer (proposed: keep them, about 5%) | owner |
 | D-44 | Overage: what is billed as overage when calls go to the fallback number at 100%, and at what rate | owner |
 | D-45 | Fair-use review multiple: 2× or 3× the allowance two months in a row (proposed: 3×) | owner |
 | D-46 | Annual plans: allowances reset monthly or one yearly bucket (proposed: monthly); any annual discount; rollover on downgrade | owner |
@@ -2130,7 +2130,7 @@ Everything else in this document is specified. These items need a person's input
 
 | # | Item | Who | Needed by phase |
 |---|---|---|---|
-| 1 | Platform contact ceiling (D-38); open billing decisions D-43 to D-51; D-52, D-53 | owner | before charging |
+| 1 | Platform contact ceiling (D-38); open billing decisions D-44 to D-51; D-52, D-53 | owner | before charging |
 | 2 | Review of the proposed consent wording (§34), templates (§33), voicemail and recording disclosures, retention periods and US calling and texting rules | counsel | 5, 6, 8, 11 |
 | 3 | Terms of service, privacy policy, data-processing terms and any agreements regulated industries require (§39) | owner + counsel | 12 |
 | 4 | Remaining open decisions in §23.2 | owner | as listed |
