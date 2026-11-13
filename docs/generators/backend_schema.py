@@ -30,6 +30,7 @@ GROUPS = [
         "legal_documents": "Versions of the terms and policies people accept.",
         "legal_acceptances": "Who accepted which legal document version, and when.",
         "audit_logs": "Append-only record of every privileged action. Only the server can write it.",
+        "zella_function_archive": "Original function definitions a migration replaced, kept for its exact rollback (server only, no tenant data).",
         "rate_limits": "Counters that slow down repeated requests per key and window.",
     }),
     ("Business setup and industry configuration", {

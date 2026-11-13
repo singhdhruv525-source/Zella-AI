@@ -52,14 +52,24 @@ do $$ declare b uuid; r jsonb; v_ok text; begin
     on conflict (key) do update set value = excluded.value;
   assert public.zella_claim_call_insights(5) = '[]'::jsonb, 'call insights claimed without a model';
   assert public.zella_claim_gap_drafts(5) = '[]'::jsonb, 'knowledge drafts claimed without a model';
+  -- a review waiting for an AI draft: without a model it stays unclaimed; with one it is claimed (positive control)
+  insert into reviews (business_id, provider, external_id, rating, body, draft) values (b, 'google', 'test-model-defaults-1', 5, 'Great service', 'Thank you!');
+  update reviews set status = 'drafted', ai_status = 'pending', ai_attempts = 0, ai_claimed_at = null where external_id = 'test-model-defaults-1';
   assert public.zella_review_claim_ai(5) = '[]'::jsonb, 'review replies claimed without a model';
-  raise notice 'PASS missing model: no assistant sent, with the reason; set model: accepted; AI workers claim nothing without a model';
+  assert (select ai_attempts = 0 and ai_claimed_at is null from reviews where external_id = 'test-model-defaults-1'), 'the review was touched without a model';
+  insert into platform_settings (key, value) values ('review_ai_model', '"test-model"') on conflict (key) do update set value = excluded.value;
+  r := public.zella_review_claim_ai(5);
+  assert jsonb_array_length(r) = 1 and r -> 0 ->> 'review_id' = (select id::text from reviews where external_id = 'test-model-defaults-1')
+     and r -> 0 ->> 'model' = 'test-model', 'with a model the review is claimed: ' || r::text;
+  raise notice 'PASS missing model: no assistant sent, with the reason; set model: accepted; AI workers claim nothing without a model; a seeded review is claimed only once a model is set';
 end $$;
 SQL
 ) && echo "$out" | grep -o 'PASS .*' || bad "behaviour: $(echo "$out" | grep -m2 -E 'ERROR|CONTEXT' | tr '\n' ' ')"
 for f in zella_claim_call_insights zella_claim_gap_drafts; do
   [ "$(q "select prosrc like '%if not v_live or v_model is null then return v_res; end if;%' from pg_proc where proname = '$f'")" = t ] && ok "$f returns no work without a model" || bad "$f has no model check"
 done
+[ "$(q "select prosrc like '%if v_model is null or not coalesce(public.zella_setting(''review_ai_live''%' from pg_proc where proname = 'zella_review_claim_ai'")" = t ] \
+  && ok "zella_review_claim_ai returns no work without a model" || bad "zella_review_claim_ai has no model check"
 [ "$(q "select prosrc like '%if v_model is not null and nullif(trim(coalesce(v_text, ''''))%' from pg_proc where proname = 'zella_spam_claim_work'")" = t ] \
   && ok "zella_spam_claim_work skips only the AI opinion without a model" || bad "zella_spam_claim_work has no model check"
 
