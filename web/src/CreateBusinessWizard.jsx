@@ -1906,7 +1906,9 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
     }, (err) => { if (id === planRequest.current) setPlanStatus({ state: "error", saved: false, error: friendlyError(err) }); });
     if (planStepKey === "plan") {
       setPlanError("");
-      loadPlanInfo(businessId).then(setPlanInfo, (err) => setPlanError(err.message));
+      loadPlanInfo(businessId).then(
+        (info) => { if (id === planRequest.current) setPlanInfo(info); },
+        (err) => { if (id === planRequest.current) setPlanError(err.message); });
     }
   };
   useEffect(() => {
