@@ -1,5 +1,5 @@
 {
-  "name": "Zella - Meta Leads",
+  "name": "Zella Voice - Meta Leads",
   "nodes": [
     {
       "parameters": {
@@ -56,7 +56,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Zella - Meta Leads: one claimed lead event in. Only plain ids are used to build the request.\nconst id = (v, re) => (typeof v === 'string' && re.test(v) ? v : null);\nconst uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;\nconst eventId = id($json.event_id, uuid);\nconst pageId = id($json.page_id, /^[0-9]{5,30}$/);\nconst leadId = id($json.leadgen_id, /^[0-9]{5,30}$/);\nif (!eventId) return { json: { skip: true } };\nreturn { json: { skip: false, event_id: eventId, page_id: pageId, leadgen_id: leadId, valid: !!(pageId && leadId) } };\n"
+        "jsCode": "// Zella Voice - Meta Leads: one claimed lead event in. Only plain ids are used to build the request.\nconst id = (v, re) => (typeof v === 'string' && re.test(v) ? v : null);\nconst uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;\nconst eventId = id($json.event_id, uuid);\nconst pageId = id($json.page_id, /^[0-9]{5,30}$/);\nconst leadId = id($json.leadgen_id, /^[0-9]{5,30}$/);\nif (!eventId) return { json: { skip: true } };\nreturn { json: { skip: false, event_id: eventId, page_id: pageId, leadgen_id: leadId, valid: !!(pageId && leadId) } };\n"
       },
       "id": "ae2f98a0-99fe-4855-8311-26233e9c1364",
       "name": "Plan",
@@ -138,7 +138,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Zella - Meta Leads: build the request for Meta. The token comes from the database; without one the event is retried later.\nconst plan = $('Plan').item.json;\nconst t = $json.body;\nconst token = typeof t === 'string' && t.length >= 20 && t.length < 1000 ? t : null;\nif (!plan.valid) return { json: { ...plan, fail: { p_event_id: plan.event_id, p_error: 'bad_event', p_permanent: true } } };\nif (!token) return { json: { ...plan, fail: { p_event_id: plan.event_id, p_error: 'no_token_reconnect_needed', p_permanent: false } } };\nreturn {\n  json: {\n    ...plan, fail: null,\n    url: 'https://graph.facebook.com/v21.0/' + plan.leadgen_id + '?fields=field_data,campaign_name,ad_name,form_id,created_time',\n    auth: 'Bearer ' + token,\n  },\n};\n"
+        "jsCode": "// Zella Voice - Meta Leads: build the request for Meta. The token comes from the database; without one the event is retried later.\nconst plan = $('Plan').item.json;\nconst t = $json.body;\nconst token = typeof t === 'string' && t.length >= 20 && t.length < 1000 ? t : null;\nif (!plan.valid) return { json: { ...plan, fail: { p_event_id: plan.event_id, p_error: 'bad_event', p_permanent: true } } };\nif (!token) return { json: { ...plan, fail: { p_event_id: plan.event_id, p_error: 'no_token_reconnect_needed', p_permanent: false } } };\nreturn {\n  json: {\n    ...plan, fail: null,\n    url: 'https://graph.facebook.com/v21.0/' + plan.leadgen_id + '?fields=field_data,campaign_name,ad_name,form_id,created_time',\n    auth: 'Bearer ' + token,\n  },\n};\n"
       },
       "id": "a298f184-f485-4bc7-8f13-b457d0d29f95",
       "name": "Build request",
@@ -219,7 +219,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Zella - Meta Leads: turn Meta's answer into either \"save this lead\" or \"mark this attempt failed\".\n// Nothing from the answer except the form answers and the campaign name is kept.\nconst plan = $('Build request').item.json;\nif (plan.fail) return { json: { save: null, fail: plan.fail } };\nconst r = $json;\nconst status = Number(r.statusCode);\nconst b = r.body && typeof r.body === 'object' ? r.body : {};\nif (status >= 200 && status < 300 && Array.isArray(b.field_data)) {\n  const fields = b.field_data.slice(0, 40).filter((f) => f && typeof f.name === 'string').map((f) => ({\n    name: f.name.slice(0, 80), values: Array.isArray(f.values) ? f.values.slice(0, 3).map((v) => String(v).slice(0, 300)) : [],\n  }));\n  const camp = typeof b.campaign_name === 'string' ? b.campaign_name : typeof b.ad_name === 'string' ? b.ad_name : null;\n  return { json: { save: { p_event_id: plan.event_id, p_fields: fields, p_campaign: camp ? camp.slice(0, 120) : null }, fail: null } };\n}\nconst code = b.error && typeof b.error === 'object' ? Number(b.error.code) : 0;\n// a lead that no longer exists or may not be read will never work; anything else is tried again\nconst permanent = status === 404 || (status === 400 && code === 100);\nreturn { json: { save: null, fail: { p_event_id: plan.event_id, p_error: ('HTTP ' + (status || 'none') + (code ? ' code ' + code : '')).slice(0, 100), p_permanent: permanent } } };\n"
+        "jsCode": "// Zella Voice - Meta Leads: turn Meta's answer into either \"save this lead\" or \"mark this attempt failed\".\n// Nothing from the answer except the form answers and the campaign name is kept.\nconst plan = $('Build request').item.json;\nif (plan.fail) return { json: { save: null, fail: plan.fail } };\nconst r = $json;\nconst status = Number(r.statusCode);\nconst b = r.body && typeof r.body === 'object' ? r.body : {};\nif (status >= 200 && status < 300 && Array.isArray(b.field_data)) {\n  const fields = b.field_data.slice(0, 40).filter((f) => f && typeof f.name === 'string').map((f) => ({\n    name: f.name.slice(0, 80), values: Array.isArray(f.values) ? f.values.slice(0, 3).map((v) => String(v).slice(0, 300)) : [],\n  }));\n  const camp = typeof b.campaign_name === 'string' ? b.campaign_name : typeof b.ad_name === 'string' ? b.ad_name : null;\n  return { json: { save: { p_event_id: plan.event_id, p_fields: fields, p_campaign: camp ? camp.slice(0, 120) : null }, fail: null } };\n}\nconst code = b.error && typeof b.error === 'object' ? Number(b.error.code) : 0;\n// a lead that no longer exists or may not be read will never work; anything else is tried again\nconst permanent = status === 404 || (status === 400 && code === 100);\nreturn { json: { save: null, fail: { p_event_id: plan.event_id, p_error: ('HTTP ' + (status || 'none') + (code ? ' code ' + code : '')).slice(0, 100), p_permanent: permanent } } };\n"
       },
       "id": "4c6d268d-614a-4f2c-88a7-3ba8dafbadc2",
       "name": "Read result",

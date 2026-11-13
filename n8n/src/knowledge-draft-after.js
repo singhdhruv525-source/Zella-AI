@@ -1,4 +1,4 @@
-// Zella - Knowledge: read the AI's draft and save it for the owner to check. Nothing is used until the owner submits.
+// Zella Voice - Knowledge: read the AI's draft and save it for the owner to check. Nothing is used until the owner submits.
 // A failed or unreadable answer saves nothing; the question is tried again later (up to 3 times in total).
 const plan = $('Draft plan').item.json;
 const status = Number($json.statusCode);

@@ -1,4 +1,4 @@
-// Zella - Review Replies: ask the AI to rewrite the standard reply for one review. The review is data, not
+// Zella Voice - Review Replies: ask the AI to rewrite the standard reply for one review. The review is data, not
 // instructions. The owner still reads and approves every word before anything is posted.
 const r = $json;
 if (!r || !r.review_id) return { json: { review_id: null, request: null } };

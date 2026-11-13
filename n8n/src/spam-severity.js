@@ -1,4 +1,4 @@
-// Zella - Spam Response: decide where each claimed item goes. The incident is already detected, scored, saved and
+// Zella Voice - Spam Response: decide where each claimed item goes. The incident is already detected, scored, saved and
 // (for calls) screened by the database before this runs; this only routes the follow-up:
 //   log          nothing for anyone to do now (recorded as processed)
 //   alert        tell the team (high risk, or medium when the business asked for medium alerts)

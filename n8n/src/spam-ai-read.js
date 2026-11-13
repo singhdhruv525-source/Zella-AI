@@ -1,4 +1,4 @@
-// Zella - Spam Response: read the AI's second opinion. It is only a suggestion shown to the team: the database keeps
+// Zella Voice - Spam Response: read the AI's second opinion. It is only a suggestion shown to the team: the database keeps
 // it (if this incident was allowed an AI review at all) and never blocks or changes anything because of it.
 // If the AI is down or answers badly, the incident is still processed without it, so alerts are never held up.
 const s = $('Check repeat offender').item.json;

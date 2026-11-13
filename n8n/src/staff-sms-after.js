@@ -1,4 +1,4 @@
-// Zella - Staff Texts: turn Telnyx's answer into the message update. Only the status and an error code are kept.
+// Zella Voice - Staff Texts: turn Telnyx's answer into the message update. Only the status and an error code are kept.
 const plan = $('Plan').item.json;
 const status = Number($json.statusCode);
 const b = $json.body && typeof $json.body === 'object' ? $json.body : {};

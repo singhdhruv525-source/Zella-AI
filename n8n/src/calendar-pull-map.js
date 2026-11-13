@@ -1,4 +1,4 @@
-// Zella - Calendar Sync: turn the calendar's events into busy blocks. Cancelled, "free" and Zella-made events are left out.
+// Zella Voice - Calendar Sync: turn the calendar's events into busy blocks. Cancelled, "free" and Zella Voice-made events are left out.
 const plan = $('Plan pull').item.json;
 const outlook = plan.provider === 'outlook';
 const name = outlook ? 'microsoft' : 'google';

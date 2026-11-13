@@ -82,6 +82,8 @@ PR #57 adds request-size limits and outbound timeouts to edge functions, an erro
 for every n8n workflow (needs a re-import), and the inbound call phone-ID fallback.
 Deploying needs the owner's approval.
 
+**n8n:** the 30 workflows were renamed "Zella Voice - …" in n8n on 13 Nov 2026 (owner's approval; name only, all still unpublished), matching `n8n/workflows/`.
+
 **Live switches (all off):** `calls_live`, `sms_live`, `email_live`, `calendar_sync_live`, `reviews_live`,
 `review_ai_live`, `knowledge_ai_live`, `call_intel_live`, `call_reconcile_live`, `spam_workflow_live`, `spam_ai_live`,
 `website_crawl_live`. `n8n_dispatch_enabled` is true, but the `zella_dispatch` job and the other timed jobs are

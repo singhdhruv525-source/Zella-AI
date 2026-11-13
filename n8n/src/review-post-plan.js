@@ -1,4 +1,4 @@
-// Zella - Review Replies: post exactly the reply the owner approved, on exactly that Google review.
+// Zella Voice - Review Replies: post exactly the reply the owner approved, on exactly that Google review.
 const r = $json || {};
 const num = (v) => typeof v === 'string' && /^[0-9]{1,30}$/.test(v);
 if (!r.review_id || !num(r.account_id) || !num(r.location_id) || typeof r.external_id !== 'string' || !/^[A-Za-z0-9_-]{1,300}$/.test(r.external_id)

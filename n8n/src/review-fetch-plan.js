@@ -1,4 +1,4 @@
-// Zella - Review Replies: the Google Business Profile address for one connected location. Only numeric ids chosen by
+// Zella Voice - Review Replies: the Google Business Profile address for one connected location. Only numeric ids chosen by
 // the business's owner ever reach the URL. Reviews are read newest-first, 50 at a time (every 6 hours).
 const s = $json || {};
 const ok = (v) => typeof v === 'string' && /^[0-9]{1,30}$/.test(v);

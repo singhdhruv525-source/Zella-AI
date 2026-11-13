@@ -1,4 +1,4 @@
-// Zella - Calendar Sync: read the calendar provider's answer and report it back to the database (which retries or
+// Zella Voice - Calendar Sync: read the calendar provider's answer and report it back to the database (which retries or
 // raises an alert). Only a short error name is kept; the provider's response text is never stored.
 const plan = $('Plan sync').item.json;
 const name = plan.provider === 'outlook' ? 'microsoft' : 'google';

@@ -1,4 +1,4 @@
-// Zella - Email Events: answer Resend. 200 when handled (so it does not resend), 401 for a wrong key,
+// Zella Voice - Email Events: answer Resend. 200 when handled (so it does not resend), 401 for a wrong key,
 // 500 when the database could not be reached (Resend then tries again later). No details are returned.
 const plan = $('Plan').item.json;
 if (!plan.record) return { json: { status: 400, body: { ok: false } } };

@@ -1,4 +1,4 @@
-// Zella - Email Events: Resend tells us what happened to an email (delivered, bounced, marked as spam).
+// Zella Voice - Email Events: Resend tells us what happened to an email (delivered, bounced, marked as spam).
 // The secret key in the webhook address and the event are handed to the database, which checks the key.
 const auth = $('Check Resend auth').item.json;
 if (auth.statusCode !== 200 || auth.body !== 'ok') return { json: { fetch: null, record: null } };

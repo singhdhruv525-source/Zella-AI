@@ -1,4 +1,4 @@
-// Zella - Meta Health: ask Meta who the token belongs to (a cheap call that fails if the token is dead) and which permissions it has.
+// Zella Voice - Meta Health: ask Meta who the token belongs to (a cheap call that fails if the token is dead) and which permissions it has.
 const plan = $('Plan').item.json;
 const t = $json.body;
 const token = typeof t === 'string' && t.length >= 20 && t.length < 1000 ? t : null;

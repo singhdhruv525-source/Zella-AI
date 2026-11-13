@@ -1,4 +1,4 @@
-// Zella - Connection Tests: turn the provider's answer into a short result. Only the status number is kept,
+// Zella Voice - Connection Tests: turn the provider's answer into a short result. Only the status number is kept,
 // never the response text (it can contain account details).
 const plan = $('Plan').item.json;
 if (!plan.provider) return { json: { record: null } };

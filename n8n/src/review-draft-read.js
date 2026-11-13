@@ -1,4 +1,4 @@
-// Zella - Review Replies: read the AI's reply. Anything unreadable keeps the standard draft (the database also refuses
+// Zella Voice - Review Replies: read the AI's reply. Anything unreadable keeps the standard draft (the database also refuses
 // replies that are too short, too long or contain links).
 const plan = $('Draft plan').item.json;
 const status = Number($json.statusCode);

@@ -1,5 +1,5 @@
 {
-  "name": "Zella - Connection Tests",
+  "name": "Zella Voice - Connection Tests",
   "nodes": [
     {
       "parameters": {
@@ -56,7 +56,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Zella - Connection Tests: one claimed provider name in, a clean provider name out.\n// Only the three known providers pass; anything else is dropped so a bad row can never choose where a request goes.\nconst p = String($json.provider || '');\nif (!['telnyx', 'vapi', 'resend'].includes(p)) return { json: { provider: null } };\nreturn { json: { provider: p } };\n"
+        "jsCode": "// Zella Voice - Connection Tests: one claimed provider name in, a clean provider name out.\n// Only the three known providers pass; anything else is dropped so a bad row can never choose where a request goes.\nconst p = String($json.provider || '');\nif (!['telnyx', 'vapi', 'resend'].includes(p)) return { json: { provider: null } };\nreturn { json: { provider: p } };\n"
       },
       "id": "ae2f98a0-99fe-4855-8311-26233e9c1364",
       "name": "Plan",
@@ -244,7 +244,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Zella - Connection Tests: turn the provider's answer into a short result. Only the status number is kept,\n// never the response text (it can contain account details).\nconst plan = $('Plan').item.json;\nif (!plan.provider) return { json: { record: null } };\nconst status = Number($json.statusCode);\nconst ok = status >= 200 && status < 300;\nconst detail = ok ? 'ok' : status === 401 || status === 403 ? 'key rejected (' + status + ')' : status ? 'HTTP ' + status : 'no answer';\nreturn { json: { record: { p_provider: plan.provider, p_ok: ok, p_detail: detail } } };\n"
+        "jsCode": "// Zella Voice - Connection Tests: turn the provider's answer into a short result. Only the status number is kept,\n// never the response text (it can contain account details).\nconst plan = $('Plan').item.json;\nif (!plan.provider) return { json: { record: null } };\nconst status = Number($json.statusCode);\nconst ok = status >= 200 && status < 300;\nconst detail = ok ? 'ok' : status === 401 || status === 403 ? 'key rejected (' + status + ')' : status ? 'HTTP ' + status : 'no answer';\nreturn { json: { record: { p_provider: plan.provider, p_ok: ok, p_detail: detail } } };\n"
       },
       "id": "4c6d268d-614a-4f2c-88a7-3ba8dafbadc2",
       "name": "Read result",

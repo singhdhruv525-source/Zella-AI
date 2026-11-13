@@ -1,4 +1,4 @@
-// Zella - Admin Alerts: report the provider's answer. Only the status and a short error name are kept.
+// Zella Voice - Admin Alerts: report the provider's answer. Only the status and a short error name are kept.
 const prev = $('Plan').item.json;
 const status = Number($json.statusCode);
 const b = $json.body && typeof $json.body === 'object' ? $json.body : {};

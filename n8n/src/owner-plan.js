@@ -1,4 +1,4 @@
-// Zella - Owner Emails: turn one claimed owner notification (one person) into a logged email.
+// Zella Voice - Owner Emails: turn one claimed owner notification (one person) into a logged email.
 // The database already checked who should get it and wrote the subject and body.
 const r = $json;
 const finish = (result, note) => ({ json: { notification_id: r.notification_id, finish: { rpc: 'zella_finish_owner_email', body: { p_id: r.notification_id, p_result: result, p_note: note } } } });
@@ -11,7 +11,7 @@ return {
     notification_id: r.notification_id,
     live: r.live === true,
     from: r.from || null,
-    from_name: r.from_name || 'Zella',
+    from_name: r.from_name || 'Zella Voice',
     to: r.to,
     subject: r.subject,
     text: r.body_text,

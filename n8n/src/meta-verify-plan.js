@@ -1,4 +1,4 @@
-// Zella - Meta Webhook (set-up check): when the webhook is first connected, Meta sends a word and a challenge.
+// Zella Voice - Meta Webhook (set-up check): when the webhook is first connected, Meta sends a word and a challenge.
 // We hand the word to the database, which compares it with the secret in Vault, and echo the challenge only if it matches.
 const q = $json.query && typeof $json.query === 'object' ? $json.query : {};
 const mode = typeof q['hub.mode'] === 'string' ? q['hub.mode'] : '';

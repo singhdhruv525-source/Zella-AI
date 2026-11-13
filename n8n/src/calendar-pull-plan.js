@@ -1,4 +1,4 @@
-// Zella - Calendar Sync: build the request that lists one business calendar's upcoming events (Google or Outlook).
+// Zella Voice - Calendar Sync: build the request that lists one business calendar's upcoming events (Google or Outlook).
 const c = $json;
 const provider = c && c.provider === 'outlook' ? 'outlook' : 'google';
 if (!c || !c.connection_id || !c.refresh_token || !c.calendar_id) return { json: { connection_id: c && c.connection_id ? c.connection_id : null, provider, token_form: null, url: null, prefer: '' } };
