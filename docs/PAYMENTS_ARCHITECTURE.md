@@ -549,7 +549,7 @@ Each is built the same way: `POST /v1/invoiceitems`, then `POST /v1/invoices` fo
 manually created invoice is a draft that Stripe doesn't advance by default), then `POST /v1/invoices/:id/finalize`
 (the invoice becomes `open`), then `POST /v1/invoices/:id/pay` to attempt payment on the saved card **at once**
 instead of waiting for automatic collection. The outcome arrives as `invoice.paid` or `invoice.payment_failed`
-(`billing_reason: manual`, matched to our stored invoice id). A failed payment is retried on Stripe's schedule (§16.6);
+(`billing_reason: manual`, matched to our stored invoice id). A failed payment is retried on Stripe's **one-time invoice** retry schedule (a separate Dashboard setting from subscription retries, §16.6);
 still unpaid after the last retry, it becomes a finance task for a person; service has already ended, so nothing is
 paused. Each final invoice is stored locally with its kind before the first call, unique by (period, kind).
 
@@ -1089,7 +1089,8 @@ yet is kept and applied when its parent arrives, fetching the object from the AP
 
 | Setting | Value | Why |
 |---|---|---|
-| Smart Retries | custom schedule: days 2, 3 and 4 after the due date | `REQ-BIL-33` |
+| Smart Retries for **subscription** invoices (Billing > Revenue recovery > Retries) | custom schedule: days 2, 3 and 4 after the due date | `REQ-BIL-33` |
+| Retries for **one-time** invoices (Settings > Billing > Invoices > Advanced invoicing features, a separate setting) | on, the same days 2, 3 and 4 | the final pay-as-you-go invoices after a cancel (§6.9) are one-time invoices; *prove* in the sandbox that a declined one is retried |
 | After all retries fail | leave the subscription past due | our 5-day pause decides service |
 | Past-due resolution | the most recent invoice | §6.3 |
 | Trial ending events | 2 days before the end (day 3) | our reminders |
