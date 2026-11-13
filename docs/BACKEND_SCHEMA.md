@@ -5013,11 +5013,11 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_store_connect(p_business_id uuid, p_actor uuid, p_shop_domain text, p_access_token text, p_shop_name text)` | uuid | yes | server only |
 | `zella_store_disconnect(p_business_id uuid)` | integer | yes | signed in |
 | `zella_store_lookup_begin(p_provider_call_id text, p_business_id uuid, p_order_ref text, p_caller_number text)` | jsonb | yes | server only |
-| `zella_store_lookup_context(p_provider_call_id text, p_business_id uuid, p_order_ref text)` | jsonb | yes | server only |
 | `zella_store_lookup_context(p_provider_call_id text, p_business_id uuid)` | jsonb | yes | server only |
+| `zella_store_lookup_context(p_provider_call_id text, p_business_id uuid, p_order_ref text)` | jsonb | yes | server only |
 | `zella_store_lookup_finish(p_business_id uuid, p_provider_call_id text, p_integration_id uuid, p_result text, p_verified boolean, p_order_ref text, p_reservation_id uuid)` | void | yes | server only |
-| `zella_store_lookup_log(p_business_id uuid, p_provider_call_id text, p_integration_id uuid, p_result text, p_verified boolean, p_order_ref text)` | void | yes | server only |
 | `zella_store_lookup_log(p_business_id uuid, p_provider_call_id text, p_integration_id uuid, p_result text, p_verified boolean)` | void | yes | server only |
+| `zella_store_lookup_log(p_business_id uuid, p_provider_call_id text, p_integration_id uuid, p_result text, p_verified boolean, p_order_ref text)` | void | yes | server only |
 
 ### `zella_sweep_*` (3)
 
