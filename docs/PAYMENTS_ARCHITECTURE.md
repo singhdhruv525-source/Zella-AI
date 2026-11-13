@@ -503,6 +503,10 @@ Eligibility is computed again at approval and at sending: a stale screen can nev
 longer allows. **Refundable amounts are reserved** when a refund is requested: requested, approved, sending and
 uncertain refunds all count against the payment, so concurrent requests can never refund more than was captured.
 
+**A refund made outside this flow** (for example in the Stripe Dashboard) still arrives as `refund.created` /
+`charge.refunded`. It is recorded against the payment (unique refund id), matched to an approved request if one exists,
+and otherwise raises a platform alert and an audit entry, so no refund goes unnoticed or bypasses `REQ-BIL-45` silently.
+
 ### 6.9 Pay as you go (D-44), billed with the next renewal
 
 ```mermaid
