@@ -1439,7 +1439,7 @@ flowchart LR
 
 | ID | Requirement |
 |---|---|
-| REQ-BIL-01 | **Plans are set per business** by the Zella Voice team during Create Business, within this policy (D-41): a tier (Trial, Small, Medium, Large, or Custom/Enterprise), the monthly or yearly price, an optional one-time setup fee, and the allowances and caps of §17.1. Minutes, texts, emails, seats, phone numbers and locations must each have a value; contact limits left blank use the defaults in §9.3 item 5. Price depends on how much automation the business takes and on languages (English, Spanish, or both). Amounts in examples (such as $299/month + $599 setup) are illustrations, not list prices. |
+| REQ-BIL-01 | **Plans are set per business** by the Zella Voice team during Create Business, within this policy (D-41): a tier label (**Base** or **Pro**), the monthly or yearly price, an optional one-time setup fee, and the allowances and caps of §17.1. Minutes, texts, emails, seats, phone numbers and locations must each have a value; contact limits left blank use the defaults in §9.3 item 5. **Every plan is customised per business; there are no preset plan prices or values.** On the plan page of Create Business (step 11) the Zella Voice team chooses the tier label (Base or Pro) and enters every value for that business: price, interval, setup fee, each cap, languages, and whether the 5-day trial (REQ-BIL-11) is on. The tier is a label only; it fills in nothing. **This is the launch approach. Standard published plans with fixed values come later** (owner, 12 Nov 2026), based on the plans actually sold; the proposed data model (`business_plans` versions, §17.1a checks; not built yet) would let a plan start from a standard plan's values without redesign. Price depends on how much automation the business takes and on languages (English, Spanish, or both). Amounts in examples (such as $299/month + $599 setup) are illustrations, not list prices. |
 | REQ-BIL-02 | Usage is metered from an append-only ledger (one entry per finalised call; adjustments, never edits). Our failures are never billable. |
 | REQ-BIL-03 | Entitlement **check points** sit at use time: assistant assembly, outbound claims, messaging claims, AI features. The core receptionist is never cut mid-call. |
 | REQ-BIL-04 | The payment provider (**Razorpay**, D-34) handles cards, mandates and invoices; Zella Voice stores no card data (`NN-9`). Webhooks are signed and idempotent. No real charge, refund or new payment integration goes live without the owner's explicit approval. |
@@ -1469,6 +1469,31 @@ Each business's plan is set by the Zella Voice team in Create Business (§18.6, 
 | Phone numbers and locations | assigned numbers, locations | assignment | refused with a clear reason, or an extra location added ($30/month, §17.3) |
 | Languages (English only, Spanish only, or both) | plan feature | receptionist setup and per call | languages outside the plan are not offered |
 | Premium voices, integrations | feature flags | setup | option not offered |
+
+### 17.1a Plan page safeguards (Create Business step 11)
+
+Every value is typed by hand, so the plan page protects against mistakes and loss-making deals. All checks run in the
+database (`NN-6`); the page only displays their results.
+
+```mermaid
+flowchart LR
+  in[Team enters price, setup fee,<br/>caps, languages, trial] --> m[Margin check<br/>estimated cost vs price]
+  in --> l[Sensible-limit check]
+  m --> w{Any warning?}
+  l --> w
+  w -- no --> rv[Review screen]
+  w -- yes --> ack[Shown in red · must be<br/>acknowledged with a reason]
+  ack --> rv
+  rv --> ok{Confirm?}
+  ok -- edit --> in
+  ok -- confirm --> save[Plan saved as a new version ·<br/>audit log · invite can be sent]
+```
+
+| ID | Requirement |
+|---|---|
+| REQ-BIL-55 | **Profit warning.** As values are entered, the page shows the plan's **estimated monthly cost, revenue and margin**: included minutes × cost per minute, texts × cost per text part, emails × cost per email, plus phone numbers and texting registration per location, against the monthly price (a yearly price counts as one twelfth; the setup fee is shown separately). Unit costs come from the platform's cost table (`voice_pricing` and equivalents), maintained by the Zella Voice owner. A plan that **would lose money** (margin below 0%) shows a red warning; a margin below the owner's **target margin** (a platform setting, 60% by default, the owner's email-pack target) shows a caution. The calculation is a database function, so the screen, the review step and the audit record all use the same numbers. |
+| REQ-BIL-56 | **Sensible limits.** Values outside platform-set bounds show a warning: for example **more than 10,000 minutes** a month, or **a price of $0**. The bounds are platform settings the Zella Voice owner can change (starting with these two; further bounds such as texts, emails, users and locations are added the same way). A warning never silently blocks: the team can continue only by acknowledging it with a written reason. |
+| REQ-BIL-57 | **Review screen before the invite.** Before the owner invite can be sent, the team sees one summary: tier label, price and interval, setup fee, every cap, languages, trial on or off, the estimated margin, and every acknowledged warning with its reason. Confirming saves the plan as a new `business_plans` version and writes an **audit record** with who confirmed it, when, the values and the acknowledged warnings. Any later change to a business's plan goes through the same review and audit. |
 
 ### 17.2 Free trial
 
@@ -1704,7 +1729,7 @@ flowchart TD
   p --> i[8 Integrations<br/>calendar · lead sources · store]
   i --> c[9 Communication settings<br/>SMS/email · consent policy ·<br/>missed-call follow-up ·<br/>lead calls · templates]
   c --> a[10 Automations<br/>each rule on/off + settings]
-  a --> pl[11 Plan & billing<br/>tier · price · setup fee ·<br/>allowances & caps · trial on/off]
+  a --> pl[11 Plan & billing<br/>tier label Base/Pro · price · setup fee ·<br/>allowances & caps · trial on/off]
   pl --> rv[12 Review & readiness<br/>server-computed checklist]
   rv --> act{All required<br/>checks pass?}
   act -- no --> save[Saved; resume later]
@@ -1719,7 +1744,7 @@ flowchart TD
 | Audit | Every step and every change is audited. |
 | Provider readiness | Numbers, calendar and lead sources are each checked, with a clear "not set up yet" state. |
 | Test call and message readiness | Part of the activation tests before go-live. |
-| Plan & billing (step 11) | The plan, price, setup fee, allowances, caps and trial chosen here are what the owner sees after creating their password, before paying (REQ-BIL-29). Recording and transcripts are chosen here too (REQ-BIL-48). |
+| Plan & billing (step 11) | The plan, price, setup fee, allowances, caps and trial chosen here are what the owner sees after creating their password, before paying (REQ-BIL-29). Recording and transcripts are chosen here too (REQ-BIL-48). Safeguards: profit warning, sensible limits and a review screen before the invite (REQ-BIL-55–57). |
 
 ---
 
@@ -1801,6 +1826,54 @@ flowchart TD
 | Migrations | one file per change, idempotent, version-guarded, with rollback; a migration ledger table written by each migration |
 | Deploys | owner-approved, one at a time; verify the deployed version equals the reviewed source; smoke test after |
 | Kill switches | per channel, per business, per automation, platform-wide |
+
+### 21.1 Scaling from 1 to 10,000 people
+
+The platform behaves the same whether one owner or 10,000 people (owners, staff, platform admins) are using it at
+once, and whether one call or hundreds arrive together. Nothing in the design holds per-user state on a server, and
+every tenant query touches only one business's rows.
+
+```mermaid
+flowchart TB
+  people[1 … 10,000 people<br/>admin + CRM] --> cdn[Cloudflare CDN<br/>static app cached at the edge]
+  people --> edge[Edge functions<br/>stateless · scale out automatically]
+  callers[Callers] --> vapi[Vapi + Telnyx] -->|signed events| edge
+  prov[Razorpay · Resend · Telnyx<br/>webhooks, bursts] -->|signed| edge
+  edge -->|insert only, fast ack| q[(Inbox · outbox ·<br/>work items)]
+  edge --> pool[Connection pooler<br/>transaction mode]
+  pool --> pg[(Postgres primary<br/>RLS · tenant indexes ·<br/>per-business balance rows)]
+  q --> wk[Workers<br/>claim with SKIP LOCKED · leases ·<br/>scale by adding workers]
+  wk --> pg
+  wk --> ext[Providers<br/>timeouts · idempotent receipts]
+  pg -. when load requires .-> rr[(Read replica<br/>reports · exports · analytics)]
+```
+
+| ID | Requirement |
+|---|---|
+| REQ-SCL-01 | **Stateless compute.** Edge functions and workers keep no per-user state between requests, so adding instances adds capacity. Sessions are verified on every request (REQ-ISO-01). |
+| REQ-SCL-02 | **Static web apps on the CDN.** The admin and CRM are static builds served from Cloudflare; the number of people never adds server load for page delivery. |
+| REQ-SCL-03 | **Pooled database connections** in transaction mode for every edge function and worker; no long-lived connection per user. |
+| REQ-SCL-04 | **Tenant-scoped indexes.** Every table read by a business is indexed on `business_id` (plus its time or status column where lists are paged). New queries are checked with `EXPLAIN` in review; list endpoints are paged with keyset cursors, never offset. |
+| REQ-SCL-05 | **O(1) hot paths.** What a call or message needs at the moment it happens (minutes left, contact limits, business status, assistant config) is read from one indexed row per business, maintained in the same transaction as its ledger entry; never by summing history. Locks on those rows are per business, so businesses never wait for each other. |
+| REQ-SCL-06 | **Fast acknowledgement, async work.** Webhooks and provider events are verified, inserted into an inbox with a unique event key, and acknowledged; workers apply them. Bursts are absorbed by the queue, not by the request path. |
+| REQ-SCL-07 | **Queues that scale out:** claim with `FOR UPDATE SKIP LOCKED`, leases, back-off and dead-letter (§8). More workers means more throughput with no double processing. |
+| REQ-SCL-08 | **Fairness.** Per-user and per-business rate limits on write endpoints and per-business caps on queued work, so one busy business cannot slow another (`ISO` principles). |
+| REQ-SCL-09 | **Large tables** (usage ledger, money ledger, messages, audit) are partitioned by month once they pass about 10 million rows; retention jobs drop or archive whole partitions. PostgreSQL enforces a unique key only within one partition, so any key that must be unique for all time (usage idempotency keys) lives in a small **non-partitioned key registry** written in the same transaction (usage keys; money-ledger operation keys, including postings with no provider ID such as service credits). Inbox tables that dedupe provider events (`billing_events`) are not partitioned. |
+| REQ-SCL-10 | **Heavy reads off the primary:** reports, exports and analytics move to a read replica when load requires, so they never slow calls or payments. |
+| REQ-SCL-11 | **Realtime only where needed,** filtered by row security, with bounded subscriptions per page. |
+| REQ-SCL-12 | **Workflow capacity:** time-critical and high-volume jobs (billing, dispatch, reconciliation) run as database-claimed workers, not as n8n runs. n8n Cloud Starter allows about 2,500 runs a month (`docs/MEMORY.md`), so it carries only low-volume workflows until it moves to a larger plan. |
+| REQ-SCL-13 | **Load-tested before launch** in staging with synthetic data: 10,000 virtual CRM users, 1,000 webhooks a minute, 500 call finalisations at once. Targets: CRM reads p95 < 300 ms, webhook acknowledgement p95 < 200 ms, entitlement check p95 < 20 ms, queue age < 60 s. |
+
+**Capacity stages** (each step is triggered by measured load, not by date):
+
+| Stage | People at once | Changes |
+|---|---|---|
+| Pilot | 1–50 | current setup; pooler on; slow-query log reviewed weekly |
+| Launch | 50–1,000 | billing and dispatch workers outside n8n; indexes verified with `EXPLAIN`; alerts on queue age and p95 latency |
+| Growth | 1,000–10,000 | larger database compute; read replica for reports; monthly partitions on the ledgers and events; more workers; n8n on a larger plan or replaced for high-volume flows |
+
+The payment-specific design (idempotency layers, webhook inbox, outbox, reconciliation) is detailed in
+`docs/PAYMENTS_ARCHITECTURE.md` (draft for the owner's review).
 
 **Test plan (acceptance):**
 - two-business isolation;
@@ -1950,7 +2023,7 @@ Knowledge, Automations, Reports, Team, Settings.
 | D-07 | At registration the business chooses **a new Zella Voice number (Telnyx)** or **forwarding its existing number**. Every business and location has its own dedicated Zella Voice number, used for outgoing calls and texts. | §10.10 |
 | D-09 | *Superseded by D-41.* (Was: no plans, prices or minute allowances yet.) AI usage and cost are tracked per business. | §17 |
 | D-34 | **Payment provider: Razorpay** (hosted checkout and mandates; no card data stored by Zella Voice), subject to the check in D-51. Decided 12 Nov 2026. | §17, §19, §39 |
-| D-41 | **Commercial policy (12 Nov 2026):** custom per-business plans (Trial, Small, Medium, Large, Custom/Enterprise), monthly or yearly in advance in USD; 5-day trial with 20 minutes, 5 texts, 5 emails, card at start; fixed add-on pack prices; usage counting, rollover, alerts, auto-reload, fair use, billing, refund, cancellation, service-credit, support and data rules as written in §17. | §17 |
+| D-41 | **Commercial policy (12 Nov 2026):** custom per-business plans with no preset prices or values (every value entered per business in Create Business; Base and Pro are labels only), an optional trial, monthly or yearly in advance in USD; 5-day trial with 20 minutes, 5 texts, 5 emails, card at start; fixed add-on pack prices; usage counting, rollover, alerts, auto-reload, fair use, billing, refund, cancellation, service-credit, support and data rules as written in §17. | §17 |
 | D-25 | **No pause.** A business that stops using Zella Voice cancels and can return later. (A business is paused by Zella Voice only for non-payment, REQ-BIL-33.) | §17.8, REQ-LC-20 |
 | D-10 | Leave a **short, professional voicemail** where permitted; no sensitive details; then one contextual message. | §13.7 |
 | D-11 | Not decided separately; missed-call rules apply only when the caller's number is known (REQ-MC-12). | §12 |
@@ -1992,7 +2065,9 @@ Knowledge, Automations, Reports, Team, Settings.
 | D-48 | Trial limits: one trial per business, phone number and card (proposed) | owner |
 | D-49 | HIPAA add-on: price, and business associate agreements with every vendor handling the data | owner + counsel |
 | D-50 | Tax treatment: GST on services exported from India; US state sales tax on software | owner + chartered accountant |
-| D-51 | Confirm Razorpay supports recurring USD card payments from US customers (international payments, subscriptions with a trial) before building checkout | owner |
+| D-51 | Razorpay for US customers. **Confirmed from Razorpay's documentation (12 Nov 2026):** Subscriptions take recurring payments in USD on international cards (Visa, Mastercard, Amex) after the customer authenticates the first payment with 3-D Secure; UPI and eMandate are INR only; **settlement to Zella Voice is in INR** at the exchange rate when the payment is created. **Still to confirm:** international payments activated on the Zella Voice account (KYC and banking-partner approval), and a trial with a future start date tested with a foreign test card in test mode | owner |
+| D-52 | Inbound call routing when a call's number and Vapi phone ID match two different businesses' rows (each is unique on its own): proposed, route only when both agree, otherwise treat as an unknown number | owner |
+| D-53 | Whether n8n workflow failures are emailed to platform admins once email is live, or shown in the dashboard only (`sql/zella_workflow_alert_email.sql`, merged, not applied) | owner |
 | D-35 | Whether a business may ever override a resource conflict (default: never) | owner |
 | D-38 | Platform contact-ceiling values (maximum attempts per sequence, unprompted messages per day) that no plan can exceed | owner |
 | D-39 | WhatsApp, Instagram and Messenger as messaging channels: in launch scope or later (the current code has Meta workers; not yet a decision) | owner + counsel |
@@ -2055,7 +2130,7 @@ Everything else in this document is specified. These items need a person's input
 
 | # | Item | Who | Needed by phase |
 |---|---|---|---|
-| 1 | Platform contact ceiling (D-38); open billing decisions D-42 to D-51 | owner | before charging |
+| 1 | Platform contact ceiling (D-38); open billing decisions D-42 to D-51; D-52, D-53 | owner | before charging |
 | 2 | Review of the proposed consent wording (§34), templates (§33), voicemail and recording disclosures, retention periods and US calling and texting rules | counsel | 5, 6, 8, 11 |
 | 3 | Terms of service, privacy policy, data-processing terms and any agreements regulated industries require (§39) | owner + counsel | 12 |
 | 4 | Remaining open decisions in §23.2 | owner | as listed |
