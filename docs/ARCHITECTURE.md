@@ -1523,7 +1523,7 @@ Pack prices are fixed for every business. Packs are charged when bought. Unused 
 | REQ-BIL-14 | **Calls:** counted per call, rounded up to the next full minute. Calls under 15 seconds and calls flagged as spam are not counted. |
 | REQ-BIL-15 | **Texts:** counted by message part: about 160 characters per part, or about 70 when the text has accented or non-Latin letters. |
 | REQ-BIL-16 | **Emails:** one per email sent, regardless of language. |
-| REQ-BIL-17 | **Billing date:** without a trial, the day the business owner first signs in through the invite link (creates their password); with a trial (REQ-BIL-12), the day the trial ends, which is also the first charge. Later charges fall on the same day each month (or year); in a month without that day, on its last day. **Monthly plans** reset allowances on each billing date; how **annual plans** reset allowances is **open** (D-46). |
+| REQ-BIL-17 | **Billing date:** without a trial, the day the business owner first signs in through the invite link (creates their password); with a trial (REQ-BIL-12), the day the trial ends, which is also the first charge. Later charges fall on the same day each month (or year); in a month without that day, on its last day. **Monthly plans** reset allowances on each billing date. **Yearly plans** are charged once a year, but allowances still **reset monthly** on the same day each month (D-46), with the same 20% rollover (REQ-BIL-19) and 5% buffer (REQ-BIL-22). |
 
 ### 17.5 Order of use, rollover and expiry
 
@@ -2026,6 +2026,7 @@ Knowledge, Automations, Reports, Team, Settings.
 | D-41 | **Commercial policy (12 Nov 2026):** custom per-business plans with no preset prices or values (every value entered per business in Create Business; Base and Pro are labels only), an optional trial, monthly or yearly in advance in USD; 5-day trial with 20 minutes, 5 texts, 5 emails, card at start; fixed add-on pack prices; usage counting, rollover, alerts, auto-reload, fair use, billing, refund, cancellation, service-credit, support and data rules as written in §17. | §17 |
 | D-42 | **Monthly refresh and pack rollover (13 Nov 2026):** allowances refresh every billing month; up to 20% of plan minutes roll over for one period; packs follow the same rule (up to 20% of each minutes pack rolls over for one period; pack texts and emails expire at the refresh, like plan texts and emails). | §17.5 |
 | D-43 | **Texts and emails at 100% (13 Nov 2026):** marketing and routine messages stop; appointment confirmations and reminders continue within an unbilled 5% buffer that resets monthly; everything stops at 105%. | §17.6 |
+| D-46 (part) | **Yearly plans reset allowances monthly (13 Nov 2026):** charged once a year; minutes, texts and emails reset on the same day each month, with the same rollover and buffer. Annual discount and downgrade rollover stay open. | §17.4 |
 | D-25 | **No pause.** A business that stops using Zella Voice cancels and can return later. (A business is paused by Zella Voice only for non-payment, REQ-BIL-33.) | §17.8, REQ-LC-20 |
 | D-10 | Leave a **short, professional voicemail** where permitted; no sensitive details; then one contextual message. | §13.7 |
 | D-11 | Not decided separately; missed-call rules apply only when the caller's number is known (REQ-MC-12). | §12 |
@@ -2060,7 +2061,7 @@ Knowledge, Automations, Reports, Team, Settings.
 | D-33 | Default internal monthly AI budget per business and alert thresholds (75% / 90% proposed) | owner |
 | D-44 | Overage: what is billed as overage when calls go to the fallback number at 100%, and at what rate | owner |
 | D-45 | Fair-use review multiple: 2× or 3× the allowance two months in a row (proposed: 3×) | owner |
-| D-46 | Annual plans: allowances reset monthly or one yearly bucket (proposed: monthly); any annual discount; rollover on downgrade | owner |
+| D-46 | Yearly plans: any annual discount; rollover on downgrade (allowance reset decided: monthly) | owner |
 | D-47 | Who counts as a founding customer (e.g. first N businesses or a sign-up date) | owner |
 | D-48 | Trial limits: one trial per business, phone number and card (proposed) | owner |
 | D-49 | HIPAA add-on: price, and business associate agreements with every vendor handling the data | owner + counsel |
