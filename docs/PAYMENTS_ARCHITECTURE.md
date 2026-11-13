@@ -252,13 +252,13 @@ sequenceDiagram
   BO->>DB: accept trial (5 days · 20 min · 5 texts · 5 emails)
   DB->>DB: trial requested · subscription stays pending_payment · nothing granted yet
   WK->>RZ: create subscription with start date = trial end (notes.outbox_id = outbox row)
-  RZ-->>BO: hosted page: authorise card (3-D Secure), no charge now
+  RZ-->>BO: hosted page: authenticate card (3-D Secure) · small authentication charge, refunded automatically · no plan charge now
   RZ->>WH: webhook: subscription authenticated (signed)
   WH->>DB: inbox → subscription = trialing, trial_end_at set, trial buckets granted
   Note over DB: abandoned or failed authorisation → still pending_payment, no trial, no buckets
   Note over DB: trial reminders at day 3 and day 4 (email + in-app)
   alt owner cancels before trial end
-    BO->>DB: cancel → outbox "cancel subscription" · nothing charged
+    BO->>DB: cancel → outbox "cancel subscription" (sent at once) · no plan charge
   else trial ends, charge succeeds
     RZ->>WH: subscription.charged (first charge)
     WH->>DB: inbox → subscription active, billing date = trial end, plan buckets granted
@@ -279,7 +279,7 @@ test mode before the trial ships (D-51).
 **Razorpay mechanics (§16):** the trial is a subscription with `start_at` = trial end and `expire_by` = the 24-hour
 authorisation window. The owner completes an **authentication transaction** (a small amount, ₹5 in Razorpay's docs for rupee plans, the USD amount confirmed in test mode, that is
 **charged to the card and then refunded automatically** by Razorpay, so the owner may briefly see it on their
-statement; the trial page says so), Razorpay sends `subscription.authenticated`, and the card is first charged at `start_at`
+statement; the trial page says so), Razorpay sends `subscription.authenticated`, and the **first plan charge** is made at `start_at`
 (`subscription.activated`, then `subscription.charged`). A setup fee passed as the upfront amount (`addons` on create)
 is charged **during the authentication**, that is at the start of the trial, and the subscription stays `created` until
 it is paid; whether a trial business pays the setup fee at the start or at the end is part of D-54.
@@ -455,13 +455,16 @@ stateDiagram-v2
   past_due --> paused_nonpayment: 5 days overdue
   paused_nonpayment --> active: balance paid
   paused_nonpayment --> cancelled: 30 days unpaid
-  active --> cancel_scheduled: owner cancels
-  cancel_scheduled --> active: "continue my plan"
-  cancel_scheduled --> cancelled: period ends
+  active --> cancel_scheduled: owner cancels (6 h or more before charge_at)
+  active --> cancel_sent: owner cancels within 6 h of charge_at (sent at once)
+  cancel_scheduled --> active: "continue my plan" (before the cancel is sent)
+  cancel_scheduled --> cancel_sent: worker sends the cancel at charge_at − 6 h
+  cancel_sent --> cancelled: period ends (current_end)
   active --> suspended_dispute: chargeback opened
   past_due --> suspended_dispute: chargeback opened
   paused_nonpayment --> suspended_dispute: chargeback opened
   cancel_scheduled --> suspended_dispute: chargeback opened
+  cancel_sent --> suspended_dispute: chargeback opened
   trialing --> suspended_dispute: chargeback opened
   suspended_dispute --> restored: last open dispute won or settled
   restored --> [*]: back to the saved previous state
@@ -480,7 +483,8 @@ dispute opens.
 - **Events while suspended:** payment and lifecycle events still apply to the **saved state**, which keeps moving as
   normal; only service stays suspended. For example, a `past_due` subscription whose balance is paid during the dispute
   has its saved state moved to `active`, so it is restored as `active` with no retries or pause; a `cancel_scheduled`
-  one whose period ended moves its saved state to `cancelled`.
+  one passes the cut-off to `cancel_sent` as normal, and a `cancel_sent` one whose period ended moves its saved state to
+  `cancelled`.
 - **Restore:** when the last dispute closes in the business's favour, the subscription takes the saved state as it is
   then. A lost dispute follows the `dispute lost` path in the diagram.
 - A dispute on a `cancelled` subscription is recorded and handled by money only (ledger postings), with no state change.
@@ -727,7 +731,7 @@ Razorpay yet: every row marked *prove* is confirmed in **test mode** before its 
 | Subscription invoices | `GET /v1/invoices?subscription_id=:id` | invoice `status`, `payment_id`, amounts | renewal recovery and reconciliation |
 | Update subscription | `PATCH /v1/subscriptions/:id` | `plan_id`, `schedule_change_at` (`now` / `cycle_end`), `customer_notify` | upgrade `now`, downgrade `cycle_end` (§6.6) |
 | Pending update | `GET /v1/subscriptions/:id/retrieve_scheduled_changes`; cancel: `POST /v1/subscriptions/:id/cancel_scheduled_changes` | | owner withdraws a scheduled downgrade |
-| Cancel subscription | `POST /v1/subscriptions/:id/cancel` with `cancel_at_cycle_end: false` | | **A cancellation stays local until it must take effect**, because a Razorpay cancellation cannot be undone and a cancelled subscription cannot restart. The owner's cancel sets `cancel_scheduled` only; "continue my plan" clears it and nothing was sent. The worker sends the cancel **6 hours before `charge_at`** (a trial cancel is sent at once), then fetches the subscription to confirm `cancelled` before `charge_at`; if it is not confirmed, a platform alert fires, and a renewal charged after the owner's cancel is refunded in full. *Prove* the timing in test mode |
+| Cancel subscription | `POST /v1/subscriptions/:id/cancel` with `cancel_at_cycle_end: false` | | **A cancellation stays local until it must take effect**, because a Razorpay cancellation cannot be undone and a cancelled subscription cannot restart. **Cut-off = `charge_at` − 6 hours.** Before the cut-off the owner's cancel sets `cancel_scheduled` only, and "continue my plan" clears it (nothing was sent). At the cut-off the worker locks the subscription row (`FOR UPDATE`), re-reads it, and only if it is still `cancel_scheduled` marks it `cancel_sent` in the same transaction as the outbox row, then sends; "continue my plan" takes the same lock and is refused once the state is `cancel_sent` ("your plan ends on <date>; you can start a new plan then"). **A cancel made after the cut-off** is `cancel_sent` at once and sent immediately. Either way the worker fetches the subscription to confirm `cancelled`; **if Razorpay still charges the renewal** (a late cancel, or a send that failed), that payment is **refunded in full automatically**, no new period is granted, and a platform alert fires. *Prove* in test mode how close to `charge_at` a cancel still stops the charge, and test continue before, during and after the send |
 | Pause / resume | `POST /v1/subscriptions/:id/pause` · `/resume` | | **not used**: our non-payment pause is our own service pause (D-25 has no owner pause) |
 | Create order (pack) | `POST /v1/orders` | `amount`, `currency: USD`, `receipt` = our purchase ID, `notes` | order ID stored before checkout opens |
 | Payments of an order | `GET /v1/orders/:id/payments` | `status`, `amount`, `currency` | recovery after a lost reply |
@@ -770,7 +774,8 @@ A valid browser signature only shows "processing" (§6.1); access is granted by 
 | `subscription.pending` | `past_due`, notice + email |
 | `subscription.halted` | still `past_due`, ask for a card change; pause at 5 days |
 | `subscription.updated` | apply the upgrade or scheduled change after the payment is confirmed (§6.6) |
-| `subscription.cancelled`, `subscription.completed` | close the subscription |
+| `subscription.cancelled` | record that Razorpay confirmed the cancel; the local state stays `cancel_sent` and **paid service continues until `current_end`**, then `cancelled` (§7) |
+| `subscription.completed` | close the subscription at `current_end` |
 | `payment.captured`, `payment.failed`, `order.paid` | packs and other orders (§6.4); failure notice |
 | `refund.created`, `refund.processed`, `refund.failed` | §6.7 |
 | `payment.dispute.created`, `.won`, `.lost`, `.closed`, `.under_review`, `.action_required` | §6.8 |
@@ -805,7 +810,7 @@ acknowledged and ignored. Payloads carry `payload.subscription.entity` and, for 
 |---|---|
 | First payment | USD subscription on an international test card with 3-D Secure; `subscription.charged` carries the payment and invoice; binding check passes |
 | Trial | future `start_at`; authentication amount in USD charged and refunded; `expire_by` window behaviour; first charge at `start_at` |
-| Cancel | a cancel sent 6 hours before `charge_at` stops that charge; the owner's cancel before then sends nothing |
+| Cancel | a cancel sent 6 hours before `charge_at` stops that charge; how close to `charge_at` a cancel still stops it; a renewal charged after a cancel is refunded; "continue my plan" before, during and after the send (refused once sent) |
 | Lost create reply | listing subscriptions finds the one with our `notes.outbox_id` (§8) |
 | Failed renewal | test card failure → `pending` on T, retries T+1..T+3 → `halted`; card change charges the last invoice |
 | Upgrade | `schedule_change_at: now` charges Razorpay's prorated amount; our quote matches it |
