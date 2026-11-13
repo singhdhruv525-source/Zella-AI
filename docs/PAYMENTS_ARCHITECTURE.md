@@ -405,17 +405,20 @@ uncertain refunds all count against the payment, so concurrent requests can neve
 When the owner chose pay as you go (D-44), minutes past the allowance are counted at the business's own rate, up to
 the monthly spending limit. They are billed **on the next renewal invoice**: when Stripe creates that invoice as a
 draft (`invoice.created`, about an hour before it is charged), the worker adds one invoice item for the closing
-period's pay-as-you-go minutes (`POST /v1/invoiceitems` with that draft `invoice`, Idempotency-Key = period id), then
+period's pay-as-you-go minutes (`POST /v1/invoiceitems` with that draft `invoice`, Idempotency-Key `payg:<period id>`), then
 answers 200. Usage recorded after the invoice is finalised goes on the following invoice as a pending invoice item.
 The webhook must answer `invoice.created` quickly and with 2xx, because Stripe holds the invoice back from being charged
 until it does (up to 72 hours). Yearly plans have no monthly invoice, so their pay-as-you-go minutes are charged at
 the end of each monthly allowance period as an off-session PaymentIntent on the saved card (§6.4 rules).
 
 **After a cancellation** there is no renewal invoice, so when `customer.subscription.deleted` arrives at period end
-the worker bills the closing period's pay-as-you-go minutes on a **final invoice** (`POST /v1/invoices` for the
-customer with the pending items, `collection_method: charge_automatically`, Idempotency-Key = period id), charged to
-the saved card. Usage that arrives later within the late-usage window goes on one more final invoice the same way;
-nothing is billed after that window. An unpaid final invoice follows Stripe's retries and then becomes a finance task
+the worker bills the closing period's pay-as-you-go minutes on a **final invoice**: `POST /v1/invoiceitems` for the
+minutes, then `POST /v1/invoices` for the customer with `pending_invoice_items_behavior: include`,
+`collection_method: charge_automatically` and `auto_advance: true` (a manually created invoice is a draft that Stripe
+doesn't advance by default), then `POST /v1/invoices/:id/finalize` so it is charged to the saved card at once.
+Idempotency-Keys are `final:<period id>:main` for the first and `final:<period id>:late` for the one late invoice:
+usage that arrives within the late-usage window goes on that second invoice the same way; nothing is billed after
+that window. Each final invoice is stored locally with its kind (`main` or `late`) before the call. An unpaid final invoice follows Stripe's retries and then becomes a finance task
 for a person; service is already ended, so nothing is paused.
 
 The rate field and the owner's choice are stored already (step 2); nothing is billed until payments are switched on.
@@ -508,7 +511,7 @@ flowchart TB
     ib[billing_events unique provider + event id<br/>out-of-order safe · never backwards]
   end
   subgraph L4[Layer 4 · database constraints]
-    uc[unique external_payment_id · external_refund_id ·<br/>one pending auto-reload · one invoice per period ·<br/>usage idempotency_key]
+    uc[unique external_payment_id · external_refund_id ·<br/>one pending auto-reload · one renewal invoice per period ·<br/>at most one final main + one final late invoice per period ·<br/>usage idempotency_key]
   end
   L1 --> L2 --> L3 --> L4
 ```
@@ -531,7 +534,8 @@ flowchart TB
 | Create order (checkout, pack, upgrade) | one order per local operation; order ID stored at once | an unpaid order charges nothing: mark it unused and create a new one |
 | Renewal and its retries | done by Stripe (Smart Retries, our schedule), never by us (§6.3) | fetch the subscription's invoices and their PaymentIntents |
 | Charge a saved card later (auto-reload, yearly pay as you go) | one charge attempt row per purchase; Idempotency-Key = purchase id | resend with the same key, or find the PaymentIntent by `metadata.purchase_id` |
-| Add pay-as-you-go to a renewal (invoice item) | Idempotency-Key = period id; one item per period | list the invoice's lines |
+| Add pay-as-you-go to a renewal (invoice item) | Idempotency-Key = `payg:<period id>`; one item per period | list the invoice's lines |
+| Final pay-as-you-go invoices after a cancel | Idempotency-Key `final:<period id>:main` and `final:<period id>:late`; unique (period, kind) locally | list the customer's invoices by `metadata.final_kind` |
 | Upgrade (update subscription) | one pending update per subscription; Idempotency-Key = local change id | fetch the subscription's `pending_update` and latest invoice |
 | Create Checkout Session or subscription | Idempotency-Key = outbox id; `metadata.outbox_id` | §8 table above |
 | Refund | Idempotency-Key = our refund ID | resend with the same key, or list the PaymentIntent's refunds |
@@ -541,6 +545,49 @@ Each flow is enabled only after its provider behaviour is proven in a Stripe san
 
 **Outbox sending protocol:** claim with `FOR UPDATE SKIP LOCKED` → mark `sending` with a lease → call Stripe → store the
 provider ID at once → mark `sent`. A lease that expires sends the row to **reconcile**, not to retry.
+
+### 8.1 Idempotency key map (every money path, one rule each)
+
+**Rules for every Stripe call**
+
+1. The outbox row stores the **exact request body** and its **Idempotency-Key** before the first send, in the same
+   transaction as the business change. A retry resends that stored body with that key, never a rebuilt one.
+2. Keys are **deterministic** from the local operation (below), so a crashed worker, a second worker or a manual retry
+   all produce the same key.
+3. Stripe keeps a key for **at least 24 hours**. Within that time, a lost reply is retried with the same key. After
+   it, the reconciler first **searches Stripe by our `metadata`** (`outbox_id`, `purchase_id`, `refund_id`,
+   `period_id`); only if nothing exists is a **new attempt** (key suffix `:a2`, `:a3` …) allowed, and only for
+   operations that are safe to repeat (never a refund or charge whose outcome stays unknown: those are held and alerted).
+4. A Stripe `idempotency_error` (same key, different body) means a bug: the row is held and alerted; no new key is
+   made automatically.
+5. Every object we create carries `metadata` with our ids, so it can always be found again.
+
+| Operation | Stripe call | Idempotency-Key | Local uniqueness | Lookup when the reply is lost |
+|---|---|---|---|---|
+| Customer | `POST /v1/customers` | `customer:<business id>` | one per business | search by `metadata.business_id` |
+| Price for a plan version | `POST /v1/prices` | `price:<business_plans id>` | one per version | search by `metadata.plan_version_id` |
+| First checkout / trial | `POST /v1/checkout/sessions` | `checkout:<outbox id>` | one open session per business | session by stored id |
+| Pack bought by the owner | Checkout (payment) or `POST /v1/payment_intents` | `pack:<purchase id>` | one per purchase | PaymentIntent by `metadata.purchase_id` |
+| Auto-reload | `POST /v1/payment_intents` (`off_session`) | `reload:<purchase id>` | one pending reload per business (partial unique index) | same |
+| Yearly pay as you go | `POST /v1/payment_intents` | `payg:<period id>` | one per period | PaymentIntent by `metadata.period_id` |
+| Monthly pay as you go | `POST /v1/invoiceitems` | `payg:<period id>` | one item per period | the invoice's lines |
+| Final invoices after a cancel | invoice items + `POST /v1/invoices` + finalize | `final:<period id>:main` / `:late` (+ `:item`, `:finalize`) | unique (period, kind) | invoices by `metadata.final_kind` |
+| Upgrade | `POST /v1/subscriptions/:id` | `upgrade:<change id>` | one pending change per subscription | subscription `pending_update`, latest invoice |
+| Downgrade | `POST /v1/subscription_schedules` | `downgrade:<change id>` | one scheduled change per subscription | the subscription's schedule |
+| Cancel / continue | `POST /v1/subscriptions/:id` | `cancel:<subscription id>:<desired version>:<attempt>` | one outbox row per subscription; latest choice wins | fetch the subscription |
+| Trial cancel now | `DELETE /v1/subscriptions/:id` | `cancelnow:<subscription id>` | — | fetch the subscription |
+| Refund | `POST /v1/refunds` | `refund:<refund id>` | reserved amount ≤ captured | refunds of the PaymentIntent by `metadata.refund_id` |
+
+**Rules for every grant (webhook side)**
+
+| What could repeat | Protection |
+|---|---|
+| The same event delivered twice | inbox unique `(provider, event id)` |
+| Two events for one payment (`invoice.paid` and `payment_intent.succeeded`) | the grant is keyed on the **Stripe object**: unique `invoice id` for plan and pay-as-you-go grants, unique `payment_intent id` for packs and reloads; the second event finds the grant done |
+| The same money posted twice | `ledger_operation_keys`: `invoice:<id>`, `payment:<pi id>`, `refund:<id>`, `dispute:<id>`, inserted with the postings in one transaction |
+| Events out of order | state moves forward only (§7); an event for an unknown object waits for its parent or is fetched from Stripe |
+| Usage counted twice | `usage_charges` idempotency key (`call:`, `sms:`, `email:`) — built (step 2) |
+| User double-click | `Idempotency-Key` header, scoped (business, operation, key), body hash, stored response (§8) |
 
 ---
 
@@ -640,7 +687,7 @@ p95 < 20 ms; outbox queue age < 60 s; zero unreconciled payments older than 24 h
 | Webhook delayed for hours | Payment shown as "processing" | After 15 min the reconciler fetches the payments of the order ID we stored, applies them through the binding check (§6.0a), and alerts if still unclear. |
 | Our database down | Nothing can be granted | Stripe retries webhooks for up to 3 days; inbox applies them when back. |
 | Duplicate charge by the provider | Customer charged twice | Daily reconciliation finds it; full refund within 5–10 business days (`REQ-BIL-43`). |
-| Worker crash mid-send | Unknown outcome | Lease expiry → reconcile with the per-operation lookup (stored order or subscription ID, refund idempotency key), never blind retry; held and alerted if still unclear (§8). |
+| Worker crash mid-send | Unknown outcome | Lease expiry → reconcile with the per-operation lookup (§8.1: same key within 24 hours, otherwise the `metadata` search), never blind retry; held and alerted if still unclear. |
 | Clock skew | Wrong period boundaries | All periods computed in the database clock, stored in UTC. |
 | Secret leaked | Forged webhooks possible | Incident: revoke the old secret immediately (no overlap), set a new one, quarantine events from the exposure window and apply only those confirmed by fetching the object from Stripe; rotate the API key too if it may be exposed; review grants made in the window. |
 
@@ -732,7 +779,7 @@ pinned in the request header and changed only on purpose.
 | Dispute evidence | `POST /v1/disputes/:id` | evidence fields, `submit` | a person decides |
 | Look-ups | `GET` invoices, PaymentIntents, refunds, events, balance transactions | | reconciler (§10) |
 
-**Every POST carries `Idempotency-Key`** (our outbox, purchase or refund ID, or for cancel/continue the per-send key in §8; at most 255 characters, no personal data). A key is reused only to retry the identical request.
+**Every POST carries `Idempotency-Key`**, built as in §8.1 (at most 255 characters, no personal data). A key is reused only to retry the identical request.
 Stripe returns the first result for a repeated key with the same parameters, errors if the parameters differ, and may
 forget keys after 24 hours.
 
@@ -814,7 +861,7 @@ dispute suspension is kept, the cancel still takes effect at period end); the fi
 | Pay as you go | invoice item added on `invoice.created` appears on the renewal invoice; a late item goes on the next one |
 | Auto-reload | off-session PaymentIntent succeeds; `authentication_required` test card leads to the confirm link; a double threshold crossing makes one purchase |
 | Upgrade | `pending_if_incomplete` applies the new Price only after payment; a failed payment leaves the plan unchanged; quote equals the preview |
-| Cancel | `cancel_at_period_end` true then false keeps the subscription; true at period end sends `customer.subscription.deleted`; a fast cancel-continue-cancel sequence ends in the owner's last choice; the final pay-as-you-go invoice is charged |
+| Cancel | `cancel_at_period_end` true then false keeps the subscription; true at period end sends `customer.subscription.deleted`; a fast cancel-continue-cancel sequence ends in the owner's last choice; the final `main` invoice is finalised and charged; late usage within the window makes one `late` invoice, charged the same way; usage after the window makes none |
 | Refund | partial refund with an Idempotency-Key; a resend returns the same refund |
 | Webhooks | forged or stale signature rejected; duplicate and out-of-order events have no second effect |
 
