@@ -1559,7 +1559,7 @@ Pack prices are fixed for every business. Packs are charged when bought. Unused 
 | REQ-BIL-30 | **Upgrades** take effect immediately: the owner pays the prorated difference and gets the extra allowance for the rest of the cycle; full new allowances start next cycle. *Until payments are built (step 4), every plan change, upgrade or downgrade, applies from the next billing date, so no extra allowance is given without the prorated charge.* **Downgrades** take effect on the next billing date; features and add-ons above the lower plan end then. |
 | REQ-BIL-31 | **No pause.** A business that stops using Zella Voice cancels and can return later (D-25). |
 | REQ-BIL-32 | **Packs** are charged at purchase. **At 100% of minutes the owner chooses one** (D-44): **stop** (new calls go to the fallback number), **auto-reload** a pack (REQ-BIL-23), or **pay as you go** (the AI keeps answering and each extra minute is billed at the business's own per-minute rate, set on the plan page in Create Business; offered only when that rate is set). One monthly spending limit applies to whichever is chosen. Pay-as-you-go minutes are billed at the end of the cycle. Minutes from a call already in progress when calls stop are not charged. |
-| REQ-BIL-33 | **Failed payment:** retried on days 2, 3 and 4 after the due date, with an email and an in-app notice each time. After **5 days overdue** the AI receptionist pauses and calls go to the business's fallback number. Data is kept for 30 days. Paying the balance restores service. |
+| REQ-BIL-33 | **Failed payment:** retried on days 2, 3 and 4 after the due date (by Razorpay itself, `docs/PAYMENTS_ARCHITECTURE.md` §6.3), with an email and an in-app notice each time. After **5 days overdue** the AI receptionist pauses and calls go to the business's fallback number. Data is kept for 30 days. Paying the balance restores service. |
 | REQ-BIL-34 | **Fallback number:** every business sets one at Create Business; calls go there whenever the AI is paused or unavailable. |
 | REQ-BIL-35 | **Price changes:** 30 days' written notice, at most once in 12 months. **Founding customers** keep their price for 12 months (who counts as founding: **open**, D-47). |
 | REQ-BIL-36 | **Taxes:** the owner intends to add tax as an India-registered business selling to US customers. The treatment (GST on exported services, US state sales tax) is **open** for a chartered accountant's advice (D-50); no tax logic is built until then. |
@@ -2067,6 +2067,7 @@ Knowledge, Automations, Reports, Team, Settings.
 | D-49 | HIPAA add-on: price, and business associate agreements with every vendor handling the data | owner + counsel |
 | D-50 | Tax treatment: GST on services exported from India; US state sales tax on software | owner + chartered accountant |
 | D-51 | Razorpay for US customers. **Confirmed from Razorpay's documentation (12 Nov 2026):** Subscriptions take recurring payments in USD on international cards (Visa, Mastercard, Amex) after the customer authenticates the first payment with 3-D Secure; UPI and eMandate are INR only; **settlement to Zella Voice is in INR** at the exchange rate when the payment is created. **Still to confirm:** international payments activated on the Zella Voice account (KYC and banking-partner approval), and a trial with a future start date tested with a foreign test card in test mode | owner |
+| D-54 | **Variable charges in USD** (auto-reload packs, pay as you go, and when a trial business pays the setup fee). Razorpay's documentation (checked 13 Nov 2026) offers no off-session USD charge for a variable amount: subscription add-ons are deprecated and card-token charges take INR only. Options: A a payment link each month, B prepaid packs only, C ask Razorpay to enable add-ons or USD token charges (`docs/PAYMENTS_ARCHITECTURE.md` §6.9, §16.3) | owner |
 | D-52 | Inbound call routing when a call's number and Vapi phone ID match two different businesses' rows (each is unique on its own): proposed, route only when both agree, otherwise treat as an unknown number | owner |
 | D-53 | Whether n8n workflow failures are emailed to platform admins once email is live, or shown in the dashboard only (`sql/zella_workflow_alert_email.sql`, merged, not applied) | owner |
 | D-35 | Whether a business may ever override a resource conflict (default: never) | owner |
@@ -2131,7 +2132,7 @@ Everything else in this document is specified. These items need a person's input
 
 | # | Item | Who | Needed by phase |
 |---|---|---|---|
-| 1 | Platform contact ceiling (D-38); open billing decisions D-45 to D-51; D-52, D-53 | owner | before charging |
+| 1 | Platform contact ceiling (D-38); open billing decisions D-45 to D-51 and D-54; D-52, D-53 | owner | before charging |
 | 2 | Review of the proposed consent wording (§34), templates (§33), voicemail and recording disclosures, retention periods and US calling and texting rules | counsel | 5, 6, 8, 11 |
 | 3 | Terms of service, privacy policy, data-processing terms and any agreements regulated industries require (§39) | owner + counsel | 12 |
 | 4 | Remaining open decisions in §23.2 | owner | as listed |

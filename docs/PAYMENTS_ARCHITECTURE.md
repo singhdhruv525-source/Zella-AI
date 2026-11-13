@@ -4,12 +4,17 @@
 > the commercial policy in `docs/ARCHITECTURE.md` §17 is implemented. When the owner approves it, the parts that change
 > the required design move into `ARCHITECTURE.md` and this file becomes the detailed reference. Real charges, refunds
 > and auto-reloads need the owner's explicit approval before they go live (`NN-3`, `NN-9`, `BIL-10`).
+>
+> **Razorpay checked on 13 Nov 2026:** §16 is the integration reference, written from Razorpay's current documentation.
+> It changed three parts of this design: Razorpay itself retries failed renewals (§6.3), and **charging a saved card
+> later for a variable amount in USD is not offered** (subscription add-ons are deprecated and the card-token charge
+> API takes INR only), so auto-reload and pay-as-you-go billing wait for D-54 (§6.4, §6.9).
 
 Contents: [1 Goals](#1-goals-and-non-negotiables) · [2 Context](#2-system-context) · [3 Components](#3-components-and-trust-boundaries)
 · [4 Data model](#4-data-model) · [5 Money rules](#5-money-rules) · [6 Flows](#6-flows) · [7 State machines](#7-state-machines)
 · [8 Idempotency](#8-idempotency-and-safe-retries) · [9 Security](#9-security) · [10 Reconciliation](#10-reconciliation-and-audit)
 · [11 Scale](#11-scalable-architecture-1-to-10000-people) · [12 Failure modes](#12-failure-modes) · [13 Testing](#13-testing)
-· [14 Rollout](#14-rollout-and-gates) · [15 Open points](#15-open-points)
+· [14 Rollout](#14-rollout-and-gates) · [15 Open points](#15-open-points) · [16 Razorpay reference](#16-razorpay-integration-reference)
 
 ---
 
@@ -271,11 +276,22 @@ are the same moment. If the owner authorises late within the window, the trial i
 expires unused and a new one is created when the owner returns. The exact window behaviour is confirmed in Razorpay
 test mode before the trial ships (D-51).
 
+**Razorpay mechanics (§16):** the trial is a subscription with `start_at` = trial end and `expire_by` = the 24-hour
+authorisation window. The owner completes an **authentication transaction** (a small amount, auto-refunded by Razorpay;
+nothing is captured), Razorpay sends `subscription.authenticated`, and the card is first charged at `start_at`
+(`subscription.activated`, then `subscription.charged`). A setup fee passed as the upfront amount (`addons` on create)
+is charged **during the authentication**, that is at the start of the trial, and the subscription stays `created` until
+it is paid; whether a trial business pays the setup fee at the start or at the end is part of D-54.
+
 Trial abuse guard (D-48, proposed): one trial per business, per phone number and per owner email domain. **No
 card-derived identifier is used** (not even a fingerprint), because card details are never collected (`NN-9`). A repeat
 is offered a paid plan instead.
 
 ### 6.3 Renewal and failed payment (`REQ-BIL-33`)
+
+**Razorpay retries a failed card renewal itself** (§16.3): on the day after the charge day and the two days after
+that (T+1, T+2, T+3, matching "days 2, 3 and 4" in `REQ-BIL-33`). Our worker **never** charges a renewal itself; it
+only sends the owner our in-app notice and email on each failure event.
 
 ```mermaid
 sequenceDiagram
@@ -283,23 +299,30 @@ sequenceDiagram
   participant RZ as Razorpay
   participant WH as billing-webhook
   participant DB as Postgres
-  participant WK as billing-worker
   actor BO as Business owner
 
-  RZ->>WH: subscription.charged (success)
-  WH->>DB: invoice paid · new period · reset monthly buckets · rollover bucket: up to 20% of plan minutes + up to 20% of each minutes pack (expires next period)
-  RZ->>WH: payment.failed
-  WH->>DB: subscription past_due (past_due_since set)
-  loop days 2, 3, 4
-    WK->>RZ: retry charge (one attempt row per try · stored order checked first)
-    WK->>BO: email + in-app notice
+  RZ->>WH: subscription.charged (payment + invoice)
+  WH->>DB: binding check (§6.0a) · invoice paid · new period · reset monthly buckets · rollover bucket (up to 20% of plan minutes + up to 20% of each minutes pack, expires next period)
+  RZ->>WH: subscription.pending (charge failed on day T)
+  WH->>DB: subscription past_due (past_due_since = T) · notice + email
+  loop Razorpay retries T+1, T+2, T+3
+    RZ->>WH: subscription.charged → active (same grant as above, once per invoice)
+    RZ->>WH: or subscription.pending again → notice + email
   end
-  alt paid
-    RZ->>WH: payment.captured → active · new period · reset monthly buckets · rollover bucket (same rules as subscription.charged, applied once per invoice)
+  RZ->>WH: subscription.halted (all retries failed)
+  WH->>DB: still past_due · owner asked to change the card
+  alt owner changes the card (Razorpay checkout, subscription_card_change)
+    RZ->>WH: last unpaid invoice charged → subscription.charged + subscription.activated → active
   else 5 days overdue
     DB->>DB: AI receptionist paused · calls to fallback number · data kept 30 days
   end
 ```
+
+**Watch out (§16.3):** once a subscription is `halted`, Razorpay keeps issuing invoices but charges none of them, and
+when it becomes `active` again **older unpaid invoices are not charged** automatically. Changing the card while it is
+`pending` charges the last invoice; after `halted`, any older unpaid invoice is charged manually (from the Razorpay
+Dashboard; international cards only) or written off by a person, and the ledger records which. Service is restored
+only when the invoice for the current period is paid.
 
 ### 6.4 Packs and auto-reload, race-free (`REQ-BIL-23`)
 
@@ -322,6 +345,12 @@ sequenceDiagram
 
 A unique partial index `(business_id) where status = 'pending'` on auto-reload purchases makes a second reload
 impossible while one is in flight, however many calls finish at the same moment.
+
+**Blocked on D-54 (§16.3).** "Charge saved payment method" above has no Razorpay route in USD today: subscription
+add-ons (charged on the next invoice) are deprecated, and the card-token charge (`POST /v1/payments/create/recurring`)
+accepts INR only. Until D-54 is decided, packs are bought **with the owner present**: a Checkout order in USD, card
+entered on Razorpay's page with 3-D Secure, granted on `payment.captured` after the binding check (§6.0a). The stored
+auto-reload preference stays stored and inactive, as the Billing page already says.
 
 ### 6.5 Entitlement check at call time (`REQ-BIL-22`)
 
@@ -349,6 +378,16 @@ flowchart TB
   dn[Downgrade requested] --> s[Scheduled for next billing date<br/>features above the lower plan end then]
 ```
 
+**Razorpay mechanics (§16.4):** a Razorpay plan cannot be edited, so each `business_plans` version that is sold gets
+its own Razorpay plan. An upgrade is `PATCH /v1/subscriptions/:id` with the new `plan_id` and
+`schedule_change_at: now`: **Razorpay works out the prorated difference by day and charges it itself**; if that charge
+fails the subscription is not updated. `subscription.updated` plus the captured payment confirm it (binding check,
+§6.0a), and only then is the new version applied. Our quote must use Razorpay's day-based method so the owner sees the
+amount that is really charged; this is proven in test mode. A downgrade uses `schedule_change_at: cycle_end`, so no
+credit note or refund is created. Limits: only `authenticated` or `active` subscriptions can be updated (not
+`pending` or `halted`), the difference must be at least 50 cents, and **plan changes work only for subscriptions on
+international cards** (on Indian cards only the offer can change), which fits our US customers.
+
 ### 6.7 Refund request with server-side eligibility (`REQ-BIL-38`…`45`)
 
 ```mermaid
@@ -375,10 +414,28 @@ Eligibility is computed again at approval and at sending: a stale screen can nev
 longer allows. **Refundable amounts are reserved** when a refund is requested: requested, approved, sending and
 uncertain refunds all count against the payment, so concurrent requests can never refund more than was captured.
 
+### 6.9 Pay as you go (D-44), billed after the month ends
+
+When the owner chose pay as you go (D-44), minutes past the allowance are counted at the business's own rate, up to
+the monthly spending limit. After the period closes (and its late-usage window has passed), one invoice is made for
+those minutes. **How it is collected is D-54**, because Razorpay has no USD off-session charge for a variable amount
+(§16.3). The options:
+
+| Option | How | Trade-off |
+|---|---|---|
+| A · Payment link (recommended until Razorpay offers more) | a USD Razorpay Payment Link or a Checkout order in the Billing page; unpaid after 5 days follows the overdue rules of §6.3 | owner must pay by hand each month; the spending limit caps what can go unpaid |
+| B · Prepaid only | no pay as you go; the owner buys packs (with the owner present) instead | no unpaid risk; less convenient |
+| C · Ask Razorpay | ask whether add-ons or USD card-token charges can be enabled on the Zella Voice account | automatic if granted; depends on Razorpay |
+
+The pay-as-you-go rate field and the owner's choice are stored already (step 2); nothing is billed until D-54 is decided
+and payments are switched on.
+
 ### 6.8 Disputes (chargebacks)
 
 `payment.dispute.created` → dispute row, account suspended while open (`REQ-BIL-37`), owner alerted.
-`dispute.won` → that dispute is closed; the account is restored **only when no other dispute on the subscription is still open** (§7). `dispute.lost` → ledger postings for the loss; the account stays suspended until settled.
+`payment.dispute.won` → that dispute is closed; the account is restored **only when no other dispute on the subscription is still open** (§7). `payment.dispute.lost` → ledger postings for the loss; the account stays suspended until settled.
+`payment.dispute.action_required` and `payment.dispute.under_review` alert a platform admin (evidence is submitted with
+Razorpay's contest API or Dashboard); `payment.dispute.closed` is recorded.
 
 ---
 
@@ -470,9 +527,9 @@ flowchart TB
 | Same key, different body | `409 idempotency_key_reused`. |
 | Worker crashes after Razorpay accepted the charge but before saving | The outbox row is still `sending`. Our order ID is **stored before the charge call**, so the reconciler fetches that order's payments from Razorpay before any retry and records the real outcome. A receipt is only a label, never relied on as a lookup or a guarantee. Never blind-retry a charge; an outcome that stays uncertain is held and alerted. |
 | Worker loses the reply to **create subscription** | Razorpay subscriptions have no receipt lookup. Each create carries `notes.outbox_id`; the reconciler lists the subscriptions created since the attempt (by time window and customer) and matches that note. Found → record it. Not found after the window → a retry is allowed, because an unauthenticated subscription charges nothing; any duplicate found later that was never authenticated is cancelled. **This lookup must be proven in Razorpay test mode before the trial path ships** (D-51); if it cannot be, the trial path waits for another recovery method. |
-| Razorpay sends a webhook twice | The event ID is a **delivery de-duplication aid** (it is a header, not part of the signed body), not a replay guarantee. The real protection is semantic: unique keys on the provider payment, refund and dispute IDs and on the local operation, so a repeated event has no second effect. |
+| Razorpay sends a webhook twice | Razorpay delivers at least once. The event ID (`x-razorpay-event-id` header) is a **delivery de-duplication aid** (it is a header, not part of the signed body), not a replay guarantee. The real protection is semantic: unique keys on the provider payment, refund and dispute IDs and on the local operation, so a repeated event has no second effect. |
 | Webhooks arrive out of order | Each event carries the provider's creation time; state only moves forward (§7). An event for an unknown payment is kept and applied when its parent arrives. |
-| Our webhook handler times out | Razorpay retries; the inbox makes it safe. The handler only inserts, so it answers in milliseconds. |
+| Our webhook handler times out | Razorpay waits **5 seconds**, then retries with back-off for **24 hours**; after 24 hours of failures it **disables the webhook** and emails the alert address. The handler only inserts, so it answers in milliseconds; a disabled webhook is a platform alert, and the reconciler (§10) fetches what was missed. |
 | Two calls cross the threshold at once | The auto-reload row lock and the unique pending index allow one reload. |
 
 **Per-operation rules:**
@@ -480,7 +537,9 @@ flowchart TB
 | Operation | Idempotency | Recovery when the reply is lost |
 |---|---|---|
 | Create order (checkout, pack, upgrade) | one order per local operation; order ID stored at once | an unpaid order charges nothing: mark it unused and create a new one |
-| Charge a saved card (renewal retry, auto-reload) | one charge attempt row per invoice attempt, unique | fetch the stored order's payments first; retry only if Razorpay shows none |
+| Renewal and its retries | done by Razorpay, never by us (§6.3) | fetch the subscription's invoices (`GET /v1/invoices?subscription_id=`) and their payments |
+| Charge a saved card later (auto-reload, pay as you go) | blocked on D-54 (§16.3) | not built until a route exists |
+| Upgrade (update subscription) | one pending update per subscription (Razorpay refuses a second) | fetch the subscription and its pending update (`GET /v1/subscriptions/:id/retrieve_scheduled_changes`) |
 | Create subscription | `notes.outbox_id` | §8 table above; proven in test mode before shipping |
 | Refund | Razorpay's refund idempotency header (`X-Refund-Idempotency`) set to our refund ID | resend with the same key, or fetch the payment's refunds |
 | Cancel subscription | naturally idempotent | fetch the subscription and record its state |
@@ -497,7 +556,7 @@ provider ID at once → mark `sent`. A lease that expires sends the row to **rec
 | Area | Control |
 |---|---|
 | Card data | Razorpay hosted checkout only. No card fields in our pages, logs, analytics or support tools (`NN-9`). |
-| Webhook authenticity | HMAC-SHA256 of the raw body with the webhook secret (`X-Razorpay-Signature`), constant-time compare; reject on any mismatch. The event ID only de-duplicates deliveries (it is not part of the signed body); replays have no effect because of unique keys on provider object IDs and local operations (§8). |
+| Webhook authenticity | HMAC-SHA256 of the **raw** body (never parsed and re-serialised) with the webhook secret (`X-Razorpay-Signature`), constant-time compare; reject on any mismatch. Retries of events sent before a secret change are signed with the **old** secret, hence the overlap. The event ID only de-duplicates deliveries (it is not part of the signed body); replays have no effect because of unique keys on provider object IDs and local operations (§8). |
 | Checkout callback | Verify `HMAC(order_id + "|" + payment_id)` with the key secret, but treat it as a hint only; the webhook or a server-side fetch grants access (§6.1). |
 | Amount tampering | The browser never sends an amount. Every amount is computed in the database from `business_plans` and the pack catalog. |
 | Authorization | Business billing: **owner role only** (`TEN-9`), checked in the database. Admin billing: `billing.view` / `billing.manage`, MFA, audit. Row security on every billing table; server-only tables have no client policies. |
@@ -630,7 +689,133 @@ production or real money (`NN-3`, `NN-4`).
 
 | # | Point | Needed for |
 |---|---|---|
-| D-51 | Razorpay: recurring USD on international cards is supported per Razorpay's docs (first payment authenticated with 3-D Secure; settled in INR). Still to confirm: international payments activated on the account; a trial with a future start date in test mode; charging the saved card for auto-reload packs | step 3 |
+| D-51 | Razorpay: recurring USD on international cards is supported per Razorpay's docs (first payment authenticated with 3-D Secure; settled in INR). Still to confirm on the account: international payments activated, the Subscriptions feature on in test and live, cards enabled in Subscriptions settings; then the test-mode proofs in §16.8 | step 3 |
+| D-54 | **Variable charges in USD** (auto-reload packs, pay as you go, possibly the trial's setup fee): Razorpay offers no off-session USD charge for a variable amount (§16.3). Choose A payment link, B prepaid packs only, or C ask Razorpay to enable add-ons or USD card-token charges (§6.9) | before auto-reload or pay as you go |
 | D-50 | Tax rules (GST on exported services; US state sales tax) | invoices with tax |
 | D-45…D-48 | fair-use multiple, annual allowances, founding customers, trial limits | step 1 |
-| — | Exact Razorpay event names and payloads, confirmed against Razorpay's current documentation at build time | step 3 |
+| — | Event names, endpoints and limits: **checked 13 Nov 2026** (§16); check again at build time, as Razorpay changes its docs | step 3 |
+
+---
+
+## 16. Razorpay integration reference
+
+Checked against Razorpay's documentation on **13 Nov 2026** (pages listed in §16.9). Nothing here was tested against
+Razorpay yet: every row marked *prove* is confirmed in **test mode** before its flow ships (D-51). Amounts are in cents
+(`USD`, exponent 2); Razorpay settles to Zella Voice in INR at the exchange rate when the payment is created.
+
+### 16.1 Which Razorpay product does what
+
+| Need | Razorpay product | Notes |
+|---|---|---|
+| Monthly or yearly plan charge | **Subscriptions** (a Plan + a Subscription) | Razorpay charges each cycle, retries failures, sends `subscription.*` events |
+| Setup fee | Subscription **upfront amount** (`addons` on create) | charged with the authentication transaction |
+| Trial | Subscription with a future `start_at` | card authenticated now, first charge at `start_at` |
+| Upgrade or downgrade | **Update subscription** | Razorpay charges the prorated difference itself (§6.6) |
+| Pack bought by the owner | **Orders** + Standard Checkout | owner present; card on Razorpay's page |
+| Pay as you go, auto-reload | none in USD today | D-54 (§6.9) |
+| Refunds | **Refunds** API | idempotency header supported |
+| Chargebacks | **Disputes** | events + accept/contest |
+
+### 16.2 API calls we make (server side only, Basic auth with the key ID and key secret from edge secrets)
+
+| Call | Endpoint | Key fields | Our rule |
+|---|---|---|---|
+| Create plan | `POST /v1/plans` | `period` (`monthly`, `yearly`), `interval` 1, `item.name`, `item.amount`, `item.currency: USD`, `notes` | one per sold `business_plans` version; plans **cannot be edited or deleted** |
+| Create subscription | `POST /v1/subscriptions` | `plan_id`, `total_count` (required; up to the 100-year limit), `start_at` (trial), `expire_by` (authorisation window), `addons` (setup fee), `customer_notify`, `notes.outbox_id` and `notes.business_id` (labels only, never trusted for binding) | §8 recovery by listing and matching `notes.outbox_id` (*prove*) |
+| Fetch subscription | `GET /v1/subscriptions/:id` | `status`, `current_start`, `current_end`, `charge_at`, `paid_count`, `auth_attempts` | reconciler |
+| Subscription invoices | `GET /v1/invoices?subscription_id=:id` | invoice `status`, `payment_id`, amounts | renewal recovery and reconciliation |
+| Update subscription | `PATCH /v1/subscriptions/:id` | `plan_id`, `schedule_change_at` (`now` / `cycle_end`), `customer_notify` | upgrade `now`, downgrade `cycle_end` (§6.6) |
+| Pending update | `GET /v1/subscriptions/:id/retrieve_scheduled_changes`; cancel: `POST /v1/subscriptions/:id/cancel_scheduled_changes` | | owner withdraws a scheduled downgrade |
+| Cancel subscription | `POST /v1/subscriptions/:id/cancel` | `cancel_at_cycle_end` `true` (owner cancels: runs to period end) or `false` (trial cancel: immediately) | a cancelled subscription cannot restart; "continue my plan" before the end calls nothing |
+| Pause / resume | `POST /v1/subscriptions/:id/pause` · `/resume` | | **not used**: our non-payment pause is our own service pause (D-25 has no owner pause) |
+| Create order (pack) | `POST /v1/orders` | `amount`, `currency: USD`, `receipt` = our purchase ID, `notes` | order ID stored before checkout opens |
+| Payments of an order | `GET /v1/orders/:id/payments` | `status`, `amount`, `currency` | recovery after a lost reply |
+| Refund | `POST /v1/payments/:id/refund` | `amount` (partial allowed, never above what is left), `speed: normal`, `receipt`, `notes`; header `X-Refund-Idempotency` = our refund ID (10+ characters; same body on retry, or `400`/`409`) | §6.7 |
+| Refunds of a payment | `GET /v1/payments/:id/refunds` | | recovery and reconciliation |
+| Disputes | `GET /v1/disputes/:id`, `POST /v1/disputes/:id/accept`, `PATCH /v1/disputes/:id/contest` | `amount`, `phase`, `status`, `respond_by` | a person decides, with `billing.manage` |
+
+### 16.3 What Razorpay's documentation changed in this design
+
+| Finding (source page) | Impact | Change |
+|---|---|---|
+| Card renewals that fail are **retried by Razorpay** on T+1, T+2 and T+3, then the subscription is `halted` (Payment Retries) | our own retries would charge twice | §6.3: the worker never charges renewals |
+| After `halted`, invoices are issued but not charged; back to `active`, **older unpaid invoices are not charged** (Subscription States) | money can be left unpaid | §6.3: card change, manual charge or written off by a person |
+| **Subscription add-ons are deprecated** (Subscriptions FAQ; no add-on endpoint in the API index) | no way to add a variable amount to the next invoice | auto-reload and pay as you go wait for D-54 |
+| The card-token charge `POST /v1/payments/create/recurring` takes **INR only** (Create Subsequent Payments) | no off-session USD charge for packs or overage | same; charging US cards in INR is not proposed (`REQ-BIL-28` says USD) |
+| Plan changes on a subscription work for **international cards only**; Razorpay prorates by day and charges the difference itself (Update Subscription) | upgrades can be immediate and paid | §6.6 |
+| A trial is a future `start_at`; a setup fee as upfront amount is charged at authentication (Create Subscriptions) | setup fee would be paid at trial start | D-54 asks when a trial business pays it |
+| Webhooks: answer within **5 s**; retried with back-off for **24 h**, then the webhook is **disabled**; at-least-once; **order not guaranteed** (Webhook best practices, Validate and Test) | missed events possible | §8 alert + reconciler |
+| India's card-mandate rules (pre-debit notice, extra authentication above ₹15,000) **do not apply to international cards** (Subscriptions FAQ) | US renewals are charged on the day | none |
+| Subscriptions accept USD only with **international payments enabled** on the account, cards only (Subscriptions FAQ, International Payments FAQ) | account step | §16.7 |
+
+### 16.4 Signatures
+
+| What | How |
+|---|---|
+| Webhook | `X-Razorpay-Signature` = HMAC-SHA256(**raw body**, webhook secret), hex; constant-time compare |
+| Checkout result for a subscription | HMAC-SHA256(`razorpay_payment_id` + `\|` + **our stored** `subscription_id`, key secret) = `razorpay_signature` (never use the subscription ID the browser sends back) |
+| Checkout result for an order (pack) | HMAC-SHA256(**our stored** `order_id` + `\|` + `razorpay_payment_id`, key secret) |
+| De-duplication | `x-razorpay-event-id` header, unique per event |
+
+A valid browser signature only shows "processing" (§6.1); access is granted by the verified webhook or a server fetch.
+
+### 16.5 Webhook events we subscribe to
+
+| Event | We do |
+|---|---|
+| `subscription.authenticated` | trial starts (§6.2); no invoice marked paid |
+| `subscription.activated` | state only; the grant needs the captured payment |
+| `subscription.charged` | binding check (§6.0a) → invoice paid, new period, buckets (§6.3) |
+| `subscription.pending` | `past_due`, notice + email |
+| `subscription.halted` | still `past_due`, ask for a card change; pause at 5 days |
+| `subscription.updated` | apply the upgrade or scheduled change after the payment is confirmed (§6.6) |
+| `subscription.cancelled`, `subscription.completed` | close the subscription |
+| `payment.captured`, `payment.failed`, `order.paid` | packs and other orders (§6.4); failure notice |
+| `refund.created`, `refund.processed`, `refund.failed` | §6.7 |
+| `payment.dispute.created`, `.won`, `.lost`, `.closed`, `.under_review`, `.action_required` | §6.8 |
+
+`subscription.paused` and `subscription.resumed` are recorded only (we do not pause in Razorpay). Unknown events are
+acknowledged and ignored. Payloads carry `payload.subscription.entity` and, for charges, `payload.payment.entity` with
+`invoice_id`; the exact shapes are checked against real test-mode events before mapping (*prove*).
+
+### 16.6 Settings we choose
+
+| Setting | Value | Why |
+|---|---|---|
+| `customer_notify` | `true` (proposed) | Razorpay emails the failed-payment notice with its card-change link; our in-app notice and the pause warning are ours. *Prove* that the emails show the Zella Voice name |
+| Payment methods for Subscriptions | cards only | UPI and eMandate are INR only |
+| Webhook alert email | a monitored Zella Voice address | Razorpay emails it when a webhook is disabled |
+| Separate test and live webhooks | yes, test → staging, live → production | a test event can never grant in live (§6.0a) |
+
+### 16.7 The owner's account checklist (needs the owner; nothing here is done by Claude)
+
+1. Razorpay account KYC complete; **international payments** activated (application with purpose code; Razorpay and
+   its banking partner approve). Ask Razorpay at the same time about D-54 (add-ons or USD card-token charges).
+2. **Subscriptions** feature enabled in **test and live** modes; in Subscriptions settings, **cards** on.
+3. Test-mode API keys made in the Dashboard and saved as edge function secrets on **staging only** by the owner
+   (never pasted in chat, code or docs, `NN-2`).
+4. Test-mode webhook pointing at the staging `billing-webhook` URL, with its own secret, the events in §16.5 and the
+   alert email (test mode asks for OTP `754081` when saving).
+5. After the test-mode proofs (§16.8) and the owner's approval: live keys, live webhook, one pilot business (§14).
+
+### 16.8 Test-mode proofs before each flow ships
+
+| Flow | Prove in Razorpay test mode |
+|---|---|
+| First payment | USD subscription on an international test card with 3-D Secure; `subscription.charged` carries the payment and invoice; binding check passes |
+| Trial | future `start_at`; authentication refunded; `expire_by` window behaviour; first charge at `start_at` |
+| Lost create reply | listing subscriptions finds the one with our `notes.outbox_id` (§8) |
+| Failed renewal | test card failure → `pending` on T, retries T+1..T+3 → `halted`; card change charges the last invoice |
+| Upgrade | `schedule_change_at: now` charges Razorpay's prorated amount; our quote matches it |
+| Pack | order in USD captured; `payment.captured` grant; double click makes one purchase |
+| Refund | partial refund with `X-Refund-Idempotency`; resend returns the same refund |
+| Webhooks | forged signature rejected; duplicate and out-of-order events have no second effect |
+
+### 16.9 Pages read (Razorpay documentation, 13 Nov 2026)
+
+Subscriptions: create a plan, create / update / cancel a subscription, subscription states, payment retries, update
+subscription, create subscriptions (trial and upfront amount), integration guide (signature), Subscriptions FAQ,
+subscription webhook events. Webhooks: overview, best practices, validate and test. Payments: payment webhook events,
+orders. Recurring payments (cards): integrate, create authorisation transaction, create subsequent payments, FAQ.
+Refunds: create a normal refund, idempotent refunds, refund webhook events. Disputes: dispute webhook events.
+International payments: overview and FAQ. All under `razorpay.com/docs`.
