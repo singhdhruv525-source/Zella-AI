@@ -411,20 +411,31 @@ When the owner chose pay as you go (D-44), minutes past the allowance are counte
 the monthly spending limit. They are billed **on the next renewal invoice**: when Stripe creates that invoice as a
 draft (`invoice.created`, about an hour before it is charged), the worker adds one invoice item for the closing
 period's pay-as-you-go minutes (`POST /v1/invoiceitems` with that draft `invoice`, Idempotency-Key `payg:<period id>`), then
-answers 200. Usage recorded after the invoice is finalised goes on the following invoice as a pending invoice item.
+answers 200. Usage recorded after the invoice is finalised, up to the billing close below, goes on the following invoice as a pending invoice item (Idempotency-Key `payg:<period id>:late`).
 The webhook must answer `invoice.created` quickly and with 2xx, because Stripe holds the invoice back from being charged
 until it does (up to 72 hours). Yearly plans have no monthly invoice, so their pay-as-you-go minutes are charged at
 the end of each monthly allowance period as an off-session PaymentIntent on the saved card (§6.4 rules).
 
-**After a cancellation** there is no renewal invoice, so when `customer.subscription.deleted` arrives at period end
-the worker bills the closing period's pay-as-you-go minutes on a **final invoice**: `POST /v1/invoiceitems` for the
-minutes, then `POST /v1/invoices` for the customer with `pending_invoice_items_behavior: include`,
-`collection_method: charge_automatically` and `auto_advance: true` (a manually created invoice is a draft that Stripe
-doesn't advance by default), then `POST /v1/invoices/:id/finalize` so it is charged to the saved card at once.
-Idempotency-Keys are `final:<period id>:main` for the first and `final:<period id>:late` for the one late invoice:
-usage that arrives within the late-usage window goes on that second invoice the same way; nothing is billed after
-that window. Each final invoice is stored locally with its kind (`main` or `late`) before the call. An unpaid final invoice follows Stripe's retries and then becomes a finance task
-for a person; service is already ended, so nothing is paused.
+**Billing close:** pay-as-you-go minutes belong to the period their call happened in (step 2). For billing, a period
+**closes 72 hours after it ends**: usage for that period that arrives before the close is billed; usage that arrives
+later is still counted against balances but **not billed** (recorded and reported, so a late provider report can never
+surprise the owner with a charge weeks later).
+
+**After a cancellation** there is no renewal invoice. Two final invoices at most, each created once:
+
+| Invoice | When | Contents | Keys |
+|---|---|---|---|
+| `main` | on `customer.subscription.deleted` (period end) | pay-as-you-go minutes recorded so far for the closing period | `final:<period id>:main:item`, `:main:invoice`, `:main:finalize`, `:main:pay` |
+| `late` | **once, at the billing close** (period end + 72 h), only if more minutes arrived after `main` | all of those later minutes together | the same with `late` |
+
+Each is built the same way: `POST /v1/invoiceitems`, then `POST /v1/invoices` for the customer with
+`pending_invoice_items_behavior: include`, `collection_method: charge_automatically` and `auto_advance: true` (a
+manually created invoice is a draft that Stripe doesn't advance by default), then `POST /v1/invoices/:id/finalize`
+(the invoice becomes `open`), then `POST /v1/invoices/:id/pay` to attempt payment on the saved card **at once**
+instead of waiting for automatic collection. The outcome arrives as `invoice.paid` or `invoice.payment_failed`
+(`billing_reason: manual`, matched to our stored invoice id). A failed payment is retried on Stripe's schedule (§16.6);
+still unpaid after the last retry, it becomes a finance task for a person; service has already ended, so nothing is
+paused. Each final invoice is stored locally with its kind before the first call, unique by (period, kind).
 
 The rate field and the owner's choice are stored already (step 2); nothing is billed until payments are switched on.
 
@@ -540,7 +551,7 @@ flowchart TB
 | Renewal and its retries | done by Stripe (Smart Retries, our schedule), never by us (§6.3) | fetch the subscription's invoices and their PaymentIntents |
 | Charge a saved card later (auto-reload, yearly pay as you go) | one charge attempt row per purchase; Idempotency-Key `reload:<purchase id>` or `payg:<period id>` (§8.1) | resend with the same key, or find the PaymentIntent by `metadata.purchase_id` |
 | Add pay-as-you-go to a renewal (invoice item) | Idempotency-Key = `payg:<period id>`; one item per period | list the invoice's lines |
-| Final pay-as-you-go invoices after a cancel | Idempotency-Key `final:<period id>:main` and `final:<period id>:late`; unique (period, kind) locally | list the customer's invoices by `metadata.final_kind` |
+| Final pay-as-you-go invoices after a cancel | Idempotency-Keys `final:<period id>:<main\|late>:<item\|invoice\|finalize\|pay>`; unique (period, kind) locally; `late` made once, at the billing close | list the customer's invoices by `metadata.final_kind` |
 | Upgrade (update subscription) | one pending update per subscription; Idempotency-Key `upgrade:<change id>` | fetch the subscription's `pending_update` and latest invoice |
 | Create Checkout Session or subscription | Idempotency-Key `checkout:<outbox id>`; `metadata.outbox_id` | §8 table above |
 | Refund | Idempotency-Key `refund:<refund id>` | resend with the same key, or list the PaymentIntent's refunds |
@@ -576,7 +587,7 @@ provider ID at once → mark `sent`. A lease that expires sends the row to **rec
 | Auto-reload | `POST /v1/payment_intents` (`off_session`) | `reload:<purchase id>` | one pending reload per business (partial unique index) | same |
 | Yearly pay as you go | `POST /v1/payment_intents` | `payg:<period id>` | one per period | PaymentIntent by `metadata.period_id` |
 | Monthly pay as you go | `POST /v1/invoiceitems` | `payg:<period id>` | one item per period | the invoice's lines |
-| Final invoices after a cancel | invoice items + `POST /v1/invoices` + finalize | `final:<period id>:main` / `:late` (+ `:item`, `:finalize`) | unique (period, kind) | invoices by `metadata.final_kind` |
+| Final invoices after a cancel | invoice item + `POST /v1/invoices` + finalize + pay | `final:<period id>:<main\|late>:<item\|invoice\|finalize\|pay>` | unique (period, kind) | invoices by `metadata.final_kind` |
 | Upgrade | `POST /v1/subscriptions/:id` | `upgrade:<change id>` | one pending change per subscription | subscription `pending_update`, latest invoice |
 | Downgrade | `POST /v1/subscription_schedules` | `downgrade:<change id>` | one scheduled change per subscription | the subscription's schedule |
 | Cancel / continue | `POST /v1/subscriptions/:id` | `cancel:<subscription id>:<desired version>:<attempt>` | one outbox row per subscription; latest choice wins | fetch the subscription |
@@ -870,7 +881,7 @@ dispute suspension is kept, the cancel still takes effect at period end); the fi
 | Pay as you go | invoice item added on `invoice.created` appears on the renewal invoice; a late item goes on the next one |
 | Auto-reload | off-session PaymentIntent succeeds; `authentication_required` test card leads to the confirm link; a double threshold crossing makes one purchase |
 | Upgrade | `pending_if_incomplete` applies the new Price only after payment; a failed payment leaves the plan unchanged; quote equals the preview |
-| Cancel | `cancel_at_period_end` true then false keeps the subscription; true at period end sends `customer.subscription.deleted`; a fast cancel-continue-cancel sequence ends in the owner's last choice; the final `main` invoice is finalised and charged; late usage within the window makes one `late` invoice, charged the same way; usage after the window makes none |
+| Cancel | `cancel_at_period_end` true then false keeps the subscription; true at period end sends `customer.subscription.deleted`; a fast cancel-continue-cancel sequence ends in the owner's last choice; the `main` invoice is finalised and paid at once; several late usage events before the close all land on one `late` invoice made at the close; usage after the close is counted but billed nowhere; a declined card on a final invoice follows the retries, then a finance task |
 | Refund | partial refund with an Idempotency-Key; a resend returns the same refund |
 | Webhooks | forged or stale signature rejected; duplicate and out-of-order events have no second effect |
 
