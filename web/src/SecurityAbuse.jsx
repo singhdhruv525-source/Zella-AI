@@ -564,7 +564,7 @@ function Automation({ info, canSave, onSaved }) {
   return (
     <section className="owner-panel sa-panel">
       <p className="op-muted">
-        The <strong>Zella - Spam Response</strong> workflow in n8n handles follow-up for incidents the database has already detected, scored and
+        The <strong>spam response</strong> workflow in n8n handles follow-up for incidents the database has already detected, scored and
         (for calls) screened: severity-based alerts, repeat-offender checks, an optional AI second opinion and weekly summaries. Blocking, screening
         and rate limits never wait for it. If it doesn't run within 15 minutes, high-risk alerts are sent by the database instead.
       </p>

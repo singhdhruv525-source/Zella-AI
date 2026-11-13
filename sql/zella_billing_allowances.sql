@@ -177,6 +177,15 @@ create table if not exists public.auto_reload_settings (
   primary key (business_id, resource)
 );
 
+-- every foreign key has an index (DB-15): deletes and joins on the referenced row never scan the table
+create index if not exists billing_periods_plan_idx on public.billing_periods (business_plan_id);
+create index if not exists billing_periods_subscription_idx on public.billing_periods (subscription_id);
+create index if not exists pack_purchases_pack_idx on public.pack_purchases (pack_code);
+create index if not exists pack_purchases_period_idx on public.pack_purchases (period_id);
+create index if not exists allowance_buckets_pack_purchase_idx on public.allowance_buckets (pack_purchase_id) where pack_purchase_id is not null;
+create index if not exists usage_charges_business_idx on public.usage_charges (business_id, created_at);
+create index if not exists auto_reload_settings_pack_idx on public.auto_reload_settings (pack_code);
+
 -- deny by default: no table grants; owners and billing admins read through the functions below
 do $$ declare t text; begin
   foreach t in array array['business_plans', 'billing_pack_catalog', 'billing_periods', 'pack_purchases', 'allowance_buckets',

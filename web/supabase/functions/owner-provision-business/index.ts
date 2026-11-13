@@ -1042,7 +1042,8 @@ async function finishSetup(admin: SupabaseClient, fields: Json) {
           data: { full_name: name, business_id: businessId },
           ...(appUrl ? { redirectTo: ownerWelcomeUrl(appUrl) } : {}),
         });
-        if (error || !data?.user) { console.error("Owner invitation failed", error); return { error: error?.message ?? "Invitation email could not be sent" }; }
+        // no address or provider text in the log (PRV-7)
+        if (error || !data?.user) { console.error("Owner invitation failed", error?.name ?? "unknown", error?.status ?? ""); return { error: error?.message ?? "Invitation email could not be sent" }; }
         return { userId: data.user.id };
       },
       async release(id, reason) {
