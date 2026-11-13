@@ -1,4 +1,4 @@
-// Zella - Event Gateway: check the incoming request before anything is stored.
+// Zella Voice - Event Gateway: check the incoming request before anything is stored.
 // Runs once for each item. Input: the webhook item ({ body }).
 const EVENT_TYPES = __EVENT_TYPES__;
 const SOURCES = ['database', 'vapi', 'telnyx', 'website', 'meta', 'email', 'calendar', 'staff', 'n8n', 'billing', 'system'];

@@ -1,4 +1,4 @@
-// Zella - Inbound Email: turn the fetched email into the small, plain message the database expects.
+// Zella Voice - Inbound Email: turn the fetched email into the small, plain message the database expects.
 // Only text is passed on (never the HTML), cut to a safe size. The database decides what the email is and what to do.
 const plan = $('Plan').item.json;
 const r = $json;

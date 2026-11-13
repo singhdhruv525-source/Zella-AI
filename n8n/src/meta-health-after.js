@@ -1,4 +1,4 @@
-// Zella - Meta Health: liveness result. A rejected token means the page must be reconnected; anything else is a temporary error.
+// Zella Voice - Meta Health: liveness result. A rejected token means the page must be reconnected; anything else is a temporary error.
 const plan = $('Build request').item.json;
 if (plan.fail) return { json: { record: plan.fail, templates: false } };
 const r = $json;

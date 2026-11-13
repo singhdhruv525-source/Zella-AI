@@ -1,4 +1,4 @@
-// Zella - Email Sender: turn one claimed reminder into a "prepare this email" request.
+// Zella Voice - Email Sender: turn one claimed reminder into a "prepare this email" request.
 // Only email reminders are handled here. Anything else is skipped with a visible reason, never dropped silently.
 const r = $json;
 const skip = (reason) => ({ json: { reminder_id: r.reminder_id, finish: { rpc: 'zella_skip_reminder', body: { p_reminder_id: r.reminder_id, p_reason: reason } } } });

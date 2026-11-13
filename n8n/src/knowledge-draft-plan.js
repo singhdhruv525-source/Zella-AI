@@ -1,4 +1,4 @@
-// Zella - Knowledge: build the request that asks the AI to DRAFT an answer for a question the assistant could not
+// Zella Voice - Knowledge: build the request that asks the AI to DRAFT an answer for a question the assistant could not
 // answer. Only the business's own approved knowledge is given, as data. The caller's question is also data.
 const g = $json;
 if (!g || !g.gap_id || !g.question) return { json: { gap_id: null, request: null } };

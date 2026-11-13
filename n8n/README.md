@@ -247,7 +247,7 @@ Run `sql/zella_engine_health.sql`, then `sql/zella_dispatcher.sql` (it adds the 
 - **Pile-ups raise one alert per queue** (reminders waiting over 30 minutes, follow-ups over 60, events over 15, owner notifications over 60) and clear themselves when the queue is empty. A pile-up usually means the engine is switched off or a provider is down. The alerts reach you through the normal platform alert delivery.
 
 ## Google Calendar sync
-Workflow `Zella - Calendar Sync` (webhook `zella/run/calendar-sync`). Zella's database stays the source of truth for free times and bookings; Google is a copy plus a source of busy times.
+Workflow `Zella Voice - Calendar Sync` (webhook `zella/run/calendar-sync`). Zella's database stays the source of truth for free times and bookings; Google is a copy plus a source of busy times.
 - **Booking to Google:** when a confirmed booking is created or changed (or cancelled), a trigger puts a row in `calendar_sync_queue` (only for businesses with an active connection). The workflow creates, updates or deletes the Google event and saves its id on the appointment. Failures retry up to 5 times (5, 10, 15 ... minutes), then raise a platform alert.
 - **Google to Zella:** the workflow lists the next 60 days of events and replaces the imported `blocked_times` (cancelled, "free" and Zella-made events are ignored; all-day events block the day in UTC). Refreshed when a connection is made, and hourly by `zella_schedule_calendar_pulls`. A lost-access error pauses the link and alerts.
 - Nothing runs until `calendar_sync_live` is true. The refresh token is kept in Vault (`zella_gcal_<business id>`); it passes through the workflow run data when talking to Google. Configure the Google and Microsoft Custom Auth credentials described in GO-LIVE.md on both token boxes for each provider. Refresh tokens pass through execution data; Calendar Sync disables all execution-data saving.
@@ -336,7 +336,7 @@ All of it lives in `sql/zella_meta.sql` (already applied to the live database) a
 ## Ops automation and staff texts
 Run `sql/zella_staff_sms.sql` and `sql/zella_ops_automation.sql` (both safe to repeat), then re-run `sql/zella_dispatcher.sql`.
 - Settings rollback, a plain change list, knowledge rollback, 1-in-N spot checks of AI answers, wrong-answer reports, a daily team summary and a daily reconciliation run from Supabase. No n8n box is involved.
-- **Zella - Staff Texts** (`staff-sms` lane, workflow `1MWk3sY3c5d1oYEx`, unpublished) sends urgent alerts by text to team members who turned it on for themselves (`zella_set_my_sms_alerts`, needs a phone number on their profile). Max 5 per business per hour. Nothing is claimed until `sms_live` is true and `sms_from_number` is set. Put the Telnyx key on the "Send via Telnyx" box only.
+- **Zella Voice - Staff Texts** (`staff-sms` lane, workflow `1MWk3sY3c5d1oYEx`, unpublished) sends urgent alerts by text to team members who turned it on for themselves (`zella_set_my_sms_alerts`, needs a phone number on their profile). Max 5 per business per hour. Nothing is claimed until `sms_live` is true and `sms_from_number` is set. Put the Telnyx key on the "Send via Telnyx" box only.
 
 ## Social booking chat
 Run `sql/zella_social_flow.sql` after `zella_meta.sql` (safe to repeat). Off by default; an owner turns it on per page with `zella_meta_set_flow(business, page_id, true)`.
@@ -448,7 +448,7 @@ After a call ends with a real transcript it waits in `call_insights`. When `call
 - Safety: off by default; no AI key in the workflow (add it by hand in the "Ask AI" box at go-live, header `x-api-key`); 3 tries per call; monthly limit per business (`call_intel_monthly_limit`, default 300, then skipped); calls of suspended/cancelled businesses are skipped.
 - Not built: a screen to show suggestions (staff can read them with `zella_call_insights_list`; the Calls page needs a panel - see `docs/FRONTEND_TODO.md`), summaries for calls with no transcript, and mood trends.
 
-## Admin alerts (Zella - Admin Alerts)
+## Admin alerts (Zella Voice - Admin Alerts)
 Run `sql/zella_admin_alerts.sql`. Webhook `zella/run/admin-alerts`, started by the dispatcher when open platform alerts have not been emailed and email is live. `zella_claim_admin_alert_email` hands out up to 25 alerts (urgent first) with the active admins' addresses; the workflow sends one plain-text digest through Resend and reports back with `zella_finish_admin_alert_email` (a failed send is retried up to 3 times; the alert itself stays open in the dashboard either way). Offers & Promotions raise alerts for: ending soon, limit nearly reached, limit reached, unusual claims, could not go live, ended (summary), and a failed schedule job.
 
 ## Spam Response (`spam-response` lane, workflow `a7Nfsi9mkQbBmc0L`, unpublished)
@@ -471,7 +471,7 @@ Flow: Run now -> Claim work (`zella_spam_claim_work`) -> Evaluate severity -> lo
   per call → `brain-tool-collect.js`). Failures use Vapi's `error` field; the transfer number is never in a tool result.
 - **Call Results** also takes `status-update` (set the assistant's server messages to `end-of-call-report` and
   `status-update`): the call is recorded as it starts (`zella_record_call_status`), so a lost report can't erase it.
-- **Zella - Call Reconciliation** (`zella-call-reconciliation.json`, lane `call-reconcile`, not imported yet) fetches
+- **Zella Voice - Call Reconciliation** (`zella-call-reconciliation.json`, lane `call-reconcile`, not imported yet) fetches
   Vapi's record of calls whose report never arrived. Off until `call_reconcile_live`; the "Fetch Vapi call" box ships
   with no credential (add `Authorization: Bearer <Vapi private key>` by hand).
 - **Voice Rules** no longer hands the transfer number to the model (`use_transfer_tool` instead).

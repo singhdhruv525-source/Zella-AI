@@ -1,4 +1,4 @@
-// Zella - Meta Leads: turn Meta's answer into either "save this lead" or "mark this attempt failed".
+// Zella Voice - Meta Leads: turn Meta's answer into either "save this lead" or "mark this attempt failed".
 // Nothing from the answer except the form answers and the campaign name is kept.
 const plan = $('Build request').item.json;
 if (plan.fail) return { json: { save: null, fail: plan.fail } };

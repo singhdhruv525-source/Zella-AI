@@ -1,4 +1,4 @@
-// Zella - Vapi webhooks: hand the database the exact request bytes and the signature headers. The database checks the
+// Zella Voice - Vapi webhooks: hand the database the exact request bytes and the signature headers. The database checks the
 // signature, the timestamp and that the request is new (zella_vapi_authenticate); the secret never reaches n8n.
 // Nothing else in the workflow runs unless the answer is "ok".
 const first = $input.first() || { json: {} };

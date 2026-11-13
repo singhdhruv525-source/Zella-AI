@@ -1,4 +1,4 @@
-// Zella - Email Sender: read the answer from "prepare" and decide what happens to this reminder.
+// Zella Voice - Email Sender: read the answer from "prepare" and decide what happens to this reminder.
 // Either it goes on to be logged (and maybe sent), or it is finished here: skipped with a reason, or failed.
 const plan = $('Plan').item.json;
 const status = Number($json.statusCode);

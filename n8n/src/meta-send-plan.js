@@ -1,4 +1,4 @@
-// Zella - Meta Sender: one claimed reply in. The destination is built here from known ids only; the text is sent as plain text.
+// Zella Voice - Meta Sender: one claimed reply in. The destination is built here from known ids only; the text is sent as plain text.
 const id = (v, re) => (typeof v === 'string' && re.test(v) ? v : null);
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const outId = id($json.id, uuid);

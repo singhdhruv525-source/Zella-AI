@@ -1,5 +1,5 @@
 {
-  "name": "Zella - Owner Emails",
+  "name": "Zella Voice - Owner Emails",
   "nodes": [
     {
       "parameters": {
@@ -56,7 +56,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Zella - Owner Emails: turn one claimed owner notification (one person) into a logged email.\n// The database already checked who should get it and wrote the subject and body.\nconst r = $json;\nconst finish = (result, note) => ({ json: { notification_id: r.notification_id, finish: { rpc: 'zella_finish_owner_email', body: { p_id: r.notification_id, p_result: result, p_note: note } } } });\n\nif (!r.notification_id || !r.business_id || !r.to || !r.subject || !r.body_text) return finish('failed', 'incomplete_notification');\nif (r.live === true && !r.from) return finish('failed', 'sender_address_not_set');\n\nreturn {\n  json: {\n    notification_id: r.notification_id,\n    live: r.live === true,\n    from: r.from || null,\n    from_name: r.from_name || 'Zella',\n    to: r.to,\n    subject: r.subject,\n    text: r.body_text,\n    html: r.body_html,\n    finish: null,\n    log: {\n      p_business_id: r.business_id,\n      p_customer_id: null,\n      p_to: r.to,\n      p_from: r.from || '',\n      p_subject: r.subject,\n      p_body_text: r.body_text,\n      p_body_html: r.body_html,\n      p_dedupe_key: 'notif:' + r.notification_id + ':' + r.to,\n      p_status: r.live === true ? 'queued' : 'dry_run',\n      p_meta: { notification_id: r.notification_id, kind: r.kind || null, to_owner: true, dry_run: r.live !== true },\n    },\n  },\n};\n"
+        "jsCode": "// Zella Voice - Owner Emails: turn one claimed owner notification (one person) into a logged email.\n// The database already checked who should get it and wrote the subject and body.\nconst r = $json;\nconst finish = (result, note) => ({ json: { notification_id: r.notification_id, finish: { rpc: 'zella_finish_owner_email', body: { p_id: r.notification_id, p_result: result, p_note: note } } } });\n\nif (!r.notification_id || !r.business_id || !r.to || !r.subject || !r.body_text) return finish('failed', 'incomplete_notification');\nif (r.live === true && !r.from) return finish('failed', 'sender_address_not_set');\n\nreturn {\n  json: {\n    notification_id: r.notification_id,\n    live: r.live === true,\n    from: r.from || null,\n    from_name: r.from_name || 'Zella',\n    to: r.to,\n    subject: r.subject,\n    text: r.body_text,\n    html: r.body_html,\n    finish: null,\n    log: {\n      p_business_id: r.business_id,\n      p_customer_id: null,\n      p_to: r.to,\n      p_from: r.from || '',\n      p_subject: r.subject,\n      p_body_text: r.body_text,\n      p_body_html: r.body_html,\n      p_dedupe_key: 'notif:' + r.notification_id + ':' + r.to,\n      p_status: r.live === true ? 'queued' : 'dry_run',\n      p_meta: { notification_id: r.notification_id, kind: r.kind || null, to_owner: true, dry_run: r.live !== true },\n    },\n  },\n};\n"
       },
       "id": "ae2f98a0-99fe-4855-8311-26233e9c1364",
       "name": "Plan",
@@ -138,7 +138,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Zella - Owner Emails: after the email is logged, decide whether to really send.\n// A repeat of the same notification and address is never sent twice. In dry-run nothing is sent.\nconst d = $('Plan').item.json;\nconst status = Number($json.statusCode);\nconst b = $json.body && typeof $json.body === 'object' ? $json.body : {};\nconst done = (result, note) => ({ json: { notification_id: d.notification_id, finish: { rpc: 'zella_finish_owner_email', body: { p_id: d.notification_id, p_result: result, p_note: note } } } });\n\nif (!(status >= 200 && status < 300)) return done('failed', 'The database call zella_log_outbound_email returned ' + status + '.');\nif (b.duplicate === true) {\n  if (b.status === 'sent' || b.status === 'delivered') return done('sent', null);\n  return done('skipped', 'duplicate_suppressed');\n}\nif (d.live !== true) return done('skipped', 'dry_run: no email was sent');\n\nconst name = String(d.from_name || '').replace(/[\\r\\n\"<>]+/g, ' ').trim();\nconst resend = { from: name ? name + ' <' + d.from + '>' : d.from, to: [d.to], subject: d.subject, text: d.text, html: d.html };\nreturn { json: { notification_id: d.notification_id, message_id: b.id, finish: null, resend } };\n"
+        "jsCode": "// Zella Voice - Owner Emails: after the email is logged, decide whether to really send.\n// A repeat of the same notification and address is never sent twice. In dry-run nothing is sent.\nconst d = $('Plan').item.json;\nconst status = Number($json.statusCode);\nconst b = $json.body && typeof $json.body === 'object' ? $json.body : {};\nconst done = (result, note) => ({ json: { notification_id: d.notification_id, finish: { rpc: 'zella_finish_owner_email', body: { p_id: d.notification_id, p_result: result, p_note: note } } } });\n\nif (!(status >= 200 && status < 300)) return done('failed', 'The database call zella_log_outbound_email returned ' + status + '.');\nif (b.duplicate === true) {\n  if (b.status === 'sent' || b.status === 'delivered') return done('sent', null);\n  return done('skipped', 'duplicate_suppressed');\n}\nif (d.live !== true) return done('skipped', 'dry_run: no email was sent');\n\nconst name = String(d.from_name || '').replace(/[\\r\\n\"<>]+/g, ' ').trim();\nconst resend = { from: name ? name + ' <' + d.from + '>' : d.from, to: [d.to], subject: d.subject, text: d.text, html: d.html };\nreturn { json: { notification_id: d.notification_id, message_id: b.id, finish: null, resend } };\n"
       },
       "id": "3389b79f-e885-4824-82a9-7506f5e23600",
       "name": "After log",
@@ -213,7 +213,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Zella - Owner Emails: turn the provider's answer into the message update and the notification result.\n// The provider's response text is never stored, only its status and a short error name.\nconst prev = $('After log').item.json;\nconst status = Number($json.statusCode);\nconst b = $json.body && typeof $json.body === 'object' ? $json.body : {};\nconst externalId = b.id ? String(b.id) : null;\nconst ok = status >= 200 && status < 300 && !!externalId;\nconst name = typeof b.name === 'string' && /^[a-z_]{1,40}$/.test(b.name) ? ' (' + b.name + ')' : '';\nconst error = ok ? null : 'The email provider returned ' + status + name + '.';\n\nreturn {\n  json: {\n    notification_id: prev.notification_id,\n    update: { p_id: prev.message_id, p_status: ok ? 'sent' : 'failed', p_external_id: externalId, p_error: error },\n    finish: { rpc: 'zella_finish_owner_email', body: { p_id: prev.notification_id, p_result: ok ? 'sent' : 'failed', p_note: error } },\n  },\n};\n"
+        "jsCode": "// Zella Voice - Owner Emails: turn the provider's answer into the message update and the notification result.\n// The provider's response text is never stored, only its status and a short error name.\nconst prev = $('After log').item.json;\nconst status = Number($json.statusCode);\nconst b = $json.body && typeof $json.body === 'object' ? $json.body : {};\nconst externalId = b.id ? String(b.id) : null;\nconst ok = status >= 200 && status < 300 && !!externalId;\nconst name = typeof b.name === 'string' && /^[a-z_]{1,40}$/.test(b.name) ? ' (' + b.name + ')' : '';\nconst error = ok ? null : 'The email provider returned ' + status + name + '.';\n\nreturn {\n  json: {\n    notification_id: prev.notification_id,\n    update: { p_id: prev.message_id, p_status: ok ? 'sent' : 'failed', p_external_id: externalId, p_error: error },\n    finish: { rpc: 'zella_finish_owner_email', body: { p_id: prev.notification_id, p_result: ok ? 'sent' : 'failed', p_note: error } },\n  },\n};\n"
       },
       "id": "b7016995-6b2a-4faf-8e0b-8124952d1931",
       "name": "After send",
@@ -262,7 +262,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Zella - SMS Sender: bring back the reminder result after the message update ran.\nreturn { json: $('After send').item.json };\n"
+        "jsCode": "// Zella Voice - SMS Sender: bring back the reminder result after the message update ran.\nreturn { json: $('After send').item.json };\n"
       },
       "id": "a8ec1f5e-ecfe-475f-87b6-6c4f75f38e23",
       "name": "Restore result",

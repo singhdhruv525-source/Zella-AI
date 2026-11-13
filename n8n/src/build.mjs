@@ -52,9 +52,10 @@ const ifBool = (name, position, expr) =>
     options: {},
   });
 const link = (to, index = 0) => ({ node: to, type: 'main', index });
-// AUT-9 / AUT-10: every workflow reports unhandled failures to Zella - Failure Alert (which raises a platform alert) and
+// AUT-9 / AUT-10: every workflow reports unhandled failures to Zella Voice - Failure Alert (which raises a platform alert) and
 // keeps no data from successful runs, since nearly every workflow handles customer details. Failure Alert itself has
 // no error workflow (see below).
+// the id is derived from the workflow's first name and stays fixed, so links to it never change
 const FAILURE_WORKFLOW_ID = id('Zella - Failure Alert');
 const wf = (name, nodes, connections, extraSettings = {}) => ({
   name, nodes, connections, active: false,
@@ -94,7 +95,7 @@ const runTrigger = (workflowName) => node('Run now', 'n8n-nodes-base.webhook', 2
 }, { webhookId: id('webhook:zella-run-' + workflowName), credentials: GATEWAY_CRED });
 
 // ------------------------------------------------------------------ Event Gateway
-const gateway = wf('Zella - Event Gateway', [
+const gateway = wf('Zella Voice - Event Gateway', [
   node('Receive event', 'n8n-nodes-base.webhook', 2, [0, 200], {
     httpMethod: 'POST', path: 'zella/events', authentication: 'headerAuth', responseMode: 'responseNode', options: {},
   }, { webhookId: id('webhook:zella-events'), credentials: GATEWAY_CRED }),
@@ -116,7 +117,7 @@ const gateway = wf('Zella - Event Gateway', [
 });
 
 // ------------------------------------------------------------------ Event Router
-const router = wf('Zella - Event Router', [
+const router = wf('Zella Voice - Event Router', [
   runTrigger('event-router'),
   rpcNode('Claim events', [240, 200], 'zella_claim_events', '={{ JSON.stringify({ p_limit: 20 }) }}'),
   code('Route', [480, 200], 'router-route.js'),
@@ -210,7 +211,7 @@ function smsFlow(name, { claim, claimName, finishName, files, runName, email = f
   });
 }
 
-const smsSender = smsFlow('Zella - SMS Sender', {
+const smsSender = smsFlow('Zella Voice - SMS Sender', {
   runName: 'sms-sender', claimName: 'Claim reminders', finishName: 'Finish reminder',
   claim: (n, pos) => rpcNode(n, pos, 'zella_claim_reminders', '={{ JSON.stringify({ p_limit: 20 }) }}'),
   files: { plan: 'sms-plan.js', decide: 'sms-decide.js', afterLog: 'sms-after-log.js', afterSend: 'sms-after-send.js' },
@@ -219,7 +220,7 @@ const smsSender = smsFlow('Zella - SMS Sender', {
 // Email sender: appointment confirmations and reminders whose channel is email. Same pipeline and the
 // same dry-run default (platform setting email_live). The Resend box ships with NO credential, for the
 // same reason as the Telnyx box. It claims only email reminders, so it never touches text reminders.
-const emailSender = smsFlow('Zella - Email Sender', {
+const emailSender = smsFlow('Zella Voice - Email Sender', {
   runName: 'email-sender', email: true, claimName: 'Claim email reminders', finishName: 'Finish reminder',
   claim: (n, pos) => rpcNode(n, pos, 'zella_claim_reminders', "={{ JSON.stringify({ p_limit: 20, p_channel: 'email' }) }}"),
   files: { plan: 'email-plan.js', decide: 'email-decide.js', afterLog: 'email-after-log.js', afterSend: 'email-after-send.js' },
@@ -228,7 +229,7 @@ const emailSender = smsFlow('Zella - Email Sender', {
 // Owner emails: daily summaries, weekly reviews and warning or urgent alerts, emailed to the people who
 // should get them (the database decides who, honouring each person's email preferences). Same dry-run
 // switch and Resend box as the email sender, same rule that the Resend box ships with no credential.
-const ownerEmails = wf('Zella - Owner Emails', [
+const ownerEmails = wf('Zella Voice - Owner Emails', [
   runTrigger('owner-emails'),
   rpcNode('Claim owner emails', [240, 200], 'zella_claim_owner_emails', '={{ JSON.stringify({ p_limit: 20 }) }}'),
   code('Plan', [480, 200], 'owner-plan.js'),
@@ -265,7 +266,7 @@ export const FOLLOWUP_KINDS = [...FOLLOWUP_EMAIL_KINDS, 'reply_confirmed', 'repl
 // Follow-up emails: the same kinds as the follow-up texts, for tasks whose channel is email (a task moves to
 // email when the customer cannot be texted but can be emailed). Same dry-run switch and Resend box as the
 // other email workflows. Reactivation is marketing and is skipped with a visible reason until unsubscribe exists.
-const followupEmails = smsFlow('Zella - Follow-up Emails', {
+const followupEmails = smsFlow('Zella Voice - Follow-up Emails', {
   runName: 'followup-emails', email: true, claimName: 'Claim follow-up emails', finishName: 'Finish follow-up',
   claim: (n, pos) => rpcNode(n, pos, 'zella_claim_followup_emails', `={{ JSON.stringify({ p_limit: 20, p_kinds: ${JSON.stringify(FOLLOWUP_EMAIL_KINDS)} }) }}`),
   files: { plan: 'email-task-plan.js', decide: 'email-task-decide.js', afterLog: 'email-task-after-log.js', afterSend: 'email-task-after-send.js' },
@@ -273,7 +274,7 @@ const followupEmails = smsFlow('Zella - Follow-up Emails', {
 
 // Follow-up texts: no-show, post-visit, quote and reactivation. Text tasks only, so call tasks are
 // never picked up here. (Waitlist offers need reply handling and are not included yet.)
-const followupSender = smsFlow('Zella - Follow-up Texts', {
+const followupSender = smsFlow('Zella Voice - Follow-up Texts', {
   runName: 'followup-texts', claimName: 'Claim follow-ups', finishName: 'Finish follow-up',
   claim: (n, pos) => rpcNode(n, pos, 'zella_claim_followup_texts', `={{ JSON.stringify({ p_limit: 20, p_kinds: ${JSON.stringify(FOLLOWUP_KINDS)} }) }}`),
   files: { plan: 'sms-task-plan.js', decide: 'sms-task-decide.js', afterLog: 'sms-task-after-log.js', afterSend: 'sms-task-after-send.js' },
@@ -283,7 +284,7 @@ const followupSender = smsFlow('Zella - Follow-up Texts', {
 // Dry-run by default: until calls_live is true and Vapi is set up, nothing is dialled and the item is put back
 // for later. The Vapi box ships with NO credential, for the same reason as Telnyx and Resend. The result of a
 // call (answered, no answer, voicemail) arrives afterwards from Vapi's end-of-call report.
-const outboundCalls = wf('Zella - Outbound Calls', [
+const outboundCalls = wf('Zella Voice - Outbound Calls', [
   runTrigger('outbound-calls'),
   rpcNode('Claim callback calls', [240, 100], 'zella_claim_callback_calls', '={{ JSON.stringify({ p_limit: 10 }) }}'),
   rpcNode('Claim follow-up calls', [240, 300], 'zella_claim_followup_calls', '={{ JSON.stringify({ p_limit: 10 }) }}'),
@@ -311,7 +312,7 @@ const outboundCalls = wf('Zella - Outbound Calls', [
 // Point the Vapi assistant's server URL at <n8n>/webhook/zella/vapi with the header X-Zella-Secret, and set its
 // server messages to end-of-call-report and status-update only, so no other message wakes the workflow.
 // status-update creates the call record as the call starts (zella_record_call_status), so a lost report can't erase it.
-const callResults = secureVapi(wf('Zella - Call Results', [
+const callResults = secureVapi(wf('Zella Voice - Call Results', [
   node('Vapi report', 'n8n-nodes-base.webhook', 2, [0, 200], {
     httpMethod: 'POST', path: 'zella/vapi', authentication: 'headerAuth', responseMode: 'onReceived', options: {},
   }, { webhookId: id('webhook:zella-vapi'), credentials: GATEWAY_CRED }),
@@ -333,7 +334,7 @@ const callResults = secureVapi(wf('Zella - Call Results', [
 // Knowledge: (1) publish knowledge an owner added or changed, (2) draft answers for questions the assistant could not
 // answer (the owner must still approve them). Started by the dispatcher only when something is waiting. The AI box
 // ships with NO credential and is skipped unless knowledge_ai_live is true; add the Anthropic key by hand.
-const knowledge = wf('Zella - Knowledge', [
+const knowledge = wf('Zella Voice - Knowledge', [
   runTrigger('knowledge-sync'),
   rpcNode('Claim knowledge updates', [240, 100], 'zella_claim_knowledge_updates', '={{ JSON.stringify({ p_limit: 20 }) }}'),
   code('Check item', [480, 100], 'knowledge-check.js'),
@@ -370,7 +371,7 @@ const knowledge = wf('Zella - Knowledge', [
 // In Vapi: add a server tool "report_unanswered_question" (parameter: question, text) pointing at
 // <n8n>/webhook/zella/vapi-tools with the X-Zella-Secret header. The call must carry the business id (call metadata
 // or the assistant variable business_id) only as a hint; a registered number or existing call must establish the business.
-const assistantTools = secureVapi(wf('Zella - Assistant Tools', [
+const assistantTools = secureVapi(wf('Zella Voice - Assistant Tools', [
   node('Vapi tool call', 'n8n-nodes-base.webhook', 2, [0, 200], {
     httpMethod: 'POST', path: 'zella/vapi-tools', authentication: 'headerAuth', responseMode: 'responseNode', options: {},
   }, { webhookId: id('webhook:zella-vapi-tools'), credentials: GATEWAY_CRED }),
@@ -402,7 +403,7 @@ const assistantTools = secureVapi(wf('Zella - Assistant Tools', [
 // They go through the same gateway as the Receptionist Brain (zella_ai_tool: the caller must confirm before a booking is
 // changed, retries return the first answer, every call is logged), limited to these five tools, one answer per tool call.
 const BOOKING_TOOLS = 'check_availability,book_appointment,find_my_appointments,reschedule_appointment,cancel_appointment';
-const aiBooking = secureVapi(wf('Zella - Appointment Booking', [
+const aiBooking = secureVapi(wf('Zella Voice - Appointment Booking', [
   node('Vapi booking tool', 'n8n-nodes-base.webhook', 2, [0, 200], {
     httpMethod: 'POST', path: 'zella/vapi-booking', authentication: 'headerAuth', responseMode: 'responseNode', options: {},
   }, { webhookId: id('webhook:zella-vapi-booking'), credentials: GATEWAY_CRED }),
@@ -430,7 +431,7 @@ const aiBooking = secureVapi(wf('Zella - Appointment Booking', [
 // Voice rules: the phone assistant asks "call_rules" during a call (open or closed, take a message, emergency, reach a person).
 // Every decision is made by the database (zella_ai_voice); this workflow only passes the question on and the answer back.
 // One item per tool call, each answered under its own toolCallId. The voice-rules Supabase function does the same without n8n.
-const voiceRules = secureVapi(wf('Zella - Voice Rules', [
+const voiceRules = secureVapi(wf('Zella Voice - Voice Rules', [
   node('Vapi voice tool', 'n8n-nodes-base.webhook', 2, [0, 200], {
     httpMethod: 'POST', path: 'zella/vapi-voice', authentication: 'headerAuth', responseMode: 'responseNode', options: {},
   }, { webhookId: id('webhook:zella-vapi-voice'), credentials: GATEWAY_CRED }),
@@ -458,7 +459,7 @@ const voiceRules = secureVapi(wf('Zella - Voice Rules', [
 // Inbound email: Resend posts here when a customer replies to an email. The event only names the email, so it is fetched
 // from Resend (key added by hand at go-live) and handed to the database, which checks the secret key in the address,
 // finds the business and customer, sorts the reply and tells the team. Always answers 200 so Resend does not keep retrying.
-const inboundEmail = wf('Zella - Inbound Email', [
+const inboundEmail = wf('Zella Voice - Inbound Email', [
   node('Resend inbound', 'n8n-nodes-base.webhook', 2, [0, 200], {
     httpMethod: 'POST', path: 'zella/inbound-email', authentication: 'none', responseMode: 'responseNode', options: { rawBody: true },
   }, { webhookId: id('webhook:zella-inbound-email') }),
@@ -487,7 +488,7 @@ const inboundEmail = wf('Zella - Inbound Email', [
 // Email events: Resend posts here when an email is delivered, bounces or is marked as spam. Event-driven (runs only then).
 // Resend cannot send a custom header, so the webhook address carries a secret key (?key=...) and the DATABASE checks it
 // against a Vault secret; a wrong key changes nothing. Bad addresses and spam complaints are never emailed again.
-const emailEvents = wf('Zella - Email Events', [
+const emailEvents = wf('Zella Voice - Email Events', [
   node('Resend event', 'n8n-nodes-base.webhook', 2, [0, 200], {
     httpMethod: 'POST', path: 'zella/resend', authentication: 'none', responseMode: 'responseNode', options: { rawBody: true },
   }, { webhookId: id('webhook:zella-resend') }),
@@ -557,7 +558,7 @@ const microsoftToken = (name, pos, tokenExpr) => node(name, 'n8n-nodes-base.http
   options: { response: { response: { fullResponse: true, neverError: true, responseFormat: 'json' } } },
 }, { credentials: { httpCustomAuth: { id: '', name: 'Zella Microsoft calendar client' } } });
 const googleAuthHeader = { sendHeaders: true, headerParameters: { parameters: [{ name: 'Authorization', value: '=Bearer {{ $json.body.access_token }}' }] } };
-const calendarSync = wf('Zella - Calendar Sync', [
+const calendarSync = wf('Zella Voice - Calendar Sync', [
   runTrigger('calendar-sync'),
   rpcNode('Claim sync items', [240, 100], 'zella_claim_calendar_sync', '={{ JSON.stringify({ p_limit: 10 }) }}'),
   code('Plan sync', [480, 100], 'calendar-sync-plan.js'),
@@ -657,7 +658,7 @@ const checkBox = (name, position, url) => node(name, 'n8n-nodes-base.httpRequest
   method: 'GET', url, authentication: 'none',
   options: { timeout: 10000, response: { response: { fullResponse: true, neverError: true, responseFormat: 'json' } } },
 });
-const connectionTests = wf('Zella - Connection Tests', [
+const connectionTests = wf('Zella Voice - Connection Tests', [
   runTrigger('connection-tests'),
   rpcNode('Claim checks', [240, 200], 'zella_claim_provider_checks', '={{ JSON.stringify({ p_limit: 5 }) }}'),
   code('Plan', [480, 200], 'provider-check-plan.js'),
@@ -697,7 +698,7 @@ const graphGet = (name, position, urlExpr, authExpr) => node(name, 'n8n-nodes-ba
 });
 const tokenRpc = (position) => rpcNode('Get token', position, 'zella_meta_token', '={{ JSON.stringify({ p_page_id: $json.page_id }) }}', { full: true });
 
-const metaWebhook = wf('Zella - Meta Webhook', [
+const metaWebhook = wf('Zella Voice - Meta Webhook', [
   node('Meta set-up check', 'n8n-nodes-base.webhook', 2, [0, 80], {
     httpMethod: 'GET', path: 'zella/meta', authentication: 'none', responseMode: 'responseNode', options: {},
   }, { webhookId: id('webhook:zella-meta-get') }),
@@ -726,7 +727,7 @@ const metaWebhook = wf('Zella - Meta Webhook', [
   'Answer': { main: [[link('Reply')]] },
 });
 
-const metaLeads = wf('Zella - Meta Leads', [
+const metaLeads = wf('Zella Voice - Meta Leads', [
   runTrigger('meta-leads'),
   rpcNode('Claim leads', [240, 200], 'zella_meta_claim_leads', '={{ JSON.stringify({ p_limit: 10 }) }}'),
   code('Plan', [480, 200], 'meta-lead-plan.js'),
@@ -752,7 +753,7 @@ const metaLeads = wf('Zella - Meta Leads', [
   'Can save': { main: [[link('Save lead')], [link('Record failure')]] },
 }, { saveDataSuccessExecution: 'none', saveDataErrorExecution: 'none' });
 
-const metaSender = wf('Zella - Meta Sender', [
+const metaSender = wf('Zella Voice - Meta Sender', [
   runTrigger('meta-sender'),
   rpcNode('Claim replies', [240, 200], 'zella_meta_claim_outbox', '={{ JSON.stringify({ p_limit: 10 }) }}'),
   code('Plan', [480, 200], 'meta-send-plan.js'),
@@ -784,7 +785,7 @@ const metaSender = wf('Zella - Meta Sender', [
   'Read result': { main: [[link('Record send')]] },
 }, { saveDataSuccessExecution: 'none', saveDataErrorExecution: 'none' });
 
-const metaHealth = wf('Zella - Meta Health', [
+const metaHealth = wf('Zella Voice - Meta Health', [
   runTrigger('meta-health'),
   rpcNode('Claim checks', [240, 200], 'zella_meta_claim_checks', '={{ JSON.stringify({ p_limit: 10 }) }}'),
   code('Plan', [480, 200], 'meta-health-plan.js'),
@@ -820,7 +821,7 @@ const metaHealth = wf('Zella - Meta Health', [
 // Receptionist Brain: the webhook for every tool the phone assistant uses during a call (14 tools behind zella_ai_tool).
 // One item per tool call, so several tool calls in one request each get their own answer, matched by toolCallId.
 // Until phase 3 moves live-call tools to a Supabase function, this is the endpoint brain_tools_url points at.
-const brainTools = secureVapi(wf('Zella - Receptionist Brain Tools', [
+const brainTools = secureVapi(wf('Zella Voice - Receptionist Brain Tools', [
   node('Vapi brain tool', 'n8n-nodes-base.webhook', 2, [0, 200], {
     httpMethod: 'POST', path: 'zella/vapi-brain', authentication: 'headerAuth', responseMode: 'responseNode', options: {},
   }, { webhookId: '9439095a-ccca-43a3-bc4b-5a5c07862415', credentials: GATEWAY_CRED }),
@@ -849,7 +850,7 @@ writeFileSync(join(out, 'zella-brain-tools.json'), JSON.stringify(brainTools, nu
 // Call Reconciliation: for calls whose end-of-call report never arrived, ask the provider for its record of the call and
 // let the database complete it (zella_reconcile_call). Started by the dispatcher only when such calls exist; off until
 // call_reconcile_live is true. The "Fetch Vapi call" box ships with NO credential: add the Vapi private key by hand.
-const callReconcile = wf('Zella - Call Reconciliation', [
+const callReconcile = wf('Zella Voice - Call Reconciliation', [
   runTrigger('call-reconcile'),
   rpcNode('Claim calls', [240, 200], 'zella_calls_to_reconcile', '={{ JSON.stringify({ p_limit: 10 }) }}'),
   code('Plan', [480, 200], 'reconcile-plan.js'),
@@ -876,7 +877,7 @@ writeFileSync(join(out, 'zella-event-router.json'), JSON.stringify(router, null,
 // Website crawler: reads only the pages the owner approved (and the sitemap of an approved site), then hands what it
 // found to the database, which keeps it as DRAFT knowledge for the owner to review. Started by the dispatcher only
 // when a page or sitemap is due. Off until the platform setting website_crawl_live is true.
-const websiteCrawler = wf('Zella - Website Crawler', [
+const websiteCrawler = wf('Zella Voice - Website Crawler', [
   runTrigger('website-crawl'),
   rpcNode('Claim work', [240, 200], 'zella_website_claim', '={{ JSON.stringify({ p_limit: 6 }) }}'),
   code('Plan', [480, 200], 'website-plan.js'),
@@ -903,7 +904,7 @@ const websiteCrawler = wf('Zella - Website Crawler', [
 
 // Failure alert: n8n runs this whenever another Zella workflow fails (every workflow names it as its error workflow).
 // It raises one platform alert in the database (deduped per workflow and step). No customer data is copied.
-const failureAlert = wf('Zella - Failure Alert', [
+const failureAlert = wf('Zella Voice - Failure Alert', [
   node('A workflow failed', 'n8n-nodes-base.errorTrigger', 1, [0, 200], {}),
   code('Describe failure', [240, 200], 'failure-alert.js'),
   { ...rpcNode('Raise alert', [480, 200], 'zella_platform_alert', '={{ JSON.stringify($json.alert) }}'),
@@ -926,7 +927,7 @@ delete failureAlert.settings.errorWorkflow;
 // The database hands out alerts only when email_live is on and a sender address is set. The Resend box ships with
 // NO credential, like the other email workflows: add the Resend key by hand at go-live. A failed send is put back
 // for the next run, up to 3 tries.
-const adminAlerts = wf('Zella - Admin Alerts', [
+const adminAlerts = wf('Zella Voice - Admin Alerts', [
   runTrigger('admin-alerts'),
   rpcNode('Claim alerts', [240, 200], 'zella_claim_admin_alert_email', '={{ JSON.stringify({ p_limit: 25 }) }}'),
   code('Plan', [480, 200], 'admin-alerts-plan.js'),
@@ -951,7 +952,7 @@ const adminAlerts = wf('Zella - Admin Alerts', [
 
 // Staff texts: urgent notifications texted to team members who switched this on for themselves. The database decides who
 // and enforces a limit of 5 per business per hour; nothing is claimed until sms_live is true. Same Telnyx box rule: no credential.
-const staffTexts = wf('Zella - Staff Texts', [
+const staffTexts = wf('Zella Voice - Staff Texts', [
   runTrigger('staff-sms'),
   rpcNode('Claim staff texts', [240, 200], 'zella_claim_staff_sms', '={{ JSON.stringify({ p_limit: 10 }) }}'),
   code('Plan', [480, 200], 'staff-sms-plan.js'),
@@ -978,7 +979,7 @@ const staffTexts = wf('Zella - Staff Texts', [
 // the approved policy (notifications, a temporary restriction for a sender the team confirmed twice, a platform alert).
 // Nothing here can block a caller or answer a call: that never waits for n8n. Off until spam_workflow_live is true;
 // the AI box ships with NO credential and is only reached when spam_ai_live is true and a business opted in.
-const spamResponse = wf('Zella - Spam Response', [
+const spamResponse = wf('Zella Voice - Spam Response', [
   runTrigger('spam-response'),
   rpcNode('Claim work', [240, 200], 'zella_spam_claim_work', '={{ JSON.stringify({ p_limit: 20 }) }}'),
   code('Evaluate severity', [480, 200], 'spam-severity.js'),
@@ -1022,7 +1023,7 @@ const googleBox = (name, pos, method, extra = {}) => node(name, 'n8n-nodes-base.
   method, url: '={{ $json.url }}', authentication: 'none', ...extra,
   options: { response: { response: { fullResponse: true, neverError: true, responseFormat: 'json' } } },
 });
-const reviewReplies = wf('Zella - Review Replies', [
+const reviewReplies = wf('Zella Voice - Review Replies', [
   runTrigger('review-replies'),
   rpcNode('Claim locations', [240, 0], 'zella_review_claim_fetch', '={{ JSON.stringify({ p_limit: 10 }) }}'),
   code('Plan fetch', [480, 0], 'review-fetch-plan.js'),

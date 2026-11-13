@@ -1,4 +1,4 @@
-// Zella - Follow-up Emails: read the answer from "prepare" and decide what happens to this task.
+// Zella Voice - Follow-up Emails: read the answer from "prepare" and decide what happens to this task.
 const plan = $('Plan').item.json;
 const status = Number($json.statusCode);
 const b = $json.body && typeof $json.body === 'object' ? $json.body : {};

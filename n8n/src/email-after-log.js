@@ -1,4 +1,4 @@
-// Zella - Email Sender: after the email is logged, decide whether to really send.
+// Zella Voice - Email Sender: after the email is logged, decide whether to really send.
 // A repeat of the same reminder is never sent twice. In dry-run nothing is sent.
 const d = $('Decide').item.json;
 const status = Number($json.statusCode);

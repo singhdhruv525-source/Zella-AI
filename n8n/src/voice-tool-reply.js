@@ -1,4 +1,4 @@
-// Zella - Voice Rules: the answer for ONE tool call, under its own toolCallId. Short, no database details.
+// Zella Voice - Voice Rules: the answer for ONE tool call, under its own toolCallId. Short, no database details.
 // A caller the backend screened out gets the screening instruction (end politely, use no tools) in place of
 // everything else; other callers get the caller note added. The transfer number is never given to the model.
 // The same reply is built by the voice-rules edge function (web/supabase/functions/voice-rules/logic.ts).

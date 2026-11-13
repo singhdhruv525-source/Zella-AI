@@ -72,7 +72,7 @@ Vapi call ──> voice-rules (edge) ──> zella_ai_voice / zella_caller_conte
                                                          │
           texts, emails, bookings, calls ──> triggers ──>│ zella_spam_assess ──> zella_spam_record ──> spam_incidents
                                                                                                        │ (queued: medium/high)
-                                                         dispatcher ──> n8n "Zella - Spam Response"    │
+                                                         dispatcher ──> n8n "Zella Voice - Spam Response"    │
                                                          Evaluate severity ─ log ─────────────────────┐ │
                                                                           └ alert / investigate        │ │
                                                          Check repeat offender ─ (Ask AI, optional) ──┤ │
@@ -82,7 +82,7 @@ Vapi call ──> voice-rules (edge) ──> zella_ai_voice / zella_caller_conte
 
 ## Spam Response workflow (n8n)
 
-Workflow **Zella - Spam Response** (`n8n/workflows/zella-spam-response.json`, instance id `a7Nfsi9mkQbBmc0L`,
+Workflow **Zella Voice - Spam Response** (`n8n/workflows/zella-spam-response.json`, instance id `a7Nfsi9mkQbBmc0L`,
 **unpublished**), lane `spam-response` on the existing dispatcher. No new tables: it adds workflow columns to
 `spam_incidents`, three settings to `spam_settings`, and one history kind (`workflow`).
 
@@ -121,7 +121,7 @@ alerts written immediately). Alerts are emailed by the existing **Owner Emails**
    reliability steps (`n8n/GO-LIVE.md`), which set up its Vapi HMAC credential.
 3. Test with one call from a blocked number once `voice-rules` is the assistant server URL. Since voice reliability phase 2
    the tool gateway also refuses every tool except emergencies for a screened caller (`zella_ai_tool_screening`).
-4. Publish "Zella - Spam Response" in n8n and switch it on in Admin > Security & Abuse > Automation.
+4. Publish "Zella Voice - Spam Response" in n8n and switch it on in Admin > Security & Abuse > Automation.
 5. Optional: AI review (Anthropic key on "Ask AI", then switch on); turn on `zella_spam_hourly`; publish Owner Emails and Admin Alerts.
 
 Until step 1 the CRM card reads "Not set up yet", the CRM page and admin page explain what to apply, and the wizard

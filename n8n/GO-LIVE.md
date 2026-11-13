@@ -68,16 +68,16 @@ Nothing below has been done yet on purpose: all n8n workflows are unpublished an
 
 ## Website knowledge crawler
 - Run `sql/zella_website_crawler.sql` (already applied to the live database) before re-running `sql/zella_dispatcher.sql`.
-- Turn on `website_crawl_live`, then publish the "Zella - Website Crawler" workflow. No keys are needed.
+- Turn on `website_crawl_live`, then publish the "Zella Voice - Website Crawler" workflow. No keys are needed.
 - Front-end still to build: add website, approve it, page approval list, review of drafts (with "website changed" / "conflict" badges), version history.
 
 ## Spam protection and the Spam Response workflow
 - Back up, then run `sql/zella_spam_protection.sql` (not applied yet; safe to re-run), then re-run `sql/zella_dispatcher.sql` (adds the `spam-response` lane).
 - Deploy the edge functions `owner-provision-business` and `reschedule-appointment`. Deploy `voice-rules` only as part of the voice reliability steps below (it now needs `sql/zella_vapi_auth.sql` and a Vapi credential; it no longer uses `ZELLA_VAPI_SECRET`).
-- "Zella - Spam Response" (workflow `a7Nfsi9mkQbBmc0L`, unpublished) already has the Supabase and gateway credentials. Publish it, then turn it on in Admin > Security & Abuse > Automation (or set `spam_workflow_live` to `true`).
+- "Zella Voice - Spam Response" (workflow `a7Nfsi9mkQbBmc0L`, unpublished) already has the Supabase and gateway credentials. Publish it, then turn it on in Admin > Security & Abuse > Automation (or set `spam_workflow_live` to `true`).
 - Optional AI second opinion: put the Anthropic key on its "Ask AI" box, then switch on AI in the same Automation tab (`spam_ai_live`). Each business must also opt in under Spam protection > Settings.
 - Turn on the `zella_spam_hourly` job (fallback alerts, reminders, retention): `update cron.job set active = true where jobname = 'zella_spam_hourly';`
-- Re-import "Zella - Voice Rules" from the repo if it stays in use (its reply now passes the screening instruction on).
+- Re-import "Zella Voice - Voice Rules" from the repo if it stays in use (its reply now passes the screening instruction on).
 
 ## Voice reliability and calling usage. In this order, each step needs approval
 Applied to production on 2026-10-28 (after a backup of every function and setting they touch): steps 1, 3 and 6, plus
@@ -115,7 +115,7 @@ calendar, messaging status, navigation, no-show rebook, spam protection):
 7. Re-run ONLY the function sections of `sql/zella_dispatcher.sql` (review-replies lane, cross_sell kind, zella_check_uptime,
    zella_check_milestones, zella_on_call_reminders, zella_team_scorecard_nudge),
    not its `cron.schedule` lines, then confirm every job except zella_usage_thresholds is still inactive.
-n8n (done 2026-10-28, all unpublished): Follow-up Texts and Follow-up Emails send `cross_sell`; "Zella - Review Replies"
+n8n (done 2026-10-28, all unpublished): Follow-up Texts and Follow-up Emails send `cross_sell`; "Zella Voice - Review Replies"
 (`CrWVtn3AHmVYtPox`) created and tested with pinned data. By hand before publishing it: a Google OAuth2 credential
 (scope `business.manage`, the Google account added as a manager of each business's profile) on "Get Google reviews" and
 "Post reply on Google", and the Anthropic key on "Ask AI". Google's v4 review endpoints are untested against the real API.

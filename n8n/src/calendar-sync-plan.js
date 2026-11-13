@@ -1,4 +1,4 @@
-// Zella - Calendar Sync: turn one queued booking change into a request to the business's calendar provider
+// Zella Voice - Calendar Sync: turn one queued booking change into a request to the business's calendar provider
 // (Google Calendar, or Outlook / Microsoft 365 through Microsoft Graph). Nothing is sent from here.
 // The refresh token passes through execution data; this workflow does not save execution data.
 const it = $json;

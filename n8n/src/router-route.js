@@ -1,4 +1,4 @@
-// Zella - Event Router: decide what to do with one claimed event.
+// Zella Voice - Event Router: decide what to do with one claimed event.
 // Output: { event, plan, problem }.
 //   plan    = the database function to call and its arguments, or null.
 //   problem = why there is no plan: 'missing_configuration' (no handler built yet)

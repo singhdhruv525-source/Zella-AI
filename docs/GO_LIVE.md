@@ -53,7 +53,7 @@ Nothing below is published or running until you do it. Everything is built; thes
 - Check the new Calls suggestions panel and the "Write your own rule" screen in a real browser build (only compile-checked so far).
 
 ## n8n: alerts, signatures and keys (added 2026-10-25)
-1. **Failure alerts.** Publish "Zella - Failure Alert" first (it only raises a platform alert in the database, nothing else). Then, in each of the other 25 workflows, open Settings > Error workflow and pick "Zella - Failure Alert". n8n will not accept it until it is published, so this could not be done while everything is switched off.
+1. **Failure alerts.** Publish "Zella Voice - Failure Alert" first (it only raises a platform alert in the database, nothing else). Then, in each of the other 25 workflows, open Settings > Error workflow and pick "Zella Voice - Failure Alert". n8n will not accept it until it is published, so this could not be done while everything is switched off.
 2. **Resend signature check.** `sql/zella_resend_signature.sql` is applied live and tested. After you create the Resend webhooks, run once: `select vault.create_secret('whsec_...', 'zella_resend_signing_secret');` (the signing secret shown by Resend). Until then only the key in the webhook address protects them. Then use Resend's "send test event" and confirm it is accepted; a wrong or old signature is answered 401. Meta webhooks already verify their signature.
 3. **Keys, by hand on n8n only:** Telnyx, Resend, Anthropic, Vapi. Never in chat.
 4. Publish the other workflows, then run `sql/zella_dispatcher.sql` last.
@@ -67,7 +67,7 @@ The app now reads calls through `calls_view`. Once this version of the app is de
 - Review requests send nothing until the owner saves a review link in Settings.
 - Childcare, healthcare, legal and financial follow-ups are drafts: they wait in "Suggested messages" and nothing is sent until a person presses Send.
 - "Tell callers" (full tonight, closing early) works through the AI receptionist's prompt. It does not block the booking tools themselves.
-- After-hours text replies: the "Zella - Follow-up Texts" workflow was updated live (still unpublished) with the new `reply_after_hours` kind. Publish it with the others.
+- After-hours text replies: the "Zella Voice - Follow-up Texts" workflow was updated live (still unpublished) with the new `reply_after_hours` kind. Publish it with the others.
 - Not built: rating-based review routing (low ratings to the owner first). Replies to the review text go to the inbox like any other reply.
 - Not built: AI-written drafts. Drafts use the saved wording; an AI-written version needs the Anthropic key and a new n8n workflow.
 
@@ -89,7 +89,7 @@ Set these in the Supabase dashboard. Do them now for localhost, and again with t
 Applied live and saved in the repo: `sql/zella_offers.sql`, `sql/zella_admin_alerts.sql`. The dispatcher file now also runs the offer schedule (`zella_offers_tick`, every 5 minutes) and calls the new n8n workflow when admin alerts are waiting.
 1. **Set each business's size** (Small, Medium or Large) on its page in the admin dashboard. Size-based offers reach nobody until sizes are set.
 2. **Until `sql/zella_dispatcher.sql` is run**, offers go live and end when an admin presses Run now (Offers & Promotions > Automation rules), when an offer is changed, or when someone tries to claim an offer that has ended (claims are always refused outside the dates, even if the schedule is late).
-3. **n8n "Zella - Admin Alerts"** (created, unpublished): emails one digest of platform alerts (offers ending soon, limits reached, unusual claims, offers that couldn't go live, failed jobs) to the active Zella admins. At go-live: add the Resend key to "Send via Resend", publish it, and set its error workflow to Failure Alert. It only sends when `email_live` is on and `email_from_address` is set.
+3. **n8n "Zella Voice - Admin Alerts"** (created, unpublished): emails one digest of platform alerts (offers ending soon, limits reached, unusual claims, offers that couldn't go live, failed jobs) to the active Zella admins. At go-live: add the Resend key to "Send via Resend", publish it, and set its error workflow to Failure Alert. It only sends when `email_live` is on and `email_from_address` is set.
 4. **Claims become "Paid" only from verified payments.** That needs the billing webhook (`STRIPE_WEBHOOK_SECRET`). Until then claims wait as "Saved for you" and are released after 14 days (setting: "Release unpaid claims").
 5. **Unavailable until their connections exist** (shown as Unavailable in the dashboard, cannot be switched on): checkout and sign-up offers, introductory price renewal, referral rewards, win-back, promotional emails (sending is switched off by the owner).
 6. **Not built:** AI-written offer descriptions and campaign recommendations (needs the Anthropic key and a new workflow), impression tracking, a public pricing page.

@@ -1,4 +1,4 @@
-// Zella - Admin Alerts: turn the claimed platform alerts into one plain-text digest email for the Zella admins.
+// Zella Voice - Admin Alerts: turn the claimed platform alerts into one plain-text digest email for the Zella admins.
 // The database only hands out alerts when email is switched on and a sender address is set.
 const r = $json;
 const alerts = Array.isArray(r.alerts) ? r.alerts.filter((a) => a && a.id && a.title) : [];

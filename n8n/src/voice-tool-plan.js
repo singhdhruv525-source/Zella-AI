@@ -1,4 +1,4 @@
-// Zella - Voice Rules: Vapi calls the tool "call_rules" DURING a call. One tool, four actions:
+// Zella Voice - Voice Rules: Vapi calls the tool "call_rules" DURING a call. One tool, four actions:
 // rules (open or closed?), message (take a message), emergency, transfer (reach a person).
 // Runs once for the whole request and returns ONE ITEM PER TOOL CALL, each with its own tool call id, so several
 // tool calls in one request each get an answer. A bad action or another tool still gets its own answer: it is sent

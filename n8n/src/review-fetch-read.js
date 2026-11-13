@@ -1,4 +1,4 @@
-// Zella - Review Replies: keep only what the database stores from Google's answer (who, stars, text, when, any reply
+// Zella Voice - Review Replies: keep only what the database stores from Google's answer (who, stars, text, when, any reply
 // already there). Anything unexpected is dropped; a failed request is reported as a failure.
 const plan = $('Plan fetch').item.json;
 const status = Number($json.statusCode);

@@ -1,4 +1,4 @@
-// Zella - Website Crawler: turn what the website answered into a short, safe record for the database.
+// Zella Voice - Website Crawler: turn what the website answered into a short, safe record for the database.
 // Nothing here runs the page: it is only read as text. What is found are SUGGESTIONS (drafts) for the owner.
 const plan = $('Plan').item.json;
 const r = $json || {};

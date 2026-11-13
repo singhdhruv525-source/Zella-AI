@@ -1,4 +1,4 @@
-// Zella - Website Crawler: one claimed job in (read the sitemap, or read one approved page). Before anything is
+// Zella Voice - Website Crawler: one claimed job in (read the sitemap, or read one approved page). Before anything is
 // fetched the address is checked again here: http/https only, no login in the address, no numeric or internal
 // hostnames, only ports 80 and 443, and it must belong to the owner's own site.
 const j = $json;
