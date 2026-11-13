@@ -1514,7 +1514,7 @@ flowchart LR
 | Extra user | $10 per month |
 | HIPAA add-on | priced per business (**open**, D-49); offered only once the agreements in §17.11 are in place |
 
-Pack prices are fixed for every business. Packs are charged when bought. Pack expiry is **open** (D-42).
+Pack prices are fixed for every business. Packs are charged when bought. Unused packs follow the monthly refresh and the plan's rollover rule (REQ-BIL-20, D-42).
 
 ### 17.4 How usage is counted
 
@@ -1530,8 +1530,8 @@ Pack prices are fixed for every business. Packs are charged when bought. Pack ex
 | ID | Requirement |
 |---|---|
 | REQ-BIL-18 | **Minutes are used in this order:** rolled-over minutes, then plan minutes, then pack minutes (oldest pack first). |
-| REQ-BIL-19 | **Rollover:** up to **20% of plan minutes** roll over for **one** billing period, then expire. Plan texts and plan emails do not roll over. |
-| REQ-BIL-20 | Pack minutes, texts and emails expire after a fixed period from purchase: **open** (D-42; the notes say 30 days). |
+| REQ-BIL-19 | **Monthly refresh and rollover:** allowances refresh on every monthly billing date (REQ-BIL-17). Up to **20% of plan minutes** roll over for **one** billing period, then expire. Plan texts and plan emails do not roll over. **Example:** a plan with 500 minutes a month; the business uses 380. On the next billing date the monthly price is charged, and once that payment succeeds the new month starts with **500 plan minutes + 100 rolled-over minutes** (20% of 500; the other 20 unused minutes expire). Rolled-over minutes are used first (REQ-BIL-18) and expire at the end of that month. |
+| REQ-BIL-20 | **Packs follow the plan's rule** (D-42, owner, 13 Nov 2026): at each monthly refresh, up to **20% of each minutes pack's size** rolls over for **one** billing period, then expires; unused pack texts and pack emails expire at the refresh, like plan texts and emails. The billing page shows each pack's expiry date, and before a pack is bought it shows how many days are left in the period and how much of the pack could roll over (REQ-BIL-05). |
 
 ### 17.6 Alerts, limits and auto-reload
 
@@ -2024,6 +2024,7 @@ Knowledge, Automations, Reports, Team, Settings.
 | D-09 | *Superseded by D-41.* (Was: no plans, prices or minute allowances yet.) AI usage and cost are tracked per business. | §17 |
 | D-34 | **Payment provider: Razorpay** (hosted checkout and mandates; no card data stored by Zella Voice), subject to the check in D-51. Decided 12 Nov 2026. | §17, §19, §39 |
 | D-41 | **Commercial policy (12 Nov 2026):** custom per-business plans with no preset prices or values (every value entered per business in Create Business; Base and Pro are labels only), an optional trial, monthly or yearly in advance in USD; 5-day trial with 20 minutes, 5 texts, 5 emails, card at start; fixed add-on pack prices; usage counting, rollover, alerts, auto-reload, fair use, billing, refund, cancellation, service-credit, support and data rules as written in §17. | §17 |
+| D-42 | **Monthly refresh and pack rollover (13 Nov 2026):** allowances refresh every billing month; up to 20% of plan minutes roll over for one period; packs follow the same rule (up to 20% of each minutes pack rolls over for one period; pack texts and emails expire at the refresh, like plan texts and emails). | §17.5 |
 | D-25 | **No pause.** A business that stops using Zella Voice cancels and can return later. (A business is paused by Zella Voice only for non-payment, REQ-BIL-33.) | §17.8, REQ-LC-20 |
 | D-10 | Leave a **short, professional voicemail** where permitted; no sensitive details; then one contextual message. | §13.7 |
 | D-11 | Not decided separately; missed-call rules apply only when the caller's number is known (REQ-MC-12). | §12 |
@@ -2056,7 +2057,6 @@ Knowledge, Automations, Reports, Team, Settings.
 | D-36 | Late-arrival minutes before staff are prompted to mark a no-show | owner |
 | D-32 | Limit on AI replies per conversation per hour | engineering |
 | D-33 | Default internal monthly AI budget per business and alert thresholds (75% / 90% proposed) | owner |
-| D-42 | Pack expiry: how long unused pack minutes, texts and emails last (notes say 30 days; proposed: 90 days) | owner |
 | D-43 | Texts and emails at 100%: stop everything, or keep appointment confirmations and reminders with a small buffer (proposed: keep them, about 5%) | owner |
 | D-44 | Overage: what is billed as overage when calls go to the fallback number at 100%, and at what rate | owner |
 | D-45 | Fair-use review multiple: 2× or 3× the allowance two months in a row (proposed: 3×) | owner |
@@ -2130,7 +2130,7 @@ Everything else in this document is specified. These items need a person's input
 
 | # | Item | Who | Needed by phase |
 |---|---|---|---|
-| 1 | Platform contact ceiling (D-38); open billing decisions D-42 to D-51; D-52, D-53 | owner | before charging |
+| 1 | Platform contact ceiling (D-38); open billing decisions D-43 to D-51; D-52, D-53 | owner | before charging |
 | 2 | Review of the proposed consent wording (§34), templates (§33), voicemail and recording disclosures, retention periods and US calling and texting rules | counsel | 5, 6, 8, 11 |
 | 3 | Terms of service, privacy policy, data-processing terms and any agreements regulated industries require (§39) | owner + counsel | 12 |
 | 4 | Remaining open decisions in §23.2 | owner | as listed |

@@ -385,7 +385,7 @@ live switch, then the provider. Off means dry run: the message is logged as "wou
 
 | Feature | Status |
 |---|---|
-| Plans, prices and allowances | **Policy decided, not built** (12 Nov 2026, D-34, D-41): every plan customised per business by the Zella Voice team on the plan page of Create Business, with no preset prices or values: the team picks the label (**Base** or **Pro**) and sets the price, setup fee, caps and trial for that business; 5-day trial with 20 minutes, 5 texts, 5 emails; fixed add-on pack prices; rollover, auto-reload, fair use, refunds and service credits. The full policy is in `docs/ARCHITECTURE.md` §17. No plan exists in the database yet. |
+| Plans, prices and allowances | **Policy decided, not built** (12 Nov 2026, D-34, D-41): every plan customised per business by the Zella Voice team on the plan page of Create Business, with no preset prices or values: the team picks the label (**Base** or **Pro**) and sets the price, setup fee, caps and trial for that business; 5-day trial with 20 minutes, 5 texts, 5 emails; fixed add-on pack prices; allowances refresh monthly when the monthly price is charged, with up to 20% of unused plan minutes (and of each minutes pack) rolling over for one month (D-42); auto-reload, fair use, refunds and service credits. The full policy is in `docs/ARCHITECTURE.md` §17. No plan exists in the database yet. |
 | Add-on packs | **Prices decided, not built:** minutes $29/100, $89/250, $149/500, $269/1,000; texts $18/500, $34/1,000, $80/2,500, $150/5,000; emails $25/10,000, $59/25,000, $115/50,000; extra location $30/month; extra user $10/month |
 | Billing & Subscription page for owners (plan, usage, packs, auto-reload, invoices, cancel, refund request with server-side eligibility) | Not built (architecture §17, REQ-BIL-05, REQ-BIL-45) |
 | Plan page safeguards in Create Business: profit warning with estimated cost and margin, sensible-limit warnings (e.g. over 10,000 minutes, $0 price), review screen with audit before the invite | Not built (architecture §17.1a, REQ-BIL-55–57) |
@@ -454,7 +454,7 @@ secrets, never in tables, code, logs or chat (`NN-2`).
 | Item | Waiting on |
 |---|---|
 | Self-service sign-up | Later phase (D-06) |
-| Billing build (plans in the database, usage rules, Billing & Subscription page, Razorpay) | Build, in steps (architecture §17); open billing decisions D-42 to D-51 |
+| Billing build (plans in the database, usage rules, Billing & Subscription page, Razorpay) | Build, in steps (architecture §17); open billing decisions D-43 to D-51 |
 | Two-way AI messaging | Build (architecture §14.3) |
 | Voicemails page, AI agents beyond the receptionist, marketing campaigns | Build; hidden from the sidebar until they exist |
 | Meta channels in launch scope | Owner and counsel (D-39) |

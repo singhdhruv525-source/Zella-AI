@@ -132,7 +132,7 @@ erDiagram
 | `payments` | existing | provider payments; add unique `(provider, external_payment_id)`; amounts in cents | status moves forward only |
 | `refunds` | new | requested → approved → sending → processed, failed or uncertain | unique `(provider, external_refund_id)`; **reserved amount** counted while requested, approved, sending or uncertain; sum of reserved and processed ≤ captured; every refund approved by the Zella Voice owner |
 | `disputes` | new | chargebacks; suspend while open (`REQ-BIL-37`) | from webhooks only |
-| `pack_purchases` | new | each pack bought: kind, quantity, price, purchased_at, expires_at (D-42), remaining | refundable only if unused and ≤ 14 days |
+| `pack_purchases` | new | each pack bought: kind, quantity, price, purchased_at, expires_at (end of the period it was bought in, REQ-BIL-20), rollover_allowed (20% of a minutes pack, 0 for texts and emails), remaining | refundable only if unused and ≤ 14 days |
 | `allowance_buckets` | new | **current balances** per business and resource: rollover, plan, each pack | one row per bucket; updated in the same transaction as the ledger entry (§11) |
 | `usage_records` | existing | append-only usage ledger | idempotency key unique; adjustments, never edits; if partitioned (§11), uniqueness is kept in `usage_keys` |
 | `service_credits` | new | outage credits (`REQ-BIL-46`) | capped at one month's fee; applied to next invoices |
@@ -284,7 +284,7 @@ sequenceDiagram
   actor BO as Business owner
 
   RZ->>WH: subscription.charged (success)
-  WH->>DB: invoice paid · new period · reset monthly buckets · 20% rollover bucket (expires next period)
+  WH->>DB: invoice paid · new period · reset monthly buckets · rollover bucket: up to 20% of plan minutes + up to 20% of each minutes pack (expires next period)
   RZ->>WH: payment.failed
   WH->>DB: subscription past_due (past_due_since set)
   loop days 2, 3, 4
@@ -629,5 +629,5 @@ production or real money (`NN-3`, `NN-4`).
 |---|---|---|
 | D-51 | Razorpay: recurring USD on international cards is supported per Razorpay's docs (first payment authenticated with 3-D Secure; settled in INR). Still to confirm: international payments activated on the account; a trial with a future start date in test mode; charging the saved card for auto-reload packs | step 3 |
 | D-50 | Tax rules (GST on exported services; US state sales tax) | invoices with tax |
-| D-42…D-48 | pack expiry, texts/emails at 100%, overage, fair-use multiple, annual allowances, founding customers, trial limits | step 1 |
+| D-43…D-48 | texts/emails at 100%, overage, fair-use multiple, annual allowances, founding customers, trial limits | step 1 |
 | — | Exact Razorpay event names and payloads, confirmed against Razorpay's current documentation at build time | step 3 |
