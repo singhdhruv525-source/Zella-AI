@@ -30,7 +30,8 @@ ITEMS="select x from (
   where x not like '%_rolled_back%'
     and x not in ('c:appointments.resource_ids:ARRAY', 'c:appointments.crew_staff_ids:ARRAY', 'c:blocked_times.resource_id:uuid', 'c:crm_record_types.workflow:jsonb', 'c:calls.transfer_approved_at:timestamp with time zone')
     and x not like 'c:store_lookup_guards.%'
-    and x not like 'f:zella_receive_inbound_email(text,jsonb):%'"   # checked on its own below (INBOUND)   # what a rollback keeps on purpose: order-lookup guard rows (an unresolved lookup must survive a re-apply), the inbound-email receiver once any business has a 32-character address (zella_rollback_security_rollback), and also renamed tables, the Release 2 columns with their values, each record type's Release 3 workflow setting, and when a transfer was approved (CodeRabbit #44 finding 11: never delete customer data)
+    and x not like 'f:zella_receive_inbound_email(text,jsonb):%'
+    and x not like 'f:zella_billing_immutable_trg():%'"   # checked on its own below (INBOUND)   # what a rollback keeps on purpose: order-lookup guard rows (an unresolved lookup must survive a re-apply), the inbound-email receiver once any business has a 32-character address (zella_rollback_security_rollback), and also renamed tables, the Release 2 columns with their values, each record type's Release 3 workflow setting, and when a transfer was approved (CodeRabbit #44 finding 11: never delete customer data), and the append-only trigger function that still guards the archived billing history
 STATE="select md5(string_agg(x, ',' order by x)) from ($ITEMS) y"
 INBOUND="select md5(pg_get_functiondef('public.zella_receive_inbound_email(text,jsonb)'::regprocedure))"
 LONG_TOKENS="select exists (select 1 from public.businesses where inbound_email_token ~ '^[a-f0-9]{32}\$')"

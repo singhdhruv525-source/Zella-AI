@@ -1521,7 +1521,7 @@ Pack prices are fixed for every business. Packs are charged when bought. Unused 
 | ID | Requirement |
 |---|---|
 | REQ-BIL-14 | **Calls:** counted per call, rounded up to the next full minute. Calls under 15 seconds and calls flagged as spam are not counted. |
-| REQ-BIL-15 | **Texts:** counted by message part: about 160 characters per part, or about 70 when the text has accented or non-Latin letters. |
+| REQ-BIL-15 | **Texts:** counted by message part, as carriers count them: GSM-7 text (the GSM character set, which includes common accented letters such as é, è, ñ and ü; ^ { } \\ [ ] ~ \| € take two places) is 160 characters in one part or 153 per part when longer; any other text (other accented or non-Latin letters, emoji) is UCS-2, 70 in one part or 67 per part, with most emoji taking two places. |
 | REQ-BIL-16 | **Emails:** one per email sent, regardless of language. |
 | REQ-BIL-17 | **Billing date:** without a trial, the day the business owner first signs in through the invite link (creates their password); with a trial (REQ-BIL-12), the day the trial ends, which is also the first charge. Later charges fall on the same day each month (or year); in a month without that day, on its last day. **Monthly plans** reset allowances on each billing date. **Yearly plans** are charged once a year, but allowances still **reset monthly** on the same day each month (D-46), with the same 20% rollover (REQ-BIL-19) and 5% buffer (REQ-BIL-22). |
 

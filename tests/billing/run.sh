@@ -17,6 +17,7 @@ LIVE=(zella_platform_roles_fix zella_booking_buffers zella_channel_review zella_
 fails=0; ok() { echo "PASS $*"; }; bad() { echo "FAIL $*"; fails=$((fails + 1)); }
 STATE="select md5(string_agg(x, ',' order by x)) from (
   select 'f:' || p.oid::regprocedure::text || ':' || md5(pg_get_functiondef(p.oid)) x from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.prokind = 'f'
+     and p.proname <> 'zella_billing_immutable_trg'   -- kept on purpose: the archived history stays append-only
   union all select 'c:' || table_name || '.' || column_name || ':' || data_type || ':' || is_nullable || ':' || coalesce(column_default, '') from information_schema.columns where table_schema = 'public' and table_name not like '%_rolled_back'
   union all select 't:' || tgrelid::regclass::text || '.' || tgname from pg_trigger where not tgisinternal and tgrelid::regclass::text not like '%_rolled_back'
   union all select 'p:' || tablename || '.' || policyname || ':' || coalesce(qual, '') from pg_policies where schemaname = 'public'
@@ -51,7 +52,13 @@ out=$("${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_billing_allowances_rollback.
 for i in 1 2; do out=$("${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_billing_allowances_rollback.sql" 2>&1) || { bad "rollback (run $i): $(echo "$out" | grep -m2 ERROR)"; break; }; done
 after=$("${P[@]}" -d $DB -c "$STATE")
 [ "$after" = "$before" ] && ok "rollback (run twice) returns functions, columns, triggers, policies and grants exactly to the state before" || bad "rollback differs from the state before"
-"${P[@]}" -d $DB -c "select count(*) from public.business_plans_rolled_back" > /dev/null 2>&1 && ok "rollback keeps the billing history (renamed)" || bad "billing history not kept"
-"${P[@]}" -d $DB -c "do \$\$ declare t text; begin foreach t in array array['usage_charges','allowance_buckets','pack_purchases','auto_reload_settings','billing_periods','billing_pack_catalog','business_plans'] loop execute format('drop table public.%I cascade', t || '_rolled_back'); end loop; end \$\$" > /dev/null
-out=$("${P[@]}" -d $DB -f "$REPO/sql/zella_billing_allowances.sql" 2>&1) && ok "applies again after the rollback" || bad "re-apply after rollback: $(echo "$out" | grep -m1 ERROR)"
+r=$("${P[@]}" -d $DB -c "select (select count(*) from public.business_plans_rolled_back) > 0 and (select count(*) from public.usage_processing_issues_rolled_back where kind = 'billing_charge_failed') > 0")
+[ "$r" = "t" ] && ok "rollback keeps the billing history and the billing problems (archived)" || bad "billing history not kept: $r"
+"${P[@]}" -d $DB -c "update public.business_plans_rolled_back set price_cents = 1" > /dev/null 2>&1 && bad "archived plan versions can be edited" || ok "archived plan versions stay append-only"
+out=$("${P[@]}" -d $DB -f "$REPO/sql/zella_billing_allowances.sql" 2>&1) && ok "applies again after the rollback, with the archive kept" || bad "re-apply after rollback: $(echo "$out" | grep -m1 ERROR)"
+# the re-applied tables have their own keys and indexes (the archive's were renamed out of the way)
+r=$("${P[@]}" -d $DB -c "select string_agg(c.relname || '>' || t.relname, ',' order by c.relname) from pg_class c join pg_index x on x.indexrelid = c.oid join pg_class t on t.oid = x.indrelid
+  where c.relname in ('allowance_buckets_once_idx', 'business_plans_pkey', 'usage_charges_idempotency_key_key', 'billing_periods_business_id_period_start_key')")
+[ "$r" = "allowance_buckets_once_idx>allowance_buckets,billing_periods_business_id_period_start_key>billing_periods,business_plans_pkey>business_plans,usage_charges_idempotency_key_key>usage_charges" ] \
+  && ok "after re-apply the live tables own their unique keys and indexes" || bad "indexes after re-apply: $r"
 [ $fails -eq 0 ] && echo "ALL PASSED" || { echo "$fails FAILED"; exit 1; }

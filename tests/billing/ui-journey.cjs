@@ -87,22 +87,25 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
   check("saving makes version 1 with the reason recorded", row === "1/base/9900/300/Launch discount agreed with the owner", row);
   check("the save is audited", sql(`select count(*) from audit_logs where action = 'billing.plan_saved' and business_id = '${DRAFT}'`) === "1");
   await admin.locator(".wiz-stepper button", { hasText: "Review" }).last().click();
-  const review = await admin.locator(".wiz-review-row", { hasText: "Plan & pricing" }).innerText();
+  const planRow = (page) => page.locator(".wiz-review-row", { hasText: "Plan & pricing" });
+  await planRow(admin).filter({ hasNotText: "Checking" }).waitFor({ timeout: 8000 }).catch(() => {});
+  const review = await planRow(admin).innerText();
   check("the Review step shows the saved plan", /Version 1/.test(review), review.replace(/\s+/g, " "));
   check("no page errors (admin)", admin.errors.length === 0, admin.errors.join("; "));
 
-  // 2. A support admin without billing permission sees why, and can't save
-  const support = await session(browser, "support@zella.test");
-  await support.goto(`${APP}/businesses/${DRAFT}/setup`);
-  await support.waitForSelector(".wiz-stepper").catch(() => {});
-  const supportStep = support.locator(".wiz-stepper button", { hasText: "Plan & pricing" });
-  if (await supportStep.count()) {
-    await supportStep.click();
-    await support.waitForTimeout(1200);
-    check("an admin without billing permission is told a billing admin sets the plan", await support.getByText(/don't have billing permission/).count() > 0);
-  } else {
-    check("an admin without business permission can't open the wizard at all", true);
-  }
+  // 2. An admin who sets up businesses but has no billing permission: told why, no form, and the Review row still
+  //    knows the plan is saved (without seeing prices)
+  const ops = await session(browser, "ops@zella.test");
+  await ops.goto(`${APP}/businesses/${DRAFT}/setup`);
+  await ops.waitForSelector(".wiz-stepper", { timeout: 15000 });
+  await ops.locator(".wiz-stepper button", { hasText: "Plan & pricing" }).click();
+  await ops.getByText(/don't have billing permission/).waitFor({ timeout: 8000 });
+  check("an admin without billing permission is told a billing admin sets the plan, and sees no plan form",
+    await ops.getByText(/don't have billing permission/).count() === 1 && await ops.getByRole("textbox", { name: /^Price per/ }).count() === 0);
+  await ops.locator(".wiz-stepper button", { hasText: "Review" }).last().click();
+  await planRow(ops).filter({ hasNotText: "Checking" }).waitFor({ timeout: 8000 }).catch(() => {});
+  const opsRow = await planRow(ops).innerText();
+  check("their Review row shows the plan as saved, with no price", /Version 1 saved/.test(opsRow) && !/\$/.test(opsRow), opsRow.replace(/\s+/g, " "));
 
   // 3. The owner's Billing & Subscription pages
   const owner = await session(browser, "owner@glow.test");
@@ -136,7 +139,7 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
   await staff.goto(`${APP}/app/settings/billing/plan`);
   await staff.waitForTimeout(2000);
   const staffText = await staff.locator(".zs-page").first().innerText().catch(() => "");
-  check("staff don't see prices: the page says billing is for the owner (or the page isn't offered)", /Billing is for the business owner/.test(staffText) || !/\$299/.test(staffText), staffText.slice(0, 120));
+  check("staff are refused by the database and told billing is for the owner (no prices)", /Billing is for the business owner/.test(staffText) && !/\$299/.test(staffText), staffText.slice(0, 120));
 
   // 5. Phones: no sideways scrolling
   const phone = await session(browser, "owner@glow.test", { width: 390, height: 844 });

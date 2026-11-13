@@ -101,7 +101,7 @@ export function BillingPlanPanel({ w }) {
               <p>{period ? `${day(period.from)} – ${day(period.to)} · ${period.days_left} ${period.days_left === 1 ? "day" : "days"} left${period.trial ? " · trial allowance" : ""}` : "Your first billing period hasn't started."}</p></div></div>
             <div className="zs-card-body bp-pad">
             <div className="bp-tiles">{["minutes", "texts", "emails"].map((r) => <UsageTile key={r} resource={r} u={o.usage?.[r]} />)}</div>
-            <p className="zs-muted" style={{ margin: "14px 0 0" }}>We tell you at 80% and 100%. A call in progress is never cut. At 100% of texts or emails, appointment confirmations and reminders keep going for a short while (a 5% buffer).</p>
+            <p className="zs-muted" style={{ margin: "14px 0 0" }}>We tell you at 80% and 100%. A call in progress is never cut. For now, nothing is stopped at 100%: texts and emails keep sending and anything over your allowance is recorded. When limits are switched on, routine texts and emails will pause at 100% while appointment confirmations and reminders keep a small 5% buffer.</p>
             </div>
           </section>
         </>
@@ -178,6 +178,7 @@ function AutoReloadForm({ w, resource, packs, current, onSaved }) {
         <Field label="Buy this pack"><select value={v.pack} onChange={form.set("pack")}>{packs.map((p) => <option key={p.code} value={p.code}>{num(p.quantity)} for {money(p.price_cents)}</option>)}</select></Field>
         <Field label="Monthly limit (USD)" error={problem.startsWith("The") ? problem : ""}><input inputMode="decimal" value={v.cap} onChange={form.set("cap")} /></Field>
       </div>
+      <Banner>This saves your preference only. Nothing is bought automatically until online payments are switched on.</Banner>
       <Banner tone="error">{error}</Banner>
       <SaveBar form={form} disabled={Boolean(problem)} onSave={save} />
     </Card>

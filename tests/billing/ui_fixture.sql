@@ -3,14 +3,19 @@
 \set ON_ERROR_STOP 1
 insert into auth.users (id, email, email_confirmed_at) values
   ('b2300000-0000-4000-8000-000000000009', 'admin@zella.test', now()), ('b2300000-0000-4000-8000-000000000008', 'support@zella.test', now()),
-  ('b2300000-0000-4000-8000-000000000001', 'owner@glow.test', now()), ('b2300000-0000-4000-8000-000000000002', 'staff@glow.test', now())
+  ('b2300000-0000-4000-8000-000000000001', 'owner@glow.test', now()), ('b2300000-0000-4000-8000-000000000002', 'staff@glow.test', now()),
+  ('b2300000-0000-4000-8000-000000000007', 'ops@zella.test', now())
 on conflict do nothing;
 insert into auth.identities (user_id, provider, email, identity_data) values
   ('b2300000-0000-4000-8000-000000000009', 'email', 'admin@zella.test', '{"email": "admin@zella.test", "email_verified": true}'),
-  ('b2300000-0000-4000-8000-000000000008', 'email', 'support@zella.test', '{"email": "support@zella.test", "email_verified": true}');
+  ('b2300000-0000-4000-8000-000000000008', 'email', 'support@zella.test', '{"email": "support@zella.test", "email_verified": true}'),
+  ('b2300000-0000-4000-8000-000000000007', 'email', 'ops@zella.test', '{"email": "ops@zella.test", "email_verified": true}');
 insert into platform_admins (user_id, role, is_active) values ('b2300000-0000-4000-8000-000000000009', 'zella_owner', true),
   ('b2300000-0000-4000-8000-000000000008', 'support_admin', true);
-delete from platform_role_permissions where role = 'support_admin' and permission like 'billing.%';
+insert into platform_admins (user_id, role, is_active) values ('b2300000-0000-4000-8000-000000000007', 'platform_operations', true);
+-- platform operations: may set up businesses, has no billing permission (test permission matrix)
+delete from platform_role_permissions where role in ('support_admin', 'platform_operations');
+insert into platform_role_permissions (role, permission) values ('platform_operations', 'businesses.manage'), ('platform_operations', 'businesses.view');
 insert into businesses (id, name, industry_id, timezone, is_active, onboarding_status)
 select 'b2000000-0000-4000-8000-00000000000a', 'Glow Dental', i.id, 'America/New_York', true, 'active' from industries i where i.slug = 'dental';
 insert into businesses (id, name, industry_id, timezone, is_active, onboarding_status)

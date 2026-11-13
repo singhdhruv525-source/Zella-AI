@@ -58,6 +58,7 @@ export default function PlanStep({ businessId, info, onSaved, onDirty, Section, 
   const seq = useRef(0);
 
   const values = useMemo(() => toValues(form), [form]);
+  const valuesKey = useMemo(() => JSON.stringify(Object.fromEntries(Object.entries(values).map(([k, v]) => [k, typeof v === "number" && Number.isNaN(v) ? null : v]))), [values]);
   const dirty = JSON.stringify(form) !== JSON.stringify(fromPlan(info?.plan));
   useEffect(() => { onDirty?.(dirty); }, [dirty, onDirty]);
 
@@ -71,11 +72,14 @@ export default function PlanStep({ businessId, info, onSaved, onDirty, Section, 
       const { data, error: e } = await supabase.rpc("zella_plan_evaluate", { p_values: clean });
       if (id !== seq.current) return;
       setChecking(false);
-      setCheck(e ? { ok: false, failed: friendlyError(e) } : data);
+      setCheck(e ? { ok: false, failed: friendlyError(e), forValues: JSON.stringify(clean) } : { ...data, forValues: JSON.stringify(clean) });
     }, 350);
     return () => clearTimeout(t);
   }, [values, info]);
 
+  // only a check of exactly what is on screen counts: while typing (and during the pause before the next check) the
+  // last answer is out of date, so Review waits
+  const current = check && check.forValues === valuesKey;
   if (!info) return null;
   if (info.denied) {
     return (
@@ -99,14 +103,16 @@ export default function PlanStep({ businessId, info, onSaved, onDirty, Section, 
   const marginWord = margin == null ? "No revenue" : margin < 0 ? "Loses money" : margin < target ? "Below target" : "Healthy";
 
   function openReview() {
+    if (!current) { setError("Checking the latest values… try again in a moment."); return; }
     if (!check?.ok) { setError(check?.failed ?? `Fix: ${errors.map((k) => FIELD_TEXT[k] ?? k).join(", ")}.`); return; }
-    setReview({ key: newKey(), values: check.values, result: check, reasons: {} });
+    setReview({ key: newKey(), values: check.values, forValues: check.forValues, result: check, reasons: {} });
   }
 
   async function confirm() {
     setError("");
     const missing = (review.result.warnings ?? []).filter((w) => (review.reasons[w.code] ?? "").trim().length < 5);
     if (missing.length) { setError("Give a reason (at least 5 characters) for every warning."); return; }
+    if (review.forValues !== valuesKey) { setError("The values changed after the check. Close this and review again."); return; }
     const { data, error: e } = await supabase.rpc("zella_admin_plan_save", { p_business_id: businessId, p_values: review.values,
       p_acknowledgements: review.reasons, p_idempotency_key: review.key });
     if (e) { setError(friendlyError(e)); return; }
@@ -198,7 +204,7 @@ export default function PlanStep({ businessId, info, onSaved, onDirty, Section, 
         {error && <ul className="bp-warn" role="alert"><li className="red">{error}</li></ul>}
         {saved && <div className="wiz-note" role="status">{saved}</div>}
         {!readOnly && (
-          <button type="button" className="bp-primary" disabled={checking || !check?.ok || (!dirty && Boolean(info.plan))} onClick={openReview}>
+          <button type="button" className="bp-primary" disabled={checking || !current || !check?.ok || (!dirty && Boolean(info.plan))} onClick={openReview}>
             {info.plan ? "Review changes" : "Review plan"}
           </button>
         )}
@@ -257,13 +263,14 @@ function ReviewDialog({ review, setReview, onConfirm, onClose, error }) {
   const [busy, setBusy] = useState(false);
   const ref = useRef(null);
   const busyRef = useRef(false);
-  useEffect(() => { busyRef.current = busy; }, [busy]);
+  const closeRef = useRef(onClose);
+  useEffect(() => { busyRef.current = busy; closeRef.current = onClose; }, [busy, onClose]);
   // focus stays inside the dialog; Escape goes back to editing; focus returns to where it was
   useEffect(() => {
     const before = document.activeElement;
     ref.current?.querySelector("textarea, button")?.focus();
     const onKey = (event) => {
-      if (event.key === "Escape") { event.preventDefault(); if (!busyRef.current) onClose(); return; }
+      if (event.key === "Escape") { event.preventDefault(); if (!busyRef.current) closeRef.current(); return; }
       if (event.key !== "Tab") return;
       const items = [...ref.current.querySelectorAll("textarea, button:not(:disabled)")];
       const first = items[0], last = items[items.length - 1];
@@ -272,7 +279,7 @@ function ReviewDialog({ review, setReview, onConfirm, onClose, error }) {
     };
     document.addEventListener("keydown", onKey);
     return () => { document.removeEventListener("keydown", onKey); before?.focus?.(); };
-  }, [onClose]);
+  }, []);   // once, when the dialog opens: typing a reason never moves the focus
   const rows = [["Label", v.tier === "pro" ? "Pro" : "Base"], ["Price", `${money(v.price_cents)} ${v.billing_interval === "yearly" ? "a year" : "a month"}`],
     ["Setup fee", money(v.setup_fee_cents)], ["Each month", `${v.minutes.toLocaleString("en-US")} minutes, ${v.texts.toLocaleString("en-US")} texts, ${v.emails.toLocaleString("en-US")} emails`],
     ["Users, numbers, locations", `${v.team_seats}, ${v.phone_numbers}, ${v.locations}`], ["Languages", v.languages.map((l) => (l === "en" ? "English" : "Spanish")).join(" and ")],

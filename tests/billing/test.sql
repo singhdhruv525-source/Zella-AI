@@ -267,13 +267,17 @@ do $$ declare t0 timestamptz := date_trunc('day', now()) - interval '40 days'; r
   assert (select array_agg(k.granted::int order by k.granted) from allowance_buckets k join billing_periods p on p.id = k.period_id
            where p.business_id = 'b1000000-0000-4000-8000-00000000000c' and p.period_start = t0 + interval '1 month' and k.kind = 'rollover') = array[20, 100], 'rollover buckets';
   assert pg_temp.bal('b1000000-0000-4000-8000-00000000000c', 'texts') ->> 'included' = '1000', 'texts rolled over';
+  -- a call from last month processed late is counted in last month, and this month's rollover comes down with it
+  r := public.zella_usage_consume('b1000000-0000-4000-8000-00000000000c', 'minutes', 50, 'test-c-late-50', 'admin', null, null, t0 + interval '5 days');
+  assert r ->> 'result' = 'recorded' and (r ->> 'period_id')::uuid = p1, 'late usage not in last month: ' || r::text;
+  assert pg_temp.bal('b1000000-0000-4000-8000-00000000000c', 'minutes') ->> 'included' = '590', 'rollover not reduced: ' || pg_temp.bal('b1000000-0000-4000-8000-00000000000c', 'minutes')::text;
   -- rolled-over minutes are used first, and expire with this month
   perform public.zella_usage_consume('b1000000-0000-4000-8000-00000000000c', 'minutes', 110, 'test-c-usage-110', 'admin', null);
   assert (select string_agg(k.kind || '/' || (k.pack_purchase_id is not null) || '=' || k.used::int, ',' order by public.zella_billing_bucket_rank(k.kind, k.pack_purchase_id is not null))
             from allowance_buckets k join billing_periods p on p.id = k.period_id
-           where p.business_id = 'b1000000-0000-4000-8000-00000000000c' and p.period_start = t0 + interval '1 month' and k.resource = 'minutes') = 'rollover/false=100,rollover/true=10,plan/false=0',
+           where p.business_id = 'b1000000-0000-4000-8000-00000000000c' and p.period_start = t0 + interval '1 month' and k.resource = 'minutes') = 'rollover/false=70,rollover/true=20,plan/false=20',
     'order of use';
-  raise notice 'PASS rollover: 500 minutes with 380 used starts the next month with 500 + 100 (20%% cap; the other 20 expire), an unused 100-minute pack adds 20; texts do not roll over; rolled-over minutes are used first';
+  raise notice 'PASS rollover: 500 minutes with 380 used starts the next month with 500 + 100 (20%% cap; the other 20 expire), an unused 100-minute pack adds 20; texts do not roll over; a late call from last month is counted there and lowers this month''s rollover (100 to 70); rolled-over minutes are used first';
 end $$;
 
 -- 9. Yearly plans reset monthly, on the same day (D-46) -------------------------------------------------------------
@@ -291,7 +295,14 @@ do $$ declare b jsonb; begin
   perform public.zella_usage_consume('b1000000-0000-4000-8000-00000000000d', 'minutes', 10, 'test-d-mar-10', 'admin', null, null, '2026-03-05 12:00+00');
   assert (select sum(granted) from allowance_buckets k join billing_periods p on p.id = k.period_id where p.business_id = 'b1000000-0000-4000-8000-00000000000d'
            and p.period_start = '2026-02-28 00:00+00' and k.resource = 'minutes') = 300, 'March refresh';
-  raise notice 'PASS yearly plans: charged for the year, minutes reset every month on the same day (31 Jan, 28 Feb, 31 Mar ... 31 Dec), and nothing after the paid year';
+  -- April has no activity at all; May still gets April's unused minutes (20% of 300)
+  perform public.zella_usage_consume('b1000000-0000-4000-8000-00000000000d', 'minutes', 1, 'test-d-may-1', 'admin', null, null, '2026-05-10 12:00+00');
+  assert (select count(*) from billing_periods where business_id = 'b1000000-0000-4000-8000-00000000000d' and period_start = '2026-04-30 00:00+00') = 1
+     and (select granted from allowance_buckets k join billing_periods p on p.id = k.period_id where p.business_id = 'b1000000-0000-4000-8000-00000000000d'
+            and p.period_start = '2026-04-30 00:00+00' and k.kind = 'rollover') = 60
+     and (select granted from allowance_buckets k join billing_periods p on p.id = k.period_id where p.business_id = 'b1000000-0000-4000-8000-00000000000d'
+            and p.period_start = '2026-05-31 00:00+00' and k.kind = 'rollover') is null, 'idle month rollover';
+  raise notice 'PASS yearly plans: charged for the year, minutes reset every month on the same day (31 Jan, 28 Feb, 31 Mar ... 31 Dec), nothing after the paid year, and a quiet month still rolls its unused minutes into the next';
 end $$;
 
 -- 10. Trial (REQ-BIL-11) ------------------------------------------------------------------------------------------
@@ -390,4 +401,38 @@ do $$ declare r jsonb; begin
   exception when raise_exception then if sqlerrm <> 'NOT_ALLOWED' then raise; end if; end;
   perform set_config('request.jwt.claims', '', false);
   raise notice 'PASS the plan page reads the saved plan and its versions for billing admins only';
+end $$;
+
+-- 16. Text parts as carriers count them, failed calls, the saved-plan check, the hourly opening --------------------
+do $$ declare c uuid; before numeric; r jsonb; begin
+  assert public.zella_sms_parts(repeat('a', 160)) = 1 and public.zella_sms_parts(repeat('a', 161)) = 2, 'gsm basic';
+  assert public.zella_sms_parts(repeat('a', 158) || '[]') = 2, '[ and ] take two places';
+  assert public.zella_sms_parts(repeat('é', 80)) = 1, 'é is in GSM-7';
+  assert public.zella_sms_parts(repeat('ж', 70)) = 1 and public.zella_sms_parts(repeat('ж', 71)) = 2, 'UCS-2';
+  assert public.zella_sms_parts(repeat('😀', 35)) = 1 and public.zella_sms_parts(repeat('😀', 36)) = 2, 'emoji take two places';
+  raise notice 'PASS text parts follow carrier rules: GSM-7 160 / 153 (é counts 1, [ ] count 2), UCS-2 70 / 67, emoji count 2';
+
+  before := (pg_temp.bal('b1000000-0000-4000-8000-0000000000ff', 'minutes') ->> 'used')::numeric;
+  insert into calls (business_id, direction, status, external_call_id, from_number, started_at, answered_at, ended_at, duration_seconds, ai_handled)
+  values ('b1000000-0000-4000-8000-0000000000ff', 'inbound', 'failed', 'bill-failed-1', '+15550001111', now() - interval '1 hour', now() - interval '1 hour', now() - interval '50 minutes', 600, true) returning id into c;
+  assert (pg_temp.bal('b1000000-0000-4000-8000-0000000000ff', 'minutes') ->> 'used')::numeric = before, 'a failed call was charged';
+  c := pg_temp.call('b1000000-0000-4000-8000-0000000000ff', 'bill-failed-2', 120);
+  assert (pg_temp.bal('b1000000-0000-4000-8000-0000000000ff', 'minutes') ->> 'used')::numeric = before + 2, 'normal call';
+  update calls set status = 'failed' where id = c;
+  assert (pg_temp.bal('b1000000-0000-4000-8000-0000000000ff', 'minutes') ->> 'used')::numeric = before, 'a call marked failed later was not given back';
+  raise notice 'PASS our failures are never billable: a failed call counts nothing, and a call marked failed later is given back';
+
+  perform pg_temp.as_user('b1300000-0000-4000-8000-000000000009');
+  r := public.zella_setup_plan_saved('b1000000-0000-4000-8000-00000000000a');
+  assert r = '{"saved": true, "version": 1}', 'saved check: ' || r::text;
+  assert public.zella_setup_plan_saved('b1000000-0000-4000-8000-0000000000aa') ->> 'saved' = 'false', 'unsaved';
+  perform pg_temp.as_user('b1300000-0000-4000-8000-000000000001');
+  begin perform public.zella_setup_plan_saved('b1000000-0000-4000-8000-00000000000a'); raise exception 'owner used the setup check';
+  exception when raise_exception then if sqlerrm <> 'NOT_ALLOWED' then raise; end if; end;
+  perform set_config('request.jwt.claims', '', false);
+  raise notice 'PASS the setup wizard can see whether a plan is saved (no prices), for platform admins only';
+
+  delete from billing_periods where false;
+  assert public.zella_billing_open_current_periods() >= 0 and public.zella_check_usage_thresholds() >= 0, 'hourly job';
+  raise notice 'PASS the hourly check opens current periods and retries missed charges without errors';
 end $$;

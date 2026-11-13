@@ -345,9 +345,12 @@ $$;
 -- when it has one, otherwise the shared plan's limits
 create or replace function public.zella_plan_limits(p_business_id uuid) returns jsonb
 language plpgsql stable security definer set search_path = public as $$
-declare b public.business_plans; s public.subscriptions; l jsonb;
+declare b public.business_plans; s public.subscriptions; l jsonb; bnd jsonb;
 begin
-  b := public.zella_billing_plan_current(p_business_id);
+  -- the plan in effect: the version the current period started with (a downgrade applies from the next billing date);
+  -- before the first period, the latest saved version
+  bnd := public.zella_billing_period_bounds(p_business_id, now());
+  b := case when bnd is not null then public.zella_billing_plan_at(p_business_id, (bnd ->> 'from')::timestamptz) else public.zella_billing_plan_current(p_business_id) end;
   if b.id is not null then
     return b.contact_limits || jsonb_build_object('voice_minutes', b.minutes, 'texts', b.texts, 'emails', b.emails, 'team_members', b.team_seats,
       'phone_numbers', b.phone_numbers, 'locations', b.locations, 'languages', cardinality(b.languages));
@@ -391,19 +394,41 @@ end $$;
 -- 20 minutes, 5 texts, 5 emails, no rollover, no buffer.
 create or replace function public.zella_billing_open_period(p_business_id uuid, p_at timestamptz) returns public.billing_periods
 language plpgsql security definer set search_path = public as $$
-declare bnd jsonb; s jsonb := public.zella_billing_settings(); p public.billing_periods; b public.business_plans; prev public.billing_periods;
-        r text; q numeric; x record; pb public.business_plans;
+declare bnd jsonb; pbnd jsonb; s jsonb := public.zella_billing_settings(); p public.billing_periods; b public.business_plans; prev public.billing_periods;
+        r text; q numeric; x record; pb public.business_plans; v_from timestamptz;
 begin
   if p_business_id is null or p_at is null then return null; end if;
   bnd := public.zella_billing_period_bounds(p_business_id, p_at);
-  if bnd is null then return null; end if;
-  b := public.zella_billing_plan_at(p_business_id, (bnd ->> 'from')::timestamptz);
+  if bnd is null then
+    -- not the current paid or trial window: an event that happened in an earlier period is counted in that period
+    -- (for example a call that ended just before the monthly charge and was processed after it)
+    select * into p from public.billing_periods where business_id = p_business_id and period_start <= p_at and p_at < period_end
+     order by period_start desc limit 1 for update;
+    return p;
+  end if;
+  v_from := (bnd ->> 'from')::timestamptz;
+  select * into p from public.billing_periods where business_id = p_business_id and period_start = v_from for update;
+  if p.id is not null then return p; end if;
+  b := public.zella_billing_plan_at(p_business_id, v_from);
   if b.id is null then return null; end if;
+  -- locks always go from the earlier period to the later one (here and in zella_usage_consume), so they never deadlock.
+  -- The previous month is opened first when it was part of the same paid year but nothing happened in it, so its
+  -- unused minutes still roll over; a gap between subscriptions has no previous window and gives no rollover.
+  if not (bnd ->> 'trial')::boolean then
+    select * into prev from public.billing_periods where business_id = p_business_id and period_end = v_from and not is_trial
+     order by period_start desc limit 1 for update;
+    if prev.id is null then
+      pbnd := public.zella_billing_period_bounds(p_business_id, v_from - interval '1 microsecond');
+      if pbnd is not null and (pbnd ->> 'to')::timestamptz = v_from and not (pbnd ->> 'trial')::boolean then
+        prev := public.zella_billing_open_period(p_business_id, v_from - interval '1 microsecond');
+      end if;
+    end if;
+  end if;
   insert into public.billing_periods (business_id, subscription_id, business_plan_id, period_start, period_end, is_trial)
-  values (p_business_id, (bnd ->> 'subscription_id')::uuid, b.id, (bnd ->> 'from')::timestamptz, (bnd ->> 'to')::timestamptz, (bnd ->> 'trial')::boolean)
+  values (p_business_id, (bnd ->> 'subscription_id')::uuid, b.id, v_from, (bnd ->> 'to')::timestamptz, (bnd ->> 'trial')::boolean)
   on conflict (business_id, period_start) do nothing returning * into p;
   if p.id is null then
-    select * into p from public.billing_periods where business_id = p_business_id and period_start = (bnd ->> 'from')::timestamptz for update;
+    select * into p from public.billing_periods where business_id = p_business_id and period_start = v_from for update;
     return p;
   end if;
   -- new period: grant its balances (only the transaction that created it gets here)
@@ -418,25 +443,52 @@ begin
       values (p_business_id, p.id, r, 'buffer', floor(q * (s ->> 'buffer_percent')::numeric / 100), p.period_end);
     end if;
   end loop;
-  if not p.is_trial then
-    select * into prev from public.billing_periods where business_id = p_business_id and period_end = p.period_start and not is_trial
-     order by period_start desc limit 1;
-    if prev.id is not null then
-      select * into pb from public.business_plans where id = prev.business_plan_id;
-      for x in
-        select k.kind, k.pack_purchase_id, k.granted - k.used as unused,
-               floor(case when k.kind = 'plan' then pb.minutes else pp.quantity end * (s ->> 'rollover_percent')::numeric / 100) as cap
-          from public.allowance_buckets k left join public.pack_purchases pp on pp.id = k.pack_purchase_id
-         where k.period_id = prev.id and k.resource = 'minutes' and k.kind in ('plan', 'pack')
-      loop
-        if least(x.unused, x.cap) > 0 then
-          insert into public.allowance_buckets (business_id, period_id, resource, kind, pack_purchase_id, granted, expires_at)
-          values (p_business_id, p.id, 'minutes', 'rollover', x.pack_purchase_id, least(x.unused, x.cap), p.period_end);
-        end if;
-      end loop;
-    end if;
+  if not p.is_trial and prev.id is not null then
+    select * into pb from public.business_plans where id = prev.business_plan_id;
+    for x in
+      select k.kind, k.pack_purchase_id, k.granted - k.used as unused,
+             floor(case when k.kind = 'plan' then pb.minutes else pp.quantity end * (s ->> 'rollover_percent')::numeric / 100) as cap
+        from public.allowance_buckets k left join public.pack_purchases pp on pp.id = k.pack_purchase_id
+       where k.period_id = prev.id and k.resource = 'minutes' and k.kind in ('plan', 'pack')
+    loop
+      if least(x.unused, x.cap) > 0 then
+        insert into public.allowance_buckets (business_id, period_id, resource, kind, pack_purchase_id, granted, expires_at)
+        values (p_business_id, p.id, 'minutes', 'rollover', x.pack_purchase_id, least(x.unused, x.cap), p.period_end);
+      end if;
+    end loop;
   end if;
   return p;
+end $$;
+
+-- a late usage entry in a period whose next period already rolled over its unused minutes: the next period's rollover
+-- comes down to what is really unused now (never below what was already used from it). Called with the earlier period
+-- locked; locks the next one (earlier before later, as everywhere).
+create or replace function public.zella_billing_rollover_reconcile(p_period_id uuid) returns integer
+language plpgsql security definer set search_path = public as $$
+declare p public.billing_periods; n public.billing_periods; pb public.business_plans; s jsonb := public.zella_billing_settings(); x record; v_new numeric; c integer := 0;
+begin
+  select * into p from public.billing_periods where id = p_period_id;
+  if p.id is null or p.is_trial then return 0; end if;
+  select * into n from public.billing_periods where business_id = p.business_id and period_start = p.period_end and not is_trial for update;
+  if n.id is null then return 0; end if;
+  select * into pb from public.business_plans where id = p.business_plan_id;
+  for x in
+    select rb.id, rb.granted, rb.used,
+           least(k.granted - k.used, floor(case when k.kind = 'plan' then pb.minutes else pp.quantity end * (s ->> 'rollover_percent')::numeric / 100)) as should
+      from public.allowance_buckets rb
+      join public.allowance_buckets k on k.period_id = p.id and k.resource = 'minutes' and k.kind in ('plan', 'pack')
+           and k.pack_purchase_id is not distinct from rb.pack_purchase_id
+      left join public.pack_purchases pp on pp.id = k.pack_purchase_id
+     where rb.period_id = n.id and rb.resource = 'minutes' and rb.kind = 'rollover'
+     for update of rb
+  loop
+    continue when x.should >= x.granted;
+    v_new := greatest(x.should, x.used);
+    if v_new <= 0 then delete from public.allowance_buckets where id = x.id;
+    else update public.allowance_buckets set granted = v_new where id = x.id; end if;
+    c := c + 1;
+  end loop;
+  return c;
 end $$;
 
 -- the order balances are used in (REQ-BIL-18): rolled over (the plan's first, then packs oldest first), plan, packs
@@ -482,6 +534,8 @@ begin
       message_kind, occurred_at)
   values (p_business_id, p.id, p_resource, p_key, p_quantity, v_alloc, v_left, p_source_kind, p_source_id, p_message_kind, coalesce(p_at, now()))
   returning id into v_id;
+  -- usage recorded late in an earlier period: the next period's rollover can't count those minutes as unused
+  if p_resource = 'minutes' and p.period_end <= now() then perform public.zella_billing_rollover_reconcile(p.id); end if;
   return jsonb_build_object('result', 'recorded', 'charge_id', v_id, 'period_id', p.id, 'allocations', v_alloc, 'over', v_left);
 end $$;
 
@@ -535,12 +589,14 @@ create or replace function public.zella_billing_charge_call(p_call_id uuid) retu
 language plpgsql security definer set search_path = public as $$
 declare c public.calls; v_secs integer; v_target numeric; v_done numeric; v_n integer; v_key text; s jsonb := public.zella_billing_settings(); v_at timestamptz;
 begin
-  select * into c from public.calls where id = p_call_id;
+  -- the call row is locked, so two changes to one call are charged one after the other
+  select * into c from public.calls where id = p_call_id for update;
   if c.id is null then return jsonb_build_object('result', 'not_found'); end if;
   select sum(u.duration_seconds), min(u.occurred_at) into v_secs, v_at from public.usage_records u
    where u.usage_type = 'ai_call' and u.call_id = c.id and u.status = 'recorded' and u.entry_kind in ('usage', 'adjustment');
   if v_secs is null then return jsonb_build_object('result', 'not_in_ledger'); end if;
-  v_target := case when c.outcome = 'spam' or lower(coalesce(c.metadata ->> 'spam', c.metadata ->> 'is_spam', '')) in ('true', 'yes')
+  -- our failures are never billable (REQ-BIL-02): a call the call-status producer marked failed counts 0
+  v_target := case when c.status = 'failed' or c.outcome = 'spam' or lower(coalesce(c.metadata ->> 'spam', c.metadata ->> 'is_spam', '')) in ('true', 'yes')
                      or v_secs < (s ->> 'min_call_seconds')::int then 0
                    else ceil(v_secs / 60.0) end;
   select coalesce(sum(quantity), 0), count(*) into v_done, v_n from public.usage_charges where source_kind = 'call' and source_id = c.id;
@@ -554,14 +610,28 @@ begin
   return jsonb_build_object('result', 'unchanged');
 end $$;
 
--- texts: by message part, about 160 characters (70 when the text has accented or non-Latin letters); multi-part messages
--- carry a header, so 153 and 67 characters per part
+-- texts: by message part, as carriers count them. GSM-7 text (the GSM basic set, which includes é, è, ü, ñ and others;
+-- ^ { } \ [ ] ~ | € take two places) fits 160 in one part and 153 per part when longer. Anything outside GSM-7
+-- (most other accented or non-Latin letters, emoji) is sent as UCS-2: 70 in one part, 67 per part when longer,
+-- with characters outside the basic plane (most emoji) taking two places.
 create or replace function public.zella_sms_parts(p_body text) returns integer
-language sql immutable set search_path = public as $$
-  select case when coalesce(p_body, '') = '' then 1
-              when p_body ~ '^[ -~\n\r]*$' then case when length(p_body) <= 160 then 1 else ceil(length(p_body) / 153.0)::int end
-              else case when length(p_body) <= 70 then 1 else ceil(length(p_body) / 67.0)::int end end;
-$$;
+language plpgsql immutable set search_path = public as $$
+declare basic constant text := E'@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !"#¤%&''()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà';
+        ext constant text := E'^{}\\[~]|€\f';
+        ch text; septets integer := 0; units integer := 0; gsm boolean := true;
+begin
+  if coalesce(p_body, '') = '' then return 1; end if;
+  foreach ch in array regexp_split_to_array(p_body, '') loop
+    units := units + case when ascii(ch) > 65535 then 2 else 1 end;
+    if gsm then
+      if strpos(basic, ch) > 0 then septets := septets + 1;
+      elsif strpos(ext, ch) > 0 then septets := septets + 2;
+      else gsm := false; end if;
+    end if;
+  end loop;
+  if gsm then return case when septets <= 160 then 1 else ceil(septets / 153.0)::int end; end if;
+  return case when units <= 70 then 1 else ceil(units / 67.0)::int end;
+end $$;
 
 -- which outbound messages count against the business's allowance: messages to customers. Alerts Zella Voice sends to
 -- the business's own owners and staff (staff alerts, owner notifications) are not counted. Appointment confirmations
@@ -602,7 +672,7 @@ create trigger zella_billing_sms_trg after insert or update of status on public.
 drop trigger if exists zella_billing_email_trg on public.email_messages;
 create trigger zella_billing_email_trg after insert or update of status on public.email_messages for each row execute function public.zella_billing_message_trg();
 
--- calls: every new ledger entry, and a call marked as spam later
+-- calls: every new ledger entry, and a call later marked as spam or failed
 create or replace function public.zella_billing_call_trg() returns trigger
 language plpgsql security definer set search_path = public as $$
 declare v_call uuid; v_biz uuid; r jsonb;
@@ -611,7 +681,7 @@ begin
     if new.usage_type <> 'ai_call' or new.call_id is null then return null; end if;
     v_call := new.call_id; v_biz := new.business_id;
   else
-    if new.outcome is not distinct from old.outcome and new.metadata is not distinct from old.metadata then return null; end if;
+    if new.outcome is not distinct from old.outcome and new.status is not distinct from old.status and new.metadata is not distinct from old.metadata then return null; end if;
     if not exists (select 1 from public.usage_charges where source_kind = 'call' and source_id = new.id) then return null; end if;
     v_call := new.id; v_biz := new.business_id;
   end if;
@@ -625,19 +695,25 @@ end $$;
 drop trigger if exists zella_billing_usage_trg on public.usage_records;
 create trigger zella_billing_usage_trg after insert on public.usage_records for each row execute function public.zella_billing_call_trg();
 drop trigger if exists zella_billing_call_spam_trg on public.calls;
-create trigger zella_billing_call_spam_trg after update of outcome, metadata on public.calls for each row execute function public.zella_billing_call_trg();
+create trigger zella_billing_call_spam_trg after update of outcome, status, metadata on public.calls for each row execute function public.zella_billing_call_trg();
 
 -- retries what could not be counted (called by the hourly usage check; also by a billing admin). A call is retried by
--- its id; for messages one open issue per business stands for every message of the last 60 days not counted yet.
+-- its id; for messages one open issue per business stands for every message of the last 60 days not counted yet. An
+-- issue is resolved only when every charge came back recorded (or already recorded, or outside any period); anything
+-- else keeps it open for the next try.
 create or replace function public.zella_billing_retry_charges(p_limit integer default 100) returns integer
 language plpgsql security definer set search_path = public as $$
-declare i record; n integer := 0; m record;
+declare i record; n integer := 0; m record; r jsonb; v_kind text;
 begin
   for i in select * from public.usage_processing_issues where kind = 'billing_charge_failed' and status <> 'resolved' and next_attempt_at <= now()
             order by next_attempt_at limit greatest(1, least(coalesce(p_limit, 100), 500)) for update skip locked loop
     begin
       if i.call_id is not null then
-        perform public.zella_billing_charge_call(i.call_id);
+        r := public.zella_billing_charge_call(i.call_id);
+        if coalesce(r ->> 'result', '') not in ('recorded', 'duplicate', 'released', 'unchanged', 'not_configured', 'nothing_charged', 'not_found', 'not_in_ledger') then
+          raise exception 'NOT_COUNTED: %', coalesce(r ->> 'result', 'no answer');
+        end if;
+        perform public.zella_evaluate_call_usage_thresholds(i.business_id);
       else
         for m in select 'texts' as res, x.id, x.business_id, public.zella_sms_parts(x.message_body) as qty, x.metadata, x.sent_at from public.sms_messages x
                   where x.business_id = i.business_id and x.direction = 'outbound' and x.status in ('sent', 'delivered') and x.created_at > now() - interval '60 days'
@@ -646,17 +722,40 @@ begin
                  select 'emails', x.id, x.business_id, 1, x.metadata, x.sent_at from public.email_messages x
                   where x.business_id = i.business_id and x.direction = 'outbound' and x.status in ('sent', 'delivered') and x.created_at > now() - interval '60 days'
                     and not exists (select 1 from public.usage_charges u where u.idempotency_key = 'email:' || x.id) loop
-          continue when public.zella_billing_message_kind(m.metadata) is null;
-          perform public.zella_usage_consume(m.business_id, m.res, m.qty, case when m.res = 'texts' then 'sms:' else 'email:' end || m.id,
-                                             case when m.res = 'texts' then 'sms' else 'email' end, m.id, public.zella_billing_message_kind(m.metadata),
-                                             coalesce(m.sent_at, now()));
+          v_kind := public.zella_billing_message_kind(m.metadata);
+          continue when v_kind is null;
+          r := public.zella_usage_consume(m.business_id, m.res, m.qty, case when m.res = 'texts' then 'sms:' else 'email:' end || m.id,
+                                          case when m.res = 'texts' then 'sms' else 'email' end, m.id, v_kind, coalesce(m.sent_at, now()));
+          if coalesce(r ->> 'result', '') not in ('recorded', 'duplicate', 'not_configured') then
+            raise exception 'NOT_COUNTED: % %', m.res, coalesce(r ->> 'result', 'no answer');
+          end if;
         end loop;
+        perform public.zella_billing_evaluate_alerts(i.business_id, 'texts');
+        perform public.zella_billing_evaluate_alerts(i.business_id, 'emails');
       end if;
       update public.usage_processing_issues set status = 'resolved', resolved_at = now(), resolution = 'recorded', updated_at = now() where id = i.id;
       n := n + 1;
     exception when others then
       update public.usage_processing_issues set attempts = attempts + 1, last_error = left(sqlerrm, 300),
              next_attempt_at = now() + make_interval(mins => least(240, 15 * power(2, least(attempts, 4))::int)), updated_at = now() where id = i.id;
+    end;
+  end loop;
+  return n;
+end $$;
+
+-- the hourly check opens each subscribed business's current period, so a quiet month still exists for the next
+-- month's rollover (a monthly period is only known while it is the subscription's current one)
+create or replace function public.zella_billing_open_current_periods(p_limit integer default 1000) returns integer
+language plpgsql security definer set search_path = public as $$
+declare r record; n integer := 0;
+begin
+  for r in select distinct s.business_id from public.subscriptions s join public.business_plans bp on bp.business_id = s.business_id
+            where s.status in ('trial', 'active', 'renewal_due', 'past_due', 'grace_period')
+              and not exists (select 1 from public.billing_periods p where p.business_id = s.business_id and p.period_start <= now() and now() < p.period_end)
+            limit greatest(1, least(coalesce(p_limit, 1000), 10000)) loop
+    begin
+      if (public.zella_billing_open_period(r.business_id, now())).id is not null then n := n + 1; end if;
+    exception when others then null;   -- one business never stops the others; it is tried again next hour
     end;
   end loop;
   return n;
@@ -731,7 +830,7 @@ begin
     perform public.zella_notify_owners(p_business_id, 'usage_threshold',
       case when t >= 100 then 'Your included ' || v_label || ' are used up' else 'You have used ' || t || '% of your ' || v_label end,
       round((a ->> 'used')::numeric) || ' of ' || round((a ->> 'included')::numeric) || ' ' || v_label || ' this period.'
-        || case when t >= 100 then ' Appointment confirmations and reminders continue for a short while; other messages are paused until you add a pack.' else '' end,
+        || case when t >= 100 then ' Appointment confirmations and reminders have a small extra allowance (5%). Ask Zella Voice support to add a pack.' else '' end,
       case when t >= 100 then 'urgent' else 'warning' end, 'settings');
     select id into v_note from public.staff_notifications where business_id = p_business_id and kind = 'usage_threshold' order by created_at desc limit 1;
     update public.usage_threshold_events set notification_id = v_note where id = v_ev;
@@ -826,6 +925,17 @@ begin
     'packs', coalesce((select jsonb_agg(jsonb_build_object('code', c.code, 'resource', c.resource, 'quantity', c.quantity, 'price_cents', c.price_cents,
         'rollover_if_unused', case when c.resource = 'minutes' then floor(c.quantity * (public.zella_billing_settings() ->> 'rollover_percent')::numeric / 100) else 0 end)
         order by c.resource, c.quantity) from public.billing_pack_catalog c where c.active), '[]'::jsonb));
+end $$;
+
+-- whether a plan is saved, without any price or allowance: for the setup wizard's Review row and Finish button, which
+-- admins without billing permission also use (the server checks it again when setup is finished)
+create or replace function public.zella_setup_plan_saved(p_business_id uuid) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare v integer;
+begin
+  if auth.uid() is null or not (public.zella_admin_can('businesses.manage') or public.zella_admin_can('billing.view')) then raise exception 'NOT_ALLOWED'; end if;
+  select max(version) into v from public.business_plans where business_id = p_business_id;
+  return jsonb_build_object('saved', v is not null, 'version', v);
 end $$;
 
 -- the plan page in Create Business (billing admins): the saved plan, its versions, and whether this admin may change it
@@ -934,7 +1044,7 @@ begin
   end loop;$a$,
                         $a$    begin n := n + public.zella_evaluate_call_usage_thresholds(r.id); exception when others then null; end;
   end loop;
-  begin perform public.zella_billing_retry_charges(200); exception when others then null; end;   /* zella_billing_allowances */$a$);
+  begin perform public.zella_billing_open_current_periods(); perform public.zella_billing_retry_charges(200); exception when others then null; end;   /* zella_billing_allowances */$a$);
     if position('zella_billing_allowances' in def) = 0 then raise exception 'zella_check_usage_thresholds has changed; review this patch'; end if;
     execute def;
   end if;
@@ -955,23 +1065,25 @@ revoke all on function public.zella_billing_settings(), public.zella_plan_evalua
   public.zella_billing_plan_at(uuid, timestamptz), public.zella_plan_limits(uuid), public.zella_billing_period_bounds(uuid, timestamptz),
   public.zella_billing_open_period(uuid, timestamptz), public.zella_usage_consume(uuid, text, numeric, text, text, uuid, text, timestamptz),
   public.zella_usage_release(uuid, text, numeric, text, text, uuid), public.zella_billing_charge_call(uuid), public.zella_billing_retry_charges(integer),
+  public.zella_billing_rollover_reconcile(uuid), public.zella_billing_open_current_periods(integer),
   public.zella_billing_balance(uuid, text, timestamptz), public.zella_message_allowance(uuid, text, text), public.zella_billing_evaluate_alerts(uuid, text),
   public.zella_billing_message_trg(), public.zella_billing_call_trg(), public.zella_billing_immutable_trg(),
   public.zella_admin_plan_save(uuid, jsonb, jsonb, text), public.zella_admin_pack_grant(uuid, text, text, text),
-  public.zella_auto_reload_save(uuid, text, boolean, integer, text, bigint), public.zella_billing_overview(uuid), public.zella_admin_plan_get(uuid)
+  public.zella_auto_reload_save(uuid, text, boolean, integer, text, bigint), public.zella_billing_overview(uuid), public.zella_admin_plan_get(uuid), public.zella_setup_plan_saved(uuid)
   from public, anon, authenticated;
 grant execute on function public.zella_billing_settings(), public.zella_plan_evaluate(jsonb), public.zella_billing_plan_current(uuid),
   public.zella_billing_plan_at(uuid, timestamptz), public.zella_plan_limits(uuid), public.zella_billing_period_bounds(uuid, timestamptz),
   public.zella_billing_open_period(uuid, timestamptz), public.zella_usage_consume(uuid, text, numeric, text, text, uuid, text, timestamptz),
   public.zella_usage_release(uuid, text, numeric, text, text, uuid), public.zella_billing_charge_call(uuid), public.zella_billing_retry_charges(integer),
+  public.zella_billing_rollover_reconcile(uuid), public.zella_billing_open_current_periods(integer),
   public.zella_billing_balance(uuid, text, timestamptz), public.zella_message_allowance(uuid, text, text), public.zella_billing_evaluate_alerts(uuid, text),
   public.zella_admin_plan_save(uuid, jsonb, jsonb, text), public.zella_admin_pack_grant(uuid, text, text, text),
-  public.zella_auto_reload_save(uuid, text, boolean, integer, text, bigint), public.zella_billing_overview(uuid), public.zella_admin_plan_get(uuid)
+  public.zella_auto_reload_save(uuid, text, boolean, integer, text, bigint), public.zella_billing_overview(uuid), public.zella_admin_plan_get(uuid), public.zella_setup_plan_saved(uuid)
   to service_role;
 -- signed in: the admin and owner functions check the caller themselves (the plan check: billing admins only)
 grant execute on function public.zella_plan_evaluate(jsonb), public.zella_admin_plan_save(uuid, jsonb, jsonb, text),
   public.zella_admin_pack_grant(uuid, text, text, text), public.zella_auto_reload_save(uuid, text, boolean, integer, text, bigint),
-  public.zella_billing_overview(uuid), public.zella_admin_plan_get(uuid) to authenticated;
+  public.zella_billing_overview(uuid), public.zella_admin_plan_get(uuid), public.zella_setup_plan_saved(uuid) to authenticated;
 revoke all on function public.zella_sms_parts(text), public.zella_billing_message_kind(jsonb), public.zella_billing_bucket_rank(text, boolean) from public, anon;
 grant execute on function public.zella_sms_parts(text), public.zella_billing_message_kind(jsonb), public.zella_billing_bucket_rank(text, boolean) to authenticated, service_role;
 

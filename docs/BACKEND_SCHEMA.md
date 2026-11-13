@@ -18,7 +18,7 @@ It reads the catalog only, never rows.
 | Row security policies | 340 |
 | Columns | 2018 |
 | Views | 1 |
-| Functions | 885 (822 security definer, 26 callable by `anon`) |
+| Functions | 889 (826 security definer, 26 callable by `anon`) |
 
 Rules every table follows:
 
@@ -4214,7 +4214,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_add_lead_note(p_customer_id uuid, p_note text)` | boolean | yes | signed in |
 | `zella_add_record_note(p_id uuid, p_note text)` | boolean | yes | signed in |
 
-### `zella_admin_*` (42)
+### `zella_admin_*` (43)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -4242,6 +4242,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_admin_number_release(p_id uuid, p_reason text)` | jsonb | yes | signed in |
 | `zella_admin_numbers(p_q text, p_status text, p_business uuid, p_limit integer, p_offset integer)` | jsonb | yes | signed in |
 | `zella_admin_pack_grant(p_business_id uuid, p_pack_code text, p_reason text, p_idempotency_key text)` | jsonb | yes | signed in |
+| `zella_admin_plan_get(p_business_id uuid)` | jsonb | yes | signed in |
 | `zella_admin_plan_save(p_business_id uuid, p_values jsonb, p_acknowledgements jsonb, p_idempotency_key text)` | jsonb | yes | signed in |
 | `zella_admin_reason(p_reason text)` | text |  | server only |
 | `zella_admin_require(p_permission text)` | uuid | yes | server only |
@@ -4340,7 +4341,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_b3_like(p_query text)` | text |  | anon, signed in |
 | `zella_b3_member(p_business_id uuid)` | void |  | signed in |
 
-### `zella_billing_*` (16)
+### `zella_billing_*` (18)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -4352,12 +4353,14 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_billing_immutable_trg()` | trigger |  | server only |
 | `zella_billing_message_kind(p_meta jsonb)` | text |  | signed in |
 | `zella_billing_message_trg()` | trigger | yes | server only |
+| `zella_billing_open_current_periods(p_limit integer)` | integer | yes | server only |
 | `zella_billing_open_period(p_business_id uuid, p_at timestamp with time zone)` | billing_periods | yes | server only |
 | `zella_billing_overview(p_business_id uuid)` | jsonb | yes | signed in |
 | `zella_billing_period_bounds(p_business_id uuid, p_at timestamp with time zone)` | jsonb | yes | server only |
 | `zella_billing_plan_at(p_business_id uuid, p_at timestamp with time zone)` | business_plans | yes | server only |
 | `zella_billing_plan_current(p_business_id uuid)` | business_plans | yes | server only |
 | `zella_billing_retry_charges(p_limit integer)` | integer | yes | server only |
+| `zella_billing_rollover_reconcile(p_period_id uuid)` | integer | yes | server only |
 | `zella_billing_settings()` | jsonb | yes | server only |
 | `zella_billing_subscription_linked()` | trigger | yes | server only |
 
@@ -5156,7 +5159,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_set_report_schedule(p_business_id uuid, p_kind text, p_patch jsonb)` | jsonb | yes | signed in |
 | `zella_set_review_link(p_business_id uuid, p_url text)` | void | yes | signed in |
 
-### `zella_setup_*` (5)
+### `zella_setup_*` (6)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -5165,6 +5168,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_setup_knowledge_trg()` | trigger | yes | server only |
 | `zella_setup_language_apply(p_business_id uuid, p_language text, p_greeting text)` | jsonb | yes | server only |
 | `zella_setup_language_check(p_language text, p_greeting text)` | jsonb |  | server only |
+| `zella_setup_plan_saved(p_business_id uuid)` | jsonb | yes | signed in |
 
 ### `zella_spam_*` (30)
 
@@ -5222,8 +5226,8 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_store_connect(p_business_id uuid, p_actor uuid, p_shop_domain text, p_access_token text, p_shop_name text)` | uuid | yes | server only |
 | `zella_store_disconnect(p_business_id uuid)` | integer | yes | signed in |
 | `zella_store_lookup_begin(p_provider_call_id text, p_business_id uuid, p_order_ref text, p_caller_number text)` | jsonb | yes | server only |
-| `zella_store_lookup_context(p_provider_call_id text, p_business_id uuid)` | jsonb | yes | server only |
 | `zella_store_lookup_context(p_provider_call_id text, p_business_id uuid, p_order_ref text)` | jsonb | yes | server only |
+| `zella_store_lookup_context(p_provider_call_id text, p_business_id uuid)` | jsonb | yes | server only |
 | `zella_store_lookup_finish(p_business_id uuid, p_provider_call_id text, p_integration_id uuid, p_result text, p_verified boolean, p_order_ref text, p_reservation_id uuid)` | void | yes | server only |
 | `zella_store_lookup_log(p_business_id uuid, p_provider_call_id text, p_integration_id uuid, p_result text, p_verified boolean)` | void | yes | server only |
 | `zella_store_lookup_log(p_business_id uuid, p_provider_call_id text, p_integration_id uuid, p_result text, p_verified boolean, p_order_ref text)` | void | yes | server only |
