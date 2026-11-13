@@ -135,6 +135,12 @@ Waiting on the owner:
 
 ## 6. Lessons learnt (don't repeat these)
 
+- **Payments rules (13 Nov 2026, Stripe design):** a webhook payload is only a notice, so fetch the invoice or
+  PaymentIntent from Stripe before granting; every Stripe POST has a deterministic Idempotency-Key stored with the
+  exact body before the first send, and a key is reused only for that identical request (Stripe keeps keys about
+  24 hours, then search by `metadata` first); grants are keyed on the Stripe object, money on ledger operation keys;
+  every refund, even for a duplicate charge, waits for the owner's approval (`REQ-BIL-45`). Full map:
+  `docs/PAYMENTS_ARCHITECTURE.md` §8.1.
 - **Check the provider's documentation before designing on it (13 Nov 2026).** The payments draft assumed our own renewal
   retries and charging a saved card later in USD; Razorpay's docs show it retries renewals itself, deprecated
   subscription add-ons, and takes INR only for card-token charges. Read the provider's current pages (the session
