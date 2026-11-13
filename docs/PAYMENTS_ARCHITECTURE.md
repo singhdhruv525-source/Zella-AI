@@ -18,7 +18,7 @@ Contents: [1 Goals](#1-goals-and-non-negotiables) · [2 Context](#2-system-conte
 | # | Goal | How |
 |---|---|---|
 | G1 | **No card data ever touches Zella Voice** (`NN-9`) | Cards are entered only on Razorpay's hosted checkout. We store provider IDs, never card numbers, CVV or bank details. PCI scope stays at the smallest level (hosted payment page). |
-| G2 | **Every money movement happens exactly once** | Idempotency keys on every request, a unique-keyed webhook inbox, an outbox for every provider call, and database unique constraints as the final guard (§8). |
+| G2 | **No money movement is applied twice, and none is lost silently** | Layers that work together (§8): scoped idempotency keys, a de-duplicating webhook inbox, an outbox for every provider call, unique keys on provider object IDs and local operations, and reconciliation; an outcome we cannot confirm is held and alerted, never guessed. |
 | G3 | **The database decides; screens only ask** (`NN-6`, `SEC-5`) | Prices, eligibility, proration and limits are computed in database functions. The browser never sends an amount. |
 | G4 | **The provider is the source of truth for money; we are the source of truth for entitlement** | A payment is "paid" only when a verified webhook (or a server-side fetch from Razorpay) says so. Minutes, texts and emails are granted only by our ledger. |
 | G5 | **Nothing is lost and nothing is guessed** | Unknown outcomes are reconciled with the provider before any retry. Every change is an append-only ledger entry with its source. |
@@ -93,7 +93,7 @@ flowchart TB
 |---|---|
 | Browser → edge | Signed-in session required. The function re-checks the role in the database (owner for billing, `billing.manage` + MFA for admins). The browser sends **what** it wants (plan change, pack ID), never **how much** it costs. |
 | Razorpay → edge | HMAC-SHA256 signature over the **raw** body with the webhook secret, compared in constant time; body limit 500 KB; unknown event types acknowledged and ignored; the function only writes to the inbox, so it answers fast. |
-| Edge → Razorpay | Only workers call Razorpay, with the key secret from edge secrets, a 10 s timeout and an idempotent receipt per command. |
+| Edge → Razorpay | Only workers call Razorpay, with the key secret from edge secrets, a 10 s timeout and the per-operation idempotency and recovery rules of §8. |
 | Edge → database | Server key used only by workers and the webhook. User requests run as the user, so row security applies. |
 | Admin actions | Platform-admin functions with a named permission, MFA, a reason and an audit row. |
 
@@ -193,7 +193,7 @@ sequenceDiagram
   BO->>API: POST start checkout (Idempotency-Key K1)
   API->>DB: zella_billing_start_checkout(K1) → invoice draft + outbox "create order/subscription"
   WK->>DB: claim outbox row (SKIP LOCKED)
-  WK->>RZ: create order / subscription (receipt = outbox id)
+  WK->>RZ: create order / subscription (order ID stored at once · notes.outbox_id)
   RZ-->>WK: order_id / subscription_id
   WK->>DB: store provider IDs
   API-->>BO: open Razorpay hosted checkout (order_id only)
@@ -288,7 +288,7 @@ sequenceDiagram
   RZ->>WH: payment.failed
   WH->>DB: subscription past_due (past_due_since set)
   loop days 2, 3, 4
-    WK->>RZ: retry charge (idempotent receipt per attempt)
+    WK->>RZ: retry charge (one attempt row per try · stored order checked first)
     WK->>BO: email + in-app notice
   end
   alt paid
@@ -312,7 +312,7 @@ sequenceDiagram
   DB->>DB: balance ≤ owner's threshold AND auto-reload on?
   DB->>DB: lock auto_reload_settings row (FOR UPDATE) · reload already pending? spend this month + pack ≤ cap?
   DB->>DB: create pack_purchase (pending) + outbox "charge saved card" — one per threshold crossing
-  WK->>RZ: charge saved payment method (receipt = outbox id)
+  WK->>RZ: charge saved payment method (one attempt row · stored order checked first)
   RZ-->>DB: webhook payment.captured → pack bucket granted, receipt emailed
   Note over DB: if the cap would be exceeded: no charge, owner alerted · at 100% calls go to the fallback number
 ```
@@ -450,7 +450,7 @@ flowchart TB
     k[Idempotency-Key header required<br/>idempotency_keys: key + request hash + response]
   end
   subgraph L2[Layer 2 · provider commands]
-    ob[billing_outbox row written in the SAME transaction<br/>as the business change · receipt = row id]
+    ob[billing_outbox row written in the SAME transaction<br/>as the business change · provider IDs stored at once]
   end
   subgraph L3[Layer 3 · provider events]
     ib[billing_events unique provider + event id<br/>out-of-order safe · never backwards]
@@ -484,8 +484,8 @@ flowchart TB
 
 Each flow is enabled only after its provider behaviour is proven in Razorpay test mode (D-51).
 
-**Outbox sending protocol:** claim with `FOR UPDATE SKIP LOCKED` → mark `sending` with a lease → call Razorpay with the
-receipt → mark `sent` with the provider ID. A lease that expires sends the row to **reconcile**, not to retry.
+**Outbox sending protocol:** claim with `FOR UPDATE SKIP LOCKED` → mark `sending` with a lease → call Razorpay → store the
+provider ID at once → mark `sent`. A lease that expires sends the row to **reconcile**, not to retry.
 
 ---
 
@@ -494,7 +494,7 @@ receipt → mark `sent` with the provider ID. A lease that expires sends the row
 | Area | Control |
 |---|---|
 | Card data | Razorpay hosted checkout only. No card fields in our pages, logs, analytics or support tools (`NN-9`). |
-| Webhook authenticity | HMAC-SHA256 of the raw body with the webhook secret (`X-Razorpay-Signature`), constant-time compare; reject on any mismatch; event ID uniqueness blocks replays. |
+| Webhook authenticity | HMAC-SHA256 of the raw body with the webhook secret (`X-Razorpay-Signature`), constant-time compare; reject on any mismatch. The event ID only de-duplicates deliveries (it is not part of the signed body); replays have no effect because of unique keys on provider object IDs and local operations (§8). |
 | Checkout callback | Verify `HMAC(order_id + "|" + payment_id)` with the key secret, but treat it as a hint only; the webhook or a server-side fetch grants access (§6.1). |
 | Amount tampering | The browser never sends an amount. Every amount is computed in the database from `business_plans` and the pack catalog. |
 | Authorization | Business billing: **owner role only** (`TEN-9`), checked in the database. Admin billing: `billing.view` / `billing.manage`, MFA, audit. Row security on every billing table; server-only tables have no client policies. |
@@ -582,10 +582,10 @@ p95 < 20 ms; outbox queue age < 60 s; zero unreconciled payments older than 24 h
 | Failure | Effect | Handling |
 |---|---|---|
 | Razorpay down | Checkout and charges unavailable | Outbox waits with back-off; owners see "payment provider unavailable, we'll retry"; existing access unaffected. |
-| Webhook delayed for hours | Payment shown as "processing" | Reconciler fetches the payment by receipt after 15 min and applies it. |
+| Webhook delayed for hours | Payment shown as "processing" | After 15 min the reconciler fetches the payments of the order ID we stored, applies them through the binding check (§6.0a), and alerts if still unclear. |
 | Our database down | Nothing can be granted | Razorpay retries webhooks for up to its retry window; inbox applies them when back. |
 | Duplicate charge by the provider | Customer charged twice | Daily reconciliation finds it; full refund within 5–10 business days (`REQ-BIL-43`). |
-| Worker crash mid-send | Unknown outcome | Lease expiry → reconcile by receipt, never blind retry (§8). |
+| Worker crash mid-send | Unknown outcome | Lease expiry → reconcile with the per-operation lookup (stored order or subscription ID, refund idempotency key), never blind retry; held and alerted if still unclear (§8). |
 | Clock skew | Wrong period boundaries | All periods computed in the database clock, stored in UTC. |
 | Secret leaked | Forged webhooks possible | Incident: revoke the old secret immediately (no overlap), set a new one, quarantine events from the exposure window and apply only those confirmed by fetching the object from Razorpay; rotate the API key too if it may be exposed; review grants made in the window. |
 
@@ -630,5 +630,4 @@ production or real money (`NN-3`, `NN-4`).
 | D-51 | Razorpay: recurring USD on international cards is supported per Razorpay's docs (first payment authenticated with 3-D Secure; settled in INR). Still to confirm: international payments activated on the account; a trial with a future start date in test mode; charging the saved card for auto-reload packs | step 3 |
 | D-50 | Tax rules (GST on exported services; US state sales tax) | invoices with tax |
 | D-42…D-48 | pack expiry, texts/emails at 100%, overage, fair-use multiple, annual allowances, founding customers, trial limits | step 1 |
-| — | Refund approval threshold that needs the Zella Voice owner personally | step 1 |
 | — | Exact Razorpay event names and payloads, confirmed against Razorpay's current documentation at build time | step 3 |
