@@ -14,7 +14,7 @@ Contents: [1 Goals](#1-goals-and-non-negotiables) · [2 Context](#2-system-conte
 · [4 Data model](#4-data-model) · [5 Money rules](#5-money-rules) · [6 Flows](#6-flows) · [7 State machines](#7-state-machines)
 · [8 Idempotency](#8-idempotency-and-safe-retries) · [9 Security](#9-security) · [10 Reconciliation](#10-reconciliation-and-audit)
 · [11 Scale](#11-scalable-architecture-1-to-10000-people) · [12 Failure modes](#12-failure-modes) · [13 Testing](#13-testing)
-· [14 Rollout](#14-rollout-and-gates) · [15 Open points](#15-open-points) · [16 Stripe reference](#16-stripe-integration-reference)
+· [14 Rollout](#14-rollout-and-gates) · [15 Open points](#15-open-points) · [16 Stripe reference](#16-stripe-integration-reference) · [17 Conformance](#17-does-the-built-code-follow-this-design-checked-13-nov-2026)
 
 ---
 
@@ -964,6 +964,41 @@ production or real money (`NN-3`, `NN-4`).
 | — | Event names, endpoints and limits: **checked against Stripe's docs on 13 Nov 2026** (§16); check again at build time and pin the API version | step 3 |
 
 ---
+
+## 17. Does the built code follow this design? (checked 13 Nov 2026)
+
+What exists today was compared with this document, line by line: the `billing-webhook` edge function (deployed
+4 Nov, **off**: it answers 503 because `STRIPE_WEBHOOK_SECRET` is not set), `sql/zella_billing_hardening.sql`
+(applied in production, with the 15-minute `zella_billing_reconcile` job, which has no events to process), and the
+step 2 and step 3 work in PR #59 (built and tested on the isolated database, not applied or deployed).
+
+**Already follows the design**
+
+| Rule | Where |
+|---|---|
+| Stripe signature: every `v1`, `<t>.<raw body>`, constant time, 5-minute window, 500 KB limit | `billing-webhook/logic.ts`, `index.ts` |
+| Off until the owner sets the secret | `billing-webhook/index.ts` (503) |
+| Inbox unique `(provider, event id)`; a redelivery returns `duplicate`; never moves backwards; an event for an unknown object waits and is applied later; unmatched after 7 days → alert | `zella_process_billing_event`, `zella_reconcile_billing_events` |
+| `security definer` functions with a pinned `search_path`; execute revoked from `anon` and `authenticated`, granted to `service_role` | hardening and step 2 SQL |
+| Usage counted once per key; period row lock; earlier-to-later lock order; pack grants by admins only; auto-reload stored and inactive | step 2 (`sql/zella_billing_allowances.sql`, 33 isolated-database checks) |
+| No card data anywhere; the browser never sends an amount | step 3 pages; plan amounts computed in the database |
+
+**Does not follow it yet (must be rebuilt in step 4, before payments are switched on)**
+
+| # | Gap | Design | Risk if switched on as is |
+|---|---|---|---|
+| C-1 | The webhook applies grants itself, from the payload, in the request | webhook stores the event only; the worker fetches the object and grants (§6.0b) | a stale or reordered payload could grant |
+| C-2 | Uses `invoice.payment_succeeded`, no `billing_reason`; no `checkout.session.completed`, `payment_intent.*`, `refund.*`, `invoice.created` | §16.5 | upgrades treated as renewals; packs and pay as you go not handled |
+| C-3 | `customer.subscription.updated` with status `active` opens a period | a status alone grants nothing (§6.0a) | a period granted without a paid invoice |
+| C-4 | No binding check (account and `livemode`, our stored ids, amount equal to the stored invoice) | §6.0a | money from the wrong business, mode or amount could grant |
+| C-5 | An event it can't map gets `422`, so Stripe keeps retrying it for 3 days | store it, quarantine it and answer 200 (§6.0a, §8) | an endpoint full of failing retries |
+| C-6 | Plans by slug from the old `plans` table | per-business `business_plans` versions and their Stripe Prices (§4, §16.2) | wrong plan applied |
+| C-7 | No outbox, money ledger, idempotency-key, quarantine or provider-account tables; no Stripe API calls | §4, §8, §8.1 | — (nothing calls Stripe yet) |
+| C-8 | A refund made directly in the Stripe Dashboard arrives only as `charge.refunded` | every refund needs the owner's approval (`REQ-BIL-45`); a Dashboard refund is recorded, matched to an approved request if one exists, otherwise alerted and audited | a refund outside the approval rule goes unnoticed |
+
+**Until step 4 is built and its tests pass, `STRIPE_WEBHOOK_SECRET` stays unset**, so the old webhook can't process
+anything. Step 4 replaces the webhook's mapping with the §6.0b pipeline, adds the §4 tables with the §9 database rules,
+and keeps everything listed as "already follows".
 
 ## 16. Stripe integration reference
 
