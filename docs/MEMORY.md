@@ -116,7 +116,7 @@ most often needed:
   `docs/ARCHITECTURE.md` §17. Every plan is customised per business, with **no preset prices or values**: on the plan
   page of Create Business the team picks the label (**Base** or **Pro**) and sets price, setup fee, caps and trial.
   This is for the start; **standard published plans come later**, based on what businesses actually buy; 5-day trial (20 min, 5 texts, 5 emails, card at start); fixed pack
-  prices. Allowances refresh each billing month once the monthly charge succeeds; up to 20% of unused plan minutes and of each minutes pack roll over for one month; pack texts and emails don't roll over (D-42, 13 Nov 2026). At 100% of texts or emails only appointment confirmations and reminders continue, within an unbilled 5% buffer (D-43). Yearly plans are charged yearly but reset allowances monthly (D-46). Open billing decisions: D-44 to D-51. Nothing is built or charged yet; real charges need the owner's
+  prices. Allowances refresh each billing month once the monthly charge succeeds; unused minutes roll over for one month, capped at 20% of the plan's minutes (and 20% of each minutes pack's size); pack texts and emails don't roll over (D-42, 13 Nov 2026). At 100% of texts or emails only appointment confirmations and reminders continue, within an unbilled 5% buffer (D-43). Yearly plans are charged yearly but reset allowances monthly (D-46). Open billing decisions: D-44 to D-51. Nothing is built or charged yet; real charges need the owner's
   approval. Never invent a price that isn't in §17.
 - United States only at launch (D-14). Lower-risk industries first; regulated industries after legal review (D-20).
 - Businesses are created by the Zella Voice team (D-06). No demo data in production.

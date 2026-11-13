@@ -295,7 +295,7 @@ sequenceDiagram
     WK->>BO: email + in-app notice
   end
   alt paid
-    RZ->>WH: payment.captured → active, buckets restored
+    RZ->>WH: payment.captured → active · new period · reset monthly buckets · rollover bucket (same rules as subscription.charged, applied once per invoice)
   else 5 days overdue
     DB->>DB: AI receptionist paused · calls to fallback number · data kept 30 days
   end
