@@ -222,6 +222,8 @@ language plpgsql stable security definer set search_path = public as $$
 declare s jsonb := public.zella_billing_settings(); c jsonb; e text[] := '{}'; w jsonb := '[]'; v jsonb := '{}'; k text;
         v_voice numeric; v_cost numeric := 0; v_rev numeric; v_margin numeric; v_missing text[] := '{}'; v_lang jsonb;
 begin
+  -- the estimate reveals Zella Voice's unit costs: billing admins only (no signed-in user = the server)
+  if auth.uid() is not null and not public.zella_admin_can('billing.view') then raise exception 'NOT_ALLOWED'; end if;
   if p_values is null or jsonb_typeof(p_values) <> 'object' then return jsonb_build_object('ok', false, 'errors', jsonb_build_array('values')); end if;
   c := s -> 'unit_costs';
   v := jsonb_build_object('tier', p_values ->> 'tier', 'billing_interval', p_values ->> 'billing_interval',
@@ -966,7 +968,7 @@ grant execute on function public.zella_billing_settings(), public.zella_plan_eva
   public.zella_admin_plan_save(uuid, jsonb, jsonb, text), public.zella_admin_pack_grant(uuid, text, text, text),
   public.zella_auto_reload_save(uuid, text, boolean, integer, text, bigint), public.zella_billing_overview(uuid), public.zella_admin_plan_get(uuid)
   to service_role;
--- signed in: the admin and owner functions check the caller themselves; the plan check holds no business data
+-- signed in: the admin and owner functions check the caller themselves (the plan check: billing admins only)
 grant execute on function public.zella_plan_evaluate(jsonb), public.zella_admin_plan_save(uuid, jsonb, jsonb, text),
   public.zella_admin_pack_grant(uuid, text, text, text), public.zella_auto_reload_save(uuid, text, boolean, integer, text, bigint),
   public.zella_billing_overview(uuid), public.zella_admin_plan_get(uuid) to authenticated;

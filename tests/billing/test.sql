@@ -136,6 +136,8 @@ do $$ declare t text; begin
   end loop;
   begin perform public.zella_usage_consume('b1000000-0000-4000-8000-00000000000a', 'minutes', 1, 'forged-key-1', 'call', null); raise exception 'a signed-in user subtracted usage';
   exception when insufficient_privilege then null; end;
+  begin perform public.zella_plan_evaluate('{}'); raise exception 'an owner read the cost estimate';
+  exception when raise_exception then if sqlerrm <> 'NOT_ALLOWED' then raise; end if; end;
   assert (select count(*) from public.plans) = 0, 'shared plans readable';
 end $$;
 reset role;
@@ -146,7 +148,7 @@ do $$ begin
 end $$;
 reset role;
 select set_config('request.jwt.claims', '', false);
-do $$ begin raise notice 'PASS signed-in users cannot read or write the billing tables or subtract usage directly; anonymous visitors cannot read plans'; end $$;
+do $$ begin raise notice 'PASS signed-in users cannot read or write the billing tables, subtract usage directly or see the cost estimate (unit costs); anonymous visitors cannot read plans'; end $$;
 
 -- 4. A monthly period: plan balances and the 5% buffer -----------------------------------------------------------
 do $$ declare m jsonb; t jsonb; e jsonb; begin
