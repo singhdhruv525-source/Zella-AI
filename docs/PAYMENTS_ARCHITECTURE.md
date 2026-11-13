@@ -328,7 +328,7 @@ sequenceDiagram
   DB->>DB: balance ≤ owner's threshold AND auto-reload on?
   DB->>DB: lock auto_reload_settings row (FOR UPDATE) · reload already pending? spend this month + pack ≤ cap?
   DB->>DB: create pack_purchase (pending) + outbox "charge saved card" — one per threshold crossing
-  WK->>RZ: PaymentIntent (customer, saved card, off_session, confirm · Idempotency-Key = purchase id)
+  WK->>RZ: PaymentIntent (customer, saved card, off_session, confirm · Idempotency-Key reload:<purchase id>)
   RZ-->>DB: webhook payment_intent.succeeded → binding check → pack bucket granted, receipt emailed
   Note over DB: authentication_required → no pack, owner gets a link to confirm on Stripe's page
   Note over DB: if the cap would be exceeded: no charge, owner alerted · at 100% calls go to the fallback number
@@ -392,7 +392,7 @@ sequenceDiagram
   BO->>API: POST refund request (Idempotency-Key, second confirmation)
   API->>DB: re-check eligibility in the transaction · reserve the amount → refund "requested"
   ZO->>DB: approve (billing.manage + MFA + reason) → outbox "refund"
-  WK->>RZ: create refund (POST /v1/refunds · Idempotency-Key = refund id)
+  WK->>RZ: create refund (POST /v1/refunds · Idempotency-Key refund:<refund id>)
   RZ->>DB: webhook refund.updated / charge.refunded (succeeded) → refund done, ledger postings, receipt
 ```
 
@@ -533,12 +533,12 @@ flowchart TB
 |---|---|---|
 | Create order (checkout, pack, upgrade) | one order per local operation; order ID stored at once | an unpaid order charges nothing: mark it unused and create a new one |
 | Renewal and its retries | done by Stripe (Smart Retries, our schedule), never by us (§6.3) | fetch the subscription's invoices and their PaymentIntents |
-| Charge a saved card later (auto-reload, yearly pay as you go) | one charge attempt row per purchase; Idempotency-Key = purchase id | resend with the same key, or find the PaymentIntent by `metadata.purchase_id` |
+| Charge a saved card later (auto-reload, yearly pay as you go) | one charge attempt row per purchase; Idempotency-Key `reload:<purchase id>` or `payg:<period id>` (§8.1) | resend with the same key, or find the PaymentIntent by `metadata.purchase_id` |
 | Add pay-as-you-go to a renewal (invoice item) | Idempotency-Key = `payg:<period id>`; one item per period | list the invoice's lines |
 | Final pay-as-you-go invoices after a cancel | Idempotency-Key `final:<period id>:main` and `final:<period id>:late`; unique (period, kind) locally | list the customer's invoices by `metadata.final_kind` |
-| Upgrade (update subscription) | one pending update per subscription; Idempotency-Key = local change id | fetch the subscription's `pending_update` and latest invoice |
-| Create Checkout Session or subscription | Idempotency-Key = outbox id; `metadata.outbox_id` | §8 table above |
-| Refund | Idempotency-Key = our refund ID | resend with the same key, or list the PaymentIntent's refunds |
+| Upgrade (update subscription) | one pending update per subscription; Idempotency-Key `upgrade:<change id>` | fetch the subscription's `pending_update` and latest invoice |
+| Create Checkout Session or subscription | Idempotency-Key `checkout:<outbox id>`; `metadata.outbox_id` | §8 table above |
+| Refund | Idempotency-Key `refund:<refund id>` | resend with the same key, or list the PaymentIntent's refunds |
 | Cancel at period end / continue | the owner's **latest** choice wins: each click stores `desired_cancel_at_period_end` with an increasing version on the subscription row; one outbox row per subscription (unique), and the worker locks that row, sends the current desired value (not the value of the click that queued it), then fetches the subscription and resends if Stripe's `cancel_at_period_end` differs from the latest desired value. **Each send has its own Idempotency-Key** `cancel:<subscription id>:<desired version>:<attempt>`; the same key is reused only to retry that same uncertain send (same body), and a resend after reconciliation takes a new attempt number | fetch the subscription and compare with the latest desired value |
 
 Each flow is enabled only after its provider behaviour is proven in a Stripe sandbox (§16.8).
