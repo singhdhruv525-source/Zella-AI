@@ -194,7 +194,7 @@ sequenceDiagram
   ADM->>DB: margin and limit checks (REQ-BIL-55, 56) → warnings acknowledged with a reason
   ZO->>ADM: review screen → confirm (REQ-BIL-57)
   ADM->>DB: zella_admin_plan_save (audited) → business_plans v1
-  WK->>RZ: Product for the business + Price for v1 (prices are never edited; a new version gets a new Price)
+  WK->>RZ: Product for the business + Price for v1 (prices are never edited, a new version gets a new Price)
   DB-->>ADM: plan saved · invite owner
   BO->>DB: open invite link, create password
   BO->>API: GET checkout summary
@@ -330,7 +330,7 @@ sequenceDiagram
   DB->>DB: create pack_purchase (pending) + outbox "charge saved card" — one per threshold crossing
   WK->>RZ: PaymentIntent (customer, saved card, off_session, confirm · Idempotency-Key = purchase id)
   RZ-->>DB: webhook payment_intent.succeeded → binding check → pack bucket granted, receipt emailed
-  Note over DB: authentication_required → no pack; owner gets a link to confirm on Stripe's page
+  Note over DB: authentication_required → no pack, owner gets a link to confirm on Stripe's page
   Note over DB: if the cap would be exceeded: no charge, owner alerted · at 100% calls go to the fallback number
 ```
 
