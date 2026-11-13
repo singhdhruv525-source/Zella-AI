@@ -39,6 +39,10 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
 
 (async () => {
   require("fs").mkdirSync(SHOTS, { recursive: true });
+  // a fresh start in the isolated database: no plan for the draft business, no auto-reload
+  sql(`begin; delete from audit_logs where business_id = '${DRAFT}' and action = 'billing.plan_saved';
+    alter table business_plans disable trigger zella_business_plans_immutable; delete from business_plans where business_id = '${DRAFT}';
+    alter table business_plans enable trigger zella_business_plans_immutable; delete from auto_reload_settings; commit;`);
   const browser = await chromium.launch();
 
   // 1. Create Business > Plan & pricing, as a billing admin
@@ -47,25 +51,25 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
   await admin.waitForSelector(".wiz-stepper");
   await admin.locator(".wiz-stepper button", { hasText: "Plan & pricing" }).click();
   await admin.getByText("Not saved yet").first().waitFor();
-  check("the plan step starts empty, with nothing preset", await admin.getByRole("combobox", { name: /^Label/ }).inputValue() === ""
+  check("the plan step starts empty, with nothing preset", await admin.locator('[aria-labelledby="seg-label"] [aria-pressed="true"]').count() === 0
     && await admin.getByRole("textbox", { name: /^Price per month/ }).inputValue() === "");
   const fill = async (label, v) => admin.getByRole("textbox", { name: label }).fill(v);
-  await admin.getByRole("combobox", { name: /^Label/ }).selectOption("base");
+  await admin.locator('[aria-labelledby="seg-label"]').getByRole("button", { name: "Base" }).click();
   await fill(/^Price per month/, "0");
-  await fill(/^AI minutes a month/, "12000");
-  await fill(/^Texts a month/, "500");
-  await fill(/^Emails a month/, "5000");
+  await fill(/^AI minutes/, "12000");
+  await fill(/^Texts/, "500");
+  await fill(/^Emails/, "5000");
   await fill(/^Users/, "2");
   await admin.waitForTimeout(1200);
-  const warnings = await admin.locator(".owner-form-error").allInnerTexts();
+  const warnings = await admin.locator(".bp-warn li").allInnerTexts();
   check("red warnings show while typing: $0 price and more than 10,000 minutes",
     warnings.some((t) => /price is \$0/.test(t)) && warnings.some((t) => /More than 10,000 minutes/.test(t)), warnings.join(" | "));
   await fill(/^Price per month/, "199");
-  await fill(/^AI minutes a month/, "300");
+  await fill(/^AI minutes/, "300");
   await admin.waitForTimeout(1200);
-  const badge = await admin.locator(".wiz-section", { hasText: "Profit check" }).locator(".wiz-badge").innerText();
+  const badge = await admin.locator(".bp-margin").innerText();
   // cost: 300 x 10 + 500 x 1 + 5000 x 0.1 + 115 + 400 = 4515 cents; revenue 19900 -> 77.3%
-  check("the profit check shows the database's margin", /77\.3% margin/.test(badge), badge);
+  check("the profit check shows the database's margin", /77\.3%/.test(badge) && /Healthy/.test(badge), badge);
   await admin.screenshot({ path: path.join(SHOTS, "plan-step.png"), fullPage: true });
   // a caution needs a reason: price 99 -> margin 54.4% (below the 60% target)
   await fill(/^Price per month/, "99");
@@ -103,12 +107,12 @@ const overflow = (page) => page.evaluate(() => document.documentElement.scrollWi
   // 3. The owner's Billing & Subscription pages
   const owner = await session(browser, "owner@glow.test");
   await owner.goto(`${APP}/app/settings/billing/plan`);
-  await owner.locator(".zs-card h3", { hasText: "Your plan" }).first().waitFor();
+  await owner.locator(".bp-hero-name h3").first().waitFor();
   await owner.waitForTimeout(800);
   const body = await owner.locator(".zs-page").first().innerText();
-  check("the owner sees their plan: Pro, $299 a month, the $599 setup fee", /Pro/.test(body) && /\$299 a month/.test(body) && /\$599, once/.test(body));
-  check("usage shows minutes with the pack (420 of 600) and texts (300 of 1,000)", /420 of 600 AI call minutes used \(70%\)/.test(body) && /300 of 1,000 texts used/.test(body), body.match(/\d[\d,]* of [\d,]+ [a-zA-Z ]+ used[^\n]*/g)?.join(" | "));
-  check("the reminder buffer is shown for texts", /reminder buffer 50 of 50 left/.test(body));
+  check("the owner sees their plan: Pro, $299 a month, the $599 setup fee", /Pro plan/.test(body) && /\$299\s*per month/.test(body) && /setup fee \$599/.test(body));
+  check("usage shows minutes with the pack (420 of 600) and texts (300 of 1,000)", /420\s*\/ 600/.test(body) && /70% used/.test(body) && /300\s*\/ 1,000/.test(body), body.replace(/\s+/g, " ").slice(0, 400));
+  check("the reminder buffer is shown for texts", /reminder buffer 50 of 50/.test(body));
   await owner.screenshot({ path: path.join(SHOTS, "billing-plan.png"), fullPage: true });
   await owner.goto(`${APP}/app/settings/billing/balances`);
   await owner.locator(".zs-card h3", { hasText: "What you have this month" }).waitFor();

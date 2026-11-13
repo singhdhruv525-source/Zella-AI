@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { supabase } from "../supabase";
 import { friendly } from "../BusinessShared";
-import { Banner, Card, Facts, Field, LoadState, Pill, SaveBar, Table, useAsync, useForm, when } from "./SettingsKit";
+import { Banner, Card, Facts, Field, LoadState, Pill, SaveBar, Table, useAsync, useForm } from "./SettingsKit";
+import "../billing.css";
 
 // Billing & Subscription for the business owner (REQ-BIL-05). Everything comes from zella_billing_overview, which the
 // database answers only for the owner (and billing admins): staff and other businesses are refused there, not here.
@@ -31,6 +32,8 @@ function NotOwner() {
   return <Card title="Billing is for the business owner" sub="Only the owner can see the plan, prices and usage balances. Ask them, or contact Zella Voice support." />;
 }
 
+const day = (iso) => (iso ? new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—");
+
 function Meter({ used, included, over }) {
   const pct = included > 0 ? Math.min(100, Math.round((used / included) * 100)) : 0;
   const tone = used >= included && included > 0 ? "danger" : pct >= 80 ? "warning" : "ok";
@@ -42,21 +45,22 @@ function Meter({ used, included, over }) {
   );
 }
 
-function UsageRow({ resource, u }) {
+function UsageTile({ resource, u }) {
   const [label, unit] = RES[resource];
-  if (!u?.configured) return <div className="zs-usage"><strong>{label}</strong><span className="zs-muted">Not counted yet: no current billing period.</span></div>;
+  if (!u?.configured) {
+    return <div className="bp-tile"><div className="bp-tile-top">{label}</div><div className="bp-tile-note">Starts with your first billing period.</div></div>;
+  }
   const used = Number(u.used), inc = Number(u.included), over = Number(u.over);
+  const out = used >= inc && inc > 0;
   return (
-    <div className="zs-usage">
-      <div className="zs-usage-head">
-        <strong>{label}</strong>
-        <span>{num(used)} of {num(inc)} {unit} used{u.percent_used != null ? ` (${num(u.percent_used)}%)` : ""}</span>
-        {used >= inc && inc > 0 ? <Pill tone="danger">Used up</Pill> : u.percent_used >= 80 ? <Pill tone="warning">Over 80%</Pill> : null}
-      </div>
+    <div className="bp-tile">
+      <div className="bp-tile-top"><span>{label}</span>
+        {out ? <Pill tone="danger">Used up</Pill> : u.percent_used >= 80 ? <Pill tone="warning">Over 80%</Pill> : <Pill tone="success">{num(u.percent_used)}% used</Pill>}</div>
+      <div className="bp-tile-value">{num(used)} <small>/ {num(inc)}</small></div>
       <Meter used={used} included={inc} over={over} />
-      <small className="zs-muted">
-        {num(u.remaining)} left{Number(u.buffer) > 0 ? ` · reminder buffer ${num(u.buffer_remaining)} of ${num(u.buffer)} left` : ""}{over > 0 ? ` · ${num(over)} over the allowance` : ""}
-      </small>
+      <div className="bp-tile-note">
+        {num(u.remaining)} {unit} left{Number(u.buffer) > 0 ? ` · reminder buffer ${num(u.buffer_remaining)} of ${num(u.buffer)}` : ""}{over > 0 ? ` · ${num(over)} over` : ""}
+      </div>
     </div>
   );
 }
@@ -69,23 +73,37 @@ export function BillingPlanPanel({ w }) {
       if (o.notOwner) return <NotOwner />;
       if (!o.plan) return <Card title="Your plan" sub="Your plan hasn't been set up yet. The Zella Voice team sets it with you before your first payment." />;
       const p = o.plan, s = o.subscription, period = o.period;
+      const status = !s ? ["", "Not started"] : s.status === "trial" ? ["accent", `Free trial until ${day(s.trial_end_at)}`]
+        : s.status === "active" ? ["success", "Active"] : ["warning", (s.status.charAt(0).toUpperCase() + s.status.slice(1)).replace(/_/g, " ")];
       return (
         <>
-          <Card title="Your plan" actions={<Pill tone="accent">{p.tier === "pro" ? "Pro" : "Base"}</Pill>}>
-            <Facts rows={[
-              ["Price", `${money(p.price_cents)} ${p.billing_interval === "yearly" ? "a year" : "a month"} (USD)`],
-              p.setup_fee_cents > 0 && ["Setup fee", `${money(p.setup_fee_cents)}, once`],
-              ["Each month", `${num(p.minutes)} AI minutes · ${num(p.texts)} texts · ${num(p.emails)} emails`],
-              ["Team", `${p.team_seats} ${p.team_seats === 1 ? "user" : "users"} · ${p.phone_numbers} phone ${p.phone_numbers === 1 ? "number" : "numbers"} · ${p.locations} ${p.locations === 1 ? "location" : "locations"}`],
-              ["Languages", p.languages.map((l) => LANG[l] ?? l).join(" and ")],
-              ["Status", s ? (s.status === "trial" ? `Free trial until ${when(s.trial_end_at)}` : (s.status.charAt(0).toUpperCase() + s.status.slice(1)).replace(/_/g, " ")) : "Not started"],
-              s?.current_period_end && s.status !== "trial" && ["Next charge", when(s.current_period_end)],
-            ]} />
-          </Card>
-          <Card title="This month" sub={period ? `${when(period.from)} to ${when(period.to)} · ${period.days_left} ${period.days_left === 1 ? "day" : "days"} left${period.trial ? " · trial: 20 minutes, 5 texts and 5 emails" : ""}` : "Your first billing period hasn't started."}>
-            {["minutes", "texts", "emails"].map((r) => <UsageRow key={r} resource={r} u={o.usage?.[r]} />)}
-            <p className="zs-muted">You're told at 80% and 100%. At 100% of minutes a call in progress is never cut. At 100% of texts or emails, appointment confirmations and reminders continue for a short while (a 5% buffer).</p>
-          </Card>
+          <section className="zs-card"><div className="zs-card-body bp-pad">
+            <div className="bp-hero">
+              <div>
+                <div className="bp-hero-name"><h3>{p.tier === "pro" ? "Pro" : "Base"} plan</h3><Pill tone={status[0]}>{status[1]}</Pill></div>
+                <div className="bp-price" style={{ marginTop: 6 }}><strong>{money(p.price_cents)}</strong><span>{p.billing_interval === "yearly" ? "per year" : "per month"} · USD</span></div>
+                {p.setup_fee_cents > 0 && <p className="bp-sub">One-time setup fee {money(p.setup_fee_cents)}</p>}
+              </div>
+              {s?.current_period_end && s.status !== "trial" && <div style={{ textAlign: "right" }}><p className="bp-muted">Next charge</p><strong>{day(s.current_period_end)}</strong></div>}
+            </div>
+            <div className="bp-chips">
+              <span className="bp-chip">{num(p.minutes)} AI minutes / month</span>
+              <span className="bp-chip">{num(p.texts)} texts / month</span>
+              <span className="bp-chip">{num(p.emails)} emails / month</span>
+              <span className="bp-chip">{p.team_seats} {p.team_seats === 1 ? "user" : "users"}</span>
+              <span className="bp-chip">{p.phone_numbers} phone {p.phone_numbers === 1 ? "number" : "numbers"}</span>
+              <span className="bp-chip">{p.locations} {p.locations === 1 ? "location" : "locations"}</span>
+              <span className="bp-chip">{p.languages.map((l) => LANG[l] ?? l).join(" & ")}</span>
+            </div>
+          </div></section>
+          <section className="zs-card">
+            <div className="zs-card-head bp-pad-head"><div><h3>This month</h3>
+              <p>{period ? `${day(period.from)} – ${day(period.to)} · ${period.days_left} ${period.days_left === 1 ? "day" : "days"} left${period.trial ? " · trial allowance" : ""}` : "Your first billing period hasn't started."}</p></div></div>
+            <div className="zs-card-body bp-pad">
+            <div className="bp-tiles">{["minutes", "texts", "emails"].map((r) => <UsageTile key={r} resource={r} u={o.usage?.[r]} />)}</div>
+            <p className="zs-muted" style={{ margin: "14px 0 0" }}>We tell you at 80% and 100%. A call in progress is never cut. At 100% of texts or emails, appointment confirmations and reminders keep going for a short while (a 5% buffer).</p>
+            </div>
+          </section>
         </>
       );
     }}</LoadState>
@@ -104,7 +122,7 @@ export function BillingBalancesPanel({ w }) {
           <Card title="What you have this month" sub="Used in this order: rolled-over minutes, your plan, then packs (oldest first).">
             <Table rows={o.balances} rowKey={(b) => `${b.resource}-${b.kind}-${b.pack ?? ""}-${b.expires_at}`} empty="No balances yet: your first billing period hasn't started."
               columns={[["What", (b) => `${RES[b.resource][0]}: ${KIND[b.kind]}${b.pack ? ` (${b.pack.replace("_", " ")})` : ""}`],
-                ["Included", (b) => num(b.granted)], ["Used", (b) => num(b.used)], ["Left", (b) => num(b.remaining)], ["Expires", (b) => when(b.expires_at)]]} />
+                ["Included", (b) => num(b.granted)], ["Used", (b) => num(b.used)], ["Left", (b) => num(b.remaining)], ["Expires", (b) => day(b.expires_at)]]} />
           </Card>
           <Card title="How rollover works">
             <Facts rows={[["Minutes", "Unused minutes roll over for one month, up to 20% of your plan's minutes (and 20% of each minutes pack), then expire"],

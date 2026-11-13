@@ -2280,7 +2280,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
         {STEPS[step].key === "crm" && <CrmSetupStep businessId={businessId} terminology={terminology} onTerminology={update("terminology")} modules={setup.modules} onModules={update("modules")} />}
         {STEPS[step].key === "plan" && (planError
           ? <div className="owner-form-error" role="alert">The plan couldn't be loaded: {planError} <button type="button" className="owner-secondary-button" onClick={reloadPlan}>Retry</button></div>
-          : <PlanStep key={planInfo?.plan?.version ?? "new"} businessId={businessId} info={planInfo} onSaved={reloadPlan} onDirty={setPlanDirty} Section={Section} Field={Field} Badge={Badge} Toggle={Toggle} />)}
+          : <PlanStep key={planInfo?.plan?.version ?? "new"} businessId={businessId} info={planInfo} onSaved={reloadPlan} onDirty={setPlanDirty} Section={Section} Badge={Badge} Toggle={Toggle} />)}
         {STEPS[step].key === "review" && <ReviewStep businessId={businessId} setup={persisted} industries={industries} goTo={request} config={persistedConfig} docsReady={docsReady} />}
       </div>
 

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "./supabase";
 import { friendlyError } from "./admin/adminOps";
+import "./billing.css";
 
 // Create Business > Plan & pricing (ARCHITECTURE §17.1a, REQ-BIL-01, REQ-BIL-55–57). Every value is typed by hand for
 // this business; nothing is preset. The profit and limit checks run in the database (zella_plan_evaluate) and the
@@ -47,7 +48,7 @@ export async function loadPlanInfo(businessId) {
   return data;
 }
 
-export default function PlanStep({ businessId, info, onSaved, onDirty, Section, Field, Badge, Toggle }) {
+export default function PlanStep({ businessId, info, onSaved, onDirty, Section, Badge, Toggle }) {
   const [form, setForm] = useState(() => fromPlan(info?.plan));
   const [check, setCheck] = useState(null);
   const [checking, setChecking] = useState(false);
@@ -85,12 +86,17 @@ export default function PlanStep({ businessId, info, onSaved, onDirty, Section, 
   }
 
   const set = (key) => (e) => { setSaved(""); setError(""); setForm((f) => ({ ...f, [key]: e?.target ? (e.target.type === "checkbox" ? e.target.checked : e.target.value) : e })); };
-  const toggleLang = (code) => setForm((f) => ({ ...f, languages: f.languages.includes(code) ? f.languages.filter((l) => l !== code) : [...f.languages, code].sort() }));
+  const toggleLang = (code) => { setSaved(""); setForm((f) => ({ ...f, languages: f.languages.includes(code) ? f.languages.filter((l) => l !== code) : [...f.languages, code].sort() })); };
   const readOnly = !info.can_edit;
   const errors = check && check.ok === false ? check.errors ?? [] : [];
   const bad = (k) => errors.includes(k);
-  const est = check?.estimate;
+  const est = check?.ok ? check.estimate : null;
   const s = info.settings ?? {};
+  const target = s.target_margin_percent ?? 60;
+  const yearly = form.billing_interval === "yearly";
+  const margin = est?.margin_percent;
+  const marginTone = margin == null ? "" : margin < 0 ? "bad" : margin < target ? "caution" : "good";
+  const marginWord = margin == null ? "No revenue" : margin < 0 ? "Loses money" : margin < target ? "Below target" : "Healthy";
 
   function openReview() {
     if (!check?.ok) { setError(check?.failed ?? `Fix: ${errors.map((k) => FIELD_TEXT[k] ?? k).join(", ")}.`); return; }
@@ -109,90 +115,131 @@ export default function PlanStep({ businessId, info, onSaved, onDirty, Section, 
     onSaved?.();
   }
 
+  const num = (label, k, extra = {}) => <Num label={label} value={form[k]} onChange={set(k)} invalid={bad(extra.errKey ?? k)} prefix={extra.prefix} suffix={extra.suffix} />;
+
   return (
-    <>
-      <Section title="Plan & pricing" description="Every value is set for this business. Base and Pro are labels only; they fill in nothing."
-        aside={info.plan ? <Badge tone="success">{`Version ${info.plan.version} saved`}</Badge> : <Badge tone="danger">Not saved yet</Badge>}>
-        <fieldset disabled={readOnly} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
-          <div className="owner-form-grid">
-            <Field label="Label" required>
-              <select value={form.tier} onChange={set("tier")} aria-invalid={bad("tier")}>
-                <option value="">Choose</option><option value="base">Base</option><option value="pro">Pro</option>
-              </select>
-            </Field>
-            <Field label="Billing" required>
-              <select value={form.billing_interval} onChange={set("billing_interval")}>
-                <option value="monthly">Monthly</option><option value="yearly">Yearly (allowances still refresh every month)</option>
-              </select>
-            </Field>
-            <Field label={form.billing_interval === "yearly" ? "Price per year (USD)" : "Price per month (USD)"} required>
-              <input inputMode="decimal" value={form.price} onChange={set("price")} aria-invalid={bad("price_cents")} placeholder="e.g. 299" />
-            </Field>
-            <Field label="Setup fee (USD, once)" required>
-              <input inputMode="decimal" value={form.setup_fee} onChange={set("setup_fee")} aria-invalid={bad("setup_fee_cents")} />
-            </Field>
-            <Field label="AI minutes a month" required><input inputMode="numeric" value={form.minutes} onChange={set("minutes")} aria-invalid={bad("minutes")} /></Field>
-            <Field label="Texts a month" required><input inputMode="numeric" value={form.texts} onChange={set("texts")} aria-invalid={bad("texts")} /></Field>
-            <Field label="Emails a month" required><input inputMode="numeric" value={form.emails} onChange={set("emails")} aria-invalid={bad("emails")} /></Field>
-            <Field label="Users" required><input inputMode="numeric" value={form.team_seats} onChange={set("team_seats")} aria-invalid={bad("team_seats")} /></Field>
-            <Field label="Phone numbers" required><input inputMode="numeric" value={form.phone_numbers} onChange={set("phone_numbers")} aria-invalid={bad("phone_numbers")} /></Field>
-            <Field label="Locations" required><input inputMode="numeric" value={form.locations} onChange={set("locations")} aria-invalid={bad("locations")} /></Field>
-            <Field label="Languages" required bare>
-              <div className="wiz-chip-row">
-                {[["en", "English"], ["es", "Spanish"]].map(([code, label]) => (
-                  <label key={code} className={`wiz-chip ${form.languages.includes(code) ? "on" : ""}`}>
-                    <input type="checkbox" checked={form.languages.includes(code)} onChange={() => toggleLang(code)} />{label}
-                  </label>
+    <div className="bp-layout">
+      <fieldset disabled={readOnly} className="bp-form" style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+        <section className="bp-card">
+          <div className="bp-card-head"><div><h3>Pricing</h3><p>Every value is set for this business. Base and Pro are labels only; they fill in nothing.</p></div>
+            {info.plan ? <Badge tone="success">{`Version ${info.plan.version} saved`}</Badge> : <Badge tone="danger">Not saved yet</Badge>}</div>
+          <div className="bp-grid">
+            <Seg label="Label" value={form.tier} options={[["base", "Base"], ["pro", "Pro"]]} onPick={set("tier")} disabled={readOnly} />
+            <Seg label="Billing" value={form.billing_interval} options={[["monthly", "Monthly"], ["yearly", "Yearly"]]} onPick={set("billing_interval")} disabled={readOnly} />
+            {num(yearly ? "Price per year" : "Price per month", "price", { prefix: "$", suffix: yearly ? "/ year" : "/ month", errKey: "price_cents" })}
+            {num("Setup fee", "setup_fee", { prefix: "$", suffix: "once", errKey: "setup_fee_cents" })}
+          </div>
+          {yearly && <p className="bp-muted" style={{ marginTop: 12 }}>Charged once a year. Minutes, texts and emails still refresh every month.</p>}
+        </section>
+
+        <section className="bp-card">
+          <div className="bp-card-head"><div><h3>Monthly allowances</h3><p>Refreshed every month. Up to 20% of unused minutes roll over for one month.</p></div></div>
+          <div className="bp-grid three">
+            {num("AI minutes", "minutes", { suffix: "min" })}
+            {num("Texts", "texts", { suffix: "texts" })}
+            {num("Emails", "emails", { suffix: "emails" })}
+          </div>
+        </section>
+
+        <section className="bp-card">
+          <div className="bp-card-head"><div><h3>Account</h3><p>Limits checked by the server when the business adds people, numbers or languages.</p></div></div>
+          <div className="bp-grid three">
+            {num("Users", "team_seats")}
+            {num("Phone numbers", "phone_numbers")}
+            {num("Locations", "locations")}
+          </div>
+          <div className="bp-grid" style={{ marginTop: 16 }}>
+            <div className="bp-field">
+              <span id="plan-langs">Languages</span>
+              <div className="bp-seg" role="group" aria-labelledby="plan-langs">
+                {[["en", "English"], ["es", "Spanish"]].map(([code, text]) => (
+                  <button key={code} type="button" aria-pressed={form.languages.includes(code)} disabled={readOnly} onClick={() => toggleLang(code)}>{text}</button>
                 ))}
               </div>
-            </Field>
-            <Field label="Free trial" bare hint={`${s.trial_days ?? 5} days with ${s.trial_minutes ?? 20} minutes, ${s.trial_texts ?? 5} texts and ${s.trial_emails ?? 5} emails. The card is taken at the start and charged when the trial ends.`}>
-              <Toggle checked={form.trial_enabled} label="Offer the free trial" onChange={(on) => set("trial_enabled")(on)} />
-            </Field>
+              {bad("languages") && <small style={{ color: "var(--zella-danger)" }}>Choose at least one language.</small>}
+            </div>
+            <div className="bp-trial">
+              <div><strong>Free trial</strong><span>{s.trial_days ?? 5} days · {s.trial_minutes ?? 20} min · {s.trial_texts ?? 5} texts · {s.trial_emails ?? 5} emails. Card taken at the start.</span></div>
+              <Toggle checked={form.trial_enabled} label="Offer the free trial" disabled={readOnly} onChange={(on) => set("trial_enabled")(on)} />
+            </div>
           </div>
-        </fieldset>
+        </section>
         {readOnly && <div className="wiz-note">You can see this plan but not change it: changing a plan needs billing.manage.</div>}
-      </Section>
+      </fieldset>
 
-      <Section title="Profit check" description={`Estimated monthly cost against the price. Target margin: ${s.target_margin_percent ?? 60}%. Worked out by the database from the cost table.`}
-        aside={checking ? <Badge>Checking…</Badge> : check?.ok ? (est?.margin_percent == null ? <Badge>No margin</Badge>
-          : <Badge tone={est.margin_percent < 0 ? "danger" : est.margin_percent < (s.target_margin_percent ?? 60) ? "neutral" : "success"}><>{est.margin_percent}% margin</></Badge>) : null}>
-        {check?.ok && est && (
-          <div className="wiz-review">
-            <PlanRow label="Estimated cost a month" value={money(est.monthly_cost_cents)} note={est.costs_complete ? "" : "Some unit costs aren't set, so this is too low"} />
-            <PlanRow label="Revenue a month" value={money(est.monthly_revenue_cents)} note={form.billing_interval === "yearly" ? "The yearly price counted as one twelfth" : ""} />
-            <PlanRow label="Setup fee" value={money(est.setup_fee_cents)} note="Shown separately, not in the margin" />
-          </div>
+      <aside className="bp-card bp-summary" aria-label="Plan summary">
+        <div>
+          <p className="bp-muted">{form.tier ? (form.tier === "pro" ? "Pro" : "Base") : "Choose a label"} · {yearly ? "billed yearly" : "billed monthly"}</p>
+          <div className="bp-price"><strong>{Number.isNaN(values.price_cents) ? "$—" : money(values.price_cents)}</strong><span>{yearly ? "/ year" : "/ month"}</span></div>
+          {values.setup_fee_cents > 0 && <p className="bp-sub">+ {money(values.setup_fee_cents)} setup fee</p>}
+        </div>
+        <div className={`bp-margin ${marginTone}`} aria-live="polite">
+          <div><span>Estimated margin</span><br /><strong>{checking && !est ? "…" : margin == null ? "—" : `${margin}%`}</strong></div>
+          <Badge tone={marginTone === "good" ? "success" : marginTone === "bad" ? "danger" : "neutral"}><>{marginWord}</></Badge>
+        </div>
+        {est && (
+          <dl className="bp-lines">
+            <div><dt>Estimated cost / month</dt><dd>{money(est.monthly_cost_cents)}</dd></div>
+            <div><dt>Revenue / month{yearly ? " (1/12)" : ""}</dt><dd>{money(est.monthly_revenue_cents)}</dd></div>
+            <div><dt>Target margin</dt><dd>{target}%</dd></div>
+          </dl>
         )}
-        {errors.length > 0 && <div className="owner-form-error" role="alert">Fill in or correct: {errors.map((k) => FIELD_TEXT[k] ?? k).join(", ")}.</div>}
-        {check?.failed && <div className="owner-form-error" role="alert">{check.failed}</div>}
-        {(check?.warnings ?? []).map((w) => (
-          <div key={w.code} className={w.level === "red" ? "owner-form-error" : "wiz-note"} role={w.level === "red" ? "alert" : "status"}>
-            {w.level === "red" ? "Warning: " : "Caution: "}{(WARNING_TEXT[w.code] ?? (() => w.code))(w)} A reason is needed to save.
-          </div>
-        ))}
-      </Section>
-
-      {info.versions?.length > 0 && (
-        <Section title="Saved versions" description="A change is always a new version; old versions are kept.">
-          <div className="wiz-review">
-            {info.versions.map((v) => <PlanRow key={v.version} label={`Version ${v.version}`} value={`${v.tier === "pro" ? "Pro" : "Base"} · ${money(v.price_cents)} ${v.billing_interval === "yearly" ? "a year" : "a month"}`} note={new Date(v.saved_at).toLocaleString()} />)}
-          </div>
-        </Section>
-      )}
-
-      {error && <div className="owner-form-error" role="alert">{error}</div>}
-      {saved && <div className="wiz-note" role="status">{saved}</div>}
-      {!readOnly && (
-        <div className="wiz-footer-right" style={{ justifyContent: "flex-end" }}>
-          <button type="button" className="owner-primary-button" disabled={checking || !check?.ok || (!dirty && Boolean(info.plan))} onClick={openReview}>
+        {errors.length > 0 && <ul className="bp-warn" role="alert"><li className="red"><span>Fill in or correct: {errors.map((k) => FIELD_TEXT[k] ?? k).join(", ")}.</span></li></ul>}
+        {check?.failed && <ul className="bp-warn" role="alert"><li className="red">{check.failed}</li></ul>}
+        {(check?.warnings ?? []).length > 0 && (
+          <ul className="bp-warn">
+            {check.warnings.map((w) => (
+              <li key={w.code} className={w.level === "red" ? "red" : "caution"}>
+                <span><b>{w.level === "red" ? "Warning" : "Caution"}:</b> {(WARNING_TEXT[w.code] ?? (() => w.code))(w)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {error && <ul className="bp-warn" role="alert"><li className="red">{error}</li></ul>}
+        {saved && <div className="wiz-note" role="status">{saved}</div>}
+        {!readOnly && (
+          <button type="button" className="bp-primary" disabled={checking || !check?.ok || (!dirty && Boolean(info.plan))} onClick={openReview}>
             {info.plan ? "Review changes" : "Review plan"}
           </button>
-        </div>
-      )}
+        )}
+        <p className="bp-muted">Warnings never block: each needs a written reason on the review screen, kept in the audit record.</p>
+        {info.versions?.length > 0 && (
+          <div>
+            <p className="bp-muted" style={{ marginBottom: 6 }}>Saved versions</p>
+            <ul className="bp-versions">
+              {info.versions.map((v) => <li key={v.version}><b>v{v.version} · {v.tier === "pro" ? "Pro" : "Base"} · {money(v.price_cents)}</b><span>{new Date(v.saved_at).toLocaleDateString()}</span></li>)}
+            </ul>
+          </div>
+        )}
+      </aside>
 
       {review && <ReviewDialog review={review} setReview={setReview} onConfirm={confirm} onClose={() => { setReview(null); setError(""); }} error={error} />}
-    </>
+    </div>
+  );
+}
+
+function Num({ label, value, onChange, invalid, prefix, suffix }) {
+  return (
+    <label className="bp-field">
+      <span>{label}</span>
+      <div className="bp-affix" data-invalid={invalid}>
+        {prefix && <em aria-hidden="true">{prefix}</em>}
+        <input inputMode={prefix ? "decimal" : "numeric"} value={value} onChange={onChange} aria-label={label} aria-invalid={invalid} />
+        {suffix && <em aria-hidden="true">{suffix}</em>}
+      </div>
+    </label>
+  );
+}
+
+function Seg({ label, value, options, onPick, disabled }) {
+  const id = `seg-${label.toLowerCase().replace(/\W+/g, "-")}`;
+  return (
+    <div className="bp-field">
+      <span id={id}>{label}</span>
+      <div className="bp-seg" role="group" aria-labelledby={id}>
+        {options.map(([v, text]) => <button key={v} type="button" aria-pressed={value === v} disabled={disabled} onClick={() => onPick(v)}>{text}</button>)}
+      </div>
+    </div>
   );
 }
 
