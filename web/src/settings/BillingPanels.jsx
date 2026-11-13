@@ -84,7 +84,7 @@ export function BillingPlanPanel({ w }) {
                 <div className="bp-price" style={{ marginTop: 6 }}><strong>{money(p.price_cents)}</strong><span>{p.billing_interval === "yearly" ? "per year" : "per month"} · USD</span></div>
                 {p.setup_fee_cents > 0 && <p className="bp-sub">One-time setup fee {money(p.setup_fee_cents)}</p>}
               </div>
-              {s?.current_period_end && s.status !== "trial" && <div style={{ textAlign: "right" }}><p className="bp-muted">Next charge</p><strong>{day(s.current_period_end)}</strong></div>}
+              {s?.current_period_end && s.status !== "trial" && <div style={{ textAlign: "right" }}><p className="bp-muted">Current period ends</p><strong>{day(s.current_period_end)}</strong></div>}
             </div>
             <div className="bp-chips">
               <span className="bp-chip">{num(p.minutes)} AI minutes / month</span>

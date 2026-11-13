@@ -55,6 +55,7 @@ export default function PlanStep({ businessId, info, onSaved, onDirty, Section, 
   const [review, setReview] = useState(null);       // { key, values, result, reasons }
   const [error, setError] = useState("");
   const [saved, setSaved] = useState("");
+  const [locked, setLocked] = useState(false);   // after a save, until the new version is loaded (this step then reopens)
   const seq = useRef(0);
 
   const values = useMemo(() => toValues(form), [form]);
@@ -91,7 +92,7 @@ export default function PlanStep({ businessId, info, onSaved, onDirty, Section, 
 
   const set = (key) => (e) => { setSaved(""); setError(""); setForm((f) => ({ ...f, [key]: e?.target ? (e.target.type === "checkbox" ? e.target.checked : e.target.value) : e })); };
   const toggleLang = (code) => { setSaved(""); setForm((f) => ({ ...f, languages: f.languages.includes(code) ? f.languages.filter((l) => l !== code) : [...f.languages, code].sort() })); };
-  const readOnly = !info.can_edit;
+  const readOnly = !info.can_edit || locked;
   const errors = check && check.ok === false ? check.errors ?? [] : [];
   const bad = (k) => errors.includes(k);
   const est = check?.ok ? check.estimate : null;
@@ -99,8 +100,12 @@ export default function PlanStep({ businessId, info, onSaved, onDirty, Section, 
   const target = s.target_margin_percent ?? 60;
   const yearly = form.billing_interval === "yearly";
   const margin = est?.margin_percent;
-  const marginTone = margin == null ? "" : margin < 0 ? "bad" : margin < target ? "caution" : "good";
-  const marginWord = margin == null ? "No revenue" : margin < 0 ? "Loses money" : margin < target ? "Below target" : "Healthy";
+  // a label only for a complete, current estimate: anything else says what it is, never "Healthy"
+  const marginState = !current || checking ? "checking" : !check ? "checking" : check.failed ? "unavailable" : !check.ok ? "incomplete_values"
+    : margin == null ? "no_revenue" : !est.costs_complete ? "incomplete_costs" : margin < 0 ? "bad" : margin < target ? "caution" : "good";
+  const marginTone = { bad: "bad", caution: "caution", good: "good", incomplete_costs: "caution" }[marginState] ?? "";
+  const marginWord = { checking: "Checking…", unavailable: "Unavailable", incomplete_values: "Fill in the plan", no_revenue: "No revenue",
+    incomplete_costs: "Incomplete estimate", bad: "Loses money", caution: "Below target", good: "Healthy" }[marginState];
 
   function openReview() {
     if (!current) { setError("Checking the latest values… try again in a moment."); return; }
@@ -117,6 +122,7 @@ export default function PlanStep({ businessId, info, onSaved, onDirty, Section, 
       p_acknowledgements: review.reasons, p_idempotency_key: review.key });
     if (e) { setError(friendlyError(e)); return; }
     setReview(null);
+    setLocked(true);
     setSaved(data.result === "duplicate" ? `Version ${data.version} was already saved.` : `Saved as version ${data.version}. The owner can now be invited.`);
     onSaved?.();
   }
@@ -165,7 +171,7 @@ export default function PlanStep({ businessId, info, onSaved, onDirty, Section, 
               {bad("languages") && <small style={{ color: "var(--zella-danger)" }}>Choose at least one language.</small>}
             </div>
             <div className="bp-trial">
-              <div><strong>Free trial</strong><span>{s.trial_days ?? 5} days · {s.trial_minutes ?? 20} min · {s.trial_texts ?? 5} texts · {s.trial_emails ?? 5} emails. Card taken at the start.</span></div>
+              <div><strong>Free trial</strong><span>{s.trial_days ?? 5} days · {s.trial_minutes ?? 20} min · {s.trial_texts ?? 5} texts · {s.trial_emails ?? 5} emails. Saved as the plan's choice; taking a card needs online payments, which aren't built yet.</span></div>
               <Toggle checked={form.trial_enabled} label="Offer the free trial" disabled={readOnly} onChange={(on) => set("trial_enabled")(on)} />
             </div>
           </div>
@@ -181,7 +187,7 @@ export default function PlanStep({ businessId, info, onSaved, onDirty, Section, 
         </div>
         <div className={`bp-margin ${marginTone}`} aria-live="polite">
           <div><span>Estimated margin</span><br /><strong>{checking && !est ? "…" : margin == null ? "—" : `${margin}%`}</strong></div>
-          <Badge tone={marginTone === "good" ? "success" : marginTone === "bad" ? "danger" : "neutral"}><>{marginWord}</></Badge>
+          <Badge tone={marginState === "good" ? "success" : marginState === "bad" ? "danger" : "neutral"}><>{marginWord}</></Badge>
         </div>
         {est && (
           <dl className="bp-lines">

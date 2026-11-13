@@ -223,7 +223,8 @@ declare s jsonb := public.zella_billing_settings(); c jsonb; e text[] := '{}'; w
         v_voice numeric; v_cost numeric := 0; v_rev numeric; v_margin numeric; v_missing text[] := '{}'; v_lang jsonb;
 begin
   -- the estimate reveals Zella Voice's unit costs: billing admins only (no signed-in user = the server)
-  if auth.uid() is not null and not public.zella_admin_can('billing.view') then raise exception 'NOT_ALLOWED'; end if;
+  -- (billing.manage implies it: zella_admin_plan_save, which needs billing.manage, calls this)
+  if auth.uid() is not null and not (public.zella_admin_can('billing.view') or public.zella_admin_can('billing.manage')) then raise exception 'NOT_ALLOWED'; end if;
   if p_values is null or jsonb_typeof(p_values) <> 'object' then return jsonb_build_object('ok', false, 'errors', jsonb_build_array('values')); end if;
   c := s -> 'unit_costs';
   v := jsonb_build_object('tier', p_values ->> 'tier', 'billing_interval', p_values ->> 'billing_interval',
