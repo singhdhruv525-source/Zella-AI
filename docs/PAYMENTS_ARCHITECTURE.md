@@ -375,7 +375,7 @@ uncertain refunds all count against the payment, so concurrent requests can neve
 ### 6.8 Disputes (chargebacks)
 
 `payment.dispute.created` → dispute row, account suspended while open (`REQ-BIL-37`), owner alerted.
-`dispute.won` → restored. `dispute.lost` → ledger postings for the loss; account stays suspended until settled.
+`dispute.won` → that dispute is closed; the account is restored **only when no other dispute on the subscription is still open** (§7). `dispute.lost` → ledger postings for the loss; the account stays suspended until settled.
 
 ---
 
@@ -402,7 +402,7 @@ stateDiagram-v2
   paused_nonpayment --> suspended_dispute: chargeback opened
   cancel_scheduled --> suspended_dispute: chargeback opened
   trialing --> suspended_dispute: chargeback opened
-  suspended_dispute --> restored: won or settled
+  suspended_dispute --> restored: last open dispute won or settled
   restored --> [*]: back to the saved previous state
   suspended_dispute --> cancelled: dispute lost and unpaid 30 days
   cancelled --> [*]: data exportable 30 days, then deleted
