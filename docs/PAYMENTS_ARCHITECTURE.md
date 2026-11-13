@@ -230,6 +230,11 @@ invoice or PaymentIntent belongs to exactly what we expected. **All of these mus
 | Amount and currency | the invoice total in cents, in USD |
 | Status | invoice `paid`, or PaymentIntent `succeeded` (a subscription becoming `active` or `trialing` alone is **not** proof that an invoice was paid) |
 
+**Fetch before grant:** the webhook payload is only a notice. Before any money grant the worker retrieves the invoice
+or PaymentIntent from Stripe's API with our key, and the binding check runs on that fetched object, so a stale,
+replayed or reordered payload can never grant. **Stripe-computed totals** (proration, tax): the local invoice records
+Stripe's lines and total from our own API response when the invoice is created, and the paid amount must equal that.
+
 Any missing, ambiguous or mismatched field puts the event in **quarantine** (no grant, platform alert, a person
 decides). A trial start (§6.2) is a separate, unpaid confirmation and never marks an invoice paid. The grant, the
 invoice update and the ledger postings happen in **one transaction**, guarded by unique keys on the Stripe invoice,
@@ -602,6 +607,9 @@ provider ID at once → mark `sent`. A lease that expires sends the row to **rec
 | Authorization | Business billing: **owner role only** (`TEN-9`), checked in the database. Admin billing: `billing.view` / `billing.manage`, MFA, audit. Row security on every billing table; server-only tables have no client policies. |
 | Sensitive actions | Refunds, credits, plan overrides, trial extensions: reason, second confirmation, audit (`SEC-18`). **Every provider refund needs the Zella Voice owner's approval** (REQ-BIL-45); there is no automatic or threshold-based refund. |
 | Secrets | Stripe restricted secret key and webhook signing secret only in edge function secrets; never in tables, code, logs or chat (`NN-2`). Routine rotation: the old and new webhook secrets overlap for a short, planned window. **Suspected compromise is different:** the old secret is revoked at once with no overlap; events received during the exposure window are quarantined and each is re-checked against Stripe's API (fetch the invoice, PaymentIntent, refund or subscription) before anything is applied. |
+| Restricted API key | The worker's key has only the permissions it uses (write: Customers, Checkout Sessions, Subscriptions, Subscription Schedules, Invoices, Invoice Items, PaymentIntents, Refunds, Billing Portal sessions; read: Events, Charges, Balance Transactions, Disputes). No secret key with full access is used by code. The webhook needs no API key except for fetch-before-grant reads. |
+| Stripe metadata | Our ids only (`business_id`, `outbox_id`, `purchase_id`, `refund_id`, `period_id`, `plan_version_id`); never names, emails, phone numbers or call content. |
+| Database access | Inbox, outbox, ledger, idempotency and quarantine tables have **no client policies** and no grants to `anon` or `authenticated`; only `security definer` functions with a pinned `search_path` and a role check first touch them. The service role is used only by the webhook and the worker. Owners read their billing only through owner-checked functions (`TEN-9`). Every money function is tested for cross-tenant denial in the isolated database. |
 | Data minimisation | Store only provider IDs, status and amounts. **No card details of any kind**, not even the last 4 digits or the card brand; the owner manages the card on Stripe's own page. |
 | Rate limits | Checkout start, pack purchase and refund request: per user and per business limits; 429 with retry-after. |
 | Fraud | Trial guard (D-48); velocity checks on pack purchases; spend cap on auto-reload; alerts on unusual refund or dispute rates. |
@@ -684,10 +692,11 @@ p95 < 20 ms; outbox queue age < 60 s; zero unreconciled payments older than 24 h
 | Failure | Effect | Handling |
 |---|---|---|
 | Stripe down | Checkout and charges unavailable | Outbox waits with back-off; owners see "payment provider unavailable, we'll retry"; existing access unaffected. |
-| Webhook delayed for hours | Payment shown as "processing" | After 15 min the reconciler fetches the payments of the order ID we stored, applies them through the binding check (§6.0a), and alerts if still unclear. |
+| Webhook delayed for hours | Payment shown as "processing" | After 15 min the reconciler fetches the Checkout Session, invoice or PaymentIntent we stored, applies it through the binding check (§6.0a), and alerts if Stripe and we still disagree. |
 | Our database down | Nothing can be granted | Stripe retries webhooks for up to 3 days; inbox applies them when back. |
-| Duplicate charge by the provider | Customer charged twice | Daily reconciliation finds it; full refund within 5–10 business days (`REQ-BIL-43`). |
+| Duplicate charge by the provider | Customer charged twice | Daily reconciliation finds it; a full **refund request** is raised at once and sent after the Zella Voice owner's approval (`REQ-BIL-45`), within the 5–10 business days of `REQ-BIL-43`. |
 | Worker crash mid-send | Unknown outcome | Lease expiry → reconcile with the per-operation lookup (§8.1: same key within 24 hours, otherwise the `metadata` search), never blind retry; held and alerted if still unclear. |
+| Stripe API error | Call not done or unknown | `429`, `5xx` and timeouts: retry the **stored request with the same key** with exponential back-off and jitter (§8.1); `409` / `idempotency_error` and other `4xx`: no retry, the row is held and alerted. |
 | Clock skew | Wrong period boundaries | All periods computed in the database clock, stored in UTC. |
 | Secret leaked | Forged webhooks possible | Incident: revoke the old secret immediately (no overlap), set a new one, quarantine events from the exposure window and apply only those confirmed by fetching the object from Stripe; rotate the API key too if it may be exposed; review grants made in the window. |
 
@@ -830,7 +839,7 @@ yet is kept and applied when its parent arrives, fetching the object from the AP
 | Customer emails | Stripe receipts and failed-payment emails on, with the Zella Voice name; our own notices for the pause | *prove* in the sandbox |
 | Customer Portal | card update only (no plan changes or cancel there) | plan changes go through our checks |
 | Payment methods | cards | USD, US customers |
-| Separate sandbox and live webhook endpoints | sandbox → staging, live → production | a sandbox event can never grant in live (§6.0a) |
+| Separate sandbox and live webhook endpoints | sandbox → staging, live → production; each endpoint pinned to the same API version as our requests | a sandbox event can never grant in live (§6.0a: `livemode` and account checked); payload shapes stay what we tested |
 
 ### 16.7 The owner's account checklist (needs the owner; nothing here is done by Claude)
 
