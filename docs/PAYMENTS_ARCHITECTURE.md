@@ -143,7 +143,8 @@ erDiagram
 | `usage_keys` | new, when partitioning | one row per usage idempotency key, **not partitioned** | inserted in the same transaction as the usage entry, so a duplicate is rejected across all months |
 | `billing_outbox` | new | **commands to Razorpay** (create order, charge, refund, cancel) | written in the same transaction as the business change (§8) |
 | `idempotency_keys` | new | user request keys: unique `(business_id, operation, key)`, request-body hash, stored response | 24 h retention; same key + different body = 409; authorisation re-checked before a stored response is returned |
-| `money_ledger` | new | **double-entry** journal: every cent in or out (charge, payment, refund, credit, tax) | each posting balances to zero; the books can be rebuilt from it |
+| `money_ledger` | new | **double-entry** journal: every cent in or out (charge, payment, refund, credit, tax) | each posting balances to zero; the books can be rebuilt from it; each posting has an operation key |
+| `ledger_operation_keys` | new, **not partitioned** | one row per ledger operation key (`invoice:`, `payment:`, `refund:`, `credit:` …) | inserted in the same transaction as the postings, so the same operation can never be posted twice in any month |
 
 **Why a double-entry money ledger:** each invoice, payment, refund and credit posts two or more balancing lines,
 for example *receivable +$299 / revenue −$299*, then *cash +$299 / receivable −$299*. Any mismatch shows up as a
@@ -259,8 +260,17 @@ sequenceDiagram
   end
 ```
 
-Trial abuse guard (D-48, proposed): one trial per business, per phone number and per card fingerprint that Razorpay
-reports; a repeat is offered a paid plan instead.
+**Trial dates stay aligned.** The subscription is created with Razorpay's start date = creation time + 5 days and a
+short authorisation window (the subscription link expires after 24 hours). The local `trial_end_at` is always set to
+**Razorpay's stored start date**, never recomputed from the authorisation time, so the trial end and the first charge
+are the same moment. If the owner authorises late within the window, the trial is correspondingly shorter (by at most
+24 hours) and the trial page shows the exact end date. If the window passes without authorisation, that subscription
+expires unused and a new one is created when the owner returns. The exact window behaviour is confirmed in Razorpay
+test mode before the trial ships (D-51).
+
+Trial abuse guard (D-48, proposed): one trial per business, per phone number and per owner email domain. **No
+card-derived identifier is used** (not even a fingerprint), because card details are never collected (`NN-9`). A repeat
+is offered a paid plan instead.
 
 ### 6.3 Renewal and failed payment (`REQ-BIL-33`)
 
@@ -402,10 +412,17 @@ Transitions are allowed only by a table of `(from, to, cause)` checked in one da
 move a subscription backwards (an older event arriving late) is recorded and ignored.
 
 **Disputes from any state.** A chargeback can arrive in any state except `cancelled`. The subscription moves to
-`suspended_dispute` and the state it came from is saved with the dispute. When the dispute is won or settled, it
-returns to that saved state, then the normal rules apply at once: for example a `cancel_scheduled` subscription whose
-period ended during the dispute becomes `cancelled`, and a `past_due` one continues its retries and 5-day pause. A
-dispute on a `cancelled` subscription is recorded and handled by money only (ledger postings), with no state change.
+`suspended_dispute`, and the state it came from is saved **on the subscription** (not on each dispute) when the first
+dispute opens.
+- **Several disputes:** open disputes are tracked in `disputes`; the subscription stays suspended until **every** one
+  is won, settled or lost. A second dispute never overwrites the saved state.
+- **Events while suspended:** payment and lifecycle events still apply to the **saved state**, which keeps moving as
+  normal; only service stays suspended. For example, a `past_due` subscription whose balance is paid during the dispute
+  has its saved state moved to `active`, so it is restored as `active` with no retries or pause; a `cancel_scheduled`
+  one whose period ended moves its saved state to `cancelled`.
+- **Restore:** when the last dispute closes in the business's favour, the subscription takes the saved state as it is
+  then. A lost dispute follows the `dispute lost` path in the diagram.
+- A dispute on a `cancelled` subscription is recorded and handled by money only (ledger postings), with no state change.
 
 ```mermaid
 stateDiagram-v2
@@ -538,7 +555,7 @@ flowchart TB
 | Hot path at call time | `allowance_buckets`: one balance row per business and resource, updated with the ledger in one transaction | O(1) reads; locks are per business, so businesses never wait for each other. |
 | Webhook bursts | Handler only inserts into the inbox; workers apply | Thousands of events a minute are absorbed; processing catches up safely. |
 | Background work | Queues with `FOR UPDATE SKIP LOCKED`, leases and back-off | Add workers to go faster; no double processing. |
-| Large tables | `usage_records` and `money_ledger` partitioned by month when they pass ~10 M rows. PostgreSQL enforces uniqueness only within a partition, so their idempotency keys live in a small non-partitioned registry (`usage_keys`) written in the same transaction. The webhook inbox `billing_events` is not partitioned. | Old months stay cold; indexes stay small; duplicates are still rejected across months. |
+| Large tables | `usage_records` and `money_ledger` partitioned by month when they pass ~10 M rows. PostgreSQL enforces uniqueness only within a partition, so each gets a small non-partitioned key registry written in the same transaction: `usage_keys` for usage entries, and `ledger_operation_keys` for money-ledger postings (every posting carries an operation key such as `invoice:<id>`, `payment:<id>`, `refund:<id>` or `credit:<id>`, including postings that have no provider ID, like service credits). The webhook inbox `billing_events` is not partitioned. | Old months stay cold; indexes stay small; duplicates are still rejected across months. |
 | Reports and exports | Run against a read replica when load requires | Heavy reads never slow down calls or payments. |
 | Realtime screens | Subscriptions filtered by row security, only on the pages that need them | No broadcast of other businesses' data, bounded fan-out. |
 | Limits | Per-user and per-business rate limits on write endpoints | One noisy business cannot starve others. |
