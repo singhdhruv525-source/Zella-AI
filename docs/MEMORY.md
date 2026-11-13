@@ -97,6 +97,7 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile`. `vapi_a
 | About 20 database test scripts lack the isolation guard | Open | Add `tests/lib/isolated_guard.sh` to each. |
 | `tests/deploy/run_all.sh` didn't apply the newer migrations | Fixed in PR #57 (a `LATER` list applies, rolls back and re-applies them; all checks pass locally) | — |
 | **Inbound call routing:** a call whose number and Vapi phone ID match two different businesses' rows is routed by the ID (CodeRabbit, PR #57). Each column is already unique. | Open, owner's decision | Proposed: `zella_business_for_number` returns a business only when both agree; a guarded migration with rollback. |
+| **Billing step 2 (plans, balances, usage, alerts):** `sql/zella_billing_allowances.sql`, tested on the isolated database (tests/billing, and the full rehearsal in tests/deploy/run_all.sh) | Open, owner's approval | Apply with approval. After it: switch on calls to the fallback number at 100% and stopping routine texts and emails at 100% (live changes); set `voice_max_call_seconds` to 1200 for the 20-minute cap; fill in the unit costs (`billing_rules.unit_costs`); wire the Billing & Subscription page and the plan page (step 3). |
 | **Workflow-failure emails:** `sql/zella_workflow_alert_email.sql` (merged, not applied) keeps n8n failures in the dashboard only | Open, owner's decision | Apply with approval, or drop it if admins should be emailed. |
 | **Unsubscribe functions have no rate limit** (SEC-6 gap, architecture §30) | Open | A guarded migration, with approval. |
 | Other rulebook gaps from the 12 Nov review: industry branches in database functions (BIZ-10); `business_id` missing on six business-owned tables (TEN-1) | Open | Plan each as its own PR. |
@@ -132,6 +133,8 @@ Waiting on the owner:
 - an Anthropic key for knowledge drafting, when the budget allows.
 
 ## 6. Lessons learnt (don't repeat these)
+
+- **A null check passes silently in PL/pgSQL.** `jsonb_typeof(x) <> 'string'` is null (not true) when the key is missing, so an `if` skips it. The billing tests caught a missing warning reason being accepted that way. Wrap these checks in `coalesce`.
 
 - **Check what production has before writing a guarded migration.** The review fixes stopped at `VERSION_MISMATCH`
   because production already had the unmerged brand-name change. The fix was to add production's hash to the guard

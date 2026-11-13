@@ -17,8 +17,8 @@ ROLLBACK=(zella_record_workflows_rollback zella_slots_resource_blocks_rollback z
 # Files applied after the pending list, in production's order (DB-14). Kept apart from PENDING because other suites read
 # PENDING and apply some of these themselves (tests/review_sql, tests/rollback_security, tests/batch3, ...).
 # zella_brand_name goes before zella_review_sql_fixes: that file's version guards expect the branded wording.
-LATER=(zella_batch1_security zella_batch3_pagination zella_brand_name zella_rollback_security zella_n8n_webhook_auth zella_record_files_purge_retry zella_replace_business_hours zella_order_lookup_reservations zella_review_sql_fixes zella_seating_handoff zella_workflow_alert_email)
-LATER_ROLLBACK=(zella_workflow_alert_email_rollback zella_seating_handoff_rollback zella_review_sql_fixes_rollback zella_order_lookup_reservations_rollback zella_replace_business_hours_rollback zella_record_files_purge_retry_rollback zella_n8n_webhook_auth_rollback zella_rollback_security_rollback zella_brand_name_rollback zella_batch3_pagination_rollback zella_batch1_security_rollback)
+LATER=(zella_batch1_security zella_batch3_pagination zella_brand_name zella_rollback_security zella_n8n_webhook_auth zella_record_files_purge_retry zella_replace_business_hours zella_order_lookup_reservations zella_review_sql_fixes zella_seating_handoff zella_workflow_alert_email zella_billing_allowances)
+LATER_ROLLBACK=(zella_billing_allowances_rollback zella_workflow_alert_email_rollback zella_seating_handoff_rollback zella_review_sql_fixes_rollback zella_order_lookup_reservations_rollback zella_replace_business_hours_rollback zella_record_files_purge_retry_rollback zella_n8n_webhook_auth_rollback zella_rollback_security_rollback zella_brand_name_rollback zella_batch3_pagination_rollback zella_batch1_security_rollback)
 ALL=("${PENDING[@]}" "${LATER[@]}"); ALL_ROLLBACK=("${LATER_ROLLBACK[@]}" "${ROLLBACK[@]}")
 fails=0; ok() { echo "PASS $*"; }; bad() { echo "FAIL $*"; fails=$((fails + 1)); }
 ITEMS="select x from (
