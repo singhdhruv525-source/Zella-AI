@@ -130,7 +130,7 @@ erDiagram
 | `subscriptions` | existing | state machine (§7) | one per business (existing unique key); state changes only through functions |
 | `invoices`, `invoice_lines` | new | what was charged and why: plan, setup fee, pack, overage, proration, credit, tax | immutable once `issued`; corrections are credit notes |
 | `payments` | existing | provider payments; add unique `(provider, external_payment_id)`; amounts in cents | status moves forward only |
-| `refunds` | new | requested → approved → sent → processed or failed | unique `(provider, external_refund_id)`; sum of refunds ≤ payment |
+| `refunds` | new | requested → approved → sending → processed, failed or uncertain | unique `(provider, external_refund_id)`; **reserved amount** counted while requested, approved, sending or uncertain; sum of reserved and processed ≤ captured; every refund approved by the Zella Voice owner |
 | `disputes` | new | chargebacks; suspend while open (`REQ-BIL-37`) | from webhooks only |
 | `pack_purchases` | new | each pack bought: kind, quantity, price, purchased_at, expires_at (D-42), remaining | refundable only if unused and ≤ 14 days |
 | `allowance_buckets` | new | **current balances** per business and resource: rollover, plan, each pack | one row per bucket; updated in the same transaction as the ledger entry (§11) |
@@ -138,9 +138,11 @@ erDiagram
 | `service_credits` | new | outage credits (`REQ-BIL-46`) | capped at one month's fee; applied to next invoices |
 | `auto_reload_settings` | new | threshold, pack, monthly spend cap, on/off | owner only; changes audited |
 | `billing_events` | existing | **webhook inbox**; unique `(provider, external_event_id)` | applied once, in order, never backwards; **never partitioned** (processed events are archived after a retention period, keeping their keys) |
+| `provider_accounts` | new | the Razorpay account and environment (live or test) each event and object must match | platform admin only; no secrets stored here |
+| `payment_quarantine` | new | events or payments that failed the binding check (§6.0a) or arrived during a secret-compromise window | nothing is granted until a person resolves it; audited |
 | `usage_keys` | new, when partitioning | one row per usage idempotency key, **not partitioned** | inserted in the same transaction as the usage entry, so a duplicate is rejected across all months |
 | `billing_outbox` | new | **commands to Razorpay** (create order, charge, refund, cancel) | written in the same transaction as the business change (§8) |
-| `idempotency_keys` | new | user request keys with request hash and stored response | 24 h retention; same key + different body = 409 |
+| `idempotency_keys` | new | user request keys: unique `(business_id, operation, key)`, request-body hash, stored response | 24 h retention; same key + different body = 409; authorisation re-checked before a stored response is returned |
 | `money_ledger` | new | **double-entry** journal: every cent in or out (charge, payment, refund, credit, tax) | each posting balances to zero; the books can be rebuilt from it |
 
 **Why a double-entry money ledger:** each invoice, payment, refund and credit posts two or more balancing lines,
@@ -198,15 +200,34 @@ sequenceDiagram
   RZ-->>BO: payment_id + signature
   BO->>API: confirm (payment_id, order_id, signature)
   API->>API: verify HMAC(order_id|payment_id) — shows "processing"
-  RZ->>WH: webhook payment.captured / subscription.activated (signed)
-  WH->>DB: inbox insert (unique event id) → 200
-  DB->>DB: apply event: payment paid, invoice paid, subscription active, buckets granted, ledger postings
+  RZ->>WH: webhook payment.captured (signed)
+  WH->>DB: inbox insert (dedupe on event id) → 200
+  DB->>DB: binding check (§6.0a) → payment paid, invoice paid, subscription active, buckets granted, ledger postings
   DB-->>BO: CRM shows "Active"
 ```
 
 The browser confirmation only shows "processing". **Access is granted only when the verified webhook (or the worker's
-fetch from Razorpay) confirms the payment.** A lost browser callback never loses a payment, and a forged callback
-never grants anything.
+fetch from Razorpay) confirms the payment, and the payment passes the binding check below.** A lost browser callback
+never loses a payment, and a forged callback never grants anything.
+
+### 6.0a Payment binding (applies to every paid grant)
+
+Before any paid access, allowance, pack or invoice status is granted, one database function checks that the captured
+payment belongs to exactly what we expected. **All of these must match a row we created ourselves:**
+
+| Check | Against |
+|---|---|
+| Provider account and environment (live or test) | the configured Razorpay account; a test-mode event can never grant in live, and the reverse |
+| Business | derived from **our own** mapping (the order or subscription we created and stored for that business), never from browser input or provider `notes` alone |
+| Order or subscription | an order ID or subscription ID stored by us before checkout |
+| Invoice | the open invoice that order was created for |
+| Amount and currency | the invoice total in cents, in USD |
+| Status | `captured` (a `subscription.activated` event alone is **not** proof that an invoice was paid; for subscriptions the grant needs the captured payment of that invoice, from `subscription.charged` or a server-side fetch) |
+
+Any missing, ambiguous or mismatched field puts the event in **quarantine** (no grant, platform alert, a person
+decides). A trial authorisation (§6.2) is a separate, unpaid confirmation and never marks an invoice paid. The grant,
+the invoice update and the ledger postings happen in **one transaction**, guarded by unique keys on the provider
+payment ID and on the local operation (invoice, pack purchase), so the same money can never be applied twice.
 
 ### 6.2 Trial: card at the start, charged at the end (`REQ-BIL-11`, `REQ-BIL-12`)
 
@@ -331,14 +352,15 @@ sequenceDiagram
   API->>DB: zella_refund_eligibility(business) → {eligible, amount, reason_code}
   API-->>BO: button active, or greyed with the reason
   BO->>API: POST refund request (Idempotency-Key, second confirmation)
-  API->>DB: re-check eligibility inside the transaction → refund "requested"
+  API->>DB: re-check eligibility in the transaction · reserve the amount → refund "requested"
   ZO->>DB: approve (billing.manage + MFA + reason) → outbox "refund"
-  WK->>RZ: create refund (receipt = refund id)
+  WK->>RZ: create refund (X-Refund-Idempotency = refund id)
   RZ->>DB: webhook refund.processed → refund done, ledger postings, receipt
 ```
 
 Eligibility is computed again at approval and at sending: a stale screen can never cause a refund that the policy no
-longer allows.
+longer allows. **Refundable amounts are reserved** when a refund is requested: requested, approved, sending and
+uncertain refunds all count against the payment, so concurrent requests can never refund more than was captured.
 
 ### 6.8 Disputes (chargebacks)
 
@@ -402,7 +424,8 @@ stateDiagram-v2
 
 ## 8. Idempotency and exactly-once effects
 
-Four layers, each enough on its own; together they make double charges and lost payments impossible by design.
+Four layers that work **together**; no single layer is relied on alone. Each money operation also has its own
+idempotency and recovery rule (table below).
 
 ```mermaid
 flowchart TB
@@ -423,14 +446,26 @@ flowchart TB
 
 | Situation | What happens |
 |---|---|
-| Owner double-clicks "Buy pack" | Same `Idempotency-Key` → the stored response is returned; one purchase. |
+| Owner double-clicks "Buy pack" | Same `Idempotency-Key` → the stored response is returned; one purchase. Keys are scoped to **(business, operation, key)**, stored with a hash of the request body, and the caller's authorisation is **checked again** before a stored response is returned. |
 | Same key, different body | `409 idempotency_key_reused`. |
-| Worker crashes after Razorpay accepted the charge but before saving | The outbox row is still `sending`. The reconciler **fetches the order/payment from Razorpay by receipt** before any retry, then records the real outcome. Never blind-retry a charge. |
+| Worker crashes after Razorpay accepted the charge but before saving | The outbox row is still `sending`. Our order ID is **stored before the charge call**, so the reconciler fetches that order's payments from Razorpay before any retry and records the real outcome. A receipt is only a label, never relied on as a lookup or a guarantee. Never blind-retry a charge; an outcome that stays uncertain is held and alerted. |
 | Worker loses the reply to **create subscription** | Razorpay subscriptions have no receipt lookup. Each create carries `notes.outbox_id`; the reconciler lists the subscriptions created since the attempt (by time window and customer) and matches that note. Found → record it. Not found after the window → a retry is allowed, because an unauthenticated subscription charges nothing; any duplicate found later that was never authenticated is cancelled. **This lookup must be proven in Razorpay test mode before the trial path ships** (D-51); if it cannot be, the trial path waits for another recovery method. |
-| Razorpay sends a webhook twice | Second insert hits the unique key → acknowledged, no effect. |
+| Razorpay sends a webhook twice | The event ID is a **delivery de-duplication aid** (it is a header, not part of the signed body), not a replay guarantee. The real protection is semantic: unique keys on the provider payment, refund and dispute IDs and on the local operation, so a repeated event has no second effect. |
 | Webhooks arrive out of order | Each event carries the provider's creation time; state only moves forward (§7). An event for an unknown payment is kept and applied when its parent arrives. |
 | Our webhook handler times out | Razorpay retries; the inbox makes it safe. The handler only inserts, so it answers in milliseconds. |
 | Two calls cross the threshold at once | The auto-reload row lock and the unique pending index allow one reload. |
+
+**Per-operation rules:**
+
+| Operation | Idempotency | Recovery when the reply is lost |
+|---|---|---|
+| Create order (checkout, pack, upgrade) | one order per local operation; order ID stored at once | an unpaid order charges nothing: mark it unused and create a new one |
+| Charge a saved card (renewal retry, auto-reload) | one charge attempt row per invoice attempt, unique | fetch the stored order's payments first; retry only if Razorpay shows none |
+| Create subscription | `notes.outbox_id` | §8 table above; proven in test mode before shipping |
+| Refund | Razorpay's refund idempotency header (`X-Refund-Idempotency`) set to our refund ID | resend with the same key, or fetch the payment's refunds |
+| Cancel subscription | naturally idempotent | fetch the subscription and record its state |
+
+Each flow is enabled only after its provider behaviour is proven in Razorpay test mode (D-51).
 
 **Outbox sending protocol:** claim with `FOR UPDATE SKIP LOCKED` → mark `sending` with a lease → call Razorpay with the
 receipt → mark `sent` with the provider ID. A lease that expires sends the row to **reconcile**, not to retry.
@@ -446,8 +481,8 @@ receipt → mark `sent` with the provider ID. A lease that expires sends the row
 | Checkout callback | Verify `HMAC(order_id + "|" + payment_id)` with the key secret, but treat it as a hint only; the webhook or a server-side fetch grants access (§6.1). |
 | Amount tampering | The browser never sends an amount. Every amount is computed in the database from `business_plans` and the pack catalog. |
 | Authorization | Business billing: **owner role only** (`TEN-9`), checked in the database. Admin billing: `billing.view` / `billing.manage`, MFA, audit. Row security on every billing table; server-only tables have no client policies. |
-| Sensitive actions | Refunds, credits, plan overrides, trial extensions: reason, second confirmation, audit (`SEC-18`). Refunds above a threshold need the Zella Voice owner. |
-| Secrets | Razorpay key secret and webhook secret only in edge function secrets; never in tables, code, logs or chat (`NN-2`). Rotation: two webhook secrets accepted during a rotation window. |
+| Sensitive actions | Refunds, credits, plan overrides, trial extensions: reason, second confirmation, audit (`SEC-18`). **Every provider refund needs the Zella Voice owner's approval** (REQ-BIL-45); there is no automatic or threshold-based refund. |
+| Secrets | Razorpay key secret and webhook secret only in edge function secrets; never in tables, code, logs or chat (`NN-2`). Routine rotation: the old and new webhook secrets overlap for a short, planned window. **Suspected compromise is different:** the old secret is revoked at once with no overlap; events received during the exposure window are quarantined and each is re-checked against Razorpay's API (fetch the payment, refund or subscription) before anything is applied. |
 | Data minimisation | Store only provider IDs, status and amounts. **No card details of any kind**, not even the last 4 digits or the card brand; the owner manages the card on Razorpay's own page. |
 | Rate limits | Checkout start, pack purchase and refund request: per user and per business limits; 429 with retry-after. |
 | Fraud | Trial guard (D-48); velocity checks on pack purchases; spend cap on auto-reload; alerts on unusual refund or dispute rates. |
@@ -535,7 +570,7 @@ p95 < 20 ms; outbox queue age < 60 s; zero unreconciled payments older than 24 h
 | Duplicate charge by the provider | Customer charged twice | Daily reconciliation finds it; full refund within 5–10 business days (`REQ-BIL-43`). |
 | Worker crash mid-send | Unknown outcome | Lease expiry → reconcile by receipt, never blind retry (§8). |
 | Clock skew | Wrong period boundaries | All periods computed in the database clock, stored in UTC. |
-| Secret leaked | Forged webhooks possible | Rotate the secret (two accepted during rotation); events are still validated against Razorpay by fetch for any grant above a threshold. |
+| Secret leaked | Forged webhooks possible | Incident: revoke the old secret immediately (no overlap), set a new one, quarantine events from the exposure window and apply only those confirmed by fetching the object from Razorpay; rotate the API key too if it may be exposed; review grants made in the window. |
 
 ---
 
@@ -545,7 +580,8 @@ p95 < 20 ms; outbox queue age < 60 s; zero unreconciled payments older than 24 h
 |---|---|---|
 | Unit | proration, rounding, eligibility rules, signature checks, event mapping | Deno tests, Node tests |
 | Database | state machine, uniqueness, ledger balance, row security per role, cross-tenant isolation | isolated test database only |
-| Idempotency drills | double click, duplicate webhooks, out-of-order webhooks, crash after send, concurrent threshold crossing | isolated database + mocked provider |
+| Idempotency drills | double click, duplicate webhooks, out-of-order webhooks, crash after send, concurrent threshold crossing, concurrent refund requests that would exceed the captured amount | isolated database + mocked provider |
+| Binding and abuse | wrong amount, wrong currency, wrong business mapping, test-mode event in live, `subscription.activated` without a captured payment, forged webhook with a leaked secret: each is quarantined, nothing granted | isolated database + mocked provider |
 | Provider sandbox | real Razorpay **test mode**: checkout, trial, renewal, failure, refund, dispute | staging, test keys only |
 | Load | 10,000 virtual users on CRM reads; 1,000 webhooks/min burst; 500 concurrent call finalisations | staging, synthetic data |
 | Reconciliation | seeded mismatches are detected and alerted, never auto-corrected | isolated database |
