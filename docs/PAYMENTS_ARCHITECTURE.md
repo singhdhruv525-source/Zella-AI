@@ -176,6 +176,83 @@ non-zero balance, which makes reconciliation with Stripe exact and auditable.
 
 ## 6. Flows
 
+### 6.0 The money map: every way money moves, and who decides
+
+```mermaid
+flowchart LR
+  subgraph Owner[Business owner]
+    o1[Start plan or trial]
+    o2[Buy a pack]
+    o3[Upgrade or downgrade]
+    o4[Cancel or continue]
+    o5[Ask for a refund]
+  end
+  subgraph ZV[Zella Voice]
+    api[billing-api<br/>role check · Idempotency-Key]
+    db[(Postgres<br/>business_plans · invoices ·<br/>outbox · inbox · ledger)]
+    wk[billing-worker<br/>outbox sender · reconciler]
+    wh[billing-webhook<br/>signature · inbox only]
+    use[Usage counted<br/>calls · texts · emails]
+  end
+  subgraph ST[Stripe]
+    co[Checkout]
+    sub[Subscription<br/>renewals · retries]
+    pi[PaymentIntent<br/>off-session]
+    inv[Invoice + items]
+    rf[Refund]
+    dp[Dispute]
+  end
+  o1 & o2 & o3 & o4 & o5 --> api --> db
+  db --> wk
+  wk -->|create session| co
+  wk -->|update · schedule · cancel at period end| sub
+  wk -->|auto-reload · yearly pay as you go| pi
+  wk -->|pay as you go · final invoices| inv
+  wk -->|after owner approval| rf
+  use --> db
+  co & sub & pi & inv & rf & dp -->|signed events| wh --> db
+  sub -->|renewal invoice| inv
+```
+
+Three rules hold on every path: **the browser never sends an amount** (the database computes it), **only the worker
+calls Stripe** (from the outbox, with a stored body and key, §8.1), and **only a verified, fetched and bound Stripe
+object grants anything** (§6.0a, §6.0b).
+
+### 6.0b One Stripe event, from delivery to grant
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant ST as Stripe
+  participant WH as billing-webhook
+  participant DB as Postgres
+  participant WK as billing-worker
+
+  ST->>WH: POST event (Stripe-Signature, raw body)
+  WH->>WH: verify every v1 HMAC over t.body, t within 5 min, livemode and account match
+  alt signature or account wrong
+    WH-->>ST: 400 (nothing stored)
+  else valid
+    WH->>DB: insert inbox row, unique (provider, event id)
+    alt already in the inbox
+      DB-->>WH: conflict, no new row
+    end
+    WH-->>ST: 200 within milliseconds
+  end
+  WK->>DB: claim unapplied inbox rows (FOR UPDATE SKIP LOCKED)
+  WK->>ST: GET the invoice or PaymentIntent the event names (fetch before grant)
+  WK->>DB: one transaction: binding check (§6.0a) → grant keyed on the Stripe object → ledger postings keyed on the operation → inbox row applied
+  alt binding fails
+    WK->>DB: quarantine row + platform alert, nothing granted
+  else grant already exists for this Stripe object
+    WK->>DB: inbox row applied, no second effect
+  end
+```
+
+The webhook does only two things: prove the event came from Stripe, and store it once. Everything that changes money
+or allowances happens in one database transaction in the worker, on the object fetched from Stripe, guarded by unique
+keys. A crash at any step leaves either nothing done or everything done; the next run continues from the inbox.
+
 ### 6.1 Create Business → first payment
 
 ```mermaid
@@ -333,7 +410,7 @@ sequenceDiagram
   DB->>DB: balance ≤ owner's threshold AND auto-reload on?
   DB->>DB: lock auto_reload_settings row (FOR UPDATE) · reload already pending? spend this month + pack ≤ cap?
   DB->>DB: create pack_purchase (pending) + outbox "charge saved card" — one per threshold crossing
-  WK->>RZ: PaymentIntent (customer, saved card, off_session, confirm · Idempotency-Key reload:<purchase id>)
+  WK->>RZ: PaymentIntent (customer, saved card, off_session, confirm · Idempotency-Key reload:purchase-id)
   RZ-->>DB: webhook payment_intent.succeeded → binding check → pack bucket granted, receipt emailed
   Note over DB: authentication_required → no pack, owner gets a link to confirm on Stripe's page
   Note over DB: if the cap would be exceeded: no charge, owner alerted · at 100% calls go to the fallback number
@@ -361,13 +438,34 @@ The check reads **one balance row** per business (indexed, no summing), so it co
 ### 6.6 Upgrade and downgrade (`REQ-BIL-30`)
 
 ```mermaid
-flowchart TB
-  up[Upgrade requested] --> q[Quote: prorated difference<br/>computed in the database]
-  q --> c[Owner confirms] --> o[Invoice + outbox charge]
-  o --> p{payment confirmed by webhook?}
-  p -- yes --> g[New business_plans version now ·<br/>prorated extra allowance this cycle]
-  p -- no --> keep[Stay on current plan]
-  dn[Downgrade requested] --> s[Scheduled for next billing date<br/>features above the lower plan end then]
+sequenceDiagram
+  autonumber
+  actor BO as Business owner
+  participant API as billing-api
+  participant DB as Postgres
+  participant WK as billing-worker
+  participant ST as Stripe
+  participant WH as billing-webhook
+
+  BO->>API: choose a higher plan
+  API->>WK: preview request
+  WK->>ST: POST /v1/invoices/create_preview (new Price, always_invoice)
+  ST-->>BO: the exact prorated amount, shown before confirming
+  BO->>API: confirm (Idempotency-Key, second confirmation)
+  API->>DB: plan change row (pending) · outbox "upgrade" · one pending change per subscription
+  WK->>ST: update subscription (new Price, always_invoice, pending_if_incomplete · key upgrade:change-id)
+  ST-->>WK: latest_invoice id and total (stored on the local invoice)
+  alt payment succeeds
+    ST->>WH: invoice.paid (billing_reason subscription_update)
+    WH->>DB: fetch, bind → new business_plans version now · prorated extra allowance for this period
+  else payment fails or needs 3-D Secure and is abandoned
+    ST->>WH: invoice.payment_failed · the pending update expires
+    WH->>DB: change marked failed · plan unchanged · owner told why
+  end
+  BO->>API: choose a lower plan
+  API->>DB: plan change row · outbox "downgrade"
+  WK->>ST: subscription schedule, next phase = lower Price from the period end (key downgrade:change-id)
+  Note over DB: features above the lower plan stay until the period end, then the lower version applies
 ```
 
 **Stripe mechanics (§16.2):** a Stripe Price cannot change its amount, so each sold `business_plans` version gets
@@ -397,7 +495,7 @@ sequenceDiagram
   BO->>API: POST refund request (Idempotency-Key, second confirmation)
   API->>DB: re-check eligibility in the transaction · reserve the amount → refund "requested"
   ZO->>DB: approve (billing.manage + MFA + reason) → outbox "refund"
-  WK->>RZ: create refund (POST /v1/refunds · Idempotency-Key refund:<refund id>)
+  WK->>RZ: create refund (POST /v1/refunds · Idempotency-Key refund:refund-id)
   RZ->>DB: webhook refund.updated / charge.refunded (succeeded) → refund done, ledger postings, receipt
 ```
 
@@ -406,6 +504,20 @@ longer allows. **Refundable amounts are reserved** when a refund is requested: r
 uncertain refunds all count against the payment, so concurrent requests can never refund more than was captured.
 
 ### 6.9 Pay as you go (D-44), billed with the next renewal
+
+```mermaid
+flowchart LR
+  subgraph P[Period N: allowance used, then pay-as-you-go minutes, up to the spending limit]
+    u1[usage entries<br/>keyed call:, sms:, email:]
+  end
+  P --> E{period end}
+  E -- renews --> R[invoice.created draft<br/>add item payg:N] --> RP[renewal invoice charged<br/>plan + period N minutes]
+  E -- cancelled --> F[customer.subscription.deleted<br/>final:N:main invoice · pay at once]
+  E --> W[72 h billing close window]
+  W -- late usage, renewing --> L1[pending item payg:N:late<br/>on the next renewal invoice]
+  W -- late usage, cancelled --> L2[one final:N:late invoice<br/>at the close · pay at once]
+  W -- after the close --> X[counted, never billed]
+```
 
 When the owner chose pay as you go (D-44), minutes past the allowance are counted at the business's own rate, up to
 the monthly spending limit. They are billed **on the next renewal invoice**: when Stripe creates that invoice as a
@@ -439,7 +551,61 @@ paused. Each final invoice is stored locally with its kind before the first call
 
 The rate field and the owner's choice are stored already (step 2); nothing is billed until payments are switched on.
 
+### 6.10 Cancel and continue (the owner can change their mind until the period ends)
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor BO as Business owner
+  participant API as billing-api
+  participant DB as Postgres
+  participant WK as billing-worker
+  participant ST as Stripe
+  participant WH as billing-webhook
+
+  BO->>API: Cancel (Idempotency-Key)
+  API->>DB: lock subscription row · desired_cancel = true · version 7 · state cancel_scheduled · outbox row (one per subscription)
+  BO->>API: Continue my plan, seconds later
+  API->>DB: lock subscription row · desired_cancel = false · version 8 · state active
+  WK->>DB: claim the outbox row · lock subscription · read the LATEST desired value (false, version 8)
+  WK->>ST: cancel_at_period_end = false (key cancel:sub:8:1)
+  ST-->>WK: subscription
+  WK->>ST: GET subscription → compare with desired version 8
+  alt Stripe differs (an older send landed last)
+    WK->>ST: resend the latest value with a new attempt key (cancel:sub:8:2)
+  end
+  Note over WK: version 7 is never sent on its own: the worker always sends the latest version
+  ST->>WH: customer.subscription.updated → state recorded only
+  Note over ST,DB: if the owner leaves it cancelled: at period end Stripe sends customer.subscription.deleted
+  ST->>WH: customer.subscription.deleted
+  WH->>DB: cancelled · paid service ended at current_end · final pay-as-you-go invoices (§6.9)
+```
+
+A trial is cancelled at once instead (`DELETE /v1/subscriptions/:id`, key `cancelnow:<subscription id>`), because nothing has
+been paid. A cancelled subscription is never restarted; a returning owner starts a new one through Checkout.
+
 ### 6.8 Disputes (chargebacks)
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant ST as Stripe
+  participant WH as billing-webhook
+  participant DB as Postgres
+  actor ZO as Zella Voice owner
+
+  ST->>WH: charge.dispute.created
+  WH->>DB: fetch dispute · dispute row (unique dispute id) · save the subscription's current state · suspended_dispute · ledger: disputed amount held
+  DB-->>ZO: alert with respond-by date
+  ZO->>ST: evidence through the dispute API or Dashboard (a person decides)
+  ST->>WH: charge.dispute.funds_withdrawn → ledger posting (key dispute:id:withdrawn)
+  ST->>WH: charge.dispute.closed (won or lost)
+  alt won
+    WH->>DB: dispute closed · funds_reinstated posting · restore the saved state if no other dispute is open
+  else lost
+    WH->>DB: loss posted · stays suspended until settled
+  end
+```
 
 `charge.dispute.created` → dispute row, account suspended while open (`REQ-BIL-37`), owner alerted.
 `charge.dispute.closed` with status `won` → that dispute is closed; the account is restored **only when no other
@@ -562,6 +728,23 @@ Each flow is enabled only after its provider behaviour is proven in a Stripe san
 **Outbox sending protocol:** claim with `FOR UPDATE SKIP LOCKED` → mark `sending` with a lease → call Stripe → store the
 provider ID at once → mark `sent`. A lease that expires sends the row to **reconcile**, not to retry.
 
+```mermaid
+stateDiagram-v2
+  [*] --> pending: written in the same transaction as the business change (body + key stored)
+  pending --> sending: worker claims (SKIP LOCKED) · lease set
+  sending --> sent: Stripe answered · object id stored
+  sending --> retry_wait: 429, 5xx or timeout
+  retry_wait --> sending: back-off ends · SAME body and key
+  sending --> reconcile: lease expired · reply lost
+  reconcile --> sent: object found (same key within 24 h, or metadata search)
+  reconcile --> pending_new_attempt: nothing exists and the operation is safe to repeat
+  pending_new_attempt --> sending: new attempt key
+  reconcile --> held: outcome still unknown (charges, refunds)
+  sending --> held: idempotency_error or another 4xx
+  held --> [*]: a person decides · audited
+  sent --> [*]
+```
+
 ### 8.1 Idempotency key map (every money path, one rule each)
 
 **Rules for every Stripe call**
@@ -604,6 +787,30 @@ provider ID at once → mark `sent`. A lease that expires sends the row to **rec
 | Events out of order | state moves forward only (§7); an event for an unknown object waits for its parent or is fetched from Stripe |
 | Usage counted twice | `usage_charges` idempotency key (`call:`, `sms:`, `email:`) — built (step 2) |
 | User double-click | `Idempotency-Key` header, scoped (business, operation, key), body hash, stored response (§8) |
+
+
+### 8.2 Every way something could happen twice, and what stops it
+
+| Scenario | What stops a second effect |
+|---|---|
+| Owner double-clicks Pay, Buy pack, Upgrade or Refund | request `Idempotency-Key` (business, operation, key) returns the first response; one local row |
+| Owner opens two tabs and starts checkout in both | one open Checkout Session per business; the second request gets the same session |
+| Two workers claim the same outbox row | `FOR UPDATE SKIP LOCKED` plus a lease: only one holds it |
+| Worker crashes after Stripe charged, before saving | same key resend returns the original object; after 24 h, metadata search; unknown → held |
+| Stripe delivers an event twice, or two events for one change | inbox unique event id; grant unique on the Stripe object id |
+| `invoice.paid` and `payment_intent.succeeded` for the same money | one grant per invoice id, one per PaymentIntent id; ledger operation key per payment |
+| The webhook and the reconciler apply the same payment at the same moment | both run the same grant function in a transaction; the unique key on the Stripe object makes the second a no-op |
+| Events arrive out of order (paid before created) | state only moves forward; an event for an unknown object is fetched or waits |
+| Two calls cross the auto-reload threshold together | row lock on `auto_reload_settings` + one pending reload per business (partial unique index) |
+| The same call reported twice, or re-reported with a new duration | `usage_charges` key per call state; a changed duration posts only the difference (built, step 2) |
+| Renewal draft gets the pay-as-you-go item twice | key `payg:<period>`; one item per period locally |
+| Two final invoices for one period | unique (period, kind); keys `final:<period>:main` / `:late` |
+| Cancel and continue clicked quickly | versioned desired state; worker sends only the latest; reconciliation resend with a new attempt key |
+| A refund approved twice, or two refunds that exceed the payment | refund key `refund:<id>`; reserved amount ≤ captured, checked in the same transaction |
+| A forged or replayed webhook | signature + 5-minute timestamp; replay finds the event id or the grant already done |
+| A sandbox event sent to production | `livemode` and account checked before anything else |
+| A stale payload after a later change | fetch before grant: the binding check runs on the current Stripe object |
+| A key reused with a different body (a bug) | Stripe `idempotency_error` → held and alerted, never a new key automatically |
 
 ---
 
