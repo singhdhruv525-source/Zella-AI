@@ -60,6 +60,12 @@ begin
   def := pg_get_functiondef('public.zella_save_usage_preferences(uuid, integer[], text, bigint, text)'::regprocedure);
   if position('zella_billing_allowances' in def) > 0 then
     previous_def := def;
+    def := replace(def, $a$  if p_mode <> 'stop' and (p_spend_limit_cents is null or p_spend_limit_cents <= 0) then raise exception 'SPEND_LIMIT_REQUIRED'; end if;
+  -- D-44: pay as you go only on a plan with a per-minute rate (zella_billing_allowances)
+  if p_mode = 'pay_as_you_go' and (public.zella_billing_plan_current(p_business_id)).id is not null
+     and (public.zella_billing_plan_current(p_business_id)).overage_cents_per_minute is null then raise exception 'PLAN_NO_PAY_AS_YOU_GO'; end if;$a$, $a$  if p_mode <> 'stop' and (p_spend_limit_cents is null or p_spend_limit_cents <= 0) then raise exception 'SPEND_LIMIT_REQUIRED'; end if;$a$);
+    if def = previous_def then raise exception 'rollback replacement did not match'; end if;
+    previous_def := def;
     def := replace(def, $a$  values (p_business_id, '{80,100}'::integer[] /* zella_billing_allowances: alerts are always at 80% and 100% */, p_mode,$a$, $a$  values (p_business_id, coalesce(p_thresholds, '{70,90,100}'), p_mode,$a$);
     if def = previous_def then raise exception 'rollback replacement did not match'; end if;
     if position('zella_billing_allowances' in def) > 0 then raise exception 'public.zella_save_usage_preferences(uuid, integer[], text, bigint, text): could not remove this patch'; end if;

@@ -16,7 +16,7 @@ It reads the catalog only, never rows.
 | Tables (schema `public`) | 170 |
 | Tables with row security on | 170 of 170 |
 | Row security policies | 340 |
-| Columns | 2018 |
+| Columns | 2019 |
 | Views | 1 |
 | Functions | 889 (826 security definer, 26 callable by `anon`) |
 
@@ -3611,6 +3611,7 @@ Each business's own plan, versioned: tier label, price, setup fee, allowances, l
 | `locations` | integer | yes |  |
 | `languages` | text[] | yes |  |
 | `trial_enabled` | boolean | yes | false |
+| `overage_cents_per_minute` | integer |  |  |
 | `contact_limits` | jsonb | yes | '{}' |
 | `estimate` | jsonb | yes | '{}' |
 | `acknowledged_warnings` | jsonb | yes | '[]' |
@@ -5381,8 +5382,8 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_available_slots(p_business_id uuid, p_from timestamp with time zone, p_to timestamp with time zone, p_duration_minutes integer, p_staff_id uuid, p_step_minutes integer, p_limit integer, p_ignore_appointment uuid)` | TABLE(slot_start timestamp with time zone, slot_end timestamp with time zone, staff_id uuid, staff_name text) | yes | signed in |
 | `zella_begin_record_file(p_record_id uuid, p_file_name text, p_mime_type text, p_size_bytes bigint, p_caption text, p_private boolean)` | jsonb | yes | signed in |
 | `zella_block_trigger()` | trigger | yes | server only |
-| `zella_book_appointment(p_business_id uuid, p_customer_id uuid, p_title text, p_start timestamp with time zone, p_duration_minutes integer, p_staff_id uuid, p_party_size integer, p_notes text)` | uuid | yes | signed in |
 | `zella_book_appointment(p_business_id uuid, p_customer_id uuid, p_title text, p_start timestamp with time zone, p_duration_minutes integer, p_staff_id uuid, p_party_size integer, p_notes text, p_metadata jsonb)` | uuid | yes | server only |
+| `zella_book_appointment(p_business_id uuid, p_customer_id uuid, p_title text, p_start timestamp with time zone, p_duration_minutes integer, p_staff_id uuid, p_party_size integer, p_notes text)` | uuid | yes | signed in |
 | `zella_brand_name_pairs()` | TABLE(fn text, md5_before text, old_text text, new_text text) |  | server only |
 | `zella_caller_context(p_business_id uuid, p_phone text)` | jsonb | yes | server only |
 | `zella_caller_context_base(p_business_id uuid, p_phone text)` | jsonb | yes | server only |

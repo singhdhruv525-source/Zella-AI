@@ -494,7 +494,13 @@ function CurrentPlan({ w, onReload }) {
 }
 
 function UsageProtection({ w }) {
-  const state = useAsync(() => rpc("zella_usage_preferences", { p_business_id: w.id }), [w.id]);
+  // the pay-as-you-go rate comes from the business's own plan (owners only; others see the choices without it)
+  const state = useAsync(async () => {
+    const p = await rpc("zella_usage_preferences", { p_business_id: w.id });
+    let rate = null;
+    try { rate = (await rpc("zella_billing_overview", { p_business_id: w.id }))?.plan?.overage_cents_per_minute ?? null; } catch { /* not the owner */ }
+    return { ...p, payg_cents: rate };
+  }, [w.id]);
   return <LoadState state={state}>{(p) => <ProtectionForm w={w} p={p} />}</LoadState>;
 }
 
@@ -512,7 +518,9 @@ function ProtectionForm({ w, p }) {
       <fieldset disabled={!p.can_edit} style={{ border: 0, padding: 0, margin: 0 }}>
         <div className="zs-grid">
           <Field label="Extra usage" full><select value={v.mode} onChange={form.set("mode")}>
-            <option value="stop">Don't allow paid extra usage</option><option value="pay_as_you_go">Pay as you go, up to my limit</option><option value="auto_top_up">Top up automatically, up to my limit</option></select></Field>
+            <option value="stop">Stop: calls go to my fallback number</option>
+            <option value="pay_as_you_go" disabled={p.payg_cents == null && v.mode !== "pay_as_you_go"}>{p.payg_cents != null ? `Pay as you go: $${(p.payg_cents / 100).toFixed(2)} per extra minute, up to my limit` : "Pay as you go (not on your plan)"}</option>
+            <option value="auto_top_up">Auto-reload a pack, up to my limit</option></select></Field>
           {v.mode !== "stop" && <Field label="Monthly spending limit (USD)" error={v.limit && !(Number(v.limit) > 0) ? "Enter an amount above 0" : ""}><input inputMode="decimal" value={v.limit} onChange={form.set("limit")} /></Field>}
           <Field label="If extra usage isn't allowed"><select value={v.fallback} onChange={form.set("fallback")}>
             <option value="take_message">AI takes a message</option><option value="forward_to_business">Forward calls to the business</option><option value="voicemail_only">Voicemail only</option></select></Field>

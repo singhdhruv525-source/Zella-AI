@@ -71,6 +71,8 @@ create table if not exists public.business_plans (
   locations integer not null check (locations between 1 and 100),
   languages text[] not null check (cardinality(languages) between 1 and 2 and languages <@ array['en', 'es']),
   trial_enabled boolean not null default false,
+  -- pay as you go (D-44): the price of each minute past the allowance when the owner chooses it; empty = not offered
+  overage_cents_per_minute integer check (overage_cents_per_minute between 1 and 1000),
   contact_limits jsonb not null default '{}' check (jsonb_typeof(contact_limits) = 'object'),
   estimate jsonb not null default '{}',
   acknowledged_warnings jsonb not null default '[]',
@@ -252,6 +254,15 @@ begin
     v := v || jsonb_build_object('languages', v_lang);
   end if;
   if p_values ? 'contact_limits' and jsonb_typeof(p_values -> 'contact_limits') <> 'object' then e := e || 'contact_limits'::text; end if;
+  -- pay-as-you-go rate per extra minute, in cents (D-44): optional; empty means the business can't choose pay as you go
+  if coalesce(jsonb_typeof(p_values -> 'overage_cents_per_minute'), 'null') = 'null' then
+    v := v || jsonb_build_object('overage_cents_per_minute', null);
+  elsif jsonb_typeof(p_values -> 'overage_cents_per_minute') <> 'number' or (p_values ->> 'overage_cents_per_minute') !~ '^[0-9]{1,4}$'
+        or (p_values ->> 'overage_cents_per_minute')::int not between 1 and 1000 then
+    e := e || 'overage_cents_per_minute'::text;
+  else
+    v := v || jsonb_build_object('overage_cents_per_minute', (p_values ->> 'overage_cents_per_minute')::int);
+  end if;
   v := v || jsonb_build_object('contact_limits', coalesce(case when jsonb_typeof(p_values -> 'contact_limits') = 'object' then p_values -> 'contact_limits' end, '{}'::jsonb));
   if cardinality(e) > 0 then return jsonb_build_object('ok', false, 'errors', to_jsonb(e), 'values', v); end if;
 
@@ -278,6 +289,9 @@ begin
   if v_margin is not null and v_margin < 0 then w := w || jsonb_build_object('code', 'loss', 'level', 'red', 'margin_percent', v_margin);
   elsif v_margin is not null and v_margin < (s ->> 'target_margin_percent')::numeric then
     w := w || jsonb_build_object('code', 'below_target_margin', 'level', 'caution', 'margin_percent', v_margin, 'target', (s ->> 'target_margin_percent')::numeric);
+  end if;
+  if v_voice is not null and (v ->> 'overage_cents_per_minute') is not null and (v ->> 'overage_cents_per_minute')::numeric < v_voice then
+    w := w || jsonb_build_object('code', 'overage_below_cost', 'level', 'red', 'cost_cents', round(v_voice, 2));
   end if;
   if (v ->> 'minutes')::numeric > (s ->> 'max_minutes_warning')::numeric then
     w := w || jsonb_build_object('code', 'minutes_high', 'level', 'red', 'limit', (s ->> 'max_minutes_warning')::numeric);
@@ -314,12 +328,12 @@ begin
     acks := acks || (x || jsonb_build_object('reason', left(trim(p_acknowledgements ->> (x ->> 'code')), 500)));
   end loop;
   insert into public.business_plans (business_id, version, tier, billing_interval, price_cents, setup_fee_cents, minutes, texts, emails,
-      team_seats, phone_numbers, locations, languages, trial_enabled, contact_limits, estimate, acknowledged_warnings, idempotency_key,
+      team_seats, phone_numbers, locations, languages, trial_enabled, overage_cents_per_minute, contact_limits, estimate, acknowledged_warnings, idempotency_key,
       values_hash, created_by)
   values (p_business_id, coalesce((select max(version) from public.business_plans where business_id = p_business_id), 0) + 1,
       v ->> 'tier', v ->> 'billing_interval', (v ->> 'price_cents')::bigint, (v ->> 'setup_fee_cents')::bigint, (v ->> 'minutes')::int,
       (v ->> 'texts')::int, (v ->> 'emails')::int, (v ->> 'team_seats')::int, (v ->> 'phone_numbers')::int, (v ->> 'locations')::int,
-      array(select jsonb_array_elements_text(v -> 'languages')), (v ->> 'trial_enabled')::boolean, v -> 'contact_limits', r -> 'estimate',
+      array(select jsonb_array_elements_text(v -> 'languages')), (v ->> 'trial_enabled')::boolean, (v ->> 'overage_cents_per_minute')::int, v -> 'contact_limits', r -> 'estimate',
       acks, p_idempotency_key, v_hash, auth.uid())
   returning * into v_new;
   insert into public.audit_logs (business_id, user_id, action, entity_type, entity_id, old_data, new_data)
@@ -910,7 +924,7 @@ begin
     'plan', case when b.id is not null then jsonb_build_object('version', b.version, 'tier', b.tier, 'billing_interval', b.billing_interval,
       'price_cents', b.price_cents, 'setup_fee_cents', b.setup_fee_cents, 'currency', b.currency, 'minutes', b.minutes, 'texts', b.texts,
       'emails', b.emails, 'team_seats', b.team_seats, 'phone_numbers', b.phone_numbers, 'locations', b.locations, 'languages', to_jsonb(b.languages),
-      'trial_enabled', b.trial_enabled) end,
+      'trial_enabled', b.trial_enabled, 'overage_cents_per_minute', b.overage_cents_per_minute) end,
     'subscription', case when s.id is not null then jsonb_build_object('status', s.status, 'trial_end_at', s.trial_end_at,
       'current_period_start', s.current_period_start, 'current_period_end', s.current_period_end) end,
     'period', case when p.id is not null then jsonb_build_object('from', p.period_start, 'to', p.period_end, 'trial', p.is_trial,
@@ -951,7 +965,7 @@ begin
     'plan', case when b.id is not null then jsonb_build_object('version', b.version, 'tier', b.tier, 'billing_interval', b.billing_interval,
       'price_cents', b.price_cents, 'setup_fee_cents', b.setup_fee_cents, 'minutes', b.minutes, 'texts', b.texts, 'emails', b.emails,
       'team_seats', b.team_seats, 'phone_numbers', b.phone_numbers, 'locations', b.locations, 'languages', to_jsonb(b.languages),
-      'trial_enabled', b.trial_enabled, 'estimate', b.estimate, 'acknowledged_warnings', b.acknowledged_warnings, 'saved_at', b.created_at) end,
+      'trial_enabled', b.trial_enabled, 'overage_cents_per_minute', b.overage_cents_per_minute, 'estimate', b.estimate, 'acknowledged_warnings', b.acknowledged_warnings, 'saved_at', b.created_at) end,
     'versions', coalesce((select jsonb_agg(jsonb_build_object('version', v.version, 'tier', v.tier, 'price_cents', v.price_cents,
         'billing_interval', v.billing_interval, 'saved_at', v.created_at) order by v.version desc)
       from public.business_plans v where v.business_id = p_business_id), '[]'::jsonb));
@@ -1026,7 +1040,12 @@ begin
   if position('zella_billing_allowances' in def) = 0 then
     def := replace(def, $a$  values (p_business_id, coalesce(p_thresholds, '{70,90,100}'), p_mode,$a$,
                         $a$  values (p_business_id, '{80,100}'::integer[] /* zella_billing_allowances: alerts are always at 80% and 100% */, p_mode,$a$);
-    if position('zella_billing_allowances' in def) = 0 then raise exception 'zella_save_usage_preferences has changed; review this patch'; end if;
+    def := replace(def, $a$  if p_mode <> 'stop' and (p_spend_limit_cents is null or p_spend_limit_cents <= 0) then raise exception 'SPEND_LIMIT_REQUIRED'; end if;$a$,
+                        $a$  if p_mode <> 'stop' and (p_spend_limit_cents is null or p_spend_limit_cents <= 0) then raise exception 'SPEND_LIMIT_REQUIRED'; end if;
+  -- D-44: pay as you go only on a plan with a per-minute rate (zella_billing_allowances)
+  if p_mode = 'pay_as_you_go' and (public.zella_billing_plan_current(p_business_id)).id is not null
+     and (public.zella_billing_plan_current(p_business_id)).overage_cents_per_minute is null then raise exception 'PLAN_NO_PAY_AS_YOU_GO'; end if;$a$);
+    if position('zella_billing_allowances' in def) = 0 or position('PLAN_NO_PAY_AS_YOU_GO' in def) = 0 then raise exception 'zella_save_usage_preferences has changed; review this patch'; end if;
     execute def;
   end if;
 

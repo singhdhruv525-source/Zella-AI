@@ -1558,7 +1558,7 @@ Pack prices are fixed for every business. Packs are charged when bought. Unused 
 | REQ-BIL-29 | **Signup to payment:** the Zella Voice team creates the business (setup fee, plan, allowances and caps chosen in step 11) → invite link → the owner creates a password → sees what they are getting → pays (or starts the trial, REQ-BIL-12). |
 | REQ-BIL-30 | **Upgrades** take effect immediately: the owner pays the prorated difference and gets the extra allowance for the rest of the cycle; full new allowances start next cycle. **Downgrades** take effect on the next billing date; features and add-ons above the lower plan end then. |
 | REQ-BIL-31 | **No pause.** A business that stops using Zella Voice cancels and can return later (D-25). |
-| REQ-BIL-32 | **Packs** are charged at purchase. **Overage** is billed at the end of the cycle; what counts as overage and at what rate is **open** (D-44). |
+| REQ-BIL-32 | **Packs** are charged at purchase. **At 100% of minutes the owner chooses one** (D-44): **stop** (new calls go to the fallback number), **auto-reload** a pack (REQ-BIL-23), or **pay as you go** (the AI keeps answering and each extra minute is billed at the business's own per-minute rate, set on the plan page in Create Business; offered only when that rate is set). One monthly spending limit applies to whichever is chosen. Pay-as-you-go minutes are billed at the end of the cycle. Minutes from a call already in progress when calls stop are not charged. |
 | REQ-BIL-33 | **Failed payment:** retried on days 2, 3 and 4 after the due date, with an email and an in-app notice each time. After **5 days overdue** the AI receptionist pauses and calls go to the business's fallback number. Data is kept for 30 days. Paying the balance restores service. |
 | REQ-BIL-34 | **Fallback number:** every business sets one at Create Business; calls go there whenever the AI is paused or unavailable. |
 | REQ-BIL-35 | **Price changes:** 30 days' written notice, at most once in 12 months. **Founding customers** keep their price for 12 months (who counts as founding: **open**, D-47). |
@@ -2026,6 +2026,7 @@ Knowledge, Automations, Reports, Team, Settings.
 | D-41 | **Commercial policy (12 Nov 2026):** custom per-business plans with no preset prices or values (every value entered per business in Create Business; Base and Pro are labels only), an optional trial, monthly or yearly in advance in USD; 5-day trial with 20 minutes, 5 texts, 5 emails, card at start; fixed add-on pack prices; usage counting, rollover, alerts, auto-reload, fair use, billing, refund, cancellation, service-credit, support and data rules as written in §17. | §17 |
 | D-42 | **Monthly refresh and pack rollover (13 Nov 2026):** allowances refresh every billing month; up to 20% of plan minutes roll over for one period; packs follow the same rule (up to 20% of each minutes pack rolls over for one period; pack texts and emails expire at the refresh, like plan texts and emails). | §17.5 |
 | D-43 | **Texts and emails at 100% (13 Nov 2026):** marketing and routine messages stop; appointment confirmations and reminders continue within an unbilled 5% buffer that resets monthly; everything stops at 105%. | §17.6 |
+| D-44 | **Overage (13 Nov 2026):** at 100% of minutes the owner chooses stop (fallback number), auto-reload, or pay as you go at a per-minute rate set per business in Create Business; one monthly spending limit; minutes from a call already in progress when calls stop are free. | §17.8 |
 | D-46 (part) | **Yearly plans reset allowances monthly (13 Nov 2026):** charged once a year; minutes, texts and emails reset on the same day each month, with the same rollover and buffer. Annual discount and downgrade rollover stay open. | §17.4 |
 | D-25 | **No pause.** A business that stops using Zella Voice cancels and can return later. (A business is paused by Zella Voice only for non-payment, REQ-BIL-33.) | §17.8, REQ-LC-20 |
 | D-10 | Leave a **short, professional voicemail** where permitted; no sensitive details; then one contextual message. | §13.7 |
@@ -2059,7 +2060,6 @@ Knowledge, Automations, Reports, Team, Settings.
 | D-36 | Late-arrival minutes before staff are prompted to mark a no-show | owner |
 | D-32 | Limit on AI replies per conversation per hour | engineering |
 | D-33 | Default internal monthly AI budget per business and alert thresholds (75% / 90% proposed) | owner |
-| D-44 | Overage: what is billed as overage when calls go to the fallback number at 100%, and at what rate | owner |
 | D-45 | Fair-use review multiple: 2× or 3× the allowance two months in a row (proposed: 3×) | owner |
 | D-46 | Yearly plans: any annual discount; rollover on downgrade (allowance reset decided: monthly) | owner |
 | D-47 | Who counts as a founding customer (e.g. first N businesses or a sign-up date) | owner |
@@ -2131,7 +2131,7 @@ Everything else in this document is specified. These items need a person's input
 
 | # | Item | Who | Needed by phase |
 |---|---|---|---|
-| 1 | Platform contact ceiling (D-38); open billing decisions D-44 to D-51; D-52, D-53 | owner | before charging |
+| 1 | Platform contact ceiling (D-38); open billing decisions D-45 to D-51; D-52, D-53 | owner | before charging |
 | 2 | Review of the proposed consent wording (§34), templates (§33), voicemail and recording disclosures, retention periods and US calling and texting rules | counsel | 5, 6, 8, 11 |
 | 3 | Terms of service, privacy policy, data-processing terms and any agreements regulated industries require (§39) | owner + counsel | 12 |
 | 4 | Remaining open decisions in §23.2 | owner | as listed |

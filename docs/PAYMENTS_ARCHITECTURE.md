@@ -632,5 +632,5 @@ production or real money (`NN-3`, `NN-4`).
 |---|---|---|
 | D-51 | Razorpay: recurring USD on international cards is supported per Razorpay's docs (first payment authenticated with 3-D Secure; settled in INR). Still to confirm: international payments activated on the account; a trial with a future start date in test mode; charging the saved card for auto-reload packs | step 3 |
 | D-50 | Tax rules (GST on exported services; US state sales tax) | invoices with tax |
-| D-44…D-48 | overage, fair-use multiple, annual allowances, founding customers, trial limits | step 1 |
+| D-45…D-48 | fair-use multiple, annual allowances, founding customers, trial limits | step 1 |
 | — | Exact Razorpay event names and payloads, confirmed against Razorpay's current documentation at build time | step 3 |

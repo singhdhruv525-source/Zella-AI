@@ -454,7 +454,7 @@ secrets, never in tables, code, logs or chat (`NN-2`).
 | Item | Waiting on |
 |---|---|
 | Self-service sign-up | Later phase (D-06) |
-| Billing build (plans in the database, usage rules, Billing & Subscription page, Razorpay) | Build, in steps (architecture §17); open billing decisions D-44 to D-51 |
+| Billing build (plans in the database, usage rules, Billing & Subscription page, Razorpay) | Build, in steps (architecture §17); open billing decisions D-45 to D-51 |
 | Two-way AI messaging | Build (architecture §14.3) |
 | Voicemails page, AI agents beyond the receptionist, marketing campaigns | Build; hidden from the sidebar until they exist |
 | Meta channels in launch scope | Owner and counsel (D-39) |

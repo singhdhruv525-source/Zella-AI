@@ -94,6 +94,7 @@ export function BillingPlanPanel({ w }) {
               <span className="bp-chip">{p.phone_numbers} phone {p.phone_numbers === 1 ? "number" : "numbers"}</span>
               <span className="bp-chip">{p.locations} {p.locations === 1 ? "location" : "locations"}</span>
               <span className="bp-chip">{p.languages.map((l) => LANG[l] ?? l).join(" & ")}</span>
+              {p.overage_cents_per_minute != null && <span className="bp-chip">Pay as you go: {money(p.overage_cents_per_minute)} / extra minute</span>}
             </div>
           </div></section>
           <section className="zs-card">

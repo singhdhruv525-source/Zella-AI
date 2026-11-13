@@ -436,3 +436,25 @@ do $$ declare c uuid; before numeric; r jsonb; begin
   assert public.zella_billing_open_current_periods() >= 0 and public.zella_check_usage_thresholds() >= 0, 'hourly job';
   raise notice 'PASS the hourly check opens current periods and retries missed charges without errors';
 end $$;
+
+-- 17. Pay as you go (D-44): a per-business rate; the owner can choose it only when the plan has one ------------------
+do $$ declare r jsonb; begin
+  r := public.zella_plan_evaluate(pg_temp.plan(500, 1000, 10000, 29900) || '{"overage_cents_per_minute": 35}');
+  assert r ->> 'ok' = 'true' and r #>> '{values,overage_cents_per_minute}' = '35', 'rate: ' || r::text;
+  assert public.zella_plan_evaluate(pg_temp.plan(500, 1000, 10000, 29900) || '{"overage_cents_per_minute": 0}') -> 'errors' ? 'overage_cents_per_minute', 'zero rate accepted';
+  r := public.zella_plan_evaluate(pg_temp.plan(500, 1000, 10000, 29900) || '{"overage_cents_per_minute": 5}');
+  assert r -> 'warnings' @> '[{"code": "overage_below_cost", "level": "red"}]', 'below-cost rate not warned: ' || r::text;
+  -- business A's plan has no rate: the owner can't choose pay as you go
+  perform pg_temp.as_user('b1300000-0000-4000-8000-000000000001');
+  begin perform public.zella_save_usage_preferences('b1000000-0000-4000-8000-00000000000a', null, 'pay_as_you_go', 5000, 'take_message');
+    raise exception 'pay as you go chosen without a rate'; exception when raise_exception then if sqlerrm <> 'PLAN_NO_PAY_AS_YOU_GO' then raise; end if; end;
+  perform pg_temp.as_user('b1300000-0000-4000-8000-000000000009');
+  r := public.zella_admin_plan_save('b1000000-0000-4000-8000-00000000000a', pg_temp.plan(500, 1000, 10000, 29900) || '{"overage_cents_per_minute": 35}', pg_temp.acks(), 'plan-a-version-2-payg');
+  assert r ->> 'version' = '2', 'v2: ' || r::text;
+  perform pg_temp.as_user('b1300000-0000-4000-8000-000000000001');
+  perform public.zella_save_usage_preferences('b1000000-0000-4000-8000-00000000000a', null, 'pay_as_you_go', 5000, 'take_message');
+  assert (select overage_mode from business_usage_preferences where business_id = 'b1000000-0000-4000-8000-00000000000a') = 'pay_as_you_go', 'not saved';
+  assert public.zella_billing_overview('b1000000-0000-4000-8000-00000000000a') #>> '{plan,overage_cents_per_minute}' = '35', 'overview';
+  perform set_config('request.jwt.claims', '', false);
+  raise notice 'PASS pay as you go: the per-minute rate is set per business (a rate below cost is warned); the owner can choose it only when the plan has one';
+end $$;

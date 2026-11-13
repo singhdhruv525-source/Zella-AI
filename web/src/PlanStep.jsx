@@ -13,10 +13,12 @@ const WARNING_TEXT = {
   below_target_margin: (w) => `The estimated margin (${w.margin_percent}%) is below the ${w.target}% target.`,
   minutes_high: (w) => `More than ${Number(w.limit).toLocaleString("en-US")} minutes a month.`,
   price_zero: () => "The price is $0.",
+  overage_below_cost: (w) => `The pay-as-you-go rate is below the cost of a minute (about ${w.cost_cents}¢).`,
   costs_not_configured: (w) => `The unit costs aren't all set (${(w.detail ?? []).map((d) => d.replace(/_/g, " ")).join(", ")}), so the margin can't be worked out fully.`,
 };
 const FIELD_TEXT = { tier: "label", billing_interval: "billing", price_cents: "price", setup_fee_cents: "setup fee", minutes: "minutes", texts: "texts",
-  emails: "emails", team_seats: "users", phone_numbers: "phone numbers", locations: "locations", languages: "languages", trial_enabled: "trial" };
+  emails: "emails", team_seats: "users", phone_numbers: "phone numbers", locations: "locations", languages: "languages", trial_enabled: "trial",
+  overage_cents_per_minute: "pay-as-you-go rate" };
 
 const money = (cents) => (cents == null ? "—" : `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: cents % 100 ? 2 : 0, maximumFractionDigits: 2 })}`);
 const dollarsToCents = (v) => (String(v).trim() === "" || !/^\d+(\.\d{1,2})?$/.test(String(v).trim()) ? NaN : Math.round(Number(v) * 100));
@@ -24,19 +26,22 @@ const whole = (v) => (String(v).trim() === "" || !/^\d+$/.test(String(v).trim())
 const newKey = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`);
 
 const EMPTY = { tier: "", billing_interval: "monthly", price: "", setup_fee: "0", minutes: "", texts: "", emails: "", team_seats: "", phone_numbers: "1",
-  locations: "1", languages: ["en"], trial_enabled: false };
+  locations: "1", languages: ["en"], trial_enabled: false, overage: "" };
 
 function fromPlan(p) {
   if (!p) return EMPTY;
   return { tier: p.tier, billing_interval: p.billing_interval, price: String(p.price_cents / 100), setup_fee: String(p.setup_fee_cents / 100),
     minutes: String(p.minutes), texts: String(p.texts), emails: String(p.emails), team_seats: String(p.team_seats), phone_numbers: String(p.phone_numbers),
-    locations: String(p.locations), languages: p.languages, trial_enabled: p.trial_enabled };
+    locations: String(p.locations), languages: p.languages, trial_enabled: p.trial_enabled,
+    overage: p.overage_cents_per_minute == null ? "" : String(p.overage_cents_per_minute / 100) };
 }
 
 function toValues(f) {
   return { tier: f.tier, billing_interval: f.billing_interval, price_cents: dollarsToCents(f.price), setup_fee_cents: dollarsToCents(f.setup_fee),
     minutes: whole(f.minutes), texts: whole(f.texts), emails: whole(f.emails), team_seats: whole(f.team_seats), phone_numbers: whole(f.phone_numbers),
-    locations: whole(f.locations), languages: f.languages, trial_enabled: f.trial_enabled };
+    locations: whole(f.locations), languages: f.languages, trial_enabled: f.trial_enabled,
+    // empty = pay as you go not offered (D-44)
+    overage_cents_per_minute: String(f.overage ?? "").trim() === "" ? null : dollarsToCents(f.overage) };
 }
 
 export async function loadPlanInfo(businessId) {
@@ -150,6 +155,12 @@ export default function PlanStep({ businessId, info, onSaved, onDirty, Section, 
             {num("AI minutes", "minutes", { suffix: "min" })}
             {num("Texts", "texts", { suffix: "texts" })}
             {num("Emails", "emails", { suffix: "emails" })}
+          </div>
+          <div className="bp-grid" style={{ marginTop: 16 }}>
+            <div>
+              {num("Pay-as-you-go rate", "overage", { prefix: "$", suffix: "/ extra min", errKey: "overage_cents_per_minute" })}
+              <p className="bp-muted" style={{ marginTop: 6 }}>Optional. If set, the owner can choose to keep the AI answering after the minutes run out and pay this per extra minute, up to their monthly limit. Leave empty to not offer it.</p>
+            </div>
           </div>
         </section>
 
@@ -289,7 +300,8 @@ function ReviewDialog({ review, setReview, onConfirm, onClose, error }) {
   const rows = [["Label", v.tier === "pro" ? "Pro" : "Base"], ["Price", `${money(v.price_cents)} ${v.billing_interval === "yearly" ? "a year" : "a month"}`],
     ["Setup fee", money(v.setup_fee_cents)], ["Each month", `${v.minutes.toLocaleString("en-US")} minutes, ${v.texts.toLocaleString("en-US")} texts, ${v.emails.toLocaleString("en-US")} emails`],
     ["Users, numbers, locations", `${v.team_seats}, ${v.phone_numbers}, ${v.locations}`], ["Languages", v.languages.map((l) => (l === "en" ? "English" : "Spanish")).join(" and ")],
-    ["Trial", v.trial_enabled ? "On (5 days)" : "Off"], ["Estimated margin", est.margin_percent == null ? "—" : `${est.margin_percent}%`]];
+    ["Trial", v.trial_enabled ? "On (5 days)" : "Off"],
+    ["Pay as you go", v.overage_cents_per_minute == null ? "Not offered" : `${money(v.overage_cents_per_minute)} per extra minute`], ["Estimated margin", est.margin_percent == null ? "—" : `${est.margin_percent}%`]];
   return (
     <div className="owner-modal-overlay">
       <div className="owner-modal wiz-unsaved-dialog" role="dialog" aria-modal="true" aria-labelledby="plan-review-title" ref={ref}>
