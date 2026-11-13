@@ -1562,7 +1562,7 @@ Pack prices are fixed for every business. Packs are charged when bought. Unused 
 | REQ-BIL-33 | **Failed payment:** retried on days 2, 3 and 4 after the due date (by Stripe itself, with our retry schedule, `docs/PAYMENTS_ARCHITECTURE.md` §6.3), with an email and an in-app notice each time. After **5 days overdue** the AI receptionist pauses and calls go to the business's fallback number. Data is kept for 30 days. Paying the balance restores service. |
 | REQ-BIL-34 | **Fallback number:** every business sets one at Create Business; calls go there whenever the AI is paused or unavailable. |
 | REQ-BIL-35 | **Price changes:** 30 days' written notice, at most once in 12 months. **Founding customers** keep their price for 12 months (who counts as founding: **open**, D-47). |
-| REQ-BIL-36 | **Taxes:** the owner intends to add tax as an India-registered business selling to US customers. The treatment (GST on exported services, US state sales tax) is **open** for a chartered accountant's advice (D-50); no tax logic is built until then. |
+| REQ-BIL-36 | **Taxes:** Zella Voice is a **Wyoming LLC** selling to US customers. The treatment (US state sales tax on software, where it applies; Stripe Tax can calculate and collect it) is **open** for an accountant's advice (D-50); no tax logic is built until then. |
 | REQ-BIL-37 | **Disputes:** the customer contacts support first. A chargeback suspends the account until it is resolved. |
 
 ### 17.9 Refunds and cancellation

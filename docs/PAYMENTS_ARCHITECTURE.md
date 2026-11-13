@@ -295,7 +295,7 @@ sequenceDiagram
   RZ->>WH: invoice.created (draft, about 1 hour before it is charged)
   WH->>DB: add pay-as-you-go minutes of the closing period as an invoice item (§6.9) · 200
   RZ->>WH: invoice.paid
-  WH->>DB: binding check (§6.0a) · invoice paid · new period · reset monthly buckets · rollover bucket (up to 20% of plan minutes + up to 20% of each minutes pack, expires next period)
+  WH->>DB: binding check (§6.0a) · billing_reason subscription_cycle → invoice paid · new period · reset monthly buckets · rollover bucket (up to 20% of plan minutes + up to 20% of each minutes pack, expires next period)
   RZ->>WH: invoice.payment_failed · customer.subscription.updated (past_due)
   WH->>DB: subscription past_due (past_due_since set) · notice + email
   loop Stripe retries on days 2, 3 and 4
@@ -410,6 +410,13 @@ answers 200. Usage recorded after the invoice is finalised goes on the following
 The webhook must answer `invoice.created` quickly and with 2xx, because Stripe holds the invoice back from being charged
 until it does (up to 72 hours). Yearly plans have no monthly invoice, so their pay-as-you-go minutes are charged at
 the end of each monthly allowance period as an off-session PaymentIntent on the saved card (§6.4 rules).
+
+**After a cancellation** there is no renewal invoice, so when `customer.subscription.deleted` arrives at period end
+the worker bills the closing period's pay-as-you-go minutes on a **final invoice** (`POST /v1/invoices` for the
+customer with the pending items, `collection_method: charge_automatically`, Idempotency-Key = period id), charged to
+the saved card. Usage that arrives later within the late-usage window goes on one more final invoice the same way;
+nothing is billed after that window. An unpaid final invoice follows Stripe's retries and then becomes a finance task
+for a person; service is already ended, so nothing is paused.
 
 The rate field and the owner's choice are stored already (step 2); nothing is billed until payments are switched on.
 
@@ -528,7 +535,7 @@ flowchart TB
 | Upgrade (update subscription) | one pending update per subscription; Idempotency-Key = local change id | fetch the subscription's `pending_update` and latest invoice |
 | Create Checkout Session or subscription | Idempotency-Key = outbox id; `metadata.outbox_id` | §8 table above |
 | Refund | Idempotency-Key = our refund ID | resend with the same key, or list the PaymentIntent's refunds |
-| Cancel at period end / continue | naturally idempotent (`cancel_at_period_end` true or false) | fetch the subscription and record its state |
+| Cancel at period end / continue | the owner's **latest** choice wins: each click stores `desired_cancel_at_period_end` with an increasing version on the subscription row; one outbox row per subscription (unique), and the worker locks that row, sends the current desired value (not the value of the click that queued it), then fetches the subscription and resends if Stripe's `cancel_at_period_end` differs from the latest desired value | fetch the subscription and compare with the latest desired value |
 
 Each flow is enabled only after its provider behaviour is proven in a Stripe sandbox (§16.8).
 
@@ -547,7 +554,7 @@ provider ID at once → mark `sent`. A lease that expires sends the row to **rec
 | Amount tampering | The browser never sends an amount. Every amount is computed in the database from `business_plans` and the pack catalog. |
 | Authorization | Business billing: **owner role only** (`TEN-9`), checked in the database. Admin billing: `billing.view` / `billing.manage`, MFA, audit. Row security on every billing table; server-only tables have no client policies. |
 | Sensitive actions | Refunds, credits, plan overrides, trial extensions: reason, second confirmation, audit (`SEC-18`). **Every provider refund needs the Zella Voice owner's approval** (REQ-BIL-45); there is no automatic or threshold-based refund. |
-| Secrets | Stripe restricted secret key and webhook signing secret only in edge function secrets; never in tables, code, logs or chat (`NN-2`). Routine rotation: the old and new webhook secrets overlap for a short, planned window. **Suspected compromise is different:** the old secret is revoked at once with no overlap; events received during the exposure window are quarantined and each is re-checked against Razorpay's API (fetch the payment, refund or subscription) before anything is applied. |
+| Secrets | Stripe restricted secret key and webhook signing secret only in edge function secrets; never in tables, code, logs or chat (`NN-2`). Routine rotation: the old and new webhook secrets overlap for a short, planned window. **Suspected compromise is different:** the old secret is revoked at once with no overlap; events received during the exposure window are quarantined and each is re-checked against Stripe's API (fetch the invoice, PaymentIntent, refund or subscription) before anything is applied. |
 | Data minimisation | Store only provider IDs, status and amounts. **No card details of any kind**, not even the last 4 digits or the card brand; the owner manages the card on Stripe's own page. |
 | Rate limits | Checkout start, pack purchase and refund request: per user and per business limits; 429 with retry-after. |
 | Fraud | Trial guard (D-48); velocity checks on pack purchases; spend cap on auto-reload; alerts on unusual refund or dispute rates. |
@@ -756,7 +763,7 @@ forget keys after 24 hours.
 | `customer.subscription.trial_will_end` | our trial reminder (§6.2) |
 | `customer.subscription.deleted` | `cancelled` at period end, or a trial cancel |
 | `invoice.created` | add pay as you go to the renewal draft, then 200 quickly (§6.9) |
-| `invoice.paid` | binding check (§6.0a) → invoice paid, new period, buckets (§6.3) |
+| `invoice.paid` | binding check (§6.0a), then by the invoice's `billing_reason`: `subscription_create` → first period and buckets (§6.1, §6.2); `subscription_cycle` → renewal: new period, monthly reset, rollover (§6.3); `subscription_update` → the paid upgrade: new plan version and the prorated extra allowance for the **current** period, no reset (§6.6); `manual` → the invoice we created (final pay-as-you-go invoice, §6.9) matched by our stored invoice id. Any other reason is quarantined |
 | `invoice.payment_failed`, `invoice.payment_action_required` | `past_due`, notice + email; link to confirm on Stripe's page |
 | `payment_intent.succeeded`, `payment_intent.payment_failed` | packs and auto-reload (§6.4) |
 | `refund.created`, `refund.updated`, `refund.failed`, `charge.refunded` | §6.7 |
@@ -801,7 +808,7 @@ ships only with database tests in the isolated test database for its state rules
 | Pay as you go | invoice item added on `invoice.created` appears on the renewal invoice; a late item goes on the next one |
 | Auto-reload | off-session PaymentIntent succeeds; `authentication_required` test card leads to the confirm link; a double threshold crossing makes one purchase |
 | Upgrade | `pending_if_incomplete` applies the new Price only after payment; a failed payment leaves the plan unchanged; quote equals the preview |
-| Cancel | `cancel_at_period_end` true then false keeps the subscription; true at period end sends `customer.subscription.deleted` |
+| Cancel | `cancel_at_period_end` true then false keeps the subscription; true at period end sends `customer.subscription.deleted`; a fast cancel-continue-cancel sequence ends in the owner's last choice; the final pay-as-you-go invoice is charged |
 | Refund | partial refund with an Idempotency-Key; a resend returns the same refund |
 | Webhooks | forged or stale signature rejected; duplicate and out-of-order events have no second effect |
 
