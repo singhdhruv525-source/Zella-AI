@@ -1,4 +1,4 @@
-# Zella go-live list
+# Zella Voice go-live list
 
 Nothing below is published or running until you do it. Everything is built; these are the steps that need your accounts or a decision.
 
@@ -89,7 +89,7 @@ Set these in the Supabase dashboard. Do them now for localhost, and again with t
 Applied live and saved in the repo: `sql/zella_offers.sql`, `sql/zella_admin_alerts.sql`. The dispatcher file now also runs the offer schedule (`zella_offers_tick`, every 5 minutes) and calls the new n8n workflow when admin alerts are waiting.
 1. **Set each business's size** (Small, Medium or Large) on its page in the admin dashboard. Size-based offers reach nobody until sizes are set.
 2. **Until `sql/zella_dispatcher.sql` is run**, offers go live and end when an admin presses Run now (Offers & Promotions > Automation rules), when an offer is changed, or when someone tries to claim an offer that has ended (claims are always refused outside the dates, even if the schedule is late).
-3. **n8n "Zella Voice - Admin Alerts"** (created, unpublished): emails one digest of platform alerts (offers ending soon, limits reached, unusual claims, offers that couldn't go live, failed jobs) to the active Zella admins. At go-live: add the Resend key to "Send via Resend", publish it, and set its error workflow to Failure Alert. It only sends when `email_live` is on and `email_from_address` is set.
+3. **n8n "Zella Voice - Admin Alerts"** (created, unpublished): emails one digest of platform alerts (offers ending soon, limits reached, unusual claims, offers that couldn't go live, failed jobs) to the active Zella Voice admins. At go-live: add the Resend key to "Send via Resend", publish it, and set its error workflow to Failure Alert. It only sends when `email_live` is on and `email_from_address` is set.
 4. **Claims become "Paid" only from verified payments.** That needs the billing webhook (`STRIPE_WEBHOOK_SECRET`). Until then claims wait as "Saved for you" and are released after 14 days (setting: "Release unpaid claims").
 5. **Unavailable until their connections exist** (shown as Unavailable in the dashboard, cannot be switched on): checkout and sign-up offers, introductory price renewal, referral rewards, win-back, promotional emails (sending is switched off by the owner).
 6. **Not built:** AI-written offer descriptions and campaign recommendations (needs the Anthropic key and a new workflow), impression tracking, a public pricing page.
@@ -121,7 +121,7 @@ Nothing here has been applied to the live project. Do the steps in this order.
    ```
 8. **At go-live:**
    - Set `ZELLA_ALLOWED_ORIGINS` to the app's address(es), e.g. `https://app.yourdomain.com`. Until then any website may call the browser-facing functions. Each one still checks a sign-in or a private link code.
-   - In Supabase > Authentication, decide on public sign-up. Zella onboards businesses by invitation, so either turn sign-ups off or keep email confirmation on. The repo's `config.toml` (local only) has sign-ups on and confirmation off.
+   - In Supabase > Authentication, decide on public sign-up. Zella Voice onboards businesses by invitation, so either turn sign-ups off or keep email confirmation on. The repo's `config.toml` (local only) has sign-ups on and confirmation off.
    - Add the Resend signing secret (step 2 of the n8n list above).
 9. **Recover the base schema** into `sql/000_base_schema.sql` (see `docs/SCHEMA_STATUS.md`) and run the read-only checks there.
 

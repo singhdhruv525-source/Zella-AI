@@ -3,7 +3,7 @@
 // The refresh token passes through execution data; this workflow does not save execution data.
 const it = $json;
 const provider = it && it.provider === 'outlook' ? 'outlook' : 'google';
-// Zella's marker on events it created (so busy-time reading leaves them out and edits find them)
+// Zella Voice's marker on events it created (so busy-time reading leaves them out and edits find them)
 const MS_PROP = 'String {6f1d2c9a-3b7e-4a51-9c0d-8e2f4b6a1c35} Name zella_appointment_id';
 const none = { json: { queue_id: it && it.queue_id ? it.queue_id : null, provider, needs_google: false, token_form: null, google: null, skip_ok: false } };
 if (!it || !it.queue_id || !it.refresh_token || !it.calendar_id) return none;

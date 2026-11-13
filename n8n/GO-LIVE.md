@@ -4,7 +4,7 @@
 
 <!-- coderabbit-ai-generated-section:v1:9f75135fbbc01ef71db7dc8b3e5120925396219c87468e46f1e629fc761a8358 -->
 
-# Zella go-live checklist (kept up to date as automations are built)
+# Zella Voice go-live checklist (kept up to date as automations are built)
 
 Nothing below has been done yet on purpose: all n8n workflows are unpublished and the timers are paused until testing.
 

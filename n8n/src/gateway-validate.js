@@ -12,7 +12,7 @@ if (!isObject(b)) {
   errors.push('The request body must be a JSON object.');
 } else {
   if (typeof b.business_id !== 'string' || !UUID.test(b.business_id)) errors.push('business_id must be a valid UUID.');
-  if (!EVENT_TYPES.includes(b.event_type)) errors.push('event_type is not a recognised Zella event.');
+  if (!EVENT_TYPES.includes(b.event_type)) errors.push('event_type is not a recognised Zella Voice event.');
   if (!SOURCES.includes(b.source)) errors.push('source is not recognised.');
   if (typeof b.idempotency_key !== 'string' || b.idempotency_key.length < 8 || b.idempotency_key.length > 200) {
     errors.push('idempotency_key must be 8 to 200 characters.');

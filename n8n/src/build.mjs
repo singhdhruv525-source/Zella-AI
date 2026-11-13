@@ -280,7 +280,7 @@ const followupSender = smsFlow('Zella Voice - Follow-up Texts', {
   files: { plan: 'sms-task-plan.js', decide: 'sms-task-decide.js', afterLog: 'sms-task-after-log.js', afterSend: 'sms-task-after-send.js' },
 });
 
-// Outbound calls: callbacks Zella may place itself (missed call, new lead) and follow-up tasks set to "call".
+// Outbound calls: callbacks Zella Voice may place itself (missed call, new lead) and follow-up tasks set to "call".
 // Dry-run by default: until calls_live is true and Vapi is set up, nothing is dialled and the item is put back
 // for later. The Vapi box ships with NO credential, for the same reason as Telnyx and Resend. The result of a
 // call (answered, no answer, voicemail) arrives afterwards from Vapi's end-of-call report.
@@ -308,7 +308,7 @@ const outboundCalls = wf('Zella Voice - Outbound Calls', [
   'After call': { main: [[link('Record call')]] },
 });
 
-// Call results: Vapi posts an end-of-call report when a call Zella placed ends. Event-driven (runs only then).
+// Call results: Vapi posts an end-of-call report when a call Zella Voice placed ends. Event-driven (runs only then).
 // Point the Vapi assistant's server URL at <n8n>/webhook/zella/vapi with the header X-Zella-Secret, and set its
 // server messages to end-of-call-report and status-update only, so no other message wakes the workflow.
 // status-update creates the call record as the call starts (zella_record_call_status), so a lost report can't erase it.
@@ -529,9 +529,9 @@ secureResend(emailEvents, 'Resend event', 'events');
 
 // Calendar Sync never keeps its runs in n8n's execution history: the claim RPCs hand it each calendar's refresh token
 // (the token exchange happens in this workflow), and a saved execution would store that token in n8n's database.
-// Failures are still recorded in Zella (Finish sync / Mark error write them to calendar_sync_queue and calendar_connections).
+// Failures are still recorded in Zella Voice (Finish sync / Mark error write them to calendar_sync_queue and calendar_connections).
 const NO_SAVED_RUNS = { errorWorkflow: FAILURE_WORKFLOW_ID, saveDataSuccessExecution: 'none', saveDataErrorExecution: 'none', saveManualExecutions: false, saveExecutionProgress: false };
-// Calendar Sync: copies bookings to the business's Google Calendar or Outlook calendar and reads its busy times back into Zella.
+// Calendar Sync: copies bookings to the business's Google Calendar or Outlook calendar and reads its busy times back into Zella Voice.
 // Started by the dispatcher only when a booking change or a refresh is waiting (and calendar_sync_live is true).
 // Select the provider Custom Auth credential on both token boxes; client credentials stay in n8n credentials.
 const googleToken = (name, pos, tokenExpr) => node(name, 'n8n-nodes-base.httpRequest', 4.2, pos, {
@@ -545,7 +545,7 @@ const googleToken = (name, pos, tokenExpr) => node(name, 'n8n-nodes-base.httpReq
   options: { response: { response: { fullResponse: true, neverError: true, responseFormat: 'json' } } },
 }, { credentials: { httpCustomAuth: { id: '', name: 'Zella Google calendar client' } } });
 // Outlook / Microsoft 365 through Microsoft Graph: the same flow with Microsoft's token box (client id and secret of the
-// Zella app registration in Microsoft Entra ID, stored in a Custom Auth credential like Google's).
+// Zella Voice app registration in Microsoft Entra ID, stored in a Custom Auth credential like Google's).
 const microsoftToken = (name, pos, tokenExpr) => node(name, 'n8n-nodes-base.httpRequest', 4.2, pos, {
   method: 'POST', url: 'https://login.microsoftonline.com/common/oauth2/v2.0/token', authentication: 'genericCredentialType', genericAuthType: 'httpCustomAuth',
   sendHeaders: true, headerParameters: { parameters: [{ name: 'Content-Type', value: 'application/x-www-form-urlencoded' }] },
@@ -902,7 +902,7 @@ const websiteCrawler = wf('Zella Voice - Website Crawler', [
 });
 
 
-// Failure alert: n8n runs this whenever another Zella workflow fails (every workflow names it as its error workflow).
+// Failure alert: n8n runs this whenever another Zella Voice workflow fails (every workflow names it as its error workflow).
 // It raises one platform alert in the database (deduped per workflow and step). No customer data is copied.
 const failureAlert = wf('Zella Voice - Failure Alert', [
   node('A workflow failed', 'n8n-nodes-base.errorTrigger', 1, [0, 200], {}),
@@ -922,7 +922,7 @@ failureAlert.id = FAILURE_WORKFLOW_ID;
 failureAlert.settings = { ...failureAlert.settings, ...NO_SAVED_RUNS };
 delete failureAlert.settings.errorWorkflow;
 
-// Admin alerts: one plain-text digest email to the active Zella admins with the platform alerts that are waiting
+// Admin alerts: one plain-text digest email to the active Zella Voice admins with the platform alerts that are waiting
 // (offers ending soon, limits reached, unusual claims, offers that could not go live, failed jobs, provider problems).
 // The database hands out alerts only when email_live is on and a sender address is set. The Resend box ships with
 // NO credential, like the other email workflows: add the Resend key by hand at go-live. A failed send is put back
