@@ -134,6 +134,21 @@ Waiting on the owner:
 
 ## 6. Lessons learnt (don't repeat these)
 
+- **Billing review, 13 Nov 2026 (CodeRabbit, 21 findings on PR #59, all fixed in `aa873f8`).** Rules to keep:
+  - *Usage belongs to the period it happened in.* Find the period from the event's time, including past periods, and
+    when late usage lands in a closed month, lower the next month's rollover with it. Open periods hourly so a quiet
+    month still rolls over; lock periods earlier-to-later so they never deadlock.
+  - *Lock the row you charge.* Lock the call before reading what it was already charged, or two updates charge twice.
+  - *Our failures are never billable:* a failed call counts nothing, and is given back if it is marked failed later.
+  - *Count like the provider:* texts by GSM-7 / UCS-2 parts, not characters.
+  - *A plan change applies from the period it starts in;* limits come from the plan in effect, not the latest version.
+  - *A retry is done only when its result says so;* re-evaluate alerts after it.
+  - *Rollbacks keep history:* archive rows (never delete), keep append-only triggers on archives, rename archived
+    indexes so a re-apply gets its own keys, and test re-apply without dropping the archive.
+  - *Pages say only what is true:* no "paused", "card taken" or "next charge" before those exist; show loading, error
+    and Retry; never save values from a check of earlier input; keep dialog focus stable.
+  - *Permission tests must assert the denial message,* not pass on an empty page.
+
 - **A null check passes silently in PL/pgSQL.** `jsonb_typeof(x) <> 'string'` is null (not true) when the key is missing, so an `if` skips it. The billing tests caught a missing warning reason being accepted that way. Wrap these checks in `coalesce`.
 
 - **Check what production has before writing a guarded migration.** The review fixes stopped at `VERSION_MISMATCH`
