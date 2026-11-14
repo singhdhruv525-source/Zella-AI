@@ -555,8 +555,9 @@ and never billed twice.
 
 **An invoice carrying the item is voided unpaid.** We never void an invoice ourselves without a person's decision;
 a void (from the admin screen or the Stripe dashboard) arrives as `invoice.voided` / `invoice.deleted`. In the same
-transaction that records it, under the period lock, the item's billing row goes `attached` → `held` with an alert
-and a finance task, and its claimed rows stay claimed (so nothing else bills them meanwhile). The usage is neither
+transaction that records it, **every** billing row attached to that invoice (a renewal can carry the closing period's
+main item and an earlier period's late or re-billed item), under their period locks taken in ascending period id,
+goes `attached` → `held` with an alert and a finance task, and its claimed rows stay claimed (so nothing else bills them meanwhile). The usage is neither
 re-billed nor forgiven automatically: an admin chooses, audited, either **re-bill** (the rows are released, the billing
 row returns to `uninvoiced` with a new key `payg:<period id>:r<n>`, and the steps above send it again) or **waive**
 (the rows are marked `waived` and a ledger entry records the amount and the reason). Either way the usage is never
@@ -1189,7 +1190,7 @@ forget keys after 24 hours.
 | `customer.subscription.deleted` | `cancelled` at period end, or a trial cancel |
 | `invoice.created` | add pay as you go to the renewal draft, then 200 quickly (§6.9) |
 | `invoice.paid` | binding check (§6.0a), then by the invoice's `billing_reason`: `subscription_create` → first period and buckets (§6.1, §6.2); `subscription_cycle` → renewal: new period, monthly reset, rollover (§6.3); `subscription_update` → the paid upgrade: new plan version and the prorated extra allowance for the **current** period, no reset (§6.6); `manual` → the invoice we created (final pay-as-you-go invoice, §6.9) matched by our stored invoice id. Any other reason is quarantined |
-| `invoice.voided`, `invoice.deleted` | fetch the invoice; if it was never paid: its pay-as-you-go billing row `attached` → `held` with an alert and a finance task, and the credit lines it claimed return to open, in one transaction under the period lock (§6.9) |
+| `invoice.voided`, `invoice.deleted` | find, **from our own records**, every billing row (main, pending, late, re-bill) and every credit line attached to that invoice id; lock their periods in ascending period id, then in one transaction: each billing row `attached` → `held` with one alert and finance task, each claimed credit line back to open (§6.9). `invoice.voided`: the invoice is fetched first and nothing is done if it was paid. `invoice.deleted`: no fetch (Stripe deletes only drafts, which are never paid, and a deleted invoice may not be retrievable); the event's own invoice id is enough. To be confirmed in the Stripe sandbox with the pinned API version before this goes live |
 | `invoice.payment_failed`, `invoice.payment_action_required` | `past_due`, notice + email; link to confirm on Stripe's page |
 | `payment_intent.succeeded`, `payment_intent.payment_failed` | packs and auto-reload (§6.4) |
 | `refund.created`, `refund.updated`, `refund.failed`, `charge.refunded` | §6.7 |
