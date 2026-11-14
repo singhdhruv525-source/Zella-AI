@@ -33,9 +33,11 @@ language plpgsql security definer set search_path = public as $$
 declare v_parent text := tg_argv[0]; v_key text := tg_argv[1]; v_ref uuid; v_biz uuid;
 begin
   v_ref := nullif(to_jsonb(new) ->> v_key, '')::uuid;
-  -- FOR SHARE: a concurrent change of the parent's business waits for this row (and this row waits for it), so the
-  -- copy can never be read from a parent that is being moved to another business
-  execute format('select business_id from public.%I where id = $1 for share', v_parent) into v_biz using v_ref;
+  -- FOR NO KEY UPDATE: a concurrent move of the parent to another business waits for this row (and this row waits
+  -- for a move in progress, then reads the new business), so the copy is never stale. It is the same lock an ordinary
+  -- update of the parent takes, so two new rows for one parent queue one after the other instead of both holding a
+  -- shared lock and then deadlocking on a later update of that parent (e.g. zella_conversation_touch).
+  execute format('select business_id from public.%I where id = $1 for no key update', v_parent) into v_biz using v_ref;
   if v_biz is null then
     raise exception 'TENANT_MISMATCH: %.% does not point to an existing %', tg_table_name, v_key, v_parent using errcode = '23503';
   end if;

@@ -109,12 +109,25 @@ q "insert into integrations (id, business_id, provider, integration_type) values
 T1=$!; sleep 1
 out=$("${P[@]}" -d $DB -c "set lock_timeout = '500ms'; update integrations set business_id = '$B' where id = 'e1000000-0000-4000-8000-000000000002'" 2>&1) \
   && bad "the parent moved while a new child of it was not yet committed" \
-  || { echo "$out" | grep -q "lock timeout" && ok "a parent move waits for an uncommitted new child (the child holds the parent row)" || bad "race: $(echo "$out" | grep -m1 ERROR)"; }
+  || { echo "$out" | grep -q "lock timeout" && ok "a parent move waits for an uncommitted new child (the child locks the parent row)" || bad "race: $(echo "$out" | grep -m1 ERROR)"; }
 wait $T1
 q "update integrations set business_id = '$B' where id = 'e1000000-0000-4000-8000-000000000002'" > /dev/null
 [ "$(q "select business_id from integration_secrets where integration_id = 'e1000000-0000-4000-8000-000000000002'")" = "$B" ] \
   && ok "after the child commits, the move carries it to the new business" || bad "the child kept the old business"
 q "delete from integration_secrets where integration_id = 'e1000000-0000-4000-8000-000000000002'; delete from integrations where id = 'e1000000-0000-4000-8000-000000000002'" > /dev/null
+
+# two new messages in one conversation at the same time both go through (no deadlock with the conversation's own
+# update trigger, zella_conversation_touch): the second waits for the first. A test-only trigger that fires after ours
+# pauses each insert for a second between reading the parent and touching it, so the two inserts overlap there.
+q "create function pg_temp_sleep_trg() returns trigger language plpgsql as \$\$ begin perform pg_sleep(1); return new; end \$\$;
+   create trigger zzz_test_pause before insert on conversation_messages for each row execute function pg_temp_sleep_trg()" > /dev/null
+( "${P[@]}" -d $DB -c "insert into conversation_messages (conversation_id, sender_type, content) values ('c1000000-0000-4000-8000-000000000001', 'ai', 'race 1')" > /dev/null 2>&1; echo $? > "$HERE/.race1" ) &
+R1=$!; sleep 0.3
+out2=$("${P[@]}" -d $DB -c "insert into conversation_messages (conversation_id, sender_type, content) values ('c1000000-0000-4000-8000-000000000001', 'ai', 'race 2')" 2>&1); r2=$?
+wait $R1; r1=$(cat "$HERE/.race1"); rm -f "$HERE/.race1"
+[ "$r1" = 0 ] && [ "$r2" = 0 ] && [ "$(q "select count(*) from conversation_messages where content in ('race 1', 'race 2')")" = 2 ] \
+  && ok "two messages saved at once in one conversation both go through (no deadlock)" || bad "concurrent messages: $r1 / $r2 $(echo "$out2" | grep -m1 ERROR)"
+q "drop trigger zzz_test_pause on conversation_messages; drop function pg_temp_sleep_trg(); delete from conversation_messages where content in ('race 1', 'race 2')" > /dev/null
 
 # the rollback stops when a row has lost its parent (no foreign key on these two tables): business_id is then the
 # row's only link to its business, so it is not dropped (tested on a copy)
