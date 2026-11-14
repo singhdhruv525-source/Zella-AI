@@ -563,19 +563,33 @@ claim waits for it; a row can never fall between two items, and no row is claime
 close is never claimed (counted, never billed). The hourly reconcile uses the same rule, so an item it creates late can
 never bill past the close.
 
-**Corrections are never cut off.** The close stops only **new** usage. A negative row (a call shortened or marked spam
-after it was billed) that corrects a row already claimed by an item is always credited, whenever it arrives: it is
-claimed by a **credit item**, a negative pending invoice item on the next invoice (Idempotency-Key
-`payg:<period id>:credit:<row id>`, one per correcting row, the same states and lookups). If the subscription has
-ended, the credit goes to the customer's Stripe balance instead and, at the owner's request, through the approved
-refund flow (§6.8). A correction never needs approval to reduce what the owner pays; it is never used to raise it.
+**Corrections are never cut off, and are credited exactly once.** The close stops only **new** usage. Negative rows
+(a call shortened or marked spam) follow one rule, for monthly and yearly plans alike:
+
+1. **Net first.** Every claim (main, late, or yearly) takes the period's unclaimed negative rows **whatever their
+   date**, together with the positive rows before the close. A correction recorded while its original is still
+   unclaimed is therefore netted in the same item, whichever arrives first.
+2. **Then a ledger credit.** A negative row still unclaimed after the period's last item has been sent (its original
+   was already billed) becomes **one credit entry in our money ledger** (`credit:<row id>`, unique per row), written
+   under the business's lock. No Stripe customer balance is used.
+3. **Used once.** Open credits are consumed, under the same lock, by the next charge for that business: the next
+   renewal draft (as one negative invoice item, key `credit:<renewal invoice id>`, claiming the credits it uses) or the
+   next yearly pay-as-you-go PaymentIntent (its amount is reduced by the credits it claims). A charge never goes below
+   zero; what is left stays open for the next one.
+4. **After the subscription has ended** (checked when the credit is consumed, not when it was recorded), the open
+   credits are refunded once to the original payment, through the refund flow (§6.7). The refund request claims the
+   credits in the same transaction that creates it, so a credit can be either applied to a charge or refunded, never
+   both. A correction never needs approval to reduce what the owner pays, and is never used to raise it.
+
+Each yearly PaymentIntent claims its rows the same way as an invoice item (`billed_item` = the PaymentIntent's local
+charge row), so its corrections follow the same steps.
 
 **Late usage** (rows the main item did not claim, recorded before the close) is billed **once, at the close**: one
 pending item that claims all of them together (Idempotency-Key `payg:<period id>:late`, its own billing row, the same
 states and lookups),
 which Stripe puts on the following invoice. Nothing late is billed before the close, so a second late report can never
-miss the item. Yearly plans are not in this flow: they have no invoice items and no billing row here, only the one
-PaymentIntent per period described next.
+miss the item. Yearly plans have no invoice items: their one PaymentIntent per period (described next) claims rows the
+same way, under the same lock and close.
 The webhook must answer `invoice.created` quickly and with 2xx, because Stripe holds the invoice back from being charged
 until it does (up to 72 hours). Yearly plans have no monthly invoice, so their pay-as-you-go minutes are charged
 **once per monthly allowance period, at its billing close** (period end + 72 h, below): one off-session PaymentIntent on
@@ -826,7 +840,7 @@ stateDiagram-v2
 | Monthly pay as you go | `POST /v1/invoiceitems` on the draft renewal invoice | `payg:<period id>` | one billing row per period (`uninvoiced` → `attached`) | the invoice's lines |
 | Monthly pay as you go, draft already finalised | `POST /v1/invoiceitems` (pending, no `invoice`) | `payg:<period id>:pending` | the same billing row: only one of the two is created | pending items and the lines of invoices created since the send, by `metadata.period_id` and `metadata.kind` |
 | Monthly pay as you go, late usage | `POST /v1/invoiceitems` (pending), once at the billing close | `payg:<period id>:late` | one per period: every row still unclaimed at the close | pending items and the lines of invoices created since the send, by `metadata.period_id` and `metadata.kind` |
-| Correction to billed usage (any time) | `POST /v1/invoiceitems` (pending, negative), or the customer balance after the subscription ended | `payg:<period id>:credit:<row id>` | one per correcting row | pending items and the lines of invoices created since the send, by `metadata.row_id` |
+| Credit for a correction to billed usage | one negative invoice item on the next renewal draft, or a reduced yearly pay-as-you-go PaymentIntent; after the subscription ended, a refund (§6.7) | `credit:<renewal invoice id>`; the PaymentIntent's own `payg:<period id>`; `refund:<refund id>` | one ledger credit per correcting row (`credit:<row id>`), consumed once | the invoice's lines, the PaymentIntent, the refund |
 | Final invoices after a cancel | invoice item + `POST /v1/invoices` + finalize + pay | `final:<period id>:<main\|late>:<item\|invoice\|finalize\|pay>` | unique (period, kind) | invoices by `metadata.final_kind` |
 | Upgrade | `POST /v1/subscriptions/:id` | `upgrade:<change id>` | one pending change per subscription | subscription `pending_update`, latest invoice |
 | Downgrade | `POST /v1/subscription_schedules` | `downgrade:<change id>` | one scheduled change per subscription | the subscription's schedule |
