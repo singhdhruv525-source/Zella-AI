@@ -14,7 +14,8 @@ LIVE=(zella_platform_roles_fix zella_booking_buffers zella_channel_review zella_
   zella_holiday_availability zella_delivery_evidence zella_arrival_windows zella_tables zella_relationships zella_scheduling zella_slots_resource_blocks zella_record_workflows
   zella_batch1_security zella_batch3_pagination zella_brand_name zella_rollback_security zella_n8n_webhook_auth zella_record_files_purge_retry zella_replace_business_hours
   zella_order_lookup_reservations zella_review_sql_fixes zella_seating_handoff)
-"$REPO/tests/lib/build_full.sh" $DB "$REPO/tests/channel/fixture.sql" $(for m in "${LIVE[@]}"; do echo "$REPO/sql/$m.sql"; done) > /dev/null || exit 1
+LIVE_FILES=(); for m in "${LIVE[@]}"; do LIVE_FILES+=("$REPO/sql/$m.sql"); done
+"$REPO/tests/lib/build_full.sh" "$DB" "$REPO/tests/channel/fixture.sql" "${LIVE_FILES[@]}" > /dev/null || exit 1
 fails=0; ok() { echo "PASS $*"; }; bad() { echo "FAIL $*"; fails=$((fails + 1)); }
 q() { "${P[@]}" -d $DB -c "$1"; }
 A=ec000000-0000-0000-0000-00000000000a; B=ec000000-0000-0000-0000-00000000000b
@@ -100,6 +101,29 @@ SQL
 ) && echo "$out" | grep -o 'PASS .*' || bad "behaviour: $(echo "$out" | grep -m2 -E 'ERROR|CONTEXT' | tr '\n' ' ')"
 [ "$(q "select bool_or(has_function_privilege(r, 'public.zella_child_business_id_trg()', 'execute') or has_function_privilege(r, 'public.zella_parent_business_id_trg()', 'execute')) from unnest(array['anon','authenticated']) r")" = f ] \
   && ok "the trigger functions are not callable by signed-in or anonymous users" || bad "trigger functions are callable"
+
+# a new child row and a move of its parent cannot interleave: while one session holds an uncommitted secret for an
+# integration, a move of that integration to another business waits; once it goes ahead, the secret follows
+q "insert into integrations (id, business_id, provider, integration_type) values ('e1000000-0000-4000-8000-000000000002', '$A', 'test', 'race')" > /dev/null
+( "${P[@]}" -d $DB -c "begin; insert into integration_secrets (integration_id) values ('e1000000-0000-4000-8000-000000000002'); select pg_sleep(3); commit;" > /dev/null 2>&1 ) &
+T1=$!; sleep 1
+out=$("${P[@]}" -d $DB -c "set lock_timeout = '500ms'; update integrations set business_id = '$B' where id = 'e1000000-0000-4000-8000-000000000002'" 2>&1) \
+  && bad "the parent moved while a new child of it was not yet committed" \
+  || { echo "$out" | grep -q "lock timeout" && ok "a parent move waits for an uncommitted new child (the child holds the parent row)" || bad "race: $(echo "$out" | grep -m1 ERROR)"; }
+wait $T1
+q "update integrations set business_id = '$B' where id = 'e1000000-0000-4000-8000-000000000002'" > /dev/null
+[ "$(q "select business_id from integration_secrets where integration_id = 'e1000000-0000-4000-8000-000000000002'")" = "$B" ] \
+  && ok "after the child commits, the move carries it to the new business" || bad "the child kept the old business"
+q "delete from integration_secrets where integration_id = 'e1000000-0000-4000-8000-000000000002'; delete from integrations where id = 'e1000000-0000-4000-8000-000000000002'" > /dev/null
+
+# the rollback stops when a row has lost its parent (no foreign key on these two tables): business_id is then the
+# row's only link to its business, so it is not dropped (tested on a copy)
+"${P[@]}" -d postgres -c "drop database if exists ztenantbizrb" -c "create database ztenantbizrb template $DB" > /dev/null
+"${P[@]}" -d ztenantbizrb -c "delete from automations where id = 'f1000000-0000-4000-8000-000000000001'" > /dev/null
+out=$("${P[@]}" -d ztenantbizrb -f "$REPO/sql/rollback/zella_tenant_business_id_rollback.sql" 2>&1) && bad "the rollback dropped business_id from a row with no parent" || {
+  echo "$out" | grep -q ORPHANS && [ "$("${P[@]}" -d ztenantbizrb -c "select count(*) from industry_automation_runs where business_id = '$A'")" = 1 ] \
+    && ok "the rollback stops on a row with no parent and keeps its business_id" || bad "rollback orphan: $(echo "$out" | grep -m1 ERROR)"; }
+"${P[@]}" -d postgres -c "drop database if exists ztenantbizrb" > /dev/null
 
 # put the test rows back where they were, then the rollback must restore the schema exactly
 q "update conversations set business_id = '$A' where id = 'c1000000-0000-4000-8000-000000000001'; update ai_agents set business_id = '$A' where id = 'a1000000-0000-4000-8000-000000000001';

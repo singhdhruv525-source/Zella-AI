@@ -22,13 +22,20 @@
 
 begin;   -- all or nothing: a stop (ORPHANS, VERSION_MISMATCH) leaves the database as it was
 
+-- no parent may change business while the copies are filled and the triggers installed: SHARE mode blocks every
+-- update of these tables until commit, and is taken in one fixed order so two runs cannot deadlock
+lock table public.ai_agents, public.automations, public.business_report_schedules, public.conversations,
+           public.integrations, public.on_call_shifts in share mode;
+
 -- child side: business_id always equals the parent's
 create or replace function public.zella_child_business_id_trg() returns trigger
 language plpgsql security definer set search_path = public as $$
 declare v_parent text := tg_argv[0]; v_key text := tg_argv[1]; v_ref uuid; v_biz uuid;
 begin
   v_ref := nullif(to_jsonb(new) ->> v_key, '')::uuid;
-  execute format('select business_id from public.%I where id = $1', v_parent) into v_biz using v_ref;
+  -- FOR SHARE: a concurrent change of the parent's business waits for this row (and this row waits for it), so the
+  -- copy can never be read from a parent that is being moved to another business
+  execute format('select business_id from public.%I where id = $1 for share', v_parent) into v_biz using v_ref;
   if v_biz is null then
     raise exception 'TENANT_MISMATCH: %.% does not point to an existing %', tg_table_name, v_key, v_parent using errcode = '23503';
   end if;
