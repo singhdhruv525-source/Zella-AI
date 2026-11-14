@@ -449,11 +449,11 @@ sequenceDiagram
 
   BO->>API: choose a higher plan
   API->>WK: preview request
-  WK->>ST: POST /v1/invoices/create_preview (new Price, always_invoice)
+  WK->>ST: POST /v1/invoices/create_preview (new Price, always_invoice, proration_date T)
   ST-->>BO: the exact prorated amount, shown before confirming
   BO->>API: confirm (Idempotency-Key, second confirmation)
-  API->>DB: plan change row (pending) · outbox "upgrade" · one pending change per subscription
-  WK->>ST: update subscription (new Price, always_invoice, pending_if_incomplete · key upgrade:change-id)
+  API->>DB: plan change row (pending, with T and the previewed total) · outbox "upgrade" · one pending change per subscription
+  WK->>ST: update subscription (new Price, always_invoice, proration_date T, pending_if_incomplete · key upgrade:change-id)
   ST-->>WK: latest_invoice id and total (stored on the local invoice)
   alt payment succeeds
     ST->>WH: invoice.paid (billing_reason subscription_update)
@@ -476,6 +476,13 @@ invoice, after the binding check (§6.0a), applies the new `business_plans` vers
 Our quote uses Stripe's preview of the invoice (`POST /v1/invoices/create_preview` with the change), so the owner sees
 the amount that is really charged. A **downgrade** is a subscription schedule whose next phase, starting at the end of
 the current period, uses the lower Price: no credit and no refund now.
+
+**One proration time.** The preview fixes it: the worker calls `create_preview` with
+`subscription_details.proration_date` set to now (Unix seconds), stores that time and the previewed total on the
+pending plan change, and passes the **same** `proration_date` to the subscription update, so Stripe prorates the update
+exactly as previewed. A preview is valid for 15 minutes. Confirming later, or after the subscription has changed (another
+Price, period or pending update), requires a fresh preview. `proration_date` is among the parameters a
+`pending_if_incomplete` update accepts; check it again against Stripe's pending-updates list when step 4 is built.
 
 ### 6.7 Refund request with server-side eligibility (`REQ-BIL-38`…`45`)
 
@@ -517,6 +524,7 @@ flowchart LR
   P --> E{period end}
   E -- renews --> R[invoice.created draft<br/>add item payg:N] --> RP[renewal invoice charged<br/>plan + period N minutes]
   E -- cancelled --> F[customer.subscription.deleted<br/>final:N:main invoice · pay at once]
+  E -- yearly plan --> Y[at the 72 h close:<br/>one PaymentIntent payg:N<br/>all minutes before the close]
   E --> W[72 h billing close window]
   W -- late usage, renewing --> L1[pending item payg:N:late<br/>on the next renewal invoice]
   W -- late usage, cancelled --> L2[one final:N:late invoice<br/>at the close · pay at once]
@@ -525,12 +533,22 @@ flowchart LR
 
 When the owner chose pay as you go (D-44), minutes past the allowance are counted at the business's own rate, up to
 the monthly spending limit. They are billed **on the next renewal invoice**: when Stripe creates that invoice as a
-draft (`invoice.created`, about an hour before it is charged), the worker adds one invoice item for the closing
-period's pay-as-you-go minutes (`POST /v1/invoiceitems` with that draft `invoice`, Idempotency-Key `payg:<period id>`), then
-answers 200. Usage recorded after the invoice is finalised, up to the billing close below, goes on the following invoice as a pending invoice item (Idempotency-Key `payg:<period id>:late`).
+draft (`invoice.created`), the webhook stores the event and answers 200 at once (§5). The worker then fetches the
+invoice (fetch before grant). If it is **still a draft**, it adds one invoice item for the closing period's
+pay-as-you-go minutes to it (`POST /v1/invoiceitems` with that `invoice`, Idempotency-Key `payg:<period id>`). If it is
+**no longer a draft** (Stripe finalises a subscription draft about an hour after the webhook succeeds, so a delayed
+worker can miss it), it creates the same amount as a **pending** invoice item instead (no `invoice`, Idempotency-Key
+`payg:<period id>:pending`), which Stripe puts on the following invoice. Each period's pay-as-you-go amount has one local
+billing row (`uninvoiced` → `attached`, with the Stripe item id), changed only under the period lock, so exactly one of
+the two items is ever created. An hourly reconcile finds any period past its end that is still `uninvoiced` and attaches
+it as a pending item, so recorded usage can never be left off every invoice. Usage recorded after the item is created,
+up to the billing close below, goes on the following invoice as a pending invoice item (Idempotency-Key
+`payg:<period id>:late`).
 The webhook must answer `invoice.created` quickly and with 2xx, because Stripe holds the invoice back from being charged
-until it does (up to 72 hours). Yearly plans have no monthly invoice, so their pay-as-you-go minutes are charged at
-the end of each monthly allowance period as an off-session PaymentIntent on the saved card (§6.4 rules).
+until it does (up to 72 hours). Yearly plans have no monthly invoice, so their pay-as-you-go minutes are charged
+**once per monthly allowance period, at its billing close** (period end + 72 h, below): one off-session PaymentIntent on
+the saved card (§6.4 rules, Idempotency-Key `payg:<period id>`) for every minute recorded before the close. Nothing is
+charged at the period end itself, so late usage needs no second charge and the one-charge-per-period rule holds.
 
 **Billing close:** pay-as-you-go minutes belong to the period their call happened in (step 2). For billing, a period
 **closes 72 hours after it ends**: usage for that period that arrives before the close is billed; usage that arrives
@@ -773,7 +791,9 @@ stateDiagram-v2
 | Pack bought by the owner | Checkout (payment) or `POST /v1/payment_intents` | `pack:<purchase id>` | one per purchase | PaymentIntent by `metadata.purchase_id` |
 | Auto-reload | `POST /v1/payment_intents` (`off_session`) | `reload:<purchase id>` | one pending reload per business (partial unique index) | same |
 | Yearly pay as you go | `POST /v1/payment_intents` | `payg:<period id>` | one per period | PaymentIntent by `metadata.period_id` |
-| Monthly pay as you go | `POST /v1/invoiceitems` | `payg:<period id>` | one item per period | the invoice's lines |
+| Monthly pay as you go | `POST /v1/invoiceitems` on the draft renewal invoice | `payg:<period id>` | one billing row per period (`uninvoiced` → `attached`) | the invoice's lines |
+| Monthly pay as you go, draft already finalised | `POST /v1/invoiceitems` (pending, no `invoice`) | `payg:<period id>:pending` | the same billing row: only one of the two is created | pending items by `metadata.period_id` |
+| Monthly pay as you go, late usage | `POST /v1/invoiceitems` (pending) | `payg:<period id>:late` | one per period | pending items by `metadata.period_id` |
 | Final invoices after a cancel | invoice item + `POST /v1/invoices` + finalize + pay | `final:<period id>:<main\|late>:<item\|invoice\|finalize\|pay>` | unique (period, kind) | invoices by `metadata.final_kind` |
 | Upgrade | `POST /v1/subscriptions/:id` | `upgrade:<change id>` | one pending change per subscription | subscription `pending_update`, latest invoice |
 | Downgrade | `POST /v1/subscription_schedules` | `downgrade:<change id>` | one scheduled change per subscription | the subscription's schedule |
@@ -1033,9 +1053,9 @@ pinned in the request header and changed only on purpose.
 | Customer | `POST /v1/customers` | email, name, `metadata.business_id` | one per business, stored |
 | Product and Price | `POST /v1/products`, `POST /v1/prices` | `unit_amount` cents, `currency: usd`, `recurring.interval` month or year | a new Price per sold `business_plans` version; Prices are never edited |
 | Checkout Session | `POST /v1/checkout/sessions` | `mode: subscription`, our Price, setup fee item, `subscription_data.trial_end` (trial), `customer`, `success_url`, `metadata` | §6.1, §6.2 |
-| Update subscription | `POST /v1/subscriptions/:id` | item `price`, `proration_behavior: always_invoice`, `payment_behavior: pending_if_incomplete` | upgrade (§6.6) |
+| Update subscription | `POST /v1/subscriptions/:id` | item `price`, `proration_behavior: always_invoice`, `proration_date` (the preview's), `payment_behavior: pending_if_incomplete` | upgrade (§6.6) |
 | Subscription schedule | `POST /v1/subscription_schedules` | `from_subscription`, next phase with the lower Price | downgrade at period end |
-| Preview invoice | `POST /v1/invoices/create_preview` | the proposed change | the upgrade quote |
+| Preview invoice | `POST /v1/invoices/create_preview` | the proposed change, `subscription_details.proration_date` | the upgrade quote |
 | Cancel at period end | `POST /v1/subscriptions/:id` with `cancel_at_period_end: true` (and `false` to continue) | | owner cancel; reversible until the period ends |
 | Cancel now | `DELETE /v1/subscriptions/:id` | | trial cancel only |
 | Invoice item | `POST /v1/invoiceitems` | `customer`, `invoice` (the renewal draft) or `subscription`, `amount`, `currency`, `description` | pay as you go (§6.9) |

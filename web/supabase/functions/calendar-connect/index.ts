@@ -73,7 +73,8 @@ export async function handle(req: Request): Promise<Response> {
       body: JSON.stringify({ p_business_id: s.b, p_provider: s.p, p_actor: s.u, p_account_email: accountEmail(t.id_token), p_refresh_token: t.refresh_token, p_calendar_id: "primary" }),
       signal: AbortSignal.timeout(10_000),
     }).catch(() => null);
-    if (!saved?.ok) return back("error", saved && /NOT_ALLOWED/.test(await saved.text()) ? "not_allowed" : "try_again");
+    // the error body is read under the same deadline: a stalled or aborted read means "try again", never a crash
+    if (!saved?.ok) return back("error", saved && /NOT_ALLOWED/.test(await saved.text().catch(() => "")) ? "not_allowed" : "try_again");
     return back("connected");
   }
   return json({ ok: false, error: "method_not_allowed" }, 405);

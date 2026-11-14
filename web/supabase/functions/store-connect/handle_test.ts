@@ -62,3 +62,12 @@ Deno.test("store unreachable: 502, nothing stored", mock((c) => c.url.includes("
   assertEquals((await connect()).status, 502);
   assertEquals(calls.some((c) => c.url.endsWith("zella_store_connect")), false);
 }));
+
+// a save error whose body cannot be read (stalled, then aborted by the deadline) answers "try again", never throws
+const brokenBody = () => new Response(new ReadableStream({ pull(ctl) { ctl.error(new DOMException("The signal has been aborted", "AbortError")); } }), { status: 500 });
+Deno.test("the save fails and its error body cannot be read: try again, no crash", mock((c) =>
+  c.url.endsWith("zella_store_connect") ? brokenBody() : shopify(["read_orders", "read_customers", "read_fulfillments"])(c), async () => {
+  const r = await connect();
+  assertEquals(r.status, 400);
+  assertEquals((await r.json()).error, "try_again");
+}));
