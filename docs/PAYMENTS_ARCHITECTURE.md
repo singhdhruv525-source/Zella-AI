@@ -545,7 +545,8 @@ changed only under the period lock: `uninvoiced` → `sending` → `attached` (w
 through the outbox sending protocol (§8): the key, the kind (draft or pending) and the amount are written together
 **before** the call, under the period lock, and the amount is made by **claiming** rows (below). A lost
 reply goes to `reconcile`, which looks the item up by `metadata.period_id` and `metadata.kind` in the pending items
-**and** in the lines of every invoice created for the customer since the send (an accepted pending item may already sit
+**and** in the lines of every invoice created for the customer since the send (every page of each invoice's lines,
+until `has_more` is false, before an item counts as not found) (an accepted pending item may already sit
 on the next invoice). **Attaching, on every path** (a successful send reply or the reconcile finding the item): the
 worker takes the lock on our `invoices` row for that Stripe invoice id (creating the row if it is the first we hear of
 that invoice), reads its status, and only then writes `attached` with both the item id and the invoice id. If the status
@@ -554,7 +555,9 @@ that arrives after attaching (below). The void and delete handler takes the same
 looks for attached rows, so an attach and a void of the same invoice can never interleave: either the attach is first
 and the void finds and holds it, or the void is first and the attach sees it and holds itself. **A pending item has no
 invoice yet**: it is `attached` with its item id and an empty invoice id; when Stripe places it on an invoice
-(`invoice.created` / `invoice.finalized`: a line with our `metadata.period_id` and `metadata.kind`), the worker records
+(`invoice.created` / `invoice.finalized`: a line with our `metadata.period_id` and `metadata.kind`; the lines list is
+read **page by page** with `starting_after` until `has_more` is false, because items added after the invoice was
+created are listed last), the worker records
 that invoice id on the row under the same `invoices` row lock, with the same status check. Not found, within Stripe's 24-hour idempotency window: the **same send with
 the same key** again. Not found after that window, or still unknown: `held` for a person, with an alert, never a fresh
 send. A row in `sending`, `reconcile` or `held` is never switched to the other kind and never
@@ -740,10 +743,15 @@ Rules:
   (`d7` or `d3` for the renewal notices, `retry2`…`retry4` for the failed-payment retries, `1` when there is only one).
   Different notices differ; a repeated event or a retry of the same notice reuses its key and never sends twice.
 - **A lost reply is never resent blindly.** The outbox row stores the **exact request body** (recipients, subject,
-  content) when it is created; every send of that row sends those same bytes with the same provider idempotency key
+  content) at its **first send attempt** (`queued` → `sending`), built from the billing contacts at that moment; every send of that row sends those same bytes with the same provider idempotency key
   (Resend's `Idempotency-Key` header = the row's key), so a retry after a lost reply returns the first result instead of
   sending again, even if the billing email or the template changed meanwhile. A `409 invalid_idempotent_request` holds
-  the row and alerts. If the outcome is still unknown after Resend's idempotency window, the row is `held` and an admin is
+  the row and alerts.
+- **A billing-email change never sends to the old address.** The change locks the business's `queued` email rows and
+  rebuilds their recipients from the new contacts in the same transaction (they were never sent, so Resend has never
+  seen their key). Rows already attempted (`sending`, `held`) keep their frozen body, because the first attempt may
+  have been delivered; a `held` row whose recipients are no longer on the billing list is never resent, only resolved
+  by a person. The change itself is confirmed to the old and the new address (H3 in `docs/BILLING_EMAILS.md`). If the outcome is still unknown after Resend's idempotency window, the row is `held` and an admin is
   alerted; it is not sent again without a person's decision.
 - **One sender.** Stripe's own invoice and receipt emails are turned **off** (§16.6) so the owner never gets two copies;
   Stripe's hosted page and PDF stay as the links in our email.
