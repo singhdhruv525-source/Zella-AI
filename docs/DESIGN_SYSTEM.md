@@ -70,6 +70,10 @@ Every notification (banner, pop up, bell item, email) follows one pattern, in th
 - Each business sees the notifications for its own kind of business plus the general ones; the wording uses its
   terms (chairs, patients, tables, jobs, viewings, tenants).
 - No jokes, no emoji, no dashes. Motion (filling rings, fades) stops for people who prefer reduced motion.
+- In the CRM, `noteStyle(n)` in `web/src/zellaVoice.js` gives each notification its icon, tone and label. The five
+  tones are classes `tone-good`, `tone-brand`, `tone-info`, `tone-heads` and `tone-urgent` on `.ba-toast`,
+  `.ba-note-icon` and `.ba-kicker` (`BusinessApp.css`), built only from the `--ba-success`, `--ba-primary`,
+  `--ba-info`, `--ba-warning` and `--ba-danger` tokens and their soft backgrounds.
 
 ## Rules of use
 

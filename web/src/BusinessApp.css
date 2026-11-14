@@ -1956,6 +1956,26 @@ html[data-zella-theme="glass"] .td-week li.on .td-week-bar::after { background: 
 .ba-toast-main { display: grid; gap: 3px; padding: 0; border: 0; background: none; color: var(--ba-text); font: inherit; text-align: left; cursor: pointer; min-width: 0; }
 .ba-toast-main strong { font-size: 13.5px; line-height: 1.35; }
 .ba-toast-main small { color: var(--ba-muted); font-size: 12.5px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* Five notification tones (docs/DESIGN_SYSTEM.md, Notifications): good, brand, info, heads, urgent.
+   A tinted icon tile, a coloured edge and a short kicker label above the title. */
+.ba-kicker { font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ba-muted); }
+.ba-note-text .ba-kicker { display: block; margin-bottom: 1px; }
+.ba-toast-icon, .ba-note-icon { border-radius: 10px; }
+.ba-note-icon.tone-good, .ba-toast.tone-good .ba-toast-icon { background: var(--ba-success-bg); color: var(--ba-success); }
+.ba-note-icon.tone-brand, .ba-toast.tone-brand .ba-toast-icon { background: var(--ba-primary-soft); color: var(--ba-primary); }
+.ba-note-icon.tone-info, .ba-toast.tone-info .ba-toast-icon { background: var(--ba-info-bg); color: var(--ba-info); }
+.ba-note-icon.tone-heads, .ba-toast.tone-heads .ba-toast-icon { background: var(--ba-warning-bg); color: var(--ba-warning); }
+.ba-note-icon.tone-urgent, .ba-toast.tone-urgent .ba-toast-icon { background: var(--ba-danger-bg); color: var(--ba-danger); }
+.ba-kicker.tone-good, .ba-toast.tone-good .ba-kicker { color: var(--ba-success); }
+.ba-kicker.tone-brand, .ba-toast.tone-brand .ba-kicker { color: var(--ba-primary); }
+.ba-kicker.tone-info, .ba-toast.tone-info .ba-kicker { color: var(--ba-info); }
+.ba-kicker.tone-heads, .ba-toast.tone-heads .ba-kicker { color: var(--ba-warning); }
+.ba-kicker.tone-urgent, .ba-toast.tone-urgent .ba-kicker { color: var(--ba-danger); }
+.ba-toast.tone-good { background: linear-gradient(135deg, var(--ba-success-bg), var(--ba-surface) 65%); box-shadow: inset 4px 0 0 var(--ba-success), 0 12px 32px rgba(20, 14, 8, 0.18); }
+.ba-toast.tone-brand { background: linear-gradient(135deg, var(--ba-primary-soft), var(--ba-surface) 65%); box-shadow: inset 4px 0 0 var(--ba-primary), 0 12px 32px rgba(20, 14, 8, 0.18); }
+.ba-toast.tone-info { box-shadow: inset 4px 0 0 var(--ba-info), 0 12px 32px rgba(20, 14, 8, 0.18); }
+.ba-toast.tone-heads { background: linear-gradient(135deg, var(--ba-warning-bg), var(--ba-surface) 65%); box-shadow: inset 4px 0 0 var(--ba-warning), 0 12px 32px rgba(20, 14, 8, 0.18); }
+.ba-toast.tone-urgent { background: linear-gradient(135deg, var(--ba-danger-bg), var(--ba-surface) 65%); border-color: var(--ba-danger-border, var(--ba-danger)); box-shadow: inset 4px 0 0 var(--ba-danger), 0 12px 32px rgba(20, 14, 8, 0.18); }
 @keyframes ba-toast-in { from { opacity: 0; transform: translateY(14px) scale(0.98); } to { opacity: 1; transform: none; } }
 
 .ba-confetti { position: absolute; inset: 0; pointer-events: none; }

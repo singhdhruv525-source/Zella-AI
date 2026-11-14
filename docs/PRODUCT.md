@@ -428,6 +428,8 @@ secrets, never in tables, code, logs or chat (`NN-2`).
 | Per-person preferences (what, and by which channel) | Built |
 | Celebrations for milestones (first call answered, first booking) | Built |
 | On-call and scorecard nudges | Built |
+| Business moments: a record day for bookings, a surge in calls, and gaps in the coming weekend's on call cover | Built, not applied (`sql/zella_business_moments.sql`, tested on the isolated database only) |
+| Five notification tones with a short label (Record, New lead, Still answering, On call, Urgent), worded in each industry's terms, no emoji | Built |
 | Admin alerts bell | Built |
 | Push notifications for the installed web app | Planned (D-40) |
 
