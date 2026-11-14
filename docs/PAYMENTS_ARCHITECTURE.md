@@ -546,7 +546,9 @@ through the outbox sending protocol (§8): the key, the kind (draft or pending) 
 **before** the call, under the period lock, and the amount is made by **claiming** rows (below). A lost
 reply goes to `reconcile`, which looks the item up by `metadata.period_id` and `metadata.kind` in the pending items
 **and** in the lines of every invoice created for the customer since the send (an accepted pending item may already sit
-on the next invoice). Found: `attached`. Not found, within Stripe's 24-hour idempotency window: the **same send with
+on the next invoice). Found: `attached`, unless our record of that invoice is already `void` or `deleted` (the void
+event arrived while this row was `sending` or `reconcile`): then the row goes to `held` with an alert and a finance task,
+exactly as for a void that arrives after attaching (below). Not found, within Stripe's 24-hour idempotency window: the **same send with
 the same key** again. Not found after that window, or still unknown: `held` for a person, with an alert, never a fresh
 send. A row in `sending`, `reconcile` or `held` is never switched to the other kind and never
 sent again under another key. An hourly reconcile acts only on monthly-plan periods past their end that are still
@@ -705,7 +707,7 @@ address), not only by Stripe. Nobody has to press a button.
 
 | When | What the owner gets | Sent from |
 |---|---|---|
-| `invoice.upcoming` (3 days before every renewal, monthly and yearly, and also 7 days before a yearly renewal; also before a trial ends) | **Your plan renews on <date>**: plan, amount, and which of the two applies: **auto-debit on** — "we will charge the card ending 4242 on <date>, nothing to do"; or **payment needed** — no working card on file (none saved, expired before the date, or the last charge failed) — "pay now" with the link to pay or update the card. Sent even when auto-debit is on, so the owner is never charged without notice | the worker, from the event and our subscription row |
+| `invoice.upcoming` (3 days before every renewal, monthly and yearly, and also 7 days before a yearly renewal; also before a trial ends) | **Your plan renews on <date>**: plan, amount, and exactly one of three cases: **auto-debit on, working card** — "we will charge the card ending 4242 on <date>, nothing to do"; **auto-debit off** — "your invoice will be due on <date>; pay by the link in the invoice email or in the app"; **payment needed** — auto-debit on but no working card (none saved, expires before the date, or the last charge failed) — "pay now" with the link to pay or update the card. Sent in every case, so the owner is never charged without notice | the worker, from the event and our subscription row |
 | `invoice.finalized` (every invoice: first payment, renewal, upgrade proration, pay-as-you-go, final invoice after a cancel) | **Your invoice**: number, period, every line (plan, setup fee, packs, pay-as-you-go minutes, credits, tax), total, the card it will be charged to, and links to Stripe's hosted invoice page and PDF | the worker, after the event is stored and the invoice fetched (§5, §6.0b) |
 | `invoice.paid` (every payment: card auto-debit at renewal, first payment, or the owner paying by the link) | **Paid**: the same invoice marked paid, with the PDF receipt link | the same worker |
 | `invoice.payment_failed` | **Payment failed**: what happens next and the link to pay (§6.3) | the same worker |
@@ -724,13 +726,21 @@ The full list of billing emails, their content, the SMS copies of the urgent one
 `docs/BILLING_EMAILS.md`.
 
 Rules:
-- **Once per invoice and kind.** Each email is an outbox row with the key `email:<kind>:<invoice id>` (unique), so a
-  retried or repeated webhook never sends twice; a failed send retries with the same key and alerts after the last try.
+- **Once per notice.** Each email is an outbox row with the key `email:<kind>:<invoice or event id>:<occurrence>`
+  (unique). The occurrence names which notice it is (`d7` or `d3` for the renewal notices, `retry2`…`retry4` for the
+  failed-payment retries, `1` when there is only one), so distinct notices for one invoice have distinct keys, while a
+  repeated webhook or a retried send of the same notice reuses its key and never sends twice.
+- **A lost reply is never resent blindly.** Every send of one outbox row carries the same provider idempotency key
+  (Resend's `Idempotency-Key` header = the row's key), so a retry after a lost reply returns the first result instead of
+  sending again. If the outcome is still unknown after Resend's idempotency window, the row is `held` and an admin is
+  alerted; it is not sent again without a person's decision.
 - **One sender.** Stripe's own invoice and receipt emails are turned **off** (§16.6) so the owner never gets two copies;
   Stripe's hosted page and PDF stay as the links in our email.
 - **To whom.** The business's billing email (owner by default, editable in Settings › Billing); never a customer of
   the business.
-- **The amounts come from Stripe's invoice** (fetched, not from the event payload) and match our `invoices` rows; a
+- **The amounts come from Stripe, fetched, never from the event payload.** Invoice emails use the fetched invoice;
+  receipts for charges without a Stripe invoice (yearly pay-as-you-go, packs, auto-reload) use the fetched
+  PaymentIntent, after the payment binding check (§6.0a). Either must match our `invoices` / `invoice_lines` rows; a
   mismatch holds the email and alerts instead of sending a wrong amount.
 - **No real email from development or tests.** Staging uses Stripe's sandbox and a test inbox; sending to real owners
   happens only in production after the owner's approval (§14).
@@ -924,7 +934,7 @@ stateDiagram-v2
 | Monthly pay as you go, draft already finalised | `POST /v1/invoiceitems` (pending, no `invoice`) | `payg:<period id>:pending` | the same billing row: only one of the two is created | pending items and the lines of invoices created since the send, by `metadata.period_id` and `metadata.kind` |
 | Monthly pay as you go, late usage | `POST /v1/invoiceitems` (pending), once at the billing close | `payg:<period id>:late` | one per period: every row still unclaimed at the close | pending items and the lines of invoices created since the send, by `metadata.period_id` and `metadata.kind` |
 | Monthly pay as you go, re-billed after its invoice was voided unpaid (admin decision) | `POST /v1/invoiceitems` (pending) | `payg:<period id>:r<n>` | the same billing row, `held` → `uninvoiced` by an audited admin action; or `waived` with a ledger entry | pending items and the lines of invoices created since the send, by `metadata.period_id` |
-| Invoice and receipt emails (§6.11) | outbox email row | `email:<kind>:<invoice id>` | one per invoice and kind (unique) | the outbox row and Resend's message id |
+| Invoice and receipt emails (§6.11) | outbox email row; Resend `Idempotency-Key` = the row's key | `email:<kind>:<invoice or event id>:<occurrence>` | one per notice (unique); a lost reply never resends blindly (held after the idempotency window) | the outbox row and Resend's message id |
 | Credit for a correction to billed usage | one negative invoice item on the next renewal draft, or a reduced yearly pay-as-you-go PaymentIntent; after the subscription ended, a refund (§6.7) | `credit:<renewal invoice id>`; the PaymentIntent's own `payg:<period id>`; `refund:<refund id>` | one ledger credit per correcting row (`credit:<row id>`), split into allocation lines (`credit:<row id>:<charge id>`), each consumed once, returned to open if the renewal invoice that claimed it is voided unpaid; a yearly charge reduced to zero is `settled_by_credit`, one below Stripe's minimum is carried (`carry:<period id>`) or written off (`writeoff:<period id>`) | the invoice's lines, the PaymentIntent, refunds per original payment (each line once); a charge's funding (payment + consumed lines) |
 | Final invoices after a cancel | invoice item + `POST /v1/invoices` + finalize + pay | `final:<period id>:<main\|late>:<item\|invoice\|finalize\|pay>` | unique (period, kind) | invoices by `metadata.final_kind` |
 | Upgrade | `POST /v1/subscriptions/:id` | `upgrade:<change id>` | one pending change per subscription | subscription `pending_update`, latest invoice |

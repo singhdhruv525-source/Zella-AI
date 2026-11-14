@@ -145,7 +145,7 @@ D1 (payment failed / overdue), D4 (final notice), D5 (service paused), A5 (trial
 E8 (data deletion warning) are also sent as a short SMS to the owner's
 mobile number (Settings › Billing), from the platform's own sender number, never the business's receptionist number.
 The SMS has the amount, the date and a link to the billing page; no invoice details. Once per email (key
-`sms:<kind>:<invoice id>`), only to an owner who has given a mobile number, and never from development or tests.
+`sms:<kind>:<invoice id>:<occurrence>`), only to an owner who has given a mobile number, and never from development or tests.
 
 ## 4. What every email contains (one template)
 
@@ -177,9 +177,10 @@ The SMS has the amount, the date and a link to the billing page; no invoice deta
 
 | Rule | How |
 |---|---|
-| Never twice | each email is one outbox row, key `email:<kind>:<invoice or event id>` (unique); retries reuse the key |
+| Never twice | each email is one outbox row, key `email:<kind>:<invoice or event id>:<occurrence>` (unique); the occurrence names the notice (`d7`, `d3`, `retry2`…`retry4`, or `1`), so different notices for one invoice differ, while a retry of the same notice reuses its key |
+| A lost reply | every send of a row carries Resend's `Idempotency-Key` = the row's key, so a retry returns the first result; if the outcome is still unknown after Resend's idempotency window, the row is held and an admin alerted, never resent blindly |
 | Never lost | failed sends retry with backoff; after the last try an admin alert |
-| Never a wrong amount | amounts are fetched from Stripe and must match our `invoices` rows; a mismatch holds the email and alerts |
+| Never a wrong amount | amounts are fetched from Stripe (the invoice; for charges without one — yearly pay-as-you-go, packs, auto-reload — the PaymentIntent, after the binding check) and must match our `invoices` / `invoice_lines` rows; a mismatch holds the email and alerts |
 | Bounces | Resend's delivery and bounce events are recorded; a bounce alerts the admin and shows a banner in the owner's billing page |
 | Order | a Paid email is never sent before its Invoice email for the same invoice |
 | Not in dev or tests | staging uses Stripe's sandbox and a test inbox; real owners only in production, after the owner's approval |
