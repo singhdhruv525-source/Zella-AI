@@ -4,9 +4,10 @@
 -- per-business reads on these columns scan too.
 -- Plain CREATE INDEX, not CONCURRENTLY: production holds 6 rows across these tables (13 Nov 2026), so each index takes
 -- milliseconds, and CONCURRENTLY cannot run inside the SQL editor's transaction. Run it when the tables are this small.
--- Each index is created only when no existing index already starts with exactly those columns, so nothing is
--- duplicated and a re-run is a no-op. Indexes change no data and no permissions.
--- Rollback: sql/rollback/zella_fk_indexes_rollback.sql (drops only the indexes this file creates, by name)
+-- Each index is created only when no usable existing index (valid, not partial) already starts with exactly those
+-- columns, so nothing is duplicated and a re-run is a no-op. If our name is taken by an index that does not cover the
+-- key, the file stops (VERSION_MISMATCH). Every index it creates carries a comment that marks it as created here. Indexes change no data and no permissions.
+-- Rollback: sql/rollback/zella_fk_indexes_rollback.sql (drops only indexes carrying this file's mark)
 -- Check (expect 0 rows): the query in tests/fk_indexes/run.sh "unindexed".
 
 create or replace function public.zella_fk_index_list()
@@ -69,9 +70,22 @@ begin
     if not exists (select 1 from pg_constraint c where c.conrelid = v_rel and c.contype = 'f' and c.conkey = v_cols) then
       raise exception 'VERSION_MISMATCH: %(%) is no longer a foreign key', r.tbl, r.cols;
     end if;
+    -- an existing index counts only if PostgreSQL can use it for "key = value" lookups: valid, ready, starting with
+    -- exactly these columns, and either not partial or partial only on "<key> IS NOT NULL" (which every such lookup
+    -- satisfies). An index limited to some status (WHERE status = 'open') does not count.
     continue when exists (select 1 from pg_index i where i.indrelid = v_rel
-                            and (i.indkey::int2[])[0:array_length(v_cols, 1) - 1] = v_cols);
-    execute format('create index if not exists %I on public.%I (%s)', r.index_name, r.tbl,
+                            and i.indisvalid and i.indisready and i.indislive
+                            and (i.indkey::int2[])[0:array_length(v_cols, 1) - 1] = v_cols
+                            and (i.indpred is null
+                                 or (array_length(v_cols, 1) = 1
+                                     and pg_get_expr(i.indpred, i.indrelid) = format('(%s IS NOT NULL)', quote_ident(r.cols)))));
+    -- the name is free, or the file stops: an index under our name that does not cover these columns is not ours
+    if to_regclass('public.' || r.index_name) is not null then
+      raise exception 'VERSION_MISMATCH: an index named % already exists but does not cover %(%)', r.index_name, r.tbl, r.cols;
+    end if;
+    execute format('create index %I on public.%I (%s)', r.index_name, r.tbl,
                    (select string_agg(format('%I', c), ', ') from unnest(string_to_array(r.cols, ',')) c));
+    -- the mark the rollback looks for: it drops only indexes this file created
+    execute format('comment on index public.%I is %L', r.index_name, 'created by sql/zella_fk_indexes.sql');
   end loop;
 end $$;
