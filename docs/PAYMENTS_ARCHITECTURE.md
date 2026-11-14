@@ -553,6 +553,15 @@ sent again under another key. An hourly reconcile acts only on monthly-plan peri
 `uninvoiced`, and creates the pending item through the same steps, so recorded usage is never left off every invoice
 and never billed twice.
 
+**An invoice carrying the item is voided unpaid.** We never void an invoice ourselves without a person's decision;
+a void (from the admin screen or the Stripe dashboard) arrives as `invoice.voided` / `invoice.deleted`. In the same
+transaction that records it, under the period lock, the item's billing row goes `attached` → `held` with an alert
+and a finance task, and its claimed rows stay claimed (so nothing else bills them meanwhile). The usage is neither
+re-billed nor forgiven automatically: an admin chooses, audited, either **re-bill** (the rows are released, the billing
+row returns to `uninvoiced` with a new key `payg:<period id>:r<n>`, and the steps above send it again) or **waive**
+(the rows are marked `waived` and a ledger entry records the amount and the reason). Either way the usage is never
+silently lost and never billed twice. The credit lines that invoice claimed return to open (step 4 below).
+
 **What an item bills: claimed rows, never a position.** The billable amounts are the pay-as-you-go rows of
 `usage_charges` (minutes past the allowance, and their later corrections). Every such row is written by
 `zella_usage_consume` / `zella_usage_release` **while holding the period row lock** (`zella_billing_open_period` takes it
@@ -589,7 +598,8 @@ never bill past the close.
    reduced by the lines it claims). A charge never goes below zero; lines left over stay open for the next one.
    Lines claimed by a renewal invoice that is **voided without being paid** (`issued → void`, or a draft deleted
    before finalising) return to open in the same transaction that records the void, from the `invoice.voided` /
-   `invoice.deleted` webhook only; never while the invoice can still be paid (`open`, `uncollectible` can still be
+   `invoice.deleted` webhook only (the pay-as-you-go item on the same invoice is handled as described above); never
+   while the invoice can still be paid (`open`, `uncollectible` can still be
    paid, so their lines stay claimed until it is paid or voided).
    **Yearly charges below Stripe's minimum.** If the reduced yearly amount is zero, no PaymentIntent is created: the
    period's local charge row is marked `settled_by_credit` with its claimed rows and lines, so nothing is lost or
@@ -874,6 +884,7 @@ stateDiagram-v2
 | Monthly pay as you go | `POST /v1/invoiceitems` on the draft renewal invoice | `payg:<period id>` | one billing row per period (`uninvoiced` → `attached`) | the invoice's lines |
 | Monthly pay as you go, draft already finalised | `POST /v1/invoiceitems` (pending, no `invoice`) | `payg:<period id>:pending` | the same billing row: only one of the two is created | pending items and the lines of invoices created since the send, by `metadata.period_id` and `metadata.kind` |
 | Monthly pay as you go, late usage | `POST /v1/invoiceitems` (pending), once at the billing close | `payg:<period id>:late` | one per period: every row still unclaimed at the close | pending items and the lines of invoices created since the send, by `metadata.period_id` and `metadata.kind` |
+| Monthly pay as you go, re-billed after its invoice was voided unpaid (admin decision) | `POST /v1/invoiceitems` (pending) | `payg:<period id>:r<n>` | the same billing row, `held` → `uninvoiced` by an audited admin action; or `waived` with a ledger entry | pending items and the lines of invoices created since the send, by `metadata.period_id` |
 | Credit for a correction to billed usage | one negative invoice item on the next renewal draft, or a reduced yearly pay-as-you-go PaymentIntent; after the subscription ended, a refund (§6.7) | `credit:<renewal invoice id>`; the PaymentIntent's own `payg:<period id>`; `refund:<refund id>` | one ledger credit per correcting row (`credit:<row id>`), split into allocation lines (`credit:<row id>:<charge id>`), each consumed once, returned to open if the renewal invoice that claimed it is voided unpaid; a yearly charge reduced to zero is `settled_by_credit`, one below Stripe's minimum is carried (`carry:<period id>`) or written off (`writeoff:<period id>`) | the invoice's lines, the PaymentIntent, refunds per original payment (each line once); a charge's funding (payment + consumed lines) |
 | Final invoices after a cancel | invoice item + `POST /v1/invoices` + finalize + pay | `final:<period id>:<main\|late>:<item\|invoice\|finalize\|pay>` | unique (period, kind) | invoices by `metadata.final_kind` |
 | Upgrade | `POST /v1/subscriptions/:id` | `upgrade:<change id>` | one pending change per subscription | subscription `pending_update`, latest invoice |
