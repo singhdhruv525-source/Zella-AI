@@ -10,6 +10,8 @@
 -- Rollback: sql/rollback/zella_fk_indexes_rollback.sql (drops only indexes carrying this file's mark)
 -- Check (expect 0 rows): the query in tests/fk_indexes/run.sh "unindexed".
 
+begin;   -- all or nothing: a stop (VERSION_MISMATCH) leaves the database exactly as it was, helper included
+
 create or replace function public.zella_fk_index_list()
 returns table (tbl text, cols text, index_name text) language sql immutable set search_path = public as $$
   values
@@ -89,3 +91,4 @@ begin
     execute format('comment on index public.%I is %L', r.index_name, 'created by sql/zella_fk_indexes.sql');
   end loop;
 end $$;
+commit;

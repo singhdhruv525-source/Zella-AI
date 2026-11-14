@@ -40,8 +40,13 @@ list_before=$(q "$LIST")
 q "create index zella_fk_customer_consents_business_id_idx on public.customer_consents (given_by_customer_id)" > /dev/null
 out=$("${P[@]}" -d $DB -f "$REPO/sql/zella_fk_indexes.sql" 2>&1) && bad "a colliding index name was accepted" || {
   echo "$out" | grep -q VERSION_MISMATCH && ok "an index under our name that does not cover the key stops the file" || bad "collision failed for another reason: $(echo "$out" | grep -m1 ERROR)"; }
-q "drop index public.zella_fk_customer_consents_business_id_idx; drop function if exists public.zella_fk_index_list()" > /dev/null
-[ "$(q "$UNINDEXED")" = 38 ] && ok "the stopped run left nothing behind" || bad "the stopped run changed something"
+# checked before any cleanup: the helper was not left behind and no index was created or marked
+[ "$(q "select to_regprocedure('public.zella_fk_index_list()') is null")" = t ] \
+  && [ "$(q "select count(*) from pg_class where obj_description(oid, 'pg_class') = 'created by sql/zella_fk_indexes.sql'")" = 0 ] \
+  && [ "$(q "select count(*) from pg_indexes where indexname like 'zella\_fk\_%'")" = 1 ] \
+  && ok "the stopped run left nothing behind (no helper, no new or marked index)" || bad "the stopped run changed something"
+q "drop index public.zella_fk_customer_consents_business_id_idx" > /dev/null
+[ "$(q "$UNINDEXED")" = 38 ] && ok "after removing the test's colliding index, the same 38 keys are unindexed" || bad "unindexed after the stopped run: $(q "$UNINDEXED")"
 # a partial index does not count as coverage
 q "create index partial_consents_business on public.customer_consents (business_id) where false" > /dev/null
 # an index that already exists under another name must be kept and not duplicated
