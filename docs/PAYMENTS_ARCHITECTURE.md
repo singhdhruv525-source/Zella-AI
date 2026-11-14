@@ -572,20 +572,33 @@ never bill past the close.
    correction to usage recorded after the close (never billable), or beyond what was billable, is counted and never
    billed or credited: the claim records its billable part (often zero) on the row and marks the rest
    `unbillable`, so it is never looked at again.
-2. **Net first.** Every claim (main, late, or yearly) takes, under the period lock, the period's unclaimed billable
-   negative rows **whatever their date**, together with the positive rows before the close. A correction recorded while
-   its original is still unclaimed is therefore netted in the same item, whichever arrives first.
-3. **Then a ledger credit.** A billable negative row still unclaimed after the period's last item has been sent (its original
-   was already billed) becomes **one credit entry in our money ledger** (`credit:<row id>`, unique per row), written
-   under the business's lock. No Stripe customer balance is used.
-4. **Used once.** Open credits are consumed, under the same lock, by the next charge for that business: the next
-   renewal draft (as one negative invoice item, key `credit:<renewal invoice id>`, claiming the credits it uses) or the
-   next yearly pay-as-you-go PaymentIntent (its amount is reduced by the credits it claims). A charge never goes below
-   zero; what is left stays open for the next one.
-5. **After the subscription has ended** (checked when the credit is consumed, not when it was recorded), the open
-   credits are refunded once to the original payment, through the refund flow (§6.7). The refund request claims the
-   credits in the same transaction that creates it, so a credit can be either applied to a charge or refunded, never
-   both. A correction never needs approval to reduce what the owner pays, and is never used to raise it.
+2. **Net only against the same item.** A claim (main, late, or yearly) takes, under the period lock, the positive
+   rows before the close and, for each source among them, that source's unclaimed billable corrections, up to what
+   **this item** bills for that source. A correction recorded while its original is still unclaimed is therefore
+   netted in the same item, whichever arrives first. A correction is never netted into an item that does not bill its
+   source: a correction to a row claimed by an earlier item can never reduce a later item (step 3).
+3. **Otherwise a ledger credit.** A billable correction (or its part) not netted that way, because its source was
+   claimed by an earlier item, becomes **one credit entry in our money ledger** (`credit:<row id>`, unique per row),
+   written under the business's lock. No Stripe customer balance is used. The credit is **allocated** to the charges
+   that billed its source (invoice item or yearly PaymentIntent), newest first, each up to what that charge billed for
+   the source less what earlier credits already took from it. Each allocation line (`credit:<row id>:<charge id>`)
+   is consumed exactly once, by step 4 or step 5.
+4. **Used once.** While the subscription is active, open allocation lines are consumed, under the business's lock, by
+   the next charge for that business: the next renewal draft (one negative invoice item, key
+   `credit:<renewal invoice id>`, claiming the lines it uses) or the next yearly pay-as-you-go charge (its amount is
+   reduced by the lines it claims). A charge never goes below zero; lines left over stay open for the next one.
+   **Yearly charges below Stripe's minimum.** If the reduced yearly amount is zero, no PaymentIntent is created: the
+   period's local charge row is marked `settled_by_credit` with its claimed rows and lines, so nothing is lost or
+   claimed again. If it is positive but below Stripe's minimum charge for the currency, no PaymentIntent is created
+   either: the amount is carried as one open debit (`carry:<period id>`) that the next yearly charge adds and claims.
+   A carried debit still open when the subscription ends is written off in the ledger (`writeoff:<period id>`, shown
+   to admins), never charged on its own.
+5. **After the subscription has ended** (checked when the lines are consumed, not when the credit was recorded), each
+   open allocation line is refunded once to **its own** charge's payment, through the refund flow (§6.7): one refund
+   request per payment, which claims that payment's lines in the same transaction that creates it. A $10 correction
+   whose source was billed $4 on one invoice and $6 on another is refunded as $4 and $6. A line is either applied to a
+   charge or refunded, never both. A correction never needs approval to reduce what the owner pays, and is never used
+   to raise it.
 
 Each yearly PaymentIntent claims its rows the same way as an invoice item (`billed_item` = the PaymentIntent's local
 charge row), so its corrections follow the same steps.
@@ -846,7 +859,7 @@ stateDiagram-v2
 | Monthly pay as you go | `POST /v1/invoiceitems` on the draft renewal invoice | `payg:<period id>` | one billing row per period (`uninvoiced` → `attached`) | the invoice's lines |
 | Monthly pay as you go, draft already finalised | `POST /v1/invoiceitems` (pending, no `invoice`) | `payg:<period id>:pending` | the same billing row: only one of the two is created | pending items and the lines of invoices created since the send, by `metadata.period_id` and `metadata.kind` |
 | Monthly pay as you go, late usage | `POST /v1/invoiceitems` (pending), once at the billing close | `payg:<period id>:late` | one per period: every row still unclaimed at the close | pending items and the lines of invoices created since the send, by `metadata.period_id` and `metadata.kind` |
-| Credit for a correction to billed usage | one negative invoice item on the next renewal draft, or a reduced yearly pay-as-you-go PaymentIntent; after the subscription ended, a refund (§6.7) | `credit:<renewal invoice id>`; the PaymentIntent's own `payg:<period id>`; `refund:<refund id>` | one ledger credit per correcting row (`credit:<row id>`), consumed once | the invoice's lines, the PaymentIntent, the refund |
+| Credit for a correction to billed usage | one negative invoice item on the next renewal draft, or a reduced yearly pay-as-you-go PaymentIntent; after the subscription ended, a refund (§6.7) | `credit:<renewal invoice id>`; the PaymentIntent's own `payg:<period id>`; `refund:<refund id>` | one ledger credit per correcting row (`credit:<row id>`), split into allocation lines (`credit:<row id>:<charge id>`), each consumed once; a yearly charge reduced to zero is `settled_by_credit`, one below Stripe's minimum is carried (`carry:<period id>`) or written off (`writeoff:<period id>`) | the invoice's lines, the PaymentIntent, one refund per original payment |
 | Final invoices after a cancel | invoice item + `POST /v1/invoices` + finalize + pay | `final:<period id>:<main\|late>:<item\|invoice\|finalize\|pay>` | unique (period, kind) | invoices by `metadata.final_kind` |
 | Upgrade | `POST /v1/subscriptions/:id` | `upgrade:<change id>` | one pending change per subscription | subscription `pending_update`, latest invoice |
 | Downgrade | `POST /v1/subscription_schedules` | `downgrade:<change id>` | one scheduled change per subscription | the subscription's schedule |
