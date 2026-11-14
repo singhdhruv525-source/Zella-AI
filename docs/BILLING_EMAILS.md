@@ -50,7 +50,7 @@ can turn it off in Settings › Billing › Emails).
 
 | # | Email | When | Main content | M/O |
 |---|---|---|---|---|
-| B1 | Your plan renews on <date> | 3 days before each renewal (Stripe `invoice.upcoming`); **yearly plans also 7 days before** | plan, period, estimated amount (plan + expected pay-as-you-go), and **one of three**: auto-debit on → "we will charge card ending 4242, nothing to do"; auto-debit off → "your invoice will be due on <date>, pay by the link or in the app"; payment needed (auto-debit on but no card / card expires before the date / last charge failed) → "pay now / update card" | M |
+| B1 | Your plan renews on <date> | scheduled by our worker from the subscription's period end: 3 days before each renewal; **yearly plans also 7 days before** | plan, period, estimated amount (plan + expected pay-as-you-go), and **one of three**: auto-debit on → "we will charge card ending 4242, nothing to do"; auto-debit off → "your invoice will be due on <date>, pay by the link or in the app"; payment needed (auto-debit on but no card / card expires before the date / last charge failed) → "pay now / update card" | M |
 | B2 | Card expiring soon | 30 days before the saved card's expiry month ends | last 4 digits, "update card" link | M |
 | B3 | No card on file | auto-debit is on and the saved card was removed or is unusable | "add a card before <next renewal>" | M |
 | B4 | Price change notice | 30 days before a plan's price changes for this business | old and new price, from which renewal, how to change plan or cancel | M |
@@ -145,7 +145,8 @@ D1 (payment failed / overdue), D4 (final notice), D5 (service paused), A5 (trial
 E8 (data deletion warning) are also sent as a short SMS to the owner's
 mobile number (Settings › Billing), from the platform's own sender number, never the business's receptionist number.
 The SMS has the amount, the date and a link to the billing page; no invoice details. Once per email (key
-`sms:<kind>:<invoice id>:<occurrence>`), only to an owner who has given a mobile number, and never from development or tests.
+`sms:<kind>:<object id>:<occurrence>`, the same object as the email: the invoice when there is one, otherwise
+our own row, e.g. the data-deletion schedule for E8), only to an owner who has given a mobile number, and never from development or tests.
 
 ## 4. What every email contains (one template)
 
@@ -177,8 +178,8 @@ The SMS has the amount, the date and a link to the billing page; no invoice deta
 
 | Rule | How |
 |---|---|
-| Never twice | each email is one outbox row, key `email:<kind>:<invoice or event id>:<occurrence>` (unique); the occurrence names the notice (`d7`, `d3`, `retry2`…`retry4`, or `1`), so different notices for one invoice differ, while a retry of the same notice reuses its key |
-| A lost reply | every send of a row carries Resend's `Idempotency-Key` = the row's key, so a retry returns the first result; if the outcome is still unknown after Resend's idempotency window, the row is held and an admin alerted, never resent blindly |
+| Never twice | each email is one outbox row, key `email:<kind>:<object id>:<occurrence>` (unique). The object is the business object the notice is about, never a Stripe event id (Stripe can send two events for one change): the invoice; for renewal notices the subscription and renewal date; otherwise our own row (refund, dispute, purchase, settings change, deletion schedule). The occurrence names the notice (`d7`, `d3`, `retry2`…`retry4`, or `1`) |
+| A lost reply | the outbox row stores the exact request body when it is created; every send of it sends the same bytes with Resend's `Idempotency-Key` = the row's key, so a retry returns the first result even if the address or template changed; a `409 invalid_idempotent_request`, or an outcome still unknown after Resend's idempotency window, holds the row and alerts an admin, never a blind resend |
 | Never lost | failed sends retry with backoff; after the last try an admin alert |
 | Never a wrong amount | amounts are fetched from Stripe (the invoice; for charges without one — yearly pay-as-you-go, packs, auto-reload — the PaymentIntent, after the binding check) and must match our `invoices` / `invoice_lines` rows; a mismatch holds the email and alerts |
 | Bounces | Resend's delivery and bounce events are recorded; a bounce alerts the admin and shows a banner in the owner's billing page |
