@@ -105,7 +105,7 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile`. `vapi_a
 | **Payments provider is Stripe** (D-34 changed 13 Nov 2026: Zella Voice is a Wyoming LLC). Integration reference from Stripe's docs in `docs/PAYMENTS_ARCHITECTURE.md` §16; auto-reload and pay as you go charge automatically (D-54 closed) | Open, owner | The owner completes the Stripe account checklist (§16.7: EIN, identity, US bank account, Billing on, sandbox keys saved as staging secrets by the owner), and decides when a trial business pays the setup fee. |
 | **The deployed `billing-webhook` doesn't follow the Stripe design yet** (`docs/PAYMENTS_ARCHITECTURE.md` §17, gaps C-1 to C-8): it grants from the payload, treats an active status as a renewal and has no binding check. It is off (no `STRIPE_WEBHOOK_SECRET`). | Open, step 4 | Keep the secret unset until step 4 rebuilds the webhook as in §6.0b and its tests pass. |
 | **Workflow-failure emails:** `sql/zella_workflow_alert_email.sql` (merged, not applied) keeps n8n failures in the dashboard only | Open, owner's decision | Apply with approval, or drop it if admins should be emailed. |
-| **Unsubscribe functions have no rate limit** (SEC-6 gap, architecture §30) | Open | A guarded migration, with approval. |
+| **Unsubscribe functions have no rate limit** (SEC-6 gap, architecture §30) | Fix merged, not applied | `sql/zella_unsubscribe_limit.sql`: lookup 30 and save 10 per link per 10 minutes, unknown links answered before counting, and an opt-out is never refused (NN-8: it is skipped only when the person's latest choice is already opted out). The web page's busy state keeps the Unsubscribe button and must ship with it. Apply with the owner's approval. |
 | Other rulebook gaps from the 12 Nov review: industry branches in database functions (BIZ-10); `business_id` missing on six business-owned tables (TEN-1) | Open | Plan each as its own PR. |
 | **Call-minute margins:** pack prices are below a 60% margin at an estimated $0.15/min cost, and the 250-minute pack costs more per minute than the 100-minute pack | Open, owner | Measure the real cost per minute from Vapi call logs, then revisit. |
 | PR #42 outside-diff finding: the webhook metadata business-ID fallback | Open | Review and fix. |
@@ -117,6 +117,9 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile`. `vapi_a
 
 The owner's decisions of 9 Nov 2026 are in `docs/ARCHITECTURE.md` §23.1, and the open ones are in §23.2. The ones
 most often needed:
+
+- **Unsubscribe link limits (G-7, 14 Nov 2026):** limits are per link only, never platform-wide or per address (a burst
+  of genuine opt-outs after a big email must never be refused), and the limit never stops an opt-out.
 
 - **Billing policy decided on 12 Nov 2026** (D-34 payment provider, now Stripe since 13 Nov 2026 because Zella Voice is a Wyoming LLC; D-41 policy, D-25 no pause): full text in
   `docs/ARCHITECTURE.md` §17. Every plan is customised per business, with **no preset prices or values**: on the plan
