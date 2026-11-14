@@ -19,7 +19,7 @@ fails=0; ok() { echo "PASS $*"; }; bad() { echo "FAIL $*"; fails=$((fails + 1));
 q() { "${P[@]}" -d $DB -c "$1"; }
 HASHES="select string_agg(proname || '=' || md5(pg_get_functiondef(oid)), ',' order by proname) from pg_proc where pronamespace = 'public'::regnamespace and proname in ('zella_unsubscribe_email', 'zella_unsubscribe_lookup')"
 LIVE_HASHES="zella_unsubscribe_email=2b0cbe3cdba9216fa630cf447a0153a8,zella_unsubscribe_lookup=6b71e36b82cc134696fdc3d57bd71fb2"
-NEW_HASHES="zella_unsubscribe_email=ad6686f0473c98add9cbbe4e16327345,zella_unsubscribe_lookup=24d10fcf5dbfad0ee6f87c22acdfef05"
+NEW_HASHES="zella_unsubscribe_email=90e424307e1e33acfe9b83c478531325,zella_unsubscribe_lookup=24d10fcf5dbfad0ee6f87c22acdfef05"
 [ "$(q "$HASHES")" = "$LIVE_HASHES" ] && ok "both functions match production's versions (read 13 Nov 2026)" || bad "build differs from production: $(q "$HASHES")"
 
 for i in 1 2; do out=$("${P[@]}" -d $DB -f "$REPO/sql/zella_unsubscribe_limit.sql" 2>&1) || { bad "apply (run $i): $(echo "$out" | grep -m2 -E 'ERROR|CONTEXT' | tr '\n' ' ')"; exit 1; }; done
@@ -109,6 +109,21 @@ do $$ begin
   assert (select status from contact_consents where customer_id = 'cc000000-0000-4000-8000-000000000001' order by recorded_at desc limit 1) = 'opted_out',
     'over the limit, a person who had opted back in was not opted out';
   raise notice 'PASS over the limit, a person whose latest choice is "opted in" is still opted out (opt-out always wins)';
+end $$;
+-- link B, within the limit and within a minute: opted out 40 s ago, opted back in 20 s ago, unsubscribes again: the
+-- one-minute double-click guard must not swallow it
+delete from rate_limits where key = 'unsub:save:' || repeat('b', 32);
+update contact_consents set recorded_at = now() - interval '40 seconds' where customer_id = 'cc000000-0000-4000-8000-000000000002';
+insert into contact_consents (business_id, customer_id, email_lower, channel, purpose, status, source, evidence, recorded_at)
+  select business_id, id, 'b@example.test', 'email', 'marketing', 'opted_in', 'web_form', '{"test": true}'::jsonb, now() - interval '20 seconds'
+    from customers where id = 'cc000000-0000-4000-8000-000000000002';
+set role anon;
+do $$ begin perform public.zella_unsubscribe_email(repeat('b', 32)); end $$;
+reset role;
+do $$ begin
+  assert (select status from contact_consents where customer_id = 'cc000000-0000-4000-8000-000000000002' order by recorded_at desc limit 1) = 'opted_out',
+    'an opt-out within a minute of an earlier opt-out and a later opt-in was not recorded';
+  raise notice 'PASS opt-out, opt-in, opt-out within one minute: the last opt-out is recorded';
 end $$;
 SQL
 ) && echo "$out" | grep -o 'PASS .*' || bad "save: $(echo "$out" | grep -m2 -E 'ERROR|CONTEXT' | tr '\n' ' ')"

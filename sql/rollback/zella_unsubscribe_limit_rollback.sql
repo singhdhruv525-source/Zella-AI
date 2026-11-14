@@ -10,7 +10,7 @@ begin
     raise exception 'VERSION_MISMATCH: public.zella_unsubscribe_lookup(text) has changed since zella_unsubscribe_limit; not restored';
   end if;
   v := md5(pg_get_functiondef('public.zella_unsubscribe_email(text)'::regprocedure));
-  if v not in ('2b0cbe3cdba9216fa630cf447a0153a8', 'ad6686f0473c98add9cbbe4e16327345') then
+  if v not in ('2b0cbe3cdba9216fa630cf447a0153a8', '90e424307e1e33acfe9b83c478531325') then
     raise exception 'VERSION_MISMATCH: public.zella_unsubscribe_email(text) has changed since zella_unsubscribe_limit; not restored';
   end if;
 end $$;

@@ -23,7 +23,7 @@ begin
     raise exception 'VERSION_MISMATCH: public.zella_unsubscribe_lookup(text) is not the version this file was written against (expected the live version or this file version)';
   end if;
   v := md5(pg_get_functiondef('public.zella_unsubscribe_email(text)'::regprocedure));
-  if v not in ('2b0cbe3cdba9216fa630cf447a0153a8', 'ad6686f0473c98add9cbbe4e16327345') then
+  if v not in ('2b0cbe3cdba9216fa630cf447a0153a8', '90e424307e1e33acfe9b83c478531325') then
     raise exception 'VERSION_MISMATCH: public.zella_unsubscribe_email(text) is not the version this file was written against (expected the live version or this file version)';
   end if;
 end $$;
@@ -66,8 +66,12 @@ begin
     return jsonb_build_object('ok', true, 'business', v_name);
   end if;
   select lower(email) into v_mail from public.customers where id = t.customer_id;
-  if not exists (select 1 from public.contact_consents c where c.business_id = t.business_id and c.customer_id = t.customer_id and c.channel = 'email'
-                    and c.purpose = 'marketing' and c.status = 'opted_out' and c.recorded_at > now() - interval '1 minute') then
+  -- a double click within a minute writes one row; but only when the LATEST choice is that opt-out (someone who
+  -- opted back in meanwhile is opted out again)
+  if not exists (select 1 from (select c.status, c.recorded_at from public.contact_consents c
+                                 where c.business_id = t.business_id and c.customer_id = t.customer_id and c.channel = 'email' and c.purpose = 'marketing'
+                                 order by c.recorded_at desc limit 1) l
+                  where l.status = 'opted_out' and l.recorded_at > now() - interval '1 minute') then
     insert into public.contact_consents (business_id, customer_id, email_lower, channel, purpose, status, source, evidence)
     values (t.business_id, t.customer_id, v_mail, 'email', 'marketing', 'opted_out', 'email_link', jsonb_build_object('via', 'unsubscribe_link'));
   end if;
