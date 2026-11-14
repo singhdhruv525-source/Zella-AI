@@ -705,12 +705,23 @@ address), not only by Stripe. Nobody has to press a button.
 
 | When | What the owner gets | Sent from |
 |---|---|---|
-| `invoice.upcoming` (3 days before every renewal, monthly and yearly; also before a trial ends) | **Your plan renews on <date>**: plan, amount, and which of the two applies: **auto-debit on** — "we will charge the card ending 4242 on <date>, nothing to do"; or **payment needed** — no working card on file (none saved, expired before the date, or the last charge failed) — "pay now" with the link to pay or update the card. Sent even when auto-debit is on, so the owner is never charged without notice | the worker, from the event and our subscription row |
+| `invoice.upcoming` (3 days before every renewal, monthly and yearly, and also 7 days before a yearly renewal; also before a trial ends) | **Your plan renews on <date>**: plan, amount, and which of the two applies: **auto-debit on** — "we will charge the card ending 4242 on <date>, nothing to do"; or **payment needed** — no working card on file (none saved, expired before the date, or the last charge failed) — "pay now" with the link to pay or update the card. Sent even when auto-debit is on, so the owner is never charged without notice | the worker, from the event and our subscription row |
 | `invoice.finalized` (every invoice: first payment, renewal, upgrade proration, pay-as-you-go, final invoice after a cancel) | **Your invoice**: number, period, every line (plan, setup fee, packs, pay-as-you-go minutes, credits, tax), total, the card it will be charged to, and links to Stripe's hosted invoice page and PDF | the worker, after the event is stored and the invoice fetched (§5, §6.0b) |
 | `invoice.paid` (every payment: card auto-debit at renewal, first payment, or the owner paying by the link) | **Paid**: the same invoice marked paid, with the PDF receipt link | the same worker |
 | `invoice.payment_failed` | **Payment failed**: what happens next and the link to pay (§6.3) | the same worker |
 | `invoice.voided` after the invoice email was sent | **Invoice cancelled**: that invoice no longer needs paying | the same worker |
 | Yearly pay-as-you-go and pack charges (PaymentIntents, no Stripe invoice) | **Receipt** with the same detail, from our own `invoices` / `invoice_lines` rows | on `payment_intent.succeeded` |
+
+**Auto-debit on or off (the owner's choice).** By default the saved card is charged automatically
+(`collection_method: charge_automatically`). An owner (or billing admin) can switch auto-debit off in
+Settings › Billing › Payment method (audited, confirmed by email): the subscription is then updated to
+`collection_method: send_invoice` with `days_until_due: 3`, and each invoice is paid by the owner, either by the
+**Pay now** link in our email or in the app (Settings › Billing › Invoices). Both open Stripe's hosted payment page for
+that one invoice, so it can never be paid twice. An invoice still unpaid at its due date follows the failed-payment path
+(§6.3): reminders, final notice, pause on day 5. Switching back on needs a working saved card.
+
+The full list of billing emails, their content, the SMS copies of the urgent ones, settings and tests is in
+`docs/BILLING_EMAILS.md`.
 
 Rules:
 - **Once per invoice and kind.** Each email is an outbox row with the key `email:<kind>:<invoice id>` (unique), so a
@@ -1238,7 +1249,7 @@ yet is kept and applied when its parent arrives, fetching the object from the AP
 | After all retries fail | leave the subscription past due | our 5-day pause decides service |
 | Past-due resolution | the most recent invoice | §6.3 |
 | Trial ending events | 2 days before the end (day 3) | our reminders |
-| Upcoming renewal events (`invoice.upcoming`) | 3 days before each renewal | our renewal notice (§6.11) |
+| Upcoming renewal events (`invoice.upcoming`) | 7 days before each renewal (Stripe sends one event); our worker sends the 7-day notice for yearly plans and schedules the 3-day notice for all plans | our renewal notice (§6.11) |
 | Customer emails | Stripe's invoice, receipt and failed-payment emails **off**: Zella Voice sends every invoice, receipt and payment notice itself (§6.11) | *prove* in the sandbox that Stripe sends none |
 | Customer Portal | card update only (no plan changes or cancel there) | plan changes go through our checks |
 | Payment methods | cards | USD, US customers |
