@@ -587,6 +587,10 @@ never bill past the close.
    the next charge for that business: the next renewal draft (one negative invoice item, key
    `credit:<renewal invoice id>`, claiming the lines it uses) or the next yearly pay-as-you-go charge (its amount is
    reduced by the lines it claims). A charge never goes below zero; lines left over stay open for the next one.
+   Lines claimed by a renewal invoice that is **voided without being paid** (`issued → void`, or a draft deleted
+   before finalising) return to open in the same transaction that records the void, from the `invoice.voided` /
+   `invoice.deleted` webhook only; never while the invoice can still be paid (`open`, `uncollectible` can still be
+   paid, so their lines stay claimed until it is paid or voided).
    **Yearly charges below Stripe's minimum.** If the reduced yearly amount is zero, no PaymentIntent is created: the
    period's local charge row is marked `settled_by_credit` with its claimed rows and lines, so nothing is lost or
    claimed again. If it is positive but below Stripe's minimum charge for the currency, no PaymentIntent is created
@@ -602,7 +606,8 @@ never bill past the close.
    either applied to a charge or refunded, never both. A correction never needs approval to reduce what the owner
    pays, and is never used to raise it.
 6. **Charges paid partly or wholly by credit.** A charge records what funded it: its payment, and the allocation lines
-   it consumed (step 4). A correction's share for that charge is taken from the payment first (up to what was paid),
+   it consumed (step 4). A correction's share for that charge is taken from the payment first, up to what is still **unreserved** on that
+   payment for that charge (paid, less the shares earlier corrections and refunds already took from it),
    and the rest **re-opens** the credit that funded it: new allocation lines pointing to the charges those consumed
    lines were allocated to, for the same amounts. So a correction to a yearly charge `settled_by_credit` (no
    PaymentIntent) gives the credit back to where it came from, and is then used by step 4 or refunded by step 5 to
@@ -869,7 +874,7 @@ stateDiagram-v2
 | Monthly pay as you go | `POST /v1/invoiceitems` on the draft renewal invoice | `payg:<period id>` | one billing row per period (`uninvoiced` → `attached`) | the invoice's lines |
 | Monthly pay as you go, draft already finalised | `POST /v1/invoiceitems` (pending, no `invoice`) | `payg:<period id>:pending` | the same billing row: only one of the two is created | pending items and the lines of invoices created since the send, by `metadata.period_id` and `metadata.kind` |
 | Monthly pay as you go, late usage | `POST /v1/invoiceitems` (pending), once at the billing close | `payg:<period id>:late` | one per period: every row still unclaimed at the close | pending items and the lines of invoices created since the send, by `metadata.period_id` and `metadata.kind` |
-| Credit for a correction to billed usage | one negative invoice item on the next renewal draft, or a reduced yearly pay-as-you-go PaymentIntent; after the subscription ended, a refund (§6.7) | `credit:<renewal invoice id>`; the PaymentIntent's own `payg:<period id>`; `refund:<refund id>` | one ledger credit per correcting row (`credit:<row id>`), split into allocation lines (`credit:<row id>:<charge id>`), each consumed once; a yearly charge reduced to zero is `settled_by_credit`, one below Stripe's minimum is carried (`carry:<period id>`) or written off (`writeoff:<period id>`) | the invoice's lines, the PaymentIntent, refunds per original payment (each line once); a charge's funding (payment + consumed lines) |
+| Credit for a correction to billed usage | one negative invoice item on the next renewal draft, or a reduced yearly pay-as-you-go PaymentIntent; after the subscription ended, a refund (§6.7) | `credit:<renewal invoice id>`; the PaymentIntent's own `payg:<period id>`; `refund:<refund id>` | one ledger credit per correcting row (`credit:<row id>`), split into allocation lines (`credit:<row id>:<charge id>`), each consumed once, returned to open if the renewal invoice that claimed it is voided unpaid; a yearly charge reduced to zero is `settled_by_credit`, one below Stripe's minimum is carried (`carry:<period id>`) or written off (`writeoff:<period id>`) | the invoice's lines, the PaymentIntent, refunds per original payment (each line once); a charge's funding (payment + consumed lines) |
 | Final invoices after a cancel | invoice item + `POST /v1/invoices` + finalize + pay | `final:<period id>:<main\|late>:<item\|invoice\|finalize\|pay>` | unique (period, kind) | invoices by `metadata.final_kind` |
 | Upgrade | `POST /v1/subscriptions/:id` | `upgrade:<change id>` | one pending change per subscription | subscription `pending_update`, latest invoice |
 | Downgrade | `POST /v1/subscription_schedules` | `downgrade:<change id>` | one scheduled change per subscription | the subscription's schedule |
