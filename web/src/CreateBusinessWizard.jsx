@@ -14,6 +14,7 @@ import { hoursList } from "./automationOptions";
 import { hasUnsavedChanges, stepProgress } from "./wizardProgress";
 import { CapabilitiesPanel } from "./settings/CapabilitiesPanel";
 import "./settings/settings.css";
+import PlanStep, { loadPlanInfo } from "./PlanStep";
 
 // ---------------------------------------------------------------------------
 // Server calls
@@ -58,6 +59,7 @@ const STEPS = [
   { key: "integrations", label: "Phone & integrations", optional: true },
   { key: "automations", label: "Automations" },
   { key: "crm", label: "CRM setup", optional: true },
+  { key: "plan", label: "Plan & pricing" },
   { key: "review", label: "Review" },
 ];
 const STEP = Object.fromEntries(STEPS.map((s, i) => [s.key, i]));
@@ -1741,6 +1743,11 @@ function reviewRows(setup, industries, config, docsReady) {
     { key: "automations", title: "Automations", ok: true, detail: `${enabledAutomations} turned on (paused until go-live)` },
     { key: "crm", title: "CRM setup", ok: enabledModules.length > 0,
       detail: `${enabledModules.length} modules · ${termFor(setup.terminology, "customers")}, ${termFor(setup.terminology, "appointments")}` },
+    // REQ-BIL-57: the owner is invited only after a billing admin has reviewed and saved the plan (checked again by the server)
+    { key: "plan", title: "Plan & pricing", ok: setup.planStatus?.state === "ok" && setup.planStatus.saved, required: true,
+      detail: !setup.planStatus || setup.planStatus.state === "loading" ? "Checking the saved plan…"
+        : setup.planStatus.state === "error" ? `Couldn't check the plan (${setup.planStatus.error}). Use Retry below.`
+        : setup.planStatus.saved ? `Version ${setup.planStatus.version} saved` : "Not saved yet: a billing admin reviews and saves it" },
   ];
   return { rows, verified };
 }
@@ -1783,7 +1790,7 @@ function Readiness({ businessId }) {
   );
 }
 
-function ReviewStep({ businessId, setup, industries, goTo, config, docsReady }) {
+function ReviewStep({ businessId, setup, industries, goTo, config, docsReady, onRetryPlan }) {
   const { rows, verified } = reviewRows(setup, industries, config, docsReady);
   const blocking = rows.filter((row) => row.required && !row.ok);
 
@@ -1806,6 +1813,11 @@ function ReviewStep({ businessId, setup, industries, goTo, config, docsReady }) 
           ))}
         </div>
       </Section>
+      {setup.planStatus?.state === "error" && (
+        <div className="owner-form-error" role="alert">
+          The saved plan couldn't be checked, so the owner can't be invited yet. <button type="button" className="owner-secondary-button" onClick={onRetryPlan}>Retry</button>
+        </div>
+      )}
       <Readiness businessId={businessId} />
       <div className="wiz-note">
         Finishing makes the workspace active with its industry's modules and words, and emails the owner their invitation.
@@ -1868,13 +1880,41 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
   const [savedKeys, setSavedKeys] = useState(() => new Set());
   const [pending, setPending] = useState(null); // { to: stepIndex | "close" } while asking about unsaved changes
   const busy = useRef(false); // a second click before the first save finishes does nothing
-  const dirty = hasUnsavedChanges(setup, saved);
+  const [planInfo, setPlanInfo] = useState(null);       // the plan's details (billing admins, Plan step only)
+  const [planError, setPlanError] = useState("");
+  const [planStatus, setPlanStatus] = useState(null);   // whether a plan is saved, no prices: { state, saved, version, error }
+  const [planDirty, setPlanDirty] = useState(false);
+  const dirty = hasUnsavedChanges(setup, saved) || planDirty;
   const dirtyRef = useRef(false);
   dirtyRef.current = dirty;
   useEffect(() => addLeaveGuard(() => dirtyRef.current), []);
 
   const locked = ["testing", "ready", "active"].includes(setup.onboardingStatus);
   const top = useRef(null);
+
+  // the plan is saved by its own step (a billing admin's review and confirm); loaded again on the plan and review steps
+  const planStepKey = STEPS[step]?.key;
+  const planRequest = useRef(0);   // only the newest saved-plan check may update the screen
+  const reloadPlan = () => {
+    if (!businessId) return;
+    const id = ++planRequest.current;
+    setPlanStatus((cur) => ({ ...(cur ?? {}), state: "loading" }));
+    supabase.rpc("zella_setup_plan_saved", { p_business_id: businessId }).then(({ data, error: e }) => {
+      if (id !== planRequest.current) return;
+      if (e || !data) setPlanStatus({ state: "error", saved: false, error: e ? friendlyError(e) : "no answer" });
+      else setPlanStatus({ state: "ok", saved: Boolean(data.saved), version: data.version });
+    }, (err) => { if (id === planRequest.current) setPlanStatus({ state: "error", saved: false, error: friendlyError(err) }); });
+    if (planStepKey === "plan") {
+      setPlanError("");
+      loadPlanInfo(businessId).then(
+        (info) => { if (id === planRequest.current) setPlanInfo(info); },
+        (err) => { if (id === planRequest.current) setPlanError(err.message); });
+    }
+  };
+  useEffect(() => {
+    if (businessId && (planStepKey === "plan" || planStepKey === "review" || planStatus === null)) reloadPlan();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [businessId, planStepKey]);
 
   // Each step opens at its top, not where the previous step's Save button was.
   useEffect(() => {
@@ -1970,6 +2010,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
       if (validatePhone(setup.receptionist.escalation.transferTo.phone)) return `Transfer phone number: ${validatePhone(setup.receptionist.escalation.transferTo.phone)}`;
       if (setup.receptionist.faqs.some((f) => f.question.trim() && !f.answer.trim())) return "Answer every FAQ, or remove the ones without an answer.";
     }
+    if (key === "plan" && planDirty) return "Review and save the plan (Review changes), or discard the changes.";
     if (key === "integrations") {
       if (validatePhone(setup.integrations.transferNumber)) return `Call transfer number: ${validatePhone(setup.integrations.transferNumber)}`;
       if (setup.integrations.phone.mode === "call_forwarding") {
@@ -2108,6 +2149,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
   const goTo = (index) => {
     if (index > 0 && !businessId) return;
     setError("");
+    setPlanDirty(false);   // the plan step's form goes with the step
     setStep(index);
     setShowErrors(false);
   };
@@ -2181,7 +2223,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
 
   const isLast = step === STEPS.length - 1;
   const terminology = setup.terminology;
-  const persisted = saved ?? setup;
+  const persisted = { ...(saved ?? setup), planStatus };
   const persistedConfig = onboardingFor(industries.find((i) => i.id === persisted.business.industryId)?.slug);
   const progress = businessId
     ? stepProgress(STEPS, reviewRows(persisted, industries, persistedConfig, docsReady).rows, persisted.onboardingStatus, savedKeys)
@@ -2256,7 +2298,10 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
           </>
         )}
         {STEPS[step].key === "crm" && <CrmSetupStep businessId={businessId} terminology={terminology} onTerminology={update("terminology")} modules={setup.modules} onModules={update("modules")} />}
-        {STEPS[step].key === "review" && <ReviewStep businessId={businessId} setup={persisted} industries={industries} goTo={request} config={persistedConfig} docsReady={docsReady} />}
+        {STEPS[step].key === "plan" && (planError
+          ? <div className="owner-form-error" role="alert">The plan couldn't be loaded: {planError} <button type="button" className="owner-secondary-button" onClick={reloadPlan}>Retry</button></div>
+          : <PlanStep key={planInfo?.plan?.version ?? "new"} businessId={businessId} info={planInfo} onSaved={reloadPlan} onDirty={setPlanDirty} Section={Section} Badge={Badge} Toggle={Toggle} />)}
+        {STEPS[step].key === "review" && <ReviewStep businessId={businessId} setup={persisted} industries={industries} goTo={request} config={persistedConfig} docsReady={docsReady} onRetryPlan={reloadPlan} />}
       </div>
 
       {error && <div className="owner-form-error wiz-error" role="alert">{error}</div>}
@@ -2281,7 +2326,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
               type="button"
               className="owner-primary-button"
               onClick={finish}
-              disabled={saving || !persisted.owner.email || !docsReady || dirty}
+              disabled={saving || !persisted.owner.email || !docsReady || dirty || !(planStatus?.state === "ok" && planStatus.saved)}
             >
               {saving ? "Finishing..." : setup.invitation?.status === "sent" || setup.invitation?.status === "accepted" ? "Save & finish" : "Finish & send invitation"}
             </button>

@@ -617,7 +617,7 @@ export function EntitlementEnforcement() {
     <>
       <Card title="Where allowances are enforced" sub="All checks run in the database, never only in the browser or in n8n.">
         <Facts rows={[["Team seats", "Blocked when an invitation would go over (TEAM_LIMIT_REACHED)"], ["Phone numbers", "Blocked when activating a number would go over"],
-          ["AI voice minutes", "Owners are told at 70, 90 and 100% (or their own thresholds), hourly"], ["No plan", "No limits apply until a business has a subscription"],
+          ["AI voice minutes", "Owners are told at 80% and 100% of minutes, texts and emails"], ["No plan", "No limits apply until a business has a subscription"],
           ["Core CRM", "Never limited by plan"]]} />
       </Card>
       <Needs title="Stopping AI calls when minutes run out isn't enforced yet" have="Usage is counted from recorded calls; notices go out; each business's choice (stop, pay as you go, top up) is saved.">
@@ -908,7 +908,7 @@ export function UsageLimits() {
     <>
       <Card title="Usage limits" sub="Allowances come from each plan; each business owner chooses what happens past them.">
         <Facts rows={[["Included allowances", "Plans, subscriptions & entitlements > Plan entitlements"], ["Business choice", "Stop, pay as you go, or automatic top-up, with a spending limit (the owner authorizes it)"],
-          ["Notices", "70, 90 and 100% to the owners"], ["Additional usage rates", "Voice cost configuration"]]} />
+          ["Notices", "80% and 100% to the owners"], ["Additional usage rates", "Voice cost configuration"]]} />
       </Card>
       <Needs title="Charging for extra usage and cutting off calls aren't built" have="Choices and limits are saved and audited; nothing is ever charged from Zella Voice today.">
         Charging needs the payment provider; cutting off needs the start-of-call check described under Entitlement enforcement.

@@ -385,13 +385,13 @@ live switch, then the provider. Off means dry run: the message is logged as "wou
 
 | Feature | Status |
 |---|---|
-| Plans, prices and allowances | **Policy decided, not built** (12 Nov 2026, D-34, D-41): every plan customised per business by the Zella Voice team on the plan page of Create Business, with no preset prices or values: the team picks the label (**Base** or **Pro**) and sets the price, setup fee, caps and trial for that business; 5-day trial with 20 minutes, 5 texts, 5 emails; fixed add-on pack prices; rollover, auto-reload, fair use, refunds and service credits. The full policy is in `docs/ARCHITECTURE.md` §17. No plan exists in the database yet. |
-| Add-on packs | **Prices decided, not built:** minutes $29/100, $89/250, $149/500, $269/1,000; texts $18/500, $34/1,000, $80/2,500, $150/5,000; emails $25/10,000, $59/25,000, $115/50,000; extra location $30/month; extra user $10/month |
-| Billing & Subscription page for owners (plan, usage, packs, auto-reload, invoices, cancel, refund request with server-side eligibility) | Not built (architecture §17, REQ-BIL-05, REQ-BIL-45) |
-| Plan page safeguards in Create Business: profit warning with estimated cost and margin, sensible-limit warnings (e.g. over 10,000 minutes, $0 price), review screen with audit before the invite | Not built (architecture §17.1a, REQ-BIL-55–57) |
-| Razorpay checkout, trial auto-charge, auto-reload and refunds | Not built; needs the owner's approval to take real payments, and the check in D-51 |
+| Plans, prices and allowances | **Database built, not applied** (`sql/zella_billing_allowances.sql`, step 2 of the billing build; policy: 12 Nov 2026, D-34, D-41): each business's own plan (`business_plans`), versioned, set only by a billing admin (`billing.manage`) with an audit record: the label (**Base** or **Pro**), price, setup fee, minutes, texts, emails, seats, numbers, locations, languages and trial; no preset prices or values. Monthly balances (`allowance_buckets`) with the 5-day trial (20 minutes, 5 texts, 5 emails), unused minutes rolled over for one month, capped at 20% of the plan's minutes and 20% of each minutes pack's size (D-42), a 5% buffer for appointment messages (D-43), and yearly plans reset monthly (D-46). Seats, numbers and languages are checked against the business's own plan. Tested on the isolated database only. |
+| Add-on packs | **Prices in the database, not applied** (`billing_pack_catalog`); a billing admin can grant a pack with a reason (audited, not charged); buying one needs payments (step 4): minutes $29/100, $89/250, $149/500, $269/1,000; texts $18/500, $34/1,000, $80/2,500, $150/5,000; emails $25/10,000, $59/25,000, $115/50,000; extra location $30/month; extra user $10/month |
+| Billing & Subscription page for owners (plan, usage, packs, auto-reload, invoices, cancel, refund request with server-side eligibility) | **Plan, usage, balances, packs and auto-reload built on the branch (not deployed)**: Settings > Billing and subscription > Current plan (price, allowances, usage bars for minutes, texts and emails with the reminder buffer, days left), Balances and packs (each balance with its expiry, the rollover rule, pack prices and how much of each could roll over), Auto-reload (owner only; saved, not active until payments). Owner only, enforced by the database; staff see "Billing is for the business owner". Invoices, payment method, buying packs, cancel and refunds need payments (step 4) (architecture §17, REQ-BIL-05, REQ-BIL-45) |
+| Plan page safeguards in Create Business: profit warning with estimated cost and margin, sensible-limit warnings (e.g. over 10,000 minutes, $0 price), review screen with audit before the invite | Database checks built, not applied (`zella_plan_evaluate`, `zella_admin_plan_save`: a warning needs a written reason; unit costs for texts, emails, numbers and registration are a platform setting the owner fills in, and are reported as missing until then); the **Plan & pricing** step of Create Business is built on the branch (not deployed): every value typed by hand, a live profit check from the database, red warnings, a review dialog that needs a reason for each warning, saved versions; finishing setup is refused by the server until a plan is saved (architecture §17.1a, REQ-BIL-55–57) |
+| Stripe checkout, trial auto-charge, auto-reload, pay as you go and refunds | Not built; needs the owner's approval to take real payments, and the Stripe account check in D-51. Integration reference written from Stripe's documentation (`docs/PAYMENTS_ARCHITECTURE.md` §16): Stripe charges the saved card for auto-reload and adds pay as you go to the renewal invoice |
 | Usage ledger: one append-only entry per finalised call; our failures are never billable | Built |
-| Usage thresholds and warnings; a live call is never cut | Built (the 80%/100% alerts and "calls go to the fallback number at 100%" of §17.6 are not built yet) |
+| Usage counting and alerts | Calls (whole minutes, under 15 seconds and spam not counted), texts (by part) and emails (one each) are subtracted once from the balances, with alerts at **80% and 100%** for minutes, texts and emails: built, not applied. A live call is never cut. **Not switched on** (live changes needing the owner's approval): calls going to the fallback number at 100%, stopping routine texts and emails at 100%, and the 20-minute call cap (the live setting is 10 minutes today) |
 | Voice cost estimates per business | Built |
 | Payment provider webhook: signed, applied once and in order, never moves a subscription backwards | Built, off until the webhook secret is set |
 | Scheduled cancellation and "Continue my plan" link | Built |
@@ -412,7 +412,7 @@ live switch, then the provider. Off means dry run: the message is logged as "wou
 | Vapi | Voice calls | Built; real-call authentication open |
 | Telnyx | Texts and phone numbers | Built, off |
 | Resend | Email | Built, off |
-| Payment provider webhook (Stripe-style) | Billing | Built, off. The owner has chosen **Razorpay** (D-34); a Razorpay integration is not built yet |
+| Payment provider webhook (Stripe signatures) | Billing | Built, off. The provider is **Stripe** (D-34, Zella Voice is a Wyoming LLC); the Stripe integration (step 4) is not built yet |
 
 Every provider request sits behind an explicit setting. Tokens and keys live in Supabase Vault or edge function
 secrets, never in tables, code, logs or chat (`NN-2`).
@@ -454,7 +454,7 @@ secrets, never in tables, code, logs or chat (`NN-2`).
 | Item | Waiting on |
 |---|---|
 | Self-service sign-up | Later phase (D-06) |
-| Billing build (plans in the database, usage rules, Billing & Subscription page, Razorpay) | Build, in steps (architecture §17); open billing decisions D-42 to D-51 |
+| Billing build (plans in the database, usage rules, Billing & Subscription page, Stripe) | Build, in steps (architecture §17); open billing decisions D-45 to D-51 |
 | Two-way AI messaging | Build (architecture §14.3) |
 | Voicemails page, AI agents beyond the receptionist, marketing campaigns | Build; hidden from the sidebar until they exist |
 | Meta channels in launch scope | Owner and counsel (D-39) |
