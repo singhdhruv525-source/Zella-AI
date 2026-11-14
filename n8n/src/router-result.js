@@ -1,4 +1,4 @@
-// Zella - Event Router: turn what happened into a result for the execution log and the event.
+// Zella Voice - Event Router: turn what happened into a result for the execution log and the event.
 // Temporary problems (rate limit, network, server error) are retried by the database.
 // Everything else is permanent and goes to the dead-letter list for a person to review.
 const route = $('Route').item.json;

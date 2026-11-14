@@ -1,6 +1,8 @@
 #!/bin/bash
 # race.sh <db> <n> <sql-per-session-with-%i>  : n sessions start the same statement at the same instant.
-DB=$1; N=$2; SQL=$3; P="${ZPSQL/-v ON_ERROR_STOP=1/} -d $DB"
+DB=$1; N=$2; SQL=$3
+. "$(cd "$(dirname "$0")/../lib" && pwd)/zpsql.sh"; zella_require_dbs "$DB" || exit 1
+P="${ZPSQL/-v ON_ERROR_STOP=1/} -d $DB"
 OUT=$(mktemp -d ${TMPDIR:-/tmp}/zella-race.XXXX); chmod 777 "$OUT"
 # controller holds the barrier; every session waits for it, then runs the statement
 ( echo "select pg_advisory_lock(424242); select pg_sleep(3); select pg_advisory_unlock(424242);" | su nobody -s /bin/bash -c "$P" >/dev/null ) &

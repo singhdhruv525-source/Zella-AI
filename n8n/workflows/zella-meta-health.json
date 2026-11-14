@@ -1,5 +1,5 @@
 {
-  "name": "Zella - Meta Health",
+  "name": "Zella Voice - Meta Health",
   "nodes": [
     {
       "parameters": {
@@ -56,7 +56,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Zella - Meta Health: one connection due for a check.\nconst pageId = typeof $json.page_id === 'string' && /^[0-9]{5,30}$/.test($json.page_id) ? $json.page_id : null;\nif (!pageId) return { json: { skip: true } };\nconst waba = typeof $json.waba_id === 'string' && /^[0-9]{5,30}$/.test($json.waba_id) ? $json.waba_id : null;\nreturn { json: { skip: false, page_id: pageId, waba_id: waba } };\n"
+        "jsCode": "// Zella Voice - Meta Health: one connection due for a check.\nconst pageId = typeof $json.page_id === 'string' && /^[0-9]{5,30}$/.test($json.page_id) ? $json.page_id : null;\nif (!pageId) return { json: { skip: true } };\nconst waba = typeof $json.waba_id === 'string' && /^[0-9]{5,30}$/.test($json.waba_id) ? $json.waba_id : null;\nreturn { json: { skip: false, page_id: pageId, waba_id: waba } };\n"
       },
       "id": "ae2f98a0-99fe-4855-8311-26233e9c1364",
       "name": "Plan",
@@ -138,7 +138,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Zella - Meta Health: ask Meta who the token belongs to (a cheap call that fails if the token is dead) and which permissions it has.\nconst plan = $('Plan').item.json;\nconst t = $json.body;\nconst token = typeof t === 'string' && t.length >= 20 && t.length < 1000 ? t : null;\nif (!token) return { json: { ...plan, fail: { p_page_id: plan.page_id, p_ok: false, p_permissions: null, p_auth_failed: true, p_error: 'no_token' } } };\nreturn { json: { ...plan, fail: null, auth: 'Bearer ' + token, url: 'https://graph.facebook.com/v21.0/me?fields=id,name' } };\n"
+        "jsCode": "// Zella Voice - Meta Health: ask Meta who the token belongs to (a cheap call that fails if the token is dead) and which permissions it has.\nconst plan = $('Plan').item.json;\nconst t = $json.body;\nconst token = typeof t === 'string' && t.length >= 20 && t.length < 1000 ? t : null;\nif (!token) return { json: { ...plan, fail: { p_page_id: plan.page_id, p_ok: false, p_permissions: null, p_auth_failed: true, p_error: 'no_token' } } };\nreturn { json: { ...plan, fail: null, auth: 'Bearer ' + token, url: 'https://graph.facebook.com/v21.0/me?fields=id,name' } };\n"
       },
       "id": "a298f184-f485-4bc7-8f13-b457d0d29f95",
       "name": "Build request",
@@ -219,7 +219,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Zella - Meta Health: liveness result. A rejected token means the page must be reconnected; anything else is a temporary error.\nconst plan = $('Build request').item.json;\nif (plan.fail) return { json: { record: plan.fail, templates: false } };\nconst r = $json;\nconst status = Number(r.statusCode);\nconst b = r.body && typeof r.body === 'object' ? r.body : {};\nif (status >= 200 && status < 300) return { json: { record: { p_page_id: plan.page_id, p_ok: true, p_permissions: null, p_auth_failed: false, p_error: null }, templates: !!plan.waba_id } };\nconst code = b.error && typeof b.error === 'object' ? Number(b.error.code) : 0;\nconst auth = status === 401 || code === 190;\nreturn { json: { record: { p_page_id: plan.page_id, p_ok: false, p_permissions: null, p_auth_failed: auth, p_error: ('HTTP ' + (status || 'none') + (code ? ' code ' + code : '')).slice(0, 100) }, templates: false } };\n"
+        "jsCode": "// Zella Voice - Meta Health: liveness result. A rejected token means the page must be reconnected; anything else is a temporary error.\nconst plan = $('Build request').item.json;\nif (plan.fail) return { json: { record: plan.fail, templates: false } };\nconst r = $json;\nconst status = Number(r.statusCode);\nconst b = r.body && typeof r.body === 'object' ? r.body : {};\nif (status >= 200 && status < 300) return { json: { record: { p_page_id: plan.page_id, p_ok: true, p_permissions: null, p_auth_failed: false, p_error: null }, templates: !!plan.waba_id } };\nconst code = b.error && typeof b.error === 'object' ? Number(b.error.code) : 0;\nconst auth = status === 401 || code === 190;\nreturn { json: { record: { p_page_id: plan.page_id, p_ok: false, p_permissions: null, p_auth_failed: auth, p_error: ('HTTP ' + (status || 'none') + (code ? ' code ' + code : '')).slice(0, 100) }, templates: false } };\n"
       },
       "id": "4c6d268d-614a-4f2c-88a7-3ba8dafbadc2",
       "name": "Read result",
@@ -335,7 +335,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Zella - Meta Health: WhatsApp message templates, reduced to name, language, category, status and the body text.\nconst plan = $('Build request').item.json;\nconst r = $json;\nconst b = r.body && typeof r.body === 'object' ? r.body : {};\nif (!(Number(r.statusCode) >= 200 && Number(r.statusCode) < 300) || !Array.isArray(b.data)) return { json: { record: null } };\nconst list = b.data.slice(0, 100).filter((t) => t && typeof t.name === 'string').map((t) => {\n  const body = Array.isArray(t.components) ? t.components.find((c) => c && c.type === 'BODY') : null;\n  return { name: t.name.slice(0, 100), language: typeof t.language === 'string' ? t.language.slice(0, 10) : 'en_US', category: typeof t.category === 'string' ? t.category.slice(0, 40) : null, status: typeof t.status === 'string' ? t.status.slice(0, 20) : 'unknown', body: body && typeof body.text === 'string' ? body.text.slice(0, 1000) : null };\n});\nreturn { json: { record: { p_page_id: plan.page_id, p_templates: list } } };\n"
+        "jsCode": "// Zella Voice - Meta Health: WhatsApp message templates, reduced to name, language, category, status and the body text.\nconst plan = $('Build request').item.json;\nconst r = $json;\nconst b = r.body && typeof r.body === 'object' ? r.body : {};\nif (!(Number(r.statusCode) >= 200 && Number(r.statusCode) < 300) || !Array.isArray(b.data)) return { json: { record: null } };\nconst list = b.data.slice(0, 100).filter((t) => t && typeof t.name === 'string').map((t) => {\n  const body = Array.isArray(t.components) ? t.components.find((c) => c && c.type === 'BODY') : null;\n  return { name: t.name.slice(0, 100), language: typeof t.language === 'string' ? t.language.slice(0, 10) : 'en_US', category: typeof t.category === 'string' ? t.category.slice(0, 40) : null, status: typeof t.status === 'string' ? t.status.slice(0, 20) : 'unknown', body: body && typeof body.text === 'string' ? body.text.slice(0, 1000) : null };\n});\nreturn { json: { record: { p_page_id: plan.page_id, p_templates: list } } };\n"
       },
       "id": "b1afd845-d41a-4c4d-87cc-d0055d741a26",
       "name": "Map templates",

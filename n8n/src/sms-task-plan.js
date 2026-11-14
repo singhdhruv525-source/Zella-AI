@@ -1,4 +1,4 @@
-// Zella - Follow-up Texts: turn one claimed follow-up task into a "prepare this text" request.
+// Zella Voice - Follow-up Texts: turn one claimed follow-up task into a "prepare this text" request.
 // Reactivation is marketing, so it needs the person's opt-in. The others follow up on something
 // the person asked for. Anything unknown is skipped with a visible reason, never dropped silently.
 const t = $json;

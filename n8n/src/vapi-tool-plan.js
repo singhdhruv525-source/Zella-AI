@@ -1,4 +1,4 @@
-// Zella - Assistant Tools: Vapi calls this during a call (1) when the assistant could not answer a question
+// Zella Voice - Assistant Tools: Vapi calls this during a call (1) when the assistant could not answer a question
 // (report_unanswered_question) or (2) when the caller wants to complain, correct their details, or ask to see or
 // remove their data (log_customer_request). Neither tool changes or releases any customer data.
 // Runs once for the whole request and returns ONE ITEM PER TOOL CALL, each with its own tool call id and its own

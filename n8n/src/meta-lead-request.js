@@ -1,4 +1,4 @@
-// Zella - Meta Leads: build the request for Meta. The token comes from the database; without one the event is retried later.
+// Zella Voice - Meta Leads: build the request for Meta. The token comes from the database; without one the event is retried later.
 const plan = $('Plan').item.json;
 const t = $json.body;
 const token = typeof t === 'string' && t.length >= 20 && t.length < 1000 ? t : null;
