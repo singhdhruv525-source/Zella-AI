@@ -1189,6 +1189,7 @@ forget keys after 24 hours.
 | `customer.subscription.deleted` | `cancelled` at period end, or a trial cancel |
 | `invoice.created` | add pay as you go to the renewal draft, then 200 quickly (§6.9) |
 | `invoice.paid` | binding check (§6.0a), then by the invoice's `billing_reason`: `subscription_create` → first period and buckets (§6.1, §6.2); `subscription_cycle` → renewal: new period, monthly reset, rollover (§6.3); `subscription_update` → the paid upgrade: new plan version and the prorated extra allowance for the **current** period, no reset (§6.6); `manual` → the invoice we created (final pay-as-you-go invoice, §6.9) matched by our stored invoice id. Any other reason is quarantined |
+| `invoice.voided`, `invoice.deleted` | fetch the invoice; if it was never paid: its pay-as-you-go billing row `attached` → `held` with an alert and a finance task, and the credit lines it claimed return to open, in one transaction under the period lock (§6.9) |
 | `invoice.payment_failed`, `invoice.payment_action_required` | `past_due`, notice + email; link to confirm on Stripe's page |
 | `payment_intent.succeeded`, `payment_intent.payment_failed` | packs and auto-reload (§6.4) |
 | `refund.created`, `refund.updated`, `refund.failed`, `charge.refunded` | §6.7 |
