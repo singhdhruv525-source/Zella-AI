@@ -43,6 +43,8 @@ can turn it off in Settings › Billing › Emails).
 | A2 | Trial started | card saved, trial begins | trial end date, amount and date of the first charge, how to cancel | M |
 | A3 | Trial ending soon | 3 days before the trial ends | **auto-debit on**: "we will charge card ending 4242 $X on <date>"; **payment needed**: no working card → "add a card" link | M |
 | A4 | Trial converted — paid | first charge after the trial succeeds | same as the Paid email (C3) | M |
+| A5 | Trial ended without payment | trial end with no working card | service paused, "add a card to continue" | M |
+| A6 | Setup fee charged | the setup fee is paid (with the first invoice or later for a trial business) | amount, what it covers, receipt | M |
 
 ### B. Before every renewal (monthly and yearly)
 
@@ -50,6 +52,9 @@ can turn it off in Settings › Billing › Emails).
 |---|---|---|---|---|
 | B1 | Your plan renews on <date> | 3 days before each renewal (Stripe `invoice.upcoming`); **yearly plans also 7 days before** | plan, period, estimated amount (plan + expected pay-as-you-go), and **one of three**: auto-debit on → "we will charge card ending 4242, nothing to do"; auto-debit off → "your invoice will be due on <date>, pay by the link or in the app"; payment needed (auto-debit on but no card / card expires before the date / last charge failed) → "pay now / update card" | M |
 | B2 | Card expiring soon | 30 days before the saved card's expiry month ends | last 4 digits, "update card" link | M |
+| B3 | No card on file | auto-debit is on and the saved card was removed or is unusable | "add a card before <next renewal>" | M |
+| B4 | Price change notice | 30 days before a plan's price changes for this business | old and new price, from which renewal, how to change plan or cancel | M |
+| B5 | Discount ending | 7 days before a discount or promo stops | renewal amount without the discount | M |
 
 ### C. Invoice and payment (every charge)
 
@@ -59,6 +64,9 @@ can turn it off in Settings › Billing › Emails).
 | C2 | Receipt (no Stripe invoice) | a yearly pay-as-you-go or pack charge succeeds | same detail from our own `invoices` rows | M |
 | C3 | Paid | every successful payment (`invoice.paid`): auto-debit, first payment, the owner paying by the email link, or paying in the app | "paid", amount, card, date, PDF receipt | M |
 | C4 | Invoice cancelled | an invoice we already emailed is voided | "this invoice no longer needs paying", reason if given | M |
+| C5 | Invoice due soon (auto-debit off) | 1 day before the due date, if still unpaid | amount, due date, Pay now (link or in the app) | M |
+| C6 | Replacement invoice | an admin re-bills usage after an invoice was cancelled (§6.9) | which invoice it replaces, what changed | M |
+| C7 | Credit note | an issued invoice is reduced by a credit note | invoice number, amount reduced, new total, PDF | M |
 
 ### D. Failed payment and pause
 
@@ -70,6 +78,7 @@ can turn it off in Settings › Billing › Emails).
 | D4 | Final notice | the day before the pause (day 4) | "service pauses tomorrow", pay link | M |
 | D5 | Service paused | day 5 with no payment | what stops (calls go to voicemail / forwarding), how to restore | M |
 | D6 | Payment recovered — service restored | the past-due invoice is paid | Paid detail (as C3) + "everything is back on" | M |
+| D7 | Payment partly refunded or reversed by the bank | a payment is reversed outside a dispute | amount, what to do | M |
 
 ### E. Plan changes and cancel
 
@@ -80,6 +89,10 @@ can turn it off in Settings › Billing › Emails).
 | E3 | Cancellation confirmed | cancel chosen | service continues until <date>, final pay-as-you-go invoice, "change my mind" link | M |
 | E4 | Cancellation withdrawn | the owner continues before the end | plan stays, next renewal date and amount | M |
 | E5 | Subscription ended | the period ends after a cancel | what stops, data kept for <N> days, final invoice to follow | M |
+| E6 | Switched monthly ↔ yearly | billing period changed | new period, amount, next renewal date, credit for unused time | M |
+| E7 | Plan reactivated | a cancelled or ended business subscribes again | plan, amount, next renewal | M |
+| E8 | Data deletion warning | 7 days before an ended business's data is deleted | date, how to export or reactivate | M |
+| E9 | Account paused by an admin / restored | an admin pauses or restores the account for billing reasons | reason, what stops, how to restore | M |
 
 ### F. Usage, packs, auto-reload
 
@@ -91,6 +104,9 @@ can turn it off in Settings › Billing › Emails).
 | F4 | Auto-reload charged | auto-reload succeeds | receipt (C2), monthly cap and how much is left | M |
 | F5 | Auto-reload failed | auto-reload charge fails | reason, "update card" link, what happens to calls | M |
 | F6 | Spending limit reached | the monthly limit stops new pay-as-you-go | limit, how to raise it | M |
+| F7 | Pay-as-you-go statement | at each period's close, when pay-as-you-go minutes were used | minutes, rate, amount, which invoice it goes on | O |
+| F8 | Pack expiring | 7 days before unused pack minutes expire (if packs expire) | minutes left, expiry date | O |
+| F9 | Allowance renewed | at each renewal | new included minutes, texts, emails; rolled-over amounts | O |
 
 ### G. Refunds, credits, disputes
 
@@ -102,10 +118,31 @@ can turn it off in Settings › Billing › Emails).
 | G4 | Credit applied | a correction credit is used on an invoice (§6.9) | which calls were corrected, amount taken off | O |
 | G5 | Dispute opened | the bank opens a chargeback | what it means for the service, how to respond | M |
 | G6 | Dispute closed | won or lost | outcome, effect on the account | M |
+| G7 | Usage waived | an admin waives usage after a cancelled invoice (§6.9) | which usage, amount, "nothing to pay" | M |
+| G8 | Refund partly issued | only part of a requested refund is approved | amount refunded, the rest and why | M |
+
+### H. Billing settings and security (confirmations)
+
+| # | Email | When | Main content | M/O |
+|---|---|---|---|---|
+| H1 | Auto-debit switched off / on | the owner or a billing admin changes it | who changed it, when, what happens at the next renewal | M |
+| H2 | Card updated | the saved card is added, replaced or removed | new card's last 4, who changed it | M |
+| H3 | Billing email changed | the billing email or copy list changes | sent to the **old and the new** address, who changed it | M |
+| H4 | Spending limit or auto-reload changed | the monthly limit or auto-reload settings change | old and new values, who changed it | M |
+| H5 | Billing details changed | business name, address or tax ID on invoices changes | new details, from which invoice | M |
+| H6 | Billing role added / removed | someone is given or loses access to billing | who, by whom | M |
+
+### I. Statements
+
+| # | Email | When | Main content | M/O |
+|---|---|---|---|---|
+| I1 | Yearly billing summary | each January (for the year before) | every invoice and refund, totals, tax, one PDF for the accountant | O |
+| I2 | Monthly statement | first of each month | invoices, payments, credits and balance for the month before | O |
 
 ### SMS copies of the urgent ones
 
-D1 (payment failed / overdue), D4 (final notice) and D5 (service paused) are also sent as a short SMS to the owner's
+D1 (payment failed / overdue), D4 (final notice), D5 (service paused), A5 (trial ended without payment) and
+E8 (data deletion warning) are also sent as a short SMS to the owner's
 mobile number (Settings › Billing), from the platform's own sender number, never the business's receptionist number.
 The SMS has the amount, the date and a link to the billing page; no invoice details. Once per email (key
 `sms:<kind>:<invoice id>`), only to an owner who has given a mobile number, and never from development or tests.
@@ -126,7 +163,7 @@ The SMS has the amount, the date and a link to the billing page; no invoice deta
 - **Payment method**: saved card, **Auto-debit on/off**, update card.
 - **Invoices**: every invoice with its status (due, paid, overdue, cancelled), **Pay now** on unpaid ones, PDF.
 - Billing email and up to 3 copy addresses.
-- Optional emails on/off (F1, G4). Mandatory ones are listed as "always sent".
+- Optional emails on/off (F1, F7, F8, F9, G4, I1, I2). Mandatory ones are listed as "always sent".
 - **Billing history**: every invoice and receipt with its PDF, and every billing email sent (when, to whom,
   delivered / bounced), with **Resend** for a past invoice email.
 
@@ -171,4 +208,6 @@ The SMS has the amount, the date and a link to the billing page; no invoice deta
 Decided by the owner (14 Nov 2026): owners can switch auto-debit off and pay by the email link or in the app;
 renewal reminder 3 days before, and also 7 days before for yearly plans; urgent ones (D1, D4, D5) also by SMS.
 
-Still open: which emails are optional — only F1 and G4 for now.
+Optional (on by default, owner can turn off): F1, F7, F8, F9, G4, I1, I2. Everything else is always sent.
+The list is complete for every money and billing-settings event in `docs/PAYMENTS_ARCHITECTURE.md`; any new money flow
+adds its email here in the same change.
