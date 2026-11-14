@@ -563,6 +563,13 @@ claim waits for it; a row can never fall between two items, and no row is claime
 close is never claimed (counted, never billed). The hourly reconcile uses the same rule, so an item it creates late can
 never bill past the close.
 
+**Corrections are never cut off.** The close stops only **new** usage. A negative row (a call shortened or marked spam
+after it was billed) that corrects a row already claimed by an item is always credited, whenever it arrives: it is
+claimed by a **credit item**, a negative pending invoice item on the next invoice (Idempotency-Key
+`payg:<period id>:credit:<row id>`, one per correcting row, the same states and lookups). If the subscription has
+ended, the credit goes to the customer's Stripe balance instead and, at the owner's request, through the approved
+refund flow (§6.8). A correction never needs approval to reduce what the owner pays; it is never used to raise it.
+
 **Late usage** (rows the main item did not claim, recorded before the close) is billed **once, at the close**: one
 pending item that claims all of them together (Idempotency-Key `payg:<period id>:late`, its own billing row, the same
 states and lookups),
@@ -819,6 +826,7 @@ stateDiagram-v2
 | Monthly pay as you go | `POST /v1/invoiceitems` on the draft renewal invoice | `payg:<period id>` | one billing row per period (`uninvoiced` → `attached`) | the invoice's lines |
 | Monthly pay as you go, draft already finalised | `POST /v1/invoiceitems` (pending, no `invoice`) | `payg:<period id>:pending` | the same billing row: only one of the two is created | pending items and the lines of invoices created since the send, by `metadata.period_id` and `metadata.kind` |
 | Monthly pay as you go, late usage | `POST /v1/invoiceitems` (pending), once at the billing close | `payg:<period id>:late` | one per period: every row still unclaimed at the close | pending items and the lines of invoices created since the send, by `metadata.period_id` and `metadata.kind` |
+| Correction to billed usage (any time) | `POST /v1/invoiceitems` (pending, negative), or the customer balance after the subscription ended | `payg:<period id>:credit:<row id>` | one per correcting row | pending items and the lines of invoices created since the send, by `metadata.row_id` |
 | Final invoices after a cancel | invoice item + `POST /v1/invoices` + finalize + pay | `final:<period id>:<main\|late>:<item\|invoice\|finalize\|pay>` | unique (period, kind) | invoices by `metadata.final_kind` |
 | Upgrade | `POST /v1/subscriptions/:id` | `upgrade:<change id>` | one pending change per subscription | subscription `pending_update`, latest invoice |
 | Downgrade | `POST /v1/subscription_schedules` | `downgrade:<change id>` | one scheduled change per subscription | the subscription's schedule |
