@@ -1,4 +1,4 @@
-// Zella - Owner Emails: after the email is logged, decide whether to really send.
+// Zella Voice - Owner Emails: after the email is logged, decide whether to really send.
 // A repeat of the same notification and address is never sent twice. In dry-run nothing is sent.
 const d = $('Plan').item.json;
 const status = Number($json.statusCode);

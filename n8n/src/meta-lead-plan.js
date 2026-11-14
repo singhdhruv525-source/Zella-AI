@@ -1,4 +1,4 @@
-// Zella - Meta Leads: one claimed lead event in. Only plain ids are used to build the request.
+// Zella Voice - Meta Leads: one claimed lead event in. Only plain ids are used to build the request.
 const id = (v, re) => (typeof v === 'string' && re.test(v) ? v : null);
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const eventId = id($json.event_id, uuid);

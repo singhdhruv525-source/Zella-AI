@@ -1,4 +1,4 @@
-// Zella - Knowledge: check one knowledge item an owner added or changed, then report it ready or failed.
+// Zella Voice - Knowledge: check one knowledge item an owner added or changed, then report it ready or failed.
 // The assistant reads ready items straight from the database at call time, so there is nothing to upload.
 // An item that changed again meanwhile is ignored by the database (version check).
 const k = $json;

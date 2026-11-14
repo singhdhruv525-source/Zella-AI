@@ -82,6 +82,8 @@ PR #57 adds request-size limits and outbound timeouts to edge functions, an erro
 for every n8n workflow (needs a re-import), and the inbound call phone-ID fallback.
 Deploying needs the owner's approval.
 
+**n8n:** the 30 workflows were renamed "Zella Voice - …" in n8n on 13 Nov 2026 (owner's approval; name only, all still unpublished), matching `n8n/workflows/`.
+
 **Live switches (all off):** `calls_live`, `sms_live`, `email_live`, `calendar_sync_live`, `reviews_live`,
 `review_ai_live`, `knowledge_ai_live`, `call_intel_live`, `call_reconcile_live`, `spam_workflow_live`, `spam_ai_live`,
 `website_crawl_live`. `n8n_dispatch_enabled` is true, but the `zella_dispatch` job and the other timed jobs are
@@ -95,6 +97,7 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile`. `vapi_a
 | **Edge functions and n8n behind `main`** | Open | Deploy from `main` with approval. |
 | **Repo build vs production drift.** The isolated build from the repo differs from production in a few places: production is stricter on execute grants for `zella_arrival_window`, `zella_booking_choices` and `zella_capability_on` (server only) and `zella_cross_sell_ideas` (signed in, not anon); `zella_session_proved_email` is security definer in production; production has `zella_audit_privileged_trg` on `platform_admins`; and the repo build keeps an old `zella_calendar_connect(uuid,text,text,text)` that production dropped. | Open | Bring the repo build in line with production (a test-only change to the builder, or a new migration if the repo is right). |
 | About 20 database test scripts lack the isolation guard | Open | Add `tests/lib/isolated_guard.sh` to each. |
+| `tests/voice-reliability/run_all.sh` (and `tests/features/run.sh`, which needs its database) is out of date: it checks its build against production's function bodies of 28 Oct, and five have changed since, so it fails on `main` before any test runs | Open | Refresh the snapshot from production (read-only) and the build scripts, or retire the suite in favour of `tests/deploy/run_all.sh` and `tests/calls/run.sh`. |
 | `tests/deploy/run_all.sh` didn't apply the newer migrations | Fixed in PR #57 (a `LATER` list applies, rolls back and re-applies them; all checks pass locally) | — |
 | **Inbound call routing:** a call whose number and Vapi phone ID match two different businesses' rows is routed by the ID (CodeRabbit, PR #57). Each column is already unique. | Open, owner's decision | Proposed: `zella_business_for_number` returns a business only when both agree; a guarded migration with rollback. |
 | **Workflow-failure emails:** `sql/zella_workflow_alert_email.sql` (merged, not applied) keeps n8n failures in the dashboard only | Open, owner's decision | Apply with approval, or drop it if admins should be emailed. |

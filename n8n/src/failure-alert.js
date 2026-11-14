@@ -1,4 +1,4 @@
-// Zella - Failure Alert: turn an n8n failure into one platform alert. No customer data is copied; only the workflow, the step and a short error.
+// Zella Voice - Failure Alert: turn an n8n failure into one platform alert. No customer data is copied; only the workflow, the step and a short error.
 const j = $json || {};
 const wf = String((j.workflow && j.workflow.name) || 'Unknown workflow').slice(0, 80);
 const ex = j.execution && typeof j.execution === 'object' ? j.execution : {};

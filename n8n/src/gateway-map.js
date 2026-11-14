@@ -1,4 +1,4 @@
-// Zella - Event Gateway: turn the database answer into a short, safe reply.
+// Zella Voice - Event Gateway: turn the database answer into a short, safe reply.
 // Input: the full HTTP response from zella_ingest_event ({ statusCode, body }).
 const r = $json;
 if (r.statusCode >= 200 && r.statusCode < 300 && r.body && typeof r.body === 'object') {

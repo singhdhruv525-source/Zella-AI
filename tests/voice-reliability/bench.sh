@@ -2,7 +2,7 @@
 # Latency measurement of the synchronous voice path in staging (run after run_all.sh, which builds zvoice).
 set -u
 cd "$(dirname "$0")"; REPO=$(cd ../.. && pwd)
-export ZPSQL=${ZPSQL:-"psql -q -At -v ON_ERROR_STOP=1 -h /var/tmp/zella-pg -p 54329 -U postgres"} ZDB=${ZDB:-zvoice}
+export ZDB=${ZDB:-zvoice}; . "$REPO/tests/lib/zpsql.sh"; zella_require_dbs "$ZDB" || exit 1
 DENO=${DENO:-deno}
 WORK=$(mktemp -d "${TMPDIR:-/tmp}/zella-bench.XXXX"); chmod 755 "$WORK"
 export TEST_HMAC_SECRET="test-only-$(date +%s%N)-hmac" MOCK_CONTROL="$WORK/mock.ctl"

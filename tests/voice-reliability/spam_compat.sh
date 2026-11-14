@@ -5,7 +5,7 @@
 # HTTP tests on the spam-last database. Staging only; never production. Exits 1 on any failure.
 set -u
 cd "$(dirname "$0")"; REPO=$(cd ../.. && pwd)
-export ZPSQL=${ZPSQL:-"psql -q -At -v ON_ERROR_STOP=1 -h /var/tmp/zella-pg -p 54329 -U postgres"}
+. "$REPO/tests/lib/zpsql.sh"; zella_require_dbs zsv zvs || exit 1
 DENO=${DENO:-deno}
 FAILS=0; fail() { echo "FAIL $*"; FAILS=$((FAILS + 1)); }; pass() { echo "PASS $*"; }
 run() { su nobody -s /bin/bash -c "$ZPSQL -d $1"; }
