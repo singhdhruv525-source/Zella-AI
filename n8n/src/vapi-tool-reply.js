@@ -1,4 +1,4 @@
-// Zella - Assistant Tools: the answer for ONE tool call, under its own toolCallId. It never contains database
+// Zella Voice - Assistant Tools: the answer for ONE tool call, under its own toolCallId. It never contains database
 // details; a failed write returns an error so the assistant cannot claim the team was notified.
 const plan = $('Use business').item.json;
 if (plan.invalid) return { json: { name: String(plan.tool || '').slice(0, 80), toolCallId: plan.tool_call_id, error: plan.invalid } };

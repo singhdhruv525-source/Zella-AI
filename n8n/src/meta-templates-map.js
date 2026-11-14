@@ -1,4 +1,4 @@
-// Zella - Meta Health: WhatsApp message templates, reduced to name, language, category, status and the body text.
+// Zella Voice - Meta Health: WhatsApp message templates, reduced to name, language, category, status and the body text.
 const plan = $('Build request').item.json;
 const r = $json;
 const b = r.body && typeof r.body === 'object' ? r.body : {};

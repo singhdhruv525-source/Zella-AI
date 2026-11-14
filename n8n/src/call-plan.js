@@ -1,4 +1,4 @@
-// Zella - Outbound Calls: turn one claimed call (a callback, or a follow-up task) into either a Vapi request
+// Zella Voice - Outbound Calls: turn one claimed call (a callback, or a follow-up task) into either a Vapi request
 // or a database note. Nothing is dialled unless calls_live is true and Vapi is set up (c.live).
 // Output: { source, id, call, record }. call = what to send to Vapi (or null); record = the database call to make.
 const c = $json;

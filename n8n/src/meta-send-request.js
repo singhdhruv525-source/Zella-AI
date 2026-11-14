@@ -1,4 +1,4 @@
-// Zella - Meta Sender: add the token from the database. Without a token (or a valid destination) the reply fails and says why.
+// Zella Voice - Meta Sender: add the token from the database. Without a token (or a valid destination) the reply fails and says why.
 const plan = $('Plan').item.json;
 const t = $json.body;
 const token = typeof t === 'string' && t.length >= 20 && t.length < 1000 ? t : null;

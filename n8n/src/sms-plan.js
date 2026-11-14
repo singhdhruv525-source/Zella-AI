@@ -1,4 +1,4 @@
-// Zella - SMS Sender: turn one claimed reminder into a "prepare this text" request.
+// Zella Voice - SMS Sender: turn one claimed reminder into a "prepare this text" request.
 // Only texts are handled here. Other channels are skipped with a visible reason, never dropped silently.
 const r = $json;
 const skip = (reason) => ({ json: { reminder_id: r.reminder_id, finish: { rpc: 'zella_skip_reminder', body: { p_reminder_id: r.reminder_id, p_reason: reason } } } });

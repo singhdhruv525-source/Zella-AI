@@ -1,4 +1,4 @@
-// Zella - Follow-up Emails: turn one claimed follow-up task into a "prepare this email" request.
+// Zella Voice - Follow-up Emails: turn one claimed follow-up task into a "prepare this email" request.
 // Reactivation is marketing, so it needs the person's opt-in. The others follow up on something
 // the person asked for. Anything unknown is skipped with a visible reason, never dropped silently.
 const t = $json;

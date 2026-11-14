@@ -1,4 +1,4 @@
-// Zella - Follow-up Texts: turn Telnyx's answer into the message update and the task result.
+// Zella Voice - Follow-up Texts: turn Telnyx's answer into the message update and the task result.
 // Telnyx's response text is never stored, only its status and its error code.
 const prev = $('After log').item.json;
 const status = Number($json.statusCode);

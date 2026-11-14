@@ -1,5 +1,5 @@
 {
-  "name": "Zella - Meta Webhook",
+  "name": "Zella Voice - Meta Webhook",
   "nodes": [
     {
       "parameters": {
@@ -22,7 +22,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Zella - Meta Webhook (set-up check): when the webhook is first connected, Meta sends a word and a challenge.\n// We hand the word to the database, which compares it with the secret in Vault, and echo the challenge only if it matches.\nconst q = $json.query && typeof $json.query === 'object' ? $json.query : {};\nconst mode = typeof q['hub.mode'] === 'string' ? q['hub.mode'] : '';\nconst token = typeof q['hub.verify_token'] === 'string' ? q['hub.verify_token'].slice(0, 200) : '';\nconst challenge = typeof q['hub.challenge'] === 'string' && /^[A-Za-z0-9_-]{1,100}$/.test(q['hub.challenge']) ? q['hub.challenge'] : '';\nreturn { json: { check: mode === 'subscribe' && !!token && !!challenge, challenge, record: { p_token: token } } };\n"
+        "jsCode": "// Zella Voice - Meta Webhook (set-up check): when the webhook is first connected, Meta sends a word and a challenge.\n// We hand the word to the database, which compares it with the secret in Vault, and echo the challenge only if it matches.\nconst q = $json.query && typeof $json.query === 'object' ? $json.query : {};\nconst mode = typeof q['hub.mode'] === 'string' ? q['hub.mode'] : '';\nconst token = typeof q['hub.verify_token'] === 'string' ? q['hub.verify_token'].slice(0, 200) : '';\nconst challenge = typeof q['hub.challenge'] === 'string' && /^[A-Za-z0-9_-]{1,100}$/.test(q['hub.challenge']) ? q['hub.challenge'] : '';\nreturn { json: { check: mode === 'subscribe' && !!token && !!challenge, challenge, record: { p_token: token } } };\n"
       },
       "id": "4b5e84be-0e45-41f4-8c38-276a4ec0e7fd",
       "name": "Check",
@@ -71,7 +71,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Zella - Meta Webhook (set-up check): the challenge is echoed only when the database said the word was right.\nconst plan = $('Check').item.json;\nconst r = $json;\nconst ok = plan.check && Number(r.statusCode) >= 200 && Number(r.statusCode) < 300 && r.body === true;\nreturn { json: { ok, challenge: ok ? plan.challenge : '' } };\n"
+        "jsCode": "// Zella Voice - Meta Webhook (set-up check): the challenge is echoed only when the database said the word was right.\nconst plan = $('Check').item.json;\nconst r = $json;\nconst ok = plan.check && Number(r.statusCode) >= 200 && Number(r.statusCode) < 300 && r.body === true;\nreturn { json: { ok, challenge: ok ? plan.challenge : '' } };\n"
       },
       "id": "59ad3c89-8ca6-44a6-88af-1cc9b05fb3aa",
       "name": "Answer check",
@@ -172,7 +172,7 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// Zella - Meta Webhook: Meta posts events here (leads, messages, comments). The exact bytes it sent are kept, because the\n// signature is made over those bytes. The database checks the signature with the app secret in Vault; this step never sees it.\nconst first = $input.first();\nconst headers = first.json.headers && typeof first.json.headers === 'object' ? first.json.headers : {};\nconst sig = typeof headers['x-hub-signature-256'] === 'string' ? headers['x-hub-signature-256'].slice(0, 100) : '';\nlet raw = ''; let reason = null;\ntry {\n  const buf = await this.helpers.getBinaryDataBuffer(0, 'data');\n  if (buf.length > 500000) reason = 'body_too_large';\n  else raw = buf.toString('utf8');\n} catch (e) { raw = ''; reason = 'body_unreadable'; }\nif (reason) console.warn('Meta webhook rejected: ' + reason);\nreturn [{ json: { ok: !!raw && !!sig, reason, record: { p_raw: raw, p_signature: sig } } }];\n"
+        "jsCode": "// Zella Voice - Meta Webhook: Meta posts events here (leads, messages, comments). The exact bytes it sent are kept, because the\n// signature is made over those bytes. The database checks the signature with the app secret in Vault; this step never sees it.\nconst first = $input.first();\nconst headers = first.json.headers && typeof first.json.headers === 'object' ? first.json.headers : {};\nconst sig = typeof headers['x-hub-signature-256'] === 'string' ? headers['x-hub-signature-256'].slice(0, 100) : '';\nlet raw = ''; let reason = null;\ntry {\n  const buf = await this.helpers.getBinaryDataBuffer(0, 'data');\n  if (buf.length > 500000) reason = 'body_too_large';\n  else raw = buf.toString('utf8');\n} catch (e) { raw = ''; reason = 'body_unreadable'; }\nif (reason) console.warn('Meta webhook rejected: ' + reason);\nreturn [{ json: { ok: !!raw && !!sig, reason, record: { p_raw: raw, p_signature: sig } } }];\n"
       },
       "id": "2f4240de-4d36-4b52-8ada-e13b4bbc3277",
       "name": "Prepare",
@@ -221,7 +221,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Zella - Meta Webhook: answer Meta. A wrong signature gets 403; everything else gets 200 so Meta does not keep retrying.\nconst plan = $('Prepare').item.json;\nconst r = $json;\nconst b = r.body && typeof r.body === 'object' ? r.body : {};\nconst bad = !plan.ok || b.result === 'unauthorized';\nreturn { json: { code: bad ? 403 : 200, body: { ok: !bad } } };\n"
+        "jsCode": "// Zella Voice - Meta Webhook: answer Meta. A wrong signature gets 403; everything else gets 200 so Meta does not keep retrying.\nconst plan = $('Prepare').item.json;\nconst r = $json;\nconst b = r.body && typeof r.body === 'object' ? r.body : {};\nconst bad = !plan.ok || b.result === 'unauthorized';\nreturn { json: { code: bad ? 403 : 200, body: { ok: !bad } } };\n"
       },
       "id": "a16a4eda-7cb2-48e9-8d7e-dd25e809ae9d",
       "name": "Answer",

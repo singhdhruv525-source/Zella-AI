@@ -1,4 +1,4 @@
-// Zella - Spam Response: the weekly summary for one business, from the counts the database prepared. Posted once per
+// Zella Voice - Spam Response: the weekly summary for one business, from the counts the database prepared. Posted once per
 // week (the database refuses a second one); emailed only if the person turned that on in their notification settings.
 const r = $json;
 const s = r.stats || {};

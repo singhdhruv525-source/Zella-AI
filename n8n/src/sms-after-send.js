@@ -1,4 +1,4 @@
-// Zella - SMS Sender: turn Telnyx's answer into the message update and the reminder result.
+// Zella Voice - SMS Sender: turn Telnyx's answer into the message update and the reminder result.
 // Telnyx's response text is never stored, only its status and its error code.
 const prev = $('After log').item.json;
 const status = Number($json.statusCode);
