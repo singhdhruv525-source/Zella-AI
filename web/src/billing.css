@@ -1,0 +1,89 @@
+/* Billing screens: Create Business > Plan & pricing (PlanStep.jsx) and Settings > Billing (settings/BillingPanels.jsx).
+   Tokens only (web/src/styles/tokens.css); see docs/DESIGN_SYSTEM.md "Components added with billing". */
+
+/* ---------- plan page: form beside a sticky summary ---------- */
+.bp-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: var(--zella-space-5); align-items: start; }
+.bp-form { display: grid; gap: var(--zella-space-4); min-width: 0; }
+.bp-card { background: var(--zella-card); border: 1px solid var(--zella-border); border-radius: var(--zella-radius-lg); padding: var(--zella-space-5); box-shadow: var(--zella-shadow-sm); }
+.bp-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--zella-space-3); margin-bottom: var(--zella-space-4); }
+.bp-card-head h3 { margin: 0; font-size: var(--zella-text-lg); font-weight: 600; color: var(--zella-text); }
+.bp-card-head p { margin: 4px 0 0; font-size: var(--zella-text-sm); color: var(--zella-text-secondary); }
+.bp-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--zella-space-4); }
+.bp-grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.bp-field { display: grid; gap: 6px; min-width: 0; }
+.bp-field > span { font-size: var(--zella-text-sm); font-weight: 500; color: var(--zella-text); }
+.bp-field small { font-size: var(--zella-text-xs); color: var(--zella-text-secondary); }
+.bp-field.full { grid-column: 1 / -1; }
+
+/* an input with a fixed prefix or suffix ($ ... /month) */
+.bp-affix { display: flex; align-items: center; height: 40px; border: 1px solid var(--zella-border-strong); border-radius: var(--zella-radius-md); background: var(--zella-card); overflow: hidden; }
+.bp-affix:focus-within { border-color: var(--zella-primary); box-shadow: 0 0 0 3px var(--zella-primary-ring); }
+.bp-affix[data-invalid="true"] { border-color: var(--zella-danger); }
+.bp-affix input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; padding: 0 10px; font: inherit; font-size: var(--zella-text-base); background: transparent; color: var(--zella-text); font-variant-numeric: tabular-nums; }
+.bp-affix > em { font-style: normal; padding: 0 10px; color: var(--zella-text-secondary); font-size: var(--zella-text-sm); white-space: nowrap; background: var(--zella-subtle); align-self: stretch; display: flex; align-items: center; }
+
+/* segmented choice (Base / Pro, Monthly / Yearly, English / Spanish) */
+.bp-seg { display: inline-flex; padding: 3px; gap: 3px; border-radius: var(--zella-radius-md); background: var(--zella-subtle); border: 1px solid var(--zella-border); flex-wrap: wrap; }
+.bp-seg button { border: 0; background: transparent; padding: 7px 14px; border-radius: calc(var(--zella-radius-md) - 2px); font: inherit; font-size: var(--zella-text-sm); font-weight: 500; color: var(--zella-text-secondary); cursor: pointer; }
+.bp-seg button[aria-pressed="true"] { background: var(--zella-card); color: var(--zella-text); box-shadow: var(--zella-shadow-sm); }
+.bp-seg button:disabled { cursor: default; }
+
+.bp-trial { display: flex; justify-content: space-between; align-items: center; gap: var(--zella-space-4); padding: var(--zella-space-3) var(--zella-space-4); border: 1px solid var(--zella-border); border-radius: var(--zella-radius-md); background: var(--zella-subtle); }
+.bp-trial strong { display: block; font-size: var(--zella-text-sm); color: var(--zella-text); }
+.bp-trial span { font-size: var(--zella-text-xs); color: var(--zella-text-secondary); }
+
+/* summary */
+.bp-summary { position: sticky; top: var(--zella-space-4); display: grid; gap: var(--zella-space-4); }
+.bp-price { display: flex; align-items: baseline; gap: 6px; }
+.bp-price strong { font-size: 32px; font-weight: 700; letter-spacing: -0.02em; color: var(--zella-text); font-variant-numeric: tabular-nums; }
+.bp-price span { color: var(--zella-text-secondary); font-size: var(--zella-text-sm); }
+.bp-sub { font-size: var(--zella-text-sm); color: var(--zella-text-secondary); margin: 2px 0 0; }
+.bp-lines { display: grid; gap: 8px; margin: 0; padding: var(--zella-space-3) 0 0; border-top: 1px solid var(--zella-border); }
+.bp-lines div { display: flex; justify-content: space-between; gap: var(--zella-space-3); font-size: var(--zella-text-sm); }
+.bp-lines dt { color: var(--zella-text-secondary); }
+.bp-lines dd { margin: 0; color: var(--zella-text); font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
+.bp-margin { display: flex; align-items: center; justify-content: space-between; gap: var(--zella-space-3); padding: var(--zella-space-3) var(--zella-space-4); border-radius: var(--zella-radius-md); border: 1px solid var(--zella-border); background: var(--zella-subtle); }
+.bp-margin strong { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.bp-margin.good { background: var(--zella-success-bg); border-color: var(--zella-success-border); }
+.bp-margin.good strong { color: var(--zella-success); }
+.bp-margin.caution { background: var(--zella-warning-bg); border-color: var(--zella-warning-border); }
+.bp-margin.caution strong { color: var(--zella-warning); }
+.bp-margin.bad { background: var(--zella-danger-bg); border-color: var(--zella-danger-border); }
+.bp-margin.bad strong { color: var(--zella-danger); }
+.bp-margin span { font-size: var(--zella-text-xs); color: var(--zella-text-secondary); }
+.bp-warn { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.bp-warn li { display: flex; gap: 8px; align-items: flex-start; font-size: var(--zella-text-sm); padding: 8px 10px; border-radius: var(--zella-radius-sm); }
+.bp-warn li.red { background: var(--zella-danger-bg); color: var(--zella-danger); }
+.bp-warn li.caution { background: var(--zella-warning-bg); color: var(--zella-warning); }
+.bp-warn li b { font-weight: 600; }
+.bp-primary { width: 100%; height: 42px; border: 0; border-radius: var(--zella-radius-md); background: var(--zella-primary); color: var(--zella-on-primary); font: inherit; font-weight: 600; cursor: pointer; }
+.bp-primary:hover:not(:disabled) { background: var(--zella-primary-hover); }
+.bp-primary:disabled { opacity: 0.5; cursor: default; }
+.bp-muted { font-size: var(--zella-text-xs); color: var(--zella-text-secondary); margin: 0; }
+.bp-versions { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: var(--zella-text-sm); }
+.bp-versions li { display: flex; justify-content: space-between; gap: var(--zella-space-3); color: var(--zella-text-secondary); }
+.bp-versions li b { color: var(--zella-text); font-weight: 600; }
+
+/* ---------- owner billing pages ---------- */
+.bp-pad { padding: var(--zella-space-5); }
+.bp-pad-head { padding: var(--zella-space-5) var(--zella-space-5) 0; }
+.bp-hero { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: var(--zella-space-4); }
+.bp-hero-name { display: flex; align-items: center; gap: 10px; }
+.bp-hero-name h3 { margin: 0; font-size: var(--zella-text-xl); font-weight: 600; color: var(--zella-text); }
+.bp-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: var(--zella-space-4); }
+.bp-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: var(--zella-radius-full); background: var(--zella-subtle); border: 1px solid var(--zella-border); font-size: var(--zella-text-sm); color: var(--zella-text); }
+.bp-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--zella-space-4); }
+.bp-tile { display: grid; gap: 8px; align-content: start; background: var(--zella-card); border: 1px solid var(--zella-border); border-radius: var(--zella-radius-md); padding: var(--zella-space-4); min-width: 0; }
+.bp-tile-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: var(--zella-text-sm); font-weight: 500; color: var(--zella-text-secondary); }
+.bp-tile-value { font-size: var(--zella-text-kpi); font-weight: 700; letter-spacing: -0.02em; color: var(--zella-text); font-variant-numeric: tabular-nums; line-height: 1.1; }
+.bp-tile-value small { font-size: var(--zella-text-base); font-weight: 500; color: var(--zella-text-secondary); letter-spacing: 0; }
+.bp-tile-note { font-size: var(--zella-text-xs); color: var(--zella-text-secondary); }
+
+@media (max-width: 1100px) {
+  .bp-layout { grid-template-columns: minmax(0, 1fr); }
+  .bp-summary { position: static; }
+}
+@media (max-width: 760px) {
+  .bp-grid, .bp-grid.three, .bp-tiles { grid-template-columns: minmax(0, 1fr); }
+  .bp-card { padding: var(--zella-space-4); }
+}

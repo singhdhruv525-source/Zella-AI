@@ -32,13 +32,15 @@ export const FINISH_STOP: Record<string, [number, string]> = {
 };
 
 // Required setup, checked by the server from saved data before the workspace becomes active.
-export type SetupFacts = { name: string | null; industryId: string | null; openDays: number; documentsReady: boolean; documentsMissing: string[] };
+export type SetupFacts = { name: string | null; industryId: string | null; openDays: number; documentsReady: boolean; documentsMissing: string[]; planSaved: boolean };
 export function setupProblems(f: SetupFacts): string[] {
   const out: string[] = [];
   if (!f.name?.trim()) out.push("the business name");
   if (!f.industryId) out.push("the industry");
   if (f.openDays < 1) out.push("opening hours for at least one day (Hours & services)");
   if (!f.documentsReady) out.push(`verification documents (${f.documentsMissing.join(", ") || "required documents"})`);
+  // REQ-BIL-57: the plan is reviewed and saved by a billing admin before the owner is invited
+  if (!f.planSaved) out.push("the plan, reviewed and saved by a billing admin (Plan & pricing)");
   return out;
 }
 
@@ -51,6 +53,7 @@ export interface FinishDeps {
   ownerInvitation(): Promise<OwnerInvitation | null>;
   documents(): Promise<{ ready: boolean; missing: string[] }>;
   openDays(): Promise<number>;
+  planSaved(): Promise<boolean>;                                         // a business_plans version exists
   claim(invitationId: string): Promise<boolean>;                       // open -> sent, true if this call won
   sendInvite(email: string, name: string | null): Promise<{ userId: string } | { error: string }>;
   release(invitationId: string, reason: string): Promise<void>;        // sent (unsent, ours) -> failed
@@ -67,8 +70,8 @@ export async function finishSetupWith(d: FinishDeps) {
   const inv = await d.ownerInvitation();
   const plan = finishPlan(inv, d.now());
   if (plan.kind in FINISH_STOP) { const [status, message] = FINISH_STOP[plan.kind]; throw new FinishError(message, status); }
-  const [documents, openDays] = await Promise.all([d.documents(), d.openDays()]);
-  const problems = setupProblems({ name: business.name, industryId: business.industry_id, openDays, documentsReady: documents.ready, documentsMissing: documents.missing });
+  const [documents, openDays, planSaved] = await Promise.all([d.documents(), d.openDays(), d.planSaved()]);
+  const problems = setupProblems({ name: business.name, industryId: business.industry_id, openDays, documentsReady: documents.ready, documentsMissing: documents.missing, planSaved });
   if (problems.length) throw new FinishError(`Before finishing, save ${problems.join("; ")}.`, 400);
 
   let invitationStatus: string = plan.kind;

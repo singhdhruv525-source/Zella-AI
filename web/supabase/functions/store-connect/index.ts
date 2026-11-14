@@ -30,11 +30,15 @@ export async function handle(req: Request): Promise<Response> {
   if (!/^[A-Za-z0-9_-]{20,200}$/.test(token)) return json({ ok: false, error: "bad_token" }, 400);
   const auth = req.headers.get("authorization") ?? "";
   if (!/^Bearer\s+\S+/i.test(auth) || auth.includes(server)) return json({ ok: false, error: "sign_in_required" }, 401);
-  const who = await fetch(`${base}/auth/v1/user`, { headers: { apikey: anon, Authorization: auth } });
+  // every outbound call has a timeout and a safe answer when it runs out (BE-3)
+  const who = await fetch(`${base}/auth/v1/user`, { headers: { apikey: anon, Authorization: auth }, signal: AbortSignal.timeout(10_000) }).catch(() => null);
+  if (!who) return json({ ok: false, error: "try_again" }, 503);
   if (!who.ok) return json({ ok: false, error: "sign_in_required" }, 401);
-  const user = await who.json();
-  const can = await fetch(`${base}/rest/v1/rpc/zella_store_can_manage`, { method: "POST", headers: { "Content-Type": "application/json", apikey: anon, Authorization: auth }, body: JSON.stringify({ p_business_id: biz }) });
-  if (!can.ok || (await can.json()) !== true) return json({ ok: false, error: "not_allowed" }, 403);
+  const user = await who.json().catch(() => null);
+  if (!user || typeof user.id !== "string" || !user.id) return json({ ok: false, error: "sign_in_required" }, 401);
+  const can = await fetch(`${base}/rest/v1/rpc/zella_store_can_manage`, { method: "POST", headers: { "Content-Type": "application/json", apikey: anon, Authorization: auth }, body: JSON.stringify({ p_business_id: biz }), signal: AbortSignal.timeout(10_000) }).catch(() => null);
+  if (!can) return json({ ok: false, error: "try_again" }, 503);
+  if (!can.ok || (await can.json().catch(() => null)) !== true) return json({ ok: false, error: "not_allowed" }, 403);
 
   // the store answers with this token, and has granted what order lookup needs
   const ask = (path: string) => fetch(`https://${shop}${path}`, { headers: { "X-Shopify-Access-Token": token, Accept: "application/json" }, signal: AbortSignal.timeout(8000) }).catch(() => null);
@@ -55,8 +59,10 @@ export async function handle(req: Request): Promise<Response> {
   const saved = await fetch(`${base}/rest/v1/rpc/zella_store_connect`, {
     method: "POST", headers: { "Content-Type": "application/json", apikey: server, Authorization: `Bearer ${server}` },
     body: JSON.stringify({ p_business_id: biz, p_actor: String(user.id), p_shop_domain: shop, p_access_token: token, p_shop_name: shopName }),
+    signal: AbortSignal.timeout(10_000),
   }).catch(() => null);
-  if (!saved?.ok) return json({ ok: false, error: saved && /NOT_ALLOWED/.test(await saved.text()) ? "not_allowed" : "try_again" }, saved ? 400 : 503);
+  // the error body is read under the same deadline: a stalled or aborted read means "try again", never a crash
+  if (!saved?.ok) return json({ ok: false, error: saved && /NOT_ALLOWED/.test(await saved.text().catch(() => "")) ? "not_allowed" : "try_again" }, saved ? 400 : 503);
   return json({ ok: true, shop: shop, shop_name: shopName, more_access_than_needed: extra }, 200);
 }
 

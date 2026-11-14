@@ -28,6 +28,7 @@ import { usePlatformInfo } from "./platformInfo";
 import { BusinessModulesPanel } from "./settings/BusinessModulesPanel";
 import { CallContentAccess, CapabilitiesPanel } from "./settings/CapabilitiesPanel";
 import { BusinessCallingUsage } from "./settings/CallingUsagePanels";
+import { AutoReloadPanel, BillingBalancesPanel, BillingPlanPanel } from "./settings/BillingPanels";
 import { AssignmentSettings, BusinessOffersSettings, LeadQuestions, LeadRules, WebsiteForms, WebsiteSources } from "./settings/BusinessLeadPanels";
 
 // Business Settings: one Settings item in the CRM sidebar opens this workspace,
@@ -476,29 +477,40 @@ function PhoneTroubleshooting({ w }) {
 /* ---------- 5. Billing ---------- */
 
 function CurrentPlan({ w, onReload }) {
-  const state = useAsync(() => entitlementsOf(w), [w.id]);
   const [busy, setBusy] = useState(false);
   const [keepError, setKeepError] = useState("");
   return (
-    <LoadState state={state}>{(e) => (
-      <>
-        <Card title="Your plan">
-          <Facts rows={[["Plan", e.plan?.name ?? "No subscription yet"], ["Status", e.subscription ? words(e.subscription.status) : w.cancelled_at ? "Ended" : w.cancel_at ? `Ends ${when(w.cancel_at)}` : "Active"],
-            ["Billing", e.subscription ? words(e.subscription.billing_interval) : "—"], ["Renews", when(e.subscription?.current_period_end)], ["Trial ends", when(e.subscription?.trial_end_at)],
-            ["Core CRM", "Included in every plan"]]} />
-          {w.cancel_at && !w.cancelled_at && w.role === "owner" && <button type="button" className="zs-btn primary" style={{ marginTop: 12 }} disabled={busy}
+    <>
+      {w.cancel_at && !w.cancelled_at && (
+        <Card title="Your plan is scheduled to end" sub={`It ends ${when(w.cancel_at)}.`}>
+          {w.role === "owner" && <button type="button" className="zs-btn primary" disabled={busy}
             onClick={async () => { setBusy(true); setKeepError(""); try { const kept = await rpc("zella_owner_continue_plan", { p_business_id: w.id }); if (kept === false) setKeepError("Your plan could not be continued. Please try again."); onReload?.(); } catch (err) { setKeepError(say(err)); } finally { setBusy(false); } }}>Keep my plan</button>}
           <Banner tone="error">{keepError}</Banner>
         </Card>
-        <UsageCard e={e} />
-      </>
-    )}</LoadState>
+      )}
+      <BillingPlanPanel w={w} />
+    </>
   );
 }
 
 function UsageProtection({ w }) {
-  const state = useAsync(() => rpc("zella_usage_preferences", { p_business_id: w.id }), [w.id]);
-  return <LoadState state={state}>{(p) => <ProtectionForm w={w} p={p} />}</LoadState>;
+  // the pay-as-you-go rate comes from the business's own plan (owners only; others see the choices without it)
+  const state = useAsync(async () => {
+    const p = await rpc("zella_usage_preferences", { p_business_id: w.id });
+    let rate = null, rateError = "";
+    if (w.role === "owner") {
+      // owners only: a failure is shown (with Retry), never mistaken for "not on your plan"; others are refused quietly
+      try { rate = (await rpc("zella_billing_overview", { p_business_id: w.id }))?.plan?.overage_cents_per_minute ?? null; }
+      catch (err) { rateError = say(err); }
+    }
+    return { ...p, payg_cents: rate, payg_error: rateError };
+  }, [w.id]);
+  return <LoadState state={state}>{(p) => (
+    <>
+      {p.payg_error && <Banner tone="error">Your plan's pay-as-you-go rate couldn't be loaded ({p.payg_error}). <button type="button" className="zs-link" onClick={state.reload}>Try again</button></Banner>}
+      <ProtectionForm w={w} p={p} />
+    </>
+  )}</LoadState>;
 }
 
 function ProtectionForm({ w, p }) {
@@ -506,7 +518,7 @@ function ProtectionForm({ w, p }) {
   const [confirm, setConfirm] = useState(false);
   const v = form.values;
   const save = () => form.save(async (x) => {
-    await rpc("zella_save_usage_preferences", { p_business_id: w.id, p_thresholds: x.thresholds, p_mode: x.mode,
+    await rpc("zella_save_usage_preferences", { p_business_id: w.id, p_thresholds: [80, 100], p_mode: x.mode,
       p_spend_limit_cents: x.mode === "stop" ? null : Math.round(Number(x.limit) * 100), p_fallback: x.fallback });
   }, "Saved. This is your authorization; Zella Voice never charges more than this.");
   return (
@@ -515,13 +527,13 @@ function ProtectionForm({ w, p }) {
       <fieldset disabled={!p.can_edit} style={{ border: 0, padding: 0, margin: 0 }}>
         <div className="zs-grid">
           <Field label="Extra usage" full><select value={v.mode} onChange={form.set("mode")}>
-            <option value="stop">Don't allow paid extra usage</option><option value="pay_as_you_go">Pay as you go, up to my limit</option><option value="auto_top_up">Top up automatically, up to my limit</option></select></Field>
+            <option value="stop">Stop: no extra minutes</option>
+            <option value="pay_as_you_go" disabled={p.payg_cents == null && v.mode !== "pay_as_you_go"}>{p.payg_cents != null ? `Pay as you go: $${(p.payg_cents / 100).toFixed(2)} per extra minute, up to my limit` : p.payg_error ? "Pay as you go (rate unavailable, try again)" : "Pay as you go (not on your plan)"}</option>
+            <option value="auto_top_up">Auto-reload a pack, up to my limit</option></select></Field>
           {v.mode !== "stop" && <Field label="Monthly spending limit (USD)" error={v.limit && !(Number(v.limit) > 0) ? "Enter an amount above 0" : ""}><input inputMode="decimal" value={v.limit} onChange={form.set("limit")} /></Field>}
           <Field label="If extra usage isn't allowed"><select value={v.fallback} onChange={form.set("fallback")}>
             <option value="take_message">AI takes a message</option><option value="forward_to_business">Forward calls to the business</option><option value="voicemail_only">Voicemail only</option></select></Field>
-          <div className="zs-field full"><span>Tell me at</span><div className="zs-actions">{[50, 70, 80, 90, 100].map((t) => (
-            <label key={t} className="zs-check"><input type="checkbox" checked={v.thresholds.includes(t)} onChange={() => form.set("thresholds")(v.thresholds.includes(t) ? v.thresholds.filter((x) => x !== t) : [...v.thresholds, t].sort((a, b) => a - b))} /><span>{t}%</span></label>
-          ))}</div></div>
+          <div className="zs-field full"><span>Usage notices</span><p className="zs-muted">You're told at 80% and 100% of your minutes, texts and emails.</p></div>
         </div>
       </fieldset>
       {p.authorized_at && <p className="zs-muted">Last authorized {when(p.authorized_at)}.</p>}
@@ -534,18 +546,6 @@ function ProtectionForm({ w, p }) {
   );
 }
 
-function Rollover({ w }) {
-  const state = useAsync(() => entitlementsOf(w), [w.id]);
-  return (
-    <LoadState state={state}>{(e) => (
-      <Card title="Included minutes">
-        <Facts rows={[["Included this period", e.limits?.voice_minutes ?? "No limit set"], ["Used", e.usage?.voice_minutes ?? 0],
-          ["Remaining", e.limits?.voice_minutes != null ? Math.max(0, e.limits.voice_minutes - (e.usage?.voice_minutes ?? 0)) : "—"], ["Resets", when(e.period?.to)],
-          ["Unused minutes", "Don't carry over (no rollover is set for your plan)"], ["Top-up minutes", "No top-ups have been bought"]]} />
-      </Card>
-    )}</LoadState>
-  );
-}
 
 function BillingNeeds({ title, have, children }) {
   return <Needs title={title} have={have}>{children}</Needs>;
@@ -952,8 +952,9 @@ function registry(w) {
       page("plan", "Current plan", (c) => <CurrentPlan w={w} onReload={c.onReload} />, "plan renewal status"),
       page("usage", "Usage and charges", () => <VoiceUsage w={w} />, "usage sms voice charges"),
       page("calling", "Calling usage", () => <BusinessCallingUsage w={w} />, "calling minutes calls call time usage history corrections allowance"),
-      page("protection", "AI usage protection", () => <UsageProtection w={w} />, "top-up pay as you go spending limit 70 90 100"),
-      page("rollover", "Rollover policy", () => <Rollover w={w} />, "reset remaining"),
+      page("protection", "AI usage protection", () => <UsageProtection w={w} />, "pay as you go spending limit 80 100 fallback"),
+      page("balances", "Balances and packs", () => <BillingBalancesPanel w={w} />, "rollover reset remaining packs top-up minutes texts emails expiry"),
+      page("auto-reload", "Auto-reload", () => <AutoReloadPanel w={w} />, "auto reload top-up pack spending cap limit"),
       page("offers", "Offers and promo codes", () => <BusinessOffersSettings w={w} />, "offer promo code discount deal claim"),
       page("payment-methods", "Payment methods", lazyNeeds("Payment methods aren't managed in Zella Voice yet", "Nothing is charged from Zella Voice today.", "Adding a card needs the payment provider's secure page; Zella Voice never stores card numbers.")),
       page("invoices", "Invoices", lazyNeeds("Invoices aren't available in Zella Voice yet", "The Zella Voice team sends invoices by email.", "They need the payment provider's invoice records.")),
