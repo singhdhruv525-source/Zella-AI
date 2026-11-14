@@ -582,7 +582,7 @@ never bill past the close.
    written under the business's lock. No Stripe customer balance is used. The credit is **allocated** to the charges
    that billed its source (invoice item or yearly PaymentIntent), newest first, each up to what that charge billed for
    the source less what earlier credits already took from it. Each allocation line (`credit:<row id>:<charge id>`)
-   is consumed exactly once, by step 4 or step 5.
+   is consumed exactly once, by step 4 or step 5 (or re-opened by step 6).
 4. **Used once.** While the subscription is active, open allocation lines are consumed, under the business's lock, by
    the next charge for that business: the next renewal draft (one negative invoice item, key
    `credit:<renewal invoice id>`, claiming the lines it uses) or the next yearly pay-as-you-go charge (its amount is
@@ -594,11 +594,21 @@ never bill past the close.
    A carried debit still open when the subscription ends is written off in the ledger (`writeoff:<period id>`, shown
    to admins), never charged on its own.
 5. **After the subscription has ended** (checked when the lines are consumed, not when the credit was recorded), each
-   open allocation line is refunded once to **its own** charge's payment, through the refund flow (§6.7): one refund
-   request per payment, which claims that payment's lines in the same transaction that creates it. A $10 correction
-   whose source was billed $4 on one invoice and $6 on another is refunded as $4 and $6. A line is either applied to a
-   charge or refunded, never both. A correction never needs approval to reduce what the owner pays, and is never used
-   to raise it.
+   open allocation line is refunded once to **its own** charge's payment, through the refund flow (§6.7). A refund
+   request claims, in the same transaction that creates it, the payment's lines that are open at that moment; a
+   correction that arrives later gets its own later request for the same payment. Several requests per payment are
+   normal; what each line can never do is be claimed twice, and a payment's refunds never exceed what it was paid. A
+   $10 correction whose source was billed $4 on one invoice and $6 on another is refunded as $4 and $6. A line is
+   either applied to a charge or refunded, never both. A correction never needs approval to reduce what the owner
+   pays, and is never used to raise it.
+6. **Charges paid partly or wholly by credit.** A charge records what funded it: its payment, and the allocation lines
+   it consumed (step 4). A correction's share for that charge is taken from the payment first (up to what was paid),
+   and the rest **re-opens** the credit that funded it: new allocation lines pointing to the charges those consumed
+   lines were allocated to, for the same amounts. So a correction to a yearly charge `settled_by_credit` (no
+   PaymentIntent) gives the credit back to where it came from, and is then used by step 4 or refunded by step 5 to
+   the original payment. Following funding back always ends at a payment, because credits are only ever allocated to
+   charges that billed something; the amounts are conserved at every step. A share of a carried debit that was never
+   collected (`carry:` or `writeoff:`) reduces that debit instead, and nothing is refunded for it.
 
 Each yearly PaymentIntent claims its rows the same way as an invoice item (`billed_item` = the PaymentIntent's local
 charge row), so its corrections follow the same steps.
@@ -859,7 +869,7 @@ stateDiagram-v2
 | Monthly pay as you go | `POST /v1/invoiceitems` on the draft renewal invoice | `payg:<period id>` | one billing row per period (`uninvoiced` → `attached`) | the invoice's lines |
 | Monthly pay as you go, draft already finalised | `POST /v1/invoiceitems` (pending, no `invoice`) | `payg:<period id>:pending` | the same billing row: only one of the two is created | pending items and the lines of invoices created since the send, by `metadata.period_id` and `metadata.kind` |
 | Monthly pay as you go, late usage | `POST /v1/invoiceitems` (pending), once at the billing close | `payg:<period id>:late` | one per period: every row still unclaimed at the close | pending items and the lines of invoices created since the send, by `metadata.period_id` and `metadata.kind` |
-| Credit for a correction to billed usage | one negative invoice item on the next renewal draft, or a reduced yearly pay-as-you-go PaymentIntent; after the subscription ended, a refund (§6.7) | `credit:<renewal invoice id>`; the PaymentIntent's own `payg:<period id>`; `refund:<refund id>` | one ledger credit per correcting row (`credit:<row id>`), split into allocation lines (`credit:<row id>:<charge id>`), each consumed once; a yearly charge reduced to zero is `settled_by_credit`, one below Stripe's minimum is carried (`carry:<period id>`) or written off (`writeoff:<period id>`) | the invoice's lines, the PaymentIntent, one refund per original payment |
+| Credit for a correction to billed usage | one negative invoice item on the next renewal draft, or a reduced yearly pay-as-you-go PaymentIntent; after the subscription ended, a refund (§6.7) | `credit:<renewal invoice id>`; the PaymentIntent's own `payg:<period id>`; `refund:<refund id>` | one ledger credit per correcting row (`credit:<row id>`), split into allocation lines (`credit:<row id>:<charge id>`), each consumed once; a yearly charge reduced to zero is `settled_by_credit`, one below Stripe's minimum is carried (`carry:<period id>`) or written off (`writeoff:<period id>`) | the invoice's lines, the PaymentIntent, refunds per original payment (each line once); a charge's funding (payment + consumed lines) |
 | Final invoices after a cancel | invoice item + `POST /v1/invoices` + finalize + pay | `final:<period id>:<main\|late>:<item\|invoice\|finalize\|pay>` | unique (period, kind) | invoices by `metadata.final_kind` |
 | Upgrade | `POST /v1/subscriptions/:id` | `upgrade:<change id>` | one pending change per subscription | subscription `pending_update`, latest invoice |
 | Downgrade | `POST /v1/subscription_schedules` | `downgrade:<change id>` | one scheduled change per subscription | the subscription's schedule |
