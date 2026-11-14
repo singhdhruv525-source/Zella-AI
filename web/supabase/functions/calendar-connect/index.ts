@@ -65,14 +65,16 @@ export async function handle(req: Request): Promise<Response> {
     if (!code || code.length > 4096) return back("error", "no_code");
     const c = client(s.p);
     if (!c.id || !c.secret) return back("error", "provider_not_configured");
-    const tok = await fetch(PROVIDER[s.p].token, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: tokenForm(s.p, c.id, c.secret, redirectUri(), code) }).catch(() => null);
+    const tok = await fetch(PROVIDER[s.p].token, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: tokenForm(s.p, c.id, c.secret, redirectUri(), code), signal: AbortSignal.timeout(10_000) }).catch(() => null);
     const t = tok ? await tok.json().catch(() => ({})) : {};
     if (!tok?.ok || typeof t.refresh_token !== "string") return back("error", tok?.ok ? "no_refresh_token" : problem(t.error ?? "token_exchange_failed"));
     const saved = await fetch(`${base}/rest/v1/rpc/zella_calendar_connect_provider`, {
       method: "POST", headers: { "Content-Type": "application/json", apikey: server, Authorization: `Bearer ${server}` },
       body: JSON.stringify({ p_business_id: s.b, p_provider: s.p, p_actor: s.u, p_account_email: accountEmail(t.id_token), p_refresh_token: t.refresh_token, p_calendar_id: "primary" }),
+      signal: AbortSignal.timeout(10_000),
     }).catch(() => null);
-    if (!saved?.ok) return back("error", saved && /NOT_ALLOWED/.test(await saved.text()) ? "not_allowed" : "try_again");
+    // the error body is read under the same deadline: a stalled or aborted read means "try again", never a crash
+    if (!saved?.ok) return back("error", saved && /NOT_ALLOWED/.test(await saved.text().catch(() => "")) ? "not_allowed" : "try_again");
     return back("connected");
   }
   return json({ ok: false, error: "method_not_allowed" }, 405);

@@ -17,8 +17,8 @@ ROLLBACK=(zella_record_workflows_rollback zella_slots_resource_blocks_rollback z
 # Files applied after the pending list, in production's order (DB-14). Kept apart from PENDING because other suites read
 # PENDING and apply some of these themselves (tests/review_sql, tests/rollback_security, tests/batch3, ...).
 # zella_brand_name goes before zella_review_sql_fixes: that file's version guards expect the branded wording.
-LATER=(zella_batch1_security zella_batch3_pagination zella_brand_name zella_rollback_security zella_n8n_webhook_auth zella_record_files_purge_retry zella_replace_business_hours zella_order_lookup_reservations zella_review_sql_fixes zella_seating_handoff zella_workflow_alert_email)
-LATER_ROLLBACK=(zella_workflow_alert_email_rollback zella_seating_handoff_rollback zella_review_sql_fixes_rollback zella_order_lookup_reservations_rollback zella_replace_business_hours_rollback zella_record_files_purge_retry_rollback zella_n8n_webhook_auth_rollback zella_rollback_security_rollback zella_brand_name_rollback zella_batch3_pagination_rollback zella_batch1_security_rollback)
+LATER=(zella_batch1_security zella_batch3_pagination zella_brand_name zella_rollback_security zella_n8n_webhook_auth zella_record_files_purge_retry zella_replace_business_hours zella_order_lookup_reservations zella_review_sql_fixes zella_seating_handoff zella_workflow_alert_email zella_billing_allowances)
+LATER_ROLLBACK=(zella_billing_allowances_rollback zella_workflow_alert_email_rollback zella_seating_handoff_rollback zella_review_sql_fixes_rollback zella_order_lookup_reservations_rollback zella_replace_business_hours_rollback zella_record_files_purge_retry_rollback zella_n8n_webhook_auth_rollback zella_rollback_security_rollback zella_brand_name_rollback zella_batch3_pagination_rollback zella_batch1_security_rollback)
 ALL=("${PENDING[@]}" "${LATER[@]}"); ALL_ROLLBACK=("${LATER_ROLLBACK[@]}" "${ROLLBACK[@]}")
 fails=0; ok() { echo "PASS $*"; }; bad() { echo "FAIL $*"; fails=$((fails + 1)); }
 ITEMS="select x from (
@@ -30,7 +30,8 @@ ITEMS="select x from (
   where x not like '%_rolled_back%'
     and x not in ('c:appointments.resource_ids:ARRAY', 'c:appointments.crew_staff_ids:ARRAY', 'c:blocked_times.resource_id:uuid', 'c:crm_record_types.workflow:jsonb', 'c:calls.transfer_approved_at:timestamp with time zone')
     and x not like 'c:store_lookup_guards.%'
-    and x not like 'f:zella_receive_inbound_email(text,jsonb):%'"   # checked on its own below (INBOUND)   # what a rollback keeps on purpose: order-lookup guard rows (an unresolved lookup must survive a re-apply), the inbound-email receiver once any business has a 32-character address (zella_rollback_security_rollback), and also renamed tables, the Release 2 columns with their values, each record type's Release 3 workflow setting, and when a transfer was approved (CodeRabbit #44 finding 11: never delete customer data)
+    and x not like 'f:zella_receive_inbound_email(text,jsonb):%'
+    and x not like 'f:zella_billing_immutable_trg():%'"   # checked on its own below (INBOUND)   # what a rollback keeps on purpose: order-lookup guard rows (an unresolved lookup must survive a re-apply), the inbound-email receiver once any business has a 32-character address (zella_rollback_security_rollback), and also renamed tables, the Release 2 columns with their values, each record type's Release 3 workflow setting, and when a transfer was approved (CodeRabbit #44 finding 11: never delete customer data), and the append-only trigger function that still guards the archived billing history
 STATE="select md5(string_agg(x, ',' order by x)) from ($ITEMS) y"
 INBOUND="select md5(pg_get_functiondef('public.zella_receive_inbound_email(text,jsonb)'::regprocedure))"
 LONG_TOKENS="select exists (select 1 from public.businesses where inbound_email_token ~ '^[a-f0-9]{32}\$')"

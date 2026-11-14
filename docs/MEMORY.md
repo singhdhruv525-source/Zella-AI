@@ -94,9 +94,13 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile`. `vapi_a
 | **Vapi call authentication.** Vapi sends some messages (call status, end-of-call reports) without the Authorization header, so `voice-rules` answers 401. The test assistant was reloaded with the token in every server's headers on 30 Oct. | Open | Owner test-calls the test assistant, then checks `voice-rules` logs. Real assistants need the headers sent from the server side, with approval. |
 | **Edge functions and n8n behind `main`** | Open | Deploy from `main` with approval. |
 | **Repo build vs production drift.** The isolated build from the repo differs from production in a few places: production is stricter on execute grants for `zella_arrival_window`, `zella_booking_choices` and `zella_capability_on` (server only) and `zella_cross_sell_ideas` (signed in, not anon); `zella_session_proved_email` is security definer in production; production has `zella_audit_privileged_trg` on `platform_admins`; and the repo build keeps an old `zella_calendar_connect(uuid,text,text,text)` that production dropped. | Open | Bring the repo build in line with production (a test-only change to the builder, or a new migration if the repo is right). |
-| About 20 database test scripts lack the isolation guard | Open | Add `tests/lib/isolated_guard.sh` to each. |
+| Four database test scripts run without the isolation guard (`tests/features/run.sh`, three in `tests/voice-reliability/`): they use another local cluster the guard doesn't accept. All others are guarded through `build_full.sh` or `sql/baseline/restore.sh` (checked 13 Nov 2026) | Open | Extend the guard to that cluster or move them (`docs/CONFORMANCE_2026-11-13.md` G-10). |
+| **Conformance check, 13 Nov 2026:** 14 rules pass across the whole system; 5 gaps fixed in PR #59; 11 need their own PR (missing foreign-key indexes, money in `numeric`, model IDs as function defaults, n8n workflow names, rate limits, and the known ones) | Open | Follow the order in `docs/CONFORMANCE_2026-11-13.md`. |
 | `tests/deploy/run_all.sh` didn't apply the newer migrations | Fixed in PR #57 (a `LATER` list applies, rolls back and re-applies them; all checks pass locally) | — |
 | **Inbound call routing:** a call whose number and Vapi phone ID match two different businesses' rows is routed by the ID (CodeRabbit, PR #57). Each column is already unique. | Open, owner's decision | Proposed: `zella_business_for_number` returns a business only when both agree; a guarded migration with rollback. |
+| **Billing step 2 (plans, balances, usage, alerts):** `sql/zella_billing_allowances.sql`, tested on the isolated database (tests/billing, and the full rehearsal in tests/deploy/run_all.sh) | Open, owner's approval | Apply with approval. After it: switch on calls to the fallback number at 100% and stopping routine texts and emails at 100% (live changes); set `voice_max_call_seconds` to 1200 for the 20-minute cap; fill in the unit costs (`billing_rules.unit_costs`); then deploy the step 3 pages and `owner-provision-business` (it refuses to finish setup without a saved plan, so deploy it only after the migration). `tests/browser/wizard-journey.cjs` needs the billing migration in its database now. |
+| **Payments provider is Stripe** (D-34 changed 13 Nov 2026: Zella Voice is a Wyoming LLC). Integration reference from Stripe's docs in `docs/PAYMENTS_ARCHITECTURE.md` §16; auto-reload and pay as you go charge automatically (D-54 closed) | Open, owner | The owner completes the Stripe account checklist (§16.7: EIN, identity, US bank account, Billing on, sandbox keys saved as staging secrets by the owner), and decides when a trial business pays the setup fee. |
+| **The deployed `billing-webhook` doesn't follow the Stripe design yet** (`docs/PAYMENTS_ARCHITECTURE.md` §17, gaps C-1 to C-8): it grants from the payload, treats an active status as a renewal and has no binding check. It is off (no `STRIPE_WEBHOOK_SECRET`). | Open, step 4 | Keep the secret unset until step 4 rebuilds the webhook as in §6.0b and its tests pass. |
 | **Workflow-failure emails:** `sql/zella_workflow_alert_email.sql` (merged, not applied) keeps n8n failures in the dashboard only | Open, owner's decision | Apply with approval, or drop it if admins should be emailed. |
 | **Unsubscribe functions have no rate limit** (SEC-6 gap, architecture §30) | Open | A guarded migration, with approval. |
 | Other rulebook gaps from the 12 Nov review: industry branches in database functions (BIZ-10); `business_id` missing on six business-owned tables (TEN-1) | Open | Plan each as its own PR. |
@@ -111,11 +115,11 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile`. `vapi_a
 The owner's decisions of 9 Nov 2026 are in `docs/ARCHITECTURE.md` §23.1, and the open ones are in §23.2. The ones
 most often needed:
 
-- **Billing policy decided on 12 Nov 2026** (D-34 Razorpay, D-41 policy, D-25 no pause): full text in
+- **Billing policy decided on 12 Nov 2026** (D-34 payment provider, now Stripe since 13 Nov 2026 because Zella Voice is a Wyoming LLC; D-41 policy, D-25 no pause): full text in
   `docs/ARCHITECTURE.md` §17. Every plan is customised per business, with **no preset prices or values**: on the plan
   page of Create Business the team picks the label (**Base** or **Pro**) and sets price, setup fee, caps and trial.
   This is for the start; **standard published plans come later**, based on what businesses actually buy; 5-day trial (20 min, 5 texts, 5 emails, card at start); fixed pack
-  prices. Open billing decisions: D-42 to D-51. Nothing is built or charged yet; real charges need the owner's
+  prices. Allowances refresh each billing month: on monthly plans once that month's charge succeeds, on yearly plans (charged once a year, D-46) every month of the paid year with no monthly charge; unused minutes roll over for one month, capped at 20% of the plan's minutes (and 20% of each minutes pack's size); pack texts and emails don't roll over (D-42, 13 Nov 2026). At 100% of texts or emails only appointment confirmations and reminders continue, within an unbilled 5% buffer (D-43). At 100% of minutes the owner picks stop, auto-reload or pay as you go at the business's own per-minute rate (D-44). Open billing decisions: D-45 to D-51. Plans, balances, usage counting and the billing pages are built and tested on the isolated database but **not applied or deployed** (PR #59); payment collection (Stripe) is **not built**, and nothing is charged; real charges need the owner's
   approval. Never invent a price that isn't in §17.
 - United States only at launch (D-14). Lower-risk industries first; regulated industries after legal review (D-20).
 - Businesses are created by the Zella Voice team (D-06). No demo data in production.
@@ -132,6 +136,34 @@ Waiting on the owner:
 - an Anthropic key for knowledge drafting, when the budget allows.
 
 ## 6. Lessons learnt (don't repeat these)
+
+- **Payments rules (13 Nov 2026, Stripe design):** a webhook payload is only a notice, so fetch the invoice or
+  PaymentIntent from Stripe before granting; every Stripe POST has a deterministic Idempotency-Key stored with the
+  exact body before the first send, and a key is reused only for that identical request (Stripe keeps keys about
+  24 hours, then search by `metadata` first); grants are keyed on the Stripe object, money on ledger operation keys;
+  every refund, even for a duplicate charge, waits for the owner's approval (`REQ-BIL-45`). Full map:
+  `docs/PAYMENTS_ARCHITECTURE.md` §8.1.
+- **Check the provider's documentation before designing on it (13 Nov 2026).** The payments draft assumed our own renewal
+  retries and charging a saved card later in USD; Razorpay's docs show it retries renewals itself, deprecated
+  subscription add-ons, and takes INR only for card-token charges. Read the provider's current pages (the session
+  needs the host allowed) and record what was read and when. The same day the provider changed to Stripe (Wyoming
+  LLC), which removed those limits; the design was rewritten from Stripe's docs.
+- **Billing review, 13 Nov 2026 (CodeRabbit, 21 findings on PR #59, all fixed in `aa873f8`).** Rules to keep:
+  - *Usage belongs to the period it happened in.* Find the period from the event's time, including past periods, and
+    when late usage lands in a closed month, lower the next month's rollover with it. Open periods hourly so a quiet
+    month still rolls over; lock periods earlier-to-later so they never deadlock.
+  - *Lock the row you charge.* Lock the call before reading what it was already charged, or two updates charge twice.
+  - *Our failures are never billable:* a failed call counts nothing, and is given back if it is marked failed later.
+  - *Count like the provider:* texts by GSM-7 / UCS-2 parts, not characters.
+  - *A plan change applies from the period it starts in;* limits come from the plan in effect, not the latest version.
+  - *A retry is done only when its result says so;* re-evaluate alerts after it.
+  - *Rollbacks keep history:* archive rows (never delete), keep append-only triggers on archives, rename archived
+    indexes so a re-apply gets its own keys, and test re-apply without dropping the archive.
+  - *Pages say only what is true:* no "paused", "card taken" or "next charge" before those exist; show loading, error
+    and Retry; never save values from a check of earlier input; keep dialog focus stable.
+  - *Permission tests must assert the denial message,* not pass on an empty page.
+
+- **A null check passes silently in PL/pgSQL.** `jsonb_typeof(x) <> 'string'` is null (not true) when the key is missing, so an `if` skips it. The billing tests caught a missing warning reason being accepted that way. Wrap these checks in `coalesce`.
 
 - **Check what production has before writing a guarded migration.** The review fixes stopped at `VERSION_MISMATCH`
   because production already had the unmerged brand-name change. The fix was to add production's hash to the guard

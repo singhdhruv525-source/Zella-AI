@@ -1,6 +1,6 @@
 # Writes a rollback for a migration that patches functions with replace(def, $a$old$a$, $a$new$a$): each is undone as
 # replace(def, new, old), so only that file's additions go and other migrations' changes stay.
-#   python3 -I tests/setup/make_rollback.py [setup|messaging|orders|buffers|channel|escalation|knowledge|configmig|planlang|holiday|windows|tables|slotblocks]
+#   python3 -I tests/setup/make_rollback.py [setup|messaging|orders|buffers|channel|escalation|knowledge|configmig|planlang|holiday|windows|tables|slotblocks|billing]
 import re, sys
 from pathlib import Path
 
@@ -103,6 +103,59 @@ CFG["tables"] = ("sql/zella_tables.sql", "sql/rollback/zella_tables_rollback.sql
     "drop table if exists public.table_states;",
     "do $$\ndeclare t text; i record; v_stamp text := to_char(clock_timestamp(), 'YYYYMMDDHH24MISSUS');\nbegin\n  foreach t in array array['table_events', 'table_blocks', 'table_combinations', 'restaurant_tables'] loop\n    continue when to_regclass('public.' || t) is null;\n    for i in select ix.relname, ix.oid from pg_index x join pg_class ix on ix.oid = x.indexrelid\n      where x.indrelid = to_regclass('public.' || t) and not x.indisprimary loop\n      execute format('alter index public.%I rename to %I', i.relname, left(i.relname, 20) || '_rb' || i.oid || '_' || v_stamp);\n    end loop;\n    if to_regclass('public.' || t || '_rolled_back') is not null then\n      execute format('alter table public.%I rename to %I', t || '_rolled_back', t || '_rb_' || v_stamp);\n    end if;\n    execute format('alter table public.%I rename to %I', t, t || '_rolled_back');\n    execute format('alter table public.%I enable row level security', t || '_rolled_back');\n    execute format('revoke all on public.%I from public, anon, authenticated', t || '_rolled_back');\n  end loop;\nend $$;"])
 CFG["slotblocks"] = ("sql/zella_slots_resource_blocks.sql", "sql/rollback/zella_slots_resource_blocks_rollback.sql", [])
+CFG["billing"] = ("sql/zella_billing_allowances.sql", "sql/rollback/zella_billing_allowances_rollback.sql", [
+    "drop policy if exists \"zella_plans_read\" on public.plans;",
+    "drop policy if exists \"Anyone can view active plans\" on public.plans;",
+    "create policy \"Anyone can view active plans\" on public.plans as permissive for select to anon, authenticated using ((is_active = true));",
+    "grant select on public.plans to anon;",
+    "drop trigger if exists zella_billing_sms_trg on public.sms_messages;",
+    "drop trigger if exists zella_billing_email_trg on public.email_messages;",
+    "drop trigger if exists zella_billing_usage_trg on public.usage_records;",
+    "drop trigger if exists zella_billing_call_spam_trg on public.calls;",
+    "drop function if exists public.zella_setup_plan_saved(uuid);",
+    "drop function if exists public.zella_admin_plan_get(uuid);",
+    "drop function if exists public.zella_billing_overview(uuid);",
+    "drop function if exists public.zella_auto_reload_save(uuid, text, boolean, integer, text, bigint);",
+    "drop function if exists public.zella_admin_pack_grant(uuid, text, text, text);",
+    "drop function if exists public.zella_billing_evaluate_alerts(uuid, text);",
+    "drop function if exists public.zella_message_allowance(uuid, text, text);",
+    "drop function if exists public.zella_billing_balance(uuid, text, timestamptz);",
+    "drop function if exists public.zella_billing_open_current_periods(integer);",
+    "drop function if exists public.zella_billing_retry_charges(integer);",
+    "drop function if exists public.zella_billing_rollover_reconcile(uuid);",
+    "drop function if exists public.zella_billing_call_trg();",
+    "drop function if exists public.zella_billing_message_trg();",
+    "drop function if exists public.zella_billing_message_kind(jsonb);",
+    "drop function if exists public.zella_sms_parts(text);",
+    "drop function if exists public.zella_billing_charge_call(uuid);",
+    "drop function if exists public.zella_usage_release(uuid, text, numeric, text, text, uuid);",
+    "drop function if exists public.zella_usage_consume(uuid, text, numeric, text, text, uuid, text, timestamptz);",
+    "drop function if exists public.zella_billing_bucket_rank(text, boolean);",
+    "drop function if exists public.zella_billing_open_period(uuid, timestamptz);",
+    "drop function if exists public.zella_billing_period_bounds(uuid, timestamptz);",
+    "drop function if exists public.zella_plan_limits(uuid);",
+    "drop function if exists public.zella_billing_plan_at(uuid, timestamptz);",
+    "drop function if exists public.zella_billing_plan_current(uuid);",
+    "drop function if exists public.zella_admin_plan_save(uuid, jsonb, jsonb, text);",
+    "drop function if exists public.zella_plan_evaluate(jsonb);",
+    "alter table public.usage_threshold_events drop column if exists resource;",
+    "-- problems with billing charges are kept (archived, not readable by signed-in users) before the old kinds come back",
+    "create table if not exists public.usage_processing_issues_rolled_back (like public.usage_processing_issues);",
+    "alter table public.usage_processing_issues_rolled_back enable row level security;",
+    "revoke all on public.usage_processing_issues_rolled_back from public, anon, authenticated;",
+    "insert into public.usage_processing_issues_rolled_back select * from public.usage_processing_issues where kind = 'billing_charge_failed' and id not in (select id from public.usage_processing_issues_rolled_back);",
+    "delete from public.usage_processing_issues where kind = 'billing_charge_failed';",
+    "alter table public.usage_processing_issues drop constraint if exists usage_processing_issues_kind_check;",
+    "alter table public.usage_processing_issues add constraint usage_processing_issues_kind_check check ((kind = any (array['missing_duration'::text, 'invalid_duration'::text, 'processing_failed'::text, 'duration_changed'::text, 'summary_mismatch'::text])));",
+    "alter table public.business_usage_preferences alter column notify_thresholds set default '{70,90,100}'::integer[];",
+    "-- alert levels already set to {80,100} stay so (the owner's decision); the old default comes back for new rows",
+    "do $$ begin if exists (select 1 from public.subscriptions where plan_id is null) then raise exception 'ROLLBACK_BLOCKED: subscriptions without a shared plan exist; give them one first'; end if; end $$;",
+    "alter table public.subscriptions alter column plan_id set not null;",
+    "-- the billing history is kept (renamed, not readable by signed-in users) so nothing granted or counted is lost",
+    "-- the archived tables keep their append-only triggers (zella_billing_immutable_trg stays for them), and their indexes",
+    "-- are renamed so a later re-apply creates the live tables with their own keys and indexes",
+    "do $$\ndeclare t text; i record; v_stamp text := to_char(clock_timestamp(), 'YYYYMMDDHH24MISSUS');\nbegin\n  foreach t in array array['usage_charges', 'allowance_buckets', 'pack_purchases', 'auto_reload_settings', 'billing_periods', 'billing_pack_catalog', 'business_plans'] loop\n    continue when to_regclass('public.' || t) is null;\n    if to_regclass('public.' || t || '_rolled_back') is not null then raise exception 'ROLLBACK_BLOCKED: %_rolled_back already exists; archive it first', t; end if;\n    for i in select ix.relname from pg_index x join pg_class ix on ix.oid = x.indexrelid where x.indrelid = to_regclass('public.' || t) loop\n      execute format('alter index public.%I rename to %I', i.relname, left(i.relname, 30) || '_rb_' || v_stamp);\n    end loop;\n    execute format('alter table public.%I rename to %I', t, t || '_rolled_back');\n    execute format('revoke all on public.%I from public, anon, authenticated', t || '_rolled_back');\n  end loop;\nend $$;",
+    "drop function if exists public.zella_billing_settings();"])
 SRC, DST, DROPS = CFG[which]
 src = (ROOT / SRC).read_text()
 fns = re.findall(r"pg_get_functiondef\('([^']+)'::regprocedure\);\n  if position\('([a-z_]+)' in def\) = 0 then\n(.*?)\n    execute def;", src, re.S)
