@@ -256,12 +256,12 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
   const scheduling = capabilityOn(capabilities, "scheduling");
   const checkinsOn = scheduling && capabilityOn(capabilities, "checkins");
   const tablesOn = scheduling && capabilityOn(capabilities, "tables");
-  const [tableNames, setTableNames] = useState({});
+  const [tableNames, setTableNames] = useState(null);   // null until loaded; "failed" if the lookup failed
   useEffect(() => {
     if (!tablesOn) return undefined;
     let live = true;
-    supabase.from("restaurant_tables").select("id, name").eq("business_id", workspace.id).then(({ data }) => {
-      if (live) setTableNames(Object.fromEntries((data ?? []).map((t) => [t.id, t.name])));
+    supabase.from("restaurant_tables").select("id, name").eq("business_id", workspace.id).then(({ data, error }) => {
+      if (live) setTableNames(error ? "failed" : Object.fromEntries((data ?? []).map((t) => [t.id, t.name])));
     });
     return () => { live = false; };
   }, [tablesOn, workspace.id]);
@@ -493,7 +493,7 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
                         <td>{person(a.customer?.id, personName(a.customer) ?? a.title)}
                           <small className="td-sub">{srcIcon && <Icon name={srcIcon} size="sm" />} {src !== "None" ? src : ""}{src !== "None" && personName(a.customer) && a.title ? " · " : ""}{personName(a.customer) ? a.title : ""}{a.forTitle ? ` · for ${a.forTitle}` : ""}</small></td>
                         {showGuests && <td>{a.party_size ?? "None"}</td>}
-                        {tablesOn && <td>{(a.table_ids ?? []).map((id) => tableNames[id]).filter(Boolean).join(" + ") || "None"}</td>}
+                        {tablesOn && <td>{!(a.table_ids ?? []).length ? "None" : tableNames === null ? "…" : tableNames === "failed" ? "Not available" : a.table_ids.map((id) => tableNames[id]).filter(Boolean).join(" + ") || "Not available"}</td>}
                         {showStaff && <td>{data.staff[a.staff_id] ?? "None"}</td>}
                         <td><Pill tone={tone}>{stageLabel}</Pill>{a.booking_state === "requested" && <small className="td-sub">Request, not booked</small>}</td>
                         <td className="td-notes">{a.description || a.internal_notes || a.location || ""}</td>

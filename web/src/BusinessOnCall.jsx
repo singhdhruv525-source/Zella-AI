@@ -198,7 +198,7 @@ export function OnCallPanel({ workspace, refreshKey, onNotice }) {
         )}
         {loading && !data ? <p className="ba-muted">Loading…</p> : !weekly.length && !cover.length ? (
           <Empty title="No on call rota yet" icon="support_agent">
-            Add who covers evenings and weekends. Until then, after-hours callers get a message and a callback.
+            Add who covers evenings and weekends. Until then, after hours callers get a message and a callback.
           </Empty>
         ) : (
           <ul className="ba-threads">{cover.map(shiftRow)}{weekly.map(shiftRow)}</ul>

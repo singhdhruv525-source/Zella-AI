@@ -1171,7 +1171,7 @@ function AutomationsStep({ value, onChange, terminology, industryName }) {
     },
     {
       type: "post_appointment_follow_up",
-      title: `After-${appt} follow up`,
+      title: `Follow up after ${appt}`,
       description: "Thank customers and ask for feedback.",
       body: (
         <label className="wiz-inline">

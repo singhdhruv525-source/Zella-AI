@@ -9,13 +9,14 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
-const ROOT = new URL("../src", import.meta.url).pathname;
+const rootArg = process.argv.indexOf("--root");
+const ROOT = rootArg > 0 ? process.argv[rootArg + 1] : new URL("../src", import.meta.url).pathname;
 const LONG = /[—–]/;
 const WORD_HYPHEN = /[A-Za-z]-[A-Za-z]/;
 // a quoted string that is code, not words: class lists, css, paths, urls, keys, mime types, dates, regexes
 const CODE_STRING = /^(?:[a-z0-9_.:/#@?=&%-]+|[a-z][a-z0-9-]*(?:\s+[a-z][a-z0-9-]*)*|https?:\/\/\S+|\S+\/\S+|--[\w-]+|var\(.*\)|[\w-]+\s*:\s*.*;?)$/;
 // code that happens to sit in a quoted string: locale tags, CSS, file names, domains, HTTP header names
-const NOT_WORDS = /\ben-US\b|var\(--|\dpx solid|^\s*\.[a-z][\w-]*\s*,|\.(json|csv|pdf|png)\b|[a-z0-9-]+\.(com|io|dev|app)\b|\bX-[A-Z][\w-]+|^Content-(Type|Range|Length)$/;
+const NOT_WORDS = /\ben-US\b|var\(--|\dpx solid|^\s*\.[a-z][\w-]*\s*,|\.(json|csv|pdf|png|md)\b|[a-z0-9-]+\.(com|io|dev|app)\b|\bX-[A-Z][\w-]+|^Content-(Type|Range|Length)$/;
 const LABEL_PROPS = /\b(title|label|placeholder|aria-label|alt|description|hint|help|message|text|heading|subtitle|empty|cta|button|confirmLabel|cancelLabel)\s*[:=]\s*$/;
 
 function files(dir) {
@@ -46,12 +47,15 @@ for (const f of files(ROOT)) {
       const s = m[2], before = line.slice(0, m.index);
       if (!WORD_HYPHEN.test(s) || /\$\{/.test(s) && !/\s/.test(s)) continue;
       if (/\b(className|class|style|href|to|src|key|id|type|name|path|route|rel|role|variant|kind|tone|icon|slug|status|action|mode)\s*[:=]\s*\{?\s*$/.test(before)) continue;
+      if (/\bclassName=\{[^}]*$/.test(before)) continue;                       // inside a className={...} expression
+      if (/[{,]\s*$/.test(before) && /^\s*:/.test(line.slice(m.index + m[0].length))) continue;   // an object key: { "row-level security": ... }
       if (/\b(import|from|require|querySelector|getElementById|classList|addEventListener|matchMedia|rpc|from\(|select|eq|order|in|channel|on)\s*\(?\s*$/.test(before)) continue;
       const isLabel = LABEL_PROPS.test(before);
       // words people read: a phrase, or a capitalised label such as "Follow-up" in a list of choices
       const reads = (/\s/.test(s.trim()) && /[A-Za-z]{2,}\s+[A-Za-z]/.test(s)) || /^[A-Z][a-z]+(-[A-Za-z]+)+$/.test(s.trim());
       if (!isLabel && !reads) continue;
-      if (CODE_STRING.test(s) && !isLabel) continue;
+      // a single token that looks like code (a class, key or path); a phrase people read is never exempt here
+      if (CODE_STRING.test(s) && !isLabel && !/\s/.test(s.trim())) continue;
       if (NOT_WORDS.test(s)) continue;
       found.push([where, "hyphen in text", s]);
     }

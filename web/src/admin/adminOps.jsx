@@ -70,10 +70,10 @@ export function useLoad(loader, deps) {
 
 export const when = (v) => (v ? new Date(v).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "None");
 export const words = humanize;
-export const num = (n) => (n === null || n === undefined ? "None" : Number(n).toLocaleString());
-export const pct = (n) => (n === null || n === undefined ? "None" : `${n}%`);
+export const num = (n) => (n === null || n === undefined ? "Not available" : Number(n).toLocaleString());
+export const pct = (n) => (n === null || n === undefined ? "Not available" : `${n}%`);
 export function duration(s) {
-  if (s === null || s === undefined) return "None";
+  if (s === null || s === undefined) return "Not available";
   const v = Math.round(Number(s));
   return v < 60 ? `${v} s` : `${Math.floor(v / 60)} min ${v % 60} s`;
 }

@@ -507,7 +507,7 @@ function UsageProtection({ w }) {
   }, [w.id]);
   return <LoadState state={state}>{(p) => (
     <>
-      {p.payg_error && <Banner tone="error">Your plan's pay-as-you-go rate couldn't be loaded ({p.payg_error}). <button type="button" className="zs-link" onClick={state.reload}>Try again</button></Banner>}
+      {p.payg_error && <Banner tone="error">Your plan's pay as you go rate couldn't be loaded ({p.payg_error}). <button type="button" className="zs-link" onClick={state.reload}>Try again</button></Banner>}
       <ProtectionForm w={w} p={p} />
     </>
   )}</LoadState>;
@@ -953,8 +953,8 @@ function registry(w) {
       page("usage", "Usage and charges", () => <VoiceUsage w={w} />, "usage sms voice charges"),
       page("calling", "Calling usage", () => <BusinessCallingUsage w={w} />, "calling minutes calls call time usage history corrections allowance"),
       page("protection", "AI usage protection", () => <UsageProtection w={w} />, "pay as you go spending limit 80 100 fallback"),
-      page("balances", "Balances and packs", () => <BillingBalancesPanel w={w} />, "rollover reset remaining packs top-up minutes texts emails expiry"),
-      page("auto-reload", "Auto reload", () => <AutoReloadPanel w={w} />, "auto reload top-up pack spending cap limit"),
+      page("balances", "Balances and packs", () => <BillingBalancesPanel w={w} />, "rollover reset remaining packs top up minutes texts emails expiry"),
+      page("auto-reload", "Auto reload", () => <AutoReloadPanel w={w} />, "auto reload top up pack spending cap limit"),
       page("offers", "Offers and promo codes", () => <BusinessOffersSettings w={w} />, "offer promo code discount deal claim"),
       page("payment-methods", "Payment methods", lazyNeeds("Payment methods aren't managed in Zella Voice yet", "Nothing is charged from Zella Voice today.", "Adding a card needs the payment provider's secure page; Zella Voice never stores card numbers.")),
       page("invoices", "Invoices", lazyNeeds("Invoices aren't available in Zella Voice yet", "The Zella Voice team sends invoices by email.", "They need the payment provider's invoice records.")),
@@ -977,15 +977,15 @@ function registry(w) {
       page("pipeline", "Pipeline", lazyNeeds("Pipeline stages aren't editable yet", "Leads move through the fixed stages on the Leads page; changing stage never changes the customer's details.", "Custom stages need a stage list per business that the Leads page and automations read.")),
       page("fields", "Custom fields", (c) => <RecordSettingsPage workspace={w} types={c.records.types} canManage={lead} onNotice={c.onNotice} onChanged={c.records.reload} loadError={c.records.error} />, "field type required"),
       page("export", "Import and export", () => <><DataExport w={w} /><BillingNeeds title="Importing isn't available yet" have="Add people one at a time, or ask Zella Voice to import a file for you.">Importing needs a file upload with field mapping, a preview and duplicate checks.</BillingNeeds></>, "csv import export"),
-      page("communication", "Customer communication", () => <Communication w={w} />, "consent unsubscribe opt-out"),
+      page("communication", "Customer communication", () => <Communication w={w} />, "consent unsubscribe opt out"),
     ] },
     { key: "industry", label: "Industry and workflows", icon: "tune", items: [
       page("profile", "Industry profile", () => <IndustryProfile w={w} />, "industry modules"),
       page("tables", "Tables and seating", (c) => <TableSetup workspace={w} onNotice={c.onNotice} />, "tables seating floor plan sections combinations restaurant party"),
-      page("capabilities", "What your business does", (c) => <CapabilitiesPanel w={w} onReload={c.onReload} />, "capabilities bookings scheduling check-ins waitlist dispatch classes orders estimates invoices deposits access codes"),
+      page("capabilities", "What your business does", (c) => <CapabilitiesPanel w={w} onReload={c.onReload} />, "capabilities bookings scheduling check ins waitlist dispatch classes orders estimates invoices deposits access codes"),
       page("terminology", "Terminology", (c) => <Terminology w={w} onReload={c.onReload} />, "words patients customers jobs"),
       page("fields", "Industry fields", (c) => <RecordSettingsPage workspace={w} types={c.records.types} canManage={lead} onNotice={c.onNotice} onChanged={c.records.reload} loadError={c.records.error} />, "fields"),
-      page("workflows", "Workflow rules", (c) => <AutomationsPage workspace={w} refreshKey={0} onNotice={c.onNotice} />, "rules status follow-up"),
+      page("workflows", "Workflow rules", (c) => <AutomationsPage workspace={w} refreshKey={0} onNotice={c.onNotice} />, "rules status follow up"),
       page("services", "Service catalog", () => <ServicesPanel w={w} />, "services prices duration"),
       page("modules", "Modules", (c) => <BusinessModulesPanel w={w} onGo={c.onGo} />, "modules industry enabled disabled available operations records"),
     ] },
@@ -993,7 +993,7 @@ function registry(w) {
       page("library", "Automation library", (c) => <AutomationsPage workspace={w} refreshKey={0} onNotice={c.onNotice} />, "templates active disabled"),
       page("events", "Event based automations", () => <Card title="What starts an automation"><Facts rows={[["New lead", "Fast callback, follow ups"], ["Missed call", "Callback and text when allowed"], ["Appointment booked or moved", "Confirmation and reminders"], ["Appointment canceled", "Waitlist offer"], ["follow up due", "Quote and lead follow ups"], ["Status changes", "Industry rules"]]} /></Card>, "trigger event"),
       page("history", "Automation history", (c) => <AutomationsPage workspace={w} refreshKey={0} onNotice={c.onNotice} />, "runs executions"),
-      page("suggestions", "You might also need", () => <CrossSellPanel w={w} />, "cross-sell upsell suggest offer after service follow-up"),
+      page("suggestions", "You might also need", () => <CrossSellPanel w={w} />, "cross sell upsell suggest offer after service follow up"),
       page("recovery", "Failure recovery", (c) => only(lead, <FailedWorkPage workspace={w} refreshKey={0} onNotice={c.onNotice} />), "failed retry"),
     ] },
     { key: "integrations", label: "Integrations", icon: "extension", items: [

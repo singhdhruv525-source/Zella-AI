@@ -83,8 +83,8 @@ export default function SpamPage({ workspace, onNotice, onOpenPerson }) {
 }
 
 function Overview({ data, loading, channels }) {
-  // no data after loading means it couldn't be loaded: "—", never 0
-  const v = (k) => (data ? data[k] ?? "None" : loading ? "…" : "None");
+  // no data after loading means it couldn't be loaded: "Not available", never 0
+  const v = (k) => (data ? data[k] ?? "Not available" : loading ? "…" : "Not available");
   const ch = data?.by_channel ?? {};
   const cmp = data && data.previous_total !== null && data.previous_total !== undefined
     ? data.total === data.previous_total ? "Same as the previous period"
@@ -119,7 +119,7 @@ function Overview({ data, loading, channels }) {
               <li key={k} className={channels && channels[k] === false ? "off" : ""}>
                 <Icon name={CHANNELS[k][0]} size="sm" />
                 <span>{CHANNELS[k][1]}{k === "booking" ? "s" : k === "sms" ? "s" : k === "email" ? "s" : "s"}</span>
-                {channels && channels[k] === false ? <small>Not connected</small> : <strong>{data ? ch[k] ?? 0 : loading ? "…" : "None"}</strong>}
+                {channels && channels[k] === false ? <small>Not connected</small> : <strong>{data ? ch[k] ?? 0 : loading ? "…" : "Not available"}</strong>}
               </li>
             ))}
             {(ch.other ?? 0) > 0 && <li><Icon name="help" size="sm" /><span>Other</span><strong>{ch.other}</strong></li>}

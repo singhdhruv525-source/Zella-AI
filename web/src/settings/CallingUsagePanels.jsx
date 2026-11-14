@@ -16,9 +16,9 @@ const PAGE = 25;
 const day = (d) => d.toISOString().slice(0, 10);
 const startOf = (s) => new Date(`${s}T00:00:00`);
 const endOf = (s) => new Date(new Date(`${s}T00:00:00`).getTime() + 86400000);
-const mins = (m) => (m == null ? "None" : `${Number(m).toLocaleString(undefined, { maximumFractionDigits: 2 })} min`);
+const mins = (m) => (m == null ? "Not available" : `${Number(m).toLocaleString(undefined, { maximumFractionDigits: 2 })} min`);
 const secs = (s) => {
-  if (s == null) return "None";
+  if (s == null) return "Not available";
   const v = Math.abs(Number(s)); const h = Math.floor(v / 3600); const m = Math.floor((v % 3600) / 60); const r = v % 60;
   return `${s < 0 ? "−" : ""}${h ? `${h} h ` : ""}${m || h ? `${m} min ` : ""}${r} s`;
 };
@@ -56,7 +56,7 @@ function Allowance({ a }) {
   }
   return (
     <Facts rows={[["Included this period", mins(a.included_minutes)], ["Used", mins(a.consumed_minutes)], ["Remaining", mins(a.remaining_minutes)],
-      ["Used so far", a.percent_used == null ? "None" : `${a.percent_used}%`], ["Period", `${when(a.period_from)} to ${when(a.period_to)}`],
+      ["Used so far", a.percent_used == null ? "Not available" : `${a.percent_used}%`], ["Period", `${when(a.period_from)} to ${when(a.period_to)}`],
       ["Allowance", a.exhausted ? <Pill tone="warning">Used up</Pill> : <Pill tone="success">Available</Pill>]]} />
   );
 }

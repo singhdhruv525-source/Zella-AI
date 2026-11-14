@@ -731,7 +731,7 @@ export function MessagesPage({ workspace, refreshKey, onOpenPerson }) {
 export function ReceptionistPage({ workspace, onNotice, onReload }) {
   const tz = workspace.timezone;
   const agent = receptionistState(workspace);
-  const { data, error, reload } = useLoad(async () => {
+  const { data, error, loading, reload } = useLoad(async () => {
     const week = dayRange(tz, -6).start.toISOString();
     const [agents, calls] = await Promise.all([
       supabase.from("ai_agents").select("id, name, status, description, channels, is_default").eq("business_id", workspace.id).order("is_default", { ascending: false }),
@@ -776,7 +776,7 @@ export function ReceptionistPage({ workspace, onNotice, onReload }) {
             <div><dt>Calls</dt><dd>{calls.length}</dd></div>
             <div><dt>Handled by AI</dt><dd>{aiCalls.length}</dd></div>
             <div><dt>Missed</dt><dd>{missed}</dd></div>
-            <div><dt>Avg length</dt><dd>{aiCalls.length ? clock(Math.round(aiCalls.reduce((s, c) => s + (c.duration_seconds ?? 0), 0) / aiCalls.length)) : "None"}</dd></div>
+            <div><dt>Avg length</dt><dd>{!data ? (loading ? "…" : "Not available") : aiCalls.length ? clock(Math.round(aiCalls.reduce((s, c) => s + (c.duration_seconds ?? 0), 0) / aiCalls.length)) : "No calls yet"}</dd></div>
           </dl>
           {primary?.description && <p className="ba-note pad">{primary.description}</p>}
           {primary?.channels?.length > 0 && (

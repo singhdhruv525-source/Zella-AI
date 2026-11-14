@@ -316,7 +316,7 @@ export function ReportsPage({ workspace, refreshKey }) {
             <Stat label="Total calls" value={r.calls} note={`${r.answered} answered`} />
             <Stat label="Handled by AI" value={pct(r.ai, r.calls)} note={`${r.ai} calls`} />
             <Stat label="Missed" value={r.missed} note={r.missed ? `${r.followed} followed up` : "None missed"} />
-            <Stat label="Average call" value={r.avg ? clock(r.avg) : "No calls yet"} />
+            <Stat label="Average call" value={r.avg ? clock(r.avg) : r.calls ? "Not available" : "No calls yet"} />
             <Stat label="Handed to a human" value={r.handoffs} note={r.handoffsOpen ? `${r.handoffsOpen} still waiting` : "None waiting"} />
           </div>
           <section className="ba-panel ba-gap">
@@ -330,7 +330,7 @@ export function ReportsPage({ workspace, refreshKey }) {
           <h2 className="ba-h2">{term("appointments")} and people</h2>
           <div className="ba-kpis">
             <Stat label={`${term("appointments")} so far`} value={r.booked} note={`${r.completed} completed`} />
-            <Stat label="No show rate" value={r.noShowRate == null ? "Not available" : `${r.noShowRate}%`} note={`${r.noShows} no-shows`} />
+            <Stat label="No show rate" value={r.noShowRate == null ? "Not available" : `${r.noShowRate}%`} note={`${r.noShows} no shows`} />
             <Stat label="Checked in" value={pct(r.checkedIn, r.booked)} note={`${r.checkedIn} arrivals`} />
             <Stat label={`New ${term("customers").toLowerCase()}`} value={r.leads} />
           </div>

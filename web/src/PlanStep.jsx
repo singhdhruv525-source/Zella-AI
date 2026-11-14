@@ -18,7 +18,7 @@ const WARNING_TEXT = {
 };
 const FIELD_TEXT = { tier: "label", billing_interval: "billing", price_cents: "price", setup_fee_cents: "setup fee", minutes: "minutes", texts: "texts",
   emails: "emails", team_seats: "users", phone_numbers: "phone numbers", locations: "locations", languages: "languages", trial_enabled: "trial",
-  overage_cents_per_minute: "pay-as-you-go rate" };
+  overage_cents_per_minute: "pay as you go rate" };
 
 const money = (cents) => (cents == null ? "None" : `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: cents % 100 ? 2 : 0, maximumFractionDigits: 2 })}`);
 const dollarsToCents = (v) => (String(v).trim() === "" || !/^\d+(\.\d{1,2})?$/.test(String(v).trim()) ? NaN : Math.round(Number(v) * 100));

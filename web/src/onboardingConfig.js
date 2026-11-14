@@ -131,7 +131,7 @@ const FITNESS = {
   servicesHint: "Classes, sessions and memberships. Prices are optional.",
   defaultLength: 60,
   details: [
-    f("membership_types", "Memberships", "list", { placeholder: "e.g. monthly, 10-class pass, drop in" }),
+    f("membership_types", "Memberships", "list", { placeholder: "e.g. monthly, pass for 10 classes, drop in" }),
     f("trial_offer", "Free trial", "text", { placeholder: "e.g. First class free" }),
     f("cancellation_notice_hours", "Cancellation notice needed (hours)", "number", { min: 0, max: 168 }),
   ],

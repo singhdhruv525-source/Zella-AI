@@ -470,7 +470,7 @@ export function Permissions() {
             <li><div><strong>Manage admins and roles</strong><small>Zella Voice owner only</small></div></li></ul>
         </Card>
         <Card title="Where it's enforced">
-          <Facts rows={[["Admin dashboard actions", "owner-provision-business checks the role and permission before every action"],
+          <Facts rows={[["Admin dashboard actions", "The server checks the role and permission before every action"],
             ["Direct database tools (health, incidents, offers)", "Need a Zella Voice owner or super admin (is_platform_admin)"],
             ["Business data", "Row level security and role checks inside each business"]]} />
         </Card>
@@ -1082,7 +1082,7 @@ export function AutomationMonitoring({ openBusiness }) {
       <>
         <Card title="Workflow runs, last 7 days">
           <Table rowKey={(w) => w.key} rows={a.workflows} empty="No runs recorded." columns={[["Workflow", (w) => w.key], ["Runs", (w) => w.total], ["Failed", (w) => (w.failed ? <Pill tone="danger">{w.failed}</Pill> : 0)],
-            ["Success rate", (w) => `${Math.round(((w.total - w.failed) / w.total) * 100)}%`], ["Average time", (w) => (w.avgSeconds != null ? `${w.avgSeconds} s` : "None")]]} />
+            ["Success rate", (w) => `${Math.round(((w.total - w.failed) / w.total) * 100)}%`], ["Average time", (w) => (w.avgSeconds != null ? `${w.avgSeconds} s` : "Not available")]]} />
         </Card>
         <Card title="Recent failures">
           <Table rows={a.failures} empty="No failed runs." columns={[["When", (f) => when(f.started_at)], ["Workflow", (f) => f.workflow_key],
@@ -1122,7 +1122,7 @@ export function SecurityOverview() {
     <LoadState state={state}>{(s) => (
       <>
         <Card title="Right now">
-          <Facts rows={[["Tables without row security", s.rls ? s.rls.without_rls.length : "None"], ["Business data open to everyone", s.leak ? (s.leak.open_policies?.length ?? 0) + (s.leak.anon_can_read?.length ?? 0) : "None"],
+          <Facts rows={[["Tables without row security", s.rls ? s.rls.without_rls.length : "Not available"], ["Business data open to everyone", s.leak ? (s.leak.open_policies?.length ?? 0) + (s.leak.anon_can_read?.length ?? 0) : "Not available"],
             ["Admins without two step sign in", `${s.adminsWithoutMfa} of ${s.adminCount}`], ["Stored integration credentials", `${s.integrationSecrets} (values never shown)`]]} />
         </Card>
         <Card title="Recent security changes">

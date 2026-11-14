@@ -50,7 +50,7 @@ export function HealthPanel() {
   const alerts = Object.fromEntries(["urgent", "warning", "info"].map((k) => [k,
     validAlerts ? (Object.hasOwn(rawAlerts, k) ? rawAlerts[k] : 0) : null]));
   const counted = Object.values(alerts).every((n) => Number.isInteger(n) && n >= 0);
-  const count = (k) => (Number.isInteger(alerts[k]) && alerts[k] >= 0 ? alerts[k] : "None");
+  const count = (k) => (Number.isInteger(alerts[k]) && alerts[k] >= 0 ? alerts[k] : "Not available");
   return (
     <section className="owner-panel op-card">
       <div className="owner-panel-heading"><div><h2>Providers and alerts</h2><p>From the scheduled provider checks and open platform alerts.</p></div></div>

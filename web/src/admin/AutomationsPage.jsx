@@ -223,7 +223,7 @@ function RunDrawer({ row, me, onClose, onOpenBusiness, onChanged }) {
             r.correlation_id ? ["Correlation id", <code key="c">{r.correlation_id}</code>] : null]} />
           <h3 className="ao-h3">Steps</h3>
           {d.data.steps.length ? (
-            <ol className="ao-timeline">{d.data.steps.map((s, i) => <li key={i}><strong><Pill tone={tone(s.status === "done" || s.status === "ok" ? "succeeded" : s.status)}>{s.status ?? "None"}</Pill> {s.name ?? `Step ${i + 1}`}</strong><span>{[s.at && when(s.at), s.error].filter(Boolean).join("None")}</span></li>)}</ol>
+            <ol className="ao-timeline">{d.data.steps.map((s, i) => <li key={i}><strong><Pill tone={tone(s.status === "done" || s.status === "ok" ? "succeeded" : s.status)}>{s.status ?? "None"}</Pill> {s.name ?? `Step ${i + 1}`}</strong><span>{[s.at && when(s.at), s.error].filter(Boolean).join(". ")}</span></li>)}</ol>
           ) : <p className="op-muted">No steps recorded.</p>}
           <p className="op-muted">Step inputs and outputs aren't shown: they can hold customer details.</p>
           {d.data.event && <><h3 className="ao-h3">Started by</h3><Facts rows={[["Event", words(d.data.event.type)], ["From", words(d.data.event.source)], ["Event status", words(d.data.event.status)],
@@ -300,7 +300,7 @@ function Infrastructure() {
           columns={[["Job", (j) => <code>{j.name}</code>], ["Schedule", (j) => <code>{j.schedule}</code>], ["State", (j) => <Pill tone={j.active ? "success" : "neutral"}>{j.active ? "Running" : "Off"}</Pill>],
             ["Last run", (j) => (j.last_run ? <span><Pill tone={j.last_run.status === "succeeded" ? "success" : "danger"}>{words(j.last_run.status)}</Pill> {when(j.last_run.at)}</span> : "Never")],
             ["Last success", (j) => when(j.last_success)], ["Failures (24 h)", (j) => (j.failures_24h ? <Pill tone="danger">{j.failures_24h}</Pill> : 0)]]} />}
-        <p className="op-muted">Jobs are switched on at go live (n8n/GO LIVE.md), not from this page, so a click can't start sending to customers.</p>
+        <p className="op-muted">Jobs are switched on at go live (the go live guide, n8n/GO-LIVE.md), not from this page, so a click can't start sending to customers.</p>
       </Panel>
       {s && (
         <Panel title="Queue">
