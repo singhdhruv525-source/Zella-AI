@@ -64,13 +64,13 @@ function ShiftModal({ workspace, staff, onClose, onSaved }) {
 
   const overnight = form.kind === "weekly" && form.ends < form.starts;
   return (
-    <Modal icon="support_agent" title="Add on-call time" busy={busy} onClose={onClose}
+    <Modal icon="support_agent" title="Add on call time" busy={busy} onClose={onClose}
       description={`Times are in ${workspace.name}'s time zone (${tz.replace("_", " ")}). Only people with a phone number can be on call.`}>
       <form className="ba-form-grid ba-modal-body" onSubmit={save}>
         {error && <div className="ba-banner error full">{error}</div>}
         <div className="ba-segment full" role="group" aria-label="Kind">
           <button type="button" className={form.kind === "weekly" ? "active" : ""} onClick={() => setForm({ ...form, kind: "weekly" })}>Every week</button>
-          <button type="button" className={form.kind === "cover" ? "active" : ""} onClick={() => setForm({ ...form, kind: "cover" })}>One-off cover</button>
+          <button type="button" className={form.kind === "cover" ? "active" : ""} onClick={() => setForm({ ...form, kind: "cover" })}>One off cover</button>
         </div>
         <Field label="Who" full>
           <select value={form.staffId} onChange={set("staffId")} required>
@@ -132,7 +132,7 @@ export function OnCallPanel({ workspace, refreshKey, onNotice }) {
     const { error: saveError } = await supabase.rpc("zella_on_call_settings_save", { p_business_id: workspace.id, p_enabled: next.enabled, p_scope: next.scope });
     setBusy(false);
     if (saveError) return onNotice(say(saveError));
-    onNotice(next.enabled ? "On-call transfers are on." : "On-call transfers are off. After-hours calls get a message and a callback.");
+    onNotice(next.enabled ? "on call transfers are on." : "on call transfers are off. after hours calls get a message and a callback.");
     reload();
   }
   async function remove(shift) {
@@ -168,7 +168,7 @@ export function OnCallPanel({ workspace, refreshKey, onNotice }) {
         <div className="ba-panel-title">
           <div>
             <h2>On call</h2>
-            <p>Who your AI receptionist puts calls through to while you're closed. One-off cover beats the weekly rota.</p>
+            <p>Who your AI receptionist puts calls through to while you're closed. One off cover beats the weekly rota.</p>
           </div>
         </div>
         {canEdit && <button type="button" className="ba-btn sm" onClick={() => setAdding(true)} disabled={!data?.staff?.length}><Icon name="add" size="sm" /><span>Add time</span></button>}
@@ -185,7 +185,7 @@ export function OnCallPanel({ workspace, refreshKey, onNotice }) {
             </span>
             {canEdit ? (
               <div className="ba-oncall-controls">
-                <label className="ba-check"><input type="checkbox" checked={settings.enabled} disabled={busy} onChange={(e) => saveSettings({ ...settings, enabled: e.target.checked })} /><span>Put after-hours calls through to whoever is on call</span></label>
+                <label className="ba-check"><input type="checkbox" checked={settings.enabled} disabled={busy} onChange={(e) => saveSettings({ ...settings, enabled: e.target.checked })} /><span>Put after hours calls through to whoever is on call</span></label>
                 <select value={settings.scope} disabled={busy || !settings.enabled} onChange={(e) => saveSettings({ ...settings, scope: e.target.value })} aria-label="Which calls">
                   <option value="after_hours">Anyone who asks for a person</option>
                   <option value="emergencies_only">Emergencies only</option>
@@ -197,7 +197,7 @@ export function OnCallPanel({ workspace, refreshKey, onNotice }) {
           </div>
         )}
         {loading && !data ? <p className="ba-muted">Loading…</p> : !weekly.length && !cover.length ? (
-          <Empty title="No on-call rota yet" icon="support_agent">
+          <Empty title="No on call rota yet" icon="support_agent">
             Add who covers evenings and weekends. Until then, after-hours callers get a message and a callback.
           </Empty>
         ) : (

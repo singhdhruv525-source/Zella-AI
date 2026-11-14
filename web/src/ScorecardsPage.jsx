@@ -8,10 +8,10 @@ import { Empty, PageHead, Segment, friendly, useLoad } from "./BusinessShared";
 
 const RANGES = [["7", "7 days"], ["30", "30 days"], ["90", "90 days"]];
 const missing = (e) => e && (e.code === "PGRST202" || /could not find|does not exist/i.test(e.message ?? ""));
-const n = (v) => (v === null || v === undefined ? "—" : v);
-const minutes = (v) => (v === null || v === undefined ? "—" : v < 90 ? `${v} min` : `${Math.round(v / 6) / 10} h`);
-const hours = (v) => (v === null || v === undefined ? "—" : v < 48 ? `${v} h` : `${Math.round(v / 2.4) / 10} days`);
-const pct = (part, whole) => (whole ? `${Math.round((part / whole) * 100)}%` : "—");
+const n = (v) => (v === null || v === undefined ? "None" : v);
+const minutes = (v) => (v === null || v === undefined ? "None" : v < 90 ? `${v} min` : `${Math.round(v / 6) / 10} h`);
+const hours = (v) => (v === null || v === undefined ? "None" : v < 48 ? `${v} h` : `${Math.round(v / 2.4) / 10} days`);
+const pct = (part, whole) => (whole ? `${Math.round((part / whole) * 100)}%` : "None");
 
 export default function ScorecardsPage({ workspace }) {
   const [range, setRange] = useState("30");
@@ -78,7 +78,7 @@ export default function ScorecardsPage({ workspace }) {
           ) : (
             <div className="sc-table-wrap" tabIndex={0}>
               <table className="sc-table">
-                <thead><tr><th>Team member</th><th>Booked</th><th>Done</th><th>No-shows</th><th>No-show rate</th><th>Canceled</th></tr></thead>
+                <thead><tr><th>Team member</th><th>Booked</th><th>Done</th><th>no shows</th><th>no show rate</th><th>Canceled</th></tr></thead>
                 <tbody>
                   {bookable.map((b) => (
                     <tr key={b.staff_id}>

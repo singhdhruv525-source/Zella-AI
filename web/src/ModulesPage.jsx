@@ -60,7 +60,7 @@ export default function ModulesPage({ onNavigate }) {
                     ) : <Pill>Not offered</Pill>}
                     {m.hiddenIn.length > 0 && <div className="op-muted mo-sub">Off in {m.hiddenIn.join(", ")}</div>}
                   </td>
-                  <td>{m.requires.length ? m.requires.map(nameFor).join(", ") : <span className="op-muted">—</span>}</td>
+                  <td>{m.requires.length ? m.requires.map(nameFor).join(", ") : <span className="op-muted">None</span>}</td>
                   <td><strong className="op-strong">{m.businesses}</strong></td>
                 </tr>
               ))}

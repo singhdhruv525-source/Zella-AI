@@ -10,7 +10,7 @@ import { PersonPicker } from "./BusinessWork";
 // elsewhere (cash, a card terminal, a bank transfer), or what a payment provider confirmed. Staff add charges, managers
 // record payments, owners and admins refund. The database checks every one of these again.
 
-const KINDS = [["invoice", "Invoice"], ["estimate", "Estimate"], ["deposit", "Deposit"], ["no_show_fee", "No-show fee"], ["gift_card", "Gift card"]];
+const KINDS = [["invoice", "Invoice"], ["estimate", "Estimate"], ["deposit", "Deposit"], ["no_show_fee", "no show fee"], ["gift_card", "Gift card"]];
 const KIND_LABEL = Object.fromEntries(KINDS);
 const STATUS = {
   proposed: ["Proposed", "info"], accepted: ["Accepted", "success"], declined: ["Declined", ""], open: ["Unpaid", "warning"],
@@ -219,12 +219,12 @@ export function MoneyPage({ workspace, refreshKey, onNotice, onOpenPerson }) {
                 const [label, tone] = STATUS[c.status] ?? [c.status, ""];
                 return (
                   <tr key={c.id} onClick={() => setModal({ charge: c })} tabIndex={0} onKeyDown={(e) => e.key === "Enter" && setModal({ charge: c })}>
-                    <td><strong>{c.number ?? "—"}</strong>{c.description ? <small className="td-sub">{c.description}</small> : null}</td>
+                    <td><strong>{c.number ?? "None"}</strong>{c.description ? <small className="td-sub">{c.description}</small> : null}</td>
                     <td>{KIND_LABEL[c.kind]}</td>
-                    <td>{c.customers ? <button type="button" className="ba-namebtn" onClick={(e) => { e.stopPropagation(); onOpenPerson?.(c.customers.id); }}>{personName(c.customers)}</button> : "—"}</td>
+                    <td>{c.customers ? <button type="button" className="ba-namebtn" onClick={(e) => { e.stopPropagation(); onOpenPerson?.(c.customers.id); }}>{personName(c.customers)}</button> : "None"}</td>
                     <td>{showMoney(c.amount_minor, c.currency)}</td>
                     <td><Pill tone={tone}>{label}</Pill></td>
-                    <td>{c.due_on ? formatDay(c.due_on, tz) : "—"}</td>
+                    <td>{c.due_on ? formatDay(c.due_on, tz) : "None"}</td>
                     <td>{timeAgo(c.created_at)}</td>
                   </tr>
                 );

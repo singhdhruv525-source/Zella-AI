@@ -118,7 +118,7 @@ export default function PlatformOperations({ onNavigate, onOpenBusiness }) {
                 <li key={c.key} data-service={c.key} data-service-state={st.kind}>
                   <div>
                     <strong>{c.label}</strong>
-                    <span>{c.key}{c.required ? " · required" : " · needed for go-live"}{st.kind === "disabled" ? " · automations are switched off (not an outage)" : ""}</span>
+                    <span>{c.key}{c.required ? " · required" : " · needed for go live"}{st.kind === "disabled" ? " · automations are switched off (not an outage)" : ""}</span>
                   </div>
                   <Pill tone={st.tone}>{st.label}</Pill>
                 </li>

@@ -72,13 +72,13 @@ const AUTO = (dispatchEnabled) => ({ json: { workflows: [], deadLetters: 0, disp
   { const { ctx, p } = await open(b, { overview_data: () => ({ json: { stats: {}, attention: null } }) });
     await p.goto(BASE + "/"); await p.waitForSelector("[data-load-updated]");
     const v = await statValues(p);
-    check(!v.some((x) => /^0$|^0 \//.test(x)) && v.every((x) => x.includes("—")), `B2-01 missing values don't render 0 (${v.join(",")})`);
+    check(!v.some((x) => /^0$|^0 \//.test(x)) && v.every((x) => x.includes("Not available")), `B2-01 missing values don't render 0 (${v.join(",")})`);
     check(!(await p.isVisible("text=Nothing needs attention right now.")) && !(await p.isVisible("text=Create your first business")), "B2-01 a missing list isn't shown as 'nothing'");
     await ctx.close(); }
   { const { ctx, p } = await open(b, { overview_data: () => FAIL500 });
     await p.goto(BASE + "/"); await p.waitForSelector("[data-load=failed]");
     const v = await statValues(p); const t = await txt(p);
-    check(v.every((x) => x.includes("—")), `B2-01 initial failure: no metric values (${v.join(",")})`);
+    check(v.every((x) => x.includes("Not available")), `B2-01 initial failure: no metric values (${v.join(",")})`);
     check(!/Nothing needs attention|No setups in progress|No activity recorded|No businesses yet/.test(t) && !(await p.isVisible("text=Create your first business")), "B2-01 initial failure: no empty-state success messages");
     check(await p.isVisible("[data-load=failed] >> text=Retry"), "B2-01 initial failure shows an error with Retry");
     await ctx.close(); }
@@ -107,12 +107,12 @@ const AUTO = (dispatchEnabled) => ({ json: { workflows: [], deadLetters: 0, disp
     await p.goto(BASE + "/operations"); await p.waitForSelector("[data-health]");
     check(await p.getAttribute(".po-banner", "data-health") === "incomplete", "B2-02 missing counts make the check incomplete, not clean");
     check((await p.$$eval(".po-count .op-pill", (els) => els.map((e) => e.innerText))).every((x) => x === "Unknown"), "B2-02 unknown counts show 'Unknown', not 'None'");
-    check((await statValues(p))[3] === "—", "B2-02 'Open problems' isn't 0 when counts are missing");
+    check((await statValues(p))[3] === "Not available", "B2-02 'Open problems' isn't 0 when counts are missing");
     await ctx.close(); }
   { const { ctx, p } = await open(b, { platform_status: () => FAIL500, automation_overview: () => AUTO(true) });
     await p.goto(BASE + "/operations"); await p.waitForSelector("[data-health=failed]");
     const t = await txt(p);
-    check(!/None found|No issues found/.test(t) && (await statValues(p)).every((x) => x === "—"), "B2-02 failed request: no zero problems, no metrics");
+    check(!/None found|No issues found/.test(t) && (await statValues(p)).every((x) => x === "Not available"), "B2-02 failed request: no zero problems, no metrics");
     check(await p.isVisible("[data-load=failed] >> text=Retry"), "B2-02 failed request: error with Retry");
     await ctx.close(); }
   { const { ctx, p } = await open(b, { platform_status: () => status(), automation_overview: () => AUTO(false) });
@@ -136,7 +136,7 @@ const AUTO = (dispatchEnabled) => ({ json: { workflows: [], deadLetters: 0, disp
   { const CONN = { id: "c1", business_id: "b1", business_name: "Pipes Ltd", provider: "telnyx", integration_type: "phone", status: "active", last_synced_at: null, error_message: null };
     const { ctx, p } = await open(b, { integrations_overview: (_b, n) => (n === 1 ? FAIL500 : n === 2 ? { json: { connections: [CONN], requests: [] } } : n === 3 ? FAIL500 : { json: { connections: [CONN, { ...CONN, id: "c2", status: "error" }], requests: [] } }) });
     await p.goto(BASE + "/integrations"); await p.waitForSelector("[data-load=failed]");
-    check((await statValues(p)).every((x) => x === "—") && !(await p.isVisible("text=Nothing connected yet")) && /Not available/.test(await txt(p)), "B2-03 API failure: error state, not zero connections");
+    check((await statValues(p)).every((x) => x === "Not available") && !(await p.isVisible("text=Nothing connected yet")) && /Not available/.test(await txt(p)), "B2-03 API failure: error state, not zero connections");
     await p.click("[data-load=failed] >> text=Retry"); await p.waitForSelector("text=Pipes Ltd");
     check((await statValues(p))[0] === "1", "B2-03 retry after failure loads the data");
     await refresh(p); await p.waitForSelector("[data-load=stale]");
@@ -150,7 +150,7 @@ const AUTO = (dispatchEnabled) => ({ json: { workflows: [], deadLetters: 0, disp
     status: "active", checks: { knowledge: true, hours: true, greeting: true, phone: false, voice: false }, ready: 3, aiCallsLast30Days: 0, lastCallAt: null, ...over });
   { const { ctx, p } = await open(b, { agents_list: () => FAIL500 });
     await p.goto(BASE + "/agents"); await p.waitForSelector("[data-load=failed]");
-    check((await statValues(p))[1] === "—" && !/No AI receptionists yet/.test(await txt(p)), "B2-04 failed request: no live count, never 'no agents'");
+    check((await statValues(p))[1] === "Not available" && !/No AI receptionists yet/.test(await txt(p)), "B2-04 failed request: no live count, never 'no agents'");
     await ctx.close(); }
   { const { ctx, p } = await open(b, { agents_list: () => ({ json: { agents: [agent({}), agent({ businessName: "Beta Salon", status: "paused" })], stats: { total: 2, readyToConnect: 1, missingKnowledge: 0 } } }) });
     await p.goto(BASE + "/agents"); await p.waitForSelector("text=Beta Salon");
@@ -168,7 +168,7 @@ const AUTO = (dispatchEnabled) => ({ json: { workflows: [], deadLetters: 0, disp
   { const { ctx, p } = await open(b, { agents_list: () => ({ json: { agents: [agent({ checks: { knowledge: true, hours: true, greeting: true, phone: true, voice: true } })], stats: { total: 1 } } }) });
     await p.goto(BASE + "/agents"); await p.waitForSelector("text=Alpha Plumbing");
     check((await statValues(p))[1] === "1" && await p.isVisible("tr:has-text('Alpha Plumbing') >> .op-pill:has-text('Live')"), "B2-04 active with phone and voice connected is Live");
-    check((await statValues(p))[2] === "—", "B2-04 a statistic missing from the answer shows —");
+    check((await statValues(p))[2] === "Not available", "B2-04 a statistic missing from the answer shows —");
     await ctx.close(); }
 
   // ---------------- B2-05 Modules ----------------
@@ -267,7 +267,7 @@ const AUTO = (dispatchEnabled) => ({ json: { workflows: [], deadLetters: 0, disp
     check(/No permissions yet/.test(await ex()), "B2-07 restricted role with no permissions says so");
     await p.fill(".wiz-section input[type=email], .wiz-section input", "new@zella.test"); await p.click(".wiz-section button[type=submit]");
     await p.waitForSelector(".ic-notice");
-    check(log.n.admin_invite === 1 && /as Read-only admin/.test(await txt(p, ".ic-notice")), "B2-07 invitation unchanged (one request) and confirmation names the role");
+    check(log.n.admin_invite === 1 && /as Read only admin/.test(await txt(p, ".ic-notice")), "B2-07 invitation unchanged (one request) and confirmation names the role");
     await ctx.close(); }
 
   { const { ctx, p } = await open(b, {
@@ -286,7 +286,7 @@ const AUTO = (dispatchEnabled) => ({ json: { workflows: [], deadLetters: 0, disp
     await p.click(".wiz-section button[type=submit]");
     await p.waitForSelector(".ic-notice");
     const notice = await txt(p, ".ic-notice");
-    check(/re-emailed/.test(notice) && /existing role was not changed/.test(notice) && !/as Super admin/.test(notice), "B2-07 resend notice preserves existing role");
+    check(/reemailed/.test(notice) && /existing role was not changed/.test(notice) && !/as Super admin/.test(notice), "B2-07 resend notice preserves existing role");
     await ctx.close(); }
 
   // ---------------- B2-08 Businesses ----------------
@@ -294,7 +294,7 @@ const AUTO = (dispatchEnabled) => ({ json: { workflows: [], deadLetters: 0, disp
     industries: [{ id: "i1", name: "Plumbing" }], stats: { totalBusinesses: 1, activeWorkspaces: 1, pendingInvitations: 0, provisioningIssues: 0 } });
   { const { ctx, p } = await open(b, { dashboard_data: () => FAIL500 });
     await p.goto(BASE + "/businesses"); await p.waitForSelector("text=Unable to load businesses");
-    check((await statValues(p)).every((x) => x === "—"), "B2-08 initial failure: no statistics");
+    check((await statValues(p)).every((x) => x === "Not available"), "B2-08 initial failure: no statistics");
     await ctx.close(); }
   { const { ctx, p } = await open(b, { dashboard_data: (_b, n) => (n === 2 ? FAIL500 : n === 1 ? { json: BIZ("Old Name Plumbing") } : { json: BIZ("New Name Plumbing") }) });
     await p.goto(BASE + "/businesses"); await p.waitForSelector("text=Old Name Plumbing");

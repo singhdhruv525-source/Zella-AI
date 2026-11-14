@@ -13,7 +13,7 @@ export const APPROVAL_METHODS = [["in_person", "In person"], ["phone", "By phone
 export const METHOD_LABEL = { ...Object.fromEntries(APPROVAL_METHODS), internal: "Decided by the team" };
 export const APPROVAL_STATUS = { requested: ["Waiting", "warning"], approved: ["Approved", "success"], declined: ["Declined", ""], withdrawn: ["Withdrawn", ""] };
 
-export const MILESTONE_KINDS = [["milestone", "Milestone"], ["deadline", "Deadline"], ["renewal", "Renewal"], ["payment_due", "Payment due"], ["delivery", "Delivery"], ["follow_up", "Follow-up"]];
+export const MILESTONE_KINDS = [["milestone", "Milestone"], ["deadline", "Deadline"], ["renewal", "Renewal"], ["payment_due", "Payment due"], ["delivery", "Delivery"], ["follow_up", "Follow up"]];
 export const MILESTONE_LABEL = Object.fromEntries(MILESTONE_KINDS);
 
 export const EXCEPTION_KINDS = [

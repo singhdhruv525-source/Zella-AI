@@ -14,8 +14,8 @@ import {
 const TABS = [["overview", "Overview"], ["sms", "Texts"], ["email", "Emails"], ["templates", "Templates"], ["providers", "Senders & providers"], ["compliance", "Consent & opt-outs"]];
 const STATUSES = ["queued", "sent", "delivered", "failed", "received", "dry_run", "blocked"];
 const STATUS_LABEL = { dry_run: "Test mode (not sent)", sent: "Accepted by provider", received: "Received" };
-const KINDS = { sms: [["reminder", "Reminder"], ["follow_up", "Follow-up"], ["staff_alert", "Staff alert"], ["inbound", "Inbound"], ["other", "Other"]],
-  email: [["reminder", "Reminder"], ["follow_up", "Follow-up"], ["owner_email", "Owner email"], ["inbound", "Inbound"], ["other", "Other"]] };
+const KINDS = { sms: [["reminder", "Reminder"], ["follow_up", "Follow up"], ["staff_alert", "Staff alert"], ["inbound", "Inbound"], ["other", "Other"]],
+  email: [["reminder", "Reminder"], ["follow_up", "Follow up"], ["owner_email", "Owner email"], ["inbound", "Inbound"], ["other", "Other"]] };
 const tone = (s) => (s === "delivered" ? "success" : s === "failed" ? "danger" : s === "blocked" ? "warning" : s === "sent" ? "info" : "neutral");
 const statusPill = (s) => <Pill tone={tone(s)}>{STATUS_LABEL[s] ?? words(s)}</Pill>;
 
@@ -82,9 +82,9 @@ function Overview({ onTab, onFailed }) {
           <h3 className="ao-h3">Waiting to send</h3>
           <div className="owner-stat-grid ao-stats">
             <Metric label="Reminders due now" value={num(o.waiting.reminders_due)} tone={o.waiting.reminders_due ? "warning" : null} />
-            <Metric label="Follow-ups due now" value={num(o.waiting.followups_due)} tone={o.waiting.followups_due ? "warning" : null} />
+            <Metric label="follow ups due now" value={num(o.waiting.followups_due)} tone={o.waiting.followups_due ? "warning" : null} />
             <Metric label="Reminders failed (7 days)" value={num(o.waiting.reminders_failed_7d)} tone={o.waiting.reminders_failed_7d ? "danger" : null} />
-            <Metric label="Follow-ups failed (7 days)" value={num(o.waiting.followups_failed_7d)} tone={o.waiting.followups_failed_7d ? "danger" : null} />
+            <Metric label="follow ups failed (7 days)" value={num(o.waiting.followups_failed_7d)} tone={o.waiting.followups_failed_7d ? "danger" : null} />
           </div>
           {(o.sms.failed > 0 || o.email.failed > 0) && (
             <div className="ao-drawer-actions">
@@ -129,10 +129,10 @@ function Messages({ channel, me, options, failedOnly, say, onOpenBusiness }) {
         empty={`No ${email ? "emails" : "texts"} in this period match these filters.`}
         columns={[
           ["When", (r) => when(r.created_at)], ["Business", (r) => r.business_name], ["Type", (r) => words(r.kind)],
-          [email ? "Address" : "Phone", (r) => (r.direction === "inbound" ? r.from : r.to) ?? "—"],
-          ...(email ? [["Subject", (r) => r.subject ?? "—"]] : []),
-          ["Status", (r) => statusPill(r.status)], ...(email ? [["Last event", (r) => (r.last_event ? words(r.last_event.replace("email.", "")) : "—")]] : []),
-          ["Error", (r) => r.error ?? "—"],
+          [email ? "Address" : "Phone", (r) => (r.direction === "inbound" ? r.from : r.to) ?? "None"],
+          ...(email ? [["Subject", (r) => r.subject ?? "None"]] : []),
+          ["Status", (r) => statusPill(r.status)], ...(email ? [["Last event", (r) => (r.last_event ? words(r.last_event.replace("email.", "")) : "None")]] : []),
+          ["Error", (r) => r.error ?? "None"],
         ]} />
       <Pager total={list.data?.total} offset={f.offset} onChange={(o) => setF((x) => ({ ...x, offset: o }))} />
       {open && <MessageDrawer channel={channel} id={open} me={me} onClose={() => setOpen(null)} onOpenBusiness={onOpenBusiness}
@@ -156,7 +156,7 @@ function MessageDrawer({ channel, id, me, onClose, onOpenBusiness, onRetried }) 
             ["Direction", m.direction === "inbound" ? "Received" : "Sent"], ["To", m.to], ["From", m.from], m.subject ? ["Subject", m.subject] : null,
             ["Status", statusPill(m.status)], ["Provider id", m.provider_id ? <code key="p">{m.provider_id}</code> : null],
             m.meta?.error || m.meta?.failure_reason ? ["Error", m.meta.error ?? m.meta.failure_reason] : null,
-            m.meta?.reminder_id ? ["Sent for", "Appointment reminder"] : m.meta?.task_id ? ["Sent for", "Follow-up"] : null]} />
+            m.meta?.reminder_id ? ["Sent for", "Appointment reminder"] : m.meta?.task_id ? ["Sent for", "Follow up"] : null]} />
           <h3 className="ao-h3">Timeline</h3>
           <ol className="ao-timeline">
             {[["Recorded", m.created_at], ["Accepted by provider", m.sent_at], ["Delivered", m.delivered_at]].filter(([, t]) => t).map(([l, t]) => <li key={l}><strong>{l}</strong><span>{when(t)}</span></li>)}
@@ -205,7 +205,7 @@ function Templates({ options, say }) {
         columns={[
           ["Key", (t) => <code>{t.key}</code>], ["Channel", (t) => (t.channel === "sms" ? "Text" : "Email")], ["Purpose", (t) => words(t.purpose)],
           ["For", (t) => (t.scope === "business" ? t.business_name : t.scope === "industry" ? t.industry_name : "All businesses")],
-          ["Version", (t) => t.version], ["Business copies", (t) => (t.scope === "business" ? "—" : num(t.business_copies))], ["Updated", (t) => when(t.created_at)],
+          ["Version", (t) => t.version], ["Business copies", (t) => (t.scope === "business" ? "None" : num(t.business_copies))], ["Updated", (t) => when(t.created_at)],
         ]} />
       <Pager total={list.data?.total} offset={f.offset} onChange={(o) => setF((x) => ({ ...x, offset: o }))} />
       {open && <TemplateDrawer t={open} canEdit={list.data?.can_edit} options={options} onClose={() => setOpen(null)}
@@ -240,7 +240,7 @@ function TemplateDrawer({ t, canEdit, onClose, onSaved }) {
       <div className="ao-preview">
         {t.channel === "email" && <strong>{fill(subject, SAMPLE)}</strong>}
         <pre className="ao-pre">{fill(body, SAMPLE)}</pre>
-        <small className="op-muted">{body.length} characters{segments ? ` · about ${segments} text segment${segments === 1 ? "" : "s"}` : ""}. Preview only — nothing is sent.</small>
+        <small className="op-muted">{body.length} characters{segments ? ` · about ${segments} text segment${segments === 1 ? "" : "s"}` : ""}. Preview only. Nothing is sent.</small>
       </div>
       {editable ? (
         <div className="ao-drawer-actions">
@@ -286,7 +286,7 @@ function Compliance() {
   const d = useLoad(() => rpc("zella_admin_messaging_compliance"), []);
   const c = d.data;
   return (
-    <Panel title="Consent & opt-outs" description="Counts across every business. People who opt out (STOP, unsubscribe) aren't messaged again; the sender checks before every message.">
+    <Panel title="Consent & opt outs" description="Counts across every business. People who opt out (STOP, unsubscribe) aren't messaged again; the sender checks before every message.">
       <ErrorNote error={d.error} onRetry={d.reload} />
       {c && (
         <>

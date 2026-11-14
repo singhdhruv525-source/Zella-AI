@@ -94,7 +94,7 @@ function CallbackDetail({ cb, person, last, roster, workspace, startFinishing, o
         p_title: `Follow up with ${personName(person) ?? cb.contact_number ?? "caller"}`, p_due_at: zonedDateTime(dueDay, "09:00", tz).toISOString(),
         p_assigned_to: cb.assigned_to ?? null, p_priority: cb.priority ?? "normal",
       });
-      if (t.error) { setBusy(false); onChanged(); return setError(`Callback closed, but the follow-up task failed: ${explain(t.error)}`); }
+      if (t.error) { setBusy(false); onChanged(); return setError(`Callback closed, but the follow up task failed: ${explain(t.error)}`); }
     }
     setBusy(false);
     onNotice("Callback finished.");
@@ -160,7 +160,7 @@ function CallbackDetail({ cb, person, last, roster, workspace, startFinishing, o
             {finishing && (
               <form className="ba-form-grid ba-finish" onSubmit={finish}>
                 <Field label="What happened?"><select value={fin.outcome} onChange={(e) => setFin({ ...fin, outcome: e.target.value })}>{OUTCOMES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></Field>
-                <Field label="What's next?" hint={!cb.customer_id && fin.next !== "none" ? "Follow-up tasks need a known person." : undefined}>
+                <Field label="What's next?" hint={!cb.customer_id && fin.next !== "none" ? "follow up tasks need a known person." : undefined}>
                   <select value={fin.next} onChange={(e) => setFin({ ...fin, next: e.target.value })}>{NEXT.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
                 </Field>
                 <div className="full ba-form-actions">

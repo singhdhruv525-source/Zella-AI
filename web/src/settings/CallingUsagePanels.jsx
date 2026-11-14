@@ -16,9 +16,9 @@ const PAGE = 25;
 const day = (d) => d.toISOString().slice(0, 10);
 const startOf = (s) => new Date(`${s}T00:00:00`);
 const endOf = (s) => new Date(new Date(`${s}T00:00:00`).getTime() + 86400000);
-const mins = (m) => (m == null ? "—" : `${Number(m).toLocaleString(undefined, { maximumFractionDigits: 2 })} min`);
+const mins = (m) => (m == null ? "None" : `${Number(m).toLocaleString(undefined, { maximumFractionDigits: 2 })} min`);
 const secs = (s) => {
-  if (s == null) return "—";
+  if (s == null) return "None";
   const v = Math.abs(Number(s)); const h = Math.floor(v / 3600); const m = Math.floor((v % 3600) / 60); const r = v % 60;
   return `${s < 0 ? "−" : ""}${h ? `${h} h ` : ""}${m || h ? `${m} min ` : ""}${r} s`;
 };
@@ -56,7 +56,7 @@ function Allowance({ a }) {
   }
   return (
     <Facts rows={[["Included this period", mins(a.included_minutes)], ["Used", mins(a.consumed_minutes)], ["Remaining", mins(a.remaining_minutes)],
-      ["Used so far", a.percent_used == null ? "—" : `${a.percent_used}%`], ["Period", `${when(a.period_from)} to ${when(a.period_to)}`],
+      ["Used so far", a.percent_used == null ? "None" : `${a.percent_used}%`], ["Period", `${when(a.period_from)} to ${when(a.period_to)}`],
       ["Allowance", a.exhausted ? <Pill tone="warning">Used up</Pill> : <Pill tone="success">Available</Pill>]]} />
   );
 }
@@ -96,7 +96,7 @@ export function BusinessCallingUsage({ w }) {
             <>
               <Table rows={d.rows} empty="No calls counted in these dates." columns={[
                 ["When", (x) => when(x.occurred_at)], ["Kind", (x) => (x.kind === "adjustment" ? "Correction" : CATEGORY[x.category] ?? words(x.category))],
-                ["Caller", (x) => x.caller ?? "—"], ["Call time", (x) => secs(x.duration_seconds)], ["Usage", (x) => mins(x.minutes)],
+                ["Caller", (x) => x.caller ?? "None"], ["Call time", (x) => secs(x.duration_seconds)], ["Usage", (x) => mins(x.minutes)],
                 ["Status", (x) => (x.reconciliation === "adjusted" ? <Pill tone="info">Corrected</Pill> : <Pill tone="success">Counted</Pill>)]]} />
               <Pager page={page} total={d.total} onPage={setPage} />
             </>
@@ -135,15 +135,15 @@ export function AdminCallingUsage() {
             <Pager page={page} total={(page + 1) * PAGE + (d.records.length === PAGE ? 1 : 0)} onPage={setPage} />
           </Card>
           <Card title="Processing issues and discrepancies" sub="Missing or implausible durations, failures and ledger mismatches. Nothing is estimated: these calls are not counted until fixed.">
-            <Table rows={d.issues} empty="No open issues." columns={[["Since", (x) => when(x.created_at)], ["Business", (x) => x.business ?? "—"], ["Issue", (x) => words(x.kind)],
-              ["Status", (x) => <Pill tone={x.status === "escalated" ? "warning" : ""}>{words(x.status)}</Pill>], ["Attempts", (x) => x.attempts], ["Detail", (x) => x.last_error ?? "—"],
+            <Table rows={d.issues} empty="No open issues." columns={[["Since", (x) => when(x.created_at)], ["Business", (x) => x.business ?? "None"], ["Issue", (x) => words(x.kind)],
+              ["Status", (x) => <Pill tone={x.status === "escalated" ? "warning" : ""}>{words(x.status)}</Pill>], ["Attempts", (x) => x.attempts], ["Detail", (x) => x.last_error ?? "None"],
               ["", (x) => (d.can_retry ? <button type="button" className="zs-btn" onClick={() => setRetry(x)}>Retry</button> : null)]]} />
           </Card>
           <Card title="Threshold events" sub="One per business, threshold and billing period. Delivery is handled by the notification workflows.">
             <Table rows={d.threshold_events} empty="No thresholds reached. Thresholds apply only when a plan defines a minute allowance." columns={[
               ["When", (x) => when(x.created_at)], ["Business", (x) => x.business], ["Event", (x) => words(x.event_type)], ["Usage", (x) => `${mins(x.usage_minutes)} of ${mins(x.limit_minutes)}`],
               ["Notice delivery", (x) => <Pill tone={x.delivery_status === "failed" ? "danger" : x.delivery_status === "sent" ? "success" : ""}>{words(x.delivery_status ?? "pending")}</Pill>],
-              ["Error", (x) => x.delivery_error ?? "—"]]} />
+              ["Error", (x) => x.delivery_error ?? "None"]]} />
           </Card>
           <Card title="Policy and audit">
             <Facts rows={[["Rounding", `${d.policy.increment_seconds === 1 ? "Exact seconds" : `${d.policy.increment_seconds} s steps`}, ${d.policy.rounding}`],

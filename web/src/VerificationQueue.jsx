@@ -24,7 +24,7 @@ const STATUS = {
   rejected: ["danger", "Rejected"],
 };
 const TABS = [["pending_review", "Waiting"], ["rejected", "Rejected"], ["verified", "Verified"], ["all", "All"]];
-const when = (v) => (v ? new Date(v).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "—");
+const when = (v) => (v ? new Date(v).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "None");
 
 export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
   const [status, setStatus] = useState("pending_review");

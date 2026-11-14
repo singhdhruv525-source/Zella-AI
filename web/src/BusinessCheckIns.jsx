@@ -36,12 +36,12 @@ function ReasonForm({ kind, onSubmit, onCancel, busy }) {
   const [more, setMore] = useState("");
   return (
     <form className="ba-reason" onSubmit={(e) => { e.preventDefault(); onSubmit(choice === "Other" && !more.trim() ? "" : [choice === "Other" ? null : choice, more.trim()].filter(Boolean).join(": ")); }}>
-      <Field label={kind === "no_show" ? "Why a no-show?" : "Why canceled?"}>
+      <Field label={kind === "no_show" ? "Why a no show?" : "Why canceled?"}>
         <select value={choice} onChange={(e) => setChoice(e.target.value)}>{options.map((o) => <option key={o}>{o}</option>)}</select>
       </Field>
       <Field label="Note"><input value={more} onChange={(e) => setMore(e.target.value)} placeholder={choice === "Other" ? "Required" : "Optional"} /></Field>
       <div className="ba-form-actions">
-        <button type="submit" className="ba-btn sm danger-outline" disabled={busy || (choice === "Other" && !more.trim())}>{kind === "no_show" ? "Mark no-show" : "Cancel appointment"}</button>
+        <button type="submit" className="ba-btn sm danger-outline" disabled={busy || (choice === "Other" && !more.trim())}>{kind === "no_show" ? "Mark no show" : "Cancel appointment"}</button>
         <button type="button" className="ba-btn sm" onClick={onCancel}>Back</button>
       </div>
     </form>
@@ -86,7 +86,7 @@ const Card = ({ a, column, data, working, nowMs, onOpenPerson, tz, staffName, st
 
       {reasonFor?.id === a.id ? (
         <ReasonForm kind={reasonFor.kind} busy={busy} onCancel={() => setReasonFor(null)}
-          onSubmit={(reason) => act(a, reasonFor.kind, `${a.title} ${reasonFor.kind === "cancelled" ? "cancelled" : "marked no-show"}.`, { reason })} />
+          onSubmit={(reason) => act(a, reasonFor.kind, `${a.title} ${reasonFor.kind === "cancelled" ? "cancelled" : "marked no show"}.`, { reason })} />
       ) : (
         <div className="ba-item-actions">
           {column === "expected" && (
@@ -112,7 +112,7 @@ const Card = ({ a, column, data, working, nowMs, onOpenPerson, tz, staffName, st
           {column !== "done" && person?.phone && <a className="ba-btn sm" href={`tel:${person.phone}`}><Icon name="call" size="sm" />Call</a>}
           {column !== "done" && person?.phone && !person.do_not_sms && !person.do_not_contact && <a className="ba-btn sm" href={`sms:${person.phone}`}><Icon name="sms" size="sm" />Text</a>}
           {column === "expected" && <button type="button" className="ba-btn sm" disabled={busy} onClick={() => setMoving(a)}><Icon name="event_repeat" size="sm" />Reschedule</button>}
-          {column === "expected" && started && <button type="button" className="ba-btn sm danger-outline" disabled={busy} onClick={() => setReasonFor({ id: a.id, kind: "no_show" })}>No-show</button>}
+          {column === "expected" && started && <button type="button" className="ba-btn sm danger-outline" disabled={busy} onClick={() => setReasonFor({ id: a.id, kind: "no_show" })}>no show</button>}
           {(column === "expected" || column === "waiting") && <button type="button" className="ba-btn sm danger-outline" disabled={busy} onClick={() => setReasonFor({ id: a.id, kind: "cancelled" })}>Cancel</button>}
         </div>
       )}
@@ -181,8 +181,8 @@ export function CheckInsPage({ workspace, refreshKey, onNotice, onOpenPerson, on
 
   return (
     <>
-      <PageHead crumb="Workspace / Check-ins" title="Check-ins" sub={`Who is expected, who has arrived, and who is done today (${tz.replace("_", " ")}). You record each step.`}>
-        <button type="button" className="ba-btn primary" onClick={() => setWalkIn(true)}><Icon name="directions_walk" size="sm" /><span>Add walk-in</span></button>
+      <PageHead crumb="Workspace / check ins" title="Check ins" sub={`Who is expected, who has arrived, and who is done today (${tz.replace("_", " ")}). You record each step.`}>
+        <button type="button" className="ba-btn primary" onClick={() => setWalkIn(true)}><Icon name="directions_walk" size="sm" /><span>Add walk in</span></button>
       </PageHead>
       <div className="ba-toolbar ba-lead-tools">
         <label className="ba-select ba-search"><span>Search</span>

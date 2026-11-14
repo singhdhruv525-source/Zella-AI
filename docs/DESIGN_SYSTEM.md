@@ -37,6 +37,40 @@ Shape: 8px buttons and inputs, 10px small cards and banners, 14px cards, panels 
 - **Usage meter** (`.zs-usage`, `.zs-meter` in `web/src/settings/settings.css`): a label, "used of included", a bar, and what is left. The bar is mocha below 80%, amber from 80% and red at 100%, and the words say the same (a "Over 80%" or "Used up" badge), so colour never carries the meaning alone. It has `role="meter"` and an accessible label.
 - **Billing layouts** (`web/src/billing.css`, `.bp-*`): the plan page puts the form (cards: Pricing, Monthly allowances, Account) beside a sticky summary card (price, estimated margin with a Healthy / Below target / Loses money label, cost lines, warnings, the review button); money inputs carry a `$` prefix and a unit suffix; Base/Pro, Monthly/Yearly and languages are segmented buttons (`aria-pressed`). The owner's plan page shows a plan header (name, status, price, next charge, what's included as chips) and one usage tile per resource. Below 1100px the summary moves under the form; below 760px everything is one column.
 
+## Writing (owner's rule, 14 Nov 2026)
+
+- **No dashes or hyphens anywhere people read text**: screens, emails, texts, notifications and what the AI
+  receptionist says. Not "—", not "–", not a hyphen between words.
+  - A pause in a sentence becomes a full stop or a comma: "Minutes used up. New calls go to your fallback number."
+  - A range uses "to": "9:00 to 17:00", "1 Nov to 30 Nov", "1 to 25 of 80".
+  - An empty value shows "None" (or "Not set" where that is clearer), never "—".
+  - Compound words are written as separate words, or as one word where that is the usual spelling: follow up,
+    sign in, no show, check in, walk in, two step sign in, auto reload, pay as you go, read only; callback, checkup,
+    roundup, setup, Ecommerce.
+  - Phone numbers use spaces: (555) 010 2040.
+  - Code is not text: class names, routes, keys, stored values, file names, web addresses and locale tags keep theirs.
+- `npm run lint` runs `web/scripts/check-dashes.mjs`, which fails on any dash or hyphen in the app's text
+  (`npm run check:writing` lists them).
+
+## Notifications: creative but professional
+
+Every notification (banner, pop up, bell item, email) follows one pattern, in the business's own words:
+
+| Part | What it is |
+|---|---|
+| Picture | A ring that fills to the percentage (usage), or an icon on a soft tile that says what happened (phone, calendar, chat, envelope, star, shield, refresh) |
+| Label | Two or three words above the headline: Heads up, Action needed, Topped up, Still answering, Paused for now, Celebration |
+| Headline | Warm and plain: "Your receptionist has been busy this month", "Every call is still being answered" |
+| Body | The facts: numbers, the date things reset, what happens to calls and messages, money involved |
+| Action | One clear main button (and at most two others) |
+
+- Colour says how urgent it is: green good news, blue information, warm brown business moments, amber heads ups,
+  red urgent or action needed. The label always says it in words too.
+- Red notices can't be dismissed until the problem is fixed; the others can. Pop ups fade after a few seconds.
+- Each business sees the notifications for its own kind of business plus the general ones; the wording uses its
+  terms (chairs, patients, tables, jobs, viewings, tenants).
+- No jokes, no emoji, no dashes. Motion (filling rings, fades) stops for people who prefer reduced motion.
+
 ## Rules of use
 
 - Primary mocha is for primary buttons, the selected navigation item, key icons and important actions. Most

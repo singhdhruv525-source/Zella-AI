@@ -14,7 +14,7 @@ import { Empty, Notice, PageHead, Segment, explain, loadPeople, orThrow, plural,
 /* ------------------------------------------------------------------ */
 
 export const PRIORITY_TONE = { urgent: "danger", high: "warning", normal: "" };
-export const when = (value, tz) => (value ? `${formatDay(value, tz)} · ${formatTime(value, tz)}` : "—");
+export const when = (value, tz) => (value ? `${formatDay(value, tz)} · ${formatTime(value, tz)}` : "None");
 
 // Search is limited to the business being worked in: someone who belongs to several businesses can read all of
 // their customers, and picking one from another business would link it to the wrong place.
@@ -590,7 +590,7 @@ export function LeadTab({ person, workspace, onChanged, onNotice }) {
       )}
 
       <section>
-        <h3 className="ba-sub">Open to-dos</h3>
+        <h3 className="ba-sub">Open to dos</h3>
         {!data?.tasks.length && !data?.cbs.filter((c) => !CB_CLOSED.includes(c.status)).length ? <p className="ba-muted">Nothing open for them.</p> : (
           <ul className="ba-threads">
             {(data?.tasks ?? []).map((t) => <li key={t.id}><span className="ba-thread-icon"><Icon name="task_alt" size="sm" /></span><div><strong>{t.title}</strong><small>{t.due_at ? `Due ${when(t.due_at, tz)}` : "No due time"}</small></div></li>)}

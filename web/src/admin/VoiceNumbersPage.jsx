@@ -111,7 +111,7 @@ function Numbers({ me, options, onAssign, onOpenCalls, say, onOpenBusiness }) {
       <DataTable error={list.error} loading={list.loading} rows={list.data?.rows} onRow={setOpen}
         empty={f.q || f.status || f.business ? "No numbers match these filters." : "No phone numbers are assigned to any business yet."}
         columns={[
-          ["Number", (r) => <strong>{r.e164}</strong>], ["Business", (r) => r.business_name], ["Label", (r) => r.label ?? "—"],
+          ["Number", (r) => <strong>{r.e164}</strong>], ["Business", (r) => r.business_name], ["Label", (r) => r.label ?? "None"],
           ["Receptionist", (r) => r.agent?.name ?? <Pill tone="warning">None</Pill>],
           ["Vapi", (r) => (r.vapi_linked ? <Pill tone="success">Linked</Pill> : <Pill tone="warning">Not linked</Pill>)],
           ["Status", (r) => <Pill tone={statusTone(r.status)}>{words(r.status)}</Pill>], ["Calls (30 days)", (r) => num(r.calls_30d)], ["Last call", (r) => when(r.last_call_at)],
@@ -122,7 +122,7 @@ function Numbers({ me, options, onAssign, onOpenCalls, say, onOpenBusiness }) {
         <Drawer title={open.e164} icon="call" onClose={() => setOpen(null)}>
           <Facts rows={[["Business", <button key="b" type="button" className="ao-link" onClick={() => onOpenBusiness(open.business_id)}>{open.business_name}</button>],
             ["Business state", words(open.business_state)], ["Label", open.label], ["Country code", open.country_code], ["Status", <Pill key="s" tone={statusTone(open.status)}>{words(open.status)}</Pill>],
-            ["Receptionist", open.agent ? `${open.agent.name} (${words(open.agent.status)})` : "None — calls can't be answered"],
+            ["Receptionist", open.agent ? `${open.agent.name} (${words(open.agent.status)})` : "None. Calls can't be answered"],
             ["Vapi phone number id", open.vapi_phone_number_id ? <code key="v">{open.vapi_phone_number_id}</code> : "Not linked"],
             ["Calls, last 30 days", num(open.calls_30d)], ["Last call", when(open.last_call_at)], ["Added", when(open.created_at)]]} />
           <NotAvailable title="Carrier details aren't read from Telnyx">Number type, capabilities and carrier status need the Telnyx API from a server action, which isn't built. Buying and releasing numbers at the carrier is done in the Telnyx or Vapi dashboard.</NotAvailable>
@@ -152,7 +152,7 @@ function Numbers({ me, options, onAssign, onOpenCalls, say, onOpenBusiness }) {
       {action?.kind === "release" && (
         <ReasonDialog title={`Release ${action.row.e164} from Zella Voice?`} icon="delete" danger word="RELEASE" confirmLabel="Release" onClose={() => setAction(null)}
           onConfirm={async (reason) => { await rpc("zella_admin_number_release", { p_id: action.row.id, p_reason: reason }); done(`${action.row.e164} released from Zella Voice.`); }}>
-          <p>The number is removed from {action.row.business_name}. Its past calls are kept. This doesn't cancel it at the carrier — do that in the Telnyx or Vapi dashboard, or it keeps costing money.</p>
+          <p>The number is removed from {action.row.business_name}. Its past calls are kept. This doesn't cancel it at the carrier. Do that in the Telnyx or Vapi dashboard, or it keeps costing money.</p>
         </ReasonDialog>
       )}
     </Panel>
@@ -210,8 +210,8 @@ function Calls({ me, options, initial, onOpenBusiness }) {
       <DataTable error={list.error} loading={list.loading} rows={list.data?.rows} onRow={(r) => setOpen(r.id)} empty="No calls in this period match these filters."
         columns={[
           ["When", (r) => when(r.created_at)], ["Business", (r) => r.business_name], ["Direction", (r) => words(r.direction)], ["Caller", (r) => r.caller ?? "Unknown"],
-          ["Number", (r) => r.number ?? "—"], ["Status", (r) => <Pill tone={statusTone(r.status)}>{words(r.status)}</Pill>], ["Length", (r) => duration(r.duration_seconds)],
-          ["Outcome", (r) => (r.outcome ? words(r.outcome) : "—")],
+          ["Number", (r) => r.number ?? "None"], ["Status", (r) => <Pill tone={statusTone(r.status)}>{words(r.status)}</Pill>], ["Length", (r) => duration(r.duration_seconds)],
+          ["Outcome", (r) => (r.outcome ? words(r.outcome) : "None")],
           ["", (r) => <span className="ao-flags">{r.needs_human && <Pill tone="warning">Needs a person</Pill>}{r.failure_reason && <Pill tone="danger">Error</Pill>}
             {["failed", "no_one_available"].includes(r.transfer_status) && <Pill tone="warning">Transfer failed</Pill>}</span>],
         ]} />
@@ -240,7 +240,7 @@ function CallDrawer({ id, onClose, onOpenBusiness }) {
           <ol className="ao-timeline">
             {[["Created", c.created_at], ["Started", c.started_at], ["Answered", c.answered_at], ["Escalated", c.escalated_at], ["Ended", c.ended_at]]
               .filter(([, t]) => t).map(([l, t]) => <li key={l}><strong>{l}</strong><span>{when(t)}</span></li>)}
-            {d.data.tools.map((t, i) => <li key={`t${i}`}><strong>Tool: {words(t.tool)}</strong><span>{words(t.status)}{t.error ? ` — ${t.error}` : ""} · {when(t.at)}</span></li>)}
+            {d.data.tools.map((t, i) => <li key={`t${i}`}><strong>Tool: {words(t.tool)}</strong><span>{words(t.status)}{t.error ? ` to ${t.error}` : ""} · {when(t.at)}</span></li>)}
             {d.data.messages.map((m, i) => <li key={`m${i}`}><strong>Message taken ({words(m.kind)})</strong><span>{words(m.status)} · {when(m.at)}</span></li>)}
             {d.data.callbacks.map((k, i) => <li key={`k${i}`}><strong>Callback</strong><span>{words(k.status)}{k.due_at ? ` · due ${when(k.due_at)}` : ""}</span></li>)}
           </ol>
@@ -302,8 +302,8 @@ function RoutingForm({ businessId, manage, say }) {
         </label>
         <label className="ao-filter ao-check"><input type="checkbox" checked={v.transfer_open_hours_only} disabled={!manage} onChange={(e) => set("transfer_open_hours_only", e.target.checked)} /><span>{label.transfer_open_hours_only}</span></label>
       </div>
-      <Facts rows={[["Time zone", r.timezone], ["Opening hours set", r.has_hours ? "Yes" : "No — outside-hours rules can't apply"],
-        ["On-call rota", r.on_call?.enabled ? `On (${words(r.on_call.scope)})` : "Off"]]} />
+      <Facts rows={[["Time zone", r.timezone], ["Opening hours set", r.has_hours ? "Yes" : "No. Outside hours rules can't apply"],
+        ["on call rota", r.on_call?.enabled ? `On (${words(r.on_call.scope)})` : "Off"]]} />
       {manage ? (
         <div className="ao-drawer-actions">
           <button type="button" className="owner-secondary-button" disabled={!changes.length} onClick={() => setForm(null)}>Undo changes</button>

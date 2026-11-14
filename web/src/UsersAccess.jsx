@@ -9,7 +9,7 @@ import { friendlyError } from "./admin/adminOps";
 
 const ROLE_LABELS = {
   zella_owner: "Zella Voice owner", super_admin: "Super admin", platform_operations: "Platform operations",
-  billing_admin: "Billing admin", support_admin: "Support admin", security_admin: "Security admin", read_only_admin: "Read-only admin",
+  billing_admin: "Billing admin", support_admin: "Support admin", security_admin: "Security admin", read_only_admin: "Read only admin",
 };
 // What each restricted role can do is set in Settings > Users, roles & access > Platform roles.
 const RESTRICTED = ["platform_operations", "billing_admin", "support_admin", "security_admin", "read_only_admin"];
@@ -82,7 +82,7 @@ export default function UsersAccess() {
     const label = ROLE_LABELS[invite.role] ?? invite.role;
     const ok = await run("admin_invite", { ...invite, email: invite.email.trim() }, (r) =>
       r.resent
-        ? `Invitation re-emailed to ${r.email}. Their existing role was not changed.`
+        ? `Invitation reemailed to ${r.email}. Their existing role was not changed.`
         : r.invited
         ? `Invitation emailed to ${r.email} as ${label}.`
         : `${r.email} already had a Zella Voice login and can now use the admin dashboard as ${label}.`
@@ -165,7 +165,7 @@ export default function UsersAccess() {
         <div className="owner-table-wrap" tabIndex={0}>
           <table className="owner-table">
             <thead>
-              <tr><th>Admin</th><th>Role</th><th>Status</th><th>Last sign-in</th><th>Added</th><th /></tr>
+              <tr><th>Admin</th><th>Role</th><th>Status</th><th>Last sign in</th><th>Added</th><th /></tr>
             </thead>
             <tbody>
               {(data?.admins ?? []).map((a) => (

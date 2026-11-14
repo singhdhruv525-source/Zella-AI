@@ -19,8 +19,8 @@ test("metric: valid zero is 0, missing is never 0", () => {
   assert.equal(metric(0, r("ok")), 0);
   assert.equal(metric(7, r("ok")), 7);
   assert.equal(metric(7, r("stale")), 7, "stale data still shows its number (with the warning)");
-  for (const v of [undefined, null, "3", NaN, Infinity, {}]) assert.equal(metric(v, r("ok")), "—", String(v));
-  assert.equal(metric(0, r("failed")), "—", "nothing loaded: no number at all");
+  for (const v of [undefined, null, "3", NaN, Infinity, {}]) assert.equal(metric(v, r("ok")), "Not available", String(v));
+  assert.equal(metric(0, r("failed")), "Not available", "nothing loaded: no number at all");
   assert.equal(metric(5, r("loading")), "…");
   assert.equal(isCount(0), true); assert.equal(isCount(null), false);
 });

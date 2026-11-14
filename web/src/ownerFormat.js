@@ -67,7 +67,7 @@ export function stageTone(status) {
 }
 
 export function formatDate(value) {
-  if (!value) return "—";
+  if (!value) return "None";
   return new Date(value).toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
@@ -76,7 +76,7 @@ export function formatDate(value) {
 }
 
 export function formatDateTime(value) {
-  if (!value) return "—";
+  if (!value) return "None";
   return new Date(value).toLocaleString(undefined, {
     month: "short",
     day: "numeric",
@@ -86,7 +86,7 @@ export function formatDateTime(value) {
 }
 
 export function timeAgo(value) {
-  if (!value) return "—";
+  if (!value) return "None";
   const seconds = Math.round((Date.now() - new Date(value).getTime()) / 1000);
   if (seconds < 60) return "just now";
   const minutes = Math.round(seconds / 60);
@@ -99,7 +99,7 @@ export function timeAgo(value) {
 }
 
 export function formatDuration(seconds) {
-  if (seconds == null) return "—";
+  if (seconds == null) return "None";
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   return `${m}:${String(s).padStart(2, "0")}`;

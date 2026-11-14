@@ -13,14 +13,14 @@ const WARNING_TEXT = {
   below_target_margin: (w) => `The estimated margin (${w.margin_percent}%) is below the ${w.target}% target.`,
   minutes_high: (w) => `More than ${Number(w.limit).toLocaleString("en-US")} minutes a month.`,
   price_zero: () => "The price is $0.",
-  overage_below_cost: (w) => `The pay-as-you-go rate is below the cost of a minute (about ${w.cost_cents}¢).`,
+  overage_below_cost: (w) => `The pay as you go rate is below the cost of a minute (about ${w.cost_cents}¢).`,
   costs_not_configured: (w) => `The unit costs aren't all set (${(w.detail ?? []).map((d) => d.replace(/_/g, " ")).join(", ")}), so the margin can't be worked out fully.`,
 };
 const FIELD_TEXT = { tier: "label", billing_interval: "billing", price_cents: "price", setup_fee_cents: "setup fee", minutes: "minutes", texts: "texts",
   emails: "emails", team_seats: "users", phone_numbers: "phone numbers", locations: "locations", languages: "languages", trial_enabled: "trial",
   overage_cents_per_minute: "pay-as-you-go rate" };
 
-const money = (cents) => (cents == null ? "—" : `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: cents % 100 ? 2 : 0, maximumFractionDigits: 2 })}`);
+const money = (cents) => (cents == null ? "None" : `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: cents % 100 ? 2 : 0, maximumFractionDigits: 2 })}`);
 const dollarsToCents = (v) => (String(v).trim() === "" || !/^\d+(\.\d{1,2})?$/.test(String(v).trim()) ? NaN : Math.round(Number(v) * 100));
 const whole = (v) => (String(v).trim() === "" || !/^\d+$/.test(String(v).trim()) ? NaN : Number(v));
 const newKey = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`);
@@ -160,7 +160,7 @@ export default function PlanStep({ businessId, info, onSaved, onDirty, Section, 
           </div>
           <div className="bp-grid" style={{ marginTop: 16 }}>
             <div>
-              {num("Pay-as-you-go rate", "overage", { prefix: "$", suffix: "/ extra min", errKey: "overage_cents_per_minute" })}
+              {num("pay as you go rate", "overage", { prefix: "$", suffix: "/ extra min", errKey: "overage_cents_per_minute" })}
               <p className="bp-muted" style={{ marginTop: 6 }}>Optional. Saved with the plan: the owner can choose pay as you go at this rate. Nothing is charged and calls are not kept going past the allowance until online payments and usage limits are switched on. Leave empty to not offer it.</p>
             </div>
           </div>
@@ -195,11 +195,11 @@ export default function PlanStep({ businessId, info, onSaved, onDirty, Section, 
       <aside className="bp-card bp-summary" aria-label="Plan summary">
         <div>
           <p className="bp-muted">{form.tier ? (form.tier === "pro" ? "Pro" : "Base") : "Choose a label"} · {yearly ? "billed yearly" : "billed monthly"}</p>
-          <div className="bp-price"><strong>{Number.isNaN(values.price_cents) ? "$—" : money(values.price_cents)}</strong><span>{yearly ? "/ year" : "/ month"}</span></div>
+          <div className="bp-price"><strong>{Number.isNaN(values.price_cents) ? "Not set" : money(values.price_cents)}</strong><span>{yearly ? "/ year" : "/ month"}</span></div>
           {values.setup_fee_cents > 0 && <p className="bp-sub">+ {money(values.setup_fee_cents)} setup fee</p>}
         </div>
         <div className={`bp-margin ${marginTone}`} aria-live="polite">
-          <div><span>Estimated margin</span><br /><strong>{checking && !est ? "…" : margin == null ? "—" : `${margin}%`}</strong></div>
+          <div><span>Estimated margin</span><br /><strong>{checking && !est ? "…" : margin == null ? "None" : `${margin}%`}</strong></div>
           <Badge tone={marginState === "good" ? "success" : marginState === "bad" ? "danger" : "neutral"}><>{marginWord}</></Badge>
         </div>
         {est && (
@@ -303,7 +303,7 @@ function ReviewDialog({ review, setReview, onConfirm, onClose, error }) {
     ["Setup fee", money(v.setup_fee_cents)], ["Each month", `${v.minutes.toLocaleString("en-US")} minutes, ${v.texts.toLocaleString("en-US")} texts, ${v.emails.toLocaleString("en-US")} emails`],
     ["Users, numbers, locations", `${v.team_seats}, ${v.phone_numbers}, ${v.locations}`], ["Languages", v.languages.map((l) => (l === "en" ? "English" : "Spanish")).join(" and ")],
     ["Trial", v.trial_enabled ? "On (5 days)" : "Off"],
-    ["Pay as you go", v.overage_cents_per_minute == null ? "Not offered" : `${money(v.overage_cents_per_minute)} per extra minute`], ["Estimated margin", est.margin_percent == null ? "—" : `${est.margin_percent}%`]];
+    ["Pay as you go", v.overage_cents_per_minute == null ? "Not offered" : `${money(v.overage_cents_per_minute)} per extra minute`], ["Estimated margin", est.margin_percent == null ? "None" : `${est.margin_percent}%`]];
   return (
     <div className="owner-modal-overlay">
       <div className="owner-modal wiz-unsaved-dialog" role="dialog" aria-modal="true" aria-labelledby="plan-review-title" ref={ref}>

@@ -346,7 +346,7 @@ function FlagModal({ record, onClose, act, today }) {
   const [f, setF] = useState({ kind: "waiting_parts", detail: "", expected: "" });
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   return (
-    <ActionModal title="Flag a problem" description={`On ${record.title}. It shows on the follow-through page until it's resolved.`} act={act} onClose={onClose} submit="Flag it"
+    <ActionModal title="Flag a problem" description={`On ${record.title}. It shows on the follow through page until it's resolved.`} act={act} onClose={onClose} submit="Flag it"
       onSubmit={() => act.run(() => supabase.rpc("zella_exception_open", { p_record_id: record.id, p_kind: f.kind, p_detail: f.detail || null, p_expected_by: f.expected || null }), "Problem flagged.")}>
       <div className="ba-form-grid">
         <Field label="What's wrong"><select value={f.kind} onChange={set("kind")}>{MANUAL_EXCEPTION_KINDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></Field>
@@ -399,7 +399,7 @@ export function FollowThroughPage({ workspace, types, refreshKey }) {
   const d = due.data;
   return (
     <div className="ba-page" data-follow="ready">
-      <PageHead crumb="Workspace / Follow-through" title="Follow-through" sub="Approvals you're waiting on, dates coming up, and problems holding work up, across every kind of record." />
+      <PageHead crumb="Workspace / Follow through" title="Follow through" sub="Approvals you're waiting on, dates coming up, and problems holding work up, across every kind of record." />
       <label className="ba-select">Dates in the next
         <select value={days} onChange={(e) => setDays(Number(e.target.value))} aria-label="How many days ahead">{[7, 14, 30, 60, 90].map((n) => <option key={n} value={n}>{n} days</option>)}</select>
       </label>

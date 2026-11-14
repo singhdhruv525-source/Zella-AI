@@ -14,7 +14,7 @@ const ABOUT = {
   "ai-sales": "Lets the receptionist answer pricing and service questions",
   "ai-support": "Lets the receptionist answer common questions",
   calls: "Call history, recordings and transcripts",
-  automations: "Reminders, follow-ups and other automatic steps",
+  automations: "Reminders, follow ups and other automatic steps",
   calendar: "Waitlist, and booking from the receptionist",
   sms: "Text messages to and from customers",
   email: "Email to and from customers",
@@ -49,7 +49,7 @@ export function BusinessModulesPanel({ w, onGo }) {
         <>
           {!n.configured && <Banner tone="warn">This business's industry isn't fully set up, so only shared CRM pages are shown. The Zella Voice team sets the industry.</Banner>}
           <Card title="Your industry" sub="Decides the words the CRM uses and which modules can be offered.">
-            <Facts rows={[["Industry", n.industry?.name ?? "Not set"], ["Operations menu", n.operations_label ?? "—"],
+            <Facts rows={[["Industry", n.industry?.name ?? "Not set"], ["Operations menu", n.operations_label ?? "None"],
               ["Customers are called", n.terminology?.customers ?? "Customers"], ["Bookings are called", n.terminology?.appointments ?? "Appointments"],
               ["Your access", words(n.role)]]} />
           </Card>
@@ -74,7 +74,7 @@ export function BusinessModulesPanel({ w, onGo }) {
           </Needs>
           <Card title="Not built yet" sub="Not shown in your menu until they work.">
             <Facts rows={[["Voicemails", "Calls with a recording are in Calls"], ["Reviews inbox", "Send your review link from SMS, email and messages"],
-              ["Marketing campaigns", "Lead sources shows where leads come from"], ["AI agents beyond the receptionist", "—"]]} />
+              ["Marketing campaigns", "Lead sources shows where leads come from"], ["AI agents beyond the receptionist", "None"]]} />
           </Card>
         </>
       );

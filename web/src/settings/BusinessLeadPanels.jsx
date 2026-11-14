@@ -93,7 +93,7 @@ function FormCard({ f, edit, onSaved }) {
   return (
     <Card title={f.name} sub={`Created ${when(f.created_at)}`} actions={<Pill tone={f.enabled ? "success" : ""}>{f.enabled ? "On" : "Off"}</Pill>}>
       <Facts rows={[["Form key", <code key="k">{f.public_key}</code>], ["Last 30 days", Object.keys(counts).length ? Object.entries(counts).map(([k, n]) => `${n} ${words(k).toLowerCase()}`).join(", ") : "No submissions"],
-        ["Last submission", f.last_submission_at ? when(f.last_submission_at) : "—"]]} />
+        ["Last submission", f.last_submission_at ? when(f.last_submission_at) : "None"]]} />
       <fieldset disabled={!edit} style={{ border: 0, padding: 0, margin: "12px 0 0" }}>
         <div className="zs-grid">
           <Field label="Name" hint="For you, for example Contact page."><input value={form.values.name} onChange={form.set("name")} maxLength={80} /></Field>
@@ -184,7 +184,7 @@ export function LeadRules({ w }) {
             <Banner tone="error">{error}</Banner>
             <Table rows={rules} empty="No rules yet: leads are shared by workload." columns={[
               ["Order", (r) => rules.indexOf(r) + 1], ["Rule", (r) => <strong>{r.name}</strong>], ["When", (r) => matchText(r.match)],
-              ["Assign to", (r) => (r.assign_to ? nameOf[r.assign_to] ?? "Former member" : "—")], ["Priority", (r) => (r.set_priority ? words(r.set_priority) : "—")],
+              ["Assign to", (r) => (r.assign_to ? nameOf[r.assign_to] ?? "Former member" : "None")], ["Priority", (r) => (r.set_priority ? words(r.set_priority) : "None")],
               ["State", (r) => <Pill tone={r.is_active ? "success" : ""}>{r.is_active ? "On" : "Off"}</Pill>],
               ["", (r) => edit && (
                 <div className="zs-actions">
@@ -269,7 +269,7 @@ export function LeadQuestions({ w }) {
   const [editing, setEditing] = useState(null);
   const [removing, setRemoving] = useState(null);
   const edit = can(w, LEAD);
-  const rule = (q) => (q.qualifies_when?.equals !== undefined ? `Answer is "${q.qualifies_when.equals}"` : q.qualifies_when?.min !== undefined ? `At least ${q.qualifies_when.min}` : "—");
+  const rule = (q) => (q.qualifies_when?.equals !== undefined ? `Answer is "${q.qualifies_when.equals}"` : q.qualifies_when?.min !== undefined ? `At least ${q.qualifies_when.min}` : "None");
   return (
     <LoadState state={state}>{(qs) => (
       <>
@@ -402,12 +402,12 @@ export function WebsiteSources({ w }) {
   return (
     <LoadState state={state}>{([s, pending]) => (
       <>
-        {!s.live && <Banner tone="warn">Reading websites isn't switched on for Zella Voice yet (it starts at go-live). You can add and approve your site now; pages are read once it starts.</Banner>}
+        {!s.live && <Banner tone="warn">Reading websites isn't switched on for Zella Voice yet (it starts at go live). You can add and approve your site now; pages are read once it starts.</Banner>}
         <Banner tone="error">{msg.error}</Banner>
         {msg.text && <Banner tone="success">{msg.text}</Banner>}
         <Card title="Your websites" sub="Zella Voice reads approved pages and drafts answers for your receptionist. Drafts wait in Business knowledge until someone approves them.">
           <Facts rows={[["Pages being read", s.pages?.approved ?? 0], ["Found, waiting for a decision", s.pages?.pending ?? 0], ["Broken or missing", (s.pages?.broken ?? 0) + (s.pages?.missing ?? 0)],
-            ["Draft answers waiting", s.drafts_waiting], ["Answers to re-check (page changed)", s.needs_check]]} />
+            ["Draft answers waiting", s.drafts_waiting], ["Answers to recheck (page changed)", s.needs_check]]} />
           <Table rows={s.sources} empty="No websites added." columns={[["Website", (x) => x.url], ["State", (x) => <Pill tone={x.status === "active" ? "success" : "warning"}>{x.status === "pending_approval" ? "Waiting for approval" : words(x.status)}</Pill>],
             ["Checked", (x) => FREQUENCY.find(([h]) => h === x.frequency_hours)?.[1] ?? `Every ${x.frequency_hours} hours`], ["New pages", (x) => (x.auto_approve_new ? "Read automatically" : "Ask first")],
             ["Last read", (x) => (x.last_error ? <span className="zs-error-text">{x.last_error}</span> : when(x.last_crawl_at))],

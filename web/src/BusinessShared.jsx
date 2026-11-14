@@ -7,11 +7,11 @@ import { blockCovers } from "./schedulingLogic";
 // Small pieces shared by the business app pages and the person profile.
 
 export const SOURCE_LABELS = {
-  manual: "Team", phone: "Phone", walk_in: "Walk-in", website: "Website", google: "Google",
+  manual: "Team", phone: "Phone", walk_in: "Walk in", website: "Website", google: "Google",
   meta: "Meta", referral: "Referral", call: "Call", voice: "Voice AI", other: "Other",
 };
 export const APPT_TONE = { scheduled: "warning", confirmed: "success", completed: "info", cancelled: "", no_show: "danger" };
-export const APPT_LABEL = { scheduled: "Scheduled", confirmed: "Confirmed", completed: "Completed", cancelled: "Canceled", no_show: "No-show" };
+export const APPT_LABEL = { scheduled: "Scheduled", confirmed: "Confirmed", completed: "Completed", cancelled: "Canceled", no_show: "No show" };
 export const PAGE_SIZE = 25;
 
 export { callResult, isAnswered } from "./copy/labels";
@@ -19,7 +19,7 @@ export { callResult, isAnswered } from "./copy/labels";
 export const sourceLabel = (s) => SOURCE_LABELS[s] ?? (s ? humanize(s) : "Other");
 export const plural = (n, word, many) => `${n} ${n === 1 ? word : many ?? `${word}s`}`;
 export const clock = (seconds) =>
-  seconds || seconds === 0 ? `${Math.floor(seconds / 60)}:${String(Math.round(seconds % 60)).padStart(2, "0")}` : "—";
+  seconds || seconds === 0 ? `${Math.floor(seconds / 60)}:${String(Math.round(seconds % 60)).padStart(2, "0")}` : "None";
 
 export function PageHead({ crumb, title, sub, children }) {
   return (
@@ -253,7 +253,7 @@ export function findConflict({ staff, blocks, start, end, staffId, timeZone, res
 // follow-up is queued by the database only when the "No-show follow-up"
 // automation is live, so this reports what is really going to happen.
 export async function noShowNotice(appointmentId, who, timeZone) {
-  const base = `${who} marked no-show.`;
+  const base = `${who} marked no show.`;
   const { data, error } = await supabase
     .from("followup_tasks")
     .select("due_at, channel")

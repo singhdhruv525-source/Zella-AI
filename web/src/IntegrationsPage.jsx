@@ -10,7 +10,7 @@ const PHONE_LABELS = { new_number: "New number", call_forwarding: "Forwarding", 
 const LEAD_LABELS = { meta: "Meta", website: "Website", google: "Google" };
 
 function Need({ wanted, connected, label }) {
-  if (!wanted) return <span className="op-muted">—</span>;
+  if (!wanted) return <span className="op-muted">None</span>;
   return (
     <span className={`in-need ${connected ? "ok" : ""}`}>
       {connected ? "✓ " : ""}{label}
@@ -84,7 +84,7 @@ export default function IntegrationsPage({ onOpenBusiness }) {
                           <Need key={l} wanted connected={r.leads.connected.includes(l)} label={LEAD_LABELS[l] ?? l} />
                         ))}
                       </div>
-                    ) : <span className="op-muted">—</span>}
+                    ) : <span className="op-muted">None</span>}
                   </td>
                 </tr>
               ))}
@@ -114,7 +114,7 @@ export default function IntegrationsPage({ onOpenBusiness }) {
                   <td>{c.integration_type}</td>
                   <td><Pill tone={c.status === "active" ? "success" : c.status === "error" ? "danger" : "neutral"}>{humanize(c.status)}</Pill></td>
                   <td>{formatDateTime(c.last_synced_at)}</td>
-                  <td className="op-muted">{c.error_message || "—"}</td>
+                  <td className="op-muted">{c.error_message || "None"}</td>
                 </tr>
               ))}
               {!connections?.length && (

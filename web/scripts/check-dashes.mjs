@@ -1,0 +1,64 @@
+#!/usr/bin/env node
+// Zella Voice writing rule: no dashes or hyphens in any text people read (docs/DESIGN_SYSTEM.md, "Writing").
+// Checks the app's source for:
+//   1. long dashes (U+2014, U+2013) anywhere outside comments: these are only ever text;
+//   2. hyphenated words in JSX text and in quoted strings that read as words people see (they contain a space,
+//      or are a known label prop such as title, label, placeholder, aria-label).
+// Code is not text: class names, CSS, imports, URLs, routes, keys, dates and ids are skipped.
+// Usage: node scripts/check-dashes.mjs [--list]   (exit 1 when anything is found)
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { join, relative } from "node:path";
+
+const ROOT = new URL("../src", import.meta.url).pathname;
+const LONG = /[—–]/;
+const WORD_HYPHEN = /[A-Za-z]-[A-Za-z]/;
+// a quoted string that is code, not words: class lists, css, paths, urls, keys, mime types, dates, regexes
+const CODE_STRING = /^(?:[a-z0-9_.:/#@?=&%-]+|[a-z][a-z0-9-]*(?:\s+[a-z][a-z0-9-]*)*|https?:\/\/\S+|\S+\/\S+|--[\w-]+|var\(.*\)|[\w-]+\s*:\s*.*;?)$/;
+// code that happens to sit in a quoted string: locale tags, CSS, file names, domains, HTTP header names
+const NOT_WORDS = /\ben-US\b|var\(--|\dpx solid|^\s*\.[a-z][\w-]*\s*,|\.(json|csv|pdf|png)\b|[a-z0-9-]+\.(com|io|dev|app)\b|\bX-[A-Z][\w-]+|^Content-(Type|Range|Length)$/;
+const LABEL_PROPS = /\b(title|label|placeholder|aria-label|alt|description|hint|help|message|text|heading|subtitle|empty|cta|button|confirmLabel|cancelLabel)\s*[:=]\s*$/;
+
+function files(dir) {
+  return readdirSync(dir).flatMap((n) => {
+    const p = join(dir, n);
+    if (statSync(p).isDirectory()) return files(p);
+    return /\.(jsx?|tsx?)$/.test(n) && !/\.test\.|_test\./.test(n) ? [p] : [];
+  });
+}
+
+// strip comments but keep line numbers
+function stripComments(src) {
+  return src.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " ")).replace(/(^|[^:"'`\\])\/\/[^\n]*/g, "$1");
+}
+
+const found = [];
+for (const f of files(ROOT)) {
+  const lines = stripComments(readFileSync(f, "utf8")).split("\n");
+  lines.forEach((line, i) => {
+    const where = `${relative(ROOT, f)}:${i + 1}`;
+    if (LONG.test(line)) { found.push([where, "long dash", line.trim()]); return; }
+    // JSX text between tags
+    for (const m of line.matchAll(/>([^<>{}]*[A-Za-z][^<>{}]*)</g)) {
+      if (WORD_HYPHEN.test(m[1]) && !/=>/.test(m[1]) && !NOT_WORDS.test(m[1])) found.push([where, "hyphen in text", m[1].trim()]);
+    }
+    // quoted strings
+    for (const m of line.matchAll(/(["'`])((?:\\.|(?!\1).)*)\1/g)) {
+      const s = m[2], before = line.slice(0, m.index);
+      if (!WORD_HYPHEN.test(s) || /\$\{/.test(s) && !/\s/.test(s)) continue;
+      if (/\b(className|class|style|href|to|src|key|id|type|name|path|route|rel|role|variant|kind|tone|icon|slug|status|action|mode)\s*[:=]\s*\{?\s*$/.test(before)) continue;
+      if (/\b(import|from|require|querySelector|getElementById|classList|addEventListener|matchMedia|rpc|from\(|select|eq|order|in|channel|on)\s*\(?\s*$/.test(before)) continue;
+      const isLabel = LABEL_PROPS.test(before);
+      // words people read: a phrase, or a capitalised label such as "Follow-up" in a list of choices
+      const reads = (/\s/.test(s.trim()) && /[A-Za-z]{2,}\s+[A-Za-z]/.test(s)) || /^[A-Z][a-z]+(-[A-Za-z]+)+$/.test(s.trim());
+      if (!isLabel && !reads) continue;
+      if (CODE_STRING.test(s) && !isLabel) continue;
+      if (NOT_WORDS.test(s)) continue;
+      found.push([where, "hyphen in text", s]);
+    }
+  });
+}
+
+if (process.argv.includes("--list")) for (const [w, k, t] of found) console.log(`${w}  ${k}: ${t.slice(0, 140)}`);
+const byKind = found.reduce((a, [, k]) => ((a[k] = (a[k] ?? 0) + 1), a), {});
+console.log(`check-dashes: ${found.length} found`, JSON.stringify(byKind));
+process.exit(found.length ? 1 : 0);

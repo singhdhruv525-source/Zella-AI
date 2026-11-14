@@ -163,7 +163,7 @@ export default function SettingsPage({ section, sub, ...handlers }) {
   if (!me) return <section className="owner-page"><Loading /></section>;
   return (
     <SettingsWorkspace
-      description={`Platform administration · signed in as ${me.roleLabel}${me.mfa ? " with two-step sign-in" : ""}`}
+      description={`Platform administration · signed in as ${me.roleLabel}${me.mfa ? " with two step sign in" : ""}`}
       registry={REGISTRY} category={section} item={sub} base="/settings" go={navigate} Icon={Glyph} context={context} />
   );
 }

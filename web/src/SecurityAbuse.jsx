@@ -41,12 +41,12 @@ const POLICY = [
   ["Alerts and retention", [
     ["calls_per_hour_alert", "Alert admins when a business gets this many calls in an hour", "calls"],
     ["incidents_per_day_alert", "Alert admins when one sender reaches this many contacts in a day", "contacts"],
-    ["notify_cooldown_per_hour", "Most high-risk emails to a business per hour", "emails"],
+    ["notify_cooldown_per_hour", "Most high risk emails to a business per hour", "emails"],
     ["retention_days", "Keep incidents for", "days"],
   ]],
 ];
 const TABS = [["overview", "Overview"], ["incidents", "Incidents"], ["coverage", "Protection by business"], ["policy", "Platform defaults"], ["rules", "Global block rules"], ["automation", "Automation"]];
-const when = (v) => (v ? new Date(v).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "—");
+const when = (v) => (v ? new Date(v).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "None");
 
 function NotSetUp() {
   return (
@@ -193,7 +193,7 @@ function Overview({ data, onOpenBusiness }) {
               </li>
             ))}
           </ul>
-        ) : <p className="op-muted">No open flood or call-volume alerts. These also appear in Platform operations.</p>}
+        ) : <p className="op-muted">No open flood or call volume alerts. These also appear in Platform operations.</p>}
       </section>
     </div>
   );
@@ -507,7 +507,7 @@ function Rules({ canManage, onChanged }) {
                 <td>{canManage && <button type="button" className="bd-danger-button" onClick={() => setRemoving(r)}>Remove</button>}</td>
               </tr>
             ))}
-            {rules && !rules.length && <tr><td colSpan={6}><div className="op-empty">No platform-wide rules. Businesses manage their own block lists.</div></td></tr>}
+            {rules && !rules.length && <tr><td colSpan={6}><div className="op-empty">No platform wide rules. Businesses manage their own block lists.</div></td></tr>}
             {!rules && <tr><td colSpan={6}><div className="op-empty">Loading rules...</div></td></tr>}
           </tbody>
         </table>

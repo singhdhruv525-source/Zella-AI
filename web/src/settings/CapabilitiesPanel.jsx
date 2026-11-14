@@ -108,7 +108,7 @@ export function CallContentAccess({ w }) {
 
   return (
     <LoadState state={state}>{(s) => (
-      <Card title="Who can read transcripts and play recordings" sub="Owners, admins and managers always can. View-only members never can.">
+      <Card title="Who can read transcripts and play recordings" sub="Owners, admins and managers always can. View only members never can.">
         <Banner tone="error">{error}</Banner>
         {s.sensitive === null ? (
           <p className="zs-muted">Choosing this needs the latest Zella Voice update.</p>

@@ -19,7 +19,7 @@ import { resourceRefusal, scheduleError } from "./schedulingLogic";
 const SOURCES = [
   ["manual", "Added by team"],
   ["phone", "Phone call"],
-  ["walk_in", "Walk-in"],
+  ["walk_in", "Walk in"],
   ["website", "Website"],
   ["google", "Google"],
   ["meta", "Facebook / Instagram"],
@@ -77,7 +77,7 @@ export function AddCustomerModal({ workspace, term, onClose, onDone }) {
           <Field label="Last name"><input value={form.last_name} onChange={set("last_name")} maxLength={100} /></Field>
           <Field label="Phone" bare><PhoneField value={form.phone} onChange={(phone) => setForm((f) => ({ ...f, phone }))} showErrors={showErrors} label="Phone" /></Field>
           <Field label="Email" bare><EmailField value={form.email} onChange={(email) => setForm((f) => ({ ...f, email }))} showErrors={showErrors} /></Field>
-          <Field label="Administrative notes" hint="Front-desk notes only. No medical or treatment details." full><textarea value={form.notes} onChange={set("notes")} maxLength={2000} /></Field>
+          <Field label="Administrative notes" hint="Front desk notes only. No medical or treatment details." full><textarea value={form.notes} onChange={set("notes")} maxLength={2000} /></Field>
         </div>
         {error && <p className="ba-error" role="alert">{error}</p>}
       </form>

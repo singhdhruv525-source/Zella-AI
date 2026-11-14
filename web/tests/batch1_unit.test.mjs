@@ -80,7 +80,7 @@ test("lead: a missing RPC never falls back, and says so plainly", async () => {
 
 test("lead: server refusals and network failures are explained without database wording", async () => {
   const cases = [["NOT_ALLOWED", /permission/], ["NO_CONTACT", /phone number or email/], ["BAD_EMAIL", /email/], ["NAME_REQUIRED", /name/],
-    ["BUSINESS_NOT_AVAILABLE", /paused/], ["MFA_REQUIRED", /authenticator/], ["JWT expired", /sign-in has expired/],
+    ["BUSINESS_NOT_AVAILABLE", /paused/], ["MFA_REQUIRED", /authenticator/], ["JWT expired", /sign in has expired/],
     ['duplicate key value violates unique constraint "customers_pkey"', /couldn't be added/]];
   for (const [message, want] of cases) {
     const r = await addLead(async () => ({ data: null, error: { message } }), "b", values);

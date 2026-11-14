@@ -45,7 +45,7 @@ export function EscalationControls({ call, onChanged, onNotice, compact }) {
     onChanged?.();
   }
 
-  const resolve = () => save(false, "Hand-off marked as handled.");
+  const resolve = () => save(false, "handoff marked as handled.");
 
   const flag = () => save(true, "Flagged for a human.");
 
@@ -60,7 +60,7 @@ export function EscalationControls({ call, onChanged, onNotice, compact }) {
         <span className="ba-muted">Handled {timeAgo(call.escalation_resolved_at)}</span>
       ) : (
         <>
-          <select value={reason} onChange={(e) => setReason(e.target.value)} aria-label="Reason for hand-off" disabled={busy}>
+          <select value={reason} onChange={(e) => setReason(e.target.value)} aria-label="Reason for handoff" disabled={busy}>
             {ESCALATION_REASONS.map((r) => <option key={r}>{r}</option>)}
           </select>
           <button type="button" className="ba-btn sm danger-outline" disabled={busy} onClick={flag}>
@@ -132,9 +132,9 @@ function followLabel(f) {
   const tries = `${f.attempts ?? 0} of ${f.max_attempts ?? 2} tries`;
   if (f.status === "pending") return "Zella Voice will call to offer a new time";
   if (f.status === "in_progress") return "Zella Voice is calling to offer a new time";
-  if (f.status === "cancelled") return "Follow-up call canceled";
-  const o = { rescheduled: "Rebooked after the follow-up call", wants_callback: "Asked for a call from the team", declined: "Declined a new time", no_answer: `No answer after ${tries}`, voicemail: `Voicemail after ${tries}`, failed: `Call failed after ${tries}`, sms_sent: "Text sent offering a new time" };
-  return o[f.outcome] ?? "Follow-up finished";
+  if (f.status === "cancelled") return "follow up call canceled";
+  const o = { rescheduled: "Rebooked after the follow up call", wants_callback: "Asked for a call from the team", declined: "Declined a new time", no_answer: `No answer after ${tries}`, voicemail: `Voicemail after ${tries}`, failed: `Call failed after ${tries}`, sms_sent: "Text sent offering a new time" };
+  return o[f.outcome] ?? "follow up finished";
 }
 
 function buildTimeline(person, calls, appts, convos, follows = [], cbs = [], tasks = []) {
@@ -150,7 +150,7 @@ function buildTimeline(person, calls, appts, convos, follows = [], cbs = [], tas
   return events.sort((a, b) => new Date(b.at) - new Date(a.at));
 }
 
-const TABS = [["overview", "Overview"], ["appointments", "Appointments"], ["records", "Records"], ["timeline", "Timeline"], ["calls", "Calls"], ["messages", "Messages"], ["followups", "Follow-ups"], ["lead", "Lead & quotes"], ["people", "People & consent"], ["privacy", "Privacy"]];
+const TABS = [["overview", "Overview"], ["appointments", "Appointments"], ["records", "Records"], ["timeline", "Timeline"], ["calls", "Calls"], ["messages", "Messages"], ["followups", "Follow ups"], ["lead", "Lead & quotes"], ["people", "People & consent"], ["privacy", "Privacy"]];
 
 export default function PersonProfile({ personId, workspace, onClose, onChanged, onNotice }) {
   const tz = workspace.timezone;
@@ -288,7 +288,7 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
                 <span>
                   <strong>Needs a person.</strong>{" "}
                   {openCalls[0].escalation_reason || "The AI receptionist handed this over."}{" "}
-                  {openCalls.length > 1 ? `(${openCalls.length} open hand-offs)` : ""}
+                  {openCalls.length > 1 ? `(${openCalls.length} open handoffs)` : ""}
                 </span>
                 {person.phone && <a className="ba-btn primary sm" href={`tel:${person.phone}`}><Icon name="call" size="sm" />Call now</a>}
               </div>
@@ -457,7 +457,7 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
                   <span><Icon name={i.icon} size="sm" /> {i.title}<small>{when(i.at, tz)}{i.detail ? ` · ${i.detail}` : ""}</small></span>
                   <Pill tone={i.done ? "success" : "warning"}>{i.done ? "Done" : "Open"}</Pill>
                 </div>
-              )) : <p className="ba-muted">No follow-ups yet.</p>;
+              )) : <p className="ba-muted">No follow ups yet.</p>;
             })()}
           </>
         )}

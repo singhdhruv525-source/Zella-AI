@@ -145,8 +145,8 @@ const owner = { workspaces: [ws(B1, "Glow Salon", "owner"), ws(B2, "Glow Downtow
     const text = await p.locator("body").innerText();
     check("invitation waiting: banner shown and workspace still open", /team invitation is waiting/i.test(text) && /Glow Salon/.test(text), text.slice(0, 160).replace(/\n/g, " | "));
     check("invitation problem named, no success message", /couldn't be accepted/i.test(text) && !/you've joined|accepted!/i.test(text));
-    await p.click('button:has-text("Email me a sign-in link")'); await p.waitForTimeout(800);
-    check("Email me a sign-in link calls sign-in by email (stubbed) and confirms", calls.includes("auth:otp") && /We sent a sign-in link/i.test(await p.locator("body").innerText()));
+    await p.click('button:has-text("Email me a sign in link")'); await p.waitForTimeout(800);
+    check("Email me a sign-in link calls sign-in by email (stubbed) and confirms", calls.includes("auth:otp") && /We sent a sign in link/i.test(await p.locator("body").innerText()));
     check("no page errors (invitation waiting)", errors.length === 0, errors.join("; "));
     await ctx.close();
   }

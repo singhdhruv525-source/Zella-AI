@@ -299,8 +299,8 @@ export function ResourcesPage({ workspace, refreshKey, onNotice }) {
                 <strong>{r.name}</strong>
                 {r.bookings.length || r.blocks.length ? (
                   <ul className="ba-small">
-                    {r.blocks.map((x) => <li key={x.id}><Pill tone="warning">Blocked</Pill> {formatTime(x.start, tz)}–{formatTime(x.end, tz)} {x.title}</li>)}
-                    {r.bookings.map((x) => <li key={x.id}>{formatTime(x.start, tz)}–{formatTime(x.end, tz)} {x.customer ?? x.title}{x.party_size > 1 ? ` (${x.party_size})` : ""}{x.state === "tentative" ? " · planned" : ""}</li>)}
+                    {r.blocks.map((x) => <li key={x.id}><Pill tone="warning">Blocked</Pill> {formatTime(x.start, tz)} to {formatTime(x.end, tz)} {x.title}</li>)}
+                    {r.bookings.map((x) => <li key={x.id}>{formatTime(x.start, tz)} to {formatTime(x.end, tz)} {x.customer ?? x.title}{x.party_size > 1 ? ` (${x.party_size})` : ""}{x.state === "tentative" ? " · planned" : ""}</li>)}
                   </ul>
                 ) : <span className="ba-muted ba-small"> Free all day.</span>}
               </div>

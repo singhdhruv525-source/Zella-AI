@@ -20,7 +20,7 @@ function ruleActions(rule = {}) {
   if (rule.message) parts.push(rule.mode === "draft" ? "write a message for a person to check and send" : "send a message");
   if (rule.task) parts.push("create a task for the team");
   if (rule.notify) parts.push("alert the owners");
-  return parts.length ? `${parts.join(", ").replace(/^./, (c) => c.toUpperCase())}.` : "—";
+  return parts.length ? `${parts.join(", ").replace(/^./, (c) => c.toUpperCase())}.` : "None";
 }
 function describeIndustry(type, cfg) {
   const kind = label(cfg.type_key || "record");
@@ -30,7 +30,7 @@ function describeIndustry(type, cfg) {
     return {
       trigger: rules.length ? `A record in ${kind} changes to ${rules.map((r) => `“${label(r.status)}”`).join(" or ")}` : `A record in ${kind} changes status`,
       conditions: noOptOut,
-      actions: rules.map((r) => ruleActions(r)).join(" ") || "—",
+      actions: rules.map((r) => ruleActions(r)).join(" ") || "None",
     };
   }
   if (type === "record_stale") {
@@ -45,10 +45,10 @@ function describeIndustry(type, cfg) {
     return { trigger: `${hoursText((cfg.after_days ?? 1) * 24)} after a completed visit`, conditions: noOptOut, actions: ruleActions(cfg.rule) };
   }
   if (type === "service_due") {
-    return { trigger: `A customer has not visited for ${cfg.days ?? 180} days`, conditions: `They have no upcoming visit. ${noOptOut}`, actions: "Send a short check-in message." };
+    return { trigger: `A customer has not visited for ${cfg.days ?? 180} days`, conditions: `They have no upcoming visit. ${noOptOut}`, actions: "Send a short check in message." };
   }
   if (type === "seasonal_reminder") {
-    return { trigger: "The first week of the chosen months", conditions: `They visited in the last 2 years and have nothing booked. ${noOptOut}`, actions: "Send a short check-in message." };
+    return { trigger: "The first week of the chosen months", conditions: `They visited in the last 2 years and have nothing booked. ${noOptOut}`, actions: "Send a short check in message." };
   }
   return null;
 }
@@ -69,7 +69,7 @@ export function describe(type, cfg = {}) {
       actions: `Ask them to confirm by ${ch}, ${hoursText(hoursList(cfg.hours_before)[0])} before.`,
     },
     no_show_follow_up: {
-      trigger: "Someone is marked as a no-show",
+      trigger: "Someone is marked as a no show",
       conditions: optOut,
       actions: `Reach out by ${ch} ${minsText(cfg.minutes_after ?? 15)} later to offer a new time.`,
     },
@@ -109,7 +109,7 @@ export function describe(type, cfg = {}) {
       actions: `Contact affected customers by ${ch} to rebook.`,
     },
   };
-  return map[type] ?? describeIndustry(type, cfg) ?? { trigger: "Set by Zella Voice", conditions: "—", actions: "—" };
+  return map[type] ?? describeIndustry(type, cfg) ?? { trigger: "Set by Zella Voice", conditions: "None", actions: "None" };
 }
 
 export const RUN_TONE = { completed: "success", failed: "danger", running: "info", queued: "warning", waiting: "warning", cancelled: "" };
@@ -175,7 +175,7 @@ export function RunsPanel({ runs, audits, nameOf, people, canManage, tz, onNotic
               <span className="ba-thread-icon"><Icon name="history" size="sm" /></span>
               <div>
                 <strong>{AUDIT_LABEL[a.action] ?? a.action}</strong>
-                <small>{nameOf[a.user_id] ?? "A team member"} · {timeAgo(a.created_at)}{a.new_data?.status && a.old_data?.status !== a.new_data.status ? ` · ${a.old_data?.status ?? "—"} to ${a.new_data.status}` : ""}</small>
+                <small>{nameOf[a.user_id] ?? "A team member"} · {timeAgo(a.created_at)}{a.new_data?.status && a.old_data?.status !== a.new_data.status ? ` · ${a.old_data?.status ?? "None"} to ${a.new_data.status}` : ""}</small>
               </div>
             </li>
           ))}

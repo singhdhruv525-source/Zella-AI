@@ -29,7 +29,7 @@ export function Facts({ rows }) {
   return (
     <dl className="zs-facts">
       {rows.filter(Boolean).map(([label, value]) => (
-        <div key={label}><dt>{label}</dt><dd>{value === null || value === undefined || value === "" ? "—" : value}</dd></div>
+        <div key={label}><dt>{label}</dt><dd>{value === null || value === undefined || value === "" ? "None" : value}</dd></div>
       ))}
     </dl>
   );
@@ -231,5 +231,5 @@ export function LinkRows({ rows }) {
 }
 
 export const words = humanize;
-export const when = (v) => (v ? new Date(v).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "—");
-export const money = (n, currency = "USD") => (n === null || n === undefined ? "—" : Number(n).toLocaleString("en-US", { style: "currency", currency: currency || "USD" }));
+export const when = (v) => (v ? new Date(v).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "None");
+export const money = (n, currency = "USD") => (n === null || n === undefined ? "None" : Number(n).toLocaleString("en-US", { style: "currency", currency: currency || "USD" }));
