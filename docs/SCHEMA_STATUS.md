@@ -84,7 +84,8 @@ Branch note: `zella_reminder_minutes.sql` and `zella_reminder_rules.sql` are on 
 
 ## New in this change (2026-10-26)
 
-None of these have been run on the live project. Run them in this order; each one is safe to re-run.
+Each row says whether it has been applied to the live project. Those marked **applied** must not be run again
+through a new apply; run the others in this order, with the owner's approval. Each one is safe to re-run.
 
 | File | What it does | Changes tables? |
 | --- | --- | --- |
