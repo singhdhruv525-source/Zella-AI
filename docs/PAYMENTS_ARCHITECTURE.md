@@ -542,16 +542,20 @@ worker can miss it), it creates the same amount as a **pending** invoice item in
 
 **Exactly one item per monthly period.** Each monthly-plan period's pay-as-you-go amount has one local billing row,
 changed only under the period lock: `uninvoiced` → `sending` → `attached` (with the Stripe item id). The send goes
-through the outbox sending protocol (§8): the key and the kind (draft or pending) are written **before** the call, and a
-lost reply goes to `reconcile`, which looks the item up (the draft invoice's lines and the pending items, by
-`metadata.period_id`). Found: `attached`. Not found: the **same send with the same key** again. Still unknown: `held`
-for a person, with an alert. A row in `sending`, `reconcile` or `held` is never switched to the other kind and never
+through the outbox sending protocol (§8): the key, the kind (draft or pending), the amount and its **watermark** (the
+last usage-ledger entry the amount includes) are written together **before** the call, under the period lock. A lost
+reply goes to `reconcile`, which looks the item up by `metadata.period_id` and `metadata.kind` in the pending items
+**and** in the lines of every invoice created for the customer since the send (an accepted pending item may already sit
+on the next invoice). Found: `attached`. Not found, within Stripe's 24-hour idempotency window: the **same send with
+the same key** again. Not found after that window, or still unknown: `held` for a person, with an alert, never a fresh
+send. A row in `sending`, `reconcile` or `held` is never switched to the other kind and never
 sent again under another key. An hourly reconcile acts only on monthly-plan periods past their end that are still
 `uninvoiced`, and creates the pending item through the same steps, so recorded usage is never left off every invoice
 and never billed twice.
 
-**Late usage** (recorded after the item, up to the billing close below) is billed **once, at the close**: one pending
-item with every late minute together (Idempotency-Key `payg:<period id>:late`, its own billing row, the same states),
+**Late usage** (every usage-ledger entry for the period after the main item's watermark, up to the billing close below,
+including entries that arrived while the main item was being sent) is billed **once, at the close**: one pending item
+with all of it together (Idempotency-Key `payg:<period id>:late`, its own billing row, the same states and lookups),
 which Stripe puts on the following invoice. Nothing late is billed before the close, so a second late report can never
 miss the item. Yearly plans are not in this flow: they have no invoice items and no billing row here, only the one
 PaymentIntent per period described next.
@@ -803,8 +807,8 @@ stateDiagram-v2
 | Auto-reload | `POST /v1/payment_intents` (`off_session`) | `reload:<purchase id>` | one pending reload per business (partial unique index) | same |
 | Yearly pay as you go | `POST /v1/payment_intents` | `payg:<period id>` | one per period | PaymentIntent by `metadata.period_id` |
 | Monthly pay as you go | `POST /v1/invoiceitems` on the draft renewal invoice | `payg:<period id>` | one billing row per period (`uninvoiced` → `attached`) | the invoice's lines |
-| Monthly pay as you go, draft already finalised | `POST /v1/invoiceitems` (pending, no `invoice`) | `payg:<period id>:pending` | the same billing row: only one of the two is created | pending items by `metadata.period_id` |
-| Monthly pay as you go, late usage | `POST /v1/invoiceitems` (pending), once at the billing close | `payg:<period id>:late` | one per period, all late minutes | pending items by `metadata.period_id` |
+| Monthly pay as you go, draft already finalised | `POST /v1/invoiceitems` (pending, no `invoice`) | `payg:<period id>:pending` | the same billing row: only one of the two is created | pending items and the lines of invoices created since the send, by `metadata.period_id` and `metadata.kind` |
+| Monthly pay as you go, late usage | `POST /v1/invoiceitems` (pending), once at the billing close | `payg:<period id>:late` | one per period: every entry after the main item's watermark | pending items and the lines of invoices created since the send, by `metadata.period_id` and `metadata.kind` |
 | Final invoices after a cancel | invoice item + `POST /v1/invoices` + finalize + pay | `final:<period id>:<main\|late>:<item\|invoice\|finalize\|pay>` | unique (period, kind) | invoices by `metadata.final_kind` |
 | Upgrade | `POST /v1/subscriptions/:id` | `upgrade:<change id>` | one pending change per subscription | subscription `pending_update`, latest invoice |
 | Downgrade | `POST /v1/subscription_schedules` | `downgrade:<change id>` | one scheduled change per subscription | the subscription's schedule |
