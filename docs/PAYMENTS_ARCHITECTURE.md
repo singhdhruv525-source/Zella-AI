@@ -697,6 +697,31 @@ sequenceDiagram
 A trial is cancelled at once instead (`DELETE /v1/subscriptions/:id`, key `cancelnow:<subscription id>`), because nothing has
 been paid. A cancelled subscription is never restarted; a returning owner starts a new one through Checkout.
 
+### 6.11 Invoice emails: sent automatically by Zella Voice
+
+Every invoice is emailed to the business automatically by **our** system (Resend, the Zella Voice name and
+address), not only by Stripe. Nobody has to press a button.
+
+| When | What the owner gets | Sent from |
+|---|---|---|
+| `invoice.finalized` (every invoice: first payment, renewal, upgrade proration, pay-as-you-go, final invoice after a cancel) | **Your invoice**: number, period, every line (plan, setup fee, packs, pay-as-you-go minutes, credits, tax), total, the card it will be charged to, and links to Stripe's hosted invoice page and PDF | the worker, after the event is stored and the invoice fetched (§5, §6.0b) |
+| `invoice.paid` | **Paid**: the same invoice marked paid, with the PDF receipt link | the same worker |
+| `invoice.payment_failed` | **Payment failed**: what happens next and the link to pay (§6.3) | the same worker |
+| `invoice.voided` after the invoice email was sent | **Invoice cancelled**: that invoice no longer needs paying | the same worker |
+| Yearly pay-as-you-go and pack charges (PaymentIntents, no Stripe invoice) | **Receipt** with the same detail, from our own `invoices` / `invoice_lines` rows | on `payment_intent.succeeded` |
+
+Rules:
+- **Once per invoice and kind.** Each email is an outbox row with the key `email:<kind>:<invoice id>` (unique), so a
+  retried or repeated webhook never sends twice; a failed send retries with the same key and alerts after the last try.
+- **One sender.** Stripe's own invoice and receipt emails are turned **off** (§16.6) so the owner never gets two copies;
+  Stripe's hosted page and PDF stay as the links in our email.
+- **To whom.** The business's billing email (owner by default, editable in Settings › Billing); never a customer of
+  the business.
+- **The amounts come from Stripe's invoice** (fetched, not from the event payload) and match our `invoices` rows; a
+  mismatch holds the email and alerts instead of sending a wrong amount.
+- **No real email from development or tests.** Staging uses Stripe's sandbox and a test inbox; sending to real owners
+  happens only in production after the owner's approval (§14).
+
 ### 6.8 Disputes (chargebacks)
 
 ```mermaid
@@ -886,6 +911,7 @@ stateDiagram-v2
 | Monthly pay as you go, draft already finalised | `POST /v1/invoiceitems` (pending, no `invoice`) | `payg:<period id>:pending` | the same billing row: only one of the two is created | pending items and the lines of invoices created since the send, by `metadata.period_id` and `metadata.kind` |
 | Monthly pay as you go, late usage | `POST /v1/invoiceitems` (pending), once at the billing close | `payg:<period id>:late` | one per period: every row still unclaimed at the close | pending items and the lines of invoices created since the send, by `metadata.period_id` and `metadata.kind` |
 | Monthly pay as you go, re-billed after its invoice was voided unpaid (admin decision) | `POST /v1/invoiceitems` (pending) | `payg:<period id>:r<n>` | the same billing row, `held` → `uninvoiced` by an audited admin action; or `waived` with a ledger entry | pending items and the lines of invoices created since the send, by `metadata.period_id` |
+| Invoice and receipt emails (§6.11) | outbox email row | `email:<kind>:<invoice id>` | one per invoice and kind (unique) | the outbox row and Resend's message id |
 | Credit for a correction to billed usage | one negative invoice item on the next renewal draft, or a reduced yearly pay-as-you-go PaymentIntent; after the subscription ended, a refund (§6.7) | `credit:<renewal invoice id>`; the PaymentIntent's own `payg:<period id>`; `refund:<refund id>` | one ledger credit per correcting row (`credit:<row id>`), split into allocation lines (`credit:<row id>:<charge id>`), each consumed once, returned to open if the renewal invoice that claimed it is voided unpaid; a yearly charge reduced to zero is `settled_by_credit`, one below Stripe's minimum is carried (`carry:<period id>`) or written off (`writeoff:<period id>`) | the invoice's lines, the PaymentIntent, refunds per original payment (each line once); a charge's funding (payment + consumed lines) |
 | Final invoices after a cancel | invoice item + `POST /v1/invoices` + finalize + pay | `final:<period id>:<main\|late>:<item\|invoice\|finalize\|pay>` | unique (period, kind) | invoices by `metadata.final_kind` |
 | Upgrade | `POST /v1/subscriptions/:id` | `upgrade:<change id>` | one pending change per subscription | subscription `pending_update`, latest invoice |
@@ -1134,7 +1160,7 @@ pinned in the request header and changed only on purpose.
 | Upgrade / downgrade | subscription update with `pending_if_incomplete` / subscription schedule | §6.6 |
 | Pay as you go | invoice item on the renewal invoice | §6.9 |
 | Auto-reload, packs | PaymentIntent on the saved card (`off_session`), or Checkout in payment mode | §6.4 |
-| Card change, receipts | **Customer Portal** (card update only), Stripe receipts | no card data in our pages |
+| Card change, receipts | **Customer Portal** (card update only); invoices and receipts emailed by us (§6.11) with Stripe's hosted invoice and PDF links | no card data in our pages |
 | Refunds | **Refunds** API | partial allowed, never above the charge |
 | Chargebacks | **Disputes** | events + evidence API |
 | US sales tax | **Stripe Tax** (optional, D-50) | |
@@ -1189,8 +1215,9 @@ forget keys after 24 hours.
 | `customer.subscription.trial_will_end` | our trial reminder (§6.2) |
 | `customer.subscription.deleted` | `cancelled` at period end, or a trial cancel |
 | `invoice.created` | add pay as you go to the renewal draft, then 200 quickly (§6.9) |
-| `invoice.paid` | binding check (§6.0a), then by the invoice's `billing_reason`: `subscription_create` → first period and buckets (§6.1, §6.2); `subscription_cycle` → renewal: new period, monthly reset, rollover (§6.3); `subscription_update` → the paid upgrade: new plan version and the prorated extra allowance for the **current** period, no reset (§6.6); `manual` → the invoice we created (final pay-as-you-go invoice, §6.9) matched by our stored invoice id. Any other reason is quarantined |
-| `invoice.voided`, `invoice.deleted` | find, **from our own records**, every billing row (main, pending, late, re-bill) and every credit line attached to that invoice id; lock their periods in ascending period id, then in one transaction: each billing row `attached` → `held` with one alert and finance task, each claimed credit line back to open (§6.9). `invoice.voided`: the invoice is fetched first and nothing is done if it was paid. `invoice.deleted`: no fetch (Stripe deletes only drafts, and a deleted invoice may not be retrievable). It acts only if **our** `invoices` row for that id is still `draft`: we record `invoice.created` (draft) and every later status from `invoice.finalized`, `invoice.paid` and `invoice.voided`, and the event's own payload must also say `status: draft`. If our row says finalised or paid, or we have no row, nothing is changed: the event is held with an alert for a person. To be confirmed in the Stripe sandbox with the pinned API version before this goes live |
+| `invoice.paid` | binding check (§6.0a), then by the invoice's `billing_reason`: `subscription_create` → first period and buckets (§6.1, §6.2); `subscription_cycle` → renewal: new period, monthly reset, rollover (§6.3); `subscription_update` → the paid upgrade: new plan version and the prorated extra allowance for the **current** period, no reset (§6.6); `manual` → the invoice we created (final pay-as-you-go invoice, §6.9) matched by our stored invoice id. Any other reason is quarantined; then the Paid email (§6.11) |
+| `invoice.voided`, `invoice.deleted` | find, **from our own records**, every billing row (main, pending, late, re-bill) and every credit line attached to that invoice id; lock their periods in ascending period id, then in one transaction: each billing row `attached` → `held` with one alert and finance task, each claimed credit line back to open (§6.9). `invoice.voided`: the invoice is fetched first and nothing is done if it was paid. `invoice.deleted`: no fetch (Stripe deletes only drafts, and a deleted invoice may not be retrievable). It acts only if **our** `invoices` row for that id is still `draft`: we record `invoice.created` (draft) and every later status from `invoice.finalized`, `invoice.paid` and `invoice.voided`, and the event's own payload must also say `status: draft`. If our row says finalised or paid, or we have no row, nothing is changed: the event is held with an alert for a person. To be confirmed in the Stripe sandbox with the pinned API version before this goes live. `invoice.voided` for an invoice already emailed also sends the Invoice cancelled email (§6.11) |
+| `invoice.finalized` | invoice email (§6.11) |
 | `invoice.payment_failed`, `invoice.payment_action_required` | `past_due`, notice + email; link to confirm on Stripe's page |
 | `payment_intent.succeeded`, `payment_intent.payment_failed` | packs and auto-reload (§6.4) |
 | `refund.created`, `refund.updated`, `refund.failed`, `charge.refunded` | §6.7 |
@@ -1208,7 +1235,7 @@ yet is kept and applied when its parent arrives, fetching the object from the AP
 | After all retries fail | leave the subscription past due | our 5-day pause decides service |
 | Past-due resolution | the most recent invoice | §6.3 |
 | Trial ending events | 2 days before the end (day 3) | our reminders |
-| Customer emails | Stripe receipts and failed-payment emails on, with the Zella Voice name; our own notices for the pause | *prove* in the sandbox |
+| Customer emails | Stripe's invoice, receipt and failed-payment emails **off**: Zella Voice sends every invoice, receipt and payment notice itself (§6.11) | *prove* in the sandbox that Stripe sends none |
 | Customer Portal | card update only (no plan changes or cancel there) | plan changes go through our checks |
 | Payment methods | cards | USD, US customers |
 | Separate sandbox and live webhook endpoints | sandbox → staging, live → production; each endpoint pinned to the same API version as our requests | a sandbox event can never grant in live (§6.0a: `livemode` and account checked); payload shapes stay what we tested |
