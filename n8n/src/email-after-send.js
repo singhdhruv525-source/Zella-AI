@@ -1,4 +1,4 @@
-// Zella - Email Sender: turn the provider's answer into the message update and the reminder result.
+// Zella Voice - Email Sender: turn the provider's answer into the message update and the reminder result.
 // The provider's response text is never stored, only its status and a short error name.
 const prev = $('After log').item.json;
 const status = Number($json.statusCode);

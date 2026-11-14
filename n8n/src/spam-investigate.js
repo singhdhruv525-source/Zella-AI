@@ -1,4 +1,4 @@
-// Zella - Spam Response: repeat-offender check for incidents that need a closer look. Uses only the counts the
+// Zella Voice - Spam Response: repeat-offender check for incidents that need a closer look. Uses only the counts the
 // database handed over (never another business's name or messages) and writes down what was found. Any action
 // that follows (a temporary restriction, a platform alert) is decided by the database's approved policy.
 const s = $json;

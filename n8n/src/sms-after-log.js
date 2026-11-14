@@ -1,4 +1,4 @@
-// Zella - SMS Sender: after the message is logged, decide whether to really send.
+// Zella Voice - SMS Sender: after the message is logged, decide whether to really send.
 // A repeat of the same reminder is never sent twice. In dry-run nothing is sent.
 const d = $('Decide').item.json;
 const status = Number($json.statusCode);

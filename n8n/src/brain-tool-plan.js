@@ -1,4 +1,4 @@
-// Zella - Receptionist Brain: the webhook for every tool the phone assistant (Vapi) uses during a call.
+// Zella Voice - Receptionist Brain: the webhook for every tool the phone assistant (Vapi) uses during a call.
 // Runs once for the whole request and returns ONE ITEM PER TOOL CALL, each with its own tool call id and one database
 // call (zella_ai_tool, which checks, acts, verifies and logs). A request that isn't a tool call returns one item with an
 // empty reply. The parsing is shared with the voice-rules edge function (web/supabase/functions/_shared/vapi-brain-tools.js,

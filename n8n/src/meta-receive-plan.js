@@ -1,4 +1,4 @@
-// Zella - Meta Webhook: Meta posts events here (leads, messages, comments). The exact bytes it sent are kept, because the
+// Zella Voice - Meta Webhook: Meta posts events here (leads, messages, comments). The exact bytes it sent are kept, because the
 // signature is made over those bytes. The database checks the signature with the app secret in Vault; this step never sees it.
 const first = $input.first();
 const headers = first.json.headers && typeof first.json.headers === 'object' ? first.json.headers : {};

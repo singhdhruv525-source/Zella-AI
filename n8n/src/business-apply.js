@@ -1,4 +1,4 @@
-// Zella - Vapi tools: put the business found from the called number into the database call.
+// Zella Voice - Vapi tools: put the business found from the called number into the database call.
 // All callers query with p_fallback null: only a trusted registered phone association can return an id.
 // Unlinked call settings are rejected. Existing calls are resolved by the acting RPC even with a null business id.
 const plan = $('Plan').item.json;

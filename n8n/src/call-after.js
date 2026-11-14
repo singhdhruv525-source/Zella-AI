@@ -1,4 +1,4 @@
-// Zella - Outbound Calls: what Vapi answered when asked to place the call.
+// Zella Voice - Outbound Calls: what Vapi answered when asked to place the call.
 // Accepted -> remember the provider's call id (the result arrives later from Vapi's end-of-call report).
 // Refused or unreachable -> count it as a failed attempt so the normal retry rules apply.
 const plan = $('Plan').item.json;

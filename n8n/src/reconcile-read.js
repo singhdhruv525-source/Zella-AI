@@ -1,4 +1,4 @@
-// Zella - Call Reconciliation: hand the database only the fields it records (ids, times, ended reason, numbers,
+// Zella Voice - Call Reconciliation: hand the database only the fields it records (ids, times, ended reason, numbers,
 // summary, transcript, recording link). The database checks the id matches and that the call really ended.
 const plan = $('Plan').item.json;
 const status = Number($json.statusCode);
