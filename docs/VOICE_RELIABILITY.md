@@ -51,7 +51,7 @@ repeated-failure alert and backup switch.
 **Call tracking.** One row per provider call id (unique index plus `on conflict` in both writers). Vapi
 `status-update` events (ringing, in-progress, forwarding, ended) create the call as it starts and are applied once
 and in order (`zella_record_call_status`, from Call Results in n8n and from `voice-rules`). Calls whose report never
-arrives are fetched from Vapi's API (`GET /call/{id}`) by the new **Zella - Call Reconciliation** workflow
+arrives are fetched from Vapi's API (`GET /call/{id}`) by the new **Zella Voice - Call Reconciliation** workflow
 (`zella_calls_to_reconcile`, `zella_reconcile_call`; off until `call_reconcile_live`). No invented data: a missing
 duration stays empty, and an estimated end time is labelled `received_time`.
 

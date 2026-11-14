@@ -1532,11 +1532,11 @@ const al = (o) => ({ id: 'a1', kind: 'offer_ending_soon', severity: 'info', titl
 test('admin alerts: nothing waiting means nothing is sent', () => assert.equal(aplan({ alerts: [], to: ['a@b.co'], from: 'z@zella.ai' }).skip, true));
 test('admin alerts: one alert uses its title as the subject', () => {
   const p = aplan({ alerts: [al()], to: ['a@b.co'], from: 'z@zella.ai', from_name: 'Zella' });
-  assert.equal(p.resend.subject, '[Zella] Offer ending soon: Spring'); assert.deepEqual(p.ids, ['a1']); assert.equal(p.resend.from, 'Zella <z@zella.ai>');
+  assert.equal(p.resend.subject, '[Zella Voice] Offer ending soon: Spring'); assert.deepEqual(p.ids, ['a1']); assert.equal(p.resend.from, 'Zella <z@zella.ai>');
 });
 test('admin alerts: many alerts make one digest that counts urgent ones', () => {
   const p = aplan({ alerts: [al(), al({ id: 'a2', severity: 'urgent', title: 'Job failed' })], to: ['a@b.co'], from: 'z@zella.ai' });
-  assert.equal(p.resend.subject, '[Zella] 2 alerts (1 urgent)'); assert.ok(p.resend.text.includes('URGENT: Job failed'));
+  assert.equal(p.resend.subject, '[Zella Voice] 2 alerts (1 urgent)'); assert.ok(p.resend.text.includes('URGENT: Job failed'));
 });
 test('admin alerts: no recipients puts the alerts back instead of sending', () => {
   const p = aplan({ alerts: [al()], to: ['not-an-email'], from: 'z@zella.ai' });

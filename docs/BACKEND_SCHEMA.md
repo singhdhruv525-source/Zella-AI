@@ -13,10 +13,10 @@ It reads the catalog only, never rows.
 
 | What | Count |
 |---|---|
-| Tables (schema `public`) | 170 |
-| Tables with row security on | 170 of 170 |
+| Tables (schema `public`) | 171 |
+| Tables with row security on | 171 of 171 |
 | Row security policies | 340 |
-| Columns | 2019 |
+| Columns | 2024 |
 | Views | 1 |
 | Functions | 889 (826 security definer, 26 callable by `anon`) |
 
@@ -60,7 +60,7 @@ Each is a database job; most stay off until the owner approves going live (see `
 
 ## Contents
 
-- [Tenancy, people and access](#tenancy-people-and-access): `businesses`, `business_members`, `business_invitations`, `profiles`, `staff_members`, `staff_handovers`, `time_off_requests`, `platform_admins`, `platform_role_permissions`, `sensitive_approvals`, `legal_documents`, `legal_acceptances`, `audit_logs`, `rate_limits`
+- [Tenancy, people and access](#tenancy-people-and-access): `businesses`, `business_members`, `business_invitations`, `profiles`, `staff_members`, `staff_handovers`, `time_off_requests`, `platform_admins`, `platform_role_permissions`, `sensitive_approvals`, `legal_documents`, `legal_acceptances`, `audit_logs`, `zella_function_archive`, `rate_limits`
 - [Business setup and industry configuration](#business-setup-and-industry-configuration): `industries`, `industry_configurations`, `industry_modules`, `business_modules`, `business_capabilities`, `industry_crm_presets`, `industry_automation_presets`, `industry_automation_defaults`, `industry_automation_runs`, `industry_message_policy`, `business_hours`, `business_closures`, `business_languages`, `business_voice`, `business_phone_numbers`, `business_verification_documents`, `provisioning_steps`, `activation_tests`, `config_migration_snapshots`, `zella_milestones`, `platform_settings`, `business_usage_preferences`
 - [Customers and CRM](#customers-and-crm): `customers`, `customer_relationships`, `customer_requests`, `customer_consents`, `contact_consents`, `duplicate_reviews`, `crm_tasks`, `crm_record_types`, `crm_records`, `crm_record_events`, `crm_record_files`, `crm_record_secrets`, `record_workflow_presets`, `record_approvals`, `record_milestones`, `record_inspections`, `record_exceptions`, `record_credits`, `quotes`, `customer_charges`, `customer_charge_payments`, `data_rights_requests`
 - [Leads](#leads): `lead_rules`, `lead_questions`, `lead_submissions`, `website_forms`, `website_sources`, `website_pages`, `google_lead_keys`, `google_lead_events`, `assignment_rules`
@@ -385,6 +385,21 @@ Append-only record of every privileged action. Only the server can write it.
 - `business_id` → `public.businesses` (on delete cascade).
 - `user_id` → `auth.users` (on delete set null).
 - Row security: on; policies: business members can view audit logs (select), zella_mfa_required (all).
+
+### `zella_function_archive`
+
+Original function definitions a migration replaced, kept for its exact rollback (server only, no tenant data).
+
+| Column | Type | Required | Default |
+|---|---|---|---|
+| `migration` | text | yes |  |
+| `signature` | text | yes |  |
+| `definition` | text | yes |  |
+| `definition_md5` | text | yes |  |
+| `saved_at` | timestamp with time zone | yes | now() |
+
+- Primary key: `migration, signature`.
+- Row security: on; no policies, so roles subject to row security (signed-in users and anon) get no rows directly. Superusers and `BYPASSRLS` roles (such as the server key) are not limited by it, nor is the table owner unless `FORCE ROW LEVEL SECURITY` is set; a security definer function runs with its function owner's rights.
 
 ### `rate_limits`
 
@@ -5227,8 +5242,8 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_store_connect(p_business_id uuid, p_actor uuid, p_shop_domain text, p_access_token text, p_shop_name text)` | uuid | yes | server only |
 | `zella_store_disconnect(p_business_id uuid)` | integer | yes | signed in |
 | `zella_store_lookup_begin(p_provider_call_id text, p_business_id uuid, p_order_ref text, p_caller_number text)` | jsonb | yes | server only |
-| `zella_store_lookup_context(p_provider_call_id text, p_business_id uuid, p_order_ref text)` | jsonb | yes | server only |
 | `zella_store_lookup_context(p_provider_call_id text, p_business_id uuid)` | jsonb | yes | server only |
+| `zella_store_lookup_context(p_provider_call_id text, p_business_id uuid, p_order_ref text)` | jsonb | yes | server only |
 | `zella_store_lookup_finish(p_business_id uuid, p_provider_call_id text, p_integration_id uuid, p_result text, p_verified boolean, p_order_ref text, p_reservation_id uuid)` | void | yes | server only |
 | `zella_store_lookup_log(p_business_id uuid, p_provider_call_id text, p_integration_id uuid, p_result text, p_verified boolean)` | void | yes | server only |
 | `zella_store_lookup_log(p_business_id uuid, p_provider_call_id text, p_integration_id uuid, p_result text, p_verified boolean, p_order_ref text)` | void | yes | server only |
@@ -5382,8 +5397,8 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_available_slots(p_business_id uuid, p_from timestamp with time zone, p_to timestamp with time zone, p_duration_minutes integer, p_staff_id uuid, p_step_minutes integer, p_limit integer, p_ignore_appointment uuid)` | TABLE(slot_start timestamp with time zone, slot_end timestamp with time zone, staff_id uuid, staff_name text) | yes | signed in |
 | `zella_begin_record_file(p_record_id uuid, p_file_name text, p_mime_type text, p_size_bytes bigint, p_caption text, p_private boolean)` | jsonb | yes | signed in |
 | `zella_block_trigger()` | trigger | yes | server only |
-| `zella_book_appointment(p_business_id uuid, p_customer_id uuid, p_title text, p_start timestamp with time zone, p_duration_minutes integer, p_staff_id uuid, p_party_size integer, p_notes text, p_metadata jsonb)` | uuid | yes | server only |
 | `zella_book_appointment(p_business_id uuid, p_customer_id uuid, p_title text, p_start timestamp with time zone, p_duration_minutes integer, p_staff_id uuid, p_party_size integer, p_notes text)` | uuid | yes | signed in |
+| `zella_book_appointment(p_business_id uuid, p_customer_id uuid, p_title text, p_start timestamp with time zone, p_duration_minutes integer, p_staff_id uuid, p_party_size integer, p_notes text, p_metadata jsonb)` | uuid | yes | server only |
 | `zella_brand_name_pairs()` | TABLE(fn text, md5_before text, old_text text, new_text text) |  | server only |
 | `zella_caller_context(p_business_id uuid, p_phone text)` | jsonb | yes | server only |
 | `zella_caller_context_base(p_business_id uuid, p_phone text)` | jsonb | yes | server only |

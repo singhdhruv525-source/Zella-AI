@@ -1,4 +1,4 @@
-// Zella - Meta Sender: what happened. Success keeps only Meta's message id; failures keep a short code, never the response text.
+// Zella Voice - Meta Sender: what happened. Success keeps only Meta's message id; failures keep a short code, never the response text.
 const plan = $('Build request').item.json;
 if (plan.fail) return { json: { record: plan.fail } };
 const r = $json;

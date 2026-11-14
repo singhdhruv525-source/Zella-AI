@@ -1,4 +1,4 @@
-// Zella - Owner Emails: turn the provider's answer into the message update and the notification result.
+// Zella Voice - Owner Emails: turn the provider's answer into the message update and the notification result.
 // The provider's response text is never stored, only its status and a short error name.
 const prev = $('After log').item.json;
 const status = Number($json.statusCode);

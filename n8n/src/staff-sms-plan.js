@@ -1,4 +1,4 @@
-// Zella - Staff Texts: one text to a team member, decided by the database (who, what, and the hourly limit).
+// Zella Voice - Staff Texts: one text to a team member, decided by the database (who, what, and the hourly limit).
 // Only a well-formed phone number and a short plain message get through.
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const j = $json || {};

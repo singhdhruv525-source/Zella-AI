@@ -6,7 +6,7 @@
 
 <!-- coderabbit-ai-generated-section:v1:797ab3303e0febfe676bedd880bfd4a44636cb43b4fff7a3935fd1a21526bff1 -->
 
-# Zella n8n workflows
+# Zella Voice n8n workflows
 
 All workflows are shared by every business and every industry. Nothing business-specific lives in n8n: the database holds the rules, n8n moves the work.
 
@@ -37,7 +37,7 @@ Handlers for reminders, callbacks, SMS sending, email, Meta and the website are 
 
 ## The dispatcher and the timed jobs (Supabase, not n8n)
 
-Run `sql/zella_dispatcher.sql` **last**, after every other Zella SQL file, then do its one-time secret step. It turns on `pg_cron` and `pg_net` and sets up:
+Run `sql/zella_dispatcher.sql` **last**, after every other Zella Voice SQL file, then do its one-time secret step. It turns on `pg_cron` and `pg_net` and sets up:
 
 - **Timed jobs inside Supabase** (UTC): every 5 minutes (overdue leads, expire held slots, expire waitlist offers, transfer failures), every 15 minutes (quote follow-ups), every hour (daily summaries: a business is posted once, at its own local 8am), daily 04:00 (lead reactivation up to 200, setup incomplete, trials, payment policy), Monday 08:00 (weekly reviews). A job that fails raises one grouped platform alert. These cost no n8n runs.
 - **The dispatcher, on urgent saves plus a once-a-minute safety net.** It counts what is due for each worker workflow (events, text reminders, email reminders, follow-up texts, follow-up emails, owner emails) and calls that workflow's webhook (`/webhook/zella/run/<name>`) only if the count is above zero. It counts only the kinds the workflow really handles, so unhandled work can never make it call n8n forever.
@@ -105,7 +105,7 @@ Run `sql/zella_waitlist_offers.sql` (after `zella_reschedule.sql`). The Follow-u
 
 Run `sql/zella_callback_alerts.sql` (and re-run `zella_dispatcher.sql` at go-live so the timer picks it up). No new n8n workflow: it is a timed database job (every 5 minutes) and the Owner Emails workflow emails the alerts.
 
-- A callback that is due but still open raises **one warning** after a short wait: 10 minutes for urgent callbacks, 30 for others, 60 when Zella is meant to place the call itself (it gets time to try first). If the callback is assigned, the warning goes to that person; otherwise to the owners and admins.
+- A callback that is due but still open raises **one warning** after a short wait: 10 minutes for urgent callbacks, 30 for others, 60 when Zella Voice is meant to place the call itself (it gets time to try first). If the callback is assigned, the warning goes to that person; otherwise to the owners and admins.
 - If it is still open **3 hours** after it was due, owners get **one urgent alert**.
 - Warnings and urgent alerts are emailed (see "Who is emailed" below). A callback moved to a later time can warn again when it is late again. Closed, cancelled and completed callbacks never alert.
 
@@ -113,7 +113,7 @@ Run `sql/zella_callback_alerts.sql` (and re-run `zella_dispatcher.sql` at go-liv
 
 Run `sql/zella_outbound_calls.sql` (needs `zella_followups.sql` and the callbacks file). Import `workflows/zella-outbound-calls.json`.
 
-- Two things are called: **callbacks Zella may place itself** (missed call, new lead; the business switched auto-call on) and **follow-up tasks set to "call"** (no-show, after a visit, a quote).
+- Two things are called: **callbacks Zella Voice may place itself** (missed call, new lead; the business switched auto-call on) and **follow-up tasks set to "call"** (no-show, after a visit, a quote).
 - The workflow claims what is due, and only when `calls_live` is true **and** `vapi_assistant_id` and `vapi_phone_number_id` are set does it ask Vapi to place the call. Otherwise nothing is dialled: the item is put back (no attempt used) and comes up again in 12 hours.
 - Calling hours, do-not-contact and attempt limits apply as before. A person who cannot be called (opted out, no number) moves to a text, then an email.
 - A bad phone number is recorded as a failed attempt. A refused Vapi request counts as a failed attempt, so the normal retry rules apply.
@@ -138,7 +138,7 @@ Run `sql/zella_reschedule.sql` after `zella_email_sender.sql`.
 
 Run `sql/zella_owner_emails.sql` after `zella_email_sender.sql`.
 
-- **Daily summary:** every hour the scheduler checks each business; at 8am its local time it posts "Your day with Zella" (calls, missed, bookings, new customers, today's appointments, what needs attention). Once a day, and only when there is something to say. It appears in the app's notifications either way.
+- **Daily summary:** every hour the scheduler checks each business; at 8am its local time it posts "Your day with Zella Voice" (calls, missed, bookings, new customers, today's appointments, what needs attention). Once a day, and only when there is something to say. It appears in the app's notifications either way.
 - **Who is emailed:** a daily summary, a weekly review, or any warning or urgent alert. Notifications for the whole business go to active owners and admins; notifications for one person go to that person. A person can switch email off (or on) for any kind in `notification_preferences`. Anything else is marked `skipped / not_emailed` and stays in-app only.
 - **Same safety as the other senders:** dry-run until `email_live` is true, one email per notification and address, a sent email is never downgraded by a later failure, and a notification stuck in `sending` for 30 minutes is picked up again.
 - **Not covered yet:** a settings screen for the preferences, staff invitation emails (`zella_check_invitations`), SMS alerts for staff.
@@ -205,7 +205,7 @@ Run `sql/zella_knowledge_automation.sql` (needs `zella_knowledge.sql`). Import `
 Run the third section of `sql/zella_knowledge_automation.sql` (it is in the same file). Import `workflows/zella-assistant-tools.json` (webhook `/webhook/zella/vapi-tools`, same `X-Zella-Secret`). It runs only when the phone assistant calls it during a call. Several tool calls in one request each get their own answer.
 
 - In Vapi, add a **server tool** named `report_unanswered_question` with one text parameter `question`, pointing at that webhook. Tell the assistant to use it when it does not know an answer, and then to say the team will get back to the caller.
-- The workflow logs the question for the owner (`zella_report_unanswered`). The business comes from the call when Zella already knows the call, otherwise from a registered called number. A call with no business is rejected. At most 5 questions per call; the same question is one review item that counts up.
+- The workflow logs the question for the owner (`zella_report_unanswered`). The business comes from the call when Zella Voice already knows the call, otherwise from a registered called number. A call with no business is rejected. At most 5 questions per call; the same question is one review item that counts up.
 <!-- coderabbit-ai-generated:v1 -->
 
 <!-- coderabbit-ai-generated-section:v1:32b09a5303caaa421d96bcc3e70a4e6258839b800a1932e6565c28211f5ed541 -->
@@ -224,7 +224,7 @@ Run `sql/zella_ai_booking.sql` (needs `zella_run_all.sql`). Import `workflows/ze
 
 - In Vapi add two **server tools** pointing at that webhook: `check_availability` (optional: `date` as YYYY-MM-DD, `days`, `duration_minutes`) and `book_appointment` (`start` exactly as returned by check_availability, `first_name`, `last_name`, `phone`, optional `email`, `title`, `notes`, `duration_minutes`).
 - **The database decides everything** (`zella_ai_booking`): the calendar's working hours, breaks, time off and existing bookings are respected. Times are up to 5 openings, in the business's own time zone.
-- If the time was just taken, the caller is offered other times. A booking is only confirmed after the calendar accepts it. If Zella cannot tell who the caller is for sure, or anything unexpected happens, a **request** is saved for staff and the assistant is told not to say it is booked.
+- If the time was just taken, the caller is offered other times. A booking is only confirmed after the calendar accepts it. If Zella Voice cannot tell who the caller is for sure, or anything unexpected happens, a **request** is saved for staff and the assistant is told not to say it is booked.
 - The same caller asking twice for the same time is booked once. Reminders and the confirmation message come from the normal booking rules.
 - The business comes from an existing call or a registered called number. A `business_id` in call settings alone is refused by the workflow lookup.
 - **Changing an existing booking by phone** (same workflow, three more Vapi server tools): `find_my_appointments`, `reschedule_appointment` (`appointment_id` from find, `start` from check_availability) and `cancel_appointment` (`appointment_id`). The caller is recognised **only by the number they are calling from** (taken from Vapi's call, never from what is said). Only an exact match to one customer can see or change that customer's own upcoming bookings. If the caller cannot be matched, nothing is shown or changed and a callback is created for staff. A move that fails leaves the original booking unchanged and offers other times. Cancelling frees the time (waitlist offers and staff notices follow the normal rules).
@@ -247,11 +247,11 @@ Run `sql/zella_engine_health.sql`, then `sql/zella_dispatcher.sql` (it adds the 
 - **Pile-ups raise one alert per queue** (reminders waiting over 30 minutes, follow-ups over 60, events over 15, owner notifications over 60) and clear themselves when the queue is empty. A pile-up usually means the engine is switched off or a provider is down. The alerts reach you through the normal platform alert delivery.
 
 ## Google Calendar sync
-Workflow `Zella - Calendar Sync` (webhook `zella/run/calendar-sync`). Zella's database stays the source of truth for free times and bookings; Google is a copy plus a source of busy times.
+Workflow `Zella Voice - Calendar Sync` (webhook `zella/run/calendar-sync`). Zella Voice's database stays the source of truth for free times and bookings; Google is a copy plus a source of busy times.
 - **Booking to Google:** when a confirmed booking is created or changed (or cancelled), a trigger puts a row in `calendar_sync_queue` (only for businesses with an active connection). The workflow creates, updates or deletes the Google event and saves its id on the appointment. Failures retry up to 5 times (5, 10, 15 ... minutes), then raise a platform alert.
-- **Google to Zella:** the workflow lists the next 60 days of events and replaces the imported `blocked_times` (cancelled, "free" and Zella-made events are ignored; all-day events block the day in UTC). Refreshed when a connection is made, and hourly by `zella_schedule_calendar_pulls`. A lost-access error pauses the link and alerts.
+- **Google to Zella Voice:** the workflow lists the next 60 days of events and replaces the imported `blocked_times` (cancelled, "free" and Zella Voice-made events are ignored; all-day events block the day in UTC). Refreshed when a connection is made, and hourly by `zella_schedule_calendar_pulls`. A lost-access error pauses the link and alerts.
 - Nothing runs until `calendar_sync_live` is true. The refresh token is kept in Vault (`zella_gcal_<business id>`); it passes through the workflow run data when talking to Google. Configure the Google and Microsoft Custom Auth credentials described in GO-LIVE.md on both token boxes for each provider. Refresh tokens pass through execution data; Calendar Sync disables all execution-data saving.
-- Known limits: paginated responses are rejected and retried without replacing stored busy times; if an owner deletes a Zella event in Google, later edits to it fail (retry then alert); one calendar per business.
+- Known limits: paginated responses are rejected and retried without replacing stored busy times; if an owner deletes a Zella Voice event in Google, later edits to it fail (retry then alert); one calendar per business.
 
 ## Phone number to business link
 Table `business_phone_numbers` (number in +1... form, optional Vapi phone number id, active or paused). `zella_register_phone_number(business, number, vapi_id, label)` adds one (service role only; a number cannot belong to two businesses). In the two Vapi tool workflows (Assistant Tools and Appointment Booking) a "Find business" step calls `zella_business_for_number` with the called number and Vapi number id before the database call:
@@ -268,7 +268,7 @@ All in the database; no n8n runs. `assignment_rules` (per business): `off`, `rou
 There is no screen for these settings yet.
 
 ## Complaints, corrections and privacy requests
-Database only. `zella_log_customer_request` (service role) records a complaint, data correction, data access or data deletion request once (repeats within 24 hours are not duplicated), gives it a due time (complaint 24 hours or 4 if urgent, correction 3 days, privacy 30 days) and routes it: complaints and corrections to the next available person (same sharing rules as leads), privacy requests to an owner or admin. Privacy requests start as `waiting_verification`: Zella never releases or deletes data by itself; a person checks who is asking and does the work. Staff close a request with `zella_update_customer_request` (a note is required; only owners/admins can resolve privacy requests). Hourly, `zella_check_customer_requests` alerts owners and admins once about overdue requests. The phone assistant logs them through the `log_customer_request` tool in the Assistant Tools workflow (it is told to promise nothing and read out no personal details). Not wired yet: a web form and a screen for staff.
+Database only. `zella_log_customer_request` (service role) records a complaint, data correction, data access or data deletion request once (repeats within 24 hours are not duplicated), gives it a due time (complaint 24 hours or 4 if urgent, correction 3 days, privacy 30 days) and routes it: complaints and corrections to the next available person (same sharing rules as leads), privacy requests to an owner or admin. Privacy requests start as `waiting_verification`: Zella Voice never releases or deletes data by itself; a person checks who is asking and does the work. Staff close a request with `zella_update_customer_request` (a note is required; only owners/admins can resolve privacy requests). Hourly, `zella_check_customer_requests` alerts owners and admins once about overdue requests. The phone assistant logs them through the `log_customer_request` tool in the Assistant Tools workflow (it is told to promise nothing and read out no personal details). Not wired yet: a web form and a screen for staff.
 
 ## Customer messages (welcome, feedback, cancellation, status updates, service due, no reply)
 
@@ -308,7 +308,7 @@ Run `sql/zella_ops_extras.sql`. All database. Callbacks can be reassigned, resch
 ## Inbound email, reply sorting and delivery receipts
 
 - `zella-inbound-email` (webhook `zella/inbound-email?key=...`, workflow id aQhmKPDKYGDsfgGu): Resend posts an `email.received` event; the workflow fetches the email from Resend and hands it to Supabase (`zella_receive_inbound_email`, in `sql/zella_email_inbound.sql`). The database checks the secret key (same Vault secret as the email-events webhook), finds the business from the address, links the customer by exact email match, threads it into the inbox, sorts it (auto-reply, unsubscribe, complaint, cancel, reschedule, confirm, question, other) and tells the team. An unsubscribe reply stops marketing email at once.
-- Each business gets its own inbound address `<token>@<inbound_email_domain>` (platform setting `inbound_email_domain`). Outgoing Zella emails use it as Reply-To once the domain is set; until then the business email is used as before.
+- Each business gets its own inbound address `<token>@<inbound_email_domain>` (platform setting `inbound_email_domain`). Outgoing Zella Voice emails use it as Reply-To once the domain is set; until then the business email is used as before.
 - Text delivery receipts: the router now handles `message.delivered` and `message.delivery_failed` (`zella_record_sms_receipt`). Failed texts tell the business.
 - Welcome email: when a business first goes live its owners get a welcome message through the normal owner email lane.
 
@@ -336,7 +336,7 @@ All of it lives in `sql/zella_meta.sql` (already applied to the live database) a
 ## Ops automation and staff texts
 Run `sql/zella_staff_sms.sql` and `sql/zella_ops_automation.sql` (both safe to repeat), then re-run `sql/zella_dispatcher.sql`.
 - Settings rollback, a plain change list, knowledge rollback, 1-in-N spot checks of AI answers, wrong-answer reports, a daily team summary and a daily reconciliation run from Supabase. No n8n box is involved.
-- **Zella - Staff Texts** (`staff-sms` lane, workflow `1MWk3sY3c5d1oYEx`, unpublished) sends urgent alerts by text to team members who turned it on for themselves (`zella_set_my_sms_alerts`, needs a phone number on their profile). Max 5 per business per hour. Nothing is claimed until `sms_live` is true and `sms_from_number` is set. Put the Telnyx key on the "Send via Telnyx" box only.
+- **Zella Voice - Staff Texts** (`staff-sms` lane, workflow `1MWk3sY3c5d1oYEx`, unpublished) sends urgent alerts by text to team members who turned it on for themselves (`zella_set_my_sms_alerts`, needs a phone number on their profile). Max 5 per business per hour. Nothing is claimed until `sms_live` is true and `sms_from_number` is set. Put the Telnyx key on the "Send via Telnyx" box only.
 
 ## Social booking chat
 Run `sql/zella_social_flow.sql` after `zella_meta.sql` (safe to repeat). Off by default; an owner turns it on per page with `zella_meta_set_flow(business, page_id, true)`.
@@ -448,7 +448,7 @@ After a call ends with a real transcript it waits in `call_insights`. When `call
 - Safety: off by default; no AI key in the workflow (add it by hand in the "Ask AI" box at go-live, header `x-api-key`); 3 tries per call; monthly limit per business (`call_intel_monthly_limit`, default 300, then skipped); calls of suspended/cancelled businesses are skipped.
 - Not built: a screen to show suggestions (staff can read them with `zella_call_insights_list`; the Calls page needs a panel - see `docs/FRONTEND_TODO.md`), summaries for calls with no transcript, and mood trends.
 
-## Admin alerts (Zella - Admin Alerts)
+## Admin alerts (Zella Voice - Admin Alerts)
 Run `sql/zella_admin_alerts.sql`. Webhook `zella/run/admin-alerts`, started by the dispatcher when open platform alerts have not been emailed and email is live. `zella_claim_admin_alert_email` hands out up to 25 alerts (urgent first) with the active admins' addresses; the workflow sends one plain-text digest through Resend and reports back with `zella_finish_admin_alert_email` (a failed send is retried up to 3 times; the alert itself stays open in the dashboard either way). Offers & Promotions raise alerts for: ending soon, limit nearly reached, limit reached, unusual claims, could not go live, ended (summary), and a failed schedule job.
 
 ## Spam Response (`spam-response` lane, workflow `a7Nfsi9mkQbBmc0L`, unpublished)
@@ -471,7 +471,7 @@ Flow: Run now -> Claim work (`zella_spam_claim_work`) -> Evaluate severity -> lo
   per call → `brain-tool-collect.js`). Failures use Vapi's `error` field; the transfer number is never in a tool result.
 - **Call Results** also takes `status-update` (set the assistant's server messages to `end-of-call-report` and
   `status-update`): the call is recorded as it starts (`zella_record_call_status`), so a lost report can't erase it.
-- **Zella - Call Reconciliation** (`zella-call-reconciliation.json`, lane `call-reconcile`, not imported yet) fetches
+- **Zella Voice - Call Reconciliation** (`zella-call-reconciliation.json`, lane `call-reconcile`, imported and tested in n8n on 28 Oct 2026, unpublished) fetches
   Vapi's record of calls whose report never arrived. Off until `call_reconcile_live`; the "Fetch Vapi call" box ships
   with no credential (add `Authorization: Bearer <Vapi private key>` by hand).
 - **Voice Rules** no longer hands the transfer number to the model (`use_transfer_tool` instead).
