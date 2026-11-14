@@ -13,12 +13,13 @@ LIVE=(zella_platform_roles_fix zella_booking_buffers zella_channel_review zella_
   zella_holiday_availability zella_delivery_evidence zella_arrival_windows zella_tables zella_relationships zella_scheduling zella_slots_resource_blocks zella_record_workflows
   zella_batch1_security zella_batch3_pagination zella_brand_name zella_rollback_security zella_n8n_webhook_auth zella_record_files_purge_retry zella_replace_business_hours
   zella_order_lookup_reservations zella_review_sql_fixes zella_seating_handoff)
-"$REPO/tests/lib/build_full.sh" $DB "$REPO/tests/channel/fixture.sql" $(for m in "${LIVE[@]}"; do echo "$REPO/sql/$m.sql"; done) > /dev/null || exit 1
+LIVE_FILES=(); for m in "${LIVE[@]}"; do LIVE_FILES+=("$REPO/sql/$m.sql"); done
+"$REPO/tests/lib/build_full.sh" "$DB" "$REPO/tests/channel/fixture.sql" "${LIVE_FILES[@]}" > /dev/null || exit 1
 fails=0; ok() { echo "PASS $*"; }; bad() { echo "FAIL $*"; fails=$((fails + 1)); }
 q() { "${P[@]}" -d $DB -c "$1"; }
 HASHES="select string_agg(proname || '=' || md5(pg_get_functiondef(oid)), ',' order by proname) from pg_proc where pronamespace = 'public'::regnamespace and proname in ('zella_unsubscribe_email', 'zella_unsubscribe_lookup')"
 LIVE_HASHES="zella_unsubscribe_email=2b0cbe3cdba9216fa630cf447a0153a8,zella_unsubscribe_lookup=6b71e36b82cc134696fdc3d57bd71fb2"
-NEW_HASHES="zella_unsubscribe_email=c7eb60f1b441645e252c4f689bbfeedd,zella_unsubscribe_lookup=0605c81618c91fa8f23973d5f107a12d"
+NEW_HASHES="zella_unsubscribe_email=ad6686f0473c98add9cbbe4e16327345,zella_unsubscribe_lookup=24d10fcf5dbfad0ee6f87c22acdfef05"
 [ "$(q "$HASHES")" = "$LIVE_HASHES" ] && ok "both functions match production's versions (read 13 Nov 2026)" || bad "build differs from production: $(q "$HASHES")"
 
 for i in 1 2; do out=$("${P[@]}" -d $DB -f "$REPO/sql/zella_unsubscribe_limit.sql" 2>&1) || { bad "apply (run $i): $(echo "$out" | grep -m2 -E 'ERROR|CONTEXT' | tr '\n' ' ')"; exit 1; }; done
@@ -38,6 +39,8 @@ do $$ declare r jsonb; i int; n int; begin
   -- lookup: a valid link answers with the business; a wrong one doesn't; past 30 per 10 minutes it asks to wait
   assert public.zella_unsubscribe_lookup(repeat('a', 32)) ->> 'ok' = 'true', 'lookup of a valid link';
   assert public.zella_unsubscribe_lookup(repeat('c', 32)) ->> 'ok' = 'false', 'lookup of an unknown link';
+  for i in 1..40 loop perform public.zella_unsubscribe_lookup(repeat('c', 32)); end loop;
+  assert public.zella_unsubscribe_lookup(repeat('c', 32)) = '{"ok": false}'::jsonb, 'an unknown link is never "busy"';
   assert public.zella_unsubscribe_lookup('not-a-link') = '{"ok": false}'::jsonb, 'lookup of a malformed link';
   for i in 2..30 loop perform public.zella_unsubscribe_lookup(repeat('a', 32)); end loop;
   r := public.zella_unsubscribe_lookup(repeat('a', 32));
@@ -46,6 +49,10 @@ do $$ declare r jsonb; i int; n int; begin
   raise notice 'PASS the lookup answers a valid link, refuses a wrong one, and asks to wait past 30 calls per link';
 end $$;
 reset role;
+do $$ begin
+  assert not exists (select 1 from rate_limits where key = 'unsub:view:' || repeat('c', 32)), 'an unknown link created a rate-limit row';
+  raise notice 'PASS an unknown link is answered before counting: no rate-limit row';
+end $$;
 SQL
 ) && echo "$out" | grep -o 'PASS .*' || bad "lookup: $(echo "$out" | grep -m2 -E 'ERROR|CONTEXT' | tr '\n' ' ')"
 
@@ -73,6 +80,35 @@ do $$ begin
             and channel = 'email' and purpose = 'marketing') = 1, 'the first opt-out was refused by the limit';
   assert (select count(*) from contact_consents where customer_id not in ('cc000000-0000-4000-8000-000000000001', 'cc000000-0000-4000-8000-000000000002')) = 0, 'another person was touched';
   raise notice 'PASS the save records one opt-out for 25 clicks, and records a first opt-out even when the limit is used up (opt-out always wins)';
+end $$;
+-- link A again, past the one-minute guard: the opt-out is older than a minute and the save limit is used up, so the
+-- rate limit (not the one-minute guard) is what stops another write
+update contact_consents set recorded_at = now() - interval '5 minutes' where customer_id = 'cc000000-0000-4000-8000-000000000001';
+set role anon;
+do $$ declare r jsonb; begin
+  r := public.zella_unsubscribe_email(repeat('a', 32));
+  assert r ->> 'ok' = 'true', 'over the limit, already opted out: ' || r::text;
+end $$;
+reset role;
+do $$ begin
+  assert (select count(*) from contact_consents where customer_id = 'cc000000-0000-4000-8000-000000000001' and status = 'opted_out') = 1,
+    'over the limit, a person already opted out got another consent row';
+  raise notice 'PASS past the one-minute guard, the save limit alone stops more writes for a person already opted out';
+end $$;
+-- link A, opted back in since: the latest choice is "opted in", so even over the limit the opt-out is recorded (NN-8)
+insert into contact_consents (business_id, customer_id, email_lower, channel, purpose, status, source, evidence, recorded_at)
+  select business_id, id, 'a@example.test', 'email', 'marketing', 'opted_in', 'web_form', '{"test": true}'::jsonb, now() - interval '2 minutes'
+    from customers where id = 'cc000000-0000-4000-8000-000000000001';
+set role anon;
+do $$ declare r jsonb; begin
+  r := public.zella_unsubscribe_email(repeat('a', 32));
+  assert r ->> 'ok' = 'true', 'over the limit, opted back in: ' || r::text;
+end $$;
+reset role;
+do $$ begin
+  assert (select status from contact_consents where customer_id = 'cc000000-0000-4000-8000-000000000001' order by recorded_at desc limit 1) = 'opted_out',
+    'over the limit, a person who had opted back in was not opted out';
+  raise notice 'PASS over the limit, a person whose latest choice is "opted in" is still opted out (opt-out always wins)';
 end $$;
 SQL
 ) && echo "$out" | grep -o 'PASS .*' || bad "save: $(echo "$out" | grep -m2 -E 'ERROR|CONTEXT' | tr '\n' ' ')"

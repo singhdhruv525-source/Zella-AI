@@ -6,11 +6,11 @@ do $$
 declare v text;
 begin
   v := md5(pg_get_functiondef('public.zella_unsubscribe_lookup(text)'::regprocedure));
-  if v not in ('6b71e36b82cc134696fdc3d57bd71fb2', '0605c81618c91fa8f23973d5f107a12d') then
+  if v not in ('6b71e36b82cc134696fdc3d57bd71fb2', '24d10fcf5dbfad0ee6f87c22acdfef05') then
     raise exception 'VERSION_MISMATCH: public.zella_unsubscribe_lookup(text) has changed since zella_unsubscribe_limit; not restored';
   end if;
   v := md5(pg_get_functiondef('public.zella_unsubscribe_email(text)'::regprocedure));
-  if v not in ('2b0cbe3cdba9216fa630cf447a0153a8', 'c7eb60f1b441645e252c4f689bbfeedd') then
+  if v not in ('2b0cbe3cdba9216fa630cf447a0153a8', 'ad6686f0473c98add9cbbe4e16327345') then
     raise exception 'VERSION_MISMATCH: public.zella_unsubscribe_email(text) has changed since zella_unsubscribe_limit; not restored';
   end if;
 end $$;

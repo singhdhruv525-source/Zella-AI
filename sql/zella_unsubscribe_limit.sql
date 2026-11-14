@@ -2,8 +2,10 @@
 -- zella_unsubscribe_lookup and zella_unsubscribe_email can be called by anyone, without signing in. The link code is
 -- 32 random hex characters, so it cannot be guessed; the risk is a script hammering a known link, which costs
 -- database work and, for the save, writes consent rows. Both now count calls per link (zella_rate_limit):
---   lookup  30 per 10 minutes per link; over it the answer is {ok: false, reason: "busy"} (the page asks to wait)
---   save    10 per 10 minutes per link; over it, a person already opted out is told so and nothing is written
+--   lookup  30 per 10 minutes per link; over it the answer is {ok: false, reason: "busy"} (the page still offers
+--           the Unsubscribe button). An unknown link is answered before counting, so it creates no rate-limit row.
+--   save    10 per 10 minutes per link; over it, a person whose latest choice is "opted out" is told so and nothing
+--           is written
 -- Opt-out always wins (NN-8): the first opt-out from a link is always recorded, whatever the count. There is no
 -- platform-wide cap, so a burst of genuine opt-outs after a large email is never refused. No per-address limit:
 -- the forwarded address is set by the client and cannot be trusted here.
@@ -17,11 +19,11 @@ do $$
 declare v text;
 begin
   v := md5(pg_get_functiondef('public.zella_unsubscribe_lookup(text)'::regprocedure));
-  if v not in ('6b71e36b82cc134696fdc3d57bd71fb2', '0605c81618c91fa8f23973d5f107a12d') then
+  if v not in ('6b71e36b82cc134696fdc3d57bd71fb2', '24d10fcf5dbfad0ee6f87c22acdfef05') then
     raise exception 'VERSION_MISMATCH: public.zella_unsubscribe_lookup(text) is not the version this file was written against (expected the live version or this file version)';
   end if;
   v := md5(pg_get_functiondef('public.zella_unsubscribe_email(text)'::regprocedure));
-  if v not in ('2b0cbe3cdba9216fa630cf447a0153a8', 'c7eb60f1b441645e252c4f689bbfeedd') then
+  if v not in ('2b0cbe3cdba9216fa630cf447a0153a8', 'ad6686f0473c98add9cbbe4e16327345') then
     raise exception 'VERSION_MISMATCH: public.zella_unsubscribe_email(text) is not the version this file was written against (expected the live version or this file version)';
   end if;
 end $$;
@@ -35,10 +37,11 @@ as $function$
 declare v_name text;
 begin
   if p_token is null or p_token !~ '^[0-9a-f]{32}$' then return jsonb_build_object('ok', false); end if;
-  -- per link: a person opens their own link a few times; a script hammering one link is told to wait
-  if not public.zella_rate_limit('unsub:view:' || p_token, 30, 600) then return jsonb_build_object('ok', false, 'reason', 'busy'); end if;
+  -- an unknown link is answered before anything is counted, so random codes never create rate-limit rows
   select b.name into v_name from public.email_unsubscribe_tokens t join public.businesses b on b.id = t.business_id where t.token = p_token;
   if not found then return jsonb_build_object('ok', false); end if;
+  -- per link: a person opens their own link a few times; a script hammering one link is told to wait
+  if not public.zella_rate_limit('unsub:view:' || p_token, 30, 600) then return jsonb_build_object('ok', false, 'reason', 'busy'); end if;
   return jsonb_build_object('ok', true, 'business', v_name);
 end $function$;
 
@@ -54,11 +57,12 @@ begin
   select * into t from public.email_unsubscribe_tokens where token = p_token;
   if not found then return jsonb_build_object('ok', false); end if;
   select name into v_name from public.businesses where id = t.business_id;
-  -- opt-out always wins (NN-8): the limit never stops the first opt-out. Over the limit, a person who is already
-  -- opted out is told so and nothing more is written; one who is not yet opted out is still recorded.
+  -- opt-out always wins (NN-8): the limit never stops an opt-out. Over the limit, a person whose LATEST email
+  -- marketing choice is already "opted out" is told so and nothing more is written; anyone else (never opted out, or
+  -- opted back in since) is still recorded.
   v_within := public.zella_rate_limit('unsub:save:' || p_token, 10, 600);
-  if not v_within and exists (select 1 from public.contact_consents c where c.business_id = t.business_id and c.customer_id = t.customer_id
-                                and c.channel = 'email' and c.purpose = 'marketing' and c.status = 'opted_out') then
+  if not v_within and (select c.status from public.contact_consents c where c.business_id = t.business_id and c.customer_id = t.customer_id
+                         and c.channel = 'email' and c.purpose = 'marketing' order by c.recorded_at desc limit 1) = 'opted_out' then
     return jsonb_build_object('ok', true, 'business', v_name);
   end if;
   select lower(email) into v_mail from public.customers where id = t.customer_id;
