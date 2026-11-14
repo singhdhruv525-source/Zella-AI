@@ -566,17 +566,23 @@ never bill past the close.
 **Corrections are never cut off, and are credited exactly once.** The close stops only **new** usage. Negative rows
 (a call shortened or marked spam) follow one rule, for monthly and yearly plans alike:
 
-1. **Net first.** Every claim (main, late, or yearly) takes the period's unclaimed negative rows **whatever their
-   date**, together with the positive rows before the close. A correction recorded while its original is still
-   unclaimed is therefore netted in the same item, whichever arrives first.
-2. **Then a ledger credit.** A negative row still unclaimed after the period's last item has been sent (its original
+1. **Only corrections to billable usage count.** A negative row corrects the positive rows of the same source
+   (`source_kind`, `source_id`: the same call, text or email) in the same period. It is billable only up to what those
+   positive rows recorded **before the close** add up to, less the corrections already counted for that source. A
+   correction to usage recorded after the close (never billable), or beyond what was billable, is counted and never
+   billed or credited: the claim records its billable part (often zero) on the row and marks the rest
+   `unbillable`, so it is never looked at again.
+2. **Net first.** Every claim (main, late, or yearly) takes, under the period lock, the period's unclaimed billable
+   negative rows **whatever their date**, together with the positive rows before the close. A correction recorded while
+   its original is still unclaimed is therefore netted in the same item, whichever arrives first.
+3. **Then a ledger credit.** A billable negative row still unclaimed after the period's last item has been sent (its original
    was already billed) becomes **one credit entry in our money ledger** (`credit:<row id>`, unique per row), written
    under the business's lock. No Stripe customer balance is used.
-3. **Used once.** Open credits are consumed, under the same lock, by the next charge for that business: the next
+4. **Used once.** Open credits are consumed, under the same lock, by the next charge for that business: the next
    renewal draft (as one negative invoice item, key `credit:<renewal invoice id>`, claiming the credits it uses) or the
    next yearly pay-as-you-go PaymentIntent (its amount is reduced by the credits it claims). A charge never goes below
    zero; what is left stays open for the next one.
-4. **After the subscription has ended** (checked when the credit is consumed, not when it was recorded), the open
+5. **After the subscription has ended** (checked when the credit is consumed, not when it was recorded), the open
    credits are refunded once to the original payment, through the refund flow (§6.7). The refund request claims the
    credits in the same transaction that creates it, so a credit can be either applied to a charge or refunded, never
    both. A correction never needs approval to reduce what the owner pays, and is never used to raise it.
