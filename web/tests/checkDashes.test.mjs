@@ -42,6 +42,7 @@ test("code is not text: class lists, object keys, file names", () => {
     'export const A = ({ on }) => <button className={on ? "ba-btn ba-btn-primary" : "ba-btn"}>Save</button>;',
     'const ERR = { "row-level security": "Your role can\'t change this." };',
     'const note = "See the guide in n8n/GO-LIVE.md for details";',
+    'const row = `<tr><td style="padding:6px 0;font-size:14px;text-align:right">${v}</td></tr>`;',
     "export default ERR;", "",
   ].join("\n"));
   assert.equal(r.code, 0, r.out);
