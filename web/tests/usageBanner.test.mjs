@@ -22,10 +22,16 @@ test("minutes at 80% and 100%", () => {
   assert.equal(out.kicker, "Action needed");
 });
 
-test("texts and emails: routine paused, appointments keep going from the reserve", () => {
+test("texts and emails describe the limit and the reserve, never what is sent or paused", () => {
   const t = usageBanner("texts", u(1000, 1000), 3);
-  assert.equal(t.kicker, "Paused for now");
-  assert.match(t.body, /reserve \(12 of 50 left\)/);
+  assert.equal(t.kicker, "Limit reached");
+  assert.match(t.body, /12 of 50 left/);
+  const empty = usageBanner("texts", u(1000, 1000, { buffer_remaining: 0 }), 3);
+  assert.equal(empty.tone, "urgent");
+  assert.match(empty.body, /reserve for appointment messages is used up too/);
+  for (const b of [t, empty, usageBanner("emails", u(900, 1000), 3), usageBanner("minutes", u(1000, 1000), 3)]) {
+    assert.doesNotMatch(`${b.title} ${b.body}`, /on hold|paused|pause|still go out|keep going/i, b.body);
+  }
   assert.match(usageBanner("emails", u(850, 1000), 1).body, /1 day to go/);
 });
 

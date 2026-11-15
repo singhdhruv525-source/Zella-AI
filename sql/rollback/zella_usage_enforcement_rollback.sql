@@ -1,6 +1,10 @@
 -- Undoes sql/zella_usage_enforcement.sql: takes the gate out of zella_assistant_for_call, zella_prepare_sms and
 -- zella_prepare_email (exact reverse of each patch; refuses if a function was changed differently since), puts the
 -- assistant_deliveries outcomes back, and drops the gate functions and the switch. Safe to run twice.
+-- One exception, on purpose: if any call was already forwarded (an assistant_deliveries row with outcome
+-- forwarded_usage), the wider outcome check is kept so that history stays (deleting it would remove append only
+-- records, and the narrower check would refuse those rows). The gates are still removed, so calls are answered as
+-- before, but this is then not an exact restore; run it in that state only with the owner's approval.
 begin;
 do $$
 declare d text; f text; v_fwd int;

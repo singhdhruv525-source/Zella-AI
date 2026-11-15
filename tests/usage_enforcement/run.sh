@@ -73,6 +73,11 @@ do $$ declare g jsonb; r jsonb; begin
   insert into business_usage_preferences (business_id, overage_mode) values ('b0000000-0000-4000-8000-0000000000f1', 'pay_as_you_go');
   g := public.zella_call_gate('b0000000-0000-4000-8000-0000000000f1');
   assert g ->> 'action' = 'forward', 'pay as you go without a rate on the plan must not answer for free: ' || g;
+  -- a number written with + that isn't valid E.164 is no number: answered, never forwarded to a number voice-rules would refuse
+  update businesses set phone = '+0123456789' where id = 'b0000000-0000-4000-8000-0000000000f2';
+  update test_state set call_status = 'exhausted' where business_id = 'b0000000-0000-4000-8000-0000000000f2';
+  g := public.zella_call_gate('b0000000-0000-4000-8000-0000000000f2');
+  assert g ->> 'action' = 'answer' and g ->> 'number' is null, 'invalid + number: ' || g;
   raise notice 'PASS calls: answered while the switch is off (with what it would do); at 100%% with the switch on, forwarded to the business''s own number and recorded; paused businesses too; never dropped without a number; pay as you go needs a rate';
 end $$;
 SQL

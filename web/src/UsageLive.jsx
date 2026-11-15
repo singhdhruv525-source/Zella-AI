@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "./supabase";
 import { Icon } from "./BusinessUI";
 import { fmt as n, usageBanner } from "./usageBanner";
@@ -29,13 +29,16 @@ export default function UsageLive({ workspace, onGo }) {
   const [state, setState] = useState("loading");   // loading | ready | hidden | failed
   const [at, setAt] = useState(null);
   const [, setTick] = useState(0);
+  const latest = useRef(0);   // only the newest request may change what is shown
 
   const load = useCallback(async () => {
+    const mine = ++latest.current;
     const { data: d, error } = await supabase.rpc("zella_billing_overview", { p_business_id: workspace.id });
+    if (mine !== latest.current) return;   // a newer refresh started (or the page left): this answer is out of date
     if (error) {
-      // not the owner, or billing not installed: show nothing; any other error keeps the last numbers, marked stale
-      if (/NOT_ALLOWED|PGRST202|does not exist/i.test(error.message ?? "")) setState("hidden");
-      else setState((s) => (s === "ready" ? "ready" : "failed"));
+      // not the owner, or billing not installed: show nothing; any other error is shown (stale numbers stay, marked)
+      if (/NOT_ALLOWED|PGRST202|zella_billing_overview[^\n]*does not exist/i.test(`${error.code ?? ""} ${error.message ?? ""}`)) setState("hidden");
+      else setState("failed");
       return;
     }
     setData(d); setAt(new Date()); setState("ready");
@@ -47,18 +50,20 @@ export default function UsageLive({ workspace, onGo }) {
     const now = () => load();
     window.addEventListener("focus", now);
     window.addEventListener("zella:usage", now);
-    return () => { clearInterval(timer); window.removeEventListener("focus", now); window.removeEventListener("zella:usage", now); };
+    return () => { latest.current += 1; clearInterval(timer); window.removeEventListener("focus", now); window.removeEventListener("zella:usage", now); };
   }, [load]);
 
   if (state === "hidden" || state === "loading") return null;
-  if (state === "failed" && !data) return null;
+  if (state === "failed" && !data) {
+    return <section className="ul-wrap" aria-label="Usage this period"><div className="ul-card"><small className="ul-updated" role="status">Usage isn't available right now. It will try again in a minute.</small></div></section>;
+  }
   const usage = data?.usage ?? {};
   if (!RES.some(([k]) => usage[k]?.configured)) return null;
   const days = data?.period?.days_left;
   const from = data?.period?.from ?? "";
   const banners = RES.map(([k]) => [k, usageBanner(k, usage[k], days)])
     .filter(([, b]) => b)
-    .map(([k, b]) => ({ ...b, key: seenKey(workspace.id, k, b.tone === "urgent" || b.kicker === "Paused for now" ? 100 : 80, from) }))
+    .map(([k, b]) => ({ ...b, key: seenKey(workspace.id, k, b.tone === "urgent" || b.kicker === "Limit reached" ? 100 : 80, from) }))
     .filter((b) => b.tone === "urgent" || !wasDismissed(b.key));
   const ago = at ? Math.round((Date.now() - at.getTime()) / 60000) : null;
 

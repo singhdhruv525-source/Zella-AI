@@ -51,9 +51,11 @@ begin
   if v_stop then
     select phone into v_raw from public.businesses where id = p_business_id;
     v_digits := regexp_replace(coalesce(v_raw, ''), '\D', '', 'g');
-    v_number := case when v_raw like '+%' and length(v_digits) between 8 and 15 then '+' || v_digits
-                     when length(v_digits) = 10 then '+1' || v_digits
-                     when length(v_digits) = 11 and left(v_digits, 1) = '1' then '+' || v_digits end;
+    -- E.164 only (what voice-rules will dial): a number written with + must be valid as written, otherwise there is
+    -- no number and the call is answered as before
+    v_number := case when v_raw like '+%' then case when ('+' || v_digits) ~ '^\+[1-9][0-9]{7,14}$' then '+' || v_digits end
+                     when length(v_digits) = 10 and left(v_digits, 1) between '2' and '9' then '+1' || v_digits
+                     when length(v_digits) = 11 and left(v_digits, 1) = '1' and substr(v_digits, 2, 1) between '2' and '9' then '+' || v_digits end;
   end if;
   return jsonb_build_object(
     'action', case when v_stop and v_number is not null and public.zella_usage_enforced('calls') then 'forward' else 'answer' end,
