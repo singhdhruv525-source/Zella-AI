@@ -24,7 +24,7 @@ do $$ begin
      or to_regprocedure('public.zella_billing_plan_current(uuid)') is null
      or to_regprocedure('public.zella_assistant_for_call(text,text,text)') is null or to_regprocedure('public.zella_prepare_sms(uuid,uuid,text,jsonb,text)') is null
      or to_regprocedure('public.zella_prepare_email(uuid,uuid,text,jsonb,text)') is null or to_regprocedure('public.zella_patch_function(text,text,text,text)') is null
-     or to_regprocedure('public.zella_business_for_number(text,text,uuid)') is null or to_regprocedure('public.zella_normalize_e164(text)') is null
+     or to_regprocedure('public.zella_business_for_number(text,text,uuid)') is null 
      or to_regclass('public.business_usage_preferences') is null then
     raise exception 'VERSION_MISMATCH: a function this file needs is missing (apply sql/zella_billing_allowances.sql first)';
   end if;
@@ -35,6 +35,19 @@ insert into public.platform_settings (key, value) values ('usage_enforcement', '
 create or replace function public.zella_usage_enforced(p_what text) returns boolean
 language sql stable security definer set search_path = public as $$
   select coalesce((select (value ->> p_what)::boolean from public.platform_settings where key = 'usage_enforcement' and jsonb_typeof(value) = 'object'), false)
+$$;
+
+-- A phone number as voice-rules will dial it (E.164), or null. Written with +: valid as written once spaces and
+-- punctuation are removed (+44 20 7946 0000 -> +442079460000). Without +: a 10 or 11 digit North American number.
+-- Used for the fallback number and for the business line it is compared with, so both are read the same way.
+create or replace function public.zella_strict_e164(p text) returns text
+language sql immutable set search_path = public as $$
+  select case
+    when p is null or btrim(p) = '' then null
+    when btrim(p) like '+%' then case when regexp_replace(p, '\D', '', 'g') ~ '^[1-9][0-9]{7,14}$' then '+' || regexp_replace(p, '\D', '', 'g') end
+    when regexp_replace(p, '\D', '', 'g') ~ '^[2-9][0-9]{9}$' then '+1' || regexp_replace(p, '\D', '', 'g')
+    when regexp_replace(p, '\D', '', 'g') ~ '^1[2-9][0-9]{9}$' then '+' || regexp_replace(p, '\D', '', 'g')
+  end
 $$;
 
 -- The decision for a new call: answer, or forward to the business's own number.
@@ -58,14 +71,12 @@ begin
     v_digits := regexp_replace(coalesce(v_raw, ''), '\D', '', 'g');
     -- E.164 only (what voice-rules will dial): a number written with + must be valid as written, otherwise there is
     -- no number and the call is answered as before
-    v_number := case when v_raw like '+%' then case when ('+' || v_digits) ~ '^\+[1-9][0-9]{7,14}$' then '+' || v_digits end
-                     when length(v_digits) = 10 and left(v_digits, 1) between '2' and '9' then '+1' || v_digits
-                     when length(v_digits) = 11 and left(v_digits, 1) = '1' and substr(v_digits, 2, 1) between '2' and '9' then '+' || v_digits end;
+    v_number := public.zella_strict_e164(v_raw);
     -- never a line that rings back into Zella Voice (a Zella Voice number, or the business line that forwards to it):
     -- the call would come straight back here and loop
     if v_number is not null and (public.zella_business_for_number(v_number, null, null) is not null
         or exists (select 1 from public.businesses b where b.id = p_business_id
-                    and public.zella_normalize_e164(b.setup_data #>> '{integrations,phone,forward_from}') = v_number)) then
+                    and public.zella_strict_e164(b.setup_data #>> '{integrations,phone,forward_from}') = v_number)) then
       v_number := null;
     end if;
   end if;
@@ -88,6 +99,7 @@ begin
 end $$;
 
 revoke all on function public.zella_usage_enforced(text) from public, anon, authenticated;
+revoke all on function public.zella_strict_e164(text) from public, anon;
 revoke all on function public.zella_call_gate(uuid) from public, anon, authenticated;
 revoke all on function public.zella_message_gate(uuid,text,text) from public, anon, authenticated;
 grant execute on function public.zella_usage_enforced(text) to service_role;

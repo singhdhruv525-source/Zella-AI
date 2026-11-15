@@ -96,6 +96,13 @@ do $$ declare g jsonb; r jsonb; begin
   update businesses set setup_data = '{"integrations": {"phone": {"forward_from": "(555) 010-4000"}}}' where id = 'b0000000-0000-4000-8000-0000000000f1';
   g := public.zella_call_gate('b0000000-0000-4000-8000-0000000000f1');
   assert g ->> 'action' = 'answer' and g ->> 'number' is null, 'forwarding line as fallback: ' || g;
+  -- the same line written two ways (spaces in the setup answer, compact in call routing) is still the same line
+  update ai_agent_configs set escalation_rules = '{"fallback_number": "+442079460000"}' where agent_id = 'a6000000-0000-4000-8000-000000000001';
+  update businesses set setup_data = '{"integrations": {"phone": {"forward_from": "+44 20 7946 0000"}}}' where id = 'b0000000-0000-4000-8000-0000000000f1';
+  g := public.zella_call_gate('b0000000-0000-4000-8000-0000000000f1');
+  assert g ->> 'action' = 'answer' and g ->> 'number' is null, 'formatted international forwarding line: ' || g;
+  assert public.zella_strict_e164('+44 20 7946 0000') = '+442079460000' and public.zella_strict_e164('(555) 210-3000') = '+15552103000'
+     and public.zella_strict_e164('+0123456789') is null and public.zella_strict_e164('0123456789') is null, 'strict e164';
   raise notice 'PASS calls: answered while the switch is off (with what it would do); at 100%% with the switch on, forwarded to the business''s fallback number and recorded; never its own phone; paused businesses too; never dropped without a number; never forwarded back into Zella Voice; pay as you go needs a rate';
 end $$;
 SQL

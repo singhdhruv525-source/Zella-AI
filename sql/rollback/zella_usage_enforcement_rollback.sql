@@ -47,5 +47,6 @@ end $$;
 drop function if exists public.zella_message_gate(uuid,text,text);
 drop function if exists public.zella_call_gate(uuid);
 drop function if exists public.zella_usage_enforced(text);
+drop function if exists public.zella_strict_e164(text);
 delete from public.platform_settings where key = 'usage_enforcement';
 commit;
