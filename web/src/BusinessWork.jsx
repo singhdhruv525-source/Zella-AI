@@ -424,6 +424,7 @@ export function NotificationsBell({ workspace, onGo }) {
       if (fresh.length) {
         const prefs = deviceAlerts();
         if (prefs.popups) setToasts((t) => [...fresh.slice(0, 3).reverse(), ...t].slice(0, 3));
+        if (fresh.some((n) => n.kind === "usage_threshold")) window.dispatchEvent(new CustomEvent("zella:usage"));   // UsageLive refreshes now
         const top = fresh.find((n) => n.severity === "urgent") ?? fresh[0];
         const { tone } = noteIcon(top);
         if (prefs.sound) chime(tone);
