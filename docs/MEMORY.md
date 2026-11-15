@@ -46,6 +46,9 @@ history.
 
 ## 3. What is live in production (12 Nov 2026)
 
+**Not launched yet (owner, 15 Nov 2026):** Zella Voice is still being built. The live project holds 4 demo businesses and
+no real customers; tests on it use those demo businesses. Every apply, deploy and live switch still needs the owner's approval.
+
 **Database:** all migrations on `main` are applied **except `sql/zella_workflow_alert_email.sql`** (PR #57; keeps n8n
 workflow failures out of admin emails; waiting on the owner's decision and approval). The last seven applied were applied on 12 Nov 2026:
 
@@ -112,10 +115,10 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile`. `vapi_a
 | The last commit of PR #49 (`a5bcb54`, a merge commit) was never reviewed by CodeRabbit | Open | Low risk; re-review if touched. |
 | Audit follow-ups M-3, M-4, L-2, L-4, L-5 | Open | `docs/ZELLA_REMEDIATION_CHECKLIST.md` |
 | "Something is missing in the app" (owner, no details yet) | Waiting on the owner | |
-| **Emails from Zella Voice to businesses:** 92 emails in one catalogue (`docs/BUSINESS_EMAILS.md`), admin preview built; outbox `sql/zella_platform_emails.sql` tested on the isolated database | Open, owner's approval | Apply the outbox with approval; then connect a sender (an edge function using the same catalogue, the provider's idempotency key, and `email_live` still off until the owner says so), and queue each email from its trigger, billing ones per Stripe event in step 4. |
-| **Usage limits that act:** `sql/zella_usage_enforcement.sql` (switches off), voice-rules forward reply, live usage card on Today; tested locally only | Open, owner's approval | 1. Apply the migration. 2. Deploy voice-rules and make one staging call with the calls switch on for a test business, to prove Vapi transfers on the `destination` reply. 3. Turn on `usage_enforcement.calls`, then `.messages`, each with approval. The monthly spending limit for pay as you go is not enforced yet (needs payments, step 4). |
-| **Fallback number for every business** (owner, 15 Nov 2026: decided at Create Business, REQ-BIL-34). New businesses can't finish setup without one. Production on 15 Nov 2026 (read only count): 4 active businesses, 0 with a fallback number | Open, owner | Add a fallback number for each of the 4 in Admin, Voice & numbers before the calls switch is turned on; until then their calls at 100% would simply be answered. |
-| **Business moments** (record day, call surge, weekend on call gaps): `sql/zella_business_moments.sql`, tested on the isolated database; the CRM shows them with the five tones | Open, owner's approval | Apply with approval. Later moments need data the app doesn't keep yet (recall due dates, seasonal demand such as tax season). |
+| **Emails from Zella Voice to businesses:** catalogue and admin preview built; outbox `sql/zella_platform_emails.sql` applied 15 Nov 2026 (empty) | Open | Delivery (`sql/zella_email_delivery.sql`, `platform-emails` edge function) in review; then apply, deploy, set the sender address and turn on `email_live`, each with approval. Billing emails per Stripe event in step 4. |
+| **Usage limits that act:** `sql/zella_usage_enforcement.sql` applied 15 Nov 2026 (fingerprints match the tested copy; switches off); voice-rules v8 deployed 15 Nov 2026 (files match `main`; unsigned requests refused) | Open, owner's approval | 1. Give one demo business a test fallback number the owner controls. 2. Staging call with the calls switch on for it, to prove Vapi transfers on the `destination` reply. 3. Turn on `usage_enforcement.calls`, then `.messages`, each with approval. The monthly spending limit for pay as you go needs payments (step 4). |
+| **Fallback number for every business** (owner, 15 Nov 2026: decided at Create Business, REQ-BIL-34). New businesses can't finish setup without one (owner-provision-business, merged; deploy pending with the CLI). | Open | The 4 businesses in production are demo businesses (owner, 15 Nov 2026), so none needs a real fallback number; one gets a test number for the staging call. |
+| **Business moments** (record day, call surge, weekend on call gaps): `sql/zella_business_moments.sql` applied 15 Nov 2026 (runs hourly; in app notifications only) | Done | Later moments need data the app doesn't keep yet (recall due dates, seasonal demand such as tax season). |
 
 ## 5. Decisions
 
