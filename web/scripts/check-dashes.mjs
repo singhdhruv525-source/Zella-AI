@@ -39,10 +39,12 @@ function stripComments(src) {
 }
 
 const found = [];
-for (const f of files(ROOT)) {
+// the email catalogue lives with the edge functions; its wording is text people read too
+const EXTRA = rootArg > 0 ? [] : [new URL("../supabase/functions/_shared/businessEmails.js", import.meta.url).pathname];
+for (const f of [...files(ROOT), ...EXTRA]) {
   const lines = stripComments(readFileSync(f, "utf8")).split("\n");
   lines.forEach((line, i) => {
-    const where = `${relative(ROOT, f)}:${i + 1}`;
+    const where = `${f.startsWith(ROOT) ? relative(ROOT, f) : f.slice(f.indexOf("supabase/"))}:${i + 1}`;
     if (LONG.test(line)) { found.push([where, "long dash", line.trim()]); return; }
     // JSX text between tags
     for (const m of line.matchAll(/>([^<>{}]*[A-Za-z][^<>{}]*)</g)) {

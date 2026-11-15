@@ -437,6 +437,7 @@ secrets, never in tables, code, logs or chat (`NN-2`).
 | Push notifications for the installed web app | Planned (D-40) |
 | Emails from Zella Voice to businesses: 92 emails (account and setup, sign in, summaries, alerts, usage, service, billing) in one catalogue and layout, with an admin preview (Admin, Messaging, Emails to businesses) | Built; sending not connected (`docs/BUSINESS_EMAILS.md`) |
 | Platform outbox for those emails: sent once per key, test mode while email sending is off, retries then held for a person | Built and applied 15 Nov 2026 (`sql/zella_platform_emails.sql`); empty until delivery is set up, email sending off |
+| Email delivery for notifications (summaries, warnings, urgent alerts): written from the catalogue, queued once per person, sent through Resend by the `platform-emails` edge function, which the database wakes only when there is work; replaces the n8n Owner Emails path | Built, not applied or deployed (`sql/zella_email_delivery.sql`, `platform-emails`); sending also needs `email_live`, a sender address and the Resend key |
 
 ---
 

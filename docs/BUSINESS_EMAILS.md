@@ -1,7 +1,7 @@
 # Emails from Zella Voice to businesses
 
 Every email Zella Voice sends to a business (its owner, billing contacts and team). The wording, the shared layout
-and this list come from one file, `web/src/emails/businessEmails.js`; the admin preview (Admin, Messaging, Emails to
+and this list come from one file, `web/supabase/functions/_shared/businessEmails.js` (the app imports it through `web/src/emails/businessEmails.js`); the admin preview (Admin, Messaging, Emails to
 businesses) and the server sender render from the same file. Billing emails keep their codes and rules from
 `docs/BILLING_EMAILS.md`. Emails to a business's own customers are separate (`email_messages`).
 
@@ -27,7 +27,14 @@ Creative but professional, the facts first, one clear button, the reason for the
 hyphens, no emoji, no caller data, card numbers only as the last 4 digits. Colours are copied from
 `web/src/styles/tokens.css` (email clients can't read CSS variables); a test checks they still match.
 
-## Every email (92)
+
+## Every email (93)
+
+### Notifications
+
+| Code | Email | Sent when | Can be switched off |
+|---|---|---|---|
+| N1 | Notification | a notification someone gets by email (summaries, warnings, urgent alerts) | Yes |
 
 ### Account and setup
 
