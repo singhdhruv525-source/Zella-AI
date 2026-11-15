@@ -84,8 +84,12 @@ Branch note: `zella_reminder_minutes.sql` and `zella_reminder_rules.sql` are on 
 
 ## New in this change (2026-10-26)
 
-Each row says whether it has been applied to the live project. Those marked **applied** must not be run again
-through a new apply; run the others in this order, with the owner's approval. Each one is safe to re-run.
+This table is a record of each file, **not an apply list**. Only some rows say whether they are applied; a row
+without **applied** may still be live (for example `zella_call_usage.sql`, applied on 28 Oct 2026, see
+`docs/MINUTE_USAGE_OPERATIONS.md`). Before applying any file: check production read only (the migration history and
+the objects the file creates), apply only with the owner's approval, and follow the prerequisites named in each row
+(for example `zella_voice_reliability.sql`, then `zella_vapi_auth.sql`, then `zella_voice_assistant.sql`, then
+`zella_call_usage.sql`), not the order of the table. Never apply a row marked **applied** again.
 
 | File | What it does | Changes tables? |
 | --- | --- | --- |
@@ -129,7 +133,7 @@ nothing.
 
 ## Live project findings (2026-10-26, read-only)
 
-- None of the six files above are applied yet (only the older `zella_accept_staff_invitations` is live).
+- On 26 Oct 2026 none of the six files listed then were applied yet (only the older `zella_accept_staff_invitations` was live). Several are live now; see the table above and check production before relying on this line.
 - `zella_tenant_leak_check()` is clean: no business table without row security, no open policies, no anonymous reads.
 - Every insert and update policy on customers, appointments, calls, conversations, support tickets, knowledge items,
   blocked times and staff members checks the person's own business. Gap fixed in `zella_settings_system.sql`:
