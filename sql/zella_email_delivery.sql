@@ -29,14 +29,21 @@ do $$ begin
   end if;
 end $$;
 
--- the URL of the edge function; empty means "not set up yet", and nothing is called
-insert into public.platform_settings (key, value) values ('platform_emails_url', '""'::jsonb) on conflict (key) do nothing;
-
--- the shared secret, made here and kept only in Vault
+-- the URL of the edge function (empty means "not set up yet", and nothing is called) and the shared secret, made here
+-- and kept only in Vault. What this file creates is marked in zella_function_archive, so the rollback removes only that.
 do $$ begin
+  if not exists (select 1 from public.platform_settings where key = 'platform_emails_url') then
+    insert into public.platform_settings (key, value) values ('platform_emails_url', '""'::jsonb);
+    insert into public.zella_function_archive (migration, signature, definition, definition_md5)
+    values ('zella_email_delivery', 'created: platform_settings.platform_emails_url', 'created by this migration', md5('created'))
+    on conflict (migration, signature) do nothing;
+  end if;
   if not exists (select 1 from vault.secrets where name = 'zella_platform_emails_secret') then
     perform vault.create_secret(replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''), 'zella_platform_emails_secret',
                                 'Zella Voice: platform-emails edge function call secret');
+    insert into public.zella_function_archive (migration, signature, definition, definition_md5)
+    values ('zella_email_delivery', 'created: vault zella_platform_emails_secret', 'created by this migration', md5('created'))
+    on conflict (migration, signature) do nothing;
   end if;
 end $$;
 
@@ -83,10 +90,13 @@ begin
   return v_res;
 end $$;
 
--- 3. retire the n8n Owner Emails path (its definition is archived first, for the rollback)
+-- 3. retire the n8n Owner Emails path (only the known original is replaced; it is archived first, for the rollback)
 do $$ declare d text; r text; begin
   d := pg_get_functiondef('public.zella_claim_owner_emails(integer)'::regprocedure);
   if position('zella_email_delivery: retired' in d) = 0 then
+    if md5(d) <> '96777d5882f740a0b0a31dcd338dc2d2' then
+      raise exception 'VERSION_MISMATCH: zella_claim_owner_emails is not the version this file was written against';
+    end if;
     insert into public.zella_function_archive (migration, signature, definition, definition_md5)
     values ('zella_email_delivery', 'public.zella_claim_owner_emails(integer)', d, md5(d)) on conflict (migration, signature) do nothing;
   end if;
@@ -101,6 +111,51 @@ begin
   -- outbox (platform-emails edge function); this returns nothing so the old n8n workflow can never send a second copy.
   return '[]'::jsonb;
 end $$;
+
+-- 5. an email for one person is sent only while that person is still an active member of the business: at claim time,
+--    an email for someone who left (or was suspended) is cancelled (suppressed), so a later reactivation never sends it.
+--    Replaces zella_claim_platform_emails (sql/zella_platform_emails.sql; only the known version, archived first).
+do $$ declare d text; begin
+  d := pg_get_functiondef('public.zella_claim_platform_emails(integer)'::regprocedure);
+  if position('zella_email_delivery: members' in d) = 0 then
+    if md5(d) <> '295fdbf133c34d5baf37b84d225cf316' then
+      raise exception 'VERSION_MISMATCH: zella_claim_platform_emails is not the version this file was written against';
+    end if;
+    insert into public.zella_function_archive (migration, signature, definition, definition_md5)
+    values ('zella_email_delivery', 'public.zella_claim_platform_emails(integer)', d, md5(d)) on conflict (migration, signature) do nothing;
+  end if;
+end $$;
+create or replace function public.zella_claim_platform_emails(p_limit integer default 20)
+returns setof public.platform_emails language plpgsql security definer set search_path = public as $$
+declare v_live boolean := coalesce((select value::text = 'true' from public.platform_settings where key = 'email_live'), false);
+        r record;
+begin
+  -- zella_email_delivery: members. An email for one person who is no longer an active member is cancelled.
+  update public.platform_emails e set status = 'suppressed', last_error = 'no longer an active member of the business'
+   where e.status in ('queued', 'sending') and e.user_id is not null
+     and not exists (select 1 from public.business_members bm where bm.business_id = e.business_id and bm.user_id = e.user_id and bm.status = 'active');
+  -- held: a send that kept failing or never answered; a person decides
+  for r in update public.platform_emails set status = 'held', last_error = coalesce(last_error, 'no answer from the provider')
+            where status in ('queued', 'sending') and attempts >= 5 and next_attempt_at <= now()
+            returning id, business_id, code, dedupe_key loop
+    perform public.zella_platform_alert('platform_email_held', 'An email to a business is held', 'Email ' || r.code || ' was tried 5 times. Check it before sending it again.',
+                                        'warning', r.business_id, 'platform_email_held:' || r.dedupe_key, jsonb_build_object('email_id', r.id));
+  end loop;
+  if not v_live then
+    update public.platform_emails set status = 'dry_run' where status = 'queued' and next_attempt_at <= now();
+    return;
+  end if;
+  return query
+    update public.platform_emails e set status = 'sending', attempts = e.attempts + 1, claimed_at = now(), claim_token = gen_random_uuid(),
+           next_attempt_at = now() + interval '10 minutes'   -- not answered in 10 minutes: claimed again with the same key
+     where e.id in (select id from public.platform_emails
+                     where status in ('queued', 'sending') and next_attempt_at <= now() and attempts < 5
+                     order by next_attempt_at limit least(greatest(coalesce(p_limit, 20), 1), 100)
+                     for update skip locked)
+    returning e.*;
+end $$;
+revoke all on function public.zella_claim_platform_emails(integer) from public, anon, authenticated;
+grant execute on function public.zella_claim_platform_emails(integer) to service_role;
 
 -- 4. wake the edge function only when there is work
 create or replace function public.zella_dispatch_platform_emails() returns text

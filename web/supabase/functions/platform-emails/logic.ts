@@ -9,6 +9,8 @@
 // the provider key, step 2 is skipped and nothing is claimed.
 // @ts-ignore: plain JavaScript module shared with the web app
 import { renderEmail } from "../_shared/businessEmails.js";
+// @ts-ignore: plain JavaScript module shared with the web app
+import { appPath } from "../_shared/pageKeys.js";
 
 export type Json = Record<string, unknown>;
 export type Rpc = (fn: string, args: Json) => Promise<{ data: unknown; error: unknown }>;
@@ -29,7 +31,7 @@ const str = (v: unknown) => (typeof v === "string" ? v : "");
 export function notificationEmail(n: Json, appUrl: string | null, supportEmail: string | null) {
   // optional facts are left out when missing (the catalogue then leaves them out of the email)
   const data: Json = { business: str(n.business_name), role: str(n.role), title: str(n.title), severity: str(n.severity),
-    pagePath: n.page_key ? `/${str(n.page_key).replace(/^\/+/, "")}` : "/", mandatory: n.severity === "urgent" };
+    pagePath: appPath(str(n.page_key)), mandatory: n.severity === "urgent" };
   if (str(n.body)) data.body = str(n.body);
   if (appUrl) data.appUrl = appUrl;
   if (supportEmail) data.supportEmail = supportEmail;

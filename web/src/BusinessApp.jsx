@@ -1,4 +1,5 @@
 import { SidebarBrand } from "./navigation/SidebarBrand";
+import { pageFor } from "../supabase/functions/_shared/pageKeys.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ATTENTION_START, attentionCount, attentionReduce, attentionWarning } from "./crm/attention";
 import {
@@ -280,7 +281,8 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
                 <Icon name="campaign" /><span>Tell callers</span>
               </button>
             )}
-            <NotificationsBell workspace={workspace} onGo={(key) => {
+            <NotificationsBell workspace={workspace} onGo={(raw) => {
+              const key = raw?.startsWith("settings/") ? raw : pageFor(raw);   // older keys such as on_call open their page
               if (canGo(key) || key?.startsWith("settings/")) setPage(key);
               else if (key) setNotice("That page isn't available with your access. Ask an owner or admin if you need it.");
             }} />
