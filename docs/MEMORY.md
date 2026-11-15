@@ -75,7 +75,8 @@ types, no plans.
 |---|---|
 | `voice-rules` | v8, 15 Nov 2026 (forward on the usage limit; files match `main`) |
 | `record-files`, `google-lead`, `calendar-connect`, `website-lead` | v2, v2, v2, v5, 14 Nov 2026 |
-| `staff-invite`, `continue-plan` | v4, v6, 9 Nov 2026 |
+| `staff-invite` | v5, 15 Nov 2026 (files match `main`: two step sign in required, request size limit, plain wording, and the strict `cors.ts`: browsers are allowed only from `ZELLA_APP_URL`'s origin, `ZELLA_ALLOWED_ORIGINS` and localhost) |
+| `continue-plan` | v6, 9 Nov 2026 |
 | `owner-provision-business` | v16, 7 Nov 2026 (behind `main`: needs the CLI deploy, it is too large for the MCP upload) |
 | `store-connect` | v1, 6 Nov 2026 |
 | `billing-webhook` | v5, 4 Nov 2026 (behind `main`; kept off until step 4) |
@@ -129,8 +130,8 @@ most often needed:
 - **Writing and notifications (owner, 14 Nov 2026):** no dashes or hyphens anywhere people read text (screens,
   emails, texts, notifications, the AI receptionist); notifications are creative but professional and use each
   business's own words. Rules in `docs/DESIGN_SYSTEM.md` (Writing; Notifications); checked by `npm run lint`.
-  Part 2 (15 Nov 2026, in review): the database (`sql/zella_writing_cleanup.sql`, not applied), the edge function
-  labels (wizard automation names, admin role, sign in messages; need a deploy with approval). Left on purpose: n8n
+  Part 2 (15 Nov 2026): the database (`sql/zella_writing_cleanup.sql`, applied 15 Nov 2026) and the edge function
+  labels (`staff-invite` deployed 15 Nov 2026; `owner-provision-business` still needs the CLI deploy). Left on purpose: n8n
   workflow and node names and internal reason codes (only admins see them in n8n; renaming means a re-import).
   The industry "E-commerce" is shown as "Ecommerce".
 
@@ -158,6 +159,13 @@ Waiting on the owner:
 - an Anthropic key for knowledge drafting, when the budget allows.
 
 ## 6. Lessons learnt (don't repeat these)
+
+- **Check a migration against production, not only the test copy (15 Nov 2026):** before each apply, compare the
+  fingerprint (md5 of `pg_get_functiondef`) of every function the file changes, in production and in the test copy.
+  On 15 Nov four differed because `sql/zella_review_sql_fixes.sql` is live but missing from the test template, and
+  production's `vault.create_secret` has an extra optional argument the test stub lacked; the version guard refused
+  `zella_email_delivery.sql` and nothing changed. Copy the production definitions into the test copy, prove all
+  fingerprints match, then test.
 
 - **Payments rules (13 Nov 2026, Stripe design):** a webhook payload is only a notice, so fetch the invoice or
   PaymentIntent from Stripe before granting; every Stripe POST has a deterministic Idempotency-Key stored with the

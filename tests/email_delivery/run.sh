@@ -21,6 +21,10 @@ before_claim=$(q "select md5(pg_get_functiondef('public.zella_claim_platform_ema
 # a setting that already exists before the migration must survive its rollback
 q "insert into platform_settings (key, value) values ('platform_emails_url', '\"\"'::jsonb)" > /dev/null
 
+# production's Vault has create_secret(secret, name, description, key_id default null): the file must accept that too
+q "drop function vault.create_secret(text,text,text)" > /dev/null
+q "create function vault.create_secret(new_secret text, new_name text default null, new_description text default '', new_key_id uuid default null) returns uuid language sql as \$f\$ insert into vault.secrets (name, secret, description) values (new_name, new_secret, new_description) returning id \$f\$" > /dev/null
+
 for i in 1 2; do out=$("${P[@]}" -d $DB -f "$REPO/sql/zella_email_delivery.sql" 2>&1) || { bad "apply (run $i): $(echo "$out" | grep -m2 -E 'ERROR|CONTEXT' | tr '\n' ' ')"; exit 1; }; done
 ok "applies twice"
 [ "$(q "select bool_or(has_function_privilege(r, f, 'execute')) from unnest(array['anon','authenticated']) r, unnest(array['public.zella_claim_notification_emails(integer)','public.zella_platform_emails_check(text)','public.zella_dispatch_platform_emails()']) f")" = f ] \
