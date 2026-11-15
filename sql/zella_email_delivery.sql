@@ -24,7 +24,11 @@ do $$ begin
   if to_regclass('public.platform_emails') is null or to_regprocedure('public.zella_claim_platform_emails(integer)') is null
      or to_regprocedure('public.zella_claim_owner_emails(integer)') is null or to_regprocedure('public.zella_finish_owner_email(uuid,text,text)') is null
      or to_regprocedure('public.zella_dispatch_n8n()') is null or to_regprocedure('public.zella_patch_function(text,text,text,text)') is null
-     or to_regclass('public.zella_function_archive') is null or to_regprocedure('vault.create_secret(text,text,text)') is null then
+     or to_regclass('public.zella_function_archive') is null
+     -- any vault.create_secret taking (secret, name, description) first; newer Supabase Vault adds an optional key id
+     or not exists (select 1 from pg_proc p where p.pronamespace = to_regnamespace('vault') and p.proname = 'create_secret'
+                     and p.pronargs - p.pronargdefaults <= 3 and p.pronargs >= 3
+                     and (p.proargtypes::oid[])[0:2] = array['text'::regtype, 'text'::regtype, 'text'::regtype]::oid[]) then
     raise exception 'VERSION_MISMATCH: something this file needs is missing (apply zella_platform_emails.sql and zella_model_defaults.sql first)';
   end if;
 end $$;
