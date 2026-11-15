@@ -7,9 +7,11 @@ import "./settings.css";
 //
 // registry: [{ key, label, icon, items: [{ key, label, keywords?, render(ctx) }] }]
 
+// "read-only" and "read only" find the same pages: hyphens count as spaces on both sides
+const plain = (s) => s.toLowerCase().replace(/-/g, " ").replace(/\s+/g, " ");
 function matches(text, words) {
-  const hay = text.toLowerCase();
-  return words.every((w) => hay.includes(w));
+  const hay = plain(text);
+  return words.every((w) => hay.includes(plain(w)));
 }
 
 export default function SettingsWorkspace({ title = "Settings", description, registry, category, item, base, go, Icon, context }) {

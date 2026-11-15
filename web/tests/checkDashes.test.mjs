@@ -24,6 +24,13 @@ test("a lowercase caption rendered through a variable is found", () => {
   assert.match(r.out, /please follow-up now/);
 });
 
+test("code inside a sentence is taken out, the rest is still checked", () => {
+  const r = check('export const title = "Follow-up requires X-Request-Id";\nexport const A = () => <p>{title}</p>;\n');
+  assert.equal(r.code, 1);
+  assert.match(r.out, /Follow-up requires/);
+  assert.equal(check('export const t = "Send the X-Request-Id header";\n').code, 0);
+});
+
 test("JSX text, labels and long dashes are found", () => {
   assert.equal(check("export const A = () => <p>Book a check-in</p>;\n").code, 1);
   assert.equal(check('export const B = () => <input placeholder="e-mail" />;\n').code, 1);

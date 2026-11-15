@@ -493,7 +493,7 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
                         <td>{person(a.customer?.id, personName(a.customer) ?? a.title)}
                           <small className="td-sub">{srcIcon && <Icon name={srcIcon} size="sm" />} {src !== "None" ? src : ""}{src !== "None" && personName(a.customer) && a.title ? " · " : ""}{personName(a.customer) ? a.title : ""}{a.forTitle ? ` · for ${a.forTitle}` : ""}</small></td>
                         {showGuests && <td>{a.party_size ?? "None"}</td>}
-                        {tablesOn && <td>{!(a.table_ids ?? []).length ? "None" : tableNames === null ? "…" : tableNames === "failed" ? "Not available" : a.table_ids.map((id) => tableNames[id]).filter(Boolean).join(" + ") || "Not available"}</td>}
+                        {tablesOn && <td>{!(a.table_ids ?? []).length ? "None" : tableNames === null ? "…" : tableNames === "failed" ? "Not available" : a.table_ids.map((id) => tableNames[id] ?? "Not available").join(" + ")}</td>}
                         {showStaff && <td>{data.staff[a.staff_id] ?? "None"}</td>}
                         <td><Pill tone={tone}>{stageLabel}</Pill>{a.booking_state === "requested" && <small className="td-sub">Request, not booked</small>}</td>
                         <td className="td-notes">{a.description || a.internal_notes || a.location || ""}</td>

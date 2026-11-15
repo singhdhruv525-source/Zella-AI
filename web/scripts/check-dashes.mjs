@@ -17,6 +17,11 @@ const WORD_HYPHEN = /[A-Za-z]-[A-Za-z]/;
 const CODE_STRING = /^(?:[a-z0-9_.:/#@?=&%-]+|[a-z][a-z0-9-]*(?:\s+[a-z][a-z0-9-]*)*|https?:\/\/\S+|\S+\/\S+|--[\w-]+|var\(.*\)|[\w-]+\s*:\s*.*;?)$/;
 // code that happens to sit in a quoted string: locale tags, CSS, file names, domains, HTTP header names
 const NOT_WORDS = /\ben-US\b|var\(--|\dpx solid|^\s*\.[a-z][\w-]*\s*,|\.(json|csv|pdf|png|md)\b|[a-z0-9-]+\.(com|io|dev|app)\b|\bX-[A-Z][\w-]+|^Content-(Type|Range|Length)$/;
+// What is left of a string once the code in it is taken out; only that is checked for hyphens. Template placeholders
+// become one letter, then every word that is code (a header name, file name, domain, CSS class or declaration) is
+// dropped, so "Follow-up requires X-Request-Id" is still caught for "Follow-up".
+const isCode = (t) => NOT_WORDS.test(t) || /^\.[a-z][\w-]*,?$/.test(t);
+const wordsOnly = (s) => (NOT_WORDS.test(s) && /^\s*\S+\s*$|\dpx solid/.test(s) ? "" : s.replace(/\$\{[^}]*\}/g, "X").split(/\s+/).filter((t) => !isCode(t)).join(" "));
 const LABEL_PROPS = /\b(title|label|placeholder|aria-label|alt|description|hint|help|message|text|heading|subtitle|empty|cta|button|confirmLabel|cancelLabel)\s*[:=]\s*$/;
 
 function files(dir) {
@@ -40,7 +45,7 @@ for (const f of files(ROOT)) {
     if (LONG.test(line)) { found.push([where, "long dash", line.trim()]); return; }
     // JSX text between tags
     for (const m of line.matchAll(/>([^<>{}]*[A-Za-z][^<>{}]*)</g)) {
-      if (WORD_HYPHEN.test(m[1]) && !/=>/.test(m[1]) && !NOT_WORDS.test(m[1])) found.push([where, "hyphen in text", m[1].trim()]);
+      if (WORD_HYPHEN.test(wordsOnly(m[1])) && !/=>/.test(m[1])) found.push([where, "hyphen in text", m[1].trim()]);
     }
     // quoted strings
     for (const m of line.matchAll(/(["'`])((?:\\.|(?!\1).)*)\1/g)) {
@@ -56,7 +61,7 @@ for (const f of files(ROOT)) {
       if (!isLabel && !reads) continue;
       // a single token that looks like code (a class, key or path); a phrase people read is never exempt here
       if (CODE_STRING.test(s) && !isLabel && !/\s/.test(s.trim())) continue;
-      if (NOT_WORDS.test(s)) continue;
+      if (!WORD_HYPHEN.test(wordsOnly(s))) continue;
       found.push([where, "hyphen in text", s]);
     }
   });

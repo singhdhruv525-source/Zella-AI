@@ -776,7 +776,7 @@ export function ReceptionistPage({ workspace, onNotice, onReload }) {
             <div><dt>Calls</dt><dd>{calls.length}</dd></div>
             <div><dt>Handled by AI</dt><dd>{aiCalls.length}</dd></div>
             <div><dt>Missed</dt><dd>{missed}</dd></div>
-            <div><dt>Avg length</dt><dd>{!data ? (loading ? "…" : "Not available") : aiCalls.length ? clock(Math.round(aiCalls.reduce((s, c) => s + (c.duration_seconds ?? 0), 0) / aiCalls.length)) : "No calls yet"}</dd></div>
+            <div><dt>Avg length</dt><dd>{!data ? (loading ? "…" : "Not available") : aiCalls.length ? clock(Math.round(aiCalls.reduce((s, c) => s + (c.duration_seconds ?? 0), 0) / aiCalls.length)) : calls.length ? "No AI calls yet" : "No calls yet"}</dd></div>
           </dl>
           {primary?.description && <p className="ba-note pad">{primary.description}</p>}
           {primary?.channels?.length > 0 && (
