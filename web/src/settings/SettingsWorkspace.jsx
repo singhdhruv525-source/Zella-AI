@@ -25,7 +25,7 @@ export default function SettingsWorkspace({ title = "Settings", description, reg
   const pick = (c, i) => { setQuery(""); go(href(c, i)); };
 
   const results = useMemo(() => {
-    const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const words = plain(query).trim().split(" ").filter(Boolean);
     if (!words.length) return null;
     return registry.flatMap((c) => c.items
       .filter((i) => matches(`${c.label} ${i.label} ${i.keywords ?? ""}`, words))
