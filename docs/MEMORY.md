@@ -112,6 +112,7 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile`. `vapi_a
 | The last commit of PR #49 (`a5bcb54`, a merge commit) was never reviewed by CodeRabbit | Open | Low risk; re-review if touched. |
 | Audit follow-ups M-3, M-4, L-2, L-4, L-5 | Open | `docs/ZELLA_REMEDIATION_CHECKLIST.md` |
 | "Something is missing in the app" (owner, no details yet) | Waiting on the owner | |
+| **Emails from Zella Voice to businesses:** 92 emails in one catalogue (`docs/BUSINESS_EMAILS.md`), admin preview built; outbox `sql/zella_platform_emails.sql` tested on the isolated database | Open, owner's approval | Apply the outbox with approval; then connect a sender (an edge function using the same catalogue, the provider's idempotency key, and `email_live` still off until the owner says so), and queue each email from its trigger, billing ones per Stripe event in step 4. |
 
 ## 5. Decisions
 

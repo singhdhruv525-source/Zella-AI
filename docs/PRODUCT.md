@@ -430,6 +430,8 @@ secrets, never in tables, code, logs or chat (`NN-2`).
 | On-call and scorecard nudges | Built |
 | Admin alerts bell | Built |
 | Push notifications for the installed web app | Planned (D-40) |
+| Emails from Zella Voice to businesses: 92 emails (account and setup, sign in, summaries, alerts, usage, service, billing) in one catalogue and layout, with an admin preview (Admin, Messaging, Emails to businesses) | Built; sending not connected (`docs/BUSINESS_EMAILS.md`) |
+| Platform outbox for those emails: sent once per key, test mode while email sending is off, retries then held for a person | Built, not applied (`sql/zella_platform_emails.sql`, tested on the isolated database only) |
 
 ---
 

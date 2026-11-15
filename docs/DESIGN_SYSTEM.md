@@ -70,6 +70,10 @@ Every notification (banner, pop up, bell item, email) follows one pattern, in th
 - Each business sees the notifications for its own kind of business plus the general ones; the wording uses its
   terms (chairs, patients, tables, jobs, viewings, tenants).
 - No jokes, no emoji, no dashes. Motion (filling rings, fades) stops for people who prefer reduced motion.
+- Emails use one layout (`web/src/emails/businessEmails.js`): the Zella Voice name and the business, a tone badge,
+  the headline, the facts, one mocha button, and the reason for the email in the footer. Email clients can't read CSS
+  variables, so `EMAIL_COLORS` copies the hex values from `tokens.css`; `web/tests/businessEmails.test.mjs` fails if
+  they drift.
 
 ## Rules of use
 

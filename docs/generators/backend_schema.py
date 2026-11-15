@@ -145,6 +145,7 @@ GROUPS = [
         "message_drafts": "Suggested messages waiting for staff approval.",
         "sms_messages": "Every text prepared, sent, skipped or received, with status.",
         "email_messages": "Every email prepared, sent or skipped, with status.",
+        "platform_emails": "The platform outbox: every email Zella Voice sends to a business, once per key, test mode while email sending is off.",
         "email_events": "Delivery, bounce and complaint events from the email provider.",
         "email_unsubscribe_tokens": "Private unsubscribe links (stored hashed).",
         "followup_tasks": "Follow-ups due (no-show, thank-you, quote, reactivation, callback fallback).",
