@@ -43,8 +43,8 @@ begin
   -- a number joined to a word (10-class); dates such as 2026-11-15 are numbers on both sides and stay as they are
   r := regexp_replace(r, '([0-9])-([A-Za-z]{2,})', '\1 \2', 'g');
   -- twice, for words with two hyphens
-  r := regexp_replace(r, '([A-Za-z]{2,})-([A-Za-z]{2,})', '\1 \2', 'g');
-  r := regexp_replace(r, '([A-Za-z]{2,})-([A-Za-z]{2,})', '\1 \2', 'g');
+  r := regexp_replace(r, '([A-Za-z]+)-([A-Za-z]+)', '\1 \2', 'g');
+  r := regexp_replace(r, '([A-Za-z]+)-([A-Za-z]+)', '\1 \2', 'g');
   return r;
 end $f$;
 
@@ -141,6 +141,7 @@ begin
       ('automations', 'id', 'name'), ('automations', 'id', 'description'),
       ('industry_automation_presets', 'id', 'name'), ('industry_automation_presets', 'id', 'description'),
       ('industry_message_policy', 'industry_key', 'reason')) x(tbl, keycol, col) loop
+    execute format('lock table public.%I in share row exclusive mode', t.tbl);
     execute format('insert into public.zella_text_archive (migration, tbl, row_key, col, old_value)
                     select ''zella_writing_cleanup'', %L, %I::text, %L, %I from public.%I
                      where %I is distinct from public.zella_plain_words(%I)
@@ -150,6 +151,7 @@ begin
   end loop;
   for t in select * from (values
       ('automations', 'id', 'trigger_config'), ('industry_automation_presets', 'id', 'trigger_config'), ('industry_crm_presets', 'key', 'config')) x(tbl, keycol, col) loop
+    execute format('lock table public.%I in share row exclusive mode', t.tbl);
     execute format('insert into public.zella_text_archive (migration, tbl, row_key, col, old_value)
                     select ''zella_writing_cleanup'', %L, %I::text, %L, %I::text from public.%I
                      where %I is distinct from public.zella_plain_json(%I)

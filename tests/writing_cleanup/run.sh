@@ -49,6 +49,9 @@ SQL
 
 out=$("${P[@]}" -d $DB 2>&1 <<'SQL'
 do $$ declare a jsonb; c jsonb; begin
+  assert public.zella_plain_words('X-ray ray-X X-Y A-B-C 2026-11-15') = 'X ray ray X X Y A B C 2026-11-15', 'single letter compounds and dates';
+  assert public.zella_plain_json('{"label":"X-ray","service":"X-ray","options":["X-ray"],"value":"X-ray"}'::jsonb)
+    = '{"label":"X ray","service":"X-ray","options":["X-ray"],"value":"X-ray"}'::jsonb, 'single letter matching values protected';
   assert (select name from industries where slug = 'ecommerce') = 'Ecommerce', 'Ecommerce';
   assert (select name || ' / ' || description from industry_modules where id = '1e000000-0000-4000-8000-000000000001') = 'Walk in waitlist / AI powered check in for walk ins on 2026-11-15', 'module: ' || (select name || ' / ' || description from industry_modules where id = '1e000000-0000-4000-8000-000000000001');
   select trigger_config into a from automations where id = '1f000000-0000-4000-8000-000000000001';
@@ -67,6 +70,23 @@ do $$ declare a jsonb; c jsonb; begin
 end $$;
 SQL
 ) && echo "$out" | grep -o 'PASS .*' || bad "data: $(echo "$out" | grep -m2 -E 'ERROR|CONTEXT' | tr '\n' ' ')"
+
+# A later edit must abort the entire rollback and retain both archives for a retry.
+q "update automations set trigger_config = jsonb_set(trigger_config, '{service}', to_jsonb('later-edit'::text)) where id = '1f000000-0000-4000-8000-000000000001'" > /dev/null
+conflict_data=$(q "select md5(string_agg(row(t.*)::text, '|' order by row(t.*)::text)) from automations t")
+conflict_archive=$(q "select md5(string_agg(row(t.*)::text, '|' order by row(t.*)::text)) from zella_text_archive t")
+conflict_functions=$(q "select md5(string_agg(pg_get_functiondef(signature::regprocedure), '|' order by signature)) from zella_function_archive where migration = 'zella_writing_cleanup'")
+if out=$("${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_writing_cleanup_rollback.sql" 2>&1); then
+  bad "rollback accepted a later configuration edit"
+elif [[ "$out" != *ROLLBACK_CONFLICT* ]]; then
+  bad "rollback did not report the configuration conflict: $out"
+else
+  [ "$conflict_data" = "$(q "select md5(string_agg(row(t.*)::text, '|' order by row(t.*)::text)) from automations t")" ] &&
+  [ "$conflict_archive" = "$(q "select md5(string_agg(row(t.*)::text, '|' order by row(t.*)::text)) from zella_text_archive t")" ] &&
+  [ "$conflict_functions" = "$(q "select md5(string_agg(pg_get_functiondef(signature::regprocedure), '|' order by signature)) from zella_function_archive where migration = 'zella_writing_cleanup'")" ] &&
+    ok "rollback reports conflict and preserves edits, archives and migrated functions" || bad "conflicting rollback changed data or archives"
+fi
+q "update automations set trigger_config = public.zella_plain_json((select old_value::jsonb from zella_text_archive where migration = 'zella_writing_cleanup' and tbl = 'automations' and col = 'trigger_config' and row_key = '1f000000-0000-4000-8000-000000000001')) where id = '1f000000-0000-4000-8000-000000000001'" > /dev/null
 
 for i in 1 2; do out=$("${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_writing_cleanup_rollback.sql" 2>&1) || bad "rollback (run $i): $(echo "$out" | grep -m2 ERROR)"; done
 after_fns=$(q "select string_agg(md5(pg_get_functiondef(p.oid)), ',' order by p.oid::regprocedure::text) from pg_proc p where p.pronamespace = 'public'::regnamespace and p.prokind = 'f'")
