@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import UsageLive from "./UsageLive";
 import { supabase } from "./supabase";
 import { Icon, Pill, personName } from "./BusinessUI";
 import { makeTerm, receptionistState } from "./businessWorkspace";
@@ -450,6 +451,7 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
 
       {error && <div className="ba-banner error">Couldn't load everything: {error} <button type="button" className="ba-link" onClick={load}>Try again</button></div>}
       {actionError && <div className="ba-banner error" role="alert">{actionError}</div>}
+      {isToday && <UsageLive workspace={workspace} onGo={onGo} />}
 
       <div className="td-kpis">
         {scheduling && <Kpi icon="event" tone="rose" label={`${bookingWord} ${isToday ? "today" : ""}`.trim()} value={active.length} loading={loading && !data} unavailable={!data && !loading} change={p && trend(active.length, p.bookings)} />}

@@ -18,7 +18,7 @@ It reads the catalog only, never rows.
 | Row security policies | 340 |
 | Columns | 2030 |
 | Views | 1 |
-| Functions | 893 (829 security definer, 26 callable by `anon`) |
+| Functions | 896 (832 security definer, 26 callable by `anon`) |
 
 Rules every table follows:
 
@@ -4455,7 +4455,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_calendar_live()` | boolean | yes | server only |
 | `zella_calendar_mark_error(p_connection_id uuid, p_error text, p_fatal boolean)` | boolean | yes | server only |
 
-### `zella_call_*` (18)
+### `zella_call_*` (19)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -4463,6 +4463,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_call_config()` | jsonb | yes | server only |
 | `zella_call_create_lead(p_call_id uuid, p_first_name text, p_last_name text)` | jsonb | yes | signed in |
 | `zella_call_entitlement_check(p_business_id uuid)` | jsonb | yes | server only |
+| `zella_call_gate(p_business_id uuid)` | jsonb | yes | server only |
 | `zella_call_insight_queue_trg()` | trigger | yes | server only |
 | `zella_call_insights_list(p_business_id uuid, p_limit integer)` | jsonb | yes | signed in |
 | `zella_call_integrity_trg()` | trigger | yes | server only |
@@ -4765,11 +4766,12 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_mark_notifications_read(p_ids uuid[])` | integer | yes | signed in |
 | `zella_mark_staff_sms()` | trigger | yes | server only |
 
-### `zella_message_*` (5)
+### `zella_message_*` (6)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
 | `zella_message_allowance(p_business_id uuid, p_channel text, p_kind text)` | jsonb | yes | server only |
+| `zella_message_gate(p_business_id uuid, p_channel text, p_template_key text)` | jsonb | yes | server only |
 | `zella_message_policy(p_business_id uuid)` | jsonb | yes | signed in |
 | `zella_message_policy_for(p_business_id uuid)` | jsonb | yes | server only |
 | `zella_message_policy_trg()` | trigger | yes | server only |
@@ -5321,13 +5323,14 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_update_outbound_email(p_id uuid, p_status text, p_external_id text, p_error text)` | text | yes | server only |
 | `zella_update_outbound_sms(p_id uuid, p_status text, p_external_id text, p_error text)` | text | yes | server only |
 
-### `zella_usage_*` (8)
+### `zella_usage_*` (9)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
 | `zella_usage_billable_seconds(p_seconds integer, p_policy jsonb)` | integer |  | server only |
 | `zella_usage_consume(p_business_id uuid, p_resource text, p_quantity numeric, p_key text, p_source_kind text, p_source_id uuid, p_message_kind text, p_at timestamp with time zone)` | jsonb | yes | server only |
 | `zella_usage_counts(p_business_id uuid, p_from timestamp with time zone, p_to timestamp with time zone)` | jsonb | yes | server only |
+| `zella_usage_enforced(p_what text)` | boolean | yes | server only |
 | `zella_usage_open_issue(p_business_id uuid, p_call_id uuid, p_kind text, p_error text, p_detail jsonb)` | void | yes | server only |
 | `zella_usage_period_for(p_business_id uuid, p_at timestamp with time zone)` | jsonb | yes | server only |
 | `zella_usage_policy()` | jsonb | yes | server only |

@@ -112,6 +112,7 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile`. `vapi_a
 | The last commit of PR #49 (`a5bcb54`, a merge commit) was never reviewed by CodeRabbit | Open | Low risk; re-review if touched. |
 | Audit follow-ups M-3, M-4, L-2, L-4, L-5 | Open | `docs/ZELLA_REMEDIATION_CHECKLIST.md` |
 | "Something is missing in the app" (owner, no details yet) | Waiting on the owner | |
+| **Usage limits that act:** `sql/zella_usage_enforcement.sql` (switches off), voice-rules forward reply, live usage card on Today; tested locally only | Open, owner's approval | 1. Apply the migration. 2. Deploy voice-rules and make one staging call with the calls switch on for a test business, to prove Vapi transfers on the `destination` reply. 3. Turn on `usage_enforcement.calls`, then `.messages`, each with approval. The monthly spending limit for pay as you go is not enforced yet (needs payments, step 4). |
 | **Business moments** (record day, call surge, weekend on call gaps): `sql/zella_business_moments.sql`, tested on the isolated database; the CRM shows them with the five tones | Open, owner's approval | Apply with approval. Later moments need data the app doesn't keep yet (recall due dates, seasonal demand such as tax season). |
 
 ## 5. Decisions
