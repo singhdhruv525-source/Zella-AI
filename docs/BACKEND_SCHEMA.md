@@ -13,12 +13,12 @@ It reads the catalog only, never rows.
 
 | What | Count |
 |---|---|
-| Tables (schema `public`) | 172 |
-| Tables with row security on | 172 of 172 |
+| Tables (schema `public`) | 173 |
+| Tables with row security on | 173 of 173 |
 | Row security policies | 341 |
-| Columns | 2050 |
+| Columns | 2056 |
 | Views | 1 |
-| Functions | 901 (836 security definer, 26 callable by `anon`) |
+| Functions | 903 (836 security definer, 26 callable by `anon`) |
 
 Rules every table follows:
 
@@ -60,7 +60,7 @@ Each is a database job; most stay off until the owner approves going live (see `
 
 ## Contents
 
-- [Tenancy, people and access](#tenancy-people-and-access): `businesses`, `business_members`, `business_invitations`, `profiles`, `staff_members`, `staff_handovers`, `time_off_requests`, `platform_admins`, `platform_role_permissions`, `sensitive_approvals`, `legal_documents`, `legal_acceptances`, `audit_logs`, `zella_function_archive`, `rate_limits`
+- [Tenancy, people and access](#tenancy-people-and-access): `businesses`, `business_members`, `business_invitations`, `profiles`, `staff_members`, `staff_handovers`, `time_off_requests`, `platform_admins`, `platform_role_permissions`, `sensitive_approvals`, `legal_documents`, `legal_acceptances`, `audit_logs`, `zella_function_archive`, `zella_text_archive`, `rate_limits`
 - [Business setup and industry configuration](#business-setup-and-industry-configuration): `industries`, `industry_configurations`, `industry_modules`, `business_modules`, `business_capabilities`, `industry_crm_presets`, `industry_automation_presets`, `industry_automation_defaults`, `industry_automation_runs`, `industry_message_policy`, `business_hours`, `business_closures`, `business_languages`, `business_voice`, `business_phone_numbers`, `business_verification_documents`, `provisioning_steps`, `activation_tests`, `config_migration_snapshots`, `zella_milestones`, `platform_settings`, `business_usage_preferences`
 - [Customers and CRM](#customers-and-crm): `customers`, `customer_relationships`, `customer_requests`, `customer_consents`, `contact_consents`, `duplicate_reviews`, `crm_tasks`, `crm_record_types`, `crm_records`, `crm_record_events`, `crm_record_files`, `crm_record_secrets`, `record_workflow_presets`, `record_approvals`, `record_milestones`, `record_inspections`, `record_exceptions`, `record_credits`, `quotes`, `customer_charges`, `customer_charge_payments`, `data_rights_requests`
 - [Leads](#leads): `lead_rules`, `lead_questions`, `lead_submissions`, `website_forms`, `website_sources`, `website_pages`, `google_lead_keys`, `google_lead_events`, `assignment_rules`
@@ -399,6 +399,22 @@ Original function definitions a migration replaced, kept for its exact rollback 
 | `saved_at` | timestamp with time zone | yes | now() |
 
 - Primary key: `migration, signature`.
+- Row security: on; no policies, so roles subject to row security (signed-in users and anon) get no rows directly. Superusers and `BYPASSRLS` roles (such as the server key) are not limited by it, nor is the table owner unless `FORCE ROW LEVEL SECURITY` is set; a security definer function runs with its function owner's rights.
+
+### `zella_text_archive`
+
+Every stored text value the writing cleanup changed, with the original, kept for its exact rollback (server only).
+
+| Column | Type | Required | Default |
+|---|---|---|---|
+| `migration` | text | yes |  |
+| `tbl` | text | yes |  |
+| `row_key` | text | yes |  |
+| `col` | text | yes |  |
+| `old_value` | text |  |  |
+| `saved_at` | timestamp with time zone | yes | now() |
+
+- Primary key: `migration, tbl, row_key, col`.
 - Row security: on; no policies, so roles subject to row security (signed-in users and anon) get no rows directly. Superusers and `BYPASSRLS` roles (such as the server key) are not limited by it, nor is the table owner unless `FORCE ROW LEVEL SECURITY` is set; a security definer function runs with its function owner's rights.
 
 ### `rate_limits`
@@ -5434,7 +5450,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_setting(p_key text, p_default jsonb)` | jsonb | yes | server only |
 | `zella_tables(p_business_id uuid)` | jsonb | yes | signed in |
 
-### Smaller groups and older helpers (184)
+### Smaller groups and older helpers (186)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -5550,6 +5566,8 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_phone_capacity_trg()` | trigger | yes | server only |
 | `zella_pick_assignee(p_business_id uuid, p_exclude uuid)` | uuid | yes | server only |
 | `zella_pick_tables(p_business_id uuid, p_party integer, p_start timestamp with time zone, p_end timestamp with time zone, p_ignore uuid, p_section text, p_needs text[])` | uuid[] | yes | server only |
+| `zella_plain_json(j jsonb)` | jsonb |  | server only |
+| `zella_plain_words(t text)` | text |  | server only |
 | `zella_plan_evaluate(p_values jsonb)` | jsonb | yes | signed in |
 | `zella_plan_limits(p_business_id uuid)` | jsonb | yes | server only |
 | `zella_pre_request()` | void | yes | anon, signed in |
