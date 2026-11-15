@@ -45,7 +45,7 @@ export function setupProblems(f: SetupFacts): string[] {
   // REQ-BIL-57: the plan is reviewed and saved by a billing admin before the owner is invited
   if (!f.planSaved) out.push("the plan, reviewed and saved by a billing admin (Plan & pricing)");
   // REQ-BIL-34: every business has a fallback number from Create Business; calls go there whenever the AI can't take them
-  if (!f.fallbackSaved) out.push("the fallback number, where calls go when the AI receptionist can't take them (Phone & integrations)");
+  if (!f.fallbackSaved) out.push("the fallback number, where calls go when the AI receptionist can't take them (Phone & integrations; save it again if it was entered before the receptionist was set up)");
   return out;
 }
 

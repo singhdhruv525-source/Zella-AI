@@ -1,6 +1,6 @@
 import { latestOwnerInvitation, moveOwnerInvitation } from "./ownerInvitation.ts";
 import { FinishError, finishSetupWith } from "./owner_invite.ts";
-import { fallbackPatch, toE164, transferPatch } from "./setup_sync.ts";
+import { fallbackPatch, sameLine, toE164, transferPatch } from "./setup_sync.ts";
 import { withCors } from "../_shared/cors.ts";
 import { readJsonLimited } from "../_shared/body.ts";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
@@ -853,7 +853,7 @@ async function syncSetupToLive(admin: SupabaseClient, businessId: string) {
       const fb = fallbackPatch({
         setupNumber: (obj(setupData.integrations).fallback_number as string) ?? null,
         currentNumber: (rules.fallback_number as string) ?? null,
-        currentSource: (rules.fallback_number_source as string) ?? null,
+        currentFromSetup: (rules.fallback_number_from_setup as string) ?? null,
       });
       if (patch || fb) {
         const { error } = await admin.from("ai_agent_configs")
@@ -911,7 +911,12 @@ async function saveIntegrations(admin: SupabaseClient, fields: Json) {
     },
     transfer_number: optionalPhone(input.transferNumber, "transfer phone number"),
     // REQ-BIL-34: required to finish setup (owner_invite.ts); saved as typed only when it is a real number
-    fallback_number: (() => { const v = text(input.fallbackNumber, 30); if (v && !toE164(v)) throw new InputError("Enter a valid fallback number"); return v ? toE164(v)! : ""; })(),
+    fallback_number: (() => {
+      const v = text(input.fallbackNumber, 30);
+      if (v && !toE164(v)) throw new InputError("Enter a valid fallback number");
+      if (v && sameLine(v, forwardFrom)) throw new InputError("The fallback number must be a different line from the business number that forwards to Zella Voice, or calls would loop");
+      return v ? toE164(v)! : "";
+    })(),
     calendar: oneOf(input.calendar, ["google", "outlook", "none"] as const, "none"),
     email: oneOf(input.email, ["gmail", "outlook", "none"] as const, "none"),
     lead_sources: {
@@ -1037,11 +1042,13 @@ async function finishSetup(admin: SupabaseClient, fields: Json) {
         return new Set((data ?? []).map((h) => h.weekday)).size;
       },
       async fallbackNumber() {
-        // the receptionist's rules win (an admin may have set it in call routing), then the setup answer
+        // only the number calls are actually routed to counts: the receptionist's rules (copied there when Phone &
+        // integrations is saved, or set by an admin in call routing). An answer saved only in setup does not.
         const { config } = await getReceptionist(admin, businessId);
         const live = obj(config?.escalation_rules).fallback_number;
-        const fromSetup = obj(obj(business.setup_data).integrations).fallback_number;
-        return toE164(typeof live === "string" && live ? live : fromSetup);
+        const forwardFrom = obj(obj(obj(business.setup_data).integrations).phone).forward_from;
+        const n = toE164(typeof live === "string" ? live : null);
+        return n && !sameLine(n, forwardFrom) ? n : null;
       },
       async planSaved() {
         // fails closed: no answer (for example the billing tables are not there yet) stops the finish

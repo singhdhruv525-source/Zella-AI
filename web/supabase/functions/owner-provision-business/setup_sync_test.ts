@@ -1,6 +1,6 @@
 // deno test --no-lock web/supabase/functions/owner-provision-business/setup_sync_test.ts   (no network)
 import { assertEquals } from "jsr:@std/assert@1";
-import { fallbackPatch, toE164, transferPatch } from "./setup_sync.ts";
+import { fallbackPatch, sameLine, toE164, transferPatch } from "./setup_sync.ts";
 
 const base = { transferType: "owner", transferPhone: null, integrationsNumber: null, ownerPhone: null, currentNumber: null, currentSource: null };
 
@@ -26,9 +26,17 @@ Deno.test("fallback number: E.164 from what people type; never replaces an admin
   assertEquals(toE164("+0123456789"), null);
   assertEquals(toE164("0123456789"), null);
   assertEquals(toE164(""), null);
-  assertEquals(fallbackPatch({ setupNumber: "(555) 210-3000", currentNumber: null, currentSource: null }), { fallback_number: "+15552103000", fallback_number_source: "setup" });
-  assertEquals(fallbackPatch({ setupNumber: "(555) 210-3000", currentNumber: "+15559990000", currentSource: null }), null);
-  assertEquals(fallbackPatch({ setupNumber: "(555) 210-3000", currentNumber: "+15559990000", currentSource: "setup" })?.fallback_number, "+15552103000");
-  assertEquals(fallbackPatch({ setupNumber: "(555) 210-3000", currentNumber: "+15552103000", currentSource: "setup" }), null);
-  assertEquals(fallbackPatch({ setupNumber: "bad", currentNumber: null, currentSource: null }), null);
+  const fb = (setupNumber: string, currentNumber: string | null, currentFromSetup: string | null) => fallbackPatch({ setupNumber, currentNumber, currentFromSetup });
+  assertEquals(fb("(555) 210-3000", null, null), { fallback_number: "+15552103000", fallback_number_source: "setup", fallback_number_from_setup: "+15552103000" });
+  // an admin's number (never written by setup) stays
+  assertEquals(fb("(555) 210-3000", "+15559990000", null), null);
+  // setup wrote it, then an admin changed it: stays, even though an old marker may still say "setup"
+  assertEquals(fb("(555) 210-3000", "+15559990000", "+15551110000"), null);
+  // still exactly what setup wrote: setup may update it
+  assertEquals(fb("(555) 210-3000", "+15551110000", "+15551110000")?.fallback_number, "+15552103000");
+  assertEquals(fb("(555) 210-3000", "+15552103000", "+15552103000"), null);
+  assertEquals(fb("bad", null, null), null);
+  assertEquals(sameLine("(555) 210-3000", "+15552103000"), true);
+  assertEquals(sameLine("(555) 210-3000", "+15552103001"), false);
+  assertEquals(sameLine("", ""), false);
 });

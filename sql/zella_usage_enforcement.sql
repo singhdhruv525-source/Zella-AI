@@ -24,6 +24,7 @@ do $$ begin
      or to_regprocedure('public.zella_billing_plan_current(uuid)') is null
      or to_regprocedure('public.zella_assistant_for_call(text,text,text)') is null or to_regprocedure('public.zella_prepare_sms(uuid,uuid,text,jsonb,text)') is null
      or to_regprocedure('public.zella_prepare_email(uuid,uuid,text,jsonb,text)') is null or to_regprocedure('public.zella_patch_function(text,text,text,text)') is null
+     or to_regprocedure('public.zella_business_for_number(text,text,uuid)') is null or to_regprocedure('public.zella_normalize_e164(text)') is null
      or to_regclass('public.business_usage_preferences') is null then
     raise exception 'VERSION_MISMATCH: a function this file needs is missing (apply sql/zella_billing_allowances.sql first)';
   end if;
@@ -60,6 +61,13 @@ begin
     v_number := case when v_raw like '+%' then case when ('+' || v_digits) ~ '^\+[1-9][0-9]{7,14}$' then '+' || v_digits end
                      when length(v_digits) = 10 and left(v_digits, 1) between '2' and '9' then '+1' || v_digits
                      when length(v_digits) = 11 and left(v_digits, 1) = '1' and substr(v_digits, 2, 1) between '2' and '9' then '+' || v_digits end;
+    -- never a line that rings back into Zella Voice (a Zella Voice number, or the business line that forwards to it):
+    -- the call would come straight back here and loop
+    if v_number is not null and (public.zella_business_for_number(v_number, null, null) is not null
+        or exists (select 1 from public.businesses b where b.id = p_business_id
+                    and public.zella_normalize_e164(b.setup_data #>> '{integrations,phone,forward_from}') = v_number)) then
+      v_number := null;
+    end if;
   end if;
   return jsonb_build_object(
     'action', case when v_stop and v_number is not null and public.zella_usage_enforced('calls') then 'forward' else 'answer' end,
