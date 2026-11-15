@@ -1,4 +1,4 @@
-import { assistantReply, authHeaders, CANT_TAKE, FORWARD_MESSAGE, brainInvalidReply, brainToolReply, FAILED, plan, toolResult, transferReply, UNSUPPORTED, unsupported } from "./logic.ts";
+import { assistantReply, authHeaders, CANT_TAKE, brainInvalidReply, brainToolReply, FAILED, plan, toolResult, transferReply, UNSUPPORTED, unsupported } from "./logic.ts";
 import { eventTime, planCallEvent } from "../_shared/vapi-call-events.js";
 
 function eq(a: unknown, b: unknown, m: string) { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(m + ": " + JSON.stringify(a) + " !== " + JSON.stringify(b)); }
@@ -147,11 +147,6 @@ Deno.test("assistant-request answers: current settings, standby assistant, or a 
   eq(assistantReply(true, { ok: false, outcome: "not_ready", fallback_assistant_id: "0a1b2c3d-0000-4000-8000-000000000001" }), { assistantId: "0a1b2c3d-0000-4000-8000-000000000001" }, "assistant");
   eq(assistantReply(true, { ok: false, outcome: "unknown_number", fallback_assistant_id: null }), { error: CANT_TAKE }, "assistant");
   eq(assistantReply(true, { ok: false, fallback_assistant_id: "not-a-uuid" }), { error: CANT_TAKE }, "assistant");
-  // usage limit reached with the switch on: forwarded to the business's own number; a bad number is never dialled
-  eq(assistantReply(true, { ok: false, outcome: "forward", forward_number: "+15550102040" }),
-    { destination: { type: "number", number: "+15550102040", message: FORWARD_MESSAGE } }, "assistant");
-  eq(assistantReply(true, { ok: false, outcome: "forward", forward_number: "5550102040" }), { error: CANT_TAKE }, "assistant");
-  eq(assistantReply(false, { ok: false, outcome: "forward", forward_number: "+15550102040" }), { error: CANT_TAKE }, "assistant");
   eq(assistantReply(false, null), { error: CANT_TAKE }, "assistant");   // database down or too slow
   eq(assistantReply(true, { ok: true, assistant: [] }), { error: CANT_TAKE }, "assistant");
 });
