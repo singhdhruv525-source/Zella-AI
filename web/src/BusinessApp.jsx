@@ -508,7 +508,9 @@ function BusinessHome() {
     try { return localStorage.getItem(LAST_BUSINESS); } catch { return null; }
   });
   // Read once at the start: the business this tab was opened for (its own link, or the hint from before signing in).
-  const [openedFor] = useState(() => linkedHere ?? linkBusiness());
+  // Used by the first load of the businesses only; after that the person's own choice stands.
+  const [initialOpenedFor] = useState(() => linkedHere ?? linkBusiness());
+  const openedFor = useRef(initialOpenedFor);
   const setSelectedId = (next) => setSelectedIdRaw((current) => {
     const id = typeof next === "function" ? next(current) : next;
     try { if (id) localStorage.setItem(LAST_BUSINESS, id); } catch { /* private mode */ }
@@ -537,13 +539,15 @@ function BusinessHome() {
       setIsAdmin(admin === true);
     }
     setWorkspaces(data ?? []);
-    if (linkBusiness() === openedFor) forgetLinkBusiness();   // leave another tab's newer hint alone
+    const linked = openedFor.current;
+    openedFor.current = null;
+    if (linked && linkBusiness() === linked) forgetLinkBusiness();   // leave another tab's newer hint alone
     setSelectedId((current) => {
-      const want = openedFor ?? current;
+      const want = linked ?? current;
       if ((data ?? []).some((w) => w.id === want)) return want;
       return (data ?? []).some((w) => w.id === current) ? current : data?.[0]?.id ?? null;
     });
-  }, [openedFor]);
+  }, []);
 
   useEffect(() => {
     let active = true;
