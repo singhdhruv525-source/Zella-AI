@@ -31,8 +31,11 @@ export const FINISH_STOP: Record<string, [number, string]> = {
   expired: [409, "The owner's invitation link has expired. Choose Resend invitation on the business page, then finish."],
 };
 
+// A fallback number must be dialable as written (E.164), as voice-rules dials it.
+export const E164 = /^\+[1-9][0-9]{7,14}$/;
+
 // Required setup, checked by the server from saved data before the workspace becomes active.
-export type SetupFacts = { name: string | null; industryId: string | null; openDays: number; documentsReady: boolean; documentsMissing: string[]; planSaved: boolean };
+export type SetupFacts = { name: string | null; industryId: string | null; openDays: number; documentsReady: boolean; documentsMissing: string[]; planSaved: boolean; fallbackSaved: boolean };
 export function setupProblems(f: SetupFacts): string[] {
   const out: string[] = [];
   if (!f.name?.trim()) out.push("the business name");
@@ -41,6 +44,8 @@ export function setupProblems(f: SetupFacts): string[] {
   if (!f.documentsReady) out.push(`verification documents (${f.documentsMissing.join(", ") || "required documents"})`);
   // REQ-BIL-57: the plan is reviewed and saved by a billing admin before the owner is invited
   if (!f.planSaved) out.push("the plan, reviewed and saved by a billing admin (Plan & pricing)");
+  // REQ-BIL-34: every business has a fallback number from Create Business; calls go there whenever the AI can't take them
+  if (!f.fallbackSaved) out.push("the fallback number, where calls go when the AI receptionist can't take them (Phone & integrations)");
   return out;
 }
 
@@ -54,6 +59,7 @@ export interface FinishDeps {
   documents(): Promise<{ ready: boolean; missing: string[] }>;
   openDays(): Promise<number>;
   planSaved(): Promise<boolean>;                                         // a business_plans version exists
+  fallbackNumber(): Promise<string | null>;                              // the saved fallback number, if any
   claim(invitationId: string): Promise<boolean>;                       // open -> sent, true if this call won
   sendInvite(email: string, name: string | null): Promise<{ userId: string } | { error: string }>;
   release(invitationId: string, reason: string): Promise<void>;        // sent (unsent, ours) -> failed
@@ -70,8 +76,9 @@ export async function finishSetupWith(d: FinishDeps) {
   const inv = await d.ownerInvitation();
   const plan = finishPlan(inv, d.now());
   if (plan.kind in FINISH_STOP) { const [status, message] = FINISH_STOP[plan.kind]; throw new FinishError(message, status); }
-  const [documents, openDays, planSaved] = await Promise.all([d.documents(), d.openDays(), d.planSaved()]);
-  const problems = setupProblems({ name: business.name, industryId: business.industry_id, openDays, documentsReady: documents.ready, documentsMissing: documents.missing, planSaved });
+  const [documents, openDays, planSaved, fallback] = await Promise.all([d.documents(), d.openDays(), d.planSaved(), d.fallbackNumber()]);
+  const problems = setupProblems({ name: business.name, industryId: business.industry_id, openDays, documentsReady: documents.ready, documentsMissing: documents.missing, planSaved,
+    fallbackSaved: typeof fallback === "string" && E164.test(fallback) });
   if (problems.length) throw new FinishError(`Before finishing, save ${problems.join("; ")}.`, 400);
 
   let invitationStatus: string = plan.kind;

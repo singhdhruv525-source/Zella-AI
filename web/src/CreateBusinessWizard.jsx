@@ -217,6 +217,7 @@ function emptySetup() {
     integrations: {
       phone: { mode: "new_number", areaCode: "", existingNumber: "", forwardWhen: "always" },
       transferNumber: "",
+      fallbackNumber: "",
       calendar: "none",
       email: "none",
       leadSources: { meta: false, website: false, google: false },
@@ -303,6 +304,7 @@ function fromServer(data, industries = []) {
         forwardWhen: integrations.phone?.forward_when || "always",
       },
       transferNumber: integrations.transfer_number || "",
+      fallbackNumber: integrations.fallback_number || "",
       calendar: integrations.calendar || "none",
       email: integrations.email || "none",
       leadSources: { ...setup.integrations.leadSources, ...integrations.lead_sources },
@@ -928,6 +930,9 @@ function IntegrationsStep({ value, onChange, showErrors }) {
           </Field>
           <Field label="Call transfer number" hint="Where the AI sends calls it shouldn't handle" bare>
             <PhoneField value={value.transferNumber} onChange={(transferNumber) => onChange({ ...value, transferNumber })} showErrors={showErrors} label="Call transfer number" />
+          </Field>
+          <Field label="Fallback number (required)" hint="Where calls go whenever the AI receptionist can't take them: paused, unavailable or out of minutes. Use a line a person answers, not the number that forwards to Zella Voice." bare>
+            <PhoneField value={value.fallbackNumber} onChange={(fallbackNumber) => onChange({ ...value, fallbackNumber })} showErrors={showErrors} label="Fallback number" required />
           </Field>
         </div>
       </Section>
@@ -2013,6 +2018,12 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
     if (key === "plan" && planDirty) return "Review and save the plan (Review changes), or discard the changes.";
     if (key === "integrations") {
       if (validatePhone(setup.integrations.transferNumber)) return `Call transfer number: ${validatePhone(setup.integrations.transferNumber)}`;
+      const fallbackProblem = validatePhone(setup.integrations.fallbackNumber, { required: true });
+      if (fallbackProblem) return `Fallback number: ${fallbackProblem}`;
+      const digits = (v) => String(v ?? "").replace(/\D/g, "").replace(/^1(?=\d{10}$)/, "");
+      if (setup.integrations.phone.mode === "call_forwarding" && digits(setup.integrations.fallbackNumber) === digits(setup.integrations.phone.existingNumber)) {
+        return "Fallback number: use a different line from the business number that forwards to Zella Voice, or calls would loop.";
+      }
       if (setup.integrations.phone.mode === "call_forwarding") {
         if (!setup.integrations.phone.existingNumber.trim()) return "Enter the business number that will be forwarded to Zella Voice.";
         const bad = validatePhone(setup.integrations.phone.existingNumber, { required: true });

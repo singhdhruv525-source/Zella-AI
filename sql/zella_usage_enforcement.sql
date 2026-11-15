@@ -1,5 +1,7 @@
 -- Zella Voice: usage limits that actually act, behind two switches that stay OFF until the owner approves each one.
---   calls     at 100% of minutes, a new call is forwarded to the business's own phone number (businesses.phone), unless
+--   calls     at 100% of minutes, a new call is forwarded to the business's fallback number (REQ-BIL-34: set at Create
+--             Business, kept in the receptionist's escalation_rules.fallback_number; never businesses.phone, which may be
+--             the very number that forwards to Zella Voice and would loop), unless
 --             the business chose pay as you go (business_usage_preferences.overage_mode pay_as_you_go or auto_top_up, and a per minute rate on
 --             its plan). A paused, cancelled or unpaid business is forwarded the same way. A call already in progress is
 --             never cut off; with no valid number to forward to, the call is answered as before (a call is never dropped).
@@ -49,7 +51,9 @@ begin
     v_stop := false; v_reason := coalesce(e ->> 'reason', e ->> 'status');   -- within allowance, not configured or unknown: answer as before
   end if;
   if v_stop then
-    select phone into v_raw from public.businesses where id = p_business_id;
+    select cfg.escalation_rules ->> 'fallback_number' into v_raw
+      from public.ai_agents ag join public.ai_agent_configs cfg on cfg.agent_id = ag.id
+     where ag.business_id = p_business_id and ag.is_default limit 1;
     v_digits := regexp_replace(coalesce(v_raw, ''), '\D', '', 'g');
     -- E.164 only (what voice-rules will dial): a number written with + must be valid as written, otherwise there is
     -- no number and the call is answered as before
