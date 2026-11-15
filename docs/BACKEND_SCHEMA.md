@@ -18,7 +18,7 @@ It reads the catalog only, never rows.
 | Row security policies | 341 |
 | Columns | 2050 |
 | Views | 1 |
-| Functions | 904 (839 security definer, 26 callable by `anon`) |
+| Functions | 905 (840 security definer, 26 callable by `anon`) |
 
 Rules every table follows:
 
@@ -2812,6 +2812,7 @@ The platform outbox: every email Zella Voice sends to a business, once per key, 
 - Unique: `(business_id, dedupe_key)`.
 - `business_id` → `public.businesses` (on delete cascade).
 - Row security: on; policies: platform_emails_read (select).
+- Triggers: `zella_kick_platform_emails`.
 
 ### `email_events`
 
@@ -4121,7 +4122,7 @@ Notifications for staff who don't sign in (by text or email).
 - Primary key: `id`.
 - `business_id` → `public.businesses` (on delete cascade).
 - Row security: on; policies: staff_notifications_select (select), zella_mfa_required (all).
-- Triggers: `zella_mark_staff_sms_trg`.
+- Triggers: `zella_kick_platform_emails`, `zella_mark_staff_sms_trg`.
 
 ### `admin_alert_prefs`
 
@@ -5437,7 +5438,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_setting(p_key text, p_default jsonb)` | jsonb | yes | server only |
 | `zella_tables(p_business_id uuid)` | jsonb | yes | signed in |
 
-### Smaller groups and older helpers (184)
+### Smaller groups and older helpers (185)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -5515,6 +5516,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_invite_staff(p_business_id uuid, p_email text, p_name text, p_role text)` | uuid | yes | signed in |
 | `zella_issue_quote(p_customer_id uuid, p_title text, p_expires_in_days integer)` | uuid | yes | signed in |
 | `zella_join_waitlist(p_business_id uuid, p_customer_id uuid, p_title text, p_duration_minutes integer, p_earliest timestamp with time zone, p_latest timestamp with time zone, p_staff_id uuid, p_notes text)` | uuid | yes | signed in |
+| `zella_kick_platform_emails()` | trigger | yes | server only |
 | `zella_language_allowance(p_business_id uuid)` | integer | yes | signed in |
 | `zella_language_catalog()` | jsonb |  | anon, signed in |
 | `zella_languages_status()` | jsonb | yes | server only |

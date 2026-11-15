@@ -27,6 +27,9 @@ ok "applies twice"
   && ok "server only" || bad "callable from the browser"
 [ "$(q "select count(*) from vault.secrets where name = 'zella_platform_emails_secret'")" = 1 ] && [ "$(q "select count(*) from cron.job where jobname = 'zella_platform_emails' and not active")" = 1 ] \
   && ok "one secret in Vault and one job, switched off, even after two runs" || bad "secret or job missing, doubled or switched on"
+[ "$(q "select count(*) filter (where tgenabled = 'D') || '/' || count(*) from pg_trigger where tgname = 'zella_kick_platform_emails'")" = 2/2 ] \
+  && [ "$(q "select has_function_privilege('authenticated', 'public.zella_kick_platform_emails()', 'execute')")" = f ] \
+  && ok "event triggers on both tables, one each after two runs, created switched off" || bad "event triggers missing, doubled or switched on"
 
 out=$("${P[@]}" -d $DB 2>&1 <<'SQL'
 insert into auth.users (id, email) values ('c0000000-0000-4000-8000-0000000000e1', 'owner@example.com'), ('c0000000-0000-4000-8000-0000000000e2', 'admin@example.com'),
@@ -93,6 +96,23 @@ end $$;
 SQL
 ) && echo "$out" | grep -o 'PASS .*' || bad "dispatch: $(echo "$out" | grep -m2 -E 'ERROR|CONTEXT' | tr '\n' ' ')"
 
+# (net.http_requests is the isolated copy's stand in for pg_net: it records calls and sends nothing)
+# switched on, a new email wakes the sender at once, one call per statement; a failure never stops the insert
+q "alter table platform_emails enable trigger zella_kick_platform_emails" > /dev/null
+q "update platform_settings set value = '\"https://example.invalid/functions/v1/platform-emails\"'::jsonb where key = 'platform_emails_url'" > /dev/null
+q "delete from net.http_requests" > /dev/null
+q "insert into platform_emails (business_id, code, dedupe_key, to_email, subject, html, text_body, mandatory) select 'b0000000-0000-4000-8000-0000000000d1', 'N1', 'email:N1:kick:' || g, 'o@example.com', 's', 'h', 't', false from generate_series(1, 3) g" > /dev/null
+[ "$(q "select count(*) from net.http_requests where url = 'https://example.invalid/functions/v1/platform-emails'")" = 1 ] \
+  && ok "switched on, a batch of three new emails wakes the sender once, straight away" || bad "the event kick did not call the sender exactly once"
+q "update platform_settings set value = '\"https://example.invalid/x\"'::jsonb where key = 'platform_emails_url'" > /dev/null
+q "alter function public.zella_dispatch_platform_emails() rename to zella_dispatch_platform_emails_off" > /dev/null
+q "insert into platform_emails (business_id, code, dedupe_key, to_email, subject, html, text_body, mandatory) values ('b0000000-0000-4000-8000-0000000000d1', 'N1', 'email:N1:kick:broken', 'o@example.com', 's', 'h', 't', false)" > /dev/null 2>&1 \
+  && ok "a failing kick never stops the email being saved" || bad "a failing kick blocked the insert"
+q "alter function public.zella_dispatch_platform_emails_off() rename to zella_dispatch_platform_emails" > /dev/null
+q "alter table platform_emails disable trigger zella_kick_platform_emails" > /dev/null
+q "update platform_settings set value = '\"\"'::jsonb where key = 'platform_emails_url'" > /dev/null
+q "delete from platform_emails where dedupe_key like 'email:N1:kick:%'" > /dev/null; q "delete from net.http_requests" > /dev/null
+
 # the rollback waits while notification emails are still in the outbox
 q "insert into platform_emails (business_id, code, dedupe_key, to_email, subject, html, text_body, mandatory) values ('b0000000-0000-4000-8000-0000000000d1', 'N1', 'email:N1:pending:1', 'o@example.com', 's', 'h', 't', false)" > /dev/null
 if out=$("${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_email_delivery_rollback.sql" 2>&1); then bad "rollback ran with emails waiting"
@@ -104,7 +124,7 @@ for i in 1 2; do out=$("${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_email_deliv
   && [ "$(q "select md5(pg_get_functiondef('public.zella_dispatch_n8n()'::regprocedure))")" = "$before_dispatch" ] \
   && [ "$(q "select md5(pg_get_functiondef('public.zella_claim_platform_emails(integer)'::regprocedure))")" = "$before_claim" ] \
   && [ "$(q "select count(*) from platform_settings where key = 'platform_emails_url'")" = 1 ] \
-  && [ "$(q "select to_regprocedure('public.zella_claim_notification_emails(integer)') is null and not exists (select 1 from cron.job where jobname = 'zella_platform_emails') and not exists (select 1 from vault.secrets where name = 'zella_platform_emails_secret')")" = t ] \
+  && [ "$(q "select to_regprocedure('public.zella_claim_notification_emails(integer)') is null and to_regprocedure('public.zella_kick_platform_emails()') is null and not exists (select 1 from pg_trigger where tgname = 'zella_kick_platform_emails') and not exists (select 1 from cron.job where jobname = 'zella_platform_emails') and not exists (select 1 from vault.secrets where name = 'zella_platform_emails_secret')")" = t ] \
   && ok "the rollback (run twice) restores all three functions exactly, keeps the setting that was already there and removes the job and the secret it made" || bad "rollback left a difference"
 out=$("${P[@]}" -d $DB -f "$REPO/sql/zella_email_delivery.sql" 2>&1) && ok "applies again after the rollback" || bad "re-apply: $(echo "$out" | grep -m1 ERROR)"
 

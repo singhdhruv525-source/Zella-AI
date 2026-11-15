@@ -39,6 +39,9 @@ do $$ declare d text; v_def text; begin
     perform cron.unschedule('zella_platform_emails');
   end if;
 end $$;
+drop trigger if exists zella_kick_platform_emails on public.platform_emails;
+drop trigger if exists zella_kick_platform_emails on public.staff_notifications;
+drop function if exists public.zella_kick_platform_emails();
 drop function if exists public.zella_dispatch_platform_emails();
 drop function if exists public.zella_claim_notification_emails(integer);
 drop function if exists public.zella_platform_emails_check(text);

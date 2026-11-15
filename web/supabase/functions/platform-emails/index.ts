@@ -1,5 +1,5 @@
-// Zella Voice: platform-emails edge function (logic.ts). Called every minute by the database when there is work
-// (zella_dispatch_platform_emails), with the secret kept in Vault; the database checks it (zella_platform_emails_check),
+// Zella Voice: platform-emails edge function (logic.ts). Woken by the database as soon as a notification or outbox
+// email is saved, with a minute safety net, and only when there is work (zella_dispatch_platform_emails), with the secret kept in Vault; the database checks it (zella_platform_emails_check),
 // so no secret lives in this function. Deploy with --no-verify-jwt: the caller is the database, not a signed in user.
 // Needs: ZELLA_SERVER_SECRET_KEY (server key, as voice-rules), RESEND_API_KEY to send (without it nothing is sent),
 // ZELLA_APP_URL for the button in each email (optional).

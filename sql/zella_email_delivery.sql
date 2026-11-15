@@ -112,7 +112,7 @@ begin
   return '[]'::jsonb;
 end $$;
 
--- 5. an email for one person is sent only while that person is still an active member of the business: at claim time,
+-- 4. an email for one person is sent only while that person is still an active member of the business: at claim time,
 --    an email for someone who left (or was suspended) is cancelled (suppressed), so a later reactivation never sends it.
 --    Replaces zella_claim_platform_emails (sql/zella_platform_emails.sql; only the known version, archived first).
 do $$ declare d text; begin
@@ -157,7 +157,7 @@ end $$;
 revoke all on function public.zella_claim_platform_emails(integer) from public, anon, authenticated;
 grant execute on function public.zella_claim_platform_emails(integer) to service_role;
 
--- 4. wake the edge function only when there is work
+-- 5. wake the edge function only when there is work
 create or replace function public.zella_dispatch_platform_emails() returns text
 language plpgsql security definer set search_path = public as $$
 declare v_url text := nullif(trim(public.zella_setting('platform_emails_url', '""'::jsonb) #>> '{}'), ''); v_secret text; n integer;
@@ -182,7 +182,34 @@ revoke all on function public.zella_dispatch_platform_emails() from public, anon
 grant execute on function public.zella_platform_emails_check(text) to service_role;
 grant execute on function public.zella_claim_notification_emails(integer) to service_role;
 
--- every minute (pg_cron), created switched OFF like the other timed jobs: turning it on is a live switch for the owner
+-- 6. event based first (like the n8n dispatcher, sql/zella_dispatcher.sql section 5): a new notification or a new email
+-- in the outbox wakes the edge function at once. Once per statement, so a batch of inserts makes one call, and never
+-- able to fail the insert that fired it. Created switched OFF: turning the triggers on is a live switch for the owner
+--   alter table public.platform_emails enable trigger zella_kick_platform_emails;
+--   alter table public.staff_notifications enable trigger zella_kick_platform_emails;
+-- and even then nothing is called until platform_emails_url is set.
+create or replace function public.zella_kick_platform_emails() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  begin
+    perform public.zella_dispatch_platform_emails();
+  exception when others then
+    raise warning 'zella_kick_platform_emails: %', sqlerrm;   -- the next kick or the safety net picks the email up
+  end;
+  return null;
+end $$;
+revoke all on function public.zella_kick_platform_emails() from public, anon, authenticated;
+do $$ declare t text; begin
+  foreach t in array array['platform_emails', 'staff_notifications'] loop
+    if not exists (select 1 from pg_trigger where tgname = 'zella_kick_platform_emails' and tgrelid = format('public.%I', t)::regclass) then
+      execute format('create trigger zella_kick_platform_emails after insert on public.%I for each statement execute function public.zella_kick_platform_emails()', t);
+      execute format('alter table public.%I disable trigger zella_kick_platform_emails', t);
+    end if;
+  end loop;
+end $$;
+
+-- 7. the safety net: every minute (pg_cron) for retries and anything a kick missed, created switched OFF like the other
+-- timed jobs: turning it on is a live switch for the owner
 -- (update cron.job set active = true where jobname = 'zella_platform_emails'); even then it does nothing until platform_emails_url is set
 do $$ begin
   if to_regnamespace('cron') is not null and not exists (select 1 from cron.job where jobname = 'zella_platform_emails') then

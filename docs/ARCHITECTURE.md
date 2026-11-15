@@ -1339,7 +1339,10 @@ Everything Zella Voice itself sends to a business (owner, billing contacts, team
 `docs/BILLING_EMAILS.md`), used by the admin preview and by the sender, so both show exactly the same email.
 
 Delivery (`sql/zella_email_delivery.sql`, the `platform-emails` edge function):
-1. Every minute the database calls `platform-emails` only when there is work (notifications waiting, or outbox emails
+1. Event based first, like the n8n dispatcher: a new notification or a new outbox email wakes `platform-emails` at
+   once (`zella_kick_platform_emails`, once per insert statement, never able to fail the insert). A once a minute job
+   is only the safety net for retries and anything a kick missed. Both are created switched off; switching them on is
+   a live switch for the owner. The database calls only when there is work (notifications waiting, or outbox emails
    due) and only once `platform_emails_url` is set. The call carries a secret created inside Vault; the database checks
    it, so no secret lives in the function.
 2. Notifications that go by email (`zella_claim_notification_emails`: daily summary, weekly review, every warning or
