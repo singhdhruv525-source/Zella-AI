@@ -165,7 +165,8 @@ Waiting on the owner:
   On 15 Nov four differed because `sql/zella_review_sql_fixes.sql` is live but missing from the test template, and
   production's `vault.create_secret` has an extra optional argument the test stub lacked; the version guard refused
   `zella_email_delivery.sql` and nothing changed. Copy the production definitions into the test copy, prove all
-  fingerprints match, then test.
+  fingerprints match, then test. Production also refuses direct edits of `cron.job` (the test copy allows them):
+  switch a job off with `cron.alter_job`, and check the permissions a migration needs (read only) before applying.
 
 - **Payments rules (13 Nov 2026, Stripe design):** a webhook payload is only a notice, so fetch the invoice or
   PaymentIntent from Stripe before granting; every Stripe POST has a deterministic Idempotency-Key stored with the
