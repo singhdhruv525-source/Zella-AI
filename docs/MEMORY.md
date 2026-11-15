@@ -46,6 +46,9 @@ history.
 
 ## 3. What is live in production (12 Nov 2026)
 
+**Not launched yet (owner, 15 Nov 2026):** Zella Voice is still being built. The live project holds 4 demo businesses and
+no real customers; tests on it use those demo businesses. Every apply, deploy and live switch still needs the owner's approval.
+
 **Database:** all migrations on `main` are applied **except `sql/zella_workflow_alert_email.sql`** (PR #57; keeps n8n
 workflow failures out of admin emails; waiting on the owner's decision and approval). The last seven applied were applied on 12 Nov 2026:
 
@@ -66,28 +69,29 @@ Shape: 163 tables (plus three `backup_20261104_*` tables from the 4 Nov industry
 340 policies, 861 functions, 111 triggers. Full reference: `docs/BACKEND_SCHEMA.md`. Data: 4 businesses, 3 record
 types, no plans.
 
-**Edge functions deployed** (last deploy date):
+**Edge functions deployed** (read from Supabase on 15 Nov 2026: version and last deploy date):
 
-| Function | Last deploy |
+| Function | Version, last deploy |
 |---|---|
-| `billing-webhook` | 4 Nov |
-| `voice-rules`, `record-files`, `google-lead`, `store-connect`, `calendar-connect` | 6 Nov |
-| `owner-provision-business` | 7 Nov |
-| `staff-invite`, `continue-plan` | 9 Nov |
-| `website-lead`, `reschedule-appointment` | earlier |
-| `smart-action` (named "zella-admin-check") and `zella-admin-check-v2` | old one-off checks with no source in the repo; candidates for removal, with approval |
+| `voice-rules` | v8, 15 Nov 2026 (forward on the usage limit; files match `main`) |
+| `record-files`, `google-lead`, `calendar-connect`, `website-lead` | v2, v2, v2, v5, 14 Nov 2026 |
+| `staff-invite`, `continue-plan` | v4, v6, 9 Nov 2026 |
+| `owner-provision-business` | v16, 7 Nov 2026 (behind `main`: needs the CLI deploy, it is too large for the MCP upload) |
+| `store-connect` | v1, 6 Nov 2026 |
+| `billing-webhook` | v5, 4 Nov 2026 (behind `main`; kept off until step 4) |
+| `reschedule-appointment` | v3, 29 Oct 2026 |
+| `smart-action` (named "zella-admin-check") and `zella-admin-check-v2` | v5, 18 Oct 2026: old one-off checks with no source in the repo; candidates for removal, with approval |
 
-Changes merged after those dates (PRs #42, #49, #51, #53, #55, #57) **have not been deployed to the edge functions or n8n**.
-PR #57 adds request-size limits and outbound timeouts to edge functions, an error workflow and no saved successful runs
-for every n8n workflow (needs a re-import), and the inbound call phone-ID fallback.
-Deploying needs the owner's approval.
+Not deployed yet from `main`: `owner-provision-business`, `billing-webhook`, `continue-plan`, `reschedule-appointment`,
+`store-connect`, `staff-invite` (the four with browser access wait for `ZELLA_APP_URL` and `ZELLA_ALLOWED_ORIGINS`), and
+`platform-emails` once its PR is merged. n8n workflows are not re-imported since PR #57. Deploying needs the owner's approval.
 
 **n8n:** the 30 workflows were renamed "Zella Voice - …" in n8n on 13 Nov 2026 (owner's approval; name only, all still unpublished), matching `n8n/workflows/`.
 
-**Live switches (all off):** `calls_live`, `sms_live`, `email_live`, `calendar_sync_live`, `reviews_live`,
+**Live switches (all off; read 15 Nov 2026):** `usage_enforcement` = calls off, messages off; `calls_live`, `sms_live`, `email_live`, `calendar_sync_live`, `reviews_live`,
 `review_ai_live`, `knowledge_ai_live`, `call_intel_live`, `call_reconcile_live`, `spam_workflow_live`, `spam_ai_live`,
 `website_crawl_live`. `n8n_dispatch_enabled` is true, but the `zella_dispatch` job and the other timed jobs are
-inactive, except `zella_usage_thresholds` and `zella_billing_reconcile`. `vapi_auth_mode` is `bearer`.
+inactive, except `zella_usage_thresholds` and `zella_billing_reconcile` (checked 15 Nov 2026). So the hourly group, and with it the business moments, does not run until `zella_jobs_hourly` is switched on, with approval. `vapi_auth_mode` is `bearer`.
 
 ## 4. Open problems
 
@@ -112,10 +116,10 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile`. `vapi_a
 | The last commit of PR #49 (`a5bcb54`, a merge commit) was never reviewed by CodeRabbit | Open | Low risk; re-review if touched. |
 | Audit follow-ups M-3, M-4, L-2, L-4, L-5 | Open | `docs/ZELLA_REMEDIATION_CHECKLIST.md` |
 | "Something is missing in the app" (owner, no details yet) | Waiting on the owner | |
-| **Emails from Zella Voice to businesses:** 92 emails in one catalogue (`docs/BUSINESS_EMAILS.md`), admin preview built; outbox `sql/zella_platform_emails.sql` tested on the isolated database | Open, owner's approval | Apply the outbox with approval; then connect a sender (an edge function using the same catalogue, the provider's idempotency key, and `email_live` still off until the owner says so), and queue each email from its trigger, billing ones per Stripe event in step 4. |
-| **Usage limits that act:** `sql/zella_usage_enforcement.sql` (switches off), voice-rules forward reply, live usage card on Today; tested locally only | Open, owner's approval | 1. Apply the migration. 2. Deploy voice-rules and make one staging call with the calls switch on for a test business, to prove Vapi transfers on the `destination` reply. 3. Turn on `usage_enforcement.calls`, then `.messages`, each with approval. The monthly spending limit for pay as you go is not enforced yet (needs payments, step 4). |
-| **Fallback number for every business** (owner, 15 Nov 2026: decided at Create Business, REQ-BIL-34). New businesses can't finish setup without one. Production on 15 Nov 2026 (read only count): 4 active businesses, 0 with a fallback number | Open, owner | Add a fallback number for each of the 4 in Admin, Voice & numbers before the calls switch is turned on; until then their calls at 100% would simply be answered. |
-| **Business moments** (record day, call surge, weekend on call gaps): `sql/zella_business_moments.sql`, tested on the isolated database; the CRM shows them with the five tones | Open, owner's approval | Apply with approval. Later moments need data the app doesn't keep yet (recall due dates, seasonal demand such as tax season). |
+| **Emails from Zella Voice to businesses:** catalogue and admin preview built; outbox `sql/zella_platform_emails.sql` applied 15 Nov 2026 (empty) | Open | Delivery (`sql/zella_email_delivery.sql`, `platform-emails` edge function) in review; then apply, deploy, set the sender address and turn on `email_live`, each with approval. Billing emails per Stripe event in step 4. |
+| **Usage limits that act:** `sql/zella_usage_enforcement.sql` applied 15 Nov 2026 (fingerprints match the tested copy; switches off); voice-rules v8 deployed 15 Nov 2026 (files match `main`; unsigned requests refused) | Open, owner's approval | 1. Give one demo business a test fallback number the owner controls. 2. Staging call with the calls switch on for it, to prove Vapi transfers on the `destination` reply. 3. Turn on `usage_enforcement.calls`, then `.messages`, each with approval. The monthly spending limit for pay as you go needs payments (step 4). |
+| **Fallback number for every business** (owner, 15 Nov 2026: decided at Create Business, REQ-BIL-34). New businesses can't finish setup without one (owner-provision-business, merged; deploy pending with the CLI). | Open | The 4 businesses in production are demo businesses (owner, 15 Nov 2026), so none needs a real fallback number; one gets a test number for the staging call. |
+| **Business moments** (record day, call surge, weekend on call gaps): `sql/zella_business_moments.sql` applied 15 Nov 2026 and added to the hourly group; in app notifications only | Open, owner's approval | They run only once the timed job `zella_jobs_hourly` is switched on (it is off in production, like most timed jobs; only `zella_usage_thresholds` and `zella_billing_reconcile` are active). Later moments need data the app doesn't keep yet (recall due dates, seasonal demand such as tax season). |
 
 ## 5. Decisions
 
