@@ -25,3 +25,34 @@ export function transferPatch(i: TransferInputs): { transfer_number: string | nu
   if (pick === clean(i.currentNumber)) return null;
   return { transfer_number: pick, transfer_number_source: "setup" };
 }
+
+// REQ-BIL-34 fallback number. Calls go there whenever the AI can't take them (paused, unavailable, minutes used up).
+// Saved in E.164 so it can be dialled as written; US numbers typed with 10 or 11 digits are converted.
+export function toE164(v: unknown): string | null {
+  if (typeof v !== "string" || !v.trim()) return null;
+  const raw = v.trim(), digits = raw.replace(/\D/g, "");
+  if (raw.startsWith("+")) return /^[1-9][0-9]{7,14}$/.test(digits) ? `+${digits}` : null;
+  if (/^[2-9][0-9]{9}$/.test(digits)) return `+1${digits}`;
+  if (/^1[2-9][0-9]{9}$/.test(digits)) return `+${digits}`;
+  return null;
+}
+
+// The fallback number from setup goes into the receptionist's rules (escalation_rules.fallback_number), where call
+// routing and usage limits read it. Setup replaces the number only while it is still exactly the one setup wrote
+// (fallback_number_from_setup): once an admin changes it in call routing, the two differ and setup never touches it,
+// whatever the source marker says.
+export function fallbackPatch(i: { setupNumber: string | null; currentNumber: string | null; currentFromSetup: string | null }):
+  { fallback_number: string; fallback_number_source: "setup"; fallback_number_from_setup: string } | null {
+  const pick = toE164(i.setupNumber);
+  if (!pick) return null;
+  const current = clean(i.currentNumber);
+  if (current && current !== clean(i.currentFromSetup)) return null;   // set or changed elsewhere (admin call routing)
+  if (pick === current) return null;
+  return { fallback_number: pick, fallback_number_source: "setup", fallback_number_from_setup: pick };
+}
+
+// The fallback must ring a person, not the line that already forwards into Zella Voice (that would loop).
+export function sameLine(a: unknown, b: unknown): boolean {
+  const x = toE164(a), y = toE164(b);
+  return !!x && x === y;
+}

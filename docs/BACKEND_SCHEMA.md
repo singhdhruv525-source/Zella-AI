@@ -18,7 +18,7 @@ It reads the catalog only, never rows.
 | Row security policies | 341 |
 | Columns | 2050 |
 | Views | 1 |
-| Functions | 903 (839 security definer, 26 callable by `anon`) |
+| Functions | 904 (839 security definer, 26 callable by `anon`) |
 
 Rules every table follows:
 
@@ -5437,7 +5437,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_setting(p_key text, p_default jsonb)` | jsonb | yes | server only |
 | `zella_tables(p_business_id uuid)` | jsonb | yes | signed in |
 
-### Smaller groups and older helpers (183)
+### Smaller groups and older helpers (184)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -5605,6 +5605,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_social_flow(p_conversation_id uuid, p_text text, p_intent text)` | text | yes | server only |
 | `zella_start_execution(p_workflow_key text, p_business_id uuid, p_event_id uuid, p_workflow_version text, p_correlation_id uuid)` | uuid | yes | server only |
 | `zella_stop_callbacks_for(p_business_id uuid, p_customer_id uuid, p_phone text, p_reason text)` | integer | yes | server only |
+| `zella_strict_e164(p text)` | text |  | server only |
 | `zella_stuck_executions(p_minutes integer)` | SETOF workflow_executions | yes | server only |
 | `zella_subscription_after()` | trigger | yes | server only |
 | `zella_subscription_trigger()` | trigger | yes | server only |

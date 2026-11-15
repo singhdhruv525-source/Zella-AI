@@ -18,13 +18,13 @@ Deno.test("finish plan for every invitation state", () => {
 });
 
 Deno.test("server-side required setup", () => {
-  assertEquals(setupProblems({ name: "Glow", industryId: "i", openDays: 1, documentsReady: true, documentsMissing: [], planSaved: true }), []);
-  assertEquals(setupProblems({ name: " ", industryId: null, openDays: 0, documentsReady: false, documentsMissing: ["photo_id"], planSaved: false }).length, 5);
+  assertEquals(setupProblems({ name: "Glow", industryId: "i", openDays: 1, documentsReady: true, documentsMissing: [], planSaved: true, fallbackSaved: true }), []);
+  assertEquals(setupProblems({ name: " ", industryId: null, openDays: 0, documentsReady: false, documentsMissing: ["photo_id"], planSaved: false, fallbackSaved: false }).length, 6);
 });
 
 // A fake world for finishSetupWith: one owner invitation, counts of emails and activations.
 import { finishSetupWith, type FinishDeps } from "./owner_invite.ts";
-function world(status: string, opts: { sendFails?: boolean; extra?: Partial<FinishDeps>; docs?: boolean; openDays?: number; expires?: string; plan?: boolean } = {}) {
+function world(status: string, opts: { sendFails?: boolean; extra?: Partial<FinishDeps>; docs?: boolean; openDays?: number; expires?: string; plan?: boolean; fallback?: string | null } = {}) {
   const st = { inv: { id: "i1", email: "owner@x.test", owner_name: "O", status, role: "owner", expires_at: opts.expires ?? null, auth_user_id: null as string | null },
     emails: 0, activated: 0 };
   const deps: FinishDeps = {
@@ -33,6 +33,7 @@ function world(status: string, opts: { sendFails?: boolean; extra?: Partial<Fini
     documents: () => Promise.resolve({ ready: opts.docs ?? true, missing: opts.docs === false ? ["photo_id"] : [] }),
     openDays: () => Promise.resolve(opts.openDays ?? 5),
     planSaved: () => Promise.resolve(opts.plan ?? true),
+    fallbackNumber: () => Promise.resolve(opts.fallback === undefined ? "+15550103000" : opts.fallback),
     claim: (_id) => { const ok = ["pending", "failed", "expired"].includes(st.inv.status); if (ok) st.inv.status = "sent"; return Promise.resolve(ok); },
     sendInvite: async () => { st.emails++; await new Promise((r) => setTimeout(r, 5)); return opts.sendFails ? { error: "smtp down" } : { userId: "u1" }; },
     release: (_id, _r) => { if (st.inv.status === "sent" && !st.inv.auth_user_id) st.inv.status = "failed"; return Promise.resolve(); },
@@ -78,7 +79,7 @@ Deno.test("finish: revoked, expired, missing invitation and missing required set
   }
   const none = world("pending", { extra: { ownerInvitation: () => Promise.resolve(null) } });
   assertEquals((await rejects(finishSetupWith(none.deps)))?.status, 400);
-  for (const opts of [{ docs: false }, { openDays: 0 }, { plan: false }]) {
+  for (const opts of [{ docs: false }, { openDays: 0 }, { plan: false }, { fallback: null }, { fallback: "5550103000" }, { fallback: "+0123456789" }]) {
     const w = world("pending", opts);
     const e = await rejects(finishSetupWith(w.deps));
     assertEquals([e?.status, w.st.emails, w.st.activated], [400, 0, 0]);
