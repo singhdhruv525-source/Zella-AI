@@ -27,7 +27,7 @@ do $$ begin
      or to_regclass('public.zella_function_archive') is null
      -- any vault.create_secret taking (secret, name, description) first; newer Supabase Vault adds an optional key id
      or not exists (select 1 from pg_proc p where p.pronamespace = to_regnamespace('vault') and p.proname = 'create_secret'
-                     and p.pronargs - p.pronargdefaults <= 1 and p.pronargs >= 3
+                     and p.pronargs - p.pronargdefaults <= 3 and p.pronargs >= 3
                      and (p.proargtypes::oid[])[0:2] = array['text'::regtype, 'text'::regtype, 'text'::regtype]::oid[]) then
     raise exception 'VERSION_MISMATCH: something this file needs is missing (apply zella_platform_emails.sql and zella_model_defaults.sql first)';
   end if;
