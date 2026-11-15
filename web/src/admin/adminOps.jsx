@@ -49,19 +49,19 @@ export function friendlyError(error) {
 
 export async function rpc(name, args = {}) {
   const { data, error } = await supabase.rpc(name, args);
-  if (error) throw new Error(friendlyError(error));
+  if (error) { const e = new Error(friendlyError(error)); e.code = error.code ?? ""; throw e; }   // the code stays for callers that check it
   return data;
 }
 
 // Loads `loader()` now and whenever deps change; `reload()` runs it again.
 export function useLoad(loader, deps) {
-  const [state, setState] = useState({ data: null, error: "", loading: true });
+  const [state, setState] = useState({ data: null, error: "", errorCode: "", loading: true });
   const [tick, setTick] = useState(0);
   useEffect(() => {
     let live = true;
-    setState({ data: null, loading: true, error: "" });
-    loader().then((data) => live && setState({ data, error: "", loading: false }))
-      .catch((e) => live && setState({ data: null, error: friendlyError(e), loading: false }));
+    setState({ data: null, loading: true, error: "", errorCode: "" });
+    loader().then((data) => live && setState({ data, error: "", errorCode: "", loading: false }))
+      .catch((e) => live && setState({ data: null, error: friendlyError(e), errorCode: e?.code ?? "", loading: false }));
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [...deps, tick]);

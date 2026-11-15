@@ -13,12 +13,12 @@ It reads the catalog only, never rows.
 
 | What | Count |
 |---|---|
-| Tables (schema `public`) | 171 |
-| Tables with row security on | 171 of 171 |
-| Row security policies | 340 |
-| Columns | 2030 |
+| Tables (schema `public`) | 172 |
+| Tables with row security on | 172 of 172 |
+| Row security policies | 341 |
+| Columns | 2050 |
 | Views | 1 |
-| Functions | 896 (832 security definer, 26 callable by `anon`) |
+| Functions | 900 (836 security definer, 26 callable by `anon`) |
 
 Rules every table follows:
 
@@ -67,7 +67,7 @@ Each is a database job; most stay off until the owner approves going live (see `
 - [Calls and the AI receptionist](#calls-and-the-ai-receptionist): `calls`, `call_messages`, `call_insights`, `callbacks`, `callback_attempts`, `ai_agents`, `ai_agent_configs`, `agent_config_versions`, `assistant_deliveries`, `ai_tool_calls`, `ai_answer_reports`, `ai_response_samples`, `ai_eval_cases`, `vapi_request_receipts`, `on_call_settings`, `on_call_shifts`, `on_call_reminders_sent`, `store_lookup_guards`
 - [Knowledge](#knowledge): `knowledge_items`, `knowledge_versions`, `knowledge_gaps`
 - [Scheduling](#scheduling): `appointments`, `appointment_reminders`, `appointment_reschedule_links`, `blocked_times`, `resources`, `resource_needs`, `recurring_plans`, `recurring_visits`, `job_dispatch`, `waitlist_entries`, `waitlist_offer_links`, `calendar_connections`, `calendar_sync_queue`, `restaurant_tables`, `table_combinations`, `table_states`, `table_blocks`, `table_events`
-- [Messages and conversations](#messages-and-conversations): `conversations`, `conversation_messages`, `conversation_notes`, `message_templates`, `message_drafts`, `sms_messages`, `email_messages`, `email_events`, `email_unsubscribe_tokens`, `followup_tasks`, `automation_channel_reviews`, `meta_connections`, `meta_contacts`, `meta_events`, `meta_outbox`, `meta_templates`, `social_flows`, `live_notices`
+- [Messages and conversations](#messages-and-conversations): `conversations`, `conversation_messages`, `conversation_notes`, `message_templates`, `message_drafts`, `sms_messages`, `email_messages`, `platform_emails`, `email_events`, `email_unsubscribe_tokens`, `followup_tasks`, `automation_channel_reviews`, `meta_connections`, `meta_contacts`, `meta_events`, `meta_outbox`, `meta_templates`, `social_flows`, `live_notices`
 - [Spam and abuse](#spam-and-abuse): `spam_settings`, `spam_incidents`, `spam_incident_events`, `spam_list_entries`
 - [Automations and background work](#automations-and-background-work): `automations`, `automation_runs`, `automation_events`, `automation_dead_letters`, `workflow_executions`, `n8n_dispatch_state`, `integrations`, `integration_secrets`, `provider_health`
 - [Offers, reviews and growth](#offers-reviews-and-growth): `offers`, `offer_rules`, `offer_redemptions`, `offer_events`, `offer_job_runs`, `cross_sell_rules`, `review_sources`, `reviews`
@@ -2781,6 +2781,38 @@ Every email prepared, sent or skipped, with status.
 - Row security: on; policies: business members can create email (insert), business members can view email (select), zella_mfa_required (all).
 - Triggers: `zella_billing_email_trg`, `zella_spam_email`, `zz_tenant_links`.
 
+### `platform_emails`
+
+The platform outbox: every email Zella Voice sends to a business, once per key, test mode while email sending is off.
+
+| Column | Type | Required | Default |
+|---|---|---|---|
+| `id` | uuid | yes | gen_random_uuid() |
+| `business_id` | uuid | yes |  |
+| `user_id` | uuid |  |  |
+| `code` | text | yes |  |
+| `dedupe_key` | text | yes |  |
+| `to_email` | text | yes |  |
+| `cc` | text[] | yes | '{}'[] |
+| `subject` | text | yes |  |
+| `html` | text | yes |  |
+| `text_body` | text | yes |  |
+| `mandatory` | boolean | yes |  |
+| `status` | text | yes | 'queued' |
+| `attempts` | integer | yes | 0 |
+| `next_attempt_at` | timestamp with time zone | yes | now() |
+| `claimed_at` | timestamp with time zone |  |  |
+| `sent_at` | timestamp with time zone |  |  |
+| `provider_message_id` | text |  |  |
+| `last_error` | text |  |  |
+| `claim_token` | uuid |  |  |
+| `created_at` | timestamp with time zone | yes | now() |
+
+- Primary key: `id`.
+- Unique: `(business_id, dedupe_key)`.
+- `business_id` → `public.businesses` (on delete cascade).
+- Row security: on; policies: platform_emails_read (select).
+
 ### `email_events`
 
 Delivery, bounce and complaint events from the email provider.
@@ -4248,7 +4280,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_add_lead_note(p_customer_id uuid, p_note text)` | boolean | yes | signed in |
 | `zella_add_record_note(p_id uuid, p_note text)` | boolean | yes | signed in |
 
-### `zella_admin_*` (43)
+### `zella_admin_*` (44)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -4278,6 +4310,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_admin_pack_grant(p_business_id uuid, p_pack_code text, p_reason text, p_idempotency_key text)` | jsonb | yes | signed in |
 | `zella_admin_plan_get(p_business_id uuid)` | jsonb | yes | signed in |
 | `zella_admin_plan_save(p_business_id uuid, p_values jsonb, p_acknowledgements jsonb, p_idempotency_key text)` | jsonb | yes | signed in |
+| `zella_admin_platform_emails(p_business uuid, p_status text, p_code text, p_limit integer, p_offset integer)` | jsonb | yes | signed in |
 | `zella_admin_reason(p_reason text)` | text |  | server only |
 | `zella_admin_require(p_permission text)` | uuid | yes | server only |
 | `zella_admin_retry_usage(p_issue_id uuid)` | jsonb | yes | signed in |
@@ -4563,7 +4596,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_check_uptime()` | jsonb | yes | server only |
 | `zella_check_usage_thresholds()` | integer | yes | server only |
 
-### `zella_claim_*` (23)
+### `zella_claim_*` (24)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -4587,6 +4620,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_claim_notifications(p_limit integer)` | SETOF staff_notifications | yes | server only |
 | `zella_claim_owner_emails(p_limit integer)` | jsonb | yes | server only |
 | `zella_claim_platform_alerts(p_limit integer)` | jsonb | yes | server only |
+| `zella_claim_platform_emails(p_limit integer)` | SETOF platform_emails | yes | server only |
 | `zella_claim_provider_checks(p_limit integer)` | jsonb | yes | server only |
 | `zella_claim_reminders(p_limit integer, p_channel text)` | jsonb | yes | server only |
 | `zella_claim_staff_sms(p_limit integer)` | jsonb | yes | server only |
@@ -4676,7 +4710,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_dispatch_return_visit(p_appointment_id uuid, p_start timestamp with time zone, p_duration_minutes integer, p_staff_id uuid, p_reason text)` | uuid | yes | signed in |
 | `zella_dispatch_status(p_appointment_id uuid, p_from text, p_to text, p_note text)` | void | yes | signed in |
 
-### `zella_finish_*` (5)
+### `zella_finish_*` (6)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -4684,6 +4718,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_finish_calendar_sync(p_queue_id uuid, p_ok boolean, p_event_id text, p_error text)` | text | yes | server only |
 | `zella_finish_execution(p_execution_id uuid, p_ok boolean, p_step text, p_steps jsonb, p_provider_refs jsonb, p_error_category text, p_error text, p_needs_manual boolean)` | boolean | yes | server only |
 | `zella_finish_owner_email(p_id uuid, p_result text, p_note text)` | text | yes | server only |
+| `zella_finish_platform_email(p_id uuid, p_claim_token uuid, p_ok boolean, p_provider_id text, p_error text)` | text | yes | server only |
 | `zella_finish_record_file(p_file_id uuid)` | jsonb | yes | signed in |
 
 ### `zella_flag_*` (3)
@@ -4939,7 +4974,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_process_call_usage(p_call_id uuid, p_source text, p_event_id text)` | jsonb | yes | server only |
 | `zella_process_cancellations()` | integer | yes | server only |
 
-### `zella_queue_*` (6)
+### `zella_queue_*` (7)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -4948,6 +4983,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_queue_customer_touches(p_limit integer)` | integer | yes | server only |
 | `zella_queue_lead_reactivation(p_limit integer)` | integer | yes | server only |
 | `zella_queue_no_show_followup()` | trigger | yes | server only |
+| `zella_queue_platform_email(p_business uuid, p_code text, p_dedupe_key text, p_to text, p_subject text, p_html text, p_text text, p_mandatory boolean, p_user uuid, p_cc text[])` | uuid | yes | server only |
 | `zella_queue_quote_followups()` | integer | yes | server only |
 
 ### `zella_reconcile_*` (3)

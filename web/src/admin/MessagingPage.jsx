@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { navigate } from "../router";
 import { EmailConfig, SmsConfig } from "../settings/AdminPanels";
+import BusinessEmails from "./BusinessEmails";
 import {
   AlertList, DataTable, Drawer, ErrorNote, Facts, Filters, Metric, NotAvailable, PAGE, PageHeader, Pager, Panel, PERIODS, Pill,
   ProviderHealth, ReasonDialog, Search, Select, Tabs, can, num, pct, rpc, since, useLoad, useOptions, useToast, when, words,
@@ -11,7 +12,7 @@ import {
 // nothing on this page sends a message. A retry puts the original reminder or follow-up back in the queue, and the
 // sender checks consent, opt-outs and quiet hours again before anything goes out.
 
-const TABS = [["overview", "Overview"], ["sms", "Texts"], ["email", "Emails"], ["templates", "Templates"], ["providers", "Senders & providers"], ["compliance", "Consent & opt-outs"]];
+const TABS = [["overview", "Overview"], ["sms", "Texts"], ["email", "Emails"], ["templates", "Templates"], ["business-emails", "Emails to businesses"], ["providers", "Senders & providers"], ["compliance", "Consent & opt-outs"]];
 const STATUSES = ["queued", "sent", "delivered", "failed", "received", "dry_run", "blocked"];
 const STATUS_LABEL = { dry_run: "Test mode (not sent)", sent: "Accepted by provider", received: "Received" };
 const KINDS = { sms: [["reminder", "Reminder"], ["follow_up", "Follow up"], ["staff_alert", "Staff alert"], ["inbound", "Inbound"], ["other", "Other"]],
@@ -34,6 +35,7 @@ export default function MessagingPage({ me, sub, onOpenBusiness }) {
       {tab === "overview" && <Overview onTab={setTab} onFailed={openFailed} />}
       {(tab === "sms" || tab === "email") && <Messages key={`${tab}-${failedFilter}`} channel={tab} me={me} options={options.data} failedOnly={failedFilter} say={say} onOpenBusiness={onOpenBusiness} />}
       {tab === "templates" && <Templates options={options.data} say={say} />}
+      {tab === "business-emails" && <BusinessEmails onOpenBusiness={onOpenBusiness} />}
       {tab === "providers" && <Providers me={me} />}
       {tab === "compliance" && <Compliance />}
       {toast}

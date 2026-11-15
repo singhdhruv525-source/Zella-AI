@@ -1332,6 +1332,20 @@ flowchart TD
 
 ---
 
+### 14.4 Emails from Zella Voice to businesses
+
+Everything Zella Voice itself sends to a business (owner, billing contacts, team) is one catalogue with one layout,
+`web/src/emails/businessEmails.js` (listed in `docs/BUSINESS_EMAILS.md`; billing rules in `docs/BILLING_EMAILS.md`).
+**Intended flow** (status 15 Nov 2026: catalogue, layout and admin preview built; the outbox is written and tested on
+the isolated database but not applied; no sender is connected and no trigger queues an email yet): the server renders
+from that file and queues each email in the platform outbox (`platform_emails`, `sql/zella_platform_emails.sql`)
+under a key unique per business, so it is sent at most once. Nothing leaves while `email_live` is
+off (rows become `dry_run`). The sender (to be built) passes `<business_id>:<key>` to the provider as its idempotency key (keys are unique per business, so
+the business makes them unique at the provider) and finishes
+each email with the claim token it was given; after 5 failed tries the email is held for a person with an admin alert. Optional emails follow the person's notification preferences; emails
+about the account, the service or money are always sent. These are separate from emails to a business's customers
+(`email_messages`, §14.1), which carry consent and quiet hours rules.
+
 ## 15. Appointments, check-in and waitlist
 
 ### 15.1 Lifecycle

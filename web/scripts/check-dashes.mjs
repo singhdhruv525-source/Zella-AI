@@ -15,8 +15,9 @@ const LONG = /[—–]/;
 const WORD_HYPHEN = /[A-Za-z]-[A-Za-z]/;
 // a quoted string that is code, not words: class lists, css, paths, urls, keys, mime types, dates, regexes
 const CODE_STRING = /^(?:[a-z0-9_.:/#@?=&%-]+|[a-z][a-z0-9-]*(?:\s+[a-z][a-z0-9-]*)*|https?:\/\/\S+|\S+\/\S+|--[\w-]+|var\(.*\)|[\w-]+\s*:\s*.*;?)$/;
-// code that happens to sit in a quoted string: locale tags, CSS, file names, domains, HTTP header names
-const NOT_WORDS = /\ben-US\b|var\(--|\dpx solid|^\s*\.[a-z][\w-]*\s*,|\.(json|csv|pdf|png|md)\b|[a-z0-9-]+\.(com|io|dev|app)\b|\bX-[A-Z][\w-]+|^Content-(Type|Range|Length)$/;
+// code that happens to sit in a quoted string: locale tags, CSS (including inline styles in email HTML), file names,
+// domains, HTTP header names
+const NOT_WORDS = /\ben-US\b|var\(--|\dpx solid|^\s*\.[a-z][\w-]*\s*,|\.(json|csv|pdf|png|md)\b|[a-z0-9-]+\.(com|io|dev|app)\b|\bX-[A-Z][\w-]+|^Content-(Type|Range|Length)$|\b(font|text|line|letter|border|max|min|margin|padding|background)-[a-z-]+\s*:|\b[a-z]+:[^\s;]*;/;
 // What is left of a string once the code in it is taken out; only that is checked for hyphens. Template placeholders
 // become one letter, then every word that is code (a header name, file name, domain, CSS class or declaration) is
 // dropped, so "Follow-up requires X-Request-Id" is still caught for "Follow-up".
