@@ -27,7 +27,7 @@ export default function BusinessEmails({ onOpenBusiness }) {
 
   return (
     <>
-      <Panel title="Emails to businesses" description={`All ${EMAILS.length} emails Zella Voice sends to a business's owner, billing contacts and team, shown with made up sample values. Wording lives in web/src/emails/businessEmails.js; the server sends from the same file.`}>
+      <Panel title="Emails to businesses" description={`All ${EMAILS.length} emails Zella Voice will send to a business's owner, billing contacts and team, shown with made up sample values. Wording lives in web/src/emails/businessEmails.js. No sender is connected yet, so nothing on this page is sent.`}>
         <Filters>
           <Search value={q} onChange={onSearch} placeholder="Code, name or when" />
           <Select label="Group" value={group} onChange={setGroup} options={GROUPS} />
@@ -81,7 +81,7 @@ function Outbox({ onOpenBusiness }) {
   const log = useLoad(() => rpc("zella_admin_platform_emails", { p_status: f.status, p_code: f.code, p_limit: PAGE, p_offset: f.offset }), [f]);
   const missing = log.errorCode === "PGRST202";   // the function isn't there: the outbox migration isn't applied yet
   return (
-    <Panel title="Sent to businesses" description="The platform outbox. While email sending is off, emails are marked test mode and nothing leaves. Each email is sent once; one that keeps failing is held for a person.">
+    <Panel title="Sent to businesses" description="The platform outbox, once it is installed. No sender is connected yet, so nothing leaves; while email sending is off, queued emails are marked test mode. Once a sender is connected, each email is sent at most once and one that keeps failing is held for a person.">
       {missing ? <p className="op-muted">The outbox isn't installed on this database yet (sql/zella_platform_emails.sql).</p> : (
         <>
           <Filters>
@@ -89,12 +89,13 @@ function Outbox({ onOpenBusiness }) {
             <Select label="Email" value={f.code} onChange={set("code")} options={EMAILS.map((x) => [x.code, `${x.code} ${x.name}`])} />
           </Filters>
           <ErrorNote error={log.error} onRetry={log.reload} />
+          {!log.loading && !log.error && !log.data ? <p className="op-muted" role="status">The outbox didn't answer with any data. Not available right now.</p> : (
           <DataTable error={log.error} loading={log.loading} rows={log.data?.rows} empty="No emails to businesses yet." onRow={(r) => onOpenBusiness?.(r.business_id)}
             columns={[
               ["When", (r) => when(r.created_at)], ["Business", (r) => r.business_name], ["Email", (r) => <span><code>{r.code}</code> {r.subject}</span>],
               ["To", (r) => r.to_email], ["Status", (r) => { const [l, t] = STATUS[r.status] ?? [r.status, "neutral"]; return <Pill tone={t}>{l}</Pill>; }],
               ["Tries", (r) => r.attempts], ["Problem", (r) => r.last_error ?? ""],
-            ]} />
+            ]} />)}
           <Pager total={log.data?.total} offset={f.offset} onChange={(o) => setF((x) => ({ ...x, offset: o }))} />
         </>
       )}
