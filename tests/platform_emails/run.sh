@@ -108,9 +108,11 @@ reset role;
 SQL
 ) && echo "$out" | grep -o 'PASS .*' || bad "row security: $(echo "$out" | grep -m2 -E 'ERROR|CONTEXT' | tr '\n' ' ')"
 
-out=$("${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_platform_emails_rollback.sql" 2>&1) && bad "rollback ran with emails in the outbox" || { echo "$out" | grep -q HAS_ROWS && ok "the rollback refuses while the outbox holds any email (nothing deleted)"; }
+if out=$("${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_platform_emails_rollback.sql" 2>&1); then bad "rollback ran with emails in the outbox"
+elif echo "$out" | grep -q HAS_ROWS; then ok "the rollback refuses while the outbox holds any email (nothing deleted)"
+else bad "rollback failed for another reason: $(echo "$out" | grep -m1 ERROR)"; fi
 q "delete from platform_emails" > /dev/null
-for i in 1 2; do out=$("${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_platform_emails_rollback.sql" 2>&1) || { bad "rollback (run $i): $(echo "$out" | grep -m2 ERROR)"; }; done
+for i in 1 2; do out=$("${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_platform_emails_rollback.sql" 2>&1) || bad "rollback (run $i): $(echo "$out" | grep -m2 ERROR)"; done
 [ "$(q "select to_regclass('public.platform_emails') is null and to_regprocedure('public.zella_claim_platform_emails(integer)') is null")" = t ] && ok "the rollback (run twice) removes everything" || bad "rollback left something"
 out=$("${P[@]}" -d $DB -f "$REPO/sql/zella_platform_emails.sql" 2>&1) && ok "applies again after the rollback" || bad "re-apply: $(echo "$out" | grep -m1 ERROR)"
 

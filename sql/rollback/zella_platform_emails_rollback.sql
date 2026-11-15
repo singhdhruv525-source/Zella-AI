@@ -3,6 +3,8 @@
 begin;
 do $$ begin
   if to_regclass('public.platform_emails') is not null then
+    -- nobody can queue an email between this check and the drop (held until commit)
+    lock table public.platform_emails in access exclusive mode;
     if not exists (select 1 from pg_description where objoid = to_regclass('public.platform_emails') and objsubid = 0 and description like 'Zella Voice platform outbox%') then
       raise exception 'VERSION_MISMATCH: platform_emails was not made by this migration';
     end if;

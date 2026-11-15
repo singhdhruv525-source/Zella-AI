@@ -5,7 +5,7 @@ import { Field, Icon, Modal, Pill, initials, personName } from "./BusinessUI";
 import { formatDay, formatTime, timeAgo, todayInput, zonedDateTime } from "./businessTime";
 import { PhoneField } from "./formFields";
 import { validatePhone } from "./formValidation";
-import { noteIcon, pickQuiet, voiceTitle } from "./zellaVoice";
+import { noteIcon, noteStyle, pickQuiet, voiceTitle } from "./zellaVoice";
 import { chime, desktopAlert, deviceAlerts, tabCount, unlockAlerts } from "./liveAlerts";
 import { Empty, Notice, PageHead, Segment, explain, loadPeople, orThrow, plural, useLoad } from "./BusinessShared";
 
@@ -369,7 +369,6 @@ export function WaitlistPage({ workspace, term, refreshKey, onNotice, onOpenPers
 /* Notifications bell                                                  */
 /* ------------------------------------------------------------------ */
 
-const NOTE_TONE = { urgent: "danger", warning: "warning", info: "" };
 const POLL_MS = 20000;
 
 // Pop-ups for notifications that arrive while the CRM is open (urgent ones stay until closed).
@@ -383,12 +382,13 @@ function NoteToasts({ toasts, workspace, onOpen, onClose }) {
   return createPortal(
     <div className="ba-toasts" role="region" aria-label="New notifications" aria-live="polite">
       {toasts.map((n) => {
-        const { icon, tone } = noteIcon(n);
+        const { icon, tone, kicker } = noteStyle(n);
         return (
-          <div key={n.id} className={`ba-toast ${tone}`} role={n.severity === "urgent" ? "alert" : "status"}>
-            {tone === "celebrate" && <span className="ba-confetti" aria-hidden="true">{Array.from({ length: 10 }, (_, i) => <i key={i} />)}</span>}
+          <div key={n.id} className={`ba-toast tone-${tone}`} role={n.severity === "urgent" ? "alert" : "status"}>
+            {tone === "good" && <span className="ba-confetti" aria-hidden="true">{Array.from({ length: 10 }, (_, i) => <i key={i} />)}</span>}
             <span className="ba-toast-icon"><Icon name={icon} size="sm" /></span>
             <button type="button" className="ba-toast-main" onClick={() => onOpen(n)}>
+              <span className="ba-kicker">{kicker}</span>
               <strong>{voiceTitle(n, workspace)}</strong>
               {n.body && <small>{n.body}</small>}
             </button>
@@ -475,13 +475,14 @@ export function NotificationsBell({ workspace, onGo }) {
           {!rows.length ? (!failed && <p className="ba-muted pad">{quiet}</p>) : (
             <ul>
               {rows.map((n) => {
-                const { icon, tone } = noteIcon(n);
+                const { icon, tone, kicker } = noteStyle(n);
                 return (
                   <li key={n.id} className={`${n.read_at ? "" : "unread"} ${n.severity === "urgent" ? "urgent" : ""}`}>
                     <button type="button" onClick={() => go(n)}>
-                      <span className={`ba-note-icon ${tone}`}><Icon name={icon} size="sm" /></span>
+                      <span className={`ba-note-icon tone-${tone}`}><Icon name={icon} size="sm" /></span>
                       <span className="ba-note-text">
-                        <span className="ba-kn-head"><strong>{voiceTitle(n, workspace)}</strong>{n.severity !== "info" && <Pill tone={NOTE_TONE[n.severity]}>{n.severity === "urgent" ? "Urgent" : "Heads up"}</Pill>}</span>
+                        <span className={`ba-kicker tone-${tone}`}>{kicker}</span>
+                        <strong>{voiceTitle(n, workspace)}</strong>
                         {n.body && <small>{n.body}</small>}
                         <small>{timeAgo(n.created_at)}</small>
                       </span>

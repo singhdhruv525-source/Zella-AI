@@ -1,4 +1,5 @@
-// Zella Voice's voice for notifications and confirmations inside the CRM: warm, short, never robotic.
+// Zella Voice's voice for notifications and confirmations inside the CRM: creative but professional, warm, short,
+// never robotic, no emoji, and in the business's own words (docs/DESIGN_SYSTEM.md, Notifications).
 // The facts (names, times, reasons) still come from the original message; only the wrapping changes.
 // Urgent and safety-related messages stay plain and direct, with warmth but no jokes.
 
@@ -38,12 +39,18 @@ const BY_INDUSTRY = {
 
 // Every industry talks about its own people and bookings: patients and appointments, guests and tables, tenants and viewings.
 const NOUNS = {"automotive": {"p": "customer", "ps": "customers", "b": "service slot"}, "beautysalon": {"p": "client", "ps": "clients", "b": "chair"}, "childcare": {"p": "family", "ps": "families", "b": "tour"}, "cleaningservices": {"p": "client", "ps": "clients", "b": "clean"}, "dental": {"p": "patient", "ps": "patients", "b": "appointment"}, "ecommerce": {"p": "customer", "ps": "customers", "b": "order"}, "education": {"p": "student", "ps": "students", "b": "session"}, "electrical": {"p": "customer", "ps": "customers", "b": "job"}, "financialservices": {"p": "client", "ps": "clients", "b": "consultation"}, "fitness": {"p": "member", "ps": "members", "b": "class"}, "healthcare": {"p": "patient", "ps": "patients", "b": "appointment"}, "homeservices": {"p": "customer", "ps": "customers", "b": "visit"}, "hospitality": {"p": "guest", "ps": "guests", "b": "stay"}, "hvac": {"p": "customer", "ps": "customers", "b": "service call"}, "insurance": {"p": "client", "ps": "clients", "b": "review"}, "landscapinglawncare": {"p": "customer", "ps": "customers", "b": "visit"}, "legal": {"p": "client", "ps": "clients", "b": "consultation"}, "other": {"p": "customer", "ps": "customers", "b": "booking"}, "pestcontrol": {"p": "customer", "ps": "customers", "b": "visit"}, "petcareveterinary": {"p": "pet owner", "ps": "pet owners", "b": "visit"}, "photographyevents": {"p": "client", "ps": "clients", "b": "shoot"}, "plumbing": {"p": "customer", "ps": "customers", "b": "job"}, "professionalservices": {"p": "client", "ps": "clients", "b": "meeting"}, "propertymanagement": {"p": "tenant", "ps": "tenants", "b": "viewing"}, "realestate": {"p": "buyer", "ps": "buyers", "b": "viewing"}, "restaurant": {"p": "guest", "ps": "guests", "b": "table"}, "spawellness": {"p": "guest", "ps": "guests", "b": "treatment"}, "travel": {"p": "traveller", "ps": "travellers", "b": "trip"}};
-function industryVoice(k) {
+// The business's own words win: terminology set for this workspace ("session", "client") replaces the industry's.
+function industryVoice(k, own = {}) {
   const n = NOUNS[k];
   if (!n || k === "other") return null;
-  const P = n.p, B = n.b;
+  const P = own.customer || n.p, B = own.appointment || n.b;
   const a = /^[aeiou]/i.test(P) ? "An" : "A";
+  // the industry's own plural when the business's word is the same as the industry's (family -> families)
+  const ps = own.customers || (own.customer && own.customer !== n.p ? plural(own.customer) : n.ps);
+  const Ps = ps.charAt(0).toUpperCase() + ps.slice(1);
   return {
+    best_day: [`A record day for your ${plural(B)}`, `Your busiest day for ${plural(B)} in three months`],
+    call_surge: [`${Ps} are calling in numbers today`, `A busy day on the phones with your ${ps}`],
     new_lead: () => [`${a} new ${P} is getting in touch. Say hello!`, `Someone new wants to become ${a.toLowerCase()} ${P}. Say hello!`, `A new ${P} enquiry just arrived.`],
     callback: [`${a} ${P} is waiting for your call.`, `${a} ${P} would love a call back.`],
     appointment_cancelled: [`A ${B} was canceled. That time is free again.`, `One ${B} canceled. Your calendar has room.`],
@@ -51,6 +58,13 @@ function industryVoice(k) {
     customer_reply: [`${a} ${P} wrote back!`, `New reply from ${a.toLowerCase()} ${P}. The conversation is moving.`],
     customer_request: [`${a} ${P} has a request. Let's make it happen.`],
   };
+}
+
+// "class" -> "classes", "stay" -> "stays", "service call" -> "service calls"
+export function plural(word) {
+  const w = String(word ?? "");
+  if (/[^aeiou]y$/i.test(w)) return `${w.slice(0, -1)}ies`;   // family -> families
+  return /(s|sh|ch|x)$/.test(w) ? `${w}es` : `${w}s`;
 }
 
 // Swap generic words for the business's own: appointment -> reservation, customer -> guest.
@@ -195,46 +209,56 @@ Object.assign(TITLES, {
   review_reply_failed: ["A review reply couldn't be posted. Let's try again."],
   reviews_disconnected: ["Google reviews stopped syncing. Let's reconnect."],
   // celebrations: the facts are in the title
-  milestone: (n) => [`${n.title}! 🎉`, `Milestone: ${n.title.charAt(0).toLowerCase()}${n.title.slice(1)}!`, `${n.title}. Here's to the next one!`],
-  five_star_review: (n) => [`${n.title}! ⭐`, `Five stars! ${n.title.replace(/^5-star review from /, "From ")}.`, `${n.title}. Your team earned this one.`],
-  best_week: ["Your best week in three months! 🎉", "Record week! Your busiest in three months."],
+  milestone: (n) => [`${n.title}.`, `Milestone reached: ${n.title.charAt(0).toLowerCase()}${n.title.slice(1)}.`, `${n.title}. Here's to the next one.`],
+  five_star_review: (n) => [`${n.title}.`, `Five stars, ${n.title.replace(/^5 star review from /i, "from ")}.`, `${n.title}. Your team earned this one.`],
+  best_week: ["Your best week in three months", "A record week: your busiest in three months"],
+  best_day: ["A record day for bookings", "Your busiest booking day in three months"],
+  call_surge: ["Calls are pouring in today", "A busy day on the phones"],
 });
 
 // More ways to say the same thing, so the bell never feels like a template. Only the wording changes, never the facts.
 const EXTRA = {
   website_lead: ["A visitor liked your website enough to say hi!", "Your website just did its job. A new enquiry is in."],
-  social_lead: ["Social media delivered! Someone wants to talk.", "A new face from social is knocking."],
-  callback: ["A caller is keeping a seat warm for your call.", "Somebody's hoping for a ring from you today."],
+  social_lead: ["A new enquiry came in from social media.", "Someone new reached out on social media."],
+  callback: ["A caller is waiting to hear from you.", "Someone is hoping for a call back today."],
   callback_assigned: ["A callback has your name on it.", "This callback was made for you."],
-  callback_soon: ["Callback o'clock is almost here.", "Get ready: a callback is due shortly."],
+  callback_soon: ["A callback is due in a few minutes.", "Get ready: a callback is due shortly."],
   callback_overdue: ["A callback is sitting patiently. A quick ring would make their day.", "Someone's still hoping to hear from you."],
   appointment_cancelled: ["A slot just came free. Breathing room!", "Cancellation! That gap is yours to fill or enjoy."],
   appointment_rescheduled: ["Someone shuffled their plans. We kept your calendar tidy.", "A booking hopped to a new time, all updated."],
-  customer_reply: ["Ding! A customer wrote back.", "They answered! The conversation lives on."],
-  customer_email: ["A customer's email just arrived.", "Mail call! A customer wrote to you."],
+  customer_reply: ["A customer replied.", "They answered! The conversation lives on."],
+  customer_email: ["A customer's email just arrived.", "A new email from a customer."],
   customer_request: ["A customer has a little ask for you.", "A request came in. Let's make someone's day."],
   emergency_call: ["This is an emergency. Please look first.", "An emergency call is in. Everything else can wait."],
   lead_escalated: ["A conversation needs your human touch.", "Zella Voice's passing this one to you. It's a good one."],
-  task_overdue: ["A task is feeling a bit forgotten. A small nudge will do.", "One task is running behind, and it'd love your attention."],
+  task_overdue: ["A task is past its due date.", "One task is running behind."],
   lead_overdue: ["A lead is still waiting for hello number one.", "Don't let this lead go cold. A quick hello will do it."],
   call_insight: ["Zella Voice was listening and noticed something worth a look.", "A recent call taught us something. Take a peek."],
   staff_joined: ["Team news: someone new has joined. Wave hello!"],
-  went_live: ["We're live! The phone is ours now.", "Go time! Zella Voice is answering calls for you."],
-  payment_received: ["Payment received. You're a star.", "Thank you! That payment arrived safely."],
+  went_live: ["You're live. Zella Voice is answering your calls.", "Your AI receptionist is now answering calls."],
+  payment_received: ["Payment received. Thank you.", "Thank you! That payment arrived safely."],
   daily_summary: ["Your day, wrapped up neatly.", "Today's recap is ready, with everything that mattered."],
-  weekly_review: ["Your week, all tied up with a bow. Take a look!", "Weekly review is ready. It was a good one."],
-  incident_resolved: ["Back to smooth sailing.", "All fixed. Thanks for your patience."],
-  agent_config_published: ["Your AI receptionist just learned something new.", "Fresh update live. She's sharper than before!"],
-  duplicate: ["These two look like the same person. Shall we tidy up?", "Double vision: two records may be one person."],
+  weekly_review: ["Your week at a glance is ready.", "Weekly review is ready. It was a good one."],
+  incident_resolved: ["Resolved. Everything is running normally.", "All fixed. Thanks for your patience."],
+  agent_config_published: ["Your AI receptionist just learned something new.", "Your receptionist's update is live."],
+  duplicate: ["These two look like the same person. Shall we tidy up?", "Two records may be the same person."],
 };
 for (const [kind, extra] of Object.entries(EXTRA)) if (Array.isArray(TITLES[kind])) TITLES[kind] = [...TITLES[kind], ...extra];
 
+const ownWords = (workspace) => {
+  const t = workspace?.terminology ?? {};
+  const w = (k) => (typeof t[k] === "string" && t[k].trim() ? t[k].trim().toLowerCase() : "");
+  return { customer: w("customer"), customers: w("customers"), appointment: w("appointment") };
+};
+
 // Notification shown in the bell: same facts, friendlier words.
 export function voiceTitle(n, workspace) {
+  // titles written by the server may say "5-star" or "24-hour"; the bell says "5 star" (names keep their hyphens)
+  if (typeof n?.title === "string") n = { ...n, title: n.title.replace(/(\d)-(?=[A-Za-z])/g, "$1 ") };
   const term = workspace?.terminology ? (k) => workspace.terminology[k] || k : null;
   if (n.kind === "industry_alert" && n.severity === "urgent") return localize(n.title, term); // urgent stays plain and direct
   const ind = key(workspace?.industry);
-  const entry = BY_INDUSTRY[ind]?.[n.kind] ?? industryVoice(ind)?.[n.kind] ?? TITLES[n.kind];
+  const entry = BY_INDUSTRY[ind]?.[n.kind] ?? industryVoice(ind, ownWords(workspace))?.[n.kind] ?? TITLES[n.kind];
   if (!entry) return localize(n.title, term);
   const list = typeof entry === "function" ? entry(n) : entry;
   return localize(choose(list, n.id ?? n.title), term);
@@ -252,7 +276,7 @@ const RULES = [
   [/^Removed\. The time is open again\.?$/, () => "Done. That time is open again."],
   [/^Block removed\. The time is open again\.?$/, () => "Done. That time is open again."],
   [/^You're live\./, () => "You're live! Zella Voice is picking up the phone."],
-  [/^Run queued to try again\.?$/, () => "Trying again. Fingers crossed!"],
+  [/^Run queued to try again\.?$/, () => "Trying again now."],
   [/^Submitted\. /, (m) => m.replace(/^Submitted\./, "Thanks, submitted.")],
   [/^Added\. /, (m) => m.replace(/^Added\./, "Added. Nice one.")],
   [/^(.+) moved to (.+)$/, (m, a, b) => `${a} moved to ${b}. The calendar is all updated.`],
@@ -305,11 +329,32 @@ const ICONS = {
   payment_failed: "credit_card_off", payment_overdue: "credit_card", payment_received: "paid", renewal_upcoming: "autorenew", trial_ending: "hourglass_bottom", trial_ended: "hourglass_empty",
   usage_threshold: "timer", account_cancelled: "cancel", account_reactivated: "check_circle", account_suspended: "pause_circle", subscription_cancelled: "cancel", cancellation_coming: "event",
   setup_incomplete: "checklist", setup_reminder: "checklist", incident_open: "warning", incident_resolved: "check_circle",
+  best_day: "emoji_events", call_surge: "trending_up", on_call_gap: "event_busy",
   data_rights_request: "privacy_tip", data_rights_due: "privacy_tip", duplicate: "content_copy", duplicate_scan: "content_copy", industry_alert: "campaign",
 };
-export const CELEBRATE = new Set(["milestone", "five_star_review", "best_week", "went_live", "payment_received"]);
+export const CELEBRATE = new Set(["milestone", "five_star_review", "best_week", "best_day", "went_live", "payment_received"]);
+// Five tones: good (celebrations, money in), brand (new business: leads, bookings), info (updates), heads (needs a look
+// soon) and urgent (needs a person now). The kicker is the short label above the title.
+const KICKERS = [
+  [/^(best_day|best_week)$/, "Record"], [/^(milestone|five_star_review)$/, "Celebration"], [/^went_live$/, "You're live"],
+  [/^call_surge$/, "Still answering"], [/^on_call/, "On call"], [/^(payment|renewal|trial|subscription|account|cancellation|usage_threshold)/, "Your plan"],
+  [/lead/, "New lead"], [/^(appointment|customer_arrived|social_booking)/, "Calendar"], [/^callback/, "Callback"],
+  [/^(daily_summary|weekly_review|team_summary|team_scorecard|knowledge_report|spam_weekly_report)$/, "Summary"],
+  [/^(customer_|social_)/, "Message"], [/^(knowledge|wrong_answer|spot_check)/, "Knowledge"],
+  [/^(integration|calendar_|meta_|reviews_disconnected|reconnect)/, "Connection"], [/review/, "Reviews"], [/^spam/, "Spam protection"],
+  [/^(task|unassigned|work_|shift|approval|draft|staff_|time_off)/, "Your team"],
+];
+const BRAND = /lead|^appointment_request$|^social_booking$|^customer_arrived$|^staff_joined$/;
+export function noteStyle(n) {
+  const kind = n?.kind ?? "";
+  const icon = ICONS[kind] ?? "notifications";
+  const tone = n?.severity === "urgent" ? "urgent" : n?.severity === "warning" ? "heads" : CELEBRATE.has(kind) ? "good" : BRAND.test(kind) ? "brand" : "info";
+  const found = KICKERS.find(([re]) => re.test(kind));
+  const kicker = tone === "urgent" ? "Urgent" : tone === "heads" && !found ? "Heads up" : found?.[1] ?? "Update";
+  return { icon, tone, kicker };
+}
+// The older four tones, still used for the chime
 export function noteIcon(n) {
-  const icon = ICONS[n?.kind] ?? "notifications";
-  const tone = n?.severity === "urgent" ? "urgent" : CELEBRATE.has(n?.kind) ? "celebrate" : n?.severity === "warning" ? "warning" : "info";
-  return { icon, tone };
+  const { icon, tone } = noteStyle(n);
+  return { icon, tone: { good: "celebrate", heads: "warning", brand: "info" }[tone] ?? tone };
 }

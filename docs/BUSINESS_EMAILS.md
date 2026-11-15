@@ -12,7 +12,7 @@ businesses) and the server sender render from the same file. Billing emails keep
    never sent twice.
 2. The sender claims due emails (`zella_claim_platform_emails`). While `email_live` is off, they are marked test mode
    (`dry_run`) and nothing is handed out.
-3. The sender sends with the key as the provider's idempotency key and reports back (`zella_finish_platform_email`)
+3. The sender sends with `<business_id>:<key>` as the provider's idempotency key (unique across businesses) and reports back (`zella_finish_platform_email`)
    with the claim token it was handed, so a late answer from an older claim changes nothing.
    A failure waits 1, 4, 9 and 16 minutes; after 5 tries the email is held for a person and an admin alert is raised.
 4. Optional emails respect the person's choice (`notification_preferences`, type `email:<code>`); emails marked

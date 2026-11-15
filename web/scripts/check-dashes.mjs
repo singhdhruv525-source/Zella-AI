@@ -22,7 +22,7 @@ const NOT_WORDS = /\ben-US\b|var\(--|\dpx solid|^\s*\.[a-z][\w-]*\s*,|\.(json|cs
 // become one letter, then every word that is code (a header name, file name, domain, CSS class or declaration) is
 // dropped, so "Follow-up requires X-Request-Id" is still caught for "Follow-up".
 const isCode = (t) => NOT_WORDS.test(t) || /^\.[a-z][\w-]*,?$/.test(t);
-const wordsOnly = (s) => (NOT_WORDS.test(s) && /^\s*\S+\s*$|\dpx solid/.test(s) ? "" : s.replace(/\$\{[^}]*\}/g, "X").split(/\s+/).filter((t) => !isCode(t)).join(" "));
+const wordsOnly = (s) => s.replace(/\$\{[^}]*\}/g, "X").replace(/\d+px solid(?=\s|$|[;,"')])/g, " ").split(/\s+/).filter((t) => !isCode(t)).join(" ");
 const LABEL_PROPS = /\b(title|label|placeholder|aria-label|alt|description|hint|help|message|text|heading|subtitle|empty|cta|button|confirmLabel|cancelLabel)\s*[:=]\s*$/;
 
 function files(dir) {
