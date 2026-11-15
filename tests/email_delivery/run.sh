@@ -25,8 +25,8 @@ for i in 1 2; do out=$("${P[@]}" -d $DB -f "$REPO/sql/zella_email_delivery.sql" 
 ok "applies twice"
 [ "$(q "select bool_or(has_function_privilege(r, f, 'execute')) from unnest(array['anon','authenticated']) r, unnest(array['public.zella_claim_notification_emails(integer)','public.zella_platform_emails_check(text)','public.zella_dispatch_platform_emails()']) f")" = f ] \
   && ok "server only" || bad "callable from the browser"
-[ "$(q "select count(*) from vault.secrets where name = 'zella_platform_emails_secret'")" = 1 ] && [ "$(q "select count(*) from cron.job where jobname = 'zella_platform_emails'")" = 1 ] \
-  && ok "one secret in Vault and one job, even after two runs" || bad "secret or job missing or doubled"
+[ "$(q "select count(*) from vault.secrets where name = 'zella_platform_emails_secret'")" = 1 ] && [ "$(q "select count(*) from cron.job where jobname = 'zella_platform_emails' and not active")" = 1 ] \
+  && ok "one secret in Vault and one job, switched off, even after two runs" || bad "secret or job missing, doubled or switched on"
 
 out=$("${P[@]}" -d $DB 2>&1 <<'SQL'
 insert into auth.users (id, email) values ('c0000000-0000-4000-8000-0000000000e1', 'owner@example.com'), ('c0000000-0000-4000-8000-0000000000e2', 'admin@example.com'),

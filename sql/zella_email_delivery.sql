@@ -182,10 +182,12 @@ revoke all on function public.zella_dispatch_platform_emails() from public, anon
 grant execute on function public.zella_platform_emails_check(text) to service_role;
 grant execute on function public.zella_claim_notification_emails(integer) to service_role;
 
--- every minute (pg_cron); does nothing until platform_emails_url is set
+-- every minute (pg_cron), created switched OFF like the other timed jobs: turning it on is a live switch for the owner
+-- (update cron.job set active = true where jobname = 'zella_platform_emails'); even then it does nothing until platform_emails_url is set
 do $$ begin
   if to_regnamespace('cron') is not null and not exists (select 1 from cron.job where jobname = 'zella_platform_emails') then
     perform cron.schedule('zella_platform_emails', '* * * * *', 'select public.zella_dispatch_platform_emails()');
+    update cron.job set active = false where jobname = 'zella_platform_emails';
   end if;
 end $$;
 

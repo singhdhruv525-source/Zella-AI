@@ -488,7 +488,17 @@ function BusinessHome() {
   const [workspaces, setWorkspaces] = useState(null);
   // The business last opened on this device, so a refresh stays in it. Only a convenience: the list of businesses
   // comes from the server, and an id that isn't in it is ignored.
-  const [selectedId, setSelectedIdRaw] = useState(() => { try { return localStorage.getItem(LAST_BUSINESS); } catch { return null; } });
+  // A link from an email names its business (?business=<id>): that one opens, if this person belongs to it (the list
+  // below decides; any other id is ignored). The parameter is then taken out of the address.
+  const [selectedId, setSelectedIdRaw] = useState(() => {
+    const fromLink = new URLSearchParams(window.location.search).get("business");
+    if (fromLink && /^[0-9a-f-]{36}$/i.test(fromLink)) {
+      const url = new URL(window.location.href); url.searchParams.delete("business");
+      window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+      return fromLink.toLowerCase();
+    }
+    try { return localStorage.getItem(LAST_BUSINESS); } catch { return null; }
+  });
   const setSelectedId = (next) => setSelectedIdRaw((current) => {
     const id = typeof next === "function" ? next(current) : next;
     try { if (id) localStorage.setItem(LAST_BUSINESS, id); } catch { /* private mode */ }

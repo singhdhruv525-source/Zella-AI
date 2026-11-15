@@ -31,7 +31,7 @@ const str = (v: unknown) => (typeof v === "string" ? v : "");
 export function notificationEmail(n: Json, appUrl: string | null, supportEmail: string | null) {
   // optional facts are left out when missing (the catalogue then leaves them out of the email)
   const data: Json = { business: str(n.business_name), role: str(n.role), title: str(n.title), severity: str(n.severity),
-    pagePath: appPath(str(n.page_key)), mandatory: n.severity === "urgent" };
+    pagePath: appPath(str(n.page_key), str(n.business_id)), mandatory: n.severity === "urgent" };
   if (str(n.body)) data.body = str(n.body);
   if (appUrl) data.appUrl = appUrl;
   if (supportEmail) data.supportEmail = supportEmail;

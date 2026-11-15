@@ -6,5 +6,12 @@ export const pageFor = (key) => {
   if (!k) return "today";
   return PAGE_ALIAS[k] ?? k;
 };
-// The address of a page in the business app: /app is Today, /app/<page> otherwise.
-export const appPath = (key) => { const p = pageFor(key); return p === "today" ? "/app" : `/app/${p}`; };
+// The address of a page in the business app: /app is Today, /app/<page> otherwise. With a business id the link also
+// opens that business (?business=<id>), so an email about business A never lands in business B; the app accepts it only
+// for a business the person belongs to.
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const appPath = (key, businessId) => {
+  const p = pageFor(key);
+  const path = p === "today" ? "/app" : `/app/${p}`;
+  return UUID.test(String(businessId ?? "")) ? `${path}?business=${String(businessId).toLowerCase()}` : path;
+};

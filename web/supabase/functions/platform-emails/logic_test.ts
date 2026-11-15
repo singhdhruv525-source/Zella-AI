@@ -34,7 +34,7 @@ Deno.test("a notification is written from the catalogue and queued once per pers
   assertEquals(q[0].args.p_subject, "Gaps in this weekend's on call cover");
   assertMatch(String(q[0].args.p_text), /Nobody is on call from Saturday 18:00\./);
   // links open the business app: on_call notifications open the Team page, where the rota lives
-  assertMatch(String(q[0].args.p_html), /https:\/\/app\.example\.com\/app\/team/);
+  assertMatch(String(q[0].args.p_html), /https:\/\/app\.example\.com\/app\/team\?business=b1|https:\/\/app\.example\.com\/app\/team"/);
   assertEquals(w.calls.filter((c) => c.fn === "zella_finish_owner_email").map((c) => c.args.p_result), ["sent"]);
 });
 
@@ -91,7 +91,7 @@ Deno.test("strict: a notification without a title is never sent with a made up o
 Deno.test("links open the right page in the business app", async () => {
   const pages: Record<string, string> = { calls: "/app/calls", "": "/app", home: "/app", appointments: "/app/calendar", on_call: "/app/team", "settings/billing": "/app/settings/billing" };
   for (const [key, path] of Object.entries(pages)) {
-    const m = notificationEmail(note({ page_key: key || null }), "https://app.example.com", null);
-    assertMatch(m.html, new RegExp(`href="https://app\\.example\\.com${path.replace(/\//g, "\\/")}"`), key);
+    const m = notificationEmail(note({ page_key: key || null, business_id: "0a1b2c3d-0000-4000-8000-000000000009" }), "https://app.example.com", null);
+    assertMatch(m.html, new RegExp(`href="https://app\\.example\\.com${path.replace(/\//g, "\\/")}\\?business=0a1b2c3d-0000-4000-8000-000000000009"`), key);
   }
 });
