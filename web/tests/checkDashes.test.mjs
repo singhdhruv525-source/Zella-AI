@@ -32,6 +32,7 @@ test("code inside a sentence is taken out, the rest is still checked", () => {
   const css = check("export const A = () => <p>Follow-up reminders use a 1px solid border</p>;\n");
   assert.equal(css.code, 1);
   assert.match(css.out, /Follow-up reminders/);
+  assert.equal(check("export const A = () => <p>A 1px solid-state sensor</p>;\n").code, 1);
 });
 
 test("JSX text, labels and long dashes are found", () => {
