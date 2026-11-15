@@ -54,3 +54,28 @@ test("email colours match the design tokens", () => {
     warning: "warning", warningBg: "warning-bg", danger: "danger", dangerBg: "danger-bg" };
   for (const [k, n] of Object.entries(map)) assert.equal(EMAIL_COLORS[k].toUpperCase(), token(n), `${k} vs --zella-${n}`);
 });
+
+test("facts come from the data passed in, in the HTML and the plain text", () => {
+  const r = renderEmail("C7", { invoice: "ZV 9", credit: "$5.00", newTotal: "$95.00" });
+  for (const t of [r.html, r.text]) { assert.match(t, /\$95\.00/); assert.match(t, /\$5\.00/); assert.doesNotMatch(t, /\$150\.80/); }
+  const e6 = renderEmail("E6", { newInterval: "Monthly", intervalAmount: "$149.00", unusedCredit: "$10.00", nextRenewal: "1 Jan 2027" });
+  assert.match(e6.subject, /billed monthly/);
+  for (const t of [e6.html, e6.text]) assert.match(t, /\$10\.00/);
+  const i2 = renderEmail("I2", { month: "March", invoiced: "$1.00", paid: "$1.00", credits: "$0.50", balance: "$0.50" });
+  assert.match(i2.subject, /March/);
+  assert.match(i2.text, /Credits: \$0\.50/);
+  assert.match(renderEmail("V5", { answerBy: "2 Feb 2027" }).text, /Answer by: 2 Feb 2027/);
+  assert.match(renderEmail("F7", { paygMinutes: 7, paygAmount: "$2.45" }).text, /Minutes: 7[\s\S]*Amount: \$2\.45/);
+});
+
+test("emails about a change say which way it went", () => {
+  const pairs = [["K2", "mfaOn", /turned on/, /turned off/], ["H1", "autoPayOn", /switched on/, /switched off/],
+    ["H6", "billingAccessGranted", /can now see/, /can no longer see/], ["E9", "accountPaused", /paused/, /restored|active again/],
+    ["G6", "disputeWon", /in our favour/, /in your favour/]];
+  for (const [code, flag, yes, no] of pairs) {
+    const a = renderEmail(code, { [flag]: true }), b = renderEmail(code, { [flag]: false });
+    assert.match(a.subject + a.text, yes, `${code} true`);
+    assert.match(b.subject + b.text, no, `${code} false`);
+    assert.doesNotMatch(b.subject + b.text, yes, `${code} false says the opposite`);
+  }
+});

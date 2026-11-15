@@ -5,13 +5,15 @@ and this list come from one file, `web/src/emails/businessEmails.js`; the admin 
 businesses) and the server sender render from the same file. Billing emails keep their codes and rules from
 `docs/BILLING_EMAILS.md`. Emails to a business's own customers are separate (`email_messages`).
 
-## How an email is sent
+## How an email will be sent (intended flow; no sender is connected yet)
 
 1. The server renders it (`renderEmail(code, values)`) and queues it with `zella_queue_platform_email`, keyed
-   `email:<code>:<object id>:<occurrence>`. The same key again changes nothing, so an email is never sent twice.
+   `email:<code>:<object id>:<occurrence>`, unique per business. The same key again changes nothing, so an email is
+   never sent twice.
 2. The sender claims due emails (`zella_claim_platform_emails`). While `email_live` is off, they are marked test mode
    (`dry_run`) and nothing is handed out.
-3. The sender sends with the key as the provider's idempotency key and reports back (`zella_finish_platform_email`).
+3. The sender sends with the key as the provider's idempotency key and reports back (`zella_finish_platform_email`)
+   with the claim token it was handed, so a late answer from an older claim changes nothing.
    A failure waits 1, 4, 9 and 16 minutes; after 5 tries the email is held for a person and an admin alert is raised.
 4. Optional emails respect the person's choice (`notification_preferences`, type `email:<code>`); emails marked
    always sent are about the account, the service or money and can't be switched off.

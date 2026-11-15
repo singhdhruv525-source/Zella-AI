@@ -36,6 +36,14 @@ export const SAMPLE = {
   phone: "(555) 010 2040", fallbackPhone: "(555) 010 3000", calls: 87, booked: 23, newLeads: 12, missed: 3, answeredRate: "97%",
   incident: "Some calls took longer to connect", started: "14 Nov 2026 at 10:05", resolved: "14 Nov 2026 at 10:40", refund: "$49.00", credit: "$12.60",
   deletionDate: "21 Dec 2026", dataDays: 30, questions: 4, onCallFrom: "Saturday 18:00",
+  newRole: "Manager", busiestDay: "Tuesday", connection: "Website forms", spamCalls: 14, spamMessages: 6,
+  maintenanceDay: "21 Nov", maintenanceWindow: "02:00 and 02:30", termsDate: "15 Dec 2026", answerBy: "14 Dec 2026",
+  priceDate: "1 Jan 2027", newTotal: "$150.80", retryDate: "3 Dec", proratedToday: "$42.10", newPlan: "Base", newPlanMinutes: 500,
+  newInterval: "Yearly", intervalAmount: "$1,490.00", unusedCredit: "$74.50", nextRenewal: "1 Dec 2027",
+  paygMinutes: 41, paygAmount: "$14.35", packLeft: 120, rolledOver: 120, correctedCalls: 3, year: 2026, month: "November",
+  invoiced: "$163.40", paid: "$163.40", credits: "$0.00", balance: "$0.00",
+  // two way events: which way it went
+  mfaOn: true, billingAccessGranted: true, autoPayOn: false, accountPaused: true, disputeWon: true,
   lines: [["Pro plan, 1 Nov to 30 Nov", "$149.00"], ["Pay as you go minutes (41 at $0.35)", "$14.35"], ["Credit for corrected calls", "$0.00"], ["Tax", "$0.05"]],
 };
 
@@ -78,14 +86,14 @@ export const EMAILS = [
     intro: ["Your account was just used to sign in on a device we haven't seen before."], facts: [["When", d.time], ["Device", d.device]],
     outro: ["If this was you, there is nothing to do. If not, change your password now and tell your account owner."], button: ["Review your security", L(d, "/settings/security")] })),
   e("K2", "security", "Two step sign in changed", "two step sign in is turned on or off", M, (d) => ({
-    tone: "info", subject: "Two step sign in was changed", heading: "Your sign in settings changed",
-    intro: ["Two step sign in was turned on for your account."], facts: [["When", d.time], ["Changed by", d.changedBy]], button: ["Review your security", L(d, "/settings/security")] })),
+    tone: d.mfaOn ? "info" : "heads", subject: d.mfaOn ? "Two step sign in was turned on" : "Two step sign in was turned off", heading: "Your sign in settings changed",
+    intro: [d.mfaOn ? "Two step sign in was turned on for your account." : "Two step sign in was turned off for your account. If you didn't expect this, turn it back on and tell your account owner."], facts: [["When", d.time], ["Changed by", d.changedBy]], button: ["Review your security", L(d, "/settings/security")] })),
   e("K3", "security", "Password changed", "the password is changed or reset", M, (d) => ({
     tone: "info", subject: "Your Zella Voice password was changed", heading: "Password changed",
     intro: ["Your password was just changed. If you didn't do this, reset it now and contact us."], facts: [["When", d.time]], button: ["Reset your password", L(d, "/reset")] })),
   e("K4", "security", "Your access changed", "a person's role in the business changes or is removed", M, (d) => ({
     tone: "info", subject: `Your access to ${d.business} changed`, heading: "Your access changed",
-    intro: [`${d.changedBy} changed your role in ${d.business}. What you can see and do in Zella Voice now follows the new role.`], facts: [["New role", "Manager"]], button: ["Open Zella Voice", L(d, "/")] })),
+    intro: [`${d.changedBy} changed your role in ${d.business}. What you can see and do in Zella Voice now follows the new role.`], facts: [["New role", d.newRole]], button: ["Open Zella Voice", L(d, "/")] })),
 
   // ---- summaries
   e("R1", "summaries", "Daily summary", "8:00 each morning, when there is something to report", O, (d) => ({
@@ -95,7 +103,7 @@ export const EMAILS = [
   e("R2", "summaries", "Weekly review", "Monday morning", O, (d) => ({
     tone: "brand", subject: `Your week at ${d.business}`, heading: "Your week, wrapped up",
     intro: [`Your receptionist answered ${d.calls} calls and booked ${d.booked} appointments this week. Here is what stood out.`],
-    facts: [["Busiest day", "Tuesday"], ["New leads", d.newLeads], ["Questions it couldn't answer", d.questions]], button: ["See the full review", L(d, "/reports")] })),
+    facts: [["Busiest day", d.busiestDay], ["New leads", d.newLeads], ["Questions it couldn't answer", d.questions]], button: ["See the full review", L(d, "/reports")] })),
   e("R3", "summaries", "Monthly report", "the first of each month", O, (d) => ({
     tone: "brand", subject: `${d.business}: your month with Zella Voice`, heading: "Your month in numbers",
     facts: [["Calls answered", d.calls], ["Booked", d.booked], ["Minutes used", `${d.minutesUsed} of ${d.minutesIncluded}`]], button: ["Open reports", L(d, "/reports")] })),
@@ -113,7 +121,7 @@ export const EMAILS = [
     intro: ["Your receptionist can't see your calendar right now, so it is offering only times it is sure about. Reconnecting takes a minute."], button: ["Reconnect", L(d, "/settings/calendar")] })),
   e("L4", "alerts", "A connection stopped working", "an integration fails repeatedly", M, (d) => ({
     tone: "heads", subject: "A connection to Zella Voice stopped working", heading: "A connection needs you",
-    intro: ["One of your connected apps stopped answering. Nothing is lost; new items will catch up once it is reconnected."], facts: [["Connection", "Website forms"]], button: ["Open integrations", L(d, "/settings/integrations")] })),
+    intro: ["One of your connected apps stopped answering. Nothing is lost; new items will catch up once it is reconnected."], facts: [["Connection", d.connection]], button: ["Open integrations", L(d, "/settings/integrations")] })),
   e("L5", "alerts", "Google reviews disconnected", "review syncing stops", O, (d) => ({
     tone: "heads", subject: "Google reviews stopped syncing", heading: "Reconnect your reviews",
     intro: ["New Google reviews aren't coming into Zella Voice. Reconnect to keep seeing them and drafting replies."], button: ["Reconnect", L(d, "/reviews")] })),
@@ -122,7 +130,7 @@ export const EMAILS = [
     intro: [`Nobody is on call from ${d.onCallFrom}. Calls that need a person will go to voicemail then.`], button: ["Open the rota", L(d, "/on-call")] })),
   e("L7", "alerts", "Weekly spam report", "Monday, when spam was stopped", O, (d) => ({
     tone: "info", subject: "Spam your receptionist stopped this week", heading: "Spam kept out of your day",
-    facts: [["Spam calls stopped", 14], ["Spam messages stopped", 6]], button: ["Spam protection", L(d, "/spam")] })),
+    facts: [["Spam calls stopped", d.spamCalls], ["Spam messages stopped", d.spamMessages]], button: ["Spam protection", L(d, "/spam")] })),
   e("L8", "alerts", "Texts not delivered", "several texts to customers fail", O, (d) => ({
     tone: "heads", subject: "Some texts weren't delivered", heading: "Some texts didn't arrive",
     intro: ["A few texts to your customers were not delivered. Usually the number is wrong or can't receive texts."], button: ["See which ones", L(d, "/messages")] })),
@@ -152,14 +160,14 @@ export const EMAILS = [
     tone: "good", subject: "Resolved: everything is running normally", heading: "All fixed",
     intro: [`The problem is fixed (${d.resolved}). Thank you for your patience.`] })),
   e("V3", "service", "Scheduled maintenance", "7 days before planned maintenance", M, (d) => ({
-    tone: "info", subject: "Planned maintenance on 21 Nov", heading: "A short planned update",
-    intro: ["On 21 Nov between 02:00 and 02:30 your time, the CRM may be slow. Your receptionist keeps answering calls throughout."] })),
+    tone: "info", subject: `Planned maintenance on ${d.maintenanceDay}`, heading: "A short planned update",
+    intro: [`On ${d.maintenanceDay} between ${d.maintenanceWindow} your time, the CRM may be slow. Your receptionist keeps answering calls throughout.`] })),
   e("V4", "service", "Terms updated", "30 days before the terms or privacy policy change", M, (d) => ({
     tone: "info", subject: "We're updating our terms", heading: "Our terms are changing",
-    intro: ["Our terms of service change on 15 Dec 2026. Here is what is different, in plain words."], button: ["Read the changes", L(d, "/legal")] })),
+    intro: [`Our terms of service change on ${d.termsDate}. Here is what is different, in plain words.`], button: ["Read the changes", L(d, "/legal")] })),
   e("V5", "service", "Privacy request received", "a customer asks to see or delete their data", M, (d) => ({
     tone: "heads", subject: "A privacy request needs an answer", heading: "A privacy request came in",
-    intro: ["Someone asked to see or delete the information you hold about them. The law gives you a deadline to answer, and Zella Voice tracks it for you."], facts: [["Answer by", "14 Dec 2026"]], button: ["Open the request", L(d, "/settings/privacy")] })),
+    intro: ["Someone asked to see or delete the information you hold about them. The law gives you a deadline to answer, and Zella Voice tracks it for you."], facts: [["Answer by", d.answerBy]], button: ["Open the request", L(d, "/settings/privacy")] })),
   e("V6", "service", "Data export ready", "an export the owner asked for is ready", M, (d) => ({
     tone: "good", subject: "Your data export is ready", heading: "Your export is ready",
     intro: ["The export you asked for is ready to download. The link works for 7 days."], button: ["Download", L(d, "/settings/data")] })),
@@ -195,7 +203,7 @@ export const EMAILS = [
     intro: [`Add a card before ${d.renewDate} so your plan renews without a break.`], button: ["Add a card", L(d, "/settings/billing")] })),
   e("B4", "billing_b", "Price change notice", "30 days before the plan's price changes", M, (d) => ({
     tone: "info", subject: "Your plan's price is changing", heading: "A change to your price",
-    intro: ["From your renewal on 1 Jan 2027, your plan's price changes. You can change plan or cancel at any time before then."], facts: [["Now", d.oldValue], ["From 1 Jan 2027", d.newValue]], button: ["Billing settings", L(d, "/settings/billing")] })),
+    intro: [`From your renewal on ${d.priceDate}, your plan's price changes. You can change plan or cancel at any time before then.`], facts: [["Now", d.oldValue], [`From ${d.priceDate}`, d.newValue]], button: ["Billing settings", L(d, "/settings/billing")] })),
   e("B5", "billing_b", "Discount ending", "7 days before a discount ends", M, (d) => ({
     tone: "info", subject: "Your discount ends soon", heading: "Your discount ends soon",
     intro: [`Your discount ends after this period. From ${d.renewDate} your plan renews at ${d.amount}.`], button: ["Billing settings", L(d, "/settings/billing")] })),
@@ -221,11 +229,11 @@ export const EMAILS = [
     intro: ["This invoice replaces one we cancelled. The only change is the corrected pay as you go minutes."], lines: d.lines, total: d.total, button: ["View invoice", L(d, "/settings/billing")] })),
   e("C7", "billing_c", "Credit note", "an issued invoice is reduced", M, (d) => ({
     tone: "good", subject: `Credit note for invoice ${d.invoice}`, heading: "Your invoice was reduced",
-    facts: [["Invoice", d.invoice], ["Reduced by", d.credit], ["New total", "$150.80"]], button: ["Download PDF", L(d, "/settings/billing")] })),
+    facts: [["Invoice", d.invoice], ["Reduced by", d.credit], ["New total", d.newTotal]], button: ["Download PDF", L(d, "/settings/billing")] })),
 
   e("D1", "billing_d", "Payment failed", "the first charge fails, or the due date passes unpaid", M, (d) => ({
     tone: "urgent", subject: `Payment of ${d.total} didn't go through`, heading: "Your payment didn't go through",
-    intro: [`${d.reason} We will try again on 3 Dec. Pay now or update your card to keep your receptionist answering.`], facts: [["Amount", d.total], ["Card", `ending ${d.card}`]],
+    intro: [`${d.reason} We will try again on ${d.retryDate}. Pay now or update your card to keep your receptionist answering.`], facts: [["Amount", d.total], ["Card", `ending ${d.card}`]],
     button: ["Pay now", L(d, "/pay")], secondary: [["Update card", L(d, "/settings/billing")]] })),
   e("D2", "billing_d", "Confirm your payment", "the bank asks for confirmation (3D Secure)", M, (d) => ({
     tone: "heads", subject: "Your bank needs you to confirm a payment", heading: "Please confirm your payment",
@@ -248,10 +256,10 @@ export const EMAILS = [
 
   e("E1", "billing_e", "Plan upgraded", "an upgrade is applied", M, (d) => ({
     tone: "good", subject: "Your plan is upgraded", heading: "Upgraded and ready",
-    facts: [["New plan", d.plan], ["Charged today", "$42.10 for the rest of this period"], ["Next renewal", `${d.amount} on ${d.renewDate}`]], button: ["Billing settings", L(d, "/settings/billing")] })),
+    facts: [["New plan", d.plan], ["Charged today", `${d.proratedToday} for the rest of this period`], ["Next renewal", `${d.amount} on ${d.renewDate}`]], button: ["Billing settings", L(d, "/settings/billing")] })),
   e("E2", "billing_e", "Downgrade scheduled", "a downgrade is chosen", M, (d) => ({
     tone: "info", subject: `Your plan changes on ${d.renewDate}`, heading: "Your plan change is booked",
-    intro: [`Your current plan continues until ${d.renewDate}. After that you move to the Base plan with 500 included minutes.`], button: ["Billing settings", L(d, "/settings/billing")] })),
+    intro: [`Your current plan continues until ${d.renewDate}. After that you move to the ${d.newPlan} plan with ${d.newPlanMinutes} included minutes.`], button: ["Billing settings", L(d, "/settings/billing")] })),
   e("E3", "billing_e", "Cancellation confirmed", "the owner cancels", M, (d) => ({
     tone: "info", subject: "Your cancellation is confirmed", heading: "We're sorry to see you go",
     intro: [`Your receptionist keeps answering until ${d.renewDate}. A final invoice for any pay as you go minutes follows. Changed your mind? You can continue with one click.`], button: ["Keep my plan", L(d, "/settings/billing")] })),
@@ -262,8 +270,8 @@ export const EMAILS = [
     tone: "info", subject: "Your Zella Voice plan has ended", heading: "Your plan has ended",
     intro: [`Your receptionist no longer answers calls. Your data is kept for ${d.dataDays} days in case you come back, and the final invoice follows.`], button: ["Reactivate", L(d, "/settings/billing")] })),
   e("E6", "billing_e", "Billing period changed", "the plan switches between monthly and yearly", M, (d) => ({
-    tone: "info", subject: "You're now billed yearly", heading: "Your billing period changed",
-    facts: [["New period", "Yearly"], ["Amount", "$1,490.00"], ["Credit for unused time", "$74.50"], ["Next renewal", "1 Dec 2027"]] })),
+    tone: "info", subject: `You're now billed ${d.newInterval.toLowerCase()}`, heading: "Your billing period changed",
+    facts: [["New period", d.newInterval], ["Amount", d.intervalAmount], ["Credit for unused time", d.unusedCredit], ["Next renewal", d.nextRenewal]] })),
   e("E7", "billing_e", "Plan reactivated", "an ended business subscribes again", M, (d) => ({
     tone: "good", subject: "Welcome back to Zella Voice", heading: "Welcome back",
     facts: [["Plan", d.plan], ["Amount", d.amount], ["Next renewal", d.renewDate]], button: ["Open Zella Voice", L(d, "/")] })),
@@ -271,8 +279,10 @@ export const EMAILS = [
     tone: "urgent", subject: `Your data will be deleted on ${d.deletionDate}`, heading: "Your data will be deleted soon",
     intro: [`On ${d.deletionDate} we permanently delete ${d.business}'s calls, customers and settings. Export them or reactivate before then.`], button: ["Export or reactivate", L(d, "/settings/data")] })),
   e("E9", "billing_e", "Account paused or restored", "an admin pauses or restores the account for billing reasons", M, (d) => ({
-    tone: "heads", subject: "Your account was paused", heading: "Your account is paused",
-    intro: [`Your account was paused because an invoice is unpaid. Calls go to ${d.fallbackPhone} until it is settled.`], button: ["Pay now", L(d, "/pay")] })),
+    tone: d.accountPaused ? "heads" : "good", subject: d.accountPaused ? "Your account was paused" : "Your account is restored",
+    heading: d.accountPaused ? "Your account is paused" : "Welcome back",
+    intro: [d.accountPaused ? `Your account was paused because an invoice is unpaid. Calls go to ${d.fallbackPhone} until it is settled.` : "Your account is active again and your receptionist is answering calls."],
+    button: d.accountPaused ? ["Pay now", L(d, "/pay")] : ["Open Zella Voice", L(d, "/")] })),
 
   e("F1", "billing_f", "80% of minutes used", "minutes reach 80% of the plan", O, (d) => ({
     tone: "heads", subject: "You've used 80% of this month's minutes", heading: "Your receptionist has been busy",
@@ -295,13 +305,13 @@ export const EMAILS = [
     intro: [`You've reached your ${d.limit} monthly limit, so new calls go to ${d.fallbackPhone} until your plan renews. You can raise the limit at any time.`], button: ["Raise the limit", L(d, "/settings/billing")] })),
   e("F7", "billing_f", "Pay as you go statement", "at each period's close, if pay as you go minutes were used", O, (d) => ({
     tone: "info", subject: "Your pay as you go minutes this month", heading: "Pay as you go, this month",
-    facts: [["Minutes", 41], ["Rate", d.rate], ["Amount", "$14.35"], ["On invoice", d.invoice]] })),
+    facts: [["Minutes", d.paygMinutes], ["Rate", d.rate], ["Amount", d.paygAmount], ["On invoice", d.invoice]] })),
   e("F8", "billing_f", "Pack expiring", "7 days before unused pack minutes expire", O, (d) => ({
     tone: "info", subject: "Pack minutes expire soon", heading: "Use them before they go",
-    facts: [["Minutes left", 120], ["Expire", d.renewDate]] })),
+    facts: [["Minutes left", d.packLeft], ["Expire", d.renewDate]] })),
   e("F9", "billing_f", "Allowance renewed", "at each renewal", O, (d) => ({
     tone: "good", subject: "Fresh minutes, texts and emails", heading: "Your allowance is renewed",
-    facts: [["Minutes", `${d.minutesIncluded} plus 120 rolled over`], ["Texts", d.texts], ["Emails", d.emails]] })),
+    facts: [["Minutes", `${d.minutesIncluded} plus ${d.rolledOver} rolled over`], ["Texts", d.texts], ["Emails", d.emails]] })),
 
   e("G1", "billing_g", "Refund requested", "the owner asks for a refund", M, (d) => ({
     tone: "info", subject: "We received your refund request", heading: "Refund request received",
@@ -314,23 +324,25 @@ export const EMAILS = [
     intro: ["We weren't able to approve this refund because the minutes were used for answered calls. Reply to this email if you'd like to talk it through."] })),
   e("G4", "billing_g", "Credit applied", "a correction credit is used on an invoice", O, (d) => ({
     tone: "good", subject: `${d.credit} credit applied`, heading: "We corrected some calls",
-    intro: [`We found 3 calls that were counted too long, and took ${d.credit} off invoice ${d.invoice}.`] })),
+    intro: [`We found ${d.correctedCalls} calls that were counted too long, and took ${d.credit} off invoice ${d.invoice}.`] })),
   e("G5", "billing_g", "Dispute opened", "the bank opens a chargeback", M, (d) => ({
     tone: "heads", subject: "Your bank opened a dispute", heading: "A payment is being disputed",
     intro: [`Your bank opened a dispute for ${d.total}. Your service continues while it is reviewed. If this was a mistake, tell your bank and reply to us.`] })),
   e("G6", "billing_g", "Dispute closed", "the dispute is won or lost", M, (d) => ({
     tone: "info", subject: "Your payment dispute is closed", heading: "The dispute is closed",
-    intro: ["The bank closed the dispute in our favour, so the original payment stands. Nothing else changes on your account."] })),
+    intro: [d.disputeWon ? "The bank closed the dispute in our favour, so the original payment stands. Nothing else changes on your account."
+      : `The bank closed the dispute in your favour and returned ${d.total} to you. The invoice is unpaid again; please pay it so your plan stays active.`],
+    button: d.disputeWon ? null : ["Pay now", L(d, "/pay")] })),
   e("G7", "billing_g", "Usage waived", "an admin waives usage after a cancelled invoice", M, (d) => ({
     tone: "good", subject: "Nothing to pay for these minutes", heading: "We've waived these minutes",
-    intro: [`We've waived 41 pay as you go minutes ($14.35). There is nothing to pay.`] })),
+    intro: [`We've waived ${d.paygMinutes} pay as you go minutes (${d.paygAmount}). There is nothing to pay.`] })),
   e("G8", "billing_g", "Refund partly issued", "only part of a refund is approved", M, (d) => ({
     tone: "info", subject: `Refund of ${d.refund} issued`, heading: "Part of your refund is approved",
     intro: [`We refunded ${d.refund} to the card ending ${d.card}. The rest covered calls that were answered.`] })),
 
   e("H1", "billing_h", "Automatic payment changed", "automatic payment is switched on or off", M, (d) => ({
-    tone: "info", subject: "Automatic payment was switched off", heading: "Automatic payment is off",
-    intro: [`From your next renewal, we will email the invoice and you pay it by ${d.dueDate}.`], facts: [["Changed by", d.changedBy], ["When", d.time]] })),
+    tone: "info", subject: d.autoPayOn ? "Automatic payment was switched on" : "Automatic payment was switched off", heading: d.autoPayOn ? "Automatic payment is on" : "Automatic payment is off",
+    intro: [d.autoPayOn ? `From your next renewal, we will charge the card ending ${d.card} automatically.` : `From your next renewal, we will email the invoice and you pay it by ${d.dueDate}.`], facts: [["Changed by", d.changedBy], ["When", d.time]] })),
   e("H2", "billing_h", "Card updated", "the saved card is added, replaced or removed", M, (d) => ({
     tone: "info", subject: "Your card was updated", heading: "Card updated",
     facts: [["New card", `ending ${d.card}`], ["Changed by", d.changedBy], ["When", d.time]] })),
@@ -345,14 +357,14 @@ export const EMAILS = [
     intro: ["Your next invoice will use the new details."], facts: [["Changed by", d.changedBy], ["When", d.time]] })),
   e("H6", "billing_h", "Billing access changed", "someone gains or loses billing access", M, (d) => ({
     tone: "info", subject: "Billing access was changed", heading: "Billing access changed",
-    intro: [`${d.person} can now see and manage billing for ${d.business}.`], facts: [["Changed by", d.changedBy]] })),
+    intro: [d.billingAccessGranted ? `${d.person} can now see and manage billing for ${d.business}.` : `${d.person} can no longer see or manage billing for ${d.business}.`], facts: [["Changed by", d.changedBy]] })),
 
   e("I1", "billing_i", "Yearly billing summary", "each January", O, (d) => ({
-    tone: "info", subject: "Your 2026 billing summary", heading: "Your year in invoices",
+    tone: "info", subject: `Your ${d.year} billing summary`, heading: "Your year in invoices",
     intro: ["Every invoice and refund from last year in one PDF, ready for your accountant."], button: ["Download the summary", L(d, "/settings/billing")] })),
   e("I2", "billing_i", "Monthly statement", "the first of each month", O, (d) => ({
-    tone: "info", subject: "Your November statement", heading: "Your statement for November",
-    facts: [["Invoiced", d.total], ["Paid", d.total], ["Credits", "$0.00"], ["Balance", "$0.00"]] })),
+    tone: "info", subject: `Your ${d.month} statement`, heading: `Your statement for ${d.month}`,
+    facts: [["Invoiced", d.invoiced], ["Paid", d.paid], ["Credits", d.credits], ["Balance", d.balance]] })),
 ];
 
 export const emailByCode = (code) => EMAILS.find((x) => x.code === code);

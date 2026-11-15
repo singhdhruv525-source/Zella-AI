@@ -14,7 +14,7 @@ q() { "${P[@]}" -d $DB -c "$1"; }
 
 for i in 1 2; do out=$("${P[@]}" -d $DB -f "$REPO/sql/zella_platform_emails.sql" 2>&1) || { bad "apply (run $i): $(echo "$out" | grep -m2 -E 'ERROR|CONTEXT' | tr '\n' ' ')"; exit 1; }; done
 ok "applies twice"
-for f in "zella_queue_platform_email(uuid,text,text,text,text,text,text,boolean,uuid,text[])" "zella_claim_platform_emails(integer)" "zella_finish_platform_email(uuid,boolean,text,text)"; do
+for f in "zella_queue_platform_email(uuid,text,text,text,text,text,text,boolean,uuid,text[])" "zella_claim_platform_emails(integer)" "zella_finish_platform_email(uuid,uuid,boolean,text,text)"; do
   [ "$(q "select has_function_privilege('authenticated', 'public.$f', 'execute') or has_function_privilege('anon', 'public.$f', 'execute')")" = f ] || bad "$f callable from the browser"
 done
 [ "$(q "select has_table_privilege('authenticated', 'public.platform_emails', 'insert') or has_table_privilege('authenticated', 'public.platform_emails', 'update') or has_table_privilege('anon', 'public.platform_emails', 'select')")" = f ] \
@@ -36,6 +36,10 @@ do $$ declare a uuid; b uuid; n int; r record; begin
   b := public.zella_queue_platform_email('b0000000-0000-4000-8000-0000000000e1', 'C3', 'email:C3:inv_1:1', 'other@example.com', 'Changed', '<p>y</p>', 'y', true);
   assert a = b, 'same key, same row';
   assert (select count(*) from platform_emails) = 1 and (select to_email from platform_emails) = 'owner@example.com', 'first row kept, address tidied';
+  -- the same key for another business is its own email, never mixed up with the first
+  b := public.zella_queue_platform_email('b0000000-0000-4000-8000-0000000000e2', 'C3', 'email:C3:inv_1:1', 'other@example.com', 'Payment received', '<p>z</p>', 'z', true);
+  assert b <> a and (select business_id from platform_emails where id = b) = 'b0000000-0000-4000-8000-0000000000e2', 'keys are per business';
+  delete from platform_emails where id = b;
   -- a key that doesn't match the code is refused
   begin perform public.zella_queue_platform_email('b0000000-0000-4000-8000-0000000000e1', 'C3', 'email:D1:inv_1:1', 'o@example.com', 's', 'h', 't', true); assert false, 'bad key accepted';
   exception when raise_exception then null; end;
@@ -53,20 +57,21 @@ SQL
 ) && echo "$out" | grep -o 'PASS .*' || bad "queue: $(echo "$out" | grep -m2 -E 'ERROR|CONTEXT' | tr '\n' ' ')"
 
 out=$("${P[@]}" -d $DB 2>&1 <<'SQL'
-do $$ declare a uuid; n int; i int; s text; begin
+do $$ declare a uuid; n int; i int; s text; tok uuid; old_tok uuid; begin
   insert into platform_settings (key, value) values ('email_live', 'true'::jsonb) on conflict (key) do update set value = 'true'::jsonb;
   a := public.zella_queue_platform_email('b0000000-0000-4000-8000-0000000000e1', 'D1', 'email:D1:inv_2:1', 'o@example.com', 'Payment failed', 'h', 't', true);
-  select count(*) into n from public.zella_claim_platform_emails(10) where id = a;
-  assert n = 1, 'live: claimed';
+  select claim_token into tok from public.zella_claim_platform_emails(10) where id = a;
+  assert tok is not null, 'live: claimed with a token';
   assert (select count(*) from public.zella_claim_platform_emails(10) where id = a) = 0, 'not claimed twice while sending';
-  s := public.zella_finish_platform_email(a, false, null, 'provider timeout');
+  s := public.zella_finish_platform_email(a, tok, false, null, 'provider timeout');
   assert s = 'queued' and (select next_attempt_at > now() from platform_emails where id = a), 'failure waits before the retry';
-  assert public.zella_finish_platform_email(a, true) = 'NOT_SENDING', 'finish only a row being sent';
+  assert public.zella_finish_platform_email(a, tok, true) = 'NOT_THIS_CLAIM', 'finish only a row being sent';
   -- four more failures: held, with an admin alert, never sent again
   for i in 2..5 loop
     update platform_emails set next_attempt_at = now() - interval '1 second' where id = a;
-    assert (select count(*) from public.zella_claim_platform_emails(10) where id = a) = 1, 'retry ' || i;
-    perform public.zella_finish_platform_email(a, false, null, 'provider timeout');
+    select claim_token into tok from public.zella_claim_platform_emails(10) where id = a;
+    assert tok is not null, 'retry ' || i;
+    perform public.zella_finish_platform_email(a, tok, false, null, 'provider timeout');
   end loop;
   update platform_emails set next_attempt_at = now() - interval '1 second' where id = a;
   assert (select count(*) from public.zella_claim_platform_emails(10) where id = a) = 0, 'no sixth try';
@@ -74,10 +79,15 @@ do $$ declare a uuid; n int; i int; s text; begin
   assert exists (select 1 from platform_alerts where kind = 'platform_email_held' and business_id = 'b0000000-0000-4000-8000-0000000000e1'), 'admin alert';
   -- a good send
   a := public.zella_queue_platform_email('b0000000-0000-4000-8000-0000000000e1', 'S6', 'email:S6:live:1', 'o@example.com', 'Live', 'h', 't', true);
-  perform public.zella_claim_platform_emails(10);
-  assert public.zella_finish_platform_email(a, true, 'msg_123') = 'sent', 'sent';
+  select claim_token into old_tok from public.zella_claim_platform_emails(10) where id = a;
+  -- the claim runs past 10 minutes and is claimed again; the late answer from the first claim changes nothing
+  update platform_emails set next_attempt_at = now() - interval '1 second' where id = a;
+  select claim_token into tok from public.zella_claim_platform_emails(10) where id = a;
+  assert tok <> old_tok, 'new claim, new token';
+  assert public.zella_finish_platform_email(a, old_tok, false, null, 'late timeout') = 'NOT_THIS_CLAIM', 'stale claim refused';
+  assert public.zella_finish_platform_email(a, tok, true, 'msg_123') = 'sent', 'sent';
   assert (select sent_at is not null and provider_message_id = 'msg_123' from platform_emails where id = a), 'sent recorded';
-  raise notice 'PASS live: claimed once, retried with backoff, held after 5 tries with an admin alert, sends recorded';
+  raise notice 'PASS live: claimed once with a token, retried with backoff, a late answer from an older claim ignored, held after 5 tries with an admin alert, sends recorded';
 end $$;
 SQL
 ) && echo "$out" | grep -o 'PASS .*' || bad "send: $(echo "$out" | grep -m2 -E 'ERROR|CONTEXT' | tr '\n' ' ')"
@@ -98,7 +108,7 @@ reset role;
 SQL
 ) && echo "$out" | grep -o 'PASS .*' || bad "row security: $(echo "$out" | grep -m2 -E 'ERROR|CONTEXT' | tr '\n' ' ')"
 
-out=$("${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_platform_emails_rollback.sql" 2>&1) && bad "rollback ran with sent emails" || { echo "$out" | grep -q HAS_HISTORY && ok "the rollback refuses once an email was sent"; }
+out=$("${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_platform_emails_rollback.sql" 2>&1) && bad "rollback ran with emails in the outbox" || { echo "$out" | grep -q HAS_ROWS && ok "the rollback refuses while the outbox holds any email (nothing deleted)"; }
 q "delete from platform_emails" > /dev/null
 for i in 1 2; do out=$("${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_platform_emails_rollback.sql" 2>&1) || { bad "rollback (run $i): $(echo "$out" | grep -m2 ERROR)"; }; done
 [ "$(q "select to_regclass('public.platform_emails') is null and to_regprocedure('public.zella_claim_platform_emails(integer)') is null")" = t ] && ok "the rollback (run twice) removes everything" || bad "rollback left something"

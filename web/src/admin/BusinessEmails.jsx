@@ -79,7 +79,7 @@ function Outbox({ onOpenBusiness }) {
   const [f, setF] = useState({ status: null, code: null, offset: 0 });
   const set = (k) => (v) => setF((x) => ({ ...x, [k]: v, offset: 0 }));
   const log = useLoad(() => rpc("zella_admin_platform_emails", { p_status: f.status, p_code: f.code, p_limit: PAGE, p_offset: f.offset }), [f]);
-  const missing = /zella_admin_platform_emails|PGRST202|does not exist/i.test(String(log.error?.message ?? log.error ?? ""));
+  const missing = /PGRST202|zella_admin_platform_emails[^\n]*does not exist/i.test(String(log.error?.code ?? "") + " " + String(log.error?.message ?? log.error ?? ""));
   return (
     <Panel title="Sent to businesses" description="The platform outbox. While email sending is off, emails are marked test mode and nothing leaves. Each email is sent once; one that keeps failing is held for a person.">
       {missing ? <p className="op-muted">The outbox isn't installed on this database yet (sql/zella_platform_emails.sql).</p> : (

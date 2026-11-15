@@ -16,7 +16,7 @@ It reads the catalog only, never rows.
 | Tables (schema `public`) | 172 |
 | Tables with row security on | 172 of 172 |
 | Row security policies | 341 |
-| Columns | 2049 |
+| Columns | 2050 |
 | Views | 1 |
 | Functions | 896 (832 security definer, 26 callable by `anon`) |
 
@@ -2805,10 +2805,11 @@ The platform outbox: every email Zella Voice sends to a business, once per key, 
 | `sent_at` | timestamp with time zone |  |  |
 | `provider_message_id` | text |  |  |
 | `last_error` | text |  |  |
+| `claim_token` | uuid |  |  |
 | `created_at` | timestamp with time zone | yes | now() |
 
 - Primary key: `id`.
-- Unique: `(dedupe_key)`.
+- Unique: `(business_id, dedupe_key)`.
 - `business_id` → `public.businesses` (on delete cascade).
 - Row security: on; policies: platform_emails_read (select).
 
@@ -4715,7 +4716,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_finish_calendar_sync(p_queue_id uuid, p_ok boolean, p_event_id text, p_error text)` | text | yes | server only |
 | `zella_finish_execution(p_execution_id uuid, p_ok boolean, p_step text, p_steps jsonb, p_provider_refs jsonb, p_error_category text, p_error text, p_needs_manual boolean)` | boolean | yes | server only |
 | `zella_finish_owner_email(p_id uuid, p_result text, p_note text)` | text | yes | server only |
-| `zella_finish_platform_email(p_id uuid, p_ok boolean, p_provider_id text, p_error text)` | text | yes | server only |
+| `zella_finish_platform_email(p_id uuid, p_claim_token uuid, p_ok boolean, p_provider_id text, p_error text)` | text | yes | server only |
 | `zella_finish_record_file(p_file_id uuid)` | jsonb | yes | signed in |
 
 ### `zella_flag_*` (3)
