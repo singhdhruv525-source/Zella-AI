@@ -129,6 +129,9 @@ most often needed:
 - **Writing and notifications (owner, 14 Nov 2026):** no dashes or hyphens anywhere people read text (screens,
   emails, texts, notifications, the AI receptionist); notifications are creative but professional and use each
   business's own words. Rules in `docs/DESIGN_SYSTEM.md` (Writing; Notifications); checked by `npm run lint`.
+  Part 2 (15 Nov 2026, in review): the database (`sql/zella_writing_cleanup.sql`, not applied), the edge function
+  labels (wizard automation names, admin role, sign in messages; need a deploy with approval). Left on purpose: n8n
+  workflow and node names and internal reason codes (only admins see them in n8n; renaming means a re-import).
   The industry "E-commerce" is shown as "Ecommerce".
 
 - **Unsubscribe link limits (G-7, 14 Nov 2026):** limits are per link only, never platform-wide or per address (a burst

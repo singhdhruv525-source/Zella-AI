@@ -43,7 +43,7 @@ export async function sendInvitation(deps: Deps, callerId: string, invitationId:
   // do not cover. An error checking it refuses (fails closed).
   let mfaOk = false;
   try { mfaOk = await deps.mfaSatisfied(); } catch { mfaOk = false; }
-  if (!mfaOk) return err(403, "Finish two-step sign-in first, then try again.", "MFA_REQUIRED");
+  if (!mfaOk) return err(403, "Finish two step sign in first, then try again.", "MFA_REQUIRED");
 
   const invitation = await deps.getInvitation(invitationId);
   if (!invitation) return err(404, "Invitation not found");

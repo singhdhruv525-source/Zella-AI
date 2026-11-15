@@ -118,7 +118,7 @@ Deno.test("membership lookup errors stop email delivery", async () => {
 Deno.test("a session that has not finished two-step sign-in is refused before anything else", async () => {
   const { deps, calls } = fake({ mfaSatisfied: async () => false });
   const r = await sendInvitation(deps, OWNER, "i1");
-  assertEquals(r, { status: 403, body: { error: "Finish two-step sign-in first, then try again.", code: "MFA_REQUIRED" } });
+  assertEquals(r, { status: 403, body: { error: "Finish two step sign in first, then try again.", code: "MFA_REQUIRED" } });
   assertEquals(calls, []);
 });
 

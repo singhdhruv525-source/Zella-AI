@@ -250,7 +250,7 @@ export function findConflict({ staff, blocks, start, end, staffId, timeZone, res
 }
 
 // After someone is marked a no-show: say what Zella Voice will do next. The
-// follow-up is queued by the database only when the "No-show follow-up"
+// follow-up is queued by the database only when the "No show follow up"
 // automation is live, so this reports what is really going to happen.
 export async function noShowNotice(appointmentId, who, timeZone) {
   const base = `${who} marked no show.`;
