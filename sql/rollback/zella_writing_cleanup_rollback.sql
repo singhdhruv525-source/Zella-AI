@@ -1,0 +1,25 @@
+-- Undoes sql/zella_writing_cleanup.sql exactly: every changed function comes back from zella_function_archive and every
+-- changed value from zella_text_archive (only values this migration changed), then the helpers go. Safe to run twice.
+begin;
+do $$
+declare a record; v_jsonb boolean;
+begin
+  if to_regclass('public.zella_function_archive') is not null then
+    for a in select signature, definition from public.zella_function_archive where migration = 'zella_writing_cleanup' loop
+      execute a.definition;
+    end loop;
+    delete from public.zella_function_archive where migration = 'zella_writing_cleanup';
+  end if;
+  if to_regclass('public.zella_text_archive') is not null then
+    for a in select * from public.zella_text_archive where migration = 'zella_writing_cleanup' loop
+      select data_type = 'jsonb' into v_jsonb from information_schema.columns where table_schema = 'public' and table_name = a.tbl and column_name = a.col;
+      execute format('update public.%I set %I = %L::%s where %I::text = %L', a.tbl, a.col, a.old_value, case when v_jsonb then 'jsonb' else 'text' end,
+                     case a.tbl when 'industry_crm_presets' then 'key' when 'industry_message_policy' then 'industry_key' else 'id' end, a.row_key);
+    end loop;
+    delete from public.zella_text_archive where migration = 'zella_writing_cleanup';
+    if not exists (select 1 from public.zella_text_archive) then drop table public.zella_text_archive; end if;
+  end if;
+end $$;
+drop function if exists public.zella_plain_json(jsonb);
+drop function if exists public.zella_plain_words(text);
+commit;
