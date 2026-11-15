@@ -18,7 +18,7 @@ It reads the catalog only, never rows.
 | Row security policies | 340 |
 | Columns | 2030 |
 | Views | 1 |
-| Functions | 892 (828 security definer, 26 callable by `anon`) |
+| Functions | 893 (829 security definer, 26 callable by `anon`) |
 
 Rules every table follows:
 
@@ -4540,10 +4540,11 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_charge_payment_write(p_actor uuid, p_source text, p_charge_id uuid, p_kind text, p_amount_minor bigint, p_method text, p_note text, p_idempotency_key text, p_provider_ref text)` | jsonb | yes | server only |
 | `zella_charge_refresh_status(p_charge_id uuid)` | text | yes | server only |
 
-### `zella_check_*` (16)
+### `zella_check_*` (17)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
+| `zella_check_business_moments(p_now timestamp with time zone)` | integer | yes | server only |
 | `zella_check_connections()` | integer | yes | server only |
 | `zella_check_customer_requests()` | integer | yes | server only |
 | `zella_check_data_rights_due()` | integer | yes | server only |
