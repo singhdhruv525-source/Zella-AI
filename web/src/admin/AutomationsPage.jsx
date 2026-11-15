@@ -21,7 +21,7 @@ export default function AutomationsPage({ me, sub, onOpenBusiness }) {
   const options = useOptions();
   return (
     <section className="owner-page ao-page">
-      <PageHeader title="Automations" description="Reminders, follow-ups and other automations for every business: their status, every run, failures and the scheduler." />
+      <PageHeader title="Automations" description="Reminders, follow ups and other automations for every business: their status, every run, failures and the scheduler." />
       <ErrorNote error={options.error} onRetry={options.reload} />
       <Tabs tabs={TABS} current={tab} onChange={setTab} />
       {tab === "overview" && <Overview onTab={setTab} />}
@@ -43,7 +43,7 @@ function Overview({ onTab }) {
   const alerts = h ? [
     ...h.alerts,
     ...(h.overdue.reminders ? [{ severity: "warning", title: "Reminders overdue", detail: `${h.overdue.reminders} reminders are more than 15 minutes late.`, link: "infrastructure" }] : []),
-    ...(h.overdue.followups ? [{ severity: "warning", title: "Follow-ups overdue", detail: `${h.overdue.followups} follow-ups are more than 15 minutes late.`, link: "infrastructure" }] : []),
+    ...(h.overdue.followups ? [{ severity: "warning", title: "follow ups overdue", detail: `${h.overdue.followups} follow ups are more than 15 minutes late.`, link: "infrastructure" }] : []),
     ...(h.overdue.events ? [{ severity: "warning", title: "Events not picked up", detail: `${h.overdue.events} events have waited more than 15 minutes.`, link: "infrastructure" }] : []),
     ...(h.failed_24h.workflows ? [{ severity: "warning", title: "Failed runs in 24 hours", detail: `${h.failed_24h.workflows} workflow runs failed.`, link: "failed" }] : []),
     ...h.dispatch.filter((d) => d.stuck).map((d) => ({ severity: "warning", title: `${words(d.workflow)} looks stuck`, detail: "The same work has been waiting for 12 dispatches in a row.", link: "infrastructure" })),
@@ -58,7 +58,7 @@ function Overview({ onTab }) {
       </Filters>
       <ErrorNote error={data.error} onRetry={data.reload} />
       {h && !h.jobs.some((j) => j.active && j.name === "zella_dispatch") && (
-        <NotAvailable title="The scheduler isn't running">The zella_dispatch job is off, so due reminders and follow-ups wait in the queue and nothing is handed to n8n. That's expected before go-live.</NotAvailable>
+        <NotAvailable title="The scheduler isn't running">The zella_dispatch job is off, so due reminders and follow ups wait in the queue and nothing is handed to n8n. That's expected before go live.</NotAvailable>
       )}
       {o && (
         <div className="owner-stat-grid ao-stats">
@@ -109,7 +109,7 @@ function Directory({ me, options, say, onOpenBusiness }) {
       <ErrorNote error={list.error} onRetry={list.reload} />
       <DataTable error={list.error} loading={list.loading} rows={list.data?.rows} onRow={(r) => setOpen(r.id)} empty="No automations match these filters."
         columns={[
-          ["Automation", (r) => <strong>{r.name}</strong>], ["Business", (r) => r.business_name], ["Industry", (r) => r.industry_name ?? "—"],
+          ["Automation", (r) => <strong>{r.name}</strong>], ["Business", (r) => r.business_name], ["Industry", (r) => r.industry_name ?? "None"],
           ["Trigger", (r) => words(r.trigger_type)], ["Status", (r) => <span className="ao-flags"><Pill tone={tone(r.status)}>{STATUS_LABEL[r.status] ?? r.status}</Pill>
             {!r.business_live && <Pill tone="neutral">Business not live</Pill>}{r.paused_by_suspension && <Pill tone="warning">Suspended</Pill>}</span>],
           ["Runs", (r) => num(r.runs.total)], ["Failed", (r) => (r.runs.failed ? <Pill tone="danger">{r.runs.failed}</Pill> : 0)],
@@ -120,7 +120,7 @@ function Directory({ me, options, say, onOpenBusiness }) {
       {pauseAll && (
         <ReasonDialog title={`Pause every automation for ${businessName}?`} icon="pause_circle" danger confirmLabel="Pause all" onClose={() => setPauseAll(false)}
           onConfirm={async (reason) => { const r = await rpc("zella_admin_business_automations_pause", { p_business_id: f.business, p_reason: reason }); say(`${r.paused} automation${r.paused === 1 ? "" : "s"} paused.`); list.reload(); }}>
-          <p>Every active automation for this business stops sending reminders and follow-ups. Nothing for other businesses changes. Each one can be resumed separately.</p>
+          <p>Every active automation for this business stops sending reminders and follow ups. Nothing for other businesses changes. Each one can be resumed separately.</p>
         </ReasonDialog>
       )}
     </Panel>
@@ -140,19 +140,19 @@ function AutomationDrawer({ id, onClose, onOpenBusiness, onChanged }) {
       {!a ? <p className="op-muted">Loading…</p> : (
         <>
           <Facts rows={[["Business", <button key="b" type="button" className="ao-link" onClick={() => onOpenBusiness(a.business_id)}>{a.business_name}</button>],
-            ["Business live", a.business_live ? "Yes" : "No — nothing runs until it goes live"], ["Trigger", words(a.trigger_type)],
+            ["Business live", a.business_live ? "Yes" : "No. Nothing runs until it goes live"], ["Trigger", words(a.trigger_type)],
             ["Status", <Pill key="s" tone={tone(a.status)}>{STATUS_LABEL[a.status] ?? a.status}</Pill>], a.paused_by_suspension ? ["Paused because", "The business was suspended"] : null,
             ["Description", a.description], ["Created", when(a.created_at)], ["Updated", when(a.updated_at)]]} />
           {settings.length > 0 && <><h3 className="ao-h3">Settings</h3><Facts rows={settings.map(([k, v]) => [words(k), String(v)])} /></>}
           <h3 className="ao-h3">Queue for this business</h3>
-          <Facts rows={[["Follow-ups", queue(d.data.queue.followups)], d.data.queue.reminders !== null ? ["Reminders", queue(d.data.queue.reminders)] : null]} />
+          <Facts rows={[["Follow ups", queue(d.data.queue.followups)], d.data.queue.reminders !== null ? ["Reminders", queue(d.data.queue.reminders)] : null]} />
           <h3 className="ao-h3">Recent runs</h3>
           {d.data.runs.length ? (
             <ol className="ao-timeline">{d.data.runs.map((r) => <li key={r.id}><strong><Pill tone={tone(r.status)}>{words(r.status)}</Pill> {when(r.created_at)}</strong><span>{r.error ?? (r.completed_at ? `Finished ${when(r.completed_at)}` : "")}</span></li>)}</ol>
-          ) : <p className="op-muted">No runs recorded. Reminders and follow-ups are sent from the queue above rather than as runs.</p>}
+          ) : <p className="op-muted">No runs recorded. Reminders and follow ups are sent from the queue above rather than as runs.</p>}
           <h3 className="ao-h3">Changes</h3>
           {d.data.history.length ? (
-            <ol className="ao-timeline">{d.data.history.map((h, i) => <li key={i}><strong>{words(h.action.replace(/^automation\./, ""))}</strong><span>{when(h.at)}{h.new?.reason ? ` — ${h.new.reason}` : ""}</span></li>)}</ol>
+            <ol className="ao-timeline">{d.data.history.map((h, i) => <li key={i}><strong>{words(h.action.replace(/^automation\./, ""))}</strong><span>{when(h.at)}{h.new?.reason ? ` to ${h.new.reason}` : ""}</span></li>)}</ol>
           ) : <p className="op-muted">No recorded changes.</p>}
           {d.data.can_manage ? (
             <div className="ao-drawer-actions">
@@ -197,7 +197,7 @@ function Runs({ failed, me, options, say, onOpenBusiness }) {
           ["Started", (r) => when(r.started_at)], ["Workflow", (r) => <strong>{r.name}</strong>], ["Business", (r) => r.business_name ?? "Platform"],
           ["Status", (r) => <span className="ao-flags"><Pill tone={tone(r.status)}>{words(r.status)}</Pill>{r.needs_manual && <Pill tone="warning">Needs a person</Pill>}</span>],
           ["Time", (r) => duration(r.duration_seconds)], ["Tries", (r) => r.attempts ?? 0],
-          ["Error", (r) => (r.error ? `${r.failed_step ? `${r.failed_step}: ` : ""}${r.error}` : "—")],
+          ["Error", (r) => (r.error ? `${r.failed_step ? `${r.failed_step}: ` : ""}${r.error}` : "None")],
         ]} />
       <Pager total={list.data?.total} offset={f.offset} onChange={(o) => setF((x) => ({ ...x, offset: o }))} />
       {open && <RunDrawer row={open} me={me} onClose={() => setOpen(null)} onOpenBusiness={onOpenBusiness} onChanged={(m) => { say(m); list.reload(); }} />}
@@ -223,12 +223,12 @@ function RunDrawer({ row, me, onClose, onOpenBusiness, onChanged }) {
             r.correlation_id ? ["Correlation id", <code key="c">{r.correlation_id}</code>] : null]} />
           <h3 className="ao-h3">Steps</h3>
           {d.data.steps.length ? (
-            <ol className="ao-timeline">{d.data.steps.map((s, i) => <li key={i}><strong><Pill tone={tone(s.status === "done" || s.status === "ok" ? "succeeded" : s.status)}>{s.status ?? "—"}</Pill> {s.name ?? `Step ${i + 1}`}</strong><span>{[s.at && when(s.at), s.error].filter(Boolean).join(" — ")}</span></li>)}</ol>
+            <ol className="ao-timeline">{d.data.steps.map((s, i) => <li key={i}><strong><Pill tone={tone(s.status === "done" || s.status === "ok" ? "succeeded" : s.status)}>{s.status ?? "None"}</Pill> {s.name ?? `Step ${i + 1}`}</strong><span>{[s.at && when(s.at), s.error].filter(Boolean).join(". ")}</span></li>)}</ol>
           ) : <p className="op-muted">No steps recorded.</p>}
           <p className="op-muted">Step inputs and outputs aren't shown: they can hold customer details.</p>
           {d.data.event && <><h3 className="ao-h3">Started by</h3><Facts rows={[["Event", words(d.data.event.type)], ["From", words(d.data.event.source)], ["Event status", words(d.data.event.status)],
             ["Received", when(d.data.event.received_at)], ["Event tries", d.data.event.attempts], d.data.event.error ? ["Event error", d.data.event.error] : null]} /></>}
-          {d.data.dead_letter && <Facts rows={[["Dead letter", `${words(d.data.dead_letter.status)}${d.data.dead_letter.reason ? ` — ${d.data.dead_letter.reason}` : ""}`],
+          {d.data.dead_letter && <Facts rows={[["Dead letter", `${words(d.data.dead_letter.status)}${d.data.dead_letter.reason ? ` to ${d.data.dead_letter.reason}` : ""}`],
             d.data.dead_letter.resolved_at ? ["Reviewed", when(d.data.dead_letter.resolved_at)] : null]} />}
           <h3 className="ao-h3">Retry</h3>
           {d.data.retry.ok
@@ -252,7 +252,7 @@ function RunDrawer({ row, me, onClose, onOpenBusiness, onChanged }) {
       {action === "review" && (
         <ReasonDialog title="Mark this failure as reviewed?" icon="task_alt" confirmLabel="Mark reviewed" onClose={() => setAction(null)}
           onConfirm={async (note) => { await rpc("zella_admin_run_reviewed", { p_kind: row.kind, p_id: row.id, p_note: note }); d.reload(); onChanged("Marked as reviewed."); }}>
-          <p>Its dead letter is closed and it no longer counts as needing a person. The run itself isn't changed or re-run.</p>
+          <p>Its dead letter is closed and it no longer counts as needing a person. The run itself isn't changed or rerun.</p>
         </ReasonDialog>
       )}
     </Drawer>
@@ -300,13 +300,13 @@ function Infrastructure() {
           columns={[["Job", (j) => <code>{j.name}</code>], ["Schedule", (j) => <code>{j.schedule}</code>], ["State", (j) => <Pill tone={j.active ? "success" : "neutral"}>{j.active ? "Running" : "Off"}</Pill>],
             ["Last run", (j) => (j.last_run ? <span><Pill tone={j.last_run.status === "succeeded" ? "success" : "danger"}>{words(j.last_run.status)}</Pill> {when(j.last_run.at)}</span> : "Never")],
             ["Last success", (j) => when(j.last_success)], ["Failures (24 h)", (j) => (j.failures_24h ? <Pill tone="danger">{j.failures_24h}</Pill> : 0)]]} />}
-        <p className="op-muted">Jobs are switched on at go-live (n8n/GO-LIVE.md), not from this page, so a click can't start sending to customers.</p>
+        <p className="op-muted">Jobs are switched on at go live (the go live guide, n8n/GO-LIVE.md), not from this page, so a click can't start sending to customers.</p>
       </Panel>
       {s && (
         <Panel title="Queue">
           <div className="owner-stat-grid ao-stats">
             <Metric label="Reminders overdue (15 min+)" value={num(s.overdue.reminders)} tone={s.overdue.reminders ? "warning" : null} />
-            <Metric label="Follow-ups overdue (15 min+)" value={num(s.overdue.followups)} tone={s.overdue.followups ? "warning" : null} />
+            <Metric label="follow ups overdue (15 min+)" value={num(s.overdue.followups)} tone={s.overdue.followups ? "warning" : null} />
             <Metric label="Events waiting (15 min+)" value={num(s.overdue.events)} tone={s.overdue.events ? "warning" : null} />
             <Metric label="Failed runs (24 h)" value={num(s.failed_24h.workflows)} tone={s.failed_24h.workflows ? "danger" : null} />
             <Metric label="Failed events (24 h)" value={num(s.failed_24h.events)} tone={s.failed_24h.events ? "danger" : null} />

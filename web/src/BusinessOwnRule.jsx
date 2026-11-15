@@ -107,7 +107,7 @@ function OwnRule({ workspace, onClose, onSaved }) {
             <label className="ba-auto-field"><span>Alert the owners</span><input value={alert} maxLength={120} onChange={(e) => setAlert(e.target.value)} placeholder="Optional, e.g. Needs attention" /></label>
           </>
         )}
-        {kind === "due" && <label className="ba-auto-field"><span>What is due</span><input value={task} maxLength={60} onChange={(e) => setTask(e.target.value)} placeholder="e.g. check-up" /></label>}
+        {kind === "due" && <label className="ba-auto-field"><span>What is due</span><input value={task} maxLength={60} onChange={(e) => setTask(e.target.value)} placeholder="e.g. checkup" /></label>}
         {error && <p className="ba-error" role="alert">{error}</p>}
       </div>
     </Modal>

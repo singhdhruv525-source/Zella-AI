@@ -68,12 +68,12 @@ export function useLoad(loader, deps) {
   return { ...state, reload: useCallback(() => setTick((t) => t + 1), []) };
 }
 
-export const when = (v) => (v ? new Date(v).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "—");
+export const when = (v) => (v ? new Date(v).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "None");
 export const words = humanize;
-export const num = (n) => (n === null || n === undefined ? "—" : Number(n).toLocaleString());
-export const pct = (n) => (n === null || n === undefined ? "—" : `${n}%`);
+export const num = (n) => (n === null || n === undefined ? "Not available" : Number(n).toLocaleString());
+export const pct = (n) => (n === null || n === undefined ? "Not available" : `${n}%`);
 export function duration(s) {
-  if (s === null || s === undefined) return "—";
+  if (s === null || s === undefined) return "Not available";
   const v = Math.round(Number(s));
   return v < 60 ? `${v} s` : `${Math.floor(v / 60)} min ${v % 60} s`;
 }
@@ -195,7 +195,7 @@ export function Pager({ total, offset, onChange }) {
   const last = Math.min(offset + PAGE, total);
   return (
     <div className="ao-pager">
-      <span className="op-muted">{offset + 1}–{last} of {num(total)}</span>
+      <span className="op-muted">{offset + 1} to {last} of {num(total)}</span>
       <button type="button" className="owner-secondary-button" disabled={offset === 0} onClick={() => onChange(Math.max(0, offset - PAGE))}>Previous</button>
       <button type="button" className="owner-secondary-button" disabled={last >= total} onClick={() => onChange(offset + PAGE)}>Next</button>
     </div>
@@ -245,7 +245,7 @@ export function Facts({ rows }) {
   return (
     <dl className="ao-facts">
       {rows.filter(Boolean).map(([k, v]) => (
-        <div key={k}><dt>{k}</dt><dd>{v === null || v === undefined || v === "" ? <span className="op-muted">—</span> : v}</dd></div>
+        <div key={k}><dt>{k}</dt><dd>{v === null || v === undefined || v === "" ? <span className="op-muted">None</span> : v}</dd></div>
       ))}
     </dl>
   );

@@ -50,7 +50,7 @@ export function HealthPanel() {
   const alerts = Object.fromEntries(["urgent", "warning", "info"].map((k) => [k,
     validAlerts ? (Object.hasOwn(rawAlerts, k) ? rawAlerts[k] : 0) : null]));
   const counted = Object.values(alerts).every((n) => Number.isInteger(n) && n >= 0);
-  const count = (k) => (Number.isInteger(alerts[k]) && alerts[k] >= 0 ? alerts[k] : "—");
+  const count = (k) => (Number.isInteger(alerts[k]) && alerts[k] >= 0 ? alerts[k] : "Not available");
   return (
     <section className="owner-panel op-card">
       <div className="owner-panel-heading"><div><h2>Providers and alerts</h2><p>From the scheduled provider checks and open platform alerts.</p></div></div>
@@ -63,7 +63,7 @@ export function HealthPanel() {
         {data && <li><div><strong>Businesses with failed texts (24 h)</strong><span>Outbound texts that couldn't be delivered</span></div><Pill tone={data.businesses_with_failed_messages_24h ? "warning" : "success"}>{data.businesses_with_failed_messages_24h || "None"}</Pill></li>}
         {(data?.providers ?? []).map((p) => (
           <li key={p.provider}>
-            <div><strong>{p.provider}</strong><span>{p.detail || "—"} · checked {formatDateTime(p.checked_at)}{p.failures_in_a_row ? ` · ${p.failures_in_a_row} failures in a row` : ""}</span></div>
+            <div><strong>{p.provider}</strong><span>{p.detail || "None"} · checked {formatDateTime(p.checked_at)}{p.failures_in_a_row ? ` · ${p.failures_in_a_row} failures in a row` : ""}</span></div>
             <Pill tone={p.ok ? "success" : "danger"}>{p.ok ? "OK" : "Failing"}</Pill>
           </li>
         ))}
@@ -125,7 +125,7 @@ const loadIncidents = async () => {
   if (result.error) throw result.error;
   return result.data ?? [];
 };
-const STATUS_PARTS = [["", "No specific part"], ["phone", "Phone assistant"], ["texts", "Text messages"], ["email", "Email"], ["automations", "Reminders and follow-ups"], ["app", "Zella Voice app"]];
+const STATUS_PARTS = [["", "No specific part"], ["phone", "Phone assistant"], ["texts", "Text messages"], ["email", "Email"], ["automations", "Reminders and follow ups"], ["app", "Zella Voice app"]];
 
 export function IncidentsPanel() {
   const { data, error, loading, reload } = useAsync(loadIncidents);

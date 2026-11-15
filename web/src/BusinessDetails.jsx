@@ -141,7 +141,7 @@ function Empty({ children }) {
 function Check({ ok, later, title, detail }) {
   return (
     <li className="op-check">
-      <span className={`op-check-dot ${ok ? "ok" : later ? "later" : "missing"}`}>{ok ? "✓" : later ? "–" : "!"}</span>
+      <span className={`op-check-dot ${ok ? "ok" : later ? "later" : "missing"}`}>{ok ? "✓" : later ? "None" : "!"}</span>
       <div>
         <strong>{title}</strong>
         <span>{detail}</span>
@@ -505,7 +505,7 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup }) {
                           <strong className="op-strong">{term(singular)} / {term(plural)}</strong>
                           {custom && <Pill tone="info">Custom</Pill>}
                         </td>
-                        <td>{terms.industry?.[singular] || "—"} / {terms.industry?.[plural] || "—"}</td>
+                        <td>{terms.industry?.[singular] || "None"} / {terms.industry?.[plural] || "None"}</td>
                       </tr>
                     );
                   })}
@@ -534,8 +534,8 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup }) {
                   <tbody>
                     {data.members.map((m) => (
                       <tr key={m.user_id}>
-                        <td>{m.name || "—"}</td>
-                        <td>{m.email || "—"}</td>
+                        <td>{m.name || "None"}</td>
+                        <td>{m.email || "None"}</td>
                         <td className="op-cap">{m.role}</td>
                         <td><Pill tone={m.status === "active" ? "success" : "neutral"}>{m.status}</Pill></td>
                         <td>{formatDate(m.created_at)}</td>
@@ -576,7 +576,7 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup }) {
                         </td>
                         <td>{formatDateTime(i.invited_at)}</td>
                         <td>{formatDate(i.expires_at)}</td>
-                        <td className="op-muted">{i.last_error || "—"}</td>
+                        <td className="op-muted">{i.last_error || "None"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -608,7 +608,7 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup }) {
                 ["Service area", kb.service_area],
                 ...DAYS.map(([day, name]) => {
                   const h = kb.hours?.[day];
-                  return [name, h?.closed ? "Closed" : h?.open ? `${h.open} – ${h.close}` : ""];
+                  return [name, h?.closed ? "Closed" : h?.open ? `${h.open} to ${h.close}` : ""];
                 }),
               ]} />
             </Card>
@@ -623,7 +623,7 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup }) {
                   <thead><tr><th>Name</th><th>Price</th><th>Duration</th><th>Description</th></tr></thead>
                   <tbody>
                     {kb.services.map((s, i) => (
-                      <tr key={i}><td><strong className="op-strong">{s.name}</strong></td><td>{s.price || "—"}</td><td>{s.duration || "—"}</td><td>{s.description || "—"}</td></tr>
+                      <tr key={i}><td><strong className="op-strong">{s.name}</strong></td><td>{s.price || "None"}</td><td>{s.duration || "None"}</td><td>{s.description || "None"}</td></tr>
                     ))}
                   </tbody>
                 </table>
@@ -709,9 +709,9 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup }) {
                         <td className="op-cap">{i.provider}</td>
                         <td>{i.integration_type}</td>
                         <td><Pill tone={i.status === "active" ? "success" : i.status === "error" ? "danger" : "neutral"}>{i.status}</Pill></td>
-                        <td>{i.account_email || "—"}</td>
+                        <td>{i.account_email || "None"}</td>
                         <td>{formatDateTime(i.last_synced_at)}</td>
-                        <td className="op-muted">{i.error_message || "—"}</td>
+                        <td className="op-muted">{i.error_message || "None"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -740,8 +740,8 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup }) {
                     <tr key={c.id}>
                       <td>{formatDateTime(c.started_at || c.created_at)}</td>
                       <td className="op-cap">{c.direction}</td>
-                      <td>{c.from_number || "—"}</td>
-                      <td>{c.to_number || "—"}</td>
+                      <td>{c.from_number || "None"}</td>
+                      <td>{c.to_number || "None"}</td>
                       <td>{formatDuration(c.duration_seconds)}</td>
                       <td>{c.ai_handled ? "AI" : "Team"}</td>
                       <td className="op-cap">{c.status}</td>

@@ -8,13 +8,13 @@ export function loadStatus({ data, error, loading }) {
   return loading ? "loading" : "failed";
 }
 
-// A metric's text: "…" while loading, "—" when there is no trustworthy number (nothing loaded, or the value is missing
+// A metric's text: "…" while loading, "Not available" when there is no trustworthy number (nothing loaded, or the value is missing
 // from the answer), otherwise the number itself, zero included.
 export const isCount = (v) => typeof v === "number" && Number.isFinite(v);
 export function metric(value, r) {
   if (r.status === "loading") return "…";
-  if (r.status === "failed") return "—";
-  return isCount(value) ? value : "—";
+  if (r.status === "failed") return "Not available";
+  return isCount(value) ? value : "Not available";
 }
 // The count of an array in the answer, or null when the array isn't there.
 export const countOf = (list, filter) => (Array.isArray(list) ? (filter ? list.filter(filter).length : list.length) : null);

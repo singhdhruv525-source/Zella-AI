@@ -19,7 +19,7 @@ import { FloorPlan } from "./FloorPlan";
 
 const SOURCE = {
   manual: ["Team", "person"], phone: ["Phone", "call"], call: ["Phone", "call"], phone_call: ["Phone", "call"], voice: ["AI receptionist", "smart_toy"], ai_call: ["AI receptionist", "smart_toy"],
-  walk_in: ["Walk-in", "directions_walk"], website: ["Online", "language"], website_chat: ["Online chat", "chat"],
+  walk_in: ["Walk in", "directions_walk"], website: ["Online", "language"], website_chat: ["Online chat", "chat"],
   google: ["Google", "travel_explore"], meta: ["Meta", "thumb_up"], referral: ["Referral", "group"], other: ["Other", "more_horiz"],
 };
 const PRIORITY_TONE = { urgent: "danger", high: "warning", normal: "" };
@@ -59,7 +59,7 @@ function Kpi({ icon, tone, label, value, change, loading, unavailable }) {
       <div className="td-kpi-body">
         <span className="td-kpi-label">{label}</span>
         <div className="td-kpi-row">
-          <span className="ba-kpi-value">{loading ? "…" : unavailable ? "—" : <CountUp value={value} />}</span>
+          <span className="ba-kpi-value">{loading ? "…" : unavailable ? "Not available" : <CountUp value={value} />}</span>
           {change && (
             <span className={`td-trend ${change.tone}`} aria-label={change.label ?? change.text}>
               {change.arrow && <Icon name={change.arrow} size="sm" />}{change.text}
@@ -104,7 +104,7 @@ function SpamKpi({ workspace, day, tz, onOpen }) {
       <div className="td-kpi-body">
         <span className="td-kpi-label">Spam</span>
         <div className="td-kpi-row">
-          <span className="ba-kpi-value">{state.loading ? "…" : d ? <CountUp value={d.total} /> : "—"}</span>
+          <span className="ba-kpi-value">{state.loading ? "…" : d ? <CountUp value={d.total} /> : "Not available"}</span>
           {d && d.unreviewed > 0 && <span className="td-spam-new">{d.unreviewed} to review</span>}
           {d && !d.unreviewed && change && (
             <span className={`td-trend ${change.tone}`} aria-label={change.label ?? change.text}>
@@ -256,12 +256,12 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
   const scheduling = capabilityOn(capabilities, "scheduling");
   const checkinsOn = scheduling && capabilityOn(capabilities, "checkins");
   const tablesOn = scheduling && capabilityOn(capabilities, "tables");
-  const [tableNames, setTableNames] = useState({});
+  const [tableNames, setTableNames] = useState(null);   // null until loaded; "failed" if the lookup failed
   useEffect(() => {
     if (!tablesOn) return undefined;
     let live = true;
-    supabase.from("restaurant_tables").select("id, name").eq("business_id", workspace.id).then(({ data }) => {
-      if (live) setTableNames(Object.fromEntries((data ?? []).map((t) => [t.id, t.name])));
+    supabase.from("restaurant_tables").select("id, name").eq("business_id", workspace.id).then(({ data, error }) => {
+      if (live) setTableNames(error ? "failed" : Object.fromEntries((data ?? []).map((t) => [t.id, t.name])));
     });
     return () => { live = false; };
   }, [tablesOn, workspace.id]);
@@ -419,7 +419,7 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
     ["arrived", cfg.arrived, appts.filter((a) => a.stage === "arrived").length], ["completed", "Completed", appts.filter((a) => a.stage === "completed").length],
     ["cancelled", "Canceled", appts.filter((a) => ["cancelled", "no_show"].includes(a.stage)).length]];
   const rows = appts.filter((a) => tab === "all" || (tab === "upcoming" ? ["upcoming", "late"].includes(a.stage) : tab === "cancelled" ? ["cancelled", "no_show"].includes(a.stage) : a.stage === tab));
-  const STAGE = { upcoming: ["Upcoming", "info"], late: ["Running late", "danger"], arrived: [cfg.arrived, "success"], completed: ["Completed", ""], cancelled: ["Canceled", ""], no_show: ["No-show", "danger"] };
+  const STAGE = { upcoming: ["Upcoming", "info"], late: ["Running late", "danger"], arrived: [cfg.arrived, "success"], completed: ["Completed", ""], cancelled: ["Canceled", ""], no_show: ["No show", "danger"] };
   const isToday = day === today;
   const dayLabel = isToday ? "today" : formatLongDate(dayBounds(day, tz).start, tz);
   const p = data?.prev;
@@ -442,7 +442,7 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
           {!isToday && <button type="button" className="ba-btn" onClick={() => setDay(today)}>Today</button>}
           {canEdit && scheduling && <button type="button" className="ba-btn primary" onClick={() => onBook()}><Icon name="add" size="sm" />New {oneBooking.toLowerCase()}</button>}
           {canEdit && (scheduling && cfg.walkIn
-            ? <button type="button" className="ba-btn" onClick={() => onBook({ walkIn: true })}><Icon name="directions_walk" size="sm" />Walk-in</button>
+            ? <button type="button" className="ba-btn" onClick={() => onBook({ walkIn: true })}><Icon name="directions_walk" size="sm" />walk in</button>
             : <button type="button" className={`ba-btn ${scheduling ? "" : "primary"}`} onClick={onAddLead}><Icon name="person_add" size="sm" />Add lead</button>)}
           <button type="button" className="ba-btn ghost" onClick={load} disabled={loading} aria-label="Refresh"><Icon name="refresh" size="sm" /></button>
         </div>
@@ -456,7 +456,7 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
         {!scheduling && <Kpi icon="pending_actions" tone="rose" label="Open work" value={(data?.work ?? []).reduce((n, w) => n + w.open, 0)} loading={loading && !data} unavailable={!data && !loading} />}
         {scheduling && showGuests && <Kpi icon="groups" tone="indigo" label={`Total ${term("customers").toLowerCase()}`} value={guests} loading={loading && !data} unavailable={!data && !loading} change={p && trend(guests, p.guests)} />}
         <Kpi icon="person_add" tone="amber" label="New leads" value={data?.leads.length ?? 0} loading={loading && !data} unavailable={!data && !loading} change={p && trend(data.leads.length, p.leads)} />
-        <Kpi icon="smart_toy" tone="green" label="AI-answered calls" value={data?.aiCalls ?? 0} loading={loading && !data} unavailable={!data && !loading} change={p && trend(data.aiCalls, p.aiCalls)} />
+        <Kpi icon="smart_toy" tone="green" label="AI answered calls" value={data?.aiCalls ?? 0} loading={loading && !data} unavailable={!data && !loading} change={p && trend(data.aiCalls, p.aiCalls)} />
         <Kpi icon="phone_missed" tone="rose" label="Missed calls" value={data?.missed ?? 0} loading={loading && !data} unavailable={!data && !loading} change={p && trend(data.missed, p.missed, false)} />
         <SpamKpi workspace={workspace} day={day} tz={tz} onOpen={() => onGo("spam")} />
       </div>
@@ -484,17 +484,17 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
                 <tbody>
                   {rows.map((a) => {
                     const [stageLabel, tone] = STAGE[a.stage];
-                    const [src, srcIcon] = SOURCE[a.customer?.source] ?? (a.customer?.source ? [a.customer.source, "more_horiz"] : ["—", null]);
+                    const [src, srcIcon] = SOURCE[a.customer?.source] ?? (a.customer?.source ? [a.customer.source, "more_horiz"] : ["None", null]);
                     const busy = working === `appt-${a.id}`;
                     const mins = minutes(a);
                     return (
                       <tr key={a.id}>
                         <td className="td-time">{formatTime(a.start_time, tz)}{mins ? <small>{mins} min</small> : null}</td>
                         <td>{person(a.customer?.id, personName(a.customer) ?? a.title)}
-                          <small className="td-sub">{srcIcon && <Icon name={srcIcon} size="sm" />} {src !== "—" ? src : ""}{src !== "—" && personName(a.customer) && a.title ? " · " : ""}{personName(a.customer) ? a.title : ""}{a.forTitle ? ` · for ${a.forTitle}` : ""}</small></td>
-                        {showGuests && <td>{a.party_size ?? "—"}</td>}
-                        {tablesOn && <td>{(a.table_ids ?? []).map((id) => tableNames[id]).filter(Boolean).join(" + ") || "—"}</td>}
-                        {showStaff && <td>{data.staff[a.staff_id] ?? "—"}</td>}
+                          <small className="td-sub">{srcIcon && <Icon name={srcIcon} size="sm" />} {src !== "None" ? src : ""}{src !== "None" && personName(a.customer) && a.title ? " · " : ""}{personName(a.customer) ? a.title : ""}{a.forTitle ? ` · for ${a.forTitle}` : ""}</small></td>
+                        {showGuests && <td>{a.party_size ?? "None"}</td>}
+                        {tablesOn && <td>{!(a.table_ids ?? []).length ? "None" : tableNames === null ? "…" : tableNames === "failed" ? "Not available" : a.table_ids.map((id) => tableNames[id] ?? "Not available").join(" + ")}</td>}
+                        {showStaff && <td>{data.staff[a.staff_id] ?? "None"}</td>}
                         <td><Pill tone={tone}>{stageLabel}</Pill>{a.booking_state === "requested" && <small className="td-sub">Request, not booked</small>}</td>
                         <td className="td-notes">{a.description || a.internal_notes || a.location || ""}</td>
                         <td>
@@ -505,7 +505,7 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
                             {canEdit && a.stage === "upcoming" && a.status === "scheduled" && <button type="button" className="ba-btn ghost sm" disabled={busy} onClick={() => setStatus(a, "confirmed", `${oneBooking} confirmed.`)} title="Confirm" aria-label="Confirm"><Icon name="check" size="sm" /></button>}
                             {canEdit && checkinsOn && ["upcoming", "late"].includes(a.stage) && <button type="button" className="ba-btn ghost sm" disabled={busy} onClick={() => checkIn(a)} title={cfg.arrived} aria-label={`Mark ${cfg.arrived.toLowerCase()}`}><Icon name="how_to_reg" size="sm" /></button>}
                             {canEdit && a.stage === "upcoming" && <button type="button" className="ba-btn ghost sm" disabled={busy} onClick={() => setMoving(a)} title="Reschedule" aria-label="Reschedule"><Icon name="event_repeat" size="sm" /></button>}
-                            {canEdit && a.stage === "late" && <button type="button" className="ba-btn ghost sm" disabled={busy} onClick={() => markNoShow(a)} title="No-show" aria-label="Mark no-show"><Icon name="person_off" size="sm" /></button>}
+                            {canEdit && a.stage === "late" && <button type="button" className="ba-btn ghost sm" disabled={busy} onClick={() => markNoShow(a)} title="no show" aria-label="Mark no show"><Icon name="person_off" size="sm" /></button>}
                             {canEdit && a.stage === "arrived" && <button type="button" className="ba-btn ghost sm" disabled={busy} onClick={() => setStatus(a, "completed", `${oneBooking} completed.`)} title="Mark completed" aria-label="Mark completed"><Icon name="task_alt" size="sm" /></button>}
                             {canEdit && checkinsOn && a.stage === "arrived" && a.checked_in_at && <button type="button" className="ba-btn ghost sm" disabled={busy} onClick={() => checkIn(a)} title="Undo" aria-label={`Undo ${cfg.arrived.toLowerCase()}`}><Icon name="undo" size="sm" /></button>}
                           </div>
@@ -586,7 +586,7 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
           ) : <Empty title={loading && !data ? "Loading…" : "No completed visits yet"}>{!loading && `Ranked by completed ${bookingWord.toLowerCase()} in the last 90 days.`}</Empty>}
         </Card>}
 
-        <Card title="Tasks & follow-ups" action={<button type="button" className="ba-btn sm" onClick={() => onGo("tasks")}>View all</button>}>
+        <Card title="Tasks & follow ups" action={<button type="button" className="ba-btn sm" onClick={() => onGo("tasks")}>View all</button>}>
           {data?.tasks.length ? (
             <ul className="td-list">
               {data.tasks.map((t) => {

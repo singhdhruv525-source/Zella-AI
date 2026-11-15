@@ -91,7 +91,7 @@ export default function AuditLogs({ onOpenBusiness }) {
                         <button type="button" className="op-name" onClick={() => onOpenBusiness(log.business_id)}>
                           {log.business_name ?? "Deleted business"}
                         </button>
-                      ) : "—"}
+                      ) : "None"}
                     </td>
                     <td>{log.actor ?? "Unknown user"}</td>
                     <td>

@@ -138,7 +138,7 @@ function Editor({ agent, base, onSaved }) {
             </fieldset>
           )}
           <Field label="Things it must never say or do" hint="One per line. The receptionist follows these as instructions; Zella Voice can't check them on its own, so keep anything that must be enforced in the booking rules below." full>
-            <textarea rows={4} value={form.restrictions} onChange={set("restrictions")} maxLength={15000} placeholder={"Never give medical advice\nNever promise a same-day appointment"} />
+            <textarea rows={4} value={form.restrictions} onChange={set("restrictions")} maxLength={15000} placeholder={"Never give medical advice\nNever promise a same day appointment"} />
           </Field>
           <fieldset className="ba-fieldset full">
             <legend>Booking rules (Zella Voice enforces these)</legend>

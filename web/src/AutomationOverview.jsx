@@ -32,8 +32,8 @@ export default function AutomationOverview({ rows, industryName, appointmentWord
                   {!entry && row?.description && <div className="op-muted">{row.description}</div>}
                 </td>
                 <td>{row ? <Pill tone={row.status === "active" ? "success" : row.status === "paused" ? "info" : "neutral"}>{row.status === "disabled" ? "off" : row.status}</Pill> : <span className="op-muted">Not set up</span>}</td>
-                <td>{on ? NOTIFY_LABEL[cfg.notify_via] ?? "Text and email" : "—"}</td>
-                <td>{on ? (entry ? describeSettings(cfg) : "Industry rule") : "—"}</td>
+                <td>{on ? NOTIFY_LABEL[cfg.notify_via] ?? "Text and email" : "None"}</td>
+                <td>{on ? (entry ? describeSettings(cfg) : "Industry rule") : "None"}</td>
               </tr>
             );
           })}

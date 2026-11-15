@@ -134,7 +134,7 @@ export default function IndustryRecords({ industryId, industryName }) {
                           </select>
                           {f.type === "select"
                             ? <input aria-label="Choices" value={f.optionsText} placeholder="Choices, separated by commas" onChange={(e) => setField(i, j, { optionsText: e.target.value })} />
-                            : <span className="op-muted ir-key">{f.key || keyFrom(f.label) || "—"}</span>}
+                            : <span className="op-muted ir-key">{f.key || keyFrom(f.label) || "None"}</span>}
                           <label className="wiz-inline-check"><input type="checkbox" checked={Boolean(f.required)} onChange={(e) => setField(i, j, { required: e.target.checked })} /> Required</label>
                           <label className="wiz-inline-check"><input type="checkbox" checked={t.columns.includes(f.key || keyFrom(f.label))} onChange={(e) => setType(i, { columns: toggleIn(t.columns, f.key || keyFrom(f.label), e.target.checked) })} /> In list</label>
                           <button type="button" className="wiz-link-danger" onClick={() => setType(i, { fields: t.fields.filter((_, n) => n !== j), columns: t.columns.filter((c) => c !== (f.key || keyFrom(f.label))) })}>Remove</button>
@@ -151,7 +151,7 @@ export default function IndustryRecords({ industryId, industryName }) {
                           <select aria-label="Color" value={s.tone} onChange={(e) => setStatus(i, j, { tone: e.target.value })}>
                             {TONES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                           </select>
-                          <span className="op-muted ir-key">{s.key || keyFrom(s.label) || "—"}</span>
+                          <span className="op-muted ir-key">{s.key || keyFrom(s.label) || "None"}</span>
                           <label className="wiz-inline-check"><input type="checkbox" checked={t.closed_statuses.includes(s.key || keyFrom(s.label))} onChange={(e) => setType(i, { closed_statuses: toggleIn(t.closed_statuses, s.key || keyFrom(s.label), e.target.checked) })} /> Counts as done</label>
                           <span />
                           <button type="button" className="wiz-link-danger" disabled={t.statuses.length < 2} onClick={() => setType(i, { statuses: t.statuses.filter((_, n) => n !== j) })}>Remove</button>

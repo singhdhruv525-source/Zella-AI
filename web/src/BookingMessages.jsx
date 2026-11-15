@@ -14,8 +14,8 @@ import { humanize } from "./copy/labels";
 
 const RETRY_ROLES = ["owner", "admin", "manager"];
 const TASK_LABEL = {
-  no_show_follow_up: "No-show follow-up", post_visit_thank_you: "Thank-you after the visit", post_appointment_follow_up: "Follow-up after the visit",
-  review_request: "Review request", reschedule_offer: "Offer to rebook", appointment_followup: "Follow-up",
+  no_show_follow_up: "no show follow up", post_visit_thank_you: "thank you after the visit", post_appointment_follow_up: "follow up after the visit",
+  review_request: "Review request", reschedule_offer: "Offer to rebook", appointment_followup: "Follow up",
 };
 const CHANNEL = { sms: ["sms", "Text"], email: ["mail", "Email"], call: ["call", "Call"], voice: ["call", "Call"] };
 const words = humanize;

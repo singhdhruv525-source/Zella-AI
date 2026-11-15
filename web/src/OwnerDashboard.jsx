@@ -186,7 +186,7 @@ useEffect(() => {
 
   const isBusinesses = activePage === "Businesses";
   const businessesStale = Boolean(businessError && businessesLoadedAt);
-  const statValue = (v) => (!businessesLoadedAt ? (loadingBusinesses ? "..." : "—") : isCount(v) ? v : "—");
+  const statValue = (v) => (!businessesLoadedAt ? (loadingBusinesses ? "..." : "Not available") : isCount(v) ? v : "Not available");
 
   const visibleBusinesses = businesses.filter((business) => {
     if (!matchesState(business, stateFilter)) return false;
@@ -582,7 +582,7 @@ useEffect(() => {
                       Created{" "}
                       {business.created_at
                         ? new Date(business.created_at).toLocaleDateString()
-                        : "—"}
+                        : "None"}
                     </span>
                   </div>
                 </td>
@@ -594,7 +594,7 @@ useEffect(() => {
                     <strong>
                       {invitation?.owner_name ?? "Not invited"}
                     </strong>
-                    <span>{invitation?.email ?? "—"}</span>
+                    <span>{invitation?.email ?? "None"}</span>
                   </div>
                 </td>
 

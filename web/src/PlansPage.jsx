@@ -163,7 +163,7 @@ export default function PlansPage({ onOpenBusiness }) {
                   <td><button type="button" className="op-name" onClick={() => onOpenBusiness(s.business_id)}>{s.business_name}</button></td>
                   <td>{s.plan_name}</td>
                   <td><Pill tone={SUB_TONE[s.status] ?? "neutral"}>{humanize(s.status)}</Pill></td>
-                  <td className="op-cap">{s.billing_interval ?? "—"}</td>
+                  <td className="op-cap">{s.billing_interval ?? "None"}</td>
                   <td>{formatDate(s.created_at)}</td>
                 </tr>
               ))}

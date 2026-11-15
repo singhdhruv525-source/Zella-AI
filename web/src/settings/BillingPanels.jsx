@@ -10,8 +10,8 @@ import "../billing.css";
 
 const RES = { minutes: ["Minutes", "AI call minutes"], texts: ["Texts", "texts"], emails: ["Emails", "emails"] };
 const KIND = { rollover: "Rolled over", plan: "Plan", pack: "Pack", buffer: "Reminder buffer" };
-const money = (cents) => (cents == null ? "—" : `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: cents % 100 ? 2 : 0, maximumFractionDigits: 2 })}`);
-const num = (n) => (n == null ? "—" : Number(n).toLocaleString("en-US", { maximumFractionDigits: 1 }));
+const money = (cents) => (cents == null ? "None" : `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: cents % 100 ? 2 : 0, maximumFractionDigits: 2 })}`);
+const num = (n) => (n == null ? "None" : Number(n).toLocaleString("en-US", { maximumFractionDigits: 1 }));
 const LANG = { en: "English", es: "Spanish" };
 
 async function overview(businessId) {
@@ -32,7 +32,7 @@ function NotOwner() {
   return <Card title="Billing is for the business owner" sub="Only the owner can see the plan, prices and usage balances. Ask them, or contact Zella Voice support." />;
 }
 
-const day = (iso) => (iso ? new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—");
+const day = (iso) => (iso ? new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "None");
 
 function Meter({ used, included, over }) {
   const pct = included > 0 ? Math.min(100, Math.round((used / included) * 100)) : 0;
@@ -99,7 +99,7 @@ export function BillingPlanPanel({ w }) {
           </div></section>
           <section className="zs-card">
             <div className="zs-card-head bp-pad-head"><div><h3>This month</h3>
-              <p>{period ? `${day(period.from)} – ${day(period.to)} · ${period.days_left} ${period.days_left === 1 ? "day" : "days"} left${period.trial ? " · trial allowance" : ""}` : "Your first billing period hasn't started."}</p></div></div>
+              <p>{period ? `${day(period.from)} to ${day(period.to)} · ${period.days_left} ${period.days_left === 1 ? "day" : "days"} left${period.trial ? " · trial allowance" : ""}` : "Your first billing period hasn't started."}</p></div></div>
             <div className="zs-card-body bp-pad">
             <div className="bp-tiles">{["minutes", "texts", "emails"].map((r) => <UsageTile key={r} resource={r} u={o.usage?.[r]} />)}</div>
             <p className="zs-muted" style={{ margin: "14px 0 0" }}>We tell you at 80% and 100%. A call in progress is never cut. For now, nothing is stopped at 100%: texts and emails keep sending and anything over your allowance is recorded. When limits are switched on, routine texts and emails will pause at 100% while appointment confirmations and reminders keep a small 5% buffer.</p>
@@ -120,7 +120,7 @@ export function BillingBalancesPanel({ w }) {
       const days = o.period?.days_left;
       return (
         <>
-          <Card title="What you have this month" sub="Used in this order: rolled-over minutes, your plan, then packs (oldest first).">
+          <Card title="What you have this month" sub="Used in this order: rolled over minutes, your plan, then packs (oldest first).">
             <Table rows={o.balances} rowKey={(b) => `${b.resource}-${b.kind}-${b.pack ?? ""}-${b.expires_at}`} empty="No balances yet: your first billing period hasn't started."
               columns={[["What", (b) => `${RES[b.resource][0]}: ${KIND[b.kind]}${b.pack ? ` (${b.pack.replace("_", " ")})` : ""}`],
                 ["Included", (b) => num(b.granted)], ["Used", (b) => num(b.used)], ["Left", (b) => num(b.remaining)], ["Expires", (b) => day(b.expires_at)]]} />
@@ -130,7 +130,7 @@ export function BillingBalancesPanel({ w }) {
               ["Texts and emails", "Don't roll over; they refresh every month"],
               ["Yearly plans", "Charged once a year; minutes, texts and emails still refresh every month"]]} />
           </Card>
-          <Card title="Add-on packs" sub={`Packs last until the end of the month you buy them in${days != null ? ` (${days} ${days === 1 ? "day" : "days"} left now)` : ""}. Only part of a minutes pack rolls over.`}>
+          <Card title="add on packs" sub={`Packs last until the end of the month you buy them in${days != null ? ` (${days} ${days === 1 ? "day" : "days"} left now)` : ""}. Only part of a minutes pack rolls over.`}>
             <Table rows={o.packs} rowKey={(p) => p.code} columns={[["Pack", (p) => `${num(p.quantity)} ${RES[p.resource][1]}`], ["Price", (p) => money(p.price_cents)],
               ["Rolls over if unused", (p) => (p.rollover_if_unused > 0 ? `up to ${num(p.rollover_if_unused)} minutes` : "No")]]} />
             <Banner>Packs can't be bought online yet. Ask Zella Voice support to add one.</Banner>

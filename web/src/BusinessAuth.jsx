@@ -84,7 +84,7 @@ const SOCIAL = [
   { id: "google", label: "Google (Gmail)", provider: "google" },
   { id: "microsoft", label: "Microsoft (Outlook)", provider: "azure", scopes: "email" },
   { id: "apple", label: "Apple", provider: "apple" },
-  { id: "okta", label: "Okta (company sign-in)", sso: true },
+  { id: "okta", label: "Okta (company sign in)", sso: true },
 ];
 
 // Each logo is an official file you add to web/public/auth/ (google.svg, microsoft.svg,
@@ -122,7 +122,7 @@ function SocialSignIn({ email, setError, disabled }) {
       const name = option.label.split(" (")[0];
       setError(
         /not enabled|unsupported provider|provider is not|no sso provider/i.test(err.message)
-          ? `${name} sign-in isn't switched on for this workspace yet. Use your email and password, or ask the Zella Voice team.`
+          ? `${name} sign in isn't switched on for this workspace yet. Use your email and password, or ask the Zella Voice team.`
           : err.message
       );
       setWorking("");
@@ -388,7 +388,7 @@ export function Welcome() {
     return (
       <AuthCard
         title="This link can't be used"
-        description={`${linkError ? `${linkError.replace(/\.$/, "")}. ` : ""}Ask the person who invited you to send a new invitation, or reset your password from the sign-in page.`}
+        description={`${linkError ? `${linkError.replace(/\.$/, "")}. ` : ""}Ask the person who invited you to send a new invitation, or reset your password from the sign in page.`}
       >
         <a className="ba-btn primary block" href="/app">Business sign in</a>
         <a className="ba-link ba-center" href="/">Zella Voice admin sign in</a>

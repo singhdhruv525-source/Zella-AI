@@ -89,7 +89,7 @@ async function hasAdminAccess() {
 // closed): the error reaches the caller's catch, which leaves the admin page locked and says why.
 async function needsMfaCode() {
   const { data, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-  if (error || !data) throw new Error("We couldn't check your two-step sign-in. Please try again.");
+  if (error || !data) throw new Error("We couldn't check your two step sign in. Please try again.");
   return data.nextLevel === "aal2" && data.currentLevel !== "aal2";
 }
 
@@ -386,7 +386,7 @@ function AdminApp() {
               <div className="feature">
                 <span className="feature-icon"><Icon name="auto_awesome" size="sm" /></span>
                 <div>
-                  <strong>AI-powered operations</strong>
+                  <strong>AI powered operations</strong>
                   <span>Manage your platform from one workspace.</span>
                 </div>
               </div>

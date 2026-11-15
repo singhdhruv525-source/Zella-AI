@@ -8,7 +8,7 @@ import { humanize } from "./copy/labels";
 // Each function checks the person's membership or role itself.
 
 const words = humanize;
-const pct = (n, d) => (d ? `${Math.round((n / d) * 100)}%` : "—");
+const pct = (n, d) => (d ? `${Math.round((n / d) * 100)}%` : "None");
 
 async function rpc(name, args) {
   const { data, error } = await supabase.rpc(name, args);
@@ -70,7 +70,7 @@ function ResponseTimes({ workspace, days, refreshKey }) {
           <dl className="ba-facts">
             <div><dt>Texts received</dt><dd>{data.texts_received}</dd></div>
             <div><dt>Got a reply</dt><dd>{pct(data.replied, data.texts_received)}</dd></div>
-            <div><dt>Typical reply time</dt><dd>{data.median_minutes == null ? "—" : `${data.median_minutes} min`}</dd></div>
+            <div><dt>Typical reply time</dt><dd>{data.median_minutes == null ? "None" : `${data.median_minutes} min`}</dd></div>
             <div><dt>Replied within an hour</dt><dd>{pct(data.replied_within_hour, data.texts_received)}</dd></div>
             <div><dt>Still waiting</dt><dd>{data.waiting ? <Pill tone="warning">{data.waiting}</Pill> : "None"}</dd></div>
           </dl>
@@ -84,17 +84,17 @@ function MessageResults({ workspace, days, refreshKey }) {
   const { data, error, loading, reload } = useLoad(() => rpc("zella_workflow_effectiveness", { p_business_id: workspace.id, p_days: days }), [workspace.id, days, refreshKey]);
   return (
     <section className="ba-panel">
-      <div className="ba-panel-head"><div className="ba-panel-title"><div><h2>Automatic follow-ups</h2><p>What happened to the follow-ups Zella Voice sent in the last {days} days, and how many led to a booking within a week.</p></div></div></div>
+      <div className="ba-panel-head"><div className="ba-panel-title"><div><h2>Automatic follow ups</h2><p>What happened to the follow ups Zella Voice sent in the last {days} days, and how many led to a booking within a week.</p></div></div></div>
       {error || (loading && !data) || !data?.length ? (
         <div className="ba-panel-body">
           <Notice error={error} onRetry={reload} />
           {loading && !data && <p className="ba-muted">Loading…</p>}
-          {data && !data.length && <Empty title="No follow-ups yet">They appear here once automations start sending.</Empty>}
+          {data && !data.length && <Empty title="No follow ups yet">They appear here once automations start sending.</Empty>}
         </div>
       ) : (
         <div className="ba-table-wrap" tabIndex={0}>
           <table className="ba-table">
-            <thead><tr><th>Follow-up</th><th>By</th><th>Sent</th><th>Failed</th><th>Skipped</th><th>Booked within 7 days</th></tr></thead>
+            <thead><tr><th>follow up</th><th>By</th><th>Sent</th><th>Failed</th><th>Skipped</th><th>Booked within 7 days</th></tr></thead>
             <tbody>
               {data.map((r) => (
                 <tr key={`${r.kind}-${r.channel}`}>

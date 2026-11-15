@@ -32,7 +32,7 @@ const TYPES = [
   ["custom_negotiated", "Custom negotiated deal"],
   ["intro_pricing", "Introductory pricing", ["billing"]],
   ["referral", "Referral reward", ["referral_tracking", "billing"]],
-  ["win_back", "Win-back offer", ["promo_sending"]],
+  ["win_back", "Win back offer", ["promo_sending"]],
   ["free_trial", "Free trial", ["billing", "checkout"]],
 ];
 
@@ -40,7 +40,7 @@ const CHANNELS = [
   ["dashboard", "Business dashboard", "Owners see it in their workspace and can claim it."],
   ["sales", "Applied by Zella Voice", "A Zella Voice admin applies it to a chosen business."],
   ["pricing_page", "Public pricing page", null, ["checkout"]],
-  ["signup", "Sign-up", null, ["checkout"]],
+  ["signup", "Sign up", null, ["checkout"]],
   ["checkout", "Checkout", null, ["checkout", "billing"]],
   ["email", "Email campaign", null, ["promo_sending"]],
   ["referral", "Referral link", null, ["referral_tracking"]],
@@ -261,7 +261,7 @@ export default function OffersPage({ onOpenBusiness }) {
                       </td>
                       <td>{statusPill(o.status)}</td>
                       <td>
-                        {o.starts_at ? `${formatDate(o.starts_at)} – ${formatDate(o.ends_at)}` : <span className="op-muted">Not scheduled</span>}
+                        {o.starts_at ? `${formatDate(o.starts_at)} to ${formatDate(o.ends_at)}` : <span className="op-muted">Not scheduled</span>}
                         <div className="owner-table-secondary">{o.timezone}</div>
                       </td>
                       <td>{o.claims}{o.max_redemptions ? ` of ${o.max_redemptions}` : ""}<div className="owner-table-secondary">{o.confirmed} paid</div></td>
@@ -606,7 +606,7 @@ const EVENT_TEXT = {
   created: "Created", edited: "Edited", submit: "Submitted", approve: "Approved", reject: "Sent back to draft",
   pause: "Paused", resume: "Resumed", back_to_draft: "Moved back to draft", archive: "Archived", end_now: "Ended early",
   activated: "Went live", expired: "Ended", activation_failed: "Could not go live", activation_error: "Error while going live",
-  expiry_warning: "Ending-soon alert sent", claimed: "Claimed", claim_rejected: "Claim refused", claim_confirmed: "Paid",
+  expiry_warning: "Ending soon alert sent", claimed: "Claimed", claim_rejected: "Claim refused", claim_confirmed: "Paid",
   claim_reversed: "Refunded or disputed", claim_cancelled: "Claim canceled", claim_lapsed: "Claim released (not paid in time)",
   code_rejected: "Code refused",
 };
@@ -863,14 +863,14 @@ const RULES = {
   auto_expire: ["End offers on time", "Offers stop taking claims at their end time. Claims already made keep their terms.", []],
   approval_thresholds: ["Approval for big offers", "Offers above these limits need a Zella Voice owner's approval before they can go live.", [["percent_bp", "Percent off at or above (in hundredths of a percent, 3000 = 30%)"], ["amount_cents", "Amount off at or above (in cents, 10000 = $100)"], ["max_redemptions", "Total claims above"]]],
   claim_hold: ["Release unpaid claims", "A claim that isn't paid within this many days is released, so it stops counting toward limits.", [["days", "Days to hold a claim"]]],
-  expiry_warning: ["Ending-soon alert", "Alerts Zella Voice admins before an offer ends.", [["days_before", "Days before the end"]]],
+  expiry_warning: ["Ending soon alert", "Alerts Zella Voice admins before an offer ends.", [["days_before", "Days before the end"]]],
   limit_warning: ["Limit nearly reached", "Alerts Zella Voice admins when this share of the claims has been used.", [["percent", "Percent used"]]],
   unusual_activity: ["Unusual claims", "Alerts Zella Voice admins when an offer gets this many claims in one hour.", [["claims_per_hour", "Claims in one hour"]]],
   completion_report: ["Offer ended summary", "When an offer ends, admins get its claims, payments and what's still waiting.", []],
   abandoned_checkout: ["Abandoned checkout reminder", "Remind a business that started checkout but didn't finish.", [["delay_hours", "Wait (hours)"], ["max_reminders", "Most reminders"]]],
   intro_renewal: ["Introductory price renewal", "Move a business from its introductory price to the agreed renewal price.", []],
   referral: ["Referral rewards", "Reward a business when someone they referred pays for the first time.", []],
-  win_back: ["Win-back offers", "Offer former customers a way back, within consent and contact limits.", [["inactive_days", "Days since they left"], ["max_contacts", "Most contacts"]]],
+  win_back: ["Win back offers", "Offer former customers a way back, within consent and contact limits.", [["inactive_days", "Days since they left"], ["max_contacts", "Most contacts"]]],
   promo_email: ["Promotional emails", "Email eligible business owners about an offer.", []],
 };
 
@@ -941,7 +941,7 @@ export function RulesTab({ onChanged }) {
       <div className={data.scheduler_on ? "owner-form-success" : "wiz-note"}>
         {data.scheduler_on
           ? `The schedule runs every 5 minutes. Last run ${data.last_run ? timeAgo(data.last_run.started_at) : "not yet"}.`
-          : "The automatic schedule isn't switched on yet (it starts at go-live). Until then, offers go live and end when you press Run now, when an admin changes an offer, or when someone tries to claim one after it has ended."}
+          : "The automatic schedule isn't switched on yet (it starts at go live). Until then, offers go live and end when you press Run now, when an admin changes an offer, or when someone tries to claim one after it has ended."}
         {" "}<button type="button" className="op-link" onClick={runNow} disabled={busy === "run"}>{busy === "run" ? "Running..." : "Run now"}</button>
       </div>
       {!data.is_owner && <p className="op-muted">Only a Zella Voice owner can change these rules.</p>}

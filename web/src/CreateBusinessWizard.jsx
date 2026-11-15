@@ -868,7 +868,7 @@ function ReceptionistStep({ value, onChange, terminology, showErrors, faqPrompts
           className="wiz-textarea"
           value={value.restrictions}
           onChange={set("restrictions")}
-          placeholder={"e.g. Never give medical advice\nNever promise a same-day appointment"}
+          placeholder={"e.g. Never give medical advice\nNever promise a same day appointment"}
         />
       </Section>
     </>
@@ -1016,8 +1016,8 @@ function AutomationSwitchesStep({ value, onChange, terminology, industryName, ru
       <Section
         title="Automations"
         description={industryName
-          ? `Switched on for you, the usual ones for ${industryName}. Turn any on or off. You can fine-tune each one later.`
-          : "Turn each automation on or off. You can fine-tune each one later."}
+          ? `Switched on for you, the usual ones for ${industryName}. Turn any on or off. You can fine tune each one later.`
+          : "Turn each automation on or off. You can fine tune each one later."}
         aside={
           <div className="wiz-switch-all">
             <button type="button" className="wiz-link" onClick={() => setAll(true)}>Turn all on</button>
@@ -1112,7 +1112,7 @@ function AutomationsStep({ value, onChange, terminology, industryName }) {
     },
     {
       type: "appointment_confirmation",
-      title: "Confirmation & check-in",
+      title: "Confirmation & check in",
       description: `Ask customers to confirm their ${appt}.`,
       body: (
         <label className="wiz-inline">
@@ -1122,7 +1122,7 @@ function AutomationsStep({ value, onChange, terminology, industryName }) {
     },
     {
       type: "no_show_follow_up",
-      title: "No-show follow-up",
+      title: "no show follow up",
       description: `Reach out when someone misses their ${appt} and offer to rebook.`,
       body: (
         <label className="wiz-inline">
@@ -1133,7 +1133,7 @@ function AutomationsStep({ value, onChange, terminology, industryName }) {
     },
     {
       type: "missed_call_follow_up",
-      title: "Missed-call recovery",
+      title: "Missed call recovery",
       description: "Call back anyone whose call was missed.",
       body: (
         <>
@@ -1171,7 +1171,7 @@ function AutomationsStep({ value, onChange, terminology, industryName }) {
     },
     {
       type: "post_appointment_follow_up",
-      title: `After-${appt} follow-up`,
+      title: `Follow up after ${appt}`,
       description: "Thank customers and ask for feedback.",
       body: (
         <label className="wiz-inline">
@@ -1182,7 +1182,7 @@ function AutomationsStep({ value, onChange, terminology, industryName }) {
     },
     {
       type: "quote_follow_up",
-      title: "Quote follow-up",
+      title: "Quote follow up",
       description: "Check in with people who were sent a quote and haven't replied.",
       body: (
         <label className="wiz-inline">
@@ -1415,7 +1415,7 @@ function OperationsStep({ value, onChange, config, terminology, industryName }) 
 
   return (
     <>
-      <Section title="Opening hours" description="Used everywhere: when the AI books, when it says you're closed, and when follow-ups are allowed to go out.">
+      <Section title="Opening hours" description="Used everywhere: when the AI books, when it says you're closed, and when follow ups are allowed to go out.">
         <div className="wiz-hours">
           {DAYS.map(([day, label]) => {
             const h = value.hours[day];
@@ -1560,7 +1560,7 @@ function DailyReportStep({ value, onChange, timezone, showErrors }) {
       <div className="wiz-module-top">
         <div>
           <strong>Daily report</strong>
-          <p>A summary of calls, bookings and follow-ups, sent in the CRM once a day at the time you choose.</p>
+          <p>A summary of calls, bookings and follow ups, sent in the CRM once a day at the time you choose.</p>
         </div>
         <Toggle checked={value.enabled} label="Daily report" onChange={(enabled) => set({ enabled })} />
       </div>
@@ -1599,7 +1599,7 @@ function AutomationsCombinedStep(props) {
     <>
       <AutomationSwitchesStep {...props} />
       <details className="wiz-advanced">
-        <summary><span>Fine-tune timing and channels</span><small>Optional. The usual settings for the industry are already chosen.</small></summary>
+        <summary><span>Fine tune timing and channels</span><small>Optional. The usual settings for the industry are already chosen.</small></summary>
         <AutomationsStep value={props.value} onChange={props.onChange} terminology={props.terminology} industryName={props.industryName} />
       </details>
     </>
@@ -1615,7 +1615,7 @@ function CrmSetupStep({ businessId, terminology, onTerminology, modules, onModul
       </div>
       {businessId && (
         <details className="wiz-advanced" open>
-          <summary><span>What this business does</span><small>Bookings, check-ins, dispatch, classes, orders, money, access codes</small></summary>
+          <summary><span>What this business does</span><small>Bookings, check ins, dispatch, classes, orders, money, access codes</small></summary>
           {/* Saved straight away (zella_set_capability, audited). Starts from the industry; never deletes records. */}
           <CapabilitiesPanel w={{ id: businessId, role: "admin" }} />
         </details>
@@ -1659,7 +1659,7 @@ function SpamSection({ value, onChange, modules, config, available }) {
       description="On by default with safe settings. Zella Voice's platform rules and limits always apply, whatever is chosen here."
       aside={<Toggle checked={value.enabled} label="Spam protection" onChange={(v) => set("enabled", v)} />}
     >
-      {!value.enabled && <div className="wiz-note">Off: only Zella Voice's platform-wide rules and limits will protect this business.</div>}
+      {!value.enabled && <div className="wiz-note">Off: only Zella Voice's platform wide rules and limits will protect this business.</div>}
       {value.enabled && (
         <>
           {has.call && (
@@ -1690,7 +1690,7 @@ function SpamSection({ value, onChange, modules, config, available }) {
                 onChange={(e) => set("booking_daily_limit", Math.max(1, Math.min(20, Number(e.target.value) || 1)))} />
             </div>
           )}
-          {row("notify_high_risk", "Alert the team about high-risk activity", "A few alerts an hour at most, without message content.")}
+          {row("notify_high_risk", "Alert the team about high risk activity", "A few alerts an hour at most, without message content.")}
           <details className="wiz-spam-more">
             <summary>More options</summary>
             {row("auto_restrict", "Temporarily restrict clear abuse", "Only with two or more signals at high risk, for 24 hours, on that channel. Never permanent.")}
@@ -1740,7 +1740,7 @@ function reviewRows(setup, industries, config, docsReady) {
       detail: `${setup.integrations.phone.mode === "new_number" ? "New Zella Voice number" : `Call forwarding from ${setup.integrations.phone.existingNumber || "number not set"}`} · calendar ${setup.integrations.calendar} · leads ${leads.length ? leads.join(", ") : "none"}` },
     { key: "integrations", title: "Spam protection", ok: true,
       detail: !setup.spamAvailable ? "Not set up on Zella Voice yet" : setup.spam.enabled ? `On · suspicious callers ${setup.spam.call_screening === "screen" ? "screened" : "flagged"}` : "Off (platform rules still apply)" },
-    { key: "automations", title: "Automations", ok: true, detail: `${enabledAutomations} turned on (paused until go-live)` },
+    { key: "automations", title: "Automations", ok: true, detail: `${enabledAutomations} turned on (paused until go live)` },
     { key: "crm", title: "CRM setup", ok: enabledModules.length > 0,
       detail: `${enabledModules.length} modules · ${termFor(setup.terminology, "customers")}, ${termFor(setup.terminology, "appointments")}` },
     // REQ-BIL-57: the owner is invited only after a billing admin has reviewed and saved the plan (checked again by the server)
@@ -1781,7 +1781,7 @@ function Readiness({ businessId }) {
       <div className="wiz-review">
         {data.checks.filter((c) => !c.ok).map((c) => (
           <div key={c.key} className="wiz-review-row">
-            <span className="wiz-review-dot later">–</span>
+            <span className="wiz-review-dot later">None</span>
             <div><strong>{RUNGS.find(([k]) => k === c.rung)?.[1]}</strong><span>{c.detail}</span></div>
           </div>
         ))}
@@ -1802,7 +1802,7 @@ function ReviewStep({ businessId, setup, industries, goTo, config, docsReady, on
           {rows.map((row) => (
             <div key={row.title} className="wiz-review-row">
               <span className={`wiz-review-dot ${row.ok ? "ok" : row.required ? "missing" : "later"}`}>
-                {row.ok ? "✓" : row.required ? "!" : "–"}
+                {row.ok ? "✓" : row.required ? "!" : "None"}
               </span>
               <div>
                 <strong>{row.title}{row.required ? " *" : ""}</strong>
@@ -2202,7 +2202,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
             <div><span>Workspace</span><Badge tone={completed ? "success" : "neutral"}>{completed ? "Active" : "Not active yet"}</Badge></div>
             <div><span>Owner invitation</span><Badge tone={sent ? "success" : "danger"}>{result.invitationStatus}</Badge></div>
             <div><span>AI receptionist</span><Badge>Off until connected</Badge></div>
-            <div><span>Automations</span><Badge>Paused until go-live</Badge></div>
+            <div><span>Automations</span><Badge>Paused until go live</Badge></div>
           </div>
           {result.invitationError && <div className="owner-form-error">Invitation not sent: {result.invitationError}</div>}
           {result.warning && <div className="owner-form-error">{result.warning}</div>}

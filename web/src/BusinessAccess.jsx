@@ -294,7 +294,7 @@ export function AccessPage({ workspace, refreshKey, onNotice, userId }) {
 }
 
 /* ---------- Failed work ---------- */
-const FAILED = [["tasks", "task", "Follow-up"], ["reminders", "reminder", "Appointment reminder"], ["social", "social", "Social message"]];
+const FAILED = [["tasks", "task", "Follow up"], ["reminders", "reminder", "Appointment reminder"], ["social", "social", "Social message"]];
 
 export function FailedWorkPage({ workspace, refreshKey, onNotice }) {
   const { data, error, loading, reload } = useLoad(async () => {
@@ -314,7 +314,7 @@ export function FailedWorkPage({ workspace, refreshKey, onNotice }) {
 
   return (
     <>
-      <PageHead crumb="Calls & messages / Sending failed" title="Sending failed" sub="Follow-ups, appointment reminders and social messages that Zella Voice tried to send in the last 7 days but couldn't. Fix the cause first (for example, reconnect the account), then retry." />
+      <PageHead crumb="Calls & messages / Sending failed" title="Sending failed" sub="follow ups, appointment reminders and social messages that Zella Voice tried to send in the last 7 days but couldn't. Fix the cause first (for example, reconnect the account), then retry." />
       <Notice error={error} onRetry={reload} />
       <section className="ba-panel">
         {loading || error || !data ? <p className="ba-muted">{loading ? "Loading…" : "Failed messages unavailable"}</p> : !rows.length ? (

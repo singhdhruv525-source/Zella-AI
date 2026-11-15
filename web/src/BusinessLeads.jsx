@@ -9,7 +9,7 @@ import { useServerPages, useSettled } from "./crm/paging";
 /* The lead pipeline: a board by status, or a list, with who owns each lead and
    when the next follow-up is due. Details open in a panel so this page stays calm. */
 
-const when = (value, tz) => (value ? `${formatDay(value, tz)} · ${formatTime(value, tz)}` : "—");
+const when = (value, tz) => (value ? `${formatDay(value, tz)} · ${formatTime(value, tz)}` : "None");
 const PRIORITY_TONE = { urgent: "danger", high: "warning", normal: "" };
 const PRIORITY_LABEL = { urgent: "Urgent", high: "High", normal: "Normal" };
 
@@ -121,14 +121,14 @@ export function LeadsPage({ workspace, query, refreshKey, onNotice, onOpenPerson
   return (
     <>
       <PageHead crumb="CRM / Leads" title="Leads"
-        sub={overdueCount ? `${overdueCount} ${overdueCount === 1 ? "lead is" : "leads are"} overdue for a follow-up.` : "Everyone who reached out, by where they are and who is following up."}>
+        sub={overdueCount ? `${overdueCount} ${overdueCount === 1 ? "lead is" : "leads are"} overdue for a follow up.` : "Everyone who reached out, by where they are and who is following up."}>
         <Segment label="Lead view" value={view} onChange={setView} options={[["pipeline", "Pipeline"], ["list", "List"]]} />
       </PageHead>
 
       <Notice error={list.status === "stale" ? `${error} Showing the last list loaded.` : error} onRetry={reload} />
       <div className="ba-toolbar ba-lead-tools">
         <Segment label="Lead filter" value={filter} onChange={setFilter}
-          options={[["all", "All"], ["follow", "Needs follow-up"], ["overdue", `Overdue${overdueCount ? ` (${overdueCount})` : ""}`], ["mine", "Mine"]]} />
+          options={[["all", "All"], ["follow", "Needs follow up"], ["overdue", `Overdue${overdueCount ? ` (${overdueCount})` : ""}`], ["mine", "Mine"]]} />
         <label className="ba-select"><span>Source</span>
           <select value={source} onChange={(e) => setSource(e.target.value)}>
             <option value="all">All sources</option>
@@ -170,7 +170,7 @@ export function LeadsPage({ workspace, query, refreshKey, onNotice, onOpenPerson
         <section className="ba-panel">
           <div className="ba-table-wrap" tabIndex={0}>
             <table className="ba-table">
-              <thead><tr><th>Name</th><th>Status</th><th>Source</th><th>Assigned to</th><th>Next follow-up</th><th>Last contact</th><th>Priority</th></tr></thead>
+              <thead><tr><th>Name</th><th>Status</th><th>Source</th><th>Assigned to</th><th>Next follow up</th><th>Last contact</th><th>Priority</th></tr></thead>
               <tbody>
                 {leads.map((p) => {
                   const name = personName(p) ?? "Unnamed";
@@ -182,7 +182,7 @@ export function LeadsPage({ workspace, query, refreshKey, onNotice, onOpenPerson
                       <td><Pill tone={stage === "won" ? "success" : stage === "lost" || stage === "unqualified" ? "danger" : "warning"}>{stage === "unqualified" ? "Not a fit" : col.label}</Pill></td>
                       <td>{sourceName(p.source)}</td>
                       <td><Assignee id={p.assigned_to} nameOf={roster.nameOf} /></td>
-                      <td>{isOverdue(p) ? <span className="ba-flag">Overdue{p.next_follow_up_at ? ` · ${formatDay(p.next_follow_up_at, tz)}` : ""}</span> : p.next_follow_up_at ? when(p.next_follow_up_at, tz) : "—"}</td>
+                      <td>{isOverdue(p) ? <span className="ba-flag">Overdue{p.next_follow_up_at ? ` · ${formatDay(p.next_follow_up_at, tz)}` : ""}</span> : p.next_follow_up_at ? when(p.next_follow_up_at, tz) : "None"}</td>
                       <td>{p.last_contacted_at ? timeAgo(p.last_contacted_at) : <span className="ba-flag">Not yet</span>}</td>
                       <td>{p.priority && p.priority !== "normal" ? <Pill tone={PRIORITY_TONE[p.priority]}>{PRIORITY_LABEL[p.priority]}</Pill> : "Normal"}</td>
                     </tr>
@@ -272,7 +272,7 @@ function LeadPanel({ person, workspace, roster, onClose, onChanged, onNotice, on
       p_customer_id: person.id, p_priority: plan.priority,
       p_next_follow_up_at: plan.date ? zonedDateTime(plan.date, plan.time || "09:00", tz).toISOString() : null,
       p_clear_follow_up: !plan.date,
-    }), "Follow-up plan saved.");
+    }), "follow up plan saved.");
   }
   const addNote = (event) => {
     event.preventDefault();
@@ -296,7 +296,7 @@ function LeadPanel({ person, workspace, roster, onClose, onChanged, onNotice, on
         {error && <p className="ba-error" role="alert">{error}</p>}
         <div className="ba-kn-head">
           <Pill tone={stage === "won" ? "success" : stage === "lost" || stage === "unqualified" ? "danger" : "warning"}>{stage === "unqualified" ? "Not a fit" : col.label}</Pill>
-          {isOverdue(person) && <span className="ba-flag"><Icon name="schedule" size="sm" />Follow-up overdue</span>}
+          {isOverdue(person) && <span className="ba-flag"><Icon name="schedule" size="sm" />follow up overdue</span>}
           {person.phone && <a className="ba-btn sm" href={`tel:${person.phone}`}><Icon name="call" size="sm" />{person.phone}</a>}
           <button type="button" className="ba-btn sm" onClick={() => onOpenProfile(person.id)}>Full profile</button>
         </div>
@@ -317,7 +317,7 @@ function LeadPanel({ person, workspace, roster, onClose, onChanged, onNotice, on
           </form>
         )}
 
-        <h3 className="ba-sub">Follow-up</h3>
+        <h3 className="ba-sub">follow up</h3>
         <form className="ba-form-grid" onSubmit={savePlan}>
           <Field label="Assigned to">
             <select value={plan.assigned} onChange={(e) => setPlan({ ...plan, assigned: e.target.value })}>
@@ -330,9 +330,9 @@ function LeadPanel({ person, workspace, roster, onClose, onChanged, onNotice, on
               <option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option>
             </select>
           </Field>
-          <Field label="Next follow-up day" hint="Leave empty for none."><input type="date" value={plan.date} onChange={(e) => setPlan({ ...plan, date: e.target.value })} /></Field>
+          <Field label="Next follow up day" hint="Leave empty for none."><input type="date" value={plan.date} onChange={(e) => setPlan({ ...plan, date: e.target.value })} /></Field>
           <Field label="Time"><input type="time" value={plan.time} disabled={!plan.date} onChange={(e) => setPlan({ ...plan, time: e.target.value })} /></Field>
-          <div className="full ba-form-actions"><button type="submit" className="ba-btn primary sm" disabled={Boolean(busy)}>{busy === "plan" || busy === "assign" ? "Saving…" : "Save follow-up"}</button></div>
+          <div className="full ba-form-actions"><button type="submit" className="ba-btn primary sm" disabled={Boolean(busy)}>{busy === "plan" || busy === "assign" ? "Saving…" : "Save follow up"}</button></div>
         </form>
 
         <h3 className="ba-sub">Callback</h3>
@@ -363,7 +363,7 @@ function LeadPanel({ person, workspace, roster, onClose, onChanged, onNotice, on
         </form>
         {person.notes ? <p className="ba-item-text ba-notes">{person.notes}</p> : <p className="ba-muted">No notes yet.</p>}
 
-        <h3 className="ba-sub">Open to-dos</h3>
+        <h3 className="ba-sub">Open to dos</h3>
         {!data?.tasks.length ? <p className="ba-muted">{loading && !data ? "Loading…" : data?.tasksFailed ? "Couldn't load" : "Nothing open."}</p> : (
           <ul className="ba-threads">
             {data.tasks.map((t) => <li key={t.id}><span className="ba-thread-icon"><Icon name="task_alt" size="sm" /></span><div><strong>{t.title}</strong><small>{t.due_at ? `Due ${when(t.due_at, tz)}` : "No due time"}{t.assigned_to && roster.nameOf[t.assigned_to] ? ` · ${roster.nameOf[t.assigned_to]}` : ""}</small></div></li>)}

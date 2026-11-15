@@ -115,8 +115,8 @@ async function settle(p) {
       const nav = await p.locator("#ba-sidebar").innerText();
       let refused = "";
       try { sql(`insert into appointments (business_id, title, start_time, end_time) values ('${biz.id}', 'x', now(), now() + interval '1 hour')`); } catch (e) { refused = String(e.stderr ?? e.message); }
-      step("no bookings where this business doesn't take them", buttons === 0 && !/Calendar|Check-ins|Waitlist/.test(nav) && /CAPABILITY_OFF:scheduling/.test(refused),
-        { note: `booking buttons ${buttons}; calendar/check-ins/waitlist in menu: ${/Calendar|Check-ins|Waitlist/.test(nav)}; server: ${refused.match(/CAPABILITY_OFF:\w+/)?.[0] ?? "accepted"}` });
+      step("no bookings where this business doesn't take them", buttons === 0 && !/Calendar|Check ins|Waitlist/i.test(nav) && /CAPABILITY_OFF:scheduling/.test(refused),
+        { note: `booking buttons ${buttons}; calendar/check-ins/waitlist in menu: ${/Calendar|Check ins|Waitlist/i.test(nav)}; server: ${refused.match(/CAPABILITY_OFF:\w+/)?.[0] ?? "accepted"}` });
     } else {
     await p.getByRole("button", { name: bookLabel }).first().click();
     const book = p.locator("section.ba-modal");
@@ -142,7 +142,7 @@ async function settle(p) {
       const a = sql(`select id from appointments where business_id = '${biz.id}' order by created_at desc limit 1`);
       let refused = "";
       if (a) try { sql(`select public.zella_set_attendance('${a}', 'arrived')`); } catch (e) { refused = String(e.stderr ?? e.message); }
-      step("no front-desk check-ins where they don't fit", !/Check-ins/.test(nav) && (!a || /CAPABILITY_OFF:checkins/.test(refused)), { note: `in menu: ${/Check-ins/.test(nav)}; server: ${refused.match(/CAPABILITY_OFF:\w+/)?.[0] ?? (a ? "accepted" : "no booking")}` });
+      step("no front-desk check-ins where they don't fit", !/Check ins/.test(nav) && (!a || /CAPABILITY_OFF:checkins/.test(refused)), { note: `in menu: ${/Check ins/.test(nav)}; server: ${refused.match(/CAPABILITY_OFF:\w+/)?.[0] ?? (a ? "accepted" : "no booking")}` });
     }
 
     // 2b. the owner switches on the industry's new record types (Customize records), as they would after an update

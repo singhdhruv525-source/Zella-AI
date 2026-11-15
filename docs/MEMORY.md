@@ -118,6 +118,11 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile`. `vapi_a
 The owner's decisions of 9 Nov 2026 are in `docs/ARCHITECTURE.md` §23.1, and the open ones are in §23.2. The ones
 most often needed:
 
+- **Writing and notifications (owner, 14 Nov 2026):** no dashes or hyphens anywhere people read text (screens,
+  emails, texts, notifications, the AI receptionist); notifications are creative but professional and use each
+  business's own words. Rules in `docs/DESIGN_SYSTEM.md` (Writing; Notifications); checked by `npm run lint`.
+  The industry "E-commerce" is shown as "Ecommerce".
+
 - **Unsubscribe link limits (G-7, 14 Nov 2026):** limits are per link only, never platform-wide or per address (a burst
   of genuine opt-outs after a big email must never be refused), and the limit never stops an opt-out.
 

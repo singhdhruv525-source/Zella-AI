@@ -198,7 +198,7 @@ function BusinessAddress({ w }) {
               <Field label="Country" hint="Two letters, like US."><input value={f.values.country} maxLength={2} onChange={(e) => f.set("country")(e.target.value.toUpperCase())} /></Field>
             </div>
           )} />
-        <Needs title="Service areas aren't a setting yet" have="Add the areas you cover to Knowledge so your AI receptionist can answer questions about them.">A service-area setting needs a list of ZIP codes or cities that booking checks before offering a time.</Needs>
+        <Needs title="Service areas aren't a setting yet" have="Add the areas you cover to Knowledge so your AI receptionist can answer questions about them.">A service area setting needs a list of ZIP codes or cities that booking checks before offering a time.</Needs>
       </>
     )}</LoadState>
   );
@@ -210,7 +210,7 @@ function BusinessHours({ w }) {
     <>
       <LoadState state={state}>{(s) => <HoursSection key={JSON.stringify(s.hours) + JSON.stringify(s.closures)} workspace={w} settings={s} onSaved={state.reload} />}</LoadState>
       <Card title="Breaks and emergencies">
-        <Facts rows={[["Break periods", "Add a second time range on the same day, for example 9–12 and 1–5"], ["Emergency calls", "AI receptionist > Escalation and fallback decides who is alerted at once"]]} />
+        <Facts rows={[["Break periods", "Add a second time range on the same day, for example 9 to 12 and 1 to 5"], ["Emergency calls", "AI receptionist > Escalation and fallback decides who is alerted at once"]]} />
       </Card>
     </>
   );
@@ -307,10 +307,10 @@ function RolesPermissions() {
       <Card title="What each role can do" sub="Checked by the database on every change, not just hidden in the app. These are business roles; Zella Voice's own admin roles are separate.">
         <div className="zs-table-wrap" tabIndex={0}><table className="zs-matrix">
           <thead><tr><th>Can…</th>{roles.map((r) => <th key={r}>{words(r === "viewer" ? "view only" : r)}</th>)}</tr></thead>
-          <tbody>{ROLE_ROWS.map(([label, who]) => <tr key={label}><td>{label}</td>{roles.map((r) => <td key={r}>{who.includes(r) ? "✓" : "—"}</td>)}</tr>)}</tbody>
+          <tbody>{ROLE_ROWS.map(([label, who]) => <tr key={label}><td>{label}</td>{roles.map((r) => <td key={r}>{who.includes(r) ? "✓" : "None"}</td>)}</tr>)}</tbody>
         </table></div>
       </Card>
-      <Needs title="Custom roles (receptionist, sales, technician) aren't available yet" have="Use Staff for front-desk, sales and field teams, Manager for leads, View only for read-only access.">Custom roles need a permission list per role that every database check reads.</Needs>
+      <Needs title="Custom roles (receptionist, sales, technician) aren't available yet" have="Use Staff for front desk, sales and field teams, Manager for leads, View only for read only access.">Custom roles need a permission list per role that every database check reads.</Needs>
     </>
   );
 }
@@ -365,7 +365,7 @@ function ConfigFacts({ w, onGo, pick }) {
           <Card title="Current settings" sub="What the receptionist does right now (the live version).">
             <Facts rows={pick(rules, d.config ?? {})} />
           </Card>
-          <LinkRows rows={[{ title: "Change these", detail: "Voice and personality: instructions, after-hours, hand-over and emergencies", onClick: () => onGo("settings/receptionist/voice") }]} />
+          <LinkRows rows={[{ title: "Change these", detail: "Voice and personality: instructions, after hours, hand over and emergencies", onClick: () => onGo("settings/receptionist/voice") }]} />
         </>
       );
     }}</LoadState>
@@ -388,7 +388,7 @@ function Booking({ w, onGo }) {
             ["Rules", d.config?.appointment_rules ? JSON.stringify(d.config.appointment_rules).slice(0, 200) : "Your opening hours, team hours and blocked times"]]} />
         </Card>
         <LinkRows rows={[{ title: "Hours and holidays", detail: "Business profile", onClick: () => onGo("settings/profile/hours") }, { title: "Team availability", detail: "Team & access", onClick: () => onGo("settings/team/availability") }]} />
-        <Needs title="Minimum notice, buffers and appointment types aren't editable yet" have="Booking uses your hours, each person's working hours and blocked times, and prevents double-booking.">They need an appointment-types table that the booking tool reads.</Needs>
+        <Needs title="Minimum notice, buffers and appointment types aren't editable yet" have="Booking uses your hours, each person's working hours and blocked times, and prevents double booking.">They need an appointment types table that the booking tool reads.</Needs>
       </>
     )}</LoadState>
   );
@@ -403,7 +403,7 @@ function AiTesting({ w }) {
           <Table rows={rows} empty="No saved test questions yet." columns={[["Question", (r) => r.question], ["Should say", (r) => (r.expect_none ? "That it doesn't know" : (r.expect_contains ?? []).join(", "))], ["Added", (r) => when(r.created_at)]]} />
         )}</LoadState>
       </Card>
-      <Needs title="Running the test questions from here isn't built" have="Publishing checks every version first (instructions present, no secrets, hand-over rules set).">Running them needs a server action that asks the assistant each question and records the result.</Needs>
+      <Needs title="Running the test questions from here isn't built" have="Publishing checks every version first (instructions present, no secrets, hand over rules set).">Running them needs a server action that asks the assistant each question and records the result.</Needs>
     </>
   );
 }
@@ -415,7 +415,7 @@ function PhoneNumbers({ w }) {
   return (
     <LoadState state={state}>{(d) => (
       <Card title="Your numbers">
-        <Table rowKey={(p) => p.e164} rows={d.phones} empty="No number connected yet. The Zella Voice team connects it (it needs carrier registration)." columns={[["Number", (p) => p.e164], ["Label", (p) => p.label ?? "—"],
+        <Table rowKey={(p) => p.e164} rows={d.phones} empty="No number connected yet. The Zella Voice team connects it (it needs carrier registration)." columns={[["Number", (p) => p.e164], ["Label", (p) => p.label ?? "None"],
           ["Status", (p) => <Pill tone={p.status === "active" ? "success" : ""}>{words(p.status)}</Pill>], ["Answered by", () => d.agent?.name ?? "AI receptionist"], ["Provider", () => "Telnyx with Vapi"]]} />
       </Card>
     )}</LoadState>
@@ -507,7 +507,7 @@ function UsageProtection({ w }) {
   }, [w.id]);
   return <LoadState state={state}>{(p) => (
     <>
-      {p.payg_error && <Banner tone="error">Your plan's pay-as-you-go rate couldn't be loaded ({p.payg_error}). <button type="button" className="zs-link" onClick={state.reload}>Try again</button></Banner>}
+      {p.payg_error && <Banner tone="error">Your plan's pay as you go rate couldn't be loaded ({p.payg_error}). <button type="button" className="zs-link" onClick={state.reload}>Try again</button></Banner>}
       <ProtectionForm w={w} p={p} />
     </>
   )}</LoadState>;
@@ -529,7 +529,7 @@ function ProtectionForm({ w, p }) {
           <Field label="Extra usage" full><select value={v.mode} onChange={form.set("mode")}>
             <option value="stop">Stop: no extra minutes</option>
             <option value="pay_as_you_go" disabled={p.payg_cents == null && v.mode !== "pay_as_you_go"}>{p.payg_cents != null ? `Pay as you go: $${(p.payg_cents / 100).toFixed(2)} per extra minute, up to my limit` : p.payg_error ? "Pay as you go (rate unavailable, try again)" : "Pay as you go (not on your plan)"}</option>
-            <option value="auto_top_up">Auto-reload a pack, up to my limit</option></select></Field>
+            <option value="auto_top_up">auto reload a pack, up to my limit</option></select></Field>
           {v.mode !== "stop" && <Field label="Monthly spending limit (USD)" error={v.limit && !(Number(v.limit) > 0) ? "Enter an amount above 0" : ""}><input inputMode="decimal" value={v.limit} onChange={form.set("limit")} /></Field>}
           <Field label="If extra usage isn't allowed"><select value={v.fallback} onChange={form.set("fallback")}>
             <option value="take_message">AI takes a message</option><option value="forward_to_business">Forward calls to the business</option><option value="voicemail_only">Voicemail only</option></select></Field>
@@ -561,8 +561,8 @@ function PlanChanges({ w }) {
         <Banner tone="success">{done}</Banner>
         <Card title="Compare plans" sub="Every plan has the full CRM. They differ by included usage and support.">
           <Table rows={plans} empty="Plans aren't published yet. Ask Zella Voice support." columns={[["Plan", (p) => <>{p.name}{e.plan?.id === p.id && <> · <Pill tone="accent">Current</Pill></>}</>],
-            ["Monthly", (p) => (p.price_monthly != null ? `$${p.price_monthly}` : "—")], ["Annual", (p) => (p.price_yearly != null ? `$${p.price_yearly}` : "—")],
-            ["AI minutes", (p) => p.limits?.voice_minutes ?? "—"], ["Team seats", (p) => p.limits?.team_members ?? "—"], ["Support", (p) => words(p.limits?.support_level ?? "—")],
+            ["Monthly", (p) => (p.price_monthly != null ? `$${p.price_monthly}` : "None")], ["Annual", (p) => (p.price_yearly != null ? `$${p.price_yearly}` : "None")],
+            ["AI minutes", (p) => p.limits?.voice_minutes ?? "None"], ["Team seats", (p) => p.limits?.team_members ?? "None"], ["Support", (p) => words(p.limits?.support_level ?? "None")],
             ["", (p) => w.role === "owner" && e.plan?.id !== p.id && <button type="button" className="zs-btn sm" onClick={() => setAsk(p)}>Request this plan</button>]]} />
         </Card>
         {ask && <Confirm title={`Request ${ask.name}?`} confirmLabel="Send request" onClose={() => setAsk(null)} onConfirm={async () => {
@@ -607,7 +607,7 @@ function CalendarConnections({ w }) {
   const back = new URLSearchParams(typeof window === "undefined" ? "" : window.location.search);
   const outcome = back.get("calendar"), reason = back.get("reason");
   const OUTCOME = { connected: ["success", "Calendar connected. Bookings will be copied to it and its busy times kept free once calendar sync is switched on."],
-    cancelled: ["warning", "The calendar wasn't connected: the sign-in was canceled."],
+    cancelled: ["warning", "The calendar wasn't connected: the sign in was canceled."],
     error: ["error", `The calendar couldn't be connected (${(reason ?? "error").replace(/_/g, " ")}). Try again, or contact Zella Voice support.`] };
   async function connect(provider) {
     setProblem(""); setBusy(provider);
@@ -619,7 +619,7 @@ function CalendarConnections({ w }) {
       // connection service itself isn't set up. Either way trying again won't help, so it says so.
       const notSetUp = answer?.error === "provider_not_configured" || answer?.error === "not_configured";
       return setProblem(notSetUp ? `${provider === "google" ? "Google" : "Outlook"} calendars can't be connected yet: Zella Voice's connection with ${provider === "google" ? "Google" : "Microsoft"} isn't set up. Contact Zella Voice support.`
-        : answer?.error === "not_allowed" ? "Only owners and admins can connect a calendar." : "The calendar sign-in couldn't be started. Try again.");
+        : answer?.error === "not_allowed" ? "Only owners and admins can connect a calendar." : "The calendar sign in couldn't be started. Try again.");
     }
     window.location.assign(data.url); // the provider's own sign-in page; Zella Voice never sees the password
   }
@@ -641,8 +641,8 @@ function CalendarConnections({ w }) {
               {rows.length > 0 && <button type="button" className="zs-btn sm danger" onClick={() => setAsking(true)}>Disconnect</button>}
             </>
           )}>
-          <Table rows={rows} empty={canManage ? "No calendar connected." : "No calendar connected. An owner or admin can connect one."} columns={[["Calendar", (c) => (c.provider === "outlook" ? "Outlook" : "Google Calendar")], ["Account", (c) => c.account_email ?? "—"],
-            ["Status", (c) => <Pill tone={c.status === "active" ? "success" : "warning"}>{words(c.status)}</Pill>], ["Last sync", (c) => when(c.last_pushed_at ?? c.last_pulled_at)], ["Problem", (c) => c.last_error ?? "—"]]} />
+          <Table rows={rows} empty={canManage ? "No calendar connected." : "No calendar connected. An owner or admin can connect one."} columns={[["Calendar", (c) => (c.provider === "outlook" ? "Outlook" : "Google Calendar")], ["Account", (c) => c.account_email ?? "None"],
+            ["Status", (c) => <Pill tone={c.status === "active" ? "success" : "warning"}>{words(c.status)}</Pill>], ["Last sync", (c) => when(c.last_pushed_at ?? c.last_pulled_at)], ["Problem", (c) => c.last_error ?? "None"]]} />
         </Card>
         {asking && (
           <Confirm title="Disconnect the calendar?" confirmLabel="Disconnect" danger onConfirm={disconnect} onClose={() => setAsking(false)}>
@@ -659,8 +659,8 @@ function AppointmentSettings({ onGo }) {
     <>
       <LinkRows rows={[{ title: "Opening hours and holidays", detail: "Business profile > Business hours", onClick: () => onGo("settings/profile/hours") },
         { title: "Who can be booked, and when", detail: "Team & access > Staff availability", onClick: () => onGo("settings/team/availability") },
-        { title: "Reminders, confirmations, follow-ups", detail: "Automations", onClick: () => onGo("settings/automations/library") }]} />
-      <Needs title="Default length, buffers, minimum notice and booking horizon aren't settings yet" have="Each booking sets its own length; the calendar prevents overlaps with appointments and blocked times.">They need an appointment-types table with these fields that booking reads.</Needs>
+        { title: "Reminders, confirmations, follow ups", detail: "Automations", onClick: () => onGo("settings/automations/library") }]} />
+      <Needs title="Default length, buffers, minimum notice and booking horizon aren't settings yet" have="Each booking sets its own length; the calendar prevents overlaps with appointments and blocked times.">They need an appointment types table with these fields that booking reads.</Needs>
     </>
   );
 }
@@ -732,7 +732,7 @@ function Communication({ w }) {
   }, [w.id]);
   return (
     <LoadState state={state}>{(counts) => (
-      <Card title="Consent and opt-outs" sub="Recorded automatically (STOP/START replies, unsubscribe links, staff changes). Checked before every message.">
+      <Card title="Consent and opt outs" sub="Recorded automatically (STOP/START replies, unsubscribe links, staff changes). Checked before every message.">
         {Object.keys(counts).length ? <Facts rows={Object.entries(counts).map(([k, v]) => [words(k), v])} /> : <Empty>No consent changes recorded yet.</Empty>}
       </Card>
     )}</LoadState>
@@ -760,7 +760,7 @@ function Terminology({ w, onReload }) {
 function IndustryProfile({ w }) {
   return (
     <Card title="Industry profile">
-      <Facts rows={[["Industry", w.industry ?? "—"], ["Modules switched on", (w.modules ?? []).map(words).join(", ") || "None"], ["Words", "Industry & business workflows > Terminology"], ["Setup", words(w.onboarding_status ?? "")]]} />
+      <Facts rows={[["Industry", w.industry ?? "None"], ["Modules switched on", (w.modules ?? []).map(words).join(", ") || "None"], ["Words", "Industry & business workflows > Terminology"], ["Setup", words(w.onboarding_status ?? "")]]} />
     </Card>
   );
 }
@@ -771,9 +771,9 @@ function TeamNotificationRules({ onGo }) {
   return (
     <>
       <Card title="Who is told">
-        <Facts rows={[["Business-wide alerts", "Owners and admins"], ["Assigned work", "The person it's assigned to"], ["Escalations", "Owners and admins, urgent"], ["Each automation", "Its own 'Tell the owner by' choice (text, email or both)"]]} />
+        <Facts rows={[["Business wide alerts", "Owners and admins"], ["Assigned work", "The person it's assigned to"], ["Escalations", "Owners and admins, urgent"], ["Each automation", "Its own 'Tell the owner by' choice (text, email or both)"]]} />
       </Card>
-      <LinkRows rows={[{ title: "Per-automation choices", detail: "Automations", onClick: () => onGo("settings/automations/library") }]} />
+      <LinkRows rows={[{ title: "Per automation choices", detail: "Automations", onClick: () => onGo("settings/automations/library") }]} />
     </>
   );
 }
@@ -794,9 +794,9 @@ function NotificationHistory({ w }) {
   const state = useAsync(() => supabase.from("staff_notifications").select("id, kind, severity, title, delivery_status, created_at, read_at").eq("business_id", w.id).order("created_at", { ascending: false }).limit(50).then(orThrow), [w.id]);
   return (
     <LoadState state={state}>{(rows) => (
-      <Card title="Recent notifications" sub="Yours and business-wide ones.">
+      <Card title="Recent notifications" sub="Yours and business wide ones.">
         <Table rows={rows} empty="No notifications yet." columns={[["When", (n) => when(n.created_at)], ["What", (n) => n.title], ["Type", (n) => words(n.kind)],
-          ["Email", (n) => words(n.delivery_status ?? "—")], ["Read", (n) => (n.read_at ? "Yes" : "No")]]} />
+          ["Email", (n) => words(n.delivery_status ?? "None")], ["Read", (n) => (n.read_at ? "Yes" : "No")]]} />
       </Card>
     )}</LoadState>
   );
@@ -809,7 +809,7 @@ function HelpCenter() {
   return (
     <>
       <Card title="Get help from Zella Voice">
-        <Facts rows={[["Email", p.support_email ?? "Not published yet"], ["Phone", p.support_phone ?? "Not published yet"], ["Website", p.website ?? "—"]]} />
+        <Facts rows={[["Email", p.support_email ?? "Not published yet"], ["Phone", p.support_phone ?? "Not published yet"], ["Website", p.website ?? "None"]]} />
       </Card>
       <Needs title="A help center with guides isn't published yet" have="Contact Zella Voice support, or open a support request.">Guides need a documentation site; links will appear here once it exists.</Needs>
     </>
@@ -823,7 +823,7 @@ function SupportTickets({ w, kind = "support" }) {
   return (
     <>
       <Card title={kind === "feedback" ? "Send feedback" : "New support request"}>
-        {roleIn(w, ["viewer"]) ? <p className="zs-muted">View-only members can't send requests.</p> : <>
+        {roleIn(w, ["viewer"]) ? <p className="zs-muted">View only members can't send requests.</p> : <>
           <div className="zs-grid">
             <Field label="Type"><select value={v.kind} onChange={form.set("kind")}>
               {[["support", "Question or help"], ["issue", "Something isn't working"], ["feature", "Feature request"], ["feedback", "Feedback"]].map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select></Field>
@@ -953,8 +953,8 @@ function registry(w) {
       page("usage", "Usage and charges", () => <VoiceUsage w={w} />, "usage sms voice charges"),
       page("calling", "Calling usage", () => <BusinessCallingUsage w={w} />, "calling minutes calls call time usage history corrections allowance"),
       page("protection", "AI usage protection", () => <UsageProtection w={w} />, "pay as you go spending limit 80 100 fallback"),
-      page("balances", "Balances and packs", () => <BillingBalancesPanel w={w} />, "rollover reset remaining packs top-up minutes texts emails expiry"),
-      page("auto-reload", "Auto-reload", () => <AutoReloadPanel w={w} />, "auto reload top-up pack spending cap limit"),
+      page("balances", "Balances and packs", () => <BillingBalancesPanel w={w} />, "rollover reset remaining packs top up minutes texts emails expiry"),
+      page("auto-reload", "Auto reload", () => <AutoReloadPanel w={w} />, "auto reload top up pack spending cap limit"),
       page("offers", "Offers and promo codes", () => <BusinessOffersSettings w={w} />, "offer promo code discount deal claim"),
       page("payment-methods", "Payment methods", lazyNeeds("Payment methods aren't managed in Zella Voice yet", "Nothing is charged from Zella Voice today.", "Adding a card needs the payment provider's secure page; Zella Voice never stores card numbers.")),
       page("invoices", "Invoices", lazyNeeds("Invoices aren't available in Zella Voice yet", "The Zella Voice team sends invoices by email.", "They need the payment provider's invoice records.")),
@@ -964,8 +964,8 @@ function registry(w) {
     { key: "calendar", label: "Calendar and appointments", icon: "calendar_today", items: [
       page("connections", "Calendar connections", () => <CalendarConnections w={w} />, "google outlook sync"),
       page("settings", "Appointment settings", (c) => <AppointmentSettings onGo={c.onGo} />, "duration buffer notice"),
-      page("types", "Appointment types", lazyNeeds("Appointment types aren't a setting yet", "Each booking has its own title and length.", "They need an appointment-types table (name, length, staff, rules).")),
-      page("rules", "Scheduling rules", () => <Card title="How scheduling works"><Facts rows={[["Double-booking", "Prevented: overlapping appointments and blocked times are refused"], ["Staff", "Only during each person's working hours"], ["Time zone", w.timezone.replace(/_/g, " ")], ["Holidays", "Closed days from Business hours"]]} /></Card>, "conflicts holidays"),
+      page("types", "Appointment types", lazyNeeds("Appointment types aren't a setting yet", "Each booking has its own title and length.", "They need an appointment types table (name, length, staff, rules).")),
+      page("rules", "Scheduling rules", () => <Card title="How scheduling works"><Facts rows={[["Double booking", "Prevented: overlapping appointments and blocked times are refused"], ["Staff", "Only during each person's working hours"], ["Time zone", w.timezone.replace(/_/g, " ")], ["Holidays", "Closed days from Business hours"]]} /></Card>, "conflicts holidays"),
       page("notifications", "Appointment notifications", (c) => <AutomationsPage workspace={w} refreshKey={0} onNotice={c.onNotice} />, "reminder confirmation"),
     ] },
     { key: "crm", label: "CRM and customers", icon: "group", items: [
@@ -977,23 +977,23 @@ function registry(w) {
       page("pipeline", "Pipeline", lazyNeeds("Pipeline stages aren't editable yet", "Leads move through the fixed stages on the Leads page; changing stage never changes the customer's details.", "Custom stages need a stage list per business that the Leads page and automations read.")),
       page("fields", "Custom fields", (c) => <RecordSettingsPage workspace={w} types={c.records.types} canManage={lead} onNotice={c.onNotice} onChanged={c.records.reload} loadError={c.records.error} />, "field type required"),
       page("export", "Import and export", () => <><DataExport w={w} /><BillingNeeds title="Importing isn't available yet" have="Add people one at a time, or ask Zella Voice to import a file for you.">Importing needs a file upload with field mapping, a preview and duplicate checks.</BillingNeeds></>, "csv import export"),
-      page("communication", "Customer communication", () => <Communication w={w} />, "consent unsubscribe opt-out"),
+      page("communication", "Customer communication", () => <Communication w={w} />, "consent unsubscribe opt out"),
     ] },
     { key: "industry", label: "Industry and workflows", icon: "tune", items: [
       page("profile", "Industry profile", () => <IndustryProfile w={w} />, "industry modules"),
       page("tables", "Tables and seating", (c) => <TableSetup workspace={w} onNotice={c.onNotice} />, "tables seating floor plan sections combinations restaurant party"),
-      page("capabilities", "What your business does", (c) => <CapabilitiesPanel w={w} onReload={c.onReload} />, "capabilities bookings scheduling check-ins waitlist dispatch classes orders estimates invoices deposits access codes"),
+      page("capabilities", "What your business does", (c) => <CapabilitiesPanel w={w} onReload={c.onReload} />, "capabilities bookings scheduling check ins waitlist dispatch classes orders estimates invoices deposits access codes"),
       page("terminology", "Terminology", (c) => <Terminology w={w} onReload={c.onReload} />, "words patients customers jobs"),
       page("fields", "Industry fields", (c) => <RecordSettingsPage workspace={w} types={c.records.types} canManage={lead} onNotice={c.onNotice} onChanged={c.records.reload} loadError={c.records.error} />, "fields"),
-      page("workflows", "Workflow rules", (c) => <AutomationsPage workspace={w} refreshKey={0} onNotice={c.onNotice} />, "rules status follow-up"),
+      page("workflows", "Workflow rules", (c) => <AutomationsPage workspace={w} refreshKey={0} onNotice={c.onNotice} />, "rules status follow up"),
       page("services", "Service catalog", () => <ServicesPanel w={w} />, "services prices duration"),
       page("modules", "Modules", (c) => <BusinessModulesPanel w={w} onGo={c.onGo} />, "modules industry enabled disabled available operations records"),
     ] },
     { key: "automations", label: "Automations", icon: "bolt", items: [
       page("library", "Automation library", (c) => <AutomationsPage workspace={w} refreshKey={0} onNotice={c.onNotice} />, "templates active disabled"),
-      page("events", "Event-based automations", () => <Card title="What starts an automation"><Facts rows={[["New lead", "Fast callback, follow-ups"], ["Missed call", "Callback and text when allowed"], ["Appointment booked or moved", "Confirmation and reminders"], ["Appointment canceled", "Waitlist offer"], ["Follow-up due", "Quote and lead follow-ups"], ["Status changes", "Industry rules"]]} /></Card>, "trigger event"),
+      page("events", "Event based automations", () => <Card title="What starts an automation"><Facts rows={[["New lead", "Fast callback, follow ups"], ["Missed call", "Callback and text when allowed"], ["Appointment booked or moved", "Confirmation and reminders"], ["Appointment canceled", "Waitlist offer"], ["follow up due", "Quote and lead follow ups"], ["Status changes", "Industry rules"]]} /></Card>, "trigger event"),
       page("history", "Automation history", (c) => <AutomationsPage workspace={w} refreshKey={0} onNotice={c.onNotice} />, "runs executions"),
-      page("suggestions", "You might also need", () => <CrossSellPanel w={w} />, "cross-sell upsell suggest offer after service follow-up"),
+      page("suggestions", "You might also need", () => <CrossSellPanel w={w} />, "cross sell upsell suggest offer after service follow up"),
       page("recovery", "Failure recovery", (c) => only(lead, <FailedWorkPage workspace={w} refreshKey={0} onNotice={c.onNotice} />), "failed retry"),
     ] },
     { key: "integrations", label: "Integrations", icon: "extension", items: [
@@ -1004,7 +1004,7 @@ function registry(w) {
     { key: "messages", label: "SMS, email and messages", icon: "forum", items: [
       page("config", "Messaging setup", () => <MessagingSetup w={w} />, "provider sender"),
       page("templates", "Message templates", () => <Templates w={w} />, "sms email templates"),
-      page("rules", "Communication rules", () => <Card title="Rules every message follows"><Facts rows={[["Consent", "Checked before every text and email"], ["Opt-out", "STOP, unsubscribe links"], ["Quiet hours", "No texts late at night, business time"], ["Duplicates", "The same message isn't sent twice"]]} /></Card>, "consent quiet hours"),
+      page("rules", "Communication rules", () => <Card title="Rules every message follows"><Facts rows={[["Consent", "Checked before every text and email"], ["Opt out", "STOP, unsubscribe links"], ["Quiet hours", "No texts late at night, business time"], ["Duplicates", "The same message isn't sent twice"]]} /></Card>, "consent quiet hours"),
       page("reviews", "Review link", (c) => <><ReviewLinkPanel workspace={w} /><LinkRows rows={[{ title: "Offers and promo codes", detail: "Billing and subscription", onClick: () => c.onGo("settings/billing/offers") }]} /></>, "review link google offers"),
       page("history", "Delivery history", (c) => <InboxPage workspace={w} refreshKey={0} onNotice={c.onNotice} onOpenPerson={c.onOpenPerson} />, "delivered failed"),
     ] },
@@ -1021,7 +1021,7 @@ function registry(w) {
       page("data", "Data management", () => <DataExport w={w} />, "export retention deletion"),
     ] },
     { key: "reports", label: "Reports and preferences", icon: "monitoring", items: [
-      page("dashboard", "Dashboard preferences", lazyNeeds("Dashboard preferences aren't saved yet", "Today opens first; each report remembers its period while you're on it.", "Saving them needs a per-person preferences record.")),
+      page("dashboard", "Dashboard preferences", lazyNeeds("Dashboard preferences aren't saved yet", "Today opens first; each report remembers its period while you're on it.", "Saving them needs a per person preferences record.")),
       page("reporting", "Reporting preferences", () => <ReportSchedule key={`${w.id}:${roleIn(w, LEAD)}`} w={w} />, "daily report summary time recipients schedule"),
       page("performance", "Business performance", () => <ReportsPage workspace={w} refreshKey={0} />, "calls leads appointments"),
       page("export", "Data export", () => <DataExport w={w} />, "csv"),

@@ -29,7 +29,7 @@ function registry() {
       page("profile", "Platform profile", (c) => <P.PlatformProfile me={c.me} />, "name legal support email phone website address country timezone currency"),
       page("branding", "Branding and appearance", (c) => <P.Branding me={c.me} />, "logo favicon theme color login email"),
       page("localization", "Localization", () => <P.Localization />, "language date time currency format locale"),
-      page("maintenance", "Platform maintenance", (c) => <P.Maintenance me={c.me} />, "maintenance announcement downtime read-only"),
+      page("maintenance", "Platform maintenance", (c) => <P.Maintenance me={c.me} />, "maintenance announcement downtime read only"),
       page("operations", "Operational rules", (c) => <P.OperationalRules me={c.me} />, "response time task overdue escalate summary missed call transfer invitation reminder setup incomplete trial notice sample low confidence knowledge threshold"),
     ] },
     { key: "tenants", label: "Business and tenant management", icon: "tenants", items: [
@@ -42,7 +42,7 @@ function registry() {
     ] },
     { key: "users", label: "Users, roles and access", icon: "users", items: [
       page("admins", "Platform administrators", (c) => <P.Administrators onNavigate={c.onNavigate} />, "admin invite mfa last login"),
-      page("roles", "Platform roles", (c) => <P.PlatformRoles me={c.me} />, "role matrix super admin billing support security read-only"),
+      page("roles", "Platform roles", (c) => <P.PlatformRoles me={c.me} />, "role matrix super admin billing support security read only"),
       page("permissions", "Permissions", () => <P.Permissions />, "permission enforcement"),
       page("auth", "Authentication policies", () => <P.AuthPolicies />, "password mfa session providers recovery"),
     ] },
@@ -55,7 +55,7 @@ function registry() {
     ] },
     { key: "offers", label: "Offers and promotions", icon: "offers", items: [
       page("overview", "Offers overview", (c) => <P.OffersGate me={c.me}><P.OffersOverview onNavigate={c.onNavigate} /></P.OffersGate>, "offers promo code discount deal status approval connections"),
-      page("rules", "Offer automation rules", (c) => <P.OffersGate me={c.me}><RulesTab onChanged={() => {}} /></P.OffersGate>, "start end approval thresholds claim hold unpaid expiry warning limit unusual activity renewal referral win-back abandoned checkout"),
+      page("rules", "Offer automation rules", (c) => <P.OffersGate me={c.me}><RulesTab onChanged={() => {}} /></P.OffersGate>, "start end approval thresholds claim hold unpaid expiry warning limit unusual activity renewal referral win back abandoned checkout"),
       page("monitoring", "Offer monitoring", (c) => <P.OffersGate me={c.me}><MonitorTab onOpenOffer={() => c.onNavigate("Offers & Promotions")} /></P.OffersGate>, "claims failed codes attempts activity"),
       page("reports", "Offer reports", (c) => <P.OffersGate me={c.me}><ReportsTab /></P.OffersGate>, "redemptions revenue discount report"),
     ] },
@@ -79,10 +79,10 @@ function registry() {
       page("numbers", "Phone number management", (c) => <P.PhoneNumbers me={c.me} />, "assign reassign release"),
       page("usage", "Voice usage", () => <P.VoiceUsage />, "minutes calls cost"),
       page("costs", "Voice cost configuration", (c) => <P.VoiceCosts me={c.me} />, "pricing rate per minute"),
-      page("limits", "Usage limits", () => <P.UsageLimits />, "top-up spending limit"),
+      page("limits", "Usage limits", () => <P.UsageLimits />, "top up spending limit"),
     ] },
     { key: "comms", label: "SMS, email and communications", icon: "comms", items: [
-      page("sms", "SMS configuration", (c) => <P.SmsConfig me={c.me} />, "text telnyx sender opt-out"),
+      page("sms", "SMS configuration", (c) => <P.SmsConfig me={c.me} />, "text telnyx sender opt out"),
       page("email", "Email configuration", (c) => <P.EmailConfig me={c.me} />, "resend sender bounce"),
       page("templates", "Communication templates", () => <P.Templates />, "template preview variables"),
       page("delivery", "Delivery monitoring", (c) => <P.DeliveryMonitoring onNavigate={c.onNavigate} />, "failed suppression"),
@@ -104,7 +104,7 @@ function registry() {
     ] },
     { key: "alerts", label: "Notifications and alerts", icon: "alerts", items: [
       page("rules", "Alert rules", () => <P.AlertRules />, "severity escalation"),
-      page("channels", "Notification channels", () => <P.NotificationChannels />, "email in-app"),
+      page("channels", "Notification channels", () => <P.NotificationChannels />, "email in app"),
       page("history", "Notification history", (c) => <P.NotificationHistory me={c.me} />, "acknowledge resolve"),
     ] },
     { key: "support", label: "Support and service operations", icon: "support", items: [
@@ -163,7 +163,7 @@ export default function SettingsPage({ section, sub, ...handlers }) {
   if (!me) return <section className="owner-page"><Loading /></section>;
   return (
     <SettingsWorkspace
-      description={`Platform administration · signed in as ${me.roleLabel}${me.mfa ? " with two-step sign-in" : ""}`}
+      description={`Platform administration · signed in as ${me.roleLabel}${me.mfa ? " with two step sign in" : ""}`}
       registry={REGISTRY} category={section} item={sub} base="/settings" go={navigate} Icon={Glyph} context={context} />
   );
 }

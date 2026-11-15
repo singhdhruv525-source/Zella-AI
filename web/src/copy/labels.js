@@ -26,7 +26,7 @@ const LABELS = {
   inbound: "Incoming", outbound: "Outgoing",
 
   // appointments, callbacks, tasks
-  scheduled: "Scheduled", confirmed: "Confirmed", no_show: "No-show", due: "Due", contacted: "Contacted",
+  scheduled: "Scheduled", confirmed: "Confirmed", no_show: "No show", due: "Due", contacted: "Contacted",
   reschedule_requested: "Reschedule requested", retry_scheduled: "Retry scheduled",
   waiting_on_customer: "Waiting on customer", escalated: "Escalated", needs_review: "Needs review",
   booked: "Booked", offered: "Offered", removed: "Removed",

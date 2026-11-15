@@ -142,7 +142,7 @@ const isAttentionCount = (q) => q.url().includes("/rest/v1/calls_view") && q.url
   check(/^3 calls$/.test(await text(s.p, ".ba-table-foot")), "B3-05 needs-a-person covers the whole history (3, including the 341st call)", await text(s.p, ".ba-table-foot"));
   await s.p.locator(".ba-segment button", { hasText: "Missed" }).click(); await s.p.waitForTimeout(1500);
   check(/^120 calls/.test(await text(s.p, ".ba-table-foot")), "B3-05 missed covers the whole history (120)", await text(s.p, ".ba-table-foot"));
-  check(await s.p.locator(".ba-table tbody tr", { hasText: "Follow-up set" }).count() > 0, "B3-05 linked follow-ups show on their calls");
+  check(await s.p.locator(".ba-table tbody tr", { hasText: "Follow up set" }).count() > 0, "B3-05 linked follow-ups show on their calls");
   await s.p.locator(".ba-segment button", { hasText: "All" }).click(); await s.p.waitForTimeout(1500);
   const ownerIcons = await s.p.locator(".ba-table tbody .ba-actions .ba-icon").allInnerTexts();
   check(ownerIcons.filter((t) => t === "subject").length === 5 && ownerIcons.includes("graphic_eq"), "B3-05 the owner's list marks calls with a transcript (5 of 25) and a recording", ownerIcons.join(","));

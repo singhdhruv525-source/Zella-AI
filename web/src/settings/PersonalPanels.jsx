@@ -63,7 +63,7 @@ function ProfileForm({ email, user, profile, onSaved }) {
   }
   return (
     <>
-      <Card title="Your details" sub={`Signed in as ${email}. Your email is your sign-in and can't be changed here.`}>
+      <Card title="Your details" sub={`Signed in as ${email}. Your email is your sign in and can't be changed here.`}>
         <div className="zs-grid">
           <Field label="First name"><input value={form.values.first} onChange={form.set("first")} maxLength={100} autoComplete="given-name" /></Field>
           <Field label="Last name"><input value={form.values.last} onChange={form.set("last")} maxLength={100} autoComplete="family-name" /></Field>
@@ -146,7 +146,7 @@ function MfaCard() {
     try { await fn(); } catch (err) { setError(friendly(err)); } finally { setBusy(false); }
   };
   return (
-    <Card title="Two-step sign-in" sub="After your password, enter a code from an authenticator app (Google Authenticator, 1Password, Authy and similar).">
+    <Card title="Two step sign in" sub="After your password, enter a code from an authenticator app (Google Authenticator, 1Password, Authy and similar).">
       <LoadState state={state}>{(s) => (
         <>
           <Facts rows={[["Status", s.enrolled ? "On" : "Off"], ["This session", s.level === "aal2" ? "Verified with a code" : "Password only"]]} />
@@ -176,7 +176,7 @@ function MfaCard() {
           <Banner tone="error">{error}</Banner>
         </>
       )}</LoadState>
-      {removing && <Confirm title="Remove two-step sign-in?" danger confirmLabel="Remove" onClose={() => setRemoving(null)}
+      {removing && <Confirm title="Remove two step sign in?" danger confirmLabel="Remove" onClose={() => setRemoving(null)}
         onConfirm={async () => { await removeMfaFactor(removing.id); state.reload(); }}>
         Signing in will need only your password again.
       </Confirm>}
@@ -197,7 +197,7 @@ function SessionsCard() {
   async function revoke(s) {
     try {
       await rpc("zella_revoke_my_session", { p_session_id: s.id });
-      setNotice({ text: "Signed out of that device. It can't refresh its sign-in anymore; an open page there stops working within the hour.", error: "" });
+      setNotice({ text: "Signed out of that device. It can't refresh its sign in anymore; an open page there stops working within the hour.", error: "" });
       state.reload();
     } catch (err) { setNotice({ text: "", error: err.message }); }
   }
@@ -211,7 +211,7 @@ function SessionsCard() {
           ["Device", (s) => <>{device(s.user_agent)}{s.current && <> · <strong>this device</strong></>}</>],
           ["Signed in", (s) => when(s.created_at)],
           ["Last active", (s) => when(s.last_active_at)],
-          ["IP address", (s) => s.ip ?? "—"],
+          ["IP address", (s) => s.ip ?? "None"],
           ["Code used", (s) => (s.aal === "aal2" ? "Yes" : "No")],
           ["", (s) => (s.current ? null : <button type="button" className="zs-btn sm" onClick={() => revoke(s)}>Sign out</button>)],
         ]} />
@@ -233,7 +233,7 @@ export function SignOutPanel({ onSignOut, signOutError, who }) {
     <Card title="Sign out" sub={`Signs ${who} out of this device only. Other people and the subscription aren't affected.`}>
       <button type="button" className="zs-btn primary" onClick={() => setOpen(true)}>Sign out</button>
       {open && <Confirm title="Sign out of Zella Voice?" confirmLabel="Sign out" onClose={() => setOpen(false)} onConfirm={onSignOut} keepOpenOnFalse>
-        <p>You'll go back to the sign-in page.</p>
+        <p>You'll go back to the sign in page.</p>
         {signOutError && <Banner tone="error">{signOutError}</Banner>}
       </Confirm>}
     </Card>

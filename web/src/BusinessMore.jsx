@@ -44,12 +44,12 @@ export function AttentionPage({ workspace, refreshKey, onNotice, onOpenPerson, o
         title="Needs attention"
         sub={open.length ? `${plural(open.length, "caller")} waiting for a person. Your AI receptionist handed these over.` : "Nothing is waiting. Anything your AI receptionist can't handle shows up here."}
       >
-        <Segment label="Hand-off filter" value={filter} onChange={setFilter} options={[["open", `Waiting (${open.length})`], ["done", "Handled"]]} />
+        <Segment label="handoff filter" value={filter} onChange={setFilter} options={[["open", `Waiting (${open.length})`], ["done", "Handled"]]} />
       </PageHead>
       <Notice error={error} onRetry={reload} />
       {loading && !data ? <p className="ba-muted">Loading…</p> : !rows.length ? (
-        <Empty title={filter === "open" ? "All clear" : "No handled hand-offs yet"}>
-          {filter === "open" ? "When a caller asks for a person, or the AI can't help, it appears here with the full transcript." : "Handled hand-offs are kept here for your records."}
+        <Empty title={filter === "open" ? "All clear" : "No handled handoffs yet"}>
+          {filter === "open" ? "When a caller asks for a person, or the AI can't help, it appears here with the full transcript." : "Handled handoffs are kept here for your records."}
         </Empty>
       ) : (
         <div className="ba-stack">
@@ -103,7 +103,7 @@ export function WalkInModal({ workspace, staff, hospitality, onClose, onSaved })
       if (made.current?.key === key) customerId = made.current.id;
       else if (phone) {
         // with a phone number, the duplicate check finds a returning customer instead of creating a new one
-        const [first, ...rest] = (name || "Walk-in").split(/\s+/);
+        const [first, ...rest] = (name || "Walk in").split(/\s+/);
         const added = await supabase.rpc("zella_staff_add_customer", {
           p_business_id: workspace.id, p_first_name: first, p_last_name: rest.join(" ") || null,
           p_phone: phone, p_email: null, p_notes: null,
@@ -123,7 +123,7 @@ export function WalkInModal({ workspace, staff, hospitality, onClose, onSaved })
       if (customerId) made.current = { key, id: customerId };
       const now = new Date();
       const inserted = await supabase.from("appointments").insert({
-        business_id: workspace.id, customer_id: customerId, title: "Walk-in", status: "confirmed",
+        business_id: workspace.id, customer_id: customerId, title: "walk in", status: "confirmed",
         start_time: now.toISOString(), end_time: new Date(now.getTime() + 30 * 60000).toISOString(),
         timezone: workspace.timezone, description: form.note.trim() || null,
         checked_in_at: now.toISOString(),
@@ -131,7 +131,7 @@ export function WalkInModal({ workspace, staff, hospitality, onClose, onSaved })
         ...(form.partySize ? { party_size: Number(form.partySize) } : {}),
       });
       if (inserted.error) throw inserted.error;
-      onSaved(`${name || "Walk-in"} checked in.`);
+      onSaved(`${name || "walk in"} checked in.`);
     } catch (err) {
       setError(friendly(err));
     } finally {
@@ -140,7 +140,7 @@ export function WalkInModal({ workspace, staff, hospitality, onClose, onSaved })
   }
 
   return (
-    <Modal title="Add walk-in" description="For someone who arrives without a booking. They go straight to Waiting." onClose={onClose} busy={busy}>
+    <Modal title="Add walk in" description="For someone who arrives without a booking. They go straight to Waiting." onClose={onClose} busy={busy}>
       <form className="ba-form-grid ba-modal-body" onSubmit={save}>
         {error && <div className="ba-banner error full">{error}</div>}
         <Field label="Name"><input value={form.name} onChange={set("name")} autoFocus /></Field>
@@ -199,7 +199,7 @@ export function LeadSourcesPage({ workspace, refreshKey }) {
     return Object.values(map).sort((a, b) => b.leads - a.leads);
   }, [data]);
   const total = rows.reduce((s, r) => s + r.leads, 0);
-  const pct = (n, d) => (d ? `${Math.round((n / d) * 100)}%` : "—");
+  const pct = (n, d) => (d ? `${Math.round((n / d) * 100)}%` : "None");
 
   return (
     <>
@@ -295,7 +295,7 @@ export function ReportsPage({ workspace, refreshKey }) {
     };
   }, [data, tz]);
 
-  const pct = (n, d) => (d ? `${Math.round((n / d) * 100)}%` : "—");
+  const pct = (n, d) => (d ? `${Math.round((n / d) * 100)}%` : "None");
   const peak = Math.max(1, ...(r?.perDay ?? []).map((d) => d.n));
   return (
     <>
@@ -316,7 +316,7 @@ export function ReportsPage({ workspace, refreshKey }) {
             <Stat label="Total calls" value={r.calls} note={`${r.answered} answered`} />
             <Stat label="Handled by AI" value={pct(r.ai, r.calls)} note={`${r.ai} calls`} />
             <Stat label="Missed" value={r.missed} note={r.missed ? `${r.followed} followed up` : "None missed"} />
-            <Stat label="Average call" value={r.avg ? clock(r.avg) : "—"} />
+            <Stat label="Average call" value={r.avg ? clock(r.avg) : r.calls ? "Not available" : "No calls yet"} />
             <Stat label="Handed to a human" value={r.handoffs} note={r.handoffsOpen ? `${r.handoffsOpen} still waiting` : "None waiting"} />
           </div>
           <section className="ba-panel ba-gap">
@@ -330,7 +330,7 @@ export function ReportsPage({ workspace, refreshKey }) {
           <h2 className="ba-h2">{term("appointments")} and people</h2>
           <div className="ba-kpis">
             <Stat label={`${term("appointments")} so far`} value={r.booked} note={`${r.completed} completed`} />
-            <Stat label="No-show rate" value={r.noShowRate == null ? "—" : `${r.noShowRate}%`} note={`${r.noShows} no-shows`} />
+            <Stat label="No show rate" value={r.noShowRate == null ? "Not available" : `${r.noShowRate}%`} note={`${r.noShows} no shows`} />
             <Stat label="Checked in" value={pct(r.checkedIn, r.booked)} note={`${r.checkedIn} arrivals`} />
             <Stat label={`New ${term("customers").toLowerCase()}`} value={r.leads} />
           </div>
@@ -452,7 +452,7 @@ function StoreCard({ workspace, onNotice }) {
       return setProblem(STORE_ERRORS[answer?.error] ?? "The store couldn't be connected. Try again.");
     }
     setToken(""); setShop(""); setVersion((v) => v + 1);
-    onNotice(`Store connected: ${data.shop_name ?? data.shop}.${data.more_access_than_needed?.length ? " The token can also change things in your store; Zella Voice only reads orders, so a read-only token is safer." : ""}`);
+    onNotice(`Store connected: ${data.shop_name ?? data.shop}.${data.more_access_than_needed?.length ? " The token can also change things in your store; Zella Voice only reads orders, so a read only token is safer." : ""}`);
   }
   async function disconnect() {
     if (!window.confirm("Disconnect the store? The assistant stops checking order status and takes messages instead. The access token is deleted.")) return;
@@ -518,7 +518,7 @@ function GoogleLeadsCard({ workspace, onNotice }) {
     <section className="ba-panel ba-integration ba-integration-controls">
       <div className="ba-integration-row">
         <span className="ba-thread-icon"><Icon name="ads_click" size="sm" /></span>
-        <div><strong>Google Ads lead forms</strong><small>New leads from your Google Ads forms arrive here, with a call-back task for the team.</small></div>
+        <div><strong>Google Ads lead forms</strong><small>New leads from your Google Ads forms arrive here, with a callback task for the team.</small></div>
         <Pill tone={live ? (st.last_lead_at || st.test_received_at ? "success" : "warning") : ""}>{live ? (st.last_lead_at ? "Receiving" : st.test_received_at ? "Test received" : "Waiting for Google") : "Not set up"}</Pill>
       </div>
       {problem && <p className="ba-error" role="alert">{problem}</p>}

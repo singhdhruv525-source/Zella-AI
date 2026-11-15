@@ -461,7 +461,7 @@ function InviteBanner({ status, email, onRetry }) {
   if (!status || (!status.failed && !status.needsEmailLink && !status.problems.length)) return null;
   async function sendLink() {
     setBusy(true); setSent("");
-    try { await emailMeSignInLink(email); setSent(`We sent a sign-in link to ${email}. Open it on this device to join.`); }
+    try { await emailMeSignInLink(email); setSent(`We sent a sign in link to ${email}. Open it on this device to join.`); }
     catch (err) { setSent(err.message); }
     finally { setBusy(false); }
   }
@@ -469,12 +469,12 @@ function InviteBanner({ status, email, onRetry }) {
     <div className="ba-banner" role="status">
       <span>
         {status.failed && "We couldn't finish adding you to a team you were invited to. "}
-        {status.needsEmailLink > 0 && `${status.needsEmailLink === 1 ? "A team invitation is" : `${status.needsEmailLink} team invitations are`} waiting for you. To accept, sign in from the link in your invitation email, or get a new sign-in link. `}
+        {status.needsEmailLink > 0 && `${status.needsEmailLink === 1 ? "A team invitation is" : `${status.needsEmailLink} team invitations are`} waiting for you. To accept, sign in from the link in your invitation email, or get a new sign in link. `}
         {status.problems.map((p, i) => <span key={i}>An invitation couldn't be accepted: {p}. </span>)}
         {sent && <strong>{sent}</strong>}
       </span>
       <span style={{ display: "inline-flex", gap: 8 }}>
-        {status.needsEmailLink > 0 && <button type="button" className="ba-btn primary sm" disabled={busy} onClick={sendLink}>{busy ? "Sending…" : "Email me a sign-in link"}</button>}
+        {status.needsEmailLink > 0 && <button type="button" className="ba-btn primary sm" disabled={busy} onClick={sendLink}>{busy ? "Sending…" : "Email me a sign in link"}</button>}
         {status.failed && <button type="button" className="ba-btn sm" onClick={onRetry}>Try again</button>}
       </span>
     </div>
@@ -558,8 +558,8 @@ function BusinessHome() {
   if (mfa.state === "error") return (
     <main className="ba-auth">
       <section className="ba-auth-card" role="alert">
-        <h1>Couldn't verify sign-in</h1>
-        <p className="ba-auth-description">Your sign-in security check failed. Try again to open your workspace.</p>
+        <h1>Couldn't verify sign in</h1>
+        <p className="ba-auth-description">Your sign in security check failed. Try again to open your workspace.</p>
         <button type="button" className="ba-btn primary block" onClick={mfa.recheck}>Try again</button>
         <button type="button" className="ba-btn block" onClick={signOut}>Sign out</button>
         {signOutError && <p className="ba-error" role="alert">{signOutError}</p>}

@@ -178,7 +178,7 @@ export function BookingPanel({ workspace, industry, appt, person, staff, blocks,
     appt.checked_in_at && [appt.checked_in_at, cfg.arrived],
     appt.cancelled_at && [appt.cancelled_at, `Canceled${appt.cancel_reason ? `: ${appt.cancel_reason}` : ""}`],
     appt.status === "completed" && [appt.updated_at, "Completed"],
-    appt.status === "no_show" && [appt.updated_at, "No-show"],
+    appt.status === "no_show" && [appt.updated_at, "No show"],
   ].filter((x) => x && x[0]).sort((a, b) => new Date(a[0]) - new Date(b[0]));
 
   const box = (
@@ -306,7 +306,7 @@ export function BookingPanel({ workspace, industry, appt, person, staff, blocks,
             {open && <button type="button" className="ba-btn" disabled={busy} onClick={() => run(() => setCheckIn(appt.id, !appt.checked_in_at), appt.checked_in_at ? "Undone." : `${name ?? "Guest"}: ${cfg.arrived.toLowerCase()}.`)}>
               <Icon name={appt.checked_in_at ? "undo" : "how_to_reg"} size="sm" />{appt.checked_in_at ? `Undo ${cfg.arrived.toLowerCase()}` : cfg.arrived}</button>}
             {open && <button type="button" className="ba-btn primary" disabled={busy} onClick={() => setStatus("completed")}><Icon name="task_alt" size="sm" />Mark completed</button>}
-            {open && new Date(appt.start_time) < new Date() && !arrived && <button type="button" className="ba-btn danger-outline" disabled={busy} onClick={() => setStatus("no_show")}>No-show</button>}
+            {open && new Date(appt.start_time) < new Date() && !arrived && <button type="button" className="ba-btn danger-outline" disabled={busy} onClick={() => setStatus("no_show")}>no show</button>}
             {(open || requested) && <button type="button" className="ba-btn danger-outline" disabled={busy} onClick={() => setStatus("cancelled")}>Cancel</button>}
           </footer>
         ) : <footer className="bp-foot"><span className="ba-muted">Your role can view {term("appointments").toLowerCase()} but not change them.</span></footer>}

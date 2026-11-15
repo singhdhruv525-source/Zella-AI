@@ -52,7 +52,7 @@ export function useRecordTypes(workspace, refreshKey) {
  */
 export function showValue(field, value, tz, titles) {
   if (field.sensitive) return "Hidden";
-  if (value === undefined || value === null || value === "") return "—";
+  if (value === undefined || value === null || value === "") return "None";
   if (field.type === "record") return linkTitle(titles, value);
   if (field.type === "bool") return value ? "Yes" : "No";
   if (field.type === "date") return formatDay(value, tz);
@@ -497,7 +497,7 @@ export function RecordsPage({ workspace, type, query, refreshKey, canManage, onN
                       <td><strong>{r.title}</strong></td>
                       <td><Pill tone={statusOf(r.status).tone}>{statusOf(r.status).label}</Pill></td>
                       {cols.map((c) => <td key={c.key}>{showValue(c, r.data?.[c.key], tz, titles)}</td>)}
-                      {type.link_person && <td>{personName(r.customers) ?? "—"}</td>}
+                      {type.link_person && <td>{personName(r.customers) ?? "None"}</td>}
                       <td>{timeAgo(r.updated_at)}</td>
                     </tr>
                   ))}

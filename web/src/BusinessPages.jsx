@@ -74,7 +74,7 @@ function PeoplePage({ mode, workspace, query, refreshKey, onOpenPerson }) {
           : `Everyone your business has spoken with, with their ${term("appointments").toLowerCase()} and calls.`}
       >
         {isLeads && (
-          <Segment label="Lead filter" value={filter} onChange={setFilter} options={[["new", "Needs follow-up"], ["contacted", "Contacted"], ["all", "All"]]} />
+          <Segment label="Lead filter" value={filter} onChange={setFilter} options={[["new", "Needs follow up"], ["contacted", "Contacted"], ["all", "All"]]} />
         )}
         {!isLeads && workspace.role !== "viewer" && (
           <button type="button" className="ba-btn primary" onClick={() => { setAdded(""); setAdding(true); }}>
@@ -138,7 +138,7 @@ function PeoplePage({ mode, workspace, query, refreshKey, onOpenPerson }) {
                             <div><strong>{name}</strong><small>{p.email ?? ""}</small>{p.tags?.length > 0 && <span className="ba-tags inline">{p.tags.slice(0, 3).map((t) => <Pill key={t} tone="indigo">{t}</Pill>)}</span>}</div>
                           </div>
                         </td>
-                        <td>{p.phone ?? "—"}</td>
+                        <td>{p.phone ?? "None"}</td>
                         <td><Pill tone="indigo">{sourceLabel(p.source)}</Pill></td>
                         <td>{timeAgo(p.created_at)}</td>
                         <td>{p.last_contacted_at ? timeAgo(p.last_contacted_at) : <span className="ba-flag">Not yet</span>}</td>
@@ -279,7 +279,7 @@ function BlockDetail({ block, who, tz, onClose, onChanged, onNotice }) {
 const VIEWS = [["day", "Day"], ["week", "Week"], ["month", "Month"], ["agenda", "Agenda"], ["staff", "Staff"]];
 const AGENDA_DAYS = 14;
 // Filters by where a booking stands. "Awaiting" = not confirmed yet (scheduled, held or requested).
-const STATUS_FILTERS = [["all", "All"], ["awaiting", "Awaiting confirmation"], ["confirmed", "Confirmed"], ["completed", "Completed"], ["cancelled", "Canceled or no-show"]];
+const STATUS_FILTERS = [["all", "All"], ["awaiting", "Awaiting confirmation"], ["confirmed", "Confirmed"], ["completed", "Completed"], ["cancelled", "Canceled or no show"]];
 const awaiting = (x) => x.status === "scheduled" || x.booking_state === "requested" || x.booking_state === "tentative";
 const matchesStatus = (x, f) => f === "all" || (f === "awaiting" ? awaiting(x) && x.status !== "cancelled"
   : f === "cancelled" ? ["cancelled", "no_show"].includes(x.status) : x.status === f);
@@ -712,7 +712,7 @@ export function MessagesPage({ workspace, refreshKey, onOpenPerson }) {
                   <div className="ba-thread-meta">
                     {r.ai_handled && <Pill tone="indigo">AI</Pill>}
                     <Pill tone={r.status === "open" ? "warning" : r.status === "pending" ? "info" : ""}>{humanize(r.status)}</Pill>
-                    <span>{r.last_message_at ? timeAgo(r.last_message_at) : "—"}</span>
+                    <span>{r.last_message_at ? timeAgo(r.last_message_at) : "None"}</span>
                   </div>
                 </li>
               );
@@ -731,7 +731,7 @@ export function MessagesPage({ workspace, refreshKey, onOpenPerson }) {
 export function ReceptionistPage({ workspace, onNotice, onReload }) {
   const tz = workspace.timezone;
   const agent = receptionistState(workspace);
-  const { data, error, reload } = useLoad(async () => {
+  const { data, error, loading, reload } = useLoad(async () => {
     const week = dayRange(tz, -6).start.toISOString();
     const [agents, calls] = await Promise.all([
       supabase.from("ai_agents").select("id, name, status, description, channels, is_default").eq("business_id", workspace.id).order("is_default", { ascending: false }),
@@ -776,7 +776,7 @@ export function ReceptionistPage({ workspace, onNotice, onReload }) {
             <div><dt>Calls</dt><dd>{calls.length}</dd></div>
             <div><dt>Handled by AI</dt><dd>{aiCalls.length}</dd></div>
             <div><dt>Missed</dt><dd>{missed}</dd></div>
-            <div><dt>Avg length</dt><dd>{aiCalls.length ? clock(Math.round(aiCalls.reduce((s, c) => s + (c.duration_seconds ?? 0), 0) / aiCalls.length)) : "—"}</dd></div>
+            <div><dt>Avg length</dt><dd>{!data ? (loading ? "…" : "Not available") : aiCalls.length ? clock(Math.round(aiCalls.reduce((s, c) => s + (c.duration_seconds ?? 0), 0) / aiCalls.length)) : calls.length ? "No AI calls yet" : "No calls yet"}</dd></div>
           </dl>
           {primary?.description && <p className="ba-note pad">{primary.description}</p>}
           {primary?.channels?.length > 0 && (

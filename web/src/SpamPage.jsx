@@ -22,7 +22,7 @@ const STATUS = {
 };
 const RISK = { high: ["danger", "High"], medium: ["warning", "Medium"], low: ["neutral", "Low"] };
 const ACTION = { allowed: "Allowed", flagged: "Flagged for review", held: "Held for the team to confirm", screened: "Screened by the AI", restricted: "Temporarily restricted", blocked: "Blocked" };
-const EVENT = { detected: "Detected", occurrence: "Happened again", status: "Status changed", note: "Note", listed: "Added to a list", unlisted: "Removed from a list", assigned: "Assigned", notified: "Team notified", workflow: "Automatic follow-up" };
+const EVENT = { detected: "Detected", occurrence: "Happened again", status: "Status changed", note: "Note", listed: "Added to a list", unlisted: "Removed from a list", assigned: "Assigned", notified: "Team notified", workflow: "Automatic follow up" };
 const AI_LABEL = { spam: "likely spam", not_spam: "may be genuine", unsure: "not sure" };
 const ref = (id) => `#${String(id).slice(0, 8).toUpperCase()}`;
 const sinceDays = (days) => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - (Number(days) - 1)); return d; };
@@ -83,8 +83,8 @@ export default function SpamPage({ workspace, onNotice, onOpenPerson }) {
 }
 
 function Overview({ data, loading, channels }) {
-  // no data after loading means it couldn't be loaded: "—", never 0
-  const v = (k) => (data ? data[k] ?? "—" : loading ? "…" : "—");
+  // no data after loading means it couldn't be loaded: "Not available", never 0
+  const v = (k) => (data ? data[k] ?? "Not available" : loading ? "…" : "Not available");
   const ch = data?.by_channel ?? {};
   const cmp = data && data.previous_total !== null && data.previous_total !== undefined
     ? data.total === data.previous_total ? "Same as the previous period"
@@ -119,7 +119,7 @@ function Overview({ data, loading, channels }) {
               <li key={k} className={channels && channels[k] === false ? "off" : ""}>
                 <Icon name={CHANNELS[k][0]} size="sm" />
                 <span>{CHANNELS[k][1]}{k === "booking" ? "s" : k === "sms" ? "s" : k === "email" ? "s" : "s"}</span>
-                {channels && channels[k] === false ? <small>Not connected</small> : <strong>{data ? ch[k] ?? 0 : loading ? "…" : "—"}</strong>}
+                {channels && channels[k] === false ? <small>Not connected</small> : <strong>{data ? ch[k] ?? 0 : loading ? "…" : "Not available"}</strong>}
               </li>
             ))}
             {(ch.other ?? 0) > 0 && <li><Icon name="help" size="sm" /><span>Other</span><strong>{ch.other}</strong></li>}
@@ -232,7 +232,7 @@ function Inbox({ workspace, from, onChanged, onNotice, onOpenPerson }) {
                     <td><span className="sp-chan"><Icon name={CHANNELS[r.channel]?.[0] ?? "help"} size="sm" />{CHANNELS[r.channel]?.[1] ?? r.channel}</span><small className="ba-muted sp-ref">{ref(r.id)}</small></td>
                     <td><strong>{person ? personName(person) : r.sender_display || r.sender}</strong>{person && <small className="ba-muted sp-ref">{r.sender_display || r.sender}</small>}</td>
                     <td><Pill tone={RISK[r.risk_level][0]}>{RISK[r.risk_level][1]} · {r.risk_score}</Pill></td>
-                    <td className="sp-why">{(r.reasons ?? []).slice(0, 2).map((x) => x.label).join("; ") || "—"}{r.occurrences > 1 && <small className="ba-muted"> ×{r.occurrences}</small>}</td>
+                    <td className="sp-why">{(r.reasons ?? []).slice(0, 2).map((x) => x.label).join("; ") || "None"}{r.occurrences > 1 && <small className="ba-muted"> ×{r.occurrences}</small>}</td>
                     <td><Pill tone={STATUS[r.status][0]}>{STATUS[r.status][1]}</Pill></td>
                     <td>{timeAgo(r.last_seen_at)}</td>
                   </tr>
@@ -249,7 +249,7 @@ function Inbox({ workspace, from, onChanged, onNotice, onOpenPerson }) {
       {state.loading && !state.rows.length && <p className="ba-muted sp-quiet">Loading incidents…</p>}
       {state.total > PAGE && (
         <div className="sp-pager">
-          <span className="ba-muted">{page * PAGE + 1}–{Math.min(state.total, page * PAGE + PAGE)} of {state.total}</span>
+          <span className="ba-muted">{page * PAGE + 1} to {Math.min(state.total, page * PAGE + PAGE)} of {state.total}</span>
           <button type="button" className="ba-btn sm" disabled={page === 0} onClick={() => setPage(page - 1)}>Previous</button>
           <button type="button" className="ba-btn sm" disabled={page + 1 >= pages} onClick={() => setPage(page + 1)}>Next</button>
         </div>
@@ -448,11 +448,11 @@ function SourceDetails({ src, tz }) {
   if (src.error) return <p className="ba-muted">Couldn't load it: {src.error}</p>;
   const d = src.data;
   if (!d) return <p className="ba-muted">Not available: it was removed, or your access doesn't include it.</p>;
-  const when = (v) => (v ? `${formatDay(v, tz)}, ${formatTime(v, tz)}` : "—");
+  const when = (v) => (v ? `${formatDay(v, tz)}, ${formatTime(v, tz)}` : "None");
   const rows = {
-    calls: [["When", when(d.started_at)], ["Length", d.duration_seconds ? `${Math.round(d.duration_seconds / 60)} min ${d.duration_seconds % 60} s` : "—"],
-      ["Outcome", d.outcome || d.status || "—"], ["Answered by", d.ai_handled ? "AI receptionist" : "Team"], ["Summary", d.summary || "—"]],
-    sms_messages: [["From", d.from_number], ["To", d.to_number], ["When", when(d.created_at)], ["Delivery", d.status || "—"]],
+    calls: [["When", when(d.started_at)], ["Length", d.duration_seconds ? `${Math.round(d.duration_seconds / 60)} min ${d.duration_seconds % 60} s` : "None"],
+      ["Outcome", d.outcome || d.status || "None"], ["Answered by", d.ai_handled ? "AI receptionist" : "Team"], ["Summary", d.summary || "None"]],
+    sms_messages: [["From", d.from_number], ["To", d.to_number], ["When", when(d.created_at)], ["Delivery", d.status || "None"]],
     email_messages: [["From", d.from_email], ["To", d.to_email], ["Subject", d.subject || "(no subject)"], ["When", when(d.created_at)]],
     appointments: [["Requested", d.title], ["For", when(d.start_time)], ["Booked", when(d.created_at)], ["State", d.booking_state === "requested" ? "Waiting for the team to confirm" : d.status]],
   }[src.table];
@@ -550,7 +550,7 @@ function Lists({ workspace, onNotice }) {
                   <td>{LIST_CHANNELS.find(([k]) => k === r.channel)?.[1] ?? r.channel}</td>
                   <td>{timeAgo(r.created_at)}{r.source !== "manual" && <small className="ba-muted"> · {r.source === "auto" ? "automatic" : "from an incident"}</small>}</td>
                   <td>{r.expires_at ? formatDay(r.expires_at, workspace.timezone) : "Until removed"}</td>
-                  <td>{r.reason || "—"}</td>
+                  <td>{r.reason || "None"}</td>
                   <td><button type="button" className="ba-btn sm" onClick={() => setRemoving(r)}>Remove</button></td>
                 </tr>
               ))}
@@ -583,15 +583,15 @@ function FollowUp({ inc }) {
   const f = r.facts ?? {};
   return (
     <section className="bp-section">
-      <h3>Automatic follow-up</h3>
-      {(st === "pending" || st === "processing") && <p className="ba-muted sp-small">Queued for follow-up (alerts and a repeat-sender check). Blocking and screening already happened when it came in.</p>}
+      <h3>Automatic follow up</h3>
+      {(st === "pending" || st === "processing") && <p className="ba-muted sp-small">Queued for follow up (alerts and a repeat sender check). Blocking and screening already happened when it came in.</p>}
       {st === "failed" && <p className="ba-muted sp-small">The follow-up couldn't run{r.fallback_notified ? ", so the team was told about it directly" : ""}. Nothing about how this sender is handled depends on it.</p>}
       {st === "done" && (
         <ul className="sp-followup">
           <li><Icon name={r.notified ? "notifications_active" : "notifications_off"} size="sm" />{r.notified ? "Team notified" : r.fallback_notified ? "Team notified directly" : "No alert needed"}{r.severity ? ` · ${r.severity} severity` : ""}</li>
           {Number(f.here_confirmed) > 0 && <li><Icon name="history" size="sm" />Your team confirmed this sender as spam {f.here_confirmed} time{Number(f.here_confirmed) === 1 ? "" : "s"} before</li>}
           {Number(f.other_businesses) > 0 && <li><Icon name="hub" size="sm" />Also seen at {f.other_businesses} other business{Number(f.other_businesses) === 1 ? "" : "es"} on Zella Voice this month</li>}
-          {r.restricted && <li><Icon name="block" size="sm" />Temporarily restricted by your auto-restrict setting (confirmed twice before)</li>}
+          {r.restricted && <li><Icon name="block" size="sm" />Temporarily restricted by your auto restrict setting (confirmed twice before)</li>}
           {r.escalated && <li><Icon name="shield" size="sm" />Reported to Zella Voice's security team</li>}
         </ul>
       )}
@@ -661,7 +661,7 @@ function Settings({ workspace, setup, loadError, onRetry, onSaved }) {
         <legend>Calls</legend>
         {ch.call === false ? <p className="ba-muted sp-small">Calls aren't connected for this business.</p> : (
           <div className="sp-grid">
-            <Field label="High-risk callers"><select value={form.call_screening} disabled={!can} onChange={(e) => set("call_screening", e.target.value)}><option value="flag">Answer and flag for review</option><option value="screen">Screen: the AI doesn't help them</option></select></Field>
+            <Field label="high risk callers"><select value={form.call_screening} disabled={!can} onChange={(e) => set("call_screening", e.target.value)}><option value="flag">Answer and flag for review</option><option value="screen">Screen: the AI doesn't help them</option></select></Field>
             <Field label="When screened, the AI"><select value={form.ai_spam_handling} disabled={!can} onChange={(e) => set("ai_spam_handling", e.target.value)}><option value="end_politely">Ends the call politely</option><option value="take_message">Takes a short message only</option></select></Field>
             <Field label="Flag after this many calls"><input type="number" min={2} max={50} value={form.repeat_call_limit} disabled={!can} {...num("repeat_call_limit", 2, 50)} /></Field>
             <Field label="Within (minutes)"><input type="number" min={5} max={1440} value={form.repeat_window_minutes} disabled={!can} {...num("repeat_window_minutes", 5, 1440)} /></Field>
@@ -683,11 +683,11 @@ function Settings({ workspace, setup, loadError, onRetry, onSaved }) {
       <fieldset className="sp-group" disabled={!form.enabled}>
         <legend>Responses and alerts</legend>
         {toggle("auto_restrict", "Temporarily restrict clear abuse", "Only with two or more signals at high risk, or a sender your team confirmed as spam twice, for 24 hours, on that channel. Never permanent; undo by marking it not spam.")}
-        {toggle("notify_high_risk", "Tell the team about high-risk incidents", "A few alerts an hour at most, without message content.")}
-        {toggle("notify_medium", "Also tell the team about medium-risk incidents", auto.live ? "Same hourly limit. Off by default to keep alerts useful." : "Needs Zella Voice's spam automation, which isn't switched on yet.")}
+        {toggle("notify_high_risk", "Tell the team about high risk incidents", "A few alerts an hour at most, without message content.")}
+        {toggle("notify_medium", "Also tell the team about medium risk incidents", auto.live ? "Same hourly limit. Off by default to keep alerts useful." : "Needs Zella Voice's spam automation, which isn't switched on yet.")}
         {toggle("weekly_report", "Weekly spam summary", auto.live ? "Every Monday, if anything was flagged the week before." : "Needs Zella Voice's spam automation, which isn't switched on yet.")}
         {toggle("ai_review", "AI second opinion on unclear texts and emails",
-          auto.ai_available ? "Only medium-risk messages, with names, numbers and addresses removed first. A suggestion for your team; it never blocks anyone." : "Not available yet: Zella Voice hasn't switched on AI review.", !auto.ai_available)}
+          auto.ai_available ? "Only medium risk messages, with names, numbers and addresses removed first. A suggestion for your team; it never blocks anyone." : "Not available yet: Zella Voice hasn't switched on AI review.", !auto.ai_available)}
       </fieldset>
       {can && <div className="sp-save"><button type="button" className="ba-btn primary" disabled={busy} onClick={save}>{busy ? "Saving…" : "Save settings"}</button></div>}
     </section>

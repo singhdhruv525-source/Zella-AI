@@ -47,12 +47,12 @@ export function dayRange(timeZone, offsetDays = 0, now = new Date()) {
 }
 
 export function formatTime(value, timeZone) {
-  if (!value) return "—";
+  if (!value) return "None";
   return new Date(value).toLocaleTimeString("en-US", { timeZone, hour: "numeric", minute: "2-digit" });
 }
 
 export function formatDay(value, timeZone) {
-  if (!value) return "—";
+  if (!value) return "None";
   return new Date(value).toLocaleDateString("en-US", {
     timeZone, weekday: "short", month: "short", day: "numeric",
   });
@@ -72,7 +72,7 @@ export function greeting(timeZone, now = new Date()) {
 }
 
 export function timeAgo(value) {
-  if (!value) return "—";
+  if (!value) return "None";
   const minutes = Math.round((Date.now() - new Date(value).getTime()) / 60000);
   if (minutes < 1) return "just now";
   if (minutes < 60) return `${minutes} min ago`;

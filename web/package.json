@@ -6,8 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "lint": "oxlint",
-    "preview": "vite preview"
+    "lint": "oxlint && node scripts/check-dashes.mjs",
+    "preview": "vite preview",
+    "check:writing": "node scripts/check-dashes.mjs --list"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",

@@ -11,7 +11,7 @@ const key = (name) => String(name ?? "").toLowerCase().replace(/[^a-z]/g, "");
 // Industry flavour: a restaurant talks about tables and guests, not appointments and customers.
 const BY_INDUSTRY = {
   restaurant: {
-    industry_alert: (n) => [`Kitchen-side heads up: ${n.title}`, `Front of house, take a look: ${n.title}`, `Zella Voice spotted something: ${n.title}`],
+    industry_alert: (n) => [`Kitchen side heads up: ${n.title}`, `Front of house, take a look: ${n.title}`, `Zella Voice spotted something: ${n.title}`],
     appointment_cancelled: ["A reservation was canceled. A table just opened up.", "One cancellation. That table is free again."],
     appointment_rescheduled: ["A guest picked a different time. Reservations are updated."],
     customer_arrived: (n) => [`${n.title}. Time to show them to their table!`, `${n.title}. A warm welcome awaits.`],
@@ -71,7 +71,7 @@ const TITLES = {
     : ["A new lead just walked in!", "Fresh lead! Someone's interested in you.", "Someone new wants to talk. Say hello!"],
   website_lead: ["Your website just made a new friend.", "Someone filled in your form. Say hello!"],
   social_lead: ["A new lead found you on social media!", "Someone reached out from social. Say hello!"],
-  callback: ["Someone's waiting for your call.", "A callback is waiting. They'd love to hear from you.", "A friendly call-back is on your list."],
+  callback: ["Someone's waiting for your call.", "A callback is waiting. They'd love to hear from you.", "A friendly callback is on your list."],
   callback_assigned: ["A callback was handed to you. Over to you!", "You've got a callback. A warm voice will go a long way."],
   callback_soon: ["A callback is coming up soon. Almost time!", "Heads up: a callback is due shortly."],
   callback_overdue: ["Someone is still waiting on that callback.", "A callback is running late. A quick call will make their day."],
@@ -95,9 +95,9 @@ const TITLES = {
   slow_reply: ["A customer's been waiting a little while for a reply."],
   call_insight: ["Zella Voice noticed something worth a look on a recent call.", "A recent call has something worth your attention."],
   approval_requested: ["Someone is asking for your thumbs up."],
-  approval_waiting: ["A thumbs-up is still waiting on you."],
+  approval_waiting: ["A thumbs up is still waiting on you."],
   time_off_request: ["A teammate is hoping for some time off.", "Someone on your team has asked for time off."],
-  time_off_decision: ["There's an answer on your time-off request."],
+  time_off_decision: ["There's an answer on your time off request."],
   staff_joined: ["A new teammate just joined. Welcome them in!", "Say hello! Someone new has joined the team."],
   staff_unavailable: ["Someone on your team is away. We've kept things covered."],
   went_live: ["You're live! Zella Voice is picking up the phone.", "It's official: Zella Voice is on the line for you."],
@@ -140,11 +140,11 @@ Object.assign(TITLES, {
   subscription_cancelled: ["Your subscription was canceled. Your records are safe for now."],
   cancellation_coming: ["Your plan is ending soon. Want to keep Zella Voice answering?"],
   trial_ended: ["Your trial has ended. We'd love to keep helping you."],
-  usage_threshold: (n) => [`Minutes check-in: ${n.title}`, `Heads up on your minutes: ${n.title}`],
+  usage_threshold: (n) => [`Minutes check in: ${n.title}`, `Heads up on your minutes: ${n.title}`],
   // calls, callbacks and the AI receptionist
   agent_failures: ["Your AI receptionist hit a few bumps. Worth a look."],
   agent_sync_failed: ["An update didn't reach your AI receptionist yet. We'll try again."],
-  callback_digest: ["Your callback round-up is ready."],
+  callback_digest: ["Your callback roundup is ready."],
   callback_escalated: ["A callback needs someone senior. Can you step in?"],
   callback_review: ["A callback needs a quick check before anyone calls."],
   transfer_failures: ["Calls couldn't be passed to a person a few times. Let's check the number."],
@@ -152,15 +152,15 @@ Object.assign(TITLES, {
   wrong_answer_reported: ["Someone flagged an answer from your AI receptionist. Let's fix it together."],
   spot_check: ["A few AI conversations are ready for a quick spot check."],
   on_call_starting: (n) => /^You're on call/.test(n.title)
-    ? [`${n.title}. Phone charged? You've got this.`, `${n.title}. After-hours calls will come to you.`]
-    : [`${n.title}. After-hours calls are covered.`, `Tonight's cover: ${n.title.replace(/^(.+) is on call/, "$1, on call")}.`],
+    ? [`${n.title}. Phone charged? You've got this.`, `${n.title}. after hours calls will come to you.`]
+    : [`${n.title}. after hours calls are covered.`, `Tonight's cover: ${n.title.replace(/^(.+) is on call/, "$1, on call")}.`],
   // leads, work and the team
   lead_assigned: ["A new lead has your name on it. Say hello!", "You've got a lead! A quick hello goes a long way."],
   task_escalated: ["A task needs a hand. Can you help it over the line?"],
   appointment_request: ["Someone asked for an appointment. Pick a time that suits.", "A booking request is waiting for your yes."],
-  appointments_need_outcome: ["A few visits need marking as done or no-show.", "Quick tidy-up: a few bookings need an outcome."],
+  appointments_need_outcome: ["A few visits need marking as done or no show.", "Quick tidy up: a few bookings need an outcome."],
   customer_request_overdue: ["A customer's request is still waiting. Let's close the loop."],
-  team_scorecard: ["A few things are waiting from last week.", "Monday check-in: a little catching up to do."],
+  team_scorecard: ["A few things are waiting from last week.", "Monday check in: a little catching up to do."],
   duplicate_scan: ["We found some records that may be the same person."],
   calendar_sync_owner: ["Your calendar sync needs a look."],
   // messages and email
@@ -168,7 +168,7 @@ Object.assign(TITLES, {
   email_unsubscribed: ["A customer unsubscribed from emails. We'll respect that."],
   kpi_message_failures: ["More messages than usual didn't get through. Let's check why."],
   kpi_missed_calls: ["More calls than usual went unanswered. Let's look together."],
-  kpi_no_shows: ["No-shows are a little higher than usual. Reminders may help."],
+  kpi_no_shows: ["no shows are a little higher than usual. Reminders may help."],
   // knowledge and the website
   knowledge_gap: ["Callers asked something your AI couldn't answer. Teach it once, it remembers.", "A new question came up. A quick answer helps every caller after."],
   knowledge_repeat: ["The same question keeps coming up. Worth adding to Knowledge?"],

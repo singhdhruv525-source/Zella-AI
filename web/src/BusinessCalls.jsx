@@ -118,13 +118,13 @@ function CallDetail({ call, person, followUps, roster, workspace, onClose, onCha
           <div className="full ba-form-actions"><button type="submit" className="ba-btn primary sm" disabled={Boolean(busy)}>Save outcome</button></div>
         </form>
 
-        <h3 className="ba-sub">Follow-up</h3>
-        {!followUps.length ? <p className="ba-muted">No follow-up linked to this call.</p> : (
+        <h3 className="ba-sub">follow up</h3>
+        {!followUps.length ? <p className="ba-muted">No follow up linked to this call.</p> : (
           <ul className="ba-threads">
             {followUps.map((f) => (
               <li key={f.id}>
                 <span className="ba-thread-icon"><Icon name="phone_callback" size="sm" /></span>
-                <div><strong>{f.kind === "callback" ? (CB_REASON[f.reason] ?? "Callback") : "Follow-up call"}</strong><small>{f.done ? "Done" : `Due ${when(f.due_at, tz)}`}</small></div>
+                <div><strong>{f.kind === "callback" ? (CB_REASON[f.reason] ?? "Callback") : "follow up call"}</strong><small>{f.done ? "Done" : `Due ${when(f.due_at, tz)}`}</small></div>
               </li>
             ))}
           </ul>
@@ -139,7 +139,7 @@ function CallDetail({ call, person, followUps, roster, workspace, onClose, onCha
         )}
         {call.recording_url && !recordingAllowed(call) && <p className="ba-muted">A recording exists but is hidden because the caller didn't agree to be recorded.</p>}
         <section><h3 className="ba-sub">Transcript</h3><Transcript transcript={call.transcript} role={workspace.role} /></section>
-        <section><h3 className="ba-sub">Hand-off</h3><EscalationControls call={call} onChanged={onChanged} onNotice={onNotice} /></section>
+        <section><h3 className="ba-sub">handoff</h3><EscalationControls call={call} onChanged={onChanged} onNotice={onNotice} /></section>
       </div>
     </Modal>
   );
@@ -231,7 +231,7 @@ export function CallsPage({ workspace, refreshKey, onNotice, onOpenPerson, trans
       <PageHead
         crumb={transcriptsOnly ? "AI Receptionist / Transcripts" : "Calls & messages / Calls"}
         title={transcriptsOnly ? "Transcripts and recordings" : "Calls"}
-        sub={transcriptsOnly ? "What callers said and how your AI receptionist answered." : missedOpen ? `${plural(missedOpen, "missed call")} still waiting for a follow-up.` : "Every call, what came of it, and who is following up."}
+        sub={transcriptsOnly ? "What callers said and how your AI receptionist answered." : missedOpen ? `${plural(missedOpen, "missed call")} still waiting for a follow up.` : "Every call, what came of it, and who is following up."}
       >
         <Segment label="Call filter" value={filter} onChange={setFilter} options={FILTERS} />
       </PageHead>
@@ -262,11 +262,11 @@ export function CallsPage({ workspace, refreshKey, onNotice, onOpenPerson, trans
                         <td><Pill tone={callResult(c.status).tone}>{missed && c.metadata?.followed_up_at ? "Missed, followed up" : callResult(c.status).label}</Pill></td>
                         <td>{c.ai_handled ? "AI receptionist" : "Team"}</td>
                         <td>{clock(c.duration_seconds)}</td>
-                        <td>{c.outcome ? <Pill tone={OUTCOME_TONE[c.outcome]}>{OUTCOMES[c.outcome]}</Pill> : <span className="ba-muted">—</span>}</td>
+                        <td>{c.outcome ? <Pill tone={OUTCOME_TONE[c.outcome]}>{OUTCOMES[c.outcome]}</Pill> : <span className="ba-muted">None</span>}</td>
                         <td><Assignee id={c.assigned_to} nameOf={roster.nameOf} /></td>
                         <td className="ba-actions ba-calls-flags">
                           {isOpenEscalation(c) && <Pill tone="danger">Needs a person</Pill>}
-                          {openLinks > 0 && <Pill tone="info" >Follow-up set</Pill>}
+                          {openLinks > 0 && <Pill tone="info" >follow up set</Pill>}
                           {recordingAllowed(c) && <Icon name="graphic_eq" size="sm" />}
                           {c.has_transcript && <Icon name="subject" size="sm" />}
                         </td>
