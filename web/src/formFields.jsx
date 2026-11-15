@@ -68,6 +68,7 @@ export function PhoneField({ value, onChange, required = false, disabled = false
         </label>
         <input
           id={inputId}
+          aria-label={label}
           type="tel"
           inputMode="tel"
           autoComplete="tel-national"

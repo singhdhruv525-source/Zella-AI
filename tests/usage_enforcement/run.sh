@@ -29,7 +29,15 @@ ok "applies twice (each patch guarded)"
 out=$("${P[@]}" -d $DB 2>&1 <<'SQL'
 -- test data only
 insert into businesses (id, name, phone) values ('b0000000-0000-4000-8000-0000000000f1', 'Test Studio', '(555) 010-2040'),
-                                                ('b0000000-0000-4000-8000-0000000000f2', 'Test No Number', null);
+                                                ('b0000000-0000-4000-8000-0000000000f2', 'Test No Number', '(555) 010-2041');
+-- the fallback number lives in the receptionist's rules (set at Create Business); the second business has none, and its
+-- own phone must never be used instead
+insert into ai_agents (id, business_id, name, agent_type, is_default) values
+  ('a6000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-0000000000f1', 'Receptionist', 'receptionist', true),
+  ('a6000000-0000-4000-8000-000000000002', 'b0000000-0000-4000-8000-0000000000f2', 'Receptionist', 'receptionist', true);
+insert into ai_agent_configs (agent_id, business_id, escalation_rules) values
+  ('a6000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-0000000000f1', '{"fallback_number": "+15550103000"}'),
+  ('a6000000-0000-4000-8000-000000000002', 'b0000000-0000-4000-8000-0000000000f2', '{}');
 create table test_state (business_id uuid primary key, call_status text, msg_exhausted boolean, buffer_left boolean);
 insert into test_state values ('b0000000-0000-4000-8000-0000000000f1', 'active', false, true), ('b0000000-0000-4000-8000-0000000000f2', 'active', false, true);
 -- stand ins: the allowance lookups read test_state; the number lookup finds the first business
@@ -41,7 +49,7 @@ create or replace function public.zella_message_allowance(p_business_id uuid, p_
                                'reason', case when not msg_exhausted then 'within_allowance' when p_kind = 'appointment' and buffer_left then 'buffer' else 'allowance_used' end)
         from test_state where business_id = p_business_id $f$;
 create or replace function public.zella_business_for_number(p_called_number text, p_vapi_phone_number_id text default null, p_fallback uuid default null) returns uuid language sql stable as
-  $f$ select case when p_called_number = '+15550000001' then 'b0000000-0000-4000-8000-0000000000f1'::uuid else 'b0000000-0000-4000-8000-0000000000f2'::uuid end $f$;
+  $f$ select case when p_called_number = '+15550000001' then 'b0000000-0000-4000-8000-0000000000f1'::uuid end $f$;   -- +15550000001 is a Zella Voice line
 SQL
 ) || { bad "seed: $(echo "$out" | grep -m1 ERROR)"; exit 1; }
 
@@ -53,13 +61,13 @@ do $$ declare g jsonb; r jsonb; begin
   -- minutes used up, switch OFF: still answered; reports it would forward to the business's own number
   update test_state set call_status = 'exhausted' where business_id = 'b0000000-0000-4000-8000-0000000000f1';
   g := public.zella_call_gate('b0000000-0000-4000-8000-0000000000f1');
-  assert g ->> 'action' = 'answer' and (g ->> 'would_forward')::boolean and g ->> 'number' = '+15550102040' and not (g ->> 'enforced')::boolean, 'off: ' || g;
+  assert g ->> 'action' = 'answer' and (g ->> 'would_forward')::boolean and g ->> 'number' = '+15550103000' and not (g ->> 'enforced')::boolean, 'off: ' || g;
   r := public.zella_assistant_for_call('+15550000001', null, 'call_off');
   assert r ->> 'outcome' is distinct from 'forward', 'switch off forwarded a call';
   -- switch ON: forwarded and recorded
   update platform_settings set value = '{"calls": true, "messages": false}' where key = 'usage_enforcement';
   r := public.zella_assistant_for_call('+15550000001', null, 'call_on');
-  assert r ->> 'outcome' = 'forward' and r ->> 'forward_number' = '+15550102040' and r ->> 'reason' = 'allowance_used', 'on: ' || r;
+  assert r ->> 'outcome' = 'forward' and r ->> 'forward_number' = '+15550103000' and r ->> 'reason' = 'allowance_used', 'on: ' || r;
   assert exists (select 1 from assistant_deliveries where provider_call_id = 'call_on' and outcome = 'forwarded_usage'), 'forward recorded';
   -- a paused or unpaid business is forwarded the same way
   update test_state set call_status = 'inactive' where business_id = 'b0000000-0000-4000-8000-0000000000f1';
@@ -74,11 +82,28 @@ do $$ declare g jsonb; r jsonb; begin
   g := public.zella_call_gate('b0000000-0000-4000-8000-0000000000f1');
   assert g ->> 'action' = 'forward', 'pay as you go without a rate on the plan must not answer for free: ' || g;
   -- a number written with + that isn't valid E.164 is no number: answered, never forwarded to a number voice-rules would refuse
-  update businesses set phone = '+0123456789' where id = 'b0000000-0000-4000-8000-0000000000f2';
+  update ai_agent_configs set escalation_rules = '{"fallback_number": "+0123456789"}' where agent_id = 'a6000000-0000-4000-8000-000000000002';
   update test_state set call_status = 'exhausted' where business_id = 'b0000000-0000-4000-8000-0000000000f2';
   g := public.zella_call_gate('b0000000-0000-4000-8000-0000000000f2');
   assert g ->> 'action' = 'answer' and g ->> 'number' is null, 'invalid + number: ' || g;
-  raise notice 'PASS calls: answered while the switch is off (with what it would do); at 100%% with the switch on, forwarded to the business''s own number and recorded; paused businesses too; never dropped without a number; pay as you go needs a rate';
+  -- a fallback that rings back into Zella Voice would loop: a Zella Voice line, or the business line that forwards here
+  update test_state set call_status = 'exhausted' where business_id = 'b0000000-0000-4000-8000-0000000000f1';
+  delete from business_usage_preferences where business_id = 'b0000000-0000-4000-8000-0000000000f1';
+  update ai_agent_configs set escalation_rules = '{"fallback_number": "+15550000001"}' where agent_id = 'a6000000-0000-4000-8000-000000000001';
+  g := public.zella_call_gate('b0000000-0000-4000-8000-0000000000f1');
+  assert g ->> 'action' = 'answer' and g ->> 'number' is null, 'zella line as fallback: ' || g;
+  update ai_agent_configs set escalation_rules = '{"fallback_number": "+15550104000"}' where agent_id = 'a6000000-0000-4000-8000-000000000001';
+  update businesses set setup_data = '{"integrations": {"phone": {"forward_from": "(555) 010-4000"}}}' where id = 'b0000000-0000-4000-8000-0000000000f1';
+  g := public.zella_call_gate('b0000000-0000-4000-8000-0000000000f1');
+  assert g ->> 'action' = 'answer' and g ->> 'number' is null, 'forwarding line as fallback: ' || g;
+  -- the same line written two ways (spaces in the setup answer, compact in call routing) is still the same line
+  update ai_agent_configs set escalation_rules = '{"fallback_number": "+442079460000"}' where agent_id = 'a6000000-0000-4000-8000-000000000001';
+  update businesses set setup_data = '{"integrations": {"phone": {"forward_from": "+44 20 7946 0000"}}}' where id = 'b0000000-0000-4000-8000-0000000000f1';
+  g := public.zella_call_gate('b0000000-0000-4000-8000-0000000000f1');
+  assert g ->> 'action' = 'answer' and g ->> 'number' is null, 'formatted international forwarding line: ' || g;
+  assert public.zella_strict_e164('+44 20 7946 0000') = '+442079460000' and public.zella_strict_e164('(555) 210-3000') = '+15552103000'
+     and public.zella_strict_e164('+0123456789') is null and public.zella_strict_e164('0123456789') is null, 'strict e164';
+  raise notice 'PASS calls: answered while the switch is off (with what it would do); at 100%% with the switch on, forwarded to the business''s fallback number and recorded; never its own phone; paused businesses too; never dropped without a number; never forwarded back into Zella Voice; pay as you go needs a rate';
 end $$;
 SQL
 ) && echo "$out" | grep -o 'PASS .*' || bad "calls: $(echo "$out" | grep -m2 -E 'ERROR|CONTEXT' | tr '\n' ' ')"
