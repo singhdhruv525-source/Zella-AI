@@ -215,10 +215,16 @@ end $$;
 -- 7. the safety net: every minute (pg_cron) for retries and anything a kick missed, created switched OFF like the other
 -- timed jobs: turning it on is a live switch for the owner
 -- (update cron.job set active = true where jobname = 'zella_platform_emails'); even then it does nothing until platform_emails_url is set
-do $$ begin
+-- Supabase does not allow editing cron.job directly, so the job is switched off with cron.alter_job; the direct
+-- update is only for a database whose pg_cron has no alter_job (older versions).
+do $$ declare v_id bigint; begin
   if to_regnamespace('cron') is not null and not exists (select 1 from cron.job where jobname = 'zella_platform_emails') then
-    perform cron.schedule('zella_platform_emails', '* * * * *', 'select public.zella_dispatch_platform_emails()');
-    update cron.job set active = false where jobname = 'zella_platform_emails';
+    v_id := cron.schedule('zella_platform_emails', '* * * * *', 'select public.zella_dispatch_platform_emails()');
+    if to_regprocedure('cron.alter_job(bigint,text,text,text,text,boolean)') is not null then
+      perform cron.alter_job(job_id := v_id, active := false);
+    else
+      update cron.job set active = false where jobid = v_id;
+    end if;
   end if;
 end $$;
 

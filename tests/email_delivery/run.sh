@@ -21,6 +21,11 @@ before_claim=$(q "select md5(pg_get_functiondef('public.zella_claim_platform_ema
 # a setting that already exists before the migration must survive its rollback
 q "insert into platform_settings (key, value) values ('platform_emails_url', '\"\"'::jsonb)" > /dev/null
 
+# production's pg_cron refuses a direct edit of cron.job: the file must switch its job off through cron.alter_job.
+# This copy has no alter_job, so a stand in records each call and does what the real one does.
+q "create table if not exists public._alter_job_calls (job_id bigint, active boolean)" > /dev/null
+q "create or replace function cron.alter_job(job_id bigint, schedule text default null, command text default null, database text default null, username text default null, active boolean default null) returns void language sql as \$f\$ insert into public._alter_job_calls values (job_id, active); update cron.job set active = coalesce(alter_job.active, cron.job.active) where jobid = alter_job.job_id \$f\$" > /dev/null
+
 # Exercise the migration itself against supported and unsupported Vault signatures.
 q "drop function vault.create_secret(text,text,text)" > /dev/null
 vault_types=''
@@ -65,6 +70,8 @@ ok "applies twice"
   && ok "server only" || bad "callable from the browser"
 [ "$(q "select count(*) from vault.secrets where name = 'zella_platform_emails_secret'")" = 1 ] && [ "$(q "select count(*) from cron.job where jobname = 'zella_platform_emails' and not active")" = 1 ] \
   && ok "one secret in Vault and one job, switched off, even after two runs" || bad "secret or job missing, doubled or switched on"
+[ "$(q "select count(*) from public._alter_job_calls c join cron.job j on j.jobid = c.job_id where j.jobname = 'zella_platform_emails' and c.active = false")" -ge 1 ] \
+  && ok "the job is switched off through cron.alter_job (production does not allow editing cron.job)" || bad "the job was not switched off through cron.alter_job"
 [ "$(q "select count(*) filter (where tgenabled = 'D') || '/' || count(*) from pg_trigger where tgname = 'zella_kick_platform_emails'")" = 2/2 ] \
   && [ "$(q "select has_function_privilege('authenticated', 'public.zella_kick_platform_emails()', 'execute')")" = f ] \
   && ok "event triggers on both tables, one each after two runs, created switched off" || bad "event triggers missing, doubled or switched on"
