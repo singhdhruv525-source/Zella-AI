@@ -39,15 +39,17 @@ const BY_INDUSTRY = {
 
 // Every industry talks about its own people and bookings: patients and appointments, guests and tables, tenants and viewings.
 const NOUNS = {"automotive": {"p": "customer", "ps": "customers", "b": "service slot"}, "beautysalon": {"p": "client", "ps": "clients", "b": "chair"}, "childcare": {"p": "family", "ps": "families", "b": "tour"}, "cleaningservices": {"p": "client", "ps": "clients", "b": "clean"}, "dental": {"p": "patient", "ps": "patients", "b": "appointment"}, "ecommerce": {"p": "customer", "ps": "customers", "b": "order"}, "education": {"p": "student", "ps": "students", "b": "session"}, "electrical": {"p": "customer", "ps": "customers", "b": "job"}, "financialservices": {"p": "client", "ps": "clients", "b": "consultation"}, "fitness": {"p": "member", "ps": "members", "b": "class"}, "healthcare": {"p": "patient", "ps": "patients", "b": "appointment"}, "homeservices": {"p": "customer", "ps": "customers", "b": "visit"}, "hospitality": {"p": "guest", "ps": "guests", "b": "stay"}, "hvac": {"p": "customer", "ps": "customers", "b": "service call"}, "insurance": {"p": "client", "ps": "clients", "b": "review"}, "landscapinglawncare": {"p": "customer", "ps": "customers", "b": "visit"}, "legal": {"p": "client", "ps": "clients", "b": "consultation"}, "other": {"p": "customer", "ps": "customers", "b": "booking"}, "pestcontrol": {"p": "customer", "ps": "customers", "b": "visit"}, "petcareveterinary": {"p": "pet owner", "ps": "pet owners", "b": "visit"}, "photographyevents": {"p": "client", "ps": "clients", "b": "shoot"}, "plumbing": {"p": "customer", "ps": "customers", "b": "job"}, "professionalservices": {"p": "client", "ps": "clients", "b": "meeting"}, "propertymanagement": {"p": "tenant", "ps": "tenants", "b": "viewing"}, "realestate": {"p": "buyer", "ps": "buyers", "b": "viewing"}, "restaurant": {"p": "guest", "ps": "guests", "b": "table"}, "spawellness": {"p": "guest", "ps": "guests", "b": "treatment"}, "travel": {"p": "traveller", "ps": "travellers", "b": "trip"}};
-function industryVoice(k) {
+// The business's own words win: terminology set for this workspace ("session", "client") replaces the industry's.
+function industryVoice(k, own = {}) {
   const n = NOUNS[k];
   if (!n || k === "other") return null;
-  const P = n.p, B = n.b;
+  const P = own.customer || n.p, B = own.appointment || n.b;
   const a = /^[aeiou]/i.test(P) ? "An" : "A";
-  const Ps = n.ps.charAt(0).toUpperCase() + n.ps.slice(1);
+  const ps = own.customers || (own.customer ? plural(own.customer) : n.ps);
+  const Ps = ps.charAt(0).toUpperCase() + ps.slice(1);
   return {
     best_day: [`A record day for your ${plural(B)}`, `Your busiest day for ${plural(B)} in three months`],
-    call_surge: [`${Ps} are calling in numbers today`, `A busy day on the phones with your ${n.ps}`],
+    call_surge: [`${Ps} are calling in numbers today`, `A busy day on the phones with your ${ps}`],
     new_lead: () => [`${a} new ${P} is getting in touch. Say hello!`, `Someone new wants to become ${a.toLowerCase()} ${P}. Say hello!`, `A new ${P} enquiry just arrived.`],
     callback: [`${a} ${P} is waiting for your call.`, `${a} ${P} would love a call back.`],
     appointment_cancelled: [`A ${B} was canceled. That time is free again.`, `One ${B} canceled. Your calendar has room.`],
@@ -241,12 +243,18 @@ const EXTRA = {
 };
 for (const [kind, extra] of Object.entries(EXTRA)) if (Array.isArray(TITLES[kind])) TITLES[kind] = [...TITLES[kind], ...extra];
 
+const ownWords = (workspace) => {
+  const t = workspace?.terminology ?? {};
+  const w = (k) => (typeof t[k] === "string" && t[k].trim() ? t[k].trim().toLowerCase() : "");
+  return { customer: w("customer"), customers: w("customers"), appointment: w("appointment") };
+};
+
 // Notification shown in the bell: same facts, friendlier words.
 export function voiceTitle(n, workspace) {
   const term = workspace?.terminology ? (k) => workspace.terminology[k] || k : null;
   if (n.kind === "industry_alert" && n.severity === "urgent") return localize(n.title, term); // urgent stays plain and direct
   const ind = key(workspace?.industry);
-  const entry = BY_INDUSTRY[ind]?.[n.kind] ?? industryVoice(ind)?.[n.kind] ?? TITLES[n.kind];
+  const entry = BY_INDUSTRY[ind]?.[n.kind] ?? industryVoice(ind, ownWords(workspace))?.[n.kind] ?? TITLES[n.kind];
   if (!entry) return localize(n.title, term);
   const list = typeof entry === "function" ? entry(n) : entry;
   return localize(choose(list, n.id ?? n.title), term);

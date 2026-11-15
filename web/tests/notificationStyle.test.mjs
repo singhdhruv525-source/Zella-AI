@@ -35,6 +35,14 @@ test("new moments speak each industry's language", () => {
   assert.match(dental, /patients/i);
   const plain = voiceTitle(note("best_day"), { industry: "Other" });
   assert.ok(["A record day for bookings", "Your busiest booking day in three months"].includes(plain), plain);
+  // the business's own words win over the industry's
+  const own = voiceTitle(note("best_day"), { industry: "Fitness", terminology: { appointment: "Session", appointments: "Sessions" } });
+  assert.match(own, /sessions/);
+  assert.doesNotMatch(own, /classes/);
+  const cancelled = voiceTitle(note("appointment_cancelled"), { industry: "Fitness", terminology: { appointment: "Session" } });
+  assert.match(cancelled, /session/i);
+  const clients = voiceTitle(note("call_surge"), { industry: "Dental", terminology: { customer: "Client", customers: "Clients" } });
+  assert.match(clients, /clients/i);
   // an on call gap keeps its own title: full and partial gaps say different things
   assert.equal(voiceTitle(note("on_call_gap", { title: "No one is on call this weekend", severity: "warning" }), { industry: "Plumbing" }), "No one is on call this weekend");
 });
