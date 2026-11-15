@@ -1335,16 +1335,24 @@ flowchart TD
 ### 14.4 Emails from Zella Voice to businesses
 
 Everything Zella Voice itself sends to a business (owner, billing contacts, team) is one catalogue with one layout,
-`web/src/emails/businessEmails.js` (listed in `docs/BUSINESS_EMAILS.md`; billing rules in `docs/BILLING_EMAILS.md`).
-**Intended flow** (status 15 Nov 2026: catalogue, layout and admin preview built; the outbox is written and tested on
-the isolated database but not applied; no sender is connected and no trigger queues an email yet): the server renders
-from that file and queues each email in the platform outbox (`platform_emails`, `sql/zella_platform_emails.sql`)
-under a key unique per business, so it is sent at most once. Nothing leaves while `email_live` is
-off (rows become `dry_run`). The sender (to be built) passes `<business_id>:<key>` to the provider as its idempotency key (keys are unique per business, so
-the business makes them unique at the provider) and finishes
-each email with the claim token it was given; after 5 failed tries the email is held for a person with an admin alert. Optional emails follow the person's notification preferences; emails
-about the account, the service or money are always sent. These are separate from emails to a business's customers
-(`email_messages`, §14.1), which carry consent and quiet hours rules.
+`web/supabase/functions/_shared/businessEmails.js` (listed in `docs/BUSINESS_EMAILS.md`; billing rules in
+`docs/BILLING_EMAILS.md`), used by the admin preview and by the sender, so both show exactly the same email.
+
+Delivery (`sql/zella_email_delivery.sql`, the `platform-emails` edge function):
+1. Every minute the database calls `platform-emails` only when there is work (notifications waiting, or outbox emails
+   due) and only once `platform_emails_url` is set. The call carries a secret created inside Vault; the database checks
+   it, so no secret lives in the function.
+2. Notifications that go by email (`zella_claim_notification_emails`: daily summary, weekly review, every warning or
+   urgent alert; each person's choice per kind; one person's notification to that person, the rest to owners and
+   admins) are written as email N1 in strict mode (a missing fact stops the email, never a sample value) and queued in
+   the platform outbox (`platform_emails`) under `email:N1:<notification>:<person>`, unique per business.
+3. Due outbox emails are sent through Resend with `<business_id>:<key>` as the idempotency key and finished with the
+   claim token they came with; after 5 failed tries an email is held for a person with an admin alert.
+Nothing leaves while `email_live` is off (rows become `dry_run`), without a sender address, or without the provider key.
+The n8n Owner Emails workflow is retired (its claim returns nothing), so no notification is emailed twice. Emails with
+their own facts (welcome, billing, security confirmations) are queued by the event that has those facts: billing ones
+per Stripe event in step 4; sign up, invitation and password emails are sent by Supabase Auth. Emails to a business's
+customers are separate (`email_messages`, §14.1) and carry consent and quiet hours rules.
 
 ## 15. Appointments, check-in and waitlist
 

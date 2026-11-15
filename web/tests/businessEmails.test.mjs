@@ -79,3 +79,15 @@ test("emails about a change say which way it went", () => {
     assert.doesNotMatch(b.subject + b.text, yes, `${code} false says the opposite`);
   }
 });
+
+test("strict mode (the sender): a missing fact stops the email instead of using a sample value", () => {
+  assert.throws(() => renderEmail("C3", { business: "B", role: "owner" }, { strict: true }), /MISSING_FIELD:C3:/);
+  const n = renderEmail("N1", { business: "Glow Studio", role: "admin", title: "A task is late", severity: "warning" }, { strict: true });
+  assert.equal(n.subject, "A task is late");
+  assert.doesNotMatch(n.html + n.text, /Maple Street Dental|support@example\.com|Open Zella Voice/);
+  assert.match(n.text, /an admin of Glow Studio/);
+  assert.match(n.text, /Questions\? Reply to this email\./);
+  const u = renderEmail("N1", { business: "B", role: "owner", title: "Emergency", severity: "urgent", mandatory: true, appUrl: "https://app.example.com", pagePath: "/calls" }, { strict: true });
+  assert.equal(u.mandatory, true);
+  assert.match(u.html, /https:\/\/app\.example\.com\/calls/);
+});
