@@ -489,14 +489,19 @@ function BusinessHome() {
   // The business last opened on this device, so a refresh stays in it. Only a convenience: the list of businesses
   // comes from the server, and an id that isn't in it is ignored.
   // A link from an email names its business (?business=<id>): that one opens, if this person belongs to it (the list
-  // below decides; any other id is ignored). The parameter is then taken out of the address.
+  // below decides; any other id is ignored). The parameter is then taken out of the address. The id is also kept on
+  // this device for 30 minutes, so it survives signing in first (Google and SSO come back to /app without it, and a
+  // sign in link may open in a new tab); it is cleared once the person's businesses have loaded.
   const [selectedId, setSelectedIdRaw] = useState(() => {
     const fromLink = new URLSearchParams(window.location.search).get("business");
     if (fromLink && /^[0-9a-f-]{36}$/i.test(fromLink)) {
       const url = new URL(window.location.href); url.searchParams.delete("business");
       window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+      rememberLinkBusiness(fromLink.toLowerCase());
       return fromLink.toLowerCase();
     }
+    const pending = linkBusiness();
+    if (pending) return pending;
     try { return localStorage.getItem(LAST_BUSINESS); } catch { return null; }
   });
   const setSelectedId = (next) => setSelectedIdRaw((current) => {
@@ -527,7 +532,13 @@ function BusinessHome() {
       setIsAdmin(admin === true);
     }
     setWorkspaces(data ?? []);
-    setSelectedId((current) => ((data ?? []).some((w) => w.id === current) ? current : data?.[0]?.id ?? null));
+    const pending = linkBusiness();
+    forgetLinkBusiness();
+    setSelectedId((current) => {
+      const want = pending ?? current;
+      if ((data ?? []).some((w) => w.id === want)) return want;
+      return (data ?? []).some((w) => w.id === current) ? current : data?.[0]?.id ?? null;
+    });
   }, []);
 
   useEffect(() => {
@@ -629,6 +640,21 @@ function BusinessHome() {
 // while running locally (npm run dev) and is removed from production builds.
 // It has no data and cannot save anything, because there is no signed-in user.
 const LAST_BUSINESS = "zella.lastBusiness";
+// The business named by an email link, kept across signing in (BusinessHome). Only a hint: the server's list decides.
+const LINK_BUSINESS = "zella.linkBusiness";
+const LINK_BUSINESS_MS = 30 * 60 * 1000;
+function rememberLinkBusiness(id) {
+  try { localStorage.setItem(LINK_BUSINESS, JSON.stringify({ id, at: Date.now() })); } catch { /* private mode: the link still opens it now */ }
+}
+function linkBusiness() {
+  try {
+    const v = JSON.parse(localStorage.getItem(LINK_BUSINESS) ?? "null");
+    return v && typeof v.id === "string" && /^[0-9a-f-]{36}$/.test(v.id) && Date.now() - Number(v.at) < LINK_BUSINESS_MS ? v.id : null;
+  } catch { return null; }
+}
+function forgetLinkBusiness() {
+  try { localStorage.removeItem(LINK_BUSINESS); } catch { /* nothing to clear */ }
+}
 
 const PREVIEW_WORKSPACE = {
   // A real-shaped UUID that matches no business. Queries return nothing instead
