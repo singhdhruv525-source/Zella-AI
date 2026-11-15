@@ -100,7 +100,7 @@ Deno.serve(async (req: Request) => {
       p_called_number: p.calledNumber, p_vapi_phone_number_id: p.vapiNumberId, p_provider_call_id: p.providerCallId,
     }, left()));
     const reply = assistantReply(!r.error, r.data);
-    return respond(reply, 200, t, started, "assistant" in reply ? "assistant" : "assistantId" in reply ? "assistant_fallback" : "assistant_refused");
+    return respond(reply, 200, t, started, "assistant" in reply ? "assistant" : "assistantId" in reply ? "assistant_fallback" : "destination" in reply ? "assistant_forwarded" : "assistant_refused");
   }
 
   if (p.kind === "transfer") {
