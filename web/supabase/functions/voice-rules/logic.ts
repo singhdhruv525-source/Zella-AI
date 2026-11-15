@@ -126,15 +126,8 @@ export function transferReply(ok: boolean, d: Json | null): Json {
 // Vapi speaks to the caller before ending the call. Nothing about a business is returned for a number that isn't its.
 export const CANT_TAKE = "Sorry, we can't take your call right now. Please call again a little later.";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-// A business at its usage limit (sql/zella_usage_enforcement.sql, switch on) gets the call forwarded to its own number:
-// `destination` of type "number" transfers at once without an assistant (ServerMessageResponseAssistantRequestDestination).
-const E164 = /^\+[1-9][0-9]{7,14}$/;
-export const FORWARD_MESSAGE = "Connecting you now.";
 export function assistantReply(ok: boolean, d: unknown): Json {
   const r = obj(d);
-  if (ok && r.outcome === "forward" && typeof r.forward_number === "string" && E164.test(r.forward_number)) {
-    return { destination: { type: "number", number: r.forward_number, message: FORWARD_MESSAGE } };
-  }
   if (ok && r.ok === true && r.assistant && typeof r.assistant === "object" && !Array.isArray(r.assistant)) return { assistant: r.assistant };
   if (ok && typeof r.fallback_assistant_id === "string" && UUID.test(r.fallback_assistant_id)) return { assistantId: r.fallback_assistant_id };
   return { error: CANT_TAKE };
