@@ -149,7 +149,7 @@ const AUTOMATIONS = {
     }),
   },
   no_show_follow_up: {
-    name: "No-show follow-up",
+    name: "No show follow up",
     description: "Contacts customers who missed their appointment to rebook.",
     actions: [{ type: "no_show_outreach" }],
     settings: (s: Json) => ({
@@ -158,7 +158,7 @@ const AUTOMATIONS = {
     }),
   },
   missed_call_follow_up: {
-    name: "Missed-call recovery",
+    name: "Missed call recovery",
     description: "Calls back customers whose call was missed.",
     actions: [{ type: "ai_callback" }],
     settings: (s: Json) => ({
@@ -181,7 +181,7 @@ const AUTOMATIONS = {
     }),
   },
   post_appointment_follow_up: {
-    name: "After-appointment follow-up",
+    name: "Follow up after the appointment",
     description: "Thanks customers and asks for feedback after their appointment.",
     actions: [{ type: "post_visit_message" }],
     settings: (s: Json) => ({
@@ -190,7 +190,7 @@ const AUTOMATIONS = {
     }),
   },
   quote_follow_up: {
-    name: "Quote follow-up",
+    name: "Quote follow up",
     description: "Follows up on open quotes until they are accepted, declined or expire.",
     actions: [{ type: "quote_outreach" }],
     settings: (s: Json) => ({
@@ -210,7 +210,7 @@ const AUTOMATIONS = {
   },
   waitlist_offer: {
     name: "Waitlist offers",
-    description: "Offers a freed-up time to people on the waitlist.",
+    description: "Offers a newly free time to people on the waitlist.",
     actions: [{ type: "waitlist_offer" }],
     settings: (s: Json) => ({
       offers: numberIn(s.offers, [1, 2, 3, 5], 3),
@@ -2022,7 +2022,7 @@ async function adminInvite(admin: SupabaseClient, fields: Json, userId: string) 
   // Signing in alone is not proof: with email confirmation off, anyone can register an address and sign in.
   if (target && !neverAccepted && !target.email_confirmed_at) {
     throw new InputError(
-      "An account with this email exists but its address was never confirmed, so it can't be made an admin. Ask the person to confirm their email (or reset their password from the sign-in page), then invite them again.",
+      "An account with this email exists but its address was never confirmed, so it can't be made an admin. Ask the person to confirm their email (or reset their password from the sign in page), then invite them again.",
       409,
     );
   }
@@ -2440,7 +2440,7 @@ async function platformStatus(admin: SupabaseClient, userId: string) {
     configuration: [
       { key: "ZELLA_APP_URL", label: "App URL for invitation links", set: has("ZELLA_APP_URL"), required: true },
       { key: "ZELLA_SERVER_SECRET_KEY", label: "Server key for public pages and webhooks", set: has("ZELLA_SERVER_SECRET_KEY"), required: true },
-      { key: "ZELLA_ALLOWED_ORIGINS", label: "Websites allowed to call Zella Voice (set at go-live)", set: has("ZELLA_ALLOWED_ORIGINS"), required: false },
+      { key: "ZELLA_ALLOWED_ORIGINS", label: "Websites allowed to call Zella Voice (set at go live)", set: has("ZELLA_ALLOWED_ORIGINS"), required: false },
       { key: "STRIPE_WEBHOOK_SECRET", label: "Payment provider webhook signature", set: has("STRIPE_WEBHOOK_SECRET"), required: false },
       { key: "TELNYX_API_KEY", label: "Telnyx (phone numbers)", set: has("TELNYX_API_KEY"), required: false },
       { key: "VAPI_API_KEY", label: "Vapi (voice agents)", set: has("VAPI_API_KEY"), required: false },

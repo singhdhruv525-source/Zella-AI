@@ -69,28 +69,29 @@ Shape: 163 tables (plus three `backup_20261104_*` tables from the 4 Nov industry
 340 policies, 861 functions, 111 triggers. Full reference: `docs/BACKEND_SCHEMA.md`. Data: 4 businesses, 3 record
 types, no plans.
 
-**Edge functions deployed** (last deploy date):
+**Edge functions deployed** (read from Supabase on 15 Nov 2026: version and last deploy date):
 
-| Function | Last deploy |
+| Function | Version, last deploy |
 |---|---|
-| `billing-webhook` | 4 Nov |
-| `voice-rules`, `record-files`, `google-lead`, `store-connect`, `calendar-connect` | 6 Nov |
-| `owner-provision-business` | 7 Nov |
-| `staff-invite`, `continue-plan` | 9 Nov |
-| `website-lead`, `reschedule-appointment` | earlier |
-| `smart-action` (named "zella-admin-check") and `zella-admin-check-v2` | old one-off checks with no source in the repo; candidates for removal, with approval |
+| `voice-rules` | v8, 15 Nov 2026 (forward on the usage limit; files match `main`) |
+| `record-files`, `google-lead`, `calendar-connect`, `website-lead` | v2, v2, v2, v5, 14 Nov 2026 |
+| `staff-invite`, `continue-plan` | v4, v6, 9 Nov 2026 |
+| `owner-provision-business` | v16, 7 Nov 2026 (behind `main`: needs the CLI deploy, it is too large for the MCP upload) |
+| `store-connect` | v1, 6 Nov 2026 |
+| `billing-webhook` | v5, 4 Nov 2026 (behind `main`; kept off until step 4) |
+| `reschedule-appointment` | v3, 29 Oct 2026 |
+| `smart-action` (named "zella-admin-check") and `zella-admin-check-v2` | v5, 18 Oct 2026: old one-off checks with no source in the repo; candidates for removal, with approval |
 
-Changes merged after those dates (PRs #42, #49, #51, #53, #55, #57) **have not been deployed to the edge functions or n8n**.
-PR #57 adds request-size limits and outbound timeouts to edge functions, an error workflow and no saved successful runs
-for every n8n workflow (needs a re-import), and the inbound call phone-ID fallback.
-Deploying needs the owner's approval.
+Not deployed yet from `main`: `owner-provision-business`, `billing-webhook`, `continue-plan`, `reschedule-appointment`,
+`store-connect`, `staff-invite` (the four with browser access wait for `ZELLA_APP_URL` and `ZELLA_ALLOWED_ORIGINS`), and
+`platform-emails` once its PR is merged. n8n workflows are not re-imported since PR #57. Deploying needs the owner's approval.
 
 **n8n:** the 30 workflows were renamed "Zella Voice - …" in n8n on 13 Nov 2026 (owner's approval; name only, all still unpublished), matching `n8n/workflows/`.
 
-**Live switches (all off):** `calls_live`, `sms_live`, `email_live`, `calendar_sync_live`, `reviews_live`,
+**Live switches (all off; read 15 Nov 2026):** `usage_enforcement` = calls off, messages off; `calls_live`, `sms_live`, `email_live`, `calendar_sync_live`, `reviews_live`,
 `review_ai_live`, `knowledge_ai_live`, `call_intel_live`, `call_reconcile_live`, `spam_workflow_live`, `spam_ai_live`,
 `website_crawl_live`. `n8n_dispatch_enabled` is true, but the `zella_dispatch` job and the other timed jobs are
-inactive, except `zella_usage_thresholds` and `zella_billing_reconcile`. `vapi_auth_mode` is `bearer`.
+inactive, except `zella_usage_thresholds` and `zella_billing_reconcile` (checked 15 Nov 2026). So the hourly group, and with it the business moments, does not run until `zella_jobs_hourly` is switched on, with approval. `vapi_auth_mode` is `bearer`.
 
 ## 4. Open problems
 
@@ -118,7 +119,7 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile`. `vapi_a
 | **Emails from Zella Voice to businesses:** catalogue and admin preview built; outbox `sql/zella_platform_emails.sql` applied 15 Nov 2026 (empty) | Open | Delivery (`sql/zella_email_delivery.sql`, `platform-emails` edge function) in review (event based: a new email wakes the sender at once; the minute job is only a safety net); then apply, deploy, set the sender address, switch on the event triggers and the safety net, and turn on `email_live`, each with approval. Billing emails per Stripe event in step 4. |
 | **Usage limits that act:** `sql/zella_usage_enforcement.sql` applied 15 Nov 2026 (fingerprints match the tested copy; switches off); voice-rules v8 deployed 15 Nov 2026 (files match `main`; unsigned requests refused) | Open, owner's approval | 1. Give one demo business a test fallback number the owner controls. 2. Staging call with the calls switch on for it, to prove Vapi transfers on the `destination` reply. 3. Turn on `usage_enforcement.calls`, then `.messages`, each with approval. The monthly spending limit for pay as you go needs payments (step 4). |
 | **Fallback number for every business** (owner, 15 Nov 2026: decided at Create Business, REQ-BIL-34). New businesses can't finish setup without one (owner-provision-business, merged; deploy pending with the CLI). | Open | The 4 businesses in production are demo businesses (owner, 15 Nov 2026), so none needs a real fallback number; one gets a test number for the staging call. |
-| **Business moments** (record day, call surge, weekend on call gaps): `sql/zella_business_moments.sql` applied 15 Nov 2026 (runs hourly; in app notifications only) | Done | Later moments need data the app doesn't keep yet (recall due dates, seasonal demand such as tax season). |
+| **Business moments** (record day, call surge, weekend on call gaps): `sql/zella_business_moments.sql` applied 15 Nov 2026 and added to the hourly group; in app notifications only | Open, owner's approval | They run only once the timed job `zella_jobs_hourly` is switched on (it is off in production, like most timed jobs; only `zella_usage_thresholds` and `zella_billing_reconcile` are active). Later moments need data the app doesn't keep yet (recall due dates, seasonal demand such as tax season). |
 
 ## 5. Decisions
 
@@ -128,6 +129,9 @@ most often needed:
 - **Writing and notifications (owner, 14 Nov 2026):** no dashes or hyphens anywhere people read text (screens,
   emails, texts, notifications, the AI receptionist); notifications are creative but professional and use each
   business's own words. Rules in `docs/DESIGN_SYSTEM.md` (Writing; Notifications); checked by `npm run lint`.
+  Part 2 (15 Nov 2026, in review): the database (`sql/zella_writing_cleanup.sql`, not applied), the edge function
+  labels (wizard automation names, admin role, sign in messages; need a deploy with approval). Left on purpose: n8n
+  workflow and node names and internal reason codes (only admins see them in n8n; renaming means a re-import).
   The industry "E-commerce" is shown as "Ecommerce".
 
 - **Unsubscribe link limits (G-7, 14 Nov 2026):** limits are per link only, never platform-wide or per address (a burst

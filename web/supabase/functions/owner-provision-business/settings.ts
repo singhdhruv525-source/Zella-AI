@@ -71,7 +71,7 @@ export const PERMISSION_CATALOG: [string, string][] = [
 export const RESTRICTED_ROLES = ["platform_operations", "billing_admin", "support_admin", "security_admin", "read_only_admin"];
 const ROLE_LABELS: Record<string, string> = {
   zella_owner: "Zella Voice owner", super_admin: "Super admin", platform_operations: "Platform operations", billing_admin: "Billing admin",
-  support_admin: "Support admin", security_admin: "Security admin", read_only_admin: "Read-only admin",
+  support_admin: "Support admin", security_admin: "Security admin", read_only_admin: "Read only admin",
 };
 
 const LEGAL_KINDS = ["terms", "privacy", "acceptable_use", "dpa", "cookies", "ai_disclosure", "recording_consent"];
