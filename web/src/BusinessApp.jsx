@@ -492,18 +492,23 @@ function BusinessHome() {
   // below decides; any other id is ignored). The parameter is then taken out of the address. The id is also kept on
   // this device for 30 minutes, so it survives signing in first (Google and SSO come back to /app without it, and a
   // sign in link may open in a new tab); it is cleared once the person's businesses have loaded.
-  const [selectedId, setSelectedIdRaw] = useState(() => {
+  // This tab's own link always wins over the device hint, which another tab may have written since.
+  const [linkedHere] = useState(() => {
     const fromLink = new URLSearchParams(window.location.search).get("business");
-    if (fromLink && /^[0-9a-f-]{36}$/i.test(fromLink)) {
-      const url = new URL(window.location.href); url.searchParams.delete("business");
-      window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
-      rememberLinkBusiness(fromLink.toLowerCase());
-      return fromLink.toLowerCase();
-    }
+    if (!fromLink || !/^[0-9a-f-]{36}$/i.test(fromLink)) return null;
+    const url = new URL(window.location.href); url.searchParams.delete("business");
+    window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+    rememberLinkBusiness(fromLink.toLowerCase());
+    return fromLink.toLowerCase();
+  });
+  const [selectedId, setSelectedIdRaw] = useState(() => {
+    if (linkedHere) return linkedHere;
     const pending = linkBusiness();
     if (pending) return pending;
     try { return localStorage.getItem(LAST_BUSINESS); } catch { return null; }
   });
+  // Read once at the start: the business this tab was opened for (its own link, or the hint from before signing in).
+  const [openedFor] = useState(() => linkedHere ?? linkBusiness());
   const setSelectedId = (next) => setSelectedIdRaw((current) => {
     const id = typeof next === "function" ? next(current) : next;
     try { if (id) localStorage.setItem(LAST_BUSINESS, id); } catch { /* private mode */ }
@@ -532,14 +537,13 @@ function BusinessHome() {
       setIsAdmin(admin === true);
     }
     setWorkspaces(data ?? []);
-    const pending = linkBusiness();
-    forgetLinkBusiness();
+    if (linkBusiness() === openedFor) forgetLinkBusiness();   // leave another tab's newer hint alone
     setSelectedId((current) => {
-      const want = pending ?? current;
+      const want = openedFor ?? current;
       if ((data ?? []).some((w) => w.id === want)) return want;
       return (data ?? []).some((w) => w.id === current) ? current : data?.[0]?.id ?? null;
     });
-  }, []);
+  }, [openedFor]);
 
   useEffect(() => {
     let active = true;
