@@ -23,6 +23,8 @@ test("plural", () => {
   assert.equal(plural("stay"), "stays");
   assert.equal(plural("service call"), "service calls");
   assert.equal(plural("chair"), "chairs");
+  assert.equal(plural("family"), "families");
+  assert.equal(plural("day"), "days");
 });
 
 const note = (kind, extra = {}) => ({ id: `n-${kind}`, kind, severity: "info", title: "Original title", ...extra });
@@ -43,6 +45,12 @@ test("new moments speak each industry's language", () => {
   assert.match(cancelled, /session/i);
   const clients = voiceTitle(note("call_surge"), { industry: "Dental", terminology: { customer: "Client", customers: "Clients" } });
   assert.match(clients, /clients/i);
+  // a singular only term that matches the industry's keeps the industry's plural
+  const families = voiceTitle(note("call_surge"), { industry: "Childcare", terminology: { customer: "Family" } });
+  assert.match(families, /families/i);
+  assert.doesNotMatch(families, /familys/i);
+  // the server writes "5-star review from Alex"; the bell never shows the hyphen
+  for (let i = 0; i < 6; i++) assert.doesNotMatch(voiceTitle(note("five_star_review", { id: `r${i}`, title: "5-star review from Alex" }), { industry: "Other" }), /-/);
   // an on call gap keeps its own title: full and partial gaps say different things
   assert.equal(voiceTitle(note("on_call_gap", { title: "No one is on call this weekend", severity: "warning" }), { industry: "Plumbing" }), "No one is on call this weekend");
 });
@@ -51,8 +59,8 @@ test("no emoji and no dashes in any wording", () => {
   const kinds = ["milestone", "five_star_review", "best_week", "best_day", "call_surge", "new_lead", "callback", "customer_reply", "went_live", "payment_received", "duplicate", "agent_config_published"];
   const industries = ["Other", "Restaurant", "Dental", "Fitness", "Hospitality", "Plumbing", "Real Estate", "Pet Care & Veterinary"];
   for (const kind of kinds) for (const industry of industries) for (let i = 0; i < 6; i++) {
-    const t = voiceTitle(note(kind, { id: `${kind}-${i}`, title: "5 star review from Alex" }), { industry });
+    const t = voiceTitle(note(kind, { id: `${kind}-${i}`, title: "5-star review from Alex" }), { industry });
     assert.doesNotMatch(t, /\p{Extended_Pictographic}/u, `${kind} ${industry}: ${t}`);
-    assert.doesNotMatch(t, /[–—]|[A-Za-z]-[A-Za-z]/, `${kind} ${industry}: ${t}`);
+    assert.doesNotMatch(t, /[–—]|[A-Za-z0-9]-[A-Za-z]/, `${kind} ${industry}: ${t}`);
   }
 });

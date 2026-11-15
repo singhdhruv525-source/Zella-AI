@@ -45,7 +45,8 @@ function industryVoice(k, own = {}) {
   if (!n || k === "other") return null;
   const P = own.customer || n.p, B = own.appointment || n.b;
   const a = /^[aeiou]/i.test(P) ? "An" : "A";
-  const ps = own.customers || (own.customer ? plural(own.customer) : n.ps);
+  // the industry's own plural when the business's word is the same as the industry's (family -> families)
+  const ps = own.customers || (own.customer && own.customer !== n.p ? plural(own.customer) : n.ps);
   const Ps = ps.charAt(0).toUpperCase() + ps.slice(1);
   return {
     best_day: [`A record day for your ${plural(B)}`, `Your busiest day for ${plural(B)} in three months`],
@@ -62,6 +63,7 @@ function industryVoice(k, own = {}) {
 // "class" -> "classes", "stay" -> "stays", "service call" -> "service calls"
 export function plural(word) {
   const w = String(word ?? "");
+  if (/[^aeiou]y$/i.test(w)) return `${w.slice(0, -1)}ies`;   // family -> families
   return /(s|sh|ch|x)$/.test(w) ? `${w}es` : `${w}s`;
 }
 
@@ -208,7 +210,7 @@ Object.assign(TITLES, {
   reviews_disconnected: ["Google reviews stopped syncing. Let's reconnect."],
   // celebrations: the facts are in the title
   milestone: (n) => [`${n.title}.`, `Milestone reached: ${n.title.charAt(0).toLowerCase()}${n.title.slice(1)}.`, `${n.title}. Here's to the next one.`],
-  five_star_review: (n) => [`${n.title}.`, `Five stars, ${n.title.replace(/^5[- ]star review from /i, "from ")}.`, `${n.title}. Your team earned this one.`],
+  five_star_review: (n) => [`${n.title}.`, `Five stars, ${n.title.replace(/^5 star review from /i, "from ")}.`, `${n.title}. Your team earned this one.`],
   best_week: ["Your best week in three months", "A record week: your busiest in three months"],
   best_day: ["A record day for bookings", "Your busiest booking day in three months"],
   call_surge: ["Calls are pouring in today", "A busy day on the phones"],
@@ -251,6 +253,8 @@ const ownWords = (workspace) => {
 
 // Notification shown in the bell: same facts, friendlier words.
 export function voiceTitle(n, workspace) {
+  // titles written by the server may say "5-star" or "24-hour"; the bell says "5 star" (names keep their hyphens)
+  if (typeof n?.title === "string") n = { ...n, title: n.title.replace(/(\d)-(?=[A-Za-z])/g, "$1 ") };
   const term = workspace?.terminology ? (k) => workspace.terminology[k] || k : null;
   if (n.kind === "industry_alert" && n.severity === "urgent") return localize(n.title, term); // urgent stays plain and direct
   const ind = key(workspace?.industry);
