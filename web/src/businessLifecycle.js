@@ -11,3 +11,11 @@ export function since(at, now = Date.now()) {
   const days = Math.floor((now - t) / 86_400_000);
   return days <= 0 ? "Today" : days === 1 ? "Yesterday" : `${days} days ago`;
 }
+
+// BIZ-13c: where a cancelled business stands against its retention date: [label, pill tone].
+export function retentionState(b, now = Date.now()) {
+  const t = Date.parse(b?.retention_until ?? "");
+  if (!Number.isFinite(t)) return ["No retention date", "warning"];
+  if (b?.past_retention || t < now) return ["Past retention", "danger"];
+  return ["Kept", "neutral"];
+}

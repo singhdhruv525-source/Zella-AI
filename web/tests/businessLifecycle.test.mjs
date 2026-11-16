@@ -16,3 +16,11 @@ test("since says how long ago a draft last changed, in words", () => {
   assert.equal(since(null, NOW), "Not known");
   assert.equal(since("not a date", NOW), "Not known");
 });
+
+test("retention state: past, kept, or no date", async () => {
+  const { retentionState } = await import("../src/businessLifecycle.js");
+  assert.deepEqual(retentionState({ retention_until: "2026-11-01T00:00:00Z" }, NOW), ["Past retention", "danger"]);
+  assert.deepEqual(retentionState({ retention_until: "2026-12-01T00:00:00Z" }, NOW), ["Kept", "neutral"]);
+  assert.deepEqual(retentionState({ retention_until: "2026-12-01T00:00:00Z", past_retention: true }, NOW), ["Past retention", "danger"]);
+  assert.deepEqual(retentionState({ retention_until: null }, NOW), ["No retention date", "warning"]);
+});

@@ -593,6 +593,15 @@ export function settingsHandlers(admin: SupabaseClient, fields: Json, ctx: { use
         requests: { open: rows.filter((r) => r.status === "open").length, overdue: rows.filter((r) => r.status === "open" && r.due_at < new Date().toISOString()).length,
           byKind: rows.reduce((a, r) => { a[r.kind] = (a[r.kind] ?? 0) + 1; return a; }, {} as Record<string, number>) },
         retentionDays: keys[0]?.value ?? 90,
+        // BIZ-13c: every cancelled business with its retention date, oldest due first, and which are past it. Read only:
+        // nothing here deletes anything (a purge waits for the owner's and legal's answer, BIZ-13d).
+        retentionSetting: keys[0] ? "set" : "default",
+        cancelled: await (async () => {
+          const now = new Date().toISOString();
+          const list = (check(await admin.from("businesses").select("id, name, cancelled_at, retention_until").not("cancelled_at", "is", null)
+            .order("retention_until", { ascending: true, nullsFirst: false }).limit(500)) ?? []) as { id: string; name: string; cancelled_at: string; retention_until: string | null }[];
+          return list.map((b) => ({ ...b, past_retention: Boolean(b.retention_until && b.retention_until < now) }));
+        })(),
       };
     },
 

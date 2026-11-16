@@ -341,25 +341,8 @@ export function Provisioning({ openBusiness }) {
   );
 }
 
-export function DataLifecycle({ me }) {
-  const state = useAsync(() => Promise.all([call("privacy_overview"), call("tenants_search", { status: "cancelled" })]), []);
-  return (
-    <LoadState state={state}>{([p, c]) => (
-      <>
-        <SettingNumber me={me} keyName="retention_days" label="Days a canceled business's records are kept" current={p.retentionDays} />
-        <Card title="Canceled businesses" sub="Their records stay until the retention date.">
-          <Table rows={c.rows} empty="No canceled businesses." columns={[["Business", (b) => b.name], ["Canceled", (b) => when(b.cancelled_at)]]} />
-        </Card>
-        <Card title="Customer data requests across businesses" sub="Counts only. Each business handles its own requests.">
-          <Facts rows={[["Open", p.requests.open], ["Overdue", p.requests.overdue], ...Object.entries(p.requests.byKind).map(([k, v]) => [words(k), v])]} />
-        </Card>
-        <Needs title="Whole business export and deletion jobs aren't built" have="Each business can export or erase individual customers (with a second approval). Canceled businesses are kept, never deleted automatically.">
-          Exporting or deleting a whole business needs a job that runs in the background, records its progress, and can be approved and stopped.
-        </Needs>
-      </>
-    )}</LoadState>
-  );
-}
+// Data lifecycle: its own file (Lane B)
+export { default as DataLifecycle } from "./panels/DataLifecycle";
 
 // One editable platform setting (owner only on the server).
 export function SettingNumber({ me, keyName, label, current, hint }) {

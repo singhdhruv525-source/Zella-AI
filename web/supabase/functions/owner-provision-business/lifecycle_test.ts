@@ -192,3 +192,28 @@ Deno.test("draftAges: alerts once ever per business, and the setting changes the
   assertEquals((await draftAges(fails.admin, rows, NOW)).ages.get(A)?.abandoned, true);   // the page still loads
   assertEquals((await draftAges(agesAdmin({}).admin, [], NOW)).ages.size, 0);
 });
+
+Deno.test("privacy_overview lists cancelled businesses with their retention date and which are past it (BIZ-13c)", async () => {
+  const { settingsHandlers } = await import("./settings.ts");
+  const past = new Date(Date.now() - 86_400_000).toISOString(), later = new Date(Date.now() + 86_400_000 * 20).toISOString();
+  const seen: string[] = [];
+  const admin = {
+    from: (table: string) => {
+      const chain: Record<string, unknown> = {};
+      const result = () => table === "businesses"
+        ? { data: [{ id: A, name: "Old Co", cancelled_at: past, retention_until: past }, { id: B, name: "New Co", cancelled_at: past, retention_until: later }, { id: C, name: "No Date Co", cancelled_at: past, retention_until: null }], error: null }
+        : { data: [], error: null };
+      for (const m of ["select", "eq", "order", "limit", "in", "is"]) chain[m] = () => chain;
+      chain.not = (col: string, op: string, v: unknown) => { seen.push(`${col} ${op} ${v}`); return chain; };
+      chain.maybeSingle = async () => ({ data: null, error: null });
+      chain.then = (resolve: (v: unknown) => void) => resolve(result());
+      return chain;
+    },
+  } as unknown as SupabaseClient;
+  const kitS = { ...kit, validTimezone: () => true, EMAIL_RE: /@/, UUID_RE: /./ };
+  const r = await settingsHandlers(admin, {}, { userId: "u", role: "zella_owner", aal: "aal2", mfa: true }, kitS).handlers.privacy_overview() as Record<string, unknown>;
+  assertEquals(seen, ["cancelled_at is null"]);
+  assertEquals(r.retentionDays, 90);
+  assertEquals(r.retentionSetting, "default");
+  assertEquals((r.cancelled as { name: string; past_retention: boolean }[]).map((b) => [b.name, b.past_retention]), [["Old Co", true], ["New Co", false], ["No Date Co", false]]);
+});
