@@ -40,3 +40,29 @@ test("switches read in plain words, the key only as help text, and never claim o
   }
   assert.equal(voiceSwitches(undefined), null);
 });
+
+import { callDetailsBare, callDetailsCollapsed, formatPhone, formatTimeZone } from "../src/admin/voiceView.js";
+
+test("phone numbers read with spaces, never in E.164 or with dashes", () => {
+  assert.equal(formatPhone("+15551230001"), "(555) 123 0001");
+  assert.equal(formatPhone("5551230001"), "(555) 123 0001");
+  assert.equal(formatPhone("+442071234567"), "+44 207 123 4567");
+  assert.equal(formatPhone("Jane Doe"), "Jane Doe", "a caller's name stays a name");
+  assert.equal(formatPhone(null), "");
+  assert.doesNotMatch(formatPhone("+15551230001"), /-/);
+});
+
+test("time zones read as words", () => {
+  assert.equal(formatTimeZone("America/New_York"), "Eastern Time (New York)");
+  assert.equal(formatTimeZone("Not/A_Zone"), "A Zone");
+  assert.equal(formatTimeZone(""), "");
+});
+
+test("the calls table collapses Number, Length and Outcome only when all three are unrecorded on every row", () => {
+  const bare = { number: null, duration_seconds: null, outcome: null };
+  assert.equal(callDetailsBare(bare), true);
+  assert.equal(callDetailsBare({ ...bare, duration_seconds: 0 }), false, "a zero length is recorded");
+  assert.equal(callDetailsCollapsed([bare, bare]), true);
+  assert.equal(callDetailsCollapsed([bare, { ...bare, outcome: "booked" }]), false);
+  assert.equal(callDetailsCollapsed([]), false);
+});

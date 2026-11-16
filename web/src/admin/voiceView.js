@@ -51,3 +51,42 @@ export function voiceSwitches(s) {
     })),
   ];
 }
+
+// Phone numbers and time zones in words (docs/DESIGN_SYSTEM.md, Writing: phones use spaces). The same rules as the
+// shared lib/format.js on the design system branch; switch to it once that lands.
+const blank = (v) => v === null || v === undefined || v === "";
+
+// "+15551230001" -> "(555) 123 0001". Numbers outside North America keep their country code, grouped with spaces.
+// Anything that isn't a number (a caller's name) comes back as it was.
+export function formatPhone(value) {
+  if (blank(value)) return "";
+  const raw = String(value).trim();
+  const digits = raw.replace(/\D/g, "");
+  if (!/^\+?[\d\s().]+$/.test(raw)) return raw;
+  const nanp = digits.length === 11 && digits.startsWith("1") ? digits.slice(1) : digits.length === 10 && !raw.startsWith("+") ? digits : null;
+  if (nanp) return `(${nanp.slice(0, 3)}) ${nanp.slice(3, 6)} ${nanp.slice(6)}`;
+  if (digits.length < 8) return raw;
+  const national = digits.slice(-10);
+  const country = digits.length > 10 ? `+${digits.slice(0, digits.length - 10)} ` : raw.startsWith("+") ? "+" : "";
+  const head = national.slice(0, -7);
+  return `${country}${head ? `${head} ` : ""}${national.slice(-7, -4)} ${national.slice(-4)}`;
+}
+
+// "America/New_York" -> "Eastern Time (New York)"
+export function formatTimeZone(zone) {
+  if (blank(zone)) return "";
+  const city = String(zone).split("/").pop().replace(/_/g, " ");
+  try {
+    const part = new Intl.DateTimeFormat("en-US", { timeZone: zone, timeZoneName: "longGeneric" })
+      .formatToParts(new Date()).find((p) => p.type === "timeZoneName")?.value;
+    if (!part) return city;
+    return part.includes(city) ? part : `${part} (${city})`;
+  } catch {
+    return city;
+  }
+}
+
+// Calls table: Number, Length and Outcome are often all unrecorded (calls that never connected). When that is true
+// for every row shown, the table shows one Details column instead of three columns of the same empty word.
+export const callDetailsBare = (r) => blank(r?.number) && blank(r?.duration_seconds) && blank(r?.outcome);
+export const callDetailsCollapsed = (rows) => Array.isArray(rows) && rows.length > 0 && rows.every(callDetailsBare);
