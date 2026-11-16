@@ -481,6 +481,10 @@ sequenceDiagram
   Note over DB: features above the lower plan stay until the period end, then the lower version applies
 ```
 
+**Not built yet (lane F stopped before it, 16 Nov 2026).** Until it is: a new plan version saved for a business that
+pays through Stripe gives the new allowances from the next period while Stripe still bills the old Price, so plan
+changes for those businesses wait for this step (or a person changes the Stripe price at the same time).
+
 **Stripe mechanics (§16.2):** a Stripe Price cannot change its amount, so each sold `business_plans` version gets
 its own Price. An **upgrade** updates the subscription item to the new Price with `proration_behavior: always_invoice`
 and `payment_behavior: pending_if_incomplete`: Stripe invoices the prorated difference at once, and **applies the new
