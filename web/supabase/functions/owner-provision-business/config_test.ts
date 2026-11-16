@@ -1,6 +1,6 @@
 import { assertEquals, assertRejects } from "jsr:@std/assert@1";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { allRows, CONFIG_PERMISSIONS, configHandlers, type ConfigKit, connectionCounts, connectionsFor, moduleUsage, switchOffCheck, switchOffMessage } from "./config.ts";
+import { allRows, CONFIG_PERMISSIONS, configHandlers, type ConfigKit, connectionCounts, connectionsFor, deliveriesFor, moduleUsage, switchOffCheck, switchOffMessage } from "./config.ts";
 import { PERMISSIONS } from "./settings.ts";
 import { ONBOARDING_PERMISSIONS } from "./onboarding.ts";
 import { PLATFORM_PERMISSIONS } from "./platform.ts";
@@ -15,7 +15,7 @@ const kit: ConfigKit = {
 };
 
 Deno.test("every new action has a permission, and no name clashes with another module", () => {
-  assertEquals(CONFIG_PERMISSIONS, { industry_module_usage: "businesses.view", industry_set_active: "platform.configure" });
+  assertEquals(CONFIG_PERMISSIONS, { industry_module_usage: "businesses.view", industry_set_active: "platform.configure", agent_deliveries: "businesses.view" });
   for (const action of Object.keys(CONFIG_PERMISSIONS)) {
     assertEquals([PERMISSIONS[action], ONBOARDING_PERMISSIONS[action], PLATFORM_PERMISSIONS[action]], [undefined, undefined, undefined]);
   }
@@ -131,4 +131,24 @@ Deno.test("connectionsFor asks the shared definition in chunks of 1000 ids and s
   const denied = { rpc: () => Promise.resolve({ data: null, error: { code: "42501", message: "NOT_ALLOWED" } }) } as unknown as SupabaseClient;
   await assertRejects(() => connectionsFor(denied, ["b1"]));   // any other error is never hidden
   await assertRejects(() => connectionCounts(denied));
+});
+
+Deno.test("agent_deliveries passes a clean limit, says when it isn't applied and turns an unknown business into 404", async () => {
+  const seen: unknown[] = [];
+  const answer = (error: { code?: string; message?: string } | null) => ({ rpc: (fn: string, args: unknown) => {
+    seen.push([fn, args]);
+    return Promise.resolve({ data: error ? null : { deliveries: [{ outcome: "not_ready" }], limit: 5 }, error });
+  } }) as unknown as SupabaseClient;
+  const run = (admin: SupabaseClient, fields: Record<string, unknown>) => configHandlers(admin, fields, kit).handlers.agent_deliveries();
+  assertEquals(await run(answer(null), { businessId: "b1", limit: 5 }), { available: true, businessId: "b1", deliveries: [{ outcome: "not_ready" }], limit: 5 });
+  await run(answer(null), { businessId: "b1", limit: "lots" });
+  assertEquals(seen[1], ["zella_admin_agent_deliveries", { p_business_id: "b1", p_limit: 25 }]);
+  assertEquals(await run(answer({ code: "PGRST202" }), { businessId: "b1" }), { available: false, businessId: "b1", deliveries: [] });
+  const err = await assertRejects(() => run(answer({ code: "P0002", message: "BUSINESS_NOT_FOUND" }), { businessId: "b1" }), InputError);
+  assertEquals((err as InputError).status, 404);
+  await assertRejects(() => run(answer({ code: "42501", message: "NOT_ALLOWED" }), { businessId: "b1" }));
+  await assertRejects(() => run(answer(null), {}), InputError, "Missing id");
+  const summary = { rpc: (_fn: string, args: { p_business_ids: string[] }) => Promise.resolve({ data: args.p_business_ids.map((id) => ({ business_id: id, not_ready_7d: 2 })), error: null }) } as unknown as SupabaseClient;
+  assertEquals((await deliveriesFor(summary, ["a", "b", "a"]))?.size, 2);
+  assertEquals(await deliveriesFor({ rpc: () => Promise.resolve({ data: null, error: { code: "42883" } }) } as unknown as SupabaseClient, ["a"]), null);
 });

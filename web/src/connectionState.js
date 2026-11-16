@@ -32,3 +32,25 @@ export function missingForLive(row) {
   else if (!row?.checks?.voice) out.push("the number linked to Vapi");
   return out;
 }
+
+// COM-03: what calls actually got (assistant_deliveries). Plain words for each outcome.
+export const OUTCOME = {
+  served: ["success", "Served"],
+  not_ready: ["danger", "Not ready"],
+  unknown_number: ["warning", "Unknown number"],
+  forwarded_usage: ["neutral", "Forwarded, over its limit"],
+};
+export const outcomePill = (outcome) => OUTCOME[outcome] ?? ["neutral", "Unknown"];
+
+// The version line: which version calls got last, and the published one with its sync state.
+export function versionText(d) {
+  if (!d) return "Not available";
+  const parts = [];
+  if (d.servedVersion != null) parts.push(`Serving version ${d.servedVersion}`);
+  if (d.publishedVersion != null && d.publishedVersion !== d.servedVersion) parts.push(`published version ${d.publishedVersion}`);
+  if (d.syncStatus === "failed") parts.push("last check failed");
+  return parts.length ? parts.join(", ") : "No version served yet";
+}
+
+// One delivery problem as text (the server stores plain text lines; anything else is shown as given).
+export const problemText = (p) => (typeof p === "string" ? p : p && typeof p === "object" ? Object.values(p).filter((v) => typeof v === "string").join(": ") || JSON.stringify(p) : String(p));

@@ -25,3 +25,15 @@ test("what is missing before a receptionist can be live", () => {
   assert.deepEqual(missingForLive({ businessState: "active", status: "active", checks: { phone: true, voice: true } }), []);
   assert.equal(NOT_TRACKED, "Not tracked");
 });
+
+import { outcomePill, problemText, versionText } from "../src/connectionState.js";
+test("delivery outcomes, versions and problems read in plain words", () => {
+  assert.deepEqual(outcomePill("not_ready"), ["danger", "Not ready"]);
+  assert.deepEqual(outcomePill("something_new"), ["neutral", "Unknown"]);
+  assert.equal(versionText({ servedVersion: 1, publishedVersion: 2, syncStatus: "failed" }), "Serving version 1, published version 2, last check failed");
+  assert.equal(versionText({ servedVersion: 3, publishedVersion: 3, syncStatus: "live" }), "Serving version 3");
+  assert.equal(versionText({ servedVersion: null, publishedVersion: null }), "No version served yet");
+  assert.equal(versionText(null), "Not available");
+  assert.equal(problemText("Opening hours missing"), "Opening hours missing");
+  assert.equal(problemText({ code: "no_hours", message: "No hours" }), "no_hours: No hours");
+});

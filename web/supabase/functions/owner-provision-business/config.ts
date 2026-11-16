@@ -19,6 +19,7 @@ export type ConfigKit = {
 export const CONFIG_PERMISSIONS: Record<string, string> = {
   industry_module_usage: "businesses.view",
   industry_set_active: "platform.configure",
+  agent_deliveries: "businesses.view",
 };
 
 // CFG-01 deploy window. The web app that sends confirmOff deploys first. An older app that doesn't send the field at
@@ -105,6 +106,26 @@ export async function connectionCounts(admin: SupabaseClient): Promise<Connectio
   return data as ConnectionCounts;
 }
 
+// COM-03: what calls actually got (assistant_deliveries), aggregated in SQL (sql/zella_agent_delivery_admin.sql).
+export type DeliverySummary = {
+  business_id: string; last_outcome: string | null; last_at: string | null; served_7d: number; not_ready_7d: number;
+  unknown_number_7d: number; forwarded_usage_7d: number; last_problems: unknown[] | null; last_problem_at: string | null;
+  served_version: number | null; published_version: number | null; published_sync_status: string | null;
+  published_sync_error: string | null;
+};
+
+export async function deliveriesFor(admin: SupabaseClient, businessIds: string[]): Promise<Map<string, DeliverySummary> | null> {
+  const ids = [...new Set(businessIds)];
+  const out = new Map<string, DeliverySummary>();
+  for (let i = 0; i < ids.length; i += 1000) {
+    const { data, error } = await admin.rpc("zella_admin_agent_deliveries_summary", { p_business_ids: ids.slice(i, i + 1000) });
+    if (missingFunction(error)) return null;
+    if (error) throw error;
+    for (const row of (data ?? []) as DeliverySummary[]) out.set(row.business_id, row);
+  }
+  return out;
+}
+
 export type SwitchOff = { id: string; name: string; businesses: number };
 
 // Which modules this save switches off while businesses still have them on, and whether the save may go ahead.
@@ -178,7 +199,21 @@ export function configHandlers(admin: SupabaseClient, fields: Json, kit: ConfigK
     return { industryId, name: industry.name, before: industry.is_active, after: active, changed: industry.is_active !== active, reason, businesses: count ?? 0 };
   };
 
+  // COM-03: one business's recent deliveries, for the AI agents drawer. Read only, not audited.
+  const agentDeliveries = async () => {
+    const businessId = requireId(fields.businessId);
+    const limit = Number.isInteger(fields.limit) ? Number(fields.limit) : 25;
+    const { data, error } = await admin.rpc("zella_admin_agent_deliveries", { p_business_id: businessId, p_limit: limit });
+    if (missingFunction(error)) return { available: false, businessId, deliveries: [] };
+    if (error) {
+      if (/BUSINESS_NOT_FOUND/.test(error.message ?? "")) throw new InputError("Business not found", 404);
+      throw error;
+    }
+    return { available: true, businessId, ...(data as Json) };
+  };
+
   const handlers: Record<string, () => Promise<unknown>> = {
+    agent_deliveries: agentDeliveries,
     industry_module_usage: industryModuleUsage,
     industry_set_active: industrySetActive,
   };

@@ -1743,6 +1743,8 @@ from the database (`zella_business_connections(p_business_ids uuid[])` per busin
 `zella_connection_counts()` for totals; `businesses.view` or server code). No page works it out from its own tables.
 Answering (a served call in the last 7 days) is never folded into live. Email is "not tracked" until there is a mailbox
 connection. The states are defined in `docs/PRODUCT.md` §9.1.
+What calls actually got (`assistant_deliveries`) is read by admins through `zella_admin_agent_deliveries_summary(uuid[])`
+and `zella_admin_agent_deliveries(uuid, integer)` (`businesses.view`), aggregated in SQL.
 
 **REQ-ADM-20 Access states:** loading, authorized, unauthorized (signed out, MFA needed, no permission) and failed
 (couldn't check; grants nothing). A refusal always applies; a failed background refresh keeps the current view.

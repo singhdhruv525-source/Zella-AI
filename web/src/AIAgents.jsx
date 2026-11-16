@@ -5,7 +5,8 @@ import { Pill } from "./OwnerOverview";
 import { stageLabel, timeAgo } from "./ownerFormat";
 import { LoadNotice, UpdatedAt, useRefreshable } from "./admin/loadState";
 import { emptyText, metric } from "./admin/loadStatus";
-import { answeringText, livePill, missingForLive } from "./connectionState.js";
+import { answeringText, livePill, missingForLive, outcomePill, versionText } from "./connectionState.js";
+import AgentDeliveries from "./AgentDeliveries";
 
 const CHECKS = [
   ["knowledge", "Knowledge", "Services or FAQs added"],
@@ -43,6 +44,7 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
   const load = state.reload;
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
+  const [drawer, setDrawer] = useState(null);
 
   const query = search.trim().toLowerCase();
   const agents = (data?.agents ?? []).filter(
@@ -74,7 +76,7 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
       <div className="owner-stat-grid">
         <div className="owner-stat-card"><div className="owner-stat-top"><span>Receptionists</span></div><div className="owner-stat-value">{show(s?.total)}</div><div className="owner-stat-note">{`One per business · ${show(s?.missingKnowledge)} missing knowledge`}</div></div>
         <div className="owner-stat-card"><div className="owner-stat-top"><span>Live</span></div><div className="owner-stat-value">{showLink(s?.live)}</div><div className="owner-stat-note">Switched on, number linked to Vapi</div></div>
-        <div className="owner-stat-card"><div className="owner-stat-top"><span>Answering</span></div><div className="owner-stat-value">{showLink(s?.answering)}</div><div className="owner-stat-note">Answered a call in the last 7 days</div></div>
+        <div className="owner-stat-card"><div className="owner-stat-top"><span>Answering</span></div><div className="owner-stat-value">{showLink(s?.answering)}</div><div className="owner-stat-note">{typeof s?.notReady7d === "number" ? `Answered a call in 7 days · ${s.notReady7d} had calls not ready` : "Answered a call in the last 7 days"}</div></div>
         <div className="owner-stat-card"><div className="owner-stat-top"><span>Ready to connect</span></div><div className="owner-stat-value">{showLink(s?.readyToConnect)}</div><div className="owner-stat-note">Set up, number not linked to Vapi</div></div>
       </div>
 
@@ -111,6 +113,7 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
                 <th>Receptionist</th>
                 <th>Setup</th>
                 <th>Status</th>
+                <th>Calls served (7 d)</th>
                 <th>AI calls (30 d)</th>
                 <th />
               </tr>
@@ -150,21 +153,39 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
                     </div>
                   </td>
                   <td>
+                    {a.delivery ? (
+                      <div className="owner-business-cell">
+                        <span>{a.delivery.lastOutcome
+                          ? <><Pill tone={outcomePill(a.delivery.lastOutcome)[0]}>{outcomePill(a.delivery.lastOutcome)[1]}</Pill> {timeAgo(a.delivery.lastAt)}</>
+                          : "No calls reached Zella Voice yet"}</span>
+                        <span>{a.delivery.served7d} served · {a.delivery.notReady7d} not ready</span>
+                        <span>{versionText(a.delivery)}</span>
+                      </div>
+                    ) : <span className="op-muted">Not available</span>}
+                  </td>
+                  <td>
                     <div className="owner-business-cell">
                       <strong>{a.aiCallsLast30Days}</strong>
                       <span>{a.lastCallAt ? `Last call ${timeAgo(a.lastCallAt)}` : "No calls yet"}</span>
                     </div>
                   </td>
                   <td>
-                    <button type="button" className="owner-secondary-button op-small" onClick={() => onOpenSetup(a.businessId)}>
-                      Edit setup
-                    </button>
+                    <div className="op-heading-actions">
+                      {data?.deliveriesAvailable && (
+                        <button type="button" className="owner-secondary-button op-small" onClick={() => setDrawer(a)}>
+                          Calls served
+                        </button>
+                      )}
+                      <button type="button" className="owner-secondary-button op-small" onClick={() => onOpenSetup(a.businessId)}>
+                        Edit setup
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
               {!agents.length && (
                 <tr>
-                  <td colSpan={6}>
+                  <td colSpan={7}>
                     <div className="op-empty">
                       {data?.agents?.length
                         ? "No receptionists match this filter."
@@ -181,6 +202,7 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
           <span>Live: switched on, with an active number linked to Vapi. Answering: Zella Voice served it a call in the last 7 days.</span>
         </div>
       </section>
+      {drawer && <AgentDeliveries agent={drawer} onClose={() => setDrawer(null)} />}
     </section>
   );
 }

@@ -8,7 +8,7 @@ import { PERMISSIONS, RESTRICTED_ROLES, settingsHandlers } from "./settings.ts";
 import { mfaGate, tokenAal } from "./mfa_gate.ts";
 import { ONBOARDING_PERMISSIONS, documentsReady, loadOnboarding, onboardingHandlers } from "./onboarding.ts";
 import { PLATFORM_PERMISSIONS, platformHandlers } from "./platform.ts";
-import { CONFIG_PERMISSIONS, allRows, configHandlers, connectionCounts, connectionsFor, moduleUsage, switchOffCheck, switchOffMessage } from "./config.ts";
+import { CONFIG_PERMISSIONS, allRows, configHandlers, connectionCounts, connectionsFor, deliveriesFor, moduleUsage, switchOffCheck, switchOffMessage } from "./config.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1904,7 +1904,8 @@ async function agentsList(admin: SupabaseClient) {
   if (queryError) throw queryError;
 
   // Phone, Vapi link, answering and live come from the one shared definition (zella_business_connections).
-  const connections = await connectionsFor(admin, (agentsResult.data ?? []).map((a) => a.business_id));
+  const agentBusinesses = (agentsResult.data ?? []).map((a) => a.business_id);
+  const [connections, deliveries] = await Promise.all([connectionsFor(admin, agentBusinesses), deliveriesFor(admin, agentBusinesses)]);
 
   const configByAgent = new Map((configsResult.data ?? []).map((c) => [c.agent_id, c]));
   const businessById = new Map((businessesResult.data ?? []).map((b) => [b.id, b]));
@@ -1930,6 +1931,7 @@ async function agentsList(admin: SupabaseClient) {
       const greeting = text(obj(config?.voice_config).greeting, 500);
       const stat = callStats.get(agent.business_id);
       const link = connections?.get(agent.business_id) ?? null;
+      const served = deliveries?.get(agent.business_id) ?? null;
 
       const checks = {
         knowledge: services + faqs > 0,
@@ -1956,6 +1958,13 @@ async function agentsList(admin: SupabaseClient) {
         answering: link?.answering ?? false,
         lastServedAt: link?.last_served_at ?? null,
         businessState: link?.business_state ?? null,
+        // COM-03: what calls actually got (null when sql/zella_agent_delivery_admin.sql isn't applied)
+        delivery: served && {
+          lastOutcome: served.last_outcome, lastAt: served.last_at, served7d: served.served_7d, notReady7d: served.not_ready_7d,
+          unknownNumber7d: served.unknown_number_7d, forwardedUsage7d: served.forwarded_usage_7d,
+          lastProblems: served.last_problems, lastProblemAt: served.last_problem_at, servedVersion: served.served_version,
+          publishedVersion: served.published_version, syncStatus: served.published_sync_status, syncError: served.published_sync_error,
+        },
         aiCallsLast30Days: stat?.aiCalls ?? 0,
         lastCallAt: stat?.lastCallAt ?? null,
         updatedAt: config?.updated_at ?? agent.updated_at,
@@ -1966,10 +1975,12 @@ async function agentsList(admin: SupabaseClient) {
   return {
     agents,
     connectionsAvailable: connections !== null,
+    deliveriesAvailable: deliveries !== null,
     stats: {
       total: agents.length,
       live: agents.filter((a) => a.live).length,
       answering: agents.filter((a) => a.answering).length,
+      notReady7d: deliveries ? agents.filter((a) => (a.delivery?.notReady7d ?? 0) > 0).length : null,
       readyToConnect: agents.filter((a) => a.checks.knowledge && a.checks.hours && a.checks.greeting && !a.checks.voice).length,
       missingKnowledge: agents.filter((a) => !a.checks.knowledge).length,
     },

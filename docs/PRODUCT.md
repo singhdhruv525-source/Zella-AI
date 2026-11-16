@@ -310,7 +310,7 @@ only the pages they can use. Every admin action is written to the audit log.
 | Configuration | **Modules & features** | Modules per industry and business | `businesses.view` |
 | Configuration | **Plans & subscriptions** | Plans and subscriptions (policy decided in architecture §17; no plan created yet) | `billing.view` |
 | Configuration | **Offers & promotions** | Offers, rules, redemptions | `billing.view` |
-| AI & communications | **AI agents** | Receptionist agents and configurations; Live and Answering per receptionist from the one definition (§9.1), with what is missing before it can be live | `businesses.view` |
+| AI & communications | **AI agents** | Receptionist agents and configurations; Live and Answering per receptionist from the one definition (§9.1), with what is missing before it can be live; what calls actually got in the last 7 days (served, not ready, unknown number, over its limit), the version served and the published one, and a drawer of recent calls with their problems | `businesses.view` |
 | AI & communications | **Voice & numbers** | Assign and release phone numbers, voice usage, alerts | `businesses.view` |
 | AI & communications | **Messaging** | Messages across businesses, templates, compliance, retries | `businesses.view` |
 | Operations | **Platform operations** | Scheduler health, dispatcher, provider health, failed work | `businesses.view` |
