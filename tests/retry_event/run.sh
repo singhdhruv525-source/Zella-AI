@@ -7,6 +7,7 @@
 # function and its grants exactly; applies again; a drifted version stops the file. A run of an event starts only
 # while the event is claimed (a lapsed worker is refused after a retry) and holds a lock on it; reapplying over a
 # changed new function stops the file; the rollback refuses (and changes nothing) when either function has changed.
+# A run must name its event's own business; grants on the original that the rollback wouldn't restore stop the file.
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"; REPO="$(cd "$HERE/../.." && pwd)"
 export ZPG_HOST=${ZPG_HOST:-/var/lib/postgresql/zella-sec} ZPG_PORT=${ZPG_PORT:-55433}; DB=zretryevent; TEMPLATE=${TEMPLATE:-zprod3}
@@ -63,6 +64,12 @@ n=$(q "select count(*) from public.workflow_executions where event_id = '$E'"); 
 q "update public.automation_events set status = 'processing', claimed_at = now() where id = '$E'" > /dev/null
 v=$(q "select public.zella_start_execution('event_router', '$BIZ', '$E') is not null"); [ "$v" = "t" ] && ok "a claimed event starts as before" || bad "claimed start: $v"
 v=$(q "select public.zella_start_execution('other', '$BIZ') is not null"); [ "$v" = "t" ] && ok "a run with no event starts as before" || bad "no event start: $v"
+BIZ2=$(q "insert into public.businesses (name, industry_id) select 'Retry Test Other', id from public.industries limit 1 returning id" | head -1)
+for x in "another business:'$BIZ2'" "no business:null"; do
+  b=${x#*:}; v=$(q "do \$\$ begin perform public.zella_start_execution('event_router', $b, '$E'); raise notice 'V=started'; exception when others then raise notice 'V=%', sqlerrm; end \$\$" 2>&1 | sed -n 's/.*V=//p')
+  [ "$v" = "EVENT_BUSINESS_MISMATCH" ] && ok "a run of a claimed event naming ${x%%:*} is refused (EVENT_BUSINESS_MISMATCH)" || bad "mismatch ${x%%:*}: $v"
+done
+n=$(q "select count(*) from public.workflow_executions where event_id = '$E' and business_id is distinct from '$BIZ'"); [ "$n" = "0" ] && ok "and no mismatched run was recorded" || bad "mismatched runs: $n"
 ( "${P[@]}" -d $DB -c "begin; select public.zella_start_execution('event_router', '$BIZ', '$E'); select pg_sleep(2); commit;" > /dev/null 2>&1 ) &
 sleep 0.7
 v=$(q "select id from public.automation_events where id = '$E' for update nowait" 2>&1); wait
@@ -80,6 +87,11 @@ out=$("${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_retry_event_safe_rollback.sq
 [ "$(q "select to_regprocedure('public.zella_retry_event(uuid,text)') is null")" = "t" ] && ok "and removes the new one" || bad "new one left"
 "${P[@]}" -d $DB -f "$REPO/sql/zella_retry_event_safe.sql" > /dev/null 2>&1 && ok "applies again after the rollback" || bad "reapply"
 "${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_retry_event_safe_rollback.sql" > /dev/null 2>&1
+q "grant execute on function public.zella_retry_event(uuid) to anon" > /dev/null
+out=$("${P[@]}" -d $DB -f "$REPO/sql/zella_retry_event_safe.sql" 2>&1)
+[[ "$out" == *"VERSION_MISMATCH"* && "$out" == *"grants"* ]] && [ "$(q "select to_regprocedure('public.zella_retry_event(uuid,text)') is null")" = "t" ] && ok "grants the rollback wouldn't restore stop the file" || bad "grant drift: $out"
+q "revoke execute on function public.zella_retry_event(uuid) from anon" > /dev/null
+[ "$(fp)" = "$before" ] || bad "grant drift test left a change: $(fp)"
 q "create or replace function public.zella_retry_event(p_event_id uuid) returns text language sql as \$f\$ select 'x' \$f\$" > /dev/null
 out=$("${P[@]}" -d $DB -f "$REPO/sql/zella_retry_event_safe.sql" 2>&1)
 [[ "$out" == *"VERSION_MISMATCH"* ]] && ok "a version that isn't production's stops the file" || bad "drift: $out"

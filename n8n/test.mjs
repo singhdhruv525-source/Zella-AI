@@ -1943,8 +1943,14 @@ test('router: a run the database refuses to start (EVENT_NOT_CLAIMED) runs nothi
   assert.deepEqual(w.connections['Start execution'].main, [[{ node: 'Started', type: 'main', index: 0 }]]);
   assert.equal(w.connections.Started.main[0][0].node, 'Has handler');
   assert.deepEqual(w.connections.Started.main[1] ?? [], []);
-  const cond = w.nodes.find((n) => n.name === 'Started').parameters.conditions.conditions[0].leftValue;
-  assert.match(cond, /statusCode/);
+  const conds = w.nodes.find((n) => n.name === 'Started').parameters.conditions.conditions;
+  assert.equal(conds.length, 1);
+  assert.deepEqual(conds[0].operator, { type: 'boolean', operation: 'true', singleValue: true });
+  const m = /^=\{\{([\s\S]*)\}\}$/.exec(conds[0].leftValue);
+  assert.ok(m, 'the gate is one expression');
+  const gate = new Function('$json', 'return (' + m[1] + ');');
+  for (const statusCode of [200, 201, 204, '200']) assert.equal(gate({ statusCode }), true, `started on ${statusCode}`);
+  for (const statusCode of [400, 401, 409, 500, 199, 300, undefined, null, '']) assert.equal(gate({ statusCode }), false, `refused on ${statusCode}`);
 });
 test('website: nested entities are decoded only once', () => {
   const r = runCode('website-parse.js', { json: { statusCode: 200, body: '<title>&amp;lt; &amp;#39; &lt; &amp;amp; &amp;#38;amp; &#38;amp; &#60;gt;</title>' }, nodes: { Plan: { kind: 'page', url: 'https://example.com', host: 'example.com' } } }).json;

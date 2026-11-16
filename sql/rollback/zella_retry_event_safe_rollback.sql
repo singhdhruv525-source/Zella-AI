@@ -14,7 +14,7 @@ begin
     raise exception 'ROLLBACK_DRIFT: % has changed since this migration', s2;
   end if;
   if exists (select 1 from public.zella_function_archive where migration = 'zella_retry_event_safe' and signature = s3)
-     and md5(pg_get_functiondef(s3::regprocedure)) <> 'a8ba9875374d0f8499bef4b0c1f075db' then
+     and md5(pg_get_functiondef(s3::regprocedure)) <> '94c6e7a74bd9068c3d1aa785ca69b18d' then
     raise exception 'ROLLBACK_DRIFT: % has changed since this migration', s3;
   end if;
   drop function if exists public.zella_retry_event(uuid, text);
