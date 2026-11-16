@@ -204,7 +204,8 @@ most often needed:
 - **Business purge (BIZ-13d, built 16 Nov 2026, not deployed):** a cancelled business is deleted only by an approved
   purge run (two people, one a Zella Voice owner), after a recorded final export offer at least 14 days old (default
   taken), with its name typed and purges switched on. It waits for: legal approval of the cancelled business period,
-  lane B's `zella_draft_delete.sql` (ACC-10, so its audit history survives), and the whole business export (B8, B9)
+  lane B's `zella_draft_delete.sql` and the owner's ACC-10 decision (`audit_logs.business_id` to ON DELETE SET NULL, so
+  its audit history survives; lane B keeps it CASCADE until then), and the whole business export (B8, B9)
   for the offer. Refused while it has payment or billing records: how long those are kept after deletion is an owner
   and legal decision not taken. Provider copies: numbers must be released first; deleting Vapi assistants or call
   recordings at Vapi isn't built.

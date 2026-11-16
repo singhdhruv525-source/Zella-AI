@@ -13,8 +13,9 @@
 --      retention, no hold) and at least 14 days have passed since the export offer; only with the business's name
 --      typed exactly. Refused while:
 --        * deleting would erase its audit history: audit_logs.business_id must not be ON DELETE CASCADE and
---          zella_audit_privileged must keep a deleted business's rows (sql/zella_draft_delete.sql, ACC-10)
---          (AUDIT_HISTORY_AT_RISK);
+--          zella_audit_privileged must keep a deleted business's rows (lane B's sql/zella_draft_delete.sql). The foreign
+--          key change is ACC-10, the owner's decision (lane B keeps it CASCADE until then), so this refuses until it is
+--          made (AUDIT_HISTORY_AT_RISK);
 --        * it has payment or billing records (BILLING_RECORDS_KEPT): how long those are kept after a business is
 --          deleted is a legal decision not taken yet;
 --        * it has offer history (OFFER_HISTORY_KEPT) or phone numbers still in Zella Voice (NUMBERS_STILL_ASSIGNED:
@@ -32,7 +33,7 @@ declare
   f record;
   mine constant jsonb := '{
     "public.zella_business_purge_request(uuid,uuid,timestamp with time zone,text,text)": "605fbfcb53d71fe8f9bdd0aa8df8d58a",
-    "public.zella_business_purge_execute(uuid,uuid,text)": "e4e2918390f85a92db61877cce30d413",
+    "public.zella_business_purge_execute(uuid,uuid,text)": "a3b29b5adcb84dadb12b2ebbe3a87ceb",
     "public.zella_business_purge_files_done(uuid,uuid,text[],text)": "61fb59cee8b0ff4f2c20e068ca7e1428"
   }';
 begin
@@ -94,7 +95,7 @@ begin
   if r.export_offered_at is null or r.export_offered_at > now() - interval '14 days' then raise exception 'EXPORT_OFFER_TOO_RECENT'; end if;
   if (select confdeltype from pg_constraint where conrelid = 'public.audit_logs'::regclass and conname = 'audit_logs_business_id_fkey') is distinct from 'n'
      or position('deleted_business_id' in pg_get_functiondef('public.zella_audit_privileged()'::regprocedure)) = 0 then
-    raise exception 'AUDIT_HISTORY_AT_RISK: apply sql/zella_draft_delete.sql (ACC-10) first';
+    raise exception 'AUDIT_HISTORY_AT_RISK: needs sql/zella_draft_delete.sql and audit_logs.business_id not CASCADE (ACC-10)';
   end if;
   if exists (select 1 from public.payments where business_id = b.id) or exists (select 1 from public.billing_events where business_id = b.id)
      or exists (select 1 from public.customer_charge_payments where business_id = b.id) or exists (select 1 from public.usage_charges where business_id = b.id) then

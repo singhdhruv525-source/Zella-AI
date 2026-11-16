@@ -574,7 +574,7 @@ isolated database first.
 
 ### Businesses lifecycle
 - [ ] Delete a draft that was never finished, audited (BIZ-13) · needs approval
-- [ ] "Retention due" list and an owner approved purge of cancelled businesses (BIZ-13) · needs approval · BIZ-13d purge built, off, in the lane G business purge PR (branch `claude/lane-g-business-purge`): needs legal approval of the period, lane B's ACC-10 applied, and the export (B8, B9) for the final offer
+- [ ] "Retention due" list and an owner approved purge of cancelled businesses (BIZ-13) · needs approval · BIZ-13d purge built, off, in the lane G business purge PR (branch `claude/lane-g-business-purge`): needs legal approval of the period, the owner's ACC-10 decision (audit foreign key) with lane B's draft delete applied, and the export (B8, B9) for the final offer
 - [ ] Whole business export and deletion jobs (Settings, Data lifecycle says they aren't built) · needs approval
 - [ ] Automatic retry of failed setup steps (Settings, Business onboarding) · needs approval
 

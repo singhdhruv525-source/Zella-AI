@@ -8,7 +8,7 @@ declare
   f record;
     mine constant jsonb := '{
     "public.zella_business_purge_request(uuid,uuid,timestamp with time zone,text,text)": "605fbfcb53d71fe8f9bdd0aa8df8d58a",
-    "public.zella_business_purge_execute(uuid,uuid,text)": "e4e2918390f85a92db61877cce30d413",
+    "public.zella_business_purge_execute(uuid,uuid,text)": "a3b29b5adcb84dadb12b2ebbe3a87ceb",
     "public.zella_business_purge_files_done(uuid,uuid,text[],text)": "61fb59cee8b0ff4f2c20e068ca7e1428"
   }';
 begin
