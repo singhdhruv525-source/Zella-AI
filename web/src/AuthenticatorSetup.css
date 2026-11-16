@@ -1,0 +1,56 @@
+/* Adding an authenticator app (AuthenticatorSetup.jsx). Tokens only (styles/tokens.css). */
+.zv-authsetup { display: flex; flex-direction: column; gap: var(--zella-space-4); }
+.zv-authsetup-steps {
+  margin: 0;
+  padding-left: var(--zella-space-5);
+  color: var(--zella-text-2);
+  font-size: var(--zella-text-sm);
+  line-height: var(--zella-leading);
+}
+.zv-authsetup-steps li + li { margin-top: var(--zella-space-1); }
+.zv-authsetup-wait { margin: 0; color: var(--zella-text-secondary); font-size: var(--zella-text-sm); }
+.zv-authsetup-code {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--zella-space-4);
+  padding: var(--zella-space-4);
+  border: 1px solid var(--zella-border);
+  border-radius: var(--zella-radius-md);
+  background: var(--zella-alt);
+}
+/* the code stays black on white in every theme, so phones can read it */
+.zv-authsetup-code img { display: block; padding: var(--zella-space-2); border-radius: var(--zella-radius-sm); background: var(--zella-on-primary); }
+html[data-zella-theme="glass"] .zv-authsetup-code img { background: var(--zella-text); }
+.zv-authsetup-code p { flex: 1 1 180px; margin: 0; color: var(--zella-text-secondary); font-size: var(--zella-text-sm); overflow-wrap: anywhere; }
+.zv-authsetup-code code {
+  display: block;
+  margin-top: var(--zella-space-1);
+  color: var(--zella-text);
+  font-family: var(--zella-font-mono);
+  font-size: var(--zella-text-base);
+  letter-spacing: 0.08em;
+}
+.zv-authsetup-field { display: flex; flex-direction: column; gap: var(--zella-space-2); font-size: var(--zella-text-sm); font-weight: 600; }
+.zv-authsetup-field input {
+  width: 100%;
+  min-height: calc(var(--zella-space-8) + var(--zella-space-3));
+  padding: var(--zella-space-2) var(--zella-space-3);
+  border: 1px solid var(--zella-border-strong);
+  border-radius: var(--zella-radius-sm);
+  background: var(--zella-card);
+  color: var(--zella-text);
+  font: inherit;
+  font-size: var(--zella-text-lg);
+  letter-spacing: 0.2em;
+}
+.zv-authsetup-field input:focus { border-color: var(--zella-primary); box-shadow: var(--zella-focus); outline: none; }
+.zv-authsetup-error {
+  margin: 0;
+  padding: var(--zella-space-2) var(--zella-space-3);
+  border: 1px solid var(--zella-danger-border);
+  border-radius: var(--zella-radius-sm);
+  background: var(--zella-danger-bg);
+  color: var(--zella-danger);
+  font-size: var(--zella-text-sm);
+}
