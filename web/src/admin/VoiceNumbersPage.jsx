@@ -273,9 +273,31 @@ function Routing({ me, options, say }) {
       <Filters>
         <Select label="Business" value={business} any="Choose a business…" onChange={setBusiness} options={(options?.businesses ?? []).map((b) => [b.id, b.name])} />
       </Filters>
-      {!business ? <div className="op-empty">Choose a business to see and change its call routing.</div>
+      {!business ? <div className="op-empty">Choose a business to see and change its call routing, or pick one from Missing routing below.</div>
         : <RoutingForm key={business} businessId={business} manage={manage} say={say} />}
+      <MissingRouting onOpen={setBusiness} />
     </Panel>
+  );
+}
+
+// UI-17: businesses whose receptionist has no transfer number (with transfers on) or no fallback number. A row opens
+// that business's routing form above.
+function MissingRouting({ onOpen }) {
+  const [offset, setOffset] = useState(0);
+  const list = useLoad(() => rpc("zella_admin_routing_missing", { p_limit: PAGE, p_offset: offset }), [offset]);
+  const open = (r) => { onOpen(r.business_id); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  return (
+    <section className="ao-section" aria-label="Missing routing" data-missing-routing={list.data?.total ?? ""}>
+      <h3 className="ao-h3">Missing routing{list.data ? ` (${num(list.data.total)})` : ""}</h3>
+      <p className="op-muted">Businesses with an AI receptionist and no number to put callers through to, or no fallback number. Cancelled businesses aren't listed.</p>
+      <ErrorNote error={list.error} onRetry={list.reload} />
+      <DataTable error={list.error} loading={list.loading} rows={list.data?.rows} rowKey={(r) => r.business_id} onRow={open}
+        empty="Every business with a receptionist has a transfer and a fallback number."
+        columns={[["Business", (r) => <strong>{r.name}</strong>],
+          ["Missing", (r) => <span className="ao-flags">{r.missing_transfer && <Pill tone="warning">Transfer number</Pill>}{r.missing_fallback && <Pill tone="warning">Fallback number</Pill>}</span>],
+          ["Business status", (r) => (r.suspended ? <Pill tone="neutral">Suspended</Pill> : "Open")]]} />
+      <Pager total={list.data?.total} offset={offset} onChange={setOffset} />
+    </section>
   );
 }
 
