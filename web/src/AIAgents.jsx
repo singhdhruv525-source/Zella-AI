@@ -67,7 +67,7 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
     <section className="owner-page">
       <div className="owner-page-heading">
         <div>
-          <div className="owner-eyebrow">AI</div>
+          <div className="owner-eyebrow">AI and communications</div>
           <h1>AI receptionists</h1>
           <p>Every client's receptionist, how complete its setup is, and whether it's connected and answering calls.</p>
         </div>
@@ -81,7 +81,7 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
 
       <LoadNotice r={state} what="AI receptionists" />
 
-      <div className="ag-filters op-gap" role="tablist" aria-label="AI agents views">
+      <div className="ag-filters ait-tabs op-gap" role="tablist" aria-label="AI receptionists views">
         {[["receptionists", "Receptionists"], ["testing", "AI testing"]].map(([key, label]) => (
           <button key={key} type="button" role="tab" aria-selected={tab === key} className={tab === key ? "active" : ""} onClick={() => setTab(key)}>{label}</button>
         ))}

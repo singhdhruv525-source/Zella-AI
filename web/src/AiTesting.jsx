@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Pager, PAGE, Pill, can, friendlyError, rpc } from "./admin/adminOps";
 import { timeAgo } from "./ownerFormat";
 import { evalPill, evalSummary } from "./aiTestingWords.js";
+import "./AiTesting.css";
 
 export default function AiTesting({ me, onOpenBusiness }) {
   const [offset, setOffset] = useState(0);
@@ -44,11 +45,11 @@ export default function AiTesting({ me, onOpenBusiness }) {
       </div>
       {(state.error || runError) && <div className="owner-form-error" role="alert">{state.error || runError}</div>}
       <div className="owner-table-wrap" tabIndex={0}>
-        <table className="owner-table">
+        <table className="owner-table ait-table">
           <thead><tr><th>Business</th><th>Test questions</th><th>Last run</th><th>Result</th><th /></tr></thead>
           <tbody>
             {rows.map((b) => (
-              <tr key={b.business_id}>
+              <tr key={b.business_id} className={open === b.business_id && b.last_run?.failed?.length > 0 ? "ait-selected" : undefined}>
                 <td><button type="button" className="op-name" onClick={() => onOpenBusiness(b.business_id)}>{b.name}</button></td>
                 <td>{b.cases}</td>
                 <td>{b.last_run ? timeAgo(b.last_run.run_at) : <span className="op-muted">Not run yet</span>}</td>
@@ -85,7 +86,11 @@ export default function AiTesting({ me, onOpenBusiness }) {
           </tbody>
         </table>
       </div>
-      {state.data && <Pager total={state.data.total} offset={offset} onChange={setOffset} />}
+      {state.data && state.data.total > 0 && (
+        <div className="ait-foot">
+          <Pager total={state.data.total} offset={offset} onChange={setOffset} />
+        </div>
+      )}
     </section>
   );
 }
