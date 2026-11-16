@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import { navigate } from "../router";
 import { EmailConfig, SmsConfig } from "../settings/AdminPanels";
 import BusinessEmails from "./BusinessEmails";
-import { offSentence, switchHint } from "../copy/liveSwitches";
+import { offSentence, switchHint, switchText } from "../copy/liveSwitches";
 import {
   AlertList, DataTable, Drawer, ErrorNote, Facts, Filters, Metric, NotAvailable, PAGE, PageHeader, Pager, Panel, PERIODS, Pill,
   ProviderHealth, ReasonDialog, Search, Select, Tabs, can, num, pct, rpc, since, useLoad, useOptions, useToast, when, words,
@@ -60,10 +60,14 @@ function Overview({ onTab, onFailed }) {
       {o && (
         <>
           {(!o.live.sms || !o.live.email) && (() => {
+            // Only the channels that are off are described as not sent; the other one is said to be live (UI-21).
             const off = [!o.live.sms && "sms_live", !o.live.email && "email_live"].filter(Boolean);
+            const both = off.length > 1, texts = off[0] === "sms_live";
             return (
-              <NotAvailable title="Sending is in test mode" tip={off.map(switchHint).join(", ")}>
-                {offSentence(off)} Zella Voice records each message as "Test mode (not sent)" and nothing reaches customers.
+              <NotAvailable title={both ? "Sending is in test mode" : switchText(off[0], false)} tip={off.map(switchHint).join(", ")}>
+                {both
+                  ? `${offSentence(off)} Zella Voice records every text and email as "Test mode (not sent)", and none of them reach customers.`
+                  : `Zella Voice records each ${texts ? "text" : "email"} as "Test mode (not sent)", and it doesn't reach customers. ${texts ? "Emails" : "Texts"} are live.`}
               </NotAvailable>
             );
           })()}
