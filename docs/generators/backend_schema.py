@@ -211,6 +211,7 @@ GROUPS = [
         "admin_alert_prefs": "Platform admin alert preferences.",
         "platform_alerts": "Platform alerts for Zella Voice staff (grouped, with resolution).",
         "platform_incidents": "Incidents shown on the public status page.",
+        "platform_incident_updates": "Progress notes on an incident (internal; owners are told only when the admin asks).",
         "business_report_schedules": "Which reports a business gets and when.",
         "business_report_runs": "Reports produced.",
         "support_tickets": "Support requests from businesses.",

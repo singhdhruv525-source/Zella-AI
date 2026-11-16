@@ -64,6 +64,7 @@ Never point any of this at production.
 | `wizard-journey.cjs` | The setup wizard: no skipping, unsaved changes (Save / Discard / Stay, focus trap), leaving and reloading, double-click, checkmarks from saved data, server-side finish checks, owner versus staff invitation. |
 | `ui-journeys.cjs` | Template and customer-search scoping across two businesses, appearance save failure and retry, a reload during a pending save, the icon font blocked, automations with live-shaped data. |
 | `admin-mfa-journey.cjs` | Two step sign in for every admin: an admin without an authenticator gets only their own role from the server and nothing from the database, is walked through setting one up (wrong code refused), lands on the dashboard; the only authenticator can't be removed; the next sign in asks for the code. Needs `sql/zella_admin_mfa.sql` in the test database. |
+| `incident-updates.cjs` | OPS-12 and OPS-11: open in a dialog, the similar open incident warning, internal updates and Tell affected businesses, edit, an empty public status text, resolve, Load more, and no browser prompts. Needs `sql/zella_admin_permissions.sql` and `sql/zella_incident_updates.sql`. |
 | `brand-check.cjs` | Sidebar logo and default theme: expanded, collapsed, frames during the transition, tablet rail, phone drawer, reduced motion, accessible name, saved looks kept. |
 | `probe.cjs <email> <route> "<js>"` | Opens one page and prints a browser expression (for debugging). |
 

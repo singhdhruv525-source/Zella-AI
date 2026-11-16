@@ -1,0 +1,87 @@
+// OPS-12 and OPS-11: incident updates (internal unless Tell affected businesses is ticked), editing an open incident,
+// the similar open incident warning, dialogs instead of browser prompts (no prefilled public text), and Load more.
+// Real browser against the local stand in over an ISOLATED test database with sql/zella_admin_permissions.sql and
+// sql/zella_incident_updates.sql applied. Desktop (1440x900) and phone (390 wide). Nothing is sent.
+// Usage: ZDB=<test db> APP_URL=... BACKEND_URL=... SHOTS=<folder> node tests/browser/incident-updates.cjs
+const path = require("path");
+const k = require("./real-kit.cjs");
+const SHOTS = process.env.SHOTS ?? path.join(__dirname, "out", "incident-updates");
+const ADMIN = "admin@zella.test";
+const notices = (kind) => Number(k.sql(`select count(*) from public.staff_notifications where kind = '${kind}'`));
+
+(async () => {
+  k.guard();
+  require("fs").mkdirSync(SHOTS, { recursive: true });
+  k.check("the test database has incident updates", k.sql("select to_regprocedure('public.zella_open_incident_checked(text,text,boolean)') is not null") === "t");
+  const browser = await k.chromium.launch();
+  for (const [width, tag] of [[1440, "desktop"], [390, "phone"]]) {
+    k.sql("delete from public.platform_incidents");
+    k.sql(`insert into public.platform_incidents (title, status, created_at, resolved_at) select 'Old incident ' || g, 'resolved', now() - (g || ' days')::interval, now() - (g || ' days')::interval from generate_series(1, 25) g`);
+    const ctx = await k.context(browser, width);
+    const p = await k.page(ctx);
+    let prompts = 0; p.on("dialog", (d) => { prompts++; d.dismiss().catch(() => {}); });
+    await k.signIn(p, ADMIN);
+    await p.goto(k.APP + "/operations");
+    const title = `Text messages delayed ${tag}`;
+    await p.fill('input[aria-label="Incident title"]', title);
+    await p.click('button:has-text("Open incident")');
+    await p.click('[role="dialog"] button:has-text("Open incident")');
+    await p.waitForSelector("text=Incident opened and owners notified.");
+    const inc = k.sql(`select id from public.platform_incidents where title = '${title}'`);
+    k.check(`${tag}: opening asks in a dialog, then opens`, /^[0-9a-f-]{36}$/.test(inc));
+    // the same problem again
+    await p.fill('input[aria-label="Incident title"]', `TEXT messages delayed ${tag}!`);
+    await p.click('button:has-text("Open incident")');
+    await p.click('[role="dialog"] button:has-text("Open incident")');
+    await p.waitForSelector("text=This looks like an incident that's already open");
+    k.check(`${tag}: a second one for the same problem shows the open one and opens nothing`, await p.isVisible(`[role="dialog"] >> text=${title}`) && k.sql("select count(*) from public.platform_incidents where status = 'open'") === "1");
+    await p.waitForTimeout(500); await p.screenshot({ path: path.join(SHOTS, `similar-${tag}.png`) });
+    await p.click('[role="dialog"] button:has-text("Cancel")');
+    // updates
+    const li = p.locator("li", { hasText: title }).first();
+    await li.locator('button:has-text("Updates")').click();
+    const before = notices("incident_update");
+    await li.locator(`input[aria-label="Update for ${title}"]`).fill("Carrier confirmed the delay");
+    await li.locator('button:has-text("Post update")').click();
+    await p.waitForSelector("text=Update posted. No owner was told.");
+    k.check(`${tag}: an update is internal by default`, notices("incident_update") === before);
+    await li.locator(`input[aria-label="Update for ${title}"]`).fill("Messages are flowing again");
+    await li.locator("text=Tell affected businesses").click();
+    await li.locator('button:has-text("Post update")').click();
+    await p.waitForSelector("text=Update posted and owners told.");
+    k.check(`${tag}: with Tell affected businesses ticked, owners are told`, notices("incident_update") > before, `${before} to ${notices("incident_update")}`);
+    await p.waitForSelector("text=Messages are flowing again");
+    // edit
+    await li.locator('button:has-text("Edit")').click();
+    await p.locator("li").filter({ has: p.locator('button:has-text("Save")') }).locator('input[aria-label="Incident title"]').fill(`${title} (one carrier)`);
+    await p.click('button:has-text("Save")');
+    await p.waitForSelector("text=Incident updated. Nobody was notified.");
+    k.check(`${tag}: an open incident is edited and the edit audited`, k.sql(`select count(*) from public.audit_logs where action = 'platform.incident_edited' and entity_id = '${inc}'`) === "1");
+    // public text: a dialog with nothing prefilled
+    const li2 = p.locator("li", { hasText: `${title} (one carrier)` }).first();
+    await li2.locator('button:has-text("Show on status page")').click();
+    const box = p.locator('[role="dialog"] textarea');
+    k.check(`${tag}: the public status text starts empty (nothing internal is prefilled)`, (await box.inputValue()) === "");
+    await box.fill("Some text messages are delayed. We are working on it.");
+    await p.waitForTimeout(400); await p.screenshot({ path: path.join(SHOTS, `public-text-${tag}.png`) });
+    await p.click('[role="dialog"] button:has-text("Show on status page")');
+    await p.waitForSelector("text=Shown on the public status page");
+    // resolve
+    await li2.locator('button:has-text("Resolve")').click();
+    await p.click('[role="dialog"] button:has-text("Resolve")');
+    await p.waitForSelector("text=Incident resolved and owners told.");
+    // paging
+    k.check(`${tag}: 20 incidents first, then Load more`, (await p.locator(".op-card li").filter({ hasText: "Opened" }).count()) === 20 && await p.isVisible('button:has-text("Load more")'));
+    await p.click('button:has-text("Load more")');
+    await p.waitForSelector("text=Old incident 25");
+    k.check(`${tag}: Load more shows the older ones`, (await p.locator(".op-card li").filter({ hasText: "Opened" }).count()) === 26);
+    await li2.locator('button:has-text("Updates")').click().catch(() => {});
+    await p.waitForTimeout(600); await p.screenshot({ path: path.join(SHOTS, `incidents-${tag}.png`), fullPage: true });
+    k.check(`${tag}: no browser prompts or confirms were used`, prompts === 0, String(prompts));
+    k.check(`${tag}: no page errors`, p.errors.length === 0, p.errors.join(" | "));
+    await ctx.close();
+  }
+  await browser.close();
+  console.log(k.failures() ? `${k.failures()} FAILED` : "ALL PASSED");
+  process.exit(k.failures() ? 1 : 0);
+})().catch((e) => { console.error(e); process.exit(1); });

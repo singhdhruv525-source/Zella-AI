@@ -156,6 +156,11 @@ most often needed:
   yet: adding GitHub Actions is the owner's choice. The web labels still come from `web/src/ownerFormat.js` until the
   Businesses list job merges; then they are read from the list.
 
+- **Incident updates never notify businesses by default (OPS-12, 16 Nov 2026, recommended default taken):** an update
+  is internal unless the admin ticks Tell affected businesses (`p_notify`, false by default, in
+  `zella_incident_post_update`). Editing an open incident notifies nobody. Showing updates on the public status page
+  is not built yet (`zella_public_status` is unchanged).
+
 - **Unsubscribe link limits (G-7, 14 Nov 2026):** limits are per link only, never platform-wide or per address (a burst
   of genuine opt-outs after a big email must never be refused), and the limit never stops an opt-out.
 
