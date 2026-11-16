@@ -9,7 +9,7 @@ import { STAGE_LABELS, businessState, stageLabel } from "../src/ownerFormat.js";
 import { RESUME_AT, WIZARD_STEPS, resumeStep } from "../src/wizardProgress.js";
 import {
   EMPTY_FILTERS, hasFilters, isUnknownAction, lastCallLabel, legacyList, listRequest, ownerCell, planLabel, problemSummary,
-  readList, rowActions, subscriptionLabel,
+  legacyFilters, legacyIgnores, readList, rowActions, subscriptionLabel, unavailableNote,
 } from "../src/businessList.js";
 
 const fn = (name) => new URL(`../supabase/functions/owner-provision-business/${name}`, import.meta.url);
@@ -77,7 +77,7 @@ test("plan, subscription, last call and problems read plainly (BIZ-16, UI-03)", 
   assert.equal(planLabel(undefined), "Not available");
   assert.equal(subscriptionLabel({ status: "past_due" }), "Subscription: Past due");
   assert.equal(subscriptionLabel(null), "No subscription");
-  assert.equal(subscriptionLabel(undefined), "");
+  assert.equal(subscriptionLabel(undefined), "Subscription: Not available");
   assert.equal(lastCallLabel(null), "No calls yet");
   assert.equal(lastCallLabel(undefined), "Not available");
   assert.equal(lastCallLabel(new Date().toISOString()), "just now");
@@ -170,4 +170,33 @@ test("the Businesses page has no marketing banner and gates its write buttons (U
   assert.match(shell, /canManage=\{can\("businesses\.manage"\)\}/);
   assert.match(shell, /onCreateBusiness=\{can\("businesses\.manage"\) \?/);
   assert.match(shell, /can=\{can\}/);
+});
+
+test("B2-08: when the older list takes over, plan, problem and 'most problems' are dropped, not silently ignored", () => {
+  const set = { ...EMPTY_FILTERS, industryId: "i1", plan: "pro", problem: true, sort: "problems" };
+  assert.equal(legacyIgnores(set), true);
+  const dropped = legacyFilters(set);
+  assert.deepEqual(dropped, { ...EMPTY_FILTERS, industryId: "i1" });
+  assert.equal(legacyIgnores(dropped), false);
+  assert.equal(legacyFilters({ ...EMPTY_FILTERS, sort: "name" }).sort, "name");
+  const page = readFileSync(new URL("../src/BusinessesPage.jsx", import.meta.url), "utf8");
+  assert.match(page, /legacyIgnores\(f\)\) \{ f = legacyFilters\(f\); setFiltersState\(legacyFilters\)/);
+});
+
+test("the couldn't be loaded notice reads as a sentence and says only what the page shows", () => {
+  assert.equal(unavailableNote(new Set(["plans"])), "Plans show as Not available. Refresh to try again.");
+  assert.equal(unavailableNote(new Set(["plans", "subscriptions"])), "Plans and subscriptions show as Not available. Refresh to try again.");
+  assert.equal(unavailableNote(new Set(["subscriptions", "problems", "lastCalls"])), "Subscriptions, problems and last calls show as Not available. Refresh to try again.");
+  assert.equal(unavailableNote(new Set()), "");
+});
+
+test("the business detail page uses the list's setup done rule, so a paused business offers Edit setup (BIZ-24)", () => {
+  const detail = readFileSync(new URL("../src/BusinessDetails.jsx", import.meta.url), "utf8");
+  assert.match(detail, /isSetupDone\(b\.onboarding_status\)/);
+  assert.doesNotMatch(detail, /\["testing", "ready", "active"\]\.includes/);
+});
+
+test("stat cards format counts like the footer", () => {
+  const page = readFileSync(new URL("../src/BusinessesPage.jsx", import.meta.url), "utf8");
+  assert.match(page, /isCount\(v\) \? num\(v\)/);
 });

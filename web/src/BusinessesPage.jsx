@@ -10,8 +10,8 @@ import { friendlyError, Filters, Pager, Select, Toggle, num } from "./admin/admi
 import { isCount } from "./admin/loadStatus";
 import { useSettled } from "./crm/paging";
 import {
-  EMPTY_FILTERS, PAGE_SIZE, PLAN_OPTIONS, SORT_OPTIONS, STAGE_OPTIONS, hasFilters, isUnknownAction, lastCallLabel,
-  lastCallTitle, legacyList, listRequest, ownerCell, planLabel, problemSummary, readList, rowActions, subscriptionLabel,
+  EMPTY_FILTERS, PAGE_SIZE, PLAN_OPTIONS, SORT_OPTIONS, STAGE_OPTIONS, hasFilters, isUnknownAction, lastCallLabel, legacyFilters, legacyIgnores,
+  lastCallTitle, legacyList, listRequest, ownerCell, planLabel, problemSummary, readList, rowActions, subscriptionLabel, unavailableNote,
 } from "./businessList";
 
 const INVITE_TONE = { accepted: "success", sent: "warning", pending: "warning", failed: "danger", expired: "danger", revoked: "neutral" };
@@ -40,7 +40,8 @@ export function useBusinessList({ active, authorized, search }) {
   const load = useCallback(async ({ fresh = true } = {}) => {
     const mine = epoch.current;
     const req = ++request.current;
-    const { settled: q, filters: f, page: p } = query.current;
+    const { settled: q, page: p } = query.current;
+    let f = query.current.filters;
     setLoading(true);
     try {
       let next;
@@ -50,11 +51,18 @@ export function useBusinessList({ active, authorized, search }) {
         } catch (err) {
           if (!isUnknownAction(err)) throw err;
           legacy.current = { data: null };   // an older server: use dashboard_data from now on
+          // The older list can't filter by plan or problem or sort by problems: drop them, so the list isn't labelled
+          // as filtered by something it ignores (the load this triggers shares the request below).
+          if (legacyIgnores(f)) { f = legacyFilters(f); setFiltersState(legacyFilters); }
         }
       }
       if (legacy.current) {
-        if (fresh || !legacy.current.data) legacy.current = { data: await callOwnerFunction("dashboard_data") };
-        next = legacyList(legacy.current.data, q, f, p);
+        if (fresh || !legacy.current.data) {
+          const pending = callOwnerFunction("dashboard_data");   // shared by loads that start while it is on its way
+          legacy.current = { data: pending };
+          pending.catch(() => { if (legacy.current?.data === pending) legacy.current = { data: null }; });
+        }
+        next = legacyList(await legacy.current.data, q, f, p);
       }
       if (mine !== epoch.current || req !== request.current) return;
       setList({ ...next, filtered: hasFilters(q, f) });   // what this answer was asked for, not what is typed now
@@ -101,7 +109,7 @@ export default function BusinessesPage({ state, search, onSearch, canManage, onC
   const stats = list?.stats;
   const filtering = hasFilters(search, filters);   // what is typed or chosen now
   const filtered = list ? list.filtered : filtering;   // what the rows on screen were asked for
-  const statValue = (v) => (!loadedAt ? (loading ? "..." : "Not available") : isCount(v) ? v : "Not available");
+  const statValue = (v) => (!loadedAt ? (loading ? "..." : "Not available") : isCount(v) ? num(v) : "Not available");
   const refresh = () => reload({ fresh: true });
 
   return (
@@ -185,7 +193,7 @@ export default function BusinessesPage({ state, search, onSearch, canManage, onC
               <Icon name="info" />
               <div>
                 <strong>Some details couldn't be loaded</strong>
-                <p>{[missing.has("plans") && "plans", missing.has("subscriptions") && "subscriptions", missing.has("problems") && "problems", missing.has("lastCalls") && "last calls"].filter(Boolean).join(", ")} show as Not available. Refresh to try again.</p>
+                <p>{unavailableNote(missing)}</p>
               </div>
             </div>
           )}

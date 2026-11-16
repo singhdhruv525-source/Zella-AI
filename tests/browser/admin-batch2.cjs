@@ -326,6 +326,17 @@ const AUTO = (dispatchEnabled) => ({ json: { workflows: [], deadLetters: 0, disp
     await p.fill(".bl-filters input[type=search]", "sam"); await p.waitForSelector("text=Searched Biz");
     check(true, "B2-08 the problem filter and search ask the server");
     await ctx.close(); }
+  { // Rolled back mid session: businesses_list worked, the problem filter is on, then the server no longer knows it.
+    const { ctx, p, log } = await open(b, { businesses_list: (body, n) => (n === 1 ? { json: BIZ("Before Rollback Biz") } : UNKNOWN),
+      dashboard_data: () => ({ json: OLD_BIZ("After Rollback Biz") }) });
+    await p.goto(BASE + "/businesses"); await p.waitForSelector("text=Before Rollback Biz");
+    await p.check(".bl-filters input[type=checkbox]"); await p.waitForSelector("text=After Rollback Biz");
+    await p.waitForTimeout(400);
+    const footer = await txt(p, ".owner-panel-footer");
+    check(await p.isVisible("[data-list-mode=legacy]") && !(await p.isVisible(".bl-filters input[type=checkbox]")) && !/match, of/.test(footer),
+      `B2-08 rollback: the problem filter the older list can't honour is dropped, not left on unseen ("${footer.trim().slice(0, 60)}")`);
+    check(log.n.dashboard_data === 1, `B2-08 rollback: the older list is asked once (${log.n.dashboard_data})`);
+    await ctx.close(); }
   { const { ctx, p } = await open(b, { businesses_list: (_b, n) => (n === 2 ? FAIL500 : n === 1 ? { json: BIZ("Old Name Plumbing") } : { json: BIZ("New Name Plumbing") }) });
     await p.goto(BASE + "/businesses"); await p.waitForSelector("text=Old Name Plumbing");
     await p.click(".owner-panel-heading button:has-text('Refresh')"); await p.waitForSelector("[data-load=stale]");

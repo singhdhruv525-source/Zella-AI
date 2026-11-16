@@ -22,6 +22,10 @@ export const SORT_OPTIONS = [["newest", "Newest first"], ["oldest", "Oldest firs
 export const PAGE_SIZE = 25;
 export const EMPTY_FILTERS = { industryId: "", stage: "", plan: "", problem: false, sort: "newest" };
 
+// The older server's list can't filter by plan or problem or sort by problems, so those are dropped when it takes over.
+export const legacyFilters = (f) => ({ ...f, plan: "", problem: false, sort: f.sort === "problems" ? "newest" : f.sort });
+export const legacyIgnores = (f) => Boolean(f.plan || f.problem || f.sort === "problems");
+
 export const hasFilters = (search, f) => Boolean(String(search ?? "").trim() || f.industryId || f.stage || f.plan || f.problem);
 
 // What businesses_list is asked for.
@@ -107,9 +111,18 @@ export function planLabel(plan) {
 }
 
 export function subscriptionLabel(subscription) {
-  if (subscription === undefined) return "";
+  if (subscription === undefined) return "Subscription: Not available";
   if (!subscription?.status) return "No subscription";
   return `Subscription: ${humanize(subscription.status)}`;
+}
+
+// "Plans and subscriptions show as Not available." for the sources the server couldn't read.
+const SOURCE_NAMES = [["plans", "plans"], ["subscriptions", "subscriptions"], ["problems", "problems"], ["lastCalls", "last calls"]];
+export function unavailableNote(missing) {
+  const names = SOURCE_NAMES.filter(([key]) => missing.has(key)).map(([, name]) => name);
+  if (!names.length) return "";
+  const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  return `${list[0].toUpperCase()}${list.slice(1)} show as Not available. Refresh to try again.`;
 }
 
 export function lastCallLabel(at) {

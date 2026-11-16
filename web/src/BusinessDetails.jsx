@@ -10,7 +10,7 @@ import { Pill } from "./OwnerOverview";
 import AutomationOverview from "./AutomationOverview";
 import { BusinessModulesCard, BusinessRecordsCard } from "./BusinessAdminControls";
 import {
-  actionLabel, businessState, formatDate, formatDateTime, timeAgo, formatDuration,
+  actionLabel, businessState, formatDate, formatDateTime, timeAgo, formatDuration, setupDone as isSetupDone,
 } from "./ownerFormat";
 import { friendlyError } from "./admin/adminOps";
 
@@ -235,7 +235,7 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup, can =
   const phone = setupData.integrations?.phone;
   const enabledModules = data.modules.filter((m) => m.enabled);
   const enabledAutomations = data.automations.filter((a) => a.status !== "disabled");
-  const setupDone = ["testing", "ready", "active"].includes(b.onboarding_status);
+  const setupDone = isSetupDone(b.onboarding_status);   // the same rule as the Businesses list (BIZ-24)
   const state = businessState(b);
   const isCancelled = Boolean(b.cancelled_at);
   const isSuspended = Boolean(b.suspended_at);
