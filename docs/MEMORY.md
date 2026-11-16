@@ -194,9 +194,16 @@ most often needed:
   definitions: a receptionist edit reaches the next call (`zella_assistant_for_call` reads the live configuration);
   the audit row records `config_hash` before and after.
 
+- **Automations' live rule is behind a switch (BIZ-07, 16 Nov 2026):** `ZELLA_AUTOMATIONS_START_ON_SAVE=on` (an
+  edge function secret) makes an automation turned on for a live business start at once (real messages), because
+  every deploy is cut from main and production's four businesses are all `onboarding_status` active. Off by default:
+  saves behave as before. No backfill of automations already left paused on live businesses (owner decision).
+
 Waiting on the owner:
 
 - whether suspended businesses keep read-only access (L-5);
+- when to turn on `ZELLA_AUTOMATIONS_START_ON_SAVE`, and whether to start automations already left paused on live
+  businesses (BIZ-07);
 - whether to remove the never-used super-admin account that looks like a typo;
 - the trademark check for "Zella Voice";
 - an Anthropic key for knowledge drafting, when the budget allows.

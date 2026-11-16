@@ -13,6 +13,7 @@ import {
 } from "./detail.ts";
 import { MODULE_DEPENDENCIES, businessModuleProblems } from "./module_deps.ts";
 import { mask, maskText } from "./mask.ts";
+import { START_ON_SAVE_SWITCH, savedStatus, startOnSave, type LiveBusiness } from "./live.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -391,7 +392,7 @@ async function industryRuleList(admin: SupabaseClient, businessId: string) {
     );
 }
 
-async function saveIndustryRules(admin: SupabaseClient, businessId: string, rules: unknown, live: boolean) {
+async function saveIndustryRules(admin: SupabaseClient, businessId: string, rules: unknown, business: LiveBusiness, switchOn: boolean) {
   if (!Array.isArray(rules)) return;
   const list = await industryRuleList(admin, businessId);
   const known = new Map(list.map((r) => [r.name, r]));
@@ -408,17 +409,20 @@ async function saveIndustryRules(admin: SupabaseClient, businessId: string, rule
     const preset = presetByName.get(name);
     if (!known.has(name) || !preset) continue;
     const enabled = bool(item.enabled, false);
-    const status = !enabled ? "disabled" : live ? "active" : "paused";
+    // BIZ-07: live.ts savedStatus; with the switch off, exactly as before (active whenever is_active)
+    const saved = savedStatus({ kind: "rule", enabled, current: null, business, switchOn });
+    const status = saved.status;
+    const flag = switchOn ? { paused_by_suspension: saved.pausedBySuspension } : {};
     const notify = oneOf(item.notifyVia, ["sms", "email", "both"] as const, "both");
     const { data: current, error: currentError } = await admin
       .from("automations").select("id, trigger_config").eq("business_id", businessId).eq("name", name).maybeSingle();
     if (currentError) throw currentError;
     const config = { ...obj(current?.trigger_config ?? preset.trigger_config), notify_via: notify };
     const { error: writeError } = current
-      ? await admin.from("automations").update({ status, trigger_config: config, updated_at: now }).eq("id", current.id)
+      ? await admin.from("automations").update({ status, trigger_config: config, updated_at: now, ...flag }).eq("id", current.id)
       : await admin.from("automations").insert({
         business_id: businessId, name, description: preset.description, trigger_type: preset.trigger_type,
-        status, trigger_config: config, actions: [], conditions: {},
+        status, trigger_config: config, actions: [], conditions: {}, ...flag,
       });
     if (writeError) throw writeError;
   }
@@ -989,6 +993,7 @@ async function saveAutomations(
 
   const byType = new Map((existing ?? []).map((row) => [row.trigger_type, row]));
   const now = new Date().toISOString();
+  const switchOn = startOnSave(Deno.env.get(START_ON_SAVE_SWITCH));
 
   for (const type of AUTOMATION_TYPES) {
     const definition = AUTOMATIONS[type];
@@ -996,13 +1001,10 @@ async function saveAutomations(
     const enabled = bool(item.enabled, false);
     const current = byType.get(type);
 
-    // Enabled automations wait as "paused" until the business goes live.
-    // A live automation that stays enabled keeps running.
-    const status = !enabled
-      ? "disabled"
-      : current?.status === "active"
-      ? "active"
-      : "paused";
+    // BIZ-07 (live.ts): with the switch on, an enabled automation of a live business starts at once. With it off, as
+    // before: an enabled automation waits as "paused" until the business goes live; a live one that stays enabled runs.
+    const saved = savedStatus({ kind: "standard", enabled, current: current?.status, business, switchOn });
+    const status = saved.status;
 
     const values = {
       name: definition.name,
@@ -1017,6 +1019,7 @@ async function saveAutomations(
       actions: definition.actions,
       conditions: {},
       updated_at: now,
+      ...(switchOn ? { paused_by_suspension: saved.pausedBySuspension } : {}),
     };
 
     const { error } = current
@@ -1029,7 +1032,7 @@ async function saveAutomations(
     if (error) throw error;
   }
 
-  await saveIndustryRules(admin, businessId, fields.industryRules, business.is_active === true);
+  await saveIndustryRules(admin, businessId, fields.industryRules, business, switchOn);
   await saveDailyReport(admin, businessId, input.daily_report);
 
   // The early on/off step passes early: true, so it doesn't move setup progress forward.

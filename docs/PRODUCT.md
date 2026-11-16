@@ -354,6 +354,10 @@ Opened from Businesses. What each tab shows and what an admin can do there:
 - **Automations:** every standard automation and industry rule, with one status language shared with the Automations
   page: Active, Paused, Turned off (`AUTOMATION_STATUS` in `web/src/automationCatalog.js`, OPS-22). Names always start
   with a capital (UI-09).
+  One rule for when an automation runs (BIZ-07, `live.ts`): a business is live when it went live and is neither
+  suspended nor cancelled. Once the owner turns on `ZELLA_AUTOMATIONS_START_ON_SAVE`, an automation turned on for a live
+  business starts at once; one turned on while it is suspended starts again when it is reactivated; before go live it
+  waits and starts at go live. Until the switch is on, saving behaves as before (built, off).
 
 ---
 
