@@ -75,6 +75,7 @@ types, no plans.
 |---|---|
 | `voice-rules` | v8, 15 Nov 2026 (forward on the usage limit; files match `main`) |
 | `record-files`, `google-lead`, `calendar-connect`, `website-lead` | v2, v2, v2, v5, 14 Nov 2026 |
+| `platform-emails` | v1, 15 Nov 2026 (new; files match `main`; answers 401 without the Vault secret) |
 | `staff-invite` | v5, 15 Nov 2026 (files match `main`: two step sign in required, request size limit, plain wording, and the strict `cors.ts`: browsers are allowed only from `ZELLA_APP_URL`'s origin, `ZELLA_ALLOWED_ORIGINS` and localhost) |
 | `continue-plan` | v6, 9 Nov 2026 |
 | `owner-provision-business` | v16, 7 Nov 2026 (behind `main`: needs the CLI deploy, it is too large for the MCP upload) |
@@ -84,8 +85,8 @@ types, no plans.
 | `smart-action` (named "zella-admin-check") and `zella-admin-check-v2` | v5, 18 Oct 2026: old one-off checks with no source in the repo; candidates for removal, with approval |
 
 Not deployed yet from `main`: `owner-provision-business`, `billing-webhook`, `continue-plan`, `reschedule-appointment`,
-`store-connect`, `staff-invite` (the four with browser access wait for `ZELLA_APP_URL` and `ZELLA_ALLOWED_ORIGINS`), and
-`platform-emails` once its PR is merged. n8n workflows are not re-imported since PR #57. Deploying needs the owner's approval.
+`store-connect`, `staff-invite` (the four with browser access wait for `ZELLA_APP_URL` and `ZELLA_ALLOWED_ORIGINS`).
+n8n workflows are not re-imported since PR #57. Deploying needs the owner's approval.
 
 **n8n:** the 30 workflows were renamed "Zella Voice - …" in n8n on 13 Nov 2026 (owner's approval; name only, all still unpublished), matching `n8n/workflows/`.
 
@@ -117,7 +118,7 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile` (checked
 | The last commit of PR #49 (`a5bcb54`, a merge commit) was never reviewed by CodeRabbit | Open | Low risk; re-review if touched. |
 | Audit follow-ups M-3, M-4, L-2, L-4, L-5 | Open | `docs/ZELLA_REMEDIATION_CHECKLIST.md` |
 | "Something is missing in the app" (owner, no details yet) | Waiting on the owner | |
-| **Emails from Zella Voice to businesses:** catalogue and admin preview built; outbox `sql/zella_platform_emails.sql` applied 15 Nov 2026 (empty) | Open | Delivery (`sql/zella_email_delivery.sql`, `platform-emails` edge function) in review (event based: a new email wakes the sender at once; the minute job is only a safety net); then apply, deploy, set the sender address, switch on the event triggers and the safety net, and turn on `email_live`, each with approval. Billing emails per Stripe event in step 4. |
+| **Emails from Zella Voice to businesses:** catalogue and admin preview built; outbox `sql/zella_platform_emails.sql` applied 15 Nov 2026 (empty) | Open | Delivery applied and deployed 15 Nov 2026 (`sql/zella_email_delivery.sql`; `platform-emails` v1, which refuses a call without the Vault secret). Event based: a new email wakes the sender at once; the minute job is only a safety net. Still off, each with approval: set `platform_emails_url` and the sender address (`email_from_address`), add `RESEND_API_KEY` to the function, switch on the two event triggers and the safety net job, then turn on `email_live`. Billing emails per Stripe event in step 4. |
 | **Usage limits that act:** `sql/zella_usage_enforcement.sql` applied 15 Nov 2026 (fingerprints match the tested copy; switches off); voice-rules v8 deployed 15 Nov 2026 (files match `main`; unsigned requests refused) | Open, owner's approval | 1. Give one demo business a test fallback number the owner controls. 2. Staging call with the calls switch on for it, to prove Vapi transfers on the `destination` reply. 3. Turn on `usage_enforcement.calls`, then `.messages`, each with approval. The monthly spending limit for pay as you go needs payments (step 4). |
 | **Fallback number for every business** (owner, 15 Nov 2026: decided at Create Business, REQ-BIL-34). New businesses can't finish setup without one (owner-provision-business, merged; deploy pending with the CLI). | Open | The 4 businesses in production are demo businesses (owner, 15 Nov 2026), so none needs a real fallback number; one gets a test number for the staging call. |
 | **Business moments** (record day, call surge, weekend on call gaps): `sql/zella_business_moments.sql` applied 15 Nov 2026 and added to the hourly group; in app notifications only | Open, owner's approval | They run only once the timed job `zella_jobs_hourly` is switched on (it is off in production, like most timed jobs; only `zella_usage_thresholds` and `zella_billing_reconcile` are active). Later moments need data the app doesn't keep yet (recall due dates, seasonal demand such as tax season). |
