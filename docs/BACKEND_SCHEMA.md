@@ -18,7 +18,7 @@ It reads the catalog only, never rows.
 | Row security policies | 349 |
 | Columns | 2211 |
 | Views | 1 |
-| Functions | 1017 (944 security definer, 28 callable by `anon`) |
+| Functions | 1024 (951 security definer, 28 callable by `anon`) |
 
 Rules every table follows:
 
@@ -4614,7 +4614,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_add_lead_note(p_customer_id uuid, p_note text)` | boolean | yes | signed in |
 | `zella_add_record_note(p_id uuid, p_note text)` | boolean | yes | signed in |
 
-### `zella_admin_*` (50)
+### `zella_admin_*` (51)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -4631,6 +4631,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_admin_call_usage(p_business_id uuid, p_from timestamp with time zone, p_to timestamp with time zone, p_limit integer, p_offset integer)` | jsonb | yes | signed in |
 | `zella_admin_calls(p_from timestamp with time zone, p_to timestamp with time zone, p_business uuid, p_direction text, p_status text, p_outcome text, p_failed_only boolean, p_q text, p_limit integer, p_offset integer)` | jsonb | yes | signed in |
 | `zella_admin_can(p_permission text)` | boolean | yes | signed in |
+| `zella_admin_invoices(p_business_id uuid, p_status text, p_limit integer)` | jsonb | yes | signed in |
 | `zella_admin_mask(p text)` | text |  | server only |
 | `zella_admin_message_detail(p_channel text, p_id uuid, p_with_content boolean)` | jsonb | yes | signed in |
 | `zella_admin_message_retry(p_channel text, p_id uuid, p_reason text)` | jsonb | yes | signed in |
@@ -5319,7 +5320,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `update_customer(p_business_id uuid, p_customer_id uuid, p_first_name text, p_last_name text, p_email text, p_phone text, p_company_name text, p_status text, p_notes text, p_metadata jsonb)` | uuid | yes | signed in |
 | `update_updated_at()` | trigger |  | server only |
 
-### `zella_owner_*` (17)
+### `zella_owner_*` (18)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -5327,6 +5328,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_owner_continue_plan(p_business_id uuid)` | boolean | yes | signed in |
 | `zella_owner_identity_document_add(p_business_id uuid, p_user uuid, p_kind text, p_path text, p_file_name text, p_mime text, p_size integer)` | jsonb | yes | server only |
 | `zella_owner_identity_upload_check(p_business_id uuid, p_kind text)` | jsonb | yes | signed in |
+| `zella_owner_invoices(p_business_id uuid)` | jsonb | yes | signed in |
 | `zella_owner_onboarding_complete_step(p_business_id uuid, p_step text)` | jsonb | yes | signed in |
 | `zella_owner_onboarding_finish_later(p_business_id uuid)` | jsonb | yes | signed in |
 | `zella_owner_onboarding_get(p_business_id uuid)` | jsonb | yes | signed in |
@@ -5714,7 +5716,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_store_lookup_log(p_business_id uuid, p_provider_call_id text, p_integration_id uuid, p_result text, p_verified boolean)` | void | yes | server only |
 | `zella_store_lookup_log(p_business_id uuid, p_provider_call_id text, p_integration_id uuid, p_result text, p_verified boolean, p_order_ref text)` | void | yes | server only |
 
-### `zella_stripe_*` (45)
+### `zella_stripe_*` (50)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -5742,6 +5744,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_stripe_failed_refund(r billing_outbox)` | void | yes | server only |
 | `zella_stripe_grant_subscription_create(o jsonb, b jsonb)` | void | yes | server only |
 | `zella_stripe_grant_subscription_cycle(o jsonb, b jsonb)` | void | yes | server only |
+| `zella_stripe_invoice_record(e billing_events, o jsonb)` | text | yes | server only |
 | `zella_stripe_invoice_upsert(p_business_id uuid, p_inv jsonb, p_kind text)` | billing_invoices | yes | server only |
 | `zella_stripe_link(p_stripe_id text, p_kind text)` | billing_stripe_links | yes | server only |
 | `zella_stripe_link_add(p_stripe_id text, p_kind text, p_business_id uuid, p_livemode boolean, p_local_kind text, p_local_id uuid, p_expected_amount_minor bigint)` | billing_stripe_links | yes | server only |
@@ -5752,9 +5755,13 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_stripe_on_customer_subscription_deleted(e billing_events, o jsonb)` | text | yes | server only |
 | `zella_stripe_on_customer_subscription_trial_will_end(e billing_events, o jsonb)` | text | yes | server only |
 | `zella_stripe_on_customer_subscription_updated(e billing_events, o jsonb)` | text | yes | server only |
+| `zella_stripe_on_invoice_created(e billing_events, o jsonb)` | text | yes | server only |
+| `zella_stripe_on_invoice_deleted(e billing_events, o jsonb)` | text | yes | server only |
+| `zella_stripe_on_invoice_finalized(e billing_events, o jsonb)` | text | yes | server only |
 | `zella_stripe_on_invoice_paid(e billing_events, o jsonb)` | text | yes | server only |
 | `zella_stripe_on_invoice_payment_action_required(e billing_events, o jsonb)` | text | yes | server only |
 | `zella_stripe_on_invoice_payment_failed(e billing_events, o jsonb)` | text | yes | server only |
+| `zella_stripe_on_invoice_voided(e billing_events, o jsonb)` | text | yes | server only |
 | `zella_stripe_on_payment_intent_payment_failed(e billing_events, o jsonb)` | text | yes | server only |
 | `zella_stripe_on_payment_intent_requires_action(e billing_events, o jsonb)` | text | yes | server only |
 | `zella_stripe_on_payment_intent_succeeded(e billing_events, o jsonb)` | text | yes | server only |
