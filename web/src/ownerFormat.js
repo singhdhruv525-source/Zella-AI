@@ -1,4 +1,8 @@
-// Shared labels and formatting for the owner admin pages.
+// Shared labels and formatting for the owner admin pages. Numbers, times, phones and time zones come from
+// lib/format.js, re-exported here so pages have one import.
+import { formatRelative } from "./lib/format.js";
+
+export { formatCount, formatRelative, formatPhone, formatTimeZone, formatDateTime as formatFullDateTime } from "./lib/format.js";
 
 export const ACTION_LABELS = {
   "business.draft_created": "Created business draft",
@@ -56,14 +60,14 @@ export function stageLabel(status) {
   return STAGE_LABELS[status] ?? status ?? "Draft";
 }
 
+// The shared tone map (docs/DESIGN_SYSTEM.md, Badges): Live and Ready are success, Setup complete (testing) is in
+// progress so info, every draft step is warning.
 export function stageTone(status) {
-  if (status === "active") return "success";
+  if (["active", "ready"].includes(status)) return "success";
   if (status === "cancelled") return "neutral";
-  if (status === "suspended") return "danger";
-  if (["testing", "ready"].includes(status)) return "info";
-  if (status === "failed") return "danger";
-  if (status === "paused") return "warning";
-  return "neutral";
+  if (["suspended", "failed"].includes(status)) return "danger";
+  if (status === "testing") return "info";
+  return "warning";
 }
 
 export function formatDate(value) {
@@ -85,17 +89,10 @@ export function formatDateTime(value) {
   });
 }
 
+// "5 days ago", "Yesterday" (lib/format.js). Put formatDateTime in a title for the exact time.
 export function timeAgo(value) {
   if (!value) return "None";
-  const seconds = Math.round((Date.now() - new Date(value).getTime()) / 1000);
-  if (seconds < 60) return "just now";
-  const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `${minutes} min ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours} h ago`;
-  const days = Math.round(hours / 24);
-  if (days < 30) return `${days} d ago`;
-  return formatDate(value);
+  return formatRelative(value) || "None";
 }
 
 export function formatDuration(seconds) {

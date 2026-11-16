@@ -4,7 +4,7 @@ import { navigate } from "../router";
 import { callOwnerFunction } from "../CreateBusinessWizard";
 import { TimeZoneSelect } from "../formFields";
 import { uploadImage } from "./PersonalPanels";
-import { Banner, Card, Confirm, Empty, Facts, Field, LinkRows, LoadState, Needs, Pill, SaveBar, Table, Toggle, money, useAsync, useForm, when, words } from "./SettingsKit";
+import { Banner, Card, Confirm, Empty, Facts, Field, LinkRows, LoadState, MissingSettings, Needs, Pill, SaveBar, SectionSaveBar, SettingRow, Table, Toggle, money, useAsync, useForm, when, words } from "./SettingsKit";
 import { settingLabel } from "../copy/settingLabels";
 
 // Admin Settings content. Every panel reads and writes through the
@@ -398,9 +398,11 @@ export function SettingNumber({ me, keyName, label, current, hint }) {
   const form = useForm({ value: String(current ?? "") });
   const owner = me?.role === "zella_owner";
   return (
-    <Card title={label} sub={hint}>
-      <div className="zs-grid"><Field label={label} hint={owner ? `Setting ${keyName}` : "Only a Zella Voice owner can change this."}><input value={form.values.value} onChange={form.set("value")} inputMode="numeric" disabled={!owner} /></Field></div>
-      {owner && <SaveBar form={form} onSave={() => form.save(async (v) => { await call("platform_setting_save", { key: keyName, value: v.value }); })} />}
+    <Card>
+      <SettingRow label={label} help={owner ? hint : [hint, "Only a Zella Voice owner can change this."].filter(Boolean).join(" ")} technical={<>Setting key <code>{keyName}</code></>}>
+        <input className="zs-input zs-input-num" aria-label={label} value={form.values.value} onChange={form.set("value")} inputMode="numeric" disabled={!owner} />
+      </SettingRow>
+      {owner && <SectionSaveBar form={form} onSave={() => form.save(async (v) => { await call("platform_setting_save", { key: keyName, value: v.value }); })} />}
     </Card>
   );
 }
@@ -739,13 +741,44 @@ export function AiProviders({ me }) {
   );
 }
 
+const settingText = (value) => (typeof value === "string" ? value : Array.isArray(value) ? value.join(", ") : JSON.stringify(value));
+
 function SettingText({ me, row, hint = "Checked by the provider on first use." }) {
-  const form = useForm({ value: typeof row.value === "string" ? row.value : Array.isArray(row.value) ? row.value.join(", ") : JSON.stringify(row.value) });
+  const form = useForm({ value: settingText(row.value) });
   const owner = me?.role === "zella_owner";
+  const label = row.label ?? settingLabel(row.key);
   return (
-    <Card title={row.label ?? settingLabel(row.key)} sub={<>Setting key <code>{row.key}</code> · changed {when(row.updated_at)}</>}>
-      <div className="zs-grid"><Field label="Value" hint={owner ? hint : "Only a Zella Voice owner can change this."}><input value={form.values.value} onChange={form.set("value")} disabled={!owner} /></Field></div>
-      {owner && <SaveBar form={form} onSave={() => form.save(async (v) => { await call("platform_setting_save", { key: row.key, value: v.value }); })} />}
+    <Card>
+      <SettingRow label={label} help={owner ? hint : "Only a Zella Voice owner can change this."}
+        technical={<>Setting key <code>{row.key}</code>, changed {when(row.updated_at)}</>}>
+        <input className="zs-input" aria-label={label} value={form.values.value} onChange={form.set("value")} disabled={!owner} />
+      </SettingRow>
+      {owner && <SectionSaveBar form={form} onSave={() => form.save(async (v) => { await call("platform_setting_save", { key: row.key, value: v.value }); })} />}
+    </Card>
+  );
+}
+
+// A group of settings in one card, with one save bar for the whole group. Saving sends each changed setting.
+function SettingGroup({ me, title, rows }) {
+  const form = useForm(Object.fromEntries(rows.map(({ row }) => [row.key, settingText(row.value)])));
+  const owner = me?.role === "zella_owner";
+  const save = () => form.save(async (v) => {
+    for (const { row } of rows) {
+      if (v[row.key] !== form.saved[row.key]) await call("platform_setting_save", { key: row.key, value: v[row.key] });
+    }
+  });
+  return (
+    <Card title={title}>
+      {rows.map(({ row, hint, unavailable, key }) => {
+        const label = settingLabel(key ?? row.key);
+        return (
+          <SettingRow key={key ?? row.key} label={label} help={hint} unavailable={unavailable}
+            technical={<>Setting key <code>{key ?? row.key}</code>{row?.updated_at ? <>, changed {when(row.updated_at)}</> : null}</>}>
+            {!unavailable && <input className="zs-input zs-input-num" aria-label={label} value={form.values[row.key] ?? ""} onChange={form.set(row.key)} disabled={!owner} />}
+          </SettingRow>
+        );
+      })}
+      {owner && <SectionSaveBar form={form} onSave={save} />}
     </Card>
   );
 }
@@ -1459,17 +1492,14 @@ export function OperationalRules({ me }) {
     <LoadState state={state}>{(s) => (
       <>
         {me?.role !== "zella_owner" && <Banner tone="warn">Only a Zella Voice owner can change these. You can see the current values.</Banner>}
-        {OPERATIONAL.map(([group, keys]) => (
-          <div key={group}>
-            <h3 className="zs-group">{group}</h3>
-            {keys.map(([k, hint]) => {
-              const row = s.settings.find((x) => x.key === k);
-              return row
-                ? <SettingText key={k} me={me} row={{ ...row, label: settingLabel(k) }} hint={hint} />
-                : <Banner key={k} tone="warn"><strong>{settingLabel(k)}</strong> isn't in platform settings yet: the database update that adds it hasn't been applied. <small className="zs-muted">Setting key <code>{k}</code></small></Banner>;
-            })}
-          </div>
-        ))}
+        <MissingSettings items={OPERATIONAL.flatMap(([, keys]) => keys).filter(([k]) => !s.settings.some((x) => x.key === k)).map(([k]) => settingLabel(k))} />
+        {OPERATIONAL.map(([group, keys]) => {
+          const rows = keys.map(([k, hint]) => {
+            const row = s.settings.find((x) => x.key === k);
+            return row ? { row, hint } : { row: { key: k }, key: k, hint, unavailable: true };
+          });
+          return <SettingGroup key={group} me={me} title={group} rows={rows} />;
+        })}
       </>
     )}</LoadState>
   );
