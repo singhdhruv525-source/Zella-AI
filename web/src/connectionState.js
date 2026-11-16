@@ -1,8 +1,30 @@
 // The words for the one server definition of connected, answering and live (docs/PRODUCT.md §9.1,
 // sql/zella_connection_state.sql). Pages show what the server says and never work it out themselves.
-import { timeAgo } from "./ownerFormat.js";
+import { formatDate } from "./ownerFormat.js";
 
 export const NOT_TRACKED = "Not tracked";
+
+// How long ago, in words for a sentence: "just now", "5 minutes ago", "yesterday", "5 days ago", then the date.
+// Never "5 d ago" (docs/DESIGN_SYSTEM.md, Writing).
+export function relativeText(value, now = Date.now()) {
+  if (!value) return "";
+  const t = new Date(value).getTime();
+  if (Number.isNaN(t)) return "";
+  const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+  const minutes = Math.round((now - t) / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${plural(minutes, "minute")} ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${plural(hours, "hour")} ago`;
+  const days = Math.round(hours / 24);
+  if (days === 1) return "yesterday";
+  if (days < 30) return `${plural(days, "day")} ago`;
+  return `on ${formatDate(value)}`;
+}
+
+// 1203 -> "1,203". Missing stays missing ("").
+const countFormat = new Intl.NumberFormat("en-US");
+export const countText = (n) => (n === null || n === undefined || n === "" || !Number.isFinite(Number(n)) ? "" : countFormat.format(Number(n)));
 
 // When the definition isn't available yet (connectionsAvailable false), nothing is called live or not live.
 export function livePill(row, available = true) {
@@ -19,8 +41,8 @@ export function livePill(row, available = true) {
 // Answering is its own state: a call served in the last 7 days. It is never folded into live.
 export function answeringText(answering, lastServedAt, available = true) {
   if (!available) return "Answering not available";
-  if (answering) return lastServedAt ? `Answered a call ${timeAgo(lastServedAt)}` : "Answering calls";
-  return lastServedAt ? `No call answered in 7 days (last ${timeAgo(lastServedAt)})` : "No call answered yet";
+  if (answering) return lastServedAt ? `Answered a call ${relativeText(lastServedAt)}` : "Answering calls";
+  return lastServedAt ? `No call answered in 7 days (last ${relativeText(lastServedAt)})` : "No call answered yet";
 }
 
 // What a business still needs before the receptionist can be live (in the order an admin fixes them).

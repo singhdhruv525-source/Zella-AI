@@ -68,7 +68,7 @@ const NAVIGATION = [
   { label: "Modules & Features", title: "Modules & features", icon: "widgets", path: "/modules", group: "Configuration", perm: "businesses.view" },
   { label: "Plans & Subscriptions", title: "Plans & subscriptions", icon: "credit_card", path: "/plans", group: "Configuration", perm: "billing.view" },
   { label: "Offers & Promotions", title: "Offers & promotions", icon: "sell", path: "/offers", group: "Configuration", perm: "billing.view" },
-  { label: "AI Agents", title: "AI agents", icon: "smart_toy", path: "/agents", group: "AI & communications", perm: "businesses.view" },
+  { label: "AI Agents", title: "AI receptionists", icon: "smart_toy", path: "/agents", group: "AI & communications", perm: "businesses.view" },
   { label: "Voice & numbers", icon: "call", path: "/voice", tabs: true, group: "AI & communications", perm: "businesses.view" },
   { label: "Messaging", icon: "forum", path: "/messaging", tabs: true, group: "AI & communications", perm: "businesses.view" },
   { label: "Platform Operations", title: "Platform operations", icon: "monitor_heart", path: "/operations", group: "Operations", perm: "businesses.view" },

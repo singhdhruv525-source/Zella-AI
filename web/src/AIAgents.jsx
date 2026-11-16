@@ -1,19 +1,44 @@
 import { useState } from "react";
 import "./OwnerPages.css";
+import "./AIAgents.css";
 import { callOwnerFunction } from "./CreateBusinessWizard";
 import { Pill } from "./OwnerOverview";
-import { stageLabel, timeAgo } from "./ownerFormat";
+import { stageLabel, formatDateTime } from "./ownerFormat";
+import { Icon } from "./BusinessUI";
+import { Metric } from "./admin/adminOps";
 import { LoadNotice, UpdatedAt, useRefreshable } from "./admin/loadState";
 import { emptyText, metric } from "./admin/loadStatus";
-import { answeringText, livePill, missingForLive } from "./connectionState.js";
+import { answeringText, countText, livePill, missingForLive, relativeText } from "./connectionState.js";
 
+// The five setup checks, in the order an admin fixes them. The second word is how a missing one reads.
 const CHECKS = [
-  ["knowledge", "Knowledge", "Services or FAQs added"],
-  ["hours", "Hours", "Business hours set"],
-  ["greeting", "Greeting", "Greeting written"],
-  ["phone", "Phone", "Active phone number"],
-  ["voice", "Voice", "Number linked to Vapi"],
+  ["knowledge", "knowledge", "Services or FAQs added"],
+  ["hours", "hours", "Business hours set"],
+  ["greeting", "greeting", "Greeting written"],
+  ["phone", "phone", "Active phone number"],
+  ["voice", "voice", "Number linked to Vapi"],
 ];
+
+const plural = (n, word) => `${countText(n) || 0} ${word}${Number(n) === 1 ? "" : "s"}`;
+
+// "3 of 5 set" with a five segment meter, and what is missing on one muted line (the full list is in the title).
+function SetupCell({ checks }) {
+  const done = CHECKS.filter(([key]) => checks?.[key]);
+  const missing = CHECKS.filter(([key]) => !checks?.[key]);
+  const detail = CHECKS.map(([key, , title]) => `${title}: ${checks?.[key] ? "yes" : "no"}`).join("\n");
+  return (
+    <div className="ag-setup" title={detail}>
+      <div className="ag-setup-top">
+        <span className="ag-setup-count">{done.length} of {CHECKS.length} set</span>
+        <span className="ag-meter" role="meter" aria-valuemin={0} aria-valuemax={CHECKS.length} aria-valuenow={done.length}
+          aria-label={`${done.length} of ${CHECKS.length} setup checks done`}>
+          {CHECKS.map(([key], i) => <span key={key} className={i < done.length ? "on" : ""} />)}
+        </span>
+      </div>
+      <span className="ag-line">{missing.length ? `Missing: ${missing.map(([, word]) => word).join(", ")}` : "Everything set"}</span>
+    </div>
+  );
+}
 
 const FILTERS = [
   ["all", "All"],
@@ -54,17 +79,17 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
   const showLink = (v) => (available ? show(v) : "Not available");
 
   return (
-    <section className="owner-page">
+    <section className="owner-page ag-page">
       <div className="owner-page-heading">
         <div>
-          <div className="owner-eyebrow">AI</div>
+          <div className="owner-eyebrow">AI and communications</div>
           <h1>AI receptionists</h1>
           <p>Every client's receptionist, how complete its setup is, and whether it's connected and answering calls.</p>
         </div>
         <div className="op-heading-actions">
           <UpdatedAt r={state} />
-          <button type="button" className="owner-secondary-button" onClick={load} disabled={loading}>
-            {loading ? "Loading..." : "↻ Refresh"}
+          <button type="button" className="owner-secondary-button ag-refresh" onClick={load} disabled={loading}>
+            <Icon name="refresh" size="sm" />{loading ? "Loading..." : "Refresh"}
           </button>
         </div>
       </div>
@@ -72,15 +97,15 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
       <LoadNotice r={state} what="AI receptionists" />
 
       <div className="owner-stat-grid">
-        <div className="owner-stat-card"><div className="owner-stat-top"><span>Receptionists</span></div><div className="owner-stat-value">{show(s?.total)}</div><div className="owner-stat-note">{`One per business · ${show(s?.missingKnowledge)} missing knowledge`}</div></div>
-        <div className="owner-stat-card"><div className="owner-stat-top"><span>Live</span></div><div className="owner-stat-value">{showLink(s?.live)}</div><div className="owner-stat-note">Switched on, number linked to Vapi</div></div>
-        <div className="owner-stat-card"><div className="owner-stat-top"><span>Answering</span></div><div className="owner-stat-value">{showLink(s?.answering)}</div><div className="owner-stat-note">Answered a call in the last 7 days</div></div>
-        <div className="owner-stat-card"><div className="owner-stat-top"><span>Ready to connect</span></div><div className="owner-stat-value">{showLink(s?.readyToConnect)}</div><div className="owner-stat-note">Set up, number not linked to Vapi</div></div>
+        <Metric label="Receptionists" value={show(s?.total)} note={typeof s?.missingKnowledge === "number" ? `One per business, ${countText(s.missingKnowledge)} missing knowledge` : "One per business"} />
+        <Metric label="Live" value={showLink(s?.live)} note="Switched on, number linked to Vapi" />
+        <Metric label="Answering" value={showLink(s?.answering)} note="Answered a call in the last 7 days" />
+        <Metric label="Ready to connect" value={showLink(s?.readyToConnect)} note="Set up, number not linked to Vapi" />
       </div>
 
       <section className="owner-panel">
         <div className="owner-panel-heading ag-toolbar">
-          <div className="ag-filters" role="tablist">
+          <div className="ag-filters" role="tablist" aria-label="Show receptionists">
             {FILTERS.map(([key, label]) => (
               <button
                 key={key}
@@ -96,6 +121,7 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
           </div>
           <input
             className="ag-search"
+            type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search business"
@@ -104,66 +130,64 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
         </div>
 
         <div className="owner-table-wrap" tabIndex={0}>
-          <table className="owner-table">
+          <table className="owner-table owner-table--cards ag-table">
             <thead>
               <tr>
                 <th>Business</th>
                 <th>Receptionist</th>
                 <th>Setup</th>
                 <th>Status</th>
-                <th>AI calls (30 d)</th>
-                <th />
+                <th className="num">AI calls, last 30 days</th>
+                <th className="col-actions" aria-label="Actions" />
               </tr>
             </thead>
             <tbody>
-              {agents.map((a) => (
-                <tr key={a.agentId}>
-                  <td>
-                    <div className="owner-business-cell">
-                      <button type="button" className="op-name" onClick={() => onOpenBusiness(a.businessId)}>
-                        {a.businessName}
+              {agents.map((a) => {
+                const [tone, word] = livePill(a, available);
+                const needs = available && !a.live ? missingForLive(a) : [];
+                const answering = answeringText(a.answering, a.lastServedAt, available);
+                const statusLine = needs.length ? `Needs ${needs.join(", ")}` : answering;
+                const knowledge = `${plural(a.services, "service")}, ${plural(a.faqs, "FAQ")}`;
+                const custom = a.name && a.name !== "Receptionist" ? a.name : "";
+                return (
+                  <tr key={a.agentId}>
+                    <td>
+                      <div className="ag-cell">
+                        <button type="button" className="op-name ag-name" title={a.businessName} onClick={() => onOpenBusiness(a.businessId)}>
+                          {a.businessName}
+                        </button>
+                        <span className="ag-line">{a.industry} · {a.stage === "active" ? "Setup finished" : stageLabel(a.stage)}</span>
+                      </div>
+                    </td>
+                    <td data-label="Receptionist">
+                      <div className="ag-cell" title={[custom, a.personality].filter(Boolean).join(", ") || undefined}>
+                        <span className="ag-nowrap">{knowledge}</span>
+                        {custom && <span className="ag-line">{custom}</span>}
+                      </div>
+                    </td>
+                    <td data-label="Setup"><SetupCell checks={a.checks} /></td>
+                    <td data-label="Status">
+                      {/* an unrecognised or missing status is shown as unknown, never as live or off */}
+                      <div className="ag-cell" title={needs.length ? `${answering}. ${statusLine}.` : statusLine}>
+                        <span><Pill tone={tone}>{word}</Pill></span>
+                        <span className="ag-line">{statusLine}</span>
+                      </div>
+                    </td>
+                    <td data-label="AI calls, last 30 days" className="num">
+                      <span title={a.lastCallAt ? `Last call ${relativeText(a.lastCallAt)} (${formatDateTime(a.lastCallAt)})` : "No calls yet"}>
+                        {countText(a.aiCallsLast30Days) || "0"}
+                      </span>
+                    </td>
+                    <td className="col-actions">
+                      <button type="button" className="owner-secondary-button op-small ag-action" onClick={() => onOpenSetup(a.businessId)}>
+                        Edit setup
                       </button>
-                      <span>{a.industry} · {a.stage === "active" ? "Setup finished" : stageLabel(a.stage)}</span>
-                    </div>
-                  </td>
-                  <td>
-                    <div className="owner-business-cell">
-                      <strong>{a.name}</strong>
-                      <span>{a.services} services · {a.faqs} FAQs{a.personality ? ` · ${a.personality}` : ""}</span>
-                    </div>
-                  </td>
-                  <td>
-                    <div className="ag-checks" aria-label={`${a.ready} of ${CHECKS.length} setup checks done`}>
-                      {CHECKS.map(([key, label, title]) => (
-                        <span key={key} className={a.checks[key] ? "ok" : ""} title={`${title}: ${a.checks[key] ? "yes" : "no"}`}>
-                          {label}
-                        </span>
-                      ))}
-                    </div>
-                  </td>
-                  <td>
-                    {/* an unrecognised or missing status is shown as unknown, never as live or off */}
-                    <div className="owner-business-cell">
-                      <span><Pill tone={livePill(a, available)[0]}>{livePill(a, available)[1]}</Pill></span>
-                      <span>{answeringText(a.answering, a.lastServedAt, available)}</span>
-                      {available && !a.live && missingForLive(a).length > 0 && <span>Needs {missingForLive(a).join(", ")}</span>}
-                    </div>
-                  </td>
-                  <td>
-                    <div className="owner-business-cell">
-                      <strong>{a.aiCallsLast30Days}</strong>
-                      <span>{a.lastCallAt ? `Last call ${timeAgo(a.lastCallAt)}` : "No calls yet"}</span>
-                    </div>
-                  </td>
-                  <td>
-                    <button type="button" className="owner-secondary-button op-small" onClick={() => onOpenSetup(a.businessId)}>
-                      Edit setup
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                  </tr>
+                );
+              })}
               {!agents.length && (
-                <tr>
+                <tr className="ag-empty-row">
                   <td colSpan={6}>
                     <div className="op-empty">
                       {data?.agents?.length
@@ -176,8 +200,8 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
             </tbody>
           </table>
         </div>
-        <div className="owner-panel-footer">
-          <span>{agents.length} shown</span>
+        <div className="owner-panel-footer ag-foot">
+          <span>{countText(agents.length) || 0} shown</span>
           <span>Live: switched on, with an active number linked to Vapi. Answering: Zella Voice served it a call in the last 7 days.</span>
         </div>
       </section>

@@ -4,6 +4,8 @@ import { actionLabel, stageLabel, stageTone, timeAgo, formatDate } from "./owner
 import { humanize } from "./copy/labels";
 import { LoadNotice, UpdatedAt, useRefreshable } from "./admin/loadState";
 import { emptyText, metric } from "./admin/loadStatus";
+// The one KPI card shared by every admin page (docs/DESIGN_SYSTEM.md).
+import { Metric } from "./admin/adminOps";
 
 const ATTENTION_LABELS = {
   invitation_failed: "Invitation failed",
@@ -11,16 +13,6 @@ const ATTENTION_LABELS = {
   integration_error: "Integration problem",
   setup_failed: "Setup failed",
 };
-
-function Metric({ label, value, note }) {
-  return (
-    <div className="owner-stat-card">
-      <div className="owner-stat-top"><span>{label}</span></div>
-      <div className="owner-stat-value">{value}</div>
-      {note && <div className="owner-stat-note">{note}</div>}
-    </div>
-  );
-}
 
 function Panel({ title, description, action, children }) {
   return (
@@ -87,7 +79,7 @@ export default function OwnerOverview({ onCreateBusiness, onOpenBusiness, onCont
       </div>
 
       <div className="owner-stat-grid">
-        <Metric label="Calls (30 days)" value={show(s?.callsLast30Days)} note={`${show(s?.aiCallsLast30Days)} handled by AI`} />
+        <Metric label="Calls, last 30 days" value={show(s?.callsLast30Days)} note={`${show(s?.aiCallsLast30Days)} handled by AI`} />
         <Metric label="Open support tickets" value={show(s?.openTickets)} note="Open or in progress" />
         <Metric label="Needs attention" value={show(list("attention")?.length)} note="Failed invites, errors" />
         <Metric label="Suspended / canceling" value={r.status === "loading" ? "…" : `${show(s?.suspended)} / ${show(s?.cancelling)}`} note={`${show(s?.cancelled)} canceled`} />
