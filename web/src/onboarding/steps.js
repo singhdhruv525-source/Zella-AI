@@ -156,6 +156,8 @@ export function errorCode(error) {
 export function errorWords(error) {
   const code = errorCode(error);
   if (code === "NOTE_REQUIRED" && /too_long/.test(String(error?.details ?? ""))) return "Keep the note under 1000 characters.";
+  // the upload function says exactly what was wrong with a file, in plain words (contract §5.8)
+  if (code === "INVALID_INPUT" && typeof error?.words === "string" && error.words && !/[\u2014\u2013]|[A-Za-z]-[A-Za-z]/.test(error.words)) return error.words;
   if (code) return ERROR_WORDS[code];
   if (isNotReady(error)) return "This step isn't ready yet. Choose Finish later and come back soon.";
   const m = String(error?.message ?? error ?? "");
@@ -191,7 +193,8 @@ export function sectionRows(key, data) {
     ];
   }
   if (key === "hours_services") {
-    const hours = Array.isArray(d.hours) ? d.hours : [];
+    // business_hours.weekday is 0 = Sunday to 6 = Saturday, as in the CRM (BusinessHours.jsx); shown Monday first
+    const hours = (Array.isArray(d.hours) ? d.hours : []).slice().sort((x, y) => ((x.weekday + 6) % 7) - ((y.weekday + 6) % 7));
     const services = Array.isArray(d.services) ? d.services : [];
     return [
       ["Opening hours", hours.length ? hours.map((h) => `${DAY[h.weekday] ?? "Day"}: ${time(h.opens)} to ${time(h.closes)}`) : "Not set"],

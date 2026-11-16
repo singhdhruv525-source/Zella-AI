@@ -106,8 +106,10 @@ function Journey({ api, email }) {
 
   const show = useCallback((step) => { setView(step); window.scrollTo?.(0, 0); }, []);
   // Every answer from the server carries the whole state; the screens hand it back here.
+  // A screen may pass a function of the latest state (used by the polls, so an answer never overwrites newer state).
   const onState = useCallback((next, { advance = false } = {}) => {
     if (!next) return;
+    if (typeof next === "function") { setState((cur) => (cur ? next(cur) : cur)); return; }
     setState(next);
     if (advance) show(resumeStep(next));
   }, [show]);
@@ -139,6 +141,8 @@ function Journey({ api, email }) {
   if (load.status === "notready") return <Frame title="Your setup"><NotReady onRetry={start}>Your setup screens aren't switched on yet. You can open your CRM now and come back here later to finish setting up.</NotReady><OpenCrm /></Frame>;
   if (load.status === "none") return <Frame title="Nothing to set up here"><p className="zob-lead">This setup is for the owner of a new Zella Voice business, and your account has nothing waiting. If you were invited as an owner, open the newest invitation email again.</p><OpenCrm /></Frame>;
   if (load.status === "error") {
+    // the server wants this session verified with a code first (contract §4, version 2)
+    if (errorCode(load.error) === "MFA_REQUIRED") return <MfaCodeCard email={email} onDone={start} />;
     if (errorCode(load.error) === "NOT_ALLOWED") return <Frame title="Only the business owner can do this"><p className="zob-lead">This setup is for the owner of the business. You can still use your CRM as usual.</p><OpenCrm /></Frame>;
     return <Frame title="Your setup"><Failed error={load.error} onRetry={start} /></Frame>;
   }

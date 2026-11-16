@@ -23,8 +23,8 @@ export function WelcomeScreen({ state, onComplete }) {
   return (
     <>
       <p className="zob-lead">
-        Your AI receptionist for <strong>{state.business_name}</strong> is almost ready. Setting up takes about ten
-        minutes, and you can stop and come back at any step.
+        Your AI receptionist for <strong>{state.business_name}</strong> is almost ready. Most steps take a few minutes,
+        and you can stop and come back at any step.
       </p>
       <h2 className="zob-subhead">The steps ahead</h2>
       <ol className="zob-ahead">

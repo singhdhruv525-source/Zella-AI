@@ -32,7 +32,7 @@ export function PlanScreen({ api, state, onState, onReload, onComplete }) {
   }
   return (
     <>
-      <p className="zob-lead">This is the plan the Zella Voice team set up for your business. If something looks wrong, choose Finish later and reply to your invitation email before you accept.</p>
+      <p className="zob-lead">This is the plan the Zella Voice team set up for your business. If something looks wrong, don't accept it yet: choose Finish later and contact the Zella Voice team.</p>
       <section className="zob-card zob-plan" aria-labelledby="zob-plan-name">
         <div className="zob-plan-head">
           <div>
@@ -72,7 +72,7 @@ export function PaymentScreen({ api, state, onState, onComplete }) {
   const action = useAction();
   async function refresh() {
     setChecking(true);
-    try { onState({ ...state, payment: await api.paymentStatus(state.business_id) }); setProblem(""); }
+    try { const fresh = await api.paymentStatus(state.business_id); onState((s) => ({ ...s, payment: fresh })); setProblem(""); }
     catch (err) { setProblem(errorWords(err)); }
     finally { setChecking(false); }
   }

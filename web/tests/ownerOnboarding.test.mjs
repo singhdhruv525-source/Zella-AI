@@ -84,6 +84,8 @@ test("check your details: the admin's entries in plain words, no dashes", () => 
   assert.equal(Object.fromEntries(biz)["Time zone"], "America/New York");
   const hours = Object.fromEntries(sectionRows("hours_services", { hours: [{ weekday: 1, opens: "09:00:00", closes: "17:00" }], services: [], takes_bookings: false }));
   assert.deepEqual(hours["Opening hours"], ["Monday: 09:00 to 17:00"]);
+  const week = Object.fromEntries(sectionRows("hours_services", { hours: [{ weekday: 0, opens: "10:00", closes: "12:00" }, { weekday: 1, opens: "09:00", closes: "17:00" }] }));
+  assert.deepEqual(week["Opening hours"], ["Monday: 09:00 to 17:00", "Sunday: 10:00 to 12:00"], "0 is Sunday, listed after Saturday");
   assert.equal(hours.Services, "None");
   assert.equal(hours["Takes bookings"], "No");
   const rp = Object.fromEntries(sectionRows("receptionist_phone", { language: "en-US", transfer_to: { type: "owner" }, phone_setup: { mode: "call_forwarding", forward_from: "+15555550100" }, numbers: [{ e164: "+15555550102", status: "pending" }] }));
@@ -246,4 +248,14 @@ test("stand in: not deployed, upload not deployed, a failed load, and nothing wa
   assert.ok((await flaky.getState(id)).business_name, "a retry works");
   const empty = createFakeApi({ scenario: "none", storage: memory(), delay: 0 });
   assert.deepEqual((await empty.listBusinesses()).businesses, []);
+});
+
+test("contract version 2: MFA_REQUIRED from the request check, and the upload function's own words", () => {
+  assert.equal(errorCode({ code: "MFA_REQUIRED", message: "MFA_REQUIRED", status: 403 }), "MFA_REQUIRED");
+  assert.equal(errorCode({ code: "42501", message: "MFA_REQUIRED" }), "MFA_REQUIRED");
+  assert.equal(errorWords({ code: "42501", message: "MFA_REQUIRED" }), "Enter the code from your authenticator app to continue.");
+  assert.equal(errorWords({ code: "INVALID_INPUT", words: "The file is over 10 MB. Upload a smaller copy." }), "The file is over 10 MB. Upload a smaller copy.");
+  assert.equal(errorWords({ code: "INVALID_INPUT", words: "A well-meant reply" }), "That didn't work. Reload the page and try again.", "words with a hyphen fall back to the table");
+  assert.equal(errorWords({ code: "INVALID_INPUT" }), "That didn't work. Reload the page and try again.");
+  assert.equal(isNotReady({ status: 404, notReady: true }), true);
 });

@@ -16,7 +16,7 @@ const KIND_WORDS = {
 const DOC_WORDS = { pending_review: "Waiting for review", verified: "Verified", rejected: "Not accepted" };
 const STATE_TEXT = {
   needed: "Upload both documents below. We'll check them and tell you here.",
-  checking: "We have your documents and we're checking them now. It usually takes one working day. You can choose Finish later; this page shows the answer when you come back.",
+  checking: "We have your documents and we're checking them now. You can choose Finish later; this page shows the answer when you come back.",
   verified: "You're verified. Thank you.",
   try_again: "One of your documents wasn't accepted. See why below, then upload a new copy.",
   in_review: "A person on the Zella Voice team is now reviewing your documents by hand. This page shows the answer when it's done.",
@@ -37,7 +37,7 @@ export function IdentityScreen({ api, state, onState, onComplete }) {
 
   async function refresh() {
     setChecking(true);
-    try { onState({ ...state, identity: await api.identityStatus(id) }); setProblem(""); }
+    try { const fresh = await api.identityStatus(id); onState((s) => ({ ...s, identity: fresh })); setProblem(""); }
     catch (err) { setProblem(errorWords(err)); }
     finally { setChecking(false); }
   }
@@ -59,7 +59,7 @@ export function IdentityScreen({ api, state, onState, onComplete }) {
       const { path, token } = await api.identityUploadUrl(meta);
       await api.uploadFile(path, token, file);
       const res = await api.identityUploadConfirm({ ...meta, path });
-      onState({ ...state, identity: res.identity });
+      onState((s) => ({ ...s, identity: res.identity }));
     } catch (err) {
       setProblem(isNotReady(err) ? "Uploading isn't ready yet. Choose Finish later and come back soon." : errorWords(err));
     } finally {

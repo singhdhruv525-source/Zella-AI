@@ -3,7 +3,7 @@ import { acceptInvitations as acceptAllInvitations } from "../BusinessAuth";
 import { finishMfaEnrollment, mfaStatus, startMfaEnrollment, verifyMfaCode } from "../mfa";
 
 // The owner onboarding journey's server calls, one function per call, exactly as docs/OWNER_ONBOARDING_CONTRACT.md
-// (version 1) names them. The screens only ever talk to this module.
+// (version 2) names them. The screens only ever talk to this module.
 //
 // A call that isn't deployed yet comes back as PostgREST's "function not found" (PGRST202) or the edge function's 404;
 // the screens show "This step isn't ready yet" for those (steps.js isNotReady), never a crash.
@@ -11,10 +11,14 @@ import { finishMfaEnrollment, mfaStatus, startMfaEnrollment, verifyMfaCode } fro
 // A stand in (fakeApi.js) exists for unit tests and the local browser journey only. It is loaded only when the app is
 // built with VITE_ONBOARDING_FAKE=1, so a production build never contains it.
 
-// A database function's refusal arrives as { code: "P0001", message: "<CODE>", details }; keep the code and details.
+// A database function's refusal carries its code as the message: { code: "P0001", message: "<CODE>", details }, or,
+// from the request check that runs first, { code: "42501", message: "MFA_REQUIRED" } (contract §4, version 2).
 async function rpc(name, args) {
   const { data, error } = await supabase.rpc(name, args);
-  if (error) throw Object.assign(new Error(error.message || "Something went wrong."), { code: error.code === "P0001" ? error.message : error.code, details: error.details ?? null, status: error.status });
+  if (error) {
+    const fromMessage = /^[A-Z_]{3,40}$/.test(String(error.message ?? "")) ? error.message : null;
+    throw Object.assign(new Error(error.message || "Something went wrong."), { code: fromMessage ?? error.code, details: error.details ?? null, status: error.status });
+  }
   return data;
 }
 
@@ -22,14 +26,12 @@ async function rpc(name, args) {
 async function edge(action, payload) {
   const { data, error } = await supabase.functions.invoke("owner-onboarding", { body: { action, ...payload } });
   if (error) {
-    let message = "Something went wrong. Please try again.";
-    let code;
-    try {
-      const body = await error.context?.json();
-      if (body?.error) message = body.error;
-      if (typeof body?.code === "string") code = body.code;
-    } catch { /* keep the fallback */ }
-    throw Object.assign(new Error(message), { status: error.context?.status, code });
+    const status = error.context?.status;
+    let body = null;
+    try { body = await error.context?.json(); } catch { /* not JSON */ }
+    // our function always answers { error, code }; a 404 without it is the platform saying it isn't deployed yet
+    if (status === 404 && !body?.error) throw Object.assign(new Error("Requested function was not found"), { status, notReady: true });
+    throw Object.assign(new Error(body?.error || "Something went wrong. Please try again."), { status, code: typeof body?.code === "string" ? body.code : undefined, words: typeof body?.error === "string" ? body.error : undefined });
   }
   if (!data || data.error) throw Object.assign(new Error(data?.error || "Something went wrong. Please try again."), { code: data?.code });
   return data;

@@ -1,4 +1,4 @@
-// A stand in for the owner onboarding server (docs/OWNER_ONBOARDING_CONTRACT.md, version 1), for unit tests and the
+// A stand in for the owner onboarding server (docs/OWNER_ONBOARDING_CONTRACT.md, version 2), for unit tests and the
 // local browser journey ONLY. api.js loads it only when the app is built with VITE_ONBOARDING_FAKE=1, so a production
 // build never contains it. It answers in the contract's shapes and follows its rules (steps in order, only Looks right
 // finishes a section, uploads only while allowed, payment never confirmed by itself), so the screens are tested against
@@ -114,7 +114,7 @@ export function createFakeApi({ scenario = "", storage = null, delay = 120 } = {
     save();
     return out;
   };
-  const owner = (id) => { if (id !== BUSINESS) throw dbError("NOT_FOUND"); if (st.scenario === "none") throw dbError("NOT_ALLOWED"); };
+  const owner = (id) => { if (id !== BUSINESS) throw dbError("NOT_ALLOWED"); if (st.scenario === "none") throw dbError("NOT_ALLOWED"); };
   const needsCode = () => { if (!security().session_verified) throw dbError("MFA_REQUIRED"); };
   const complete = (key) => { if (!st.done.includes(key)) { st.done.push(key); return true; } return false; };
 
