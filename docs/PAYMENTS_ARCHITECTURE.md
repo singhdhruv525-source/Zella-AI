@@ -1226,6 +1226,15 @@ pinned in the request header and changed only on purpose.
 | Dispute evidence | `POST /v1/disputes/:id` | evidence fields, `submit` | a person decides |
 | Look-ups | `GET` invoices, PaymentIntents, refunds, events, balance transactions | | reconciler (§10) |
 
+**Built (lane F, switched off):** one client for every call, `web/supabase/functions/_shared/stripe.ts`: plain
+`fetch` to the REST API, form encoded, the API version pinned (`STRIPE_API_VERSION`, confirm in the sandbox), a 10 s
+timeout, an `Idempotency-Key` required on every POST, errors classified for the outbox (429, 5xx and network are the
+only retries; `idempotency_error` is held), live mode read from the key prefix (`sk_live_`/`rk_live_`), and field
+access that works on both invoice shapes (`parent.subscription_details` and the older `subscription`). The base URL is
+injectable: tests run against the in-memory fake in `tests/stripe_fake/fake_stripe.ts`, which refuses live keys and
+models Stripe's idempotency (same key and body replays, another body is an `idempotency_error`). No test reaches
+api.stripe.com.
+
 **Every POST carries `Idempotency-Key`**, built as in §8.1 (at most 255 characters, no personal data). A key is reused only to retry the identical request.
 Stripe returns the first result for a repeated key with the same parameters, errors if the parameters differ, and may
 forget keys after 24 hours.
