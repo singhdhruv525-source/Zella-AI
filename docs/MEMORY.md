@@ -171,6 +171,10 @@ most often needed:
   REQ-API-01 to 04, Settings API management and Webhooks). A read only log of incoming provider events for admins is
   still fine.
 
+- **Held emails to businesses (Lane B, 16 Nov 2026):** an email held after 5 tries is released (back to queued, tries
+  reset) or discarded by an admin with comms.manage and a reason. A discard ends as `failed`, which only a discard
+  writes, shown as Discarded; the sender never marks an email failed (it holds it). Default, owner can change.
+
 Waiting on the owner:
 
 - whether suspended businesses keep read-only access (L-5);
