@@ -128,7 +128,7 @@ export function unavailableNote(missing) {
 
 export function lastCallLabel(at) {
   if (at === undefined) return "Not available";
-  if (!at) return "Never";
+  if (!at) return "No calls yet";
   return formatRelative(at);
 }
 

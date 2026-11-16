@@ -303,7 +303,7 @@ function footerText({ list, loading, loadedAt, filtered, stats, stale }) {
   return `Showing ${num(first)} to ${num(last)} of ${num(total)}${filtered ? " matches" : ""}${all}${earlier}`;
 }
 
-const EmptyValue = ({ label = "None" }) => <span className="empty-value">{label}</span>;
+const EmptyValue = ({ label = "Not set" }) => <span className="empty-value">{label}</span>;
 
 // Clicks on the row open the business; clicks on its own buttons and menu do their own thing.
 const fromControl = (e) => Boolean(e.target.closest("button, a, input, select, [role=menu]"));
@@ -354,7 +354,7 @@ function BusinessRow({ b, canManage, onOpen, onSetup }) {
             <Pill tone="danger">{problems.label}</Pill>
             {problems.detail && <span className="owner-table-secondary" title={problems.detail}>{problems.detail}</span>}
           </>
-        ) : <EmptyValue label={problems.count === 0 ? "None" : problems.label} />}
+        ) : <EmptyValue label={problems.count === 0 ? "No problems" : problems.label} />}
       </td>
       <td className="col-actions">
         <div className="bl-actions">

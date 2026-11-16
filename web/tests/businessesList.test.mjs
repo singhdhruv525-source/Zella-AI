@@ -78,7 +78,7 @@ test("plan, subscription, last call and problems read plainly (BIZ-16, UI-03)", 
   assert.equal(subscriptionLabel({ status: "past_due" }), "Subscription: Past due");
   assert.equal(subscriptionLabel(null), "No subscription");
   assert.equal(subscriptionLabel(undefined), "Subscription: Not available");
-  assert.equal(lastCallLabel(null), "Never");
+  assert.equal(lastCallLabel(null), "No calls yet");
   assert.equal(lastCallLabel(undefined), "Not available");
   assert.equal(lastCallLabel(new Date().toISOString()), "Just now");
   assert.deepEqual(problemSummary({ count: 0, items: [] }).label, "No problems");
