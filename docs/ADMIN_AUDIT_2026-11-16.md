@@ -10,7 +10,7 @@ approval (a production migration, a deploy, a live switch or a provider setup).
 | Kind | What was done | What it can prove |
 |---|---|---|
 | Code review | Five reviewers read every admin page, the edge function actions and SQL behind it, and the docs (ARCHITECTURE, PRODUCT, RULES, MEMORY). Every item cites `file:line` on `main` as of 16 Nov 2026. | What the code does. A behaviour not confirmed in code is marked VERIFY. |
-| Local browser crawl | `tests/browser/glitch-sweep.cjs` signed in through the real sign in page as `admin@zella.test` (Zella Voice owner) and `readonly@zella.test` (read only admin) and opened every admin page and every Settings page (95 per persona) on desktop, phone and dark mode. It ran against the isolated test database (the production schema as of 15 Nov with test only people and businesses), the local Supabase stand in and the real edge function code. Nothing was sent. | Crashes, error screens, failed calls, sideways scrolling and empty pages, for these two roles. |
+| Local browser crawl | `tests/browser/glitch-sweep.cjs` signed in through the real sign in page as `admin@zella.test` (Zella Voice owner) and `readonly@zella.test` (read only admin) and opened every admin page and every Settings page (95 per persona) on desktop and in dark mode; on a phone it opened the 26 main pages only, because the phone crawl can't open the Settings tree. It ran against the isolated test database (the production schema as of 15 Nov with test only people and businesses), the local Supabase stand in and the real edge function code. Nothing was sent. | Crashes, error screens, failed calls, sideways scrolling and empty pages, for these two roles. |
 | Visual pass | Every admin page and every tab (46 screens) was opened and looked at, at 1440 px desktop, and the main pages on a phone; the text of all 74 Settings pages was read. Findings are the UI rows. | Layout, wording, missing actions and pages that contradict each other. |
 | Production, read only | Supabase security advisors; `cron.job`; row security and grants on `support_tickets` and `audit_logs`; the live platform role matrix; the live `zella_platform_admin_trigger`; `calls_view`; row counts for `integrations` and `business_phone_numbers`. No data about any customer was read or copied. | The live state of those items on 16 Nov 2026. |
 | Not done | No staging run, no real provider test (Vapi, Telnyx, Resend, Stripe), no test with restricted roles other than read only admin, no automated accessibility scan (axe-core is not installed; PLT-06). | Items that need these are marked VERIFY. |
@@ -68,7 +68,8 @@ itself. The P1 items below are the ones to fix before the admin panel is used fo
 1. **Two permission models.** The edge function and the `zella_admin_*` functions use the role matrix; older functions
    (incidents, health, retry, alerts bell, offers, business size, the `/welcome` redirect) use `is_platform_admin()`,
    which allows only Zella Voice owner and super admin. One migration that moves them onto `zella_admin_require` and
-   `zella_admin_audit` closes OPS-03, OPS-04, OPS-05, OPS-14, CFG-23, BIZ-08, ACC-04, ACC-05, ACC-06 and ACC-09 together.
+   `zella_admin_audit` closes OPS-03, OPS-04, OPS-14, CFG-23, BIZ-08, ACC-04, ACC-05, ACC-06 and ACC-09 together. OPS-05 also needs the
+   replay safety check (`zella_admin_run_retry_check`) in the retry itself: permissions and audit alone don't stop a retry repeating a message.
    Today production has only two admins, both Zella Voice owners, so this bites as soon as a restricted role is added.
 2. **Sign in and access.** ACC-01 (two step sign in for every admin), ACC-18 (sign out a removed admin everywhere),
    ACC-19 (fresh code for owner grants), ACC-17 (least privilege default), PLT-01 (leaked password protection).
@@ -277,7 +278,7 @@ For: telling businesses whether Zella Voice is working.
 Each section lists the pages and files covered, then every item. "Approval" says whether the owner must approve a
 production migration, a deploy, a live switch, a destructive action or a decision before it goes live.
 
-Approval values: "deploy" means an `owner-provision-business` (or other edge function) deploy; "yes (migration)" a production migration; "live switch", "destructive", "owner decision" and "legal" as written; "no" means it can ship with the web app after review.
+Approval values: "deploy" means an `owner-provision-business` (or other edge function) deploy; "yes (migration)" a production migration; "live switch", "destructive", "owner decision" and "legal" as written; "no" means no migration or function deploy is needed; publishing the web app to production still needs the owner's approval, like every deploy.
 
 ## Businesses (Overview, Businesses list, Business detail, Verification, Create Business wizard, lifecycle)
 
