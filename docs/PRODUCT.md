@@ -330,6 +330,17 @@ Platform roles use named permissions (`businesses.view/manage`, `telephony.manag
 `analytics.view`, `growth.manage`). Only the Zella Voice owner manages platform admins. An admin alerts bell shows
 platform alerts live.
 
+### 9.1 One business's page (`/businesses/<id>`)
+
+Opened from Businesses. What each tab shows and what an admin can do there:
+
+- **Activity:** admin and system changes to this business, each with a readable label (`web/src/copy/auditActions.js`;
+  a test fails when SQL or the admin function writes an action without one, BIZ-25). Changes the database records on
+  its own read as, for example, "Changed business (system record)".
+- **Automations:** every standard automation and industry rule, with one status language shared with the Automations
+  page: Active, Paused, Turned off (`AUTOMATION_STATUS` in `web/src/automationCatalog.js`, OPS-22). Names always start
+  with a capital (UI-09).
+
 ---
 
 ## 10. Messaging and follow-ups

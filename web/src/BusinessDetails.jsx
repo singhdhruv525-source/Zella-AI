@@ -10,8 +10,9 @@ import { Pill } from "./OwnerOverview";
 import AutomationOverview from "./AutomationOverview";
 import { BusinessModulesCard, BusinessRecordsCard } from "./BusinessAdminControls";
 import {
-  actionLabel, businessState, formatDate, formatDateTime, timeAgo, formatDuration,
+  businessState, formatDate, formatDateTime, timeAgo, formatDuration,
 } from "./ownerFormat";
+import { actionLabel } from "./copy/auditActions";
 import { friendlyError } from "./admin/adminOps";
 
 const TABS = [
@@ -763,7 +764,7 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup }) {
               {data.activity.map((log) => (
                 <li key={log.id}>
                   <div>
-                    <strong>{actionLabel(log.action)}</strong>
+                    <strong>{actionLabel(log.action, log.entity_type)}</strong>
                     <span>{log.actor ?? "Unknown user"} · {formatDateTime(log.created_at)} ({timeAgo(log.created_at)})</span>
                   </div>
                 </li>
