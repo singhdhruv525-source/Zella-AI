@@ -408,7 +408,7 @@ export async function businessDetail(admin: SupabaseClient, businessId: string, 
 
   const [
     industryResult, invitationsResult, membersResult, integrationsResult,
-    callsResult, callCountResult, logsResult, ticketsResult,
+    _calls, callCountResult, logsResult, ticketsResult,
   ] = await Promise.all([
     admin.from("industries").select("id, name").eq("id", setup.business.industry_id).maybeSingle(),
     admin.from("business_invitations")
@@ -423,11 +423,9 @@ export async function businessDetail(admin: SupabaseClient, businessId: string, 
     admin.from("integrations")
       .select("id, provider, integration_type, status, account_email, error_message, last_synced_at, updated_at")
       .eq("business_id", businessId),
-    admin.from("calls")
-      .select("id, direction, status, from_number, to_number, started_at, duration_seconds, ai_handled, created_at")
-      .eq("business_id", businessId)
-      .order("created_at", { ascending: false })
-      .limit(10),
+    // UI-10 part b, BIZ-22 part c: the Calls tab reads zella_admin_calls (masked, paged), so the page no longer reads
+    // calls here at all. `calls` stays [] for one release because older web apps read data.calls.length.
+    Promise.resolve({ data: [] as Row[], error: null }),
     admin.from("calls").select("id", { count: "exact", head: true }).eq("business_id", businessId),
     activityAllowed
       ? admin.from("audit_logs")
@@ -445,7 +443,7 @@ export async function businessDetail(admin: SupabaseClient, businessId: string, 
   ]);
 
   const queryError = industryResult.error ?? invitationsResult.error ??
-    membersResult.error ?? integrationsResult.error ?? callsResult.error ??
+    membersResult.error ?? integrationsResult.error ??
     callCountResult.error ?? logsResult.error ?? ticketsResult.error;
   if (queryError) throw queryError;
 
@@ -489,7 +487,7 @@ export async function businessDetail(admin: SupabaseClient, businessId: string, 
       account_email: mask(i.account_email),
       error_message: maskText(i.error_message),
     })),
-    calls: (callsResult.data ?? []).map((c) => ({ ...c, from_number: mask(c.from_number), to_number: mask(c.to_number) })),
+    calls: [],
     callCount: callCountResult.count ?? 0,
     tickets: ticketsResult.data ?? [],
     activityAllowed,

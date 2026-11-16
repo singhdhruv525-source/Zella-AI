@@ -81,8 +81,7 @@ Deno.test("business_detail: no full phone number or connection email anywhere in
   const text = JSON.stringify({ calls: out.calls, integrations: out.integrations });
   assertFalse(/\+?\d{7,}/.test(text), text);
   assertFalse(text.includes("ada@example.com"), text);
-  assertEquals(out.calls[0].from_number, "…0123");
-  assertEquals(out.calls[1].from_number, null);
+  assertEquals(out.calls, []);   // UI-10 part b: the Calls tab reads zella_admin_calls
   assertEquals(out.integrations[0].account_email, "a…@example.com");
   assertEquals(out.integrations[0].error_message, "Number …0123 refused for a…@example.com");
   // The member's own phone is no longer read at all.
@@ -233,4 +232,14 @@ Deno.test("routingFrom: defaults and fallbacks as zella_admin_routing_get", () =
   });
   const r = routingFrom({ transfer_enabled: false, transfer_number: "", transfer_to: { phone: "+1555" }, transfer_route: "on_call", transfer_open_hours_only: "false" }, base);
   assertEquals([r.transfer_enabled, r.transfer_number, r.transfer_route, r.transfer_open_hours_only], [false, "+1555", "on_call", false]);
+});
+
+Deno.test("business_detail: no caller numbers at all, calls is [] and the count stays (UI-10 b, BIZ-22 c)", async () => {
+  const { client, queries } = fakeAdmin(ROWS);
+  const out = await businessDetail(client, BIZ, new Set(["businesses.view", "audit.view", "businesses.manage"]), deps);
+  assertEquals(out.calls, []);
+  assertEquals(typeof out.callCount, "number");
+  const text = JSON.stringify(out);
+  assertFalse(/from_number|to_number/.test(text), "no call number fields anywhere");
+  assertFalse(queries.some((q) => q.table === "calls" && q.select?.includes("from_number")), "calls numbers are not read");
 });
