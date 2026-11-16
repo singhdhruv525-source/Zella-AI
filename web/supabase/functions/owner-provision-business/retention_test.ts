@@ -4,7 +4,7 @@
 import { assertEquals, assertRejects } from "jsr:@std/assert@1";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PlatformKit } from "./platform.ts";
-import { LEGAL_APPROVED_WORD, RECORDING_ON_WORD, RETENTION_PERMISSIONS, retentionHandlers } from "./retention.ts";
+import { LEGAL_APPROVED_WORD, PURGE_SWITCH_WORD, RECORDING_ON_WORD, RETENTION_PERMISSIONS, retentionHandlers } from "./retention.ts";
 
 class InputError extends Error { constructor(message: string, public status = 400) { super(message); } }
 export const kit: PlatformKit = {
@@ -70,4 +70,46 @@ Deno.test("database refusals keep their status; anything unknown stays a server 
   }
   const err = await assertRejects(() => run(db(() => ({ error: "connection reset" })), "recording_policy_get", {}));
   assertEquals(err instanceof InputError, false);
+});
+
+Deno.test("retention: the dry run and overview only read; an unknown kind of data is refused before the database", async () => {
+  const d = db();
+  await assertRejects(() => run(d, "retention_preview", { dataClass: "everything" }), InputError);
+  assertEquals(d.calls, []);
+  await run(d, "retention_preview", { dataClass: "call_recordings" }, "read_only_admin");
+  await run(d, "retention_overview", {}, "read_only_admin");
+  assertEquals(d.calls.map(([f]) => f), ["zella_retention_preview", "zella_retention_overview"]);
+  assertEquals(d.calls[0][1], { p_actor: "admin-user", p_class: "call_recordings", p_limit: 25 });
+});
+
+Deno.test("retention: only a Zella Voice owner changes a period, the purge switch or releases a hold, before the database is asked", async () => {
+  for (const role of ["super_admin", "security_admin", "platform_operations", "read_only_admin", ""]) {
+    const d = db();
+    for (const [action, fields] of [["retention_policy_set", { dataClass: "audit_logs", days: 2555, legalStatus: "pending_legal_review", reason: "x" }],
+      ["retention_switch_set", { on: true, reason: "Ready", confirm: PURGE_SWITCH_WORD }], ["legal_hold_release", { id: BIZ, reason: "Done" }]] as [string, Json][]) {
+      const err = await assertRejects(() => run(d, action, fields, role), InputError);
+      assertEquals((err as InputError).status, 403);
+    }
+    assertEquals(d.calls, []);
+  }
+});
+
+Deno.test("retention: approving a period or switching purges on needs the typed words; bad days are refused", async () => {
+  const d = db();
+  await assertRejects(() => run(d, "retention_policy_set", { dataClass: "audit_logs", days: 2555, legalStatus: "approved", reason: "Counsel" }), InputError, `Type ${LEGAL_APPROVED_WORD}`);
+  await assertRejects(() => run(d, "retention_policy_set", { dataClass: "audit_logs", days: 0, legalStatus: "pending_legal_review", reason: "x" }), InputError);
+  await assertRejects(() => run(d, "retention_policy_set", { dataClass: "audit_logs", days: 1.5, legalStatus: "pending_legal_review", reason: "x" }), InputError);
+  await assertRejects(() => run(d, "retention_switch_set", { on: true, reason: "Ready" }), InputError, `Type ${PURGE_SWITCH_WORD}`);
+  await assertRejects(() => run(d, "retention_switch_set", { on: "yes", reason: "Ready" }), InputError);
+  assertEquals(d.calls, []);
+  await run(d, "retention_switch_set", { on: false, reason: "Off again" });
+  await run(d, "legal_hold_place", { businessId: BIZ, reason: "Counsel asked" }, "security_admin");
+  assertEquals(d.calls.map(([f]) => f), ["zella_retention_switch_set", "zella_legal_hold_place"]);
+});
+
+Deno.test("retention: the switch guard and hold refusals keep their status", async () => {
+  for (const [code, status] of [["RETENTION_SWITCH_OWNER_ONLY", 403], ["ALREADY_ON_HOLD", 409], ["UNKNOWN_CLASS", 400], ["NOT_FOUND", 404]] as const) {
+    const err = await assertRejects(() => run(db(() => ({ error: code })), "legal_hold_place", { businessId: BIZ, reason: "Counsel" }, "security_admin"), InputError);
+    assertEquals((err as InputError).status, status);
+  }
 });

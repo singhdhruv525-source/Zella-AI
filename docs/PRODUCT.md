@@ -454,7 +454,7 @@ secrets, never in tables, code, logs or chat (`NN-2`).
 | Files on records checked after upload; refused files deleted | Built |
 | Customer data export and erasure (consent and opt-out history is kept so opt-outs keep working; the retention basis is for counsel to confirm) | Built |
 | Two-person approval for risky actions | Built |
-| Retention: recordings 30 days, transcripts 90 days, message bodies 2 years, audit and security logs 7 years, cancelled business 30 days (D-27, pending legal review) | Partial: retention is listed; nothing deletes automatically yet |
+| Retention: recordings 30 days, transcripts 90 days, message bodies 2 years, audit and security logs 7 years, cancelled business 30 days (D-27, pending legal review) | Partial: built, not deployed: each period stored separately (also replaced verification copies 30 days, owner identity files 90 days after verification, a cancelled business's documents 30 days), each "pending legal review" until a Zella Voice owner records otherwise; legal holds (security.manage places, only an owner releases); a dry run per kind lists what is past its period without deleting anything (Settings, Security and privacy > Data retention). The purge switch `retention_purge_enabled` is off and no job is scheduled |
 | Public status page and uptime alerts | Built |
 | Consent capture per lead source for AI calls and automated texts | Decision open with counsel (D-04) |
 

@@ -8,6 +8,7 @@ import { uploadImage } from "./PersonalPanels";
 import { Banner, Card, Confirm, Empty, Facts, Field, LinkRows, LoadState, Needs, Pill, SaveBar, Table, Toggle, money, useAsync, useForm, when, words } from "./SettingsKit";
 import { settingLabel } from "../copy/settingLabels";
 import RecordingPolicy from "./panels/RecordingPolicy";
+import DataRetention from "./panels/DataRetention";
 
 // Admin Settings content. Every panel reads and writes through the
 // owner-provision-business function, which checks the admin's role and
@@ -1198,11 +1199,10 @@ export function Retention({ me }) {
     <LoadState state={state}>{(p) => (
       <>
         <SettingNumber me={me} keyName="retention_days" label="Days a canceled business's records are kept" current={p.retentionDays} />
-        <Card title="Other records">
-          <Facts rows={[["Customer erasure", "Per customer, with a second approval when a business has two owners or admins"], ["Audit log", "Kept; no automatic deletion"],
-            ["Call recordings and transcripts", "Kept with the call until the customer is erased"]]} />
+        <Card title="Customer erasure">
+          <Facts rows={[["Customer erasure", "Per customer, with a second approval when a business has two owners or admins"]]} />
         </Card>
-        <Needs title="Separate retention for recordings, transcripts and audit logs isn't built" have="Everything above.">It needs a scheduled job per record type that deletes or redacts after the configured days, with a log of what it removed.</Needs>
+        <DataRetention me={me} />
       </>
     )}</LoadState>
   );

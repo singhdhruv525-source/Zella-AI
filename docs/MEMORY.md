@@ -186,6 +186,14 @@ most often needed:
   all, so Vapi's own default and dashboard settings decide whether calls are recorded. Making voice-rules send
   recording off (or the policy) is a call path change that needs its own approval.
 
+- **Retention (SET-RETENTION, BIZ-18b, built 16 Nov 2026, not deployed):** each kind of data has its own period, set to
+  the architecture's proposal and marked pending legal review (recordings 30 days, transcripts 90, message words 2
+  years, audit logs 7 years, replaced verification copies 30 days, owner identity files 90 days after verification,
+  a cancelled business's documents and the business itself 30 days after cancellation, never before its
+  `retention_until`, which still uses `retention_days`, 90 today). The dry run lists what is past its period and
+  deletes nothing. Legal holds keep a business out of every list and make it undeletable. Defaults taken: placing a
+  hold needs security.manage, releasing one needs a Zella Voice owner; message bodies are redacted, not deleted.
+
 Waiting on the owner:
 
 - whether suspended businesses keep read-only access (L-5);

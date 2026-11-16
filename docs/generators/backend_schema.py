@@ -216,6 +216,8 @@ GROUPS = [
         "support_tickets": "Support requests from businesses.",
         "support_ticket_notes": "Zella Voice admins' internal notes on support tickets (server only: the business never sees them).",
         "business_recording_policies": "Recording on or off per business (no row means off); can't be on until a Zella Voice owner records legal approval (server only).",
+        "data_retention_policies": "How long each kind of data is kept, the architecture's proposal and its legal review status (server only).",
+        "legal_holds": "Businesses whose data must be kept whatever the retention periods say, until a Zella Voice owner releases the hold (server only).",
         "number_orders": "Phone number purchases and releases through Telnyx and Vapi: who asked, which owner approved, the provider's answer (server only).",
     }),
 ]
