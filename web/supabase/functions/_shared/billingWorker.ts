@@ -5,6 +5,7 @@
 //      key (fetch before grant), and hand that object to the database, which runs the binding check and applies it.
 // Everything that changes money happens in one database transaction per event, guarded by unique keys.
 import { type StripeClient, StripeError } from "./stripe.ts";
+import { queueBillingEmails } from "./billingEmails.ts";
 
 type Json = Record<string, unknown>;
 export type Rpc = (fn: string, args: Json) => Promise<unknown>;
@@ -108,5 +109,8 @@ export async function runWorkerOnce(rpc: Rpc, stripe: StripeClient): Promise<Jso
   const followUp = await sendOutbox(rpc, stripe);
   // REQ-BIL-33: 5 days past due pauses the receptionist (the database decides; nothing is called here)
   const sweep = await rpc("zella_billing_nonpayment_sweep", {}).catch(() => null);
-  return { outbox, events, follow_up: followUp, sweep };
+  // billing emails: renewal and trial notices decided now, then every notice rendered into the platform outbox (held while email_live is off)
+  await rpc("zella_billing_email_sweep", {}).catch(() => null);
+  const emails = await queueBillingEmails(rpc).catch(() => null);
+  return { outbox, events, follow_up: followUp, sweep, emails };
 }

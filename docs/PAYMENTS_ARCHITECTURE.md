@@ -749,6 +749,8 @@ Settings › Billing › Payment method (audited, confirmed by email): the subsc
 that one invoice, so it can never be paid twice. An invoice still unpaid at its due date follows the failed-payment path
 (§6.3): reminders, final notice, pause on day 5. Switching back on needs a working saved card.
 
+**Built (lane F, switched off, `sql/zella_stripe_emails.sql`, `_shared/billingEmails.ts`):** the database decides each notice from our own records (one key per business object, so doubled events never send twice); the worker renders it strictly with the shared catalogue and queues one copy per owner in the platform outbox, which stays in test mode while `email_live` is off. **Owner decision needed:** the templates that say "card ending 4242" (A2, A3, A4, A6, B1, B2, C1, C2, C3, D1) need the last 4 digits, which §9 says are never stored; until the owner decides (fetch them from Stripe at render time, or reword the templates), those emails are held with `MISSING_FIELD:<code>:card` and nothing invents a value. A1, C4, D2, D5 and similar card free notices are queued.
+
 The full list of billing emails, their content, the SMS copies of the urgent ones, settings and tests is in
 `docs/BILLING_EMAILS.md`.
 
