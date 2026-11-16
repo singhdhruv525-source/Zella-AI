@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import "./OwnerPages.css";
+import "./UsersAccess.css";
+import { Icon } from "./BusinessUI";
 import { callOwnerFunction } from "./CreateBusinessWizard";
 import { EmailField } from "./formFields";
 import { checkEmail } from "./formValidation";
@@ -161,7 +163,7 @@ export default function UsersAccess() {
       )}
 
       {fresh && (
-        <form className="ic-warning op-gap" aria-label="Confirm with your authenticator"
+        <form className="us-fresh op-gap" aria-label="Confirm with your authenticator"
           onSubmit={async (e) => {
             e.preventDefault();
             setBusy(true);
@@ -170,13 +172,19 @@ export default function UsersAccess() {
             setBusy(false);
             await fresh.retry();
           }}>
-          <span>
-            Changing admin access needs a new code. Enter the 6 digit code from your authenticator app.
-            {fresh.error && <strong role="alert"> {fresh.error}</strong>}
-          </span>
-          <div>
-            <input className="us-role" size={8} inputMode="numeric" autoComplete="one-time-code" maxLength={6} aria-label="Authenticator code" autoFocus
-              value={fresh.code} onChange={(e) => setFresh({ ...fresh, code: e.target.value.replace(/\D/g, ""), error: "" })} disabled={busy} />
+          <div className="us-fresh-text">
+            <Icon name="shield" className="us-fresh-icon" />
+            <p>
+              <strong>Confirm it's you.</strong> Changing admin access needs a new code. Enter the 6 digit code from your authenticator app.
+              {fresh.error && <span className="us-fresh-error" role="alert">{fresh.error}</span>}
+            </p>
+          </div>
+          <div className="us-fresh-actions">
+            <label className="us-fresh-field" htmlFor="us-fresh-code">
+              <span>Authenticator code</span>
+              <input id="us-fresh-code" className="us-fresh-code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} autoFocus
+                value={fresh.code} onChange={(e) => setFresh({ ...fresh, code: e.target.value.replace(/\D/g, ""), error: "" })} disabled={busy} />
+            </label>
             <button type="button" className="owner-secondary-button op-small" onClick={() => setFresh(null)} disabled={busy}>Cancel</button>
             <button type="submit" className="owner-primary-button op-small" disabled={busy || fresh.code.length !== 6}>
               {busy ? "Checking..." : "Confirm"}

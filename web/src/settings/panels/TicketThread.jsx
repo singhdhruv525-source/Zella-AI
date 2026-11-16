@@ -24,11 +24,11 @@ export default function TicketThread({ ticket, businessName, canReply, onClose }
     <Card title={ticket.subject} sub={`Opened ${when(ticket.created_at)}`}
       actions={<button type="button" className="zs-btn sm" onClick={onClose}>Close</button>}>
       <LoadState state={state}>{(rows) => rows.length ? (
-        <ul aria-label="Conversation" style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 12 }}>
+        <ul aria-label="Conversation" style={{ listStyle: "none", padding: 0, margin: "0 0 var(--zella-space-5)", display: "grid", gap: "var(--zella-space-2)" }}>
           {rows.map((m) => (
-            <li key={m.id}>
-              <strong>{m.author_side === "zella" ? "Zella Voice support" : businessName}</strong> <span className="zs-muted">{when(m.created_at)}</span>
-              <p style={{ margin: "4px 0 0", whiteSpace: "pre-wrap" }}>{m.body}</p>
+            <li key={m.id} style={{ padding: "var(--zella-space-3) var(--zella-space-4)", borderRadius: "var(--zella-radius-md)", background: m.author_side === "zella" ? "var(--zella-alt)" : "var(--zella-card)", border: "1px solid var(--zella-border)" }}>
+              <strong style={{ fontWeight: 600 }}>{m.author_side === "zella" ? "Zella Voice support" : businessName}</strong> <span className="zs-muted" style={{ fontSize: "var(--zella-text-xs)" }}>{when(m.created_at)}</span>
+              <p style={{ margin: "4px 0 0", whiteSpace: "pre-wrap", fontSize: "var(--zella-text-sm)", lineHeight: 1.5 }}>{m.body}</p>
             </li>
           ))}
         </ul>

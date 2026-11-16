@@ -44,7 +44,7 @@ const BIZ = "b3000000-0000-0000-0000-0000000000a1";
     await p.fill('textarea[placeholder="Add a note for the Zella Voice team"]', "Internal: carrier issue suspected");
     await p.click('button:has-text("Add note")');
     await p.waitForSelector("text=Internal: carrier issue suspected");
-    await p.waitForSelector("text=First reply after");
+    await p.waitForSelector("text=First reply:");
     k.check(`${tag}: the reply sets the first response time`, k.sql(`select first_response_at is not null from public.support_tickets where id = '${ticket}'`) === "t");
     k.check(`${tag}: the ticket_update audit entry records the reply`, k.sql(`select count(*) from public.audit_logs where action = 'ticket.updated' and new_data ->> 'reply_added' = 'true' and entity_id = '${ticket}'`) !== "0");
     k.check(`${tag}: the owner is told in the app only`, k.sql(`select delivery_status || ':' || sms_status from public.staff_notifications where kind = 'support_reply' and entity_id = '${ticket}'`) === "skipped:skipped");

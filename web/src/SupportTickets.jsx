@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import "./OwnerPages.css";
+import "./SupportTickets.css";
 import { callOwnerFunction } from "./CreateBusinessWizard";
 import { Pill } from "./OwnerOverview";
 import { formatDateTime, timeAgo } from "./ownerFormat";
@@ -11,6 +12,13 @@ const PRIORITIES = [["low", "Low"], ["normal", "Normal"], ["high", "High"], ["ur
 const STATUS_TONE = { open: "warning", in_progress: "info", resolved: "success", closed: "neutral" };
 const PRIORITY_TONE = { low: "neutral", normal: "neutral", high: "warning", urgent: "danger" };
 const label = (pairs, key) => pairs.find(([k]) => k === key)?.[1] ?? key;
+// categories are stored as typed ("technical", "billing"); show them with a capital ("Technical", "Billing")
+const categoryText = (c) => {
+  const t = String(c ?? "").replace(/_/g, " ").trim();
+  return t ? t.charAt(0).toUpperCase() + t.slice(1) : "";
+};
+// "First reply: within a business hour." / "First reply: after 2.5 business hours."
+const firstReplyText = (h) => (Number.isFinite(h) && h < 1 ? "First reply: within a business hour." : `First reply: after ${businessHoursText(h)}.`);
 
 const EMPTY_TICKET = { businessId: "", subject: "", description: "", category: "", priority: "normal" };
 
@@ -48,6 +56,8 @@ export default function SupportTickets({ onOpenBusiness }) {
     statusFilter === "all" ? true : statusFilter === "overdue" ? t.overdue : statusFilter === "active" ? ["open", "in_progress"].includes(t.status) : t.status === statusFilter
   );
   const selected = data?.tickets?.find((t) => t.id === selectedId) ?? null;
+  // with the detail panel open the table is narrow: Business moves into each row's second line and Assigned is in the panel
+  const detailOpen = Boolean(selected || creating);
 
   async function update(payload) {
     setBusy(true);
@@ -82,7 +92,7 @@ export default function SupportTickets({ onOpenBusiness }) {
   }
 
   return (
-    <section className="owner-page">
+    <section className="owner-page st-page">
       <div className="owner-page-heading">
         <div>
           <div className="owner-eyebrow">Support</div>
@@ -109,31 +119,45 @@ export default function SupportTickets({ onOpenBusiness }) {
         ))}
       </div>
 
-      <div className={`st-layout ${selected || creating ? "with-detail" : ""}`}>
+      <div className={`st-layout ${detailOpen ? "with-detail" : ""}`}>
         <section className="owner-panel">
           <div className="owner-table-wrap" tabIndex={0}>
             <table className="owner-table">
-              <thead><tr><th>Ticket</th><th>Business</th><th>Priority</th><th>Status</th><th>Assigned</th></tr></thead>
+              <thead><tr><th>Ticket</th>{!detailOpen && <th>Business</th>}<th>Priority</th><th>Status</th>{!detailOpen && <th>Assigned</th>}</tr></thead>
               <tbody>
-                {tickets.map((t) => (
-                  <tr key={t.id} className={`st-row ${t.id === selectedId ? "selected" : ""}`}>
-                    <td>
-                      <div className="owner-business-cell">
-                        <button type="button" className="owner-secondary-button" onClick={() => { if (t.id !== selectedId) selectTicket(t.id); setCreating(false); }}>{t.subject}</button>
-                        <span>{t.category ? `${t.category} · ` : ""}{timeAgo(t.created_at)}</span>
-                      </div>
-                    </td>
-                    <td>{t.business_name}</td>
-                    <td><Pill tone={PRIORITY_TONE[t.priority]}>{label(PRIORITIES, t.priority)}</Pill></td>
-                    <td>
-                      <Pill tone={STATUS_TONE[t.status]}>{label(STATUSES, t.status)}</Pill>
-                      {t.overdue && <> <Pill tone="danger">No reply yet</Pill></>}
-                    </td>
-                    <td>{t.assignee ?? <span className="op-muted">Unassigned</span>}</td>
-                  </tr>
-                ))}
+                {tickets.map((t) => {
+                  const open = () => { if (t.id !== selectedId) selectTicket(t.id); setCreating(false); };
+                  return (
+                    <tr key={t.id} className={`st-row ${t.id === selectedId ? "selected" : ""}`} onClick={open}>
+                      <td>
+                        <div className="st-ticket-cell">
+                          <button type="button" className="st-title owner-table-primary" aria-pressed={t.id === selectedId} onClick={(e) => { e.stopPropagation(); open(); }}>{t.subject}</button>
+                          <span className="owner-table-secondary st-sub">
+                            <span className="st-sub-business">{t.business_name} · </span>
+                            {t.category ? `${categoryText(t.category)} · ` : ""}{timeAgo(t.created_at)}
+                          </span>
+                        </div>
+                      </td>
+                      {!detailOpen && <td className="st-nowrap st-col-business">{t.business_name}</td>}
+                      <td><Pill tone={PRIORITY_TONE[t.priority]}>{label(PRIORITIES, t.priority)}</Pill></td>
+                      <td>
+                        <span className="st-status">
+                          <Pill tone={STATUS_TONE[t.status]}>{label(STATUSES, t.status)}</Pill>
+                          {t.overdue && <Pill tone="danger">No reply yet</Pill>}
+                        </span>
+                      </td>
+                      {!detailOpen && (
+                        <td className="st-col-assigned">
+                          {t.assignee
+                            ? <span className="owner-cell-truncate" title={t.assignee}>{t.assignee}</span>
+                            : <span className="op-muted st-nowrap">Unassigned</span>}
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
                 {!tickets.length && (
-                  <tr><td colSpan={5}><div className="op-empty">{loading && !data ? "Loading tickets..." : !data ? "Couldn't load this list. Try again with Refresh, or reload the page." : "No tickets here."}</div></td></tr>
+                  <tr><td colSpan={detailOpen ? 3 : 5}><div className="op-empty">{loading && !data ? "Loading tickets..." : !data ? "Couldn't load this list. Try again with Refresh, or reload the page." : "No tickets here."}</div></td></tr>
                 )}
               </tbody>
             </table>
@@ -184,16 +208,17 @@ export default function SupportTickets({ onOpenBusiness }) {
                 <h3>{selected.subject}</h3>
                 <p>
                   <button type="button" className="op-link" onClick={() => onOpenBusiness(selected.business_id)}>{selected.business_name}</button>
-                  {" · "}opened {formatDateTime(selected.created_at)}{selected.creator ? ` by ${selected.creator}` : ""}
+                  {" · "}opened {formatDateTime(selected.created_at)}
+                  {selected.creator && <> by <span className="owner-cell-truncate st-creator" title={selected.creator}>{selected.creator}</span></>}
                 </p>
               </div>
               <button type="button" className="owner-modal-close" aria-label="Close ticket" onClick={() => selectTicket(null)}>×</button>
             </div>
 
             {selected.description && <p className="st-description">{selected.description}</p>}
-            <p className="op-muted">
+            <p className="op-muted st-response">
               {selected.firstResponseHours !== null && selected.firstResponseHours !== undefined
-                ? `First reply after ${businessHoursText(selected.firstResponseHours)}.`
+                ? firstReplyText(selected.firstResponseHours)
                 : `No reply yet: open for ${businessHoursText(selected.ageHours) || "under a business hour"}${selected.overdue ? `, past the ${data?.supportHours?.first_response_hours ?? 4} business hour goal` : ""}.`}
             </p>
 
