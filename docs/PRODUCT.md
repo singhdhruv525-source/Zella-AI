@@ -339,9 +339,12 @@ Opened from Businesses. What each tab shows and what an admin can do there:
   database records on its own name the table, for example "Changed business (system record)".
   Only admins with `audit.view` get it: the server leaves the list and who did each action out for anyone else
   (BIZ-04).
-- **Contact details:** caller numbers on Calls and the account email and error text of Live connections are masked
-  the way the Voice page masks them (`…0123`, `a…@example.com`; `mask.ts`, the `zella_admin_mask` rule). A member's
-  own phone number is not read (BIZ-22).
+- **Contact details:** caller numbers on Calls, people's emails, and the account email and error text of Live
+  connections are masked the way the Voice page masks them (`…0123`, `a…@example.com`; `mask.ts`, the
+  `zella_admin_mask` rule). A member's own phone number is not read. Showing them needs a reason (10 to 300
+  characters) and `businesses.manage`, is recorded before anything is shown, and lasts for that response only. Each
+  open of the page is recorded once per admin in 30 minutes; both appear under Support access, not Activity (BIZ-22;
+  built, needs the owner's approval to deploy).
 - **Setup while suspended:** finishing setup is refused for a suspended business before the owner's invitation is
   claimed or sent ("Reactivate it on the business page before finishing setup"); a suspension that lands while the
   invitation is going out wins, the workspace stays off and the finish says so (BIZ-06).

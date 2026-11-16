@@ -1757,6 +1757,14 @@ urgent `audit_write_failed` platform alert (deduplicated per action) and the res
 Suspensions, reactivations and cancellations are also recorded by the database trigger `zella_audit_privileged` on the
 businesses row, so they are never unrecorded.
 
+**REQ-LC-19 audited support access (admin Business page):** each open of a business writes one `business.viewed`
+row per admin and business in 30 minutes (`VIEW_DEDUPE_MINUTES`). People's emails, caller numbers and connection
+accounts are masked on the page; `business_contacts_reveal` (`businesses.manage`) needs a reason of 10 to 300
+characters, writes `support.contacts_revealed` (reason and field names, no values) first and reveals nothing if that
+write fails. Both actions stay out of the business's Activity list and appear in its Support access list for
+`audit.view` holders. Gap: `setup_load` (the wizard's read, `businesses.view`) still returns the owner's email
+unmasked.
+
 **REQ-ADM-20 Access states:** loading, authorized, unauthorized (signed out, MFA needed, no permission) and failed
 (couldn't check; grants nothing). A refusal always applies; a failed background refresh keeps the current view.
 

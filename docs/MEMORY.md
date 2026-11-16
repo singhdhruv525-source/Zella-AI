@@ -202,6 +202,8 @@ most often needed:
 Waiting on the owner:
 
 - whether suspended businesses keep read-only access (L-5);
+- the support access defaults on the Business page (BIZ-22): every open audited with a 30 minute dedupe, a reason
+  to reveal contacts, `businesses.manage` to reveal, member and invitee emails masked;
 - when to turn on `ZELLA_AUTOMATIONS_START_ON_SAVE`, and whether to start automations already left paused on live
   businesses (BIZ-07);
 - whether to remove the never-used super-admin account that looks like a typo;

@@ -3185,7 +3185,7 @@ Deno.serve(withCors(async (req: Request) => {
       setup_finish: () => finishSetup(adminClient, fields),
       overview_data: () => overviewData(adminClient),
       business_detail: async () =>
-        businessDetail(adminClient, requireId(fields.businessId), await adminPermissions(adminClient, role), { loadSetup }),
+        businessDetail(adminClient, requireId(fields.businessId), await adminPermissions(adminClient, role), { loadSetup, viewerId: user.id }),
       audit_logs: () => auditLogList(adminClient, fields),
       industries_list: () => industriesList(adminClient),
       industry_save: () => industrySave(adminClient, fields),
@@ -3218,7 +3218,7 @@ Deno.serve(withCors(async (req: Request) => {
       text, bool, obj, requireId, optionalPhone, getBusiness, getReceptionist, advance, mergeSetupData, InputError, EMAIL_RE, UUID_RE,
     });
     const platform = platformHandlers(adminClient, fields, { text, bool, obj, requireId, InputError }, user.id, role);
-    const detail = detailHandlers(adminClient, fields, { text, requireId, InputError });
+    const detail = detailHandlers(adminClient, fields, { text, requireId, InputError }, user.id);
     const handler = handlers[action] ?? extra.handlers[action] ?? onboarding.handlers[action] ?? platform.handlers[action] ?? detail.handlers[action];
     if (!handler) return respond({ error: "Unknown action" }, 400);
 

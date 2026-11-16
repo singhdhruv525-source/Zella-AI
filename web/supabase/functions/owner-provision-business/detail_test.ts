@@ -9,6 +9,7 @@ function fakeAdmin(rows: Rows, failing: string[] = [], rpcs: Record<string, unkn
   const queries: { table: string; select?: string; filters: unknown[][] }[] = [];
   const looked: string[] = [];
   const called: string[] = [];
+  const inserts: { table: string; row: unknown }[] = [];
   const client = {
     auth: { admin: { getUserById: (id: string) => {
       looked.push(id);
@@ -30,11 +31,12 @@ function fakeAdmin(rows: Rows, failing: string[] = [], rpcs: Record<string, unkn
         maybeSingle: () => Promise.resolve({ ...result, data: (result.data ?? [])[0] ?? null }),
         then: (resolve: (v: unknown) => unknown) => resolve(result),
       };
-      for (const f of ["eq", "in", "order", "limit", "is", "neq", "gte"]) chain[f] = (...args: unknown[]) => (q.filters.push([f, ...args]), chain);
+      for (const f of ["eq", "in", "order", "limit", "is", "neq", "gte", "not"]) chain[f] = (...args: unknown[]) => (q.filters.push([f, ...args]), chain);
+      chain.insert = (row: unknown) => { inserts.push({ table, row }); return Promise.resolve({ error: failing.includes(`insert:${table}`) ? { message: "insert failed" } : null }); };
       return chain;
     },
   };
-  return { client: client as unknown as SupabaseClient, queries, looked, called };
+  return { client: client as unknown as SupabaseClient, queries, looked, called, inserts };
 }
 
 const BIZ = "3e000000-0000-0000-0000-00000000b000";

@@ -14,6 +14,7 @@ import { mask, maskText } from "./mask.ts";
 export type DetailDeps = {
   // deno-lint-ignore no-explicit-any
   loadSetup: (admin: SupabaseClient, businessId: string) => Promise<any>;
+  viewerId?: string;   // the signed in admin, for the support access record (BIZ-22)
 };
 
 type Row = Record<string, unknown>;
@@ -52,7 +53,16 @@ export function businessChange(before: Row | null, after: Row) {
 // Permission each action of this module needs (index.ts: `?? DETAIL_PERMISSIONS[action]`).
 export const DETAIL_PERMISSIONS: Record<string, string> = {
   business_size_save: "businesses.manage",   // BIZ-08: was a browser RPC open to owner and super admin only
+  business_contacts_reveal: "businesses.manage",   // BIZ-22 (REVEAL_PERMISSION): needs the owner's approval to deploy
 };
+
+// ---- Audited support access (BIZ-22; lane E defaults, owner can change; needs approval before deploy) ----
+// Every open of a business is recorded once per admin and business in VIEW_DEDUPE_MINUTES. Those rows, and reveals,
+// are kept out of the business's Activity list and shown in their own Support access list (audit.view).
+export const VIEW_DEDUPE_MINUTES = 30;
+export const SUPPORT_ACCESS_ACTIONS = ["business.viewed", "support.contacts_revealed"];
+export const REVEAL_PERMISSION = "businesses.manage";
+export const REVEAL_REASON = { min: 10, max: 300 };
 
 // What index.ts lends this module's handlers (the same helpers platform.ts gets).
 export type DetailKit = {
@@ -66,8 +76,21 @@ type Audit = { action: string; business_id?: string | null; entity_type?: string
 export const BUSINESS_SIZES = ["small", "medium", "large"] as const;
 
 // This page's actions. Each returns what the page shows; `audited` says what each records (null records nothing).
-export function detailHandlers(admin: SupabaseClient, fields: Row, k: DetailKit) {
+export function detailHandlers(admin: SupabaseClient, fields: Row, k: DetailKit, userId = "") {
   const handlers: Record<string, () => Promise<unknown>> = {
+    // BIZ-22: the masked contact details for one response, with a reason recorded first.
+    business_contacts_reveal: async () => {
+      const businessId = k.requireId(fields.businessId);
+      const reason = k.text(fields.reason, REVEAL_REASON.max + 1);
+      if (reason.length < REVEAL_REASON.min) throw new k.InputError(`Give a reason of at least ${REVEAL_REASON.min} characters`);
+      if (reason.length > REVEAL_REASON.max) throw new k.InputError(`Keep the reason under ${REVEAL_REASON.max} characters`);
+      const { data: exists, error } = await admin.from("businesses").select("id").eq("id", businessId).maybeSingle();
+      if (error) throw error;
+      if (!exists) throw new k.InputError("Business not found", 404);
+      const out = await revealContacts(admin, businessId, userId, reason);
+      if (!out) throw new k.InputError("The reveal couldn't be recorded, so nothing was shown. Please try again.", 503);
+      return out;
+    },
     // BIZ-08: Small, Medium or Large (or not set), set by an admin and used by offers. Saved only if nobody changed it
     // since the page loaded it, so the audit's before value is the real one.
     business_size_save: async () => {
@@ -87,6 +110,7 @@ export function detailHandlers(admin: SupabaseClient, fields: Row, k: DetailKit)
     },
   };
   const audited: Record<string, (r: Row) => Audit | null> = {
+    business_contacts_reveal: () => null,   // recorded before anything was read (revealContacts)
     business_size_save: (r) => r.changed
       ? { action: "business.size_changed", business_id: r.businessId as string, entity_type: "business", entity_id: r.businessId as string,
         old_data: { size: r.before ?? null }, new_data: { size: r.size ?? null } }
@@ -213,6 +237,7 @@ async function people(admin: SupabaseClient, ids: (string | null)[]) {
 export async function businessDetail(admin: SupabaseClient, businessId: string, can: Set<string>, deps: DetailDeps) {
   const setup = await deps.loadSetup(admin, businessId);
   const activityAllowed = can.has("audit.view");
+  if (deps.viewerId) await recordView(admin, deps.viewerId, businessId);
   const now = new Date();
   const since = new Date(now.getTime() - DETAIL_LIMITS.deliveryDays * 86400000).toISOString();
 
@@ -243,6 +268,7 @@ export async function businessDetail(admin: SupabaseClient, businessId: string, 
       ? admin.from("audit_logs")
         .select("id, action, user_id, entity_type, old_data, new_data, created_at")
         .eq("business_id", businessId)
+        .not("action", "in", `(${SUPPORT_ACCESS_ACTIONS.join(",")})`)
         .order("created_at", { ascending: false })
         .limit(30)
       : Promise.resolve({ data: [], error: null }),
@@ -279,14 +305,16 @@ export async function businessDetail(admin: SupabaseClient, businessId: string, 
     ...setup,
     industryName: industryResult.data?.name ?? "Unassigned",
     // The owner's invitation first (it is the one the page acts on), then the newest.
+    invitation: setup.invitation ? { ...setup.invitation, email: mask(setup.invitation.email), last_error: maskText(setup.invitation.last_error) } : null,
     invitations: [...(invitationsResult.data ?? [])].sort((a, b) =>
       Number((b.role ?? "owner") === "owner") - Number((a.role ?? "owner") === "owner")
-    ),
+    ).map((i) => ({ ...i, email: mask(i.email), last_error: maskText(i.last_error) })),
+    contactsMasked: true,
     members: members.map((m) => {
       const profile = profileById.get(m.user_id);
       return {
         ...m,
-        email: who[m.user_id]?.email ?? null,
+        email: mask(who[m.user_id]?.email ?? null),
         name: [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") || null,
         ...(signInFacts ? { last_sign_in_at: who[m.user_id]?.last_sign_in_at ?? null, two_step: who[m.user_id]?.two_step ?? false } : {}),
       };
@@ -301,6 +329,7 @@ export async function businessDetail(admin: SupabaseClient, businessId: string, 
     tickets: ticketsResult.data ?? [],
     activityAllowed,
     activity: activityAllowed ? logs.map((l) => ({ ...l, actor: who[l.user_id]?.email ?? null })) : [],
+    supportAccess: activityAllowed ? await supportAccessList(admin, businessId) : [],
     permissions: [...can].sort(),
     signInFactsAllowed: signInFacts,
     ...extra,
@@ -344,7 +373,8 @@ async function detailExtras(admin: SupabaseClient, businessId: string, setup: an
         (d) => ({ row: ((d as Row[]) ?? [])[0] ?? null })),
       optional(() => admin.from("business_hours").select("weekday").eq("business_id", businessId).limit(1), (d) => ({ any: ((d as Row[]) ?? []).length > 0 })),
       can.has("audit.view")
-        ? optional(() => admin.from("audit_logs").select("id", { count: "exact", head: true }).eq("business_id", businessId), (_d, count) => ({ count }))
+        ? optional(() => admin.from("audit_logs").select("id", { count: "exact", head: true }).eq("business_id", businessId)
+          .not("action", "in", `(${SUPPORT_ACCESS_ACTIONS.join(",")})`), (_d, count) => ({ count }))
         : Promise.resolve({ available: false as const }),
       // the one definition of connected, answering and live (lane C, sql/zella_connection_state.sql; COM-01):
       // zella_business_connections(p_business_ids uuid[]), one row per business. Unavailable until that file is applied.
@@ -387,5 +417,65 @@ async function detailExtras(admin: SupabaseClient, businessId: string, setup: an
     },
     activityCount: activityCount.available ? activityCount.count : null,
     connections,
+  };
+}
+
+// One "business.viewed" row per admin and business in VIEW_DEDUPE_MINUTES. A failed write never blocks reading the page;
+// it raises the same audit_write_failed alert as any other missed audit row.
+async function recordView(admin: SupabaseClient, userId: string, businessId: string) {
+  const since = new Date(Date.now() - VIEW_DEDUPE_MINUTES * 60000).toISOString();
+  const { data: recent, error } = await admin.from("audit_logs").select("id").eq("action", "business.viewed")
+    .eq("user_id", userId).eq("business_id", businessId).gte("created_at", since).limit(1);
+  if (!error && recent?.length) return;
+  const { error: insertError } = await admin.from("audit_logs").insert({
+    action: "business.viewed", business_id: businessId, user_id: userId, entity_type: "business", entity_id: businessId,
+    new_data: { dedupe_minutes: VIEW_DEDUPE_MINUTES },
+  });
+  if (insertError) {
+    console.error("Support access record failed", insertError);
+    await admin.rpc("zella_platform_alert", {
+      p_kind: "audit_write_failed", p_title: "An admin action was not recorded in the audit log", p_detail: `business.viewed by admin ${userId}`,
+      p_severity: "urgent", p_business_id: businessId, p_dedupe_key: "business.viewed", p_meta: { action: "business.viewed" },
+    });
+  }
+}
+
+// Who opened this business or revealed its contacts, newest first (for audit.view holders).
+async function supportAccessList(admin: SupabaseClient, businessId: string) {
+  const { data, error } = await admin.from("audit_logs").select("id, action, user_id, new_data, created_at")
+    .eq("business_id", businessId).in("action", SUPPORT_ACCESS_ACTIONS).order("created_at", { ascending: false }).limit(20);
+  if (error) return [];
+  const rows = (data ?? []) as Row[];
+  const who = await people(admin, rows.map((r) => r.user_id as string | null));
+  return rows.map((r) => ({ ...r, actor: who[r.user_id as string]?.email ?? null }));
+}
+
+// The contact details business_detail masks, for one response, after the reason is recorded. The audit row is written
+// FIRST: if it can't be written, nothing is revealed (fails closed).
+export async function revealContacts(admin: SupabaseClient, businessId: string, userId: string, reason: string) {
+  const [invitations, members, calls, integrations] = await Promise.all([
+    admin.from("business_invitations").select("id, email, last_error").eq("business_id", businessId),
+    admin.from("business_members").select("user_id").eq("business_id", businessId).limit(DETAIL_LIMITS.members),
+    admin.from("calls").select("id, from_number, to_number").eq("business_id", businessId).order("created_at", { ascending: false }).limit(10),
+    admin.from("integrations").select("id, account_email, error_message").eq("business_id", businessId),
+  ]);
+  const failed = invitations.error ?? members.error ?? calls.error ?? integrations.error;
+  if (failed) throw failed;
+  const fields = ["member_emails", "invitation_emails", "call_numbers", "connection_accounts"];
+  const { error: auditError } = await admin.from("audit_logs").insert({
+    action: "support.contacts_revealed", business_id: businessId, user_id: userId, entity_type: "business", entity_id: businessId,
+    new_data: { reason, fields, counts: { members: members.data?.length ?? 0, invitations: invitations.data?.length ?? 0, calls: calls.data?.length ?? 0, connections: integrations.data?.length ?? 0 } },
+  });
+  if (auditError) {
+    console.error("Reveal audit failed; nothing revealed", auditError);
+    return null;
+  }
+  const who = await people(admin, (members.data ?? []).map((m) => m.user_id));
+  return {
+    businessId,
+    members: (members.data ?? []).map((m) => ({ user_id: m.user_id, email: who[m.user_id]?.email ?? null })),
+    invitations: invitations.data ?? [],
+    calls: calls.data ?? [],
+    integrations: integrations.data ?? [],
   };
 }
