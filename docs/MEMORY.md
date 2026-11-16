@@ -179,6 +179,9 @@ most often needed:
   already has a platform version (no sender uses a brand new key); Retire only archives such overrides. Default,
   owner can change.
 
+- **Contact lookup privacy (Lane B, COM-29, 16 Nov 2026):** comms.manage only, one business, at least 4 digits or a
+  full email, a reason, masked results (last 4 digits), every lookup audited. Default, owner can change.
+
 Waiting on the owner:
 
 - whether suspended businesses keep read-only access (L-5);

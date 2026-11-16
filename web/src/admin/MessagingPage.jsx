@@ -3,6 +3,7 @@ import { navigate } from "../router";
 import { EmailConfig, SmsConfig } from "../settings/AdminPanels";
 import BusinessEmails from "./BusinessEmails";
 import { NewVersion, RetireVersion, canRetire } from "./TemplateVersions";
+import ContactLookup from "./ContactLookup";
 import {
   AlertList, DataTable, Drawer, ErrorNote, Facts, Filters, Metric, NotAvailable, PAGE, PageHeader, Pager, Panel, PERIODS, Pill,
   ProviderHealth, ReasonDialog, Search, Select, Tabs, can, num, pct, rpc, since, useLoad, useOptions, useToast, when, words,
@@ -38,7 +39,7 @@ export default function MessagingPage({ me, sub, onOpenBusiness }) {
       {tab === "templates" && <Templates options={options.data} say={say} />}
       {tab === "business-emails" && <BusinessEmails onOpenBusiness={onOpenBusiness} />}
       {tab === "providers" && <Providers me={me} />}
-      {tab === "compliance" && <Compliance />}
+      {tab === "compliance" && <Compliance options={options.data} />}
       {toast}
     </section>
   );
@@ -303,7 +304,7 @@ function Providers({ me }) {
   );
 }
 
-function Compliance() {
+function Compliance({ options }) {
   const d = useLoad(() => rpc("zella_admin_messaging_compliance"), []);
   const c = d.data;
   return (
@@ -325,6 +326,7 @@ function Compliance() {
             ["STOP / START / HELP", "Handled automatically on inbound texts"]]} />
         </>
       )}
+      <ContactLookup options={options} />
     </Panel>
   );
 }
