@@ -8,7 +8,7 @@ import { PERMISSIONS, RESTRICTED_ROLES, settingsHandlers } from "./settings.ts";
 import { mfaGate, tokenAal } from "./mfa_gate.ts";
 import { ONBOARDING_PERMISSIONS, documentsReady, loadOnboarding, onboardingHandlers } from "./onboarding.ts";
 import { PLATFORM_PERMISSIONS, platformHandlers } from "./platform.ts";
-import { LIFECYCLE_PERMISSIONS, createDraft, draftAges, lifecycleHandlers } from "./lifecycle.ts";
+import { LIFECYCLE_PERMISSIONS, createDraft, draftAges, lifecycleHandlers, trackSetup } from "./lifecycle.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -3252,7 +3252,7 @@ Deno.serve(withCors(async (req: Request) => {
     if (!handler) return respond({ error: "Unknown action" }, 400);
 
     try {
-      const result = await handler();
+      const result = await trackSetup(adminClient, action, fields, handler);   // SET-ONB-RETRY: setup steps are recorded
 
       // Setup actions describe themselves from the request and result; settings and onboarding actions from
       // their result only (passing the request there recorded empty before/after values).

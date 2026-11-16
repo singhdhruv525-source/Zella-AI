@@ -1,6 +1,6 @@
 import { assertEquals, assertRejects } from "jsr:@std/assert@1";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DRAFT_ABANDON_DAYS_DEFAULT, LIFECYCLE_PERMISSIONS, createDraft, draftAges, lifecycleHandlers, type LifecycleKit } from "./lifecycle.ts";
+import { DRAFT_ABANDON_DAYS_DEFAULT, LIFECYCLE_PERMISSIONS, createDraft, draftAges, lifecycleHandlers, trackSetup, type LifecycleKit } from "./lifecycle.ts";
 import { PERMISSIONS } from "./settings.ts";
 import { ONBOARDING_PERMISSIONS } from "./onboarding.ts";
 import { PLATFORM_PERMISSIONS } from "./platform.ts";
@@ -289,4 +289,74 @@ Deno.test("document_request without the outbox is still recorded, and says email
   assertEquals([r.email, r.emailId, r.to], ["not_installed", null, "f…@draft.test"]);
   const noAddress = tables({ businesses: [{ id: A, name: "Draft Co", email: null, cancelled_at: null }], business_verification_documents: [], business_invitations: [], audit_logs: [] });
   assertEquals(((await lifecycleHandlers(noAddress.admin, { businessId: A }, kit).handlers.document_request()) as Record<string, unknown>).email, "no_address");
+});
+
+// SET-ONB-RETRY part 1: what trackSetup records
+function trackAdmin(prior: { status: string; error: string | null } | null = null) {
+  const log: string[] = [];
+  const admin = {
+    rpc: async (fn: string, a: Record<string, unknown>) => { log.push(`${fn}:${a.p_step}:${a.p_status}${a.p_error ? `:${a.p_error}` : ""}`); return { data: null, error: null }; },
+    from: () => {
+      const chain: Record<string, unknown> = {};
+      for (const m of ["select", "eq"]) chain[m] = () => chain;
+      chain.maybeSingle = async () => ({ data: prior, error: null });
+      chain.update = (v: Record<string, unknown>) => { log.push(`restore:${v.status}`); return chain; };
+      chain.delete = () => { log.push("delete pending"); return chain; };
+      chain.then = (resolve: (v: unknown) => void) => resolve({ data: null, error: null });
+      return chain;
+    },
+  } as unknown as SupabaseClient;
+  return { admin, log };
+}
+
+Deno.test("trackSetup: each setup save is recorded pending, then done", async () => {
+  for (const [action, step] of [["setup_save_modules", "modules"], ["setup_save_receptionist", "receptionist"], ["setup_save_operations", "operations"], ["setup_save_automations", "automations"]]) {
+    const { admin, log } = trackAdmin();
+    assertEquals(await trackSetup(admin, action, { businessId: A }, async () => ({ businessId: A, ok: 1 })), { businessId: A, ok: 1 });
+    assertEquals(log, [`zella_track_provisioning:${step}:pending`, `zella_track_provisioning:${step}:done`]);
+  }
+});
+
+Deno.test("trackSetup: an unexpected error is a failed step; a refused input puts the step back", async () => {
+  const failing = trackAdmin();
+  await assertRejects(() => trackSetup(failing.admin, "setup_save_integrations", { businessId: A }, async () => { throw new Error("database down"); }), Error, "database down");
+  assertEquals(failing.log, ["zella_track_provisioning:integrations:pending", "zella_track_provisioning:integrations:failed:database down"]);
+  const refusedNew = trackAdmin();
+  await assertRejects(() => trackSetup(refusedNew.admin, "setup_save_modules", { businessId: A }, async () => { throw new InputError("Pick a module", 400); }), InputError);
+  assertEquals(refusedNew.log, ["zella_track_provisioning:modules:pending", "delete pending"]);
+  const refusedOld = trackAdmin({ status: "failed", error: "earlier" });
+  await assertRejects(() => trackSetup(refusedOld.admin, "setup_save_modules", { businessId: A }, async () => { throw new InputError("Pick a module", 400); }), InputError);
+  assertEquals(refusedOld.log, ["zella_track_provisioning:modules:pending", "restore:failed"]);
+});
+
+Deno.test("trackSetup: a new draft is recorded once it exists; other actions are not tracked", async () => {
+  const created = trackAdmin();
+  await trackSetup(created.admin, "setup_save_business", {}, async () => ({ businessId: B, created: true }));
+  assertEquals(created.log, ["zella_track_provisioning:business:done"]);
+  const other = trackAdmin();
+  await trackSetup(other.admin, "business_detail", { businessId: A }, async () => ({}));
+  assertEquals(other.log, []);
+});
+
+Deno.test("trackSetup: finishing records the owner invitation email as its own step", async () => {
+  const ok = trackAdmin();
+  await trackSetup(ok.admin, "setup_finish", { businessId: A }, async () => ({ businessId: A, completed: true, invitationStatus: "sent" }));
+  assertEquals(ok.log, ["zella_track_provisioning:finish:pending", "zella_track_provisioning:owner_invitation:done", "zella_track_provisioning:finish:done"]);
+  const bad = trackAdmin();
+  await trackSetup(bad.admin, "setup_finish", { businessId: A }, async () => ({ businessId: A, completed: false, invitationStatus: "failed", invitationError: "mail provider refused" }));
+  assertEquals(bad.log, ["zella_track_provisioning:finish:pending", "zella_track_provisioning:owner_invitation:failed:mail provider refused", "zella_track_provisioning:finish:failed:The owner invitation email failed"]);
+  const closed = trackAdmin();
+  await trackSetup(closed.admin, "setup_finish", { businessId: A }, async () => ({ businessId: A, completed: false, invitationStatus: "closed" }));
+  assertEquals(closed.log, ["zella_track_provisioning:finish:pending", "delete pending"]);
+});
+
+Deno.test("trackSetup: a recording failure never changes the save's answer", async () => {
+  const admin = { rpc: async () => { throw new Error("rpc down"); }, from: () => { throw new Error("table down"); } } as unknown as SupabaseClient;
+  assertEquals(await trackSetup(admin, "setup_save_modules", { businessId: A }, async () => ({ businessId: A })), { businessId: A });
+});
+
+Deno.test("trackSetup: a refusal answered with 503 (setup can't finish yet) is not a failed step either", async () => {
+  const { admin, log } = trackAdmin();
+  await assertRejects(() => trackSetup(admin, "setup_finish", { businessId: A }, async () => { throw new InputError("The plan could not be checked", 503); }), InputError);
+  assertEquals(log, ["zella_track_provisioning:finish:pending", "delete pending"]);
 });

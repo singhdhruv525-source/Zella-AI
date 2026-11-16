@@ -106,6 +106,76 @@ export async function draftAges(admin: SupabaseClient, rows: DraftRow[], now = D
   return { days, ages };
 }
 
+// SET-ONB-RETRY part 1: every setup save records its step in provisioning_steps through zella_track_provisioning
+// (pending, then done or failed), so the Failed steps column and the provisioning alerts fill. A deliberate refusal
+// (an InputError, answered before any work) is not a failed step: the step goes back to what it was. Recording never blocks or
+// changes the save itself.
+export const SETUP_STEPS: Record<string, string> = {
+  setup_save_business: "business", setup_save_owner: "owner", setup_save_operations: "operations", setup_save_team: "team",
+  setup_save_terminology: "terminology", setup_save_modules: "modules", setup_save_receptionist: "receptionist",
+  setup_save_integrations: "integrations", setup_save_spam: "spam", setup_save_automations: "automations",
+  setup_finish: "finish",
+};
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function track(admin: SupabaseClient, businessId: string, step: string, status: "pending" | "done" | "failed", error: string | null = null) {
+  try {
+    const { error: e } = await admin.rpc("zella_track_provisioning", { p_business_id: businessId, p_step: step, p_status: status, p_error: error });
+    if (e) console.error(`Provisioning step ${step} could not be recorded`, e);
+  } catch (e) { console.error(`Provisioning step ${step} could not be recorded`, e); }
+}
+
+export async function trackSetup<T>(admin: SupabaseClient, action: string, fields: Json, run: () => Promise<T>): Promise<T> {
+  const step = SETUP_STEPS[action];
+  if (!step) return await run();
+  const given = typeof fields.businessId === "string" && UUID.test(fields.businessId) ? fields.businessId : null;
+  let before: { status: string; error: string | null } | null = null;
+  if (given) {
+    try {
+      const { data } = await admin.from("provisioning_steps").select("status, error").eq("business_id", given).eq("step", step).maybeSingle();
+      before = (data as { status: string; error: string | null } | null) ?? null;
+    } catch { before = null; }
+    await track(admin, given, step, "pending");
+  }
+  let result: T;
+  try {
+    result = await run();
+  } catch (e) {
+    const status = (e as { status?: unknown }).status;
+    if (given && typeof status === "number") {
+      // a deliberate refusal (InputError: bad input, or setup can't finish yet, such as no plan check or no app
+      // address): it is answered before anything is provisioned, so the step is put back as it was
+      try {
+        if (before) await admin.from("provisioning_steps").update({ status: before.status, error: before.error }).eq("business_id", given).eq("step", step);
+        else await admin.from("provisioning_steps").delete().eq("business_id", given).eq("step", step).eq("status", "pending");
+      } catch (restoreError) { console.error(`Provisioning step ${step} could not be put back`, restoreError); }
+    } else if (given) {
+      await track(admin, given, step, "failed", e instanceof Error ? e.message : String(e));
+    }
+    throw e;
+  }
+  const r = (result ?? {}) as Json;
+  const businessId = given ?? (typeof r.businessId === "string" && UUID.test(r.businessId) ? r.businessId : null);
+  if (!businessId) return result;
+  if (action === "setup_finish") {
+    // the owner invitation email is its own step; the finish is done when the workspace is activated
+    if (r.invitationStatus === "failed") {
+      await track(admin, businessId, "owner_invitation", "failed", typeof r.invitationError === "string" ? r.invitationError : "The invitation email failed");
+      await track(admin, businessId, step, "failed", "The owner invitation email failed");
+    } else if (r.completed === false) {
+      // the invitation was cancelled while it went out: nothing failed, nothing finished
+      try { await admin.from("provisioning_steps").delete().eq("business_id", businessId).eq("step", step).eq("status", "pending"); }
+      catch (e) { console.error("Provisioning step finish could not be put back", e); }
+    } else {
+      if (r.invitationStatus) await track(admin, businessId, "owner_invitation", "done");
+      await track(admin, businessId, step, "done");
+    }
+  } else {
+    await track(admin, businessId, step, "done");
+  }
+  return result;
+}
+
 export function lifecycleHandlers(admin: SupabaseClient, fields: Json, kit: LifecycleKit, userId: string | null = null, role: string | null = null) {
   const { text, obj, InputError } = kit;
 
