@@ -18,7 +18,7 @@ It reads the catalog only, never rows.
 | Row security policies | 342 |
 | Columns | 2062 |
 | Views | 1 |
-| Functions | 912 (844 security definer, 26 callable by `anon`) |
+| Functions | 915 (847 security definer, 26 callable by `anon`) |
 
 Rules every table follows:
 
@@ -4317,7 +4317,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_add_lead_note(p_customer_id uuid, p_note text)` | boolean | yes | signed in |
 | `zella_add_record_note(p_id uuid, p_note text)` | boolean | yes | signed in |
 
-### `zella_admin_*` (44)
+### `zella_admin_*` (47)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -4347,6 +4347,9 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_admin_pack_grant(p_business_id uuid, p_pack_code text, p_reason text, p_idempotency_key text)` | jsonb | yes | signed in |
 | `zella_admin_plan_get(p_business_id uuid)` | jsonb | yes | signed in |
 | `zella_admin_plan_save(p_business_id uuid, p_values jsonb, p_acknowledgements jsonb, p_idempotency_key text)` | jsonb | yes | signed in |
+| `zella_admin_platform_email_detail(p_id uuid)` | jsonb | yes | signed in |
+| `zella_admin_platform_email_discard(p_id uuid, p_reason text)` | jsonb | yes | signed in |
+| `zella_admin_platform_email_release(p_id uuid, p_reason text)` | jsonb | yes | signed in |
 | `zella_admin_platform_emails(p_business uuid, p_status text, p_code text, p_limit integer, p_offset integer)` | jsonb | yes | signed in |
 | `zella_admin_reason(p_reason text)` | text |  | server only |
 | `zella_admin_require(p_permission text)` | uuid | yes | server only |
