@@ -3238,7 +3238,7 @@ Deno.serve(withCors(async (req: Request) => {
       text, bool, obj, requireId, optionalPhone, getBusiness, getReceptionist, advance, mergeSetupData, InputError, EMAIL_RE, UUID_RE,
     });
     const platform = platformHandlers(adminClient, fields, { text, bool, obj, requireId, InputError }, user.id, role);
-    const detail = detailHandlers(adminClient, fields, { text, requireId, InputError }, user.id);
+    const detail = detailHandlers(adminClient, fields, { text, requireId, InputError }, user.id, callerClient);
     const handler = handlers[action] ?? extra.handlers[action] ?? onboarding.handlers[action] ?? platform.handlers[action] ?? detail.handlers[action];
     if (!handler) return respond({ error: "Unknown action" }, 400);
 

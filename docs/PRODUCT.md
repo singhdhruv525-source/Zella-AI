@@ -362,6 +362,10 @@ Opened from Businesses. What each tab shows and what an admin can do there:
 - **Two step reset:** an admin with `businesses.manage` can remove a member's two step sign in after the identity
   check in `docs/ARCHITECTURE.md` (REQ-LC-19), with a reason; recorded first, never a Zella Voice admin's (UI-06;
   built, needs the owner's approval to deploy).
+- **Packs:** an admin with `billing.manage` can grant one add on pack with a reason (not charged), as themselves, so
+  the database checks their permission and records `billing.pack_granted`; a business with no current billing period
+  is refused, never worked around (CFG-22; built, needs the owner's approval to deploy, and each real grant needs it
+  too).
 - **Business size:** Small, Medium, Large or not set, saved through the admin function (`business_size_save`,
   `businesses.manage`, two step sign in checked) with the before and after in the audit log; a change made by someone
   else meanwhile is refused (BIZ-08).

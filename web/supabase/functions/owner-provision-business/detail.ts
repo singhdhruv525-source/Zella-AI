@@ -59,7 +59,23 @@ export const DETAIL_PERMISSIONS: Record<string, string> = {
   invitation_cancel: "businesses.manage",   // BIZ-21 (CANCEL_PERMISSION): needs the owner's approval to deploy
   member_set_status: MEMBER_SUPPORT_PERMISSION,   // UI-06 part c: needs the owner's approval to deploy
   member_mfa_reset: MEMBER_SUPPORT_PERMISSION,   // UI-06 part d: needs the owner's approval to deploy
+  business_pack_catalog: "billing.view",   // CFG-22
+  business_pack_grant: "billing.manage",   // CFG-22: needs the owner's approval to deploy; each real grant too
 };
+
+// CFG-22: the database's refusals from zella_admin_pack_grant, in words.
+export const PACK_GRANT_ERRORS: Record<string, [string, number]> = {
+  NOT_ALLOWED: ["Your admin role can't grant packs (it needs billing.manage).", 403],
+  REASON_REQUIRED: ["Give a reason of at least 5 characters.", 400],
+  BAD_IDEMPOTENCY_KEY: ["Close the dialog and try again.", 400],
+  UNKNOWN_PACK: ["That pack isn't on sale any more. Choose another.", 400],
+  NO_CURRENT_PERIOD: ["This business has no current billing period (no active plan or trial), so a pack can't be added yet.", 409],
+  IDEMPOTENCY_CONFLICT: ["This grant was already used for a different pack. Close the dialog and start again.", 409],
+};
+export function packGrantError(message: string | undefined): [string, number] | null {
+  const code = Object.keys(PACK_GRANT_ERRORS).find((c) => (message ?? "").includes(c));
+  return code ? PACK_GRANT_ERRORS[code] : null;
+}
 
 // ---- Owner invitations (BIZ-21; lane E defaults, owner can change; needs approval before deploy) ----
 // Resend is refused for RESEND_COOLDOWN_MINUTES after the last invitation actually went out (invited_at is set only on
@@ -95,8 +111,36 @@ type Audit = { action: string; business_id?: string | null; entity_type?: string
 export const BUSINESS_SIZES = ["small", "medium", "large"] as const;
 
 // This page's actions. Each returns what the page shows; `audited` says what each records (null records nothing).
-export function detailHandlers(admin: SupabaseClient, fields: Row, k: DetailKit, userId = "") {
+export function detailHandlers(admin: SupabaseClient, fields: Row, k: DetailKit, userId = "", caller?: SupabaseClient) {
   const handlers: Record<string, () => Promise<unknown>> = {
+    // CFG-22: the packs an admin can grant (active catalog rows).
+    business_pack_catalog: async () => {
+      const { data, error } = await admin.from("billing_pack_catalog").select("code, resource, quantity, price_cents, currency")
+        .eq("active", true).order("resource").order("quantity");
+      if (error) throw error;
+      return { packs: data ?? [] };
+    },
+    // CFG-22: grant one pack, with a reason. Runs as the admin themselves (the caller's own client, after the function's
+    // two step check), so zella_admin_pack_grant checks billing.manage for them and records billing.pack_granted with
+    // their id; one idempotency key per dialog means a double click grants once. Never opens a period to make it work.
+    business_pack_grant: async () => {
+      if (!caller) throw new k.InputError("Not available", 500);
+      const businessId = k.requireId(fields.businessId);
+      const packCode = k.text(fields.packCode, 40);
+      const reason = k.text(fields.reason, 500);
+      const idempotencyKey = k.text(fields.idempotencyKey, 100);
+      if (!packCode) throw new k.InputError("Choose a pack");
+      if (reason.length < 5) throw new k.InputError(PACK_GRANT_ERRORS.REASON_REQUIRED[0]);
+      const { data, error } = await caller.rpc("zella_admin_pack_grant", {
+        p_business_id: businessId, p_pack_code: packCode, p_reason: reason, p_idempotency_key: idempotencyKey,
+      });
+      if (error) {
+        const known = packGrantError(error.message);
+        if (known) throw new k.InputError(known[0], known[1]);
+        throw error;
+      }
+      return { businessId, ...(data as Row) };
+    },
     // UI-06 part d: remove a member's two step sign in after the admin confirmed the identity check
     // (docs/ARCHITECTURE.md REQ-LC-19). The audit row is written FIRST; if it can't be, nothing is removed. Only that
     // person's verified authenticators are touched, and only their count is recorded. Never a platform admin's.
@@ -220,6 +264,7 @@ export function detailHandlers(admin: SupabaseClient, fields: Row, k: DetailKit,
     },
   };
   const audited: Record<string, (r: Row) => Audit | null> = {
+    business_pack_grant: () => null,   // zella_admin_pack_grant records billing.pack_granted itself
     member_mfa_reset: () => null,   // recorded before anything was removed
     member_set_status: (r) => ({
       action: r.status === "suspended" ? "member.suspended" : "member.reactivated", business_id: r.businessId as string,
