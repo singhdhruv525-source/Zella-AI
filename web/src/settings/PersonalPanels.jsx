@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { supabase } from "../supabase";
 import { passwordProblems } from "../formValidation";
-import { finishMfaEnrollment, mfaStatus, removeMfaFactor, startMfaEnrollment } from "../mfa";
+import { changeAdminPassword, finishMfaEnrollment, mfaStatus, removeMfaFactor, startMfaEnrollment } from "../mfa";
 import { Banner, Card, Confirm, Facts, Field, LoadState, SaveBar, Table, useAsync, useForm, when } from "./SettingsKit";
 import { friendly } from "../BusinessShared";
 
@@ -97,15 +97,15 @@ function ProfileForm({ email, user, profile, onSaved }) {
 export function AccountSecurityPanel({ email, adminRequired = false }) {
   return (
     <>
-      <PasswordCard email={email} />
+      <PasswordCard email={email} admin={adminRequired} />
       <MfaCard required={adminRequired} />
       <SessionsCard />
     </>
   );
 }
 
-function PasswordCard({ email }) {
-  const form = useForm({ password: "", confirm: "" });
+function PasswordCard({ email, admin = false }) {
+  const form = useForm({ password: "", confirm: "", code: "" });
   const [sent, setSent] = useState("");
   const missing = form.values.password ? passwordProblems(form.values.password) : [];
   return (
@@ -117,12 +117,22 @@ function PasswordCard({ email }) {
         <Field label="Confirm new password" error={form.values.confirm && form.values.confirm !== form.values.password ? "The two passwords don't match." : ""}>
           <input type="password" value={form.values.confirm} onChange={form.set("confirm")} autoComplete="new-password" />
         </Field>
+        {admin && (
+          <Field label="Code from your authenticator app" hint="Admins confirm a password change with a new code.">
+            <input inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={form.values.code} onChange={form.set("code")} />
+          </Field>
+        )}
       </div>
-      <SaveBar form={form} label="Change password" disabled={missing.length > 0 || form.values.password !== form.values.confirm}
+      <SaveBar form={form} label="Change password" disabled={missing.length > 0 || form.values.password !== form.values.confirm || (admin && !/^\d{6}$/.test(form.values.code))}
         onSave={() => form.save(async (v) => {
+          if (admin) {
+            // ACC-30: through the server, audited, after a new code (ACC-19)
+            await changeAdminPassword(v.password, v.code);
+            return { password: "", confirm: "", code: "" };
+          }
           const { error } = await supabase.auth.updateUser({ password: v.password });
           if (error) throw new Error(/reauthenticat|recent/i.test(error.message) ? "For safety, use the email link below to change it." : error.message);
-          return { password: "", confirm: "" };
+          return { password: "", confirm: "", code: "" };
         }, "Password changed.")} />
       <p className="zs-muted">
         Or <button type="button" className="zs-link" onClick={async () => {
@@ -141,6 +151,7 @@ function MfaCard({ required = false }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [removing, setRemoving] = useState(null);
+  const [removeCode, setRemoveCode] = useState("");
   const step = async (fn) => {
     setBusy(true);
     setError("");
@@ -181,9 +192,17 @@ function MfaCard({ required = false }) {
           <Banner tone="error">{error}</Banner>
         </>
       )}</LoadState>
-      {removing && <Confirm title="Remove two step sign in?" danger confirmLabel="Remove" onClose={() => setRemoving(null)}
-        onConfirm={async () => { await removeMfaFactor(removing.id); state.reload(); }}>
-        Signing in will need only your password again.
+      {removing && <Confirm title={required ? "Remove this authenticator?" : "Remove two step sign in?"} danger confirmLabel="Remove"
+        onClose={() => { setRemoving(null); setRemoveCode(""); }}
+        onConfirm={async () => { await removeMfaFactor(removing.id, { admin: required, code: removeCode }); setRemoveCode(""); state.reload(); }}>
+        {required ? (
+          <>
+            <p>Your other authenticator app keeps working. Enter a code from the authenticator app you sign in with to confirm.</p>
+            <Field label="Code from your authenticator app">
+              <input inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={removeCode} onChange={(e) => setRemoveCode(e.target.value.replace(/\D/g, ""))} autoFocus />
+            </Field>
+          </>
+        ) : "Signing in will need only your password again."}
       </Confirm>}
     </Card>
   );

@@ -54,8 +54,16 @@ async function token(email) {
   const r = await fetch(BACKEND + "/auth/v1/token?grant_type=password", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email, password: PASSWORD }) });
   return (await r.json()).access_token;
 }
+// A token with a code entered just now (the stand in's /factors/<id>/verify with 123456), for fresh code actions.
+async function freshToken(email) {
+  const tok = await token(email);
+  const id = sql(`select f.id from auth.mfa_factors f join auth.users u on u.id = f.user_id where u.email = '${email}' and f.status = 'verified' limit 1`);
+  const r = await fetch(`${BACKEND}/auth/v1/factors/${id}/verify`, { method: "POST", headers: { authorization: `Bearer ${tok}`, "content-type": "application/json" }, body: JSON.stringify({ code: "123456", challenge_id: "c" }) });
+  return (await r.json()).access_token;
+}
 async function fn(tok, body) {
-  const r = await fetch(BACKEND + "/functions/v1/owner-provision-business", { method: "POST", headers: { authorization: `Bearer ${tok}`, "content-type": "application/json" }, body: JSON.stringify(body) });
+  const headers = { "content-type": "application/json", ...(tok ? { authorization: `Bearer ${tok}` } : {}) };
+  const r = await fetch(BACKEND + "/functions/v1/owner-provision-business", { method: "POST", headers, body: JSON.stringify(body) });
   return { status: r.status, body: await r.json().catch(() => ({})) };
 }
 
@@ -69,4 +77,4 @@ async function freshCode(p, code = "123456") {
   return true;
 }
 
-module.exports = { freshCode,  chromium, APP, BACKEND, DB, guard, sql, check, failures, context, page, signIn, token, fn };
+module.exports = { freshCode, freshToken,  chromium, APP, BACKEND, DB, guard, sql, check, failures, context, page, signIn, token, fn };

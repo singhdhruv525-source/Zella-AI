@@ -66,6 +66,7 @@ Never point any of this at production.
 | `admin-mfa-journey.cjs` | Two step sign in for every admin: an admin without an authenticator gets only their own role from the server and nothing from the database, is walked through setting one up (wrong code refused), lands on the dashboard; the only authenticator can't be removed; the next sign in asks for the code. Needs `sql/zella_admin_mfa.sql` in the test database. |
 | `admin-sessions.cjs` | ACC-18 and ACC-30: a role change warns and then signs the admin out on every device (count shown, audited); Sign out other devices goes through the database and is audited. Needs `sql/zella_admin_sessions.sql`. |
 | `admin-fresh-code.cjs` | ACC-19: adding an admin is refused without a code from the last 5 minutes, the page asks for one (a wrong code is refused), then the same change goes through; a second change within 5 minutes isn't asked again. The stand in records the code time in amr on verify. |
+| `admin-self-service.cjs` | ACC-30: anonymous, a business member and an admin without a fresh code are refused; the last authenticator can't be removed on the server; removing one of two, adding one and changing the password work from Account security and are audited, and the password never reaches the audit log. |
 | `brand-check.cjs` | Sidebar logo and default theme: expanded, collapsed, frames during the transition, tablet rail, phone drawer, reduced motion, accessible name, saved looks kept. |
 | `probe.cjs <email> <route> "<js>"` | Opens one page and prints a browser expression (for debugging). |
 

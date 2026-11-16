@@ -8,7 +8,7 @@ import { PERMISSIONS, RESTRICTED_ROLES, settingsHandlers } from "./settings.ts";
 import { freshCodeGate, mfaGate, tokenAal } from "./mfa_gate.ts";
 import { ONBOARDING_PERMISSIONS, documentsReady, loadOnboarding, onboardingHandlers } from "./onboarding.ts";
 import { PLATFORM_PERMISSIONS, platformHandlers } from "./platform.ts";
-import { ACCESS_PERMISSIONS, accessHandlers, endSessionsAfterChange } from "./access.ts";
+import { ACCESS_PERMISSIONS, SELF_ACTIONS, accessHandlers, endSessionsAfterChange } from "./access.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -3083,7 +3083,8 @@ Deno.serve(withCors(async (req: Request) => {
     if (!permission) return respond({ error: "Unknown action" }, 400);
     // Every active admin may read their own role and permissions (me_admin): without it a restricted role that lacks
     // businesses.view couldn't learn what it is allowed to do. It returns nothing about other people or businesses.
-    let allowed = action === "me_admin" || role === "zella_owner" || (role === "super_admin" && !["admins.manage", "roles.manage"].includes(permission));
+    // ACC-30: an admin's own authenticator and password changes (access.ts SELF_ACTIONS) are allowed for every role too.
+    let allowed = action === "me_admin" || SELF_ACTIONS.includes(action) || role === "zella_owner" || (role === "super_admin" && !["admins.manage", "roles.manage"].includes(permission));
     if (!allowed && RESTRICTED_ROLES.includes(role)) {
       const { data: grant } = await adminClient.from("platform_role_permissions").select("permission").eq("role", role).eq("permission", permission).maybeSingle();
       allowed = Boolean(grant);
@@ -3248,7 +3249,7 @@ Deno.serve(withCors(async (req: Request) => {
       text, bool, obj, requireId, optionalPhone, getBusiness, getReceptionist, advance, mergeSetupData, InputError, EMAIL_RE, UUID_RE,
     });
     const platform = platformHandlers(adminClient, fields, { text, bool, obj, requireId, InputError }, user.id, role);
-    const access = accessHandlers(adminClient, fields);
+    const access = accessHandlers(adminClient, fields, user.id, { InputError, requireId });
     const handler = handlers[action] ?? extra.handlers[action] ?? onboarding.handlers[action] ?? platform.handlers[action] ?? access.handlers[action];
     if (!handler) return respond({ error: "Unknown action" }, 400);
 

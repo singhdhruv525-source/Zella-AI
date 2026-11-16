@@ -359,9 +359,23 @@ async function auth(req, url, claims, body) {
     if (user?.last_sign_in_at && path === "/invite") return { status: 422, json: { code: 422, msg: "A user with this email address has already been registered", error_code: "email_exists" } };
     return { status: 200, json: user };
   }
+  // the server's view of a person's authenticators (auth.admin.mfa.listFactors / deleteFactor), ACC-30
+  const adminFactors = /^\/admin\/users\/([0-9a-f-]{36})\/factors(?:\/([0-9a-f-]{36}))?$/.exec(path);
+  if (adminFactors) {
+    if (claims?.role !== "service_role") return { status: 403, json: { msg: "not allowed" } };
+    const sys = { preRequest: false, system: true };
+    if (req.method === "DELETE" && adminFactors[2]) {
+      const d = await asCaller({ role: "service_role" }, `delete from auth.mfa_factors where id = ${lit(adminFactors[2])} and user_id = ${lit(adminFactors[1])} returning id`, sys);
+      return d.text ? { status: 200, json: { id: d.text } } : { status: 404, json: { code: 404, msg: "Factor not found", error_code: "mfa_factor_not_found" } };
+    }
+    const r = await asCaller({ role: "service_role" }, `select coalesce(json_agg(json_build_object('id', id, 'status', status, 'factor_type', factor_type, 'friendly_name', friendly_name, 'created_at', created_at)), '[]') from auth.mfa_factors where user_id = ${lit(adminFactors[1])}`, sys);
+    return { status: 200, json: JSON.parse(r.text || "[]") };
+  }
   const adminUser = /^\/admin\/users\/([0-9a-f-]{36})$/.exec(path);
   if (adminUser) {
     if (claims?.role !== "service_role") return { status: 403, json: { msg: "not allowed" } };
+    // a password change is recorded as a time only (every test password stays Test-pass-1)
+    if (req.method === "PUT" && body?.password) await asCaller({ role: "service_role" }, `update auth.users set updated_at = now() where id = ${lit(adminUser[1])}`, { preRequest: false, system: true });
     if (req.method === "PUT" && body?.user_metadata) await asCaller({ role: "service_role" }, `update auth.users set raw_user_meta_data = coalesce(raw_user_meta_data,'{}') || ${lit(JSON.stringify(body.user_metadata))}::jsonb where id = ${lit(adminUser[1])}`, { preRequest: false, system: true });
     const user = await userRow(adminUser[1]);
     return user ? { status: 200, json: user } : { status: 404, json: { msg: "User not found" } };

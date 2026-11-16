@@ -59,6 +59,6 @@ Deno.test("only granting or changing admin access needs the fresh code", () => {
     assertEquals(freshCodeGate(action, stale, NOW), { ok: false, status: 403, code: "FRESH_CODE_REQUIRED", error: "For this change, enter a new code from your authenticator app." });
     assertEquals(freshCodeGate(action, fresh, NOW), { ok: true });
   }
-  assertEquals(FRESH_CODE_ACTIONS, ["admin_invite", "admin_update"]);
-  for (const action of ["admins_list", "dashboard_data", "me_admin", "roles_get"]) assertEquals(freshCodeGate(action, stale, NOW), { ok: true });
+  assertEquals(FRESH_CODE_ACTIONS, ["admin_invite", "admin_update", "me_mfa_remove", "me_password_change"]);
+  for (const action of ["admins_list", "dashboard_data", "me_admin", "roles_get", "me_mfa_added"]) assertEquals(freshCodeGate(action, stale, NOW), { ok: true });
 });

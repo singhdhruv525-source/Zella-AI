@@ -332,7 +332,11 @@ says how many devices were signed out (needs `sql/zella_admin_sessions.sql`, bui
 their other devices, and that is recorded in the audit log as "Signed out other devices". Adding an admin and changing an admin's
 role or access need an authenticator code entered in the last 5 minutes: Users & access asks for a new code and then
 makes the change (only a fresh code, no second owner's approval). Changing what a restricted role may do (Platform
-roles in Settings) gets the same check once that page's open changes have merged.
+roles in Settings) gets the same check once that page's open changes have merged. An admin's own security changes in
+Administrator profile > Account security go through the server and are audited: adding an authenticator ("Admin
+added an authenticator app"), removing one ("Admin removed an authenticator app", with a new code, and never the last
+one) and changing the password (with a new code; the password itself is never recorded). Business owners and staff
+keep the same screens as before.
 
 ---
 

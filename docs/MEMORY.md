@@ -161,6 +161,12 @@ most often needed:
   two owners. `roles_save` gets the check after the open admin polish changes to Settings > Platform roles merge.
   It only means something once two step sign in for admins (ACC-01) is live.
 
+- **Admins' own security changes go through the server (ACC-30, 16 Nov 2026):** `me_mfa_added`, `me_mfa_remove` and
+  `me_password_change` in `owner-provision-business/access.ts`, audited. The password change uses the server key, which
+  skips Supabase Auth's "reauthenticate first" step; a code entered in the last 5 minutes (ACC-19) is the
+  reauthentication instead. Removing the last authenticator is refused on the server too (ACC-01). The first
+  authenticator set up at sign in is recorded from `web/src/mfa.js`, best effort (the factor is already on).
+
 - **Unsubscribe link limits (G-7, 14 Nov 2026):** limits are per link only, never platform-wide or per address (a burst
   of genuine opt-outs after a big email must never be refused), and the limit never stops an opt-out.
 

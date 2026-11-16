@@ -57,9 +57,47 @@ export async function finishMfaEnrollment(factorId, code) {
   if (!/^\d{6}$/.test(clean)) throw new Error("Enter the 6-digit code from your authenticator app.");
   const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId, code: clean });
   if (error) throw new Error(/invalid|expired/i.test(error.message) ? "That code didn't work. Try the newest one." : error.message);
+  await recordAdminMfaAdded(factorId);
 }
 
-export async function removeMfaFactor(factorId) {
+// ACC-30: a platform admin's own security changes go through owner-provision-business, which audits them. Errors
+// keep the server's code (FRESH_CODE_REQUIRED, ...).
+async function adminAction(action, payload = {}) {
+  const { data, error } = await supabase.functions.invoke("owner-provision-business", { body: { action, ...payload } });
+  if (error) {
+    let body = {};
+    try { body = (await error.context?.json()) ?? {}; } catch { /* keep the default message */ }
+    throw Object.assign(new Error(body.error || "That didn't work. Try again."), { code: body.code, status: error.context?.status });
+  }
+  return data;
+}
+
+// After an authenticator is verified: an admin's new authenticator is recorded in the audit log (admin.mfa_added).
+// Best effort, the authenticator is already on; business members are not admins, so nothing is sent for them.
+async function recordAdminMfaAdded(factorId) {
+  try {
+    const { data: role } = await supabase.rpc("zella_admin_role");
+    if (role) await adminAction("me_mfa_added", { factorId });
+  } catch (err) {
+    console.warn("Recording the new authenticator failed", err?.message);
+  }
+}
+
+// Business members remove an authenticator straight with Supabase Auth. Admins go through the server, with a new
+// code: it refuses their last authenticator (ACC-01) and audits the removal (admin.mfa_removed).
+export async function removeMfaFactor(factorId, { admin = false, code } = {}) {
+  if (admin) {
+    await verifyMfaCode(code);
+    await adminAction("me_mfa_remove", { factorId });
+    return;
+  }
   const { error } = await supabase.auth.mfa.unenroll({ factorId });
   if (error) throw new Error(/aal2/i.test(error.message) ? "Sign in with your code first, then remove it." : error.message);
+}
+
+// Admins change their password through the server after a new code (audited as admin.password_changed);
+// business members keep Supabase Auth's own flow.
+export async function changeAdminPassword(password, code) {
+  await verifyMfaCode(code);
+  await adminAction("me_password_change", { password });
 }
