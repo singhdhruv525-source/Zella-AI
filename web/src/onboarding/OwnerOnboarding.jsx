@@ -3,6 +3,7 @@ import "../BusinessApp.css";
 import "./onboarding.css";
 import { BusinessSignIn, MfaCodeCard } from "../BusinessAuth";
 import { ErrorBoundary, Icon, loadBusinessFonts } from "../BusinessUI";
+import { SidebarBrand } from "../navigation/SidebarBrand";
 import { getApi } from "./api";
 import ProgressSteps from "./ProgressSteps";
 import { Failed, Loading, NotReady } from "./kit";
@@ -26,8 +27,13 @@ const TITLES = {
   identity: () => "Verify your identity",
   plan: () => "Your plan",
   payment: () => "Pay for your plan",
-  done: () => "You're all set",
+  // "You're all set" only once every go live check has passed; until then, say what is still to come
+  done: (s) => (allChecksDone(s) ? "You're all set" : "Setup complete. One last check before you go live."),
 };
+function allChecksDone(s) {
+  const checks = Array.isArray(s.go_live?.checks) ? s.go_live.checks : [];
+  return s.go_live?.live === true || (checks.length > 0 && checks.every((c) => c.ok));
+}
 // Back only goes between these screens (never back into setting a password)
 const CAN_GO_BACK = new Set(["identity", "plan", "payment"]);
 
@@ -208,13 +214,9 @@ function Frame({ state, title, onFinishLater, leaving, children }) {
     <div className="ba-root zob">
       <header className="zob-top">
         <div className="zob-brand">
-          <div className="ba-logo" aria-hidden="true">Z</div>
-          <div>
-            <div className="ba-brand-name">Zella Voice</div>
-            {state?.business_name && <div className="ba-brand-sub">{state.business_name}</div>}
-          </div>
+          <SidebarBrand caption={state?.business_name} />
         </div>
-        {onFinishLater && <button type="button" className="ba-btn sm" disabled={leaving} onClick={onFinishLater}>{leaving ? "Saving…" : "Finish later"}</button>}
+        {onFinishLater && <button type="button" className="ba-btn sm ghost zob-later" disabled={leaving} onClick={onFinishLater}>{leaving ? "Saving…" : "Finish later"}</button>}
       </header>
       <main className="zob-main">
         <div className="zob-card zob-page">

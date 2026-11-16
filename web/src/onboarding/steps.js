@@ -198,13 +198,13 @@ export function sectionRows(key, data) {
     const services = Array.isArray(d.services) ? d.services : [];
     return [
       ["Opening hours", hours.length ? hours.map((h) => `${DAY[h.weekday] ?? "Day"}: ${time(h.opens)} to ${time(h.closes)}`) : "Not set"],
-      ["Services", services.length ? services.map((s) => [s.name, s.duration, s.price].filter(set).join(", ")) : "None"],
+      ["Services", services.length ? services.map((s) => [s.name, s.duration, s.price].filter(set).join(", ")) : "No services yet"],
       ["Takes bookings", d.takes_bookings === true ? "Yes" : d.takes_bookings === false ? "No" : "Not set"],
     ];
   }
   if (key === "team") {
     const members = Array.isArray(d.members) ? d.members : [];
-    return [["Team members", members.length ? members.map((m) => [m.name, m.title, m.email, set(m.phone) ? phoneWords(m.phone) : null].filter(set).join(", ")) : "None yet"]];
+    return [["Team members", members.length ? members.map((m) => [m.name, m.title, m.email, set(m.phone) ? phoneWords(m.phone) : null].filter(set).join(", ")) : "No team members yet"]];
   }
   if (key === "receptionist_phone") {
     const t = d.transfer_to ?? {};
@@ -215,7 +215,7 @@ export function sectionRows(key, data) {
     return [
       ["Receptionist name", text(d.name)], ["Greeting", text(d.greeting)], ["Language", languageWords(d.language)],
       ["Calls are transferred to", transfer], ["Fallback number", phoneWords(d.fallback_number)],
-      ["Phone setup", mode], ["Zella Voice numbers", numbers.length ? numbers.map((n) => `${phoneWords(n.e164)}${n.status === "active" ? "" : " (not active yet)"}`) : "None yet"],
+      ["Phone setup", mode], ["Zella Voice numbers", numbers.length ? numbers.map((n) => `${phoneWords(n.e164)}${n.status === "active" ? "" : " (not active yet)"}`) : "No numbers yet"],
     ];
   }
   return [];

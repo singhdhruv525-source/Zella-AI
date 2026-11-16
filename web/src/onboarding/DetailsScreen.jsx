@@ -34,12 +34,14 @@ export function DetailsScreen({ api, state, onState, onComplete }) {
     <>
       <p className="zob-lead">The Zella Voice team set these up for you. Check each part. If anything is wrong, choose Change and tell us what to fix.</p>
       <ol className="zob-sections" aria-label="Parts to check">
-        {sections.map((s) => {
+        {sections.map((s, i) => {
           const st = sectionState(s);
           return (
             <li key={s.key}>
               <button type="button" className={`zob-section-tab ${s.key === open.key ? "on" : ""}`} aria-current={s.key === open.key ? "step" : undefined} onClick={() => setOpenKey(s.key)}>
-                <Icon name={st.done ? "check_circle" : st.key === "change_requested" ? "schedule" : "radio_button_unchecked"} size="sm" />
+                <span className={`zob-step-n ${st.done ? "done" : ""}`} aria-hidden="true">
+                  {st.done ? <Icon name="check" size="sm" /> : st.key === "change_requested" ? <Icon name="schedule" size="sm" /> : i + 1}
+                </span>
                 <span>{sectionTitle(s.key)}</span>
                 <span className="zob-sr">, {st.label}</span>
               </button>
@@ -47,7 +49,7 @@ export function DetailsScreen({ api, state, onState, onComplete }) {
           );
         })}
       </ol>
-      <SectionCard key={open.key} api={api} businessId={state.business_id} section={open} index={sections.indexOf(open)} total={sections.length}
+      <SectionCard key={open.key} api={api} businessId={state.business_id} section={open}
         headingRef={sectionHeading} onAnswered={answered} />
       {done
         ? <div className="zob-done-note" role="status"><Icon name="task_alt" /><span>Every part looks right. Thank you.</span></div>
@@ -62,7 +64,7 @@ export function DetailsScreen({ api, state, onState, onComplete }) {
   );
 }
 
-function SectionCard({ api, businessId, section, index, total, headingRef, onAnswered }) {
+function SectionCard({ api, businessId, section, headingRef, onAnswered }) {
   const st = sectionState(section);
   const [writing, setWriting] = useState(false);
   const action = useAction();
@@ -75,10 +77,9 @@ function SectionCard({ api, businessId, section, index, total, headingRef, onAns
   return (
     <section className="zob-card zob-section" aria-labelledby={`zob-sec-${section.key}`}>
       <div className="zob-section-head">
-        <div>
-          <span className="zob-kicker">Part {index + 1} of {total}</span>
-          <h2 id={`zob-sec-${section.key}`} ref={headingRef} tabIndex={-1}>{sectionTitle(section.key)}</h2>
-        </div>
+        <h2 id={`zob-sec-${section.key}`} ref={headingRef} tabIndex={-1}>
+          {sectionTitle(section.key)}
+        </h2>
         <span className={`zob-chip tone-${st.tone}`}>{st.label}</span>
       </div>
       {st.key === "updated" && section.admin_note && <p className="zob-quote"><strong>From the Zella Voice team:</strong> {section.admin_note}</p>}
@@ -100,11 +101,11 @@ function SectionCard({ api, businessId, section, index, total, headingRef, onAns
         <>
           <ErrorText>{action.error}</ErrorText>
           <div className="zob-section-actions">
-            <button type="button" className="ba-btn primary" disabled={action.busy || st.key === "looks_right"} onClick={() => answer("looks_right")}>
-              <Icon name="check" size="sm" /> {action.busy ? "Saving…" : st.key === "change_requested" ? "Looks right after all" : "Looks right"}
-            </button>
             <button type="button" className="ba-btn" disabled={action.busy} onClick={() => { action.setError(""); setWriting(true); }}>
               <Icon name="edit" size="sm" /> {st.key === "change_requested" ? "Change my note" : "Change"}
+            </button>
+            <button type="button" className="ba-btn primary" disabled={action.busy || st.key === "looks_right"} onClick={() => answer("looks_right")}>
+              <Icon name="check" size="sm" /> {action.busy ? "Saving…" : st.key === "change_requested" ? "Looks right after all" : "Looks right"}
             </button>
           </div>
         </>
@@ -128,8 +129,8 @@ function NoteForm({ initial, busy, error, onCancel, onSend }) {
       </div>
       <ErrorText>{error}</ErrorText>
       <div className="zob-section-actions">
-        <button type="submit" className="ba-btn primary" disabled={busy || !note.trim()}>{busy ? "Sending…" : "Send to the Zella Voice team"}</button>
         <button type="button" className="ba-btn" disabled={busy} onClick={onCancel}>Cancel</button>
+        <button type="submit" className="ba-btn primary" disabled={busy || !note.trim()}>{busy ? "Sending…" : "Send to the Zella Voice team"}</button>
       </div>
     </form>
   );

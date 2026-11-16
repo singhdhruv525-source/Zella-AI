@@ -86,14 +86,14 @@ test("check your details: the admin's entries in plain words, no dashes", () => 
   assert.deepEqual(hours["Opening hours"], ["Monday: 09:00 to 17:00"]);
   const week = Object.fromEntries(sectionRows("hours_services", { hours: [{ weekday: 0, opens: "10:00", closes: "12:00" }, { weekday: 1, opens: "09:00", closes: "17:00" }] }));
   assert.deepEqual(week["Opening hours"], ["Monday: 09:00 to 17:00", "Sunday: 10:00 to 12:00"], "0 is Sunday, listed after Saturday");
-  assert.equal(hours.Services, "None");
+  assert.equal(hours.Services, "No services yet");
   assert.equal(hours["Takes bookings"], "No");
   const rp = Object.fromEntries(sectionRows("receptionist_phone", { language: "en-US", transfer_to: { type: "owner" }, phone_setup: { mode: "call_forwarding", forward_from: "+15555550100" }, numbers: [{ e164: "+15555550102", status: "pending" }] }));
   assert.equal(rp.Language, "English");
   assert.equal(rp["Calls are transferred to"], "You, the owner");
   assert.equal(rp["Phone setup"], "Calls forwarded from (555) 555 0100");
   assert.deepEqual(rp["Zella Voice numbers"], ["(555) 555 0102 (not active yet)"]);
-  assert.equal(Object.fromEntries(sectionRows("team", { members: [] }))["Team members"], "None yet");
+  assert.equal(Object.fromEntries(sectionRows("team", { members: [] }))["Team members"], "No team members yet");
   assert.equal(sectionRows("unknown", {}).length, 0);
   for (const k of ["business", "hours_services", "team", "receptionist_phone"]) for (const [l, v] of sectionRows(k, null)) assert.doesNotMatch(`${l} ${v}`, DASH);
   assert.equal(phoneWords("+44-20-7946-0000"), "+44 20 7946 0000");
