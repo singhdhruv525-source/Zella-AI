@@ -70,6 +70,7 @@ create index if not exists business_export_jobs_business_idx on public.business_
 create unique index if not exists business_export_jobs_one_open on public.business_export_jobs (business_id) where status in ('requested', 'approved', 'running');
 alter table public.business_export_jobs enable row level security;
 revoke all on public.business_export_jobs from public, anon, authenticated;
+grant select on public.business_export_jobs to service_role;   -- the admin server reads it; every write goes through the functions
 
 insert into storage.buckets (id, name, public) values ('business-exports', 'business-exports', false) on conflict (id) do update set public = false;
 
