@@ -71,9 +71,8 @@ Each is a database job; most stay off until the owner approves going live (see `
 - [Spam and abuse](#spam-and-abuse): `spam_settings`, `spam_incidents`, `spam_incident_events`, `spam_list_entries`
 - [Automations and background work](#automations-and-background-work): `automations`, `automation_runs`, `automation_events`, `automation_dead_letters`, `workflow_executions`, `n8n_dispatch_state`, `integrations`, `integration_secrets`, `provider_health`
 - [Offers, reviews and growth](#offers-reviews-and-growth): `offers`, `offer_rules`, `offer_redemptions`, `offer_events`, `offer_job_runs`, `cross_sell_rules`, `review_sources`, `reviews`
-- [Billing and usage](#billing-and-usage): `plans`, `business_plans`, `billing_pack_catalog`, `billing_periods`, `allowance_buckets`, `pack_purchases`, `usage_charges`, `auto_reload_settings`, `subscriptions`, `payments`, `billing_events`, `billing_stripe_links`, `billing_outbox`, `billing_quarantine`, `billing_invoices`, `ledger_operation_keys`, `billing_checkouts`, `money_ledger`, `usage_records`, `usage_thresholds`, `usage_threshold_events`, `usage_processing_issues`, `voice_pricing`
+- [Billing and usage](#billing-and-usage): `plans`, `business_plans`, `billing_pack_catalog`, `billing_periods`, `allowance_buckets`, `pack_purchases`, `usage_charges`, `auto_reload_settings`, `subscriptions`, `payments`, `billing_events`, `billing_stripe_links`, `billing_outbox`, `billing_quarantine`, `billing_invoices`, `ledger_operation_keys`, `billing_checkouts`, `billing_refunds`, `money_ledger`, `usage_records`, `usage_thresholds`, `usage_threshold_events`, `usage_processing_issues`, `voice_pricing`
 - [Notifications, reports and support](#notifications-reports-and-support): `notifications`, `notification_preferences`, `staff_notifications`, `admin_alert_prefs`, `platform_alerts`, `platform_incidents`, `business_report_schedules`, `business_report_runs`, `support_tickets`, `support_ticket_notes`
-- [Not yet described](#not-yet-described): `billing_refunds`
 - [Functions](#functions)
 
 ## Tenancy, people and access
@@ -4180,6 +4179,35 @@ One Stripe Checkout attempt for a business's first payment or trial: the plan ve
 - `business_plan_id` → `public.business_plans` (on delete restrict).
 - Row security: on; no policies, so roles subject to row security (signed-in users and anon) get no rows directly. Superusers and `BYPASSRLS` roles (such as the server key) are not limited by it, nor is the table owner unless `FORCE ROW LEVEL SECURITY` is set; a security definer function runs with its function owner's rights.
 
+### `billing_refunds`
+
+Refund requests and refunds: the payment, the kind (guarantee, setup fee, pack, yearly, error, made outside Zella Voice), the reserved amount in cents, the Zella Voice owner's decision and the Stripe refund. Server only.
+
+| Column | Type | Required | Default |
+|---|---|---|---|
+| `id` | uuid | yes | gen_random_uuid() |
+| `business_id` | uuid | yes |  |
+| `payment_id` | uuid | yes |  |
+| `kind` | text | yes |  |
+| `amount_minor` | bigint | yes |  |
+| `status` | text | yes | 'requested' |
+| `reason` | text |  |  |
+| `idempotency_key` | text |  |  |
+| `requested_by` | uuid |  |  |
+| `decided_by` | uuid |  |  |
+| `decision_reason` | text |  |  |
+| `stripe_refund_id` | text |  |  |
+| `created_at` | timestamp with time zone | yes | now() |
+| `decided_at` | timestamp with time zone |  |  |
+| `settled_at` | timestamp with time zone |  |  |
+
+- Primary key: `id`.
+- Unique: `(business_id, idempotency_key)`.
+- Unique: `(stripe_refund_id)`.
+- `business_id` → `public.businesses` (on delete restrict).
+- `payment_id` → `public.payments` (on delete restrict).
+- Row security: on; no policies, so roles subject to row security (signed-in users and anon) get no rows directly. Superusers and `BYPASSRLS` roles (such as the server key) are not limited by it, nor is the table owner unless `FORCE ROW LEVEL SECURITY` is set; a security definer function runs with its function owner's rights.
+
 ### `money_ledger`
 
 Double entry money ledger in cents: each operation's lines sum to zero. Server only.
@@ -4557,39 +4585,6 @@ Zella Voice admins' internal notes on support tickets (server only: the business
 
 - Primary key: `id`.
 - `ticket_id` → `public.support_tickets` (on delete cascade).
-- Row security: on; no policies, so roles subject to row security (signed-in users and anon) get no rows directly. Superusers and `BYPASSRLS` roles (such as the server key) are not limited by it, nor is the table owner unless `FORCE ROW LEVEL SECURITY` is set; a security definer function runs with its function owner's rights.
-
-## Not yet described
-
-Add a purpose for each in `docs/generators/backend_schema.py`.
-
-### `billing_refunds`
-
-No description yet.
-
-| Column | Type | Required | Default |
-|---|---|---|---|
-| `id` | uuid | yes | gen_random_uuid() |
-| `business_id` | uuid | yes |  |
-| `payment_id` | uuid | yes |  |
-| `kind` | text | yes |  |
-| `amount_minor` | bigint | yes |  |
-| `status` | text | yes | 'requested' |
-| `reason` | text |  |  |
-| `idempotency_key` | text |  |  |
-| `requested_by` | uuid |  |  |
-| `decided_by` | uuid |  |  |
-| `decision_reason` | text |  |  |
-| `stripe_refund_id` | text |  |  |
-| `created_at` | timestamp with time zone | yes | now() |
-| `decided_at` | timestamp with time zone |  |  |
-| `settled_at` | timestamp with time zone |  |  |
-
-- Primary key: `id`.
-- Unique: `(business_id, idempotency_key)`.
-- Unique: `(stripe_refund_id)`.
-- `business_id` → `public.businesses` (on delete restrict).
-- `payment_id` → `public.payments` (on delete restrict).
 - Row security: on; no policies, so roles subject to row security (signed-in users and anon) get no rows directly. Superusers and `BYPASSRLS` roles (such as the server key) are not limited by it, nor is the table owner unless `FORCE ROW LEVEL SECURITY` is set; a security definer function runs with its function owner's rights.
 
 ## Functions
