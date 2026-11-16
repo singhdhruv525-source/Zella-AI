@@ -13,12 +13,12 @@ It reads the catalog only, never rows.
 
 | What | Count |
 |---|---|
-| Tables (schema `public`) | 174 |
-| Tables with row security on | 174 of 174 |
+| Tables (schema `public`) | 175 |
+| Tables with row security on | 175 of 175 |
 | Row security policies | 342 |
-| Columns | 2066 |
+| Columns | 2074 |
 | Views | 1 |
-| Functions | 917 (849 security definer, 26 callable by `anon`) |
+| Functions | 919 (851 security definer, 26 callable by `anon`) |
 
 Rules every table follows:
 
@@ -64,7 +64,7 @@ Each is a database job; most stay off until the owner approves going live (see `
 - [Business setup and industry configuration](#business-setup-and-industry-configuration): `industries`, `industry_configurations`, `industry_modules`, `business_modules`, `business_capabilities`, `industry_crm_presets`, `industry_automation_presets`, `industry_automation_defaults`, `industry_automation_runs`, `industry_message_policy`, `business_hours`, `business_closures`, `business_languages`, `business_voice`, `business_phone_numbers`, `business_verification_documents`, `provisioning_steps`, `activation_tests`, `config_migration_snapshots`, `zella_milestones`, `platform_settings`, `business_usage_preferences`
 - [Customers and CRM](#customers-and-crm): `customers`, `customer_relationships`, `customer_requests`, `customer_consents`, `contact_consents`, `duplicate_reviews`, `crm_tasks`, `crm_record_types`, `crm_records`, `crm_record_events`, `crm_record_files`, `crm_record_secrets`, `record_workflow_presets`, `record_approvals`, `record_milestones`, `record_inspections`, `record_exceptions`, `record_credits`, `quotes`, `customer_charges`, `customer_charge_payments`, `data_rights_requests`
 - [Leads](#leads): `lead_rules`, `lead_questions`, `lead_submissions`, `website_forms`, `website_sources`, `website_pages`, `google_lead_keys`, `google_lead_events`, `assignment_rules`
-- [Calls and the AI receptionist](#calls-and-the-ai-receptionist): `calls`, `call_messages`, `call_insights`, `callbacks`, `callback_attempts`, `ai_agents`, `ai_agent_configs`, `agent_config_versions`, `assistant_deliveries`, `ai_tool_calls`, `ai_answer_reports`, `ai_response_samples`, `ai_eval_cases`, `vapi_request_receipts`, `on_call_settings`, `on_call_shifts`, `on_call_reminders_sent`, `store_lookup_guards`
+- [Calls and the AI receptionist](#calls-and-the-ai-receptionist): `calls`, `call_messages`, `call_insights`, `callbacks`, `callback_attempts`, `ai_agents`, `ai_agent_configs`, `agent_config_versions`, `assistant_deliveries`, `ai_tool_calls`, `ai_answer_reports`, `ai_response_samples`, `ai_eval_cases`, `ai_eval_runs`, `vapi_request_receipts`, `on_call_settings`, `on_call_shifts`, `on_call_reminders_sent`, `store_lookup_guards`
 - [Knowledge](#knowledge): `knowledge_items`, `knowledge_versions`, `knowledge_gaps`
 - [Scheduling](#scheduling): `appointments`, `appointment_reminders`, `appointment_reschedule_links`, `blocked_times`, `resources`, `resource_needs`, `recurring_plans`, `recurring_visits`, `job_dispatch`, `waitlist_entries`, `waitlist_offer_links`, `calendar_connections`, `calendar_sync_queue`, `restaurant_tables`, `table_combinations`, `table_states`, `table_blocks`, `table_events`
 - [Messages and conversations](#messages-and-conversations): `conversations`, `conversation_messages`, `conversation_notes`, `message_templates`, `message_drafts`, `sms_messages`, `email_messages`, `platform_emails`, `email_events`, `email_unsubscribe_tokens`, `followup_tasks`, `automation_channel_reviews`, `meta_connections`, `meta_contacts`, `meta_events`, `meta_outbox`, `meta_templates`, `social_flows`, `live_notices`
@@ -1983,6 +1983,25 @@ Test cases the receptionist must pass per industry.
 - Primary key: `id`.
 - `business_id` → `public.businesses` (on delete cascade).
 - Row security: on; policies: ai_eval_cases_all (all), zella_mfa_required (all).
+
+### `ai_eval_runs`
+
+Each admin AI testing run of a business's test questions: who, when, passed, failed questions.
+
+| Column | Type | Required | Default |
+|---|---|---|---|
+| `id` | uuid | yes | gen_random_uuid() |
+| `business_id` | uuid | yes |  |
+| `run_by` | uuid |  |  |
+| `run_at` | timestamp with time zone | yes | now() |
+| `total` | integer | yes |  |
+| `passed` | integer | yes |  |
+| `failed` | jsonb | yes | '[]' |
+| `business_passes` | boolean | yes |  |
+
+- Primary key: `id`.
+- `business_id` → `public.businesses` (on delete cascade).
+- Row security: on; no policies, so roles subject to row security (signed-in users and anon) get no rows directly. Superusers and `BYPASSRLS` roles (such as the server key) are not limited by it, nor is the table owner unless `FORCE ROW LEVEL SECURITY` is set; a security definer function runs with its function owner's rights.
 
 ### `vapi_request_receipts`
 
@@ -4321,7 +4340,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_add_lead_note(p_customer_id uuid, p_note text)` | boolean | yes | signed in |
 | `zella_add_record_note(p_id uuid, p_note text)` | boolean | yes | signed in |
 
-### `zella_admin_*` (46)
+### `zella_admin_*` (48)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -4340,6 +4359,8 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_admin_call_usage(p_business_id uuid, p_from timestamp with time zone, p_to timestamp with time zone, p_limit integer, p_offset integer)` | jsonb | yes | signed in |
 | `zella_admin_calls(p_from timestamp with time zone, p_to timestamp with time zone, p_business uuid, p_direction text, p_status text, p_outcome text, p_failed_only boolean, p_q text, p_limit integer, p_offset integer)` | jsonb | yes | signed in |
 | `zella_admin_can(p_permission text)` | boolean | yes | signed in |
+| `zella_admin_eval_overview(p_limit integer, p_offset integer)` | jsonb | yes | signed in |
+| `zella_admin_eval_run(p_business_id uuid)` | jsonb | yes | signed in |
 | `zella_admin_mask(p text)` | text |  | server only |
 | `zella_admin_message_detail(p_channel text, p_id uuid, p_with_content boolean)` | jsonb | yes | signed in |
 | `zella_admin_message_retry(p_channel text, p_id uuid, p_reason text)` | jsonb | yes | signed in |
