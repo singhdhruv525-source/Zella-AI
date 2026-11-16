@@ -155,8 +155,8 @@ test("words: money in cents and allowances", () => {
   assert.equal(allowance(undefined, "text"), "Not set");
 });
 
-test("stand in: the whole journey, with the server's gates", async () => {
-  const api = createFakeApi({ storage: memory(), delay: 0 });
+test("stand in: the whole journey, with the server's gates (a payment required)", async () => {
+  const api = createFakeApi({ scenario: "payrequired", storage: memory(), delay: 0 });
   const { businesses } = await api.listBusinesses();
   const id = businesses[0].business_id;
   let s = await api.getState(id);
@@ -284,4 +284,17 @@ test("stand in, scenario pay: Checkout opens with a key, the return confirms onl
   assert.equal((await api.checkoutReturn(id)).payment.status, "confirmed");
   const off = createFakeApi({ storage: memory(), delay: 0 });
   await assert.rejects(off.startCheckout(id, "a-good-key-1"), (e) => errorCode(e) === "PAYMENTS_NOT_LIVE");
+});
+
+test("owner decision: until payments are live the payment isn't required; step 6 says it opens soon and can be passed", async () => {
+  const off = { status: "waiting", reason: "payments_not_connected", checkout_available: false, required: false, confirmed_at: null };
+  assert.equal(paymentState(off).label, "Payment opens here soon");
+  assert.equal(paymentState(off).key, "waiting", "never Payment received");
+  assert.equal(paymentPassed(off), true);
+  assert.equal(paymentPassed({ ...off, required: true }), false);
+  assert.equal(paymentPassed({ ...off, required: "false" }), false, "only a real false skips it");
+  const api = createFakeApi({ storage: memory(), delay: 0 });
+  const id = (await api.listBusinesses()).businesses[0].business_id;
+  api.approveIdentity();
+  assert.equal((await api.paymentStatus(id)).required, false);
 });

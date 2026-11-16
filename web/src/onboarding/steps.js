@@ -105,7 +105,9 @@ export function paymentState(payment) {
   if (s === "waiting" && payment?.checkout_available === true) return { key: "ready", label: "Ready to pay", tone: "info" };
   return { key: "waiting", label: "Payment opens here soon", tone: "info" };
 }
-export const paymentPassed = (payment) => paymentState(payment).key === "confirmed";
+// Owner decision (16 Nov 2026): until payments are live the first payment isn't required (required false); the step
+// still shows "Payment opens here soon" and the owner may continue. Never shown as "Payment received".
+export const paymentPassed = (payment) => paymentState(payment).key === "confirmed" || (payment?.required === false && paymentState(payment).key === "waiting");
 
 // Whether the owner may press Continue on a step, from the server's state. The server checks again.
 export function canLeave(step, state = {}) {

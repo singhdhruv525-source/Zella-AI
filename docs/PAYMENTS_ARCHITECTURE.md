@@ -302,6 +302,8 @@ The return to our page only shows "processing". **Access is granted only when th
 fetch from Stripe) confirms the paid invoice, and the payment passes the binding check below.** A lost redirect never
 loses a payment, and a forged redirect never grants anything.
 
+**Owner decision (16 Nov 2026), built in `sql/zella_stripe_payment_gate.sql`:** the first payment is required for go live only while `payments_live` is true. While it is false, `zella_onboarding_rules().first_payment` is `not_until_payments_live`, the go live gate doesn't wait for a payment, and onboarding step 6 shows "Payment opens here soon" with Continue. Switching payments on applies "pay before going live" to every business not live yet.
+
 ### 6.0a Payment binding (applies to every paid grant)
 
 Before any paid access, allowance, pack or invoice status is granted, one database function checks that the paid

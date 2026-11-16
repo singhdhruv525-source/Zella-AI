@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Icon } from "../BusinessUI";
 import { Actions, EmptyNote, ErrorText, useAction } from "./kit";
-import { allowance, billingPeriod, errorCode, errorWords, languageWords, money, paymentState, tierName } from "./steps";
+import { allowance, billingPeriod, errorCode, errorWords, languageWords, money, paymentPassed, paymentState, tierName } from "./steps";
 
 // Screens 5 to 7: Your plan, Pay, and You're all set.
 
@@ -121,10 +121,11 @@ export function PaymentScreen({ api, state, onState, onComplete }) {
         </div>
       </div>
       {returned === "cancelled" && st.key === "ready" && <p className="zob-muted">You left the payment page. Nothing was charged.</p>}
-      {st.key !== "confirmed" && <p className="zob-muted">Your receptionist starts answering calls only after payment, so you're never charged for something that isn't working yet. You can choose Finish later and come back to this page any time.</p>}
+      {st.key === "waiting" && state.payment?.required === false && <p className="zob-muted">You can continue now. We'll ask for payment here once it's switched on.</p>}
+      {st.key !== "confirmed" && state.payment?.required !== false && <p className="zob-muted">Your receptionist starts answering calls only after payment, so you're never charged for something that isn't working yet. You can choose Finish later and come back to this page any time.</p>}
       <ErrorText>{problem || action.error}</ErrorText>
       <Actions>
-        {st.key === "confirmed"
+        {st.key === "confirmed" || paymentPassed(state.payment)
           ? <button type="button" className="ba-btn primary" disabled={action.busy} onClick={() => action.run(() => onComplete("payment"))}>{action.busy ? "One moment…" : "Continue"}</button>
           : st.key === "ready"
             ? <button type="button" className="ba-btn primary" disabled={action.busy} onClick={() => action.run(pay)}>{action.busy ? "Opening Stripe…" : trial ? "Add a card and start my trial" : "Pay securely"}</button>
