@@ -103,3 +103,42 @@ Deno.test("me_password_change checks the rule, changes only the caller's passwor
   await accessHandlers(none.admin, { password: "short" }, "me", kit).handlers.me_password_change().catch(() => {});
   assertEquals(none.calls, []);
 });
+
+import { recordRefusal, REFUSAL_LIMIT } from "./access.ts";
+function refusalFake(opts: { allowed?: unknown; rpcError?: boolean; insertError?: boolean; throws?: boolean } = {}) {
+  const rpcs: unknown[] = [], inserts: unknown[] = [];
+  const admin = {
+    rpc: async (name: string, args: unknown) => { if (opts.throws) throw new Error("network down"); rpcs.push([name, args]); return { data: opts.allowed ?? true, error: opts.rpcError ? { message: "x" } : null }; },
+    from: (table: string) => ({ insert: async (row: unknown) => { inserts.push([table, row]); return { error: opts.insertError ? { message: "x" } : null }; } }),
+  } as unknown as SupabaseClient;
+  return { admin, rpcs, inserts };
+}
+const ctx = { userId: "u1", ip: "203.0.113.9", userAgent: "Test browser" };
+
+Deno.test("a refused admin call is recorded with ip and user agent, under the rate limit", async () => {
+  const f = refusalFake();
+  assertEquals(await recordRefusal(f.admin, ctx, { code: "NOT_PERMITTED", action: "admin_invite", permission: "admins.manage" }), true);
+  assertEquals(f.rpcs, [["zella_rate_limit", { p_key: "refusal:u1:NOT_PERMITTED", p_max: 5, p_window_seconds: 600 }]]);
+  assertEquals(REFUSAL_LIMIT, { max: 5, windowSeconds: 600 });
+  assertEquals(f.inserts, [["audit_logs", { user_id: "u1", action: "security.admin_refused", entity_type: "admin_request", ip_address: "203.0.113.9", user_agent: "Test browser",
+    new_data: { code: "NOT_PERMITTED", action: "admin_invite", permission: "admins.manage" } }]]);
+});
+
+Deno.test("over the limit nothing more is written", async () => {
+  const f = refusalFake({ allowed: false });
+  assertEquals(await recordRefusal(f.admin, ctx, { code: "MFA_REQUIRED", action: "dashboard_data" }), false);
+  assertEquals(f.inserts, []);
+});
+
+Deno.test("an action name from the request is kept only when it looks like one", async () => {
+  const f = refusalFake();
+  await recordRefusal(f.admin, ctx, { code: "NOT_ADMIN", action: "<script>alert(1)</script>" });
+  await recordRefusal(f.admin, ctx, { code: "NOT_ADMIN" });
+  assertEquals(f.inserts.map((i) => ((i as [string, { new_data: { action: unknown } }])[1]).new_data.action), [null, null]);
+});
+
+Deno.test("recording never throws, whatever fails", async () => {
+  for (const opts of [{ rpcError: true }, { insertError: true }, { throws: true }, { allowed: "yes" }]) {
+    assertEquals(await recordRefusal(refusalFake(opts).admin, ctx, { code: "NOT_ADMIN" }), false, JSON.stringify(opts));
+  }
+});

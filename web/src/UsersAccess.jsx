@@ -8,6 +8,7 @@ import { formatDate, timeAgo } from "./ownerFormat";
 import { friendlyError } from "./admin/adminOps";
 import { SIGNED_OUT_EVERYWHERE, needsFreshCode, signedOutText } from "./adminAccess";
 import { verifyMfaCode } from "./mfa";
+import SecurityRefusals from "./settings/panels/SecurityRefusals";
 
 const ROLE_LABELS = {
   zella_owner: "Zella Voice owner", super_admin: "Super admin", platform_operations: "Platform operations",
@@ -278,6 +279,8 @@ export default function UsersAccess() {
           <span>Zella Voice always keeps at least one active owner, and nobody can change their own access.</span>
         </div>
       </section>
+
+      <SecurityRefusals />
     </section>
   );
 }

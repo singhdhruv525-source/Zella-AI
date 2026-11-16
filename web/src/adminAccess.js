@@ -15,3 +15,15 @@ export const SIGNED_OUT_EVERYWHERE = "They will be signed out on every device.";
 // answers FRESH_CODE_REQUIRED; Users & access asks for a new code (verifyMfaCode in mfa.js issues a session with a
 // new code time) and runs the same change again.
 export const needsFreshCode = (err) => err?.code === "FRESH_CODE_REQUIRED";
+
+// ACC-15: why the server refused an admin request, in words.
+const REFUSAL_REASONS = {
+  NOT_ADMIN: "Not a Zella Voice admin",
+  MFA_REQUIRED: "Two step sign in code not entered",
+  MFA_SETUP_REQUIRED: "Two step sign in not set up",
+  NOT_PERMITTED: "Their role doesn't allow it",
+};
+export function refusalReason(r) {
+  const base = REFUSAL_REASONS[r?.code] ?? "Refused";
+  return r?.code === "NOT_PERMITTED" && r.permission ? `${base} (${r.permission})` : base;
+}

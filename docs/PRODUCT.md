@@ -336,7 +336,9 @@ roles in Settings) gets the same check once that page's open changes have merged
 Administrator profile > Account security go through the server and are audited: adding an authenticator ("Admin
 added an authenticator app"), removing one ("Admin removed an authenticator app", with a new code, and never the last
 one) and changing the password (with a new code; the password itself is never recorded). Business owners and staff
-keep the same screens as before.
+keep the same screens as before. Refused calls to the admin server (not an admin, two step sign in
+missing, or a role without that permission) are recorded as "Refused admin request" with the address and browser, at
+most 5 times per person and reason in 10 minutes, and listed on Users & access for the last 24 hours.
 
 ---
 

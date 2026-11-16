@@ -167,6 +167,13 @@ most often needed:
   reauthentication instead. Removing the last authenticator is refused on the server too (ACC-01). The first
   authenticator set up at sign in is recorded from `web/src/mfa.js`, best effort (the factor is already on).
 
+- **Refused admin calls are security events (ACC-15, 16 Nov 2026, defaults taken):** `security.admin_refused` with ip
+  and user agent at the three refusal points (not an admin, two step sign in, permission), capped by
+  `REFUSAL_LIMIT` (5 per person and reason in 10 minutes, `owner-provision-business/access.ts`). Not recorded: calls with
+  no signed in person (401; Supabase Auth logs those) and FRESH_CODE_REQUIRED (an ordinary step, not a refusal).
+  Shown on Users & access; the Settings Security overview card gets the count after the open admin polish merges
+  (`security_overview` already returns `refusals24h`).
+
 - **Unsubscribe link limits (G-7, 14 Nov 2026):** limits are per link only, never platform-wide or per address (a burst
   of genuine opt-outs after a big email must never be refused), and the limit never stops an opt-out.
 

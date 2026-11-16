@@ -61,8 +61,8 @@ async function freshToken(email) {
   const r = await fetch(`${BACKEND}/auth/v1/factors/${id}/verify`, { method: "POST", headers: { authorization: `Bearer ${tok}`, "content-type": "application/json" }, body: JSON.stringify({ code: "123456", challenge_id: "c" }) });
   return (await r.json()).access_token;
 }
-async function fn(tok, body) {
-  const headers = { "content-type": "application/json", ...(tok ? { authorization: `Bearer ${tok}` } : {}) };
+async function fn(tok, body, extra = {}) {
+  const headers = { "content-type": "application/json", ...(tok ? { authorization: `Bearer ${tok}` } : {}), ...extra };
   const r = await fetch(BACKEND + "/functions/v1/owner-provision-business", { method: "POST", headers, body: JSON.stringify(body) });
   return { status: r.status, body: await r.json().catch(() => ({})) };
 }

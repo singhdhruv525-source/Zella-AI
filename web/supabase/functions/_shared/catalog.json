@@ -187,6 +187,7 @@
     "resource_needs_saved": "Saved resource needs",
     "resource_updated": "Updated resource",
     "review_link_changed": "Changed review link",
+    "security.admin_refused": "Refused admin request",
     "session.revoked": "Signed out a device",
     "session.revoked_others": "Signed out other devices",
     "setup.finished": "Finished setup",

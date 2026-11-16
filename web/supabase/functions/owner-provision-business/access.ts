@@ -35,6 +35,7 @@ export async function endSessionsAfterChange(admin: SupabaseClient, userId: stri
 // need a fresh code (mfa_gate.ts FRESH_CODE_ACTIONS).
 export const SELF = "self";
 export const ACCESS_PERMISSIONS: Record<string, string> = {
+  security_refusals: "security.view",
   me_mfa_added: SELF,
   me_mfa_remove: SELF,
   me_password_change: SELF,
@@ -51,6 +52,33 @@ export function passwordProblem(p: unknown): string | null {
   return null;
 }
 
+// ACC-15: a refused call to the admin function is a security event. Recorded as audit 'security.admin_refused' with
+// the ip and user agent, at most REFUSAL_LIMIT times per person and refusal code in each window (zella_rate_limit),
+// so a flood can't fill the log. Recording never changes the answer, and a failure only logs. A call without a
+// signed in person (401) isn't recorded: there is no one to attribute it to, and Supabase Auth logs those.
+export const REFUSAL_LIMIT = { max: 5, windowSeconds: 600 };
+export type RefusalContext = { userId: string; ip: string | null; userAgent: string | null };
+
+export async function recordRefusal(admin: SupabaseClient, ctx: RefusalContext, refusal: { code: string; action?: unknown; permission?: string | null }) {
+  try {
+    const action = typeof refusal.action === "string" && /^[a-z_]{1,60}$/.test(refusal.action) ? refusal.action : null;
+    const { data: allowed, error } = await admin.rpc("zella_rate_limit", {
+      p_key: `refusal:${ctx.userId}:${refusal.code}`, p_max: REFUSAL_LIMIT.max, p_window_seconds: REFUSAL_LIMIT.windowSeconds,
+    });
+    if (error || allowed !== true) return false;
+    const { error: insertError } = await admin.from("audit_logs").insert({
+      user_id: ctx.userId, action: "security.admin_refused", entity_type: "admin_request",
+      ip_address: ctx.ip, user_agent: ctx.userAgent,
+      new_data: { code: refusal.code, action, permission: refusal.permission ?? null },
+    });
+    if (insertError) { console.error("Recording a refused admin call failed", insertError.message); return false; }
+    return true;
+  } catch (e) {
+    console.error("Recording a refused admin call failed", e);
+    return false;
+  }
+}
+
 type Kit = { InputError: new (message: string, status?: number) => Error; requireId: (v: unknown, label?: string) => string };
 type Factor = { id: string; status?: string; factor_type?: string; friendly_name?: string | null };
 
@@ -64,6 +92,26 @@ export function accessHandlers(admin: SupabaseClient, fields: Json, userId: stri
   };
 
   const handlers: Record<string, () => Promise<unknown>> = {
+    // ACC-15: refused admin calls in the last 24 hours, newest first, with who, what and from where.
+    security_refusals: async () => {
+      const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+      const { data, error, count } = await admin.from("audit_logs")
+        .select("user_id, new_data, ip_address, user_agent, created_at", { count: "exact" })
+        .eq("action", "security.admin_refused").gte("created_at", since)
+        .order("created_at", { ascending: false }).limit(20);
+      if (error) throw error;
+      const rows = (data ?? []) as { user_id: string | null; new_data: Json | null; ip_address: string | null; user_agent: string | null; created_at: string }[];
+      const ids = [...new Set(rows.map((r) => r.user_id).filter(Boolean))] as string[];
+      const emails: Record<string, string | null> = {};
+      await Promise.all(ids.map(async (id) => { const { data: u } = await admin.auth.admin.getUserById(id); emails[id] = u?.user?.email ?? null; }));
+      return {
+        count24h: count ?? rows.length,
+        recent: rows.map((r) => ({
+          email: r.user_id ? emails[r.user_id] ?? null : null, code: r.new_data?.code ?? null, request: r.new_data?.action ?? null,
+          permission: r.new_data?.permission ?? null, ip: r.ip_address, userAgent: r.user_agent, at: r.created_at,
+        })),
+      };
+    },
     // The browser has just verified a new authenticator (Supabase Auth); record it once it is really in the list.
     me_mfa_added: async () => {
       const factorId = requireId(fields.factorId, "authenticator");

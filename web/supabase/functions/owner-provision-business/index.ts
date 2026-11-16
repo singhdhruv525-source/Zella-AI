@@ -8,7 +8,7 @@ import { PERMISSIONS, RESTRICTED_ROLES, settingsHandlers } from "./settings.ts";
 import { freshCodeGate, mfaGate, tokenAal } from "./mfa_gate.ts";
 import { ONBOARDING_PERMISSIONS, documentsReady, loadOnboarding, onboardingHandlers } from "./onboarding.ts";
 import { PLATFORM_PERMISSIONS, platformHandlers } from "./platform.ts";
-import { ACCESS_PERMISSIONS, SELF_ACTIONS, accessHandlers, endSessionsAfterChange } from "./access.ts";
+import { ACCESS_PERMISSIONS, SELF_ACTIONS, accessHandlers, endSessionsAfterChange, recordRefusal } from "./access.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -3042,6 +3042,7 @@ Deno.serve(withCors(async (req: Request) => {
     try { role = await callerRole(adminClient, user.id); }
     catch (e) { console.error("Platform admin verification failed", e); return respond({ error: "Could not verify platform admin access" }, 500); }
     if (!role) {
+      await recordRefusal(adminClient, requestContext(req, user.id), { code: "NOT_ADMIN" });   // ACC-15
       return respond({ error: "Platform admin access required" }, 403);
     }
 
@@ -3076,7 +3077,10 @@ Deno.serve(withCors(async (req: Request) => {
       typeof fields.action === "string" ? fields.action : "";
 
     const gate = mfaGate({ hasVerifiedFactor: hasMfa, aal, action });
-    if (!gate.ok) return respond({ error: gate.error, code: gate.code }, gate.status);
+    if (!gate.ok) {
+      await recordRefusal(adminClient, requestContext(req, user.id), { code: gate.code, action });   // ACC-15
+      return respond({ error: gate.error, code: gate.code }, gate.status);
+    }
 
     // Every action needs a permission; restricted roles only have what the owner gave them.
     const permission = PERMISSIONS[action] ?? ONBOARDING_PERMISSIONS[action] ?? PLATFORM_PERMISSIONS[action] ?? ACCESS_PERMISSIONS[action];
@@ -3090,6 +3094,7 @@ Deno.serve(withCors(async (req: Request) => {
       allowed = Boolean(grant);
     }
     if (!allowed) {
+      await recordRefusal(adminClient, requestContext(req, user.id), { code: "NOT_PERMITTED", action, permission });   // ACC-15
       return respond({ error: "Your admin role doesn't allow this. Ask a Zella Voice owner to change your role or its permissions.", code: "NOT_PERMITTED", permission }, 403);
     }
     // ACC-19: granting or changing admin access needs a code entered in the last 5 minutes (mfa_gate.ts).
