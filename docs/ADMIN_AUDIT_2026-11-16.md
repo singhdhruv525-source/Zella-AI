@@ -622,7 +622,7 @@ isolated database first.
 ### Automations
 - [x] Store and show n8n's response per workflow (OPS-17) · needs approval (built, branch `claude/lane-d-dispatch-response`)
 - [ ] "Resume all" for a business (OPS-20) · needs approval
-- [ ] Read n8n's own workflow activation and execution status with a server side key (Scheduler page says it isn't built) · needs approval
+- [x] Read n8n's own workflow activation and execution status with a server side key (Scheduler page says it isn't built) · needs approval (built against a stub, branch `claude/lane-d-n8n-status`; real data once the owner sets `N8N_API_KEY` and `N8N_API_URL`)
 - [ ] Webhook delivery logs, and outbound webhooks for businesses (Settings, Webhooks) · needs approval
 
 ### Support

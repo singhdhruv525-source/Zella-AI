@@ -181,6 +181,11 @@ most often needed:
   secret there. The jobs and email triggers are read by the signed in admin (database functions), the secrets by the
   function; a part that doesn't load reads "Not checked", never "Ready".
 
+- **n8n's own status (AUTO-N8N-STATUS, 16 Nov 2026):** read on the server (`owner-provision-business` `n8n_status`,
+  `n8n.ts`) with `N8N_API_KEY` and `N8N_API_URL` (https only) as Supabase secrets; read only, the key never leaves the
+  server. Built and tested against a stub; it shows "Not connected yet" until the owner creates the key in n8n and
+  sets both secrets.
+
 Waiting on the owner:
 
 - whether suspended businesses keep read-only access (L-5);

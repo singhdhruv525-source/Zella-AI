@@ -5,6 +5,7 @@ import { TimeZoneSelect } from "../formFields";
 import { switchHint } from "../copy/liveSwitches";
 import { uploadImage } from "./PersonalPanels";
 import OauthAppsPanel from "./panels/OauthApps";
+import N8nStatus from "./panels/N8nStatus";
 import { navigate } from "../router";
 import { GO_LIVE_PATH } from "../admin/GoLiveChecklist";
 import { Banner, Card, Confirm, Empty, Facts, Field, LinkRows, LoadState, Needs, Pill, SaveBar, Table, Toggle, money, useAsync, useForm, when, words } from "./SettingsKit";
@@ -1077,7 +1078,7 @@ export function N8nConfig({ showJobs = true } = {}) {
         <Card title="Dispatcher state" sub="What the database sent to each n8n workflow most recently.">
           <Table rowKey={(r) => r.workflow ?? r.key ?? JSON.stringify(r)} rows={a.dispatch} empty="Nothing dispatched yet." columns={Object.keys(a.dispatch[0] ?? { workflow: 1 }).slice(0, 6).map((k) => [words(k), (r) => (typeof r[k] === "string" && /T\d\d:/.test(r[k]) ? when(r[k]) : String(r[k] ?? "Not recorded"))])} />
         </Card>
-        <Needs title="n8n workflow activation and execution logs aren't read from n8n" have="Workflow runs are recorded in Zella Voice and shown under Runs and Automation monitoring.">Reading n8n's own status needs the n8n API with a server side key.</Needs>
+        <N8nStatus />
       </>
     )}</LoadState>
   );
