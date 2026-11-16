@@ -445,8 +445,51 @@ async function policyStorage(req, url, claims, raw) {
   }
   return { status: 404, json: { message: "storage path not in the local stand-in" } };
 }
+// Private buckets with no storage policies (business-documents): only the server key may create a signed upload
+// link or list; the link's token alone allows that one upload, as on Supabase. Bucket size and type limits apply.
+const SERVER_BUCKETS = { "business-documents": { max: 10485760, types: ["application/pdf", "image/jpeg", "image/png", "image/webp", "image/heic"] } };
+const uploads = new Map(); // token -> { bucket, name, exp }
+function serverBucketStorage(req, url, claims, raw) {
+  const path = url.pathname.replace(/^\/storage\/v1/, "");
+  const deny = (msg, status = 403) => ({ status, json: { statusCode: String(status), error: "Unauthorized", message: msg } });
+  let m;
+  if ((m = /^\/object\/upload\/sign\/([^/]+)\/(.+)$/.exec(path))) {
+    const bucket = m[1], name = decodeURIComponent(m[2]);
+    if (req.method === "POST") {
+      if (claims?.role !== "service_role") return deny("new row violates row-level security policy");
+      const t = crypto.randomUUID(); uploads.set(t, { bucket, name, exp: Date.now() + 2 * 3600 * 1000 });
+      return { status: 200, json: { url: `/object/upload/sign/${bucket}/${name}?token=${t}` } };
+    }
+    if (req.method === "PUT") {
+      const u = uploads.get(url.searchParams.get("token"));
+      if (!u || u.bucket !== bucket || u.name !== name || Date.now() > u.exp) return deny("Invalid signature", 400);
+      if (files.has(`${bucket}/${name}`)) return deny("The resource already exists", 409);
+      const rule = SERVER_BUCKETS[bucket], file = multipartFile(raw, req.headers["content-type"]);
+      if (!file.bytes?.length) return deny("Empty file", 400);
+      if (file.bytes.length > rule.max) return deny("The object exceeded the maximum allowed size", 413);
+      if (!rule.types.includes(file.type)) return deny(`mime type ${file.type} is not supported`, 415);
+      uploads.delete(url.searchParams.get("token"));
+      files.set(`${bucket}/${name}`, { body: file.bytes, type: file.type });
+      return { status: 200, json: { Key: `${bucket}/${name}` } };
+    }
+  }
+  if (req.method === "POST" && (m = /^\/object\/list\/([^/]+)$/.exec(path))) {
+    if (claims?.role !== "service_role") return { status: 200, json: [] };
+    const { prefix = "", search = "" } = JSON.parse(raw?.toString() || "{}");
+    const out = [];
+    for (const [key, f] of files) {
+      if (!key.startsWith(`${m[1]}/${prefix}/`)) continue;
+      const name = key.slice(`${m[1]}/${prefix}/`.length);
+      if (!name.includes("/") && name.includes(search)) out.push({ name, metadata: { size: f.body.length, mimetype: f.type } });
+    }
+    return { status: 200, json: out };
+  }
+  return null;
+}
 async function storage(req, url, body, claims, raw) {
   const path = url.pathname.replace(/^\/storage\/v1/, "");
+  const target = /^\/object\/(?:upload\/sign\/|list\/)([^/?]+)/.exec(path)?.[1];
+  if (target && SERVER_BUCKETS[target]) { const r = serverBucketStorage(req, url, claims, raw); if (r) return r; }
   const bucket = /^\/object\/(?:sign\/|public\/|authenticated\/)?([^/?]+)/.exec(path)?.[1];
   if (bucket && POLICY_BUCKETS[bucket]) return policyStorage(req, url, claims, raw);
   const obj = /^\/object\/(?:public\/|sign\/|authenticated\/)?([^/]+)\/(.+)$/.exec(path);
