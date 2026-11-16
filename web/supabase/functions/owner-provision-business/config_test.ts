@@ -1,6 +1,6 @@
 import { assertEquals, assertRejects } from "jsr:@std/assert@1";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { allRows, CONFIG_PERMISSIONS, configHandlers, type ConfigKit, connectionCounts, connectionsFor, deliveriesFor, moduleUsage, switchOffCheck, switchOffMessage } from "./config.ts";
+import { allRows, CONFIG_PERMISSIONS, configHandlers, type ConfigKit, connectionCounts, connectionsFor, deliveriesFor, latestPlans, moduleUsage, switchOffCheck, switchOffMessage } from "./config.ts";
 import { PERMISSIONS } from "./settings.ts";
 import { ONBOARDING_PERMISSIONS } from "./onboarding.ts";
 import { PLATFORM_PERMISSIONS } from "./platform.ts";
@@ -15,7 +15,7 @@ const kit: ConfigKit = {
 };
 
 Deno.test("every new action has a permission, and no name clashes with another module", () => {
-  assertEquals(CONFIG_PERMISSIONS, { industry_module_usage: "businesses.view", industry_set_active: "platform.configure", agent_deliveries: "businesses.view" });
+  assertEquals(CONFIG_PERMISSIONS, { industry_module_usage: "businesses.view", industry_set_active: "platform.configure", agent_deliveries: "businesses.view", business_plans_list: "billing.view" });
   for (const action of Object.keys(CONFIG_PERMISSIONS)) {
     assertEquals([PERMISSIONS[action], ONBOARDING_PERMISSIONS[action], PLATFORM_PERMISSIONS[action]], [undefined, undefined, undefined]);
   }
@@ -151,4 +151,12 @@ Deno.test("agent_deliveries passes a clean limit, says when it isn't applied and
   const summary = { rpc: (_fn: string, args: { p_business_ids: string[] }) => Promise.resolve({ data: args.p_business_ids.map((id) => ({ business_id: id, not_ready_7d: 2 })), error: null }) } as unknown as SupabaseClient;
   assertEquals((await deliveriesFor(summary, ["a", "b", "a"]))?.size, 2);
   assertEquals(await deliveriesFor({ rpc: () => Promise.resolve({ data: null, error: { code: "42883" } }) } as unknown as SupabaseClient, ["a"]), null);
+});
+
+Deno.test("latestPlans keeps the highest version per business and counts the versions, whatever the row order", () => {
+  const row = (business_id: string, version: number, tier = "base") => ({ business_id, version, tier } as unknown as Parameters<typeof latestPlans>[0][number]);
+  const out = latestPlans([row("a", 2, "pro"), row("a", 1), row("b", 1), row("a", 3, "pro")]);
+  assertEquals([out.get("a")?.plan.version, out.get("a")?.versions, out.get("a")?.plan.tier], [3, 3, "pro"]);
+  assertEquals([out.get("b")?.plan.version, out.get("b")?.versions], [1, 1]);
+  assertEquals(out.has("c"), false);
 });

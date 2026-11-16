@@ -20,7 +20,29 @@ export const CONFIG_PERMISSIONS: Record<string, string> = {
   industry_module_usage: "businesses.view",
   industry_set_active: "platform.configure",
   agent_deliveries: "businesses.view",
+  business_plans_list: "billing.view",
 };
+
+// CFG-14: the Plans page lists businesses a page at a time (CFG-21), each with its own plan (business_plans).
+export const PLANS_PAGE_SIZE = 25;
+const PLANS_PAGE_MAX = 100;
+
+type PlanRow = {
+  business_id: string; version: number; tier: string; billing_interval: string; price_cents: number; setup_fee_cents: number;
+  currency: string; minutes: number; texts: number; emails: number; team_seats: number; phone_numbers: number; locations: number;
+  languages: string[]; trial_enabled: boolean; overage_cents_per_minute: number | null; effective_from: string;
+};
+
+// The latest version per business, how many versions it has, from rows of any order.
+export function latestPlans(rows: PlanRow[]) {
+  const out = new Map<string, { plan: PlanRow; versions: number }>();
+  for (const row of rows) {
+    const seen = out.get(row.business_id);
+    if (!seen) out.set(row.business_id, { plan: row, versions: 1 });
+    else out.set(row.business_id, { plan: row.version > seen.plan.version ? row : seen.plan, versions: seen.versions + 1 });
+  }
+  return out;
+}
 
 // CFG-01 deploy window. The web app that sends confirmOff deploys first. An older app that doesn't send the field at
 // all is still allowed to switch a used module off, so it keeps working until every open tab has reloaded. Set this to
@@ -212,7 +234,56 @@ export function configHandlers(admin: SupabaseClient, fields: Json, kit: ConfigK
     return { available: true, businessId, ...(data as Json) };
   };
 
+  // CFG-14, CFG-21: businesses a page at a time, each with its latest plan version, how many versions it has, and its
+  // subscription status. Read with the server key (business_plans has no read policy); billing.view is checked first.
+  // Nothing here charges anyone: payments aren't connected.
+  const businessPlansList = async () => {
+    const offset = Number.isInteger(fields.offset) && Number(fields.offset) >= 0 ? Number(fields.offset) : 0;
+    const limit = Number.isInteger(fields.limit) ? Math.min(Math.max(Number(fields.limit), 1), PLANS_PAGE_MAX) : PLANS_PAGE_SIZE;
+    const search = text(fields.search, 80).replace(/[%_,()*\\]/g, " ").trim();
+    let page = admin.from("businesses").select("id, name, onboarding_status, is_active, suspended_at, cancelled_at", { count: "exact" })
+      .order("name").order("id");
+    if (search) page = page.ilike("name", `%${search}%`);
+    const [{ data: businesses, count, error }, { count: withPlan, error: withPlanError }] = await Promise.all([
+      page.range(offset, offset + limit - 1),
+      admin.from("business_plans").select("business_id", { count: "exact", head: true }).eq("version", 1),   // one version 1 per business
+    ]);
+    if (error) throw error;
+    if (withPlanError) throw withPlanError;
+    const ids = (businesses ?? []).map((b: { id: string }) => b.id);
+    const [plans, subs] = ids.length ? await Promise.all([
+      allRows<PlanRow>((from, to) => admin.from("business_plans")
+        .select("business_id, version, tier, billing_interval, price_cents, setup_fee_cents, currency, minutes, texts, emails, team_seats, phone_numbers, locations, languages, trial_enabled, overage_cents_per_minute, effective_from")
+        .in("business_id", ids).order("business_id").order("version").range(from, to)),
+      allRows<{ business_id: string; status: string; trial_end_at: string | null; current_period_end: string | null; provider: string | null }>((from, to) =>
+        admin.from("subscriptions").select("business_id, status, trial_end_at, current_period_end, provider, created_at")
+          .in("business_id", ids).order("created_at", { ascending: false }).range(from, to)),
+    ]) : [[], []];
+    const latest = latestPlans(plans);
+    const subscription = new Map<string, (typeof subs)[number]>();
+    for (const s of subs) if (!subscription.has(s.business_id)) subscription.set(s.business_id, s);   // newest first
+    return {
+      total: count ?? 0, withPlan: withPlan ?? 0, offset, limit, search: search || null,
+      businesses: (businesses ?? []).map((b: Json) => {
+        const l = latest.get(String(b.id)); const sub = subscription.get(String(b.id));
+        return {
+          businessId: b.id, businessName: b.name,
+          businessState: b.cancelled_at ? "cancelled" : b.suspended_at ? "suspended" : b.onboarding_status === "active" && b.is_active ? "active" : "setup",
+          plan: l ? {
+            version: l.plan.version, versions: l.versions, tier: l.plan.tier, billingInterval: l.plan.billing_interval,
+            priceCents: l.plan.price_cents, setupFeeCents: l.plan.setup_fee_cents, currency: l.plan.currency,
+            minutes: l.plan.minutes, texts: l.plan.texts, emails: l.plan.emails, teamSeats: l.plan.team_seats,
+            phoneNumbers: l.plan.phone_numbers, locations: l.plan.locations, languages: l.plan.languages,
+            trialEnabled: l.plan.trial_enabled, overageCentsPerMinute: l.plan.overage_cents_per_minute, effectiveFrom: l.plan.effective_from,
+          } : null,
+          subscription: sub ? { status: sub.status, trialEndAt: sub.trial_end_at, currentPeriodEnd: sub.current_period_end, provider: sub.provider } : null,
+        };
+      }),
+    };
+  };
+
   const handlers: Record<string, () => Promise<unknown>> = {
+    business_plans_list: businessPlansList,
     agent_deliveries: agentDeliveries,
     industry_module_usage: industryModuleUsage,
     industry_set_active: industrySetActive,
