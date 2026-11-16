@@ -7,7 +7,7 @@ begin;
 do $$
 declare a record; want constant jsonb := jsonb_build_object(
   'public.zella_admin_voice_overview(timestamp with time zone,timestamp with time zone)', 'beb55e2f313319dce5322d40561aab19',
-  'public.zella_admin_voice_alerts()', 'f95f44a16b688f867175b5e9b4fe30fb'); s text;
+  'public.zella_admin_voice_alerts()', '65c91db2da69d8137fabd822f311fe3c'); s text;
 begin
   if to_regclass('public.zella_function_archive') is null
      or not exists (select 1 from public.zella_function_archive where migration = 'zella_voice_admin') then

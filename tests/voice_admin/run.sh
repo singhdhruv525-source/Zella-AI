@@ -81,6 +81,8 @@ v=$(as $OWNER "select (x ->> 'severity') || '|' || (x -> 'filter' ->> 'status') 
 [ "$v" = "warning|missed|inbound|1|$B5" ] && ok "the alert is a warning linked to that business's missed inbound calls" || bad "filter: $v"
 v=$(kinds)
 [[ "$v" == *vapi_refused* && "$v" == *repeated_transfer_failures* && "$v" == *agent_sync_failed* && "$v" != *payment_failed* ]] && ok "raised voice alerts and the refusal alert show; other kinds don't" || bad "kinds: $v"
+v=$(as $OWNER "select string_agg((x ->> 'title') || ' ' || (x ->> 'detail'), ' ') from jsonb_array_elements(public.zella_admin_voice_alerts()) x where x ->> 'kind' in ('vapi_refused', 'missed_call_rate')")
+[[ -n "$v" && "$v" != *-* ]] && ok "the computed alerts read without dashes (status update, not status-update)" || bad "dash: $v"
 q "update public.vapi_refusals set last_at = now() - interval '2 hours', hour = date_trunc('hour', now() - interval '2 hours')" > /dev/null
 [[ "$(kinds)" != *vapi_refused* ]] && ok "no refusal in the last hour, no refusal alert" || bad "old refusal alerts"
 for who in $SUP $MEMBER; do

@@ -21,7 +21,7 @@ begin;
 do $$
 declare s text; d text; want jsonb := jsonb_build_object(
   'public.zella_admin_voice_overview(timestamp with time zone,timestamp with time zone)', jsonb_build_array('f2eb6462c0ff90296786252005b50d4f', 'beb55e2f313319dce5322d40561aab19'),
-  'public.zella_admin_voice_alerts()', jsonb_build_array('54adf47cf26d62aab4249243e730c548', 'f95f44a16b688f867175b5e9b4fe30fb'));
+  'public.zella_admin_voice_alerts()', jsonb_build_array('54adf47cf26d62aab4249243e730c548', '65c91db2da69d8137fabd822f311fe3c'));
 begin
   if to_regclass('public.zella_function_archive') is null or to_regprocedure('public.zella_admin_require(text)') is null then
     raise exception 'VERSION_MISMATCH: something this file needs is missing';
@@ -187,7 +187,7 @@ begin
       'detail', r.name || ': ' || r.missed || ' of ' || r.inbound || ' inbound calls missed in 24 hours', 'business_id', r.id, 'link', 'calls',
       'filter', jsonb_build_object('status', 'missed', 'direction', 'inbound', 'days', 1, 'business_id', r.id)));
   end loop;
-  for r in select sum(count) n, max(last_at) at, string_agg(distinct message_type, ', ') types from public.vapi_refusals where last_at > now() - refusal_window having sum(count) > 0 loop
+  for r in select sum(count) n, max(last_at) at, string_agg(distinct replace(message_type, '-', ' '), ', ') types from public.vapi_refusals where last_at > now() - refusal_window having sum(count) > 0 loop
     out := out || jsonb_build_array(jsonb_build_object('severity', 'warning', 'kind', 'vapi_refused', 'title', 'Vapi requests refused',
       'detail', r.n || ' Vapi ' || case when r.n = 1 then 'request' else 'requests' end || ' failed the sign in check in the last hour (' || r.types || '). Check the Vapi credential and the auth mode.',
       'at', r.at, 'link', 'providers'));
