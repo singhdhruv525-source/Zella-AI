@@ -27,12 +27,14 @@
 }
 
 /* Stepper */
+/* Ten steps in two even rows of five on desktop and tablet, so every step (Review included) is visible at 1440 px
+   and narrower (UI-30). On phones the numbers (and the current step's name) wrap onto a second row instead. */
 .wiz-stepper {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 6px;
   margin: 0;
   padding: 6px;
-  overflow-x: auto;
   list-style: none;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
@@ -41,8 +43,7 @@
 }
 
 .wiz-stepper li {
-  flex: 1;
-  min-width: max-content;
+  min-width: 0;
 }
 
 .wiz-stepper button {
@@ -61,6 +62,15 @@
   font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
+}
+
+.wiz-step-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wiz-back-first {
+  visibility: hidden;
 }
 
 .wiz-stepper button:hover:not(:disabled) {
@@ -823,11 +833,7 @@
 }
 
 /* Responsive */
-@media (max-width: 1280px) {
-  .wiz-stepper li {
-    flex: 0 0 auto;
-  }
-}
+
 
 @media (max-width: 1000px) {
   .wiz-two-col {
@@ -840,6 +846,16 @@
 }
 
 @media (max-width: 700px) {
+  .wiz-stepper {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .wiz-stepper li {
+    flex: 0 0 auto;
+    min-width: max-content;
+  }
+
   .wiz-step-label {
     display: none;
   }
