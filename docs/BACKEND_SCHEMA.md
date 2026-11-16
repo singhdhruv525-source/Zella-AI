@@ -15,10 +15,10 @@ It reads the catalog only, never rows.
 |---|---|
 | Tables (schema `public`) | 173 |
 | Tables with row security on | 173 of 173 |
-| Row security policies | 341 |
+| Row security policies | 342 |
 | Columns | 2056 |
 | Views | 1 |
-| Functions | 907 (840 security definer, 26 callable by `anon`) |
+| Functions | 909 (842 security definer, 26 callable by `anon`) |
 
 Rules every table follows:
 
@@ -4181,6 +4181,7 @@ Platform alerts for Zella Voice staff (grouped, with resolution).
 - Primary key: `id`.
 - `business_id` → `public.businesses` (on delete cascade).
 - Row security: on; policies: platform_alerts_admin_select (select), zella_mfa_required (all).
+- Triggers: `zella_audit_admin_alert`.
 
 ### `platform_incidents`
 
@@ -4202,7 +4203,8 @@ Incidents shown on the public status page.
 | `component` | text |  |  |
 
 - Primary key: `id`.
-- Row security: on; policies: platform_incidents_admin (select), zella_mfa_required (all).
+- Row security: on; policies: platform_incidents_admin (select), platform_incidents_admin_view (select), zella_mfa_required (all).
+- Triggers: `zella_audit_admin_incident`.
 
 ### `business_report_schedules`
 
@@ -4408,6 +4410,14 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_assistant_config(p_business_id uuid)` | jsonb | yes | server only |
 | `zella_assistant_delivery_status(p_business_id uuid)` | jsonb | yes | signed in |
 | `zella_assistant_for_call(p_called_number text, p_vapi_phone_number_id text, p_provider_call_id text)` | jsonb | yes | server only |
+
+### `zella_audit_*` (3)
+
+| Function | Returns | SD | Who may call |
+|---|---|---|---|
+| `zella_audit_admin_alert_trg()` | trigger | yes | server only |
+| `zella_audit_admin_incident_trg()` | trigger | yes | server only |
+| `zella_audit_privileged()` | trigger | yes | server only |
 
 ### `zella_auto_*` (3)
 
@@ -5454,7 +5464,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_setting(p_key text, p_default jsonb)` | jsonb | yes | server only |
 | `zella_tables(p_business_id uuid)` | jsonb | yes | signed in |
 
-### Smaller groups and older helpers (187)
+### Smaller groups and older helpers (186)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -5470,7 +5480,6 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_arrival_window(p_business_id uuid)` | integer | yes | server only |
 | `zella_asset_type_keys()` | text[] |  | server only |
 | `zella_assign_lead(p_customer_id uuid, p_user_id uuid)` | boolean | yes | signed in |
-| `zella_audit_privileged()` | trigger | yes | server only |
 | `zella_automation_readiness()` | jsonb | yes | signed in |
 | `zella_available_slots(p_business_id uuid, p_from timestamp with time zone, p_to timestamp with time zone, p_duration_minutes integer, p_staff_id uuid, p_step_minutes integer, p_limit integer, p_ignore_appointment uuid)` | TABLE(slot_start timestamp with time zone, slot_end timestamp with time zone, staff_id uuid, staff_name text) | yes | signed in |
 | `zella_begin_record_file(p_record_id uuid, p_file_name text, p_mime_type text, p_size_bytes bigint, p_caption text, p_private boolean)` | jsonb | yes | signed in |
