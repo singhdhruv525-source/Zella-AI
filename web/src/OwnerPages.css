@@ -1216,23 +1216,3 @@
 .be-frame.mobile { width: 390px; max-width: 100%; justify-self: center; }
 .be-text { margin: 0; padding: 16px; border: 1px solid var(--border-subtle); border-radius: 12px; white-space: pre-wrap; font-size: 13px; line-height: 1.5; max-height: 760px; overflow: auto; }
 @media (max-width: 900px) { .be-layout { grid-template-columns: 1fr; } .be-list { max-height: 280px; } .be-facts { grid-template-columns: 1fr; } }
-
-/* Businesses list (BusinessesPage.jsx) */
-.bl-filters { padding: var(--zella-space-4) var(--zella-space-5) 0; }
-.bl-filters .ao-unavailable { margin-bottom: var(--zella-space-3); }
-.bl-clear { align-self: center; height: 36px; }
-.bl-table th, .bl-table td { padding-left: var(--zella-space-3); padding-right: var(--zella-space-3); }
-.bl-table td:first-child { min-width: 170px; }
-.bl-email { overflow-wrap: anywhere; }
-.bl-table .op-pill { white-space: normal; }
-.bl-nowrap { white-space: nowrap; }
-.bl-actions { display: flex; flex-direction: column; align-items: flex-end; gap: var(--zella-space-2); white-space: nowrap; }
-.bl-footer { align-items: center; }
-.bl-footer .ao-pager { margin-top: 0; }
-.bl-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-/* On a phone the table keeps its columns readable and scrolls inside itself (docs/DESIGN_SYSTEM.md), never the page */
-@media (max-width: 760px) { .bl-table { min-width: 900px; } }
-@media (max-width: 600px) {
-  .bl-filters { padding: var(--zella-space-3) var(--zella-space-4) 0; }
-  .bl-filters .ao-search { flex-basis: 100%; }
-}

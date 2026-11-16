@@ -79,7 +79,9 @@ const text = (p) => p.evaluate(() => document.body.innerText);
       await p.goto(BASE + "/security-abuse"); await p.waitForSelector("text=Platform defaults"); await p.click("text=Platform defaults");
       check(await p.isVisible("text=Save defaults"), `owner can save Security & Abuse defaults${w}`);
       await p.goto(BASE + "/businesses"); await p.waitForSelector("text=Draft Shop");
-      check(await p.isVisible("text=Create business") && await p.isVisible("button:has-text('Continue setup')") && await p.isVisible("button:has-text('Edit setup')"), `owner: Businesses offers create and setup${w}`);
+      // "Edit setup" for a finished business sits in the row's overflow menu (more_horiz)
+      await p.click(".owner-table button[aria-label^='More actions']");
+      check(await p.isVisible("text=Create business") && await p.isVisible("button:has-text('Continue setup')") && await p.isVisible("[role=menuitem]:has-text('Edit setup')"), `owner: Businesses offers create and setup${w}`);
       check(log.errors.length === 0, `owner: no page errors${w} ${log.errors.join(" | ")}`);
       await ctx.close(); }
 
@@ -101,7 +103,7 @@ const text = (p) => p.evaluate(() => document.body.innerText);
       // Businesses: the list and View, but no Create business and no setup buttons (BIZ-23)
       await p.goto(BASE + "/businesses"); await p.waitForSelector("text=Draft Shop");
       check(!(await p.isVisible("text=Create business")) && !(await p.isVisible("button:has-text('Continue setup')")) && !(await p.isVisible("button:has-text('Edit setup')"))
-        && (await p.$$(".owner-table button:has-text('View')")).length === 2, `restricted admin: Businesses shows View only, no write buttons${w}`);
+        && !(await p.isVisible(".owner-table button[aria-label^='More actions']")) && (await p.$$(".owner-table button:has-text('View')")).length === 2, `restricted admin: Businesses shows View only, no write buttons${w}`);
       check(log.errors.length === 0, `restricted: no page errors${w} ${log.errors.join(" | ")}`);
       await ctx.close(); }
 
