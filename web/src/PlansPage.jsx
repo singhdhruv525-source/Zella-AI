@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import "./OwnerPages.css";
+import "./PlansPage.css";
+import { Icon } from "./BusinessUI";
+import { useDialogFocus } from "./useDialogFocus";
 import { callOwnerFunction } from "./CreateBusinessWizard";
 import { Pill } from "./OwnerOverview";
 import { formatDate } from "./ownerFormat";
 import { humanize } from "./copy/labels";
-import { Drawer, Facts, Pager, PAGE, can, friendlyError, rpc } from "./admin/adminOps";
+import { Facts, Pager, PAGE, can, friendlyError, rpc } from "./admin/adminOps";
 import { planAllowances, planFeatures } from "./copy/planAllowances";
-import { allowanceText, balanceText, planFacts, priceText, tierText } from "./businessPlans.js";
+import { allowanceText, balanceText, planFacts, priceText, tierName, tierShort } from "./businessPlans.js";
 
 const SUB_TONE = {
   trial: "info", active: "success", renewal_due: "warning", past_due: "danger",
@@ -14,6 +18,38 @@ const SUB_TONE = {
 };
 
 const EMPTY_PLAN = { planId: "", name: "", description: "", isActive: true };
+
+// One empty value, in the muted style every table and drawer uses ("None", never a blank cell).
+function EmptyValue({ label = "None" }) {
+  return <span className="empty-value">{label}</span>;
+}
+
+function subscriptionBadge(row) {
+  if (row.subscription) return <Pill tone={SUB_TONE[row.subscription.status] ?? "neutral"}>{humanize(row.subscription.status)}</Pill>;
+  return row.plan ? <EmptyValue /> : <Pill tone="neutral">No plan</Pill>;
+}
+
+// The drawer frame: eyebrow, title and status on top, then the content, then a footer that stays in view.
+function PlanDrawerFrame({ eyebrow, title, status, footer, onClose, children }) {
+  const dialogRef = useDialogFocus(onClose);
+  return createPortal(
+    <div className="owner-modal-overlay ao-drawer-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <aside ref={dialogRef} tabIndex={-1} className="owner-modal ao-drawer pp-drawer" role="dialog" aria-modal="true" aria-label={`${eyebrow}: ${title}`}>
+        <header className="pp-drawer-head">
+          <div className="pp-drawer-titles">
+            <div className="pp-drawer-eyebrow">{eyebrow}</div>
+            <h2 className="pp-drawer-title" title={title}>{title}</h2>
+          </div>
+          {status}
+          <button type="button" className="owner-icon-button" aria-label="Close" onClick={onClose}><Icon name="close" size="sm" /></button>
+        </header>
+        <div className="pp-drawer-body">{children}</div>
+        {footer && <footer className="ao-drawer-foot pp-drawer-foot">{footer}</footer>}
+      </aside>
+    </div>,
+    document.body
+  );
+}
 
 // CFG-14: one business's plan, its saved versions and this period's balances (zella_admin_plan_get and
 // zella_billing_overview, both billing.view). Read only: plans are changed in the business's Plan & pricing step.
@@ -30,27 +66,51 @@ function PlanDrawer({ row, onClose, onOpenBusiness }) {
   const balances = state.overview?.balances ?? [];
   const period = state.overview?.period;
   return (
-    <Drawer title={`Plan: ${row.businessName}`} icon="receipt_long" onClose={onClose}>
-      <Facts rows={[...planFacts(row.plan), ["Subscription", row.subscription ? humanize(row.subscription.status) : "None yet"]]} />
-      {state.loading ? <p className="op-muted">Loading balances…</p>
+    <PlanDrawerFrame
+      eyebrow="Plan"
+      title={row.businessName}
+      status={row.subscription ? subscriptionBadge(row) : null}
+      onClose={onClose}
+      footer={<button type="button" className="owner-secondary-button" onClick={() => { onClose(); onOpenBusiness(row.businessId); }}>Open business</button>}
+    >
+      <Facts rows={[...planFacts(row.plan), ["Subscription", row.subscription ? humanize(row.subscription.status) : <EmptyValue key="none" />]]} />
+      {state.loading ? <p className="op-muted pp-drawer-note">Loading balances…</p>
         : state.error ? <div className="owner-form-error" role="alert">{state.error}</div>
         : (
           <>
-            <h4 className="op-gap-top">This period</h4>
-            {period ? <p className="op-muted">{formatDate(period.from)} to {formatDate(period.to)}{period.trial ? " (trial)" : ""} · {period.days_left} days left</p>
-              : <p className="op-muted">No billing period is open yet.</p>}
-            {balances.length ? <Facts rows={balances.map(balanceText)} /> : <p className="op-muted">No allowances recorded for this period yet.</p>}
-            <h4 className="op-gap-top">Saved versions</h4>
-            {versions.length ? (
-              <ul className="op-bullets">
-                {versions.map((v) => <li key={v.version}>Version {v.version}: {tierText({ tier: v.tier, version: v.version, versions: 1 }).split(",")[0]}, {priceText({ priceCents: v.price_cents, billingInterval: v.billing_interval, setupFeeCents: 0 })} · saved {formatDate(v.saved_at)}</li>)}
-              </ul>
-            ) : <p className="op-muted">No plan saved yet.</p>}
+            <section className="drawer-section">
+              <h3>This period</h3>
+              {period ? <p className="op-muted pp-drawer-note">{formatDate(period.from)} to {formatDate(period.to)}{period.trial ? " (trial)" : ""}, {period.days_left} days left</p>
+                : <p className="op-muted pp-drawer-note">No billing period is open yet.</p>}
+              {balances.length ? <Facts rows={balances.map(balanceText)} /> : <p className="op-muted pp-drawer-note">No allowances recorded for this period yet.</p>}
+            </section>
+            <section className="drawer-section">
+              <h3>Saved versions</h3>
+              {versions.length ? (
+                <div className="pp-versions-wrap">
+                  <table className="owner-table pp-versions">
+                    <thead><tr><th>Version</th><th>Plan</th><th className="num">Price</th><th>Saved</th></tr></thead>
+                    <tbody>
+                      {versions.map((v) => (
+                        <tr key={v.version}>
+                          <td className="pp-tabular">{v.version}</td>
+                          <td>{tierName(v.tier)}</td>
+                          <td className="num">{priceText({ priceCents: v.price_cents, billingInterval: v.billing_interval, setupFeeCents: 0 })}</td>
+                          <td className="pp-nowrap">{formatDate(v.saved_at)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : <p className="op-muted pp-drawer-note">No plan saved yet.</p>}
+            </section>
           </>
         )}
-      <p className="op-muted op-gap-top">Payments aren't connected yet, so nothing is charged. Change this plan in the business's setup, at the Plan & pricing step.</p>
-      <div className="ic-actions"><button type="button" className="owner-secondary-button" onClick={() => { onClose(); onOpenBusiness(row.businessId); }}>Open business</button></div>
-    </Drawer>
+      <div className="pp-banner" role="note">
+        <Icon name="info" />
+        <p><strong>Payments aren't connected yet,</strong> so nothing is charged. Change this plan in the business's setup, at the Plan & pricing step.</p>
+      </div>
+    </PlanDrawerFrame>
   );
 }
 
@@ -67,6 +127,7 @@ export default function PlansPage({ onOpenBusiness }) {
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(null);
+  const [updatedAt, setUpdatedAt] = useState(null);
   // CFG-19: each editor shows only to roles that may save it (the server checks the same permission)
   const canEditCatalog = can(me, "plans.manage");
 
@@ -95,7 +156,7 @@ export default function PlansPage({ onOpenBusiness }) {
     setError("");
     try {
       const result = await callOwnerFunction("plans_list");
-      if (id === loadId.current) setData(result);
+      if (id === loadId.current) { setData(result); setUpdatedAt(new Date()); }
     } catch (err) {
       if (id === loadId.current) setError(friendlyError(err));
     } finally {
@@ -123,15 +184,18 @@ export default function PlansPage({ onOpenBusiness }) {
   }
 
   return (
-    <section className="owner-page">
+    <section className="owner-page pp-page">
       <div className="owner-page-heading">
         <div>
           <div className="owner-eyebrow">Configuration</div>
           <h1>Plans & subscriptions</h1>
           <p>Each business's own plan: tier, version, price, allowances and this period's balances.</p>
         </div>
-        <div className="op-heading-actions">
-          <button type="button" className="owner-secondary-button" onClick={() => { load(); setReloads((n) => n + 1); }} disabled={loading}>{loading ? "Loading..." : "↻ Refresh"}</button>
+        <div className="op-heading-actions pp-heading-actions">
+          {updatedAt && <span className="pp-updated">Updated {updatedAt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</span>}
+          <button type="button" className="owner-secondary-button op-small sm pp-refresh" onClick={() => { load(); setReloads((n) => n + 1); }} disabled={loading}>
+            <Icon name="refresh" size="sm" />{loading ? "Loading" : "Refresh"}
+          </button>
         </div>
       </div>
 
@@ -152,21 +216,28 @@ export default function PlansPage({ onOpenBusiness }) {
         </div>
         {list.error && <div className="owner-form-error" role="alert">{list.error}</div>}
         <div className="owner-table-wrap" tabIndex={0}>
-          <table className="owner-table">
-            <thead><tr><th>Business</th><th>Plan</th><th>Price</th><th>Allowances</th><th>Subscription</th><th /></tr></thead>
+          <table className="owner-table pp-table">
+            <thead><tr><th>Business</th><th>Plan</th><th className="num">Price</th><th>Allowances</th><th>Subscription</th><th className="col-actions"><span className="pp-sr-only">Actions</span></th></tr></thead>
             <tbody>
               {(list.data?.businesses ?? []).map((b) => (
                 <tr key={b.businessId}>
-                  <td><button type="button" className="op-name" onClick={() => onOpenBusiness(b.businessId)}>{b.businessName}</button></td>
-                  <td>{b.plan ? tierText(b.plan) : <span className="op-muted">No plan saved</span>}</td>
-                  <td>{b.plan ? priceText(b.plan) : ""}</td>
-                  <td>{allowanceText(b.plan)}</td>
-                  <td>{b.subscription ? <Pill tone={SUB_TONE[b.subscription.status] ?? "neutral"}>{humanize(b.subscription.status)}</Pill> : <span className="op-muted">None yet</span>}</td>
-                  <td>{b.plan && <button type="button" className="owner-secondary-button op-small" onClick={() => setOpen(b)}>Details</button>}</td>
+                  <td className="pp-business">
+                    <button type="button" className="op-name pp-name" title={b.businessName} onClick={() => onOpenBusiness(b.businessId)}>{b.businessName}</button>
+                    {b.plan && <span className="pp-phone-line">{tierShort(b.plan)}, {priceText(b.plan)}</span>}
+                  </td>
+                  <td className="pp-nowrap" data-label="Plan">{b.plan ? tierShort(b.plan) : <EmptyValue />}</td>
+                  <td className="num" data-label="Price">{b.plan ? priceText(b.plan) : <EmptyValue />}</td>
+                  <td className="pp-nowrap" data-label="Allowances">{b.plan ? allowanceText(b.plan) : <EmptyValue />}</td>
+                  <td className="pp-sub" data-label="Subscription">{subscriptionBadge(b)}</td>
+                  <td className="col-actions">
+                    {b.plan
+                      ? <button type="button" className="owner-secondary-button op-small sm" onClick={() => setOpen(b)} aria-label={`Plan details for ${b.businessName}`}>Details</button>
+                      : <button type="button" className="owner-secondary-button op-small sm" onClick={() => onOpenBusiness(b.businessId)} aria-label={`Set up a plan for ${b.businessName}`}>Set up plan</button>}
+                  </td>
                 </tr>
               ))}
               {!list.data?.businesses?.length && (
-                <tr><td colSpan={6}><div className="op-empty">{listLoading ? "Loading..." : list.error ? "Couldn't load this list. Try again with Refresh." : query ? "No business matches this search." : "No businesses yet."}</div></td></tr>
+                <tr className="pp-empty-row"><td colSpan={6}><div className="op-empty">{listLoading ? "Loading..." : list.error ? "Couldn't load this list. Try again with Refresh." : query ? "No business matches this search." : "No businesses yet."}</div></td></tr>
               )}
             </tbody>
           </table>

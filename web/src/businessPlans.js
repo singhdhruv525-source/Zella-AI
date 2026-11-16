@@ -21,6 +21,13 @@ export function tierText(plan) {
   return `${tier}, version ${plan.version}${plan.versions > 1 ? ` of ${plan.versions}` : ""}`;
 }
 
+// The short label for a table cell ("Pro v3"); the drawer keeps the full "Pro, version 3 of 3".
+export const tierName = (tier) => TIER[tier] ?? tier;
+export function tierShort(plan) {
+  if (!plan) return "";
+  return `${tierName(plan.tier)} v${plan.version}`;
+}
+
 const n = (v) => (typeof v === "number" ? v.toLocaleString("en-US") : "Not set");
 export function allowanceText(plan) {
   if (!plan) return "";

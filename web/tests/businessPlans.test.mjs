@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { allowanceText, balanceText, money, planFacts, priceText, tierText } from "../src/businessPlans.js";
+import { allowanceText, balanceText, money, planFacts, priceText, tierShort, tierText } from "../src/businessPlans.js";
 
 const plan = { version: 3, versions: 3, tier: "pro", billingInterval: "yearly", priceCents: 39900, setupFeeCents: 5000, currency: "USD",
   minutes: 900, texts: 200, emails: 1200, teamSeats: 5, phoneNumbers: 1, locations: 1, languages: ["en", "es"], trialEnabled: false, overageCentsPerMinute: 12 };
@@ -9,6 +9,9 @@ test("a business plan in words, never Unknown plan", () => {
   assert.equal(tierText(plan), "Pro, version 3 of 3");
   assert.equal(tierText({ ...plan, versions: 1, version: 1, tier: "base" }), "Base, version 1");
   assert.equal(tierText(null), "No plan saved");
+  assert.equal(tierShort(plan), "Pro v3");
+  assert.equal(tierShort({ ...plan, tier: "base", version: 1 }), "Base v1");
+  assert.equal(tierShort(null), "");
   assert.equal(priceText(plan), "$399.00 a year, plus $50.00 setup");
   assert.equal(priceText({ ...plan, billingInterval: "monthly", setupFeeCents: 0 }), "$399.00 a month");
   assert.equal(priceText(null), "No plan saved");
