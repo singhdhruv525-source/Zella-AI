@@ -643,3 +643,41 @@ isolated database first.
 - [ ] One shared list of alert kinds, audit actions and permissions, with a test that catches drift (PLT-08)
 - [ ] Reference configuration from production in the test fixtures, no customer data (UI-35)
 - [ ] axe-core in the crawl for an accessibility scan of every page (PLT-06)
+
+## Add on task: owner onboarding journey (after the admin dashboard work)
+
+Asked for by the owner on 16 Nov 2026, to be built **after** the admin dashboard items above. Once a business is
+created and its owner invited, the owner opens the link and goes through these screens in order. Progress is saved,
+so they can stop and come back where they left off.
+
+| # | Screen | What the owner does | Build or reuse |
+|---|---|---|---|
+| 1 | Welcome | Opens the invitation link; sees their business name and the steps ahead | Extend `/welcome` |
+| 2 | Password and two step sign in | Chooses a password and adds an authenticator | Password exists; add the authenticator step |
+| 3 | Check your details | Reviews what the admin filled in (business, hours and services, team, AI receptionist and phone), one step at a time, with "Looks right" or "Change" | New, reusing the CRM's form parts |
+| 4 | Verify your identity | Verifies their ID (and the business) with an identity provider; sees Checking, Verified or Try again | New |
+| 5 | Your plan | Sees the plan, price, minutes, texts and what's included, as the admin set it | New, reading the saved business plan |
+| 6 | Pay | Pays on Stripe's own payment page, comes back to "Payment received" | New; needs Stripe (step 4 of billing) |
+| 7 | You're all set | Sees what happens next (test call, go live) and opens their CRM | New |
+| All | Progress bar and "Finish later" | Leaves and resumes at the same step | New |
+
+Plus, on the admin side: each business shows which onboarding step its owner has reached (with BIZ-12).
+
+Rules: the owner can't pass verification until it succeeds or an admin approves it in Verification; payment opens
+only after verification; the receptionist goes live only after payment and the go live checks (REQ-LC-14). The
+emails for each stage already exist (S3 Finish setting up, S4 Documents needed, S5 Business verified, S6 Your AI
+receptionist is live) and are sent only once email is live.
+
+Open decisions for the owner:
+- [ ] Identity provider: Persona (owner ID and business registration), Stripe Identity (owner ID only, same vendor as payments), or manual upload for now. Recommended: Persona, keeping manual upload as the fallback.
+- [ ] Plan screen: accept the plan the admin set, or let the owner switch between Base and Pro. Recommended: accept only.
+- [ ] First payment: pay before going live, or a free trial with a saved card. Recommended: pay before going live.
+- [ ] Failed check: retry then manual review, or stop and contact support. Recommended: retry then manual review.
+
+Build checklist (each needs the owner's approval before anything goes live; provider accounts and keys are the owner's):
+- [ ] Prerequisites: BIZ-01 and BIZ-02 fixed, `ZELLA_APP_URL` set to a public address, two step sign in in onboarding
+- [ ] Onboarding progress stored per business (which step, when), shown to admins
+- [ ] Screens 1, 2, 3, 5 and 7, with progress bar and Finish later, tested on the isolated database
+- [ ] Screen 4 with the identity provider's sandbox, plus a server function that receives the result (signed, one event once) and the manual fallback in Verification
+- [ ] Screen 6 once Stripe Checkout and the payment webhook are built
+- [ ] Go live only after verification, payment and the activation checklist pass
