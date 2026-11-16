@@ -212,6 +212,7 @@ GROUPS = [
         "staff_notifications": "Notifications for staff who don't sign in (by text or email).",
         "admin_alert_prefs": "Platform admin alert preferences.",
         "platform_alerts": "Platform alerts for Zella Voice staff (grouped, with resolution).",
+        "platform_alert_rules": "One rule per alert kind: on or off, severity, who is emailed, repeat interval and quiet window (server only; urgent alerts are never switched off, lowered or held back).",
         "platform_incidents": "Incidents shown on the public status page.",
         "business_report_schedules": "Which reports a business gets and when.",
         "business_report_runs": "Reports produced.",

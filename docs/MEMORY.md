@@ -197,6 +197,12 @@ most often needed:
   refused Vapi request in the last hour is a warning. voice-rules counts refusals (type, reason, header names only)
   without waiting; its deploy is the live call path and needs its own approval, after the "Fix Vapi call auth" work.
 
+- **Alert rules (SET-ALERT-RULES, 16 Nov 2026, the owner decision's safety default):** urgent alerts can't be switched
+  off or lowered, only rerouted, and a quiet window or repeat interval never holds them back. Protected kinds:
+  service_incident, scheduler_failed, provider_down, integration_disconnected, tenant_leak, plus anything raised as
+  urgent. `sql/zella_run_all.sql` re-creates the old `zella_platform_alert` (line 1519): never re-run it after
+  `sql/zella_alert_rules.sql`, or apply that file again.
+
 Waiting on the owner:
 
 - whether suspended businesses keep read-only access (L-5);

@@ -7,6 +7,8 @@
     "admin.reactivated": "Reactivated platform admin",
     "admin.updated": "Changed platform admin access",
     "ai_receptionist.updated": "Updated AI receptionist",
+    "alert_rule.removed": "Removed an alert rule",
+    "alert_rule.saved": "Saved an alert rule",
     "approval_approved": "Approved a staff request",
     "approval_rejected": "Rejected a staff request",
     "assignment_rules.updated": "Updated assignment rules",
