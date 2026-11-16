@@ -63,8 +63,8 @@ export function goLiveChecklist({ server, health, triggers } = {}) {
   const groups = [
     { key: "secrets", title: "Server secrets", note: "Set or not set only. Values never leave the server.", rows: secrets.length ? secrets : [unknown("secrets", "Server secrets", "From the server configuration check")] },
     { key: "settings", title: "Settings", rows: settings },
-    { key: "jobs", title: "Scheduled jobs", note: "Each one is switched on by the owner at go live.", rows: jobs },
-    { key: "switches", title: "Live switches", note: "Each one is switched on by the owner at go live.", rows: switches },
+    { key: "jobs", title: "Scheduled jobs", note: "You switch each one on when you go live.", rows: jobs },
+    { key: "switches", title: "Live switches", note: "You switch each one on when you go live.", rows: switches },
   ];
   const all = groups.flatMap((g) => g.rows);
   return {

@@ -1434,53 +1434,8 @@ export function SystemConfig() {
 
 /* ---------------- Operational rules ---------------- */
 
-// Timings and thresholds the scheduled checks read from platform_settings. Saved by a Zella Voice owner; each value is
-// checked by the admin function before it is stored, and the jobs pick it up on their next run.
-const OPERATIONAL = [
-  ["Leads and tasks", [
-    ["response_time_minutes", "How fast a new lead should get a reply. Late replies show on reports and in alerts."],
-    ["task_overdue_grace_minutes", "Extra minutes before a task counts as overdue."],
-    ["task_escalate_hours", "Overdue tasks are sent to the business owner after this long."],
-    ["team_summary_hour", "Hour of the day (business time) the daily team summary is sent."],
-  ]],
-  ["Calls", [
-    ["missed_call_max_seconds", "Calls shorter than this count as missed and get a callback."],
-    ["transfer_failure_threshold", "Failed transfers to a person, in a day, before Zella Voice flags the business."],
-    ["call_intel_monthly_limit", "Calls per business per month that the AI summarizes."],
-  ]],
-  ["AI quality and knowledge", [
-    ["ai_low_confidence_questions", "Unsure answers in one call before the call is flagged for review."],
-    ["knowledge_repeat_threshold", "Times the same question is asked before it is suggested as new knowledge."],
-    ["response_sample_rate", "Share of AI conversations picked for quality review: 0.1 is one in ten."],
-  ]],
-  ["Onboarding and trials", [
-    ["invitation_reminder_hours", "Hours after an owner invitation that reminders go out, for example 24, 72."],
-    ["setup_incomplete_after_days", "Days after creation before an unfinished setup is flagged."],
-    ["trial_notice_days", "Days before a trial ends that the owner is told, for example 7, 3, 1."],
-  ]],
-];
-
-export function OperationalRules({ me }) {
-  const state = useAsync(() => call("platform_settings_list"), []);
-  return (
-    <LoadState state={state}>{(s) => (
-      <>
-        {me?.role !== "zella_owner" && <Banner tone="warn">Only a Zella Voice owner can change these. You can see the current values.</Banner>}
-        {OPERATIONAL.map(([group, keys]) => (
-          <div key={group}>
-            <h3 className="zs-group">{group}</h3>
-            {keys.map(([k, hint]) => {
-              const row = s.settings.find((x) => x.key === k);
-              return row
-                ? <SettingText key={k} me={me} row={row} hint={hint} />
-                : <Banner key={k} tone="warn"><code>{k}</code> isn't in platform settings yet. The migration that adds it hasn't been applied.</Banner>;
-            })}
-          </div>
-        ))}
-      </>
-    )}</LoadState>
-  );
-}
+// Rows with one save bar per section: settings/panels/OperationalRules.jsx
+export { default as OperationalRules } from "./panels/OperationalRules";
 
 /* ---------------- Offers and promotions ---------------- */
 
