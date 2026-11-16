@@ -5,6 +5,7 @@ import { Pill } from "./OwnerOverview";
 import { formatDate } from "./ownerFormat";
 import { humanize } from "./copy/labels";
 import { friendlyError } from "./admin/adminOps";
+import BillingRecords from "./admin/BillingRecords";
 
 const SUB_TONE = {
   trial: "info", active: "success", renewal_due: "warning", past_due: "danger",
@@ -174,6 +175,7 @@ export default function PlansPage({ onOpenBusiness }) {
           </table>
         </div>
       </section>
+      <BillingRecords onOpenBusiness={onOpenBusiness} />
     </section>
   );
 }

@@ -781,6 +781,8 @@ Rules:
 - **No real email from development or tests.** Staging uses Stripe's sandbox and a test inbox; sending to real owners
   happens only in production after the owner's approval (§14).
 
+**Built (lane F, switched off, `sql/zella_stripe_invoices.sql`):** `invoice.created`, `invoice.finalized` and `invoice.voided` record the fetched invoice; `invoice.deleted` follows the §16.5 rule (our draft only, else held). Admins read them on Plans & subscriptions, Payments (`web/src/admin/BillingRecords.jsx`, invoices, refunds with the owner's decision, disputes); owners through `zella_owner_invoices`. The invoice, receipt and payment emails are queued by the billing emails step.
+
 ### 6.8 Disputes (chargebacks)
 
 ```mermaid
