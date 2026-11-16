@@ -501,7 +501,7 @@ Cross cutting: the role model splits in two (permission matrix in the function a
 | PLT-05 | Settings, tenants | CHANGE | P3 | The all businesses table scrolls sideways by 39 px on a desktop width. | Browser crawl: /settings/tenants/all, both personas | Let the widest column wrap or hide a low value column at that width. | No sideways scroll at 1280 px. | no |
 | PLT-06 | All admin pages | VERIFY | P2 | No automated accessibility scan ran: axe-core is not installed in this checkout, so the crawl's axe column is empty. The reviewers found tab and keyboard problems by reading code (COM-07, COM-31, BIZ-30, OPS-32, ACC-14). | Crawl results `axe: null` | Add axe-core as a dev dependency and rerun the crawl (desktop, phone, dark). | The crawl reports serious and critical issues per page. | no |
 | PLT-07 | Scheduled jobs | VERIFY | P1 | In production only zella_usage_thresholds and zella_billing_reconcile are on; zella_dispatch, the every 5, 15 minute, hourly, daily and weekly jobs, the spam hourly job, cron cleanup and platform emails are off. Several admin pages present numbers that depend on these jobs (status page, stalled alerts, uptime, provider checks, cancellations; see OPS-01, OPS-02, BIZ-03). | cron.job read 16 Nov 2026 | Before launch, decide each job's switch with the owner and make the admin pages show each job's on or off state (OPS-09, COM-13). | Every job's state is visible in Operations and each one is on or deliberately off. **Fixed in PR #94:** Operations lists every job with its real and intended state; the nine go live jobs are recorded as deliberately off until go live. Switching any job stays the owner's live switch. | yes (live switches) |
-| PLT-08 | Tests | ADD | P2 | Producers and consumers of alert kinds, audit action names and permission names drift apart (COM-08, COM-17, ACC-08, ACC-23, BIZ-25). | Reviewer cross cutting notes | One shared list for each (alert kinds, audit actions with labels, permissions) and a test that fails when SQL or the function writes a name that isn't in it. | The test runs in CI and catches a new unlabelled action. | no |
+| PLT-08 | Tests | ADD | P2 | Producers and consumers of alert kinds, audit action names and permission names drift apart (COM-08, COM-17, ACC-08, ACC-23, BIZ-25). | Reviewer cross cutting notes | One shared list for each (alert kinds, audit actions with labels, permissions) and a test that fails when SQL or the function writes a name that isn't in it. | The test runs in CI and catches a new unlabelled action. **Part 1 fixed in PR #93:** the list (`web/supabase/functions/_shared/catalog.json`) and the drift test run in `npm run lint` (no CI yet, owner's choice); the UI labels swap follows after the Businesses list job. | no |
 
 ## What the pages look like (visual pass)
 
@@ -643,7 +643,7 @@ isolated database first.
 - [ ] Growth page (prospects, demos, growth.manage), or mark REQ-ADM-18 as later (ACC-36)
 
 ### Tests and tooling
-- [ ] One shared list of alert kinds, audit actions and permissions, with a test that catches drift (PLT-08)
+- [ ] One shared list of alert kinds, audit actions and permissions, with a test that catches drift (PLT-08) (list and test in PR #93; UI labels next)
 - [ ] Reference configuration from production in the test fixtures, no customer data (UI-35)
 - [ ] axe-core in the crawl for an accessibility scan of every page (PLT-06)
 
