@@ -5,7 +5,7 @@ import { withCors } from "../_shared/cors.ts";
 import { readJsonLimited } from "../_shared/body.ts";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { PERMISSIONS, RESTRICTED_ROLES, settingsHandlers } from "./settings.ts";
-import { mfaGate, tokenAal } from "./mfa_gate.ts";
+import { freshCodeGate, mfaGate, tokenAal } from "./mfa_gate.ts";
 import { ONBOARDING_PERMISSIONS, documentsReady, loadOnboarding, onboardingHandlers } from "./onboarding.ts";
 import { PLATFORM_PERMISSIONS, platformHandlers } from "./platform.ts";
 import { ACCESS_PERMISSIONS, accessHandlers, endSessionsAfterChange } from "./access.ts";
@@ -3091,6 +3091,9 @@ Deno.serve(withCors(async (req: Request) => {
     if (!allowed) {
       return respond({ error: "Your admin role doesn't allow this. Ask a Zella Voice owner to change your role or its permissions.", code: "NOT_PERMITTED", permission }, 403);
     }
+    // ACC-19: granting or changing admin access needs a code entered in the last 5 minutes (mfa_gate.ts).
+    const fresh = freshCodeGate(action, authorization);
+    if (!fresh.ok) return respond({ error: fresh.error, code: fresh.code }, fresh.status);
 
     if (action === "dashboard_data") {
       await processCancellations(adminClient);

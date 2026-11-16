@@ -59,4 +59,14 @@ async function fn(tok, body) {
   return { status: r.status, body: await r.json().catch(() => ({})) };
 }
 
-module.exports = { chromium, APP, BACKEND, DB, guard, sql, check, failures, context, page, signIn, token, fn };
+// ACC-19: when Users & access asks for a new authenticator code, enter the stand in's working code (123456).
+// Returns true when it was asked.
+async function freshCode(p, code = "123456") {
+  const form = p.locator('form[aria-label="Confirm with your authenticator"]');
+  if (!(await form.waitFor({ timeout: 4000 }).then(() => true).catch(() => false))) return false;
+  await form.locator('input[aria-label="Authenticator code"]').fill(code);
+  await form.locator('button[type="submit"]').click();
+  return true;
+}
+
+module.exports = { freshCode,  chromium, APP, BACKEND, DB, guard, sql, check, failures, context, page, signIn, token, fn };

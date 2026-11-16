@@ -64,6 +64,8 @@ Never point any of this at production.
 | `wizard-journey.cjs` | The setup wizard: no skipping, unsaved changes (Save / Discard / Stay, focus trap), leaving and reloading, double-click, checkmarks from saved data, server-side finish checks, owner versus staff invitation. |
 | `ui-journeys.cjs` | Template and customer-search scoping across two businesses, appearance save failure and retry, a reload during a pending save, the icon font blocked, automations with live-shaped data. |
 | `admin-mfa-journey.cjs` | Two step sign in for every admin: an admin without an authenticator gets only their own role from the server and nothing from the database, is walked through setting one up (wrong code refused), lands on the dashboard; the only authenticator can't be removed; the next sign in asks for the code. Needs `sql/zella_admin_mfa.sql` in the test database. |
+| `admin-sessions.cjs` | ACC-18 and ACC-30: a role change warns and then signs the admin out on every device (count shown, audited); Sign out other devices goes through the database and is audited. Needs `sql/zella_admin_sessions.sql`. |
+| `admin-fresh-code.cjs` | ACC-19: adding an admin is refused without a code from the last 5 minutes, the page asks for one (a wrong code is refused), then the same change goes through; a second change within 5 minutes isn't asked again. The stand in records the code time in amr on verify. |
 | `brand-check.cjs` | Sidebar logo and default theme: expanded, collapsed, frames during the transition, tablet rail, phone drawer, reduced motion, accessible name, saved looks kept. |
 | `probe.cjs <email> <route> "<js>"` | Opens one page and prints a browser expression (for debugging). |
 

@@ -6,7 +6,8 @@ import { checkEmail } from "./formValidation";
 import { Pill } from "./OwnerOverview";
 import { formatDate, timeAgo } from "./ownerFormat";
 import { friendlyError } from "./admin/adminOps";
-import { SIGNED_OUT_EVERYWHERE, signedOutText } from "./adminAccess";
+import { SIGNED_OUT_EVERYWHERE, needsFreshCode, signedOutText } from "./adminAccess";
+import { verifyMfaCode } from "./mfa";
 
 const ROLE_LABELS = {
   zella_owner: "Zella Voice owner", super_admin: "Super admin", platform_operations: "Platform operations",
@@ -38,6 +39,8 @@ export default function UsersAccess() {
   const [inviting, setInviting] = useState(false);
   const [invite, setInvite] = useState({ email: "", role: "super_admin" });
   const [confirm, setConfirm] = useState(null);
+  // { retry, code, error }: the server asked for a new authenticator code before this change (ACC-19)
+  const [fresh, setFresh] = useState(null);
   const [roles, setRoles] = useState(null);
   useEffect(() => { let live = true; loadRoles().then((r) => live && setRoles(r)).catch(() => {}); return () => { live = false; }; }, []);
 
@@ -67,9 +70,15 @@ export default function UsersAccess() {
       const result = await callOwnerFunction(action, payload);
       setNotice(success(result));
       setConfirm(null);
+      setFresh(null);
       await load();
       return true;
     } catch (err) {
+      if (needsFreshCode(err)) {
+        // keep the confirmation: the same change runs again once a new code is entered
+        setFresh({ retry: () => run(action, payload, success), code: "", error: "" });
+        return false;
+      }
       setError(friendlyError(err));
       return false;
     } finally {
@@ -145,6 +154,31 @@ export default function UsersAccess() {
             <button type="button" className="owner-secondary-button" onClick={() => setInviting(false)} disabled={busy}>Cancel</button>
             <button type="submit" className="owner-primary-button" disabled={busy || !invite.email.trim()}>
               {busy ? "Adding..." : "Add admin"}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {fresh && (
+        <form className="ic-warning op-gap" aria-label="Confirm with your authenticator"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            setBusy(true);
+            try { await verifyMfaCode(fresh.code); }
+            catch (err) { setFresh({ ...fresh, error: err.message }); setBusy(false); return; }
+            setBusy(false);
+            await fresh.retry();
+          }}>
+          <span>
+            Changing admin access needs a new code. Enter the 6 digit code from your authenticator app.
+            {fresh.error && <strong role="alert"> {fresh.error}</strong>}
+          </span>
+          <div>
+            <input className="us-role" size={8} inputMode="numeric" autoComplete="one-time-code" maxLength={6} aria-label="Authenticator code" autoFocus
+              value={fresh.code} onChange={(e) => setFresh({ ...fresh, code: e.target.value.replace(/\D/g, ""), error: "" })} disabled={busy} />
+            <button type="button" className="owner-secondary-button op-small" onClick={() => setFresh(null)} disabled={busy}>Cancel</button>
+            <button type="submit" className="owner-primary-button op-small" disabled={busy || fresh.code.length !== 6}>
+              {busy ? "Checking..." : "Confirm"}
             </button>
           </div>
         </form>

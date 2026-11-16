@@ -30,6 +30,7 @@ const count = (uid) => Number(k.sql(`select count(*) from auth.sessions where us
     k.check(`${tag}: changing a role warns they will be signed out on every device`, true);
     await p.waitForTimeout(800); await p.screenshot({ path: path.join(SHOTS, `users-confirm-${tag}.png`), fullPage: false });
     await p.click('button:has-text("Change role")');
+    await k.freshCode(p);   // ACC-19: a role change needs a new code when the last one is older than 5 minutes
     await p.waitForSelector("text=They were signed out on 2 devices.");
     k.check(`${tag}: after the change the page says 2 devices were signed out`, true);
     k.check(`${tag}: and the database has none of their sessions left`, count(target) === 0, `${count(target)} left`);
