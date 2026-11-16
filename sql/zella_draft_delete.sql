@@ -7,11 +7,13 @@
 --     "privileged_delete" row for each deleted row with business_id set to the business being deleted, which fails
 --     the audit_logs foreign key, so any delete of a business with a receptionist failed.
 -- Now:
---   * audit_logs.business_id stays ON DELETE CASCADE: changing it needs the owner's approval (ACC-10 is a separate
---     decision). So the business's earlier audit rows are removed with it, and this function keeps a copy of them
---     (up to 1000: action, entity, who, when, without their before and after data) inside the deletion's own entry;
---   * the deletion's own entry (business.draft_deleted) is written after the delete with business_id null, so the
---     cascade can't touch it; old_data keeps the business id, name, industry, setup step, dates and that copy;
+--   * audit_logs.business_id becomes ON DELETE SET NULL (ACC-10; the owner's decision, 16 Nov 2026: audit history is
+--     never deleted along with a business). Deleting a business now keeps its audit rows, with business_id empty. The
+--     constraint must be exactly production's CASCADE first, otherwise VERSION_MISMATCH. This changes what every
+--     future delete of a business does to its audit rows;
+--   * the deletion's own entry (business.draft_deleted) is written after the delete with business_id null; old_data
+--     keeps the business id, name, industry, setup step, dates and the ids of its earlier audit rows (audit_logs has
+--     no name column), so they can still be found together;
 --   * zella_audit_privileged writes business_id null for a business being deleted in the same statement (before, any
 --     delete of a business with a receptionist failed the audit foreign key) and keeps the id in new_data as
 --     deleted_business_id. Nothing else in it changes;
@@ -27,13 +29,14 @@
 begin;
 
 do $$
-declare s constant text := 'public.zella_audit_privileged()'; d text; f record;
+declare s constant text := 'public.zella_audit_privileged()'; d text; f record; v_applied boolean;
 begin
   if to_regprocedure(s) is null or to_regclass('public.zella_function_archive') is null or to_regclass('public.audit_logs') is null
      or to_regprocedure('public.zella_admin_reason(text)') is null then
     raise exception 'VERSION_MISMATCH: something this file needs is missing';
   end if;
   d := pg_get_functiondef(s::regprocedure);
+  v_applied := md5(d) = '8f2909322446a24d4880c17a0bab98b9';
   if md5(d) = '0df0acdb83754ec20a082bdc6f48c50a' then          -- production's version: archive it for the rollback
     insert into public.zella_function_archive (migration, signature, definition, definition_md5)
     values ('zella_draft_delete', s, d, md5(d)) on conflict (migration, signature) do nothing;
@@ -41,15 +44,21 @@ begin
     raise exception 'VERSION_MISMATCH: % is not a version this file was written for', s;
   end if;
   if to_regprocedure('public.zella_delete_draft_business(uuid,uuid,text,text)') is not null
-     and md5(pg_get_functiondef(to_regprocedure('public.zella_delete_draft_business(uuid,uuid,text,text)'))) <> '7ba145a2acc689841606dc41a64c7fab' then
+     and md5(pg_get_functiondef(to_regprocedure('public.zella_delete_draft_business(uuid,uuid,text,text)'))) <> 'd6bedb36457b54e476f5a0f214f2abc3' then
     raise exception 'VERSION_MISMATCH: zella_delete_draft_business is not a version this file was written for';
   end if;
-  -- the audit foreign key is production's (cascade); this file doesn't change it
-  select confdeltype into f from pg_constraint where conrelid = 'public.audit_logs'::regclass and conname = 'audit_logs_business_id_fkey';
-  if f is null or f.confdeltype <> 'c' then
+  -- the audit foreign key must be exactly production's CASCADE (or this file's SET NULL when it is already applied)
+  select confdeltype into f from pg_constraint where conrelid = 'public.audit_logs'::regclass and conname = 'audit_logs_business_id_fkey'
+     and pg_get_constraintdef(oid) in ('FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE',
+                                       'FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE SET NULL');
+  if f is null or f.confdeltype::text <> (case when v_applied then 'n' else 'c' end) then
     raise exception 'VERSION_MISMATCH: audit_logs_business_id_fkey is not a version this file was written for';
   end if;
 end $$;
+
+alter table public.audit_logs drop constraint audit_logs_business_id_fkey;
+alter table public.audit_logs add constraint audit_logs_business_id_fkey
+  foreign key (business_id) references public.businesses(id) on delete set null;
 
 CREATE OR REPLACE FUNCTION public.zella_audit_privileged()
  RETURNS trigger
@@ -129,19 +138,18 @@ begin
   select coalesce(array_agg(distinct p), '{}') into v_paths from (
     select file_path as p from business_verification_documents where business_id = b.id and file_path is not null
     union select name from storage.objects where bucket_id = 'business-documents' and name like b.id::text || '/%') x;
-  -- the cascade removes the business's audit rows: a copy goes in the deletion entry
-  select coalesce(jsonb_agg(jsonb_build_object('id', id, 'action', action, 'entity_type', entity_type, 'entity_id', entity_id,
-                                               'user_id', user_id, 'created_at', created_at) order by created_at), '[]'::jsonb) into v_earlier from (
-    select id, action, entity_type, entity_id, user_id, created_at from audit_logs where business_id = b.id order by created_at limit 1000) a;
+  -- the business's audit rows stay (business_id becomes empty): their ids go in the deletion entry
+  select coalesce(jsonb_agg(id order by created_at), '[]'::jsonb) into v_earlier from (
+    select id, created_at from audit_logs where business_id = b.id order by created_at limit 1000) a;
   select name into v_industry from industries where id = b.industry_id;
 
   delete from businesses where id = b.id;
 
-  -- after the delete and with business_id null, so the cascade can't remove it; it keeps what audit_logs can't
+  -- after the delete, with business_id null; it keeps what audit_logs can't (no name column)
   insert into audit_logs (business_id, user_id, action, entity_type, entity_id, old_data, new_data)
   values (null, p_actor, 'business.draft_deleted', 'business', b.id,
     jsonb_build_object('business_id', b.id, 'name', b.name, 'industry', v_industry, 'onboarding_status', b.onboarding_status,
-                       'created_at', b.created_at, 'updated_at', b.updated_at, 'earlier_audit', v_earlier),
+                       'created_at', b.created_at, 'updated_at', b.updated_at, 'earlier_audit_ids', v_earlier),
     jsonb_build_object('reason', v_reason, 'files_to_remove', cardinality(v_paths)));
 
   return jsonb_build_object('business_id', b.id, 'name', b.name, 'paths', to_jsonb(v_paths));

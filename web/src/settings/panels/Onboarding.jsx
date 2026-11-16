@@ -69,7 +69,7 @@ export default function Onboarding({ me, openSetup, openBusiness }) {
         <Confirm title={`Delete ${deleting.name}?`} danger word={deleting.name} reason confirmLabel="Delete draft"
           onConfirm={(reason) => remove(deleting, reason)} onClose={() => setDeleting(null)}>
           <p>This deletes the draft and everything made for it: its settings, receptionist, modules, uploaded documents and any owner invitation not yet accepted. It can't be undone.</p>
-          <p>A copy of its audit history is kept in the deletion record. A business with calls, phone numbers, billing, an accepted owner or finished setup can't be deleted.</p>
+          <p>Its audit history is kept. A business with calls, phone numbers, billing, an accepted owner or finished setup can't be deleted.</p>
         </Confirm>,
         document.body,
       )}
