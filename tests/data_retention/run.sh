@@ -67,6 +67,9 @@ v=$(q "select string_agg(data_class || '=' || days, ',' order by data_class) || 
 before=$(fp)
 [ "$(prev call_recordings "->> 'count'")" = "3" ] && [ "$(prev call_recordings "-> 'sample' -> 2 ->> 'id'")" = "e4000000-0000-0000-0000-00000000ca02" ] && ok "recordings: only calls older than 30 days, oldest first" || bad "recordings: $(prev call_recordings)"
 [ "$(prev call_transcripts "->> 'count'")" = "2" ] && ok "transcripts: only the ones older than 90 days" || bad "transcripts: $(prev call_transcripts "->> 'count'")"
+q "insert into public.calls (business_id, direction, status, created_at, ended_at, transcript) values ('$A', 'inbound', 'completed', now() - interval '300 days', now() - interval '300 days', 'Removed under the retention policy.')" > /dev/null
+[ "$(prev call_transcripts "->> 'count'")" = "2" ] && ok "a transcript already removed under retention isn't listed again" || bad "marker listed"
+q "delete from public.calls where transcript = 'Removed under the retention policy.'" > /dev/null
 [ "$(prev message_bodies "->> 'by_source'")" = '{"sms_messages": 1, "email_messages": 1}' ] && ok "message bodies: the old text and email, not the new text" || bad "bodies: $(prev message_bodies "->> 'by_source'")"
 [ "$(prev audit_logs "->> 'count'")" = "1" ] && ok "audit logs: only rows older than 7 years" || bad "audit: $(prev audit_logs "->> 'count'")"
 [ "$(prev documents_replaced "-> 'sample' -> 0 ->> 'id'")" = "e4000000-0000-0000-0000-00000000d001" ] && ok "replaced documents: the copy replaced 40 days ago" || bad "replaced"

@@ -11,7 +11,7 @@ declare
     mine constant jsonb := '{
     "public.zella_retention_setting_guard()": "79071c573d6ac9bfa6eef1876b530f24",
     "public.zella_retention_on_hold(uuid)": "aa38f978a7484df0cd06decf0e7b13d6",
-    "public.zella_retention_candidates(text,timestamp with time zone)": "5278362c499d53a46c255ce178146f5d",
+    "public.zella_retention_candidates(text,timestamp with time zone)": "80d1a34ab624d8d4acbc882818a829c2",
     "public.zella_retention_preview(uuid,text,integer)": "1fd49ad9a112ebd390d36d13b89b80ea",
     "public.zella_retention_overview(uuid)": "c7b1717cdeaf2e725a70ec15b23fc18b",
     "public.zella_retention_policy_set(uuid,text,integer,text,text)": "eead83dd9bc944af10bb208f550e39a5",

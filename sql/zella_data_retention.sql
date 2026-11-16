@@ -30,7 +30,7 @@ declare
   mine constant jsonb := '{
     "public.zella_retention_setting_guard()": "79071c573d6ac9bfa6eef1876b530f24",
     "public.zella_retention_on_hold(uuid)": "aa38f978a7484df0cd06decf0e7b13d6",
-    "public.zella_retention_candidates(text,timestamp with time zone)": "5278362c499d53a46c255ce178146f5d",
+    "public.zella_retention_candidates(text,timestamp with time zone)": "80d1a34ab624d8d4acbc882818a829c2",
     "public.zella_retention_preview(uuid,text,integer)": "1fd49ad9a112ebd390d36d13b89b80ea",
     "public.zella_retention_overview(uuid)": "c7b1717cdeaf2e725a70ec15b23fc18b",
     "public.zella_retention_policy_set(uuid,text,integer,text,text)": "eead83dd9bc944af10bb208f550e39a5",
@@ -135,6 +135,8 @@ $$;
 
 -- What is past its period for one kind of data, as (table, id, business, date). Never any content. Businesses on a
 -- legal hold are left out. The single definition used by the dry run and by the purge.
+-- A purged transcript is replaced by 'Removed under the retention policy.', not emptied: an empty transcript on a short
+-- call would make zella_call_integrity re-mark the old call as missed and start a missed call callback.
 create or replace function public.zella_retention_candidates(p_class text, p_cutoff timestamptz)
 returns table (source text, row_id uuid, business_id uuid, dated timestamptz)
 language sql stable security definer set search_path = public as $$
@@ -143,7 +145,8 @@ language sql stable security definer set search_path = public as $$
      and not public.zella_retention_on_hold(c.business_id)
   union all
   select 'calls', c.id, c.business_id, coalesce(c.ended_at, c.created_at) from public.calls c
-   where p_class = 'call_transcripts' and c.transcript is not null and coalesce(c.ended_at, c.created_at) < p_cutoff
+   where p_class = 'call_transcripts' and c.transcript is not null and c.transcript <> 'Removed under the retention policy.'
+     and coalesce(c.ended_at, c.created_at) < p_cutoff
      and not public.zella_retention_on_hold(c.business_id)
   union all
   select 'sms_messages', m.id, m.business_id, m.created_at from public.sms_messages m
