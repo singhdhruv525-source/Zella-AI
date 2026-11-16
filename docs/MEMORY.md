@@ -69,23 +69,28 @@ Shape: 163 tables (plus three `backup_20261104_*` tables from the 4 Nov industry
 340 policies, 861 functions, 111 triggers. Full reference: `docs/BACKEND_SCHEMA.md`. Data: 4 businesses, 3 record
 types, no plans.
 
-**Edge functions deployed** (read from Supabase on 15 Nov 2026: version and last deploy date):
+**Edge functions deployed** (read from Supabase on 16 Nov 2026: version and last deploy date; setting a secret raises every function's version by one without changing its files):
 
 | Function | Version, last deploy |
 |---|---|
 | `voice-rules` | v8, 15 Nov 2026 (forward on the usage limit; files match `main`) |
 | `record-files`, `google-lead`, `calendar-connect`, `website-lead` | v2, v2, v2, v5, 14 Nov 2026 |
-| `platform-emails` | v1, 15 Nov 2026 (new; files match `main`; answers 401 without the Vault secret) |
-| `staff-invite` | v5, 15 Nov 2026 (files match `main`: two step sign in required, request size limit, plain wording, and the strict `cors.ts`: browsers are allowed only from `ZELLA_APP_URL`'s origin, `ZELLA_ALLOWED_ORIGINS` and localhost) |
-| `continue-plan` | v6, 9 Nov 2026 |
-| `owner-provision-business` | v16, 7 Nov 2026 (behind `main`: needs the CLI deploy, it is too large for the MCP upload) |
+| `platform-emails` | v2, 15 Nov 2026 (new; files match `main`; answers 401 without the Vault secret) |
+| `staff-invite` | v6, 15 Nov 2026 (files match `main`: two step sign in required, request size limit, plain wording, and the strict `cors.ts`: browsers are allowed only from `ZELLA_APP_URL`'s origin, `ZELLA_ALLOWED_ORIGINS` and localhost) |
+| `continue-plan` | v7, 9 Nov 2026 (behind `main`) |
+| `owner-provision-business` | v18, 16 Nov 2026 (deployed by the owner with the CLI from `main`, built on Supabase's servers with `--use-api`; answers 401 to an unsigned request and gives no `Access-Control-Allow-Origin` to an unlisted website) |
 | `store-connect` | v1, 6 Nov 2026 |
 | `billing-webhook` | v5, 4 Nov 2026 (behind `main`; kept off until step 4) |
 | `reschedule-appointment` | v3, 29 Oct 2026 |
 | `smart-action` (named "zella-admin-check") and `zella-admin-check-v2` | v5, 18 Oct 2026: old one-off checks with no source in the repo; candidates for removal, with approval |
 
-Not deployed yet from `main`: `owner-provision-business`, `billing-webhook`, `continue-plan`, `reschedule-appointment`,
-`store-connect`, `staff-invite` (the four with browser access wait for `ZELLA_APP_URL` and `ZELLA_ALLOWED_ORIGINS`).
+Not deployed yet from `main`: `billing-webhook`, `continue-plan`, `reschedule-appointment`, `store-connect`.
+
+**App address secrets** (16 Nov 2026): the app runs only in the owner's Codespace for now, so `ZELLA_ALLOWED_ORIGINS` holds
+the Codespace's address (set by the owner) and `ZELLA_APP_URL` is not set. Until it is set to a public address, inviting an
+owner or a staff member refuses with a clear message, because a Codespace address is private and the invited person
+could not open the link. A new Codespace has a new address, so `ZELLA_ALLOWED_ORIGINS` must then be set again.
+
 n8n workflows are not re-imported since PR #57. Deploying needs the owner's approval.
 
 **n8n:** the 30 workflows were renamed "Zella Voice - …" in n8n on 13 Nov 2026 (owner's approval; name only, all still unpublished), matching `n8n/workflows/`.
@@ -110,7 +115,7 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile` (checked
 | **Conformance check, 13 Nov 2026:** 14 rules pass across the whole system; 5 gaps fixed in PR #59; G-2, G-4, G-5, G-7, G-8 and G-10 in PRs #60–#65; the database parts of G-2, G-4, G-7 and G-8 applied to production on 14 Nov 2026 with the owner's approval; G-1, G-3, G-6 and G-9 still open | Open | Follow the order in `docs/CONFORMANCE_2026-11-13.md`. |
 | `tests/deploy/run_all.sh` didn't apply the newer migrations | Fixed in PR #57 (a `LATER` list applies, rolls back and re-applies them; all checks pass locally) | — |
 | **Inbound call routing:** a call whose number and Vapi phone ID match two different businesses' rows is routed by the ID (CodeRabbit, PR #57). Each column is already unique. | Open, owner's decision | Proposed: `zella_business_for_number` returns a business only when both agree; a guarded migration with rollback. |
-| **Billing step 2 (plans, balances, usage, alerts):** `sql/zella_billing_allowances.sql`, tested on the isolated database (tests/billing, and the full rehearsal in tests/deploy/run_all.sh). Applied to production on 14 Nov 2026 with the owner's approval and checked by read-only fingerprints; the one difference is `zella_language_allowance`, where production keeps its earlier, stricter role check | Applied; next steps open | Next: switch on calls to the fallback number at 100% and stopping routine texts and emails at 100% (live changes); set `voice_max_call_seconds` to 1200 for the 20-minute cap; fill in the unit costs (`billing_rules.unit_costs`); then deploy the step 3 pages and `owner-provision-business` (it refuses to finish setup without a saved plan, so deploy it only after the migration). `tests/browser/wizard-journey.cjs` needs the billing migration in its database now. |
+| **Billing step 2 (plans, balances, usage, alerts):** `sql/zella_billing_allowances.sql`, tested on the isolated database (tests/billing, and the full rehearsal in tests/deploy/run_all.sh). Applied to production on 14 Nov 2026 with the owner's approval and checked by read-only fingerprints; the one difference is `zella_language_allowance`, where production keeps its earlier, stricter role check | Applied; next steps open | Next: switch on calls to the fallback number at 100% and stopping routine texts and emails at 100% (live changes); set `voice_max_call_seconds` to 1200 for the 20-minute cap; fill in the unit costs (`billing_rules.unit_costs`); then deploy the step 3 pages (`owner-provision-business`, which refuses to finish setup without a saved plan, was deployed on 16 Nov 2026 as v18). `tests/browser/wizard-journey.cjs` needs the billing migration in its database now. |
 | **Payments provider is Stripe** (D-34 changed 13 Nov 2026: Zella Voice is a Wyoming LLC). Integration reference from Stripe's docs in `docs/PAYMENTS_ARCHITECTURE.md` §16; auto-reload and pay as you go charge automatically (D-54 closed) | Open, owner | The owner completes the Stripe account checklist (§16.7: EIN, identity, US bank account, Billing on, sandbox keys saved as staging secrets by the owner), and decides when a trial business pays the setup fee. |
 | **The deployed `billing-webhook` doesn't follow the Stripe design yet** (`docs/PAYMENTS_ARCHITECTURE.md` §17, gaps C-1 to C-8): it grants from the payload, treats an active status as a renewal and has no binding check. It is off (no `STRIPE_WEBHOOK_SECRET`). | Open, step 4 | Keep the secret unset until step 4 rebuilds the webhook as in §6.0b and its tests pass. |
 | **Workflow-failure emails:** `sql/zella_workflow_alert_email.sql` (merged, not applied) keeps n8n failures in the dashboard only | Open, owner's decision | Apply with approval, or drop it if admins should be emailed. |
@@ -123,7 +128,7 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile` (checked
 | "Something is missing in the app" (owner, no details yet) | Waiting on the owner | |
 | **Emails from Zella Voice to businesses:** catalogue and admin preview built; outbox `sql/zella_platform_emails.sql` applied 15 Nov 2026 (empty) | Open | Delivery applied and deployed 15 Nov 2026 (`sql/zella_email_delivery.sql`; `platform-emails` v1, which refuses a call without the Vault secret). Event based: a new email wakes the sender at once; the minute job is only a safety net. Still off, each with approval: set `platform_emails_url` and the sender address (`email_from_address`), add `RESEND_API_KEY` to the function, switch on the two event triggers and the safety net job, then turn on `email_live`. Billing emails per Stripe event in step 4. |
 | **Usage limits that act:** `sql/zella_usage_enforcement.sql` applied 15 Nov 2026 (fingerprints match the tested copy; switches off); voice-rules v8 deployed 15 Nov 2026 (files match `main`; unsigned requests refused) | Open, owner's approval | 1. Give one demo business a test fallback number the owner controls. 2. Staging call with the calls switch on for it, to prove Vapi transfers on the `destination` reply. 3. Turn on `usage_enforcement.calls`, then `.messages`, each with approval. The monthly spending limit for pay as you go needs payments (step 4). |
-| **Fallback number for every business** (owner, 15 Nov 2026: decided at Create Business, REQ-BIL-34). New businesses can't finish setup without one (owner-provision-business, merged; deploy pending with the CLI). | Open | The 4 businesses in production are demo businesses (owner, 15 Nov 2026), so none needs a real fallback number; one gets a test number for the staging call. |
+| **Fallback number for every business** (owner, 15 Nov 2026: decided at Create Business, REQ-BIL-34). New businesses can't finish setup without one (owner-provision-business, merged; deployed 16 Nov 2026 as v18). | Open | The 4 businesses in production are demo businesses (owner, 15 Nov 2026), so none needs a real fallback number; one gets a test number for the staging call. |
 | **Business moments** (record day, call surge, weekend on call gaps): `sql/zella_business_moments.sql` applied 15 Nov 2026 and added to the hourly group; in app notifications only | Open, owner's approval | They run only once the timed job `zella_jobs_hourly` is switched on (it is off in production, like most timed jobs; only `zella_usage_thresholds` and `zella_billing_reconcile` are active). Later moments need data the app doesn't keep yet (recall due dates, seasonal demand such as tax season). |
 
 ## 5. Decisions
@@ -135,7 +140,7 @@ most often needed:
   emails, texts, notifications, the AI receptionist); notifications are creative but professional and use each
   business's own words. Rules in `docs/DESIGN_SYSTEM.md` (Writing; Notifications); checked by `npm run lint`.
   Part 2 (15 Nov 2026): the database (`sql/zella_writing_cleanup.sql`, applied 15 Nov 2026) and the edge function
-  labels (`staff-invite` deployed 15 Nov 2026; `owner-provision-business` still needs the CLI deploy). Left on purpose: n8n
+  labels (`staff-invite` deployed 15 Nov 2026; `owner-provision-business` deployed 16 Nov 2026). Left on purpose: n8n
   workflow and node names and internal reason codes (only admins see them in n8n; renaming means a re-import).
   The industry "E-commerce" is shown as "Ecommerce".
 
