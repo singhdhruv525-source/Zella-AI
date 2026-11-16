@@ -14,6 +14,21 @@ const lineAt = (src, i) => src.slice(0, i).split("\n").length;
 const SQL_LIT = /'+([a-z][a-z0-9_.]*)'+/g;
 const NAME = /^[a-z][a-z0-9_]*(\.[a-z0-9_]+)?$/;
 
+// SQL without its comments (-- to the end of the line, /* ... */), the same length and lines, so positions still
+// match the file. Quoted text is kept: '--' inside a string is not a comment.
+export function stripSqlComments(src) {
+  let out = "", quote = false;
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i];
+    if (quote) { out += c; if (c === "'") quote = false; continue; }
+    if (c === "'") { quote = true; out += c; continue; }
+    if (c === "-" && src[i + 1] === "-") { const nl = src.indexOf("\n", i); const end = nl < 0 ? src.length : nl; out += " ".repeat(end - i); i = end - 1; continue; }
+    if (c === "/" && src[i + 1] === "*") { const e = src.indexOf("*/", i + 2); const stop = e < 0 ? src.length : e + 2; out += src.slice(i, stop).replace(/[^\n]/g, " "); i = stop - 1; continue; }
+    out += c;
+  }
+  return out;
+}
+
 // Splits the comma separated list inside the bracket that opens at src[open]. Quotes and nested brackets are
 // respected. Returns { items: [{ text, at }], end } where end is the index of the closing bracket.
 export function splitGroup(src, open) {
@@ -46,10 +61,20 @@ export function sqlExprNames(text) {
   const t = text.replace(/--[^\n]*/g, " ").replace(/\s+/g, " ").trim().replace(/::\s*text$/i, "").trim();
   const lit = t.match(/^'+([a-z][a-z0-9_.]*)'+$/);
   if (lit) return [{ name: lit[1] }];
-  const branches = (c) => [...c.matchAll(/\b(?:then|else)\s+'+([a-z0-9_.]*)'+/gi)].map((m) => m[1]);
-  if (/^case\b.*\bend$/i.test(t)) return branches(t).map((name) => ({ name }));
+  // every then / else result of a case: a literal, a name to resolve (null means "no audit row"), or unresolved
+  const branches = (c) => [...c.matchAll(/\b(?:then|else)\s+('+[a-z0-9_.]*'+|[a-z_][a-z0-9_]*\b(?!\s*[(.|])|\S+)/gi)].map((m) => {
+    const v = m[1];
+    const lit = v.match(/^'+([a-z0-9_.]*)'+$/);
+    if (lit) return { name: lit[1] };
+    if (/^null$/i.test(v)) return null;
+    if (/^[a-z_][a-z0-9_]*$/i.test(v)) return { ident: v.toLowerCase() };
+    return { name: v.slice(0, 60), unresolved: true };
+  }).filter(Boolean);
+  if (/^case\b.*\bend$/i.test(t)) return branches(t);
   const joined = t.match(/^'+([a-z][a-z0-9_.]*)'+\s*\|\|\s*\(?\s*(case\b.*\bend)\s*\)?$/i);
-  if (joined && !/\|\|/.test(joined[2])) return branches(joined[2]).map((b) => ({ name: joined[1] + b }));
+  if (joined && !/\|\|/.test(joined[2])) {
+    return branches(joined[2]).map((b) => (b.name !== undefined && !b.unresolved ? { name: joined[1] + b.name } : { name: joined[1], prefix: true }));
+  }
   if (/\|\|/.test(t)) {
     const m = t.match(/^'+([a-z][a-z0-9_.]*)'+\s*\|\|/);
     if (m) return [{ name: m[1], prefix: true }];
@@ -105,7 +130,8 @@ export function sqlCallArgs(src, fn, idx) {
 }
 
 // insert into [public.]audit_logs (..., action, ...) values (...)[, (...)] | select ...
-export function sqlAuditActions(src) {
+export function sqlAuditActions(raw) {
+  const src = stripSqlComments(raw);
   const out = [];
   for (const m of src.matchAll(/insert\s+into\s+(?:public\.)?audit_logs\s*\(/gi)) {
     const cols = splitGroup(src, m.index + m[0].length - 1);
@@ -140,7 +166,8 @@ export function sqlAuditActions(src) {
 }
 
 // zella_platform_alert('kind', ...) and insert into platform_alerts (kind, ...) values ('kind', ...)
-export function sqlAlertKinds(src) {
+export function sqlAlertKinds(raw) {
+  const src = stripSqlComments(raw);
   const out = [];
   for (const m of src.matchAll(/zella_platform_alert\s*\(/gi)) {
     const g = splitGroup(src, m.index + m[0].length - 1);
@@ -155,15 +182,23 @@ export function sqlAlertKinds(src) {
     const idx = cols.items.findIndex((c) => c.text.trim().toLowerCase() === "kind");
     const vals = src.slice(cols.end + 1).match(/^\s*values\s*\(/i);
     if (idx < 0 || !vals) continue;
-    const g = splitGroup(src, cols.end + vals[0].length);
-    const item = g.items[idx];
-    if (item && !/^\s*p_kind\s*$/i.test(item.text)) for (const n of sqlExprNames(item.text)) out.push({ ...n, at: item.at, line: lineAt(src, item.at) });
+    // one or more tuples
+    let open = cols.end + vals[0].length;
+    for (;;) {
+      const g = splitGroup(src, open);
+      const item = g.items[idx];
+      if (item && !/^\s*p_kind\s*$/i.test(item.text)) for (const n of sqlExprNames(item.text)) out.push({ ...n, at: item.at, line: lineAt(src, item.at) });
+      const next = src.slice(g.end + 1).match(/^\s*,\s*\(/);
+      if (!next) break;
+      open = g.end + next[0].length;
+    }
   }
   return out;
 }
 
 // zella_admin_can('perm' ...) and rows put in platform_role_permissions ('role', 'perm').
-export function sqlPermissions(src) {
+export function sqlPermissions(raw) {
+  const src = stripSqlComments(raw);
   const out = [];
   for (const m of src.matchAll(/zella_admin_can\s*\(\s*'+([a-z][a-z0-9_]*\.[a-z0-9_]+)'+/gi)) out.push({ name: m[1], line: lineAt(src, m.index) });
   for (const m of src.matchAll(/insert\s+into\s+(?:public\.)?platform_role_permissions\s*\([^)]*\)\s*values/gi)) {
@@ -201,7 +236,11 @@ export function resolveSql(list, src, sqlFiles, depth = 0) {
         }
       }
     } else if (fn) {
-      for (const e of sqlAssignments(fn.body, f.ident)) names = names.concat(sqlExprNames(e).filter((n) => !n.ident));
+      // a variable set from another variable or parameter is followed too (depth limited, so a cycle stops)
+      for (const e of sqlAssignments(fn.body, f.ident)) {
+        const found = sqlExprNames(e);
+        names = names.concat(depth < 3 ? resolveSql(found.map((n) => ({ ...n, at: f.at, line: f.line })), src, sqlFiles, depth + 1) : found.map((n) => (n.ident ? { name: n.ident, unresolved: true } : n)));
+      }
     }
     if (names.length) for (const n of names) out.push({ ...n, line: f.line, at: f.at });
     else out.push({ name: f.ident, unresolved: true, line: f.line });
@@ -255,6 +294,25 @@ export function jsExprNames(expr) {
   return out;
 }
 
+// The value branches of an expression, with every string literal written as S: "a ? 'x' : y" gives ["S", "y"].
+// A branch that doesn't start with a literal (a variable, a call) can't be checked.
+export function jsValueBranches(expr) {
+  const t = expr.replace(/`[^`]*`|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/g, "S").trim();
+  const parts = [], seps = [];
+  let depth = 0, start = 0;
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i];
+    if ("([{".includes(c)) depth++;
+    else if (")]}".includes(c)) depth--;
+    else if (depth === 0 && (c === "?" || c === ":") && t[i + 1] !== "." && t[i + 1] !== "?" && t[i - 1] !== "?") {
+      parts.push(t.slice(start, i).trim()); seps.push(c); start = i + 1;
+    }
+  }
+  parts.push(t.slice(start).trim());
+  // a part followed by "?" is a condition; every other part is a value
+  return parts.filter((_, i) => seps[i] !== "?");
+}
+
 // Audit entries in the edge functions: every `action:` whose value is a dotted name (request actions such as
 // "lookup" or "start" are not audit names; every audit name the functions write has a dot).
 export function tsAuditActions(raw) {
@@ -262,6 +320,8 @@ export function tsAuditActions(raw) {
   const out = [];
   for (const m of src.matchAll(/\baction\s*:\s*/g)) {
     const expr = exprAfter(src, m.index + m[0].length);
+    const loose = jsValueBranches(expr).find((b) => !/^S\b/.test(b) && !/^(string|null|undefined|number|boolean)\b/.test(b));
+    if (loose !== undefined) out.push({ name: expr.trim().replace(/\s+/g, " ").slice(0, 60), unresolved: true, line: lineAt(src, m.index) });
     for (const n of jsExprNames(expr)) {
       if (n.prefix ? /^[a-z][a-z0-9_]*\./.test(n.name) : /^[a-z][a-z0-9_]*\.[a-z0-9_]+$/.test(n.name)) out.push({ ...n, line: lineAt(src, m.index) });
     }
@@ -300,9 +360,9 @@ export function tsPermissions(raw) {
 export function n8nAlertKinds(raw) {
   const src = stripJsComments(raw);
   const out = [];
-  for (const m of src.matchAll(/\bp_kind\s*:\s*'([a-z][a-z0-9_]*)'/g)) {
+  for (const m of src.matchAll(/\bp_kind\s*:\s*(["'])([a-z][a-z0-9_]*)\1/g)) {
     const before = src.slice(Math.max(0, m.index - 200), m.index);
-    if (/zella_platform_alert|\balert\s*:\s*\{/.test(before) && !/zella_resolve_platform_alerts/.test(before.slice(-120))) out.push({ name: m[1], line: lineAt(src, m.index) });
+    if (/zella_platform_alert|\balert\s*:\s*\{/.test(before) && !/zella_resolve_platform_alerts/.test(before.slice(-120))) out.push({ name: m[2], line: lineAt(src, m.index) });
   }
   return out;
 }
@@ -333,7 +393,7 @@ export function inventory(root = ROOT) {
   const add = (kind, file, list) => {
     for (const f of list) found.push({ kind, ...f, where: `${relative(root, file)}:${f.line}` });
   };
-  const sqlFiles = walk(join(root, "sql"), (n) => n.endsWith(".sql")).map((f) => ({ f, rel: relative(root, f), src: readFileSync(f, "utf8") }));
+  const sqlFiles = walk(join(root, "sql"), (n) => n.endsWith(".sql")).map((f) => ({ f, rel: relative(root, f), src: stripSqlComments(readFileSync(f, "utf8")) }));
   for (const { f, src } of sqlFiles) {
     add("audit", f, resolveSql(sqlAuditActions(src), src, sqlFiles));
     add("alert", f, resolveSql(sqlAlertKinds(src), src, sqlFiles));
