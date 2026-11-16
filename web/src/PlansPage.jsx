@@ -19,14 +19,14 @@ const SUB_TONE = {
 
 const EMPTY_PLAN = { planId: "", name: "", description: "", isActive: true };
 
-// One empty value, in the muted style every table and drawer uses ("None", never a blank cell).
-function EmptyValue({ label = "None" }) {
+// One empty value, in the muted style every table and drawer uses: a few words, never a blank cell or "None".
+function EmptyValue({ label = "Not set" }) {
   return <span className="empty-value">{label}</span>;
 }
 
 function subscriptionBadge(row) {
   if (row.subscription) return <Pill tone={SUB_TONE[row.subscription.status] ?? "neutral"}>{humanize(row.subscription.status)}</Pill>;
-  return row.plan ? <EmptyValue /> : <Pill tone="neutral">No plan</Pill>;
+  return row.plan ? <EmptyValue label="No subscription" /> : <Pill tone="neutral">No plan</Pill>;
 }
 
 // The drawer frame: eyebrow, title and status on top, then the content, then a footer that stays in view.
@@ -73,7 +73,7 @@ function PlanDrawer({ row, onClose, onOpenBusiness }) {
       onClose={onClose}
       footer={<button type="button" className="owner-secondary-button" onClick={() => { onClose(); onOpenBusiness(row.businessId); }}>Open business</button>}
     >
-      <Facts rows={[...planFacts(row.plan), ["Subscription", row.subscription ? humanize(row.subscription.status) : <EmptyValue key="none" />]]} />
+      <Facts rows={[...planFacts(row.plan), ["Subscription", row.subscription ? humanize(row.subscription.status) : <EmptyValue key="none" label="No subscription" />]]} />
       {state.loading ? <p className="op-muted pp-drawer-note">Loading balances…</p>
         : state.error ? <div className="owner-form-error" role="alert">{state.error}</div>
         : (
@@ -225,9 +225,9 @@ export default function PlansPage({ onOpenBusiness }) {
                     <button type="button" className="op-name pp-name" title={b.businessName} onClick={() => onOpenBusiness(b.businessId)}>{b.businessName}</button>
                     {b.plan && <span className="pp-phone-line">{tierShort(b.plan)}, {priceText(b.plan)}</span>}
                   </td>
-                  <td className="pp-nowrap" data-label="Plan">{b.plan ? tierShort(b.plan) : <EmptyValue />}</td>
-                  <td className="num" data-label="Price">{b.plan ? priceText(b.plan) : <EmptyValue />}</td>
-                  <td className="pp-nowrap" data-label="Allowances">{b.plan ? allowanceText(b.plan) : <EmptyValue />}</td>
+                  <td className="pp-nowrap" data-label="Plan">{b.plan ? tierShort(b.plan) : <EmptyValue label="No plan saved" />}</td>
+                  <td className="num" data-label="Price">{b.plan ? priceText(b.plan) : <EmptyValue label="Not set" />}</td>
+                  <td className="pp-nowrap" data-label="Allowances">{b.plan ? allowanceText(b.plan) : <EmptyValue label="Not set" />}</td>
                   <td className="pp-sub" data-label="Subscription">{subscriptionBadge(b)}</td>
                   <td className="col-actions">
                     {b.plan
