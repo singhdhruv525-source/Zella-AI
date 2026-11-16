@@ -16,9 +16,9 @@ It reads the catalog only, never rows.
 | Tables (schema `public`) | 186 |
 | Tables with row security on | 186 of 186 |
 | Row security policies | 349 |
-| Columns | 2209 |
+| Columns | 2211 |
 | Views | 1 |
-| Functions | 1013 (940 security definer, 28 callable by `anon`) |
+| Functions | 1017 (944 security definer, 28 callable by `anon`) |
 
 Rules every table follows:
 
@@ -120,7 +120,7 @@ One row per business (tenant): name, industry, status, time zone, plan link.
 - Primary key: `id`.
 - `industry_id` → `public.industries` (on delete no action).
 - Row security: on; policies: Members can view their business (select), zella_mfa_required (all).
-- Triggers: `businesses_updated_at`, `zella_audit_privileged_trg`, `zella_business_before_trg`, `zella_business_lifecycle_trg`, `zella_business_status_trg`, `zella_business_welcome`, `zella_crm_on_industry`, `zella_industry_apply`.
+- Triggers: `businesses_updated_at`, `zella_audit_privileged_trg`, `zella_business_before_trg`, `zella_business_lifecycle_trg`, `zella_business_status_trg`, `zella_business_welcome`, `zella_crm_on_industry`, `zella_industry_apply`, `zella_stripe_cancel`.
 
 ### `business_members`
 
@@ -3961,6 +3961,8 @@ A business's subscription and its state.
 | `past_due_since` | timestamp with time zone |  |  |
 | `trial_notice_days` | integer[] | yes | '{}'::integer[] |
 | `billing_event_at` | timestamp with time zone |  |  |
+| `desired_cancel_at_period_end` | boolean |  |  |
+| `cancel_version` | integer | yes | 0 |
 
 - Primary key: `id`.
 - Unique: `(business_id)`.
@@ -5712,10 +5714,11 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_store_lookup_log(p_business_id uuid, p_provider_call_id text, p_integration_id uuid, p_result text, p_verified boolean)` | void | yes | server only |
 | `zella_store_lookup_log(p_business_id uuid, p_provider_call_id text, p_integration_id uuid, p_result text, p_verified boolean, p_order_ref text)` | void | yes | server only |
 
-### `zella_stripe_*` (41)
+### `zella_stripe_*` (45)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
+| `zella_stripe_after_cancel(r billing_outbox)` | void | yes | server only |
 | `zella_stripe_after_checkout_session(r billing_outbox)` | void | yes | server only |
 | `zella_stripe_after_customer(r billing_outbox)` | void | yes | server only |
 | `zella_stripe_after_invoice_item(r billing_outbox)` | void | yes | server only |
@@ -5726,6 +5729,9 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_stripe_apply_event(p_event_id uuid, p_object jsonb, p_key_livemode boolean)` | text | yes | server only |
 | `zella_stripe_bind_invoice(p_inv jsonb, p_require_paid boolean)` | jsonb | yes | server only |
 | `zella_stripe_bind_lines(o jsonb, p_business_id uuid)` | jsonb | yes | server only |
+| `zella_stripe_cancel_check(e billing_events, o jsonb)` | text | yes | server only |
+| `zella_stripe_cancel_sync(p_business_id uuid, p_attempt integer)` | uuid | yes | server only |
+| `zella_stripe_cancel_trg()` | trigger | yes | server only |
 | `zella_stripe_claim_events(p_limit integer)` | TABLE(id uuid, type text, object_type text, object_id text, livemode boolean, payload jsonb) | yes | server only |
 | `zella_stripe_customer(p_business_id uuid)` | text | yes | server only |
 | `zella_stripe_event_retry(p_event_id uuid, p_error text)` | text | yes | server only |
