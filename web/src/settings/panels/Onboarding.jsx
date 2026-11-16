@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { callOwnerFunction } from "../../CreateBusinessWizard";
 import { Banner, Card, Confirm, LoadState, Needs, Pill, Table, useAsync, words } from "../SettingsKit";
-import { DRAFT_DELETE_ROLES, since } from "../../businessLifecycle";
+import { DRAFT_DELETE_ROLES, retryAction, since } from "../../businessLifecycle";
 
 // Settings > Business onboarding (Lane B): businesses still in setup, what each has in place, and for a Zella Voice
 // owner or super admin, Delete draft for a business that never finished setup (BIZ-13a). The server and the database
@@ -19,6 +19,13 @@ export default function Onboarding({ me, openSetup, openBusiness }) {
   const [notice, setNotice] = useState({ text: "", error: "" });
   const [deleting, setDeleting] = useState(null);
   const mayDelete = DRAFT_DELETE_ROLES.includes(me?.role);
+  async function retry(b, step) {
+    try {
+      const r = await call("retry_step", { businessId: b.id, step });
+      setNotice(r.status === "done" ? { text: `${words(step)} for ${b.name} is done${r.added ? ` (${r.added} added)` : ""}.`, error: "" } : { text: "", error: r.note || `${words(step)} still needs attention.` });
+      state.reload();
+    } catch (err) { setNotice({ text: "", error: err.message }); }
+  }
   async function resend(id) {
     try { await call("invitation_resend", { businessId: id }); setNotice({ text: "Invitation sent again.", error: "" }); state.reload(); }
     catch (err) { setNotice({ text: "", error: err.message }); }
@@ -39,7 +46,16 @@ export default function Onboarding({ me, openSetup, openBusiness }) {
             ["Step", (b) => words(b.onboarding_status)],
             ["Last change", (b) => <>{since(b.last_activity_at)}{b.abandoned && <> <Pill tone="danger">Abandoned</Pill></>}</>],
             ...CHECKS.map(([key, label]) => [label, (b) => (b.checks[key] ? <Pill tone="success">✓</Pill> : <Pill tone="warning">Missing</Pill>)]),
-            ["Failed steps", (b) => (b.failed_steps.length ? b.failed_steps.map((f) => `${words(f.step)}${f.error ? `: ${f.error}` : ""}`).join("; ") : "None")],
+            ["Failed steps", (b) => (b.failed_steps.length ? b.failed_steps.map((f) => {
+              const act = retryAction(f.step);
+              return (
+                <div key={f.step}>
+                  {words(f.step)}{f.error ? `: ${f.error}` : ""}
+                  {can(me, "businesses.manage") && act === "retry" && <> <button type="button" className="zs-btn sm" onClick={() => retry(b, f.step)}>Retry step</button></>}
+                  {can(me, "businesses.manage") && act === "resend" && <> <button type="button" className="zs-btn sm" onClick={() => resend(b.id)}>Send owner invite</button></>}
+                </div>
+              );
+            }) : "None")],
             ["", (b) => can(me, "businesses.manage") ? (
               <span className="zs-actions">
                 <button type="button" className="zs-btn sm" onClick={() => openSetup(b.id)}>Continue setup</button>
@@ -57,8 +73,8 @@ export default function Onboarding({ me, openSetup, openBusiness }) {
         </Confirm>,
         document.body,
       )}
-      <Needs title="Automatic retry of failed provisioning steps isn't built" have="Steps stuck for 30 minutes are marked failed every hour and shown above; Continue setup reruns the setup wizard, which only adds what's missing.">
-        A safe automatic retry needs each provisioning step (agent, phone number, integrations) to be re-runnable on its own.
+      <Needs title="Automatic retry runs only once the owner switches it on" have="Every setup step is recorded. Modules, the AI receptionist and automations can be retried here with Retry step; the owner invitation email with Send owner invite; anything else with Continue setup.">
+        The timed retry (zella_provisioning_retry) retries those three internal steps at most 3 times each, and is off until the owner turns it on. Steps that reach a provider or send an email are never retried on their own.
       </Needs>
     </>
   );

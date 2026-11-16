@@ -23,7 +23,13 @@ export const LIFECYCLE_PERMISSIONS: Record<string, string> = {
   business_delete_draft: "businesses.manage",   // and the zella_owner or super_admin role (DRAFT_DELETE_ROLES)
   documents_missing: "businesses.manage",       // the same permission as the Verification queue (documents_queue)
   document_request: "businesses.manage",
+  retry_step: "businesses.manage",
 };
+
+// SET-ONB-RETRY default (owner can change): only these internal database steps are retried, by a person here or by
+// the timed job (switched off until the owner turns it on). The owner invitation email gets Send owner invite; steps
+// that reach a provider or need the admin's answers are finished through Continue setup.
+export const RETRYABLE_STEPS = ["modules", "receptionist", "automations"];
 
 // UI-11 default (owner can change): one documents request per business in this many hours, read from the last
 // business.documents_requested audit entry (no new table).
@@ -315,14 +321,35 @@ export function lifecycleHandlers(admin: SupabaseClient, fields: Json, kit: Life
     return { businessId, name: b.name, missing, email: emailState, emailId, to: to ? `${to.slice(0, 1)}…@${to.split("@")[1] ?? ""}` : null };
   };
 
+  // SET-ONB-RETRY part 2: a person retries one failed internal step (zella_retry_provisioning adds only what is
+  // missing, records the outcome and audits the attempt with the admin).
+  const retryStep = async () => {
+    const businessId = kit.requireId(fields.businessId);
+    const step = text(fields.step, 40);
+    if (!RETRYABLE_STEPS.includes(step)) {
+      throw new InputError(step === "owner_invitation" ? "Use Send owner invite to send the invitation again." : "This step can't be retried on its own. Use Continue setup.");
+    }
+    const { data, error } = await admin.rpc("zella_retry_provisioning", { p_business: businessId, p_step: step, p_actor: userId });
+    if (error) {
+      const m = error.message ?? "";
+      if (error.code === "PGRST202") throw new InputError("Retrying steps isn't installed on this database yet.", 503);
+      if (m.includes("NOT_FOUND")) throw new InputError("Business not found", 404);
+      if (m.includes("CANCELLED")) throw new InputError("This business is cancelled.", 409);
+      throw error;
+    }
+    const r = obj(data);
+    return { businessId, step, status: text(r.status, 20), added: Number(r.added) || 0, note: text(r.note, 300) || null };
+  };
+
   const handlers: Record<string, () => Promise<unknown>> = {
     setup_check_duplicates: checkDuplicates,
     business_delete_draft: deleteDraft,
     documents_missing: documentsMissing,
     document_request: documentRequest,
+    retry_step: retryStep,
   };
 
-  // business_delete_draft is audited by zella_delete_draft_business itself, in the same transaction as the delete.
+  // business_delete_draft and retry_step are audited by their database functions, in the same transaction.
   const audited: Record<string, (r: Json) => Json> = {
     document_request: (r) => ({ action: "business.documents_requested", business_id: r.businessId, entity_type: "business", entity_id: r.businessId,
       new_data: { missing: r.missing, email: r.email, email_id: r.emailId } }),

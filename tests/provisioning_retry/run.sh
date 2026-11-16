@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# sql/zella_provisioning_retry.sql on an ISOLATED copy of the production schema (never production). Test data only.
+# Checks: before, a failed step can't be retried (the gap); applies, and applies again; the timed job exists and is
+# OFF; retrying modules adds only the missing module rows and keeps a module an admin turned off; retrying the
+# receptionist adds a disabled receptionist and its settings when they are missing; automations are never invented:
+# without any the step stays failed with a note, with some it is done; each retry is audited with its actor and the
+# step's alert resolves; the owner invitation email and other steps are refused (manual only); a cancelled business is
+# refused; the timed run retries only failed internal steps over an hour old, at most 3 times each; only the server may
+# call either; the rollback (twice) removes the job and both functions; applies again; drift stops the file and rollback.
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")" && pwd)"; REPO="$(cd "$HERE/../.." && pwd)"
+export ZPG_HOST=${ZPG_HOST:-/var/lib/postgresql/zella-sec} ZPG_PORT=${ZPG_PORT:-55433}; DB=${DB:-zlb_provisioning_retry}; TEMPLATE=${TEMPLATE:-zprod3}
+. "$REPO/tests/lib/isolated_guard.sh"; zella_require_isolated "$ZPG_HOST" "$ZPG_PORT" "$DB" || exit 1
+P=(psql -h "$ZPG_HOST" -p "$ZPG_PORT" -U postgres -qtAX -v ON_ERROR_STOP=1)
+"${P[@]}" -d postgres -c "drop database if exists $DB" -c "create database $DB template $TEMPLATE" > /dev/null || exit 1
+fails=0; ok() { echo "PASS $*"; }; bad() { echo "FAIL $*"; fails=$((fails + 1)); }
+q() { "${P[@]}" -d $DB -c "$1"; }
+MIG="$REPO/sql/zella_provisioning_retry.sql"; RB="$REPO/sql/rollback/zella_provisioning_retry_rollback.sql"
+ACT=e5000000-0000-0000-0000-000000000001
+q "insert into auth.users (id, email) values ('$ACT', 'owner@zella.test')" > /dev/null
+IND=$(q "select i.id from public.industries i where i.is_active and (select count(*) from public.industry_modules m where m.industry_id = i.id and m.is_active) >= 2 order by i.name limit 1")
+mk() { q "select public.zella_create_business_draft('{\"name\": \"$1\", \"industry_id\": \"$IND\"}'::jsonb) ->> 'business_id'"; }
+fail() { q "select public.zella_track_provisioning('$1', '$2', 'failed', 'test failure')" > /dev/null; }
+B=$(mk "Retry Test Studio"); fail "$B" modules
+[ -z "$(q "select to_regprocedure('public.zella_retry_provisioning(uuid,text,uuid)')")" ] && ok "before: a failed step can't be retried (the gap)" || bad "before"
+"${P[@]}" -d $DB -f "$MIG" > /dev/null 2>&1 && ok "applies" || { bad "applies"; "${P[@]}" -d $DB -f "$MIG" 2>&1 | grep -v NOTICE | tail -3; exit 1; }
+"${P[@]}" -d $DB -f "$MIG" > /dev/null 2>&1 && ok "applies again (idempotent)" || bad "second apply"
+[ "$(q "select count(*) || ',' || bool_or(active)::text from cron.job where jobname = 'zella_provisioning_retry'")" = "1,false" ] && ok "the timed job exists once and is OFF" || bad "job"
+total=$(q "select count(*) from public.business_modules where business_id = '$B'")
+OFF=$(q "select module_id from public.business_modules where business_id = '$B' limit 1")
+q "update public.business_modules set enabled = false where business_id = '$B' and module_id = '$OFF'; delete from public.business_modules where business_id = '$B' and module_id <> '$OFF'" > /dev/null
+r=$(q "select public.zella_retry_provisioning('$B', 'modules', '$ACT') ->> 'added'")
+[ "$r" = "$((total - 1))" ] && [ "$(q "select count(*) from public.business_modules where business_id = '$B'")" = "$total" ] && [ "$(q "select enabled from public.business_modules where business_id = '$B' and module_id = '$OFF'")" = "f" ] && ok "modules: only the missing rows are added, a module turned off stays off" || bad "modules: $r"
+[ "$(q "select status from public.provisioning_steps where business_id = '$B' and step = 'modules'")" = "done" ] && [ "$(q "select count(*) from public.platform_alerts where kind = 'provisioning_failed' and business_id = '$B' and status <> 'resolved'")" = "0" ] && ok "the step is done and its alert resolved" || bad "modules status"
+[ "$(q "select user_id || ',' || (new_data ->> 'by') from public.audit_logs where action = 'provisioning.step_retried' and business_id = '$B'")" = "$ACT,admin" ] && ok "the retry is audited with the admin" || bad "audit"
+q "delete from public.ai_agent_configs where agent_id in (select id from public.ai_agents where business_id = '$B'); delete from public.ai_agents where business_id = '$B'" > /dev/null; fail "$B" receptionist
+r=$(q "select public.zella_retry_provisioning('$B', 'receptionist', '$ACT') ->> 'added'")
+[ "$r" = "2" ] && [ "$(q "select status from public.ai_agents where business_id = '$B'")" = "disabled" ] && [ "$(q "select count(*) from public.ai_agent_configs c join public.ai_agents a on a.id = c.agent_id where a.business_id = '$B'")" = "1" ] && ok "receptionist: a disabled receptionist and its settings are added" || bad "receptionist: $r"
+[ "$(q "select public.zella_retry_provisioning('$B', 'receptionist', '$ACT') ->> 'added'")" = "0" ] && ok "and a second retry adds nothing" || bad "receptionist again"
+fail "$B" automations
+r=$(q "select public.zella_retry_provisioning('$B', 'automations', '$ACT')")
+[ "$(q "select '$r'::jsonb ->> 'status'")" = "failed" ] && [ "$(q "select count(*) from public.automations where business_id = '$B'")" = "0" ] && ok "automations: nothing invented, the step stays failed with a note" || bad "automations: $r"
+q "insert into public.automations (business_id, name, trigger_type, status) values ('$B', 'Reminders', 'appointment_reminder', 'disabled')" > /dev/null
+[ "$(q "select public.zella_retry_provisioning('$B', 'automations', '$ACT') ->> 'status'")" = "done" ] && ok "with automations saved, the step is done" || bad "automations done"
+for s in owner_invitation finish integrations; do out=$(q "select public.zella_retry_provisioning('$B', '$s', '$ACT')" 2>&1); [[ "$out" == *NOT_INTERNAL* ]] || bad "$s retried: $out"; done
+ok "the owner invitation email and other steps are refused here (manual only)"
+C=$(mk "Cancelled Retry Studio"); q "update public.businesses set cancelled_at = now() where id = '$C'" > /dev/null
+out=$(q "select public.zella_retry_provisioning('$C', 'modules', null)" 2>&1); [[ "$out" == *CANCELLED* ]] && ok "a cancelled business is refused" || bad "cancelled: $out"
+# the timer
+T=$(mk "Timer Retry Studio"); NEW=$(mk "Fresh Failure Studio")
+q "delete from public.business_modules where business_id in ('$T', '$NEW')" > /dev/null
+fail "$T" modules; fail "$NEW" modules; fail "$T" owner_invitation
+q "update public.provisioning_steps set updated_at = now() - interval '2 hours' where business_id = '$T'" > /dev/null
+n=$(q "select public.zella_retry_provisioning_due()")
+[ "$n" = "1" ] && [ "$(q "select status from public.provisioning_steps where business_id = '$T' and step = 'modules'")" = "done" ] && [ "$(q "select status from public.provisioning_steps where business_id = '$T' and step = 'owner_invitation'")" = "failed" ] && [ "$(q "select status from public.provisioning_steps where business_id = '$NEW' and step = 'modules'")" = "failed" ] && ok "the timed run retries only failed internal steps over an hour old" || bad "timer: $n"
+[ "$(q "select new_data ->> 'by' from public.audit_logs where action = 'provisioning.step_retried' and business_id = '$T'")" = "timer" ] && ok "and is audited as the timer" || bad "timer audit"
+A=$(mk "Stubborn Studio"); q "delete from public.automations where business_id = '$A'" > /dev/null
+for i in 1 2 3 4; do fail "$A" automations; q "update public.provisioning_steps set updated_at = now() - interval '2 hours' where business_id = '$A'" > /dev/null; q "select public.zella_retry_provisioning_due()" > /dev/null; done
+[ "$(q "select count(*) from public.audit_logs where action = 'provisioning.step_retried' and business_id = '$A'")" = "3" ] && ok "at most 3 timed attempts per step" || bad "attempts: $(q "select count(*) from public.audit_logs where action = 'provisioning.step_retried' and business_id = '$A'")"
+g=$(q "select has_function_privilege('authenticated', 'public.zella_retry_provisioning(uuid,text,uuid)', 'execute')::text || has_function_privilege('anon', 'public.zella_retry_provisioning_due()', 'execute')::text")
+[ "$g" = "falsefalse" ] && ok "only the server may call either" || bad "grants: $g"
+"${P[@]}" -d $DB -f "$RB" > /dev/null 2>&1 && "${P[@]}" -d $DB -f "$RB" > /dev/null 2>&1 && ok "rollback runs twice" || bad "rollback"
+[ "$(q "select count(*) from cron.job where jobname = 'zella_provisioning_retry'")$(q "select count(*) from pg_proc where proname in ('zella_retry_provisioning', 'zella_retry_provisioning_due')")" = "00" ] && ok "rollback removes the job and both functions" || bad "after rollback"
+"${P[@]}" -d $DB -f "$MIG" > /dev/null 2>&1 && ok "applies again after the rollback" || bad "reapply"
+q "create or replace function public.zella_retry_provisioning_due() returns integer language sql as \$f\$ select 0 \$f\$" > /dev/null
+out=$("${P[@]}" -d $DB -f "$MIG" 2>&1); [[ "$out" == *VERSION_MISMATCH* ]] && ok "a changed function stops the file" || bad "drift: $out"
+out=$("${P[@]}" -d $DB -f "$RB" 2>&1); [[ "$out" == *ROLLBACK_DRIFT* ]] && ok "and stops the rollback" || bad "rollback drift: $out"
+echo
+[ $fails -eq 0 ] && echo "ALL PASSED" || { echo "$fails FAILED"; exit 1; }

@@ -188,6 +188,10 @@ most often needed:
   zella_track_provisioning. A deliberate refusal (bad input, or setup can't finish yet) is not a failed step and
   raises no alert; only an unexpected error or a failed invitation email is.
 
+- **Setup step retry (Lane B, SET-ONB-RETRY part 2, 16 Nov 2026):** only modules, the receptionist and automations
+  are retried, by Retry step or by the timed job zella_provisioning_retry (off until the owner switches it on, at most 3
+  tries each). The invitation email and provider steps are never retried on their own. Default, owner can change.
+
 Waiting on the owner:
 
 - whether suspended businesses keep read-only access (L-5);

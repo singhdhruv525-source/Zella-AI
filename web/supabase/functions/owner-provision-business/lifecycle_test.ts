@@ -360,3 +360,21 @@ Deno.test("trackSetup: a refusal answered with 503 (setup can't finish yet) is n
   await assertRejects(() => trackSetup(admin, "setup_finish", { businessId: A }, async () => { throw new InputError("The plan could not be checked", 503); }), InputError);
   assertEquals(log, ["zella_track_provisioning:finish:pending", "delete pending"]);
 });
+
+Deno.test("retry_step: only internal steps, with the admin as actor; database answers in words", async () => {
+  const calls: Call[] = [];
+  const ok = rpcAdmin(() => ({ data: { status: "done", added: 2, note: null }, error: null }), calls);
+  assertEquals(await lifecycleHandlers(ok, { businessId: A, step: "modules" }, kit, "actor", "support_admin").handlers.retry_step(),
+    { businessId: A, step: "modules", status: "done", added: 2, note: null });
+  assertEquals(calls[0], { fn: "zella_retry_provisioning", args: { p_business: A, p_step: "modules", p_actor: "actor" } });
+  for (const [step, words] of [["owner_invitation", "Send owner invite"], ["finish", "Continue setup"], ["integrations", "Continue setup"]]) {
+    const c: Call[] = [];
+    await assertRejects(() => lifecycleHandlers(rpcAdmin(() => ({ data: null, error: null }), c), { businessId: A, step }, kit, "actor").handlers.retry_step(), InputError, words);
+    assertEquals(c.length, 0);
+  }
+  for (const [message, code, status] of [["NOT_FOUND", "P0001", 404], ["CANCELLED", "P0001", 409], ["missing", "PGRST202", 503]] as const) {
+    const err = await assertRejects(() => lifecycleHandlers(rpcAdmin(() => ({ data: null, error: { message, code } }), []), { businessId: A, step: "receptionist" }, kit, "actor").handlers.retry_step(), InputError);
+    assertEquals((err as InputError).status, status);
+  }
+  await assertRejects(() => lifecycleHandlers(ok, { businessId: "x", step: "modules" }, kit).handlers.retry_step(), InputError, "valid business");
+});

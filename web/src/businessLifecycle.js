@@ -34,3 +34,11 @@ export function documentRequestNotice(r) {
   if (r?.email === "not_installed") return `Request saved for ${name} in the audit log. Email isn't live yet, so tell the owner yourself.`;
   return `Request saved for ${name} in the audit log. There's no owner email address, so tell the owner yourself.`;
 }
+
+// SET-ONB-RETRY: what a person can do about a failed setup step. "retry" for internal steps (Retry step), "resend" for
+// the owner invitation email, "setup" (Continue setup) for anything else. The server has the same list.
+export const RETRYABLE_STEPS = ["modules", "receptionist", "automations"];
+export function retryAction(step) {
+  if (RETRYABLE_STEPS.includes(step)) return "retry";
+  return step === "owner_invitation" ? "resend" : "setup";
+}

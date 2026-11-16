@@ -34,3 +34,9 @@ test("documents requests: hours to wait, and what happened in words", async () =
   assert.match(documentRequestNotice({ name: "Glow", email: "not_installed" }), /Email isn't live yet/);
   assert.match(documentRequestNotice({ name: "Glow", email: "no_address" }), /no owner email address/);
 });
+
+test("a failed step offers Retry step only for internal steps", async () => {
+  const { retryAction } = await import("../src/businessLifecycle.js");
+  assert.deepEqual(["modules", "receptionist", "automations", "owner_invitation", "finish", "integrations"].map(retryAction),
+    ["retry", "retry", "retry", "resend", "setup", "setup"]);
+});
