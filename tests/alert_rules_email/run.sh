@@ -20,6 +20,9 @@ for d in $DB $REF; do
   for f in zella_writing_cleanup zella_cancellations_scheduled zella_admin_permissions zella_admin_mfa zella_support_notes zella_status_honest; do
     "${P[@]}" -d $d -f "$REPO/sql/$f.sql" > /dev/null 2>&1 || { bad "$f on $d"; exit 1; }
   done
+  # production's zella_claim_admin_alert_email (read 16 Nov 2026: per admin opt out, a claim retried at most 3 times),
+  # which differs from the template's copy
+  "${P[@]}" -d $d -f "$HERE/prod_claim_admin_alert_email.sql" > /dev/null 2>&1 || { bad "production claim on $d"; exit 1; }
   "${P[@]}" -d $d -c "insert into auth.users (id, email, email_confirmed_at) values ('$OWNER', 'owner@email.test', now()), ('$OPS', 'ops@email.test', now()), ('$SUP', 'support@email.test', now()), ('$QUIET', 'optout@email.test', now());
      insert into public.platform_admins (user_id, role) values ('$OWNER', 'zella_owner'), ('$OPS', 'platform_operations'), ('$SUP', 'support_admin'), ('$QUIET', 'zella_owner');
      insert into public.admin_alert_prefs (user_id, email_enabled) values ('$QUIET', false);
@@ -36,6 +39,7 @@ fp() { q "select md5(pg_get_functiondef('public.zella_claim_admin_alert_email(in
 A=e8100000-0000-0000-0000-0000000000
 for d in $DB $REF; do add ${A}01 w_plain warning 5 $d; add ${A}02 w_plain urgent 4 $d; add ${A}03 w_info info 3 $d; done
 before=$(fp)
+[ "$(q "select md5(pg_get_functiondef('public.zella_claim_admin_alert_email(integer)'::regprocedure))")" = "cd96d330aa78de5fbb9e4091e1ab77c1" ] && ok "the test starts from production's version (cd96d330)" || bad "not production's version"
 "${P[@]}" -d $DB -f "$REPO/sql/zella_alert_rules.sql" > /dev/null 2>&1 || { bad "alert rules part 1"; exit 1; }
 "${P[@]}" -d $DB -f "$REPO/sql/zella_alert_rules_email.sql" > /dev/null 2>&1 && ok "applies after the alert rules" || { bad "applies"; "${P[@]}" -d $DB -f "$REPO/sql/zella_alert_rules_email.sql" 2>&1 | tail -3; exit 1; }
 "${P[@]}" -d $DB -f "$REPO/sql/zella_alert_rules_email.sql" > /dev/null 2>&1 && ok "applies again (idempotent)" || bad "second apply"
@@ -81,6 +85,12 @@ add ${A}35 w_nobody warning 2
 g4=$(claim | python3 -I -c "import json,sys; d=json.load(sys.stdin); print(','.join(sorted(d['to'])))")
 [ "$g4" = "ops@email.test,support@email.test" ] && ok "when nobody holds the permission, every admin gets it, so it is never lost" || bad "nobody: $g4"
 [[ "$g1$g2$g3$g4" != *optout@* ]] && ok "an admin who opted out never gets one" || bad "opt out ignored"
+# production's retry: a claim that never finished is taken again after 15 minutes, at most 3 tries in all
+q "delete from public.platform_alerts; delete from public.platform_alert_rules" > /dev/null
+q "update public.platform_admins set is_active = true" > /dev/null
+add ${A}41 w_retry warning 30; add ${A}42 w_retry warning 30
+q "update public.platform_alerts set notified_at = now() - interval '20 minutes', meta = jsonb_build_object('email_claimed_at', now() - interval '20 minutes', 'email_attempts', case when id = '${A}41' then 1 else 2 end)" > /dev/null
+[ "$(ids)" = "41" ] && [ "$(q "select meta ->> 'email_attempts' from public.platform_alerts where id = '${A}41'")" = "2" ] && ok "a claim that never finished is retried, at most 3 tries in all (kept from production)" || bad "retry: $(q "select id, meta from public.platform_alerts")"
 v=$("${P[@]}" -d $DB -c "set role authenticated" -c "select public.zella_claim_admin_alert_email(5)" 2>&1); [[ "$v" == *"permission denied"* ]] && ok "only the server may claim" || bad "authenticated claims"
 q "update public.platform_admins set is_active = true" > /dev/null
 

@@ -9,7 +9,7 @@ begin
      or not exists (select 1 from public.zella_function_archive where migration = 'zella_alert_rules_email') then
     return;   -- not applied, or already rolled back
   end if;
-  if md5(pg_get_functiondef(s::regprocedure)) <> '0c88da14477561005a9a0be351e5b101' then
+  if md5(pg_get_functiondef(s::regprocedure)) <> '098de63ccdfe5d723ce9d20ea8b1b801' then
     raise exception 'ROLLBACK_DRIFT: % has changed since this migration', s;
   end if;
   for a in select definition from public.zella_function_archive where migration = 'zella_alert_rules_email' loop

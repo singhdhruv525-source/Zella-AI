@@ -9,7 +9,8 @@
 --     holds every one); when nobody holds it, every admin gets it, so an alert is never lost;
 --   * one call claims one group of recipients (the group of the most urgent waiting alert), so the n8n Admin Alerts
 --     workflow keeps sending one digest to "to" and is unchanged; the next run takes the next group.
--- Nothing else changes: the same live switch, sender and opt out checks, limits, order and answer (plus "group").
+-- Nothing else changes: the same live switch, sender and per admin opt out checks, the same retry of a claim that
+-- never finished (at most 3 tries in all), limits, order and answer (plus "group").
 -- Archived first; must match production's version (16 Nov 2026). Email only goes out once email_live is on.
 -- Rollback: sql/rollback/zella_alert_rules_email_rollback.sql
 begin;
@@ -21,10 +22,10 @@ begin
     raise exception 'VERSION_MISMATCH: something this file needs is missing (apply sql/zella_alert_rules.sql first)';
   end if;
   d := pg_get_functiondef(s::regprocedure);
-  if md5(d) = '93b8333cf501c0a1406afa4f2c055fd1' then          -- production's version: archive it for the rollback
+  if md5(d) = 'cd96d330aa78de5fbb9e4091e1ab77c1' then          -- production's version: archive it for the rollback
     insert into public.zella_function_archive (migration, signature, definition, definition_md5)
     values ('zella_alert_rules_email', s, d, md5(d)) on conflict (migration, signature) do nothing;
-  elsif md5(d) <> '0c88da14477561005a9a0be351e5b101' then                               -- nor exactly this file's version (already applied)
+  elsif md5(d) <> '098de63ccdfe5d723ce9d20ea8b1b801' then                               -- nor exactly this file's version (already applied)
     raise exception 'VERSION_MISMATCH: % is not a version this file was written for', s;
   end if;
 end $$;
@@ -59,13 +60,16 @@ begin
                               'why', case when not v_live then 'email_off' when v_from is null then 'no_sender' else 'no_admins' end);
   end if;
   -- the alert rules (sql/zella_alert_rules.sql): bell only kinds are handled without an email; urgent alerts always email
-  update public.platform_alerts a set notified_at = now(), meta = a.meta || jsonb_build_object('email_skipped', 'bell_only')
+  update public.platform_alerts a set notified_at = now(), meta = coalesce(a.meta, '{}'::jsonb) || jsonb_build_object('email_skipped', 'bell_only')
     from public.platform_alert_rules r
    where r.kind = a.kind and r.destination = 'bell' and a.severity <> 'urgent' and a.notified_at is null and a.status = 'open';
   -- the most urgent alert that may go now (a quiet window holds warning and info, never urgent) picks the recipients
   select s.id, r.email_permission into v_first
     from public.platform_alerts s left join public.platform_alert_rules r on r.kind = s.kind
-   where s.notified_at is null and s.status = 'open'
+   where s.status = 'open'
+     and (s.notified_at is null
+          or (s.meta ? 'email_claimed_at' and not s.meta ? 'emailed_at' and s.notified_at < now() - interval '15 minutes'
+              and coalesce((s.meta ->> 'email_attempts')::int, 0) < 2))
      and (s.severity = 'urgent' or r.kind is null or not public.zella_alert_quiet_now(r.quiet_start, r.quiet_end, r.quiet_tz))
    order by case s.severity when 'urgent' then 0 when 'warning' then 1 else 2 end, s.first_seen_at limit 1;
   if v_first.id is null then
@@ -82,11 +86,18 @@ begin
     if jsonb_array_length(v_group_to) > 0 then v_to := v_group_to; end if;
   end if;
   with c as (
-    update public.platform_alerts a set notified_at = now()
+    update public.platform_alerts a set notified_at = now(),
+           meta = coalesce(a.meta, '{}'::jsonb) || jsonb_build_object('email_claimed_at', now())
+                  || case when a.notified_at is null then '{}'::jsonb
+                          else jsonb_build_object('email_attempts', coalesce((a.meta ->> 'email_attempts')::int, 0) + 1) end
     where a.id in (select s.id from public.platform_alerts s left join public.platform_alert_rules r on r.kind = s.kind
-                   where s.notified_at is null and s.status = 'open'
+                   where s.status = 'open'
                      and r.email_permission is not distinct from v_group
                      and (s.severity = 'urgent' or r.kind is null or not public.zella_alert_quiet_now(r.quiet_start, r.quiet_end, r.quiet_tz))
+                     and (s.notified_at is null
+                          -- claimed by this version, never finished (no emailed_at), retried at most 3 times in all
+                          or (s.meta ? 'email_claimed_at' and not s.meta ? 'emailed_at' and s.notified_at < now() - interval '15 minutes'
+                              and coalesce((s.meta ->> 'email_attempts')::int, 0) < 2))
                    order by case s.severity when 'urgent' then 0 when 'warning' then 1 else 2 end, s.first_seen_at
                    limit greatest(1, least(coalesce(p_limit, 25), 50)) for update of s skip locked)
     returning a.id, a.kind, a.severity, a.title, a.detail, a.occurrences, a.first_seen_at, a.last_seen_at, a.business_id)
