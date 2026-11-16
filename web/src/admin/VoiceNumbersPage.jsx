@@ -384,7 +384,7 @@ function Providers({ me }) {
       {o && o.auth_mode && (
         <Panel title="Vapi sign in check" description="How requests from Vapi are checked, and how many failed. Only the message type, the reason and the header names of a refused request are kept.">
           <Facts rows={[["How requests are checked", <span key="m" title={`Setting vapi_auth_mode (${o.auth_mode})`}>{voiceSwitches(o.switches)?.find((r) => r.key === "vapi_auth_mode")?.value ?? "Unknown"}</span>],
-            ["Refused in the last 24 hours", num(o.refusals_24h)], ["Last refused", o.last_refusal_at ? when(o.last_refusal_at) : "None"]]} />
+            ["Refused in the last 24 hours", num(o.refusals_24h)], ["Last refused", o.last_refusal_at ? when(o.last_refusal_at) : "No refusals"]]} />
         </Panel>
       )}
       <div className="zs ao-embed">
