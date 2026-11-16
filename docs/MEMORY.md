@@ -150,6 +150,12 @@ most often needed:
   workflow and node names and internal reason codes (only admins see them in n8n; renaming means a re-import).
   The industry "E-commerce" is shown as "Ecommerce".
 
+- **One list of audit actions, alert kinds and permissions (PLT-08, 16 Nov 2026):** they live in
+  `web/supabase/functions/_shared/catalog.json`. `tests/catalog/drift_test.mjs` runs in `npm run lint` and fails when SQL,
+  an edge function module, n8n or the web app uses a name that isn't listed, or a listed name is no longer used. No CI
+  yet: adding GitHub Actions is the owner's choice. The web labels still come from `web/src/ownerFormat.js` until the
+  Businesses list job merges; then they are read from the list.
+
 - **Unsubscribe link limits (G-7, 14 Nov 2026):** limits are per link only, never platform-wide or per address (a burst
   of genuine opt-outs after a big email must never be refused), and the limit never stops an opt-out.
 
@@ -252,3 +258,4 @@ Waiting on the owner:
 | Going live | `docs/GO_LIVE.md`, `n8n/GO-LIVE.md` |
 | Undoing a migration | `sql/rollback/README.md` |
 | Running tests | each `tests/*/README.md` |
+| Audit action, alert kind and permission names | `web/supabase/functions/_shared/catalog.json`, `tests/catalog/README.md` |

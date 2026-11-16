@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "lint": "oxlint && node scripts/check-dashes.mjs",
+    "lint": "oxlint && node scripts/check-dashes.mjs && node ../tests/catalog/drift_test.mjs && node --test --test-reporter=dot ../tests/catalog/scan.test.mjs",
     "preview": "vite preview",
     "check:writing": "node scripts/check-dashes.mjs --list"
   },

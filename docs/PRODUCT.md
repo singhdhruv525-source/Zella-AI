@@ -334,9 +334,9 @@ platform alerts live.
 
 Opened from Businesses. What each tab shows and what an admin can do there:
 
-- **Activity:** admin and system changes to this business, each with a readable label (`web/src/copy/auditActions.js`;
-  a test fails when SQL or the admin function writes an action without one, BIZ-25). Changes the database records on
-  its own read as, for example, "Changed business (system record)".
+- **Activity:** admin and system changes to this business, each with a readable label from the shared catalog
+  (`web/supabase/functions/_shared/catalog.json`, read by `web/src/copy/auditActions.js`, BIZ-25). Changes the
+  database records on its own name the table, for example "Changed business (system record)".
   Only admins with `audit.view` get it: the server leaves the list and who did each action out for anyone else
   (BIZ-04).
 - **Contact details:** caller numbers on Calls and the account email and error text of Live connections are masked
