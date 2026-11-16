@@ -40,3 +40,9 @@ test("a failed step offers Retry step only for internal steps", async () => {
   assert.deepEqual(["modules", "receptionist", "automations", "owner_invitation", "finish", "integrations"].map(retryAction),
     ["retry", "retry", "retry", "resend", "setup", "setup"]);
 });
+
+test("an export's state in words", async () => {
+  const { exportState } = await import("../src/businessLifecycle.js");
+  assert.deepEqual(["requested", "running", "ready", "failed", "expired", "odd"].map((status) => exportState({ status })[0]),
+    ["Waiting for approval", "Being prepared", "Ready to download", "Failed", "Expired", "Unknown"]);
+});

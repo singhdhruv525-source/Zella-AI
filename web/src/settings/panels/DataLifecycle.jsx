@@ -2,6 +2,7 @@ import { callOwnerFunction } from "../../CreateBusinessWizard";
 import { Card, Facts, LoadState, Needs, Pill, Table, useAsync, when, words } from "../SettingsKit";
 import { SettingNumber } from "../AdminPanels";
 import { retentionState } from "../../businessLifecycle";
+import BusinessExport from "./BusinessExport";
 
 // Settings > Data lifecycle (Lane B): how long a cancelled business's records are kept, every cancelled business with
 // its retention date, the ones past it (BIZ-13c), and customer data request counts. Read only: nothing on this page
@@ -32,8 +33,9 @@ export default function DataLifecycle({ me }) {
           <Card title="Customer data requests across businesses" sub="Counts only. Each business handles its own requests.">
             <Facts rows={[["Open", p.requests.open], ["Overdue", p.requests.overdue], ...Object.entries(p.requests.byKind).map(([k, v]) => [words(k), v])]} />
           </Card>
-          <Needs title="Whole business export and deletion jobs aren't built" have="Each business can export or erase individual customers (with a second approval). Canceled businesses are kept, never deleted automatically.">
-            Exporting or deleting a whole business needs a job that runs in the background, records its progress, and can be approved and stopped.
+          <BusinessExport me={me} />
+          <Needs title="Whole business deletion jobs aren't built" have="Each business can export or erase individual customers (with a second approval). Canceled businesses are kept, never deleted automatically.">
+            Deleting a canceled business's records waits for the owner and legal review of the retention period (BIZ-13d).
           </Needs>
         </>
       );

@@ -42,3 +42,10 @@ export function retryAction(step) {
   if (RETRYABLE_STEPS.includes(step)) return "retry";
   return step === "owner_invitation" ? "resend" : "setup";
 }
+
+// SET-DL-EXPORT: an export's state in words, with its pill tone.
+const EXPORT_STATES = { requested: ["Waiting for approval", "warning"], approved: ["Approved, waiting to run", "accent"], running: ["Being prepared", "accent"],
+  ready: ["Ready to download", "success"], failed: ["Failed", "danger"], rejected: ["Rejected", ""], expired: ["Expired", ""] };
+export function exportState(j) {
+  return EXPORT_STATES[j?.status] ?? ["Unknown", ""];
+}

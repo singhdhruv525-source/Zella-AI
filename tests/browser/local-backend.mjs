@@ -451,6 +451,10 @@ async function storage(req, url, body, claims, raw) {
   if (bucket && POLICY_BUCKETS[bucket]) return policyStorage(req, url, claims, raw);
   const obj = /^\/object\/(?:public\/|sign\/|authenticated\/)?([^/]+)\/(.+)$/.exec(path);
   if (req.method === "POST" && path.startsWith("/object/list/")) return { status: 200, json: [] };
+  // several at once (createSignedUrls: { paths }): one signed link per path, each to a file the stand in holds
+  if (req.method === "POST" && /^\/object\/sign\/[^/]+$/.test(path) && Array.isArray(body?.paths)) {
+    return { status: 200, json: body.paths.map((p) => files.has(`${bucket}/${p}`) ? { path: p, signedURL: `/object/public/${bucket}/${p}`, error: null } : { path: p, signedURL: null, error: "Object not found" }) };
+  }
   if (req.method === "POST" && path.startsWith("/object/sign/")) return { status: 200, json: { signedURL: `/storage/v1${path.replace("/sign/", "/public/")}` } };
   if (obj && (req.method === "POST" || req.method === "PUT")) { files.set(`${obj[1]}/${obj[2]}`, { body, type: req.headers["content-type"] }); return { status: 200, json: { Key: `${obj[1]}/${obj[2]}`, Id: crypto.randomUUID() } }; }
   if (obj && req.method === "GET") { const f = files.get(`${obj[1]}/${obj[2]}`); return f ? { status: 200, raw: f.body, type: f.type } : { status: 404, json: { message: "Object not found" } }; }

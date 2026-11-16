@@ -197,6 +197,9 @@ most often needed:
   Never in an export: secret tables and columns, recording links, and transcripts in sensitive industries. Default,
   owner can change.
 
+- **Export worker limit (Lane B, 16 Nov 2026):** each worker run has about 2 minutes; a run that runs out hands the job
+  back and the next resumes, but each run counts as one of the 3 tries. A very large business may need the limit raised.
+
 Waiting on the owner:
 
 - whether suspended businesses keep read-only access (L-5);
