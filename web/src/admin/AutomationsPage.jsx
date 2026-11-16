@@ -5,6 +5,8 @@ import {
   AlertList, DataTable, Drawer, ErrorNote, Facts, Filters, Metric, NotAvailable, PAGE, PageHeader, Pager, Panel, PERIODS, Pill,
   ReasonDialog, Search, Select, Tabs, can, duration, num, pct, rpc, since, useLoad, useOptions, useToast, when, words,
 } from "./adminOps";
+import ScheduledJobs from "./ScheduledJobs";
+import { answersByWorkflow, dispatchAnswer } from "./dispatchAnswer";
 
 // Admin page: every business's automations, what they ran, what failed and the scheduler that drives them. Data
 // comes from the zella_admin_* functions (sql/zella_admin_ops.sql). Pausing, resuming and retrying change the
@@ -291,17 +293,13 @@ function Templates() {
 
 function Infrastructure() {
   const h = useLoad(() => rpc("zella_admin_scheduler_health"), []);
+  // n8n's answer per workflow (OPS-17); until sql/zella_dispatch_response.sql is applied the column reads Not available
+  const answers = useLoad(() => rpc("zella_admin_dispatch_responses"), []);
+  const byWorkflow = answersByWorkflow(answers.data);
   const s = h.data;
   return (
     <>
-      <Panel title="Scheduled jobs" description="Jobs inside the database. They find due work and hand it to n8n." action={<button type="button" className="owner-secondary-button" onClick={h.reload}>Refresh</button>}>
-        <ErrorNote error={h.error} onRetry={h.reload} />
-        {s && <DataTable error={h.error} rows={s.jobs} rowKey={(j) => j.name} empty="No Zella Voice jobs found."
-          columns={[["Job", (j) => <code>{j.name}</code>], ["Schedule", (j) => <code>{j.schedule}</code>], ["State", (j) => <Pill tone={j.active ? "success" : "neutral"}>{j.active ? "Running" : "Off"}</Pill>],
-            ["Last run", (j) => (j.last_run ? <span><Pill tone={j.last_run.status === "succeeded" ? "success" : "danger"}>{words(j.last_run.status)}</Pill> {when(j.last_run.at)}</span> : "Never")],
-            ["Last success", (j) => when(j.last_success, "Never")], ["Failures (24 h)", (j) => (j.failures_24h ? <Pill tone="danger">{j.failures_24h}</Pill> : 0)]]} />}
-        <p className="op-muted">Jobs are switched on at go live, following the n8n go live guide, not from this page, so a click can't start sending to customers.</p>
-      </Panel>
+      <ScheduledJobs health={h} />
       {s && (
         <Panel title="Queue">
           <div className="owner-stat-grid ao-stats">
@@ -313,6 +311,8 @@ function Infrastructure() {
           </div>
           <DataTable error={h.error} rows={s.dispatch} rowKey={(d) => d.workflow} empty="Nothing has been handed to n8n yet."
             columns={[["n8n workflow", (d) => words(d.workflow)], ["Last handed over", (d) => when(d.last_triggered_at, "Never")], ["Waiting then", (d) => num(d.waiting)],
+              ["n8n answer", (d) => { const a = dispatchAnswer(byWorkflow.get(d.workflow));
+                return a ? <span data-answer={a.kind}><Pill tone={a.tone}>{a.label}</Pill>{byWorkflow.get(d.workflow)?.answered_at ? ` ${when(byWorkflow.get(d.workflow).answered_at)}` : ""}</span> : <span className="op-muted">Not available</span>; }],
               ["Total", (d) => num(d.total)], ["Attention", (d) => d.stuck && <Pill tone="warning">Looks stuck</Pill>]]} />
         </Panel>
       )}
