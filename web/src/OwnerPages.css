@@ -1132,6 +1132,11 @@
 .ao-pager { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 12px; font-size: 13px; }
 .ao-table td { vertical-align: top; }
 .ao-clickable { cursor: pointer; }
+/* a stat tile that opens the list behind its number (Voice overview, UI-14) */
+.ao-tile { display: block; width: 100%; padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; border-radius: var(--zella-radius-lg); }
+.ao-tile .owner-stat-card { height: 100%; }
+.ao-tile:hover .owner-stat-card { border-color: var(--color-primary); }
+.ao-tile:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
 .ao-clickable:hover td, .ao-clickable:focus-visible td { background: var(--color-primary-subtle); }
 .ao-flags { display: inline-flex; flex-wrap: wrap; gap: 4px; }
 .ao-error { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }

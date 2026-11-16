@@ -7,6 +7,7 @@ import {
   AlertList, DataTable, Drawer, ErrorNote, Facts, Filters, Metric, NotAvailable, PAGE, PageHeader, Pager, Panel, PERIODS, Pill,
   ProviderHealth, ReasonDialog, Search, Select, Tabs, Toggle, can, duration, num, pct, rpc, since, useLoad, useOptions, useToast, when, words,
 } from "./adminOps";
+import { alertCallFilter, initialCallFilter, tileFilter, voiceSwitches } from "./voiceView";
 
 // Admin page: every business's phone numbers, its calls and its call routing, from the database (zella_admin_*
 // functions in sql/zella_admin_ops.sql). Assigning and pausing numbers goes through the owner function, as before.
@@ -36,7 +37,7 @@ export default function VoiceNumbersPage({ me, sub, onOpenBusiness }) {
       <Tabs tabs={TABS} current={tab} onChange={setTab} />
       {tab === "overview" && <Overview onTab={setTab} onOpenCalls={openCalls} />}
       {tab === "numbers" && <Numbers key={refresh} me={me} options={options.data} onAssign={setAssign} onOpenCalls={openCalls} say={say} onOpenBusiness={onOpenBusiness} />}
-      {tab === "calls" && <Calls me={me} options={options.data} initial={callFilter} onOpenBusiness={onOpenBusiness} />}
+      {tab === "calls" && <Calls key={JSON.stringify(callFilter)} me={me} options={options.data} initial={callFilter} onOpenBusiness={onOpenBusiness} />}
       {tab === "routing" && <Routing me={me} options={options.data} say={say} />}
       {tab === "providers" && <Providers me={me} />}
       {assign && <AssignDialog edit={assign} options={options.data} onClose={() => setAssign(null)} onDone={(m) => { say(m); setRefresh((n) => n + 1); setTab("numbers"); }} />}
@@ -61,14 +62,15 @@ function Overview({ onTab, onOpenCalls }) {
         <>
           {!o.calls_live && <NotAvailable title="Outbound AI calls are off" tip={switchHint("calls_live")}>Zella Voice places no outbound calls until they are switched on at go live. Inbound calls are answered by each business's receptionist once its number is linked in Vapi.</NotAvailable>}
           <div className="owner-stat-grid ao-stats">
-            <Metric label="Active numbers" value={num(o.numbers_active)} note={o.numbers_paused ? `${o.numbers_paused} paused` : "None paused"} />
-            <Metric label="Inbound calls" value={num(o.inbound)} note={o.answer_rate == null ? "No answer rate yet" : `Answer rate ${pct(o.answer_rate)}`} />
-            <Metric label="Outbound calls" value={num(o.outbound)} />
+            <Tile onOpen={() => onTab("numbers")} label="Open the numbers"><Metric label="Active numbers" value={num(o.numbers_active)} note={o.numbers_paused ? `${o.numbers_paused} paused` : "None paused"} /></Tile>
+            <Tile onOpen={() => onOpenCalls(tileFilter("inbound", days))} label="Open the inbound calls"><Metric label="Inbound calls" value={num(o.inbound)} note={o.answer_rate == null ? "No answer rate yet" : `Answer rate ${pct(o.answer_rate)}`} /></Tile>
+            <Tile onOpen={() => onOpenCalls(tileFilter("outbound", days))} label="Open the outbound calls"><Metric label="Outbound calls" value={num(o.outbound)} /></Tile>
             <Metric label="In progress now" value={num(o.in_progress)} />
-            <Metric label="Completed" value={num(o.completed)} note={`Average ${duration(o.avg_seconds)}`} />
-            <Metric label="Missed" value={num(o.missed)} tone={o.missed ? "warning" : null} />
-            <Metric label="Failed" value={num(o.failed)} tone={o.failed ? "danger" : null} />
+            <Tile onOpen={() => onOpenCalls(tileFilter("completed", days))} label="Open the completed calls"><Metric label="Completed" value={num(o.completed)} note={`Average ${duration(o.avg_seconds)}`} /></Tile>
+            <Tile onOpen={() => onOpenCalls(tileFilter("missed", days))} label="Open the missed calls"><Metric label="Missed" value={num(o.missed)} tone={o.missed ? "warning" : null} /></Tile>
+            <Tile onOpen={() => onOpenCalls(tileFilter("failed", days))} label="Open the failed calls"><Metric label="Failed" value={num(o.failed)} tone={o.failed ? "danger" : null} /></Tile>
             <Metric label="Transfers that didn't connect" value={num(o.transfers_failed)} tone={o.transfers_failed ? "warning" : null} />
+            {o.refusals_24h != null && <Tile onOpen={() => onTab("providers")} label="Open Providers for the Vapi sign in check"><Metric label="Refused Vapi requests (24 h)" value={num(o.refusals_24h)} tone={o.refusals_24h ? "warning" : null} note={o.last_refusal_at ? `Last ${when(o.last_refusal_at)}` : "None"} /></Tile>}
           </div>
           {o.numbers_active === 0 && (
             <NotAvailable title="No phone numbers yet">Numbers bought in Telnyx or Vapi are assigned to a business with "Assign a number". Until then no calls can reach Zella Voice.</NotAvailable>
@@ -81,14 +83,39 @@ function Overview({ onTab, onOpenCalls }) {
       <div className="ao-two">
         <Panel title="Needs attention" description="From provider checks, numbers and the last 24 hours of calls.">
           <ErrorNote error={alerts.error} onRetry={alerts.reload} />
-          <AlertList error={alerts.error} alerts={alerts.data} onOpen={(a) => (a.link === "calls" ? onOpenCalls({ business: a.business_id ?? null, failedOnly: a.kind !== "call_volume_spike" }) : onTab(a.link))} />
+          <AlertList error={alerts.error} alerts={alerts.data} onOpen={(a) => (a.link === "calls" ? onOpenCalls(alertCallFilter(a)) : onTab(a.link))} />
         </Panel>
         <Panel title="Providers" description="Zella Voice's own checks of each provider, run by the provider health job." action={<button type="button" className="owner-secondary-button" onClick={() => onTab("providers")}>Keys and costs</button>}>
           {o && <ProviderHealth rows={o.providers} checksLive={o.checks_live} names={[["vapi", "Vapi", "AI voice and phone numbers"], ["telnyx", "Telnyx", "Numbers and carrier"]]} />}
           {o && !o.checks_live && <NotAvailable title="Provider checks are off" tip={switchHint("provider_checks_live")}>The provider health job isn't switched on, so connection status is unknown rather than healthy. A "test connection" button isn't offered because it would need the provider keys in the browser.</NotAvailable>}
         </Panel>
       </div>
+      {o && <Switches o={o} />}
     </>
+  );
+}
+
+// A tile that opens the list behind its number (UI-14)
+function Tile({ onOpen, label, children }) {
+  return <button type="button" className="ao-tile" onClick={onOpen} aria-label={label}>{children}</button>;
+}
+
+// COM-13: the switches calls depend on, read only. Switching any of them is the owner's live switch at go live.
+function Switches({ o }) {
+  const rows = voiceSwitches(o.switches);
+  return (
+    <Panel title="Switches" description="What calls depend on, read only. Each one is switched by the owner at go live, not from this page.">
+      {rows ? (
+        <ul className="op-list" data-voice-switches>
+          {rows.map((r) => (
+            <li key={r.key} data-switch={r.key}>
+              <div><strong title={r.hint}>{r.label}</strong></div>
+              <Pill tone={r.tone}>{r.value}</Pill>
+            </li>
+          ))}
+        </ul>
+      ) : <NotAvailable title="Switches need a database update">Once the voice admin update is applied, this lists the call switches and jobs.</NotAvailable>}
+    </Panel>
   );
 }
 
@@ -189,7 +216,7 @@ function AssignDialog({ edit: initial, options, onClose, onDone }) {
 }
 
 function Calls({ me, options, initial, onOpenBusiness }) {
-  const [f, setF] = useState({ days: 30, business: initial?.business ?? null, direction: null, status: null, outcome: null, failedOnly: Boolean(initial?.failedOnly), q: initial?.q ?? "", offset: 0 });
+  const [f, setF] = useState(() => initialCallFilter(initial));
   const set = (k) => (v) => setF((x) => ({ ...x, [k]: v, offset: 0 }));
   const setQ = useCallback((v) => setF((x) => ({ ...x, q: v, offset: 0 })), []);
   const list = useLoad(() => rpc("zella_admin_calls", {
@@ -350,8 +377,16 @@ function RoutingForm({ businessId, manage, say }) {
 
 // Keys, costs and usage. The connection checks are on the Overview tab only (UI-18), so they aren't repeated here.
 function Providers({ me }) {
+  const ov = useLoad(() => rpc("zella_admin_voice_overview", { p_from: since(1), p_to: null }), []);
+  const o = ov.data;
   return (
     <>
+      {o && o.auth_mode && (
+        <Panel title="Vapi sign in check" description="How requests from Vapi are checked, and how many failed. Only the message type, the reason and the header names of a refused request are kept.">
+          <Facts rows={[["How requests are checked", <span key="m" title={`Setting vapi_auth_mode (${o.auth_mode})`}>{voiceSwitches(o.switches)?.find((r) => r.key === "vapi_auth_mode")?.value ?? "Unknown"}</span>],
+            ["Refused in the last 24 hours", num(o.refusals_24h)], ["Last refused", o.last_refusal_at ? when(o.last_refusal_at) : "None"]]} />
+        </Panel>
+      )}
       <div className="zs ao-embed">
         <TelephonyProviders />
         <VoiceUsage />
