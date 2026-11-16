@@ -1,5 +1,5 @@
 import { latestOwnerInvitation, moveOwnerInvitation } from "./ownerInvitation.ts";
-import { FinishError, finishSetupWith } from "./owner_invite.ts";
+import { APP_URL_MISSING, FinishError, appUrlUsable, finishSetupWith } from "./owner_invite.ts";
 import { fallbackPatch, sameLine, toE164, transferPatch } from "./setup_sync.ts";
 import { withCors } from "../_shared/cors.ts";
 import { readJsonLimited } from "../_shared/body.ts";
@@ -244,6 +244,34 @@ const AUTOMATION_TYPES = Object.keys(AUTOMATIONS) as AutomationType[];
 // (Platform admins are still sent to the admin sign-in.)
 function ownerWelcomeUrl(appUrl: string) {
   return `${appUrl.replace(/\/+$/, "")}/welcome`;
+}
+
+// Sends the owner's email for an invitation: a new person gets Supabase's invitation (they choose a password); a person
+// who already has a Zella Voice account gets a sign in link to the same address instead, because Supabase refuses to
+// invite an existing account. Either way the caller links the account to the invitation and adds the owner as an
+// invited member, so signing in through the link accepts it (zella_accept_my_invitations needs a session proved by
+// an email link). Callers check the app address first; no address or provider text is logged (PRV-7).
+async function sendOwnerEmail(admin: SupabaseClient, email: string, name: string | null, businessId: string, appUrl: string):
+  Promise<{ userId: string; existingAccount?: boolean } | { error: string }> {
+  const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
+    data: { full_name: name, business_id: businessId },
+    redirectTo: ownerWelcomeUrl(appUrl),
+  });
+  if (!error && data?.user) return { userId: data.user.id };
+  if (!/already|registered|exists/i.test(error?.message ?? "")) {
+    console.error("Owner invitation failed", error?.name ?? "unknown", error?.status ?? "");
+    return { error: error?.message ?? "Invitation email could not be sent" };
+  }
+  const existing = await findUserByEmail(admin, email.toLowerCase());
+  if (!existing) return { error: "This email already has a Zella Voice account, but it couldn't be found. Please try again." };
+  const publicClient = createClient(Deno.env.get("SUPABASE_URL") ?? "",
+    Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ?? "", { auth: { persistSession: false } });
+  const { error: linkError } = await publicClient.auth.signInWithOtp({ email, options: { shouldCreateUser: false, emailRedirectTo: ownerWelcomeUrl(appUrl) } });
+  if (linkError) {
+    console.error("Owner sign in link failed", linkError.name ?? "unknown", linkError.status ?? "");
+    return { error: "The sign in link could not be sent. Please try again." };
+  }
+  return { userId: existing.id, existingAccount: true };
 }
 
 // ---------------------------------------------------------------------------
@@ -1056,17 +1084,9 @@ async function finishSetup(admin: SupabaseClient, fields: Json) {
         if (error) throw new FinishError("The plan could not be checked. Make sure billing is set up, then try again.", 503);
         return (data ?? []).length > 0;
       },
+      appUrlSet: () => appUrlUsable(Deno.env.get("ZELLA_APP_URL")) !== null,
       claim: (id) => moveOwnerInvitation(admin, id, { status: "sent", last_error: null, updated_at: iso() }),
-      async sendInvite(email, name) {
-        const appUrl = Deno.env.get("ZELLA_APP_URL");
-        const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
-          data: { full_name: name, business_id: businessId },
-          ...(appUrl ? { redirectTo: ownerWelcomeUrl(appUrl) } : {}),
-        });
-        // no address or provider text in the log (PRV-7)
-        if (error || !data?.user) { console.error("Owner invitation failed", error?.name ?? "unknown", error?.status ?? ""); return { error: error?.message ?? "Invitation email could not be sent" }; }
-        return { userId: data.user.id };
-      },
+      sendInvite: (email, name) => sendOwnerEmail(admin, email, name, businessId, appUrlUsable(Deno.env.get("ZELLA_APP_URL")) as string),
       async release(id, reason) {
         // only our own claim (still 'sent', no account yet) goes back to 'failed', so Retry can send it
         await admin.from("business_invitations").update({ status: "failed", last_error: reason, updated_at: iso() })
@@ -1956,7 +1976,7 @@ async function requireOwner(admin: SupabaseClient, userId: string) {
 }
 
 async function findUserByEmail(admin: SupabaseClient, email: string) {
-  for (let page = 1; page <= 20; page++) {
+  for (let page = 1; ; page++) {
     const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
     if (error) throw error;
     const users = data?.users ?? [];
@@ -1964,7 +1984,6 @@ async function findUserByEmail(admin: SupabaseClient, email: string) {
     if (match) return match;
     if (users.length < 1000) return null;
   }
-  return null;
 }
 
 async function adminsList(admin: SupabaseClient, userId: string) {
@@ -2735,6 +2754,9 @@ async function invitationResend(admin: SupabaseClient, fields: Json) {
   if (invitationError) throw invitationError;
   if (!invitation) throw new InputError("This business has no owner invitation yet");
   if (invitation.status === "accepted") throw new InputError("The owner has already accepted the invitation", 409);
+  // before anything changes: without the app address the link would not open (BIZ-01)
+  const appUrl = appUrlUsable(Deno.env.get("ZELLA_APP_URL"));
+  if (!appUrl) throw new InputError(APP_URL_MISSING, 503);
   if (invitation.status === "sent") {
     // Re-open it so the guarded write below applies; a cancel in between still wins.
     await admin.from("business_invitations").update({ status: "pending", updated_at: new Date().toISOString() })
@@ -2742,24 +2764,14 @@ async function invitationResend(admin: SupabaseClient, fields: Json) {
   }
 
   const now = new Date().toISOString();
-  const appUrl = Deno.env.get("ZELLA_APP_URL");
-  const { data: invited, error } = await admin.auth.admin.inviteUserByEmail(invitation.email, {
-    data: { full_name: invitation.owner_name, business_id: businessId },
-    ...(appUrl ? { redirectTo: ownerWelcomeUrl(appUrl) } : {}),
-  });
+  const sent = await sendOwnerEmail(admin, invitation.email, invitation.owner_name, businessId, appUrl);
 
-  if (error || !invited?.user) {
-    const reason = error?.message ?? "Invitation email could not be sent";
+  if ("error" in sent) {
+    const reason = sent.error;
     await moveOwnerInvitation(admin, invitation.id, { status: "failed", last_error: reason, updated_at: now });
-    return {
-      businessId,
-      email: invitation.email,
-      invitationStatus: "failed",
-      invitationError: /already|registered|exists/i.test(reason)
-        ? "This email already has a confirmed Zella Voice account. They can sign in with their existing password."
-        : reason,
-    };
+    return { businessId, email: invitation.email, invitationStatus: "failed", invitationError: reason };
   }
+  const invited = { user: { id: sent.userId } };
 
   const moved = await moveOwnerInvitation(admin, invitation.id, {
     status: "sent",
@@ -2794,7 +2806,7 @@ async function invitationResend(admin: SupabaseClient, fields: Json) {
     if (memberError) console.error("Owner membership insert failed", memberError);
   }
 
-  return { businessId, email: invitation.email, invitationStatus: "sent" };
+  return { businessId, email: invitation.email, invitationStatus: "sent", ...(sent.existingAccount ? { existingAccount: true } : {}) };
 }
 
 // ---------------------------------------------------------------------------

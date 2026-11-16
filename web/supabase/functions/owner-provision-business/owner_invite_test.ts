@@ -24,7 +24,7 @@ Deno.test("server-side required setup", () => {
 
 // A fake world for finishSetupWith: one owner invitation, counts of emails and activations.
 import { finishSetupWith, type FinishDeps } from "./owner_invite.ts";
-function world(status: string, opts: { sendFails?: boolean; extra?: Partial<FinishDeps>; docs?: boolean; openDays?: number; expires?: string; plan?: boolean; fallback?: string | null } = {}) {
+function world(status: string, opts: { sendFails?: boolean; extra?: Partial<FinishDeps>; docs?: boolean; openDays?: number; expires?: string; plan?: boolean; fallback?: string | null; appUrl?: boolean } = {}) {
   const st = { inv: { id: "i1", email: "owner@x.test", owner_name: "O", status, role: "owner", expires_at: opts.expires ?? null, auth_user_id: null as string | null },
     emails: 0, activated: 0 };
   const deps: FinishDeps = {
@@ -34,6 +34,7 @@ function world(status: string, opts: { sendFails?: boolean; extra?: Partial<Fini
     openDays: () => Promise.resolve(opts.openDays ?? 5),
     planSaved: () => Promise.resolve(opts.plan ?? true),
     fallbackNumber: () => Promise.resolve(opts.fallback === undefined ? "+15550103000" : opts.fallback),
+    appUrlSet: () => opts.appUrl ?? true,
     claim: (_id) => { const ok = ["pending", "failed", "expired"].includes(st.inv.status); if (ok) st.inv.status = "sent"; return Promise.resolve(ok); },
     sendInvite: async () => { st.emails++; await new Promise((r) => setTimeout(r, 5)); return opts.sendFails ? { error: "smtp down" } : { userId: "u1" }; },
     release: (_id, _r) => { if (st.inv.status === "sent" && !st.inv.auth_user_id) st.inv.status = "failed"; return Promise.resolve(); },
@@ -101,4 +102,35 @@ Deno.test("finish: thrown email error releases the claim", async () => {
   assertEquals([r.completed, r.invitationStatus, w.st.inv.status, w.st.activated], [false, "failed", "failed", 0]);
   assertEquals(r.invitationError, "The invitation could not be sent. Please try again.");
   assertEquals(released, r.invitationError);
+});
+
+import { APP_URL_MISSING, appUrlUsable } from "./owner_invite.ts";
+
+Deno.test("BIZ-01: with no app address nothing is claimed, sent or activated, and the invitation is unchanged", async () => {
+  for (const status of ["pending", "failed"]) {
+    const w = world(status, { appUrl: false });
+    const e = await rejects(finishSetupWith(w.deps));
+    assertEquals([e?.status, e?.message], [503, APP_URL_MISSING]);
+    assertEquals([w.st.emails, w.st.activated, w.st.inv.status], [0, 0, status]);
+  }
+  // nothing to send (already sent or accepted): finishing still works without the address
+  const a = world("accepted", { appUrl: false });
+  assertEquals((await finishSetupWith(a.deps)).completed, true);
+});
+
+Deno.test("BIZ-01: only a real public address counts", () => {
+  assertEquals(appUrlUsable(undefined), null);
+  assertEquals(appUrlUsable(""), null);
+  assertEquals(appUrlUsable("   "), null);
+  assertEquals(appUrlUsable("not a url"), null);
+  assertEquals(appUrlUsable("http://app.example.com"), null);      // plain http only for localhost
+  assertEquals(appUrlUsable("https://app.example.com/"), "https://app.example.com");
+  assertEquals(appUrlUsable("http://localhost:5199"), "http://localhost:5199");
+});
+
+Deno.test("BIZ-02: an owner who already has an account is linked and told to sign in", async () => {
+  const w = world("pending", { extra: { sendInvite: async () => { (w as { st: { emails: number } }).st.emails++; return { userId: "existing-user", existingAccount: true }; } } });
+  const r = await finishSetupWith(w.deps);
+  assertEquals([r.completed, r.invitationStatus, (r as { existingAccount?: boolean }).existingAccount], [true, "sent", true]);
+  assertEquals([w.st.emails, w.st.activated, w.st.inv.auth_user_id], [1, 1, "existing-user"]);
 });
