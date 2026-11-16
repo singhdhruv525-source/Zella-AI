@@ -1731,7 +1731,7 @@ Each item links to its source, and the timeline is filterable by type.
 | REQ-ADM-11 | Failed messages | cross-business failures | `comms.manage` |
 | REQ-ADM-12 | Spam & abuse | incidents, global rules | `security.*` |
 | REQ-ADM-13 | Support | tickets, audited access to a business | `support.manage` |
-| REQ-ADM-14 | Audit logs | every privileged action | `audit.view` |
+| REQ-ADM-14 | Audit logs | every privileged action; filters (business, action, person, dates, record) with a (created_at, id) cursor; CSV export of at most 10,000 entries, itself audited (`audit.exported`) | `audit.view`; export also needs the owner or super admin role |
 | REQ-ADM-15 | Monitoring & incidents | alerts, status page incidents | ops |
 | REQ-ADM-16 | Platform settings & kill switches | live switches per channel, per business override, maintenance mode | Zella Voice owner |
 | REQ-ADM-17 | Industry configuration | presets, policies, safety lines, defaults | `ai.configure` |

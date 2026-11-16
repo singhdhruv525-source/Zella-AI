@@ -3,6 +3,7 @@
 // after index.ts has checked the caller's sign in, two step sign in, platform role and that permission.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import catalog from "../_shared/catalog.json" with { type: "json" };
 
 type Json = Record<string, unknown>;
 type Access = { role: string; is_active: boolean };
@@ -36,6 +37,7 @@ export async function endSessionsAfterChange(admin: SupabaseClient, userId: stri
 export const SELF = "self";
 export const ACCESS_PERMISSIONS: Record<string, string> = {
   security_refusals: "security.view",
+  audit_export: "audit.view",
   me_mfa_added: SELF,
   me_mfa_remove: SELF,
   me_password_change: SELF,
@@ -79,10 +81,99 @@ export async function recordRefusal(admin: SupabaseClient, ctx: RefusalContext, 
   }
 }
 
+// ACC-12: audit log filters, a (created_at, id) cursor and an audited CSV export.
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const ACTION_NAME = /^[a-z][a-z0-9_.]{0,79}$/;
+const ENTITY_TYPE = /^[a-z][a-z0-9_]{0,59}$/;
+export const AUDIT_PAGE = 50;
+// Owner decision taken as the recommended default: exporting needs audit.view AND one of these roles, because the
+// file holds every entry's ip address and browser. Each export is audited.
+export const AUDIT_EXPORT_ROLES = ["zella_owner", "super_admin"];
+export const AUDIT_EXPORT_MAX_ROWS = 10_000;
+export const AUDIT_COLUMNS = "id, action, business_id, user_id, entity_type, entity_id, old_data, new_data, ip_address, user_agent, created_at";
+
+export type AuditFilters = {
+  businessId?: string; auditAction?: string; search?: string; actorId?: string; from?: string; to?: string;
+  entityType?: string; entityId?: string;
+};
+
+const day = (v: unknown) => {
+  if (typeof v !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return null;
+  const d = new Date(`${v}T00:00:00Z`);
+  return Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== v ? null : d;
+};
+
+// The filters from a request, checked; anything malformed is refused, never silently widened.
+export function auditFilters(fields: Json, InputError: new (m: string, s?: number) => Error): AuditFilters {
+  const f: AuditFilters = {};
+  const str = (k: string) => (typeof fields[k] === "string" ? (fields[k] as string).trim() : "");
+  const id = (k: string, label: string) => { const v = str(k); if (!v) return undefined; if (!UUID.test(v)) throw new InputError(`${label} is not valid`); return v; };
+  f.businessId = id("businessId", "The business");
+  f.actorId = id("actorId", "The person");
+  // "auditAction", because "action" is the function's own action (audit_logs, audit_export)
+  const auditAction = str("auditAction");
+  if (auditAction) { if (!ACTION_NAME.test(auditAction)) throw new InputError("The action is not valid"); f.auditAction = auditAction; }
+  const search = str("search").toLowerCase().replace(/[^a-z0-9_.]/g, "").slice(0, 60);
+  if (search) f.search = search;
+  const entityType = str("entityType");
+  if (entityType) { if (!ENTITY_TYPE.test(entityType)) throw new InputError("The record type is not valid"); f.entityType = entityType; }
+  f.entityId = id("entityId", "The record id");
+  for (const k of ["from", "to"] as const) {
+    const v = str(k);
+    if (!v) continue;
+    const d = day(v);
+    if (!d) throw new InputError(`The ${k === "from" ? "start" : "end"} date is not valid`);
+    // "to" is the whole of that day
+    f[k] = k === "from" ? d.toISOString() : new Date(d.getTime() + 86_400_000).toISOString();
+  }
+  if (f.from && f.to && f.from >= f.to) throw new InputError("The start date is after the end date");
+  for (const k of Object.keys(f) as (keyof AuditFilters)[]) if (f[k] === undefined) delete f[k];
+  return f;
+}
+
+// "created_at|id" of the last row shown; rows with the same time are told apart by id, so none is skipped. The time
+// is kept exactly as the database wrote it (microseconds), never rounded through a JavaScript Date.
+const STAMP = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(\.\d{1,6})?(Z|[+-]\d{2}(:?\d{2})?)$/;
+export function auditCursor(v: unknown): { at: string; id: string } | null {
+  if (typeof v !== "string" || !v || v.length > 80) return null;
+  const [at, id, extra] = v.split("|");
+  if (extra !== undefined || !STAMP.test(at ?? "") || Number.isNaN(Date.parse(at)) || !UUID.test(id ?? "")) return null;
+  return { at, id };
+}
+export const nextAuditCursor = (row: { created_at: string; id: string }) => `${row.created_at}|${row.id}`;
+
+// deno-lint-ignore no-explicit-any
+export function applyAuditFilters(query: any, f: AuditFilters, cursor: { at: string; id: string } | null) {
+  let q = query.order("created_at", { ascending: false }).order("id", { ascending: false });
+  if (f.businessId) q = q.eq("business_id", f.businessId);
+  if (f.actorId) q = q.eq("user_id", f.actorId);
+  if (f.auditAction) q = q.eq("action", f.auditAction);
+  else if (f.search) q = q.ilike("action", `%${f.search}%`);
+  if (f.entityType) q = q.eq("entity_type", f.entityType);
+  if (f.entityId) q = q.eq("entity_id", f.entityId);
+  if (f.from) q = q.gte("created_at", f.from);
+  if (f.to) q = q.lt("created_at", f.to);
+  if (cursor) q = q.or(`created_at.lt."${cursor.at}",and(created_at.eq."${cursor.at}",id.lt.${cursor.id})`);
+  return q;
+}
+
+// One CSV cell. Text a spreadsheet would run as a formula (starting with = + - @, a tab or a return) gets a leading
+// apostrophe, so an export opened in a spreadsheet never runs anything.
+export function csvCell(v: unknown): string {
+  if (v === null || v === undefined) return "";
+  let t = typeof v === "object" ? JSON.stringify(v) : String(v);
+  if (/^[=+\-@\t\r]/.test(t)) t = `'${t}`;
+  return /[",\r\n]/.test(t) || t !== t.trim() ? `"${t.replace(/"/g, '""')}"` : t;
+}
+export const csvRow = (cells: unknown[]) => cells.map(csvCell).join(",");
+
+const LABELS = (catalog as { audit_actions: Record<string, string> }).audit_actions;
+export const actionText = (a: string) => LABELS[a] ?? a.replace(/[._]/g, " ");
+
 type Kit = { InputError: new (message: string, status?: number) => Error; requireId: (v: unknown, label?: string) => string };
 type Factor = { id: string; status?: string; factor_type?: string; friendly_name?: string | null };
 
-export function accessHandlers(admin: SupabaseClient, fields: Json, userId: string, kit: Kit) {
+export function accessHandlers(admin: SupabaseClient, fields: Json, userId: string, kit: Kit, role: string | null = null) {
   const { InputError, requireId } = kit;
 
   const verifiedFactors = async (): Promise<Factor[]> => {
@@ -111,6 +202,46 @@ export function accessHandlers(admin: SupabaseClient, fields: Json, userId: stri
           permission: r.new_data?.permission ?? null, ip: r.ip_address, userAgent: r.user_agent, at: r.created_at,
         })),
       };
+    },
+    // ACC-12: the filtered audit log as CSV, newest first, at most AUDIT_EXPORT_MAX_ROWS rows.
+    audit_export: async () => {
+      if (!role || !AUDIT_EXPORT_ROLES.includes(role)) throw new InputError("Only a Zella Voice owner or a super admin can export the audit log.", 403);
+      const filters = auditFilters(fields, InputError);
+      // deno-lint-ignore no-explicit-any
+      const rows: any[] = [];
+      let cursor: { at: string; id: string } | null = null;
+      while (rows.length < AUDIT_EXPORT_MAX_ROWS) {
+        const size = Math.min(1000, AUDIT_EXPORT_MAX_ROWS - rows.length);
+        const { data, error } = await applyAuditFilters(admin.from("audit_logs").select(AUDIT_COLUMNS), filters, cursor).limit(size);
+        if (error) throw error;
+        rows.push(...(data ?? []));
+        if ((data ?? []).length < size) break;
+        cursor = { at: rows[rows.length - 1].created_at, id: rows[rows.length - 1].id };
+      }
+      // one more row tells whether the file was cut at the limit
+      let truncated = false;
+      if (rows.length >= AUDIT_EXPORT_MAX_ROWS) {
+        const last = rows[rows.length - 1];
+        const { data } = await applyAuditFilters(admin.from("audit_logs").select("id"), filters, { at: last.created_at, id: last.id }).limit(1);
+        truncated = (data ?? []).length > 0;
+      }
+      const actorIds = [...new Set(rows.map((r) => r.user_id).filter(Boolean))].slice(0, 500) as string[];
+      const emails: Record<string, string | null> = {};
+      await Promise.all(actorIds.map(async (id) => { const { data } = await admin.auth.admin.getUserById(id); emails[id] = data?.user?.email ?? null; }));
+      const bizIds = [...new Set(rows.map((r) => r.business_id).filter(Boolean))] as string[];
+      const names: Record<string, string> = {};
+      for (let i = 0; i < bizIds.length; i += 200) {
+        const { data, error } = await admin.from("businesses").select("id, name").in("id", bizIds.slice(i, i + 200));
+        if (error) throw error;
+        for (const b of data ?? []) names[b.id] = b.name;
+      }
+      const lines = [csvRow(["When (UTC)", "Action", "Action name", "Business", "Business id", "By", "By id", "Record type", "Record id", "IP address", "Browser", "Before", "After"])];
+      for (const r of rows) {
+        lines.push(csvRow([r.created_at, actionText(r.action), r.action, r.business_id ? names[r.business_id] ?? "" : "", r.business_id, r.user_id ? emails[r.user_id] ?? "" : "",
+          r.user_id, r.entity_type, r.entity_id, r.ip_address, r.user_agent, r.old_data, r.new_data]));
+      }
+      const stamp = new Date().toISOString().slice(0, 10);
+      return { csv: lines.join("\r\n") + "\r\n", rows: rows.length, truncated, filename: `zella-voice-audit-log-${stamp}.csv`, filters };
     },
     // The browser has just verified a new authenticator (Supabase Auth); record it once it is really in the list.
     me_mfa_added: async () => {
@@ -146,6 +277,8 @@ export function accessHandlers(admin: SupabaseClient, fields: Json, userId: stri
     me_mfa_added: (r) => ({ action: "admin.mfa_added", entity_type: "mfa_factor", entity_id: r.factorId, new_data: { friendly_name: r.friendlyName } }),
     me_mfa_remove: (r) => ({ action: "admin.mfa_removed", entity_type: "mfa_factor", entity_id: r.factorId, old_data: { friendly_name: r.friendlyName }, new_data: { left: r.left } }),
     me_password_change: () => ({ action: "admin.password_changed", entity_type: "user", entity_id: userId }),
+    // what was exported and how much, never the file itself
+    audit_export: (r) => ({ action: "audit.exported", entity_type: "audit_logs", new_data: { filters: r.filters, rows: r.rows, truncated: r.truncated } }),
   };
   return { handlers, audited };
 }

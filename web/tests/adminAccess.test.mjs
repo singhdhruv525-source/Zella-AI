@@ -24,3 +24,13 @@ test("refusalReason puts each refusal in words", () => {
   assert.equal(refusalReason({ code: "OTHER" }), "Refused");
   assert.equal(refusalReason(null), "Refused");
 });
+
+test("the audit page's Action filter lists every catalog action by label, and empty filters are dropped", async () => {
+  const { auditActionOptions, auditQuery } = await import("../src/adminAccess.js");
+  const catalog = JSON.parse((await import("node:fs")).readFileSync(new URL("../supabase/functions/_shared/catalog.json", import.meta.url), "utf8"));
+  const opts = auditActionOptions(catalog);
+  assert.equal(opts.length, Object.keys(catalog.audit_actions).length);
+  for (const a of ["platform.roles_updated", "telephony.number_assigned", "legal.published", "security.admin_refused", "audit.exported"]) assert.ok(opts.some((o) => o.value === a), a);
+  assert.deepEqual(opts.map((o) => o.label), [...opts.map((o) => o.label)].sort((a, b) => a.localeCompare(b)));
+  assert.deepEqual(auditQuery({ businessId: "", auditAction: " admin.updated ", from: "2026-11-01", to: "" }), { auditAction: "admin.updated", from: "2026-11-01" });
+});

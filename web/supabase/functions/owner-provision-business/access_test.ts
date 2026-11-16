@@ -142,3 +142,96 @@ Deno.test("recording never throws, whatever fails", async () => {
     assertEquals(await recordRefusal(refusalFake(opts).admin, ctx, { code: "NOT_ADMIN" }), false, JSON.stringify(opts));
   }
 });
+
+import { actionText, applyAuditFilters, AUDIT_EXPORT_MAX_ROWS, auditCursor, auditFilters, csvCell, nextAuditCursor } from "./access.ts";
+const B = "b3000000-0000-0000-0000-0000000000a1", U = "30000000-0000-0000-0000-0000000000a1";
+
+Deno.test("audit filters: checked, a malformed one refused, the end date covers that whole day", () => {
+  assertEquals(auditFilters({ businessId: B, actorId: U, auditAction: "admin.updated", action: "audit_logs", entityType: "platform_admin", entityId: U, from: "2026-11-01", to: "2026-11-16" }, InputError), {
+    businessId: B, actorId: U, auditAction: "admin.updated", entityType: "platform_admin", entityId: U, from: "2026-11-01T00:00:00.000Z", to: "2026-11-17T00:00:00.000Z",
+  });
+  assertEquals(auditFilters({ action: "audit_export" }, InputError), {});   // the function's own action is never a filter
+  assertEquals(auditFilters({}, InputError), {});
+  assertEquals(auditFilters({ search: "Admin. Up-dated!" }, InputError), { search: "admin.updated" });
+  for (const bad of [{ businessId: "x" }, { actorId: "1; drop" }, { auditAction: "a,b" }, { entityType: "x y" }, { entityId: "nope" }, { from: "2026-13-01" }, { to: "16/11/2026" },
+    { from: "2026-11-10", to: "2026-11-01" }, { from: "2026-02-30" }]) {
+    let threw = false;
+    try { auditFilters(bad, InputError); } catch (e) { threw = e instanceof InputError; }
+    assertEquals(threw, true, JSON.stringify(bad));
+  }
+});
+
+Deno.test("the audit cursor keeps the exact time and id, and refuses anything else", () => {
+  const row = { created_at: "2026-11-16T14:00:00.123456+00:00", id: U };
+  assertEquals(auditCursor(nextAuditCursor(row)), { at: "2026-11-16T14:00:00.123456+00:00", id: U });
+  for (const bad of ["", "2026-11-16T14:00:00Z", `x|${U}`, "2026-11-16T14:00:00Z|nope", `2026-11-16T14:00:00Z|${U}|x`, `2026-11-16T14:00:00Z),id.gt.(|${U}`, null, 5]) assertEquals(auditCursor(bad), null, String(bad));
+});
+
+Deno.test("filters and the cursor become the query: newest first, ties ordered by id", () => {
+  const calls: unknown[] = [];
+  const q: Record<string, (...a: unknown[]) => unknown> = {};
+  for (const m of ["order", "eq", "ilike", "gte", "lt", "or"]) q[m] = (...a: unknown[]) => { calls.push([m, ...a]); return q; };
+  applyAuditFilters(q, { businessId: B, actorId: U, auditAction: "admin.updated", search: "ignored", from: "2026-11-01T00:00:00.000Z", to: "2026-11-17T00:00:00.000Z", entityType: "platform_admin", entityId: U },
+    { at: "2026-11-16T14:00:00.123456+00:00", id: U });
+  assertEquals(calls, [
+    ["order", "created_at", { ascending: false }], ["order", "id", { ascending: false }],
+    ["eq", "business_id", B], ["eq", "user_id", U], ["eq", "action", "admin.updated"], ["eq", "entity_type", "platform_admin"], ["eq", "entity_id", U],
+    ["gte", "created_at", "2026-11-01T00:00:00.000Z"], ["lt", "created_at", "2026-11-17T00:00:00.000Z"],
+    ["or", `created_at.lt."2026-11-16T14:00:00.123456+00:00",and(created_at.eq."2026-11-16T14:00:00.123456+00:00",id.lt.${U})`],
+  ]);
+});
+
+Deno.test("CSV cells: formulas are defused, quotes and line breaks are quoted, objects become JSON", () => {
+  assertEquals(csvCell("plain"), "plain");
+  for (const f of ["=SUM(A1)", "+1", "-2", "@cmd", "\tx", "\rx"]) assertEquals(csvCell(f).replace(/^"|"$/g, "").startsWith("'"), true, f);
+  assertEquals(csvCell("=1+1"), "'=1+1");
+  assertEquals(csvCell('say "hi", ok'), '"say ""hi"", ok"');
+  assertEquals(csvCell("two\nlines"), '"two\nlines"');
+  assertEquals(csvCell({ a: "=x" }), '"{""a"":""=x""}"');
+  assertEquals(csvCell(null), "");
+  assertEquals(csvCell(7), "7");
+});
+
+// a fake audit_logs of n rows, newest first, served through the query builder the export uses
+function exportFake(n: number) {
+  const all = Array.from({ length: n }, (_, i) => ({ id: `00000000-0000-0000-0000-${String(n - i).padStart(12, "0")}`, action: i % 2 ? "admin.updated" : "=evil()",
+    business_id: null, user_id: null, entity_type: "x", entity_id: null, old_data: null, new_data: { n: i }, ip_address: "203.0.113.1", user_agent: "UA", created_at: "2026-11-16T10:00:00.000001+00:00" }));
+  let reads = 0;
+  const admin = {
+    from: () => {
+      let after: string | null = null, lim = 1000;
+      const q: Record<string, unknown> = {};
+      for (const m of ["select", "order", "eq", "ilike", "gte", "lt"]) q[m] = () => q;
+      q.or = (s: string) => { after = /id\.lt\.([0-9a-f-]{36})/.exec(s)?.[1] ?? null; return q; };
+      q.limit = (l: number) => { lim = l; return q; };
+      q.then = (res: (v: unknown) => void) => { reads++; const start = after ? all.findIndex((r) => r.id === after) + 1 : 0; res({ data: all.slice(start, start + lim), error: null }); };
+      return q;
+    },
+    auth: { admin: { getUserById: async () => ({ data: { user: null } }) } },
+  } as unknown as SupabaseClient;
+  return { admin, reads: () => reads };
+}
+
+Deno.test("audit export: owner and super admin only, by default", async () => {
+  for (const role of ["support_admin", "read_only_admin", "security_admin", null]) {
+    const e = await accessHandlers(exportFake(3).admin, {}, "me", kit, role).handlers.audit_export().catch((x) => x);
+    assertEquals((e as InputError).status, 403, String(role));
+  }
+  for (const role of ["zella_owner", "super_admin"]) assertEquals(((await accessHandlers(exportFake(3).admin, {}, "me", kit, role).handlers.audit_export()) as { rows: number }).rows, 3);
+});
+
+Deno.test("audit export: every row once, defused, capped at 10,000 and said so, and audited without the file", async () => {
+  const small = (await accessHandlers(exportFake(2500).admin, { auditAction: "admin.updated" }, "me", kit, "zella_owner").handlers.audit_export()) as { csv: string; rows: number; truncated: boolean; filters: unknown };
+  assertEquals([small.rows, small.truncated], [2500, false]);
+  const lines = small.csv.trimEnd().split("\r\n");
+  assertEquals(lines.length, 2501);
+  assertEquals(new Set(lines.slice(1).map((l) => l.split(",")[2])).size, 2);     // the action names column
+  assertEquals(lines.some((l) => /,=evil/.test(l)), false);
+  assertEquals(lines.some((l) => l.includes(",'=evil()")), true);
+  assertEquals(AUDIT_EXPORT_MAX_ROWS, 10_000);
+  const big = (await accessHandlers(exportFake(10_050).admin, {}, "me", kit, "super_admin").handlers.audit_export()) as { rows: number; truncated: boolean };
+  assertEquals([big.rows, big.truncated], [10_000, true]);
+  const entry = accessHandlers(exportFake(1).admin, {}, "me", kit, "zella_owner").audited.audit_export(small as unknown as Record<string, unknown>);
+  assertEquals(entry, { action: "audit.exported", entity_type: "audit_logs", new_data: { filters: { auditAction: "admin.updated" }, rows: 2500, truncated: false } });
+  assertEquals(actionText("admin.updated"), "Changed platform admin access");
+});

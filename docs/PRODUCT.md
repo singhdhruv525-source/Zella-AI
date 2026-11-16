@@ -319,7 +319,7 @@ only the pages they can use. Every admin action is written to the audit log.
 | Operations | **Support** | Support tickets | `support.manage` |
 | Operations | **Security & abuse** | Spam and abuse across the platform | `security.view` |
 | Administration | **Users & access** | Platform admins and their roles | `security.view` |
-| Administration | **Audit logs** | Every privileged action; append-only | `audit.view` |
+| Administration | **Audit logs** | Every privileged action; append-only. Filters by business, action (every action in the shared list), person, dates and record; Details show the record id, address and browser. Export CSV (at most 10,000 entries, cells that could run as spreadsheet formulas defused) for a Zella Voice owner or super admin; each export is audited | `audit.view` (export: also owner or super admin) |
 | Administration | **Settings** | 17 categories: general, tenants, users, plans, offers, billing, AI providers, voice and usage, communications, integrations, security, alerts, support, analytics, legal, developer, administrator profile | per category |
 
 Platform roles use named permissions (`businesses.view/manage`, `telephony.manage`, `comms.manage`, `ai.configure`,

@@ -8,7 +8,7 @@ import { PERMISSIONS, RESTRICTED_ROLES, settingsHandlers } from "./settings.ts";
 import { freshCodeGate, mfaGate, tokenAal } from "./mfa_gate.ts";
 import { ONBOARDING_PERMISSIONS, documentsReady, loadOnboarding, onboardingHandlers } from "./onboarding.ts";
 import { PLATFORM_PERMISSIONS, platformHandlers } from "./platform.ts";
-import { ACCESS_PERMISSIONS, SELF_ACTIONS, accessHandlers, endSessionsAfterChange, recordRefusal } from "./access.ts";
+import { ACCESS_PERMISSIONS, AUDIT_COLUMNS, AUDIT_EXPORT_ROLES, AUDIT_PAGE, SELF_ACTIONS, accessHandlers, applyAuditFilters, auditCursor, auditFilters, endSessionsAfterChange, nextAuditCursor, recordRefusal } from "./access.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1586,49 +1586,50 @@ async function businessDetail(admin: SupabaseClient, businessId: string) {
   };
 }
 
-async function auditLogList(admin: SupabaseClient, fields: Json) {
-  const limit = 50;
-  let query = admin
-    .from("audit_logs")
-    .select("id, action, business_id, user_id, entity_type, entity_id, old_data, new_data, ip_address, created_at")
-    .order("created_at", { ascending: false })
-    .limit(limit + 1);
-
-  const businessId = text(fields.businessId, 64);
-  if (businessId) query = query.eq("business_id", requireId(businessId));
-
-  const search = text(fields.search, 60).toLowerCase().replace(/[^a-z0-9_.]/g, "");
-  if (search) query = query.ilike("action", `%${search}%`);
-
-  const before = text(fields.before, 40);
-  if (before && !Number.isNaN(Date.parse(before))) query = query.lt("created_at", before);
-
-  const { data, error } = await query;
+async function auditLogList(admin: SupabaseClient, fields: Json, role: string | null = null) {
+  // ACC-12: person, dates, action and record filters; a (created_at, id) cursor, so entries with the same time are
+  // never skipped (access.ts).
+  const limit = AUDIT_PAGE;
+  const filters = auditFilters(fields, InputError);
+  const before = typeof fields.before === "string" ? fields.before : "";
+  const cursor = auditCursor(before);
+  if (before && !cursor) throw new InputError("The page marker is not valid");
+  const { data, error } = await applyAuditFilters(admin.from("audit_logs").select(AUDIT_COLUMNS), filters, cursor).limit(limit + 1);
   if (error) throw error;
 
-  const rows = data ?? [];
+  type AuditRow = { id: string; created_at: string; user_id: string | null; business_id: string | null } & Json;
+  const rows = (data ?? []) as AuditRow[];
   const page = rows.slice(0, limit);
   const [actors, names] = await Promise.all([
     resolveUsers(admin, page.map((r) => r.user_id)),
     businessNames(admin, page.map((r) => r.business_id)),
   ]);
 
+  // the first page also carries the lists the filters choose from
   let businesses: { id: string; name: string }[] | undefined;
-  if (!before) {
-    const { data: list, error: listError } = await admin
-      .from("businesses").select("id, name").order("name");
+  let people: { id: string; email: string | null }[] | undefined;
+  if (!cursor) {
+    const [{ data: list, error: listError }, { data: admins, error: adminsError }] = await Promise.all([
+      admin.from("businesses").select("id, name").order("name"),
+      admin.from("platform_admins").select("user_id"),
+    ]);
     if (listError) throw listError;
+    if (adminsError) throw adminsError;
     businesses = list ?? [];
+    const emails = await resolveUsers(admin, (admins ?? []).map((a) => a.user_id));
+    people = Object.entries(emails).map(([id, email]) => ({ id, email })).sort((a, b) => String(a.email).localeCompare(String(b.email)));
   }
 
   return {
     logs: page.map((r) => ({
       ...r,
-      actor: actors[r.user_id] ?? null,
+      actor: r.user_id ? actors[r.user_id] ?? null : null,
       business_name: r.business_id ? names[r.business_id] ?? null : null,
     })),
-    nextCursor: rows.length > limit ? page[page.length - 1].created_at : null,
+    nextCursor: rows.length > limit ? nextAuditCursor(page[page.length - 1]) : null,
     businesses,
+    people,
+    canExport: Boolean(role && AUDIT_EXPORT_ROLES.includes(role)),
   };
 }
 
@@ -3222,7 +3223,7 @@ Deno.serve(withCors(async (req: Request) => {
       setup_finish: () => finishSetup(adminClient, fields),
       overview_data: () => overviewData(adminClient),
       business_detail: () => businessDetail(adminClient, requireId(fields.businessId)),
-      audit_logs: () => auditLogList(adminClient, fields),
+      audit_logs: () => auditLogList(adminClient, fields, role),
       industries_list: () => industriesList(adminClient),
       industry_save: () => industrySave(adminClient, fields),
       industry_create: () => industryCreate(adminClient, fields),
@@ -3254,7 +3255,7 @@ Deno.serve(withCors(async (req: Request) => {
       text, bool, obj, requireId, optionalPhone, getBusiness, getReceptionist, advance, mergeSetupData, InputError, EMAIL_RE, UUID_RE,
     });
     const platform = platformHandlers(adminClient, fields, { text, bool, obj, requireId, InputError }, user.id, role);
-    const access = accessHandlers(adminClient, fields, user.id, { InputError, requireId });
+    const access = accessHandlers(adminClient, fields, user.id, { InputError, requireId }, role);
     const handler = handlers[action] ?? extra.handlers[action] ?? onboarding.handlers[action] ?? platform.handlers[action] ?? access.handlers[action];
     if (!handler) return respond({ error: "Unknown action" }, 400);
 

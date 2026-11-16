@@ -174,6 +174,11 @@ most often needed:
   Shown on Users & access; the Settings Security overview card gets the count after the open admin polish merges
   (`security_overview` already returns `refusals24h`).
 
+- **Audit log export (ACC-12, 16 Nov 2026, recommended default taken):** `audit.view` and the Zella Voice owner or super
+  admin role (`AUDIT_EXPORT_ROLES` in `owner-provision-business/access.ts`), because the file holds addresses and browsers;
+  at most 10,000 entries per file (`AUDIT_EXPORT_MAX_ROWS`); every export is audited as `audit.exported` with its filters
+  and row count. The audit page's filter uses the key `auditAction`, since `action` names the function's own action.
+
 - **Unsubscribe link limits (G-7, 14 Nov 2026):** limits are per link only, never platform-wide or per address (a burst
   of genuine opt-outs after a big email must never be refused), and the limit never stops an opt-out.
 

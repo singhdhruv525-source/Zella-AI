@@ -27,3 +27,14 @@ export function refusalReason(r) {
   const base = REFUSAL_REASONS[r?.code] ?? "Refused";
   return r?.code === "NOT_PERMITTED" && r.permission ? `${base} (${r.permission})` : base;
 }
+
+// ACC-12: the Action filter lists every audit action in the shared list (web/supabase/functions/_shared/catalog.json),
+// by label; the page's labels come from the same list, falling back to ownerFormat.js.
+export function auditActionOptions(catalog) {
+  return Object.entries(catalog?.audit_actions ?? {}).map(([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label));
+}
+
+// The filters to send: empty ones are left out.
+export function auditQuery(f) {
+  return Object.fromEntries(Object.entries(f ?? {}).map(([k, v]) => [k, typeof v === "string" ? v.trim() : v]).filter(([, v]) => v));
+}
