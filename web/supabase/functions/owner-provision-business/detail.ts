@@ -10,6 +10,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { PERMISSION_CATALOG, RESTRICTED_ROLES } from "./settings.ts";
 import { mask, maskText } from "./mask.ts";
 import { OPEN_OWNER_INVITATION, latestOwnerInvitation } from "./ownerInvitation.ts";
+import { MEMBER_SUPPORT_PERMISSION, type Member, reasonProblem, statusProblem } from "./member_support.ts";
 
 // What business_detail borrows from index.ts (passed in, so this module has no import cycle and can be tested).
 export type DetailDeps = {
@@ -56,6 +57,7 @@ export const DETAIL_PERMISSIONS: Record<string, string> = {
   business_size_save: "businesses.manage",   // BIZ-08: was a browser RPC open to owner and super admin only
   business_contacts_reveal: "businesses.manage",   // BIZ-22 (REVEAL_PERMISSION): needs the owner's approval to deploy
   invitation_cancel: "businesses.manage",   // BIZ-21 (CANCEL_PERMISSION): needs the owner's approval to deploy
+  member_set_status: MEMBER_SUPPORT_PERMISSION,   // UI-06 part c: needs the owner's approval to deploy
 };
 
 // ---- Owner invitations (BIZ-21; lane E defaults, owner can change; needs approval before deploy) ----
@@ -94,6 +96,27 @@ export const BUSINESS_SIZES = ["small", "medium", "large"] as const;
 // This page's actions. Each returns what the page shows; `audited` says what each records (null records nothing).
 export function detailHandlers(admin: SupabaseClient, fields: Row, k: DetailKit, userId = "") {
   const handlers: Record<string, () => Promise<unknown>> = {
+    // UI-06 part c: deactivate or reactivate one member's access to this business, with a reason. The business always
+    // keeps one active owner. Saved only from the status the page saw.
+    member_set_status: async () => {
+      const businessId = k.requireId(fields.businessId);
+      const memberId = k.requireId(fields.userId, "member");
+      const next = k.text(fields.status, 20);
+      const reason = k.text(fields.reason, 301);
+      const bad = reasonProblem(reason);
+      if (bad) throw new k.InputError(bad);
+      const { data: rows, error } = await admin.from("business_members").select("user_id, role, status").eq("business_id", businessId);
+      if (error) throw error;
+      const members = (rows ?? []) as Member[];
+      const problem = statusProblem(members, memberId, next);
+      if (problem) throw new k.InputError(problem.message, problem.status);
+      const { role, status: was } = members.find((m) => m.user_id === memberId)!;
+      const { data: moved, error: moveError } = await admin.from("business_members").update({ status: next })
+        .eq("business_id", businessId).eq("user_id", memberId).eq("status", was).select("user_id");
+      if (moveError) throw moveError;
+      if (!moved?.length) throw new k.InputError("This member changed meanwhile. Reload the page to see them.", 409);
+      return { businessId, userId: memberId, role, before: was, status: next, reason };
+    },
     // BIZ-21: cancel the owner's open invitation. The link stops working (zella_accept_my_invitations only accepts an
     // open one) and the invited owner seat is removed, so inviting the same person again works.
     invitation_cancel: async () => {
@@ -154,6 +177,11 @@ export function detailHandlers(admin: SupabaseClient, fields: Row, k: DetailKit,
     },
   };
   const audited: Record<string, (r: Row) => Audit | null> = {
+    member_set_status: (r) => ({
+      action: r.status === "suspended" ? "member.suspended" : "member.reactivated", business_id: r.businessId as string,
+      entity_type: "business_member", entity_id: null,
+      old_data: { user_id: r.userId, role: r.role, status: r.before }, new_data: { user_id: r.userId, role: r.role, status: r.status, reason: r.reason },
+    }),
     invitation_cancel: (r) => ({
       action: "invitation.revoked", business_id: r.businessId as string, entity_type: "business_invitation", entity_id: r.invitationId as string,
       old_data: { status: r.before ?? null }, new_data: { status: "revoked", reason: r.reason ?? null, seat_removed: r.seatRemoved ?? false, email: mask(r.email) },

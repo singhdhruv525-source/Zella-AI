@@ -356,6 +356,9 @@ Opened from Businesses. What each tab shows and what an admin can do there:
   the link stops working, the invited seat is removed (so the same person can be invited again) and the audit row
   keeps the before and after status. If the email went out but the owner's seat couldn't be created, Resend says so
   and records it on the invitation (BIZ-21, BIZ-02; built, needs the owner's approval to deploy).
+- **Member access:** an admin with `businesses.manage` can deactivate or reactivate one member's access to the
+  business, with a reason; the business's only active owner can't be deactivated; the audit row keeps the status
+  before and after (UI-06; built, needs the owner's approval to deploy).
 - **Business size:** Small, Medium, Large or not set, saved through the admin function (`business_size_save`,
   `businesses.manage`, two step sign in checked) with the before and after in the audit log; a change made by someone
   else meanwhile is refused (BIZ-08).

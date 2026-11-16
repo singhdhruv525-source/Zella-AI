@@ -130,6 +130,8 @@
     "legal.retired": "Retired legal document",
     "live_notice_cleared": "Cleared live notice",
     "live_notice_set": "Set live notice",
+    "member.reactivated": "Reactivated a member",
+    "member.suspended": "Deactivated a member",
     "member_offboarded": "Offboarded team member",
     "message_policy_changed": "Changed message policy",
     "modules.updated": "Updated modules",
