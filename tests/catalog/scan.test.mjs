@@ -174,3 +174,11 @@ test("review fixes: a TypeScript audit action held in a variable is reported, ty
   assert.deepEqual(names(tsAuditActions(`const e = { action: r.ok ? "plan.created" : other };`)), ["?r.ok ? \"plan.created\" : other", "plan.created"]);
   assert.deepEqual(names(tsAuditActions(`type T = { action: string; }; const n = { action: null };`)), []);
 });
+
+test("review fixes 2: parenthesised branches are values, named types are not", () => {
+  assert.deepEqual(jsValueBranches(`(r.ok ? "a.b" : "c.d")`), ["S", "S"]);
+  assert.deepEqual(jsValueBranches(`r.ok ? ("a.b") : (other)`), ["S", "other"]);
+  assert.deepEqual(names(tsAuditActions(`const e = { action: (r.ok ? "plan.created" : "plan.updated") };`)), ["plan.created", "plan.updated"]);
+  assert.deepEqual(names(tsAuditActions(`type RequestAction = "lookup" | "start"; function handle(action: RequestAction) {} type T = { action: Action[] };`)), []);
+  assert.deepEqual(names(tsAuditActions(`const e = { action: (next) };`)), ["?(next)"]);
+});
