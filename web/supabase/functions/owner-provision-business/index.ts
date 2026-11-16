@@ -8,6 +8,7 @@ import { PERMISSIONS, RESTRICTED_ROLES, settingsHandlers } from "./settings.ts";
 import { freshCodeGate, mfaGate, tokenAal } from "./mfa_gate.ts";
 import { ONBOARDING_PERMISSIONS, documentsReady, loadOnboarding, onboardingHandlers } from "./onboarding.ts";
 import { PLATFORM_PERMISSIONS, platformHandlers } from "./platform.ts";
+import { supportHours, ticketTiming } from "./access.ts";
 import { ACCESS_PERMISSIONS, AUDIT_COLUMNS, AUDIT_EXPORT_ROLES, AUDIT_PAGE, SELF_ACTIONS, accessHandlers, applyAuditFilters, auditCursor, auditFilters, endSessionsAfterChange, nextAuditCursor, recordRefusal } from "./access.ts";
 
 const corsHeaders = {
@@ -2213,20 +2214,38 @@ async function integrationsOverview(admin: SupabaseClient) {
 const TICKET_STATUSES = ["open", "in_progress", "resolved", "closed"] as const;
 const TICKET_PRIORITIES = ["low", "normal", "high", "urgent"] as const;
 
-async function ticketsList(admin: SupabaseClient) {
-  const [ticketsResult, businessesResult, adminsResult] = await Promise.all([
-    admin.from("support_tickets")
-      .select("id, business_id, subject, description, category, priority, status, assigned_to, created_by, metadata, created_at, updated_at, resolved_at")
-      .order("created_at", { ascending: false })
-      .limit(500),
+async function ticketsList(admin: SupabaseClient, fields: Json = {}) {
+  // OPS-27: filtered on the server (status, business); OPS-25: first_response_at once sql/zella_support_replies.sql is
+  // applied (before that the column is missing and the list reads as before).
+  const cols = "id, business_id, subject, description, category, priority, status, assigned_to, created_by, metadata, created_at, updated_at, resolved_at";
+  const listQuery = (withFirst: boolean) => {
+    let q = admin.from("support_tickets").select(withFirst ? `${cols}, first_response_at` : cols).order("created_at", { ascending: false }).limit(500);
+    const status = text(fields.status, 20);
+    if (status) q = q.eq("status", oneOf(status, TICKET_STATUSES, "open"));
+    const businessId = text(fields.businessId, 64);
+    if (businessId) q = q.eq("business_id", requireId(businessId, "business"));
+    return q;
+  };
+  let ticketsResult = await listQuery(true);
+  if (ticketsResult.error && /first_response_at/.test(ticketsResult.error.message ?? "")) ticketsResult = await listQuery(false);
+  const [businessesResult, adminsResult, hoursResult, grantsResult] = await Promise.all([
     admin.from("businesses").select("id, name").order("name"),
-    admin.from("platform_admins").select("user_id").eq("is_active", true),
+    admin.from("platform_admins").select("user_id, role").eq("is_active", true),
+    admin.from("platform_settings").select("value").eq("key", "support_business_hours").maybeSingle(),
+    admin.from("platform_role_permissions").select("role").eq("permission", "support.manage"),
   ]);
   const queryError = ticketsResult.error ?? businessesResult.error ?? adminsResult.error;
   if (queryError) throw queryError;
 
-  const tickets = ticketsResult.data ?? [];
-  const adminIds = (adminsResult.data ?? []).map((a) => a.user_id);
+  const hours = supportHours(hoursResult.data?.value);
+  // deno-lint-ignore no-explicit-any
+  let tickets = (ticketsResult.data ?? []) as any[];
+  const timing = new Map(tickets.map((t) => [t.id, ticketTiming(t, hours)]));
+  if (fields.overdue === true) tickets = tickets.filter((t) => timing.get(t.id)?.overdue);
+  // only people who may work tickets can be assigned one (OPS-27)
+  const supportRoles = new Set(["zella_owner", "super_admin", ...(grantsResult.data ?? []).map((g) => g.role)]);
+  const adminIds = (adminsResult.data ?? []).filter((a) => supportRoles.has(a.role)).map((a) => a.user_id);
+  const messages = await ticketMessages(admin, tickets.map((t) => t.id));
   // Internal notes live in support_ticket_notes, which only the server can read (OPS-06). Before that table exists
   // (sql/zella_support_notes.sql not applied yet) they are still read from metadata, as before.
   const notesByTicket = await ticketNotes(admin, tickets);
@@ -2235,6 +2254,7 @@ async function ticketsList(admin: SupabaseClient) {
     ...adminIds,
     ...tickets.flatMap((t) => [t.assigned_to, t.created_by]),
     ...noteAuthors,
+    ...[...messages.values()].flat().map((m) => m.author_id ?? ""),
   ]);
   const nameById = new Map((businessesResult.data ?? []).map((b) => [b.id, b.name]));
 
@@ -2250,13 +2270,33 @@ async function ticketsList(admin: SupabaseClient) {
         created_at: n.created_at,
         author: n.author_id ? emails[n.author_id] ?? null : null,
       })),
+      // what the business sees (OPS-25), never the internal notes above
+      messages: (messages.get(t.id) ?? []).map((m) => ({
+        text: m.body, created_at: m.created_at, side: m.author_side,
+        author: m.author_side === "zella" ? (m.author_id ? emails[m.author_id] ?? "Zella Voice" : "Zella Voice") : null,
+      })),
+      ...timing.get(t.id),
     })),
+    supportHours: hours,
     businesses: businessesResult.data ?? [],
     assignees: adminIds.map((id) => ({ id, email: emails[id] ?? id })),
   };
 }
 
 type TicketNote = { body: string; author_id: string | null; created_at: string };
+type TicketMessage = { body: string; author_id: string | null; author_side: string; created_at: string };
+
+// Replies the business sees (support_ticket_messages, sql/zella_support_replies.sql); none before it is applied.
+async function ticketMessages(admin: SupabaseClient, ids: string[]) {
+  const out = new Map<string, TicketMessage[]>();
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data, error } = await admin.from("support_ticket_messages").select("ticket_id, body, author_id, author_side, created_at")
+      .in("ticket_id", ids.slice(i, i + 200)).order("created_at", { ascending: true }).limit(5000);
+    if (error) { if (missingTable(error)) return out; throw error; }
+    for (const m of data ?? []) out.set(m.ticket_id, [...(out.get(m.ticket_id) ?? []), m]);
+  }
+  return out;
+}
 const missingTable = (e: { code?: string } | null) => e?.code === "42P01" || e?.code === "PGRST205";
 
 async function ticketNotes(admin: SupabaseClient, tickets: { id: string; metadata: unknown }[]) {
@@ -2363,6 +2403,17 @@ async function ticketUpdate(admin: SupabaseClient, fields: Json, userId: string)
       update.assigned_to = assignee;
       changes.assigned_to = { from: ticket.assigned_to, to: assignee };
     }
+  }
+
+  // OPS-25: a reply the business sees; first_response_at and the opener's notice are set in the database
+  const reply = text(fields.reply, 4000);
+  if (reply) {
+    const { error: replyError } = await admin.rpc("zella_admin_ticket_reply", { p_ticket: ticketId, p_author: userId, p_body: reply });
+    if (replyError) {
+      if (/zella_admin_ticket_reply|does not exist|PGRST202/i.test(replyError.message ?? "")) throw new InputError("Replies to the business need the latest database update (sql/zella_support_replies.sql).", 503);
+      throw replyError;
+    }
+    changes.reply_added = true;
   }
 
   const note = text(fields.note, 4000);
@@ -3232,7 +3283,7 @@ Deno.serve(withCors(async (req: Request) => {
       admin_invite: () => adminInvite(adminClient, fields, user.id),
       admin_update: () => adminUpdate(adminClient, fields, user.id),
       integrations_overview: () => integrationsOverview(adminClient),
-      tickets_list: () => ticketsList(adminClient),
+      tickets_list: () => ticketsList(adminClient, fields),
       ticket_create: () => ticketCreate(adminClient, fields, user.id),
       ticket_update: () => ticketUpdate(adminClient, fields, user.id),
       plans_list: () => plansList(adminClient),

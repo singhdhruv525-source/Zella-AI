@@ -235,3 +235,29 @@ Deno.test("audit export: every row once, defused, capped at 10,000 and said so, 
   assertEquals(entry, { action: "audit.exported", entity_type: "audit_logs", new_data: { filters: { auditAction: "admin.updated" }, rows: 2500, truncated: false } });
   assertEquals(actionText("admin.updated"), "Changed platform admin access");
 });
+
+import { businessHoursBetween, SUPPORT_HOURS_DEFAULT, supportHours, ticketTiming } from "./access.ts";
+Deno.test("business hours: weekdays 9 to 5 in New York, across nights, weekends and the clock change", () => {
+  const H = SUPPORT_HOURS_DEFAULT;
+  // Monday 16 Nov 2026, New York is UTC-5
+  assertEquals(businessHoursBetween("2026-11-16T14:00:00Z", "2026-11-16T18:00:00Z", H), 4);          // 9:00 to 13:00
+  assertEquals(businessHoursBetween("2026-11-16T21:00:00Z", "2026-11-17T15:00:00Z", H), 2);          // 16:00 Mon to 10:00 Tue: 1 + 1
+  assertEquals(businessHoursBetween("2026-11-20T21:00:00Z", "2026-11-23T15:00:00Z", H), 2);          // Fri 16:00 to Mon 10:00
+  assertEquals(businessHoursBetween("2026-11-21T15:00:00Z", "2026-11-22T20:00:00Z", H), 0);          // the weekend
+  assertEquals(businessHoursBetween("2026-11-16T03:00:00Z", "2026-11-16T12:00:00Z", H), 0);          // before opening
+  // Friday 30 Oct to Monday 2 Nov 2026: the clocks went back on Sunday; 9:00 is 13:00 UTC on Friday, 14:00 on Monday
+  assertEquals(businessHoursBetween("2026-10-30T13:00:00Z", "2026-11-02T15:00:00Z", H), 9);
+  assertEquals(businessHoursBetween("2026-11-16T18:00:00Z", "2026-11-16T14:00:00Z", H), 0);
+  assertEquals(businessHoursBetween("bad", "2026-11-16T14:00:00Z", H), 0);
+});
+
+Deno.test("the setting is read safely, and overdue means no first reply after 4 business hours", () => {
+  assertEquals(supportHours(null), SUPPORT_HOURS_DEFAULT);
+  assertEquals(supportHours({ days: [1, 9, 1], start: "25:00", end: "08:00", timezone: "Mars/Base", first_response_hours: -3 }), { ...SUPPORT_HOURS_DEFAULT, days: [1] });
+  assertEquals(supportHours({ days: [6, 7], start: "10:00", end: "14:00", timezone: "Europe/London", first_response_hours: 2 }), { days: [6, 7], start: "10:00", end: "14:00", timezone: "Europe/London", first_response_hours: 2 });
+  const H = SUPPORT_HOURS_DEFAULT;
+  assertEquals(ticketTiming({ created_at: "2026-11-16T14:00:00Z", status: "open" }, H, "2026-11-16T18:30:00Z"), { ageHours: 4.5, firstResponseHours: null, overdue: true });
+  assertEquals(ticketTiming({ created_at: "2026-11-16T14:00:00Z", status: "open" }, H, "2026-11-16T17:00:00Z").overdue, false);
+  assertEquals(ticketTiming({ created_at: "2026-11-16T14:00:00Z", first_response_at: "2026-11-16T15:30:00Z", status: "in_progress" }, H, "2026-11-17T18:00:00Z"), { ageHours: 12, firstResponseHours: 1.5, overdue: false });
+  assertEquals(ticketTiming({ created_at: "2026-11-16T14:00:00Z", status: "resolved" }, H, "2026-11-18T18:00:00Z").overdue, false);
+});

@@ -34,3 +34,11 @@ test("the audit page's Action filter lists every catalog action by label, and em
   assert.deepEqual(opts.map((o) => o.label), [...opts.map((o) => o.label)].sort((a, b) => a.localeCompare(b)));
   assert.deepEqual(auditQuery({ businessId: "", auditAction: " admin.updated ", from: "2026-11-01", to: "" }), { auditAction: "admin.updated", from: "2026-11-01" });
 });
+
+test("business hours in words", async () => {
+  const { businessHoursText } = await import("../src/adminAccess.js");
+  assert.equal(businessHoursText(0.4), "under a business hour");
+  assert.equal(businessHoursText(1), "1 business hour");
+  assert.equal(businessHoursText(3.46), "3.5 business hours");
+  assert.equal(businessHoursText(null), "");
+});

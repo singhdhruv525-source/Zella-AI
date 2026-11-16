@@ -39,14 +39,17 @@ async function page(ctx) {
   return p;
 }
 
-async function signIn(p, email) {
-  await p.goto(APP + "/");
+// Admins sign in at /, business members at /app.
+async function signIn(p, email, root = /@zella\.test$|@lanea\.test$/.test(email) ? "/" : "/app") {
+  await p.goto(APP + root);
   await p.waitForSelector('input[type="email"]');
   await p.fill('input[type="email"]', email);
   if (!(await p.$('input[type="password"]'))) await p.click('button[type="submit"]');
   await p.fill('input[type="password"]', PASSWORD);
   await p.click('button[type="submit"]');
-  await p.waitForSelector(".owner-nav-item, .app-nav, nav", { state: "attached" });
+  // the admin dashboard has its sidebar; the business app leaves the sign in page
+  await p.waitForSelector('input[type="password"]', { state: "detached" });
+  await p.waitForLoadState("networkidle").catch(() => {});
 }
 
 // The stand in's access token for a person, for calling the function directly.

@@ -4,6 +4,7 @@ import { callOwnerFunction } from "./CreateBusinessWizard";
 import { Pill } from "./OwnerOverview";
 import { formatDateTime, timeAgo } from "./ownerFormat";
 import { friendlyError } from "./admin/adminOps";
+import { businessHoursText } from "./adminAccess";
 
 const STATUSES = [["open", "Open"], ["in_progress", "In progress"], ["resolved", "Resolved"], ["closed", "Closed"]];
 const PRIORITIES = [["low", "Low"], ["normal", "Normal"], ["high", "High"], ["urgent", "Urgent"]];
@@ -23,8 +24,9 @@ export default function SupportTickets({ onOpenBusiness }) {
   const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState(EMPTY_TICKET);
   const [note, setNote] = useState("");
-  // a note draft belongs to one ticket: switching tickets (or closing) starts a fresh one
-  const selectTicket = (id) => { setSelectedId(id); setNote(""); };
+  const [reply, setReply] = useState("");
+  // drafts belong to one ticket: switching tickets (or closing) starts fresh ones
+  const selectTicket = (id) => { setSelectedId(id); setNote(""); setReply(""); };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -43,7 +45,7 @@ export default function SupportTickets({ onOpenBusiness }) {
   }, [load]);
 
   const tickets = (data?.tickets ?? []).filter((t) =>
-    statusFilter === "all" ? true : statusFilter === "active" ? ["open", "in_progress"].includes(t.status) : t.status === statusFilter
+    statusFilter === "all" ? true : statusFilter === "overdue" ? t.overdue : statusFilter === "active" ? ["open", "in_progress"].includes(t.status) : t.status === statusFilter
   );
   const selected = data?.tickets?.find((t) => t.id === selectedId) ?? null;
 
@@ -53,6 +55,7 @@ export default function SupportTickets({ onOpenBusiness }) {
     try {
       await callOwnerFunction("ticket_update", { ticketId: selectedId, ...payload });
       if (payload.note) setNote("");
+      if (payload.reply) setReply("");
       await load();
     } catch (err) {
       setError(friendlyError(err));
@@ -99,7 +102,7 @@ export default function SupportTickets({ onOpenBusiness }) {
       {error && <div className="owner-form-error op-gap" role="alert">{error}</div>}
 
       <div className="ag-filters op-gap" role="tablist">
-        {[["active", "Open & in progress"], ...STATUSES, ["all", "All"]].map(([key, text]) => (
+        {[["active", "Open & in progress"], ["overdue", `Waiting too long${data ? ` (${data.tickets.filter((t) => t.overdue).length})` : ""}`], ...STATUSES, ["all", "All"]].map(([key, text]) => (
           <button key={key} type="button" role="tab" aria-selected={statusFilter === key} className={statusFilter === key ? "active" : ""} onClick={() => setStatusFilter(key)}>
             {text}
           </button>
@@ -122,7 +125,10 @@ export default function SupportTickets({ onOpenBusiness }) {
                     </td>
                     <td>{t.business_name}</td>
                     <td><Pill tone={PRIORITY_TONE[t.priority]}>{label(PRIORITIES, t.priority)}</Pill></td>
-                    <td><Pill tone={STATUS_TONE[t.status]}>{label(STATUSES, t.status)}</Pill></td>
+                    <td>
+                      <Pill tone={STATUS_TONE[t.status]}>{label(STATUSES, t.status)}</Pill>
+                      {t.overdue && <> <Pill tone="danger">No reply yet</Pill></>}
+                    </td>
                     <td>{t.assignee ?? <span className="op-muted">Unassigned</span>}</td>
                   </tr>
                 ))}
@@ -185,6 +191,11 @@ export default function SupportTickets({ onOpenBusiness }) {
             </div>
 
             {selected.description && <p className="st-description">{selected.description}</p>}
+            <p className="op-muted">
+              {selected.firstResponseHours !== null && selected.firstResponseHours !== undefined
+                ? `First reply after ${businessHoursText(selected.firstResponseHours)}.`
+                : `No reply yet: open for ${businessHoursText(selected.ageHours) || "under a business hour"}${selected.overdue ? `, past the ${data?.supportHours?.first_response_hours ?? 4} business hour goal` : ""}.`}
+            </p>
 
             <div className="st-fields">
               <label className="owner-field">
@@ -206,6 +217,24 @@ export default function SupportTickets({ onOpenBusiness }) {
                   {(data?.assignees ?? []).map((a) => <option key={a.id} value={a.id}>{a.email}</option>)}
                 </select>
               </label>
+            </div>
+
+            <div className="st-notes">
+              <h4>Conversation with the business</h4>
+              {selected.messages?.length ? (
+                <ul>
+                  {selected.messages.map((m, i) => (
+                    <li key={i}>
+                      <p>{m.text}</p>
+                      <span>{m.side === "zella" ? `Zella Voice (${m.author ?? "support"})` : selected.business_name} · {formatDateTime(m.created_at)}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : <p className="op-muted">No replies yet. The business sees everything in this conversation.</p>}
+              <textarea className="wiz-textarea" aria-label="Reply to the business" value={reply} placeholder="Write a reply the business will see" onChange={(e) => setReply(e.target.value)} />
+              <button type="button" className="owner-primary-button op-gap-top" disabled={busy || !reply.trim()} onClick={() => update({ reply })}>
+                {busy ? "Sending..." : "Send reply"}
+              </button>
             </div>
 
             <div className="st-notes">

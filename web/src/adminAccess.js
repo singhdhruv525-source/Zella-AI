@@ -38,3 +38,11 @@ export function auditActionOptions(catalog) {
 export function auditQuery(f) {
   return Object.fromEntries(Object.entries(f ?? {}).map(([k, v]) => [k, typeof v === "string" ? v.trim() : v]).filter(([, v]) => v));
 }
+
+// OPS-25: business hours in words ("3.5 business hours", "Under an hour").
+export function businessHoursText(h) {
+  if (h === null || h === undefined || !Number.isFinite(h)) return "";
+  if (h < 1) return "under a business hour";
+  const n = Math.round(h * 10) / 10;
+  return `${n} business ${n === 1 ? "hour" : "hours"}`;
+}

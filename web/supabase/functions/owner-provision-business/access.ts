@@ -282,3 +282,64 @@ export function accessHandlers(admin: SupabaseClient, fields: Json, userId: stri
   };
   return { handlers, audited };
 }
+
+// OPS-25: support age in business hours (REQ-BIL-47: first response within 4 business hours). The hours are the
+// platform setting support_business_hours (sql/zella_support_replies.sql); this default is used until it is set.
+export type SupportHours = { days: number[]; start: string; end: string; timezone: string; first_response_hours: number };
+export const SUPPORT_HOURS_DEFAULT: SupportHours = { days: [1, 2, 3, 4, 5], start: "09:00", end: "17:00", timezone: "America/New_York", first_response_hours: 4 };
+
+export function supportHours(v: unknown): SupportHours {
+  const o = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
+  const hm = (x: unknown, d: string) => (typeof x === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(x) ? x : d);
+  let timezone = SUPPORT_HOURS_DEFAULT.timezone;
+  try { if (typeof o.timezone === "string") { new Intl.DateTimeFormat("en-US", { timeZone: o.timezone }); timezone = o.timezone; } } catch { /* keep the default */ }
+  const days = Array.isArray(o.days) ? [...new Set(o.days.filter((d) => Number.isInteger(d) && (d as number) >= 1 && (d as number) <= 7))] as number[] : [];
+  const start = hm(o.start, SUPPORT_HOURS_DEFAULT.start), end = hm(o.end, SUPPORT_HOURS_DEFAULT.end);
+  const n = Number(o.first_response_hours);
+  return {
+    days: days.length ? days.sort() : SUPPORT_HOURS_DEFAULT.days,
+    start: start < end ? start : SUPPORT_HOURS_DEFAULT.start, end: start < end ? end : SUPPORT_HOURS_DEFAULT.end,
+    timezone, first_response_hours: Number.isFinite(n) && n > 0 && n <= 168 ? n : SUPPORT_HOURS_DEFAULT.first_response_hours,
+  };
+}
+
+// The local date, weekday (1 Monday to 7 Sunday) and offset from UTC of an instant in a time zone.
+function zoned(ms: number, tz: string) {
+  const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: tz, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", weekday: "short" }).formatToParts(new Date(ms)).map((x) => [x.type, x.value]));
+  const local = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second);
+  return { y: +p.year, m: +p.month, d: +p.day, weekday: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].indexOf(p.weekday) + 1, offset: local - Math.floor(ms / 1000) * 1000 };
+}
+// The instant of a local wall time in a time zone (the offset is found twice, for the days the clocks change).
+function instant(y: number, m: number, d: number, hhmm: string, tz: string) {
+  const [h, min] = hhmm.split(":").map(Number);
+  const guess = Date.UTC(y, m - 1, d, h, min);
+  const first = guess - zoned(guess, tz).offset;
+  return guess - zoned(first, tz).offset;
+}
+
+// Business hours between two instants, in hours (0 when the end is not after the start). At most 400 days are read.
+export function businessHoursBetween(fromIso: string, toIso: string, hours: SupportHours): number {
+  const from = Date.parse(fromIso), to = Date.parse(toIso);
+  if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return 0;
+  let total = 0;
+  let { y, m, d } = zoned(from, hours.timezone);
+  for (let i = 0; i < 400; i++) {
+    const noon = Date.UTC(y, m - 1, d, 12);
+    const wd = ((new Date(noon).getUTCDay() + 6) % 7) + 1;
+    const open = instant(y, m, d, hours.start, hours.timezone), close = instant(y, m, d, hours.end, hours.timezone);
+    if (open >= to) break;
+    if (hours.days.includes(wd)) total += Math.max(0, Math.min(close, to) - Math.max(open, from));
+    const next = new Date(noon + 86_400_000);
+    y = next.getUTCFullYear(); m = next.getUTCMonth() + 1; d = next.getUTCDate();
+  }
+  return Math.round((total / 3_600_000) * 100) / 100;
+}
+
+// A ticket's age, its first response time and whether the first response is overdue, all in business hours.
+export function ticketTiming(t: { created_at: string; first_response_at?: string | null; status?: string }, hours: SupportHours, nowIso = new Date().toISOString()) {
+  const waiting = !t.first_response_at && !["resolved", "closed"].includes(t.status ?? "");
+  const firstResponseHours = t.first_response_at ? businessHoursBetween(t.created_at, t.first_response_at, hours) : null;
+  const ageHours = businessHoursBetween(t.created_at, nowIso, hours);
+  return { ageHours, firstResponseHours, overdue: waiting && ageHours > hours.first_response_hours };
+}

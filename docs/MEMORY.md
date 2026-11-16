@@ -179,6 +179,12 @@ most often needed:
   at most 10,000 entries per file (`AUDIT_EXPORT_MAX_ROWS`); every export is audited as `audit.exported` with its filters
   and row count. The audit page's filter uses the key `auditAction`, since `action` names the function's own action.
 
+- **Support business hours (OPS-25, 16 Nov 2026, recommended default taken):** Monday to Friday 9:00 to 17:00
+  America/New_York, first reply goal 4 business hours, stored as `platform_settings.support_business_hours`
+  (`SUPPORT_HOURS_DEFAULT` in `owner-provision-business/access.ts` until it is set). It has no editor yet: the
+  platform settings allowlist belongs to another lane. Replies notify the business in the app only (never email or
+  text, `delivery_status` skipped).
+
 - **Unsubscribe link limits (G-7, 14 Nov 2026):** limits are per link only, never platform-wide or per address (a burst
   of genuine opt-outs after a big email must never be refused), and the limit never stops an opt-out.
 
