@@ -30,15 +30,15 @@ alter table public.support_ticket_notes enable row level security;
 revoke all on table public.support_ticket_notes from public, anon, authenticated;
 grant all on table public.support_ticket_notes to service_role;
 
--- Legacy metadata may contain malformed dates; keep migrating the note and use the caller's fallback.
-create or replace function public.zella_support_note_timestamp(p_value text) returns timestamptz
-language plpgsql set search_path = public as $$
+-- a note's time as written, or null when it isn't a valid time (a malformed value must never stop the move)
+create or replace function public.zella_try_timestamptz(p text) returns timestamptz
+language plpgsql stable set search_path = '' as $$
 begin
-  return p_value::timestamptz;
-exception when invalid_datetime_format or datetime_field_overflow or invalid_time_zone_displacement_value then
+  return p::timestamptz;
+exception when others then
   return null;
 end $$;
-revoke all on function public.zella_support_note_timestamp(text) from public, anon, authenticated;
+revoke all on function public.zella_try_timestamptz(text) from public, anon, authenticated;
 
 -- moves notes out of a metadata value into the table; returns the metadata without them
 create or replace function public.zella_take_ticket_notes(p_ticket uuid, p_metadata jsonb) returns jsonb
@@ -50,7 +50,7 @@ begin
     select p_ticket,
            case when n ->> 'author_id' ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then (n ->> 'author_id')::uuid end,
            left(btrim(n ->> 'text'), 4000),
-           coalesce(public.zella_support_note_timestamp(n ->> 'created_at'), now()),
+           coalesce(public.zella_try_timestamptz(n ->> 'created_at'), now()),
            true
       from jsonb_array_elements(p_metadata -> 'notes') n
      where jsonb_typeof(n) = 'object' and length(btrim(coalesce(n ->> 'text', ''))) > 0;

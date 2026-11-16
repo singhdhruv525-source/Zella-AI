@@ -2258,7 +2258,7 @@ async function ticketNotes(admin: SupabaseClient, tickets: { id: string; metadat
   if (!ids.length) return out;
   const pageSize = 1000;
   for (let offset = 0; ; offset += pageSize) {
-    const { data, error } = await admin.from("support_ticket_notes").select("ticket_id, body, author_id, created_at")
+    const { data, error } = await admin.from("support_ticket_notes").select("id, ticket_id, body, author_id, created_at")
       .in("ticket_id", ids).order("created_at", { ascending: true }).order("id", { ascending: true })
       .range(offset, offset + pageSize - 1);
     if (error) {

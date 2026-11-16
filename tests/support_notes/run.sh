@@ -47,10 +47,10 @@ c=$(q "select (select count(*) from public.support_tickets where metadata ? 'not
 n=$(q "select string_agg(body, '|' order by created_at, id) from public.support_ticket_notes where ticket_id = '$T2'")
 [ "$n" = "Note on a new ticket" ] && ok "new ticket's note has the right body and ticket" || bad "new ticket note: $n"
 # Malformed legacy dates must not abort either a migration or a guarded ticket write.
-v=$(q "select public.zella_support_note_timestamp('2026-02-30T10:00:00Z') is null
-  and public.zella_support_note_timestamp('not a date') is null
-  and public.zella_support_note_timestamp(null) is null
-  and public.zella_support_note_timestamp('2026-11-10T10:00:00Z') = '2026-11-10T10:00:00Z'::timestamptz")
+v=$(q "select public.zella_try_timestamptz('2026-02-30T10:00:00Z') is null
+  and public.zella_try_timestamptz('not a date') is null
+  and public.zella_try_timestamptz(null) is null
+  and public.zella_try_timestamptz('2026-11-10T10:00:00Z') = '2026-11-10T10:00:00Z'::timestamptz")
 [ "$v" = "t" ] && ok "timestamp helper handles valid, invalid and missing dates" || bad "timestamp helper: $v"
 v=$(q "begin;
   update public.support_tickets set metadata = jsonb_build_object('notes', jsonb_build_array(
@@ -60,14 +60,19 @@ v=$(q "begin;
     where ticket_id = '$T2' and body in ('Invalid date', 'Missing date');
   rollback;")
 [ "$v" = "t" ] && ok "invalid and missing dates fall back to now without losing notes" || bad "date fallback: $v"
-v=$(q "select not has_function_privilege('anon', 'public.zella_support_note_timestamp(text)', 'EXECUTE')
-  and not has_function_privilege('authenticated', 'public.zella_support_note_timestamp(text)', 'EXECUTE')")
+v=$(q "select not has_function_privilege('anon', 'public.zella_try_timestamptz(text)', 'EXECUTE')
+  and not has_function_privilege('authenticated', 'public.zella_try_timestamptz(text)', 'EXECUTE')")
 [ "$v" = "t" ] && ok "timestamp helper is private" || bad "timestamp helper grants: $v"
+
+# malformed times never stop the move: the note keeps its text and gets the time of the move
+q "update public.support_tickets set metadata = jsonb_build_object('notes', jsonb_build_array(jsonb_build_object('text', 'Bad date 1', 'created_at', '2026-13-45'), jsonb_build_object('text', 'Bad date 2', 'created_at', '2026-11-10 garbage'))) where id = '$T2'" > /dev/null 2>&1 && ok "malformed note times don't stop the move" || bad "malformed time stopped the update"
+b=$(q "select count(*) from public.support_ticket_notes where ticket_id = '$T2' and body like 'Bad date%' and created_at is not null")
+[ "$b" = "2" ] && ok "and those notes are kept, with the time of the move" || bad "malformed notes kept: $b"
 
 "${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_support_notes_rollback.sql" > /dev/null 2>&1 && "${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_support_notes_rollback.sql" > /dev/null 2>&1 && ok "rollback runs twice" || bad "rollback"
 r=$(q "select string_agg(n ->> 'text', '|' order by ord) from public.support_tickets t, jsonb_array_elements(t.metadata -> 'notes') with ordinality x(n, ord) where t.id = '$T'")
 [ "$r" = "Owner sounded upset; check carrier|Second note|Late note" ] && ok "rollback puts every note back into metadata, oldest first" || bad "rollback notes: $r"
-[ "$(q "select to_regclass('public.support_ticket_notes') is null and to_regprocedure('public.zella_take_ticket_notes(uuid,jsonb)') is null and to_regprocedure('public.zella_support_note_timestamp(text)') is null")" = "t" ] && ok "rollback removes the table and helpers" || bad "left behind"
+[ "$(q "select to_regclass('public.support_ticket_notes') is null and to_regprocedure('public.zella_take_ticket_notes(uuid,jsonb)') is null and to_regprocedure('public.zella_try_timestamptz(text)') is null")" = "t" ] && ok "rollback removes the table and helpers" || bad "left behind"
 "${P[@]}" -d $DB -f "$REPO/sql/zella_support_notes.sql" > /dev/null 2>&1 && ok "applies again after the rollback" || bad "reapply"
 "${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_support_notes_rollback.sql" > /dev/null 2>&1
 q "create table public.support_ticket_notes (id uuid primary key, x text)" > /dev/null

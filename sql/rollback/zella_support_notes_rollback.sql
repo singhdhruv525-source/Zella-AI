@@ -15,5 +15,5 @@ do $$ begin
 end $$;
 drop function if exists public.zella_support_notes_guard_trg();
 drop function if exists public.zella_take_ticket_notes(uuid, jsonb);
-drop function if exists public.zella_support_note_timestamp(text);
+drop function if exists public.zella_try_timestamptz(text);
 commit;
