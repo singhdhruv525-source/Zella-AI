@@ -172,6 +172,10 @@ most often needed:
   lane or page switches a job, which stays the owner's live switch. zella_usage_thresholds and zella_billing_reconcile
   (on in production) have no intent recorded, so the page shows them as plain On.
 
+- **n8n answers (OPS-17, 16 Nov 2026, default the owner can change):** a 401 or 403 from n8n (wrong secret) is one
+  urgent `n8n_dispatch_refused` alert for every workflow; a 404 (workflow not published) is a warning per workflow; a
+  later 2xx resolves them. The dispatcher reads pg_net's answer on its next run and never waits for it.
+
 Waiting on the owner:
 
 - whether suspended businesses keep read-only access (L-5);
