@@ -1,0 +1,80 @@
+/* Settings, Alert rules editor. Page scoped: every class starts with ar-. Colours are tokens only. */
+
+.ar-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--zella-space-3); margin-bottom: var(--zella-space-4); }
+.ar-search { flex: 1 1 260px; max-width: 360px; background: var(--zella-card); }
+.ar-search input, .ar-search input:focus, .ar-search input:focus-visible { height: 34px; border: 0; outline: none; box-shadow: none; background: transparent; }
+.ar-chip {
+  display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 var(--zella-space-3);
+  border: 1px solid var(--zella-border); border-radius: var(--zella-radius-full); background: var(--zella-card);
+  color: var(--zella-text-2); font: inherit; font-size: var(--zella-text-sm); font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.ar-chip:hover { background: var(--zella-alt); color: var(--zella-text); }
+.ar-chip:focus-visible, .ar-row:focus-visible { outline: 2px solid var(--zella-focus); outline-offset: 2px; }
+.ar-chip.on { background: var(--zella-primary-soft); color: var(--zella-text); border-color: transparent; box-shadow: inset 0 0 0 1px var(--zella-primary-border); }
+.ar-chip-count {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 6px;
+  border-radius: var(--zella-radius-full); background: var(--zella-subtle); color: var(--zella-text-secondary);
+  font-size: var(--zella-text-xs); font-variant-numeric: tabular-nums;
+}
+.ar-count { margin-left: auto; color: var(--zella-text-secondary); font-size: var(--zella-text-sm); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+.ar-wrap { margin: 0 calc(-1 * var(--zella-space-4)) calc(-1 * var(--zella-space-4)); }
+.ar-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--zella-text-sm); }
+.ar-table thead th {
+  padding: 8px var(--zella-space-4); border-bottom: 1px solid var(--zella-border); color: var(--zella-text-secondary);
+  font-size: var(--zella-text-xs); font-weight: 600; text-align: left; white-space: nowrap;
+}
+.ar-table th.num, .ar-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.ar-table th.col-actions, .ar-table td.col-actions { width: 1%; white-space: nowrap; text-align: right; }
+
+/* Area subheads stay in view while the list scrolls */
+.ar-group th {
+  position: sticky; top: 0; z-index: 1; padding: 10px var(--zella-space-4) 6px;
+  border-bottom: 1px solid var(--zella-border); background: var(--zella-card);
+  color: var(--zella-text); font-size: var(--zella-text-xs); font-weight: 600; letter-spacing: 0.04em; text-align: left; text-transform: uppercase;
+}
+.ar-table tbody + tbody .ar-group th { padding-top: var(--zella-space-5); }
+.ar-group th span { margin-left: var(--zella-space-2); color: var(--zella-text-secondary); font-weight: 500; letter-spacing: 0; }
+
+.ar-row { cursor: pointer; }
+.ar-row td { padding: 10px var(--zella-space-4); border-bottom: 1px solid var(--zella-border); color: var(--zella-text-2); vertical-align: middle; }
+.ar-table tbody:last-child .ar-row:last-child td { border-bottom: 0; }
+.ar-row:hover td { background: var(--zella-alt); }
+.ar-row.selected td { background: var(--zella-primary-soft); }
+.ar-row.selected td:first-child { box-shadow: inset 3px 0 0 var(--zella-primary); }
+.ar-name strong { color: var(--zella-text); font-weight: 600; }
+.ar-rule { display: flex; align-items: center; flex-wrap: wrap; gap: 6px var(--zella-space-2); }
+.ar-default, .ar-zero { color: var(--zella-text-secondary); }
+.ar-edit .ba-icon { margin-right: -4px; color: var(--zella-text-secondary); }
+.ar-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.ar-empty { display: flex; flex-direction: column; align-items: flex-start; gap: var(--zella-space-3); padding: var(--zella-space-4) 0; color: var(--zella-text-secondary); }
+.ar-empty p { margin: 0; }
+.ar-form { scroll-margin-top: var(--zella-space-4); }
+
+/* Phones: each rule is a two line card, name and action on top, the rule and count below */
+@media (max-width: 600px) {
+  .ar-search { max-width: none; flex-basis: 100%; }
+  .ar-count { margin-left: 0; }
+  .ar-table thead { display: none; }
+  .ar-table, .ar-table tbody { display: block; }
+  .ar-group { display: block; }
+  .ar-group th { display: block; }
+  .ar-row { display: grid; grid-template-columns: 1fr auto; gap: 4px var(--zella-space-3); padding: var(--zella-space-3) var(--zella-space-4); border-bottom: 1px solid var(--zella-border); }
+  .ar-table tbody:last-child .ar-row:last-child { border-bottom: 0; }
+  .ar-row td { display: block; padding: 0; border: 0; background: none; }
+  .ar-row:hover, .ar-row:hover td, .ar-row.selected td { background: none; }
+  .ar-row.selected { background: var(--zella-primary-soft); box-shadow: inset 3px 0 0 var(--zella-primary); }
+  .ar-row.selected td:first-child { box-shadow: none; }
+  .ar-row .ar-name { grid-column: 1; grid-row: 1; align-self: center; }
+  .ar-row .col-actions { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+  .ar-row .ar-rule-cell { grid-column: 1; }
+  .ar-row td.num { grid-column: 1; text-align: left; color: var(--zella-text-secondary); font-size: var(--zella-text-xs); }
+  .ar-row td.num::before { content: attr(data-label) ": "; }
+}
+
+/* Keep the columns in place while the search or the changed switch narrows the list */
+@media (min-width: 601px) {
+  .ar-table thead th:first-child { width: 34%; }
+  .ar-table th.num { width: 1%; }
+}

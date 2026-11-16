@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Icon } from "../../BusinessUI";
 import { supabase } from "../../supabase";
 import catalog from "../../../supabase/functions/_shared/catalog.json";
-import { Banner, Card, Field, LoadState, Needs, Pill, Table, Toggle, useAsync, when } from "../SettingsKit";
-import { REPEAT_CHOICES, SEVERITIES, formFrom, ruleFromForm, ruleRows, ruleSummary } from "./alertRules";
+import { Banner, Card, Field, LoadState, Needs, Pill, Toggle, useAsync, when } from "../SettingsKit";
+import { REPEAT_CHOICES, SEVERITIES, formFrom, groupRules, ruleFromForm, ruleRows, ruleSummary } from "./alertRules";
+import "./alertRules.css";
 
 // Settings, Alert rules (SET-ALERT-RULES): one rule per alert kind, from the shared list of kinds the code raises
 // (PLT-08). Rules are read with businesses.view and saved with platform.configure and a reason; every change is in the
@@ -21,19 +23,64 @@ const rpc = async (fn, args) => {
 export default function AlertRules({ me }) {
   const state = useAsync(() => rpc("zella_admin_alert_rules", {}), []);
   const [open, setOpen] = useState(null);
+  const [query, setQuery] = useState("");
+  const [changedOnly, setChangedOnly] = useState(false);
   const canEdit = Boolean(me?.permissions?.includes("platform.configure"));
   return (
     <LoadState state={state}>{(d) => {
       if (d.missing) return <Needs title="Alert rules need a database update" have="Every alert is still raised as before, with its own severity.">Once the alert rules update is applied, each kind of alert can be switched off, given a severity, sent to chosen admins, spaced out and given quiet hours.</Needs>;
       const rows = ruleRows(catalog, d);
+      const changed = rows.filter((r) => r.rule).length;
+      const groups = groupRules(rows, { query, changedOnly });
+      const shown = groups.reduce((n, g) => n + g.rows.length, 0);
+      const action = canEdit ? "Edit" : "View";
       return (
         <>
           <Card title="Alert rules" sub="Each kind of alert the platform raises. A rule changes how it is raised and who is emailed. Urgent alerts are never switched off, lowered or held back by quiet hours.">
-            <Table rowKey={(r) => r.kind} rows={rows} empty="No alert kinds found."
-              columns={[["Alert", (r) => <span data-rule-kind={r.kind}><strong>{r.label}</strong>{r.protected && <> <Pill tone="danger">Always urgent</Pill></>}</span>],
-                ["Rule", (r) => <span data-rule-summary={r.kind}>{ruleSummary(r)}</span>],
-                ["Raised (30 days)", (r) => r.seen],
-                ["Rule details", (r) => <button type="button" className="zs-link" onClick={() => setOpen(r)} aria-label={`${canEdit ? "Edit" : "View"} the rule for ${r.label}`}>{canEdit ? "Edit" : "View"}</button>]]} />
+            <div className="ar-toolbar">
+              <label className="zs-search ar-search">
+                <Icon name="search" size="sm" />
+                <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search alerts" aria-label="Search alerts" />
+              </label>
+              <button type="button" className={`ar-chip${changedOnly ? " on" : ""}`} aria-pressed={changedOnly} onClick={() => setChangedOnly((v) => !v)}>
+                {changedOnly && <Icon name="check" size="sm" />}Only changed rules <span className="ar-chip-count">{changed}</span>
+              </button>
+              <span className="ar-count" aria-live="polite">{shown === rows.length ? `${rows.length} alerts` : `${shown} of ${rows.length} alerts`}</span>
+            </div>
+            {groups.length ? (
+              <div className="ar-wrap">
+                <table className="ar-table">
+                  <thead>
+                    <tr><th scope="col">Alert</th><th scope="col">Rule</th><th scope="col" className="num">Raised, last 30 days</th><th scope="col" className="col-actions"><span className="ar-sr">Actions</span></th></tr>
+                  </thead>
+                  {groups.map((g) => (
+                    <tbody key={g.area}>
+                      <tr className="ar-group"><th colSpan={4} scope="colgroup">{g.area}<span>{g.rows.length}</span></th></tr>
+                      {g.rows.map((r) => (
+                        <tr key={r.kind} className={`ar-row${open?.kind === r.kind ? " selected" : ""}`} onClick={() => setOpen(r)}>
+                          <td className="ar-name" data-rule-kind={r.kind}><strong>{r.label}</strong></td>
+                          <td className="ar-rule-cell"><div className="ar-rule">
+                            <span data-rule-summary={r.kind} className={r.rule ? "" : "ar-default"}>{r.rule ? ruleSummary(r) : "Default"}</span>
+                            {r.protected && <Pill tone="danger">Always urgent</Pill>}
+                          </div></td>
+                          <td className="num" data-label="Raised, last 30 days"><span className={r.seen ? "" : "ar-zero"}>{r.seen.toLocaleString("en-US")}</span></td>
+                          <td className="col-actions">
+                            <button type="button" className="zs-btn sm ar-edit" onClick={(e) => { e.stopPropagation(); setOpen(r); }} aria-label={`${action} the rule for ${r.label}`}>
+                              {action}<Icon name="chevron_right" size="sm" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  ))}
+                </table>
+              </div>
+            ) : (
+              <div className="ar-empty">
+                <p>{changedOnly && !query.trim() ? "No rule has been changed yet. Every alert is raised as the check decides." : "No alerts match your search."}</p>
+                <button type="button" className="zs-btn sm" onClick={() => { setQuery(""); setChangedOnly(false); }}>Show all alerts</button>
+              </div>
+            )}
           </Card>
           {open && <RuleForm key={open.kind} row={open} canEdit={canEdit} onClose={() => setOpen(null)} onSaved={() => { setOpen(null); state.reload(); }} />}
         </>
@@ -55,7 +102,11 @@ function RuleForm({ row, canEdit, onClose, onSaved }) {
     catch (e) { setError(e.message); setBusy(false); }
   };
   const lock = !canEdit || busy;
+  const ref = useRef(null);
+  // the list is long, so bring the opened rule into view
+  useEffect(() => { ref.current?.scrollIntoView?.({ block: "start", behavior: "smooth" }); }, []);
   return (
+    <div ref={ref} className="ar-form">
     <Card title={`Rule: ${row.label}`} sub={row.rule?.updated_at ? `Last changed ${when(row.rule.updated_at)}${row.rule.updated_by ? ` by ${row.rule.updated_by}` : ""}` : "No rule yet: raised as the check decides."}>
       <div className="zs-grid" data-rule-form={row.kind}>
         <Field label="Raise this alert" hint={row.protected ? "Always on: this kind is always urgent." : "Off means the check raises nothing for this kind."}>
@@ -99,9 +150,10 @@ function RuleForm({ row, canEdit, onClose, onSaved }) {
       <Banner tone="error">{error}</Banner>
       <div className="zs-actions">
         <button type="button" className="zs-btn" onClick={onClose} disabled={busy}>Close</button>
-        {canEdit && row.rule && <button type="button" className="zs-btn" onClick={() => save(null)} disabled={busy}>Back to as raised</button>}
+        {canEdit && row.rule && <button type="button" className="zs-btn" onClick={() => save(null)} disabled={busy}>Back to default</button>}
         {canEdit && <button type="button" className="zs-btn primary" onClick={() => save(ruleFromForm(f, row.protected))} disabled={busy}>{busy ? "Saving…" : "Save rule"}</button>}
       </div>
     </Card>
+    </div>
   );
 }

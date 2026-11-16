@@ -47,3 +47,23 @@ export function ruleFromForm(f, isProtected) {
     quiet_start: f.quiet ? f.quiet_start : null, quiet_end: f.quiet ? f.quiet_end : null, quiet_tz: f.quiet_tz || "America/New_York",
   };
 }
+
+// The areas the editor groups rules under, in the order they are shown. Platform takes every kind not listed.
+export const AREAS = ["AI receptionist", "Billing", "Calendar", "Messaging", "Offers", "Platform"];
+const AREA_KINDS = {
+  "AI receptionist": ["agent_failures", "agent_sync_failed", "ai_call_failure", "call_not_summarized", "call_volume_spike", "knowledge_conflict", "knowledge_stale", "reconcile_knowledge_stuck", "repeated_transfer_failures", "lead_capture_failed", "spam_flood", "spam_repeat_offender", "website_page_broken"],
+  Billing: ["billing_currency", "billing_event_failed", "billing_event_unmatched", "business_cancelled", "business_suspended", "payment_disputed", "payment_failed", "payment_overdue", "payment_partial_refund", "payment_reversed", "trial_ended", "usage_missing_duration", "usage_processing_failed"],
+  Calendar: ["calendar_disconnected", "calendar_sync_failed", "reconcile_calendar"],
+  Messaging: ["meta_disconnected", "meta_lead_failed", "meta_permissions_missing", "meta_send_failed", "reconcile_email_stuck", "reconcile_sms_stuck", "sms_failures", "platform_email_held", "stuck_followups"],
+};
+const AREA_OF = new Map(Object.entries(AREA_KINDS).flatMap(([area, kinds]) => kinds.map((k) => [k, area])));
+export const ruleArea = (kind) => AREA_OF.get(kind) ?? (String(kind).startsWith("offer_") ? "Offers" : "Platform");
+
+// rows that match the search and the "only changed" switch, grouped by area in AREAS order (empty areas left out)
+export function groupRules(rows, { query = "", changedOnly = false } = {}) {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const keep = rows.filter((r) => (!changedOnly || r.rule)
+    && words.every((w) => `${r.label} ${r.kind.replace(/_/g, " ")} ${ruleArea(r.kind)}`.toLowerCase().includes(w)));
+  return AREAS.map((area) => ({ area, rows: keep.filter((r) => ruleArea(r.kind) === area).sort((a, b) => a.label.localeCompare(b.label)) }))
+    .filter((g) => g.rows.length);
+}

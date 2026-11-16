@@ -34,3 +34,15 @@ test("bell only drops the email group; quiet hours only when switched on", () =>
   const r = ruleFromForm({ ...f, destination: "bell", quiet: false }, false);
   assert.deepEqual([r.destination, r.email_permission, r.quiet_start, r.quiet_end], ["bell", null, null, null]);
 });
+
+test("rules group by area, and the search and changed switch narrow them", async () => {
+  const { groupRules, ruleArea } = await import("../src/settings/panels/alertRules.js");
+  assert.equal(ruleArea("payment_failed"), "Billing");
+  assert.equal(ruleArea("offer_new_kind"), "Offers");
+  assert.equal(ruleArea("provider_down"), "Platform");
+  const rows = ruleRows(catalog, data);
+  assert.deepEqual(groupRules(rows).map((g) => [g.area, g.rows.length]), [["Offers", 1], ["Platform", 1]]);
+  assert.deepEqual(groupRules(rows, { changedOnly: true }).map((g) => g.area), ["Offers"]);
+  assert.deepEqual(groupRules(rows, { query: "provider" }).map((g) => g.rows[0].kind), ["provider_down"]);
+  assert.deepEqual(groupRules(rows, { query: "nothing like this" }), []);
+});
