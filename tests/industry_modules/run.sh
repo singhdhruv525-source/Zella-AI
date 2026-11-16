@@ -23,6 +23,7 @@ P=(psql -h "$ZPG_HOST" -p "$ZPG_PORT" -U postgres -qtAX -v ON_ERROR_STOP=1)
 fails=0; ok() { echo "PASS $*"; }; bad() { echo "FAIL $*"; fails=$((fails + 1)); }
 q() { "${P[@]}" -d $DB -c "$1"; }
 
+for port in $BPORT $FPORT; do curl -s -o /dev/null --max-time 2 "http://localhost:$port/" && { echo "FAIL port $port is already in use: stop that server or set BPORT and FPORT"; exit 1; }; done
 LOG=$(mktemp -d)
 ZDB=$DB PORT=$BPORT ZMAX_ROWS=1000 ZTEST_PASSWORD_AAL2=1 ZFUNCTIONS="{\"owner-provision-business\":$FPORT}" node "$REPO/tests/browser/local-backend.mjs" > "$LOG/backend.log" 2>&1 &
 BPID=$!
