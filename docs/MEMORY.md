@@ -173,7 +173,8 @@ most often needed:
 
 - **Deleting a draft business (Lane B, BIZ-13a, 16 Nov 2026):** only a Zella Voice owner or super admin, with the
   name typed and a reason, and only a business that never finished setup and has no calls, numbers, billing or
-  accepted owner. Audit rows stay (business_id empty); the deletion entry keeps the name. Default, owner can change.
+  accepted owner. The deletion entry (business_id null) keeps the id, name and a copy of the earlier audit rows;
+  the rows themselves go with the business while audit_logs.business_id is CASCADE (ACC-10: owner decision).
 
 - **Abandoned drafts (Lane B, BIZ-13b, D-30 recommended default, 16 Nov 2026):** a draft with no change for 30 days
   (`draft_abandon_days`, 7 to 365) is marked Abandoned and alerted once ever; nothing is deleted automatically. The
