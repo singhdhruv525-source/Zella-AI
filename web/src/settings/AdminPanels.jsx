@@ -809,8 +809,8 @@ export function TelephonyProviders() {
             <Facts rows={[["Telnyx (numbers, texts)", n.telnyx ? "Key configured" : "Key not set"], ["Vapi (AI voice)", n.vapi ? "Key configured" : "Key not set"],
               ["Numbers in Zella Voice", n.rows.length], ["Outbound calls", <span key="c" title={switchHint("calls_live")}>{val("calls_live") === true ? "On" : "Off until go live"}</span>], ["Inbound routing", "Vapi answers each assigned number with that business's receptionist"]]} />
           </Card>
-          <Needs title="Buying numbers and provider error logs aren't built" have="Numbers bought in Telnyx or Vapi are assigned to businesses under Numbers.">
-            Ordering numbers and reading provider errors need the Telnyx and Vapi APIs from a server action.
+          <Needs title="Buying numbers and provider error logs are off until the keys are added" have="Voice & numbers > Providers: an admin asks, a Zella Voice owner approves, then Telnyx and Vapi are called. Numbers are assigned to businesses under Numbers.">
+            Both keys, and number_orders_enabled switched on by a Zella Voice owner, are needed before anything is bought or released.
           </Needs>
         </>
       );

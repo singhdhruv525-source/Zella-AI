@@ -215,6 +215,7 @@ GROUPS = [
         "business_report_runs": "Reports produced.",
         "support_tickets": "Support requests from businesses.",
         "support_ticket_notes": "Zella Voice admins' internal notes on support tickets (server only: the business never sees them).",
+        "number_orders": "Phone number purchases and releases through Telnyx and Vapi: who asked, which owner approved, the provider's answer (server only).",
     }),
 ]
 

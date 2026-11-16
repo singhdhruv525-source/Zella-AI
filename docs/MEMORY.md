@@ -171,6 +171,14 @@ most often needed:
   REQ-API-01 to 04, Settings API management and Webhooks). A read only log of incoming provider events for admins is
   still fine.
 
+- **Number orders (VOICE-PROVIDERS, built 16 Nov 2026, not deployed):** every Telnyx or Vapi purchase or release is an
+  order an admin with `telephony.manage` asks for and a Zella Voice owner **who didn't ask** approves (an owner's own
+  request needs another owner); the approver's click places it once (claim), and a lost answer is "Check at Telnyx",
+  never retried. Bought numbers are added to Vapi but not assigned to a business: that stays the audited Assign step.
+  Off until the owner adds `TELNYX_API_KEY`, `VAPI_API_KEY` (and optionally `VAPI_TELNYX_CREDENTIAL_ID`,
+  `TELNYX_CONNECTION_ID`, `TELNYX_MESSAGING_PROFILE_ID`) and sets `number_orders_enabled` to true. The Telnyx and Vapi
+  request shapes follow their public API docs and are proven only against local fakes; confirm them with a sandbox key.
+
 Waiting on the owner:
 
 - whether suspended businesses keep read-only access (L-5);

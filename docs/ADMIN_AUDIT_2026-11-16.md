@@ -606,7 +606,7 @@ isolated database first.
 - [ ] Counter and alert for refused Vapi requests, with auth mode and last refusal shown (COM-09) · needs approval
 - [ ] Read only switches panel: calls live, usage enforcement for calls, Vapi auth mode (COM-13) · needs approval
 - [ ] Tiles that open the filtered call list, and a missed call rate alert (UI-14) · needs approval for the alert
-- [ ] Buying numbers and provider error logs through Telnyx and Vapi server actions (Providers says they aren't built) · needs approval (provider)
+- [ ] Buying numbers and provider error logs through Telnyx and Vapi server actions (Providers says they aren't built) · needs approval (provider) · built, switched off, in the lane G voice providers PR (branch `claude/lane-g-voice-providers`): needs the keys and the owner's switch
 - [ ] "Missing routing" list of businesses without a transfer or fallback number (UI-17)
 
 ### Messaging
