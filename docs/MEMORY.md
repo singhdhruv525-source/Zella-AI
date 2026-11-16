@@ -182,6 +182,11 @@ most often needed:
   default with the `zella_admin_mask` rule (`mask.ts`), the Spam page keeps its older rule for now (BIZ-22). The
   permission set comes from `adminPermissions` in `owner-provision-business/detail.ts`, the same answer `me_admin` gives.
 
+- **Business size goes through the admin function (BIZ-08, 16 Nov 2026):** `business_size_save` (businesses.manage).
+  Until EXECUTE on `zella_set_business_size` is revoked from signed in users (deferred: after
+  `sql/zella_admin_permissions.sql` is applied or dropped, whose version guard covers that function), an owner or
+  super admin can still call the old RPC by hand from a browser, skipping the two step check.
+
 Waiting on the owner:
 
 - whether suspended businesses keep read-only access (L-5);

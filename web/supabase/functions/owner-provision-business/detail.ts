@@ -16,8 +16,53 @@ export type DetailDeps = {
   loadSetup: (admin: SupabaseClient, businessId: string) => Promise<any>;
 };
 
+type Row = Record<string, unknown>;
+
 // Permission each action of this module needs (index.ts: `?? DETAIL_PERMISSIONS[action]`).
-export const DETAIL_PERMISSIONS: Record<string, string> = {};
+export const DETAIL_PERMISSIONS: Record<string, string> = {
+  business_size_save: "businesses.manage",   // BIZ-08: was a browser RPC open to owner and super admin only
+};
+
+// What index.ts lends this module's handlers (the same helpers platform.ts gets).
+export type DetailKit = {
+  text: (v: unknown, max?: number) => string;
+  requireId: (v: unknown, label?: string) => string;
+  InputError: new (message: string, status?: number) => Error;
+};
+
+type Audit = { action: string; business_id?: string | null; entity_type?: string | null; entity_id?: string | null; old_data?: Row | null; new_data?: Row | null };
+
+export const BUSINESS_SIZES = ["small", "medium", "large"] as const;
+
+// This page's actions. Each returns what the page shows; `audited` says what each records (null records nothing).
+export function detailHandlers(admin: SupabaseClient, fields: Row, k: DetailKit) {
+  const handlers: Record<string, () => Promise<unknown>> = {
+    // BIZ-08: Small, Medium or Large (or not set), set by an admin and used by offers. Saved only if nobody changed it
+    // since the page loaded it, so the audit's before value is the real one.
+    business_size_save: async () => {
+      const businessId = k.requireId(fields.businessId);
+      const raw = fields.size === null || fields.size === "" ? null : k.text(fields.size, 20);
+      if (raw !== null && !(BUSINESS_SIZES as readonly string[]).includes(raw)) throw new k.InputError("Choose Small, Medium, Large or Not set");
+      const { data: current, error } = await admin.from("businesses").select("id, business_size").eq("id", businessId).maybeSingle();
+      if (error) throw error;
+      if (!current) throw new k.InputError("Business not found", 404);
+      const before = (current.business_size as string | null) ?? null;
+      if (before === raw) return { businessId, size: raw, before, changed: false };
+      const update = admin.from("businesses").update({ business_size: raw, updated_at: new Date().toISOString() }).eq("id", businessId);
+      const { data: rows, error: updateError } = await (before === null ? update.is("business_size", null) : update.eq("business_size", before)).select("id");
+      if (updateError) throw updateError;
+      if (!rows?.length) throw new k.InputError("The size was changed by someone else meanwhile. Reload the page and try again.", 409);
+      return { businessId, size: raw, before, changed: true };
+    },
+  };
+  const audited: Record<string, (r: Row) => Audit | null> = {
+    business_size_save: (r) => r.changed
+      ? { action: "business.size_changed", business_id: r.businessId as string, entity_type: "business", entity_id: r.businessId as string,
+        old_data: { size: r.before ?? null }, new_data: { size: r.size ?? null } }
+      : null,
+  };
+  return { handlers, audited };
+}
 
 const OWNER_ONLY = ["admins.manage", "roles.manage"];
 
@@ -50,7 +95,6 @@ export const SIGN_IN_FACTS_PERMISSION = "businesses.manage";
 // Every list on the page is capped, so one large business can't make the page slow.
 export const DETAIL_LIMITS = { numbers: 20, alerts: 10, deliveries: 10, members: 100, deliveryDays: 7 };
 
-type Row = Record<string, unknown>;
 type Reply = { data: unknown; error: { code?: string; message?: string } | null; count?: number | null };
 
 // A read of a table or function that an environment may not have yet (a migration not applied): the page shows

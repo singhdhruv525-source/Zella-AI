@@ -348,6 +348,9 @@ Opened from Businesses. What each tab shows and what an admin can do there:
 - **Modules:** the server refuses a module whose dependency is switched off for the business or isn't offered by its
   industry at all ("AI receptionist needs Calls, which this industry doesn't offer"); the list of dependencies lives
   in `module_deps.ts` and is sent with each module as `requires` (CFG-02).
+- **Business size:** Small, Medium, Large or not set, saved through the admin function (`business_size_save`,
+  `businesses.manage`, two step sign in checked) with the before and after in the audit log; a change made by someone
+  else meanwhile is refused (BIZ-08).
 - **Automations:** every standard automation and industry rule, with one status language shared with the Automations
   page: Active, Paused, Turned off (`AUTOMATION_STATUS` in `web/src/automationCatalog.js`, OPS-22). Names always start
   with a capital (UI-09).
