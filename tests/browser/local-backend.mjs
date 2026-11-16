@@ -278,7 +278,7 @@ async function userRow(id) {
 function session(user, aal = "aal1") {
   const exp = Math.floor(Date.now() / 1000) + 3600;
   const claims = { sub: user.id, email: user.email, role: "authenticated", aud: "authenticated", aal, amr: [{ method: "password", timestamp: Math.floor(Date.now() / 1000) }], exp, session_id: crypto.randomUUID() };
-  return { access_token: sign(claims), refresh_token: `r.${user.id}`, token_type: "bearer", expires_in: 3600, expires_at: exp, user };
+  return { access_token: sign(claims), refresh_token: `r.${user.id}.${aal}`, token_type: "bearer", expires_in: 3600, expires_at: exp, user };
 }
 
 async function auth(req, url, claims, body) {
@@ -289,11 +289,23 @@ async function auth(req, url, claims, body) {
       if (body?.password !== TEST_PASSWORD) return { status: 400, json: { error: "invalid_grant", error_description: "Invalid login credentials", msg: "Invalid login credentials", code: "invalid_credentials" } };
       const r = await asCaller({ role: "service_role" }, `select id from auth.users where lower(email) = lower(${lit(body.email)})`, { preRequest: false, system: true });
       id = r.text || null;
-    } else if (url.searchParams.get("grant_type") === "refresh_token") id = String(body?.refresh_token ?? "").replace(/^r\./, "");
+    }
+    // a refresh keeps the session's level (r.<user id>.<aal>), as Supabase does. Test only: with ZTEST_PASSWORD_AAL2=1 a
+    // password sign in by someone who has a verified authenticator counts as already verified, so page crawls don't
+    // stop at the code screen (every admin needs two step sign in, ACC-01). admin-mfa-journey.cjs runs without it.
+    let aal = "aal1";
+    if (process.env.ZTEST_PASSWORD_AAL2 === "1" && id) {
+      const f = await asCaller({ role: "service_role" }, `select count(*) from auth.mfa_factors where user_id = ${lit(id)} and status = 'verified'`, { preRequest: false, system: true });
+      if (Number(f.text) > 0) aal = "aal2";
+    }
+    if (url.searchParams.get("grant_type") === "refresh_token") {
+      const [, rid, raal] = String(body?.refresh_token ?? "").split(".");
+      id = rid || null; aal = raal === "aal2" ? "aal2" : "aal1";
+    }
     const user = id && (await userRow(id));
     if (!user) return { status: 400, json: { error: "invalid_grant", error_description: "Invalid login credentials", msg: "Invalid login credentials", code: "invalid_credentials" } };
     await asCaller({ role: "service_role" }, `update auth.users set last_sign_in_at = now() where id = ${lit(id)}`, { preRequest: false, system: true });
-    return { status: 200, json: session(user) };
+    return { status: 200, json: session(user, aal) };
   }
   if (path === "/user") {
     if (!claims?.sub) return { status: 401, json: { code: 401, msg: "Invalid token", error_code: "bad_jwt" } };
@@ -305,7 +317,31 @@ async function auth(req, url, claims, body) {
   }
   if (path === "/logout") return { status: 204 };
   if (["/otp", "/recover", "/resend", "/magiclink"].includes(path)) return { status: 200, json: {} };
-  if (path === "/factors" || path.startsWith("/factors")) return { status: 200, json: { all: [], totp: [], phone: [] } };
+  // Authenticator apps (TOTP), test only: the one code that works is 123456. Verifying gives an aal2 session.
+  if (path === "/factors" || path.startsWith("/factors/")) {
+    if (!claims?.sub) return { status: 401, json: { code: 401, msg: "Invalid token", error_code: "bad_jwt" } };
+    const sys = { preRequest: false, system: true };
+    const [, , factorId, verb] = path.split("/");
+    if (path === "/factors" && req.method === "POST") {
+      const r = await asCaller({ role: "service_role" }, `insert into auth.mfa_factors (id, user_id, friendly_name, factor_type, status) values (gen_random_uuid(), ${lit(claims.sub)}, ${lit(body?.friendly_name ?? null)}, 'totp', 'unverified') returning id`, sys);
+      // raw SVG, as Supabase sends it (the client adds the data: prefix)
+      const qr = '<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180"><rect width="180" height="180" fill="#eee"/><text x="20" y="95">TEST QR</text></svg>';
+      return { status: 200, json: { id: r.text, type: "totp", friendly_name: body?.friendly_name ?? null, totp: { qr_code: qr, secret: "TESTSECRET123456", uri: "otpauth://totp/zella?secret=TESTSECRET123456" } } };
+    }
+    if (factorId && !verb && req.method === "DELETE") {
+      await asCaller({ role: "service_role" }, `delete from auth.mfa_factors where id = ${lit(factorId)} and user_id = ${lit(claims.sub)}`, sys);
+      return { status: 200, json: { id: factorId } };
+    }
+    if (verb === "challenge") return { status: 200, json: { id: crypto.randomUUID(), type: "totp", expires_at: Math.floor(Date.now() / 1000) + 300 } };
+    if (verb === "verify") {
+      if (String(body?.code ?? "") !== "123456") return { status: 422, json: { code: 422, msg: "Invalid TOTP code entered", error_code: "mfa_verification_failed" } };
+      const v = await asCaller({ role: "service_role" }, `update auth.mfa_factors set status = 'verified', updated_at = now() where id = ${lit(factorId)} and user_id = ${lit(claims.sub)} returning id`, sys);
+      if (v.error || !v.text) return { status: 404, json: { code: 404, msg: "Factor not found", error_code: "mfa_factor_not_found" } };
+      const user = await userRow(claims.sub);
+      return { status: 200, json: session(user, "aal2") };
+    }
+    return { status: 200, json: { all: [], totp: [], phone: [] } };
+  }
   if (path === "/invite" || path === "/admin/users") {
     if (claims?.role !== "service_role") return { status: 403, json: { msg: "not allowed" } };
     if (req.method === "GET") {

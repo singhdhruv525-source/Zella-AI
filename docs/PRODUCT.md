@@ -291,7 +291,7 @@ the same rules; hiding an item is never the protection.
 | Staff | Assigned and team work: calls, callbacks, bookings, messages, records | Money settings, other staff's private data, transcripts unless the owner allows |
 | Viewer | Read only; no amounts; no transcripts | Any change |
 
-Multi-factor sign-in is enforced on the server for the roles that require it.
+Multi-factor sign-in is enforced on the server for the roles that require it. Every Zella Voice admin must use two step sign in (an authenticator app): an admin without one is walked through setting it up at sign in, can't use any page until then, and can't remove their only authenticator (built, not live: needs the web app, `owner-provision-business` and `sql/zella_admin_mfa.sql`, in that order).
 
 ---
 
