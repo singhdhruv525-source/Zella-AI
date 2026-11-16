@@ -270,40 +270,8 @@ export function TenantSummary({ businessId }) {
   );
 }
 
-const CHECKS = [["profile", "Profile"], ["industry", "Industry"], ["receptionist", "AI receptionist"], ["phone", "Phone"], ["owner_invited", "Owner invited"], ["billing", "Billing"]];
-
-export function Onboarding({ me, openSetup, openBusiness }) {
-  const state = useAsync(() => call("onboarding_overview"), []);
-  const [notice, setNotice] = useState({ text: "", error: "" });
-  async function resend(id) {
-    try { await call("invitation_resend", { businessId: id }); setNotice({ text: "Invitation sent again.", error: "" }); state.reload(); }
-    catch (err) { setNotice({ text: "", error: err.message }); }
-  }
-  return (
-    <>
-      <Banner tone="success">{notice.text}</Banner>
-      <Banner tone="error">{notice.error}</Banner>
-      <Card title="Businesses still in setup" sub="Each check reads the business's real records. A tick means it's in place.">
-        <LoadState state={state}>{(d) => (
-          <Table rows={d.rows} empty="Every business has finished setup." columns={[
-            ["Business", (b) => <button type="button" className="zs-link" onClick={() => openBusiness(b.id)}>{b.name}</button>],
-            ["Step", (b) => words(b.onboarding_status)],
-            ...CHECKS.map(([key, label]) => [label, (b) => (b.checks[key] ? <Pill tone="success">✓</Pill> : <Pill tone="warning">Missing</Pill>)]),
-            ["Failed steps", (b) => (b.failed_steps.length ? b.failed_steps.map((f) => `${words(f.step)}${f.error ? `: ${f.error}` : ""}`).join("; ") : "None")],
-            ["", (b) => can(me, "businesses.manage") ? (
-              <span className="zs-actions">
-                <button type="button" className="zs-btn sm" onClick={() => openSetup(b.id)}>Continue setup</button>
-                {!b.checks.owner_invited && <button type="button" className="zs-btn sm" onClick={() => resend(b.id)}>Send owner invite</button>}
-              </span>) : null],
-          ]} />
-        )}</LoadState>
-      </Card>
-      <Needs title="Automatic retry of failed provisioning steps isn't built" have="Steps stuck for 30 minutes are marked failed every hour and shown above; Continue setup reruns the setup wizard, which only adds what's missing.">
-        A safe automatic retry needs each provisioning step (agent, phone number, integrations) to be re-runnable on its own.
-      </Needs>
-    </>
-  );
-}
+// Business onboarding: its own file (Lane B)
+export { default as Onboarding } from "./panels/Onboarding";
 
 export function Lifecycle({ openBusiness }) {
   const state = useAsync(() => Promise.all(["suspended", "cancelling", "cancelled"].map((status) => call("tenants_search", { status }))), []);

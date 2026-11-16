@@ -10,7 +10,7 @@ const kit: LifecycleKit = {
   text: (v, max = 300) => typeof v === "string" ? v.trim().slice(0, max) : "",
   bool: (v, fallback = false) => typeof v === "boolean" ? v : fallback,
   obj: (v) => v && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : {},
-  requireId: (v) => String(v), InputError,
+  requireId: (v) => { const id = String(v ?? ""); if (!/^[0-9a-f-]{36}$/.test(id)) throw new InputError("A valid business is required"); return id; }, InputError,
 };
 type Call = { fn: string; args: Record<string, unknown> };
 const rpcAdmin = (answer: (call: Call) => { data: unknown; error: unknown }, calls: Call[]) =>
@@ -83,4 +83,55 @@ Deno.test("setup_check_duplicates leaves the business itself out, refuses a bad 
   assertEquals(calls.length, 0);
   const failing = rpcAdmin(() => ({ data: null, error: new Error("database down") }), []);
   await assertRejects(() => lifecycleHandlers(failing, { business: { name: "Glow" } }, kit).handlers.setup_check_duplicates(), Error, "database down");
+});
+
+type Removed = string[][];
+const deleteAdmin = (answer: { data: unknown; error: unknown }, calls: Call[], removed: Removed, removeError: unknown = null) => ({
+  rpc: async (fn: string, args: Record<string, unknown>) => { calls.push({ fn, args }); return answer; },
+  storage: { from: (bucket: string) => ({ remove: async (paths: string[]) => { removed.push([bucket, ...paths]); return { error: removeError }; } }) },
+}) as unknown as SupabaseClient;
+const okDelete = { data: { business_id: BIZ, name: "Glow", paths: [`${BIZ}/owner_identity/a.pdf`, `${BIZ}/x/b.png`, "other-business/c.pdf"] }, error: null };
+const deleteFields = { businessId: BIZ, confirmName: "Glow", reason: "Made by mistake" };
+
+Deno.test("business_delete_draft: only a Zella Voice owner or super admin, before any database call", async () => {
+  for (const role of [null, "read_only_admin", "support_admin", "platform_operations", "billing_admin", "security_admin"]) {
+    const calls: Call[] = [];
+    const err = await assertRejects(() => lifecycleHandlers(deleteAdmin(okDelete, calls, []), deleteFields, kit, "user", role).handlers.business_delete_draft(), InputError);
+    assertEquals((err as InputError).status, 403);
+    assertEquals(calls.length, 0);
+  }
+});
+
+Deno.test("business_delete_draft needs the typed name and a reason", async () => {
+  for (const f of [{ ...deleteFields, confirmName: " " }, { ...deleteFields, reason: "x" }]) {
+    const calls: Call[] = [];
+    await assertRejects(() => lifecycleHandlers(deleteAdmin(okDelete, calls, []), f, kit, "user", "zella_owner").handlers.business_delete_draft(), InputError);
+    assertEquals(calls.length, 0);
+  }
+});
+
+Deno.test("business_delete_draft passes the actor, removes only that business's files, and reports what is left", async () => {
+  for (const role of ["zella_owner", "super_admin"]) {
+    const calls: Call[] = []; const removed: Removed = [];
+    const r = await lifecycleHandlers(deleteAdmin(okDelete, calls, removed), deleteFields, kit, "actor", role).handlers.business_delete_draft();
+    assertEquals(calls[0], { fn: "zella_delete_draft_business", args: { p_business_id: BIZ, p_actor: "actor", p_confirm_name: "Glow", p_reason: "Made by mistake" } });
+    assertEquals(removed, [["business-documents", `${BIZ}/owner_identity/a.pdf`, `${BIZ}/x/b.png`]]);
+    assertEquals(r, { businessId: BIZ, name: "Glow", deleted: true, filesRemoved: 2, filesLeft: 0 });
+  }
+  const removed: Removed = [];
+  const r = await lifecycleHandlers(deleteAdmin(okDelete, [], removed, new Error("storage down")), deleteFields, kit, "actor", "zella_owner").handlers.business_delete_draft();
+  assertEquals((r as Record<string, unknown>).filesLeft, 2);
+});
+
+Deno.test("business_delete_draft explains why a business is not a draft, and keeps database errors", async () => {
+  const cases: [string, number, string][] = [
+    ["NOT_A_DRAFT: calls,phone_numbers", 409, "it has calls, it has phone numbers"],
+    ["NAME_MISMATCH", 400, "doesn't match"], ["NOT_FOUND", 404, "not found"], ["NOT_ALLOWED", 403, "super admin"],
+  ];
+  for (const [message, status, words] of cases) {
+    const err = await assertRejects(() => lifecycleHandlers(deleteAdmin({ data: null, error: { message } }, [], []), deleteFields, kit, "actor", "zella_owner").handlers.business_delete_draft(), InputError);
+    assertEquals((err as InputError).status, status);
+    assertEquals(err.message.includes(words), true, err.message);
+  }
+  await assertRejects(() => lifecycleHandlers(deleteAdmin({ data: null, error: new Error("database down") }, [], []), deleteFields, kit, "actor", "zella_owner").handlers.business_delete_draft(), Error, "database down");
 });

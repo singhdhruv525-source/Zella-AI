@@ -171,6 +171,10 @@ most often needed:
   REQ-API-01 to 04, Settings API management and Webhooks). A read only log of incoming provider events for admins is
   still fine.
 
+- **Deleting a draft business (Lane B, BIZ-13a, 16 Nov 2026):** only a Zella Voice owner or super admin, with the
+  name typed and a reason, and only a business that never finished setup and has no calls, numbers, billing or
+  accepted owner. Audit rows stay (business_id empty); the deletion entry keeps the name. Default, owner can change.
+
 Waiting on the owner:
 
 - whether suspended businesses keep read-only access (L-5);
@@ -232,6 +236,10 @@ Waiting on the owner:
   merging.
 - **Production's text sort order differs from the test database.** Use `collate "C"` when comparing ordered lists or
   hashes between them.
+
+- **A business could not be deleted at all before zella_draft_delete.sql.** The privileged audit trigger wrote a row
+  pointing at the business being deleted, which failed the audit foreign key. Test any delete path on a business
+  made the real way (with its receptionist), not a bare row.
 
 ## 7. Where to look
 
