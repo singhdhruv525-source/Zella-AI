@@ -6,6 +6,7 @@ import { switchHint } from "../copy/liveSwitches";
 import { uploadImage } from "./PersonalPanels";
 import OauthAppsPanel from "./panels/OauthApps";
 import N8nStatus from "./panels/N8nStatus";
+import AlertRulesPanel from "./panels/AlertRules";
 import { navigate } from "../router";
 import { GO_LIVE_PATH } from "../admin/GoLiveChecklist";
 import { Banner, Card, Confirm, Empty, Facts, Field, LinkRows, LoadState, Needs, Pill, SaveBar, Table, Toggle, money, useAsync, useForm, when, words } from "./SettingsKit";
@@ -1239,8 +1240,8 @@ export function AdminNotifications() {
   );
 }
 
-export function AlertRules() {
-  return <Needs title="Alert rules aren't editable yet" have="Each alert is raised by the database check that found the problem, with its own severity and a deduplication key so repeats are counted, not resent.">Editable rules need a rules table (condition, severity, destination, frequency, quiet window) that every check reads before raising an alert.</Needs>;
+export function AlertRules({ me }) {
+  return <AlertRulesPanel me={me} />;
 }
 
 export function NotificationChannels() {

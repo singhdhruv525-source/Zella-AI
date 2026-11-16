@@ -632,7 +632,7 @@ isolated database first.
 - [ ] Filters by person, date range and record, and an audited export (ACC-12)
 
 ### Settings
-- [ ] Editable alert rules (condition, severity, destination, frequency, quiet window) (Settings, Alert rules) · needs approval
+- [x] Editable alert rules (condition, severity, destination, frequency, quiet window) (Settings, Alert rules) · needs approval (built, branches `claude/lane-d-alert-rules` and `claude/lane-d-alert-rules-email`)
 - [ ] Scheduled reports and report permissions (Settings, Reporting configuration) · needs approval
 - [ ] Public API keys with scopes, hashing, last used and revocation (Settings, API management) · needs approval
 - [x] OAuth application checks (Google client set or not) in the server configuration check (Settings, OAuth applications) · needs approval (built, branch `claude/lane-d-go-live`)
