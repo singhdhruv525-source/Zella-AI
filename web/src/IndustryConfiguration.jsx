@@ -4,7 +4,8 @@ import { callOwnerFunction } from "./CreateBusinessWizard";
 import { Pill } from "./OwnerOverview";
 import { formatDate } from "./ownerFormat";
 import IndustryRecords from "./IndustryRecords";
-import { friendlyError } from "./admin/adminOps";
+import { ReasonDialog, friendlyError } from "./admin/adminOps";
+import { businessWord, modulesLosingUsers, switchesOff } from "./industryModules";
 
 const TERM_ROWS = [
   { singular: "customer", plural: "customers", label: "Customers", hint: "People the business serves" },
@@ -36,7 +37,7 @@ function toDraft(industry) {
   };
 }
 
-function ModuleRow({ module, onChange, onRemove }) {
+function ModuleRow({ module, users, onChange, onRemove }) {
   return (
     <div className={`ic-module ${module.isActive ? "" : "off"}`}>
       <div className="ic-module-fields">
@@ -56,7 +57,10 @@ function ModuleRow({ module, onChange, onRemove }) {
       <div className="ic-module-side">
         {module.id ? (
           <>
-            <span className="op-muted">{module.isActive ? "Offered" : "Not offered"}</span>
+            <span className="op-muted">
+              {module.isActive ? "Offered" : "Not offered"}
+              {users !== undefined && ` · ${users ? `on for ${businessWord(users)}` : "no business has it on"}`}
+            </span>
             <button
               type="button"
               role="switch"
@@ -92,6 +96,8 @@ export default function IndustryConfiguration() {
   const [creating, setCreating] = useState(false);
   const [newIndustry, setNewIndustry] = useState({ name: "", description: "", copyFromId: "" });
   const [filter, setFilter] = useState("");
+  const [usageRead, setUsageRead] = useState({ id: null, at: null, modules: null });   // module id -> businesses with it on
+  const [confirm, setConfirm] = useState(null);       // { kind: "modules", losing } or { kind: "active", active }
 
   const selected = industries.find((i) => i.id === selectedId) || null;
 
@@ -116,6 +122,18 @@ export default function IndustryConfiguration() {
   useEffect(() => {
     load(null);
   }, [load]);
+
+  // Per module counts for the open industry (read in pages on the server, so they stay right past 1,000 rows).
+  useEffect(() => {
+    if (!selectedId) return undefined;
+    let live = true;
+    callOwnerFunction("industry_module_usage", { industryId: selectedId })
+      .then((data) => live && setUsageRead({ id: selectedId, at: industries, modules: data.modules ?? {} }))
+      .catch(() => live && setUsageRead({ id: selectedId, at: industries, modules: undefined }));
+    return () => { live = false; };
+  }, [selectedId, industries]);
+  // null while counting, undefined when the count failed
+  const usage = usageRead.id === selectedId && usageRead.at === industries ? usageRead.modules : null;
 
   const dirty = useMemo(() => {
     if (!selected || !draft) return false;
@@ -156,24 +174,40 @@ export default function IndustryConfiguration() {
   const setModule = (index, module) =>
     setDraft((d) => ({ ...d, modules: d.modules.map((m, i) => (i === index ? module : m)) }));
 
-  async function save() {
-    setSaving(true);
+  function save() {
     setError("");
     setNotice("");
+    const switchingOff = switchesOff(selected.modules, draft.modules);
+    if (switchingOff && usage === undefined) return setError("Couldn't count the businesses using these modules. Reload the page before switching one off.");
+    if (switchingOff && usage === null) return setError("Still counting the businesses using these modules. Try again in a moment.");
+    const losing = modulesLosingUsers(selected.modules, draft.modules, usage);
+    if (losing.length) return setConfirm({ kind: "modules", losing });
+    return send([], "").catch((err) => setError(friendlyError(err)));
+  }
+
+  // Errors go back to the caller: the confirm dialog shows them in place, a plain save shows them on the page.
+  async function send(confirmOff, reason) {
+    setSaving(true);
     try {
       await callOwnerFunction("industry_save", {
         industryId: selectedId,
         description: draft.description,
         terminology: draft.terminology,
         modules: draft.modules,
+        confirmOff,
+        reason,
       });
       setNotice(`${selected.name} saved.`);
       await load(selectedId);
-    } catch (err) {
-      setError(friendlyError(err));
     } finally {
       setSaving(false);
     }
+  }
+
+  async function setActive(active, reason) {
+    const data = await callOwnerFunction("industry_set_active", { industryId: selectedId, active, reason });
+    setNotice(`${data.name} is ${active ? "active again and offered for new businesses" : "inactive. It isn't offered for new businesses"}.`);
+    await load(selectedId);
   }
 
   async function create(event) {
@@ -244,7 +278,7 @@ export default function IndustryConfiguration() {
                     className={industry.id === selectedId && !creating ? "active" : ""}
                     onClick={() => select(industry.id)}
                   >
-                    <strong>{industry.name}</strong>
+                    <strong>{industry.name}{!industry.is_active && <> <Pill tone="warning">Inactive</Pill></>}</strong>
                     <span>
                       {industry.businessCount} {industry.businessCount === 1 ? "business" : "businesses"} ·{" "}
                       {industry.modules.filter((m) => m.is_active).length} modules
@@ -329,14 +363,25 @@ export default function IndustryConfiguration() {
                     {selected.businessCount} {selected.businessCount === 1 ? "business uses" : "businesses use"} this industry
                     {selected.configUpdatedAt ? ` · updated ${formatDate(selected.configUpdatedAt)}` : ""}
                   </span>
+                  {!selected.is_active && <div><Pill tone="warning">Inactive</Pill> <span className="op-muted">Not offered when a business is created.</span></div>}
                 </div>
+                <button
+                  type="button"
+                  className="owner-secondary-button op-small"
+                  onClick={() => { setNotice(""); setError(""); setConfirm({ kind: "active", active: !selected.is_active }); }}
+                  disabled={saving || dirty}
+                  title={dirty ? "Save or discard your changes first" : undefined}
+                >
+                  {selected.is_active ? "Deactivate" : "Reactivate"}
+                </button>
               </div>
 
               {selected.businessCount > 0 && (
                 <div className="wiz-note">
                   <strong>How changes apply:</strong> terminology changes show up straight away for businesses in this
                   industry that haven't customized that word. Words a business has customized stay as they are.
-                  Module changes only affect what's offered during setup; businesses keep the modules they already have.
+                  Switching a module off removes it at once from every business in this industry that has it on;
+                  switching it back on gives it back to them. You'll see how many businesses lose it before it's saved.
                 </div>
               )}
 
@@ -411,7 +456,7 @@ export default function IndustryConfiguration() {
                 <div className="wiz-section-head">
                   <div>
                     <h3>Modules</h3>
-                    <p>Modules offered to businesses in this industry. Switch one off to stop offering it; modules are never deleted.</p>
+                    <p>Modules offered to businesses in this industry. Switching one off stops offering it and removes it from every business that has it on. Modules are never deleted.</p>
                   </div>
                   <Pill>{activeModules} offered</Pill>
                 </div>
@@ -421,6 +466,7 @@ export default function IndustryConfiguration() {
                     <ModuleRow
                       key={module.id || `new-${index}`}
                       module={module}
+                      users={module.id && usage ? usage[module.id] ?? 0 : undefined}
                       onChange={(m) => setModule(index, m)}
                       onRemove={() => setDraft({ ...draft, modules: draft.modules.filter((_, i) => i !== index) })}
                     />
@@ -453,6 +499,37 @@ export default function IndustryConfiguration() {
               </div>
 
               <IndustryRecords key={selected.id} industryId={selected.id} industryName={selected.name} />
+
+              {confirm?.kind === "modules" && (
+                <ReasonDialog
+                  title="Switch modules off for every business?"
+                  icon="toggle_off"
+                  danger
+                  confirmLabel="Switch off and save"
+                  onClose={() => setConfirm(null)}
+                  onConfirm={(reason) => send(confirm.losing.map((m) => m.id), reason)}
+                >
+                  <p>Saving removes these modules at once from the businesses in {selected.name} that have them on:</p>
+                  <ul>
+                    {confirm.losing.map((m) => <li key={m.id}><strong>{businessWord(m.businesses)}</strong> lose {m.name}</li>)}
+                  </ul>
+                  <p>Their data stays. Switching a module back on gives it back to them.</p>
+                </ReasonDialog>
+              )}
+              {confirm?.kind === "active" && (
+                <ReasonDialog
+                  title={confirm.active ? `Reactivate ${selected.name}?` : `Deactivate ${selected.name}?`}
+                  icon={confirm.active ? "toggle_on" : "toggle_off"}
+                  danger={!confirm.active}
+                  confirmLabel={confirm.active ? "Reactivate" : "Deactivate"}
+                  onClose={() => setConfirm(null)}
+                  onConfirm={(reason) => setActive(confirm.active, reason)}
+                >
+                  {confirm.active
+                    ? <p>{selected.name} will be offered again when a business is created.</p>
+                    : <p>{selected.name} won't be offered when a business is created. The {businessWord(selected.businessCount)} already in it keep working as they are, with their modules and words.</p>}
+                </ReasonDialog>
+              )}
             </>
           )}
         </div>

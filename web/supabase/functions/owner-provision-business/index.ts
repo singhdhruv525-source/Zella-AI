@@ -8,6 +8,7 @@ import { PERMISSIONS, RESTRICTED_ROLES, settingsHandlers } from "./settings.ts";
 import { mfaGate, tokenAal } from "./mfa_gate.ts";
 import { ONBOARDING_PERMISSIONS, documentsReady, loadOnboarding, onboardingHandlers } from "./onboarding.ts";
 import { PLATFORM_PERMISSIONS, platformHandlers } from "./platform.ts";
+import { CONFIG_PERMISSIONS, allRows, configHandlers, moduleUsage, switchOffCheck, switchOffMessage } from "./config.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1242,6 +1243,9 @@ const AUDITED: Record<string, (fields: Json, result: any) => AuditEntry> = {
       terminology: r.terminology,
       modules_added: r.modulesCreated,
       modules_updated: r.modulesUpdated,
+      modules_switched_off: r.modulesSwitchedOff,
+      switched_off_without_confirmation: r.confirmedWithoutCount || undefined,
+      reason: r.reason ?? undefined,
     },
   }),
   industry_create: (_fields, r) => ({
@@ -1657,21 +1661,21 @@ function uniqueSlug(base: string, used: Set<string>) {
 }
 
 async function industriesList(admin: SupabaseClient) {
-  const [industriesResult, configsResult, modulesResult, businessesResult] = await Promise.all([
+  // Businesses are read in pages: a single read stops at PostgREST's max_rows (1000) and undercounts.
+  const [industriesResult, configsResult, modulesResult, businessRows] = await Promise.all([
     admin.from("industries").select("id, name, slug, description, is_active, created_at").order("name"),
     admin.from("industry_configurations").select("industry_id, terminology, updated_at"),
     admin.from("industry_modules")
       .select("id, industry_id, name, slug, description, is_active")
       .order("name"),
-    admin.from("businesses").select("industry_id"),
+    allRows<{ industry_id: string | null }>((from, to) => admin.from("businesses").select("industry_id").order("id").range(from, to)),
   ]);
 
-  const queryError = industriesResult.error ?? configsResult.error ??
-    modulesResult.error ?? businessesResult.error;
+  const queryError = industriesResult.error ?? configsResult.error ?? modulesResult.error;
   if (queryError) throw queryError;
 
   const counts = new Map<string, number>();
-  for (const b of businessesResult.data ?? []) {
+  for (const b of businessRows) {
     if (b.industry_id) counts.set(b.industry_id, (counts.get(b.industry_id) ?? 0) + 1);
   }
 
@@ -1696,6 +1700,19 @@ async function industrySave(admin: SupabaseClient, fields: Json) {
     .from("industries").select("id, name").eq("id", industryId).maybeSingle();
   if (industryError) throw industryError;
   if (!industry) throw new InputError("Industry not found", 404);
+
+  // CFG-01: switching a module off removes it at once from every business in the industry (zella_module_on needs
+  // industry_modules.is_active), so a module that businesses use now is only switched off when the admin confirmed it
+  // after seeing "N businesses lose X". Checked before anything is written.
+  const { data: current, error: currentError } = await admin
+    .from("industry_modules").select("id, slug, name, is_active").eq("industry_id", industryId);
+  if (currentError) throw currentError;
+  const requested = list(fields.modules, 60).map(obj)
+    .map((m) => ({ id: text(m.id, 64), isActive: bool(m.isActive, true) })).filter((m) => m.id);
+  const turningOff = requested.filter((r) => (current ?? []).some((m) => m.id === r.id && m.is_active && !r.isActive));
+  const usage = await moduleUsage(admin, industryId, turningOff.map((m) => m.id));
+  const offCheck = switchOffCheck(current ?? [], requested, usage, fields.confirmOff);
+  if (offCheck.unconfirmed.length) throw new InputError(switchOffMessage(offCheck.unconfirmed), 409);
 
   const { data: config, error: configError } = await admin
     .from("industry_configurations")
@@ -1742,10 +1759,6 @@ async function industrySave(admin: SupabaseClient, fields: Json) {
 
   // Modules are added, renamed or switched off. Never deleted: deleting would
   // silently remove the module from every business that already uses it.
-  const { data: current, error: currentError } = await admin
-    .from("industry_modules").select("id, slug").eq("industry_id", industryId);
-  if (currentError) throw currentError;
-
   const known = new Set<string>((current ?? []).map((m: { id: string }) => m.id));
   const usedSlugs = new Set<string>((current ?? []).map((m: { slug: string }) => m.slug));
   let created = 0;
@@ -1786,6 +1799,9 @@ async function industrySave(admin: SupabaseClient, fields: Json) {
     modulesUpdated: changed,
     previousTerminology: previous,
     terminology: next,
+    modulesSwitchedOff: offCheck.switchedOff,
+    confirmedWithoutCount: offCheck.legacy && offCheck.switchedOff.some((m) => m.businesses > 0),
+    reason: text(fields.reason, 300) || null,
   };
 }
 
@@ -3074,7 +3090,7 @@ Deno.serve(withCors(async (req: Request) => {
     if (!gate.ok) return respond({ error: gate.error, code: gate.code }, gate.status);
 
     // Every action needs a permission; restricted roles only have what the owner gave them.
-    const permission = PERMISSIONS[action] ?? ONBOARDING_PERMISSIONS[action] ?? PLATFORM_PERMISSIONS[action];
+    const permission = PERMISSIONS[action] ?? ONBOARDING_PERMISSIONS[action] ?? PLATFORM_PERMISSIONS[action] ?? CONFIG_PERMISSIONS[action];
     if (!permission) return respond({ error: "Unknown action" }, 400);
     // Every active admin may read their own role and permissions (me_admin): without it a restricted role that lacks
     // businesses.view couldn't learn what it is allowed to do. It returns nothing about other people or businesses.
@@ -3240,7 +3256,8 @@ Deno.serve(withCors(async (req: Request) => {
       text, bool, obj, requireId, optionalPhone, getBusiness, getReceptionist, advance, mergeSetupData, InputError, EMAIL_RE, UUID_RE,
     });
     const platform = platformHandlers(adminClient, fields, { text, bool, obj, requireId, InputError }, user.id, role);
-    const handler = handlers[action] ?? extra.handlers[action] ?? onboarding.handlers[action] ?? platform.handlers[action];
+    const config = configHandlers(adminClient, fields, { text, bool, obj, requireId, InputError });
+    const handler = handlers[action] ?? extra.handlers[action] ?? onboarding.handlers[action] ?? platform.handlers[action] ?? config.handlers[action];
     if (!handler) return respond({ error: "Unknown action" }, 400);
 
     try {
@@ -3248,7 +3265,7 @@ Deno.serve(withCors(async (req: Request) => {
 
       // Setup actions describe themselves from the request and result; settings and onboarding actions from
       // their result only (passing the request there recorded empty before/after values).
-      const later = extra.audited[action] ?? onboarding.audited[action] ?? platform.audited[action];
+      const later = extra.audited[action] ?? onboarding.audited[action] ?? platform.audited[action] ?? config.audited[action];
       const entry = AUDITED[action] ? AUDITED[action](fields, result) : later ? (later(result as Json) as AuditEntry) : null;
       const unchanged = action === "ticket_update" &&
         Object.keys(obj((result as Json).changes)).length === 0;
