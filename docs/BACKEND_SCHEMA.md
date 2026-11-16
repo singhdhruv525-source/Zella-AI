@@ -18,7 +18,7 @@ It reads the catalog only, never rows.
 | Row security policies | 342 |
 | Columns | 2090 |
 | Views | 1 |
-| Functions | 922 (852 security definer, 26 callable by `anon`) |
+| Functions | 923 (852 security definer, 26 callable by `anon`) |
 
 Rules every table follows:
 
@@ -5547,7 +5547,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_setting(p_key text, p_default jsonb)` | jsonb | yes | server only |
 | `zella_tables(p_business_id uuid)` | jsonb | yes | signed in |
 
-### Smaller groups and older helpers (192)
+### Smaller groups and older helpers (193)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -5558,6 +5558,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_agent_config_changes(p_version_id uuid)` | jsonb | yes | signed in |
 | `zella_agent_config_current(p_agent_id uuid)` | jsonb | yes | signed in |
 | `zella_alert_protected_kinds()` | text[] |  | signed in |
+| `zella_alert_quiet_now(p_start time without time zone, p_end time without time zone, p_tz text)` | boolean |  | server only |
 | `zella_answer_knowledge_gap(p_gap_id uuid, p_answer text, p_kind text, p_title text)` | uuid | yes | signed in |
 | `zella_appointments_needing_record(p_business_id uuid, p_days integer)` | jsonb | yes | signed in |
 | `zella_archive_record(p_id uuid)` | boolean | yes | signed in |
