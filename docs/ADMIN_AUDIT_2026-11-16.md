@@ -91,7 +91,13 @@ On 16 Nov, when `ZELLA_ALLOWED_ORIGINS` was set and `ZELLA_APP_URL` was left emp
 an owner or a staff member would refuse until the app address is set. That is true for staff invitations and for
 inviting an admin, but **not for owner invitations** (BIZ-01): finishing a business's setup, or pressing Resend,
 still sends the owner an invitation email whose link falls back to Supabase's own site address and may not open.
-Until BIZ-01 is fixed and deployed, don't finish setup for a real owner, or set `ZELLA_APP_URL` first.
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:c6253aa328b4a09c565bf4a30dd873e957126e229bce651cf633191f3ad379bb -->
+
+Don't finish setup or resend invitations for a real owner until `ZELLA_APP_URL` is set or BIZ-01 is fixed and deployed.
+
+<!-- /coderabbit-ai-generated:v1 -->
 
 ## Checked and closed
 
@@ -465,7 +471,7 @@ Pages: /users (UsersAccess.jsx; admins_list, admin_invite, admin_update index.ts
 | ACC-15 | Audit logs | ADD | P3 | Refused admin calls (non admin, NOT_PERMITTED, MFA_REQUIRED) aren't recorded. | index.ts:2994-2996,3006-3008,3045-3047 | Rate limited security event for refusals. | Refusals visible to security.view. | deploy |
 | ACC-16 | Users and access | FIX | P3 | Load error says "Try again with Refresh" but there's no Refresh button. | UsersAccess.jsx:236,96-110 | Add Refresh. | Retry without reload. | no |
 | ACC-17 | Users and access | CHANGE | P2 | New admins default to Super admin (everything except admins and roles); the option text understates it. | UsersAccess.jsx:38,92,134,21; index.ts:2003 | No default or least privilege on both sides; fix text. | Inviting without a role is refused or least privilege. | deploy |
-| ACC-18 | Users and access | ADD | P2 | Removing access or changing role doesn't revoke sessions (REQ-LC-04). | index.ts:2102-2106; ARCHITECTURE.md:926 | auth.admin.signOut(userId, "global") and audit. | A removed admin's other devices are signed out. | deploy |
+| ACC-18 | Users and access | ADD | P2 | Removing access or changing role doesn't revoke sessions (REQ-LC-04). | index.ts:2102-2106; ARCHITECTURE.md:926 | <!-- coderabbit-ai-generated:v1 --> <!-- coderabbit-ai-generated-section:v1:3350a7566629fb244ebf7f6491d2f6c1abc0930ca8ac39bf55373f0b10d07347 --> Use `auth.admin.signOut(removedAdminAccessToken, "global")` with a valid session access JWT belonging to the removed admin, verified with `auth.getUser(removedAdminAccessToken)` against the target user ID; audit the result. This API takes a JWT, not a user ID (Supabase Auth client 2.118.0). Secure access to that target token is a prerequisite; the acting admin's token must not be substituted. Global sign-out revokes refresh tokens; existing access JWTs remain valid until expiry. Test across devices before closing ACC-18. <!-- /coderabbit-ai-generated:v1 --> | A removed admin's other devices are signed out. | deploy |
 | ACC-19 | Users and access, roles | ADD | P2 | Granting Zella Voice owner, role changes and role matrix edits need no fresh aal2 step and no second owner. | index.ts:1952-1956,2086-2100; settings.ts:179-190; PRODUCT.md:278 | aal2 for admins.manage and roles.manage; optional second owner approval for a new zella_owner. | A password only session can't create an owner. | deploy |
 | ACC-20 | Users and access | CHANGE | P3 | Two admin lists: /users lacks two step status and last action; Settings Platform administrators has them but no actions. | UsersAccess.jsx:168; AdminPanels.jsx:408-425 | Add the columns to /users; Settings page becomes a link. | One place to manage admins. | no |
 | ACC-21 | Users and access | CHANGE | P3 | Existing account lookup scans at most 20000 accounts; past that the invite fails with a provider error. | index.ts:1958-1967 | Server side lookup by email. | Works at any size. | deploy |
