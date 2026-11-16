@@ -16,9 +16,9 @@ export async function newBusiness(name: string): Promise<{ business: string; own
   const [business, owner] = r.split(" ");
   return { business, owner };
 }
-export async function savePlan(business: string, price: number, setup: number, opts: { interval?: string; trial?: boolean; version?: number } = {}): Promise<string> {
+export async function savePlan(business: string, price: number, setup: number, opts: { interval?: string; trial?: boolean; version?: number; minutes?: number } = {}): Promise<string> {
   return sql(`insert into public.business_plans (business_id, version, tier, billing_interval, price_cents, setup_fee_cents, currency, minutes, texts, emails, team_seats, phone_numbers, locations, languages, trial_enabled, overage_cents_per_minute, contact_limits, estimate, acknowledged_warnings, effective_from, idempotency_key, values_hash)
-    values ('${business}', ${opts.version ?? 1}, 'base', '${opts.interval ?? "monthly"}', ${price}, ${setup}, 'USD', 500, 200, 200, 3, 1, 1, array['en'], ${opts.trial ?? false}, 20, '{}', '{}', '[]', now() - interval '1 day', 'plan-key-' || substr(md5(random()::text),1,10), md5(random()::text)) returning id`);
+    values ('${business}', ${opts.version ?? 1}, 'base', '${opts.interval ?? "monthly"}', ${price}, ${setup}, 'USD', ${opts.minutes ?? 500}, 200, 200, 3, 1, 1, array['en'], ${opts.trial ?? false}, 20, '{}', '{}', '[]', now() - interval '1 day', 'plan-key-' || substr(md5(random()::text),1,10), md5(random()::text)) returning id`);
 }
 // a sign in token for tests/browser/local-backend.mjs (its local test secret; HS256, like Supabase Auth)
 const LOCAL_SECRET = "zella-local-test-secret-not-for-production";

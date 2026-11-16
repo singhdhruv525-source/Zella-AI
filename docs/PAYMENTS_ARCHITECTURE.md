@@ -481,9 +481,10 @@ sequenceDiagram
   Note over DB: features above the lower plan stay until the period end, then the lower version applies
 ```
 
-**Not built yet (lane F stopped before it, 16 Nov 2026).** Until it is: a new plan version saved for a business that
-pays through Stripe gives the new allowances from the next period while Stripe still bills the old Price, so plan
-changes for those businesses wait for this step (or a person changes the Stripe price at the same time).
+**Plan changes for a business paying through Stripe must go through this flow:** a new version saved without starting
+the change gives the new allowances from the next period while Stripe still bills the old Price.
+
+**Built (lane F, switched off, `sql/zella_stripe_plan_change.sql`):** an admin saves the new version and starts the change (`zella_admin_plan_change_start`); for an upgrade the owner sees Stripe's previewed amount and confirms within 15 minutes; the paid `subscription_update` invoice must equal the preview with only the old and new Prices of this business; a downgrade is a schedule from the period end. Switching between monthly and yearly is refused (`INTERVAL_CHANGE_NOT_BUILT`). The owner's confirm screen in the CRM is not built (the functions exist).
 
 **Stripe mechanics (§16.2):** a Stripe Price cannot change its amount, so each sold `business_plans` version gets
 its own Price. An **upgrade** updates the subscription item to the new Price with `proration_behavior: always_invoice`

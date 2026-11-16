@@ -212,6 +212,7 @@ GROUPS = [
         "billing_disputes": "Chargebacks from Stripe: the payment, amount in cents, reason, respond by date and outcome (open, won, lost); the account is suspended while one is open. Server only.",
         "billing_email_intents": "Billing notices decided by the database (invoice, paid, failed, paused, renewal coming ...), one per business object, before the billing worker renders them into the platform outbox. Server only.",
         "billing_reconcile_runs": "Each reconciliation run (Stripe objects against our rows, or the ledger balance): how many were checked and every difference found. Nothing is corrected automatically. Server only.",
+        "billing_plan_changes": "Upgrades and downgrades through Stripe: from and to plan version, Stripe's previewed prorated amount and its proration time, the owner's confirmation, the schedule for a downgrade. One open per subscription. Server only.",
         "money_ledger": "Double entry money ledger in cents: each operation's lines sum to zero. Server only.",
         "usage_records": "Append-only usage ledger (one entry per finalised call; adjustments, never edits).",
         "usage_thresholds": "Usage warning levels per business.",
