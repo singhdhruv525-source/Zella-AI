@@ -13,12 +13,12 @@ It reads the catalog only, never rows.
 
 | What | Count |
 |---|---|
-| Tables (schema `public`) | 175 |
-| Tables with row security on | 175 of 175 |
+| Tables (schema `public`) | 176 |
+| Tables with row security on | 176 of 176 |
 | Row security policies | 342 |
-| Columns | 2080 |
+| Columns | 2085 |
 | Views | 1 |
-| Functions | 921 (853 security definer, 26 callable by `anon`) |
+| Functions | 927 (857 security definer, 26 callable by `anon`) |
 
 Rules every table follows:
 
@@ -72,7 +72,7 @@ Each is a database job; most stay off until the owner approves going live (see `
 - [Automations and background work](#automations-and-background-work): `automations`, `automation_runs`, `automation_events`, `automation_dead_letters`, `workflow_executions`, `n8n_dispatch_state`, `integrations`, `integration_secrets`, `provider_health`
 - [Offers, reviews and growth](#offers-reviews-and-growth): `offers`, `offer_rules`, `offer_redemptions`, `offer_events`, `offer_job_runs`, `cross_sell_rules`, `review_sources`, `reviews`
 - [Billing and usage](#billing-and-usage): `plans`, `business_plans`, `billing_pack_catalog`, `billing_periods`, `allowance_buckets`, `pack_purchases`, `usage_charges`, `auto_reload_settings`, `subscriptions`, `payments`, `billing_events`, `usage_records`, `usage_thresholds`, `usage_threshold_events`, `usage_processing_issues`, `voice_pricing`
-- [Notifications, reports and support](#notifications-reports-and-support): `notifications`, `notification_preferences`, `staff_notifications`, `admin_alert_prefs`, `platform_alerts`, `platform_incidents`, `business_report_schedules`, `business_report_runs`, `support_tickets`, `support_ticket_notes`, `number_orders`
+- [Notifications, reports and support](#notifications-reports-and-support): `notifications`, `notification_preferences`, `staff_notifications`, `admin_alert_prefs`, `platform_alerts`, `platform_incidents`, `business_report_schedules`, `business_report_runs`, `support_tickets`, `support_ticket_notes`, `business_recording_policies`, `number_orders`
 - [Functions](#functions)
 
 ## Tenancy, people and access
@@ -794,7 +794,7 @@ Platform-wide switches and settings (live switches, provider choices). No secret
 
 - Primary key: `key`.
 - Row security: on; policies: zella_mfa_required (all).
-- Triggers: `zella_audit_privileged_trg`.
+- Triggers: `zella_audit_privileged_trg`, `zella_recording_setting_guard`.
 
 ### `business_usage_preferences`
 
@@ -4292,6 +4292,23 @@ Zella Voice admins' internal notes on support tickets (server only: the business
 - `ticket_id` → `public.support_tickets` (on delete cascade).
 - Row security: on; no policies, so roles subject to row security (signed-in users and anon) get no rows directly. Superusers and `BYPASSRLS` roles (such as the server key) are not limited by it, nor is the table owner unless `FORCE ROW LEVEL SECURITY` is set; a security definer function runs with its function owner's rights.
 
+### `business_recording_policies`
+
+Recording on or off per business (no row means off); can't be on until a Zella Voice owner records legal approval (server only).
+
+| Column | Type | Required | Default |
+|---|---|---|---|
+| `business_id` | uuid | yes |  |
+| `recording_on` | boolean | yes | false |
+| `reason` | text | yes |  |
+| `updated_by` | uuid |  |  |
+| `updated_at` | timestamp with time zone | yes | now() |
+
+- Primary key: `business_id`.
+- `business_id` → `public.businesses` (on delete cascade).
+- Row security: on; no policies, so roles subject to row security (signed-in users and anon) get no rows directly. Superusers and `BYPASSRLS` roles (such as the server key) are not limited by it, nor is the table owner unless `FORCE ROW LEVEL SECURITY` is set; a security definer function runs with its function owner's rights.
+- Triggers: `zella_recording_policy_guard`.
+
 ### `number_orders`
 
 Phone number purchases and releases through Telnyx and Vapi: who asked, which owner approved, the provider's answer (server only).
@@ -5118,6 +5135,17 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_record_type_defaults_trg()` | trigger | yes | server only |
 | `zella_record_workflow_defaults_trg()` | trigger | yes | server only |
 | `zella_record_workflow_save(p_business_id uuid, p_type_key text, p_workflow jsonb)` | jsonb | yes | signed in |
+
+### `zella_recording_*` (6)
+
+| Function | Returns | SD | Who may call |
+|---|---|---|---|
+| `zella_recording_effective(p_business uuid)` | boolean | yes | server only |
+| `zella_recording_legal_set(p_actor uuid, p_approved boolean, p_disclosure text, p_reason text)` | jsonb | yes | server only |
+| `zella_recording_policies(p_actor uuid)` | jsonb | yes | server only |
+| `zella_recording_policy_guard()` | trigger |  | server only |
+| `zella_recording_policy_set(p_actor uuid, p_business uuid, p_on boolean, p_reason text)` | jsonb | yes | server only |
+| `zella_recording_setting_guard()` | trigger |  | server only |
 
 ### `zella_recover_*` (4)
 
