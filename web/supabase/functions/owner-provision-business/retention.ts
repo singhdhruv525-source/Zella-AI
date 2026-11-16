@@ -11,9 +11,15 @@
 //
 // Retention periods start at the architecture's values, "pending legal review". The dry run lists what is past its
 // period and deletes nothing. No job is scheduled.
+//
+// A purge run (sql/zella_retention_purge.sql) needs a legally approved period, two different people (one a Zella Voice
+// owner), retention_purge_enabled switched on by an owner, and the typed confirmation "PURGE <rows>". The database
+// checks every one of these. For verification documents the database hands back the file paths and this server
+// removes them from storage, then records exactly which ones went.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PlatformKit } from "./platform.ts";
+import { DOCUMENT_BUCKET } from "./onboarding.ts";
 
 type Json = Record<string, unknown>;
 
@@ -27,6 +33,11 @@ export const RETENTION_PERMISSIONS: Record<string, string> = {
   retention_switch_set: "platform.configure",
   legal_hold_place: "security.manage",
   legal_hold_release: "security.manage",
+  retention_runs: "security.view",
+  retention_run_request: "security.manage",
+  retention_run_approve: "security.manage",
+  retention_run_execute: "security.manage",
+  retention_run_cancel: "security.manage",
 };
 
 // What the admin types to confirm. The server checks it too.
@@ -51,6 +62,17 @@ export const REFUSALS: Record<string, [string, number]> = {
   INVALID_STATUS: ["Choose pending legal review or approved.", 400],
   ALREADY_ON_HOLD: ["This business is already on a legal hold.", 409],
   NOT_FOUND: ["Not found.", 404],
+  LEGAL_REVIEW_PENDING: ["This kind of data is still pending legal review, so it can't be purged.", 409],
+  BUSINESS_PURGE_SEPARATE: ["Whole businesses are purged from Data lifecycle, not here.", 400],
+  RUN_OPEN: ["There is already an open purge run for this kind of data.", 409],
+  NOTHING_TO_PURGE: ["Nothing is past its period.", 409],
+  NOT_PENDING: ["This run has already been decided.", 409],
+  ALREADY_APPROVED: ["You've already approved this run. A second person has to approve it.", 409],
+  APPROVER_REQUIRED: ["Only one of the two people who approved this run can run it.", 403],
+  PURGE_SWITCHED_OFF: ["Purges are switched off. A Zella Voice owner switches them on in Data retention.", 409],
+  NOT_APPROVED: ["This run isn't approved by two people yet, or has already run.", 409],
+  CONFIRM_MISMATCH: ["Type PURGE and the number of rows exactly, like PURGE 12.", 400],
+  NOT_RUNNING: ["This run isn't waiting for files.", 409],
 };
 
 // A database call; known refusals become messages with their status, anything else stays an error (500).
@@ -93,7 +115,7 @@ export function retentionHandlers(admin: SupabaseClient, fields: Json, kit: Plat
   };
   const ownerOnly = () => { if (role !== "zella_owner") throw new InputError(REFUSALS.OWNER_REQUIRED[0], 403); };
 
-  const retention_overview = () => rpc("zella_retention_overview", { p_actor: userId });
+  const retention_overview = async () => ({ ...(await rpc("zella_retention_overview", { p_actor: userId })), you: userId });
   // The dry run: deletes nothing.
   const retention_preview = async () => await rpc("zella_retention_preview", { p_actor: userId, p_class: dataClass(), p_limit: 25 });
 
@@ -120,7 +142,34 @@ export function retentionHandlers(admin: SupabaseClient, fields: Json, kit: Plat
     return await rpc("zella_legal_hold_release", { p_actor: userId, p_hold: kit.requireId(fields.id, "hold"), p_reason: text(fields.reason, 300) });
   };
 
+  const runId = () => kit.requireId(fields.id, "run");
+  const retention_runs = () => rpc("zella_retention_runs", { p_actor: userId, p_limit: 50 });
+  const retention_run_request = async () => await rpc("zella_retention_run_request", { p_actor: userId, p_class: dataClass(), p_reason: text(fields.reason, 300) });
+  const retention_run_approve = async () => await rpc("zella_retention_run_approve", { p_actor: userId, p_run: runId(), p_reason: text(fields.reason, 300) });
+  const retention_run_cancel = async () => await rpc("zella_retention_run_cancel", { p_actor: userId, p_run: runId(), p_reason: text(fields.reason, 300) });
+
+  const retention_run_execute = async () => {
+    const id = runId();
+    const confirm = text(fields.confirm, 20);
+    if (!/^PURGE \d{1,4}$/.test(confirm)) throw new InputError(REFUSALS.CONFIRM_MISMATCH[0]);
+    const run = await rpc("zella_retention_run_execute", { p_actor: userId, p_run: id, p_confirm: confirm });
+    if (run.status !== "files_pending") return run;
+    const paths = (Array.isArray(run.file_paths) ? run.file_paths : []).filter((p): p is string => typeof p === "string");
+    const removed: string[] = [];
+    let problem: string | null = null;
+    for (let i = 0; i < paths.length; i += 100) {
+      const batch = paths.slice(i, i + 100);
+      const { data, error } = await admin.storage.from(DOCUMENT_BUCKET).remove(batch);
+      if (error) { problem = `Storage refused to remove some files (${String(error.message ?? "no details").slice(0, 200)})`; break; }
+      const gone = new Set((data ?? []).map((o: { name?: string }) => o.name));
+      removed.push(...batch.filter((p) => gone.has(p)));
+    }
+    if (!problem && removed.length < paths.length) problem = `${paths.length - removed.length} files were not found in storage`;
+    return await rpc("zella_retention_run_files_done", { p_actor: userId, p_run: id, p_removed: removed, p_error: problem });
+  };
+
   const handlers: Record<string, () => Promise<unknown>> = {
+    retention_runs, retention_run_request, retention_run_approve, retention_run_execute, retention_run_cancel,
     recording_policy_get, recording_policy_set, recording_legal_set,
     retention_overview, retention_preview, retention_policy_set, retention_switch_set, legal_hold_place, legal_hold_release,
   };

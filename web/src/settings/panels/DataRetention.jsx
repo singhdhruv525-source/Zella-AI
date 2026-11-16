@@ -2,6 +2,7 @@ import { useState } from "react";
 import { callOwnerFunction } from "../../CreateBusinessWizard";
 import { Banner, Card, Confirm, Facts, Field, LoadState, Pill, Table, useAsync, when } from "../SettingsKit";
 import { CLASS_LABELS, SOURCE_LABELS, classLabel, periodWords } from "./retentionLabels";
+import PurgeRuns from "./PurgeRuns";
 
 // Settings > Security and privacy > Data retention: a period per kind of data, legal holds, and a dry run of what a
 // purge would remove (owner-provision-business retention.ts, sql/zella_data_retention.sql). Every period is the
@@ -50,10 +51,11 @@ export default function DataRetention({ me }) {
             )}
           </Card>
         )}
-        <Card title="Purges" sub="Off. Each purge will need a Zella Voice owner and a second person to approve it, and is never scheduled."
+        <Card title="Purges" sub="Each purge needs a Zella Voice owner and a second person to approve it, and is never scheduled."
           actions={owner && <button type="button" className={`zs-btn sm${o.purge_enabled ? " danger-outline" : ""}`} onClick={() => setDialog({ switchOn: !o.purge_enabled })}>{o.purge_enabled ? "Switch purges off" : "Switch purges on"}</button>}>
           <Facts rows={[["Purges", o.purge_enabled ? "On" : "Off"], ["Schedule", "None. A purge runs only when people approve it."], ["Setting", "retention_purge_enabled"]]} />
         </Card>
+        <PurgeRuns me={me} policies={o.policies} purgeEnabled={o.purge_enabled} you={o.you} />
         <Card title="Legal holds" sub="Nothing of a business on hold is ever listed for removal, and the business can't be deleted."
           actions={manage && <button type="button" className="zs-btn sm" onClick={() => setDialog({ hold: "" })}>Place a hold</button>}>
           <Table rows={o.holds} empty="No business is on a legal hold." columns={[

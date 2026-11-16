@@ -637,7 +637,7 @@ isolated database first.
 - [ ] Public API keys with scopes, hashing, last used and revocation (Settings, API management) · needs approval
 - [ ] OAuth application checks (Google client set or not) in the server configuration check (Settings, OAuth applications) · needs approval
 - [ ] A per business recording on or off policy (Settings, Policy configuration) · needs approval · built, off, in the lane G recording policy PR (branch `claude/lane-g-recording-policy`): waits for legal; the live call path is not connected
-- [ ] Separate retention for recordings, transcripts and audit logs (Settings, Data retention) · needs approval · periods, legal holds and the dry run built in the lane G retention dry run PR (branch `claude/lane-g-retention-dry-run`), pending legal review; the approved purge in the next lane G PR
+- [ ] Separate retention for recordings, transcripts and audit logs (Settings, Data retention) · needs approval · periods, legal holds and the dry run built in the lane G retention dry run PR (branch `claude/lane-g-retention-dry-run`), pending legal review; the approved purge (two people, off) in the lane G retention purge PR (branch `claude/lane-g-retention-purge`)
 
 ### New pages
 - [ ] Growth page (prospects, demos, growth.manage), or mark REQ-ADM-18 as later (ACC-36)

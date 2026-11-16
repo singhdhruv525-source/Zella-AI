@@ -194,6 +194,13 @@ most often needed:
   deletes nothing. Legal holds keep a business out of every list and make it undeletable. Defaults taken: placing a
   hold needs security.manage, releasing one needs a Zella Voice owner; message bodies are redacted, not deleted.
 
+- **Purge runs (built 16 Nov 2026, not deployed):** a run removes only the rows listed when it was asked for, after
+  two different people approve (one a Zella Voice owner) and one of them types "PURGE <rows>", with
+  `retention_purge_enabled` on and the period legally approved. Lesson: emptying a call's transcript makes
+  `zella_call_integrity` re-mark a short old call as missed and start a missed call callback, so a purged transcript
+  is replaced by "Removed under the retention policy." instead. Defaults taken: at most 1000 rows per run; the second
+  person needs security.manage (or is another owner). Recordings at Vapi are not deleted (provider copy, needs Vapi).
+
 Waiting on the owner:
 
 - whether suspended businesses keep read-only access (L-5);
