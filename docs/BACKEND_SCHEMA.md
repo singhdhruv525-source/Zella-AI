@@ -5474,6 +5474,10 @@ Functions callable by neither are for the server key, triggers and jobs only.
 
 ### Smaller groups and older helpers (189)
 
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:18275659151eb96ba5d0a770c6541e86ff0c8cee6239f694f4cdc3cd22dd9d71 -->
+
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
 | `zella_acknowledge_escalation(p_call_id uuid)` | text | yes | signed in |
@@ -5647,6 +5651,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_stuck_executions(p_minutes integer)` | SETOF workflow_executions | yes | server only |
 | `zella_subscription_after()` | trigger | yes | server only |
 | `zella_subscription_trigger()` | trigger | yes | server only |
+| `zella_support_note_timestamp(p_value text)` | timestamp with time zone |  | server only |
 | `zella_support_notes_guard_trg()` | trigger | yes | server only |
 | `zella_suspend_business(p_business_id uuid, p_reason text)` | void | yes | server only |
 | `zella_take_ticket_notes(p_ticket uuid, p_metadata jsonb)` | jsonb | yes | server only |
@@ -5665,4 +5670,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_welcome_superseded_trg()` | trigger | yes | server only |
 | `zella_within_plan_limit(p_business_id uuid, p_key text, p_current numeric)` | boolean | yes | server only |
 | `zella_workspace_navigation(p_business_id uuid)` | jsonb | yes | signed in |
+
+
+<!-- /coderabbit-ai-generated:v1 -->
 

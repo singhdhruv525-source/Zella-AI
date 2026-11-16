@@ -2256,12 +2256,22 @@ async function ticketNotes(admin: SupabaseClient, tickets: { id: string; metadat
   const out = new Map<string, TicketNote[]>();
   const ids = tickets.map((t) => t.id);
   if (!ids.length) return out;
-  const { data, error } = await admin.from("support_ticket_notes").select("ticket_id, body, author_id, created_at")
-    .in("ticket_id", ids).order("created_at", { ascending: true });
-  if (error && !missingTable(error)) throw error;
-  if (!error) {
-    for (const n of data ?? []) out.set(n.ticket_id, [...(out.get(n.ticket_id) ?? []), { body: n.body, author_id: n.author_id, created_at: n.created_at }]);
-    return out;
+  const pageSize = 1000;
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await admin.from("support_ticket_notes").select("ticket_id, body, author_id, created_at")
+      .in("ticket_id", ids).order("created_at", { ascending: true }).order("id", { ascending: true })
+      .range(offset, offset + pageSize - 1);
+    if (error) {
+      if (!missingTable(error)) throw error;
+      out.clear();
+      break;
+    }
+    for (const n of data ?? []) {
+      const notes = out.get(n.ticket_id) ?? [];
+      notes.push({ body: n.body, author_id: n.author_id, created_at: n.created_at });
+      out.set(n.ticket_id, notes);
+    }
+    if ((data ?? []).length < pageSize) return out;
   }
   for (const t of tickets) {
     out.set(t.id, list(obj(t.metadata).notes, 200).map((x) => {

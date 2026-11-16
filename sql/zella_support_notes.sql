@@ -30,6 +30,16 @@ alter table public.support_ticket_notes enable row level security;
 revoke all on table public.support_ticket_notes from public, anon, authenticated;
 grant all on table public.support_ticket_notes to service_role;
 
+-- Legacy metadata may contain malformed dates; keep migrating the note and use the caller's fallback.
+create or replace function public.zella_support_note_timestamp(p_value text) returns timestamptz
+language plpgsql set search_path = public as $$
+begin
+  return p_value::timestamptz;
+exception when invalid_datetime_format or datetime_field_overflow or invalid_time_zone_displacement_value then
+  return null;
+end $$;
+revoke all on function public.zella_support_note_timestamp(text) from public, anon, authenticated;
+
 -- moves notes out of a metadata value into the table; returns the metadata without them
 create or replace function public.zella_take_ticket_notes(p_ticket uuid, p_metadata jsonb) returns jsonb
 language plpgsql security definer set search_path = public as $$
@@ -40,7 +50,7 @@ begin
     select p_ticket,
            case when n ->> 'author_id' ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then (n ->> 'author_id')::uuid end,
            left(btrim(n ->> 'text'), 4000),
-           coalesce(case when (n ->> 'created_at') ~ '^\d{4}-\d{2}-\d{2}' then (n ->> 'created_at')::timestamptz end, now()),
+           coalesce(public.zella_support_note_timestamp(n ->> 'created_at'), now()),
            true
       from jsonb_array_elements(p_metadata -> 'notes') n
      where jsonb_typeof(n) = 'object' and length(btrim(coalesce(n ->> 'text', ''))) > 0;
