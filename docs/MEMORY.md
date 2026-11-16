@@ -176,6 +176,11 @@ most often needed:
   urgent `n8n_dispatch_refused` alert for every workflow; a 404 (workflow not published) is a warning per workflow; a
   later 2xx resolves them. The dispatcher reads pg_net's answer on its next run and never waits for it.
 
+- **Go live checklist (UI-23, 16 Nov 2026):** one list on Platform operations. The server secret list lives in
+  `owner-provision-business/ops.ts` (`SERVER_SECRETS`), shared by Operations' Services and the checklist; add a new
+  secret there. The jobs and email triggers are read by the signed in admin (database functions), the secrets by the
+  function; a part that doesn't load reads "Not checked", never "Ready".
+
 Waiting on the owner:
 
 - whether suspended businesses keep read-only access (L-5);

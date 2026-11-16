@@ -533,7 +533,7 @@ each other.
 | UI-20 | Messaging, templates | ADD | P3 | Templates can be edited but not created or retired from the admin. | Screenshot: messaging_templates; MessagingPage.jsx:210-255 | Add create and retire, each audited and versioned (with COM-27). | An admin can add a new platform template. | yes (migration) |
 | UI-21 | Voice, Messaging, Operations, Automations | CHANGE | P3 | Setting keys shown to admins as words: "sms_live is off", "The calls_live switch", "(sms live off)", "Off (calls_live)", "provider_checks_live". | Screenshots | Plain words ("Texts are in test mode") with the key in a tooltip if needed. | No setting keys in visible text. Fixed in PR #88 for Voice, Messaging and Automations; Platform operations (PlatformMonitoring.jsx) is left for its own change. | no |
 | UI-22 | Platform operations | FIX | P2 | Green "No issues found" banner and "Open problems 0" while 6 of 8 required server settings are Not set and provider checks are off. | Screenshot: operations | Count missing go live settings and off checks as problems, or show a neutral "Not ready for go live" banner. | The banner is never green while go live items are missing. | no |
-| UI-23 | Operations, Automations, Messaging | CHANGE | P2 | Three partial go live checklists: Operations "Services" (secrets), Automations "Go live checklist" (settings and switches), Messaging "Sending switches". Each misses items the others list (Resend key, platform_emails_url, email sender, n8n secret, jobs). | Screenshots: operations, automations_infrastructure, messaging_providers | One go live checklist (secrets, settings, scheduled jobs, live switches, owner approvals) shown in one place and linked from the others. | One list, every go live item on it. | no |
+| UI-23 | Operations, Automations, Messaging | CHANGE | P2 | Three partial go live checklists: Operations "Services" (secrets), Automations "Go live checklist" (settings and switches), Messaging "Sending switches". Each misses items the others list (Resend key, platform_emails_url, email sender, n8n secret, jobs). | Screenshots: operations, automations_infrastructure, messaging_providers | One go live checklist (secrets, settings, scheduled jobs, live switches, owner approvals) shown in one place and linked from the others. | One list, every go live item on it. **Fixed in the lane D go live PR (branch `claude/lane-d-go-live`):** one checklist on Platform operations, linked from Automations, Messaging and Settings. | no |
 | UI-24 | Operations and Automations | CHANGE | P2 | Two different "app address" settings: the ZELLA_APP_URL secret (invitation links, shown on Operations) and the app_base_url platform setting (customer links, shown on Automations). On 16 Nov 2026 the `app_base_url` setting was empty in production (read only database read), and the owner's `supabase secrets list` didn't include `ZELLA_APP_URL` (the secret's value can't be read from here); neither page mentions the other. | Screenshots; production database read and the owner's secrets list, 16 Nov 2026 | Explain both on the go live checklist, or derive one from the other. | An admin knows both must be set. | no |
 | UI-25 | Platform operations, incidents | CHANGE | P3 | The inline incident form clips its placeholders ("Text messages d", "(optior"). | Screenshot: operations | Use a dialog (with OPS-11). | Placeholders readable. | no |
 | UI-26 | Every list with a business filter | CHANGE | P2 | Filters are native dropdowns of every business (Automations, Messaging, Voice, Call routing, Audit logs); unusable past about 100 businesses. | Screenshots; automations_runs text | One searchable business picker component, server backed. | Picker finds a business by typing. | no |
@@ -617,7 +617,7 @@ isolated database first.
 
 ### Platform operations
 - [ ] Incident updates, paging and a duplicate warning (OPS-12) · needs approval
-- [ ] One go live checklist for secrets, settings, jobs and live switches, linked from Automations and Messaging (UI-23)
+- [x] One go live checklist for secrets, settings, jobs and live switches, linked from Automations and Messaging (UI-23) (built, branch `claude/lane-d-go-live`)
 
 ### Automations
 - [x] Store and show n8n's response per workflow (OPS-17) · needs approval (built, branch `claude/lane-d-dispatch-response`)
@@ -635,7 +635,7 @@ isolated database first.
 - [ ] Editable alert rules (condition, severity, destination, frequency, quiet window) (Settings, Alert rules) · needs approval
 - [ ] Scheduled reports and report permissions (Settings, Reporting configuration) · needs approval
 - [ ] Public API keys with scopes, hashing, last used and revocation (Settings, API management) · needs approval
-- [ ] OAuth application checks (Google client set or not) in the server configuration check (Settings, OAuth applications) · needs approval
+- [x] OAuth application checks (Google client set or not) in the server configuration check (Settings, OAuth applications) · needs approval (built, branch `claude/lane-d-go-live`)
 - [ ] A per business recording on or off policy (Settings, Policy configuration) · needs approval
 - [ ] Separate retention for recordings, transcripts and audit logs (Settings, Data retention) · needs approval
 
