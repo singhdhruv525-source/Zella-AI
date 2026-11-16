@@ -2256,13 +2256,17 @@ async function ticketNotes(admin: SupabaseClient, tickets: { id: string; metadat
   const out = new Map<string, TicketNote[]>();
   const ids = tickets.map((t) => t.id);
   if (!ids.length) return out;
-  const { data, error } = await admin.from("support_ticket_notes").select("ticket_id, body, author_id, created_at")
-    .in("ticket_id", ids).order("created_at", { ascending: true });
-  if (error && !missingTable(error)) throw error;
-  if (!error) {
+  // paged, so the API's row cap (1000) can never cut the newest notes off silently
+  let missing = false;
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await admin.from("support_ticket_notes").select("id, ticket_id, body, author_id, created_at")
+      .in("ticket_id", ids).order("created_at", { ascending: true }).order("id", { ascending: true }).range(from, from + 999);
+    if (error && missingTable(error)) { missing = true; break; }
+    if (error) throw error;
     for (const n of data ?? []) out.set(n.ticket_id, [...(out.get(n.ticket_id) ?? []), { body: n.body, author_id: n.author_id, created_at: n.created_at }]);
-    return out;
+    if ((data ?? []).length < 1000) break;
   }
+  if (!missing) return out;
   for (const t of tickets) {
     out.set(t.id, list(obj(t.metadata).notes, 200).map((x) => {
       const n = obj(x);

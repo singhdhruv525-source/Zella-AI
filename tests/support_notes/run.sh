@@ -43,11 +43,17 @@ q "update public.support_tickets set metadata = metadata || jsonb_build_object('
 T2=$(q "insert into public.support_tickets (business_id, subject, metadata) values ('$BIZ', 'Second', '{\"notes\": [{\"text\": \"Note on a new ticket\"}]}') returning id" | head -1)
 c=$(q "select (select count(*) from public.support_tickets where metadata ? 'notes') || ':' || (select count(*) from public.support_ticket_notes)")
 [ "$c" = "0:4" ] && ok "notes written into metadata later (old function, new ticket) are moved too" || bad "later notes: $c"
+n2=$(q "select string_agg(body, '|') from public.support_ticket_notes where ticket_id = '$T2'")
+[ "$n2" = "Note on a new ticket" ] && ok "the new ticket's note is attached to that ticket, text intact" || bad "new ticket note: $n2"
+# malformed times never stop the move: the note keeps its text and gets the time of the move
+q "update public.support_tickets set metadata = jsonb_build_object('notes', jsonb_build_array(jsonb_build_object('text', 'Bad date 1', 'created_at', '2026-13-45'), jsonb_build_object('text', 'Bad date 2', 'created_at', '2026-11-10 garbage'))) where id = '$T2'" > /dev/null 2>&1 && ok "malformed note times don't stop the move" || bad "malformed time stopped the update"
+b=$(q "select count(*) from public.support_ticket_notes where ticket_id = '$T2' and body like 'Bad date%' and created_at is not null")
+[ "$b" = "2" ] && ok "and those notes are kept, with the time of the move" || bad "malformed notes kept: $b"
 
 "${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_support_notes_rollback.sql" > /dev/null 2>&1 && "${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_support_notes_rollback.sql" > /dev/null 2>&1 && ok "rollback runs twice" || bad "rollback"
 r=$(q "select string_agg(n ->> 'text', '|' order by ord) from public.support_tickets t, jsonb_array_elements(t.metadata -> 'notes') with ordinality x(n, ord) where t.id = '$T'")
 [ "$r" = "Owner sounded upset; check carrier|Second note|Late note" ] && ok "rollback puts every note back into metadata, oldest first" || bad "rollback notes: $r"
-[ "$(q "select to_regclass('public.support_ticket_notes') is null and to_regprocedure('public.zella_take_ticket_notes(uuid,jsonb)') is null")" = "t" ] && ok "rollback removes the table and helpers" || bad "left behind"
+[ "$(q "select to_regclass('public.support_ticket_notes') is null and to_regprocedure('public.zella_take_ticket_notes(uuid,jsonb)') is null and to_regprocedure('public.zella_try_timestamptz(text)') is null")" = "t" ] && ok "rollback removes the table and helpers" || bad "left behind"
 "${P[@]}" -d $DB -f "$REPO/sql/zella_support_notes.sql" > /dev/null 2>&1 && ok "applies again after the rollback" || bad "reapply"
 "${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_support_notes_rollback.sql" > /dev/null 2>&1
 q "create table public.support_ticket_notes (id uuid primary key, x text)" > /dev/null
