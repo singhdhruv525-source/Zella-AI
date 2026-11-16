@@ -85,8 +85,8 @@ types, no plans.
 | `smart-action` (named "zella-admin-check") and `zella-admin-check-v2` | v5, 18 Oct 2026: old one-off checks with no source in the repo; candidates for removal, with approval |
 
 Not deployed yet from `main`: `owner-provision-business`, `billing-webhook`, `continue-plan`, `reschedule-appointment`,
-`store-connect`, `staff-invite` (the four with browser access wait for `ZELLA_APP_URL` and `ZELLA_ALLOWED_ORIGINS`), and
-`platform-emails` once its PR is merged. n8n workflows are not re-imported since PR #57. Deploying needs the owner's approval.
+`store-connect`, `staff-invite` (the four with browser access wait for `ZELLA_APP_URL` and `ZELLA_ALLOWED_ORIGINS`).
+n8n workflows are not re-imported since PR #57. Deploying needs the owner's approval.
 
 **n8n:** the 30 workflows were renamed "Zella Voice - …" in n8n on 13 Nov 2026 (owner's approval; name only, all still unpublished), matching `n8n/workflows/`.
 
