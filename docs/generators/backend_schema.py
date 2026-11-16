@@ -172,6 +172,7 @@ GROUPS = [
         "automation_dead_letters": "Events that failed for good or have no handler yet, kept visible.",
         "workflow_executions": "Record of n8n workflow runs reported back to the database.",
         "n8n_dispatch_state": "How often the dispatcher called each n8n worker, and the stuck-item guard.",
+        "scheduled_job_intents": "Each scheduled job's intended state (on or off), the reason, who recorded it and when (server only; a record, never a switch).",
         "integrations": "A business's connected integrations and their status.",
         "integration_secrets": "References to secrets for integrations (values in Vault).",
         "provider_health": "Latest health check per provider.",

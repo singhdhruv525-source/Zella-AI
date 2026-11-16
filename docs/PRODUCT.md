@@ -313,7 +313,7 @@ only the pages they can use. Every admin action is written to the audit log.
 | AI & communications | **AI agents** | Receptionist agents and configurations | `businesses.view` |
 | AI & communications | **Voice & numbers** | Assign and release phone numbers, voice usage, alerts | `businesses.view` |
 | AI & communications | **Messaging** | Messages across businesses, templates, compliance, retries | `businesses.view` |
-| Operations | **Platform operations** | Scheduler health, dispatcher, provider health, failed work | `businesses.view` |
+| Operations | **Platform operations** | Scheduler health, dispatcher, provider health, failed work; every scheduled job with its real state beside its intended state ("Deliberately off until go live") and what it drives, and a "job off" note on figures that need a job. Recording an intent needs `platform.configure`, is audited and never switches a job | `businesses.view` |
 | Operations | **Automations** | Automations and runs across businesses, retry, pause | `businesses.view` |
 | Operations | **Integrations** | Provider connections and their state | `businesses.view` |
 | Operations | **Support** | Support tickets | `support.manage` |

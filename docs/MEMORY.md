@@ -165,6 +165,13 @@ most often needed:
 - Lead and missed-call AI calls: 2 attempts, 2–3 hours apart, one message after each (D-01, D-02, D-12).
 - Call transcripts: managers and above; staff only if the owner allows; never in sensitive industries (M-4).
 
+- **Scheduled job intent (PLT-07, 16 Nov 2026, default the owner can change):** every go live job (zella_dispatch,
+  the every 5, every 15, hourly, daily and weekly jobs, zella_cron_cleanup, zella_platform_emails, zella_spam_hourly)
+  is recorded as "Deliberately off until go live" by `sql/zella_job_intent.sql`. Intents live in their own table;
+  recording one needs `platform.configure` and a reason and is audited. An intent is a record, never a switch: no
+  lane or page switches a job, which stays the owner's live switch. zella_usage_thresholds and zella_billing_reconcile
+  (on in production) have no intent recorded, so the page shows them as plain On.
+
 Waiting on the owner:
 
 - whether suspended businesses keep read-only access (L-5);
