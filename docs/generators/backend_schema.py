@@ -214,6 +214,7 @@ GROUPS = [
         "business_report_schedules": "Which reports a business gets and when.",
         "business_report_runs": "Reports produced.",
         "support_tickets": "Support requests from businesses.",
+        "support_ticket_notes": "Zella Voice admins' internal notes on support tickets (server only: the business never sees them).",
     }),
 ]
 

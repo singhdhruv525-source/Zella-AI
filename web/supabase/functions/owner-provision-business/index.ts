@@ -5,6 +5,7 @@ import { withCors } from "../_shared/cors.ts";
 import { readJsonLimited } from "../_shared/body.ts";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { PERMISSIONS, RESTRICTED_ROLES, settingsHandlers } from "./settings.ts";
+import { mfaGate, tokenAal } from "./mfa_gate.ts";
 import { ONBOARDING_PERMISSIONS, documentsReady, loadOnboarding, onboardingHandlers } from "./onboarding.ts";
 import { PLATFORM_PERMISSIONS, platformHandlers } from "./platform.ts";
 
@@ -2220,9 +2221,10 @@ async function ticketsList(admin: SupabaseClient) {
 
   const tickets = ticketsResult.data ?? [];
   const adminIds = (adminsResult.data ?? []).map((a) => a.user_id);
-  const noteAuthors = tickets.flatMap((t) =>
-    list(obj(t.metadata).notes, 200).map((n) => text(obj(n).author_id, 64))
-  );
+  // Internal notes live in support_ticket_notes, which only the server can read (OPS-06). Before that table exists
+  // (sql/zella_support_notes.sql not applied yet) they are still read from metadata, as before.
+  const notesByTicket = await ticketNotes(admin, tickets);
+  const noteAuthors = [...notesByTicket.values()].flat().map((n) => n.author_id ?? "");
   const emails = await resolveUsers(admin, [
     ...adminIds,
     ...tickets.flatMap((t) => [t.assigned_to, t.created_by]),
@@ -2236,18 +2238,54 @@ async function ticketsList(admin: SupabaseClient) {
       business_name: nameById.get(t.business_id) ?? "Unknown business",
       assignee: t.assigned_to ? emails[t.assigned_to] ?? null : null,
       creator: t.created_by ? emails[t.created_by] ?? null : null,
-      notes: list(obj(t.metadata).notes, 200).map((n) => {
-        const note = obj(n);
-        return {
-          text: text(note.text, 4000),
-          created_at: text(note.created_at, 40),
-          author: emails[text(note.author_id, 64)] ?? null,
-        };
-      }),
+      metadata: (() => { const m = { ...obj(t.metadata) }; delete m.notes; return m; })(),
+      notes: (notesByTicket.get(t.id) ?? []).map((n) => ({
+        text: n.body,
+        created_at: n.created_at,
+        author: n.author_id ? emails[n.author_id] ?? null : null,
+      })),
     })),
     businesses: businessesResult.data ?? [],
     assignees: adminIds.map((id) => ({ id, email: emails[id] ?? id })),
   };
+}
+
+type TicketNote = { body: string; author_id: string | null; created_at: string };
+const missingTable = (e: { code?: string } | null) => e?.code === "42P01" || e?.code === "PGRST205";
+
+async function ticketNotes(admin: SupabaseClient, tickets: { id: string; metadata: unknown }[]) {
+  const out = new Map<string, TicketNote[]>();
+  const ids = tickets.map((t) => t.id);
+  if (!ids.length) return out;
+  // read in pages of 1000 after a (created_at, id) cursor, so the API's row cap can't cut notes off and a note saved
+  // while reading can't make a page repeat or skip one
+  const pageSize = 1000;
+  let after: { created_at: string; id: string } | null = null;
+  for (;;) {
+    let query = admin.from("support_ticket_notes").select("id, ticket_id, body, author_id, created_at").in("ticket_id", ids);
+    if (after) query = query.or(`created_at.gt.${after.created_at},and(created_at.eq.${after.created_at},id.gt.${after.id})`);
+    const { data, error } = await query.order("created_at", { ascending: true }).order("id", { ascending: true }).limit(pageSize);
+    if (error) {
+      if (!missingTable(error)) throw error;
+      out.clear();
+      break;
+    }
+    for (const n of data ?? []) {
+      const notes = out.get(n.ticket_id) ?? [];
+      notes.push({ body: n.body, author_id: n.author_id, created_at: n.created_at });
+      out.set(n.ticket_id, notes);
+    }
+    if ((data ?? []).length < pageSize) return out;
+    const last = data![data!.length - 1];
+    after = { created_at: last.created_at, id: last.id };
+  }
+  for (const t of tickets) {
+    out.set(t.id, (Array.isArray(obj(t.metadata).notes) ? (obj(t.metadata).notes as unknown[]) : []).map((x) => {
+      const n = obj(x);
+      return { body: text(n.text, 4000), author_id: text(n.author_id, 64) || null, created_at: text(n.created_at, 40) };
+    }));
+  }
+  return out;
 }
 
 async function ticketCreate(admin: SupabaseClient, fields: Json, userId: string) {
@@ -2323,11 +2361,15 @@ async function ticketUpdate(admin: SupabaseClient, fields: Json, userId: string)
 
   const note = text(fields.note, 4000);
   if (note) {
-    const metadata = obj(ticket.metadata);
-    update.metadata = {
-      ...metadata,
-      notes: [...list(metadata.notes, 199), { text: note, author_id: userId, created_at: now }],
-    };
+    // its own row, so no note is ever dropped or overwritten by another admin saving at the same time (OPS-26)
+    const { error: noteError } = await admin.from("support_ticket_notes").insert({ ticket_id: ticketId, author_id: userId, body: note });
+    if (noteError && !missingTable(noteError)) throw noteError;
+    if (noteError) {
+      // sql/zella_support_notes.sql not applied yet: the old place, keeping every earlier note
+      const metadata = obj(ticket.metadata);
+      const earlier = Array.isArray(metadata.notes) ? metadata.notes : [];
+      update.metadata = { ...metadata, notes: [...earlier, { text: note, author_id: userId, created_at: now }] };
+    }
     changes.note_added = true;
   }
 
@@ -2989,35 +3031,19 @@ Deno.serve(withCors(async (req: Request) => {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    // The caller's platform role (any of the seven). Falls back to the older admin check while
-    // sql/zella_settings_system.sql is not applied yet, so the dashboard keeps working during the rollout.
+    // The caller's platform role (any of the seven), read with the server key: the caller's own database session can't
+    // be used for this, because an admin who hasn't finished two step sign in is refused by the database (ACC-34).
     let role: string | null = null;
-    const roleRes = await callerClient.rpc("zella_admin_role");
-    if (roleRes.error) {
-      const legacy = await callerClient.rpc("is_platform_admin");
-      if (legacy.error) {
-        console.error("Platform admin verification failed", legacy.error);
-        return respond({ error: "Could not verify platform admin access" }, 500);
-      }
-      role = legacy.data === true ? await callerRole(adminClient, user.id) : null;
-    } else {
-      role = typeof roleRes.data === "string" ? roleRes.data : null;
-    }
+    try { role = await callerRole(adminClient, user.id); }
+    catch (e) { console.error("Platform admin verification failed", e); return respond({ error: "Could not verify platform admin access" }, 500); }
     if (!role) {
       return respond({ error: "Platform admin access required" }, 403);
     }
 
-    // Admins who set up two-step sign-in must have used it for this session.
+    // Two step sign in, required for every admin (mfa_gate.ts); checked once the action is known.
     const factors = ((user as { factors?: { status?: string }[] }).factors ?? []);
     const hasMfa = factors.some((f) => f.status === "verified");
-    let aal = "aal1";
-    try {
-      const payload = authorization.slice(7).split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
-      aal = String(JSON.parse(atob(payload.padEnd(Math.ceil(payload.length / 4) * 4, "="))).aal ?? "aal1");
-    } catch { /* treated as aal1 */ }
-    if (hasMfa && aal !== "aal2") {
-      return respond({ error: "Enter the code from your authenticator app to continue.", code: "MFA_REQUIRED" }, 403);
-    }
+    const aal = tokenAal(authorization);
 
     let body: unknown;
 
@@ -3043,6 +3069,9 @@ Deno.serve(withCors(async (req: Request) => {
     const fields = body as Json;
     const action =
       typeof fields.action === "string" ? fields.action : "";
+
+    const gate = mfaGate({ hasVerifiedFactor: hasMfa, aal, action });
+    if (!gate.ok) return respond({ error: gate.error, code: gate.code }, gate.status);
 
     // Every action needs a permission; restricted roles only have what the owner gave them.
     const permission = PERMISSIONS[action] ?? ONBOARDING_PERMISSIONS[action] ?? PLATFORM_PERMISSIONS[action];

@@ -19,7 +19,8 @@ Never point any of this at production.
 
    ```bash
    sql/baseline/restore.sh zella_ui sql/zella_invitation_hardening.sql sql/zella_billing_hardening.sql \
-     sql/zella_mfa_enforcement.sql sql/zella_platform_roles_fix.sql sql/zella_platform_alerts_policy_fix.sql
+     sql/zella_mfa_enforcement.sql sql/zella_platform_roles_fix.sql sql/zella_platform_alerts_policy_fix.sql \
+     sql/zella_admin_mfa.sql
    ```
 
 2. Load the test data:
@@ -41,6 +42,12 @@ Never point any of this at production.
      deno run -A --no-lock --config web/supabase/functions/<name>/deno.json tests/browser/run-function.ts <name> <port>
    ```
 
+   Every admin needs two step sign in (ACC-01). For page crawls, give the test admins a verified authenticator
+   (`insert into auth.mfa_factors (id, user_id, factor_type, status) select gen_random_uuid(), id, 'totp', 'verified'
+   from auth.users where email like '%@zella.test'`) and start the stand in with `ZTEST_PASSWORD_AAL2=1`, so a password
+   sign in counts as verified. `admin-mfa-journey.cjs` checks the real set up and code screens and runs without it (the
+   stand in's only working code is 123456).
+
 4. Build and serve the app. The app only accepts `https://<project>.supabase.co`, so the tests reroute that address to the stand-in:
 
    ```bash
@@ -56,6 +63,7 @@ Never point any of this at production.
 | `page-review.cjs <persona> [--mobile] [--glass]` | Signs in through the real sign-in page and opens every route from the app's own registries. Records crashes, error screens, failed calls, axe-core results (WCAG 2.1 AA), sideways overflow, icon words and a screenshot. Personas: admin, readonly, owner, staff, viewer, public. Set `BUSINESS=<id>` to choose the owner's business. |
 | `wizard-journey.cjs` | The setup wizard: no skipping, unsaved changes (Save / Discard / Stay, focus trap), leaving and reloading, double-click, checkmarks from saved data, server-side finish checks, owner versus staff invitation. |
 | `ui-journeys.cjs` | Template and customer-search scoping across two businesses, appearance save failure and retry, a reload during a pending save, the icon font blocked, automations with live-shaped data. |
+| `admin-mfa-journey.cjs` | Two step sign in for every admin: an admin without an authenticator gets only their own role from the server and nothing from the database, is walked through setting one up (wrong code refused), lands on the dashboard; the only authenticator can't be removed; the next sign in asks for the code. Needs `sql/zella_admin_mfa.sql` in the test database. |
 | `brand-check.cjs` | Sidebar logo and default theme: expanded, collapsed, frames during the transition, tablet rail, phone drawer, reduced motion, accessible name, saved looks kept. |
 | `probe.cjs <email> <route> "<js>"` | Opens one page and prints a browser expression (for debugging). |
 
