@@ -1418,8 +1418,11 @@ const OPERATIONAL = [
     ["invitation_reminder_hours", "Hours after an owner invitation that reminders go out, for example 24, 72."],
     ["setup_incomplete_after_days", "Days after creation before an unfinished setup is flagged."],
     ["trial_notice_days", "Days before a trial ends that the owner is told, for example 7, 3, 1."],
+    ["draft_abandon_days", "Days without any change before a draft business shows as Abandoned on Business onboarding, with one alert. Nothing is deleted automatically."],
   ]],
 ];
+// Settings the server reads with a default when no row exists yet; saving one adds the row.
+const UNSET_DEFAULTS = { draft_abandon_days: 30 };
 
 export function OperationalRules({ me }) {
   const state = useAsync(() => call("platform_settings_list"), []);
@@ -1431,7 +1434,7 @@ export function OperationalRules({ me }) {
           <div key={group}>
             <h3 className="zs-group">{group}</h3>
             {keys.map(([k, hint]) => {
-              const row = s.settings.find((x) => x.key === k);
+              const row = s.settings.find((x) => x.key === k) ?? (k in UNSET_DEFAULTS ? { key: k, value: UNSET_DEFAULTS[k], editable: s.canEdit } : null);
               return row
                 ? <SettingText key={k} me={me} row={{ ...row, label: settingLabel(k) }} hint={hint} />
                 : <Banner key={k} tone="warn"><strong>{settingLabel(k)}</strong> isn't in platform settings yet: the database update that adds it hasn't been applied. <small className="zs-muted">Setting key <code>{k}</code></small></Banner>;

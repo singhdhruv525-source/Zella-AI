@@ -48,6 +48,57 @@ export async function createDraft(admin: SupabaseClient, values: Json, creationK
   return await admin.rpc("zella_create_business_draft", { p_fields: values }) as RpcResult;
 }
 
+// BIZ-13b default (owner can change): a draft with no change for this many days is Abandoned. The platform setting
+// draft_abandon_days (editable on Settings, Operational rules) overrides it. Nothing is ever deleted automatically: a
+// person uses Delete draft.
+export const DRAFT_ABANDON_DAYS_DEFAULT = 30;
+const DAY_MS = 86_400_000;
+
+type DraftRow = { id: string; name: unknown; created_at: unknown; updated_at?: unknown };
+export type DraftAge = { lastActivityAt: string; abandoned: boolean };
+
+// Last activity is the later of the business row's own change and its newest audit entry (every setup save is
+// audited). A draft that has just become Abandoned raises one draft_abandoned alert, once ever per business: a
+// resolved alert is not raised again. Alerts are best effort and never fail the page.
+export async function draftAges(admin: SupabaseClient, rows: DraftRow[], now = Date.now()): Promise<{ days: number; ages: Map<string, DraftAge> }> {
+  const ages = new Map<string, DraftAge>();
+  const { data: setting } = await admin.from("platform_settings").select("value").eq("key", "draft_abandon_days").maybeSingle();
+  const set = Number((setting as { value?: unknown } | null)?.value);
+  const days = Number.isInteger(set) && set >= 7 && set <= 365 ? set : DRAFT_ABANDON_DAYS_DEFAULT;
+  if (!rows.length) return { days, ages };
+  const ids = rows.map((r) => r.id);
+  const { data: audit, error } = await admin.from("audit_logs").select("business_id, created_at").in("business_id", ids)
+    .order("created_at", { ascending: false }).limit(5000);
+  if (error) throw error;
+  const newest = new Map<string, string>();
+  for (const a of (audit ?? []) as { business_id: string; created_at: string }[]) if (!newest.has(a.business_id)) newest.set(a.business_id, a.created_at);
+  const cutoff = now - days * DAY_MS;
+  for (const r of rows) {
+    const times = [r.updated_at, r.created_at, newest.get(r.id)].map((t) => Date.parse(String(t ?? ""))).filter((t) => Number.isFinite(t));
+    const last = times.length ? Math.max(...times) : now;
+    ages.set(r.id, { lastActivityAt: new Date(last).toISOString(), abandoned: last < cutoff });
+  }
+  const abandoned = rows.filter((r) => ages.get(r.id)?.abandoned);
+  if (abandoned.length) {
+    try {
+      const { data: raised, error: alertError } = await admin.from("platform_alerts").select("business_id")
+        .eq("kind", "draft_abandoned").in("business_id", abandoned.map((r) => r.id));
+      if (alertError) throw alertError;
+      const already = new Set(((raised ?? []) as { business_id: string }[]).map((a) => a.business_id));
+      for (const r of abandoned.filter((x) => !already.has(x.id))) {
+        await admin.rpc("zella_platform_alert", {
+          p_kind: "draft_abandoned", p_title: "A draft business looks abandoned",
+          p_detail: `${String(r.name ?? "A business")} has had no changes for ${days} days. Continue its setup or delete the draft.`,
+          p_severity: "info", p_business_id: r.id, p_dedupe_key: `draft_abandoned:${r.id}`, p_meta: { days },
+        });
+      }
+    } catch (e) {
+      console.error("Abandoned draft alerts could not be raised", e);
+    }
+  }
+  return { days, ages };
+}
+
 export function lifecycleHandlers(admin: SupabaseClient, fields: Json, kit: LifecycleKit, userId: string | null = null, role: string | null = null) {
   const { text, obj, InputError } = kit;
 

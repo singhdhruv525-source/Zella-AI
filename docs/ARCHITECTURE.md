@@ -1765,7 +1765,7 @@ flowchart TD
 |---|---|
 | Save, resume, duplicates | Every step is saved server-side; the draft resumes at the first incomplete step. A creation key prevents a second business on a double submit. A duplicate name, phone or domain shows a warning. |
 | Validation | Server-side per step; nothing is written to live tables until the step's checks pass. |
-| Failure and rollback | Each step is atomic. A failed invite leaves the business inactive and retryable. Abandoned drafts expire [D-30]. |
+| Failure and rollback | Each step is atomic. A failed invite leaves the business inactive and retryable. A draft with no change for 30 days (platform setting `draft_abandon_days`) shows as Abandoned on Settings, Business onboarding and raises one alert; it is never deleted automatically, a person uses Delete draft [D-30, recommended default until the owner decides]. |
 | Audit | Every step and every change is audited. |
 | Provider readiness | Numbers, calendar and lead sources are each checked, with a clear "not set up yet" state. |
 | Test call and message readiness | Part of the activation tests before go-live. |
@@ -2080,7 +2080,7 @@ Knowledge, Automations, Reports, Team, Settings.
 | D-22, D-26, D-28 | Engineering thresholds: dispatcher "stuck" count, reconciliation delay, calendar staleness | engineering |
 | D-24 | Minimum knowledge set before activation | owner |
 | D-29 | Waitlist ranking, offer expiry, broadcast mode | owner |
-| D-30 | Draft expiry for abandoned Create Business drafts | owner |
+| D-30 | Draft expiry for abandoned Create Business drafts (default built: flag after 30 days, alert once, never delete automatically) | owner |
 | D-31 | Monitoring and pager provider | owner |
 | D-36 | Late-arrival minutes before staff are prompted to mark a no-show | owner |
 | D-32 | Limit on AI replies per conversation per hour | engineering |

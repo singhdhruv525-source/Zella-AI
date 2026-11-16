@@ -5,6 +5,7 @@
 // or business id from the browser. Secret values never leave the server: only whether they are set.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { draftAges } from "./lifecycle.ts";
 
 type Json = Record<string, unknown>;
 
@@ -331,7 +332,7 @@ export function settingsHandlers(admin: SupabaseClient, fields: Json, ctx: { use
     },
 
     onboarding_overview: async () => {
-      const biz = (check(await admin.from("businesses").select("id, name, onboarding_status, industry_id, email, phone, timezone, created_at, setup_data")
+      const biz = (check(await admin.from("businesses").select("id, name, onboarding_status, industry_id, email, phone, timezone, created_at, updated_at, setup_data")
         .is("cancelled_at", null).neq("onboarding_status", "active").order("created_at", { ascending: false }).limit(200)) ?? []) as Json[];
       const ids = biz.map((b) => b.id as string);
       const [steps, agents, numbers, subs, invites] = await Promise.all([
@@ -342,7 +343,9 @@ export function settingsHandlers(admin: SupabaseClient, fields: Json, ctx: { use
         ids.length ? admin.from("business_invitations").select("business_id, status, role").in("business_id", ids).eq("role", "owner") : { data: [] },
       ]);
       const of = <T extends { business_id: string }>(rows: unknown, id: string) => ((rows ?? []) as T[]).filter((r) => r.business_id === id);
+      const { days: abandonDays, ages } = await draftAges(admin, biz as { id: string; name: unknown; created_at: unknown; updated_at: unknown }[]);   // BIZ-13b
       return {
+        abandon_days: abandonDays,
         rows: biz.map((b) => {
           const id = b.id as string;
           const st = of<{ business_id: string; step: string; status: string; error: string | null; updated_at: string }>(steps.data, id);
@@ -355,6 +358,7 @@ export function settingsHandlers(admin: SupabaseClient, fields: Json, ctx: { use
             billing: of<{ business_id: string; status: string }>(subs.data, id).length > 0,
           };
           return { id, name: b.name, onboarding_status: b.onboarding_status, created_at: b.created_at, checks,
+            last_activity_at: ages.get(id)?.lastActivityAt ?? null, abandoned: ages.get(id)?.abandoned ?? false,
             failed_steps: st.filter((s) => s.status === "failed").map((s) => ({ step: s.step, error: s.error ? String(s.error).slice(0, 200) : null, at: s.updated_at })) };
         }),
       };

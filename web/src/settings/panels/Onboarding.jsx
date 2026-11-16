@@ -2,6 +2,7 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { callOwnerFunction } from "../../CreateBusinessWizard";
 import { Banner, Card, Confirm, LoadState, Needs, Pill, Table, useAsync, words } from "../SettingsKit";
+import { DRAFT_DELETE_ROLES, since } from "../../businessLifecycle";
 
 // Settings > Business onboarding (Lane B): businesses still in setup, what each has in place, and for a Zella Voice
 // owner or super admin, Delete draft for a business that never finished setup (BIZ-13a). The server and the database
@@ -10,8 +11,6 @@ import { Banner, Card, Confirm, LoadState, Needs, Pill, Table, useAsync, words }
 const can = (me, permission) => Boolean(me?.permissions?.includes(permission));
 const call = (action, payload) => callOwnerFunction(action, payload);
 const CHECKS = [["profile", "Profile"], ["industry", "Industry"], ["receptionist", "AI receptionist"], ["phone", "Phone"], ["owner_invited", "Owner invited"], ["billing", "Billing"]];
-// BIZ-13a default (owner can change): who may delete a never finished draft; the server has the same list
-export const DRAFT_DELETE_ROLES = ["zella_owner", "super_admin"];
 // what a business must not have to be deleted as a draft (the database refuses it otherwise)
 const DELETABLE = (b) => !["testing", "ready", "active"].includes(b.onboarding_status) && !b.checks.phone && !b.checks.billing;
 
@@ -33,11 +32,12 @@ export default function Onboarding({ me, openSetup, openBusiness }) {
     <>
       <Banner tone="success">{notice.text}</Banner>
       <Banner tone="error">{notice.error}</Banner>
-      <Card title="Businesses still in setup" sub="Each check reads the business's real records. A tick means it's in place.">
+      <Card title="Businesses still in setup" sub={`Each check reads the business's real records. A tick means it's in place. A draft with no changes for ${state.data?.abandon_days ?? 30} days shows as Abandoned and raises one alert; nothing is deleted automatically.`}>
         <LoadState state={state}>{(d) => (
           <Table rows={d.rows} empty="Every business has finished setup." columns={[
             ["Business", (b) => <button type="button" className="zs-link" onClick={() => openBusiness(b.id)}>{b.name}</button>],
             ["Step", (b) => words(b.onboarding_status)],
+            ["Last change", (b) => <>{since(b.last_activity_at)}{b.abandoned && <> <Pill tone="danger">Abandoned</Pill></>}</>],
             ...CHECKS.map(([key, label]) => [label, (b) => (b.checks[key] ? <Pill tone="success">✓</Pill> : <Pill tone="warning">Missing</Pill>)]),
             ["Failed steps", (b) => (b.failed_steps.length ? b.failed_steps.map((f) => `${words(f.step)}${f.error ? `: ${f.error}` : ""}`).join("; ") : "None")],
             ["", (b) => can(me, "businesses.manage") ? (

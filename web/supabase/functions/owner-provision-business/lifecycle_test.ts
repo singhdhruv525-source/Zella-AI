@@ -1,6 +1,6 @@
 import { assertEquals, assertRejects } from "jsr:@std/assert@1";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { LIFECYCLE_PERMISSIONS, createDraft, lifecycleHandlers, type LifecycleKit } from "./lifecycle.ts";
+import { DRAFT_ABANDON_DAYS_DEFAULT, LIFECYCLE_PERMISSIONS, createDraft, draftAges, lifecycleHandlers, type LifecycleKit } from "./lifecycle.ts";
 import { PERMISSIONS } from "./settings.ts";
 import { ONBOARDING_PERMISSIONS } from "./onboarding.ts";
 import { PLATFORM_PERMISSIONS } from "./platform.ts";
@@ -134,4 +134,61 @@ Deno.test("business_delete_draft explains why a business is not a draft, and kee
     assertEquals(err.message.includes(words), true, err.message);
   }
   await assertRejects(() => lifecycleHandlers(deleteAdmin({ data: null, error: new Error("database down") }, [], []), deleteFields, kit, "actor", "zella_owner").handlers.business_delete_draft(), Error, "database down");
+});
+
+// A small stand in for the tables draftAges reads: platform_settings, audit_logs and platform_alerts.
+function agesAdmin(opts: { setting?: unknown; audit?: { business_id: string; created_at: string }[]; raised?: string[]; alertFails?: boolean }) {
+  const alerts: Record<string, unknown>[] = [];
+  const admin = {
+    from: (table: string) => {
+      const q: Record<string, unknown> = {};
+      const chain = {
+        select: () => chain, eq: (k: string, v: unknown) => { q[k] = v; return chain; }, in: () => chain, order: () => chain,
+        maybeSingle: async () => ({ data: opts.setting === undefined ? null : { value: opts.setting }, error: null }),
+        limit: async () => ({ data: opts.audit ?? [], error: null }),
+        then: (resolve: (v: unknown) => void) => resolve(table === "platform_alerts"
+          ? (opts.alertFails ? { data: null, error: new Error("alerts down") } : { data: (opts.raised ?? []).map((business_id) => ({ business_id })), error: null })
+          : { data: [], error: null }),
+      };
+      return chain;
+    },
+    rpc: async (fn: string, args: Record<string, unknown>) => { alerts.push({ fn, ...args }); return { data: null, error: null }; },
+  } as unknown as SupabaseClient;
+  return { admin, alerts };
+}
+const NOW = Date.parse("2026-11-16T12:00:00Z");
+const daysAgo = (d: number) => new Date(NOW - d * 86_400_000).toISOString();
+const A = "a1000000-0000-0000-0000-000000000001", B = "a1000000-0000-0000-0000-000000000002", C = "a1000000-0000-0000-0000-000000000003";
+
+Deno.test("draftAges: a draft untouched for 30 days is Abandoned, a recent audit entry counts as a change", async () => {
+  const rows = [
+    { id: A, name: "Old Draft", created_at: daysAgo(60), updated_at: daysAgo(45) },
+    { id: B, name: "Saved Lately", created_at: daysAgo(60), updated_at: daysAgo(45) },
+    { id: C, name: "New Draft", created_at: daysAgo(2), updated_at: daysAgo(2) },
+  ];
+  const { admin, alerts } = agesAdmin({ audit: [{ business_id: B, created_at: daysAgo(3) }, { business_id: A, created_at: daysAgo(40) }] });
+  const { days, ages } = await draftAges(admin, rows, NOW);
+  assertEquals(days, DRAFT_ABANDON_DAYS_DEFAULT);
+  assertEquals(DRAFT_ABANDON_DAYS_DEFAULT, 30);
+  assertEquals([ages.get(A)?.abandoned, ages.get(B)?.abandoned, ages.get(C)?.abandoned], [true, false, false]);
+  assertEquals(ages.get(A)?.lastActivityAt, daysAgo(40));
+  assertEquals(ages.get(B)?.lastActivityAt, daysAgo(3));
+  assertEquals(alerts.length, 1);
+  assertEquals(alerts[0].p_kind, "draft_abandoned");
+  assertEquals(alerts[0].p_business_id, A);
+  assertEquals(alerts[0].p_dedupe_key, `draft_abandoned:${A}`);
+});
+
+Deno.test("draftAges: alerts once ever per business, and the setting changes the days within limits", async () => {
+  const rows = [{ id: A, name: "Old Draft", created_at: daysAgo(60), updated_at: daysAgo(20) }];
+  const once = agesAdmin({ raised: [A], setting: 14 });
+  const r = await draftAges(once.admin, rows, NOW);
+  assertEquals([r.days, r.ages.get(A)?.abandoned, once.alerts.length], [14, true, 0]);
+  for (const bad of [3, 1000, "soon", null]) {
+    const x = agesAdmin({ setting: bad });
+    assertEquals((await draftAges(x.admin, rows, NOW)).days, 30);
+  }
+  const fails = agesAdmin({ alertFails: true, setting: 14 });
+  assertEquals((await draftAges(fails.admin, rows, NOW)).ages.get(A)?.abandoned, true);   // the page still loads
+  assertEquals((await draftAges(agesAdmin({}).admin, [], NOW)).ages.size, 0);
 });

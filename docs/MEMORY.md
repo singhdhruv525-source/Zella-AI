@@ -175,6 +175,10 @@ most often needed:
   name typed and a reason, and only a business that never finished setup and has no calls, numbers, billing or
   accepted owner. Audit rows stay (business_id empty); the deletion entry keeps the name. Default, owner can change.
 
+- **Abandoned drafts (Lane B, BIZ-13b, D-30 recommended default, 16 Nov 2026):** a draft with no change for 30 days
+  (`draft_abandon_days`, 7 to 365) is marked Abandoned and alerted once ever; nothing is deleted automatically. The
+  alert is raised when Business onboarding is opened (no scheduled job for it yet).
+
 Waiting on the owner:
 
 - whether suspended businesses keep read-only access (L-5);

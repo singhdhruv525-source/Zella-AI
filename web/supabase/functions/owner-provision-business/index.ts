@@ -2902,6 +2902,7 @@ const EDITABLE_SETTINGS: Record<string, { label: string; check: (v: unknown) => 
   transfer_failure_threshold: { label: "Failed transfers before a business is flagged", check: (v) => intIn(v, 1, 50) },
   ai_low_confidence_questions: { label: "Unsure answers in one call before it is flagged for review", check: (v) => intIn(v, 2, 20) },
   response_sample_rate: { label: "Share of AI conversations sampled for quality review (0 to 1)", check: (v) => fraction(v) },
+  draft_abandon_days: { label: "Days without changes before a draft business is marked abandoned", check: (v) => intIn(v, 7, 365) },
 };
 
 // A short list of whole numbers, from "24, 72", "[24,72]" or an array. Kept unique and in the order its job reads
