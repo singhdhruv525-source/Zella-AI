@@ -16,9 +16,9 @@ It reads the catalog only, never rows.
 | Tables (schema `public`) | 175 |
 | Tables with row security on | 175 of 175 |
 | Row security policies | 342 |
-| Columns | 2072 |
+| Columns | 2073 |
 | Views | 1 |
-| Functions | 915 (847 security definer, 26 callable by `anon`) |
+| Functions | 917 (848 security definer, 26 callable by `anon`) |
 
 Rules every table follows:
 
@@ -3231,12 +3231,13 @@ A business's automations and whether each is on.
 | `created_at` | timestamp with time zone | yes | now() |
 | `updated_at` | timestamp with time zone | yes | now() |
 | `paused_by_suspension` | boolean | yes | false |
+| `bulk_paused_at` | timestamp with time zone |  |  |
 
 - Primary key: `id`.
 - `business_id` → `public.businesses` (on delete cascade).
 - `created_by` → `public.profiles` (on delete set null).
 - Row security: on; policies: authorized managers can create automations (insert), authorized managers can delete automations (delete), authorized managers can update automations (update), business members can view automations (select), zella_mfa_required (all), zella_module_automations_delete (delete), zella_module_automations_insert (insert), zella_module_automations_read (select), zella_module_automations_update (update).
-- Triggers: `zella_audit_privileged_trg`, `zella_business_id_parent_trg`, `zella_channel_review_trg`, `zella_reminder_settings_trg`.
+- Triggers: `zella_audit_privileged_trg`, `zella_automation_bulk_mark`, `zella_business_id_parent_trg`, `zella_channel_review_trg`, `zella_reminder_settings_trg`.
 
 ### `automation_runs`
 
@@ -4337,7 +4338,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_add_lead_note(p_customer_id uuid, p_note text)` | boolean | yes | signed in |
 | `zella_add_record_note(p_id uuid, p_note text)` | boolean | yes | signed in |
 
-### `zella_admin_*` (47)
+### `zella_admin_*` (48)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -4349,6 +4350,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_admin_automation_templates(p_q text, p_industry text)` | jsonb | yes | signed in |
 | `zella_admin_automations(p_q text, p_status text, p_trigger text, p_business uuid, p_industry uuid, p_limit integer, p_offset integer)` | jsonb | yes | signed in |
 | `zella_admin_business_automations_pause(p_business_id uuid, p_reason text)` | jsonb | yes | signed in |
+| `zella_admin_business_automations_resume(p_business_id uuid, p_reason text)` | jsonb | yes | signed in |
 | `zella_admin_business_options()` | jsonb | yes | signed in |
 | `zella_admin_call_detail(p_call_id uuid, p_with_content boolean)` | jsonb | yes | signed in |
 | `zella_admin_call_usage(p_business_id uuid, p_from timestamp with time zone, p_to timestamp with time zone, p_limit integer, p_offset integer)` | jsonb | yes | signed in |
@@ -5505,7 +5507,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_setting(p_key text, p_default jsonb)` | jsonb | yes | server only |
 | `zella_tables(p_business_id uuid)` | jsonb | yes | signed in |
 
-### Smaller groups and older helpers (189)
+### Smaller groups and older helpers (190)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -5521,6 +5523,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_arrival_window(p_business_id uuid)` | integer | yes | server only |
 | `zella_asset_type_keys()` | text[] |  | server only |
 | `zella_assign_lead(p_customer_id uuid, p_user_id uuid)` | boolean | yes | signed in |
+| `zella_automation_bulk_mark_trg()` | trigger |  | server only |
 | `zella_automation_readiness()` | jsonb | yes | signed in |
 | `zella_available_slots(p_business_id uuid, p_from timestamp with time zone, p_to timestamp with time zone, p_duration_minutes integer, p_staff_id uuid, p_step_minutes integer, p_limit integer, p_ignore_appointment uuid)` | TABLE(slot_start timestamp with time zone, slot_end timestamp with time zone, staff_id uuid, staff_name text) | yes | signed in |
 | `zella_begin_record_file(p_record_id uuid, p_file_name text, p_mime_type text, p_size_bytes bigint, p_caption text, p_private boolean)` | jsonb | yes | signed in |
