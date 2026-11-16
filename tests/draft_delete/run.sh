@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # sql/zella_draft_delete.sql on an ISOLATED copy of the production schema (never production). Test data only.
 # Checks: before, deleting a draft with a receptionist fails (the privileged audit trigger points at the business being
-# deleted) and deleting one without erases its audit rows (cascade); applies, and applies again; a Zella Voice owner
-# deletes an eligible draft: its modules, receptionist and pending owner invitation go, its earlier audit rows stay with
-# business_id empty, the deletion entry keeps the name, industry and earlier row ids in old_data and the reason, and
+# deleted) and deleting one without erases its audit rows (cascade); applies, and applies again; the audit foreign key
+# stays CASCADE; a Zella Voice owner deletes an eligible draft: its modules, receptionist and pending owner invitation
+# go, its earlier audit rows go with it (cascade, an owner decision), the deletion entry survives with business_id empty
+# and keeps the business id, name, industry, a copy of the earlier rows and the reason, and
 # the business-documents paths come back for the server to remove; a super admin may delete too; a read only admin, an
 # unknown person, a wrong name and a missing reason are refused; drafts that are live, active, in testing, cancelled,
 # with an accepted owner, an active member, calls, phone numbers, subscriptions, payments or assistant deliveries are
@@ -60,9 +61,10 @@ paths=$(q "select string_agg(p, ',' order by p) from jsonb_array_elements_text('
 [ "$paths" = "$B1/business_registration/a.pdf,$B1/other/orphan.png" ] && ok "a Zella Voice owner deletes it (name in any case) and gets the document paths, orphans too" || bad "delete: $r"
 s=$(q "select (select count(*) from public.businesses where id = '$B1') || ',' || (select count(*) from public.ai_agents where business_id = '$B1') || ',' || (select count(*) from public.business_modules where business_id = '$B1') || ',' || (select count(*) from public.business_invitations where business_id = '$B1')")
 [ "$s" = "0,0,0,0" ] && ok "the business, receptionist, modules and pending owner invitation are gone" || bad "left over: $s"
-[ "$(q "select count(*) from public.audit_logs where entity_id = '$B1' and action = 'business.draft_created' and business_id is null")" = "1" ] && ok "its earlier audit rows stay, with business_id empty" || bad "earlier rows"
-e=$(q "select (old_data ->> 'name') || '|' || (old_data ->> 'industry' is not null) || '|' || jsonb_array_length(old_data -> 'earlier_audit_ids') || '|' || (new_data ->> 'reason') || '|' || user_id from public.audit_logs where action = 'business.draft_deleted' and entity_id = '$B1'")
-[ "$e" = "Glow Draft Studio|true|$early|Duplicate made by mistake|$OWN" ] && ok "the deletion entry keeps the name, industry, earlier row ids and reason" || bad "entry: $e"
+[ "$(q "select confdeltype::text from pg_constraint where conname = 'audit_logs_business_id_fkey'")" = "c" ] && ok "the audit foreign key is still CASCADE (not changed without approval)" || bad "fk changed"
+[ "$(q "select count(*) from public.audit_logs where action = 'business.draft_created' and entity_id = '$B1'")" = "0" ] && ok "its earlier audit rows go with it (cascade: the owner decides on ACC-10)" || bad "earlier rows"
+e=$(q "select (business_id is null) || '|' || (old_data ->> 'business_id') || '|' || (old_data ->> 'name') || '|' || (old_data ->> 'industry' is not null) || '|' || jsonb_array_length(old_data -> 'earlier_audit') || '|' || (select count(*) from jsonb_array_elements(old_data -> 'earlier_audit') x where x ->> 'action' = 'business.draft_created') || '|' || (new_data ->> 'reason') || '|' || user_id from public.audit_logs where action = 'business.draft_deleted' and entity_id = '$B1'")
+[ "$e" = "true|$B1|Glow Draft Studio|true|$early|1|Duplicate made by mistake|$OWN" ] && ok "the deletion entry survives with business_id empty and keeps the id, name, industry, a copy of the earlier rows and the reason" || bad "entry: $e"
 pd=$(q "select count(*) from public.audit_logs where action = 'privileged_delete' and business_id is null and new_data ->> 'deleted_business_id' = '$B1'")
 [ "$pd" -ge 2 ] && ok "the cascade's own privileged audit rows are kept, pointing at the deleted id in new_data" || bad "privileged rows: $pd"
 B2=$(draft "Super Draft"); r=$(del "$B2" "$SUP" "Super Draft" "Test record")
@@ -91,7 +93,7 @@ g=$(q "select has_function_privilege('authenticated', 'public.zella_delete_draft
 [ "$g" = "falsefalse" ] && ok "only the server may call it" || bad "grants: $g"
 
 "${P[@]}" -d $DB -f "$RB" > /dev/null 2>&1 && "${P[@]}" -d $DB -f "$RB" > /dev/null 2>&1 && ok "rollback runs twice" || bad "rollback"
-[ "$(fp)" = "$before" ] && [ -z "$(q "select to_regprocedure('public.zella_delete_draft_business(uuid,uuid,text,text)')")" ] && ok "rollback restores the trigger function and the cascade exactly, and drops the delete" || bad "after rollback: $(fp)"
+[ "$(fp)" = "$before" ] && [ -z "$(q "select to_regprocedure('public.zella_delete_draft_business(uuid,uuid,text,text)')")" ] && ok "rollback restores the trigger function exactly, drops the delete, and leaves the foreign key as it was" || bad "after rollback: $(fp)"
 [ "$(q "select count(*) from public.audit_logs where action = 'business.draft_deleted'")" = "2" ] && ok "deletion entries stay after the rollback" || bad "entries after rollback"
 "${P[@]}" -d $DB -f "$MIG" > /dev/null 2>&1 && ok "applies again after the rollback" || bad "reapply"
 q "create or replace function public.zella_delete_draft_business(p_business_id uuid, p_actor uuid, p_confirm_name text, p_reason text) returns jsonb language sql as \$f\$ select '{}'::jsonb \$f\$" > /dev/null
