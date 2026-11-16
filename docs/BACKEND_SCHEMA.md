@@ -18,7 +18,7 @@ It reads the catalog only, never rows.
 | Row security policies | 349 |
 | Columns | 2254 |
 | Views | 1 |
-| Functions | 1053 (979 security definer, 29 callable by `anon`) |
+| Functions | 1054 (980 security definer, 29 callable by `anon`) |
 
 Rules every table follows:
 
@@ -5386,7 +5386,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_on_call_settings_save(p_business_id uuid, p_enabled boolean, p_scope text)` | boolean | yes | signed in |
 | `zella_on_call_status()` | jsonb | yes | server only |
 
-### `zella_onboarding_*` (19)
+### `zella_onboarding_*` (20)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -5401,6 +5401,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_onboarding_identity_passed(p_business_id uuid)` | boolean | yes | server only |
 | `zella_onboarding_payment(p_business_id uuid)` | jsonb | yes | server only |
 | `zella_onboarding_payment_confirmed_at(p_business_id uuid)` | timestamp with time zone | yes | server only |
+| `zella_onboarding_payment_passed(p_business_id uuid)` | boolean | yes | signed in |
 | `zella_onboarding_plan(p_business_id uuid)` | jsonb | yes | server only |
 | `zella_onboarding_rules()` | jsonb |  | server only |
 | `zella_onboarding_section_data(p_business_id uuid, p_section text)` | jsonb | yes | server only |
