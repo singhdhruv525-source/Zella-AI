@@ -26,7 +26,7 @@ q "insert into public.platform_role_permissions (role, permission) values
   ('security_admin','audit.view'),('security_admin','businesses.view'),('security_admin','security.manage'),('security_admin','security.view'),
   ('support_admin','analytics.view'),('support_admin','businesses.view'),('support_admin','support.manage') on conflict do nothing" > /dev/null || exit 1
 q "insert into auth.users (id, email, email_confirmed_at) select ('f0000000-0000-0000-0000-00000000000' || n)::uuid, r || '@perm.test', now()
-     from (values (1,'zella_owner'),(2,'super_admin'),(3,'billing_admin'),(4,'platform_operations'),(5,'support_admin'),(6,'read_only_admin'),(7,'security_admin'),(8,'member')) x(n, r)" > /dev/null || exit 1
+     from (values (1,'zella_owner'),(2,'super_admin'),(3,'billing_admin'),(4,'platform_operations'),(5,'support_admin'),(6,'read_only_admin'),(7,'security_admin'),(8,'member'),(9,'other_owner')) x(n, r)" > /dev/null || exit 1
 q "insert into public.platform_admins (user_id, role) select ('f0000000-0000-0000-0000-00000000000' || n)::uuid, r
      from (values (1,'zella_owner'),(2,'super_admin'),(3,'billing_admin'),(4,'platform_operations'),(5,'support_admin'),(6,'read_only_admin'),(7,'security_admin')) x(n, r)" > /dev/null || exit 1
 BIZ=$(q "insert into public.businesses (name, industry_id) select 'Perm Test', id from public.industries limit 1 returning id" | head -1)
@@ -91,7 +91,7 @@ expected_after() {
     ('zella_offer_report', 'owner,super,billing,read_only'), ('zella_offer_rules_list', 'owner,super,billing,read_only'),
     ('zella_offer_save', 'owner,super,billing'), ('zella_offer_transition', 'owner,super,billing'), ('zella_offer_apply_admin', 'owner,super,billing'),
     -- a missing claim answers NOT_FOUND before the permission check, so the probe lets everyone through; the check
-    -- itself is asserted on the definition below
+    -- itself is exercised with existing claims in both businesses below
     ('zella_offer_cancel_claim', 'owner,super,billing,platform_operations,support_admin,read_only,security,member'), ('zella_offer_set_redemption', 'owner,super,billing'), ('zella_offer_retry', 'owner,super,billing'),
     ('zella_retry_event', 'owner,super')) x(fn, roles)"
 }
@@ -107,22 +107,72 @@ n=$(q "select count(*) from public._probe where allowed and who not in ('zella_o
 
 "${P[@]}" -d $DB -f "$REPO/sql/zella_admin_permissions.sql" > /dev/null 2>&1 && ok "applies" || { bad "applies"; "${P[@]}" -d $DB -f "$REPO/sql/zella_admin_permissions.sql" 2>&1 | tail -3; exit 1; }
 "${P[@]}" -d $DB -f "$REPO/sql/zella_admin_permissions.sql" > /dev/null 2>&1 && ok "applies again (idempotent)" || bad "second apply"
+# Migrated definitions retaining the permission expressions must still match exactly.
+for sig in 'public.zella_offers_list()' 'public.zella_offer_log(uuid,text,text,text,jsonb,uuid)'; do
+  q "alter function $sig cost 101;" > /dev/null || exit 1
+  if out=$("${P[@]}" -d $DB -f "$REPO/sql/zella_admin_permissions.sql" 2>&1); then
+    bad "migrated drift accepted: $sig"
+  elif [[ "$out" == *"VERSION_MISMATCH"* ]]; then
+    ok "migrated drift refused: $sig"
+  else
+    bad "unexpected migrated drift error: $out"
+  fi
+  q "alter function $sig cost 100" > /dev/null || exit 1
+done
 probe; after=$(got); want=$(expected_after)
 [ "$after" = "$want" ] && ok "each role gets exactly what its permissions allow (business member: nothing)" || { bad "access matrix"; diff <(tr ' ' '\n' <<<"$want") <(tr ' ' '\n' <<<"$after"); }
 n=$(q "select count(*) from public._probe where allowed and who = 'member' and fn <> 'zella_offer_cancel_claim'")
 [ "$n" = "0" ] && ok "a business member who isn't an admin gets none of them" || bad "member let through $n"
-d=$(q "select position('public.zella_admin_can(''billing.manage'')' in pg_get_functiondef('public.zella_offer_cancel_claim(uuid)'::regprocedure)) > 0")
-[ "$d" = "t" ] && ok "cancelling a claim: the business's owner, or an admin with billing.manage" || bad "cancel_claim check"
+# Real pending claims in two businesses exercise ownership and admin authorization.
+BIZ2=$(q "insert into public.businesses (name, industry_id) select 'Other Perm Test', id from public.industries limit 1 returning id") || exit 1
+q "insert into public.business_members (business_id, user_id, role, status) values ('$BIZ2', 'f0000000-0000-0000-0000-000000000009', 'owner', 'active')" > /dev/null || exit 1
+q "insert into public.offers (id, name, status, needs_approval) values ('f1000000-0000-0000-0000-000000000001', 'Perm offer', 'pending_approval', true)" > /dev/null || exit 1
+q "insert into public.offers (id, name) values ('f1000000-0000-0000-0000-000000000002', 'Cancel fixture')" > /dev/null || exit 1
+ok "offer fixtures created separately"
+q "do \$\$
+declare b uuid; u record; claim uuid; denied boolean;
+begin
+  foreach b in array array['$BIZ'::uuid, '$BIZ2'::uuid] loop
+    for u in select * from (values (8), (9), (3), (6)) x(n) loop
+      insert into public.offer_redemptions (offer_id, business_id, source, idempotency_key)
+      values ('f1000000-0000-0000-0000-000000000002', b, 'dashboard', gen_random_uuid()::text) returning id into claim;
+      perform set_config('request.jwt.claims', json_build_object('sub', 'f0000000-0000-0000-0000-00000000000' || u.n, 'role', 'authenticated', 'aal', 'aal1')::text, true);
+      denied := false;
+      set local role authenticated;
+      begin
+        perform public.zella_offer_cancel_claim(claim);
+      exception when raise_exception then
+        if sqlerrm <> 'NOT_ALLOWED' then raise; end if;
+        denied := true;
+      end;
+      reset role;
+      if denied is distinct from (u.n <> 3 and not (u.n = 8 and b = '$BIZ'::uuid or u.n = 9 and b = '$BIZ2'::uuid)) then
+        raise exception 'Unexpected cancellation authorization for user % business %', u.n, b;
+      end if;
+      if not exists (select 1 from public.offer_redemptions where id = claim and status = case when denied then 'pending' else 'cancelled' end) then
+        raise exception 'Unexpected claim status for user % business %', u.n, b;
+      end if;
+    end loop;
+  end loop;
+end \$\$" > /dev/null && ok "claim cancellation: own business and billing admin allowed; other business owner and read only admin refused (both businesses)" || bad "claim cancellation authorization"
 seen_as() { q "do \$\$ declare n int; begin perform set_config('request.jwt.claims', json_build_object('sub', '$1', 'role', 'authenticated', 'aal', 'aal1')::text, true); set local role authenticated; select count(*) into n from public.platform_incidents; reset role; raise notice 'N=%', n; end \$\$" 2>&1 | sed -n 's/.*N=//p'; }
 
 # offer approval stays owner only
-r=$(q "do \$\$ declare v text; begin
+if q "do \$\$ begin
   perform set_config('request.jwt.claims', '{\"sub\":\"f0000000-0000-0000-0000-000000000003\",\"role\":\"authenticated\",\"aal\":\"aal1\"}', true);
-  insert into public.offers (id, name, status, needs_approval) values ('f1000000-0000-0000-0000-000000000001', 'Perm offer', 'pending_approval', true);
   set local role authenticated;
-  begin perform public.zella_offer_transition('f1000000-0000-0000-0000-000000000001', 'approve', null); v := 'approved'; exception when others then v := sqlerrm; end;
-  reset role; raise notice '%', v; end \$\$" 2>&1 | sed 's/.*NOTICE:  //')
-[[ "$r" != "approved" ]] && ok "a billing admin still can't approve an offer (owner only): $r" || bad "billing admin approved an offer"
+  begin
+    perform public.zella_offer_transition('f1000000-0000-0000-0000-000000000001', 'approve', null);
+  exception when raise_exception then
+    if sqlerrm = 'OWNER_ONLY' then return; end if;
+    raise;
+  end;
+  raise exception 'Expected OWNER_ONLY from billing admin approval';
+end \$\$" > /dev/null; then
+  ok "a billing admin cannot approve an offer (OWNER_ONLY)"
+else
+  bad "billing admin approval did not return OWNER_ONLY"
+fi
 
 # incidents: readable by businesses.view, and opening and resolving are audited
 q "do \$\$ begin
