@@ -1,6 +1,6 @@
 
 import BrokenLink from "./BrokenLink";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "./supabase";
 import OwnerDashboard from "./OwnerDashboard";
 import ContinuePlan from "./ContinuePlan";
@@ -115,6 +115,9 @@ function AdminApp() {
   const [code, setCode] = useState("");
   const [mfaVerified, setMfaVerified] = useState(false);
   const [mfaSetup, setMfaSetup] = useState(null);   // { factorId, qr, secret } while setting up an authenticator
+  // Bumped on every sign out or account switch: an answer that arrives for an earlier sign in is ignored, so it can
+  // never open the dashboard for a session that has gone.
+  const flow = useRef(0);
   const platform = usePlatformInfo();
 
   // Keep an existing owner session after a page refresh,
@@ -180,7 +183,7 @@ function AdminApp() {
     restoreSession();
 
     const { data: listener } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_OUT") { setIsAuthorized(false); setMfaVerified(false); }
+      if (event === "SIGNED_OUT") { flow.current++; setIsAuthorized(false); setMfaVerified(false); setMfaSetup(null); setLoading(false); }
     });
 
     return () => {
@@ -191,30 +194,34 @@ function AdminApp() {
 
   // An admin without an authenticator is walked through setting one up before anything opens (ACC-01).
   async function beginMfaSetup() {
+    const mine = flow.current;
     setMode("mfasetup");
     setCode("");
     setMessage("");
-    try { setMfaSetup(await startMfaEnrollment()); }
-    catch (error) { setMessageType("error"); setMessage(friendlyAuthError(error)); }
+    try { const setup = await startMfaEnrollment(); if (mine === flow.current) setMfaSetup(setup); }
+    catch (error) { if (mine === flow.current) { setMessageType("error"); setMessage(friendlyAuthError(error)); } }
   }
 
   async function handleMfaSetup(event) {
     event.preventDefault();
     setMessage("");
     setLoading(true);
+    const mine = flow.current;
     try {
       if (!mfaSetup) { await beginMfaSetup(); return; }
       await finishMfaEnrollment(mfaSetup.factorId, code);
       const access = await hasAdminAccess();
+      if (mine !== flow.current) return;   // signed out or switched account meanwhile
       if (access !== true) throw new Error("Two step sign in is set up, but admin access could not be checked. Please sign in again.");
       setMfaSetup(null);
       setCode("");
       setIsAuthorized(true);
     } catch (error) {
+      if (mine !== flow.current) return;
       setMessageType("error");
       setMessage(friendlyAuthError(error));
     } finally {
-      setLoading(false);
+      if (mine === flow.current) setLoading(false);
     }
   }
 
@@ -583,7 +590,7 @@ function AdminApp() {
                 {!loading && mode === "signin" && <span>→</span>}
               </button>
               {mode === "mfa" || mode === "mfasetup" ? (
-                <button type="button" className="forgot-link" onClick={async () => { await supabase.auth.signOut(); setMfaSetup(null); switchMode("signin"); }}>
+                <button type="button" className="forgot-link" onClick={async () => { flow.current++; setLoading(false); await supabase.auth.signOut(); setMfaSetup(null); switchMode("signin"); }}>
                   ← Use a different account
                 </button>
               ) : mode === "setpassword" ? null : mode === "signin" ? (

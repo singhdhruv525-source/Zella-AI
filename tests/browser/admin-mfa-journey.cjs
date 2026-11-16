@@ -29,8 +29,9 @@ const fn = async (token, action) => {
   check("an admin without an authenticator may read their own role, marked as not set up", me.status === 200 && me.body.mfa === false, `${me.status} ${JSON.stringify(me.body).slice(0, 80)}`);
   const dash = await fn(tok, "dashboard_data");
   check("and nothing else (MFA_SETUP_REQUIRED)", dash.status === 403 && dash.body.code === "MFA_SETUP_REQUIRED", `${dash.status} ${dash.body.code ?? dash.body.error}`);
-  const rpc = await fetch(BACKEND + "/rest/v1/rpc/zella_admin_role", { method: "POST", headers: { authorization: `Bearer ${tok}`, apikey: "sb_publishable_local_test_only", "content-type": "application/json" }, body: "{}" });
-  check("the database refuses them too", rpc.status >= 400, String(rpc.status));
+  const rpcAs = (t) => fetch(BACKEND + "/rest/v1/rpc/zella_admin_role", { method: "POST", headers: { authorization: `Bearer ${t}`, apikey: "sb_publishable_local_test_only", "content-type": "application/json" }, body: "{}" });
+  const rpc = await rpcAs(tok); const rpcBody = await rpc.json().catch(() => ({}));
+  check("the database refuses them too, with its two step sign in refusal (MFA_REQUIRED)", rpc.status === 403 && /MFA_REQUIRED/.test(JSON.stringify(rpcBody)), `${rpc.status} ${JSON.stringify(rpcBody).slice(0, 100)}`);
 
   const browser = await chromium.launch();
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 860 } });
@@ -68,6 +69,10 @@ const fn = async (token, action) => {
   check("the right code turns it on and opens the dashboard", await page.isVisible("nav >> text=Businesses"));
   const saved = sql(`select string_agg(f.status::text, ',' order by f.status) from auth.mfa_factors f join auth.users u on u.id = f.user_id where u.email = '${EMAIL}'`);
   check("the authenticator is saved as verified (and nothing half set up is left)", saved === "verified", saved);
+  // control: the same database call works once the session is verified with a code
+  const t2 = await page.evaluate(() => { const k = Object.keys(localStorage).find((x) => x.includes("auth-token")); return k ? JSON.parse(localStorage.getItem(k)).access_token : null; });
+  const ok2 = t2 ? await rpcAs(t2) : null;
+  check("with the verified session the database answers the same call", Boolean(ok2) && ok2.status === 200, ok2 ? String(ok2.status) : "no session token");
 
   await page.goto(APP + "/settings/profile/security");
   await page.waitForSelector("text=Two step sign in", { timeout: 15000 }).catch(() => {});

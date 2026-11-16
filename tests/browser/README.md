@@ -19,7 +19,8 @@ Never point any of this at production.
 
    ```bash
    sql/baseline/restore.sh zella_ui sql/zella_invitation_hardening.sql sql/zella_billing_hardening.sql \
-     sql/zella_mfa_enforcement.sql sql/zella_platform_roles_fix.sql sql/zella_platform_alerts_policy_fix.sql
+     sql/zella_mfa_enforcement.sql sql/zella_platform_roles_fix.sql sql/zella_platform_alerts_policy_fix.sql \
+     sql/zella_admin_mfa.sql
    ```
 
 2. Load the test data:

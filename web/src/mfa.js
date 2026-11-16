@@ -47,7 +47,7 @@ export async function startMfaEnrollment() {
   // Remove any half-finished set-up first, so a retry works.
   const { data } = await supabase.auth.mfa.listFactors();
   for (const f of data?.all ?? []) if (f.status !== "verified") await supabase.auth.mfa.unenroll({ factorId: f.id });
-  const { data: enrolled, error } = await supabase.auth.mfa.enroll({ factorType: "totp", friendlyName: `Authenticator ${new Date().toISOString().slice(0, 10)}` });
+  const { data: enrolled, error } = await supabase.auth.mfa.enroll({ factorType: "totp", friendlyName: `Authenticator ${new Date().toISOString().slice(0, 19).replace("T", " ")}`   // unique per person: Supabase refuses two with the same name });
   if (error) throw new Error(/disabled|not enabled/i.test(error.message) ? "Two step sign in isn't switched on for this Zella Voice project yet (Supabase, Authentication, multi factor)." : error.message);
   return { factorId: enrolled.id, qr: enrolled.totp.qr_code, secret: enrolled.totp.secret };
 }

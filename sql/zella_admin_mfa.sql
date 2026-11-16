@@ -19,7 +19,7 @@ begin
     raise exception 'VERSION_MISMATCH: something this file needs is missing';
   end if;
   d := pg_get_functiondef(s::regprocedure);
-  if position('public.platform_admins' in d) > 0 then return; end if;   -- already applied
+  if md5(d) = '2a448f1e76356f4cf38478127cc83ce3' then return; end if;   -- already applied: exactly this file's version
   if md5(d) not in ('f1cc1bb5a6e141a27c6643fa387dee63', '85766438a927da4a59619130c7bcba7e') then
     raise exception 'VERSION_MISMATCH: % is not a version this file was written for', s;
   end if;

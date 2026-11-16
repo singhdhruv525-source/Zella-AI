@@ -335,7 +335,8 @@ async function auth(req, url, claims, body) {
     if (verb === "challenge") return { status: 200, json: { id: crypto.randomUUID(), type: "totp", expires_at: Math.floor(Date.now() / 1000) + 300 } };
     if (verb === "verify") {
       if (String(body?.code ?? "") !== "123456") return { status: 422, json: { code: 422, msg: "Invalid TOTP code entered", error_code: "mfa_verification_failed" } };
-      await asCaller({ role: "service_role" }, `update auth.mfa_factors set status = 'verified', updated_at = now() where id = ${lit(factorId)} and user_id = ${lit(claims.sub)}`, sys);
+      const v = await asCaller({ role: "service_role" }, `update auth.mfa_factors set status = 'verified', updated_at = now() where id = ${lit(factorId)} and user_id = ${lit(claims.sub)} returning id`, sys);
+      if (v.error || !v.text) return { status: 404, json: { code: 404, msg: "Factor not found", error_code: "mfa_factor_not_found" } };
       const user = await userRow(claims.sub);
       return { status: 200, json: session(user, "aal2") };
     }
