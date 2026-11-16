@@ -383,7 +383,7 @@ Append-only record of every privileged action. Only the server can write it.
 | `created_at` | timestamp with time zone | yes | now() |
 
 - Primary key: `id`.
-- `business_id` → `public.businesses` (on delete cascade).
+- `business_id` → `public.businesses` (on delete set null).
 - `user_id` → `auth.users` (on delete set null).
 - Row security: on; policies: business members can view audit logs (select), zella_mfa_required (all).
 
