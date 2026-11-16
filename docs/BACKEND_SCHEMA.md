@@ -18,7 +18,7 @@ It reads the catalog only, never rows.
 | Row security policies | 342 |
 | Columns | 2079 |
 | Views | 1 |
-| Functions | 918 (849 security definer, 26 callable by `anon`) |
+| Functions | 919 (850 security definer, 26 callable by `anon`) |
 
 Rules every table follows:
 
@@ -4354,7 +4354,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_add_lead_note(p_customer_id uuid, p_note text)` | boolean | yes | signed in |
 | `zella_add_record_note(p_id uuid, p_note text)` | boolean | yes | signed in |
 
-### `zella_admin_*` (48)
+### `zella_admin_*` (49)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -4394,6 +4394,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_admin_retry_usage(p_issue_id uuid)` | jsonb | yes | signed in |
 | `zella_admin_role()` | text | yes | signed in |
 | `zella_admin_routing_get(p_business_id uuid)` | jsonb | yes | signed in |
+| `zella_admin_routing_missing(p_limit integer, p_offset integer)` | jsonb | yes | signed in |
 | `zella_admin_routing_save(p_business_id uuid, p_rules jsonb, p_reason text)` | jsonb | yes | signed in |
 | `zella_admin_run_detail(p_kind text, p_id uuid)` | jsonb | yes | signed in |
 | `zella_admin_run_retry(p_kind text, p_id uuid, p_reason text)` | jsonb | yes | signed in |
