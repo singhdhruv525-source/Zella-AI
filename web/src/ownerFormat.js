@@ -92,7 +92,7 @@ export function formatDateTime(value) {
 // "5 days ago", "Yesterday" (lib/format.js). Put formatDateTime in a title for the exact time.
 export function timeAgo(value) {
   if (!value) return "None";
-  return formatRelative(value) || "None";
+  return formatRelative(value) || "Not recorded";
 }
 
 export function formatDuration(seconds) {

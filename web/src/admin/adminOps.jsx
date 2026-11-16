@@ -69,9 +69,9 @@ export function useLoad(loader, deps) {
   return { ...state, reload: useCallback(() => setTick((t) => t + 1), []) };
 }
 
-// A cell or fact with no value is never blank. One word per kind of value: "None" for lists and counts, "Not set" for
+// A cell or fact with no value is never blank or "None". Short words per kind of value: "Not set" for
 // configuration, "Never" for times (docs/DESIGN_SYSTEM.md, Writing).
-export function EmptyValue({ label = "None" }) {
+export function EmptyValue({ label = "Not set" }) {
   return <span className="empty-value">{label}</span>;
 }
 
@@ -324,7 +324,7 @@ export function Drawer({ title, eyebrow, status, onClose, footer, children }) {
   );
 }
 
-export function Facts({ rows, empty = "None" }) {
+export function Facts({ rows, empty = "Not set" }) {
   return (
     <dl className="ao-facts">
       {rows.filter(Boolean).map(([k, v]) => (
