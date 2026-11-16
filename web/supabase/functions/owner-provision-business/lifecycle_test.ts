@@ -378,3 +378,46 @@ Deno.test("retry_step: only internal steps, with the admin as actor; database an
   }
   await assertRejects(() => lifecycleHandlers(ok, { businessId: "x", step: "modules" }, kit).handlers.retry_step(), InputError, "valid business");
 });
+
+// SET-DL-EXPORT: the request and approve actions
+Deno.test("export_request and export_decide: who may, and the database's answers in words", async () => {
+  const calls: Call[] = [];
+  const ok = rpcAdmin((c) => ({ data: c.fn === "zella_export_request" ? "job-1" : "approved", error: null }), calls);
+  assertEquals(await lifecycleHandlers(ok, { businessId: A, reason: "Owner asked for a copy" }, kit, "admin-1", "support_admin").handlers.export_request(), { id: "job-1", businessId: A, status: "requested" });
+  assertEquals(calls[0], { fn: "zella_export_request", args: { p_business: A, p_actor: "admin-1", p_reason: "Owner asked for a copy" } });
+  await assertRejects(() => lifecycleHandlers(ok, { businessId: A, reason: "x" }, kit, "admin-1").handlers.export_request(), InputError, "reason");
+  for (const role of ["super_admin", "support_admin", null]) {
+    const c: Call[] = [];
+    const err = await assertRejects(() => lifecycleHandlers(rpcAdmin(() => ({ data: "approved", error: null }), c), { id: B, approve: true }, kit, "u", role).handlers.export_decide(), InputError);
+    assertEquals([(err as InputError).status, c.length], [403, 0]);
+  }
+  assertEquals(await lifecycleHandlers(ok, { id: B, approve: true }, kit, "owner-2", "zella_owner").handlers.export_decide(), { id: B, status: "approved" });
+  await assertRejects(() => lifecycleHandlers(ok, { id: B, approve: "yes" }, kit, "owner-2", "zella_owner").handlers.export_decide(), InputError, "approve or reject");
+  for (const [message, status] of [["OWN_REQUEST", 403], ["EXPORT_OPEN", 409], ["NOT_REQUESTED", 409], ["REASON_REQUIRED", 400]] as const) {
+    const bad = rpcAdmin(() => ({ data: null, error: { message } }), []);
+    const fn = message === "EXPORT_OPEN" ? lifecycleHandlers(bad, { businessId: A, reason: "a reason" }, kit, "u", "zella_owner").handlers.export_request
+      : lifecycleHandlers(bad, { id: B, approve: false, reason: "r" }, kit, "u", "zella_owner").handlers.export_decide;
+    assertEquals(((await assertRejects(fn, InputError)) as InputError).status, status);
+  }
+});
+
+Deno.test("export_download: only the requester or an owner, only while ready, links that end with the export", async () => {
+  const future = new Date(Date.now() + 3 * 86_400_000).toISOString();
+  const job = { id: A, business_id: B, status: "ready", requested_by: "admin-1", progress: { parts: [`${A}/tables/calls.json`, "other/x.json"] }, manifest_path: `${A}/manifest.json`, expires_at: future };
+  const signedWith: unknown[] = [];
+  const mk = (j: Record<string, unknown>) => ({
+    from: () => { const c: Record<string, unknown> = {}; for (const m of ["select", "eq"]) c[m] = () => c; c.maybeSingle = async () => ({ data: j, error: null }); return c; },
+    storage: { from: (bucket: string) => ({ createSignedUrls: async (paths: string[], secs: number) => { signedWith.push([bucket, paths, secs]); return { data: paths.map((p) => ({ path: p, signedUrl: `https://signed/${p}` })), error: null }; } }) },
+  }) as unknown as SupabaseClient;
+  const r = await lifecycleHandlers(mk(job), { id: A }, kit, "admin-1", "support_admin").handlers.export_download() as Record<string, unknown>;
+  assertEquals((r.links as unknown[]).length, 2);
+  const [bucket, paths, secs] = signedWith[0] as [string, string[], number];
+  assertEquals([bucket, paths], ["business-exports", [`${A}/manifest.json`, `${A}/tables/calls.json`]]);
+  assertEquals(secs > 3 * 86_400 - 60 && secs <= 3 * 86_400, true);
+  assertEquals(await lifecycleHandlers(mk(job), { id: A }, kit, "owner-9", "zella_owner").handlers.export_download().then(() => "ok"), "ok");
+  assertEquals(((await assertRejects(() => lifecycleHandlers(mk(job), { id: A }, kit, "someone", "super_admin").handlers.export_download(), InputError)) as InputError).status, 403);
+  assertEquals(((await assertRejects(() => lifecycleHandlers(mk({ ...job, status: "running" }), { id: A }, kit, "admin-1").handlers.export_download(), InputError)) as InputError).status, 409);
+  assertEquals(((await assertRejects(() => lifecycleHandlers(mk({ ...job, expires_at: new Date(Date.now() - 1000).toISOString() }), { id: A }, kit, "admin-1").handlers.export_download(), InputError)) as InputError).status, 409);
+  const h = lifecycleHandlers(mk(job), {}, kit);
+  assertEquals(h.audited.export_download(r).action, "export.downloaded");
+});

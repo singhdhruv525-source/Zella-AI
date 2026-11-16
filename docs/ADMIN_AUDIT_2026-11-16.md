@@ -575,7 +575,7 @@ isolated database first.
 ### Businesses lifecycle
 - [ ] Delete a draft that was never finished, audited (BIZ-13) · needs approval
 - [ ] "Retention due" list and an owner approved purge of cancelled businesses (BIZ-13) · needs approval
-- [ ] Whole business export and deletion jobs (Settings, Data lifecycle says they aren't built) · needs approval
+- [ ] Whole business export and deletion jobs (Settings, Data lifecycle says they aren't built) · needs approval (export: request and approval on branch `claude/lane-b-business-export`, worker and Export card on `claude/lane-b-export-worker`, PRs to be opened; deletion jobs are BIZ-13d)
 - [ ] Automatic retry of failed setup steps (Settings, Business onboarding) · needs approval (part 1, recording every setup step, built on branch `claude/lane-b-provisioning-steps`, PR to be opened); part 2, Retry step and the timed retry of internal steps (off until the owner switches it on), built on branch `claude/lane-b-provisioning-retry`, PR to be opened
 
 ### Create business wizard

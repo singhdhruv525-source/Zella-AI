@@ -192,6 +192,11 @@ most often needed:
   are retried, by Retry step or by the timed job zella_provisioning_retry (off until the owner switches it on, at most 3
   tries each). The invitation email and provider steps are never retried on their own. Default, owner can change.
 
+- **Whole business export (Lane B, SET-DL-EXPORT, 16 Nov 2026):** an admin requests, a Zella Voice owner other than the
+  requester approves, downloadable for 7 days through signed links that end with it, by the requester or an owner.
+  Never in an export: secret tables and columns, recording links, and transcripts in sensitive industries. Default,
+  owner can change.
+
 Waiting on the owner:
 
 - whether suspended businesses keep read-only access (L-5);

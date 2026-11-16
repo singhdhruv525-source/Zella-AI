@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# sql/zella_business_export.sql on an ISOLATED copy of the production schema (never production). Test data only.
+# Checks: before, a whole business can't be exported (the gap); applies, and applies again; the bucket is private and
+# the jobs table is server only; an admin requests, a second open request is refused; the requester can't approve
+# their own request, a super admin can't approve, a Zella Voice owner can (or reject with a reason); a claim takes the
+# approved export; rows come without secret tables or columns, without recording links, and without transcripts in a
+# sensitive industry (with them otherwise); files list both buckets for that business only; a stale claim can't write;
+# a failure goes back to approved and resumes from its progress; three stops end it failed; a finish makes it ready for
+# 7 days; ready exports past 7 days expire; each step is audited; only the server may call the functions; the
+# rollback refuses while an export is ready, then (twice) removes everything; applies again; drift stops the file.
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")" && pwd)"; REPO="$(cd "$HERE/../.." && pwd)"
+export ZPG_HOST=${ZPG_HOST:-/var/lib/postgresql/zella-sec} ZPG_PORT=${ZPG_PORT:-55433}; DB=${DB:-zlb_business_export}; TEMPLATE=${TEMPLATE:-zprod3}
+. "$REPO/tests/lib/isolated_guard.sh"; zella_require_isolated "$ZPG_HOST" "$ZPG_PORT" "$DB" || exit 1
+P=(psql -h "$ZPG_HOST" -p "$ZPG_PORT" -U postgres -qtAX -v ON_ERROR_STOP=1)
+"${P[@]}" -d postgres -c "drop database if exists $DB" -c "create database $DB template $TEMPLATE" > /dev/null || exit 1
+fails=0; ok() { echo "PASS $*"; }; bad() { echo "FAIL $*"; fails=$((fails + 1)); }
+q() { "${P[@]}" -d $DB -c "$1"; }
+MIG="$REPO/sql/zella_business_export.sql"; RB="$REPO/sql/rollback/zella_business_export_rollback.sql"
+ADM=e6000000-0000-0000-0000-000000000001; OWN=e6000000-0000-0000-0000-000000000002; SUP=e6000000-0000-0000-0000-000000000003; OUT=e6000000-0000-0000-0000-000000000004
+q "insert into auth.users (id, email) values ('$ADM', 'support@zella.test'), ('$OWN', 'owner@zella.test'), ('$SUP', 'super@zella.test'), ('$OUT', 'someone@else.test');
+   insert into public.platform_admins (user_id, role, is_active) values ('$ADM', 'support_admin', true), ('$OWN', 'zella_owner', true), ('$SUP', 'super_admin', true);
+   insert into storage.buckets (id, name) values ('business-documents', 'business-documents'), ('record-files', 'record-files') on conflict do nothing" > /dev/null || exit 1
+PLAIN=$(q "select id from public.industries where slug not in ('dental','healthcare','pet-care-veterinary','legal','financial-services','insurance','childcare') order by name limit 1")
+SENS=$(q "select id from public.industries where slug = 'dental' limit 1")
+B=$(q "insert into public.businesses (name, industry_id) values ('Export Test Studio', '$PLAIN') returning id" | head -1)
+D=$(q "insert into public.businesses (name, industry_id) values ('Export Dental Studio', '$SENS') returning id" | head -1)
+O=$(q "insert into public.businesses (name, industry_id) values ('Other Studio', '$PLAIN') returning id" | head -1)
+for x in $B $D; do q "insert into public.calls (business_id, direction, transcript, summary, recording_url) values ('$x', 'inbound', 'Caller said hello', 'A greeting', 'https://rec.example/1')" > /dev/null; done
+q "insert into public.integrations (business_id, provider, credentials) select '$B', 'test', '{\"k\": \"secret-value\"}'::jsonb where exists (select 1 from information_schema.columns where table_name = 'integrations' and column_name = 'provider')" > /dev/null 2>&1
+q "insert into storage.objects (bucket_id, name) values ('business-documents', '$B/owner_identity/a.pdf'), ('record-files', '$B/r/b.png'), ('business-documents', '$O/owner_identity/c.pdf')" > /dev/null
+
+[ -z "$(q "select to_regclass('public.business_export_jobs')")" ] && ok "before: a whole business can't be exported (the gap)" || bad "before"
+"${P[@]}" -d $DB -f "$MIG" > /dev/null 2>&1 && ok "applies" || { bad "applies"; "${P[@]}" -d $DB -f "$MIG" 2>&1 | grep -v NOTICE | tail -3; exit 1; }
+"${P[@]}" -d $DB -f "$MIG" > /dev/null 2>&1 && ok "applies again (idempotent)" || bad "second apply"
+[ "$(q "select public::text from storage.buckets where id = 'business-exports'")" = "false" ] && [ "$(q "select has_table_privilege('authenticated', 'public.business_export_jobs', 'select')::text || has_table_privilege('anon', 'public.business_export_jobs', 'select')::text")" = "falsefalse" ] && ok "the bucket is private and the jobs are server only" || bad "privacy"
+out=$(q "select public.zella_export_request('$B', '$OUT', 'test reason')" 2>&1); [[ "$out" == *NOT_ALLOWED* ]] && ok "someone who isn't an admin can't request" || bad "outsider: $out"
+J=$(q "select public.zella_export_request('$B', '$ADM', 'Owner asked for a copy')")
+out=$(q "select public.zella_export_request('$B', '$OWN', 'again please')" 2>&1); [[ "$out" == *EXPORT_OPEN* ]] && ok "an admin requests, and a second open request is refused" || bad "second: $out"
+out=$(q "select public.zella_export_decide('$J', '$SUP', true, null)" 2>&1); [[ "$out" == *NOT_ALLOWED* ]] && ok "a super admin can't approve" || bad "super: $out"
+J2=$(q "select public.zella_export_request('$D', '$OWN', 'Dental export')")
+out=$(q "select public.zella_export_decide('$J2', '$OWN', true, null)" 2>&1); [[ "$out" == *OWN_REQUEST* ]] && ok "the requester can't approve their own request" || bad "own: $out"
+out=$(q "select public.zella_export_decide('$J', '$OWN', false, ' ')" 2>&1); [[ "$out" == *REASON_REQUIRED* ]] && ok "a rejection needs a reason" || bad "reject reason: $out"
+[ "$(q "select public.zella_export_decide('$J', '$OWN', true, null)")" = "approved" ] && ok "a Zella Voice owner approves" || bad "approve"
+q "update public.platform_admins set role = 'zella_owner' where user_id = '$SUP'" > /dev/null
+[ "$(q "select public.zella_export_decide('$J2', '$SUP', true, null)")" = "approved" ] && ok "another owner approves the owner's own request" || bad "approve 2"
+c=$(q "select public.zella_export_claim()"); T=$(q "select '$c'::jsonb ->> 'token'"); CJ=$(q "select '$c'::jsonb ->> 'id'")
+[ "$CJ" = "$J" ] && [ "$(q "select status from public.business_export_jobs where id = '$J'")" = "running" ] && ok "a claim takes the oldest approved export" || bad "claim: $c"
+tabs=$(q "select array_to_string(public.zella_export_tables(), ',')")
+[[ ",$tabs," != *",integration_secrets,"* && ",$tabs," != *",crm_record_secrets,"* && ",$tabs," != *",business_export_jobs,"* && ",$tabs," == *",calls,"* ]] && ok "secret tables are never exported" || bad "tables"
+r=$(q "select public.zella_export_rows('$J', '$T', 'calls', 0, 100)")
+[[ "$r" == *"Caller said hello"* && "$r" != *recording_url* && "$r" != *rec.example* ]] && ok "calls come with transcripts in a plain industry, never with recording links" || bad "calls: $r"
+r=$(q "select public.zella_export_rows('$J', '$T', 'integrations', 0, 100)"); [[ "$r" != *secret-value* && "$r" != *credentials* ]] && ok "secret columns are left out" || bad "integrations: $r"
+out=$(q "select public.zella_export_rows('$J', '$T', 'integration_secrets', 0, 10)" 2>&1); [[ "$out" == *NOT_EXPORTED* ]] && ok "a secret table can't be asked for" || bad "secret table: $out"
+f=$(q "select public.zella_export_files('$J', '$T')"); [[ "$f" == *"$B/owner_identity/a.pdf"* && "$f" == *"$B/r/b.png"* && "$f" != *"$O/"* ]] && ok "files from both buckets, that business only" || bad "files: $f"
+out=$(q "select public.zella_export_rows('$J', gen_random_uuid(), 'calls', 0, 10)" 2>&1); [[ "$out" == *NOT_THIS_CLAIM* ]] && [ "$(q "select public.zella_export_progress('$J', gen_random_uuid(), '{}')")" = "f" ] && ok "a stale claim can't read or write" || bad "stale"
+q "select public.zella_export_progress('$J', '$T', '{\"tables_done\": [\"calls\"]}')" > /dev/null
+[ "$(q "select public.zella_export_finish('$J', '$T', false, null, 'storage timeout')")" = "approved" ] && ok "a failure goes back to approved" || bad "retry"
+c=$(q "select public.zella_export_claim()"); [ "$(q "select '$c'::jsonb #>> '{progress,tables_done,0}'")" = "calls" ] && ok "and the next claim resumes from its progress" || bad "resume: $c"
+T=$(q "select '$c'::jsonb ->> 'token'")
+[ "$(q "select public.zella_export_finish('$J', '$T', true, '$J/manifest.json', null)")" = "ready" ] && [ "$(q "select (expires_at between now() + interval '6 days 23 hours' and now() + interval '7 days 1 minute')::text from public.business_export_jobs where id = '$J'")" = "true" ] && ok "a finish makes it ready for 7 days" || bad "ready"
+c=$(q "select public.zella_export_claim()"); T2=$(q "select '$c'::jsonb ->> 'token'")
+r=$(q "select public.zella_export_rows('$J2', '$T2', 'calls', 0, 100)"); [[ "$r" != *"Caller said hello"* && "$r" != *"A greeting"* ]] && ok "a sensitive industry's transcripts and summaries are left out" || bad "dental: $r"
+q "update public.business_export_jobs set claimed_at = now() - interval '1 hour' where id = '$J2'" > /dev/null
+q "select public.zella_export_claim()" > /dev/null; q "update public.business_export_jobs set claimed_at = now() - interval '1 hour' where id = '$J2'" > /dev/null; q "select public.zella_export_claim()" > /dev/null
+q "update public.business_export_jobs set claimed_at = now() - interval '1 hour' where id = '$J2'" > /dev/null; q "select public.zella_export_claim()" > /dev/null
+[ "$(q "select status from public.business_export_jobs where id = '$J2'")" = "failed" ] && ok "an export that stops three times ends failed" || bad "stopped: $(q "select status || attempts from public.business_export_jobs where id = '$J2'")"
+a=$(q "select string_agg(action, ',' order by created_at) from public.audit_logs where entity_id = '$J'")
+[ "$a" = "export.requested,export.approved,export.ready" ] && ok "each step is audited" || bad "audit: $a"
+g=$(q "select bool_or(has_function_privilege('authenticated', p.oid, 'execute') or has_function_privilege('anon', p.oid, 'execute'))::text from pg_proc p where proname in ('zella_export_request', 'zella_export_decide', 'zella_export_claim', 'zella_export_progress', 'zella_export_finish', 'zella_export_tables', 'zella_export_rows', 'zella_export_files')")
+[ "$g" = "false" ] && ok "only the server may call the export functions" || bad "grants: $g"
+out=$("${P[@]}" -d $DB -f "$RB" 2>&1); [[ "$out" == *EXPORTS_EXIST* ]] && ok "the rollback refuses while an export is ready" || bad "rollback guard: $out"
+q "update public.business_export_jobs set expires_at = now() - interval '1 minute' where id = '$J'" > /dev/null; q "select public.zella_export_claim()" > /dev/null
+[ "$(q "select status from public.business_export_jobs where id = '$J'")" = "expired" ] && ok "a ready export past 7 days expires" || bad "expire"
+out=$("${P[@]}" -d $DB -f "$RB" 2>&1) && "${P[@]}" -d $DB -f "$RB" > /dev/null 2>&1 && ok "rollback runs twice" || bad "rollback: $(echo "$out" | grep ERROR)"
+[ "$(q "select count(*) from pg_proc where proname in ('zella_export_request', 'zella_export_decide', 'zella_export_claim', 'zella_export_progress', 'zella_export_finish', 'zella_export_tables', 'zella_export_rows', 'zella_export_files')")$(q "select count(*) from storage.buckets where id = 'business-exports'")" = "00" ] && [ -z "$(q "select to_regclass('public.business_export_jobs')")" ] && ok "rollback removes the functions, table and bucket" || bad "after rollback"
+"${P[@]}" -d $DB -f "$MIG" > /dev/null 2>&1 && ok "applies again after the rollback" || bad "reapply"
+q "create or replace function public.zella_export_claim() returns jsonb language sql as \$f\$ select null::jsonb \$f\$" > /dev/null
+out=$("${P[@]}" -d $DB -f "$MIG" 2>&1); [[ "$out" == *VERSION_MISMATCH* ]] && ok "a changed function stops the file" || bad "drift: $out"
+out=$("${P[@]}" -d $DB -f "$RB" 2>&1); [[ "$out" == *ROLLBACK_DRIFT* ]] && ok "and stops the rollback" || bad "rollback drift: $out"
+echo
+[ $fails -eq 0 ] && echo "ALL PASSED" || { echo "$fails FAILED"; exit 1; }

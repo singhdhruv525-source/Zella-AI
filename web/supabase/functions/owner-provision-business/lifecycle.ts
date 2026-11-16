@@ -24,7 +24,16 @@ export const LIFECYCLE_PERMISSIONS: Record<string, string> = {
   documents_missing: "businesses.manage",       // the same permission as the Verification queue (documents_queue)
   document_request: "businesses.manage",
   retry_step: "businesses.manage",
+  export_request: "businesses.manage",
+  export_decide: "businesses.manage",   // and the zella_owner role, never the requester (checked again in the database)
+  export_status: "security.view",       // the Data lifecycle page's permission
+  export_download: "businesses.manage", // and the requester or a Zella Voice owner
 };
+
+// SET-DL-EXPORT defaults (owner can change): an admin requests, a Zella Voice owner other than the requester
+// approves, and the export can be downloaded for EXPORT_DAYS through signed links that end with it.
+export const EXPORT_DAYS = 7;
+export const EXPORT_BUCKET = "business-exports";
 
 // SET-ONB-RETRY default (owner can change): only these internal database steps are retried, by a person here or by
 // the timed job (switched off until the owner turns it on). The owner invitation email gets Send owner invite; steps
@@ -341,16 +350,81 @@ export function lifecycleHandlers(admin: SupabaseClient, fields: Json, kit: Life
     return { businessId, step, status: text(r.status, 20), added: Number(r.added) || 0, note: text(r.note, 300) || null };
   };
 
+  // SET-DL-EXPORT: request, approve or reject, list and download a whole business export.
+  const exportError = (error: { code?: string; message?: string }) => {
+    const m = error.message ?? "";
+    if (error.code === "PGRST202" || error.code === "42P01") return new InputError("Business exports aren't installed on this database yet.", 503);
+    if (m.includes("EXPORT_OPEN")) return new InputError("This business already has an export waiting or running.", 409);
+    if (m.includes("OWN_REQUEST")) return new InputError("Another Zella Voice owner has to approve your own request.", 403);
+    if (m.includes("NOT_ALLOWED")) return new InputError("Only a Zella Voice owner can approve or reject an export.", 403);
+    if (m.includes("NOT_REQUESTED")) return new InputError("This export was already decided.", 409);
+    if (m.includes("NOT_FOUND")) return new InputError("Not found", 404);
+    if (m.includes("REASON_REQUIRED")) return new InputError("Give a short reason (it goes in the audit log).");
+    return error as unknown as Error;
+  };
+  const exportRequest = async () => {
+    const businessId = kit.requireId(fields.businessId);
+    const reason = text(fields.reason, 300);
+    if (reason.length < 3) throw new InputError("Give a short reason (it goes in the audit log).");
+    const { data, error } = await admin.rpc("zella_export_request", { p_business: businessId, p_actor: userId, p_reason: reason });
+    if (error) throw exportError(error);
+    return { id: String(data), businessId, status: "requested" };
+  };
+  const exportDecide = async () => {
+    if (role !== "zella_owner") throw new InputError("Only a Zella Voice owner can approve or reject an export.", 403);
+    const id = kit.requireId(fields.id, "export");
+    if (typeof fields.approve !== "boolean") throw new InputError("Choose approve or reject.");
+    const { data, error } = await admin.rpc("zella_export_decide", { p_id: id, p_actor: userId, p_approve: fields.approve, p_reason: text(fields.reason, 300) || null });
+    if (error) throw exportError(error);
+    return { id, status: String(data) };
+  };
+  const exportStatus = async () => {
+    const { data, error } = await admin.from("business_export_jobs")
+      .select("id, business_id, business_name, status, requested_by, request_reason, decided_by, decided_at, decision_reason, progress, attempts, started_at, finished_at, expires_at, last_error, created_at")
+      .order("created_at", { ascending: false }).limit(50);
+    if (error) {
+      if (missingTable(error)) return { available: false, jobs: [] };
+      throw error;
+    }
+    const jobs = ((data ?? []) as Json[]).map((j) => {
+      const p = obj(j.progress);
+      return { ...j, progress: { tables: Array.isArray(p.tables_done) ? p.tables_done.length : 0, tablesTotal: Number(p.tables_total) || null,
+        files: Number(p.files_done) || 0, filesTotal: Number(p.files_total) || null }, mine: j.requested_by === userId };
+    });
+    return { available: true, jobs, days: EXPORT_DAYS, canDecide: role === "zella_owner" };
+  };
+  const exportDownload = async () => {
+    const id = kit.requireId(fields.id, "export");
+    const { data: j, error } = await admin.from("business_export_jobs").select("id, business_id, status, requested_by, progress, manifest_path, expires_at").eq("id", id).maybeSingle();
+    if (error) throw exportError(error);
+    if (!j) throw new InputError("Not found", 404);
+    if (j.requested_by !== userId && role !== "zella_owner") throw new InputError("Only the person who asked for it or a Zella Voice owner can download an export.", 403);
+    const left = Math.floor((Date.parse(String(j.expires_at ?? "")) - Date.now()) / 1000);
+    if (j.status !== "ready" || !(left > 0)) throw new InputError("This export isn't ready, or its 7 days are over.", 409);
+    const parts = [String(j.manifest_path), ...(Array.isArray(obj(j.progress).parts) ? obj(j.progress).parts as unknown[] : []).map(String)]
+      .filter((p, i, a) => p.startsWith(`${id}/`) && a.indexOf(p) === i);
+    const { data: signed, error: signError } = await admin.storage.from(EXPORT_BUCKET).createSignedUrls(parts, Math.min(left, EXPORT_DAYS * 86_400));
+    if (signError) throw signError;
+    return { id, businessId: j.business_id, expiresAt: j.expires_at, links: (signed ?? []).map((x) => ({ path: x.path, url: x.signedUrl })) };
+  };
+
   const handlers: Record<string, () => Promise<unknown>> = {
     setup_check_duplicates: checkDuplicates,
     business_delete_draft: deleteDraft,
     documents_missing: documentsMissing,
     document_request: documentRequest,
     retry_step: retryStep,
+    export_request: exportRequest,
+    export_decide: exportDecide,
+    export_status: exportStatus,
+    export_download: exportDownload,
   };
 
   // business_delete_draft and retry_step are audited by their database functions, in the same transaction.
+  // export_request and export_decide are audited by their database functions.
   const audited: Record<string, (r: Json) => Json> = {
+    export_download: (r) => ({ action: "export.downloaded", business_id: r.businessId, entity_type: "business_export", entity_id: r.id,
+      new_data: { files: Array.isArray(r.links) ? r.links.length : 0, expires_at: r.expiresAt } }),
     document_request: (r) => ({ action: "business.documents_requested", business_id: r.businessId, entity_type: "business", entity_id: r.businessId,
       new_data: { missing: r.missing, email: r.email, email_id: r.emailId } }),
   };

@@ -52,6 +52,7 @@ GROUPS = [
         "business_phone_numbers": "Phone numbers assigned to a business (and their Vapi number id).",
         "business_verification_documents": "Business and owner verification documents (files in private storage).",
         "provisioning_steps": "Progress of each Create Business wizard step.",
+        "business_export_jobs": "Whole business exports: who asked, the Zella Voice owner who approved, progress for resuming, and the 7 day download window. Server only.",
         "activation_tests": "Results of the checks run before a business goes live.",
         "config_migration_snapshots": "Copy of a business's settings before a configuration upgrade, so it can be restored.",
         "zella_milestones": "First-time moments a business reached (first call answered, first booking, ...).",
