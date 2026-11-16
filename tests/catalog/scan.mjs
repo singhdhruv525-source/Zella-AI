@@ -296,8 +296,23 @@ export function jsExprNames(expr) {
 
 // The value branches of an expression, with every string literal written as S: "a ? 'x' : y" gives ["S", "y"].
 // A branch that doesn't start with a literal (a variable, a call) can't be checked.
+// Takes off parentheses around the whole of an expression: "((a ? b : c))" is "a ? b : c".
+function unwrap(t) {
+  for (;;) {
+    t = t.trim();
+    if (!t.startsWith("(")) return t;
+    let depth = 0, closes = -1;
+    for (let i = 0; i < t.length; i++) {
+      if (t[i] === "(") depth++;
+      else if (t[i] === ")" && --depth === 0) { closes = i; break; }
+    }
+    if (closes !== t.length - 1) return t;
+    t = t.slice(1, -1);
+  }
+}
+
 export function jsValueBranches(expr) {
-  const t = expr.replace(/`[^`]*`|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/g, "S").trim();
+  const t = unwrap(expr.replace(/`[^`]*`|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/g, "S"));
   const parts = [], seps = [];
   let depth = 0, start = 0;
   for (let i = 0; i < t.length; i++) {
@@ -309,8 +324,8 @@ export function jsValueBranches(expr) {
     }
   }
   parts.push(t.slice(start).trim());
-  // a part followed by "?" is a condition; every other part is a value
-  return parts.filter((_, i) => seps[i] !== "?");
+  // a part followed by "?" is a condition; every other part is a value (its own parentheses taken off)
+  return parts.filter((_, i) => seps[i] !== "?").map(unwrap);
 }
 
 // Audit entries in the edge functions: every `action:` whose value is a dotted name (request actions such as
@@ -320,7 +335,9 @@ export function tsAuditActions(raw) {
   const out = [];
   for (const m of src.matchAll(/\baction\s*:\s*/g)) {
     const expr = exprAfter(src, m.index + m[0].length);
-    const loose = jsValueBranches(expr).find((b) => !/^S\b/.test(b) && !/^(string|null|undefined|number|boolean)\b/.test(b));
+    // a type, not a value: "action: string", "action: RequestAction" (a parameter or property type is PascalCase)
+    const isType = (b) => /^(string|null|undefined|number|boolean)\b/.test(b) || /^[A-Z][A-Za-z0-9_]*(<[^>]*>)?(\[\])?$/.test(b);
+    const loose = jsValueBranches(expr).find((b) => !/^S\b/.test(b) && !isType(b));
     if (loose !== undefined) out.push({ name: expr.trim().replace(/\s+/g, " ").slice(0, 60), unresolved: true, line: lineAt(src, m.index) });
     for (const n of jsExprNames(expr)) {
       if (n.prefix ? /^[a-z][a-z0-9_]*\./.test(n.name) : /^[a-z][a-z0-9_]*\.[a-z0-9_]+$/.test(n.name)) out.push({ ...n, line: lineAt(src, m.index) });
