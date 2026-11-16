@@ -71,7 +71,7 @@ The public link pages:
 | `/r/<code>` Reschedule | See their appointment, pick a free time and move it. The private code opens one appointment only. |
 | `/w/<code>` Waitlist offer | Accept or decline a time that freed up. The calendar re-checks the time on accept. |
 | `/u/<code>` Unsubscribe | Stop emails from that one business. If the link was opened very often in a few minutes, the page can't show the business name for a while, but the Unsubscribe button still works (opt-out always wins). |
-| `/status` | The Zella Voice service status and public incidents. |
+| `/status` | The Zella Voice service status and public incidents. It says "Everything is working" only when every part is checked and working; while any part isn't checked it says "Not every part is checked right now", and reminders and follow ups read Working only while the dispatch job is on and running (`sql/zella_status_honest.sql`, built, not applied). |
 | `/continue-plan` | An owner who scheduled a cancellation keeps their plan, from the email link. |
 | `/welcome` | Accepting an invitation and finishing sign-in from an email link. |
 
