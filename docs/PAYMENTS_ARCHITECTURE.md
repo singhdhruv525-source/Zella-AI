@@ -400,6 +400,8 @@ sequenceDiagram
   end
 ```
 
+**Built (lane F, switched off, `sql/zella_stripe_renewals.sql`):** the renewal grant checks every line (our plan Price at its amount, or an invoice item we created at its stored amount) and that they add up to the paid total, then opens the new period (fresh balances, 20% rollover, unchanged `zella_billing_open_period`); an older period's invoice is recorded only. Failures set past due once and notify the owner; a failure fetched after the invoice was paid changes nothing. The worker runs `zella_billing_nonpayment_sweep` each minute: 5 days past due (`billing_rules.pause_after_days`) is `paused_nonpayment`, which the call gate already treats as inactive (forwarding needs `usage_enforcement.calls`); 30 days unpaid raises an alert for a person and nothing is cancelled automatically.
+
 `invoice.payment_action_required` (the bank asks for 3-D Secure on a renewal) sends the owner a link to Stripe's page
 to confirm the payment. Which unpaid invoices must be settled before a `past_due` subscription returns to `active` is
 a Dashboard setting; we set it to the most recent invoice, and service is restored only when the current period's

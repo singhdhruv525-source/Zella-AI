@@ -71,3 +71,22 @@ zf_sent() {
   [ -n "$id" ] || { echo "none"; return; }
   q "select public.zella_billing_outbox_result('$id', true, '$2', (select jsonb_build_object('id', '$2', 'livemode', false) || coalesce(body, '{}') - 'metadata' || '${3:-{\}}'::jsonb from public.billing_outbox where id = '$id'), null, false, false)"
 }
+# an active Stripe subscription as if Checkout had run: zf_active <business> <plan id> <price cents> <n> [period end, unix]
+#   -> links cus_<n>, sub_<n>, price_<n>
+zf_active() {
+  local n=$4 end="now() + interval '1 day'"; [ -n "${5:-}" ] && end="to_timestamp($5)"
+  q "select public.zella_stripe_link_add('cus_$n', 'customer', '$1', false); select public.zella_stripe_link_add('sub_$n', 'subscription', '$1', false, 'checkout', null, null);
+     select public.zella_stripe_link_add('price_$n', 'price', '$1', false, 'plan_price', '$2', $3);
+     insert into public.subscriptions (business_id, status, billing_interval, provider, external_subscription_id, current_period_start, current_period_end)
+     values ('$1', 'active', 'monthly', 'stripe', 'sub_$n', now() - interval '29 days', $end);
+     select public.zella_billing_open_period('$1', now())" > /dev/null
+}
+# stores an event and applies a fetched object: zf_apply <event id> <type> <object json>
+zf_apply() {
+  local oid otype id
+  oid=$(echo "$3" | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])"); otype=$(echo "$3" | python3 -c "import json,sys; print(json.load(sys.stdin)['object'])")
+  q "select public.zella_stripe_event_store(jsonb_build_object('id', '$1', 'type', '$2', 'livemode', false, 'created', extract(epoch from now())::bigint, 'data', jsonb_build_object('object', jsonb_build_object('id', '$oid', 'object', '$otype'))), false)" > /dev/null
+  id=$(q "select id from public.billing_events where external_event_id = '$1'")
+  q "update public.billing_events set next_attempt_at = now() where id = '$id'" > /dev/null
+  q "select public.zella_stripe_apply_event('$id', \$j\$$3\$j\$::jsonb, false)"
+}

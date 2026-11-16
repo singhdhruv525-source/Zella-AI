@@ -106,5 +106,7 @@ export async function runWorkerOnce(rpc: Rpc, stripe: StripeClient): Promise<Jso
   const outbox = await sendOutbox(rpc, stripe);
   const events = await applyEvents(rpc, stripe);
   const followUp = await sendOutbox(rpc, stripe);
-  return { outbox, events, follow_up: followUp };
+  // REQ-BIL-33: 5 days past due pauses the receptionist (the database decides; nothing is called here)
+  const sweep = await rpc("zella_billing_nonpayment_sweep", {}).catch(() => null);
+  return { outbox, events, follow_up: followUp, sweep };
 }
