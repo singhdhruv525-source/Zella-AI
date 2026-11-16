@@ -12,6 +12,11 @@ const ME = {
   [LIMITED.id]: { role: "read_only_admin", roleLabel: "Read-only admin", permissions: ["businesses.view", "security.view"], mfa: true, aal: "aal2" },
 };
 const DASH = { businesses: [], industries: [], stats: { totalBusinesses: 0, activeWorkspaces: 0, pendingInvitations: 0, provisioningIssues: 0 } };
+// The Businesses list: one live business and one draft, so both setup buttons would show if they weren't gated.
+const LIST = { total: 2, page: 0, size: 25, sort: "newest", unavailable: [], industries: [], stats: { totalBusinesses: 2, activeWorkspaces: 1, pendingInvitations: 0, withProblems: 0 },
+  rows: [["40000000-0000-0000-0000-0000000000c1", "Live Shop", "active", "live", true], ["40000000-0000-0000-0000-0000000000c2", "Draft Shop", "owner_setup", "draft", false]]
+    .map(([id, name, onboarding_status, stage, setupDone]) => ({ id, name, onboarding_status, stage, setupDone, cancelling: false, is_active: stage === "live", owner: null, plan: null,
+      subscription: null, lastCallAt: null, problems: { count: 0, items: [] }, created_at: new Date().toISOString() })) };
 const SPAM = { available: true, totals: {}, policy: { review_score: 40, block_score: 80 }, automation: {}, top_businesses: [], by_channel: [], coverage: [] };
 
 const enc = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
@@ -50,6 +55,7 @@ async function open(b, { user = OWNER, width = 1366, meMode = () => "ok" } = {})
       return r.fulfill({ json: ME[subOf(r.request())] ?? ME[OWNER.id] });
     }
     if (body.action === "dashboard_data") return r.fulfill({ json: DASH });
+    if (body.action === "businesses_list") return r.fulfill({ json: LIST });
     if (body.action === "spam_admin_overview") return r.fulfill({ json: SPAM });
     if (body.action === "spam_admin_rules") return r.fulfill({ json: { rules: [] } });
     return r.fulfill({ json: {} });
@@ -72,6 +78,8 @@ const text = (p) => p.evaluate(() => document.body.innerText);
       check(["Overview", "Businesses", "Plans & subscriptions", "Security & abuse", "Audit logs", "Settings"].every((x) => nav.includes(x)), `owner sees every page${w}`);
       await p.goto(BASE + "/security-abuse"); await p.waitForSelector("text=Platform defaults"); await p.click("text=Platform defaults");
       check(await p.isVisible("text=Save defaults"), `owner can save Security & Abuse defaults${w}`);
+      await p.goto(BASE + "/businesses"); await p.waitForSelector("text=Draft Shop");
+      check(await p.isVisible("text=Create business") && await p.isVisible("button:has-text('Continue setup')") && await p.isVisible("button:has-text('Edit setup')"), `owner: Businesses offers create and setup${w}`);
       check(log.errors.length === 0, `owner: no page errors${w} ${log.errors.join(" | ")}`);
       await ctx.close(); }
 
@@ -90,6 +98,10 @@ const text = (p) => p.evaluate(() => document.body.innerText);
       check(!(await p.isVisible("text=Save defaults")) && await p.isVisible("text=Your role can view these but not change them"), `restricted admin: Security & Abuse defaults read-only${w}`);
       await p.click("text=Global block rules"); await p.waitForTimeout(300);
       check(!(await p.isVisible("button:has-text('Add rule')")) && !(await p.isVisible("button:has-text('Add')")), `restricted admin: no block-rule add${w}`);
+      // Businesses: the list and View, but no Create business and no setup buttons (BIZ-23)
+      await p.goto(BASE + "/businesses"); await p.waitForSelector("text=Draft Shop");
+      check(!(await p.isVisible("text=Create business")) && !(await p.isVisible("button:has-text('Continue setup')")) && !(await p.isVisible("button:has-text('Edit setup')"))
+        && (await p.$$(".owner-table button:has-text('View')")).length === 2, `restricted admin: Businesses shows View only, no write buttons${w}`);
       check(log.errors.length === 0, `restricted: no page errors${w} ${log.errors.join(" | ")}`);
       await ctx.close(); }
 
@@ -110,7 +122,7 @@ const text = (p) => p.evaluate(() => document.body.innerText);
       await menu(p);
       check((await p.$$(".owner-nav-item")).length === 0, `failed: no navigation items${w}`);
       check(!(await p.isVisible("text=Create business")) && !(await p.isVisible(".owner-search")), `failed: no protected actions${w}`);
-      check(!log.actions.includes("dashboard_data"), `failed: no protected data requested${w}`);
+      check(!log.actions.includes("dashboard_data") && !log.actions.includes("businesses_list"), `failed: no protected data requested${w}`);
       if (width === 390) await p.keyboard.press("Escape");
       await p.click("button:has-text('Retry')"); await p.waitForSelector(".owner-nav-item", { state: "attached" });
       check(await p.isVisible("text=Create business"), `retry after a temporary failure loads the permissions${w}`);

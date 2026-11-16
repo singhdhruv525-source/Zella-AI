@@ -38,7 +38,7 @@ export const PERMISSIONS: Record<string, string> = {
   // settings actions (this file)
   me_admin: "businesses.view", roles_get: "security.view", roles_save: "roles.manage", admins_security: "security.view",
   platform_profile_get: "businesses.view", platform_profile_save: "platform.configure", maintenance_save: "platform.configure",
-  tenants_search: "businesses.view", tenant_summary: "businesses.view", onboarding_overview: "businesses.view",
+  tenants_search: "businesses.view", businesses_list: "businesses.view", tenant_summary: "businesses.view", onboarding_overview: "businesses.view",
   billing_overview: "billing.view", payments_list: "billing.view", subscriptions_list: "billing.view",
   plan_entitlements_save: "plans.manage", voice_pricing_list: "billing.view", voice_pricing_add: "billing.manage",
   usage_summary: "analytics.view", numbers_list: "businesses.view", number_assign: "telephony.manage", number_set_status: "telephony.manage",
@@ -100,7 +100,7 @@ function httpsUrl(v: unknown, label: string, k: Kit): string | null {
 // Every row of a query, a page of 1,000 at a time (the API returns at most 1,000 per request, so a single
 // .limit() above that silently undercounts). Totals built from it are never understated: past the cap it refuses.
 // deno-lint-ignore no-explicit-any
-async function allRows(page: (from: number, to: number) => PromiseLike<{ data: any[] | null; error: unknown }>, cap = 100000) {
+export async function allRows(page: (from: number, to: number) => PromiseLike<{ data: any[] | null; error: unknown }>, cap = 100000) {
   // deno-lint-ignore no-explicit-any
   const out: any[] = [];
   for (let from = 0; from < cap; from += 1000) {
