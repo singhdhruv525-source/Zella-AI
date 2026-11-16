@@ -11,7 +11,7 @@
 -- not up to a day later. Both scheduled jobs (zella_jobs_hourly, zella_jobs_daily) are off in production until the
 -- owner switches them on; until then the page-open path in owner-provision-business stays as the fallback.
 -- zella_process_cancellations() now locks each due business first (FOR UPDATE SKIP LOCKED) so overlapping runs
--- never cancel or audit one twice. All three functions are archived first and must match production exactly (16 Nov 2026), otherwise VERSION_MISMATCH.
+-- never cancel or audit one twice, and only one run at a time sends the reminders. All three functions are archived first and must match production exactly (16 Nov 2026), otherwise VERSION_MISMATCH.
 -- Rollback: sql/rollback/zella_cancellations_scheduled_rollback.sql
 begin;
 
@@ -27,7 +27,7 @@ begin
   if md5(d) = 'fe70824e03e62fec77930e6055a674fb' then          -- production's version: archive it for the rollback
     insert into public.zella_function_archive (migration, signature, definition, definition_md5)
     values ('zella_cancellations_scheduled', s1, d, md5(d)) on conflict (migration, signature) do nothing;
-  elsif md5(d) <> '3495c82ccb50f39eafa863d32014f485' then      -- nor exactly this file's version (already applied)
+  elsif md5(d) <> '1c5a21d4fbfc984c835990c67a64961b' then      -- nor exactly this file's version (already applied)
     raise exception 'VERSION_MISMATCH: % is not a version this file was written for', s1;
   end if;
   d := pg_get_functiondef(s3::regprocedure);
@@ -89,6 +89,9 @@ declare r record; n integer;
 begin
   -- the full cancellation: receptionist and automations off, subscription cancelled, business inactive, audited
   n := public.zella_process_cancellations();
+  -- one run at a time sends the reminders: a run that overlaps (the hourly and the daily job together) leaves them to
+  -- the one already sending, which then commits its reminders before the lock is free, so a later run sees them
+  if not pg_try_advisory_xact_lock(hashtext('zella_cancellation_reminders')) then return n; end if;
   for r in select id, cancel_at from public.businesses
             where cancelled_at is null and cancel_at is not null and cancel_at > now() and cancel_at <= now() + interval '3 days'
               and not exists (select 1 from public.staff_notifications s where s.business_id = businesses.id and s.kind = 'cancellation_coming' and s.created_at > now() - interval '3 days') loop

@@ -3,7 +3,7 @@
 # Checks: before, the scheduled path cancels a business but leaves its receptionist on and its subscription active,
 # with no audit row; applies, and applies again; after, the scheduled path does the full cancellation, audited; the
 # "cancellation coming" reminder still goes to a business due in two days, once; it is in the hourly list as well as the
-# daily one; two runs at once cancel and audit a business once; a business not yet due is untouched; the rollback (twice) restores all three functions exactly; applies again.
+# daily one; two runs at once cancel and audit a business once and send its reminder once; a business not yet due is untouched; the rollback (twice) restores all three functions exactly; applies again.
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"; REPO="$(cd "$HERE/../.." && pwd)"
 export ZPG_HOST=${ZPG_HOST:-/var/lib/postgresql/zella-sec} ZPG_PORT=${ZPG_PORT:-55433}; DB=zcancellations; TEMPLATE=${TEMPLATE:-zprod3}
@@ -55,11 +55,27 @@ h=$(q "select position(\$t\$'zella_team_scorecard_nudge', 'zella_apply_scheduled
 [ "$h" = "t" ] && ok "it runs hourly as well as daily" || bad "schedule: $h"
 
 # two runs at once: the second skips the business the first is still cancelling, so it is cancelled and audited once
+# (the first run signals it holds its locks by reaching pg_sleep; the second starts only then)
+asleep() { # application name -> waits until that session is in pg_sleep, fails after 10 s
+  local i; for i in $(seq 1 100); do
+    [ "$(q "select count(*) from pg_stat_activity where application_name = '$1' and wait_event = 'PgSleep'")" = "1" ] && return 0; sleep 0.1
+  done; return 1; }
 B4=$(mk "Overlap" "now() - interval '1 hour'")
-( "${P[@]}" -d $DB -c "begin; select public.zella_apply_scheduled_cancellations(); select pg_sleep(2); commit;" > /dev/null 2>&1 ) &
-sleep 0.7
-n2=$(q "select public.zella_process_cancellations()"); wait
-[ "$n2" = "0" ] && [ "$(state "$B4")" = "true,false,disabled,disabled,cancelled,1" ] && ok "two runs at once cancel and audit a business once" || bad "overlap: second run $n2, state $(state "$B4")"
+PGAPPNAME=zcancel_first "${P[@]}" -d $DB -c "begin; select public.zella_apply_scheduled_cancellations(); select pg_sleep(3); commit;" > /dev/null 2>&1 & bg=$!
+if asleep zcancel_first; then
+  n2=$(q "select public.zella_process_cancellations()"); wait $bg; rc=$?
+  [ "$rc" = "0" ] && [ "$n2" = "0" ] && [ "$(state "$B4")" = "true,false,disabled,disabled,cancelled,1" ] && ok "two runs at once cancel and audit a business once" || bad "overlap: first run exit $rc, second run $n2, state $(state "$B4")"
+else wait $bg; bad "overlap: the first run never held its locks"; fi
+# two runs at once send a business's cancellation coming reminder once
+B5=$(mk "Soon Overlap" "now() + interval '2 days'")
+PGAPPNAME=zcancel_reminders "${P[@]}" -d $DB -c "begin; select public.zella_apply_scheduled_cancellations(); select pg_sleep(3); commit;" > /dev/null 2>&1 & bg=$!
+if asleep zcancel_reminders; then
+  q "select public.zella_apply_scheduled_cancellations()" > /dev/null; wait $bg; rc=$?
+  q "select public.zella_apply_scheduled_cancellations()" > /dev/null
+  r=$(q "select count(*) from public.staff_notifications where business_id = '$B5' and kind = 'cancellation_coming'")
+  o=$(q "select count(*) from public.business_members where business_id = '$B5' and status = 'active'")
+  [ "$rc" = "0" ] && [ "$r" = "$o" ] && [ "$r" -ge 1 ] && ok "two runs at once send the cancellation coming reminder once" || bad "reminder overlap: first run exit $rc, $r reminders for $o owners"
+else wait $bg; bad "reminder overlap: the first run never held its locks"; fi
 "${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_cancellations_scheduled_rollback.sql" > /dev/null 2>&1 && "${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_cancellations_scheduled_rollback.sql" > /dev/null 2>&1 && ok "rollback runs twice" || bad "rollback"
 [ "$(fp)" = "$before" ] && ok "rollback restores all three functions exactly" || bad "fingerprints after rollback"
 [ "$(state "$B1")" = "true,false,disabled,disabled,cancelled,1" ] && ok "businesses already cancelled stay cancelled" || bad "rollback changed a cancelled business"
