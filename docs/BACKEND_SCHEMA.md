@@ -13,12 +13,12 @@ It reads the catalog only, never rows.
 
 | What | Count |
 |---|---|
-| Tables (schema `public`) | 188 |
-| Tables with row security on | 188 of 188 |
+| Tables (schema `public`) | 189 |
+| Tables with row security on | 189 of 189 |
 | Row security policies | 349 |
-| Columns | 2232 |
+| Columns | 2237 |
 | Views | 1 |
-| Functions | 1040 (966 security definer, 29 callable by `anon`) |
+| Functions | 1044 (970 security definer, 29 callable by `anon`) |
 
 Rules every table follows:
 
@@ -71,7 +71,7 @@ Each is a database job; most stay off until the owner approves going live (see `
 - [Spam and abuse](#spam-and-abuse): `spam_settings`, `spam_incidents`, `spam_incident_events`, `spam_list_entries`
 - [Automations and background work](#automations-and-background-work): `automations`, `automation_runs`, `automation_events`, `automation_dead_letters`, `workflow_executions`, `n8n_dispatch_state`, `integrations`, `integration_secrets`, `provider_health`
 - [Offers, reviews and growth](#offers-reviews-and-growth): `offers`, `offer_rules`, `offer_redemptions`, `offer_events`, `offer_job_runs`, `cross_sell_rules`, `review_sources`, `reviews`
-- [Billing and usage](#billing-and-usage): `plans`, `business_plans`, `billing_pack_catalog`, `billing_periods`, `allowance_buckets`, `pack_purchases`, `usage_charges`, `auto_reload_settings`, `subscriptions`, `payments`, `billing_events`, `billing_stripe_links`, `billing_outbox`, `billing_quarantine`, `billing_invoices`, `ledger_operation_keys`, `billing_checkouts`, `billing_refunds`, `billing_disputes`, `billing_email_intents`, `money_ledger`, `usage_records`, `usage_thresholds`, `usage_threshold_events`, `usage_processing_issues`, `voice_pricing`
+- [Billing and usage](#billing-and-usage): `plans`, `business_plans`, `billing_pack_catalog`, `billing_periods`, `allowance_buckets`, `pack_purchases`, `usage_charges`, `auto_reload_settings`, `subscriptions`, `payments`, `billing_events`, `billing_stripe_links`, `billing_outbox`, `billing_quarantine`, `billing_invoices`, `ledger_operation_keys`, `billing_checkouts`, `billing_refunds`, `billing_disputes`, `billing_email_intents`, `billing_reconcile_runs`, `money_ledger`, `usage_records`, `usage_thresholds`, `usage_threshold_events`, `usage_processing_issues`, `voice_pricing`
 - [Notifications, reports and support](#notifications-reports-and-support): `notifications`, `notification_preferences`, `staff_notifications`, `admin_alert_prefs`, `platform_alerts`, `platform_incidents`, `business_report_schedules`, `business_report_runs`, `support_tickets`, `support_ticket_notes`
 - [Functions](#functions)
 
@@ -4258,6 +4258,21 @@ Billing notices decided by the database (invoice, paid, failed, paused, renewal 
 - `business_id` → `public.businesses` (on delete restrict).
 - Row security: on; no policies, so roles subject to row security (signed-in users and anon) get no rows directly. Superusers and `BYPASSRLS` roles (such as the server key) are not limited by it, nor is the table owner unless `FORCE ROW LEVEL SECURITY` is set; a security definer function runs with its function owner's rights.
 
+### `billing_reconcile_runs`
+
+Each reconciliation run (Stripe objects against our rows, or the ledger balance): how many were checked and every difference found. Nothing is corrected automatically. Server only.
+
+| Column | Type | Required | Default |
+|---|---|---|---|
+| `id` | uuid | yes | gen_random_uuid() |
+| `kind` | text | yes |  |
+| `checked` | integer | yes | 0 |
+| `mismatches` | jsonb | yes | '[]' |
+| `created_at` | timestamp with time zone | yes | now() |
+
+- Primary key: `id`.
+- Row security: on; no policies, so roles subject to row security (signed-in users and anon) get no rows directly. Superusers and `BYPASSRLS` roles (such as the server key) are not limited by it, nor is the table owner unless `FORCE ROW LEVEL SECURITY` is set; a security definer function runs with its function owner's rights.
+
 ### `money_ledger`
 
 Double entry money ledger in cents: each operation's lines sum to zero. Server only.
@@ -4806,7 +4821,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_b3_like(p_query text)` | text |  | anon, signed in |
 | `zella_b3_member(p_business_id uuid)` | void |  | signed in |
 
-### `zella_billing_*` (38)
+### `zella_billing_*` (42)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -4825,7 +4840,9 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_billing_email_subscription_trg()` | trigger | yes | server only |
 | `zella_billing_email_sweep()` | integer | yes | server only |
 | `zella_billing_evaluate_alerts(p_business_id uuid, p_resource text)` | integer | yes | server only |
+| `zella_billing_events_cursor()` | bigint | yes | server only |
 | `zella_billing_immutable_trg()` | trigger |  | server only |
+| `zella_billing_ledger_check()` | jsonb | yes | server only |
 | `zella_billing_maybe_reload(p_business_id uuid, p_resource text)` | uuid | yes | server only |
 | `zella_billing_message_kind(p_meta jsonb)` | text |  | signed in |
 | `zella_billing_message_trg()` | trigger | yes | server only |
@@ -4841,6 +4858,8 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_billing_period_bounds(p_business_id uuid, p_at timestamp with time zone)` | jsonb | yes | server only |
 | `zella_billing_plan_at(p_business_id uuid, p_at timestamp with time zone)` | business_plans | yes | server only |
 | `zella_billing_plan_current(p_business_id uuid)` | business_plans | yes | server only |
+| `zella_billing_reconcile_due()` | boolean | yes | server only |
+| `zella_billing_reconcile_objects(p_objects jsonb)` | jsonb | yes | server only |
 | `zella_billing_reload_trg()` | trigger | yes | server only |
 | `zella_billing_retry_charges(p_limit integer)` | integer | yes | server only |
 | `zella_billing_rollover_reconcile(p_period_id uuid)` | integer | yes | server only |
