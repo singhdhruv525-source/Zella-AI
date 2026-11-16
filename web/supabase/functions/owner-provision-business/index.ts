@@ -2280,7 +2280,7 @@ async function ticketNotes(admin: SupabaseClient, tickets: { id: string; metadat
     after = { created_at: last.created_at, id: last.id };
   }
   for (const t of tickets) {
-    out.set(t.id, list(obj(t.metadata).notes, 200).map((x) => {
+    out.set(t.id, (Array.isArray(obj(t.metadata).notes) ? (obj(t.metadata).notes as unknown[]) : []).map((x) => {
       const n = obj(x);
       return { body: text(n.text, 4000), author_id: text(n.author_id, 64) || null, created_at: text(n.created_at, 40) };
     }));
@@ -2365,9 +2365,10 @@ async function ticketUpdate(admin: SupabaseClient, fields: Json, userId: string)
     const { error: noteError } = await admin.from("support_ticket_notes").insert({ ticket_id: ticketId, author_id: userId, body: note });
     if (noteError && !missingTable(noteError)) throw noteError;
     if (noteError) {
-      // sql/zella_support_notes.sql not applied yet: the old place, keeping the newest 199 notes plus this one
+      // sql/zella_support_notes.sql not applied yet: the old place, keeping every earlier note
       const metadata = obj(ticket.metadata);
-      update.metadata = { ...metadata, notes: [...list(metadata.notes, 1000).slice(-199), { text: note, author_id: userId, created_at: now }] };
+      const earlier = Array.isArray(metadata.notes) ? metadata.notes : [];
+      update.metadata = { ...metadata, notes: [...earlier, { text: note, author_id: userId, created_at: now }] };
     }
     changes.note_added = true;
   }
