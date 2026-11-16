@@ -5,6 +5,9 @@ import { formatDateTime } from "./ownerFormat";
 import PlatformMonitoring from "./PlatformMonitoring";
 import { LoadNotice, UpdatedAt, useRefreshable } from "./admin/loadState";
 import { isCount, metric } from "./admin/loadStatus";
+import { rpc, useLoad } from "./admin/adminOps";
+import { jobOffNote } from "./admin/jobState";
+import ScheduledJobs from "./admin/ScheduledJobs";
 
 const loadStatus = () => callOwnerFunction("platform_status");
 // whether automations are switched off on purpose (n8n_dispatch_enabled), from the existing Automations overview
@@ -42,7 +45,9 @@ export default function PlatformOperations({ onNavigate, onOpenBusiness }) {
   const r = useRefreshable(loadStatus);
   const automation = useRefreshable(loadAutomation);
   const { data, loading } = r;
-  const load = () => { r.reload(); automation.reload(); };
+  // each scheduled job's real and intended state (PLT-07); the n8n line says when its job is off
+  const jobs = useLoad(() => rpc("zella_admin_scheduler_health"), []);
+  const load = () => { r.reload(); automation.reload(); jobs.reload(); };
 
   const h = data?.health;
   const summary = healthSummary(r, automation);
@@ -114,11 +119,13 @@ export default function PlatformOperations({ onNavigate, onOpenBusiness }) {
           <ul className="op-list">
             {(data?.configuration ?? []).map((c) => {
               const st = serviceState(c, automation);
+              const jobNote = c.key === "N8N_WEBHOOK_URL" ? jobOffNote(jobs.data, "zella_dispatch") : null;
               return (
                 <li key={c.key} data-service={c.key} data-service-state={st.kind}>
                   <div>
                     <strong>{c.label}</strong>
                     <span>{c.key}{c.required ? " · required" : " · needed for go live"}{st.kind === "disabled" ? " · automations are switched off (not an outage)" : ""}</span>
+                    {jobNote && <span className="op-muted" data-job-note="zella_dispatch">{jobNote}</span>}
                   </div>
                   <Pill tone={st.tone}>{st.label}</Pill>
                 </li>
@@ -128,6 +135,8 @@ export default function PlatformOperations({ onNavigate, onOpenBusiness }) {
           </ul>
         </section>
       </div>
+
+      <ScheduledJobs health={jobs} />
 
       <PlatformMonitoring onOpenBusiness={onOpenBusiness} />
     </section>
