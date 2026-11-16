@@ -3123,7 +3123,7 @@ Deno.serve(withCors(async (req: Request) => {
       setup_finish: () => finishSetup(adminClient, fields),
       overview_data: () => overviewData(adminClient),
       business_detail: async () =>
-        businessDetail(adminClient, requireId(fields.businessId), await adminPermissions(adminClient, role), { loadSetup, resolveUsers }),
+        businessDetail(adminClient, requireId(fields.businessId), await adminPermissions(adminClient, role), { loadSetup }),
       audit_logs: () => auditLogList(adminClient, fields),
       industries_list: () => industriesList(adminClient),
       industry_save: () => industrySave(adminClient, fields),

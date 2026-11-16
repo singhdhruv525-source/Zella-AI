@@ -5,9 +5,20 @@ import { PERMISSIONS, PERMISSION_CATALOG, RESTRICTED_ROLES, settingsHandlers } f
 
 // A stand in for the server's database client: each table answers with its fixture rows, and every query is recorded.
 type Rows = Record<string, unknown[]>;
-function fakeAdmin(rows: Rows, failing: string[] = []) {
+function fakeAdmin(rows: Rows, failing: string[] = [], rpcs: Record<string, unknown> = {}) {
   const queries: { table: string; select?: string; filters: unknown[][] }[] = [];
+  const looked: string[] = [];
+  const called: string[] = [];
   const client = {
+    auth: { admin: { getUserById: (id: string) => {
+      looked.push(id);
+      return Promise.resolve({ data: { user: { id, email: `${id}@people.test`, last_sign_in_at: "2026-11-15T10:00:00Z", factors: id === "u1" ? [{ status: "verified" }] : [] } } });
+    } } },
+    rpc: (name: string) => {
+      called.push(name);
+      if (failing.includes(name)) return Promise.resolve({ data: null, error: { code: "PGRST202", message: "missing" } });
+      return Promise.resolve({ data: rpcs[name] ?? { from: name }, error: null });
+    },
     from(table: string) {
       const q = { table, select: undefined as string | undefined, filters: [] as unknown[][] };
       queries.push(q);
@@ -23,13 +34,13 @@ function fakeAdmin(rows: Rows, failing: string[] = []) {
       return chain;
     },
   };
-  return { client: client as unknown as SupabaseClient, queries };
+  return { client: client as unknown as SupabaseClient, queries, looked, called };
 }
 
 const BIZ = "3e000000-0000-0000-0000-00000000b000";
 const deps: DetailDeps = {
-  loadSetup: () => Promise.resolve({ business: { id: BIZ, industry_id: "ind" }, modules: [], automations: [] }),
-  resolveUsers: (_a, ids) => Promise.resolve(Object.fromEntries(ids.filter(Boolean).map((id) => [id as string, `${id}@people.test`]))),
+  loadSetup: () => Promise.resolve({ business: { id: BIZ, industry_id: "ind", timezone: "America/New_York" }, modules: [], automations: [],
+    receptionist: { agentId: "ag1", escalationRules: { transfer_to: { phone: "+15550100101" }, fallback_number: "+15550100102" } } }),
 };
 const ROWS: Rows = {
   industries: [{ id: "ind", name: "Dental" }],
@@ -46,9 +57,8 @@ const ROWS: Rows = {
 };
 
 Deno.test("business_detail: without audit.view, no activity is read and no actor is looked up", async () => {
-  const { client, queries } = fakeAdmin(ROWS);
-  let looked: (string | null)[] = [];
-  const out = await businessDetail(client, BIZ, new Set(["businesses.view"]), { ...deps, resolveUsers: (a, ids) => ((looked = ids), deps.resolveUsers(a, ids)) });
+  const { client, queries, looked } = fakeAdmin(ROWS);
+  const out = await businessDetail(client, BIZ, new Set(["businesses.view"]), deps);
   assertEquals(out.activity, []);
   assertFalse(out.activityAllowed);
   assertFalse(queries.some((q) => q.table === "audit_logs"), "audit_logs must not be read");
@@ -133,4 +143,90 @@ Deno.test("adminPermissions: a failed lookup grants nothing", async () => {
   assertEquals(can.size, 0);
   assertEquals((await adminPermissions(fakeAdmin({}).client, "anon")).size, 0);
   assert(PERMISSION_CATALOG.length > 10);
+});
+
+// ---- payload v2 (BIZ-11, BIZ-12 phase 1, UI-06, UI-07, UI-08, COM-03, BIZ-30) ----
+import { currentPeriod, planView, routingFrom, usageSummary } from "./detail.ts";
+
+const V2_ROWS: Rows = {
+  ...ROWS,
+  business_plans: [{ id: "p2", version: 2, tier: "base", price_cents: 9900, setup_fee_cents: 500, overage_cents_per_minute: 20, estimate: { cost: 1 }, minutes: 300 }],
+  billing_periods: [{ id: "per1", period_start: "2026-11-01T00:00:00Z", period_end: "2099-12-01T00:00:00Z", is_trial: false }],
+  allowance_buckets: [
+    { resource: "minutes", kind: "plan", granted: 300, used: 120 },
+    { resource: "minutes", kind: "pack", granted: 100, used: 0, expires_at: "2026-12-01" },
+    { resource: "minutes", kind: "rollover", granted: 20, used: 20 },
+    { resource: "texts", kind: "plan", granted: 500, used: 10 },
+    { resource: "texts", kind: "buffer", granted: 25, used: 5 },
+  ],
+  business_phone_numbers: [{ id: "n1", e164: "+15550100100", status: "active" }],
+  platform_alerts: [{ id: "al1", status: "open" }],
+  assistant_deliveries: [{ id: 1, outcome: "not_ready", problems: ["no hours"] }, { id: 2, outcome: "served" }],
+  activation_tests: [{ ok: false, detail: {}, created_at: "2026-11-10" }],
+};
+
+Deno.test("payload v2: prices only with billing.view; activation and sign in facts only with businesses.manage", async () => {
+  const view = await businessDetail(fakeAdmin(V2_ROWS).client, BIZ, new Set(["businesses.view"]), deps);
+  assertEquals(Object.keys(view.plan.plan).some((k) => /price|fee|overage|estimate/.test(k)), false);
+  assertEquals(view.plan.plan.minutes, 300);
+  assertEquals(view.activation.available, false);
+  assertEquals("last_sign_in_at" in view.members[0], false);
+  assertEquals("two_step" in view.members[0], false);
+  assertFalse(view.signInFactsAllowed);
+
+  const full = await businessDetail(fakeAdmin(V2_ROWS).client, BIZ, new Set(["businesses.view", "businesses.manage", "billing.view", "audit.view"]), deps);
+  assertEquals(full.plan.plan.price_cents, 9900);
+  assert(full.activation.available);
+  assertEquals(full.activation.lastTest?.ok, false);
+  assertEquals(full.members[0].two_step, true);
+  assertEquals(full.members[0].last_sign_in_at, "2026-11-15T10:00:00Z");
+  assertEquals(full.activityCount, 1);
+});
+
+Deno.test("payload v2: usage from the current period's balances, nothing written, no billing overview", async () => {
+  const { client, called, queries } = fakeAdmin(V2_ROWS);
+  const out = await businessDetail(client, BIZ, new Set(["businesses.view"]), deps);
+  assertEquals(out.usage.totals.minutes, { granted: 420, used: 140, remaining: 280, reserve: 0, reserveRemaining: 0 });
+  assertEquals([out.usage.totals.texts.remaining, out.usage.totals.texts.reserveRemaining], [490, 20]);
+  assertFalse(called.some((n) => /billing_overview|open_period/.test(n)), called.join());
+  assert(queries.find((q) => q.table === "allowance_buckets")?.filters.some((f) => f[0] === "eq" && f[1] === "period_id" && f[2] === "per1"));
+});
+
+Deno.test("payload v2: numbers, open alerts, routing and deliveries without caller data", async () => {
+  const out = await businessDetail(fakeAdmin(V2_ROWS).client, BIZ, new Set(["businesses.view"]), deps);
+  assertEquals(out.numbers.rows.length, 1);
+  assertEquals(out.alerts.count, 1);
+  assertEquals(out.routing.transfer_number, "+15550100101");
+  assertEquals(out.routing.fallback_number, "+15550100102");
+  assertEquals(out.deliveries.counts, { not_ready: 1, unknown_number: 0 });
+  assertFalse(JSON.stringify(out.deliveries).includes("provider_call_id"));
+});
+
+Deno.test("payload v2: a missing table or function marks only its card unavailable", async () => {
+  const out = await businessDetail(fakeAdmin(V2_ROWS, ["business_plans", "zella_business_readiness", "billing_periods"]).client, BIZ, new Set(["businesses.view"]), deps);
+  assertEquals(out.plan.available, false);
+  assertEquals(out.readiness.available, false);
+  assertEquals(out.usage.available, false);
+  assert(out.numbers.available);
+});
+
+Deno.test("pure parts: plan prices, current period, usage totals", () => {
+  assertEquals(planView({ tier: "pro", price_cents: 1, setup_fee_cents: 2 }, false), { tier: "pro" });
+  assertEquals(planView(null, true), null);
+  const now = new Date("2026-11-16T00:00:00Z");
+  assertEquals(currentPeriod([{ id: "old", period_start: "2026-10-01", period_end: "2026-11-01" }], now), null);
+  assertEquals(currentPeriod([{ id: "a", period_start: "2026-11-01", period_end: "2026-12-01" }], now)?.id, "a");
+  assertEquals(usageSummary([]), {});
+});
+
+// The same output as zella_admin_routing_get on the same rules (fixtures checked against the function on the
+// isolated database, as an admin with businesses.view): see tests/admin_detail/run.sh.
+Deno.test("routingFrom: defaults and fallbacks as zella_admin_routing_get", () => {
+  const base = { timezone: "America/New_York", hasAgent: true, hasHours: false, onCall: null };
+  assertEquals(routingFrom({}, base), {
+    has_agent: true, timezone: "America/New_York", transfer_enabled: true, transfer_number: null, fallback_number: null,
+    transfer_route: "primary", transfer_open_hours_only: true, on_call: null, has_hours: false,
+  });
+  const r = routingFrom({ transfer_enabled: false, transfer_number: "", transfer_to: { phone: "+1555" }, transfer_route: "on_call", transfer_open_hours_only: "false" }, base);
+  assertEquals([r.transfer_enabled, r.transfer_number, r.transfer_route, r.transfer_open_hours_only], [false, "+1555", "on_call", false]);
 });

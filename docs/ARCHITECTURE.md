@@ -1737,6 +1737,16 @@ Each item links to its source, and the timeline is filterable by type.
 | REQ-ADM-17 | Industry configuration | presets, policies, safety lines, defaults | `ai.configure` |
 | REQ-ADM-18 | Growth (prospects, demos) | Zella Voice sales pipeline | `growth.manage` |
 
+**REQ-ADM-02 detail data (one business):** `business_detail` (`owner-provision-business/detail.ts`) returns, beside the
+setup data: the server's readiness ladder (`zella_business_readiness`), the latest plan (prices only with
+`billing.view`), this period's balances from `billing_periods` and `allowance_buckets` (never
+`zella_billing_overview`, which can open a period: opening the page writes nothing), the business's numbers (20),
+unresolved alerts (10 and a count), the go live checklist (`zella_activation_report` and the latest test call, with
+`businesses.manage`), call routing worked out like `zella_admin_routing_get`, what calls get
+(`zella_assistant_delivery_status`, the 10 latest deliveries without caller data, 7 day not ready counts), each
+member's last sign in and two step status (with `businesses.manage`) and the activity total (with `audit.view`). Each
+part reports `available: false` on its own when its table or function is missing, so one card never fails the page.
+
 **REQ-ADM-20 Access states:** loading, authorized, unauthorized (signed out, MFA needed, no permission) and failed
 (couldn't check; grants nothing). A refusal always applies; a failed background refresh keeps the current view.
 
