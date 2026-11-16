@@ -60,6 +60,7 @@ const ENTITY = "e1a00000-0000-0000-0000-000000000001";
     await k.signIn(p, OWNER);
     await p.goto(k.APP + "/audit-logs");
     await p.waitForSelector("text=Export CSV");
+    if (await p.isVisible(".al-filters-toggle")) await p.click(".al-filters-toggle"); // phones fold the filters away
     k.check(`${tag}: the Action filter lists every catalog action`, await p.locator('label:has-text("Action") select option').count() > 200);
     await p.locator('label:has-text("Person") select').selectOption({ label: READONLY });
     await p.fill('input[placeholder="for example platform_admin"]', "lanea_test");
