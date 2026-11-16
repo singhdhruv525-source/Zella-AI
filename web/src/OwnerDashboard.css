@@ -1534,23 +1534,25 @@
 /* Grouped admin sidebar: related pages together, a little air between groups, scrolls when the window is short. */
 .owner-sidebar .owner-nav { flex: 1 1 auto; min-height: 0; overflow-y: auto; gap: 10px; margin-right: -6px; padding-right: 6px; }
 /* UI-01: when the window is too short for every page, the bottom of the menu fades into the sidebar and says
-   "More below" above the Platform status footer, so the pages under it are visibly there (the scrollbar stays hidden,
-   as everywhere in the sidebars). The cue sticks to the bottom while there is more to scroll and disappears at the end
-   of the list, where it sits on its own empty space, so the last page is never covered. Decorative only: the menu
-   items themselves are the accessible content, and keyboard focus scrolls them into view. */
-.owner-sidebar .owner-nav::after {
-  content: "";
-  position: sticky;
-  bottom: 0;
-  flex: 0 0 var(--zella-space-8);
-  margin-top: calc(-1 * var(--zella-space-2));
-  background: linear-gradient(to bottom, transparent, var(--zella-sidebar));
-  pointer-events: none;
-}
-@supports (animation-timeline: scroll()) {
-  .owner-sidebar .owner-nav::after {
+   "More below" just above the Platform status footer, so the pages under it are visibly there (the scrollbar stays
+   hidden, as everywhere in the sidebars). The cue is drawn by the footer, outside the scrolling list, so it never adds
+   to the list's height: it shows only while the pages themselves need scrolling, and fades out at the end of the list
+   so the last page is never covered. It follows the menu's scroll position through a named scroll timeline; browsers
+   without scroll timelines show no cue, as before. Decorative only: the menu items are the accessible content, and
+   keyboard focus stops above the cue (scroll-padding-bottom). */
+.owner-sidebar { --owner-nav-cue: calc(var(--zella-space-8) + var(--zella-space-3)); }
+.owner-sidebar .owner-nav { scroll-padding-bottom: var(--owner-nav-cue); }
+@supports (animation-timeline: --owner-nav) and (timeline-scope: --owner-nav) {
+  .owner-sidebar { timeline-scope: --owner-nav; }
+  .owner-sidebar .owner-nav { scroll-timeline: --owner-nav block; }
+  .owner-sidebar .owner-sidebar-bottom { position: relative; }
+  .owner-sidebar .owner-sidebar-bottom::before {
     content: "More below" / "";
-    flex-basis: calc(var(--zella-space-8) + var(--zella-space-3));
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: calc(100% + 1px); /* above the footer's 1px top border, which stays visible */
+    height: var(--owner-nav-cue);
     display: flex;
     align-items: flex-end;
     justify-content: center;
@@ -1561,17 +1563,18 @@
     font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
+    pointer-events: none;
     opacity: 0;
     animation: owner-nav-more linear both;
-    animation-timeline: scroll(nearest block);
+    animation-timeline: --owner-nav;
+  }
+  /* The icon rail (tablets, or the compact sidebar) is too narrow for words; the fade alone shows there is more. */
+  html[data-zella-sidebar="compact"] .owner-sidebar:not(.open) .owner-sidebar-bottom::before { content: "" / ""; }
+  @media (max-width: 900px) {
+    .owner-sidebar:not(.open) .owner-sidebar-bottom::before { content: "" / ""; }
   }
 }
 @keyframes owner-nav-more { 0%, 88% { opacity: 1; } 97%, 100% { opacity: 0; } }
-/* The icon rail (tablets, or the compact sidebar) is too narrow for words; the fade alone shows there is more. */
-html[data-zella-sidebar="compact"] .owner-sidebar:not(.open) .owner-nav::after { content: "" / ""; }
-@media (max-width: 900px) {
-  .owner-sidebar:not(.open) .owner-nav::after { content: "" / ""; }
-}
 .owner-nav-group { display: flex; flex-direction: column; gap: 2px; }
 .owner-nav-group .owner-nav-label { padding: 6px 11px 4px; }
 .owner-nav-group .owner-nav-item { min-height: 38px; }
