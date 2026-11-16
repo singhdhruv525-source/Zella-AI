@@ -3,6 +3,7 @@ import { supabase } from "./supabase";
 import { callOwnerFunction } from "./CreateBusinessWizard";
 import { Pill } from "./OwnerOverview";
 import { formatDateTime } from "./ownerFormat";
+import { ReasonDialog } from "./admin/adminOps";
 
 // Platform Operations panels for the monitoring the database already does
 // (sql/zella_monitoring.sql): provider health, failed events with retry, and
@@ -77,15 +78,14 @@ const loadFailed = () => callOwnerFunction("failed_events_list", { limit: 50 });
 
 export function FailedEventsPanel({ onOpenBusiness }) {
   const { data, error, loading, reload } = useAsync(loadFailed);
-  const [busy, setBusy] = useState("");
   const [notice, setNotice] = useState("");
-  async function retry(event) {
-    setBusy(event.id);
-    setNotice("");
-    const { error: e } = await supabase.rpc("zella_retry_event", { p_event_id: event.id });
-    setBusy("");
-    setNotice(e ? say(e) : `${event.event_type} sent back to the queue. It runs on the next dispatcher pass.`);
-    if (!e) reload();
+  const [retrying, setRetrying] = useState(null);
+  // OPS-05: the server refuses a retry that could repeat a message, and keeps the reason in the audit log
+  async function retry(event, reason) {
+    const { error: e } = await supabase.rpc("zella_retry_event", { p_event_id: event.id, p_reason: reason });
+    if (e) throw e;
+    setNotice(`${event.event_type} sent back to the queue. It runs on the next dispatcher pass.`);
+    reload();
   }
   const events = data?.events ?? [];
   return (
@@ -108,10 +108,17 @@ export function FailedEventsPanel({ onOpenBusiness }) {
               </span>
               {(e.error_category || e.error_message) && <span>{[e.error_category, e.error_message].filter(Boolean).join(": ")}</span>}
             </div>
-            <button type="button" className="owner-secondary-button op-small" disabled={Boolean(busy)} onClick={() => retry(e)}>{busy === e.id ? "Sending..." : "Retry"}</button>
+            <button type="button" className="owner-secondary-button op-small" onClick={() => { setNotice(""); setRetrying(e); }}>Retry</button>
           </li>
         ))}
       </ul>
+      {retrying && (
+        <ReasonDialog title="Send this event back to the queue?" icon="replay" confirmLabel="Send back"
+          onConfirm={(reason) => retry(retrying, reason)} onClose={() => setRetrying(null)}>
+          <p>{retrying.event_type} for {retrying.business_name ?? "an unknown business"} runs again on the next dispatcher pass. Fix the cause first.
+            It is refused if an earlier run already did part of the work, for example sent a message.</p>
+        </ReasonDialog>
+      )}
     </section>
   );
 }

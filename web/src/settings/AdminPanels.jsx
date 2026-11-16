@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { supabase } from "../supabase";
+import { navigate } from "../router";
 import { callOwnerFunction } from "../CreateBusinessWizard";
 import { TimeZoneSelect } from "../formFields";
 import { switchHint } from "../copy/liveSwitches";
 import { uploadImage } from "./PersonalPanels";
 import { Banner, Card, Confirm, Empty, Facts, Field, LinkRows, LoadState, Needs, Pill, SaveBar, Table, Toggle, money, useAsync, useForm, when, words } from "./SettingsKit";
+import { settingLabel } from "../copy/settingLabels";
 
 // Admin Settings content. Every panel reads and writes through the
 // owner-provision-business function, which checks the admin's role and
@@ -742,7 +744,7 @@ function SettingText({ me, row, hint = "Checked by the provider on first use." }
   const form = useForm({ value: typeof row.value === "string" ? row.value : Array.isArray(row.value) ? row.value.join(", ") : JSON.stringify(row.value) });
   const owner = me?.role === "zella_owner";
   return (
-    <Card title={row.label ?? row.key} sub={`${row.key} · changed ${when(row.updated_at)}`}>
+    <Card title={row.label ?? settingLabel(row.key)} sub={<>Setting key <code>{row.key}</code> · changed {when(row.updated_at)}</>}>
       <div className="zs-grid"><Field label="Value" hint={owner ? hint : "Only a Zella Voice owner can change this."}><input value={form.values.value} onChange={form.set("value")} disabled={!owner} /></Field></div>
       {owner && <SaveBar form={form} onSave={() => form.save(async (v) => { await call("platform_setting_save", { key: row.key, value: v.value }); })} />}
     </Card>
@@ -985,9 +987,8 @@ export function Templates() {
           {open && (() => { const t = c.templates.find((x) => x.id === open); return <div className="zs-card" style={{ padding: 12, marginTop: 10 }}>{t.subject && <strong>{t.subject}</strong>}<pre style={{ whiteSpace: "pre-wrap", font: "inherit" }}>{t.body}</pre><small className="zs-muted">Variables: {(t.body.match(/\{\{\s*[\w.]+\s*\}\}/g) ?? []).join(", ") || "none"}</small></div>; })()}
         </Card>
       )}</LoadState>
-      <Needs title="Editing platform templates here isn't built" have="Templates are versioned in the database (message_templates) and previewed above.">
-        Editing needs a server action that saves a new version and checks every variable against the list each message type supports.
-      </Needs>
+      <LinkRows rows={[{ title: "Edit platform templates", detail: "On Messaging, Templates. Each save is a new version, and every variable is checked against the ones that message supports.",
+        label: "Open Templates", onClick: () => navigate("/messaging/templates") }]} />
     </>
   );
 }
@@ -1486,8 +1487,8 @@ export function OperationalRules({ me }) {
             {keys.map(([k, hint]) => {
               const row = s.settings.find((x) => x.key === k);
               return row
-                ? <SettingText key={k} me={me} row={row} hint={hint} />
-                : <Banner key={k} tone="warn"><code>{k}</code> isn't in platform settings yet. The migration that adds it hasn't been applied.</Banner>;
+                ? <SettingText key={k} me={me} row={{ ...row, label: settingLabel(k) }} hint={hint} />
+                : <Banner key={k} tone="warn"><strong>{settingLabel(k)}</strong> isn't in platform settings yet: the database update that adds it hasn't been applied. <small className="zs-muted">Setting key <code>{k}</code></small></Banner>;
             })}
           </div>
         ))}
