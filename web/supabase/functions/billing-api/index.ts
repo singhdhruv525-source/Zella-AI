@@ -2,6 +2,8 @@
 // wants, never how much: every amount is computed in the database from the accepted plan.
 //   POST { action: "checkout_start", business_id, idempotency_key }  -> { url } of Stripe Checkout
 //   POST { action: "checkout_return", business_id }                  -> the payment state, after applying any events
+//   POST { action: "pack_buy", business_id, pack_code, idempotency_key } -> { purchase_id, status } (charged on the saved card;
+//                                                                    the pack is added when Stripe confirms the payment)
 // Each request first runs the owner's database function with the owner's own sign in (active owner of THAT business,
 // a code verified session); only then does the server key send the commands that function queued, so the owner gets
 // the Checkout link at once. The return from Stripe is never trusted: it only triggers the same event processing the
@@ -23,6 +25,10 @@ const WORDS: Record<string, string> = {
   PLAN_MISSING: "Your plan isn't ready yet. Zella Voice will be in touch.",
   PLAN_CHANGED: "Your plan was just updated. Please review it again.",
   ALREADY_PAID: "Your payment is already confirmed.",
+  NO_SAVED_CARD: "Add a card in Settings, Billing first.",
+  NO_ACTIVE_PLAN: "Packs can be bought once your plan is active.",
+  UNKNOWN_PACK: "That pack isn't available.",
+  IDEMPOTENCY_CONFLICT: "That didn't work. Reload the page and try again.",
   INVALID_INPUT: "That didn't work. Reload the page and try again.",
 };
 const reply = (data: unknown, status = 200) => Response.json(data, { status });
@@ -84,6 +90,12 @@ export async function handle(req: Request): Promise<Response> {
       await asOwner(url, anon, jwt, "zella_owner_onboarding_payment_status", { p_business_id: business });   // the owner check first
       await applyEvents(rpc, stripe, 20, 8).catch(() => null);   // the worker's own step; nothing here trusts the return
       return reply({ payment: await asOwner(url, anon, jwt, "zella_owner_onboarding_payment_status", { p_business_id: business }) });
+    }
+    if (body.action === "pack_buy") {
+      const bought = await asOwner(url, anon, jwt, "zella_owner_pack_buy", { p_business_id: business, p_pack_code: String(body.pack_code ?? ""), p_idempotency_key: String(body.idempotency_key ?? "") }) as Record<string, unknown>;
+      const next = await rpc("zella_billing_pack_next_command", { p_purchase_id: bought.purchase_id }) as string | null;
+      if (next) await sendOutboxNow(rpc, stripe, next);
+      return reply({ purchase_id: bought.purchase_id, status: bought.status });
     }
     return refuse("INVALID_INPUT");
   } catch (e) {

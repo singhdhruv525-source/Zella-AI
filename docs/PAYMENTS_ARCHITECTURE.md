@@ -432,6 +432,8 @@ impossible while one is in flight, however many calls finish at the same moment.
 Billing page is a Checkout Session in payment mode (or a confirmed PaymentIntent on the saved card), granted the same
 way on `payment_intent.succeeded` / `checkout.session.completed` after the binding check.
 
+**Built (lane F, switched off, `sql/zella_stripe_packs.sql`):** an owner pack and an auto reload are both one pending `pack_purchases` row and one PaymentIntent on the saved card (`off_session`, the subscription's default payment method id recorded from the fetched subscription), keyed `pack:<id>` or `reload:<id>`. Only `payment_intent.succeeded` for our own PaymentIntent, at the catalog amount, grants the pack (until the end of the period it was bought in). Auto reload is checked after each usage entry under the settings row lock, with a partial unique index for one pending reload, and stops at the monthly spend limit with a notice. The Billing page's buy button is not built yet (the API is `billing-api` `pack_buy`).
+
 ### 6.5 Entitlement check at call time (`REQ-BIL-22`)
 
 ```mermaid
