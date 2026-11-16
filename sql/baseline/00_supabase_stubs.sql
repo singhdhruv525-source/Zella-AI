@@ -22,6 +22,8 @@ create table if not exists auth.users (
   last_sign_in_at timestamptz, raw_app_meta_data jsonb default '{}'::jsonb, raw_user_meta_data jsonb default '{}'::jsonb,
   is_super_admin boolean, created_at timestamptz default now(), updated_at timestamptz default now(), phone text,
   phone_confirmed_at timestamptz, banned_until timestamptz, deleted_at timestamptz, is_anonymous boolean default false);
+-- Supabase Auth keeps one account per email address; tests that rely on "already registered" need the same rule.
+create unique index if not exists users_email_key on auth.users (email);
 create table if not exists auth.mfa_factors (
   id uuid primary key default gen_random_uuid(), user_id uuid not null references auth.users(id) on delete cascade,
   friendly_name text, factor_type text not null default 'totp', status text not null default 'unverified',

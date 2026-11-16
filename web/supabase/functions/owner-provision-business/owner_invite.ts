@@ -31,6 +31,14 @@ export const FINISH_STOP: Record<string, [number, string]> = {
   expired: [409, "The owner's invitation link has expired. Choose Resend invitation on the business page, then finish."],
 };
 
+// Without the app's public address an invitation link can't open (Supabase would fall back to its own site address),
+// so no owner invitation is sent until ZELLA_APP_URL is set. Same wording as the admin and staff invitations.
+export const APP_URL_MISSING = "The app address is not set, so the invitation link would not open for the invited person. Add the ZELLA_APP_URL secret (the public address of the Zella Voice app) and try again.";
+export function appUrlUsable(raw: string | null | undefined): string | null {
+  const v = (raw ?? "").trim().replace(/\/+$/, "");
+  try { const u = new URL(v); return u.protocol === "https:" || u.hostname === "localhost" ? v : null; } catch { return null; }
+}
+
 // A fallback number must be dialable as written (E.164), as voice-rules dials it.
 export const E164 = /^\+[1-9][0-9]{7,14}$/;
 
@@ -60,8 +68,10 @@ export interface FinishDeps {
   openDays(): Promise<number>;
   planSaved(): Promise<boolean>;                                         // a business_plans version exists
   fallbackNumber(): Promise<string | null>;                              // the saved fallback number, if any
+  appUrlSet(): boolean;                                                  // ZELLA_APP_URL is a usable public address
   claim(invitationId: string): Promise<boolean>;                       // open -> sent, true if this call won
-  sendInvite(email: string, name: string | null): Promise<{ userId: string } | { error: string }>;
+  // a new account gets an invitation; an existing account gets a sign in link (existingAccount: true)
+  sendInvite(email: string, name: string | null): Promise<{ userId: string; existingAccount?: boolean } | { error: string }>;
   release(invitationId: string, reason: string): Promise<void>;        // sent (unsent, ours) -> failed
   // links the account; "closed" when the invitation was cancelled meanwhile, or a bookkeeping error message
   recordSent(invitationId: string, userId: string): Promise<null | "closed" | string>;
@@ -83,15 +93,17 @@ export async function finishSetupWith(d: FinishDeps) {
 
   let invitationStatus: string = plan.kind;
   let warning: string | undefined;
+  let existingAccount = false;
   if (plan.kind === "send") {
+    // before the claim, so a refusal leaves the invitation exactly as it was
+    if (!d.appUrlSet()) throw new FinishError(APP_URL_MISSING, 503);
     if (!(await d.claim(inv!.id))) throw new FinishError("Setup is already being finished in another window. Reload the page to see the result.", 409);
-    let sent: { userId: string } | { error: string };
+    let sent: { userId: string; existingAccount?: boolean } | { error: string };
     try { sent = await d.sendInvite(inv!.email, inv!.owner_name); }
     catch (e) { console.error("Owner invitation failed", e); sent = { error: "The invitation could not be sent. Please try again." }; }
     if ("error" in sent) {
       await d.release(inv!.id, sent.error);
-      return { completed: false, invitationStatus: "failed",
-        invitationError: /already|registered|exists/i.test(sent.error) ? "This email already has a Zella Voice account" : sent.error };
+      return { completed: false, invitationStatus: "failed", invitationError: sent.error };
     }
     const bookkeeping = await d.recordSent(inv!.id, sent.userId);
     if (bookkeeping === "closed") {
@@ -101,7 +113,8 @@ export async function finishSetupWith(d: FinishDeps) {
     }
     if (bookkeeping) warning = "The invitation was sent, but the owner could not be linked to the business. Check the invitation record.";
     invitationStatus = "sent";
+    if (sent.existingAccount) existingAccount = true;
   }
   await d.activate();
-  return { completed: true, invitationStatus, warning };
+  return { completed: true, invitationStatus, warning, ...(existingAccount ? { existingAccount: true } : {}) };
 }

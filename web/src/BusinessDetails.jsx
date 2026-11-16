@@ -272,7 +272,9 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup }) {
       body: `A new invitation email goes to ${invitation?.email ?? "the owner"}.`,
       button: "Resend invitation",
       run: () => runAction("invitation_resend", (r) =>
-        r.invitationStatus === "sent" ? `Invitation resent to ${r.email}.` : `Invitation not sent: ${r.invitationError}`
+        r.invitationStatus === "sent"
+          ? (r.existingAccount ? `${r.email} already has a Zella Voice account, so a sign in link was sent instead. Signing in through it adds this business.` : `Invitation resent to ${r.email}.`)
+          : `Invitation not sent: ${r.invitationError}`
       ),
     },
   };
