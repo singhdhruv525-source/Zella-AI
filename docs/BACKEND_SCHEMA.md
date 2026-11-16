@@ -18,7 +18,7 @@ It reads the catalog only, never rows.
 | Row security policies | 342 |
 | Columns | 2062 |
 | Views | 1 |
-| Functions | 912 (844 security definer, 26 callable by `anon`) |
+| Functions | 914 (846 security definer, 26 callable by `anon`) |
 
 Rules every table follows:
 
@@ -5482,7 +5482,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_setting(p_key text, p_default jsonb)` | jsonb | yes | server only |
 | `zella_tables(p_business_id uuid)` | jsonb | yes | signed in |
 
-### Smaller groups and older helpers (189)
+### Smaller groups and older helpers (191)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -5529,6 +5529,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_dismiss_dead_letter(p_id uuid, p_note text)` | boolean | yes | signed in |
 | `zella_dismiss_knowledge_gap(p_gap_id uuid)` | boolean | yes | signed in |
 | `zella_dnc_stops_callbacks()` | trigger | yes | server only |
+| `zella_end_user_sessions(p_user_id uuid)` | integer | yes | server only |
 | `zella_ensure_crm_types(p_business_id uuid)` | integer | yes | signed in |
 | `zella_entitlement_allows(p_business_id uuid, p_key text, p_add numeric)` | boolean | yes | server only |
 | `zella_erase_customer(p_business_id uuid, p_customer_id uuid)` | text | yes | signed in |
@@ -5634,6 +5635,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_resync_reminders(p_business_id uuid)` | integer | yes | server only |
 | `zella_reviews_list(p_business_id uuid, p_status text)` | jsonb | yes | signed in |
 | `zella_reviews_status()` | jsonb | yes | server only |
+| `zella_revoke_my_other_sessions()` | integer | yes | signed in |
 | `zella_revoke_my_session(p_session_id uuid)` | boolean | yes | signed in |
 | `zella_rls_coverage()` | jsonb | yes | server only |
 | `zella_rollback_agent_config(p_version_id uuid)` | integer | yes | signed in |

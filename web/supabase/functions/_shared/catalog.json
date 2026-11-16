@@ -185,6 +185,7 @@
     "resource_updated": "Updated resource",
     "review_link_changed": "Changed review link",
     "session.revoked": "Signed out a device",
+    "session.revoked_others": "Signed out other devices",
     "setup.finished": "Finished setup",
     "spam.incident_confirmed_spam": "Confirmed spam",
     "spam.incident_escalated": "Escalated spam incident",

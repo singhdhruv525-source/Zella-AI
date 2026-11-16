@@ -13,6 +13,7 @@ const say = (error) => {
   const codes = {
     BAD_PHONE: "Enter the mobile number with its country code, for example +1 555 123 4567.",
     USE_SIGN_OUT: "That's this device. Use Sign out instead.",
+    NO_SESSION: "Your session has ended. Please sign in again.",
     NOT_SIGNED_IN: "Your session has ended. Please sign in again.",
     BAD_AVATAR_URL: "Upload the picture here so it's stored with Zella Voice.",
   };
@@ -222,9 +223,15 @@ function SessionsCard() {
       )}</LoadState>
       {confirmAll && <Confirm title="Sign out of every other device?" confirmLabel="Sign out others" onClose={() => setConfirmAll(false)}
         onConfirm={async () => {
-          const { error } = await supabase.auth.signOut({ scope: "others" });
-          if (error) throw error;
-          setNotice({ text: "Signed out everywhere else. This device stays signed in.", error: "" });
+          // Through the database, so it is audited (ACC-30); before sql/zella_admin_sessions.sql is applied, Supabase Auth
+          // signs the other devices out as before, without the audit entry.
+          const { data: ended, error: rpcError } = await supabase.rpc("zella_revoke_my_other_sessions");
+          if (rpcError) {
+            if (!/does not exist|schema cache|Could not find the function/i.test(rpcError.message ?? "")) throw new Error(say(rpcError));
+            const { error } = await supabase.auth.signOut({ scope: "others" });
+            if (error) throw error;
+          }
+          setNotice({ text: ended === 0 ? "You weren't signed in anywhere else. This device stays signed in." : "Signed out everywhere else. This device stays signed in.", error: "" });
           state.reload();
         }}>You stay signed in here.</Confirm>}
     </Card>

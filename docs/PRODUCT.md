@@ -327,6 +327,10 @@ Platform roles use named permissions (`businesses.view/manage`, `telephony.manag
 `analytics.view`, `growth.manage`). Only the Zella Voice owner manages platform admins. An admin alerts bell shows
 platform alerts live.
 
+When an owner removes an admin or changes their role, that person is signed out on every device, and Users & access
+says how many devices were signed out (needs `sql/zella_admin_sessions.sql`, built, not applied). Anyone can sign out
+their other devices, and that is recorded in the audit log as "Signed out other devices".
+
 ---
 
 ## 10. Messaging and follow-ups

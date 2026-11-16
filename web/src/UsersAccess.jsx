@@ -6,6 +6,7 @@ import { checkEmail } from "./formValidation";
 import { Pill } from "./OwnerOverview";
 import { formatDate, timeAgo } from "./ownerFormat";
 import { friendlyError } from "./admin/adminOps";
+import { SIGNED_OUT_EVERYWHERE, signedOutText } from "./adminAccess";
 
 const ROLE_LABELS = {
   zella_owner: "Zella Voice owner", super_admin: "Super admin", platform_operations: "Platform operations",
@@ -186,10 +187,10 @@ export default function UsersAccess() {
                         onChange={(e) => {
                           const role = e.target.value;
                           setConfirm({
-                            message: `Change ${a.email} to ${ROLE_LABELS[role]}?`,
+                            message: `Change ${a.email} to ${ROLE_LABELS[role]}? ${SIGNED_OUT_EVERYWHERE}`,
                             role,
                             label: "Change role",
-                            run: () => run("admin_update", { userId: a.user_id, role }, () => `${a.email} is now a ${ROLE_LABELS[role]}.`),
+                            run: () => run("admin_update", { userId: a.user_id, role }, (r) => `${a.email} is now a ${ROLE_LABELS[role]}. ${signedOutText(r)}`.trim()),
                           });
                         }}
                       >
@@ -214,9 +215,9 @@ export default function UsersAccess() {
                           setConfirm(
                             a.is_active
                               ? {
-                                  message: `Remove ${a.email}'s access to the Zella Voice admin dashboard?`,
+                                  message: `Remove ${a.email}'s access to the Zella Voice admin dashboard? ${SIGNED_OUT_EVERYWHERE}`,
                                   label: "Remove access",
-                                  run: () => run("admin_update", { userId: a.user_id, isActive: false }, () => `${a.email} no longer has admin access.`),
+                                  run: () => run("admin_update", { userId: a.user_id, isActive: false }, (r) => `${a.email} no longer has admin access. ${signedOutText(r)}`.trim()),
                                 }
                               : {
                                   message: `Give ${a.email} admin access again?`,
