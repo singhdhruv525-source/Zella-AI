@@ -1,0 +1,142 @@
+// Unit tests for the PLT-08 scanner and drift check. Run: node --test tests/catalog/
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import {
+  sqlAuditActions, sqlAlertKinds, sqlPermissions, resolveSql, tsAuditActions, tsAuditReads, tsPermissions,
+  n8nAlertKinds, webPermissions, sqlExprNames,
+} from "./scan.mjs";
+import { check } from "./drift_test.mjs";
+
+const names = (list) => list.map((f) => (f.prefix ? f.name + "*" : f.unresolved ? "?" + f.name : f.name)).sort();
+
+test("SQL audit inserts: literal, case, literal joined to case, prefix, several tuples", () => {
+  const src = `
+    insert into public.audit_logs (business_id, user_id, action, entity_type) values (b, u, 'customer.added', 'customer');
+    insert into audit_logs (action, entity_type) values (case when x then 'a.one' else 'a.two' end, 'e'), ('a.three', 'e');
+    INSERT INTO public.audit_logs (user_id, action) VALUES (u, 'automation.' || case p when 'active' then 'resumed' else 'paused' end);
+    insert into public.audit_logs (user_id, action) values (u, 'attendance.' || p_action);
+    insert into public.audit_logs (business_id, action) select b.id, 'business.request_seen' from b;`;
+  assert.deepEqual(names(sqlAuditActions(src)), ["a.one", "a.three", "a.two", "attendance.*", "automation.paused", "automation.resumed", "business.request_seen", "customer.added"]);
+});
+
+test("SQL audit inserts inside a patched function body (doubled quotes)", () => {
+  const src = `select zella_patch_function('f', 'anchor', 'insert into public.audit_logs (user_id, action) values (auth.uid(), ''billing.pack_granted'');');`;
+  assert.deepEqual(names(sqlAuditActions(src)), ["billing.pack_granted"]);
+});
+
+test("SQL: a variable is followed to its assignments and a parameter to every call", () => {
+  const src = `
+    create or replace function public.trg() returns trigger as $$
+    declare v_action text;
+    begin
+      if tg_op = 'INSERT' then v_action := 'thing_added'; else v_action := 'thing_removed'; end if;
+      insert into public.audit_logs (user_id, action) values (auth.uid(), v_action);
+    end $$;
+    create or replace function public.helper(p_business uuid, p_action text) returns void as $$
+      insert into public.audit_logs (business_id, action) values (p_business, p_action);
+    $$;
+    create or replace function public.caller() returns void as $$
+    begin
+      perform public.helper(b, 'helper.used');
+      perform public.helper(b, case when y then 'helper.new' else 'helper.old' end);
+    end $$;
+    grant execute on function public.helper(uuid, text) to service_role;`;
+  const files = [{ rel: "x.sql", src }];
+  assert.deepEqual(names(resolveSql(sqlAuditActions(src), src, files)), ["helper.new", "helper.old", "helper.used", "thing_added", "thing_removed"]);
+});
+
+test("SQL: an audit name that can't be followed is reported, never skipped", () => {
+  const src = `insert into public.audit_logs (user_id, action) values (u, (select a from t));`;
+  const out = sqlAuditActions(src);
+  assert.equal(out.length, 1);
+  assert.equal(out[0].unresolved, true);
+});
+
+test("SQL alert kinds and permissions", () => {
+  const src = `
+    create or replace function public.zella_platform_alert(p_kind text, p_title text) returns uuid as $$ select 1 $$;
+    perform public.zella_platform_alert('queue_backlog', 'Queue', null);
+    perform zella_platform_alert('reconcile_' || v_k || '_stuck', 'x');
+    if not public.zella_admin_can('billing.view') then raise exception 'NOT_ALLOWED'; end if;
+    insert into public.platform_role_permissions (role, permission) values ('support_admin', 'support.manage'), ('read_only_admin', 'audit.view');`;
+  assert.deepEqual(names(sqlAlertKinds(src)), ["queue_backlog", "reconcile_*"]);
+  assert.deepEqual(names(sqlPermissions(src)), ["audit.view", "billing.view", "support.manage"]);
+});
+
+test("TypeScript audit entries: literals, ternaries, templates and joins; request actions and comments ignored", () => {
+  const src = `
+    // action: "commented.out"
+    const AUDITED = {
+      a: () => ({ action: r.created ? "plan.created" : "plan.updated", entity_type: "plan" }),
+      b: (r) => ({ action: \`legal.\${r.to}\`, entity_type: "x" }),
+      c: (r) => ({ action: "platform.alert_" + r.status }),
+    };
+    await fetch(u, { body: JSON.stringify({ action: "lookup" }) });`;
+  assert.deepEqual(names(tsAuditActions(src)), ["legal.*", "plan.created", "plan.updated", "platform.alert_*"]);
+});
+
+test("TypeScript audit reads and permission maps", () => {
+  const src = `
+    admin.from("audit_logs").select("a").in("action", ["platform.setting_updated", "platform.roles_updated"]);
+    admin.from("audit_logs").select("a").or("action.like.session.%,action.like.admin%");
+    export const NEW_PERMISSIONS: Record<string, string> = { thing_list: "businesses.view", thing_save: "security.manage" };
+    const owner = ["admins.manage", "roles.manage"];`;
+  assert.deepEqual(names(tsAuditReads(src)), ["admin*", "platform.roles_updated", "platform.setting_updated", "session.*"]);
+  assert.deepEqual(names(tsPermissions(src)), ["admins.manage", "businesses.view", "roles.manage", "security.manage"]);
+});
+
+test("n8n alert kinds and web permission checks", () => {
+  assert.deepEqual(names(n8nAlertKinds(`return { json: { alert: { p_kind: 'workflow_failed', p_title: 'x' } } };
+    return run('zella_resolve_platform_alerts', { p_kind: 'integration_disconnected' });`)), ["workflow_failed"]);
+  assert.deepEqual(names(webPermissions(`{ to: "/x", permission: "billing.view" } ; if (can("audit.view")) {}`)), ["audit.view", "billing.view"]);
+});
+
+test("sqlExprNames keeps a cast literal", () => {
+  assert.deepEqual(sqlExprNames("'session.revoked'::text"), [{ name: "session.revoked" }]);
+});
+
+const CATALOG = {
+  audit_actions: { "a.one": "One", "legal.draft": "Draft", "legal.published": "Published" },
+  audit_action_prefixes: ["legal."],
+  alert_kinds: { queue_backlog: "Queue backlog" },
+  alert_kind_prefixes: [],
+  permissions: { "admins.manage": "Admins", "audit.view": "Audit" },
+  owner_only_permissions: ["admins.manage"],
+};
+const USES = [
+  { kind: "audit", name: "a.one", where: "f:1" }, { kind: "audit", name: "legal.", prefix: true, where: "f:2" },
+  { kind: "alert", name: "queue_backlog", where: "f:3" },
+  { kind: "permission", name: "audit.view", where: "f:4" }, { kind: "permission", name: "admins.manage", where: "f:5" },
+];
+
+test("check: the current names pass", () => {
+  assert.deepEqual(check(USES, CATALOG, { permissionCatalog: ["audit.view"], webLabels: ["a.one"] }), []);
+});
+
+test("check: a new unlabelled audit action, alert kind or permission fails", () => {
+  const p = check([...USES, { kind: "audit", name: "a.new", where: "new.ts:9" }, { kind: "alert", name: "new_kind", where: "x.sql:3" },
+    { kind: "permission", name: "growth.manage", where: "y.ts:1" }], CATALOG);
+  assert.ok(p.some((x) => x.startsWith('new.ts:9: audit action "a.new" is not in audit_actions')));
+  assert.ok(p.some((x) => x.startsWith('x.sql:3: alert kind "new_kind"')));
+  assert.ok(p.some((x) => x.startsWith('y.ts:1: permission "growth.manage"')));
+});
+
+test("check: an undeclared run time prefix, an unresolved name and a stale entry fail", () => {
+  const p = check([...USES.filter((u) => u.name !== "a.one"), { kind: "audit", name: "offer.", prefix: true, where: "o.sql:1" },
+    { kind: "audit", name: "v_x", unresolved: true, where: "u.sql:2" }], CATALOG);
+  assert.ok(p.some((x) => x.includes('add "offer." to audit_action_prefixes')));
+  assert.ok(p.some((x) => x.startsWith("u.sql:2: can't tell")));
+  assert.ok(p.some((x) => x.includes('"a.one" is no longer written')));
+});
+
+test("check: reads that match nothing, label rules, order and the role editor list", () => {
+  const bad = { ...CATALOG, audit_actions: { "legal.published": "Published", "legal.draft": "Set up re-run", "a.one": "" } };
+  const p = check([...USES, { kind: "audit_read", name: "roles", prefix: true, where: "s.ts:5" }], bad,
+    { permissionCatalog: ["audit.view", "admins.manage"], webLabels: ["gone.label"] });
+  assert.ok(p.some((x) => x.startsWith('s.ts:5: reads audit action "roles%"')));
+  assert.ok(p.some((x) => x.includes('"a.one" has no label')));
+  assert.ok(p.some((x) => x.includes("dash or hyphen")));
+  assert.ok(p.some((x) => x.includes("keep audit_actions sorted")));
+  assert.ok(p.some((x) => x.includes('"admins.manage" is not a catalog.json permission')));
+  assert.ok(p.some((x) => x.includes('"gone.label" is not an audit action')));
+});
