@@ -202,6 +202,8 @@ most often needed:
 Waiting on the owner:
 
 - whether suspended businesses keep read-only access (L-5);
+- the owner invitation defaults (BIZ-21): resend cooldown 5 minutes, a reason to cancel, `businesses.manage`, and a
+  never used account kept after a cancel;
 - the support access defaults on the Business page (BIZ-22): every open audited with a 30 minute dedupe, a reason
   to reveal contacts, `businesses.manage` to reveal, member and invitee emails masked;
 - when to turn on `ZELLA_AUTOMATIONS_START_ON_SAVE`, and whether to start automations already left paused on live

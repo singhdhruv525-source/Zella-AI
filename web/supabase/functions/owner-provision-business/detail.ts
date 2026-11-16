@@ -9,6 +9,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { PERMISSION_CATALOG, RESTRICTED_ROLES } from "./settings.ts";
 import { mask, maskText } from "./mask.ts";
+import { OPEN_OWNER_INVITATION, latestOwnerInvitation } from "./ownerInvitation.ts";
 
 // What business_detail borrows from index.ts (passed in, so this module has no import cycle and can be tested).
 export type DetailDeps = {
@@ -54,7 +55,22 @@ export function businessChange(before: Row | null, after: Row) {
 export const DETAIL_PERMISSIONS: Record<string, string> = {
   business_size_save: "businesses.manage",   // BIZ-08: was a browser RPC open to owner and super admin only
   business_contacts_reveal: "businesses.manage",   // BIZ-22 (REVEAL_PERMISSION): needs the owner's approval to deploy
+  invitation_cancel: "businesses.manage",   // BIZ-21 (CANCEL_PERMISSION): needs the owner's approval to deploy
 };
+
+// ---- Owner invitations (BIZ-21; lane E defaults, owner can change; needs approval before deploy) ----
+// Resend is refused for RESEND_COOLDOWN_MINUTES after the last invitation actually went out (invited_at is set only on
+// a successful send, so a failed send can be retried at once). Cancelling needs a reason.
+export const RESEND_COOLDOWN_MINUTES = 5;
+export const CANCEL_PERMISSION = "businesses.manage";
+export const CANCEL_REASON = { min: 10, max: 300 };
+
+// When the next resend may go out, or null when it may go now.
+export function resendAllowedAt(invitedAt: string | null | undefined, now: Date): Date | null {
+  if (!invitedAt) return null;
+  const at = new Date(new Date(invitedAt).getTime() + RESEND_COOLDOWN_MINUTES * 60000);
+  return at > now ? at : null;
+}
 
 // ---- Audited support access (BIZ-22; lane E defaults, owner can change; needs approval before deploy) ----
 // Every open of a business is recorded once per admin and business in VIEW_DEDUPE_MINUTES. Those rows, and reveals,
@@ -78,6 +94,34 @@ export const BUSINESS_SIZES = ["small", "medium", "large"] as const;
 // This page's actions. Each returns what the page shows; `audited` says what each records (null records nothing).
 export function detailHandlers(admin: SupabaseClient, fields: Row, k: DetailKit, userId = "") {
   const handlers: Record<string, () => Promise<unknown>> = {
+    // BIZ-21: cancel the owner's open invitation. The link stops working (zella_accept_my_invitations only accepts an
+    // open one) and the invited owner seat is removed, so inviting the same person again works.
+    invitation_cancel: async () => {
+      const businessId = k.requireId(fields.businessId);
+      const reason = k.text(fields.reason, CANCEL_REASON.max + 1);
+      if (reason.length < CANCEL_REASON.min) throw new k.InputError(`Give a reason of at least ${CANCEL_REASON.min} characters`);
+      if (reason.length > CANCEL_REASON.max) throw new k.InputError(`Keep the reason under ${CANCEL_REASON.max} characters`);
+      const { data: inv, error } = await latestOwnerInvitation(admin, businessId, "id, email, owner_name, status, auth_user_id");
+      if (error) throw error;
+      if (!inv) throw new k.InputError("This business has no open owner invitation", 404);
+      if (inv.status === "accepted") throw new k.InputError("The owner has already accepted the invitation, so it can't be cancelled", 409);
+      const now = new Date().toISOString();
+      // only from an open or sent state, and only the owner's: a send or acceptance that lands first wins
+      const { data: moved, error: moveError } = await admin.from("business_invitations")
+        .update({ status: "revoked", updated_at: now }).eq("id", inv.id).eq("role", "owner")
+        .in("status", [...OPEN_OWNER_INVITATION, "sent"]).select("id");
+      if (moveError) throw moveError;
+      if (!moved?.length) throw new k.InputError("The invitation changed meanwhile. Reload the page to see it.", 409);
+      const authUserId = (inv as { auth_user_id?: string | null }).auth_user_id ?? null;
+      let seatRemoved = false;
+      if (authUserId) {
+        const { data: removed, error: seatError } = await admin.from("business_members").delete()
+          .eq("business_id", businessId).eq("user_id", authUserId).eq("role", "owner").eq("status", "invited").select("id");
+        if (seatError) console.error("Invited owner seat removal failed", seatError);
+        seatRemoved = Boolean(removed?.length);
+      }
+      return { businessId, invitationId: inv.id, before: inv.status, reason, seatRemoved, email: mask(inv.email) };
+    },
     // BIZ-22: the masked contact details for one response, with a reason recorded first.
     business_contacts_reveal: async () => {
       const businessId = k.requireId(fields.businessId);
@@ -110,6 +154,10 @@ export function detailHandlers(admin: SupabaseClient, fields: Row, k: DetailKit,
     },
   };
   const audited: Record<string, (r: Row) => Audit | null> = {
+    invitation_cancel: (r) => ({
+      action: "invitation.revoked", business_id: r.businessId as string, entity_type: "business_invitation", entity_id: r.invitationId as string,
+      old_data: { status: r.before ?? null }, new_data: { status: "revoked", reason: r.reason ?? null, seat_removed: r.seatRemoved ?? false, email: mask(r.email) },
+    }),
     business_contacts_reveal: () => null,   // recorded before anything was read (revealContacts)
     business_size_save: (r) => r.changed
       ? { action: "business.size_changed", business_id: r.businessId as string, entity_type: "business", entity_id: r.businessId as string,

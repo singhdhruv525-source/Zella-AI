@@ -9,7 +9,8 @@ import { mfaGate, tokenAal } from "./mfa_gate.ts";
 import { ONBOARDING_PERMISSIONS, documentsReady, loadOnboarding, onboardingHandlers } from "./onboarding.ts";
 import { PLATFORM_PERMISSIONS, platformHandlers } from "./platform.ts";
 import {
-  DETAIL_PERMISSIONS, adminPermissions, beforeOf, businessChange, businessDetail, detailHandlers, lifecycleOf, withBefore,
+  DETAIL_PERMISSIONS, RESEND_COOLDOWN_MINUTES, adminPermissions, beforeOf, businessChange, businessDetail, detailHandlers, lifecycleOf,
+  resendAllowedAt, withBefore,
 } from "./detail.ts";
 import { MODULE_DEPENDENCIES, businessModuleProblems } from "./module_deps.ts";
 import { mask, maskText } from "./mask.ts";
@@ -2769,13 +2770,26 @@ async function invitationResend(admin: SupabaseClient, fields: Json) {
   const business = await getBusiness(admin, businessId);
   if (business.cancelled_at) throw new InputError("This business has been cancelled", 409);
 
-  const { data: invitation, error: invitationError } = await latestOwnerInvitation(admin, businessId, "id, email, owner_name, status");
+  const { data: invitation, error: invitationError } = await latestOwnerInvitation(admin, businessId, "id, email, owner_name, status, invited_at, updated_at");
   if (invitationError) throw invitationError;
   if (!invitation) throw new InputError("This business has no owner invitation yet");
   if (invitation.status === "accepted") throw new InputError("The owner has already accepted the invitation", 409);
   // before anything changes: without the app address the link would not open (BIZ-01)
   const appUrl = appUrlUsable(Deno.env.get("ZELLA_APP_URL"));
   if (!appUrl) throw new InputError(APP_URL_MISSING, 503);
+  // BIZ-21: one resend per RESEND_COOLDOWN_MINUTES after the last one that went out (invited_at, set only on success),
+  // claimed with a compare and set on updated_at so two clicks at once send one email. invited_at and
+  // last_reminded_at (the reminder job's clock) are not touched by the claim.
+  const inv = invitation as typeof invitation & { invited_at?: string | null; updated_at?: string | null };
+  const retryAt = resendAllowedAt(inv.invited_at, new Date());
+  if (retryAt) {
+    const minutes = Math.max(1, Math.ceil((retryAt.getTime() - Date.now()) / 60000));
+    throw new InputError(`An invitation was sent less than ${RESEND_COOLDOWN_MINUTES} minutes ago. It can be sent again in ${minutes} minute${minutes === 1 ? "" : "s"}.`, 429);
+  }
+  const claim = admin.from("business_invitations").update({ updated_at: new Date().toISOString() }).eq("id", invitation.id);
+  const { data: claimed, error: claimError } = await (inv.updated_at ? claim.eq("updated_at", inv.updated_at) : claim.is("updated_at", null)).select("id");
+  if (claimError) throw claimError;
+  if (!claimed?.length) throw new InputError("The invitation is already being sent from another window. Reload the page to see the result.", 409);
   if (invitation.status === "sent") {
     // Re-open it so the guarded write below applies; a cancel in between still wins.
     await admin.from("business_invitations").update({ status: "pending", updated_at: new Date().toISOString() })
@@ -2822,7 +2836,13 @@ async function invitationResend(admin: SupabaseClient, fields: Json) {
       role: "owner",
       status: "invited",
     });
-    if (memberError) console.error("Owner membership insert failed", memberError);
+    if (memberError) {
+      // BIZ-02: the email went out but the owner has no seat to accept, so say so and keep it on the invitation
+      console.error("Owner membership insert failed", memberError);
+      await admin.from("business_invitations").update({ last_error: `Seat not created: ${memberError.message}`.slice(0, 500) }).eq("id", invitation.id);
+      return withBefore({ businessId, email: invitation.email, invitationStatus: "sent", warning: "The invitation was sent, but the owner's seat could not be created. Check the invitation before they sign in.",
+        ...(sent.existingAccount ? { existingAccount: true } : {}) }, { status: invitation.status });
+    }
   }
 
   return withBefore({ businessId, email: invitation.email, invitationStatus: "sent", ...(sent.existingAccount ? { existingAccount: true } : {}) }, { status: invitation.status });

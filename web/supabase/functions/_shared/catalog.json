@@ -114,6 +114,7 @@
     "invitation.accepted": "Accepted invitation",
     "invitation.failed": "Finished setup · invitation failed",
     "invitation.resent": "Resent owner invitation",
+    "invitation.revoked": "Canceled owner invitation",
     "invitation.sent": "Finished setup · invitation sent",
     "invitation_revoked": "Revoked invitation",
     "job_assigned": "Assigned job",
