@@ -397,7 +397,7 @@ live switch, then the provider. Off means dry run: the message is logged as "wou
 | Usage counting and alerts | Calls (whole minutes, under 15 seconds and spam not counted), texts (by part) and emails (one each) are subtracted once from the balances, with alerts at **80% and 100%** for minutes, texts and emails: built, not applied. A live call is never cut. **Not switched on** (live changes needing the owner's approval): calls going to the fallback number at 100%, stopping routine texts and emails at 100%, and the 20-minute call cap (the live setting is 10 minutes today) |
 | Voice cost estimates per business | Built |
 | Payment provider webhook: signed, applied once and in order, never moves a subscription backwards | Built, off until the webhook secret is set |
-| Scheduled cancellation and "Continue my plan" link | Built |
+| Scheduled cancellation and "Continue my plan" link | Built. When the date passes, the business is fully cancelled (AI receptionist and automations off, subscription cancelled, audited) by the hourly and daily jobs once `sql/zella_cancellations_scheduled.sql` is applied and the timed jobs are on (both pending the owner); until then it happens when an admin opens Overview or Businesses (BIZ-03) |
 | Offers and promotions | Built |
 | Card data | Never stored (`NN-9`) |
 
