@@ -195,6 +195,7 @@ Deno.test("payload v2: usage from the current period's balances, nothing written
 Deno.test("payload v2: numbers, open alerts, routing and deliveries without caller data", async () => {
   const out = await businessDetail(fakeAdmin(V2_ROWS).client, BIZ, new Set(["businesses.view"]), deps);
   assertEquals(out.numbers.rows.length, 1);
+  assert(out.connections.available);
   assertEquals(out.alerts.count, 1);
   assertEquals(out.routing.transfer_number, "+15550100101");
   assertEquals(out.routing.fallback_number, "+15550100102");
@@ -203,7 +204,8 @@ Deno.test("payload v2: numbers, open alerts, routing and deliveries without call
 });
 
 Deno.test("payload v2: a missing table or function marks only its card unavailable", async () => {
-  const out = await businessDetail(fakeAdmin(V2_ROWS, ["business_plans", "zella_business_readiness", "billing_periods"]).client, BIZ, new Set(["businesses.view"]), deps);
+  const out = await businessDetail(fakeAdmin(V2_ROWS, ["business_plans", "zella_business_readiness", "billing_periods", "zella_business_connections"]).client, BIZ, new Set(["businesses.view"]), deps);
+  assertEquals(out.connections.available, false);
   assertEquals(out.plan.available, false);
   assertEquals(out.readiness.available, false);
   assertEquals(out.usage.available, false);

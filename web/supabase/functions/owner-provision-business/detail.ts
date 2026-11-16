@@ -240,7 +240,7 @@ export async function businessDetail(admin: SupabaseClient, businessId: string, 
 async function detailExtras(admin: SupabaseClient, businessId: string, setup: any, can: Set<string>, now: Date, since: string) {
   const agentId = setup.receptionist?.agentId ?? null;
   const rules = (setup.receptionist?.escalationRules ?? {}) as Row;
-  const [readiness, plan, periods, numbers, alerts, activation, lastTest, deliveryStatus, deliveries, recentOutcomes, onCall, hours, activityCount] =
+  const [readiness, plan, periods, numbers, alerts, activation, lastTest, deliveryStatus, deliveries, recentOutcomes, onCall, hours, activityCount, connections] =
     await Promise.all([
       optional(() => admin.rpc("zella_business_readiness", { p_business_id: businessId }), (d) => ({ report: d })),
       optional(() => admin.from("business_plans").select("*").eq("business_id", businessId).order("version", { ascending: false }).limit(1),
@@ -271,6 +271,10 @@ async function detailExtras(admin: SupabaseClient, businessId: string, setup: an
       can.has("audit.view")
         ? optional(() => admin.from("audit_logs").select("id", { count: "exact", head: true }).eq("business_id", businessId), (_d, count) => ({ count }))
         : Promise.resolve({ available: false as const }),
+      // the one definition of connected, answering and live (lane C, sql/zella_connection_state.sql; COM-01):
+      // zella_business_connections(p_business_ids uuid[]), one row per business. Unavailable until that file is applied.
+      optional(() => admin.rpc("zella_business_connections", { p_business_ids: [businessId] }),
+        (d) => ({ state: (Array.isArray(d) ? d[0] : null) ?? null })),
     ]);
 
   const period = periods.available ? currentPeriod(periods.rows, now) : null;
@@ -307,5 +311,6 @@ async function detailExtras(admin: SupabaseClient, businessId: string, setup: an
       counts: recentOutcomes.available ? counts : null,
     },
     activityCount: activityCount.available ? activityCount.count : null,
+    connections,
   };
 }

@@ -1744,7 +1744,8 @@ setup data: the server's readiness ladder (`zella_business_readiness`), the late
 unresolved alerts (10 and a count), the go live checklist (`zella_activation_report` and the latest test call, with
 `businesses.manage`), call routing worked out like `zella_admin_routing_get`, what calls get
 (`zella_assistant_delivery_status`, the 10 latest deliveries without caller data, 7 day not ready counts), each
-member's last sign in and two step status (with `businesses.manage`) and the activity total (with `audit.view`). Each
+member's last sign in and two step status (with `businesses.manage`), the activity total (with `audit.view`) and the
+shared connection state (`zella_business_connections`, lane C's one definition of connected and live). Each
 part reports `available: false` on its own when its table or function is missing, so one card never fails the page.
 
 **REQ-ADM-20 Access states:** loading, authorized, unauthorized (signed out, MFA needed, no permission) and failed
