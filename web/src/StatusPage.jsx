@@ -10,12 +10,18 @@ const STATES = {
   degraded: ["warn", "Slower than usual"],
   outage: ["down", "Not working"],
   unknown: ["", "Not monitored yet"],
+  partial: ["", "Not every part is checked"],
 };
 const OVERALL = {
   operational: "Everything is working",
   degraded: "Some things are slower than usual",
   outage: "Part of Zella Voice isn't working right now",
+  // nothing is wrong, but at least one part isn't checked yet, so the page can't say everything is working
+  partial: "Not every part is checked right now",
 };
+// incidents carry only their public words and the part they affect, never the internal title
+const partLabel = (components, key) =>
+  (Array.isArray(components) ? components : []).find((c) => c.key === key)?.label ?? "Zella Voice";
 const when = (v) => (v ? new Date(v).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "");
 
 export default function StatusPage() {
@@ -44,6 +50,7 @@ export default function StatusPage() {
           </div>
         )}
         {state.error && <p>The app or its database isn't answering. This page checks again every minute.</p>}
+        {!state.error && overall === "partial" && <p>Nothing we check is reporting a problem. The parts marked Not monitored yet aren't checked yet.</p>}
         {d && (
           <>
             <ul className="stp-list">
@@ -61,9 +68,9 @@ export default function StatusPage() {
             <h2 className="stp-h2">Incidents</h2>
             {!Array.isArray(d.incidents) ? <p>The incident list isn't available right now.</p> : !d.incidents.length ? <p>No incidents in the last 14 days.</p> : (
               <ul className="stp-incidents">
-                {d.incidents.map((i) => (
-                  <li key={`${i.started_at}-${i.title}`}>
-                    <strong>{i.title}</strong>
+                {d.incidents.map((i, n) => (
+                  <li key={`${i.started_at}-${n}`}>
+                    <strong>{partLabel(d.components, i.component)}</strong>
                     <span className={`stp-state ${i.status === "open" ? "warn" : "ok"}`}>{i.status === "open" ? "Ongoing" : "Fixed"}</span>
                     {i.message && <p>{i.message}</p>}
                     <small>Started {when(i.started_at)}{i.resolved_at ? ` · fixed ${when(i.resolved_at)}` : ""}</small>
