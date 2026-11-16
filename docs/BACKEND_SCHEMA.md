@@ -18,7 +18,7 @@ It reads the catalog only, never rows.
 | Row security policies | 342 |
 | Columns | 2063 |
 | Views | 1 |
-| Functions | 917 (849 security definer, 26 callable by `anon`) |
+| Functions | 919 (851 security definer, 26 callable by `anon`) |
 
 Rules every table follows:
 
@@ -5181,7 +5181,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_retention_scan(p_limit integer)` | integer | yes | server only |
 | `zella_retention_summary(p_business_id uuid)` | jsonb | yes | signed in |
 
-### `zella_retry_*` (4)
+### `zella_retry_*` (6)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -5189,6 +5189,8 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_retry_dead_letter(p_id uuid)` | boolean | yes | signed in |
 | `zella_retry_event(p_event_id uuid, p_reason text)` | text | yes | signed in |
 | `zella_retry_failed(p_business_id uuid, p_kind text, p_id uuid)` | text | yes | signed in |
+| `zella_retry_provisioning(p_business uuid, p_step text, p_actor uuid)` | jsonb | yes | server only |
+| `zella_retry_provisioning_due()` | integer | yes | server only |
 
 ### `zella_review_*` (15)
 
