@@ -18,7 +18,7 @@ It reads the catalog only, never rows.
 | Row security policies | 342 |
 | Columns | 2127 |
 | Views | 1 |
-| Functions | 942 (871 security definer, 26 callable by `anon`) |
+| Functions | 945 (874 security definer, 26 callable by `anon`) |
 
 Rules every table follows:
 
@@ -4636,7 +4636,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_brain_search(p_business_id uuid, p_query text, p_limit integer)` | jsonb | yes | server only |
 | `zella_brain_tool_defs()` | jsonb |  | anon, signed in |
 
-### `zella_business_*` (20)
+### `zella_business_*` (23)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -4651,6 +4651,9 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_business_lifecycle_trigger()` | trigger | yes | server only |
 | `zella_business_metrics(p_business_id uuid, p_from timestamp with time zone, p_to timestamp with time zone, p_assigned_to uuid)` | jsonb | yes | signed in |
 | `zella_business_open(p_business_id uuid, p_at timestamp with time zone)` | jsonb | yes | server only |
+| `zella_business_purge_execute(p_actor uuid, p_run uuid, p_confirm_name text)` | jsonb | yes | server only |
+| `zella_business_purge_files_done(p_actor uuid, p_run uuid, p_removed text[], p_error text)` | jsonb | yes | server only |
+| `zella_business_purge_request(p_actor uuid, p_business uuid, p_offered_at timestamp with time zone, p_offer_note text, p_reason text)` | jsonb | yes | server only |
 | `zella_business_readiness(p_business_id uuid)` | jsonb | yes | signed in |
 | `zella_business_request(p_business_id uuid, p_kind text, p_subject text, p_description text, p_details jsonb)` | uuid | yes | signed in |
 | `zella_business_services_get(p_business_id uuid)` | jsonb | yes | signed in |
