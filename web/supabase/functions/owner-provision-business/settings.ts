@@ -5,7 +5,7 @@
 // or business id from the browser. Secret values never leave the server: only whether they are set.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { draftAges } from "./lifecycle.ts";
+import type { DraftAge } from "./lifecycle.ts";
 
 type Json = Record<string, unknown>;
 
@@ -18,6 +18,8 @@ export type Kit = {
   InputError: new (message: string, status?: number) => Error;
   EMAIL_RE: RegExp;
   UUID_RE: RegExp;
+  // BIZ-13b (lifecycle.ts), passed in by index.ts; without it no draft is marked abandoned
+  draftAges?: (admin: SupabaseClient, rows: { id: string; name: unknown; created_at: unknown; updated_at: unknown }[]) => Promise<{ days: number; ages: Map<string, DraftAge> }>;
 };
 
 // Permission each action needs. Actions not listed are refused (index.ts), so a new action must be added here.
@@ -343,7 +345,9 @@ export function settingsHandlers(admin: SupabaseClient, fields: Json, ctx: { use
         ids.length ? admin.from("business_invitations").select("business_id, status, role").in("business_id", ids).eq("role", "owner") : { data: [] },
       ]);
       const of = <T extends { business_id: string }>(rows: unknown, id: string) => ((rows ?? []) as T[]).filter((r) => r.business_id === id);
-      const { days: abandonDays, ages } = await draftAges(admin, biz as { id: string; name: unknown; created_at: unknown; updated_at: unknown }[]);   // BIZ-13b
+      const { days: abandonDays, ages } = k.draftAges   // BIZ-13b
+        ? await k.draftAges(admin, biz as { id: string; name: unknown; created_at: unknown; updated_at: unknown }[])
+        : { days: null, ages: new Map<string, DraftAge>() };
       return {
         abandon_days: abandonDays,
         rows: biz.map((b) => {

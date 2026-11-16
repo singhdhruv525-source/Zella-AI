@@ -8,7 +8,7 @@ import { PERMISSIONS, RESTRICTED_ROLES, settingsHandlers } from "./settings.ts";
 import { mfaGate, tokenAal } from "./mfa_gate.ts";
 import { ONBOARDING_PERMISSIONS, documentsReady, loadOnboarding, onboardingHandlers } from "./onboarding.ts";
 import { PLATFORM_PERMISSIONS, platformHandlers } from "./platform.ts";
-import { LIFECYCLE_PERMISSIONS, createDraft, lifecycleHandlers } from "./lifecycle.ts";
+import { LIFECYCLE_PERMISSIONS, createDraft, draftAges, lifecycleHandlers } from "./lifecycle.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -3242,7 +3242,7 @@ Deno.serve(withCors(async (req: Request) => {
     };
 
     const extra = settingsHandlers(adminClient, fields, { userId: user.id, role, aal, mfa: hasMfa },
-      { text, bool, obj, requireId, validTimezone, InputError, EMAIL_RE, UUID_RE });
+      { text, bool, obj, requireId, validTimezone, InputError, EMAIL_RE, UUID_RE, draftAges });
     const onboarding = onboardingHandlers(adminClient, fields, user.id, {
       text, bool, obj, requireId, optionalPhone, getBusiness, getReceptionist, advance, mergeSetupData, InputError, EMAIL_RE, UUID_RE,
     });
