@@ -188,7 +188,7 @@ expect "identity can't be finished yet" "$(as $OWNER aal2 "select public.zella_o
 expect "the upload check: owner only" "$(as $STAFF aal2 "select public.zella_owner_identity_upload_check('$BIZ', 'owner_identity')::text")" "ERR:NOT_ALLOWED"
 expect "the upload check: a code verified session" "$(as $OWNER aal1 "select public.zella_owner_identity_upload_check('$BIZ', 'owner_identity')::text")" "ERR:MFA_REQUIRED"
 expect "the upload check: a known kind" "$(as $OWNER aal2 "select public.zella_owner_identity_upload_check('$BIZ', 'tax_registration')::text")" "ERR:INVALID_INPUT"
-expect "the upload check passes for the owner" "$(as $OWNER aal2 "select public.zella_owner_identity_upload_check('$BIZ', 'owner_identity')::text")" '{"ok": true}'
+expect "the upload check passes for the owner, with the caller's own id" "$(as $OWNER aal2 "select public.zella_owner_identity_upload_check('$BIZ', 'owner_identity')::text")" '{"ok": true, "user_id": "'$OWNER'"}'
 expect "the upload check refuses another business's step" "$(as $OWNER2 aal2 "select public.zella_owner_identity_upload_check('$BIZ', 'owner_identity')::text")" "ERR:NOT_ALLOWED"
 add() { # kind, user, path suffix
   q "set role service_role; select public.zella_owner_identity_document_add('$BIZ', '$2', '$1', '$BIZ/$1/$3.jpg', 'id.jpg', 'image/jpeg', 2048) #>> '{identity,status}'" | tail -1; }

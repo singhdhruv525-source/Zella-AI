@@ -649,6 +649,7 @@ end $$;
 
 -- The owner-onboarding edge function asks this with the owner's own session before handing out an upload link and
 -- before recording the file: owner of this business, code verified session, on step 4, and a kind the owner may send.
+-- It answers with the caller's own id, so the function never takes the owner's identity from the request.
 create or replace function public.zella_owner_identity_upload_check(p_business_id uuid, p_kind text) returns jsonb
 language plpgsql stable security definer set search_path = public as $$
 declare o record; v jsonb;
@@ -664,7 +665,7 @@ begin
   end if;
   v := public.zella_onboarding_identity(p_business_id);
   if not (v ->> 'can_upload')::boolean or not (v -> 'upload_kinds') ? p_kind then raise exception 'UPLOAD_NOT_ALLOWED'; end if;
-  return jsonb_build_object('ok', true);
+  return jsonb_build_object('ok', true, 'user_id', auth.uid());   -- the edge function records the document for this person
 end $$;
 
 -- ---------------------------------------------------------------------------------------------------------------

@@ -1,10 +1,11 @@
 # Owner onboarding: the contract between the screens and the server
 
-Status: **version 1, 16 Nov 2026.** Built on branch `claude/owner-onboarding-backend`; nothing is applied to
+Status: **version 2, 16 Nov 2026.** Built on branch `claude/owner-onboarding-backend`; nothing is applied to
 production or deployed. Changes to this contract are listed here, newest first, and are additive unless marked.
 
 | Version | Date | Change |
 |---|---|---|
+| 2 | 16 Nov 2026 | Additive clarifications, no call or field removed or renamed. (a) `MFA_REQUIRED` can also come from the request check that runs before every database call: HTTP 403 with `code` `42501` and `message` `MFA_REQUIRED`. Always read the code from `message` (section 4). It applies to every owner call, reads included, whenever the owner has a verified authenticator and the session wasn't verified with a code. (b) Owner calls answer `NOT_ALLOWED` for a business that doesn't exist too, so nobody can probe for ids; `NOT_FOUND` comes only from the admin calls. (c) The state also carries `started` (false until the first write) and `resumed_at`. (d) Who can read the progress tables directly: the business's owner and Zella Voice admins with `businesses.view`; no other team member. (e) When the last allowed identity attempt fails, Zella Voice gets an admin alert to review it by hand. |
 | 1 | 16 Nov 2026 | First version. |
 
 The screens (branch `claude/owner-onboarding-screens`) call only what is listed here. Every rule is decided by the
