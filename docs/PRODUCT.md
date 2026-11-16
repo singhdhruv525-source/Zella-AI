@@ -359,6 +359,9 @@ Opened from Businesses. What each tab shows and what an admin can do there:
 - **Member access:** an admin with `businesses.manage` can deactivate or reactivate one member's access to the
   business, with a reason; the business's only active owner can't be deactivated; the audit row keeps the status
   before and after (UI-06; built, needs the owner's approval to deploy).
+- **Two step reset:** an admin with `businesses.manage` can remove a member's two step sign in after the identity
+  check in `docs/ARCHITECTURE.md` (REQ-LC-19), with a reason; recorded first, never a Zella Voice admin's (UI-06;
+  built, needs the owner's approval to deploy).
 - **Business size:** Small, Medium, Large or not set, saved through the admin function (`business_size_save`,
   `businesses.manage`, two step sign in checked) with the before and after in the audit log; a change made by someone
   else meanwhile is refused (BIZ-08).

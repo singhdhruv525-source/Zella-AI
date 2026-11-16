@@ -130,6 +130,7 @@
     "legal.retired": "Retired legal document",
     "live_notice_cleared": "Cleared live notice",
     "live_notice_set": "Set live notice",
+    "member.mfa_reset": "Reset a member's two step sign in",
     "member.reactivated": "Reactivated a member",
     "member.suspended": "Deactivated a member",
     "member_offboarded": "Offboarded team member",

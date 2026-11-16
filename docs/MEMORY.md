@@ -202,6 +202,8 @@ most often needed:
 Waiting on the owner:
 
 - whether suspended businesses keep read-only access (L-5);
+- the identity check written for a member's two step reset (REQ-LC-19) and whether a fresh admin code is required
+  once ACC-19 exists (UI-06);
 - the owner invitation defaults (BIZ-21): resend cooldown 5 minutes, a reason to cancel, `businesses.manage`, and a
   never used account kept after a cancel;
 - the support access defaults on the Business page (BIZ-22): every open audited with a 30 minute dedupe, a reason

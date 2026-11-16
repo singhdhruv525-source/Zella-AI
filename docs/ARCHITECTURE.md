@@ -1765,6 +1765,16 @@ write fails. Both actions stay out of the business's Activity list and appear in
 `audit.view` holders. Gap: `setup_load` (the wizard's read, `businesses.view`) still returns the owner's email
 unmasked.
 
+**REQ-LC-19 two step reset for a business member (identity check):** before an admin removes a member's two step
+sign in (`member_mfa_reset`, `businesses.manage`), they confirm who is asking: the request comes from the member's
+own email address on file (or the business owner's, for a member of their team), and the admin calls back the
+business phone number on record, never a number given in the request, and confirms the member's name and role. The
+admin ticks "I checked who is asking" and gives a reason (10 to 300 characters). The audit row
+(`member.mfa_reset`: who, the reason, the number of authenticators) is written first; if it can't be, nothing is
+removed. Only that person's verified authenticators are removed, never a Zella Voice admin's (those are reset through
+Users & access) and never the acting admin's own. A fresh admin code (ACC-19) will be required in front of it once
+built. Built, needs the owner's approval of this procedure before deploy.
+
 **REQ-ADM-20 Access states:** loading, authorized, unauthorized (signed out, MFA needed, no permission) and failed
 (couldn't check; grants nothing). A refusal always applies; a failed background refresh keeps the current view.
 

@@ -58,6 +58,7 @@ export const DETAIL_PERMISSIONS: Record<string, string> = {
   business_contacts_reveal: "businesses.manage",   // BIZ-22 (REVEAL_PERMISSION): needs the owner's approval to deploy
   invitation_cancel: "businesses.manage",   // BIZ-21 (CANCEL_PERMISSION): needs the owner's approval to deploy
   member_set_status: MEMBER_SUPPORT_PERMISSION,   // UI-06 part c: needs the owner's approval to deploy
+  member_mfa_reset: MEMBER_SUPPORT_PERMISSION,   // UI-06 part d: needs the owner's approval to deploy
 };
 
 // ---- Owner invitations (BIZ-21; lane E defaults, owner can change; needs approval before deploy) ----
@@ -96,6 +97,48 @@ export const BUSINESS_SIZES = ["small", "medium", "large"] as const;
 // This page's actions. Each returns what the page shows; `audited` says what each records (null records nothing).
 export function detailHandlers(admin: SupabaseClient, fields: Row, k: DetailKit, userId = "") {
   const handlers: Record<string, () => Promise<unknown>> = {
+    // UI-06 part d: remove a member's two step sign in after the admin confirmed the identity check
+    // (docs/ARCHITECTURE.md REQ-LC-19). The audit row is written FIRST; if it can't be, nothing is removed. Only that
+    // person's verified authenticators are touched, and only their count is recorded. Never a platform admin's.
+    member_mfa_reset: async () => {
+      const businessId = k.requireId(fields.businessId);
+      const memberId = k.requireId(fields.userId, "member");
+      const reason = k.text(fields.reason, 301);
+      const bad = reasonProblem(reason);
+      if (bad) throw new k.InputError(bad);
+      if (fields.identityChecked !== true) throw new k.InputError("Confirm you checked who is asking, as the identity check says");
+      if (memberId === userId) throw new k.InputError("You can't reset your own two step sign in here", 403);
+      const { data: member, error } = await admin.from("business_members").select("user_id, role, status")
+        .eq("business_id", businessId).eq("user_id", memberId).maybeSingle();
+      if (error) throw error;
+      if (!member) throw new k.InputError("This person isn't a member of this business", 404);
+      const { data: staff, error: staffError } = await admin.from("platform_admins").select("user_id").eq("user_id", memberId).maybeSingle();
+      if (staffError) throw staffError;
+      if (staff) throw new k.InputError("This person is a Zella Voice admin. Their two step sign in is reset through Users & access, not here.", 403);
+      const { data: listed, error: listError } = await admin.auth.admin.mfa.listFactors({ userId: memberId });
+      if (listError) throw listError;
+      const verified = ((listed?.factors ?? []) as { id: string; status: string }[]).filter((f) => f.status === "verified");
+      if (!verified.length) throw new k.InputError("This member has no two step sign in set up", 409);
+      const { error: auditError } = await admin.from("audit_logs").insert({
+        action: "member.mfa_reset", business_id: businessId, user_id: userId, entity_type: "business_member", entity_id: null,
+        old_data: { user_id: memberId, verified_factors: verified.length },
+        new_data: { user_id: memberId, reason, identity_checked: true },
+      });
+      if (auditError) {
+        console.error("Two step reset audit failed; nothing removed", auditError);
+        throw new k.InputError("The reset couldn't be recorded, so nothing was changed. Please try again.", 503);
+      }
+      let removed = 0;
+      for (const f of verified) {
+        const { error: deleteError } = await admin.auth.admin.mfa.deleteFactor({ id: f.id, userId: memberId });
+        if (deleteError) {
+          console.error("Two step factor removal failed", deleteError);
+          throw new k.InputError(`Removed ${removed} of ${verified.length} authenticators; the rest could not be removed. Please try again.`, 502);
+        }
+        removed++;
+      }
+      return { businessId, userId: memberId, removed };
+    },
     // UI-06 part c: deactivate or reactivate one member's access to this business, with a reason. The business always
     // keeps one active owner. Saved only from the status the page saw.
     member_set_status: async () => {
@@ -177,6 +220,7 @@ export function detailHandlers(admin: SupabaseClient, fields: Row, k: DetailKit,
     },
   };
   const audited: Record<string, (r: Row) => Audit | null> = {
+    member_mfa_reset: () => null,   // recorded before anything was removed
     member_set_status: (r) => ({
       action: r.status === "suspended" ? "member.suspended" : "member.reactivated", business_id: r.businessId as string,
       entity_type: "business_member", entity_id: null,
