@@ -1063,6 +1063,8 @@ flowchart LR
 
 ---
 
+**Built (lane F, switched off, `sql/zella_stripe_reconcile.sql`, `reconcile` in `_shared/billingWorker.ts`):** as above, run by the billing worker; the live `zella_reconcile_billing_events` job keeps production's exact body (the file's guard checks its md5). The end to end test `tests/stripe_e2e/journey_test.ts` runs Checkout, a renewal, a failed payment and the pause, recovery, a pack, a refund, invoices, held emails and a clean reconciliation through the fake Stripe.
+
 ## 11. Scalable architecture: 1 to 10,000 people
 
 The same design serves one owner or 10,000 people at once because every request is stateless, every tenant query is

@@ -272,6 +272,7 @@ export function startFakeStripe(opts: { port?: number; livemode?: boolean } = {}
     if (r0 === "refunds" && r1) { const rf = need(r1, "refund"); return rf ? ok(rf) : err(404, "invalid_request_error", "No such refund", "resource_missing"); }
     if (r0 === "refunds" && method === "GET") return ok({ object: "list", data: [...objects.values()].filter((o) => o.object === "refund" && (!b.payment_intent || o.payment_intent === b.payment_intent)).map(clone), has_more: false });
     if (r0 === "charges" && r1) { const ch = need(r1, "charge"); return ch ? ok(ch) : err(404, "invalid_request_error", "No such charge", "resource_missing"); }
+    if (r0 === "disputes" && !r1 && method === "GET") return ok({ object: "list", data: [...objects.values()].filter((o) => o.object === "dispute").map(clone), has_more: false });
     if (r0 === "disputes" && r1) { const d = need(r1, "dispute"); return d ? ok(d) : err(404, "invalid_request_error", "No such dispute", "resource_missing"); }
     if (r0 === "billing_portal" && r1 === "sessions" && method === "POST") return ok({ id: id("bps"), object: "billing_portal.session", customer: b.customer, url: `https://portal.fake.local/${seq}`, return_url: b.return_url, livemode });
     if (r0 === "events" && method === "GET" && !r1) return ok({ object: "list", data: events.filter((e) => !b.type || e.type === b.type).map(clone), has_more: false });
@@ -325,6 +326,7 @@ export function startFakeStripe(opts: { port?: number; livemode?: boolean } = {}
       const trial = s._trial_end as number | null;
       const start = trial ?? clock;
       const sub = put({ id: id("sub"), object: "subscription", customer, status: trial ? "trialing" : "active", cancel_at_period_end: false, livemode, created: clock,
+        default_payment_method: id("pm"),
         trial_start: trial ? clock : null, trial_end: trial, metadata: s._sub_metadata, collection_method: "charge_automatically", latest_invoice: null, pending_update: null,
         items: { object: "list", data: [{ id: id("si"), price: clone(recurring.price), quantity: recurring.qty, current_period_start: trial ? clock : start, current_period_end: trial ? trial : start + len }] } });
       const period = { start: trial ? clock : start, end: trial ? trial : start + len };

@@ -7,7 +7,7 @@
 import { type StripeClient, StripeError } from "./stripe.ts";
 import { queueBillingEmails } from "./billingEmails.ts";
 
-type Json = Record<string, unknown>;
+type Json = Record<string, any>;
 export type Rpc = (fn: string, args: Json) => Promise<unknown>;
 
 export function rpcClient(supabaseUrl: string, serverKey: string, fetchImpl: typeof fetch = fetch): Rpc {
@@ -91,6 +91,36 @@ async function applyClaimed(rpc: Rpc, stripe: StripeClient, rows: EventRow[], co
   }
 }
 
+// §10, §12: events the webhook missed are read from Stripe's Events API and stored exactly as the webhook stores them
+// (repeats are ignored), and once a day Stripe's invoices, refunds and disputes of the last 7 days are matched to our
+// rows. Nothing is corrected here: the database records each difference as an alert for a person.
+export async function reconcile(rpc: Rpc, stripe: StripeClient, nowSeconds = Math.floor(Date.now() / 1000)): Promise<Json> {
+  const out: Json = {};
+  const since = Number(await rpc("zella_billing_events_cursor", {}));
+  let stored = 0, starting: string | undefined;
+  for (let page = 0; page < 10; page++) {
+    const list = await stripe.get("/v1/events", { created: { gte: since }, limit: 100, ...(starting ? { starting_after: starting } : {}) });
+    const data = (list.data ?? []) as Json[];
+    for (const ev of data) if ((await rpc("zella_stripe_event_store", { p_event: ev, p_key_livemode: stripe.livemode })) === "stored") stored++;
+    if (!list.has_more || !data.length) break;
+    starting = String(data[data.length - 1].id);
+  }
+  out.events_recovered = stored;
+  if ((await rpc("zella_billing_reconcile_due", {})) === true) {
+    const week = nowSeconds - 7 * 86400, objects: Json[] = [];
+    for (const [type, path] of [["invoice", "/v1/invoices"], ["refund", "/v1/refunds"], ["dispute", "/v1/disputes"]] as const) {
+      const list = await stripe.get(path, { created: { gte: week }, limit: 100 });
+      for (const o of (list.data ?? []) as Json[]) {
+        objects.push({ type, id: o.id, customer: o.customer ?? null, payment_intent: o.payment_intent ?? null, status: o.status,
+          amount: type === "invoice" ? o.amount_paid : o.amount, livemode: o.livemode });
+      }
+    }
+    out.objects = await rpc("zella_billing_reconcile_objects", { p_objects: objects });
+    out.ledger = await rpc("zella_billing_ledger_check", {});
+  }
+  return out;
+}
+
 export async function sendOutbox(rpc: Rpc, stripe: StripeClient, limit = 10): Promise<Record<string, number>> {
   const counts: Record<string, number> = {};
   const rows = (await rpc("zella_billing_outbox_claim", { p_limit: limit, p_id: null })) as OutboxRow[] | null;
@@ -112,5 +142,6 @@ export async function runWorkerOnce(rpc: Rpc, stripe: StripeClient): Promise<Jso
   // billing emails: renewal and trial notices decided now, then every notice rendered into the platform outbox (held while email_live is off)
   await rpc("zella_billing_email_sweep", {}).catch(() => null);
   const emails = await queueBillingEmails(rpc).catch(() => null);
-  return { outbox, events, follow_up: followUp, sweep, emails };
+  const recon = await reconcile(rpc, stripe).catch(() => null);
+  return { outbox, events, follow_up: followUp, sweep, emails, reconcile: recon };
 }
