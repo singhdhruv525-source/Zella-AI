@@ -259,3 +259,29 @@ test("contract version 2: MFA_REQUIRED from the request check, and the upload fu
   assert.equal(errorWords({ code: "INVALID_INPUT" }), "That didn't work. Reload the page and try again.");
   assert.equal(isNotReady({ status: 404, notReady: true }), true);
 });
+
+test("Pay with Stripe: ready, confirming, confirmed; never confirmed by coming back alone", () => {
+  assert.equal(paymentState({ status: "waiting", reason: "checkout_not_started", checkout_available: true }).key, "ready");
+  assert.equal(paymentState({ status: "waiting", reason: "checkout_open", checkout_available: true }).label, "Ready to pay");
+  assert.equal(paymentState({ status: "waiting", reason: "processing", checkout_available: true }).key, "processing");
+  assert.equal(paymentState({ status: "waiting", reason: "payments_not_connected", checkout_available: false }).key, "waiting");
+  assert.equal(paymentState({ status: "waiting", checkout_available: "true" }).key, "waiting", "only a real true opens Checkout");
+  assert.equal(paymentPassed({ status: "waiting", reason: "processing" }), false);
+  for (const code of ["PAYMENTS_NOT_LIVE", "ALREADY_PAID", "CHECKOUT_NOT_READY"]) assert.ok(ERROR_WORDS[code] && !DASH.test(ERROR_WORDS[code]), code);
+});
+
+test("stand in, scenario pay: Checkout opens with a key, the return confirms only after a start", async () => {
+  const api = createFakeApi({ scenario: "pay", storage: memory(), delay: 0 });
+  const id = (await api.listBusinesses()).businesses[0].business_id;
+  api.approveIdentity();
+  const before = await api.paymentStatus(id);
+  assert.equal(paymentState(before).key, "ready");
+  assert.equal((await api.checkoutReturn(id)).payment.status, "waiting", "coming back without starting proves nothing");
+  await assert.rejects(api.startCheckout(id, "bad key!"), (e) => errorCode(e) === "INVALID_INPUT");
+  await assert.rejects(api.startCheckout("someone-else", "a-good-key-1"), (e) => errorCode(e) === "NOT_ALLOWED");
+  const r = await api.startCheckout(id, "a-good-key-1");
+  assert.match(r.url, /checkout=return/);
+  assert.equal((await api.checkoutReturn(id)).payment.status, "confirmed");
+  const off = createFakeApi({ storage: memory(), delay: 0 });
+  await assert.rejects(off.startCheckout(id, "a-good-key-1"), (e) => errorCode(e) === "PAYMENTS_NOT_LIVE");
+});

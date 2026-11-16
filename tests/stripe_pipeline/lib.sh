@@ -54,3 +54,20 @@ zf_plan() {
   q "insert into public.business_plans (business_id, version, tier, billing_interval, price_cents, setup_fee_cents, currency, minutes, texts, emails, team_seats, phone_numbers, locations, languages, trial_enabled, overage_cents_per_minute, contact_limits, estimate, acknowledged_warnings, effective_from, idempotency_key, values_hash)
      values ('$1', ${6:-1}, 'base', '${4:-monthly}', $2, $3, 'USD', 500, 200, 200, 3, 1, 1, array['en'], ${5:-false}, 20, '{}', '{}', '[]', now() - interval '1 day', 'plan-key-${6:-1}-' || substr(md5(random()::text),1,8), md5(random()::text)) returning id"
 }
+# runs SQL as a signed in user: as_user <user id> <aal1|aal2> <sql>
+as_user() { q "set role authenticated; select set_config('request.jwt.claims', json_build_object('sub', '$1', 'role', 'authenticated', 'aal', '$2')::text, false); $3" | tail -n +2; }
+as_user_e() { "${P[@]}" -d "$DB" -c "set role authenticated; select set_config('request.jwt.claims', json_build_object('sub', '$1', 'role', 'authenticated', 'aal', '$2')::text, false); $3" 2>&1 | sed -nE 's/^ERROR: +([A-Za-z_]+:?).*/\1/p' | head -1; }
+owner_of() { q "select user_id from public.business_members where business_id = '$1' and role = 'owner'"; }
+# puts a business's owner onboarding on step 6 (identity done, plan accepted): zf_at_payment <business>
+zf_at_payment() {
+  q "insert into public.owner_onboarding (business_id, current_step, plan_accepted_version, plan_accepted_at) values ('$1', 'payment', (select max(version) from public.business_plans where business_id = '$1'), now())
+       on conflict (business_id) do update set current_step = 'payment', plan_accepted_version = excluded.plan_accepted_version;
+     insert into public.owner_onboarding_steps (business_id, step, reached_at, completed_at) select '$1', k, now(), now() from unnest(array['welcome','security','details','identity','plan']) k on conflict do nothing;
+     insert into public.owner_onboarding_steps (business_id, step, reached_at) values ('$1', 'payment', now()) on conflict do nothing" > /dev/null
+}
+# records a successful send of the next outbox row with a made up Stripe answer: zf_sent <business> <stripe id> [extra response json]
+zf_sent() {
+  local id; id=$(q "select id from public.zella_billing_outbox_claim(1, (select id from public.billing_outbox where business_id = '$1' and status = 'pending' order by created_at limit 1))")
+  [ -n "$id" ] || { echo "none"; return; }
+  q "select public.zella_billing_outbox_result('$id', true, '$2', (select jsonb_build_object('id', '$2', 'livemode', false) || coalesce(body, '{}') - 'metadata' || '${3:-{\}}'::jsonb from public.billing_outbox where id = '$id'), null, false, false)"
+}

@@ -207,6 +207,7 @@ GROUPS = [
         "billing_quarantine": "Stripe events that failed the binding check or stayed unresolved: nothing granted until a person decides. Server only.",
         "billing_invoices": "Every Stripe invoice of a business, recorded from the object fetched from Stripe: status, totals in cents, lines, links. Server only.",
         "ledger_operation_keys": "One row per money operation posted to the ledger (invoice:, payment:, refund: ...), so none is posted twice. Server only.",
+        "billing_checkouts": "One Stripe Checkout attempt for a business's first payment or trial: the plan version, the amount from the plan, the session and its link; one open at a time. Server only.",
         "money_ledger": "Double entry money ledger in cents: each operation's lines sum to zero. Server only.",
         "usage_records": "Append-only usage ledger (one entry per finalised call; adjustments, never edits).",
         "usage_thresholds": "Usage warning levels per business.",

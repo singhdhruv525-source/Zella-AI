@@ -20,3 +20,19 @@ export async function savePlan(business: string, price: number, setup: number, o
   return sql(`insert into public.business_plans (business_id, version, tier, billing_interval, price_cents, setup_fee_cents, currency, minutes, texts, emails, team_seats, phone_numbers, locations, languages, trial_enabled, overage_cents_per_minute, contact_limits, estimate, acknowledged_warnings, effective_from, idempotency_key, values_hash)
     values ('${business}', ${opts.version ?? 1}, 'base', '${opts.interval ?? "monthly"}', ${price}, ${setup}, 'USD', 500, 200, 200, 3, 1, 1, array['en'], ${opts.trial ?? false}, 20, '{}', '{}', '[]', now() - interval '1 day', 'plan-key-' || substr(md5(random()::text),1,10), md5(random()::text)) returning id`);
 }
+// a sign in token for tests/browser/local-backend.mjs (its local test secret; HS256, like Supabase Auth)
+const LOCAL_SECRET = "zella-local-test-secret-not-for-production";
+const b64u = (b: Uint8Array | string) => btoa(typeof b === "string" ? b : String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+export async function tokenFor(user: string, aal = "aal2"): Promise<string> {
+  const head = b64u(JSON.stringify({ alg: "HS256", typ: "JWT" }));
+  const body = b64u(JSON.stringify({ sub: user, role: "authenticated", aal, exp: Math.floor(Date.now() / 1000) + 3600 }));
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(LOCAL_SECRET), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  return `${head}.${body}.${b64u(new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(`${head}.${body}`))))}`;
+}
+export const ANON_KEY = "sb_publishable_local_test_only";
+// puts a business's owner onboarding on step 6 (identity done, plan accepted)
+export async function atPaymentStep(business: string) {
+  await sql(`insert into public.owner_onboarding (business_id, current_step, plan_accepted_version, plan_accepted_at) values ('${business}', 'payment', (select max(version) from public.business_plans where business_id = '${business}'), now());
+    insert into public.owner_onboarding_steps (business_id, step, reached_at, completed_at) select '${business}', k, now(), now() from unnest(array['welcome','security','details','identity','plan']) k;
+    insert into public.owner_onboarding_steps (business_id, step, reached_at) values ('${business}', 'payment', now())`);
+}

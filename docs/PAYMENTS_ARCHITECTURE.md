@@ -289,6 +289,15 @@ sequenceDiagram
   DB-->>BO: CRM shows "Active"
 ```
 
+**Built (lane F, switched off, `sql/zella_stripe_checkout.sql`, `billing-api`, the onboarding Pay screen):** the owner's
+`checkout_start` computes the amount from the accepted plan (price + setup fee, or $0 for the saved card trial); the
+customer, product, prices and session are outbox commands sent at once by `billing-api`, each with its own key
+(`customer:<business>`, `product:<business>`, `price:<plan version>`, `price:<plan version>:setup`, `checkout:<id>`);
+one open Checkout per business; `checkout.session.completed` links the subscription from our stored session; the
+first `invoice.paid` must equal our amount with only our prices; the trial puts the setup fee on the first paid
+invoice (a pending invoice item), so nothing is charged at the start (REQ-BIL-12). Tested end to end against the local
+fake Stripe (`tests/stripe_checkout/flow_test.ts`).
+
 The return to our page only shows "processing". **Access is granted only when the verified webhook (or the worker's
 fetch from Stripe) confirms the paid invoice, and the payment passes the binding check below.** A lost redirect never
 loses a payment, and a forged redirect never grants anything.

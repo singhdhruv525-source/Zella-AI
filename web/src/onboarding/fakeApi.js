@@ -4,7 +4,7 @@
 // finishes a section, uploads only while allowed, payment never confirmed by itself), so the screens are tested against
 // the same answers the database gives. The business, people and numbers are invented (example.test, 555 numbers).
 //
-// Scenarios (?scenario=... in the local preview):
+// Scenarios (?scenario=... in the local preview; "pay": payments connected, Checkout opens and comes back):
 //   ""          a fresh invitation: nothing done yet
 //   notready    none of the owner calls is deployed yet
 //   partial     the database calls work, the upload function isn't deployed yet
@@ -80,8 +80,11 @@ export function createFakeApi({ scenario = "", storage = null, delay = 120 } = {
       upload_kinds: can ? REQUIRED.filter((k) => !have.has(k)) : [], documents: st.identity.documents.map((d) => ({ ...d })),
     };
   };
+  // scenario "pay": payments connected, Checkout opens and comes back (the fake confirms on the return, as the webhook would)
+  const paying = () => st.scenario === "pay";
   const paymentOut = () => (st.payment_confirmed ? { status: "confirmed", reason: null, checkout_available: false, confirmed_at: now() }
     : st.identity.status !== "verified" ? { status: "locked", reason: "identity_first", checkout_available: false, confirmed_at: null }
+    : paying() ? { status: "waiting", reason: st.checkout_started ? "checkout_open" : "checkout_not_started", checkout_available: true, due_now_minor: 89800, confirmed_at: null }
     : { status: "waiting", reason: "payments_not_connected", checkout_available: false, confirmed_at: null });
   const security = () => ({ password_set: st.password, authenticator: st.factors.length > 0, session_verified: st.factors.length > 0, ready: st.password && st.factors.length > 0 });
   const stateOut = () => {
@@ -186,6 +189,16 @@ export function createFakeApi({ scenario = "", storage = null, delay = 120 } = {
     }),
     identityStatus: (id) => db(() => { owner(id); return identityOut(); }),
     paymentStatus: (id) => db(() => { owner(id); return paymentOut(); }),
+    startCheckout: (id, key) => db(() => {
+      owner(id);
+      if (!paying()) throw dbError("PAYMENTS_NOT_LIVE");
+      if (!/^[A-Za-z0-9_-]{8,100}$/.test(String(key))) throw dbError("INVALID_INPUT");
+      st.checkout_started = true;
+      const back = new URLSearchParams(globalThis.location?.search ?? "");   // keeps ?scenario=pay, as Stripe's success_url keeps ours
+      back.set("business", id); back.set("checkout", "return"); back.set("session_id", "cs_fake");
+      return { url: `${globalThis.location?.pathname ?? "/welcome/setup"}?${back}`, mode: "pay", amount_minor: 89800 };
+    }),
+    checkoutReturn: (id) => db(() => { owner(id); if (st.checkout_started) st.payment_confirmed = true; return { payment: paymentOut() }; }),
     finishLater: (id) => db(() => { owner(id); st.paused_at = now(); return { changed: true, state: stateOut() }; }),
     resume: (id) => db(() => { owner(id); const changed = Boolean(st.paused_at); st.paused_at = null; return { changed, state: stateOut() }; }),
 
