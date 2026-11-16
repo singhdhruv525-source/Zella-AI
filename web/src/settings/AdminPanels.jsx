@@ -7,6 +7,7 @@ import { switchHint } from "../copy/liveSwitches";
 import { uploadImage } from "./PersonalPanels";
 import { Banner, Card, Confirm, Empty, Facts, Field, LinkRows, LoadState, Needs, Pill, SaveBar, Table, Toggle, money, useAsync, useForm, when, words } from "./SettingsKit";
 import { settingLabel } from "../copy/settingLabels";
+import RecordingPolicy from "./panels/RecordingPolicy";
 
 // Admin Settings content. Every panel reads and writes through the
 // owner-provision-business function, which checks the admin's role and
@@ -1399,12 +1400,12 @@ export function LegalVersioning({ me }) {
   );
 }
 
-export function PolicyConfig({ onGo }) {
+export function PolicyConfig({ me, onGo }) {
   return (
     <>
       <LinkRows rows={[{ title: "Retention", detail: "Security & privacy > Data retention", onClick: () => onGo("security/retention") },
         { title: "Recording and consent text", detail: "Publish it as the Recording and consent document", onClick: () => onGo("legal/documents") }]} />
-      <Needs title="A recording on/off policy per business isn't built" have="Recordings come from the voice provider's settings. Recordings and transcripts are readable by owners, admins and managers; staff only where the business owner allows it and never in health, legal, financial, insurance or childcare businesses (zella_call_content_privacy.sql, once applied).">It needs a recording switch the phone assistant reads at the start of each call, and a disclosure line it says when recording is on.</Needs>
+      <RecordingPolicy me={me} />
     </>
   );
 }

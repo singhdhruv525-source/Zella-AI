@@ -9,6 +9,7 @@ import { mfaGate, tokenAal } from "./mfa_gate.ts";
 import { ONBOARDING_PERMISSIONS, documentsReady, loadOnboarding, onboardingHandlers } from "./onboarding.ts";
 import { PLATFORM_PERMISSIONS, platformHandlers } from "./platform.ts";
 import { PROVIDER_PERMISSIONS, providerHandlers } from "./providers.ts";
+import { RETENTION_PERMISSIONS, retentionHandlers } from "./retention.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -3075,7 +3076,7 @@ Deno.serve(withCors(async (req: Request) => {
     if (!gate.ok) return respond({ error: gate.error, code: gate.code }, gate.status);
 
     // Every action needs a permission; restricted roles only have what the owner gave them.
-    const permission = PERMISSIONS[action] ?? ONBOARDING_PERMISSIONS[action] ?? PLATFORM_PERMISSIONS[action] ?? PROVIDER_PERMISSIONS[action];
+    const permission = PERMISSIONS[action] ?? ONBOARDING_PERMISSIONS[action] ?? PLATFORM_PERMISSIONS[action] ?? PROVIDER_PERMISSIONS[action] ?? RETENTION_PERMISSIONS[action];
     if (!permission) return respond({ error: "Unknown action" }, 400);
     // Every active admin may read their own role and permissions (me_admin): without it a restricted role that lacks
     // businesses.view couldn't learn what it is allowed to do. It returns nothing about other people or businesses.
@@ -3242,7 +3243,8 @@ Deno.serve(withCors(async (req: Request) => {
     });
     const platform = platformHandlers(adminClient, fields, { text, bool, obj, requireId, InputError }, user.id, role);
     const providers = providerHandlers(adminClient, fields, { text, bool, obj, requireId, InputError }, user.id, role);
-    const handler = handlers[action] ?? extra.handlers[action] ?? onboarding.handlers[action] ?? platform.handlers[action] ?? providers.handlers[action];
+    const retention = retentionHandlers(adminClient, fields, { text, bool, obj, requireId, InputError }, user.id, role);
+    const handler = handlers[action] ?? extra.handlers[action] ?? onboarding.handlers[action] ?? platform.handlers[action] ?? providers.handlers[action] ?? retention.handlers[action];
     if (!handler) return respond({ error: "Unknown action" }, 400);
 
     try {
@@ -3250,7 +3252,7 @@ Deno.serve(withCors(async (req: Request) => {
 
       // Setup actions describe themselves from the request and result; settings and onboarding actions from
       // their result only (passing the request there recorded empty before/after values).
-      const later = extra.audited[action] ?? onboarding.audited[action] ?? platform.audited[action] ?? providers.audited[action];
+      const later = extra.audited[action] ?? onboarding.audited[action] ?? platform.audited[action] ?? providers.audited[action] ?? retention.audited[action];
       const entry = AUDITED[action] ? AUDITED[action](fields, result) : later ? (later(result as Json) as AuditEntry) : null;
       const unchanged = action === "ticket_update" &&
         Object.keys(obj((result as Json).changes)).length === 0;

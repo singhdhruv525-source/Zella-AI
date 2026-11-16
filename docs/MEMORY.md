@@ -179,6 +179,13 @@ most often needed:
   `TELNYX_CONNECTION_ID`, `TELNYX_MESSAGING_PROFILE_ID`) and sets `number_orders_enabled` to true. The Telnyx and Vapi
   request shapes follow their public API docs and are proven only against local fakes; confirm them with a sandbox key.
 
+- **Recording policy (SET-RECORDING-POLICY, built 16 Nov 2026, not deployed):** off for every business. A business can
+  be switched on only after a Zella Voice owner records `recording_legal_approved` with the caller disclosure line
+  (`recording_disclosure_text`, empty until legal provides it); those two settings can't be changed any other way.
+  Not connected to the live call path: today Zella Voice's assistant config doesn't set Vapi's recording option at
+  all, so Vapi's own default and dashboard settings decide whether calls are recorded. Making voice-rules send
+  recording off (or the policy) is a call path change that needs its own approval.
+
 Waiting on the owner:
 
 - whether suspended businesses keep read-only access (L-5);
