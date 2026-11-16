@@ -13,12 +13,12 @@ It reads the catalog only, never rows.
 
 | What | Count |
 |---|---|
-| Tables (schema `public`) | 174 |
-| Tables with row security on | 174 of 174 |
+| Tables (schema `public`) | 175 |
+| Tables with row security on | 175 of 175 |
 | Row security policies | 342 |
-| Columns | 2062 |
+| Columns | 2080 |
 | Views | 1 |
-| Functions | 912 (844 security definer, 26 callable by `anon`) |
+| Functions | 921 (853 security definer, 26 callable by `anon`) |
 
 Rules every table follows:
 
@@ -72,7 +72,7 @@ Each is a database job; most stay off until the owner approves going live (see `
 - [Automations and background work](#automations-and-background-work): `automations`, `automation_runs`, `automation_events`, `automation_dead_letters`, `workflow_executions`, `n8n_dispatch_state`, `integrations`, `integration_secrets`, `provider_health`
 - [Offers, reviews and growth](#offers-reviews-and-growth): `offers`, `offer_rules`, `offer_redemptions`, `offer_events`, `offer_job_runs`, `cross_sell_rules`, `review_sources`, `reviews`
 - [Billing and usage](#billing-and-usage): `plans`, `business_plans`, `billing_pack_catalog`, `billing_periods`, `allowance_buckets`, `pack_purchases`, `usage_charges`, `auto_reload_settings`, `subscriptions`, `payments`, `billing_events`, `usage_records`, `usage_thresholds`, `usage_threshold_events`, `usage_processing_issues`, `voice_pricing`
-- [Notifications, reports and support](#notifications-reports-and-support): `notifications`, `notification_preferences`, `staff_notifications`, `admin_alert_prefs`, `platform_alerts`, `platform_incidents`, `business_report_schedules`, `business_report_runs`, `support_tickets`, `support_ticket_notes`
+- [Notifications, reports and support](#notifications-reports-and-support): `notifications`, `notification_preferences`, `staff_notifications`, `admin_alert_prefs`, `platform_alerts`, `platform_incidents`, `business_report_schedules`, `business_report_runs`, `support_tickets`, `support_ticket_notes`, `number_orders`
 - [Functions](#functions)
 
 ## Tenancy, people and access
@@ -4292,6 +4292,36 @@ Zella Voice admins' internal notes on support tickets (server only: the business
 - `ticket_id` → `public.support_tickets` (on delete cascade).
 - Row security: on; no policies, so roles subject to row security (signed-in users and anon) get no rows directly. Superusers and `BYPASSRLS` roles (such as the server key) are not limited by it, nor is the table owner unless `FORCE ROW LEVEL SECURITY` is set; a security definer function runs with its function owner's rights.
 
+### `number_orders`
+
+Phone number purchases and releases through Telnyx and Vapi: who asked, which owner approved, the provider's answer (server only).
+
+| Column | Type | Required | Default |
+|---|---|---|---|
+| `id` | uuid | yes | gen_random_uuid() |
+| `kind` | text | yes |  |
+| `provider` | text | yes | 'telnyx' |
+| `e164` | text | yes |  |
+| `business_id` | uuid |  |  |
+| `vapi_phone_number_id` | text |  |  |
+| `status` | text | yes | 'requested' |
+| `idempotency_key` | uuid | yes |  |
+| `requested_by` | uuid | yes |  |
+| `request_reason` | text | yes |  |
+| `decided_by` | uuid |  |  |
+| `decided_at` | timestamp with time zone |  |  |
+| `decision_reason` | text |  |  |
+| `provider_order_id` | text |  |  |
+| `provider_number_id` | text |  |  |
+| `error` | text |  |  |
+| `created_at` | timestamp with time zone | yes | now() |
+| `updated_at` | timestamp with time zone | yes | now() |
+
+- Primary key: `id`.
+- Unique: `(idempotency_key)`.
+- `business_id` → `public.businesses` (on delete set null).
+- Row security: on; no policies, so roles subject to row security (signed-in users and anon) get no rows directly. Superusers and `BYPASSRLS` roles (such as the server key) are not limited by it, nor is the table owner unless `FORCE ROW LEVEL SECURITY` is set; a security definer function runs with its function owner's rights.
+
 ## Functions
 
 Most rules live here. `SD` = security definer (runs with the owner's rights, so it must check the caller
@@ -4308,6 +4338,14 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_accept_staff_invitations()` | integer | yes | signed in |
 | `zella_accept_staff_invitations_v2()` | jsonb | yes | signed in |
 | `zella_accept_waitlist_offer(p_entry_id uuid)` | uuid | yes | server only |
+
+### `zella_actor_*` (3)
+
+| Function | Returns | SD | Who may call |
+|---|---|---|---|
+| `zella_actor_audit(p_actor uuid, p_action text, p_entity_type text, p_entity_id uuid, p_business uuid, p_old jsonb, p_new jsonb)` | void | yes | server only |
+| `zella_actor_can(p_actor uuid, p_permission text)` | boolean | yes | server only |
+| `zella_actor_role(p_actor uuid)` | text | yes | server only |
 
 ### `zella_add_*` (3)
 
@@ -4899,6 +4937,17 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_my_profile()` | jsonb | yes | signed in |
 | `zella_my_sessions()` | jsonb | yes | signed in |
 | `zella_my_workspaces()` | jsonb | yes | signed in |
+
+### `zella_number_*` (6)
+
+| Function | Returns | SD | Who may call |
+|---|---|---|---|
+| `zella_number_order_cancel(p_actor uuid, p_id uuid, p_reason text)` | jsonb | yes | server only |
+| `zella_number_order_claim(p_actor uuid, p_id uuid)` | jsonb | yes | server only |
+| `zella_number_order_decide(p_actor uuid, p_id uuid, p_approve boolean, p_reason text)` | jsonb | yes | server only |
+| `zella_number_order_finish(p_actor uuid, p_id uuid, p_outcome text, p_order_id text, p_number_id text, p_vapi_id text, p_error text)` | jsonb | yes | server only |
+| `zella_number_order_request(p_actor uuid, p_kind text, p_e164 text, p_business uuid, p_vapi_id text, p_reason text, p_key uuid)` | jsonb | yes | server only |
+| `zella_number_orders_list(p_actor uuid, p_limit integer)` | jsonb | yes | server only |
 
 ### `zella_offer_*` (37)
 
