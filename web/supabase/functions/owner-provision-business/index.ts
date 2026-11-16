@@ -2220,9 +2220,10 @@ async function ticketsList(admin: SupabaseClient) {
 
   const tickets = ticketsResult.data ?? [];
   const adminIds = (adminsResult.data ?? []).map((a) => a.user_id);
-  const noteAuthors = tickets.flatMap((t) =>
-    list(obj(t.metadata).notes, 200).map((n) => text(obj(n).author_id, 64))
-  );
+  // Internal notes live in support_ticket_notes, which only the server can read (OPS-06). Before that table exists
+  // (sql/zella_support_notes.sql not applied yet) they are still read from metadata, as before.
+  const notesByTicket = await ticketNotes(admin, tickets);
+  const noteAuthors = [...notesByTicket.values()].flat().map((n) => n.author_id ?? "");
   const emails = await resolveUsers(admin, [
     ...adminIds,
     ...tickets.flatMap((t) => [t.assigned_to, t.created_by]),
@@ -2236,18 +2237,39 @@ async function ticketsList(admin: SupabaseClient) {
       business_name: nameById.get(t.business_id) ?? "Unknown business",
       assignee: t.assigned_to ? emails[t.assigned_to] ?? null : null,
       creator: t.created_by ? emails[t.created_by] ?? null : null,
-      notes: list(obj(t.metadata).notes, 200).map((n) => {
-        const note = obj(n);
-        return {
-          text: text(note.text, 4000),
-          created_at: text(note.created_at, 40),
-          author: emails[text(note.author_id, 64)] ?? null,
-        };
-      }),
+      metadata: (() => { const m = { ...obj(t.metadata) }; delete m.notes; return m; })(),
+      notes: (notesByTicket.get(t.id) ?? []).map((n) => ({
+        text: n.body,
+        created_at: n.created_at,
+        author: n.author_id ? emails[n.author_id] ?? null : null,
+      })),
     })),
     businesses: businessesResult.data ?? [],
     assignees: adminIds.map((id) => ({ id, email: emails[id] ?? id })),
   };
+}
+
+type TicketNote = { body: string; author_id: string | null; created_at: string };
+const missingTable = (e: { code?: string } | null) => e?.code === "42P01" || e?.code === "PGRST205";
+
+async function ticketNotes(admin: SupabaseClient, tickets: { id: string; metadata: unknown }[]) {
+  const out = new Map<string, TicketNote[]>();
+  const ids = tickets.map((t) => t.id);
+  if (!ids.length) return out;
+  const { data, error } = await admin.from("support_ticket_notes").select("ticket_id, body, author_id, created_at")
+    .in("ticket_id", ids).order("created_at", { ascending: true });
+  if (error && !missingTable(error)) throw error;
+  if (!error) {
+    for (const n of data ?? []) out.set(n.ticket_id, [...(out.get(n.ticket_id) ?? []), { body: n.body, author_id: n.author_id, created_at: n.created_at }]);
+    return out;
+  }
+  for (const t of tickets) {
+    out.set(t.id, list(obj(t.metadata).notes, 200).map((x) => {
+      const n = obj(x);
+      return { body: text(n.text, 4000), author_id: text(n.author_id, 64) || null, created_at: text(n.created_at, 40) };
+    }));
+  }
+  return out;
 }
 
 async function ticketCreate(admin: SupabaseClient, fields: Json, userId: string) {
@@ -2323,11 +2345,14 @@ async function ticketUpdate(admin: SupabaseClient, fields: Json, userId: string)
 
   const note = text(fields.note, 4000);
   if (note) {
-    const metadata = obj(ticket.metadata);
-    update.metadata = {
-      ...metadata,
-      notes: [...list(metadata.notes, 199), { text: note, author_id: userId, created_at: now }],
-    };
+    // its own row, so no note is ever dropped or overwritten by another admin saving at the same time (OPS-26)
+    const { error: noteError } = await admin.from("support_ticket_notes").insert({ ticket_id: ticketId, author_id: userId, body: note, created_at: now });
+    if (noteError && !missingTable(noteError)) throw noteError;
+    if (noteError) {
+      // sql/zella_support_notes.sql not applied yet: the old place, keeping the newest 199 notes plus this one
+      const metadata = obj(ticket.metadata);
+      update.metadata = { ...metadata, notes: [...list(metadata.notes, 1000).slice(-199), { text: note, author_id: userId, created_at: now }] };
+    }
     changes.note_added = true;
   }
 
