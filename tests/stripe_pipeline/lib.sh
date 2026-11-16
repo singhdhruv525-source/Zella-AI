@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# Shared by the lane F payment tests (sourced). Builds an ISOLATED copy of the production schema (never production):
+# the template, then the writing cleanup and the merged migrations not applied yet, then the files a test names.
+#   zf_build <db> <file>...          build from $TEMPLATE (default zprod3)
+#   zf_cycle <migration> <rollback> <some owned function signature>
+#                                    apply, apply again, rollback twice, apply again; on a throwaway copy, a changed
+#                                    function makes both the rollback (ROLLBACK_DRIFT) and the file (VERSION_MISMATCH) refuse
+set -uo pipefail
+ZF_REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+export ZPG_HOST=${ZPG_HOST:-/var/lib/postgresql/zella-sec} ZPG_PORT=${ZPG_PORT:-55433}; TEMPLATE=${TEMPLATE:-zprod3}
+. "$ZF_REPO/tests/lib/isolated_guard.sh"
+P=(psql -h "$ZPG_HOST" -p "$ZPG_PORT" -U postgres -qtAX -v ON_ERROR_STOP=1)
+fails=0; ok() { echo "PASS $*"; }; bad() { echo "FAIL $*"; fails=$((fails + 1)); }
+ZF_MERGED=(zella_writing_cleanup zella_cancellations_scheduled zella_admin_permissions zella_admin_mfa zella_support_notes zella_status_honest zella_retry_event_safe)
+zf_build() {
+  local db=$1; shift
+  zella_require_isolated "$ZPG_HOST" "$ZPG_PORT" "$db" || exit 1
+  "${P[@]}" -d postgres -c "set client_min_messages = warning" -c "drop database if exists $db" -c "create database $db template $TEMPLATE" > /dev/null || exit 1
+  local f; for f in "${ZF_MERGED[@]}" "$@"; do
+    "${P[@]}" -d "$db" -f "$ZF_REPO/sql/$f.sql" > /dev/null 2>&1 || { echo "FAIL building $db: $f"; "${P[@]}" -d "$db" -f "$ZF_REPO/sql/$f.sql" 2>&1 | grep -m3 ERROR; exit 1; }
+  done
+  DB=$db
+}
+q() { "${P[@]}" -d "$DB" -c "$1"; }
+qe() { "${P[@]}" -d "$DB" -c "$1" 2>&1 | sed -nE 's/^ERROR: +([A-Za-z_]+:?).*/\1/p' | head -1; }   # the error code a statement raises
+fp_owned() { q "select md5(string_agg(p.oid::regprocedure::text || md5(pg_get_functiondef(p.oid)), ',' order by p.oid::regprocedure::text)) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname ~ '$1'"; }
+zf_cycle() {
+  local mig=$1 rb=$2 sig=$3 pat=${4:-^zella_}
+  local before; before=$(fp_owned "$pat")
+  "${P[@]}" -d "$DB" -f "$ZF_REPO/sql/$mig.sql" > /dev/null 2>&1 && ok "$mig applies" || { bad "$mig applies"; "${P[@]}" -d "$DB" -f "$ZF_REPO/sql/$mig.sql" 2>&1 | grep -m3 ERROR; return; }
+  local after; after=$(fp_owned "$pat")
+  "${P[@]}" -d "$DB" -f "$ZF_REPO/sql/$mig.sql" > /dev/null 2>&1 && [ "$(fp_owned "$pat")" = "$after" ] && ok "$mig applies again, functions unchanged" || bad "$mig second apply"
+  "${P[@]}" -d "$DB" -f "$ZF_REPO/sql/rollback/$rb.sql" > /dev/null 2>&1 && [ "$(fp_owned "$pat")" = "$before" ] && ok "rollback restores every function exactly" || bad "rollback: $("${P[@]}" -d "$DB" -f "$ZF_REPO/sql/rollback/$rb.sql" 2>&1 | grep -m2 ERROR)"
+  "${P[@]}" -d "$DB" -f "$ZF_REPO/sql/rollback/$rb.sql" > /dev/null 2>&1 && [ "$(fp_owned "$pat")" = "$before" ] && ok "rollback runs twice" || bad "second rollback"
+  "${P[@]}" -d "$DB" -f "$ZF_REPO/sql/$mig.sql" > /dev/null 2>&1 && [ "$(fp_owned "$pat")" = "$after" ] && ok "applies again after the rollback, same functions" || bad "reapply"
+  local copy="${DB}_drift"
+  "${P[@]}" -d postgres -c "drop database if exists $copy" -c "create database $copy template $DB" > /dev/null
+  "${P[@]}" -d "$copy" -c "do \$\$ begin execute replace(pg_get_functiondef('$sig'::regprocedure), 'AS \$function\$', 'AS \$function\$ '); end \$\$" > /dev/null
+  local out; out=$("${P[@]}" -d "$copy" -f "$ZF_REPO/sql/rollback/$rb.sql" 2>&1)
+  [[ "$out" == *ROLLBACK_DRIFT* ]] && ok "rollback refuses a changed function (drift)" || bad "drift rollback: $(echo "$out" | grep -m1 ERROR)"
+  out=$("${P[@]}" -d "$copy" -f "$ZF_REPO/sql/$mig.sql" 2>&1)
+  [[ "$out" == *VERSION_MISMATCH* ]] && ok "the file refuses a version it didn't make" || bad "drift apply: $(echo "$out" | grep -m1 ERROR)"
+  "${P[@]}" -d postgres -c "drop database $copy" > /dev/null
+}
+# a business with an active owner and a saved plan; prints the business id
+zf_business() {
+  q "with b as (insert into public.businesses (name) values ('$1') returning id),
+     u as (insert into auth.users (id, email, aud, role, raw_app_meta_data, raw_user_meta_data) values (gen_random_uuid(), lower(replace('$1',' ','.')) || substr(md5(random()::text),1,6) || '@example.test', 'authenticated', 'authenticated', '{}', '{}') returning id),
+     m as (insert into public.business_members (business_id, user_id, role, status) select b.id, u.id, 'owner', 'active' from b, u returning business_id)
+     select business_id from m"
+}
+# a saved plan version for a business (integer cents): zf_plan <business> <price> <setup fee> [monthly|yearly] [trial true|false] [version]
+zf_plan() {
+  q "insert into public.business_plans (business_id, version, tier, billing_interval, price_cents, setup_fee_cents, currency, minutes, texts, emails, team_seats, phone_numbers, locations, languages, trial_enabled, overage_cents_per_minute, contact_limits, estimate, acknowledged_warnings, effective_from, idempotency_key, values_hash)
+     values ('$1', ${6:-1}, 'base', '${4:-monthly}', $2, $3, 'USD', 500, 200, 200, 3, 1, 1, array['en'], ${5:-false}, 20, '{}', '{}', '[]', now() - interval '1 day', 'plan-key-${6:-1}-' || substr(md5(random()::text),1,8), md5(random()::text)) returning id"
+}

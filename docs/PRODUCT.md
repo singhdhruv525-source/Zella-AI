@@ -418,7 +418,7 @@ live switch, then the provider. Off means dry run: the message is logged as "wou
 | Vapi | Voice calls | Built; real-call authentication open |
 | Telnyx | Texts and phone numbers | Built, off |
 | Resend | Email | Built, off |
-| Payment provider webhook (Stripe signatures) | Billing | Built, off. The provider is **Stripe** (D-34, Zella Voice is a Wyoming LLC); the Stripe integration (step 4) is not built yet |
+| Payment provider webhook (Stripe signatures) | Billing | Built, off. The provider is **Stripe** (D-34, Zella Voice is a Wyoming LLC). Rebuilt to the design (lane F, not deployed): `billing-webhook` checks the signature and the key's mode and only stores the event; `billing-worker` fetches each object from Stripe and the database applies it after the binding check, quarantining anything it can't bind. Off until the owner adds the keys and turns `payments_live` on (`docs/PAYMENTS_ARCHITECTURE.md` §16.7) |
 
 Every provider request sits behind an explicit setting. Tokens and keys live in Supabase Vault or edge function
 secrets, never in tables, code, logs or chat (`NN-2`).

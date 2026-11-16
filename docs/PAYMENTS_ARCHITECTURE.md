@@ -1181,6 +1181,17 @@ step 2 and step 3 work in PR #59 (built and tested on the isolated database, not
 | C-7 | No outbox, money ledger, idempotency-key, quarantine or provider-account tables; no Stripe API calls | §4, §8, §8.1 | — (nothing calls Stripe yet) |
 | C-8 | A refund made directly in the Stripe Dashboard arrives only as `charge.refunded` | every refund needs the owner's approval (`REQ-BIL-45`); a Dashboard refund is recorded, matched to an approved request if one exists, otherwise alerted and audited | a refund outside the approval rule goes unnoticed |
 
+**Rebuilt (lane F, 16 Nov 2026, built and tested locally, not applied or deployed):** `sql/zella_stripe_pipeline.sql`
+with the rebuilt `billing-webhook` and the new `billing-worker` close C-1 to C-8: the webhook verifies the signature
+and the key's mode and only stores the event; the worker claims events oldest first per subscription (an event waiting
+for its parent doesn't hold the others back), fetches each object from Stripe and hands it to the database, where one
+handler per event type (`zella_stripe_on_<type>`) and one grant per billing reason (`zella_stripe_grant_<reason>`)
+apply it after the binding check (`zella_stripe_bind_invoice`: our own links, customer, `usd`, fully paid, mode);
+anything unbound is quarantined and answered 200; subscription events record state only; every refund is recorded
+and one made outside Zella Voice is alerted. The old functions, including the live `zella_reconcile_billing_events`
+job, keep their exact bodies and never see the new rows. Tests: `tests/stripe_pipeline/run.sh` (database) and
+`tests/stripe_pipeline/flow.sh` (signed events from a local fake Stripe through the webhook and worker).
+
 **Until step 4 is built and its tests pass, `STRIPE_WEBHOOK_SECRET` stays unset**, so the old webhook can't process
 anything. Step 4 replaces the webhook's mapping with the §6.0b pipeline, adds the §4 tables with the §9 database rules,
 and keeps everything listed as "already follows".
@@ -1301,6 +1312,21 @@ yet is kept and applied when its parent arrives, fetching the object from the AP
    owner as edge function secrets on **staging only** (never pasted in chat, code or docs, `NN-2`).
 4. A sandbox webhook endpoint pointing at the staging `billing-webhook`, with the events in §16.5.
 5. After the sandbox proofs (§16.8) and the owner's approval: live keys, live webhook, one pilot business (§14).
+
+**Going live, once the lane F work is applied and deployed (each step needs the owner's approval).** Everything else
+is built and switched off; these three steps are all that is left, first on staging with sandbox keys:
+
+1. **Secrets and price IDs.** In Supabase, Edge Functions, Secrets: `STRIPE_SECRET_KEY` (the restricted key of §9;
+   `rk_test_` on staging, `rk_live_` in production) and `STRIPE_WEBHOOK_SECRET` (the endpoint's signing secret from
+   step 2). Plan prices need no IDs: the worker creates a Stripe Product per business and a Price per plan version.
+   Pack prices come from `billing_pack_catalog` and need no IDs either; `STRIPE_API_BASE` stays unset (tests only).
+2. **The webhook.** In Stripe, Developers, Webhooks: add an endpoint at
+   `https://<project>.supabase.co/functions/v1/billing-webhook`, pinned to the API version in
+   `_shared/stripe.ts` (`STRIPE_API_VERSION`), with the events of §16.5. Copy its signing secret into step 1.
+3. **The switch.** In the SQL editor: `select public.zella_payments_switch(true,
+   'https://<project>.supabase.co/functions/v1/billing-worker');`. It sets `payments_live`, saves the worker's
+   address and turns the `zella_billing_worker` job on. `select public.zella_payments_switch(false);` turns it all
+   off again; stored events wait and nothing is lost.
 
 ### 16.8 Sandbox proofs before each flow ships
 
