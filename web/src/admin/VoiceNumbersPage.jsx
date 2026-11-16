@@ -18,7 +18,7 @@ const TABS = [["overview", "Overview"], ["numbers", "Numbers"], ["calls", "Calls
 const CALL_STATUSES = ["initiated", "ringing", "answered", "completed", "missed", "failed"];
 const OUTCOMES = ["resolved", "booked", "callback_needed", "left_message", "wrong_number", "spam", "other"];
 // One quiet word for a value that isn't there (design review: one empty value). Matches the shared EmptyValue.
-const EmptyValue = ({ label = "None" }) => <span className="empty-value">{label}</span>;
+const EmptyValue = ({ label = "Not set" }) => <span className="empty-value">{label}</span>;
 const phone = (v) => (v ? <span className="vn-nowrap" title={v}>{formatPhone(v)}</span> : null);
 const statusTone = (s) => (s === "completed" || s === "active" ? "success" : s === "failed" ? "danger" : s === "missed" || s === "paused" ? "warning" : "neutral");
 
@@ -397,7 +397,7 @@ function Providers({ me }) {
       {o && o.auth_mode && (
         <Panel title="Vapi sign in check" description="How requests from Vapi are checked, and how many failed. Only the message type, the reason and the header names of a refused request are kept.">
           <Facts rows={[["How requests are checked", <span key="m" title={`Setting vapi_auth_mode (${o.auth_mode})`}>{voiceSwitches(o.switches)?.find((r) => r.key === "vapi_auth_mode")?.value ?? "Unknown"}</span>],
-            ["Refused in the last 24 hours", num(o.refusals_24h)], ["Last refused", o.last_refusal_at ? when(o.last_refusal_at) : "None"]]} />
+            ["Refused in the last 24 hours", num(o.refusals_24h)], ["Last refused", o.last_refusal_at ? when(o.last_refusal_at) : "No refusals"]]} />
         </Panel>
       )}
       <div className="zs ao-embed">
