@@ -576,7 +576,7 @@ isolated database first.
 - [ ] Delete a draft that was never finished, audited (BIZ-13) · needs approval
 - [ ] "Retention due" list and an owner approved purge of cancelled businesses (BIZ-13) · needs approval
 - [ ] Whole business export and deletion jobs (Settings, Data lifecycle says they aren't built) · needs approval
-- [ ] Automatic retry of failed setup steps (Settings, Business onboarding) · needs approval
+- [ ] Automatic retry of failed setup steps (Settings, Business onboarding) · needs approval (part 1, recording every setup step, built on branch `claude/lane-b-provisioning-steps`, PR to be opened)
 
 ### Create business wizard
 - [ ] Creation key and duplicate warning, so a retry never creates two businesses (BIZ-14) · needs approval

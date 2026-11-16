@@ -183,6 +183,10 @@ most often needed:
   documents); Request documents is allowed once per business per 24 hours, read from the last audit entry. Defaults,
   owner can change.
 
+- **Provisioning steps (Lane B, SET-ONB-RETRY part 1, 16 Nov 2026):** every setup save is recorded through
+  zella_track_provisioning. A deliberate refusal (bad input, or setup can't finish yet) is not a failed step and
+  raises no alert; only an unexpected error or a failed invitation email is.
+
 Waiting on the owner:
 
 - whether suspended businesses keep read-only access (L-5);
