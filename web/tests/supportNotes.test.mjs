@@ -16,18 +16,23 @@ function fakeAdmin(rows, errorAt = -1, error = null) {
   return { pages, from(table) {
     assert.equal(table, "support_ticket_notes");
     const orders = [];
-    let ids;
+    let ids, cursor = null;
     return {
       select() { return this; },
       in(column, values) { assert.equal(column, "ticket_id"); ids = values; return this; },
+      or(expr) {
+        const m = /^created_at\.gt\.(.+),and\(created_at\.eq\.(.+),id\.gt\.(.+)\)$/.exec(expr);
+        assert.ok(m && m[1] === m[2], expr); cursor = { created_at: m[1], id: m[3] }; return this;
+      },
       order(column, options) { orders.push([column, options.ascending]); return this; },
-      async range(from, to) {
+      async limit(n) {
         assert.deepEqual(orders, [["created_at", true], ["id", true]]);
-        pages.push([from, to]);
+        pages.push(cursor ? `${cursor.created_at}/${cursor.id}` : "start");
         if (pages.length - 1 === errorAt) return { data: null, error };
         const data = rows.filter((r) => ids.includes(r.ticket_id)).sort((a, b) =>
-          a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
-        return { data: data.slice(from, to + 1), error: null };
+          a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id))
+          .filter((r) => !cursor || r.created_at > cursor.created_at || (r.created_at === cursor.created_at && r.id > cursor.id));
+        return { data: data.slice(0, n), error: null };
       },
     };
   } };
@@ -41,7 +46,7 @@ for (const count of [0, 1000, 2501]) test(`all ${count} notes are returned with 
   const admin = fakeAdmin(rows);
   const result = await ticketNotes(admin, tickets);
   assert.equal(admin.pages.length, Math.floor(count / 1000) + 1);
-  assert.deepEqual(admin.pages, Array.from({ length: Math.floor(count / 1000) + 1 }, (_, i) => [i * 1000, i * 1000 + 999]));
+  assert.equal(admin.pages[0], "start");
   for (const ticket of tickets) assert.deepEqual(result.get(ticket.id) ?? [], rows.filter((r) => r.ticket_id === ticket.id)
     .reverse().map(({ body, author_id, created_at }) => ({ body, author_id, created_at })));
 });
@@ -57,4 +62,16 @@ test("later page failures propagate rather than returning partial notes", async 
 });
 test("no tickets need no queries", async () => {
   assert.equal((await ticketNotes({ from() { throw Error("unexpected query"); } }, [])).size, 0);
+});
+
+test("a note saved between pages is neither repeated nor skipped", async () => {
+  const rows = Array.from({ length: 1000 }, (_, i) => ({ id: String(i).padStart(5, "0"), ticket_id: "t1", body: `note ${i}`, author_id: null, created_at: "2026-11-16T00:00:00Z" }));
+  const admin = fakeAdmin(rows);
+  const realFrom = admin.from.bind(admin);
+  let calls = 0;
+  admin.from = (t) => { if (++calls === 2) rows.push({ id: "00000a", ticket_id: "t1", body: "late", author_id: null, created_at: "2026-11-15T00:00:00Z" }); return realFrom(t); };
+  const result = await ticketNotes(admin, tickets);
+  const bodies = result.get("t1").map((n) => n.body);
+  assert.equal(new Set(bodies).size, bodies.length, "no note repeated");
+  assert.equal(bodies.length, 1000);
 });

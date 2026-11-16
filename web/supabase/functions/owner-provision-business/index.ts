@@ -2256,11 +2256,14 @@ async function ticketNotes(admin: SupabaseClient, tickets: { id: string; metadat
   const out = new Map<string, TicketNote[]>();
   const ids = tickets.map((t) => t.id);
   if (!ids.length) return out;
+  // read in pages of 1000 after a (created_at, id) cursor, so the API's row cap can't cut notes off and a note saved
+  // while reading can't make a page repeat or skip one
   const pageSize = 1000;
-  for (let offset = 0; ; offset += pageSize) {
-    const { data, error } = await admin.from("support_ticket_notes").select("id, ticket_id, body, author_id, created_at")
-      .in("ticket_id", ids).order("created_at", { ascending: true }).order("id", { ascending: true })
-      .range(offset, offset + pageSize - 1);
+  let after: { created_at: string; id: string } | null = null;
+  for (;;) {
+    let query = admin.from("support_ticket_notes").select("id, ticket_id, body, author_id, created_at").in("ticket_id", ids);
+    if (after) query = query.or(`created_at.gt.${after.created_at},and(created_at.eq.${after.created_at},id.gt.${after.id})`);
+    const { data, error } = await query.order("created_at", { ascending: true }).order("id", { ascending: true }).limit(pageSize);
     if (error) {
       if (!missingTable(error)) throw error;
       out.clear();
@@ -2272,6 +2275,8 @@ async function ticketNotes(admin: SupabaseClient, tickets: { id: string; metadat
       out.set(n.ticket_id, notes);
     }
     if ((data ?? []).length < pageSize) return out;
+    const last = data![data!.length - 1];
+    after = { created_at: last.created_at, id: last.id };
   }
   for (const t of tickets) {
     out.set(t.id, list(obj(t.metadata).notes, 200).map((x) => {
@@ -2356,7 +2361,7 @@ async function ticketUpdate(admin: SupabaseClient, fields: Json, userId: string)
   const note = text(fields.note, 4000);
   if (note) {
     // its own row, so no note is ever dropped or overwritten by another admin saving at the same time (OPS-26)
-    const { error: noteError } = await admin.from("support_ticket_notes").insert({ ticket_id: ticketId, author_id: userId, body: note, created_at: now });
+    const { error: noteError } = await admin.from("support_ticket_notes").insert({ ticket_id: ticketId, author_id: userId, body: note });
     if (noteError && !missingTable(noteError)) throw noteError;
     if (noteError) {
       // sql/zella_support_notes.sql not applied yet: the old place, keeping the newest 199 notes plus this one
