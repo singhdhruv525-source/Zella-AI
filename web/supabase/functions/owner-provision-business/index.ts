@@ -8,6 +8,7 @@ import { PERMISSIONS, RESTRICTED_ROLES, settingsHandlers } from "./settings.ts";
 import { mfaGate, tokenAal } from "./mfa_gate.ts";
 import { ONBOARDING_PERMISSIONS, documentsReady, loadOnboarding, onboardingHandlers } from "./onboarding.ts";
 import { PLATFORM_PERMISSIONS, platformHandlers } from "./platform.ts";
+import { LIFECYCLE_PERMISSIONS, createDraft, lifecycleHandlers } from "./lifecycle.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -528,12 +529,13 @@ function cleanBusinessFields(fields: Json) {
 
 async function saveBusiness(admin: SupabaseClient, fields: Json) {
   const values = cleanBusinessFields(obj(fields.business));
-  const existingId = text(fields.businessId, 64);
+  let existingId = text(fields.businessId, 64);
 
   if (!existingId) {
-    const { data, error } = await admin.rpc("zella_create_business_draft", {
-      p_fields: values,
-    });
+    // BIZ-14: one creation key per wizard session, so a retry after a timeout gets the same business back (lifecycle.ts)
+    const creationKey = text(fields.creationKey, 64);
+    if (creationKey && !UUID_RE.test(creationKey)) throw new InputError("The creation key is not valid");
+    const { data, error } = await createDraft(admin, values, creationKey);
 
     if (error) {
       if (error.message.includes("INDUSTRY_NOT_FOUND")) {
@@ -542,7 +544,11 @@ async function saveBusiness(admin: SupabaseClient, fields: Json) {
       throw error;
     }
 
-    return { businessId: data.business_id, created: true, industryChanged: false, values };
+    if (!data?.business_id) throw new Error("The draft was not created");
+    if (!data.existing) {
+      return { businessId: data.business_id, created: true, industryChanged: false, values };
+    }
+    existingId = data.business_id;   // a retry: save these values on the business the first try made
   }
 
   const businessId = requireId(existingId);
@@ -3074,7 +3080,7 @@ Deno.serve(withCors(async (req: Request) => {
     if (!gate.ok) return respond({ error: gate.error, code: gate.code }, gate.status);
 
     // Every action needs a permission; restricted roles only have what the owner gave them.
-    const permission = PERMISSIONS[action] ?? ONBOARDING_PERMISSIONS[action] ?? PLATFORM_PERMISSIONS[action];
+    const permission = PERMISSIONS[action] ?? ONBOARDING_PERMISSIONS[action] ?? PLATFORM_PERMISSIONS[action] ?? LIFECYCLE_PERMISSIONS[action];
     if (!permission) return respond({ error: "Unknown action" }, 400);
     // Every active admin may read their own role and permissions (me_admin): without it a restricted role that lacks
     // businesses.view couldn't learn what it is allowed to do. It returns nothing about other people or businesses.
@@ -3240,7 +3246,8 @@ Deno.serve(withCors(async (req: Request) => {
       text, bool, obj, requireId, optionalPhone, getBusiness, getReceptionist, advance, mergeSetupData, InputError, EMAIL_RE, UUID_RE,
     });
     const platform = platformHandlers(adminClient, fields, { text, bool, obj, requireId, InputError }, user.id, role);
-    const handler = handlers[action] ?? extra.handlers[action] ?? onboarding.handlers[action] ?? platform.handlers[action];
+    const lifecycle = lifecycleHandlers(adminClient, fields, { text, bool, obj, requireId, InputError }, user.id, role);
+    const handler = handlers[action] ?? extra.handlers[action] ?? onboarding.handlers[action] ?? platform.handlers[action] ?? lifecycle.handlers[action];
     if (!handler) return respond({ error: "Unknown action" }, 400);
 
     try {
@@ -3248,7 +3255,7 @@ Deno.serve(withCors(async (req: Request) => {
 
       // Setup actions describe themselves from the request and result; settings and onboarding actions from
       // their result only (passing the request there recorded empty before/after values).
-      const later = extra.audited[action] ?? onboarding.audited[action] ?? platform.audited[action];
+      const later = extra.audited[action] ?? onboarding.audited[action] ?? platform.audited[action] ?? lifecycle.audited[action];
       const entry = AUDITED[action] ? AUDITED[action](fields, result) : later ? (later(result as Json) as AuditEntry) : null;
       const unchanged = action === "ticket_update" &&
         Object.keys(obj((result as Json).changes)).length === 0;
