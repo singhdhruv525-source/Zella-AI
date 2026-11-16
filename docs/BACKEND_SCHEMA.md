@@ -16,9 +16,9 @@ It reads the catalog only, never rows.
 | Tables (schema `public`) | 175 |
 | Tables with row security on | 175 of 175 |
 | Row security policies | 342 |
-| Columns | 2067 |
+| Columns | 2072 |
 | Views | 1 |
-| Functions | 913 (845 security definer, 26 callable by `anon`) |
+| Functions | 914 (846 security definer, 26 callable by `anon`) |
 
 Rules every table follows:
 
@@ -3358,6 +3358,11 @@ How often the dispatcher called each n8n worker, and the stuck-item guard.
 | `last_count` | integer | yes | 0 |
 | `consecutive_same` | integer | yes | 0 |
 | `triggers_total` | bigint | yes | 0 |
+| `last_request_id` | bigint |  |  |
+| `response_request_id` | bigint |  |  |
+| `last_status_code` | integer |  |  |
+| `last_response_at` | timestamp with time zone |  |  |
+| `last_error` | text |  |  |
 
 - Primary key: `workflow`.
 - Row security: on; policies: zella_mfa_required (all).
@@ -4332,7 +4337,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_add_lead_note(p_customer_id uuid, p_note text)` | boolean | yes | signed in |
 | `zella_add_record_note(p_id uuid, p_note text)` | boolean | yes | signed in |
 
-### `zella_admin_*` (45)
+### `zella_admin_*` (46)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -4349,6 +4354,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_admin_call_usage(p_business_id uuid, p_from timestamp with time zone, p_to timestamp with time zone, p_limit integer, p_offset integer)` | jsonb | yes | signed in |
 | `zella_admin_calls(p_from timestamp with time zone, p_to timestamp with time zone, p_business uuid, p_direction text, p_status text, p_outcome text, p_failed_only boolean, p_q text, p_limit integer, p_offset integer)` | jsonb | yes | signed in |
 | `zella_admin_can(p_permission text)` | boolean | yes | signed in |
+| `zella_admin_dispatch_responses()` | jsonb | yes | signed in |
 | `zella_admin_job_intent_save(p_job text, p_intended text, p_reason text)` | jsonb | yes | signed in |
 | `zella_admin_mask(p text)` | text |  | server only |
 | `zella_admin_message_detail(p_channel text, p_id uuid, p_with_content boolean)` | jsonb | yes | signed in |
