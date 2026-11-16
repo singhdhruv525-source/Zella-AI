@@ -6,6 +6,7 @@ import { friendlyError } from "../admin/adminOps";
 import { navigate } from "../router";
 import { formatDate } from "../ownerFormat";
 import { Card, Facts, Empty, Check, label } from "./shared";
+import { AlertsCard, GoLiveCard, NumbersCard, PlanCard, ReadinessCard, UsageCard } from "./OverviewCards";
 
 // Small, Medium or Large: set by a Zella Voice admin, never guessed from the industry. Offers can target it.
 // Saved through the admin function (business_size_save: businesses.manage, two step checked, audited; BIZ-08, UI-05).
@@ -73,6 +74,7 @@ export default function OverviewTab({ data, b, r, kb, term, invitation, phone, e
           </ul>
         )}
       </Card>
+      {data.readiness ? <ReadinessCard readiness={data.readiness} /> : (
       <Card title="Setup progress" description="What's done and what's left before this business goes live.">
         <ul className="op-checks">
           <Check ok title="Business details" detail={`${data.industryName} · ${b.timezone}`} />
@@ -99,7 +101,13 @@ export default function OverviewTab({ data, b, r, kb, term, invitation, phone, e
           <Check ok={invitation?.status === "accepted"} later title="Owner accepted invitation" detail={invitation?.status === "accepted" ? `Accepted ${formatDate(invitation.accepted_at)}` : "Not yet"} />
         </ul>
       </Card>
+      )}
+      <GoLiveCard activation={data.activation} />
 
+      <PlanCard plan={data.plan} />
+      <UsageCard usage={data.usage} />
+      <NumbersCard numbers={data.numbers} />
+      <AlertsCard alerts={data.alerts} />
       <Card title="Business information">
         <Facts items={[
           ["Business name", b.name],

@@ -1,9 +1,10 @@
 // One business's page, AI receptionist tab. Moved from BusinessDetails.jsx unchanged (BIZ-30); the page shell passes
 // what it worked out from business_detail.
 import { VoicePanel } from "../settings/VoicePanel";
+import { CallersGetCard, RoutingCard } from "./ReceptionistCards";
 import { Card, Facts, Empty, label, DAYS, POLICY_LABELS } from "./shared";
 
-export default function ReceptionistTab({ r, kb, esc, voice, term, businessId }) {
+export default function ReceptionistTab({ data, r, kb, esc, voice, term, businessId }) {
   return (
     <div className="op-stack">
       <div className="op-grid">
@@ -27,6 +28,11 @@ export default function ReceptionistTab({ r, kb, esc, voice, term, businessId })
             }),
           ]} />
         </Card>
+      </div>
+
+      <div className="op-grid">
+        <RoutingCard routing={data?.routing} />
+        <CallersGetCard deliveries={data?.deliveries} />
       </div>
 
       <div className="zs ao-embed"><VoicePanel businessId={businessId} /></div>

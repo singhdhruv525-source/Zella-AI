@@ -190,7 +190,7 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup, can =
   const Panel = TAB_COMPONENTS[shown] ?? OverviewTab;
   const panelProps = {
     data, b, setupData, r, kb, esc, voice, terms, term, invitation, phone, enabledModules, enabledAutomations, isCancelled,
-    isSuspended, canManage, canLifecycle, busy, setPending, onOpenSetup, businessId, load, telnyx, hoursSet, address, setupDone,
+    isSuspended, canManage, canLifecycle, busy, setPending, onOpenSetup, businessId, load, telnyx, hoursSet, address, setupDone, can,
   };
 
   return (

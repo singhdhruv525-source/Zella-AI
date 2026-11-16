@@ -5,13 +5,15 @@ import { formatDate, formatDateTime } from "../ownerFormat";
 import { Card, Empty } from "./shared";
 
 export default function PeopleTab({ data, invitation, isCancelled, canManage, busy, setPending }) {
+  // UI-06: last sign in and two step status, sent only to admins with businesses.manage
+  const signIn = data.signInFactsAllowed === true;
   return (
     <div className="op-stack">
       <Card title="Members" description="People with access to this business's workspace.">
         {data.members.length ? (
           <div className="owner-table-wrap" tabIndex={0}>
             <table className="owner-table">
-              <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Added</th></tr></thead>
+              <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Added</th>{signIn && <><th>Last sign in</th><th>Two step</th></>}</tr></thead>
               <tbody>
                 {data.members.map((m) => (
                   <tr key={m.user_id}>
@@ -20,6 +22,10 @@ export default function PeopleTab({ data, invitation, isCancelled, canManage, bu
                     <td className="op-cap">{m.role}</td>
                     <td><Pill tone={m.status === "active" ? "success" : "neutral"}>{m.status}</Pill></td>
                     <td>{formatDate(m.created_at)}</td>
+                    {signIn && <>
+                      <td>{m.last_sign_in_at ? formatDateTime(m.last_sign_in_at) : <span className="op-muted">Never</span>}</td>
+                      <td>{m.two_step ? <Pill tone="success">On</Pill> : <Pill tone="neutral">Off</Pill>}</td>
+                    </>}
                   </tr>
                 ))}
               </tbody>

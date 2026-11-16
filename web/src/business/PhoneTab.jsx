@@ -2,9 +2,10 @@
 // what it worked out from business_detail.
 import { Pill } from "../OwnerOverview";
 import { formatDateTime } from "../ownerFormat";
+import { NumbersCard } from "./OverviewCards";
 import { Card, Facts, Empty, label } from "./shared";
 
-export default function PhoneTab({ data, setupData, phone }) {
+export default function PhoneTab({ data, setupData, phone, esc, can, businessId }) {
   return (
     <div className="op-stack">
       <Card title="Setup choices" description="What the business asked for during setup.">
@@ -24,7 +25,9 @@ export default function PhoneTab({ data, setupData, phone }) {
         ) : <Empty>Phone & integrations step not completed yet.</Empty>}
       </Card>
 
-      <Card title="Live connections" description="Services actually connected and verified for this business.">
+      <NumbersCard numbers={data.numbers} canAssign={can?.("telephony.manage")} businessId={businessId} />
+      {esc && <p className="op-muted">Fallback number, where calls go when the AI receptionist can't take them: {esc.fallback_number || "not set"}.</p>}
+      <Card title="Connection records" description="Provider connections recorded for this business. Phone numbers above are what calls use; most connections aren't recorded here yet.">
         {data.integrations.length ? (
           <div className="owner-table-wrap" tabIndex={0}>
             <table className="owner-table">

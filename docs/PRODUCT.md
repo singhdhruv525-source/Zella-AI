@@ -347,6 +347,12 @@ scrolls (BIZ-30, UI-34). What each tab shows and what an admin can do there:
   database records on its own name the table, for example "Changed business (system record)".
   Only admins with `audit.view` get it: the server leaves the list and who did each action out for anyone else
   (BIZ-04).
+- **Overview cards:** the server's readiness ladder, the go live checklist (read only, `businesses.manage`), plan
+  (price with `billing.view`), usage this period, phone numbers and open alerts (with a link to Platform operations)
+  (BIZ-11, BIZ-12 phase 1). **People:** last sign in and two step columns with `businesses.manage` (UI-06).
+  **AI receptionist:** call routing as the Voice page shows it, and what callers get: the settings the last call got
+  against the next call's (UI-07, COM-03). **Phone & integrations:** the numbers card with "Assign a number" for
+  `telephony.manage`, the fallback number, and honest wording for the connection records (UI-08).
 - **Contact details:** caller numbers on Calls, people's emails, and the account email and error text of Live
   connections are masked the way the Voice page masks them (`…0123`, `a…@example.com`; `mask.ts`, the
   `zella_admin_mask` rule). A member's own phone number is not read. Showing them needs a reason (10 to 300
