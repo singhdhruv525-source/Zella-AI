@@ -332,7 +332,10 @@ platform alerts live.
 
 ### 9.1 One business's page (`/businesses/<id>`)
 
-Opened from Businesses. What each tab shows and what an admin can do there:
+Opened from Businesses. Each tab has its own address (`/businesses/<id>/people`, `/receptionist`, `/phone`,
+`/automations`, `/calls`, `/activity`, `/configuration`; Overview is the plain address), so a reload or a link keeps
+it. The tabs work with the keyboard (arrow keys, Home, End; one tab stop) and their edges fade on a phone when the row
+scrolls (BIZ-30, UI-34). What each tab shows and what an admin can do there:
 
 - **Activity:** admin and system changes to this business, each with a readable label from the shared catalog
   (`web/supabase/functions/_shared/catalog.json`, read by `web/src/copy/auditActions.js`, BIZ-25). Changes the

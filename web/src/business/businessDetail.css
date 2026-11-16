@@ -1,0 +1,9 @@
+/* One business's page: the tab row scrolls sideways on a phone, so its edges fade to show there is more (UI-34). */
+.bd-tabs-wrap { position: relative; }
+.bd-tabs-wrap::before, .bd-tabs-wrap::after {
+  content: ""; position: absolute; top: 0; bottom: 1px; width: var(--zella-space-6); pointer-events: none; z-index: 1;
+}
+.bd-tabs-wrap::before { left: 0; background: linear-gradient(to right, var(--zella-bg), transparent); }
+.bd-tabs-wrap::after { right: 0; background: linear-gradient(to left, var(--zella-bg), transparent); }
+@media (min-width: 900px) { .bd-tabs-wrap::before, .bd-tabs-wrap::after { display: none; } }
+.bd-tabs { scroll-padding-inline: var(--zella-space-6); }
