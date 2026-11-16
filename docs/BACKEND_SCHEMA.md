@@ -18,7 +18,7 @@ It reads the catalog only, never rows.
 | Row security policies | 349 |
 | Columns | 2254 |
 | Views | 1 |
-| Functions | 1054 (980 security definer, 29 callable by `anon`) |
+| Functions | 1055 (981 security definer, 29 callable by `anon`) |
 
 Rules every table follows:
 
@@ -4407,6 +4407,7 @@ Warnings already raised, so each is raised once.
 - Unique: `(business_id, threshold_key, period_key)`.
 - `business_id` → `public.businesses` (on delete cascade).
 - Row security: on; policies: zella_mfa_required (all).
+- Triggers: `zella_billing_usage_email`.
 
 ### `usage_processing_issues`
 
@@ -4853,7 +4854,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_b3_like(p_query text)` | text |  | anon, signed in |
 | `zella_b3_member(p_business_id uuid)` | void |  | signed in |
 
-### `zella_billing_*` (42)
+### `zella_billing_*` (43)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -4897,6 +4898,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_billing_rollover_reconcile(p_period_id uuid)` | integer | yes | server only |
 | `zella_billing_settings()` | jsonb | yes | server only |
 | `zella_billing_subscription_linked()` | trigger | yes | server only |
+| `zella_billing_usage_email_trg()` | trigger | yes | server only |
 | `zella_billing_worker_check(p_secret text)` | boolean | yes | server only |
 | `zella_billing_worker_kick()` | text | yes | server only |
 
