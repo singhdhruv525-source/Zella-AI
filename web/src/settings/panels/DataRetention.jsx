@@ -3,6 +3,7 @@ import { callOwnerFunction } from "../../CreateBusinessWizard";
 import { Banner, Card, Confirm, Facts, Field, LoadState, Pill, Table, useAsync, when } from "../SettingsKit";
 import { CLASS_LABELS, SOURCE_LABELS, classLabel, periodWords } from "./retentionLabels";
 import PurgeRuns from "./PurgeRuns";
+import BusinessPurge from "./BusinessPurge";
 
 // Settings > Security and privacy > Data retention: a period per kind of data, legal holds, and a dry run of what a
 // purge would remove (owner-provision-business retention.ts, sql/zella_data_retention.sql). Every period is the
@@ -14,6 +15,7 @@ export default function DataRetention({ me }) {
   const state = useAsync(() => Promise.all([call("retention_overview"), call("tenants_search", {})]), []);
   const [dialog, setDialog] = useState(null);
   const [preview, setPreview] = useState(null);
+  const [runsKey, setRunsKey] = useState(0);
   const owner = me?.role === "zella_owner";
   const manage = Boolean(me?.permissions?.includes("security.manage"));
   async function dryRun(dataClass) {
@@ -55,7 +57,8 @@ export default function DataRetention({ me }) {
           actions={owner && <button type="button" className={`zs-btn sm${o.purge_enabled ? " danger-outline" : ""}`} onClick={() => setDialog({ switchOn: !o.purge_enabled })}>{o.purge_enabled ? "Switch purges off" : "Switch purges on"}</button>}>
           <Facts rows={[["Purges", o.purge_enabled ? "On" : "Off"], ["Schedule", "None. A purge runs only when people approve it."], ["Setting", "retention_purge_enabled"]]} />
         </Card>
-        <PurgeRuns me={me} policies={o.policies} purgeEnabled={o.purge_enabled} you={o.you} />
+        <BusinessPurge me={me} legalApproved={o.policies.some((p) => p.data_class === "cancelled_business" && p.legal_status === "approved")} onAsked={() => setRunsKey((k) => k + 1)} />
+        <PurgeRuns key={runsKey} me={me} policies={o.policies} purgeEnabled={o.purge_enabled} you={o.you} />
         <Card title="Legal holds" sub="Nothing of a business on hold is ever listed for removal, and the business can't be deleted."
           actions={manage && <button type="button" className="zs-btn sm" onClick={() => setDialog({ hold: "" })}>Place a hold</button>}>
           <Table rows={o.holds} empty="No business is on a legal hold." columns={[

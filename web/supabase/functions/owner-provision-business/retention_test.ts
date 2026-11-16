@@ -121,7 +121,7 @@ Deno.test("purge runs: the typed confirmation is checked before the database, an
   const RUN = "c3000000-0000-0000-0000-000000000001";
   for (const confirm of ["", "purge 2", "PURGE", "PURGE two", "DELETE 2"]) {
     const d = db();
-    await assertRejects(() => run(d, "retention_run_execute", { id: RUN, confirm }, "security_admin"), InputError, "Type PURGE");
+    await assertRejects(() => run(d, "retention_run_execute", { id: RUN, confirm }, "security_admin"), InputError, "Type exactly");
     assertEquals(d.calls, []);
   }
   const d = db(() => ({ data: { id: RUN, status: "done", removed_count: 3 } }));
@@ -155,4 +155,28 @@ Deno.test("purge runs: each guard the database checks reaches the admin with its
     assertEquals(d.removed, []);
   }
   assertEquals([RETENTION_PERMISSIONS.retention_run_execute, RETENTION_PERMISSIONS.retention_run_approve, RETENTION_PERMISSIONS.retention_runs], ["security.manage", "security.manage", "security.view"]);
+});
+
+Deno.test("business purge: the name is required before the database; files are removed per bucket and only from the three buckets", async () => {
+  const RUN = "c3000000-0000-0000-0000-000000000009";
+  const none = db();
+  await assertRejects(() => run(none, "business_purge_execute", { id: RUN, confirmName: "" }, "zella_owner"), InputError, "Type the business");
+  await assertRejects(() => run(none, "business_purge_request", { businessId: BIZ, exportOfferedAt: "not a date", exportOfferNote: "Emailed", reason: "Past" }, "security_admin"), InputError);
+  assertEquals(none.calls, []);
+  const d = db((fn) => ({ data: fn === "zella_business_purge_execute"
+    ? { id: RUN, status: "files_pending", file_paths: ["business-documents/b/id.png", "brand-assets/b/logo.png", "elsewhere/b/x.png"] } : { id: RUN, status: "failed" } }));
+  await run(d, "business_purge_execute", { id: RUN, confirmName: "Closed Test Salon" }, "zella_owner");
+  assertEquals(d.calls[0], ["zella_business_purge_execute", { p_actor: "admin-user", p_run: RUN, p_confirm_name: "Closed Test Salon" }]);
+  assertEquals(d.removed, [["business-documents", ["b/id.png"]], ["brand-assets", ["b/logo.png"]]]);
+  assertEquals(d.calls[1][1].p_removed, ["business-documents/b/id.png", "brand-assets/b/logo.png"]);
+  assertEquals(d.calls[1][1].p_error, "1 files were not found in storage");
+});
+
+Deno.test("business purge: each refusal keeps its meaning, and nothing is removed from storage", async () => {
+  for (const [code, status] of [["AUDIT_HISTORY_AT_RISK", 409], ["BILLING_RECORDS_KEPT", 409], ["NUMBERS_STILL_ASSIGNED", 409], ["EXPORT_OFFER_TOO_RECENT", 409], ["NOT_PAST_RETENTION", 409], ["PURGE_SWITCHED_OFF", 409], ["APPROVER_REQUIRED", 403], ["CONFIRM_MISMATCH", 400]] as const) {
+    const d = db(() => ({ error: `${code}: details` }));
+    const err = await assertRejects(() => run(d, "business_purge_execute", { id: "c3000000-0000-0000-0000-000000000009", confirmName: "Closed Test Salon" }, "zella_owner"), InputError);
+    assertEquals((err as InputError).status, status);
+    assertEquals(d.removed, []);
+  }
 });

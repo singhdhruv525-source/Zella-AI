@@ -16,6 +16,10 @@
 // owner), retention_purge_enabled switched on by an owner, and the typed confirmation "PURGE <rows>". The database
 // checks every one of these. For verification documents the database hands back the file paths and this server
 // removes them from storage, then records exactly which ones went.
+//
+// A whole cancelled business (sql/zella_business_purge.sql, BIZ-13d) is purged the same way, approved by the same two
+// people, once its final export offer is recorded and 14 days old, with its name typed. It is refused while its audit
+// history would be lost (lane B's ACC-10 not applied), while it has billing records, offer history or phone numbers.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PlatformKit } from "./platform.ts";
@@ -38,7 +42,12 @@ export const RETENTION_PERMISSIONS: Record<string, string> = {
   retention_run_approve: "security.manage",
   retention_run_execute: "security.manage",
   retention_run_cancel: "security.manage",
+  business_purge_request: "security.manage",
+  business_purge_execute: "security.manage",
 };
+
+// The buckets a business purge may remove files from; anything else in a path list is ignored.
+export const PURGE_BUCKETS = ["business-documents", "record-files", "brand-assets"];
 
 // What the admin types to confirm. The server checks it too.
 export const RECORDING_ON_WORD = "RECORD";
@@ -71,8 +80,15 @@ export const REFUSALS: Record<string, [string, number]> = {
   APPROVER_REQUIRED: ["Only one of the two people who approved this run can run it.", 403],
   PURGE_SWITCHED_OFF: ["Purges are switched off. A Zella Voice owner switches them on in Data retention.", 409],
   NOT_APPROVED: ["This run isn't approved by two people yet, or has already run.", 409],
-  CONFIRM_MISMATCH: ["Type PURGE and the number of rows exactly, like PURGE 12.", 400],
+  CONFIRM_MISMATCH: ["What you typed doesn't match. Type exactly what the dialog asks for (PURGE and the number of rows, or the business's name).", 400],
   NOT_RUNNING: ["This run isn't waiting for files.", 409],
+  EXPORT_OFFER_REQUIRED: ["Record when and how the owner was offered a final export of their data.", 400],
+  NOT_PAST_RETENTION: ["This business isn't past its retention date, isn't cancelled, or is on a legal hold.", 409],
+  EXPORT_OFFER_TOO_RECENT: ["The final export offer was made less than 14 days ago.", 409],
+  AUDIT_HISTORY_AT_RISK: ["Deleting a business would still erase its audit history. The audit history fix (ACC-10) must be applied first.", 409],
+  BILLING_RECORDS_KEPT: ["This business has payment or billing records. How long those are kept after deletion hasn't been decided, so it can't be purged yet.", 409],
+  OFFER_HISTORY_KEPT: ["This business has offer history, which is kept.", 409],
+  NUMBERS_STILL_ASSIGNED: ["Release this business's phone numbers on Voice & numbers first.", 409],
 };
 
 // A database call; known refusals become messages with their status, anything else stays an error (500).
@@ -168,7 +184,38 @@ export function retentionHandlers(admin: SupabaseClient, fields: Json, kit: Plat
     return await rpc("zella_retention_run_files_done", { p_actor: userId, p_run: id, p_removed: removed, p_error: problem });
   };
 
+  const business_purge_request = async () => {
+    const offered = new Date(text(fields.exportOfferedAt, 40));
+    if (Number.isNaN(offered.getTime())) throw new InputError(REFUSALS.EXPORT_OFFER_REQUIRED[0]);
+    return await rpc("zella_business_purge_request", { p_actor: userId, p_business: kit.requireId(fields.businessId), p_offered_at: offered.toISOString(),
+      p_offer_note: text(fields.exportOfferNote, 300), p_reason: text(fields.reason, 300) });
+  };
+
+  const business_purge_execute = async () => {
+    const id = runId();
+    const name = typeof fields.confirmName === "string" ? fields.confirmName : "";
+    if (!name) throw new InputError("Type the business's name exactly to confirm.");
+    const run = await rpc("zella_business_purge_execute", { p_actor: userId, p_run: id, p_confirm_name: name });
+    if (run.status !== "files_pending") return run;
+    const paths = (Array.isArray(run.file_paths) ? run.file_paths : []).filter((p): p is string => typeof p === "string");
+    const removed: string[] = [];
+    let problem: string | null = null;
+    for (const bucket of PURGE_BUCKETS) {
+      const mine = paths.filter((p) => p.startsWith(`${bucket}/`)).map((p) => p.slice(bucket.length + 1));
+      for (let i = 0; i < mine.length && !problem; i += 100) {
+        const batch = mine.slice(i, i + 100);
+        const { data, error } = await admin.storage.from(bucket).remove(batch);
+        if (error) { problem = `Storage refused to remove some files (${String(error.message ?? "no details").slice(0, 200)})`; break; }
+        const gone = new Set((data ?? []).map((o: { name?: string }) => o.name));
+        removed.push(...batch.filter((p) => gone.has(p)).map((p) => `${bucket}/${p}`));
+      }
+    }
+    if (!problem && removed.length < paths.length) problem = `${paths.length - removed.length} files were not found in storage`;
+    return await rpc("zella_business_purge_files_done", { p_actor: userId, p_run: id, p_removed: removed, p_error: problem });
+  };
+
   const handlers: Record<string, () => Promise<unknown>> = {
+    business_purge_request, business_purge_execute,
     retention_runs, retention_run_request, retention_run_approve, retention_run_execute, retention_run_cancel,
     recording_policy_get, recording_policy_set, recording_legal_set,
     retention_overview, retention_preview, retention_policy_set, retention_switch_set, legal_hold_place, legal_hold_release,

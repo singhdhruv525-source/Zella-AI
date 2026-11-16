@@ -23,7 +23,7 @@ export default function PurgeRuns({ me, policies, purgeEnabled, you }) {
           onClick={() => setDialog({ ask: approved[0].data_class })}>Ask for a run</button>}>
         {!approved.length && <p className="zs-muted">No kind of data has legal approval yet, so no run can be asked for.</p>}
         <Table rows={runs} empty="No purge runs yet." columns={[
-          ["Data", (r) => classLabel(r.data_class)], ["Rows", (r) => r.item_count],
+          ["Data", (r) => (r.business_id ? `${classLabel(r.data_class)}: ${r.business_name ?? "deleted"}` : classLabel(r.data_class))], ["Rows", (r) => r.item_count],
           ["Status", (r) => <Pill tone={RUN_STATUS[r.status]?.[1]}>{RUN_STATUS[r.status]?.[0] ?? r.status}</Pill>],
           ["Asked by", (r) => <span title={r.request_reason}>{r.requested_by_email ?? "Unknown"}, {when(r.created_at)}</span>],
           ["Approved by", (r) => [r.owner_approved_by_email, r.second_approved_by_email].filter(Boolean).join(", ") || "Nobody yet"],
@@ -48,7 +48,13 @@ export default function PurgeRuns({ me, policies, purgeEnabled, you }) {
             <p>Asked by {dialog.approve.requested_by_email ?? "another admin"}: {dialog.approve.request_reason}</p>
           </Confirm>
         )}
-        {dialog?.run && (
+        {dialog?.run && dialog.run.business_id && (
+          <Confirm title={`Delete ${dialog.run.business_name} and everything that belongs to it?`} danger word={dialog.run.business_name ?? ""} confirmLabel="Delete the business"
+            onClose={() => setDialog(null)} onConfirm={async () => { await call("business_purge_execute", { id: dialog.run.id, confirmName: dialog.run.business_name }); state.reload(); }}>
+            <Banner tone="error">This can't be undone. Its audit history is kept. It is refused while the business has billing records, offer history or phone numbers, or the export offer is under 14 days old.</Banner>
+          </Confirm>
+        )}
+        {dialog?.run && !dialog.run.business_id && (
           <Confirm title={`Remove ${dialog.run.item_count} rows of ${classLabel(dialog.run.data_class).toLowerCase()}?`} danger word={`PURGE ${dialog.run.item_count}`} confirmLabel="Run the purge"
             onClose={() => setDialog(null)} onConfirm={async () => { await call("retention_run_execute", { id: dialog.run.id, confirm: `PURGE ${dialog.run.item_count}` }); state.reload(); }}>
             <Banner tone="error">This can't be undone. Rows that went on a legal hold or are no longer past their period are left alone.</Banner>

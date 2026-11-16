@@ -474,7 +474,7 @@ secrets, never in tables, code, logs or chat (`NN-2`).
 | Push notification provider | Owner (D-40) |
 | Self check-in | Later (D-15) |
 | Call recording | Legal review (D-13) |
-| Automatic deletion at end of retention | Build, after legal review |
+| Automatic deletion at end of retention | Built, not deployed, off: nothing is automatic. Purge runs approved by two people (Data retention), including a whole canceled business past its retention date (after a recorded final export offer at least 14 days old, refused while it has billing records, offer history or phone numbers, or while deleting would erase its audit history). Waits for legal review |
 
 The full list of open decisions is in `docs/ARCHITECTURE.md` §23.2.
 
