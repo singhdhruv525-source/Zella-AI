@@ -165,6 +165,11 @@ most often needed:
 - Lead and missed-call AI calls: 2 attempts, 2–3 hours apart, one message after each (D-01, D-02, D-12).
 - Call transcripts: managers and above; staff only if the owner allows; never in sensitive industries (M-4).
 
+- **No public API or outgoing webhooks (owner, 16 Nov 2026):** businesses get the Zella Voice CRM and the connections
+  Zella Voice builds, nothing more. Don't build API keys, `/api/v1` endpoints or outgoing webhooks (architecture §36,
+  REQ-API-01 to 04, Settings API management and Webhooks). A read only log of incoming provider events for admins is
+  still fine.
+
 Waiting on the owner:
 
 - whether suspended businesses keep read-only access (L-5);
