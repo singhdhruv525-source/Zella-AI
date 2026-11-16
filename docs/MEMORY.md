@@ -173,8 +173,8 @@ most often needed:
 
 - **Deleting a draft business (Lane B, BIZ-13a, 16 Nov 2026):** only a Zella Voice owner or super admin, with the
   name typed and a reason, and only a business that never finished setup and has no calls, numbers, billing or
-  accepted owner. The deletion entry (business_id null) keeps the id, name and a copy of the earlier audit rows;
-  the rows themselves go with the business while audit_logs.business_id is CASCADE (ACC-10: owner decision).
+  accepted owner. Audit history is never deleted with a business (ACC-10, owner decision, 16 Nov 2026):
+  audit_logs.business_id is SET NULL, and the deletion entry keeps the business id and name.
 
 Waiting on the owner:
 
