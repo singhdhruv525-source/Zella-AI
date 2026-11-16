@@ -814,6 +814,8 @@ recorded and alert a platform admin; evidence is submitted through Stripe's disp
 
 ---
 
+**Built (lane F, switched off, `sql/zella_stripe_disputes.sql`):** as above, with the saved state kept in `subscriptions.metadata.saved_status`; a renewal paid during a dispute moves the saved state (step 4a). Evidence stays a person's job in Stripe.
+
 ## 7. State machines
 
 ```mermaid

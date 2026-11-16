@@ -209,6 +209,7 @@ GROUPS = [
         "ledger_operation_keys": "One row per money operation posted to the ledger (invoice:, payment:, refund: ...), so none is posted twice. Server only.",
         "billing_checkouts": "One Stripe Checkout attempt for a business's first payment or trial: the plan version, the amount from the plan, the session and its link; one open at a time. Server only.",
         "billing_refunds": "Refund requests and refunds: the payment, the kind (guarantee, setup fee, pack, yearly, error, made outside Zella Voice), the reserved amount in cents, the Zella Voice owner's decision and the Stripe refund. Server only.",
+        "billing_disputes": "Chargebacks from Stripe: the payment, amount in cents, reason, respond by date and outcome (open, won, lost); the account is suspended while one is open. Server only.",
         "money_ledger": "Double entry money ledger in cents: each operation's lines sum to zero. Server only.",
         "usage_records": "Append-only usage ledger (one entry per finalised call; adjustments, never edits).",
         "usage_thresholds": "Usage warning levels per business.",

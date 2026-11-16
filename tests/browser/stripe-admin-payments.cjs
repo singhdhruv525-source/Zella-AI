@@ -47,7 +47,8 @@ const check = (n, ok, d = "") => { console.log(`${ok ? "PASS" : "FAIL"} ${n}${d 
     await page.screenshot({ path: path.join(SHOTS, `f8-payments-refunds-${name}.png`), fullPage: true });
     await page.click('[role="tab"]:has-text("Disputes")');
     await page.waitForTimeout(800);
-    check(`${name}: disputes say they appear once set up (no error)`, await page.isVisible("text=Disputes appear here once payments are set up.") || await page.isVisible("text=No disputes"));
+    check(`${name}: the open dispute is listed with its amount`, await page.locator("td >> text=fraudulent").isVisible() && await page.locator("td >> text=$898.00").isVisible());
+    await page.screenshot({ path: path.join(SHOTS, `f9-payments-disputes-${name}.png`), fullPage: true });
     check(`${name}: no page errors`, errors.length === 0, errors.join("; "));
     check(`${name}: nothing left the machine`, outside.length === 0, outside.join(","));
     await ctx.close();
