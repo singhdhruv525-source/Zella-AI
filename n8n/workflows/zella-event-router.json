@@ -112,6 +112,39 @@
           },
           "conditions": [
             {
+              "id": "cc2f124c-ceb3-4a63-86ab-64da1db60c9d",
+              "leftValue": "={{ Number($json.statusCode) >= 200 && Number($json.statusCode) < 300 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "faa9e7e7-ef5a-464c-88c6-8a4a0b9c8bd5",
+      "name": "Started",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        840,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
               "id": "026ac857-413b-4ae2-80bf-8ddce2229975",
               "leftValue": "={{ $('Route').item.json.plan !== null }}",
               "rightValue": "",
@@ -286,11 +319,23 @@
       "main": [
         [
           {
-            "node": "Has handler",
+            "node": "Started",
             "type": "main",
             "index": 0
           }
         ]
+      ]
+    },
+    "Started": {
+      "main": [
+        [
+          {
+            "node": "Has handler",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
       ]
     },
     "Has handler": {
