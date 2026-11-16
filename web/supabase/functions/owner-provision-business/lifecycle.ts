@@ -5,7 +5,8 @@
 // entry index.ts writes.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DOCUMENT_BUCKET } from "./onboarding.ts";
+import { DOCUMENT_BUCKET, REQUIRED_DOCUMENTS, missingDocuments, missingTable } from "./onboarding.ts";
+import { renderEmail } from "../_shared/businessEmails.js";
 
 type Json = Record<string, unknown>;
 
@@ -20,7 +21,13 @@ export type LifecycleKit = {
 export const LIFECYCLE_PERMISSIONS: Record<string, string> = {
   setup_check_duplicates: "businesses.manage",
   business_delete_draft: "businesses.manage",   // and the zella_owner or super_admin role (DRAFT_DELETE_ROLES)
+  documents_missing: "businesses.manage",       // the same permission as the Verification queue (documents_queue)
+  document_request: "businesses.manage",
 };
+
+// UI-11 default (owner can change): one documents request per business in this many hours, read from the last
+// business.documents_requested audit entry (no new table).
+export const DOCUMENT_REQUEST_COOLDOWN_HOURS = 24;
 
 // BIZ-13a default (owner can change): only these roles may delete a never finished draft.
 export const DRAFT_DELETE_ROLES = ["zella_owner", "super_admin"];
@@ -171,13 +178,85 @@ export function lifecycleHandlers(admin: SupabaseClient, fields: Json, kit: Life
     return { businessId, name: text(result.name, 200), deleted: true, filesRemoved: removed, filesLeft: paths.length - removed };
   };
 
+  // UI-11: businesses (not cancelled) that still miss a required verification document, including ones already live
+  // ("Live without documents"), with when documents were last requested.
+  const documentsMissing = async () => {
+    const { data: docs, error } = await admin.from("business_verification_documents").select("business_id, kind, status").neq("status", "replaced");
+    if (error) {
+      if (missingTable(error)) return { available: false, rows: [], required: REQUIRED_DOCUMENTS };
+      throw error;
+    }
+    const { data: biz, error: bizError } = await admin.from("businesses").select("id, name, onboarding_status, is_active, created_at")
+      .is("cancelled_at", null).order("created_at", { ascending: false }).limit(1000);
+    if (bizError) throw bizError;
+    const byBiz = new Map<string, { kind: string; status: string }[]>();
+    for (const d of (docs ?? []) as { business_id: string; kind: string; status: string }[]) byBiz.set(d.business_id, [...(byBiz.get(d.business_id) ?? []), d]);
+    const rows = ((biz ?? []) as { id: string; name: string; onboarding_status: string; is_active: boolean; created_at: string }[])
+      .map((b) => ({ ...b, missing: missingDocuments(byBiz.get(b.id) ?? []), live: b.is_active || b.onboarding_status === "active" }))
+      .filter((b) => b.missing.length > 0);
+    const last = await lastRequests(rows.map((r) => r.id));
+    return {
+      available: true, required: REQUIRED_DOCUMENTS, cooldownHours: DOCUMENT_REQUEST_COOLDOWN_HOURS,
+      rows: rows.map((r) => ({ id: r.id, name: r.name, onboarding_status: r.onboarding_status, live: r.live, missing: r.missing, created_at: r.created_at, last_requested_at: last.get(r.id) ?? null })),
+    };
+  };
+
+  const lastRequests = async (ids: string[]) => {
+    const out = new Map<string, string>();
+    if (!ids.length) return out;
+    const { data, error } = await admin.from("audit_logs").select("business_id, created_at").eq("action", "business.documents_requested")
+      .in("business_id", ids).order("created_at", { ascending: false }).limit(2000);
+    if (error) throw error;
+    for (const a of (data ?? []) as { business_id: string; created_at: string }[]) if (!out.has(a.business_id)) out.set(a.business_id, a.created_at);
+    return out;
+  };
+
+  // UI-11: asks the owner for the missing documents. Queues email S4 in the platform outbox when it is installed; it
+  // goes out only once email_live, the sender and the provider key are set. Without the outbox the request is only
+  // audited and the page says email isn't live yet. Once per business per DOCUMENT_REQUEST_COOLDOWN_HOURS.
+  const documentRequest = async () => {
+    const businessId = kit.requireId(fields.businessId);
+    const { data: b, error: bError } = await admin.from("businesses").select("id, name, email, cancelled_at").eq("id", businessId).maybeSingle();
+    if (bError) throw bError;
+    if (!b || b.cancelled_at) throw new InputError("Business not found", 404);
+    const { data: docs, error: dError } = await admin.from("business_verification_documents").select("kind, status").eq("business_id", businessId);
+    if (dError) throw dError;
+    const missing = missingDocuments((docs ?? []) as { kind: string; status: string }[]);
+    if (!missing.length) throw new InputError("This business has every required document.", 409);
+    const last = (await lastRequests([businessId])).get(businessId);
+    if (last && Date.now() - Date.parse(last) < DOCUMENT_REQUEST_COOLDOWN_HOURS * 3_600_000) {
+      throw new InputError(`Documents were already requested ${new Date(last).toISOString().slice(0, 16).replace("T", " ")} UTC. Ask again after ${DOCUMENT_REQUEST_COOLDOWN_HOURS} hours.`, 429);
+    }
+    const { data: invite } = await admin.from("business_invitations").select("email").eq("business_id", businessId).eq("role", "owner")
+      .in("status", ["pending", "sent", "accepted"]).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    const to = text((invite as { email?: string } | null)?.email ?? b.email, 254).toLowerCase();
+    let emailId: string | null = null, emailState: "queued" | "not_installed" | "no_address" = "no_address";
+    if (to) {
+      const data = { business: String(b.name), appUrl: Deno.env.get("ZELLA_APP_URL") ?? "" } as unknown as Parameters<typeof renderEmail>[1];
+      const m = renderEmail("S4", data, { strict: true });
+      const { data: id, error: qError } = await admin.rpc("zella_queue_platform_email", {
+        p_business: businessId, p_code: "S4", p_dedupe_key: `email:S4:${businessId}:${Date.now()}`, p_to: to,
+        p_subject: m.subject, p_html: m.html, p_text: m.text, p_mandatory: true, p_user: null, p_cc: [],
+      });
+      if (qError?.code === "PGRST202" || (qError && missingTable(qError))) emailState = "not_installed";
+      else if (qError) throw qError;
+      else { emailState = "queued"; emailId = String(id); }
+    }
+    return { businessId, name: b.name, missing, email: emailState, emailId, to: to ? `${to.slice(0, 1)}…@${to.split("@")[1] ?? ""}` : null };
+  };
+
   const handlers: Record<string, () => Promise<unknown>> = {
     setup_check_duplicates: checkDuplicates,
     business_delete_draft: deleteDraft,
+    documents_missing: documentsMissing,
+    document_request: documentRequest,
   };
 
   // business_delete_draft is audited by zella_delete_draft_business itself, in the same transaction as the delete.
-  const audited: Record<string, (r: Json) => Json> = {};
+  const audited: Record<string, (r: Json) => Json> = {
+    document_request: (r) => ({ action: "business.documents_requested", business_id: r.businessId, entity_type: "business", entity_id: r.businessId,
+      new_data: { missing: r.missing, email: r.email, email_id: r.emailId } }),
+  };
 
   return { handlers, audited };
 }

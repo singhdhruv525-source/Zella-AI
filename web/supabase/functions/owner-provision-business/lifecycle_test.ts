@@ -217,3 +217,76 @@ Deno.test("privacy_overview lists cancelled businesses with their retention date
   assertEquals(r.retentionSetting, "default");
   assertEquals((r.cancelled as { name: string; past_retention: boolean }[]).map((b) => [b.name, b.past_retention]), [["Old Co", true], ["New Co", false], ["No Date Co", false]]);
 });
+
+// A table stand in: every query on a table answers with that table's rows (or error); calls are recorded.
+function tables(data: Record<string, unknown>, rpc: (fn: string, args: Record<string, unknown>) => { data: unknown; error: unknown } = () => ({ data: null, error: null })) {
+  const calls: { table?: string; fn?: string; args?: Record<string, unknown> }[] = [];
+  const admin = {
+    from: (table: string) => {
+      calls.push({ table });
+      const answer = () => { const d = data[table]; return d instanceof Error || (d && typeof d === "object" && "code" in (d as object)) ? { data: null, error: d } : { data: d ?? null, error: null }; };
+      const chain: Record<string, unknown> = {};
+      for (const m of ["select", "eq", "neq", "in", "is", "order", "limit", "not"]) chain[m] = () => chain;
+      chain.maybeSingle = async () => { const r = answer(); return { ...r, data: Array.isArray(r.data) ? r.data[0] ?? null : r.data }; };
+      chain.then = (resolve: (v: unknown) => void) => resolve(answer());
+      return chain;
+    },
+    rpc: async (fn: string, args: Record<string, unknown>) => { calls.push({ fn, args }); return rpc(fn, args); },
+  } as unknown as SupabaseClient;
+  return { admin, calls };
+}
+
+Deno.test("documents_missing lists drafts and live businesses that miss a required document, with the last request", async () => {
+  const { admin } = tables({
+    business_verification_documents: [
+      { business_id: A, kind: "business_registration", status: "verified" }, { business_id: A, kind: "owner_identity", status: "pending_review" },
+      { business_id: B, kind: "business_registration", status: "rejected" },
+    ],
+    businesses: [
+      { id: A, name: "Complete Co", onboarding_status: "active", is_active: true, created_at: daysAgo(9) },
+      { id: B, name: "Live Co", onboarding_status: "active", is_active: true, created_at: daysAgo(8) },
+      { id: C, name: "Draft Co", onboarding_status: "owner_setup", is_active: false, created_at: daysAgo(1) },
+    ],
+    audit_logs: [{ business_id: B, created_at: daysAgo(2) }],
+  });
+  const r = await lifecycleHandlers(admin, {}, kit).handlers.documents_missing() as { rows: Record<string, unknown>[]; cooldownHours: number };
+  assertEquals(r.rows.map((x) => [x.name, x.live, x.missing, x.last_requested_at]), [
+    ["Live Co", true, ["business_registration", "owner_identity"], daysAgo(2)],
+    ["Draft Co", false, ["business_registration", "owner_identity"], null],
+  ]);
+  assertEquals(r.cooldownHours, 24);
+  const none = tables({ business_verification_documents: { code: "42P01", message: "relation does not exist" } });
+  assertEquals(await lifecycleHandlers(none.admin, {}, kit).handlers.documents_missing(), { available: false, rows: [], required: ["business_registration", "owner_identity"] });
+});
+
+Deno.test("document_request queues S4 to the owner and is audited; it waits out the cooldown and refuses when nothing is missing", async () => {
+  const base = { businesses: [{ id: A, name: "Draft Co", email: "front@draft.test", cancelled_at: null }], business_verification_documents: [], business_invitations: [{ email: "Owner@Draft.test" }], audit_logs: [] };
+  const { admin, calls } = tables(base, () => ({ data: "email-1", error: null }));
+  const h = lifecycleHandlers(admin, { businessId: A }, kit);
+  const r = await h.handlers.document_request() as Record<string, unknown>;
+  assertEquals([r.email, r.emailId, r.to, r.missing], ["queued", "email-1", "o…@draft.test", ["business_registration", "owner_identity"]]);
+  const q = calls.find((c) => c.fn === "zella_queue_platform_email")!.args!;
+  assertEquals([q.p_code, q.p_to, q.p_mandatory, String(q.p_dedupe_key).startsWith(`email:S4:${A}:`)], ["S4", "owner@draft.test", true, true]);
+  assertEquals(String(q.p_html).includes("Draft Co"), true);
+  assertEquals(h.audited.document_request(r), { action: "business.documents_requested", business_id: A, entity_type: "business", entity_id: A, new_data: { missing: r.missing, email: "queued", email_id: "email-1" } });
+
+  const recent = tables({ ...base, audit_logs: [{ business_id: A, created_at: new Date(Date.now() - 3_600_000).toISOString() }] });
+  const err = await assertRejects(() => lifecycleHandlers(recent.admin, { businessId: A }, kit).handlers.document_request(), InputError);
+  assertEquals((err as InputError).status, 429);
+  assertEquals(recent.calls.some((c) => c.fn), false);
+
+  const complete = tables({ ...base, business_verification_documents: [{ kind: "business_registration", status: "verified" }, { kind: "owner_identity", status: "pending_review" }] });
+  assertEquals(((await assertRejects(() => lifecycleHandlers(complete.admin, { businessId: A }, kit).handlers.document_request(), InputError)) as InputError).status, 409);
+  const gone = tables({ ...base, businesses: [{ id: A, name: "Gone", cancelled_at: daysAgo(1) }] });
+  assertEquals(((await assertRejects(() => lifecycleHandlers(gone.admin, { businessId: A }, kit).handlers.document_request(), InputError)) as InputError).status, 404);
+  await assertRejects(() => lifecycleHandlers(admin, { businessId: "nope" }, kit).handlers.document_request(), InputError, "valid business");
+});
+
+Deno.test("document_request without the outbox is still recorded, and says email isn't installed", async () => {
+  const { admin } = tables({ businesses: [{ id: A, name: "Draft Co", email: "front@draft.test", cancelled_at: null }], business_verification_documents: [], business_invitations: [], audit_logs: [] },
+    () => ({ data: null, error: { code: "PGRST202", message: "Could not find the function" } }));
+  const r = await lifecycleHandlers(admin, { businessId: A }, kit).handlers.document_request() as Record<string, unknown>;
+  assertEquals([r.email, r.emailId, r.to], ["not_installed", null, "f…@draft.test"]);
+  const noAddress = tables({ businesses: [{ id: A, name: "Draft Co", email: null, cancelled_at: null }], business_verification_documents: [], business_invitations: [], audit_logs: [] });
+  assertEquals(((await lifecycleHandlers(noAddress.admin, { businessId: A }, kit).handlers.document_request()) as Record<string, unknown>).email, "no_address");
+});

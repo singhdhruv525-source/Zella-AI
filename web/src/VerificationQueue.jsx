@@ -6,6 +6,7 @@ import { Pill } from "./OwnerOverview";
 import { Icon } from "./BusinessUI";
 import { humanize } from "./copy/labels";
 import { friendlyError } from "./admin/adminOps";
+import MissingDocuments from "./MissingDocuments";
 
 // Every business's verification documents in one place: the business registration and the owner's photo ID
 // collected in the Create Business wizard. Files are private; "View" asks the server for a link that works for one
@@ -23,7 +24,7 @@ const STATUS = {
   verified: ["success", "Verified"],
   rejected: ["danger", "Rejected"],
 };
-const TABS = [["pending_review", "Waiting"], ["rejected", "Rejected"], ["verified", "Verified"], ["all", "All"]];
+const TABS = [["pending_review", "Waiting"], ["rejected", "Rejected"], ["verified", "Verified"], ["all", "All"], ["missing", "Missing documents"]];
 const when = (v) => (v ? new Date(v).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "None");
 
 export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
@@ -73,7 +74,8 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
     setLoading(true);
     setError("");
     try {
-      const result = await callOwnerFunction("documents_queue", { status });
+      // Missing documents has its own list (MissingDocuments); the counts above it still come from the queue
+      const result = await callOwnerFunction("documents_queue", { status: status === "missing" ? "pending_review" : status });
       if (id === request.current) setData(result);
     } catch (err) {
       if (id === request.current) { setData(null); setError(friendlyError(err)); }
@@ -164,6 +166,7 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
             ))}
           </div>
 
+          {status === "missing" ? <MissingDocuments onOpenBusiness={onOpenBusiness} /> : (
           <section className="owner-panel">
             <div className="owner-table-wrap" tabIndex={0}>
               <table className="owner-table">
@@ -208,6 +211,7 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
               </table>
             </div>
           </section>
+          )}
         </>
       )}
 

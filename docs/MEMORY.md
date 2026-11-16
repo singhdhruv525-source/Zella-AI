@@ -179,6 +179,10 @@ most often needed:
   (`draft_abandon_days`, 7 to 365) is marked Abandoned and alerted once ever; nothing is deleted automatically. The
   alert is raised when Business onboarding is opened (no scheduled job for it yet).
 
+- **Missing documents (Lane B, UI-11, 16 Nov 2026):** live businesses without documents are listed too (Live without
+  documents); Request documents is allowed once per business per 24 hours, read from the last audit entry. Defaults,
+  owner can change.
+
 Waiting on the owner:
 
 - whether suspended businesses keep read-only access (L-5);

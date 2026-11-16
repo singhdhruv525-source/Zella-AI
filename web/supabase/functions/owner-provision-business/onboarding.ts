@@ -378,7 +378,13 @@ export async function documentsReady(admin: SupabaseClient, businessId: string) 
     if (missingTable(error)) return { ready: true, missing: [] as string[], available: false };
     throw error;
   }
-  const ok = new Set((data ?? []).filter((d) => d.status !== "rejected").map((d) => d.kind));
-  const missing = REQUIRED_DOCUMENTS.filter((k) => !ok.has(k));
+  const missing = missingDocuments(data ?? []);
   return { ready: missing.length === 0, missing, available: true };
+}
+
+// The required kinds a business still needs: none uploaded, or only rejected ones (replaced rows left out first).
+// Shared with the Verification page's Missing documents list (lifecycle.ts, UI-11).
+export function missingDocuments(docs: { kind: string; status: string }[]): string[] {
+  const ok = new Set(docs.filter((d) => d.status !== "rejected" && d.status !== "replaced").map((d) => d.kind));
+  return REQUIRED_DOCUMENTS.filter((k) => !ok.has(k));
 }
