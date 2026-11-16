@@ -5,6 +5,7 @@ import { withCors } from "../_shared/cors.ts";
 import { readJsonLimited } from "../_shared/body.ts";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { PERMISSIONS, RESTRICTED_ROLES, settingsHandlers } from "./settings.ts";
+import { mfaGate, tokenAal } from "./mfa_gate.ts";
 import { ONBOARDING_PERMISSIONS, documentsReady, loadOnboarding, onboardingHandlers } from "./onboarding.ts";
 import { PLATFORM_PERMISSIONS, platformHandlers } from "./platform.ts";
 
@@ -3029,35 +3030,19 @@ Deno.serve(withCors(async (req: Request) => {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    // The caller's platform role (any of the seven). Falls back to the older admin check while
-    // sql/zella_settings_system.sql is not applied yet, so the dashboard keeps working during the rollout.
+    // The caller's platform role (any of the seven), read with the server key: the caller's own database session can't
+    // be used for this, because an admin who hasn't finished two step sign in is refused by the database (ACC-34).
     let role: string | null = null;
-    const roleRes = await callerClient.rpc("zella_admin_role");
-    if (roleRes.error) {
-      const legacy = await callerClient.rpc("is_platform_admin");
-      if (legacy.error) {
-        console.error("Platform admin verification failed", legacy.error);
-        return respond({ error: "Could not verify platform admin access" }, 500);
-      }
-      role = legacy.data === true ? await callerRole(adminClient, user.id) : null;
-    } else {
-      role = typeof roleRes.data === "string" ? roleRes.data : null;
-    }
+    try { role = await callerRole(adminClient, user.id); }
+    catch (e) { console.error("Platform admin verification failed", e); return respond({ error: "Could not verify platform admin access" }, 500); }
     if (!role) {
       return respond({ error: "Platform admin access required" }, 403);
     }
 
-    // Admins who set up two-step sign-in must have used it for this session.
+    // Two step sign in, required for every admin (mfa_gate.ts); checked once the action is known.
     const factors = ((user as { factors?: { status?: string }[] }).factors ?? []);
     const hasMfa = factors.some((f) => f.status === "verified");
-    let aal = "aal1";
-    try {
-      const payload = authorization.slice(7).split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
-      aal = String(JSON.parse(atob(payload.padEnd(Math.ceil(payload.length / 4) * 4, "="))).aal ?? "aal1");
-    } catch { /* treated as aal1 */ }
-    if (hasMfa && aal !== "aal2") {
-      return respond({ error: "Enter the code from your authenticator app to continue.", code: "MFA_REQUIRED" }, 403);
-    }
+    const aal = tokenAal(authorization);
 
     let body: unknown;
 
@@ -3083,6 +3068,9 @@ Deno.serve(withCors(async (req: Request) => {
     const fields = body as Json;
     const action =
       typeof fields.action === "string" ? fields.action : "";
+
+    const gate = mfaGate({ hasVerifiedFactor: hasMfa, aal, action });
+    if (!gate.ok) return respond({ error: gate.error, code: gate.code }, gate.status);
 
     // Every action needs a permission; restricted roles only have what the owner gave them.
     const permission = PERMISSIONS[action] ?? ONBOARDING_PERMISSIONS[action] ?? PLATFORM_PERMISSIONS[action];

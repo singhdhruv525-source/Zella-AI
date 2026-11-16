@@ -129,7 +129,7 @@ function registry() {
     ] },
     { key: "profile", label: "Administrator profile", icon: "profile", items: [
       page("me", "My profile", (c) => <MyProfilePanel email={c.email} />, "name picture"),
-      page("security", "Account security", (c) => <AccountSecurityPanel email={c.email} />, "password mfa sessions revoke devices login history"),
+      page("security", "Account security", (c) => <AccountSecurityPanel email={c.email} adminRequired />, "password mfa sessions revoke devices login history"),
       page("notifications", "Personal notifications", () => <P.AdminNotifications />, "email alerts digest admin notifications"),
       page("appearance", "Appearance", () => <AppearancePanel />, "theme glass dark background wallpaper picture sidebar dock look notification sound chime"),
       page("signout", "Sign out", (c) => <SignOutPanel who="you" onSignOut={c.onSignOut} />, "logout"),

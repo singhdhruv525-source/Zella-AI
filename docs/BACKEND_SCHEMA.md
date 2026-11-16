@@ -18,7 +18,7 @@ It reads the catalog only, never rows.
 | Row security policies | 342 |
 | Columns | 2062 |
 | Views | 1 |
-| Functions | 911 (844 security definer, 26 callable by `anon`) |
+| Functions | 912 (844 security definer, 26 callable by `anon`) |
 
 Rules every table follows:
 
@@ -5482,11 +5482,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_setting(p_key text, p_default jsonb)` | jsonb | yes | server only |
 | `zella_tables(p_business_id uuid)` | jsonb | yes | signed in |
 
-### Smaller groups and older helpers (188)
-
-<!-- coderabbit-ai-generated:v1 -->
-
-<!-- coderabbit-ai-generated-section:v1:18275659151eb96ba5d0a770c6541e86ff0c8cee6239f694f4cdc3cd22dd9d71 -->
+### Smaller groups and older helpers (189)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -5660,7 +5656,6 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_stuck_executions(p_minutes integer)` | SETOF workflow_executions | yes | server only |
 | `zella_subscription_after()` | trigger | yes | server only |
 | `zella_subscription_trigger()` | trigger | yes | server only |
-| `zella_try_timestamptz(p text)` | timestamp with time zone |  | server only |
 | `zella_support_notes_guard_trg()` | trigger | yes | server only |
 | `zella_suspend_business(p_business_id uuid, p_reason text)` | void | yes | server only |
 | `zella_take_ticket_notes(p_ticket uuid, p_metadata jsonb)` | jsonb | yes | server only |
@@ -5669,6 +5664,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_today_operations(p_business_id uuid)` | jsonb | yes | signed in |
 | `zella_track_provisioning(p_business_id uuid, p_step text, p_status text, p_error text)` | void | yes | server only |
 | `zella_transfer_destination(p_provider_call_id text, p_called_number text, p_vapi_phone_number_id text, p_from_number text)` | jsonb | yes | server only |
+| `zella_try_timestamptz(p text)` | timestamp with time zone |  | server only |
 | `zella_valid_email(p_email text)` | boolean |  | anon, signed in |
 | `zella_validate_agent_config(p_version_id uuid)` | jsonb | yes | signed in |
 | `zella_validate_business_config(p_business_id uuid)` | jsonb | yes | signed in |
@@ -5679,7 +5675,4 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_welcome_superseded_trg()` | trigger | yes | server only |
 | `zella_within_plan_limit(p_business_id uuid, p_key text, p_current numeric)` | boolean | yes | server only |
 | `zella_workspace_navigation(p_business_id uuid)` | jsonb | yes | signed in |
-
-
-<!-- /coderabbit-ai-generated:v1 -->
 

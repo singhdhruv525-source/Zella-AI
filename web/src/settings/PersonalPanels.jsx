@@ -93,11 +93,11 @@ function ProfileForm({ email, user, profile, onSaved }) {
   );
 }
 
-export function AccountSecurityPanel({ email }) {
+export function AccountSecurityPanel({ email, adminRequired = false }) {
   return (
     <>
       <PasswordCard email={email} />
-      <MfaCard />
+      <MfaCard required={adminRequired} />
       <SessionsCard />
     </>
   );
@@ -133,7 +133,7 @@ function PasswordCard({ email }) {
   );
 }
 
-function MfaCard() {
+function MfaCard({ required = false }) {
   const state = useAsync(mfaStatus, []);
   const [setup, setSetup] = useState(null);
   const [code, setCode] = useState("");
@@ -153,11 +153,15 @@ function MfaCard() {
           {s.enrolled && s.factors.map((f) => (
             <div key={f.id} className="zs-savebar">
               <span className="zs-savebar-state">{f.friendly_name || "Authenticator app"} · added {when(f.created_at)}</span>
-              <button type="button" className="zs-btn danger-outline sm" onClick={() => setRemoving(f)}>Remove</button>
+              {/* every Zella Voice admin needs two step sign in (ACC-01): the last authenticator can't be removed here */}
+              {required && s.factors.length < 2
+                ? <span className="zs-muted">Required for admins</span>
+                : <button type="button" className="zs-btn danger-outline sm" onClick={() => setRemoving(f)}>Remove</button>}
             </div>
           ))}
-          {!s.enrolled && !setup && <button type="button" className="zs-btn primary" style={{ marginTop: 12 }} disabled={busy}
-            onClick={() => step(async () => setSetup(await startMfaEnrollment()))}>Set up an authenticator app</button>}
+          {required && <p className="zs-muted">Every Zella Voice admin needs two step sign in. To change phones, add the new authenticator first, then remove the old one.</p>}
+          {(!s.enrolled || (required && s.factors.length < 3)) && !setup && <button type="button" className="zs-btn primary" style={{ marginTop: 12 }} disabled={busy}
+            onClick={() => step(async () => setSetup(await startMfaEnrollment()))}>{s.enrolled ? "Add another authenticator app" : "Set up an authenticator app"}</button>}
           {setup && (
             <div style={{ marginTop: 12 }}>
               <p className="zs-muted">Scan this with your authenticator app, or type the key in by hand. Then enter the 6-digit code it shows.</p>
