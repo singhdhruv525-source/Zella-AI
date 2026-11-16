@@ -22,10 +22,11 @@ begin
     raise exception 'VERSION_MISMATCH: something this file needs is missing';
   end if;
   d := pg_get_functiondef(s1::regprocedure);
-  if position('public.zella_process_cancellations()' in d) = 0 then
-    if md5(d) <> 'fe70824e03e62fec77930e6055a674fb' then raise exception 'VERSION_MISMATCH: % is not the version this file was written for', s1; end if;
+  if md5(d) = 'fe70824e03e62fec77930e6055a674fb' then          -- production's version: archive it for the rollback
     insert into public.zella_function_archive (migration, signature, definition, definition_md5)
     values ('zella_cancellations_scheduled', s1, d, md5(d)) on conflict (migration, signature) do nothing;
+  elsif md5(d) <> '3495c82ccb50f39eafa863d32014f485' then      -- nor exactly this file's version (already applied)
+    raise exception 'VERSION_MISMATCH: % is not a version this file was written for', s1;
   end if;
   d := pg_get_functiondef(s2::regprocedure);
   if position($t$'zella_team_scorecard_nudge', 'zella_apply_scheduled_cancellations'$t$ in d) = 0 then

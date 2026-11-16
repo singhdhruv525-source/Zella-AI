@@ -30,7 +30,7 @@ state() { q "select (b.cancelled_at is not null) || ',' || b.is_active || ',' ||
   (select count(*) from public.audit_logs where business_id = b.id and action = 'business.cancelled') from public.businesses b where b.id = '$1'"; }
 
 B0=$(mk "Before Fix" "now() - interval '1 hour'")
-q "select public.zella_apply_scheduled_cancellations()" > /dev/null
+q "select public.zella_apply_scheduled_cancellations()" > /dev/null || bad "the run before the fix failed"
 s=$(state "$B0")
 # (automations are paused by the business lifecycle trigger when the business goes inactive)
 [ "$s" = "true,false,active,paused,active,0" ] && ok "before: the scheduled path leaves the receptionist on and the subscription active, unaudited (the bug)" || bad "before: $s"
@@ -39,14 +39,14 @@ s=$(state "$B0")
 "${P[@]}" -d $DB -f "$REPO/sql/zella_cancellations_scheduled.sql" > /dev/null 2>&1 && ok "applies again (idempotent)" || bad "second apply"
 
 B1=$(mk "Due" "now() - interval '1 hour'"); B2=$(mk "Soon" "now() + interval '2 days'"); B3=$(mk "Later" "now() + interval '20 days'")
-n=$(q "select public.zella_apply_scheduled_cancellations()")
+n=$(q "select public.zella_apply_scheduled_cancellations()") || bad "the scheduled run failed"
 [ "$n" = "1" ] && ok "the scheduled path cancels the one business that is due" || bad "cancelled $n"
 s=$(state "$B1")
 [ "$s" = "true,false,disabled,disabled,cancelled,1" ] && ok "fully: receptionist and automations off, subscription cancelled, business inactive, audited" || bad "after: $s"
 s=$(state "$B2"); [[ "$s" == false,true,active,active,active,0 ]] && ok "a business due in two days keeps running" || bad "soon: $s"
 r=$(q "select count(*) from public.staff_notifications where business_id = '$B2' and kind = 'cancellation_coming'")
 [ "$r" -ge 1 ] && ok "and its owner gets the cancellation coming reminder" || bad "reminder: $r"
-q "select public.zella_apply_scheduled_cancellations()" > /dev/null
+q "select public.zella_apply_scheduled_cancellations()" > /dev/null || bad "the second run in the same hour failed"
 r2=$(q "select count(*) from public.staff_notifications where business_id = '$B2' and kind = 'cancellation_coming'")
 [ "$r2" = "$r" ] && ok "running again in the same hour doesn't repeat the reminder" || bad "reminder repeated: $r -> $r2"
 s=$(state "$B3"); [[ "$s" == false,true,active,active,active,0 ]] && ok "a business due later is untouched" || bad "later: $s"
@@ -58,6 +58,9 @@ h=$(q "select position(\$t\$'zella_team_scorecard_nudge', 'zella_apply_scheduled
 [ "$(fp)" = "$before" ] && ok "rollback restores both functions exactly" || bad "fingerprints after rollback"
 [ "$(state "$B1")" = "true,false,disabled,disabled,cancelled,1" ] && ok "businesses already cancelled stay cancelled" || bad "rollback changed a cancelled business"
 "${P[@]}" -d $DB -f "$REPO/sql/zella_cancellations_scheduled.sql" > /dev/null 2>&1 && ok "applies again after the rollback" || bad "reapply"
+q "create or replace function public.zella_apply_scheduled_cancellations() returns integer language plpgsql as \$f\$ begin return public.zella_process_cancellations(); end \$f\$" > /dev/null
+out=$("${P[@]}" -d $DB -f "$REPO/sql/zella_cancellations_scheduled.sql" 2>&1)
+[[ "$out" == *"VERSION_MISMATCH"* ]] && ok "an unknown version that already calls the full cancellation stops the file too" || bad "marker drift: $out"
 "${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_cancellations_scheduled_rollback.sql" > /dev/null 2>&1
 q "create or replace function public.zella_apply_scheduled_cancellations() returns integer language sql as \$f\$ select 0 \$f\$" > /dev/null
 out=$("${P[@]}" -d $DB -f "$REPO/sql/zella_cancellations_scheduled.sql" 2>&1)
