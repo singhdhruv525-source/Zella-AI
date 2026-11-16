@@ -1,6 +1,6 @@
 import { assertEquals, assertRejects } from "jsr:@std/assert@1";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { allRows, CONFIG_PERMISSIONS, configHandlers, type ConfigKit, moduleUsage, switchOffCheck, switchOffMessage } from "./config.ts";
+import { allRows, CONFIG_PERMISSIONS, configHandlers, type ConfigKit, connectionCounts, connectionsFor, moduleUsage, switchOffCheck, switchOffMessage } from "./config.ts";
 import { PERMISSIONS } from "./settings.ts";
 import { ONBOARDING_PERMISSIONS } from "./onboarding.ts";
 import { PLATFORM_PERMISSIONS } from "./platform.ts";
@@ -110,4 +110,25 @@ Deno.test("industry_set_active validates, writes once and is audited only when i
   const back = fakeIndustry(false);
   const re = configHandlers(back.admin, { industryId: "ind", active: true, reason: "Selling again" }, kit);
   assertEquals((re.audited.industry_set_active(await re.handlers.industry_set_active() as Record<string, unknown>) as Record<string, unknown>).action, "industry.reactivated");
+});
+
+Deno.test("connectionsFor asks the shared definition in chunks of 1000 ids and says when it isn't applied", async () => {
+  const calls: { fn: string; n: number }[] = [];
+  const admin = { rpc: (fn: string, args: { p_business_ids: string[] }) => {
+    calls.push({ fn, n: args.p_business_ids.length });
+    return Promise.resolve({ data: args.p_business_ids.map((id) => ({ business_id: id, live: id === "b7" })), error: null });
+  } } as unknown as SupabaseClient;
+  const ids = Array.from({ length: 2500 }, (_, i) => `b${i}`);
+  const map = await connectionsFor(admin, [...ids, "b1", "b2"]);   // duplicates asked once
+  assertEquals(calls, [{ fn: "zella_business_connections", n: 1000 }, { fn: "zella_business_connections", n: 1000 }, { fn: "zella_business_connections", n: 500 }]);
+  assertEquals(map?.size, 2500);
+  assertEquals(map?.get("b7")?.live, true);
+  for (const code of ["PGRST202", "42883"]) {
+    const missing = { rpc: () => Promise.resolve({ data: null, error: { code, message: "function does not exist" } }) } as unknown as SupabaseClient;
+    assertEquals(await connectionsFor(missing, ["b1"]), null);
+    assertEquals(await connectionCounts(missing), null);
+  }
+  const denied = { rpc: () => Promise.resolve({ data: null, error: { code: "42501", message: "NOT_ALLOWED" } }) } as unknown as SupabaseClient;
+  await assertRejects(() => connectionsFor(denied, ["b1"]));   // any other error is never hidden
+  await assertRejects(() => connectionCounts(denied));
 });

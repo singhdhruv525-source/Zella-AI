@@ -8,7 +8,7 @@ import { PERMISSIONS, RESTRICTED_ROLES, settingsHandlers } from "./settings.ts";
 import { mfaGate, tokenAal } from "./mfa_gate.ts";
 import { ONBOARDING_PERMISSIONS, documentsReady, loadOnboarding, onboardingHandlers } from "./onboarding.ts";
 import { PLATFORM_PERMISSIONS, platformHandlers } from "./platform.ts";
-import { CONFIG_PERMISSIONS, allRows, configHandlers, moduleUsage, switchOffCheck, switchOffMessage } from "./config.ts";
+import { CONFIG_PERMISSIONS, allRows, configHandlers, connectionCounts, connectionsFor, moduleUsage, switchOffCheck, switchOffMessage } from "./config.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1453,7 +1453,7 @@ async function overviewData(admin: SupabaseClient) {
   ];
 
   const logs = logsResult.data ?? [];
-  const actors = await resolveUsers(admin, logs.map((l) => l.user_id));
+  const [actors, connectionTotals] = await Promise.all([resolveUsers(admin, logs.map((l) => l.user_id)), connectionCounts(admin)]);
 
   return {
     stats: {
@@ -1463,7 +1463,10 @@ async function overviewData(admin: SupabaseClient) {
       live: count(["active"]),
       pendingInvitations: invitations.filter((i) => ["pending", "sent"].includes(i.status)).length - expired.filter((i) => i.status === "sent").length,
       acceptedInvitations: invitations.filter((i) => i.status === "accepted").length,
-      receptionistsLive: (agentsResult.data ?? []).filter((a) => a.status === "active").length,
+      // Live and answering from the shared definition (zella_connection_counts); null when it isn't applied yet.
+      receptionistsLive: connectionTotals?.live ?? null,
+      receptionistsAnswering: connectionTotals?.answering ?? null,
+      receptionistsSwitchedOn: (agentsResult.data ?? []).filter((a) => a.status === "active").length,
       callsLast30Days: callsResult.count ?? 0,
       aiCallsLast30Days: aiCallsResult.count ?? 0,
       openTickets: ticketsResult.count ?? 0,
@@ -1881,7 +1884,7 @@ async function industryCreate(admin: SupabaseClient, fields: Json) {
 async function agentsList(admin: SupabaseClient) {
   const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
-  const [agentsResult, configsResult, businessesResult, industriesResult, integrationsResult, callsResult] =
+  const [agentsResult, configsResult, businessesResult, industriesResult, callsResult] =
     await Promise.all([
       admin.from("ai_agents")
         .select("id, business_id, name, status, updated_at")
@@ -1889,7 +1892,6 @@ async function agentsList(admin: SupabaseClient) {
       admin.from("ai_agent_configs").select("agent_id, personality, knowledge_base, voice_config, updated_at"),
       admin.from("businesses").select("id, name, industry_id, onboarding_status, is_active"),
       admin.from("industries").select("id, name"),
-      admin.from("integrations").select("business_id, provider, status"),
       admin.from("calls")
         .select("business_id, created_at, ai_handled")
         .gte("created_at", since)
@@ -1898,17 +1900,15 @@ async function agentsList(admin: SupabaseClient) {
     ]);
 
   const queryError = agentsResult.error ?? configsResult.error ?? businessesResult.error ??
-    industriesResult.error ?? integrationsResult.error ?? callsResult.error;
+    industriesResult.error ?? callsResult.error;
   if (queryError) throw queryError;
+
+  // Phone, Vapi link, answering and live come from the one shared definition (zella_business_connections).
+  const connections = await connectionsFor(admin, (agentsResult.data ?? []).map((a) => a.business_id));
 
   const configByAgent = new Map((configsResult.data ?? []).map((c) => [c.agent_id, c]));
   const businessById = new Map((businessesResult.data ?? []).map((b) => [b.id, b]));
   const industryName = new Map((industriesResult.data ?? []).map((i) => [i.id, i.name]));
-
-  const connected = (businessId: string, provider: string) =>
-    (integrationsResult.data ?? []).some(
-      (i) => i.business_id === businessId && i.provider?.toLowerCase() === provider && i.status === "active",
-    );
 
   const callStats = new Map<string, { aiCalls: number; lastCallAt: string | null }>();
   for (const call of callsResult.data ?? []) {
@@ -1929,13 +1929,14 @@ async function agentsList(admin: SupabaseClient) {
       const faqs = Array.isArray(kb.faqs) ? kb.faqs.length : 0;
       const greeting = text(obj(config?.voice_config).greeting, 500);
       const stat = callStats.get(agent.business_id);
+      const link = connections?.get(agent.business_id) ?? null;
 
       const checks = {
         knowledge: services + faqs > 0,
         hours: Object.values(hours).some((h) => obj(h).closed === true || Boolean(obj(h).open)),
         greeting: Boolean(greeting),
-        phone: connected(agent.business_id, "telnyx"),
-        voice: connected(agent.business_id, "vapi"),
+        phone: link?.phone ?? false,
+        voice: link?.vapi_linked ?? false,
       };
 
       return {
@@ -1951,6 +1952,10 @@ async function agentsList(admin: SupabaseClient) {
         faqs,
         checks,
         ready: Object.values(checks).filter(Boolean).length,
+        live: link?.live ?? false,
+        answering: link?.answering ?? false,
+        lastServedAt: link?.last_served_at ?? null,
+        businessState: link?.business_state ?? null,
         aiCallsLast30Days: stat?.aiCalls ?? 0,
         lastCallAt: stat?.lastCallAt ?? null,
         updatedAt: config?.updated_at ?? agent.updated_at,
@@ -1960,10 +1965,12 @@ async function agentsList(admin: SupabaseClient) {
 
   return {
     agents,
+    connectionsAvailable: connections !== null,
     stats: {
       total: agents.length,
-      live: agents.filter((a) => a.status === "active").length,
-      readyToConnect: agents.filter((a) => a.checks.knowledge && a.checks.hours && a.checks.greeting && !a.checks.phone).length,
+      live: agents.filter((a) => a.live).length,
+      answering: agents.filter((a) => a.answering).length,
+      readyToConnect: agents.filter((a) => a.checks.knowledge && a.checks.hours && a.checks.greeting && !a.checks.voice).length,
       missingKnowledge: agents.filter((a) => !a.checks.knowledge).length,
     },
   };
@@ -2165,38 +2172,38 @@ async function integrationsOverview(admin: SupabaseClient) {
   const integrations = integrationsResult.data ?? [];
   const businesses = businessesResult.data ?? [];
   const nameById = new Map(businesses.map((b) => [b.id, b.name]));
-
-  const hasActive = (businessId: string, provider: string) =>
-    integrations.some((i) =>
-      i.business_id === businessId && i.provider?.toLowerCase() === provider && i.status === "active"
-    );
+  // Connected means the shared definition (zella_business_connections): numbers, Vapi link, calendars, lead sources.
+  const [connections, counts] = await Promise.all([connectionsFor(admin, businesses.map((b) => b.id)), connectionCounts(admin)]);
 
   // Compare what each client asked for in setup with what's actually connected.
   const requests = businesses.map((b) => {
     const choices = obj(obj(b.setup_data).integrations);
     const phone = obj(choices.phone);
     const leads = obj(choices.lead_sources);
+    const link = connections?.get(b.id) ?? null;
     return {
       businessId: b.id,
       businessName: b.name,
       stage: b.onboarding_status,
       setupDone: Boolean(choices.phone),
-      phone: { wanted: phone.mode ? String(phone.mode) : null, connected: hasActive(b.id, "telnyx") },
-      voice: { wanted: Boolean(choices.phone), connected: hasActive(b.id, "vapi") },
+      phone: { wanted: phone.mode ? String(phone.mode) : null, connected: link?.phone ?? false },
+      voice: { wanted: Boolean(choices.phone), connected: link?.vapi_linked ?? false, answering: link?.answering ?? false },
       calendar: {
         wanted: choices.calendar && choices.calendar !== "none" ? String(choices.calendar) : null,
-        connected: hasActive(b.id, String(choices.calendar ?? "")) ||
-          hasActive(b.id, choices.calendar === "google" ? "google_calendar" : "outlook_calendar"),
+        connected: link?.calendar ?? false,
       },
+      // There is no mailbox connection table, so email is never called connected or not connected.
       email: {
         wanted: choices.email && choices.email !== "none" ? String(choices.email) : null,
-        connected: hasActive(b.id, String(choices.email ?? "")) ||
-          hasActive(b.id, choices.email === "gmail" ? "gmail_mail" : "outlook_mail"),
+        connected: null,
+        tracked: false,
       },
       leads: {
         wanted: Object.entries(leads).filter(([, on]) => on === true).map(([k]) => k),
-        connected: ["meta", "website", "google"].filter((k) => hasActive(b.id, k)),
+        connected: link?.lead_sources ?? [],
       },
+      live: link?.live ?? false,
+      problems: link?.problems ?? 0,
     };
   });
 
@@ -2213,6 +2220,8 @@ async function integrationsOverview(admin: SupabaseClient) {
     connections: integrations.map((i) => ({ ...i, business_name: nameById.get(i.business_id) ?? "Unknown business" })),
     providers: [...byProvider.values()],
     requests,
+    connectionsAvailable: connections !== null,
+    counts,
   };
 }
 
@@ -2492,7 +2501,13 @@ async function platformStatus(admin: SupabaseClient, userId: string) {
     admin.from("businesses").select("id", head),
     admin.from("businesses").select("id", head).eq("onboarding_status", "failed"),
     admin.from("business_invitations").select("id", head).eq("status", "failed"),
-    admin.from("integrations").select("id", head).in("status", ["error", "disconnected"]),
+    // Connections that need attention, from the shared definition; the integrations table alone until it is applied.
+    (async () => {
+      const c = await connectionCounts(admin);
+      if (c) return { count: c.problems, error: null };
+      const r = await admin.from("integrations").select("id", head).in("status", ["error", "disconnected"]);
+      return { count: r.count, error: r.error };
+    })(),
     admin.from("support_tickets").select("id", head).eq("priority", "urgent").in("status", ["open", "in_progress"]),
     admin.from("audit_logs").select("id", head).gte("created_at", dayAgo),
     admin.from("calls").select("id", head).gte("created_at", dayAgo),

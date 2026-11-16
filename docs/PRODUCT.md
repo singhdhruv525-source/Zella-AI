@@ -329,6 +329,28 @@ platform alerts live.
 
 ---
 
+### 9.1 Connected, answering and live (one definition)
+
+Overview, AI agents, Integrations and the operations health count all read the same definition, from the database
+(`zella_business_connections` and `zella_connection_counts`, `sql/zella_connection_state.sql`, built, not applied). Before it,
+each page worked it out from the integrations table, which only the store connection writes, so the four pages gave
+four answers about the same business (COM-01, OPS-07, UI-02).
+
+| State | Means |
+|---|---|
+| Phone | The business has an active phone number (`business_phone_numbers`) |
+| Voice linked | An active number has its Vapi number id |
+| Answering | Zella Voice served the receptionist for a call to this business in the last 7 days (`assistant_deliveries`, outcome served). Shown on its own, never folded into Live: it can honestly be 0 until the numbers send their calls through voice-rules (a provider change that needs the owner's approval) |
+| Calendar | An active Google or Outlook calendar connection |
+| Leads | An enabled website form, a connected Meta account or an enabled Google lead key |
+| Email | Not tracked: there is no mailbox connection to check, so no page says connected or not connected |
+| Needs attention | Integrations in error or disconnected, calendars in error or disconnected, Meta accounts that need reconnecting |
+| Live | The business is active (setup finished, switched on, not suspended or cancelled), its receptionist is switched on, and it has an active number linked to Vapi |
+
+**Defaults taken (owner can change):** the 7 day answering window (`ANSWERING_DAYS` in the SQL); Live needs the
+receptionist switched on and a number linked to Vapi, but not a recent answered call; a suspended or cancelled business
+is never live. The real values in production still need an owner approved read only count.
+
 ## 10. Messaging and follow-ups
 
 Every outbound message passes the same path: consent check, template, safe content, log, duplicate protection, the

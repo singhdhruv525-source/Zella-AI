@@ -164,6 +164,10 @@ most often needed:
   years, audit logs 7 years (D-13, D-27).
 - Lead and missed-call AI calls: 2 attempts, 2–3 hours apart, one message after each (D-01, D-02, D-12).
 - Call transcripts: managers and above; staff only if the owner allows; never in sensitive industries (M-4).
+- **Connected, answering and live (COM-01, defaults taken 16 Nov 2026, owner can change):** one definition in SQL
+  (`sql/zella_connection_state.sql`, `docs/PRODUCT.md` §9.1). Answering is a served call in the last 7 days and is shown
+  on its own, never folded into live; live needs an active business, the receptionist switched on and an active number
+  linked to Vapi. Email is "not tracked". Real values still need an owner approved read only count in production.
 - **Industry modules (CFG-01, recommended default taken 16 Nov 2026, owner can change):** switching an industry's module
   off stays a kill switch: it removes the module at once from every business in that industry that has it on
   (`zella_module_on` needs the module offered). The admin sees "N businesses lose X" and gives a reason first; the server

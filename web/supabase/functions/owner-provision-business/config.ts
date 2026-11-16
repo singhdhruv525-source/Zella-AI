@@ -69,6 +69,42 @@ export async function moduleUsage(admin: SupabaseClient, industryId: string, mod
   return usage;
 }
 
+// COM-01, OPS-07, UI-02: one definition of connected, answering and live, in SQL (sql/zella_connection_state.sql,
+// docs/PRODUCT.md "Connected, answering and live"). Every page asks these two helpers; none works it out itself.
+export type Connection = {
+  business_id: string; business_state: string; receptionist: string; phone: boolean; phone_numbers: number;
+  vapi_linked: boolean; answering: boolean; last_served_at: string | null; calendar: boolean; leads: boolean;
+  lead_sources: string[]; email: "not_tracked"; problems: number; live: boolean;
+};
+
+// Only "this function doesn't exist": an error raised inside it (a missing table, a refusal) is never hidden.
+const missingFunction = (error: { code?: string } | null) => Boolean(error && (error.code === "PGRST202" || error.code === "42883"));
+
+// null when the migration isn't applied yet: pages then say the state isn't available instead of guessing.
+export async function connectionsFor(admin: SupabaseClient, businessIds: string[]): Promise<Map<string, Connection> | null> {
+  const ids = [...new Set(businessIds)];
+  const out = new Map<string, Connection>();
+  for (let i = 0; i < ids.length; i += 1000) {
+    const { data, error } = await admin.rpc("zella_business_connections", { p_business_ids: ids.slice(i, i + 1000) });
+    if (missingFunction(error)) return null;
+    if (error) throw error;
+    for (const row of (data ?? []) as Connection[]) out.set(row.business_id, row);
+  }
+  return out;
+}
+
+export type ConnectionCounts = {
+  businesses: number; active: number; receptionists_active: number; phone: number; vapi_linked: number; answering: number;
+  calendar: number; leads: number; live: number; problems: number; email: "not_tracked";
+};
+
+export async function connectionCounts(admin: SupabaseClient): Promise<ConnectionCounts | null> {
+  const { data, error } = await admin.rpc("zella_connection_counts");
+  if (missingFunction(error)) return null;
+  if (error) throw error;
+  return data as ConnectionCounts;
+}
+
 export type SwitchOff = { id: string; name: string; businesses: number };
 
 // Which modules this save switches off while businesses still have them on, and whether the save may go ahead.

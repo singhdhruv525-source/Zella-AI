@@ -1737,6 +1737,13 @@ Each item links to its source, and the timeline is filterable by type.
 | REQ-ADM-17 | Industry configuration | presets, policies, safety lines, defaults | `ai.configure` |
 | REQ-ADM-18 | Growth (prospects, demos) | Zella Voice sales pipeline | `growth.manage` |
 
+**REQ-ADM-21 One definition of connected, answering and live:** every admin page that says whether a business's
+phone, voice, calendar or leads are connected, whether its receptionist is answering, or whether it is live reads it
+from the database (`zella_business_connections(p_business_ids uuid[])` per business, at most 1000 ids per call, and
+`zella_connection_counts()` for totals; `businesses.view` or server code). No page works it out from its own tables.
+Answering (a served call in the last 7 days) is never folded into live. Email is "not tracked" until there is a mailbox
+connection. The states are defined in `docs/PRODUCT.md` §9.1.
+
 **REQ-ADM-20 Access states:** loading, authorized, unauthorized (signed out, MFA needed, no permission) and failed
 (couldn't check; grants nothing). A refusal always applies; a failed background refresh keeps the current view.
 
