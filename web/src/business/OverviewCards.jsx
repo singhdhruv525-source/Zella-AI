@@ -1,7 +1,10 @@
 // One business's Overview: the server's readiness ladder, the go live checklist, plan, usage, numbers and alerts
 // (BIZ-11, BIZ-12 phase 1). Each card reads one part of business_detail (detail.ts) and is left out when an older
 // server doesn't send it, or says "not available" when the server couldn't read it.
+import { useState } from "react";
 import { Pill } from "../OwnerOverview";
+import { callOwnerFunction } from "../CreateBusinessWizard";
+import ActionDialog from "./ActionDialog";
 import { navigate } from "../router";
 import { formatDate, formatDateTime } from "../ownerFormat";
 import { humanize } from "../copy/labels";
@@ -61,12 +64,12 @@ export function PlanCard({ plan }) {
   );
 }
 
-export function UsageCard({ usage }) {
+export function UsageCard({ usage, action }) {
   if (!usage) return null;
   if (!usage.available) return <Card title="Usage this period"><Empty>{NOT_AVAILABLE}</Empty></Card>;
   const rows = Object.entries(usage.totals ?? {});
   return (
-    <Card title="Usage this period" description={usage.period ? `${formatDate(usage.period.from)} to ${formatDate(usage.period.to)}${usage.period.trial ? " (trial)" : ""}.` : "No current billing period."}>
+    <Card title="Usage this period" action={action} description={usage.period ? `${formatDate(usage.period.from)} to ${formatDate(usage.period.to)}${usage.period.trial ? " (trial)" : ""}.` : "No current billing period."}>
       {rows.length ? (
         <dl className="op-facts">
           {rows.map(([resource, t]) => (
@@ -117,5 +120,43 @@ export function AlertsCard({ alerts }) {
         </ul>
       ) : <Empty>No open alerts for this business.</Empty>}
     </Card>
+  );
+}
+
+// CFG-22: grant one add on pack with a reason (billing.manage). The grant runs as the admin; one key per dialog means a
+// double click grants once. Not charged.
+export function GrantPack({ businessId, onGranted }) {
+  const [open, setOpen] = useState(false);
+  const [packs, setPacks] = useState(null);
+  const [code, setCode] = useState("");
+  const [key, setKey] = useState("");
+  const [done, setDone] = useState("");
+  async function start() {
+    setKey(crypto.randomUUID());
+    setOpen(true);
+    if (!packs) {
+      try { setPacks((await callOwnerFunction("business_pack_catalog")).packs ?? []); } catch { setPacks([]); }
+    }
+  }
+  return (
+    <>
+      {done && <span className="op-muted" role="status">{done}</span>}
+      <button type="button" className="owner-secondary-button op-small" onClick={start}>Grant a pack</button>
+      {open && (
+        <ActionDialog title="Grant a pack?" body="The pack's allowance is added to this period's balances. It isn't charged." button="Grant pack"
+          reason={{ min: 5, max: 500 }} ready={Boolean(code)}
+          onRun={(reason) => callOwnerFunction("business_pack_grant", { businessId, packCode: code, reason, idempotencyKey: key })}
+          onDone={(r) => { setOpen(false); setDone(r?.result === "duplicate" ? "That pack was already granted." : "Pack granted."); onGranted?.(); }}
+          onClose={() => setOpen(false)}>
+          <label className="owner-field">
+            <span>Pack</span>
+            <select value={code} onChange={(e) => setCode(e.target.value)}>
+              <option value="">{packs ? "Choose a pack" : "Loading packs…"}</option>
+              {(packs ?? []).map((p) => <option key={p.code} value={p.code}>{p.quantity.toLocaleString()} {humanize(p.resource).toLowerCase()} (list price {money(p.price_cents)})</option>)}
+            </select>
+          </label>
+        </ActionDialog>
+      )}
+    </>
   );
 }

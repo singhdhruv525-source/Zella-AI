@@ -356,6 +356,11 @@ scrolls (BIZ-30, UI-34). What each tab shows and what an admin can do there:
 - **Calls:** every call, 25 a page, from the same masked list as Voice & numbers (`zella_admin_calls`), with no
   search box (a digit search could confirm a caller's number); the number column shows the business's own number
   when the called number wasn't recorded; "See all in Voice & numbers" (UI-10).
+- **Actions on the page** (each in a dialog with a reason, each recorded): Show contact details (People), Cancel the
+  owner's invitation and Resend (greyed for 5 minutes after one went out), Deactivate or Reactivate a member, Reset
+  two step (with the identity check box), Pause and Resume an automation (`integrations.manage`; Resume only for a
+  live business), Set up for an automation not set up yet, and Grant a pack (`billing.manage`, Overview). Most need
+  the owner's approval before their server half is deployed.
 - **Contact details:** caller numbers on Calls, people's emails, and the account email and error text of Live
   connections are masked the way the Voice page masks them (`…0123`, `a…@example.com`; `mask.ts`, the
   `zella_admin_mask` rule). A member's own phone number is not read. Showing them needs a reason (10 to 300

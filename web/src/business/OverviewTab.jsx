@@ -6,7 +6,7 @@ import { friendlyError } from "../admin/adminOps";
 import { navigate } from "../router";
 import { formatDate } from "../ownerFormat";
 import { Card, Facts, Empty, Check, label } from "./shared";
-import { AlertsCard, GoLiveCard, NumbersCard, PlanCard, ReadinessCard, UsageCard } from "./OverviewCards";
+import { AlertsCard, GoLiveCard, GrantPack, NumbersCard, PlanCard, ReadinessCard, UsageCard } from "./OverviewCards";
 
 // Small, Medium or Large: set by a Zella Voice admin, never guessed from the industry. Offers can target it.
 // Saved through the admin function (business_size_save: businesses.manage, two step checked, audited; BIZ-08, UI-05).
@@ -54,7 +54,7 @@ function BusinessSizeCard({ businessId, size, onSaved, canEdit }) {
   );
 }
 
-export default function OverviewTab({ data, b, r, kb, term, invitation, phone, enabledModules, isCancelled, isSuspended, canManage, canLifecycle, busy, setPending, onOpenSetup, businessId, load, telnyx, hoursSet, address }) {
+export default function OverviewTab({ can, data, b, r, kb, term, invitation, phone, enabledModules, isCancelled, isSuspended, canManage, canLifecycle, busy, setPending, onOpenSetup, businessId, load, telnyx, hoursSet, address }) {
   return (
     <div className="op-grid">
       <Card title="Verification" description="The business's registration and the owner's photo ID."
@@ -105,7 +105,7 @@ export default function OverviewTab({ data, b, r, kb, term, invitation, phone, e
       <GoLiveCard activation={data.activation} />
 
       <PlanCard plan={data.plan} />
-      <UsageCard usage={data.usage} />
+      <UsageCard usage={data.usage} action={can?.("billing.manage") && <GrantPack businessId={businessId} onGranted={() => load()} />} />
       <NumbersCard numbers={data.numbers} />
       <AlertsCard alerts={data.alerts} />
       <Card title="Business information">

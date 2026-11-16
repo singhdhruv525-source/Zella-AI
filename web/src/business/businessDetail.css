@@ -11,3 +11,6 @@
 .bd-changes { margin: var(--zella-space-1) 0 0; padding: 0; list-style: none; font-size: 13px; color: var(--text-muted); }
 .bd-changes li { overflow-wrap: anywhere; }
 .bd-hint { margin-top: var(--zella-space-2); font-size: 13px; }
+.bd-row-actions { display: flex; flex-wrap: wrap; gap: var(--zella-space-2); align-items: center; }
+.bd-reveal { display: flex; justify-content: flex-end; }
+.bd-check { display: flex; gap: var(--zella-space-2); align-items: flex-start; margin: var(--zella-space-2) 0; }
