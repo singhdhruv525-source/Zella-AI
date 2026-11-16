@@ -18,7 +18,7 @@ It reads the catalog only, never rows.
 | Row security policies | 342 |
 | Columns | 2062 |
 | Views | 1 |
-| Functions | 915 (847 security definer, 26 callable by `anon`) |
+| Functions | 917 (849 security definer, 26 callable by `anon`) |
 
 Rules every table follows:
 
@@ -4317,7 +4317,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_add_lead_note(p_customer_id uuid, p_note text)` | boolean | yes | signed in |
 | `zella_add_record_note(p_id uuid, p_note text)` | boolean | yes | signed in |
 
-### `zella_admin_*` (47)
+### `zella_admin_*` (49)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -4363,6 +4363,8 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_admin_run_reviewed(p_kind text, p_id uuid, p_note text)` | jsonb | yes | signed in |
 | `zella_admin_runs(p_status text, p_business uuid, p_q text, p_from timestamp with time zone, p_to timestamp with time zone, p_limit integer, p_offset integer)` | jsonb | yes | signed in |
 | `zella_admin_scheduler_health()` | jsonb | yes | signed in |
+| `zella_admin_template_create(p_key text, p_channel text, p_industry uuid, p_locale text, p_subject text, p_body text, p_reason text)` | jsonb | yes | signed in |
+| `zella_admin_template_retire(p_id uuid, p_reason text)` | jsonb | yes | signed in |
 | `zella_admin_template_save(p_id uuid, p_subject text, p_body text, p_reason text)` | jsonb | yes | signed in |
 | `zella_admin_template_variables(p_key text, p_channel text)` | text[] | yes | server only |
 | `zella_admin_templates(p_q text, p_channel text, p_scope text, p_limit integer, p_offset integer)` | jsonb | yes | signed in |
