@@ -28,14 +28,14 @@ const count = (uid) => Number(k.sql(`select count(*) from auth.sessions where us
     await select.selectOption("support_admin");
     await p.waitForSelector("text=They will be signed out on every device.");
     k.check(`${tag}: changing a role warns they will be signed out on every device`, true);
-    await p.screenshot({ path: path.join(SHOTS, `users-confirm-${tag}.png`), fullPage: false });
+    await p.waitForTimeout(800); await p.screenshot({ path: path.join(SHOTS, `users-confirm-${tag}.png`), fullPage: false });
     await p.click('button:has-text("Change role")');
     await p.waitForSelector("text=They were signed out on 2 devices.");
     k.check(`${tag}: after the change the page says 2 devices were signed out`, true);
     k.check(`${tag}: and the database has none of their sessions left`, count(target) === 0, `${count(target)} left`);
     const audit = k.sql(`select new_data ->> 'sessions_ended' from public.audit_logs where action = 'admin.updated' and entity_id = '${target}' order by created_at desc limit 1`);
     k.check(`${tag}: the admin.updated audit entry records sessions_ended`, audit === "2", audit);
-    await p.screenshot({ path: path.join(SHOTS, `users-done-${tag}.png`), fullPage: false });
+    await p.waitForTimeout(800); await p.screenshot({ path: path.join(SHOTS, `users-done-${tag}.png`), fullPage: false });
 
     // sign out other devices, from the owner's own security settings
     sessions(owner, 2);
@@ -46,7 +46,7 @@ const count = (uid) => Number(k.sql(`select count(*) from auth.sessions where us
     await p.waitForSelector("text=This device stays signed in.");
     const after = Number(k.sql(`select count(*) from public.audit_logs where action = 'session.revoked_others' and user_id = '${owner}'`));
     k.check(`${tag}: sign out other devices goes through the database and is audited`, after === before + 1 && count(owner) === 0, `audit ${before}->${after}, left ${count(owner)}`);
-    await p.screenshot({ path: path.join(SHOTS, `security-signed-out-${tag}.png`), fullPage: false });
+    await p.waitForTimeout(800); await p.screenshot({ path: path.join(SHOTS, `security-signed-out-${tag}.png`), fullPage: false });
     k.check(`${tag}: no page errors`, p.errors.length === 0, p.errors.join(" | "));
     await ctx.close();
   }
