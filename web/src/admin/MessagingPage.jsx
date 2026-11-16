@@ -1,7 +1,8 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { navigate } from "../router";
 import { EmailConfig, SmsConfig } from "../settings/AdminPanels";
 import BusinessEmails from "./BusinessEmails";
+import { NewVersion, RetireVersion, canRetire } from "./TemplateVersions";
 import {
   AlertList, DataTable, Drawer, ErrorNote, Facts, Filters, Metric, NotAvailable, PAGE, PageHeader, Pager, Panel, PERIODS, Pill,
   ProviderHealth, ReasonDialog, Search, Select, Tabs, can, num, pct, rpc, since, useLoad, useOptions, useToast, when, words,
@@ -211,28 +212,36 @@ function Templates({ options, say }) {
         ]} />
       <Pager total={list.data?.total} offset={f.offset} onChange={(o) => setF((x) => ({ ...x, offset: o }))} />
       {open && <TemplateDrawer t={open} canEdit={list.data?.can_edit} options={options} onClose={() => setOpen(null)}
-        onSaved={() => { say("Saved as a new version. Messages use it from now on; earlier messages are unchanged."); setOpen(null); list.reload(); }} />}
+        onSaved={(text) => { say(typeof text === "string" ? text : "Saved as a new version. Messages use it from now on; earlier messages are unchanged."); setOpen(null); list.reload(); }} />}
     </Panel>
   );
 }
 
-function TemplateDrawer({ t, canEdit, onClose, onSaved }) {
+function TemplateDrawer({ t, canEdit, options, onClose, onSaved }) {
   const [subject, setSubject] = useState(t.subject ?? "");
   const [body, setBody] = useState(t.body);
   const [confirm, setConfirm] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [retiring, setRetiring] = useState(false);
+  const area = useRef(null);
   const editable = canEdit && t.scope !== "business";
   const used = useMemo(() => [...new Set([...(body + " " + subject).matchAll(/\{\{\s*([^}]*?)\s*\}\}/g)].map((m) => m[1]))], [body, subject]);
   const unknown = used.filter((v) => !t.variables.includes(v));
   const changed = body !== t.body || (t.channel === "email" && subject !== (t.subject ?? ""));
   const segments = t.channel === "sms" ? Math.max(1, Math.ceil(fill(body, SAMPLE).length / 160)) : null;
-  const insert = (v) => setBody((b) => `${b}{{${v}}}`);
+  // COM-27: the variable goes where the cursor is, not at the end
+  const insert = (v) => {
+    const el = area.current, at = el ? el.selectionStart ?? body.length : body.length, end = el ? el.selectionEnd ?? at : at;
+    setBody((b) => `${b.slice(0, at)}{{${v}}}${b.slice(end)}`);
+    requestAnimationFrame(() => { if (el) { el.focus(); el.setSelectionRange(at + v.length + 4, at + v.length + 4); } });
+  };
   return (
     <Drawer title={t.key} icon="description" onClose={onClose}>
       <Facts rows={[["Channel", t.channel === "sms" ? "Text" : "Email"], ["Purpose", words(t.purpose)], ["Language", t.locale],
         ["For", t.scope === "business" ? t.business_name : t.scope === "industry" ? `${t.industry_name} businesses` : "All businesses"], ["Version", t.version],
         t.scope !== "business" ? ["Businesses with their own copy", `${t.business_copies} (not changed by saving here)`] : null]} />
       {t.channel === "email" && <label className="owner-field"><span>Subject</span><input value={subject} disabled={!editable} onChange={(e) => setSubject(e.target.value)} /></label>}
-      <label className="owner-field"><span>Message</span><textarea rows={7} value={body} disabled={!editable} maxLength={1600} onChange={(e) => setBody(e.target.value)} /></label>
+      <label className="owner-field"><span>Message</span><textarea ref={area} rows={7} value={body} disabled={!editable} maxLength={1600} onChange={(e) => setBody(e.target.value)} /></label>
       <div className="ao-chips">
         <span className="op-muted">Variables:</span>
         {t.variables.map((v) => <button key={v} type="button" className="ao-chip" disabled={!editable} onClick={() => insert(v)}>{`{{${v}}}`}</button>)}
@@ -249,7 +258,17 @@ function TemplateDrawer({ t, canEdit, onClose, onSaved }) {
           <button type="button" className="owner-secondary-button" disabled={!changed} onClick={() => { setBody(t.body); setSubject(t.subject ?? ""); }}>Undo changes</button>
           <button type="button" className="owner-primary-button" disabled={!changed || unknown.length > 0} onClick={() => setConfirm(true)}>Save as new version</button>
         </div>
-      ) : <p className="op-muted">{t.scope === "business" ? "This is the business's own copy; they change it in their app." : "Your admin role can see templates but not change them."}</p>}
+      ) : null}
+      {editable && (
+        <div className="ao-drawer-actions">
+          {t.scope === "platform" && <button type="button" className="owner-secondary-button" onClick={() => setAdding(true)}>Add industry or language version</button>}
+          {canRetire(t) && <button type="button" className="bd-danger-button" onClick={() => setRetiring(true)}>Retire</button>}
+        </div>
+      )}
+      {editable && adding && <NewVersion t={t} industries={options?.industries ?? []} onCancel={() => setAdding(false)} onDone={onSaved} />}
+      {retiring && <RetireVersion t={t} onClose={() => setRetiring(false)} onDone={onSaved} />}
+      {editable ? null : (
+        <p className="op-muted">{t.scope === "business" ? "This is the business's own copy; they change it in their app." : "Your admin role can see templates but not change them."}</p>)}
       {confirm && (
         <ReasonDialog title={`Save ${t.key}?`} icon="save" confirmLabel="Save" onClose={() => setConfirm(false)}
           onConfirm={async (reason) => { await rpc("zella_admin_template_save", { p_id: t.id, p_subject: subject, p_body: body, p_reason: reason }); onSaved(); }}>

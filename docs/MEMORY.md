@@ -175,6 +175,10 @@ most often needed:
   reset) or discarded by an admin with comms.manage and a reason. A discard ends as `failed`, which only a discard
   writes, shown as Discarded; the sender never marks an email failed (it holds it). Default, owner can change.
 
+- **Template versions (Lane B, UI-20, 16 Nov 2026):** Create only makes an industry or Spanish version of a key that
+  already has a platform version (no sender uses a brand new key); Retire only archives such overrides. Default,
+  owner can change.
+
 Waiting on the owner:
 
 - whether suspended businesses keep read-only access (L-5);

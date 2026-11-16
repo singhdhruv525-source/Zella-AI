@@ -312,7 +312,7 @@ only the pages they can use. Every admin action is written to the audit log.
 | Configuration | **Offers & promotions** | Offers, rules, redemptions | `billing.view` |
 | AI & communications | **AI agents** | Receptionist agents and configurations | `businesses.view` |
 | AI & communications | **Voice & numbers** | Assign and release phone numbers, voice usage, alerts | `businesses.view` |
-| AI & communications | **Messaging** | Messages across businesses, templates, compliance, retries | `businesses.view` |
+| AI & communications | **Messaging** | Messages across businesses, templates, compliance, retries. On Templates, an admin with `comms.manage` can add an industry or Spanish version of a platform template and retire such a version (senders fall back to the platform version; the English platform version can't be retired), each with a reason and audited; variables go in at the cursor, and script tags are refused in any case (UI-20, COM-27; built, needs `sql/zella_admin_templates_manage.sql`) | `businesses.view` |
 | Operations | **Platform operations** | Scheduler health, dispatcher, provider health, failed work. Sending a failed event back needs `integrations.manage` and a reason, and is refused (with the reason in words) when a run of it is running or succeeded, had a step succeed or reached a provider, so a retry never repeats a message (`sql/zella_retry_event_safe.sql`, built, not applied) | `businesses.view` |
 | Operations | **Automations** | Automations and runs across businesses, retry, pause | `businesses.view` |
 | Operations | **Integrations** | Provider connections and their state | `businesses.view` |
