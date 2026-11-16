@@ -186,6 +186,11 @@ most often needed:
   server. Built and tested against a stub; it shows "Not connected yet" until the owner creates the key in n8n and
   sets both secrets.
 
+- **Voice alerts (UI-14, COM-09, 16 Nov 2026, defaults the owner can change):** missed call alert at 5 or more
+  inbound calls in 24 hours with 25% or more missed, warning (named constants in `zella_admin_voice_alerts`); a
+  refused Vapi request in the last hour is a warning. voice-rules counts refusals (type, reason, header names only)
+  without waiting; its deploy is the live call path and needs its own approval, after the "Fix Vapi call auth" work.
+
 Waiting on the owner:
 
 - whether suspended businesses keep read-only access (L-5);

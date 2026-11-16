@@ -108,6 +108,7 @@ GROUPS = [
         "ai_response_samples": "Calls sampled for quality review and the reviewer's verdict.",
         "ai_eval_cases": "Test cases the receptionist must pass per industry.",
         "vapi_request_receipts": "Vapi requests already accepted, so a replay is refused.",
+        "vapi_refusals": "Hourly count of Vapi requests refused by the sign in check, by message type, reason and auth header names (server only; never a value or content).",
         "on_call_settings": "After-hours and emergency transfer settings per business.",
         "on_call_shifts": "The on-call rota: who takes transfers, when.",
         "on_call_reminders_sent": "Reminders sent to on-call staff, so each is sent once.",
