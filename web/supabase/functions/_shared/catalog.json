@@ -18,7 +18,7 @@
     "attendance.in_service": "Marked in service",
     "attendance.no_show": "Marked no show",
     "attendance.undo": "Undid attendance",
-    "automation.archived": "Archived automation",
+    "automation.archived": "Turned off automation",
     "automation.business_paused": "Paused all automations for a business",
     "automation.changed": "Changed automation",
     "automation.dead_letter_dismissed": "Dismissed failed automation work",

@@ -334,9 +334,9 @@ platform alerts live.
 
 Opened from Businesses. What each tab shows and what an admin can do there:
 
-- **Activity:** admin and system changes to this business, each with a readable label (`web/src/copy/auditActions.js`;
-  a test fails when SQL or the admin function writes an action without one, BIZ-25). Changes the database records on
-  its own read as, for example, "Changed business (system record)".
+- **Activity:** admin and system changes to this business, each with a readable label from the shared catalog
+  (`web/supabase/functions/_shared/catalog.json`, read by `web/src/copy/auditActions.js`, BIZ-25). Changes the
+  database records on its own name the table, for example "Changed business (system record)".
 - **Automations:** every standard automation and industry rule, with one status language shared with the Automations
   page: Active, Paused, Turned off (`AUTOMATION_STATUS` in `web/src/automationCatalog.js`, OPS-22). Names always start
   with a capital (UI-09).
