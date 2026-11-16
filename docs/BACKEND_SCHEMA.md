@@ -13,12 +13,12 @@ It reads the catalog only, never rows.
 
 | What | Count |
 |---|---|
-| Tables (schema `public`) | 174 |
-| Tables with row security on | 174 of 174 |
+| Tables (schema `public`) | 175 |
+| Tables with row security on | 175 of 175 |
 | Row security policies | 342 |
-| Columns | 2062 |
+| Columns | 2067 |
 | Views | 1 |
-| Functions | 912 (844 security definer, 26 callable by `anon`) |
+| Functions | 913 (845 security definer, 26 callable by `anon`) |
 
 Rules every table follows:
 
@@ -69,7 +69,7 @@ Each is a database job; most stay off until the owner approves going live (see `
 - [Scheduling](#scheduling): `appointments`, `appointment_reminders`, `appointment_reschedule_links`, `blocked_times`, `resources`, `resource_needs`, `recurring_plans`, `recurring_visits`, `job_dispatch`, `waitlist_entries`, `waitlist_offer_links`, `calendar_connections`, `calendar_sync_queue`, `restaurant_tables`, `table_combinations`, `table_states`, `table_blocks`, `table_events`
 - [Messages and conversations](#messages-and-conversations): `conversations`, `conversation_messages`, `conversation_notes`, `message_templates`, `message_drafts`, `sms_messages`, `email_messages`, `platform_emails`, `email_events`, `email_unsubscribe_tokens`, `followup_tasks`, `automation_channel_reviews`, `meta_connections`, `meta_contacts`, `meta_events`, `meta_outbox`, `meta_templates`, `social_flows`, `live_notices`
 - [Spam and abuse](#spam-and-abuse): `spam_settings`, `spam_incidents`, `spam_incident_events`, `spam_list_entries`
-- [Automations and background work](#automations-and-background-work): `automations`, `automation_runs`, `automation_events`, `automation_dead_letters`, `workflow_executions`, `n8n_dispatch_state`, `integrations`, `integration_secrets`, `provider_health`
+- [Automations and background work](#automations-and-background-work): `automations`, `automation_runs`, `automation_events`, `automation_dead_letters`, `workflow_executions`, `n8n_dispatch_state`, `scheduled_job_intents`, `integrations`, `integration_secrets`, `provider_health`
 - [Offers, reviews and growth](#offers-reviews-and-growth): `offers`, `offer_rules`, `offer_redemptions`, `offer_events`, `offer_job_runs`, `cross_sell_rules`, `review_sources`, `reviews`
 - [Billing and usage](#billing-and-usage): `plans`, `business_plans`, `billing_pack_catalog`, `billing_periods`, `allowance_buckets`, `pack_purchases`, `usage_charges`, `auto_reload_settings`, `subscriptions`, `payments`, `billing_events`, `usage_records`, `usage_thresholds`, `usage_threshold_events`, `usage_processing_issues`, `voice_pricing`
 - [Notifications, reports and support](#notifications-reports-and-support): `notifications`, `notification_preferences`, `staff_notifications`, `admin_alert_prefs`, `platform_alerts`, `platform_incidents`, `business_report_schedules`, `business_report_runs`, `support_tickets`, `support_ticket_notes`
@@ -3362,6 +3362,21 @@ How often the dispatcher called each n8n worker, and the stuck-item guard.
 - Primary key: `workflow`.
 - Row security: on; policies: zella_mfa_required (all).
 
+### `scheduled_job_intents`
+
+Each scheduled job's intended state (on or off), the reason, who recorded it and when (server only; a record, never a switch).
+
+| Column | Type | Required | Default |
+|---|---|---|---|
+| `job_name` | text | yes |  |
+| `intended` | text | yes |  |
+| `reason` | text | yes |  |
+| `decided_by` | uuid |  |  |
+| `decided_at` | timestamp with time zone | yes | now() |
+
+- Primary key: `job_name`.
+- Row security: on; no policies, so roles subject to row security (signed-in users and anon) get no rows directly. Superusers and `BYPASSRLS` roles (such as the server key) are not limited by it, nor is the table owner unless `FORCE ROW LEVEL SECURITY` is set; a security definer function runs with its function owner's rights.
+
 ### `integrations`
 
 A business's connected integrations and their status.
@@ -4317,7 +4332,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_add_lead_note(p_customer_id uuid, p_note text)` | boolean | yes | signed in |
 | `zella_add_record_note(p_id uuid, p_note text)` | boolean | yes | signed in |
 
-### `zella_admin_*` (44)
+### `zella_admin_*` (45)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -4334,6 +4349,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_admin_call_usage(p_business_id uuid, p_from timestamp with time zone, p_to timestamp with time zone, p_limit integer, p_offset integer)` | jsonb | yes | signed in |
 | `zella_admin_calls(p_from timestamp with time zone, p_to timestamp with time zone, p_business uuid, p_direction text, p_status text, p_outcome text, p_failed_only boolean, p_q text, p_limit integer, p_offset integer)` | jsonb | yes | signed in |
 | `zella_admin_can(p_permission text)` | boolean | yes | signed in |
+| `zella_admin_job_intent_save(p_job text, p_intended text, p_reason text)` | jsonb | yes | signed in |
 | `zella_admin_mask(p text)` | text |  | server only |
 | `zella_admin_message_detail(p_channel text, p_id uuid, p_with_content boolean)` | jsonb | yes | signed in |
 | `zella_admin_message_retry(p_channel text, p_id uuid, p_reason text)` | jsonb | yes | signed in |
