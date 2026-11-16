@@ -251,7 +251,7 @@ REF=$(q "select identity_reference from public.owner_onboarding where business_i
 expect "off while identity_provider is none" "$(q "set role service_role; select public.zella_identity_provider_event('persona', 'evt_1', '$REF', 'approved', now()) ->> 'result'" | tail -1)" "off"
 expect "nothing recorded while off" "$(q "select count(*) from public.identity_verification_events")" "0"
 # switch the provider on for this test only (the one constant), then put it back
-q "create or replace function public.zella_onboarding_rules() returns jsonb language sql immutable set search_path = '' as \$f\$
+q "create or replace function public.zella_onboarding_rules() returns jsonb language sql stable set search_path = '' as \$f\$
    select jsonb_build_object('identity_provider', 'persona', 'plan_choice', 'accept_only', 'first_payment', 'pay_before_live',
      'failed_check', 'retry_then_review', 'identity_attempts', 2, 'payments_connected', false) \$f\$" > /dev/null
 ev() { q "set role service_role; select public.zella_identity_provider_event('persona', '$1', '$2', '$3', now()) ->> 'result'" | tail -1; }

@@ -171,9 +171,10 @@ create policy zella_mfa_required on public.identity_verification_events as restr
 
 -- ---------------------------------------------------------------------------------------------------------------
 -- 2. The rules (the owner's open decisions, at the recommended defaults). Change a value here, in a new migration.
+--    Stable, not immutable, so a changed value is never folded into a plan cached before the change.
 -- ---------------------------------------------------------------------------------------------------------------
 create or replace function public.zella_onboarding_rules() returns jsonb
-language sql immutable set search_path = '' as $$
+language sql stable set search_path = '' as $$
   select jsonb_build_object(
     'identity_provider', 'none',              -- manual upload, checked in Verification; later 'persona'
     'plan_choice', 'accept_only',             -- the owner accepts the plan Zella Voice set
