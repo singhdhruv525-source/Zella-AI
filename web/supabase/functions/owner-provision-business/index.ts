@@ -8,6 +8,7 @@ import { PERMISSIONS, RESTRICTED_ROLES, settingsHandlers } from "./settings.ts";
 import { mfaGate, tokenAal } from "./mfa_gate.ts";
 import { ONBOARDING_PERMISSIONS, documentsReady, loadOnboarding, onboardingHandlers } from "./onboarding.ts";
 import { PLATFORM_PERMISSIONS, platformHandlers } from "./platform.ts";
+import { DETAIL_PERMISSIONS, adminPermissions, businessDetail } from "./detail.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1508,83 +1509,6 @@ async function overviewData(admin: SupabaseClient) {
   };
 }
 
-async function businessDetail(admin: SupabaseClient, businessId: string) {
-  const setup = await loadSetup(admin, businessId);
-
-  const [
-    industryResult, invitationsResult, membersResult, integrationsResult,
-    callsResult, callCountResult, logsResult, ticketsResult,
-  ] = await Promise.all([
-    admin.from("industries").select("id, name").eq("id", setup.business.industry_id).maybeSingle(),
-    admin.from("business_invitations")
-      .select("id, email, owner_name, status, invited_at, accepted_at, expires_at, last_error, created_at")
-      .eq("business_id", businessId)
-      .order("created_at", { ascending: false }),
-    admin.from("business_members")
-      .select("user_id, role, status, created_at")
-      .eq("business_id", businessId)
-      .order("created_at", { ascending: true }),
-    admin.from("integrations")
-      .select("id, provider, integration_type, status, account_email, error_message, last_synced_at, updated_at")
-      .eq("business_id", businessId),
-    admin.from("calls")
-      .select("id, direction, status, from_number, to_number, started_at, duration_seconds, ai_handled, created_at")
-      .eq("business_id", businessId)
-      .order("created_at", { ascending: false })
-      .limit(10),
-    admin.from("calls").select("id", { count: "exact", head: true }).eq("business_id", businessId),
-    admin.from("audit_logs")
-      .select("id, action, user_id, entity_type, new_data, created_at")
-      .eq("business_id", businessId)
-      .order("created_at", { ascending: false })
-      .limit(30),
-    admin.from("support_tickets")
-      .select("id, subject, status, priority, category, created_at")
-      .eq("business_id", businessId)
-      .order("created_at", { ascending: false })
-      .limit(10),
-  ]);
-
-  const queryError = industryResult.error ?? invitationsResult.error ??
-    membersResult.error ?? integrationsResult.error ?? callsResult.error ??
-    callCountResult.error ?? logsResult.error ?? ticketsResult.error;
-  if (queryError) throw queryError;
-
-  const members = membersResult.data ?? [];
-  const logs = logsResult.data ?? [];
-  const userIds = [...members.map((m) => m.user_id), ...logs.map((l) => l.user_id)];
-
-  const [emails, profilesResult] = await Promise.all([
-    resolveUsers(admin, userIds),
-    members.length
-      ? admin.from("profiles").select("id, first_name, last_name, phone")
-        .in("id", members.map((m) => m.user_id))
-      : Promise.resolve({ data: [], error: null }),
-  ]);
-  if (profilesResult.error) throw profilesResult.error;
-
-  const profileById = new Map((profilesResult.data ?? []).map((p) => [p.id, p]));
-
-  return {
-    ...setup,
-    industryName: industryResult.data?.name ?? "Unassigned",
-    invitations: invitationsResult.data ?? [],
-    members: members.map((m) => {
-      const profile = profileById.get(m.user_id);
-      return {
-        ...m,
-        email: emails[m.user_id] ?? null,
-        name: [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") || null,
-      };
-    }),
-    integrations: integrationsResult.data ?? [],
-    calls: callsResult.data ?? [],
-    callCount: callCountResult.count ?? 0,
-    tickets: ticketsResult.data ?? [],
-    activity: logs.map((l) => ({ ...l, actor: emails[l.user_id] ?? null })),
-  };
-}
-
 async function auditLogList(admin: SupabaseClient, fields: Json) {
   const limit = 50;
   let query = admin
@@ -3074,7 +2998,7 @@ Deno.serve(withCors(async (req: Request) => {
     if (!gate.ok) return respond({ error: gate.error, code: gate.code }, gate.status);
 
     // Every action needs a permission; restricted roles only have what the owner gave them.
-    const permission = PERMISSIONS[action] ?? ONBOARDING_PERMISSIONS[action] ?? PLATFORM_PERMISSIONS[action];
+    const permission = PERMISSIONS[action] ?? ONBOARDING_PERMISSIONS[action] ?? PLATFORM_PERMISSIONS[action] ?? DETAIL_PERMISSIONS[action];
     if (!permission) return respond({ error: "Unknown action" }, 400);
     // Every active admin may read their own role and permissions (me_admin): without it a restricted role that lacks
     // businesses.view couldn't learn what it is allowed to do. It returns nothing about other people or businesses.
@@ -3207,7 +3131,8 @@ Deno.serve(withCors(async (req: Request) => {
       setup_save_automations: () => saveAutomations(adminClient, fields, user.id),
       setup_finish: () => finishSetup(adminClient, fields),
       overview_data: () => overviewData(adminClient),
-      business_detail: () => businessDetail(adminClient, requireId(fields.businessId)),
+      business_detail: async () =>
+        businessDetail(adminClient, requireId(fields.businessId), await adminPermissions(adminClient, role), { loadSetup, resolveUsers }),
       audit_logs: () => auditLogList(adminClient, fields),
       industries_list: () => industriesList(adminClient),
       industry_save: () => industrySave(adminClient, fields),

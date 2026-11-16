@@ -171,6 +171,11 @@ most often needed:
   REQ-API-01 to 04, Settings API management and Webhooks). A read only log of incoming provider events for admins is
   still fine.
 
+- **Admin Business page reads (lane E defaults, 16 Nov 2026, owner can change):** the Activity list and who did each
+  action go only to admins with `audit.view` (BIZ-04); caller numbers and connection account details are masked by
+  default with the `zella_admin_mask` rule (`mask.ts`), the Spam page keeps its older rule for now (BIZ-22). The
+  permission set comes from `adminPermissions` in `owner-provision-business/detail.ts`, the same answer `me_admin` gives.
+
 Waiting on the owner:
 
 - whether suspended businesses keep read-only access (L-5);

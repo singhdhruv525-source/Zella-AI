@@ -337,6 +337,11 @@ Opened from Businesses. What each tab shows and what an admin can do there:
 - **Activity:** admin and system changes to this business, each with a readable label (`web/src/copy/auditActions.js`;
   a test fails when SQL or the admin function writes an action without one, BIZ-25). Changes the database records on
   its own read as, for example, "Changed business (system record)".
+  Only admins with `audit.view` get it: the server leaves the list and who did each action out for anyone else
+  (BIZ-04).
+- **Contact details:** caller numbers on Calls and the account email and error text of Live connections are masked
+  the way the Voice page masks them (`…0123`, `a…@example.com`; `mask.ts`, the `zella_admin_mask` rule). A member's
+  own phone number is not read (BIZ-22).
 - **Automations:** every standard automation and industry rule, with one status language shared with the Automations
   page: Active, Paused, Turned off (`AUTOMATION_STATUS` in `web/src/automationCatalog.js`, OPS-22). Names always start
   with a capital (UI-09).
