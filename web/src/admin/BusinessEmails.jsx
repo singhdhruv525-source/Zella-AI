@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { EMAILS, GROUPS, renderEmail } from "../emails/businessEmails";
-import { DataTable, Drawer, ErrorNote, Facts, Filters, PAGE, Pager, Panel, Pill, ReasonDialog, Search, Select, friendlyError, rpc, useLoad, useOptions, useToast, when } from "./adminOps";
+import { createPortal } from "react-dom";
+import { EMAILS, GROUPS, emailByCode, renderEmail } from "../emails/businessEmails";
+import { Icon } from "../BusinessUI";
+import { useDialogFocus } from "../useDialogFocus";
+import { DataTable, ErrorNote, Facts, Filters, PAGE, Pager, Panel, Pill, ReasonDialog, Search, Select, friendlyError, rpc, useLoad, useOptions, useToast, when } from "./adminOps";
+import "./BusinessEmails.css";
 
 // Admin > Messaging > Emails to businesses: every email Zella Voice sends to a business, previewed with made up
 // sample values (web/src/emails/businessEmails.js), and the platform outbox (sql/zella_platform_emails.sql).
@@ -11,6 +15,23 @@ const STATUS = { queued: ["Waiting", "neutral"], sending: ["Sending", "info"], s
   // 'failed' is written only when an admin discards a held email (sql/zella_platform_email_actions.sql)
   failed: ["Discarded", "neutral"] };
 const statusPill = (s) => { const [l, t] = STATUS[s] ?? [s, "neutral"]; return <Pill tone={t}>{l}</Pill>; };
+
+// A blank value reads as a few quiet words that fit the field, never an empty cell or "None".
+function EmptyValue({ label }) {
+  return <span className="be-empty">{label}</span>;
+}
+
+// The email as the business gets it: the stored copy when it was rendered in the shared layout
+// (web/src/emails/businessEmails.js). An older or hand made copy without the layout is shown in the current layout
+// with sample values instead, and says so, so the preview is never only a bare heading.
+function previewOf(e) {
+  if (/role="presentation"/.test(e.html ?? "")) return { html: e.html, sample: false };
+  try {
+    return { html: renderEmail(e.code, { business: e.business_name || undefined, mandatory: e.mandatory }).html, sample: true };
+  } catch {
+    return { html: e.html, sample: false };
+  }
+}
 
 export default function BusinessEmails({ onOpenBusiness }) {
   const [q, setQ] = useState("");
@@ -67,7 +88,7 @@ export default function BusinessEmails({ onOpenBusiness }) {
                 ))}
               </div>
               {view === "text" ? <pre className="be-text">{shown.text}</pre> : (
-                <iframe title={`Preview of ${current.name}`} className={`be-frame ${view}`} sandbox="" srcDoc={shown.html} />
+                <div className="be-stage"><iframe title={`Preview of ${current.name}`} className={`be-frame ${view}`} sandbox="" srcDoc={shown.html} /></div>
               )}
             </section>
           </div>
@@ -101,7 +122,7 @@ function Outbox({ onOpenBusiness }) {
             columns={[
               ["When", (r) => when(r.created_at)], ["Business", (r) => r.business_name], ["Email", (r) => <span><code>{r.code}</code> {r.subject}</span>],
               ["To", (r) => r.to_email], ["Status", (r) => statusPill(r.status)],
-              ["Tries", (r) => r.attempts], ["Problem", (r) => r.last_error ?? ""],
+              ["Tries", (r) => r.attempts], ["Problem", (r) => r.last_error || <EmptyValue label="No problems" />],
             ]} />)}
           <Pager total={log.data?.total} offset={f.offset} onChange={(o) => setF((x) => ({ ...x, offset: o }))} />
         </>
@@ -128,35 +149,41 @@ function EmailDrawer({ id, onClose, onChanged, onOpenBusiness }) {
     onChanged(kind === "release" ? "Released. It goes out with the next send, or in test mode while email sending is off." : "Discarded. It won't be sent.");
     onClose();
   };
+  const name = e ? e.subject : "Email";
+  const template = e ? [e.code, emailByCode(e.code)?.name].filter(Boolean).join(", ") : "";
+  const manage = e?.status === "held" && e.can_manage;
+  const preview = useMemo(() => (e ? previewOf(e) : null), [e]);
   return (
-    <Drawer title={e ? `Email ${e.code}: ${e.subject}` : "Email"} icon="mail" onClose={onClose}>
+    <EmailDrawerFrame title={name} status={e ? statusPill(e.status) : null} onClose={onClose}
+      link={e && onOpenBusiness ? <button type="button" className="be-link" onClick={() => { onClose(); onOpenBusiness(e.business_id); }}>Open business<Icon name="chevron_right" size="sm" /></button> : null}
+      footer={manage ? (
+        <>
+          <button type="button" className="be-danger-text" onClick={() => setConfirm("discard")}>Discard</button>
+          <button type="button" className="owner-primary-button" onClick={() => setConfirm("release")}>Release</button>
+        </>
+      ) : null}>
       {error && <div className="owner-form-error" role="alert">{error}</div>}
       {!e && !error && <p className="op-muted" role="status">Loading…</p>}
       {e && (
         <>
           <Facts rows={[
-            ["Business", e.business_name], ["To", [e.to_email, ...(e.cc ?? [])].join(", ")], ["Status", statusPill(e.status)],
-            ["Tries", e.attempts], ["Problem", e.last_error], ["Queued", when(e.created_at)], e.sent_at && ["Sent", when(e.sent_at)],
+            ["Business", e.business_name || <EmptyValue key="b" label="Deleted business" />], ["To", [e.to_email, ...(e.cc ?? [])].join(", ")],
+            ["Template", template],
+            ["Tries", e.attempts], ["Problem", e.last_error || <EmptyValue key="p" label="No problems" />], ["Queued", when(e.created_at)], e.sent_at && ["Sent", when(e.sent_at)],
             ["Type", e.mandatory ? "Always sent" : "Can be switched off"],
           ]} />
-          <div className="ic-actions">
-            {onOpenBusiness && <button type="button" className="owner-secondary-button" onClick={() => { onClose(); onOpenBusiness(e.business_id); }}>Open business</button>}
-            {e.status === "held" && e.can_manage && (
-              <>
-                <button type="button" className="owner-secondary-button" onClick={() => setConfirm("discard")}>Discard</button>
-                <button type="button" className="owner-primary-button" onClick={() => setConfirm("release")}>Release</button>
-              </>
-            )}
-          </div>
-          {e.status === "held" && !e.can_manage && <p className="op-muted">Releasing or discarding a held email needs the Messaging manage permission.</p>}
-          <section className="be-preview" aria-label="The email">
+          {e.status === "held" && !e.can_manage && <p className="op-muted be-note">Releasing or discarding a held email needs the Messaging manage permission.</p>}
+          <section className="be-preview be-drawer-preview" aria-label="The email">
             <div className="be-views" role="group" aria-label="Show as">
               {[["html", "Email"], ["text", "Plain text"]].map(([k, l]) => (
                 <button key={k} type="button" className={view === k ? "active" : ""} aria-pressed={view === k} onClick={() => setView(k)}>{l}</button>
               ))}
             </div>
             {view === "text" ? <pre className="be-text">{e.text_body}</pre> : (
-              <iframe title={`Email ${e.code} as sent`} className="be-frame mobile" sandbox="" srcDoc={e.html} />
+              <>
+                {preview.sample && <p className="op-muted be-note">The stored copy has no layout, so this shows the email in the current layout with sample values.</p>}
+                <div className="be-stage"><iframe title={`Email ${e.code} as sent`} className="be-frame be-frame-drawer" sandbox="" srcDoc={preview.html} /></div>
+              </>
             )}
           </section>
         </>
@@ -170,6 +197,30 @@ function EmailDrawer({ id, onClose, onChanged, onOpenBusiness }) {
             : "It is never sent. The reason is kept with the email and in the audit log."}</p>
         </ReasonDialog>
       )}
-    </Drawer>
+    </EmailDrawerFrame>
+  );
+}
+
+// The drawer frame: the Email eyebrow, the email's name and its status on top, Open business under the title, then
+// the content, then a footer that stays in view with the held email actions.
+function EmailDrawerFrame({ title, status, link, footer, onClose, children }) {
+  const dialogRef = useDialogFocus(onClose);
+  return createPortal(
+    <div className="owner-modal-overlay ao-drawer-overlay" onMouseDown={(ev) => ev.target === ev.currentTarget && onClose()}>
+      <aside ref={dialogRef} tabIndex={-1} className="owner-modal ao-drawer be-drawer" role="dialog" aria-modal="true" aria-label={`Email: ${title}`}>
+        <header className="be-drawer-head">
+          <div className="be-drawer-titles">
+            <div className="be-drawer-eyebrow">Email</div>
+            <h2 className="be-drawer-title" title={title}>{title}</h2>
+            {link}
+          </div>
+          {status}
+          <button type="button" className="owner-icon-button" aria-label="Close" onClick={onClose}><Icon name="close" size="sm" /></button>
+        </header>
+        <div className="be-drawer-body">{children}</div>
+        {footer && <footer className="be-drawer-foot">{footer}</footer>}
+      </aside>
+    </div>,
+    document.body
   );
 }
