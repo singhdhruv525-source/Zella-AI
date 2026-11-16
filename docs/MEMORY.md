@@ -165,6 +165,10 @@ most often needed:
   years, audit logs 7 years (D-13, D-27).
 - Lead and missed-call AI calls: 2 attempts, 2–3 hours apart, one message after each (D-01, D-02, D-12).
 - Call transcripts: managers and above; staff only if the owner allows; never in sensitive industries (M-4).
+- **Plans page permissions (CFG-19, default taken 16 Nov 2026, owner can change):** each kind of plan keeps the one
+  permission its server path already checks: the shared fallback plans need `plans.manage` (plan_save and
+  plan_entitlements_save), each business's own plan needs `billing.manage` (zella_admin_plan_save, REQ-BIL-10), and
+  reading needs `billing.view`. The page hides each editor without its permission.
 - **Connected, answering and live (COM-01, defaults taken 16 Nov 2026, owner can change):** one definition in SQL
   (`sql/zella_connection_state.sql`, `docs/PRODUCT.md` §9.1). Answering is a served call in the last 7 days and is shown
   on its own, never folded into live; live needs an active business, the receptionist switched on and an active number
