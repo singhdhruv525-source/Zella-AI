@@ -657,16 +657,17 @@ so they can stop and come back where they left off.
 | 3 | Check your details | Reviews what the admin filled in (business, hours and services, team, AI receptionist and phone), one step at a time, with "Looks right" or "Change" | New, reusing the CRM's form parts |
 | 4 | Verify your identity | Verifies their ID (and the business) with an identity provider; sees Checking, Verified or Try again | New |
 | 5 | Your plan | Sees the plan, price, minutes, texts and what's included, as the admin set it | New, reading the saved business plan |
-| 6 | Pay | Pays on Stripe's own payment page, comes back to "Payment received" | New; needs Stripe (step 4 of billing) |
+| 6 | Pay or start a trial | Uses Stripe's page to pay or save a card for a free trial, depending on the owner's decision; "Payment received" is shown only when payment is confirmed | New; needs Stripe (step 4 of billing); flow pending the owner's decision |
 | 7 | You're all set | Sees what happens next (test call, go live) and opens their CRM | New |
 | All | Progress bar and "Finish later" | Leaves and resumes at the same step | New |
 
 Plus, on the admin side: each business shows which onboarding step its owner has reached (with BIZ-12).
 
-Rules: the owner can't pass verification until it succeeds or an admin approves it in Verification; payment opens
-only after verification; the receptionist goes live only after payment and the go live checks (REQ-LC-14). The
-emails for each stage already exist (S3 Finish setting up, S4 Documents needed, S5 Business verified, S6 Your AI
-receptionist is live) and are sent only once email is live.
+Rules: the owner can't pass verification until it succeeds or an admin approves it in Verification; Stripe Checkout
+opens only after verification. The receptionist goes live only after verification and the go live checks (REQ-LC-14).
+If the owner chooses payment before go live, payment must also be confirmed first; if they choose a free trial, the
+saved-card trial setup must be confirmed instead. The emails for each stage already exist (S3 Finish setting up,
+S4 Documents needed, S5 Business verified, S6 Your AI receptionist is live) and are sent only once email is live.
 
 Open decisions for the owner:
 - [ ] Identity provider: Persona (owner ID and business registration), Stripe Identity (owner ID only, same vendor as payments), or manual upload for now. Recommended: Persona, keeping manual upload as the fallback.
@@ -679,5 +680,5 @@ Build checklist (each needs the owner's approval before anything goes live; prov
 - [ ] Onboarding progress stored per business (which step, when), shown to admins
 - [ ] Screens 1, 2, 3, 5 and 7, with progress bar and Finish later, tested on the isolated database
 - [ ] Screen 4 with the identity provider's sandbox, plus a server function that receives the result (signed, one event once) and the manual fallback in Verification
-- [ ] Screen 6 once Stripe Checkout and the payment webhook are built
-- [ ] Go live only after verification, payment and the activation checklist pass
+- [ ] Screen 6 once the owner decides the first payment rule and Stripe Checkout and the payment webhook are built
+- [ ] Go live only after verification and the activation checklist pass, plus confirmed payment or saved-card trial setup according to the owner's decision
