@@ -600,7 +600,7 @@ isolated database first.
 ### AI agents
 - [ ] Last delivery outcome, not ready count and served version per receptionist, with a deliveries drawer (COM-03) · needs approval
 - [ ] A global default prompt that rolls out to businesses without overwriting their own (Settings, AI agent configuration) · needs approval
-- [ ] AI testing and evaluation view with a pass rule (Settings, AI testing) · needs approval
+- [x] AI testing and evaluation view with a pass rule (Settings, AI testing) · needs approval · built as an AI testing tab on AI agents, branch `claude/lane-c-ai-testing`, not applied or deployed (the Settings note waits for the polish PR)
 
 ### Voice and numbers
 - [ ] Counter and alert for refused Vapi requests, with auth mode and last refusal shown (COM-09) · needs approval

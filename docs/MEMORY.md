@@ -164,6 +164,9 @@ most often needed:
   years, audit logs 7 years (D-13, D-27).
 - Lead and missed-call AI calls: 2 attempts, 2–3 hours apart, one message after each (D-01, D-02, D-12).
 - Call transcripts: managers and above; staff only if the owner allows; never in sensitive industries (M-4).
+- **AI testing (AI-TESTING, recommended default taken 16 Nov 2026, owner can change):** a failing evaluation is a warning
+  only and never blocks going live. A business passes with at least 3 test questions (`ZELLA_EVAL_MIN_CASES`), all
+  passing. Showing the warning on the go live checklist belongs to the Business detail job (BIZ-12).
 - **Sensitive industries (CFG-05, recommended default taken 16 Nov 2026, owner can change):** stored as
   `industries.sensitive`. Only a Zella Voice owner may change it (`SENSITIVE_ROLE` in config.ts), with a reason, audited;
   turning it off needs a typed confirmation because staff may then read transcripts. A new industry starts sensitive.

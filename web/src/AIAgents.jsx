@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import "./OwnerPages.css";
 import { callOwnerFunction } from "./CreateBusinessWizard";
 import { Pill } from "./OwnerOverview";
@@ -7,6 +7,7 @@ import { LoadNotice, UpdatedAt, useRefreshable } from "./admin/loadState";
 import { emptyText, metric } from "./admin/loadStatus";
 import { answeringText, livePill, missingForLive, outcomePill, versionText } from "./connectionState.js";
 import AgentDeliveries from "./AgentDeliveries";
+import AiTesting from "./AiTesting";
 
 const CHECKS = [
   ["knowledge", "Knowledge", "Services or FAQs added"],
@@ -45,6 +46,13 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [drawer, setDrawer] = useState(null);
+  const [tab, setTab] = useState("receptionists");
+  const [me, setMe] = useState(null);
+  useEffect(() => {
+    let live = true;
+    callOwnerFunction("me_admin").then((m) => live && setMe(m)).catch(() => live && setMe(null));
+    return () => { live = false; };
+  }, []);
 
   const query = search.trim().toLowerCase();
   const agents = (data?.agents ?? []).filter(
@@ -72,6 +80,14 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
       </div>
 
       <LoadNotice r={state} what="AI receptionists" />
+
+      <div className="ag-filters op-gap" role="tablist" aria-label="AI agents views">
+        {[["receptionists", "Receptionists"], ["testing", "AI testing"]].map(([key, label]) => (
+          <button key={key} type="button" role="tab" aria-selected={tab === key} className={tab === key ? "active" : ""} onClick={() => setTab(key)}>{label}</button>
+        ))}
+      </div>
+
+      {tab === "testing" ? <AiTesting me={me} onOpenBusiness={onOpenBusiness} /> : <>
 
       <div className="owner-stat-grid">
         <div className="owner-stat-card"><div className="owner-stat-top"><span>Receptionists</span></div><div className="owner-stat-value">{show(s?.total)}</div><div className="owner-stat-note">{`One per business · ${show(s?.missingKnowledge)} missing knowledge`}</div></div>
@@ -202,6 +218,7 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
           <span>Live: switched on, with an active number linked to Vapi. Answering: Zella Voice served it a call in the last 7 days.</span>
         </div>
       </section>
+      </>}
       {drawer && <AgentDeliveries agent={drawer} onClose={() => setDrawer(null)} />}
     </section>
   );
