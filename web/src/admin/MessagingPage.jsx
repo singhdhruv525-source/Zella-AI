@@ -279,6 +279,7 @@ function Providers({ me }) {
           ["Text sender number", o.live.sms_sender_set ? "Set" : "Not set"], ["Emails", <span key="e" title={switchHint("email_live")}>{o.live.email ? <Pill tone="success">Live</Pill> : <Pill tone="warning">Test mode, nothing is sent</Pill>}</span>],
           ["Email sender address", o.live.email_sender_set ? "Set" : "Not set"], ["Marketing texts", o.live.marketing_texts ? "Allowed" : "Off (transactional only)"]]} />}
         <p className="op-muted">The live switches can't be changed from the app on purpose, so one click can't start messaging customers. They are switched on in the database, on the server side, when Zella Voice is ready to go live.</p>
+        <p className="op-muted">Every go live step is on one list: <button type="button" className="ao-link" onClick={() => navigate("/operations?view=go-live")}>open the go live checklist</button>.</p>
       </Panel>
       <Panel title="Connection checks">
         {o && <ProviderHealth rows={o.providers} checksLive={o.checks_live} names={[["telnyx", "Telnyx", "Texts"], ["resend", "Resend", "Emails"]]} />}

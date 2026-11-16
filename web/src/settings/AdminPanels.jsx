@@ -4,6 +4,9 @@ import { callOwnerFunction } from "../CreateBusinessWizard";
 import { TimeZoneSelect } from "../formFields";
 import { switchHint } from "../copy/liveSwitches";
 import { uploadImage } from "./PersonalPanels";
+import OauthAppsPanel from "./panels/OauthApps";
+import { navigate } from "../router";
+import { GO_LIVE_PATH } from "../admin/GoLiveChecklist";
 import { Banner, Card, Confirm, Empty, Facts, Field, LinkRows, LoadState, Needs, Pill, SaveBar, Table, Toggle, money, useAsync, useForm, when, words } from "./SettingsKit";
 
 // Admin Settings content. Every panel reads and writes through the
@@ -1025,55 +1028,38 @@ export function IntegrationRegistry({ onNavigate }) {
 }
 
 export function OauthApps() {
-  return <Needs title="OAuth app settings are kept outside Zella Voice" have="Google Calendar connections are stored per business (calendar_connections), with tokens in the database vault; only status and the account email are ever shown.">Client IDs and secrets live in Google Cloud and in Supabase secrets. Showing whether they're set needs those secret names added to the server configuration check.</Needs>;
+  return <OauthAppsPanel />;
 }
 
-// The go-live checklist: each step that must be true before Zella Voice's automations really reach customers. Read from
-// the database (zella_automation_readiness, platform admins only); on/off facts only, never a key or number.
-// [check, label, what it means, the setting, secret or job behind it (shown only as a tooltip, UI-21)]
-const READINESS = [
-  ["dispatch_switch", "Dispatcher switch on", "A platform setting that lets the database hand work to n8n", "Setting n8n_dispatch_enabled"],
-  ["secret_stored", "n8n secret stored in the database", "The shared secret n8n checks, kept in the database vault (see the n8n setup guide)", "Vault secret zella_n8n_secret"],
-  ["dispatch_job", "Dispatcher job running", "The scheduled job that hands due work to n8n every minute", "Scheduled job zella_dispatch"],
-  ["n8n_address_set", "n8n address set", "Where the database sends work for n8n", "Setting n8n_base_url"],
-  ["app_address_set", "App address set (customer links)", "The https address used in links sent to customers", "Setting app_base_url"],
-  ["text_sender_set", "Text sender number set", "The number texts are sent from", "Setting sms_from_number"],
-  ["texts_live", "Texts live", "Off means test mode: nothing is sent", "Setting sms_live"],
-  ["email_sender_set", "Email sender address set", "The address emails are sent from", "Setting email_from_address"],
-  ["emails_live", "Emails live", "Off means test mode: nothing is sent", "Setting email_live"],
-  ["calls_live", "AI calls live", "Off means the AI places no outbound calls", "Setting calls_live"],
-];
+// The go live checklist moved to Platform operations (UI-23): one list for secrets, settings, scheduled jobs and live
+// switches. Here it is a link; the scheduled jobs table stays where the page doesn't list the jobs already.
+function GoLiveLink() {
+  return (
+    <Card title="Go live checklist" sub="Secrets, settings, scheduled jobs and live switches are in one list on Platform operations.">
+      <button type="button" className="zs-link" onClick={() => navigate(GO_LIVE_PATH)}>Open the go live checklist</button>
+    </Card>
+  );
+}
 
 function Readiness({ showJobs = true }) {
   const state = useAsync(async () => {
+    if (!showJobs) return { jobs: null };
     const { data, error } = await supabase.rpc("zella_automation_readiness");
-    if (error && (error.code === "PGRST202" || /could not find the function/i.test(error.message))) return { missing: true };
+    if (error && (error.code === "PGRST202" || /could not find the function/i.test(error.message))) return { jobs: [] };
     if (error) throw error;
-    return data ?? { missing: true };
-  }, []);
+    return { jobs: data?.jobs ?? [] };
+  }, [showJobs]);
   return (
-    <LoadState state={state}>{(r) => r.missing ? (
-      <Needs title="The go live checklist needs a database update" have="The settings below still show what the server knows.">Once the messaging status update is applied to the database, this shows each step that must be on before messages and calls really go out.</Needs>
-    ) : (
-      <>
-        <Card title="Go live checklist" sub={`${READINESS.filter(([k]) => r[k]).length} of ${READINESS.length} ready. Until every step is ready, Zella Voice records messages as not sent and nothing reaches customers.`}>
-          <ul className="zs-checklist">
-            {READINESS.map(([key, label, hint, setting]) => (
-              <li key={key} className={r[key] ? "ok" : ""}>
-                <span className="zs-check-marker" aria-hidden="true">{r[key] ? "✓" : ""}</span>
-                <span title={setting}><strong>{label}</strong><small>{hint}</small></span>
-                <Pill tone={r[key] ? "success" : "warning"}>{r[key] ? "Ready" : "Not yet"}</Pill>
-              </li>
-            ))}
-          </ul>
-        </Card>
-        {showJobs && (
+    <>
+      <GoLiveLink />
+      {showJobs && (
+        <LoadState state={state}>{(r) => (
           <Card title="Scheduled database jobs" sub="They run inside Supabase and hand due work to n8n.">
             <Table rowKey={(j) => j.name} rows={r.jobs ?? []} empty="No Zella Voice jobs found. The dispatcher database update adds them, and is applied last." columns={[["Job", (j) => j.name], ["Schedule", (j) => j.schedule], ["State", (j) => <Pill tone={j.active ? "success" : "warning"}>{j.active ? "Running" : "Off"}</Pill>]]} />
           </Card>
-        )}
-      </>
-    )}</LoadState>
+        )}</LoadState>
+      )}
+    </>
   );
 }
 
@@ -1085,7 +1071,7 @@ export function N8nConfig({ showJobs = true } = {}) {
       <>
         <Readiness showJobs={showJobs} />
         <Card title="n8n">
-          <Facts rows={[["Webhook address", a.n8n.url ? "Set" : "Not set"], ["Dispatcher switch", a.n8n.dispatchEnabled ? "On (the job and secret are in the checklist above)" : "Off"], ["n8n address in database", a.n8n.baseUrlSet ? "Set" : "Not set"],
+          <Facts rows={[["Webhook address", a.n8n.url ? "Set" : "Not set"], ["Dispatcher switch", a.n8n.dispatchEnabled ? "On (the job and secret are on the go live checklist)" : "Off"], ["n8n address in database", a.n8n.baseUrlSet ? "Set" : "Not set"],
             ["Dead letters", a.deadLetters]]} />
         </Card>
         <Card title="Dispatcher state" sub="What the database sent to each n8n workflow most recently.">

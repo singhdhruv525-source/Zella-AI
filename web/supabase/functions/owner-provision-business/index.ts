@@ -8,6 +8,7 @@ import { PERMISSIONS, RESTRICTED_ROLES, settingsHandlers } from "./settings.ts";
 import { mfaGate, tokenAal } from "./mfa_gate.ts";
 import { ONBOARDING_PERMISSIONS, documentsReady, loadOnboarding, onboardingHandlers } from "./onboarding.ts";
 import { PLATFORM_PERMISSIONS, platformHandlers } from "./platform.ts";
+import { OPS_PERMISSIONS, opsHandlers, serverConfiguration } from "./ops.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -2498,16 +2499,8 @@ async function platformStatus(admin: SupabaseClient, userId: string) {
       lastSignInAt: me?.user?.last_sign_in_at ?? null,
     },
     // Only whether each value is set. Secret values never leave the server.
-    configuration: [
-      { key: "ZELLA_APP_URL", label: "App URL for invitation links", set: has("ZELLA_APP_URL"), required: true },
-      { key: "ZELLA_SERVER_SECRET_KEY", label: "Server key for public pages and webhooks", set: has("ZELLA_SERVER_SECRET_KEY"), required: true },
-      { key: "ZELLA_ALLOWED_ORIGINS", label: "Websites allowed to call Zella Voice (set at go live)", set: has("ZELLA_ALLOWED_ORIGINS"), required: false },
-      { key: "STRIPE_WEBHOOK_SECRET", label: "Payment provider webhook signature", set: has("STRIPE_WEBHOOK_SECRET"), required: false },
-      { key: "TELNYX_API_KEY", label: "Telnyx (phone numbers)", set: has("TELNYX_API_KEY"), required: false },
-      { key: "VAPI_API_KEY", label: "Vapi (voice agents)", set: has("VAPI_API_KEY"), required: false },
-      { key: "N8N_WEBHOOK_URL", label: "n8n (automations and emails)", set: has("N8N_WEBHOOK_URL"), required: false },
-      { key: "ZELLA_LINK_SECRET", label: "Signing key for \"continue my plan\" links", set: has("ZELLA_LINK_SECRET"), required: false },
-    ],
+    // (the list, with the calendar app and email keys, is SERVER_SECRETS in ops.ts)
+    configuration: serverConfiguration(has),
     appUrl: Deno.env.get("ZELLA_APP_URL") ?? null,
     health: {
       businesses, failedSetups, failedInvites, brokenIntegrations, urgentTickets,
@@ -3074,7 +3067,7 @@ Deno.serve(withCors(async (req: Request) => {
     if (!gate.ok) return respond({ error: gate.error, code: gate.code }, gate.status);
 
     // Every action needs a permission; restricted roles only have what the owner gave them.
-    const permission = PERMISSIONS[action] ?? ONBOARDING_PERMISSIONS[action] ?? PLATFORM_PERMISSIONS[action];
+    const permission = PERMISSIONS[action] ?? ONBOARDING_PERMISSIONS[action] ?? PLATFORM_PERMISSIONS[action] ?? OPS_PERMISSIONS[action];
     if (!permission) return respond({ error: "Unknown action" }, 400);
     // Every active admin may read their own role and permissions (me_admin): without it a restricted role that lacks
     // businesses.view couldn't learn what it is allowed to do. It returns nothing about other people or businesses.
@@ -3240,7 +3233,8 @@ Deno.serve(withCors(async (req: Request) => {
       text, bool, obj, requireId, optionalPhone, getBusiness, getReceptionist, advance, mergeSetupData, InputError, EMAIL_RE, UUID_RE,
     });
     const platform = platformHandlers(adminClient, fields, { text, bool, obj, requireId, InputError }, user.id, role);
-    const handler = handlers[action] ?? extra.handlers[action] ?? onboarding.handlers[action] ?? platform.handlers[action];
+    const ops = opsHandlers(adminClient, fields);
+    const handler = handlers[action] ?? extra.handlers[action] ?? onboarding.handlers[action] ?? platform.handlers[action] ?? ops.handlers[action];
     if (!handler) return respond({ error: "Unknown action" }, 400);
 
     try {
@@ -3248,7 +3242,7 @@ Deno.serve(withCors(async (req: Request) => {
 
       // Setup actions describe themselves from the request and result; settings and onboarding actions from
       // their result only (passing the request there recorded empty before/after values).
-      const later = extra.audited[action] ?? onboarding.audited[action] ?? platform.audited[action];
+      const later = extra.audited[action] ?? onboarding.audited[action] ?? platform.audited[action] ?? ops.audited[action];
       const entry = AUDITED[action] ? AUDITED[action](fields, result) : later ? (later(result as Json) as AuditEntry) : null;
       const unchanged = action === "ticket_update" &&
         Object.keys(obj((result as Json).changes)).length === 0;

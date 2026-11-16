@@ -8,6 +8,7 @@ import { isCount, metric } from "./admin/loadStatus";
 import { rpc, useLoad } from "./admin/adminOps";
 import { jobOffNote } from "./admin/jobState";
 import ScheduledJobs from "./admin/ScheduledJobs";
+import GoLiveChecklist from "./admin/GoLiveChecklist";
 
 const loadStatus = () => callOwnerFunction("platform_status");
 // whether automations are switched off on purpose (n8n_dispatch_enabled), from the existing Automations overview
@@ -135,6 +136,8 @@ export default function PlatformOperations({ onNavigate, onOpenBusiness }) {
           </ul>
         </section>
       </div>
+
+      <GoLiveChecklist health={jobs} pageReady={r.status !== "loading" && automation.status !== "loading"} />
 
       <ScheduledJobs health={jobs} />
 
