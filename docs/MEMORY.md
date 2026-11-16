@@ -86,10 +86,13 @@ types, no plans.
 
 Not deployed yet from `main`: `billing-webhook`, `continue-plan`, `reschedule-appointment`, `store-connect`.
 
-**App address secrets** (16 Nov 2026): the app runs only in the owner's Codespace for now, so `ZELLA_ALLOWED_ORIGINS` holds
-the Codespace's address (set by the owner) and `ZELLA_APP_URL` is not set. Until it is set to a public address, inviting an
-owner or a staff member refuses with a clear message, because a Codespace address is private and the invited person
-could not open the link. A new Codespace has a new address, so `ZELLA_ALLOWED_ORIGINS` must then be set again.
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:9e7f82a2344a79e99bb8059dd7bea910ddfc525e6c55c22836f01fc57314405d -->
+
+**App address secrets:** current owner invitation code rejects an unusable `ZELLA_APP_URL` with 503 before Resend resets status or sends, and before the setup-finish send plan claims, sends or activates (BIZ-01). Production deployment and the live `ZELLA_APP_URL` value remain unresolved verification items. The earlier Codespace configuration note does not establish their current state. A new Codespace has a new address, so its `ZELLA_ALLOWED_ORIGINS` entry must be updated when used.
+
+<!-- /coderabbit-ai-generated:v1 -->
 
 n8n workflows are not re-imported since PR #57. Deploying needs the owner's approval.
 
@@ -106,7 +109,7 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile` (checked
 |---|---|---|
 | **Vapi call authentication.** Vapi sends some messages (call status, end-of-call reports) without the Authorization header, so `voice-rules` answers 401. The test assistant was reloaded with the token in every server's headers on 30 Oct. | Open | Owner test-calls the test assistant, then checks `voice-rules` logs. Real assistants need the headers sent from the server side, with approval. |
 | **Edge functions and n8n behind `main`** | Open | Deploy from `main` with approval. |
-| **Owner invitations without the app address** (found 16 Nov 2026, `docs/ADMIN_AUDIT_2026-11-16.md` BIZ-01). With `ZELLA_APP_URL` unset (true in production now), finishing a business's setup or pressing Resend still emails the owner, with a link that falls back to Supabase's site address and may not open. Staff and admin invitations do refuse. | Open | <!-- coderabbit-ai-generated:v1 --> <!-- coderabbit-ai-generated-section:v1:234901bb2c9c30e8988ea0a2c822b0fd8f7238a6f101d4b55faf709bd0599492 --> Don't finish setup or resend invitations for a real owner until `ZELLA_APP_URL` is set or BIZ-01 is fixed and deployed. <!-- /coderabbit-ai-generated:v1 --> |
+| <!-- coderabbit-ai-generated:v1 --> <!-- coderabbit-ai-generated-section:v1:9123bd8d8797eb6c820594101faae82df3c1e7e1894bae6c11114bfbf409fc5f --> **Owner invitations without the app address** (`docs/ADMIN_AUDIT_2026-11-16.md` BIZ-01). Current invitationResend and the setup-finish send plan reject an unusable ZELLA_APP_URL with 503 before changing state or sending an invitation. <!-- /coderabbit-ai-generated:v1 --> | Open | <!-- coderabbit-ai-generated:v1 --> <!-- coderabbit-ai-generated-section:v1:7c407862abe286bb2872c7e7bf19ce759aff5483cd9bb2bd5a75d6dd5933192c --> Verify production deployment and live ZELLA_APP_URL configuration, then confirm the deployed revision refuses before changing state or sending. These remain unresolved. <!-- /coderabbit-ai-generated:v1 --> |
 | **Admin panel audit** (16 Nov 2026): 210 items across every admin page, 16 of them P1, with a page by page section and a build checklist, in `docs/ADMIN_AUDIT_2026-11-16.md`. Evidence: code review, a local browser crawl and visual pass on the isolated database, and read only production checks. | Open | Owner picks the order; the audit suggests one (permissions first, then sign in, invitations and lifecycle). |
 | **Owner onboarding journey** (owner, 16 Nov 2026): after the admin dashboard work, an owner opens the invitation link, sets a password and two step sign in, checks the details the admin entered step by step, verifies their identity (provider to decide; Persona recommended), sees their plan, pays (Stripe), then goes live. Screens and checklist in `docs/ADMIN_AUDIT_2026-11-16.md`, add on task. | Planned | Owner decides the identity provider, plan choice, first payment and failed check rules; then build after the admin dashboard items. |
 | **Repo build vs production drift.** The isolated build from the repo differs from production in a few places: production is stricter on execute grants for `zella_arrival_window`, `zella_booking_choices` and `zella_capability_on` (server only) and `zella_cross_sell_ideas` (signed in, not anon); `zella_session_proved_email` is security definer in production; production has `zella_audit_privileged_trg` on `platform_admins`; and the repo build keeps an old `zella_calendar_connect(uuid,text,text,text)` that production dropped. | Open | Bring the repo build in line with production (a test-only change to the builder, or a new migration if the repo is right). |
