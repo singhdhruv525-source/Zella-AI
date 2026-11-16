@@ -81,7 +81,7 @@ test("plan, subscription, last call and problems read plainly (BIZ-16, UI-03)", 
   assert.equal(lastCallLabel(null), "No calls yet");
   assert.equal(lastCallLabel(undefined), "Not available");
   assert.equal(lastCallLabel(new Date().toISOString()), "just now");
-  assert.deepEqual(problemSummary({ count: 0, items: [] }).label, "None");
+  assert.deepEqual(problemSummary({ count: 0, items: [] }).label, "No problems");
   assert.deepEqual(problemSummary(null).label, "Not available");
   const two = problemSummary({ count: 2, items: [{ title: "A payment failed", severity: "urgent" }, { title: "x", severity: "warning" }] });
   assert.deepEqual([two.label, two.tone, two.detail], ["2 open", "danger", "A payment failed"]);

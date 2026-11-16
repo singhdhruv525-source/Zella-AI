@@ -135,7 +135,7 @@ export const lastCallTitle = (at) => (at ? formatDateTime(at) : undefined);
 // Problems: a count with the first one's title. null or undefined means they couldn't be looked up.
 export function problemSummary(problems) {
   if (!problems) return { label: "Not available", tone: "neutral", detail: "", count: null };
-  if (!problems.count) return { label: "None", tone: "success", detail: "", count: 0 };
+  if (!problems.count) return { label: "No problems", tone: "success", detail: "", count: 0 };
   const urgent = problems.items?.some((p) => p.severity === "urgent");
   return {
     label: problems.count === 1 ? "1 open" : `${problems.count} open`,
