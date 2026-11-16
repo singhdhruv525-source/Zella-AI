@@ -14,7 +14,7 @@ export ZPG_HOST=${ZPG_HOST:-/var/lib/postgresql/zella-sec} ZPG_PORT=${ZPG_PORT:-
 P=(psql -h "$ZPG_HOST" -p "$ZPG_PORT" -U postgres -qtAX -v ON_ERROR_STOP=1)
 "${P[@]}" -d postgres -c "set client_min_messages = warning" -c "drop database if exists $DB" -c "create database $DB template $TEMPLATE" > /dev/null || exit 1
 for f in zella_writing_cleanup zella_admin_permissions zella_admin_mfa; do "${P[@]}" -d $DB -f "$REPO/sql/$f.sql" > /dev/null 2>&1 || { echo "FAIL $f"; exit 1; }; done
-"${P[@]}" -d $DB -f "$REPO/tests/industry_data/fixtures.sql" > /dev/null || { echo "FAIL fixtures"; exit 1; }
+"${P[@]}" -d $DB -f "$REPO/tests/industry_data/production_zella_sensitive_industry.sql" > /dev/null && "${P[@]}" -d $DB -f "$REPO/tests/industry_data/fixtures.sql" > /dev/null || { echo "FAIL fixtures"; exit 1; }
 fails=0; ok() { echo "PASS $*"; }; bad() { echo "FAIL $*"; fails=$((fails + 1)); }
 q() { "${P[@]}" -d $DB -c "$1"; }
 fp() { q "select md5(pg_get_functiondef('public.zella_brain_prompt_base(uuid)'::regprocedure)) || (select string_agg(grantee || privilege_type, ',' order by grantee) from information_schema.routine_privileges where routine_name = 'zella_brain_prompt_base')"; }

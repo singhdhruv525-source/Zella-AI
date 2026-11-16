@@ -13,7 +13,8 @@
 -- Seeded exactly from today's values on the first apply, so nothing behaves differently: the same seven sensitive
 -- slugs, the BY_NAME map by normalised name, and the CASE text for each industry's key as zella_industry_key_for
 -- works it out on THIS database (its own industry_crm_presets), so production gets production's lines.
--- zella_sensitive_industry now reads the column. It is archived first and must match production (7a6c1c0c...),
+-- zella_sensitive_industry now reads the column and keeps production's access check (server code, a member of the
+-- business or a top platform admin; anyone else gets false). It is archived first and must match production (ad2e363e...),
 -- otherwise VERSION_MISMATCH; rerunning needs this file's version and seeds nothing again.
 -- Rollback: sql/rollback/zella_industry_data_rollback.sql (restores the function, drops the four columns)
 begin;
@@ -26,14 +27,14 @@ begin
     raise exception 'VERSION_MISMATCH: something this file needs is missing';
   end if;
   d := pg_get_functiondef(s::regprocedure);
-  if md5(d) = '7a6c1c0c93afcc384a121ea74b51639d' then           -- production's version: archive it, seed below
+  if md5(d) = 'ad2e363ec6fa112404cc2710cc7132e4' then           -- production's version (16 Nov 2026): archive it, seed below
     if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'industries' and column_name = 'sensitive') then
       raise exception 'VERSION_MISMATCH: industries.sensitive already exists but % is the old version', s;
     end if;
     insert into public.zella_function_archive (migration, signature, definition, definition_md5)
     values ('zella_industry_data', s, d, md5(d)) on conflict (migration, signature) do nothing;
     perform set_config('zella.industry_data_seed', 'yes', true);
-  elsif md5(d) <> 'e18912059d5bf85819af1c2024bd4513' then                                 -- nor exactly this file's version (already applied)
+  elsif md5(d) <> 'be26e6cd036052ebd206de5573fed180' then                                 -- nor exactly this file's version (already applied)
     raise exception 'VERSION_MISMATCH: % is not a version this file was written for', s;
   end if;
 end $$;
@@ -160,7 +161,9 @@ CREATE OR REPLACE FUNCTION public.zella_sensitive_industry(p_business_id uuid)
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-  select coalesce((select i.sensitive from public.businesses b join public.industries i on i.id = b.industry_id where b.id = p_business_id), false);
+  select coalesce((select i.sensitive
+                     from public.businesses b join public.industries i on i.id = b.industry_id where b.id = p_business_id
+                      and (auth.uid() is null or public.zella_is_member(p_business_id) or public.is_platform_admin())), false);
 $function$;
 
 commit;

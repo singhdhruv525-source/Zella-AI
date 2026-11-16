@@ -11,7 +11,7 @@ begin
      or not exists (select 1 from public.zella_function_archive where migration = 'zella_industry_data') then
     return;   -- not applied, or already rolled back
   end if;
-  if md5(pg_get_functiondef(s::regprocedure)) <> 'e18912059d5bf85819af1c2024bd4513' then
+  if md5(pg_get_functiondef(s::regprocedure)) <> 'be26e6cd036052ebd206de5573fed180' then
     raise exception 'ROLLBACK_DRIFT: % has changed since this migration', s;
   end if;
   if position('safety_rules' in pg_get_functiondef('public.zella_brain_prompt_base(uuid)'::regprocedure)) > 0 then

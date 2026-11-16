@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # sql/zella_industry_data.sql on an ISOLATED copy of the production schema (never production). Test data only.
+# Production's zella_sensitive_industry is loaded first, so "before" is production's version.
 # Checks: before, a new industry is never sensitive (the gap: sensitivity is a slug list); applies, and applies again
 # without seeding twice; zella_sensitive_industry gives the same answer for every business before and after; the
 # seven sensitive slugs, the booking models of docs/PRODUCT.md §6, an automation set for all 28 industries; each
@@ -15,7 +16,7 @@ export ZPG_HOST=${ZPG_HOST:-/var/lib/postgresql/zella-sec} ZPG_PORT=${ZPG_PORT:-
 P=(psql -h "$ZPG_HOST" -p "$ZPG_PORT" -U postgres -qtAX -v ON_ERROR_STOP=1)
 "${P[@]}" -d postgres -c "set client_min_messages = warning" -c "drop database if exists $DB" -c "create database $DB template $TEMPLATE" > /dev/null || exit 1
 for f in zella_writing_cleanup zella_admin_permissions zella_admin_mfa; do "${P[@]}" -d $DB -f "$REPO/sql/$f.sql" > /dev/null 2>&1 || { echo "FAIL $f"; exit 1; }; done
-"${P[@]}" -d $DB -f "$HERE/fixtures.sql" > /dev/null || { echo "FAIL fixtures"; exit 1; }
+"${P[@]}" -d $DB -f "$HERE/production_zella_sensitive_industry.sql" > /dev/null && "${P[@]}" -d $DB -f "$HERE/fixtures.sql" > /dev/null || { echo "FAIL fixtures"; exit 1; }
 fails=0; ok() { echo "PASS $*"; }; bad() { echo "FAIL $*"; fails=$((fails + 1)); }
 q() { "${P[@]}" -d $DB -c "$1"; }
 fp() { q "select md5(pg_get_functiondef('public.zella_sensitive_industry(uuid)'::regprocedure)) || (select string_agg(grantee || privilege_type, ',' order by grantee) from information_schema.routine_privileges where routine_name = 'zella_sensitive_industry')"; }
@@ -29,6 +30,11 @@ before=$(fp); before_answers=$(answers)
 
 "${P[@]}" -d $DB -f "$REPO/sql/zella_industry_data.sql" > /dev/null 2>&1 && ok "applies" || { bad "applies"; "${P[@]}" -d $DB -f "$REPO/sql/zella_industry_data.sql" 2>&1 | tail -3; exit 1; }
 [ "$(answers)" = "$before_answers" ] && ok "zella_sensitive_industry gives the same answer for all $(q "select count(*) from public.businesses") businesses as before" || bad "answers changed"
+# production's access check is kept: server code, a member of the business or a top admin; anyone else gets false
+q "insert into auth.users (id, email) values ('a0000000-0000-0000-0000-0000000000d1', 'member@dental.test'), ('a0000000-0000-0000-0000-0000000000d2', 'stranger@other.test') on conflict do nothing;
+   insert into public.business_members (business_id, user_id, role, status) values ('9d000000-0000-0000-0000-000000000005', 'a0000000-0000-0000-0000-0000000000d1', 'staff', 'active') on conflict do nothing" > /dev/null
+as_user() { "${P[@]}" -d $DB -c "begin; set local request.jwt.claims = '{\"role\":\"authenticated\",\"sub\":\"$1\",\"aal\":\"aal2\"}'; set local role authenticated; select public.zella_sensitive_industry('9d000000-0000-0000-0000-000000000005'); commit;" 2>&1; }
+[ "$(as_user a0000000-0000-0000-0000-0000000000d1)" = t ] && [ "$(as_user a0000000-0000-0000-0000-0000000000d2)" = f ] && ok "production's access check is kept: a member of the dental business gets true, a stranger false" || bad "access $(as_user a0000000-0000-0000-0000-0000000000d1) $(as_user a0000000-0000-0000-0000-0000000000d2)"
 v=$(q "select string_agg(slug, ',' order by slug) from public.industries where sensitive"); [ "$v" = "childcare,dental,financial-services,healthcare,insurance,legal,pet-care-veterinary" ] && ok "the seven sensitive industries, exactly today's list" || bad "sensitive $v"
 v=$(q "select count(*) filter (where booking_model is not null) || '|' || (select booking_model from public.industries where slug = 'restaurant') || '|' || (select booking_model from public.industries where slug = 'ecommerce') from public.industries")
 [ "$v" = "28|table|none" ] && ok "every industry has its booking model (restaurant table, ecommerce none)" || bad "booking $v"
