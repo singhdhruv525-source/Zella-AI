@@ -4,6 +4,8 @@
 //            A refused file is rejected and its stored copy deleted.
 //   cleanup  server only (the server key, run on a schedule once approved): deletes stored copies of removed, rejected
 //            and abandoned files and objects with no file record.
+//   documents_cleanup  server only, the same way, for the business-documents bucket (BIZ-18a): deletes verification
+//            uploads over 24 hours old that were never confirmed (sql/zella_document_orphans.sql) and audits the run.
 // verify_jwt is off (config.toml): the server key is not a JWT. "check" is verified by the database with the member's own
 // sign-in; "cleanup" compares the server key.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
@@ -40,7 +42,7 @@ async function route(req: Request): Promise<Response> {
   const asServer = { apikey: server, Authorization: `Bearer ${server}` };
   const rpc = (fn: string, args: unknown, headers: Record<string, string>) =>
     fetch(`${base}/rest/v1/rpc/${fn}`, { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify(args), signal: AbortSignal.timeout(TIMEOUT_MS) });
-  const removeStored = (paths: string[]) => fetch(`${base}/storage/v1/object/record-files`, {
+  const removeStored = (paths: string[], bucket = "record-files") => fetch(`${base}/storage/v1/object/${bucket}`, {
     method: "DELETE", headers: { "Content-Type": "application/json", ...asServer }, body: JSON.stringify({ prefixes: paths }), signal: AbortSignal.timeout(TIMEOUT_MS) });
 
   if (body.action === "check") {
@@ -78,6 +80,20 @@ async function route(req: Request): Promise<Response> {
       if (!del.ok) return withCors(json({ ok: false, error: "storage_delete_failed" }, 503));
       const purged = await rpc("zella_record_files_purged", { p_paths: paths }, asServer).catch(() => null);
       if (!purged?.ok) return withCors(json({ ok: false, error: "purge_record_failed" }, 503));
+    }
+    return withCors(json({ ok: true, deleted: paths.length }, 200));
+  }
+  if (body.action === "documents_cleanup") {
+    if (userAuth !== `Bearer ${server}`) return withCors(json({ ok: false, error: "server_only" }, 403));
+    const list = await rpc("zella_document_orphans", { p_limit: 500 }, asServer);
+    if (!list.ok) return withCors(json({ ok: false, error: "try_again" }, 503));
+    // only paths in a business's folder: <business id>/<kind>/<file>
+    const paths = ((await list.json()) as unknown[]).map(String).filter((p) => /^[0-9a-f-]{36}\/[a-z_]+\/[^/]+$/i.test(p));
+    if (paths.length) {
+      const del = await removeStored(paths, "business-documents");
+      if (!del.ok) return withCors(json({ ok: false, error: "storage_delete_failed" }, 503));
+      const noted = await rpc("zella_document_orphans_removed", { p_paths: paths }, asServer).catch(() => null);
+      if (!noted?.ok) return withCors(json({ ok: false, error: "audit_failed", deleted: paths.length }, 503));
     }
     return withCors(json({ ok: true, deleted: paths.length }, 200));
   }
