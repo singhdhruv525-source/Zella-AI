@@ -4,6 +4,8 @@
 //   POST { action: "checkout_return", business_id }                  -> the payment state, after applying any events
 //   POST { action: "pack_buy", business_id, pack_code, idempotency_key } -> { purchase_id, status } (charged on the saved card;
 //                                                                    the pack is added when Stripe confirms the payment)
+//   POST { action: "refund_options", business_id }  /  { action: "refund_request", business_id, kind, payment_id, idempotency_key }
+//                                                                    eligibility decided by the database (REQ-BIL-45)
 // Each request first runs the owner's database function with the owner's own sign in (active owner of THAT business,
 // a code verified session); only then does the server key send the commands that function queued, so the owner gets
 // the Checkout link at once. The return from Stripe is never trusted: it only triggers the same event processing the
@@ -27,6 +29,7 @@ const WORDS: Record<string, string> = {
   ALREADY_PAID: "Your payment is already confirmed.",
   NO_SAVED_CARD: "Add a card in Settings, Billing first.",
   NO_ACTIVE_PLAN: "Packs can be bought once your plan is active.",
+  NOT_ELIGIBLE: "This payment can't be refunded under the refund policy.",
   UNKNOWN_PACK: "That pack isn't available.",
   IDEMPOTENCY_CONFLICT: "That didn't work. Reload the page and try again.",
   INVALID_INPUT: "That didn't work. Reload the page and try again.",
@@ -96,6 +99,11 @@ export async function handle(req: Request): Promise<Response> {
       const next = await rpc("zella_billing_pack_next_command", { p_purchase_id: bought.purchase_id }) as string | null;
       if (next) await sendOutboxNow(rpc, stripe, next);
       return reply({ purchase_id: bought.purchase_id, status: bought.status });
+    }
+    if (body.action === "refund_options") return reply(await asOwner(url, anon, jwt, "zella_owner_refund_options", { p_business_id: business }));
+    if (body.action === "refund_request") {
+      if (!UUID.test(String(body.payment_id ?? ""))) return refuse("INVALID_INPUT");
+      return reply(await asOwner(url, anon, jwt, "zella_owner_refund_request", { p_business_id: business, p_kind: String(body.kind ?? ""), p_payment_id: body.payment_id, p_idempotency_key: String(body.idempotency_key ?? "") }));
     }
     return refuse("INVALID_INPUT");
   } catch (e) {

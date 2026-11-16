@@ -527,6 +527,8 @@ uncertain refunds all count against the payment, so concurrent requests can neve
 `charge.refunded`. It is recorded against the payment (unique refund id), matched to an approved request if one exists,
 and otherwise raises a platform alert and an audit entry, so no refund goes unnoticed or bypasses `REQ-BIL-45` silently.
 
+**Built (lane F, switched off, `sql/zella_stripe_refunds.sql`):** `zella_refund_options` decides eligibility (the guarantee covers the plan fee of the first payment only, so the setup fee is its own 48 hour option); a request locks the payment row and reserves the amount; only the Zella Voice owner (`zella_admin_role() = 'zella_owner'`) approves, with a reason, and approval re-checks the rules with the request itself set aside; `refund.created` / `refund.updated` / `refund.failed` settle it and post `refund:<stripe id>` once. Not built: the owner's Refund button on the CRM Billing page and the admin approval screen (the functions and `billing-api` `refund_options` / `refund_request` exist).
+
 ### 6.9 Pay as you go (D-44), billed with the next renewal
 
 ```mermaid
