@@ -102,7 +102,8 @@ upgrades.
 
 Each industry's booking model, whether it is sensitive and its default automations are stored with the industry
 (`industries.booking_model`, `industries.sensitive`, `industry_configurations.automation_defaults`; CFG-05, built, not applied)
-and edited on Industry configuration.
+and edited on Industry configuration. The receptionist's industry safety lines are stored there too
+(`industry_configurations.safety_rules`), read by the receptionist once `sql/zella_brain_safety_rules.sql` is applied.
 
 | Industry | Words (customer / booking / staff) | Booking model | Regulated |
 |---|---|---|---|
