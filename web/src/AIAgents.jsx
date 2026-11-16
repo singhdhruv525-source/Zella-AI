@@ -5,43 +5,35 @@ import { Pill } from "./OwnerOverview";
 import { stageLabel, timeAgo } from "./ownerFormat";
 import { LoadNotice, UpdatedAt, useRefreshable } from "./admin/loadState";
 import { emptyText, metric } from "./admin/loadStatus";
+import { answeringText, livePill, missingForLive } from "./connectionState.js";
 
 const CHECKS = [
   ["knowledge", "Knowledge", "Services or FAQs added"],
   ["hours", "Hours", "Business hours set"],
   ["greeting", "Greeting", "Greeting written"],
-  ["phone", "Phone", "Telnyx number connected"],
-  ["voice", "Voice", "Vapi agent connected"],
+  ["phone", "Phone", "Active phone number"],
+  ["voice", "Voice", "Number linked to Vapi"],
 ];
 
 const FILTERS = [
   ["all", "All"],
   ["live", "Live"],
+  ["answering", "Answering"],
   ["off", "Not live"],
   ["missing", "Missing knowledge"],
   ["ready", "Ready to connect"],
 ];
 
-// Live only when the server reports it active AND its phone (Telnyx) and voice (Vapi) connections active. New agents
-// start "active" in the database before anything is connected, so status alone doesn't mean it answers calls.
-const isLive = (agent) => agent?.status === "active" && agent?.checks?.phone === true && agent?.checks?.voice === true;
-
+// Live and answering come from the server's one definition (docs/PRODUCT.md §9.1): the page never works them out.
 function matches(agent, filter) {
-  if (filter === "live") return isLive(agent);
-  if (filter === "off") return !isLive(agent);
+  if (filter === "live") return agent.live === true;
+  if (filter === "answering") return agent.answering === true;
+  if (filter === "off") return agent.live !== true;
   if (filter === "missing") return !agent.checks.knowledge;
   if (filter === "ready") {
-    return agent.checks.knowledge && agent.checks.hours && agent.checks.greeting && !agent.checks.phone;
+    return agent.checks.knowledge && agent.checks.hours && agent.checks.greeting && !agent.checks.voice;
   }
   return true;
-}
-
-// The status the server reports (ai_agents.status: active, paused, disabled); anything else shows as unknown.
-const STATUS_PILL = { paused: ["warning", "Paused"], disabled: ["neutral", "Off"] };
-function agentPill(agent) {
-  if (isLive(agent)) return ["success", "Live"];
-  if (agent?.status === "active") return ["neutral", "Not connected"];
-  return STATUS_PILL[agent?.status] ?? ["neutral", "Unknown"];
 }
 const loadAgents = () => callOwnerFunction("agents_list");
 
@@ -58,7 +50,8 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
   );
   const s = data?.stats;
   const show = (v) => metric(v, state);   // missing or not loaded: "—", never 0
-  const liveCount = Array.isArray(data?.agents) ? data.agents.filter(isLive).length : null;
+  const available = data?.connectionsAvailable !== false;
+  const showLink = (v) => (available ? show(v) : "Not available");
 
   return (
     <section className="owner-page">
@@ -79,10 +72,10 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
       <LoadNotice r={state} what="AI receptionists" />
 
       <div className="owner-stat-grid">
-        <div className="owner-stat-card"><div className="owner-stat-top"><span>Receptionists</span></div><div className="owner-stat-value">{show(s?.total)}</div><div className="owner-stat-note">One per business</div></div>
-        <div className="owner-stat-card"><div className="owner-stat-top"><span>Live</span></div><div className="owner-stat-value">{show(liveCount)}</div><div className="owner-stat-note">Active, with phone and voice connected</div></div>
-        <div className="owner-stat-card"><div className="owner-stat-top"><span>Ready to connect</span></div><div className="owner-stat-value">{show(s?.readyToConnect)}</div><div className="owner-stat-note">Set up, phone not connected</div></div>
-        <div className="owner-stat-card"><div className="owner-stat-top"><span>Missing knowledge</span></div><div className="owner-stat-value">{show(s?.missingKnowledge)}</div><div className="owner-stat-note">No services or FAQs</div></div>
+        <div className="owner-stat-card"><div className="owner-stat-top"><span>Receptionists</span></div><div className="owner-stat-value">{show(s?.total)}</div><div className="owner-stat-note">{`One per business · ${show(s?.missingKnowledge)} missing knowledge`}</div></div>
+        <div className="owner-stat-card"><div className="owner-stat-top"><span>Live</span></div><div className="owner-stat-value">{showLink(s?.live)}</div><div className="owner-stat-note">Switched on, number linked to Vapi</div></div>
+        <div className="owner-stat-card"><div className="owner-stat-top"><span>Answering</span></div><div className="owner-stat-value">{showLink(s?.answering)}</div><div className="owner-stat-note">Answered a call in the last 7 days</div></div>
+        <div className="owner-stat-card"><div className="owner-stat-top"><span>Ready to connect</span></div><div className="owner-stat-value">{showLink(s?.readyToConnect)}</div><div className="owner-stat-note">Set up, number not linked to Vapi</div></div>
       </div>
 
       <section className="owner-panel">
@@ -130,7 +123,7 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
                       <button type="button" className="op-name" onClick={() => onOpenBusiness(a.businessId)}>
                         {a.businessName}
                       </button>
-                      <span>{a.industry} · {stageLabel(a.stage)}</span>
+                      <span>{a.industry} · {a.stage === "active" ? "Setup finished" : stageLabel(a.stage)}</span>
                     </div>
                   </td>
                   <td>
@@ -150,7 +143,11 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
                   </td>
                   <td>
                     {/* an unrecognised or missing status is shown as unknown, never as live or off */}
-                    <Pill tone={agentPill(a)[0]}>{agentPill(a)[1]}</Pill>
+                    <div className="owner-business-cell">
+                      <span><Pill tone={livePill(a, available)[0]}>{livePill(a, available)[1]}</Pill></span>
+                      <span>{answeringText(a.answering, a.lastServedAt, available)}</span>
+                      {available && !a.live && missingForLive(a).length > 0 && <span>Needs {missingForLive(a).join(", ")}</span>}
+                    </div>
                   </td>
                   <td>
                     <div className="owner-business-cell">
@@ -181,7 +178,7 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
         </div>
         <div className="owner-panel-footer">
           <span>{agents.length} shown</span>
-          <span>A receptionist goes live only after its phone number and voice agent are connected.</span>
+          <span>Live: switched on, with an active number linked to Vapi. Answering: Zella Voice served it a call in the last 7 days.</span>
         </div>
       </section>
     </section>

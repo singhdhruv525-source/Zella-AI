@@ -310,12 +310,12 @@ only the pages they can use. Every admin action is written to the audit log.
 | Configuration | **Modules & features** | Modules per industry and business | `businesses.view` |
 | Configuration | **Plans & subscriptions** | Plans and subscriptions (policy decided in architecture §17; no plan created yet) | `billing.view` |
 | Configuration | **Offers & promotions** | Offers, rules, redemptions | `billing.view` |
-| AI & communications | **AI agents** | Receptionist agents and configurations | `businesses.view` |
+| AI & communications | **AI agents** | Receptionist agents and configurations; Live and Answering per receptionist from the one definition (§9.1), with what is missing before it can be live | `businesses.view` |
 | AI & communications | **Voice & numbers** | Assign and release phone numbers, voice usage, alerts | `businesses.view` |
 | AI & communications | **Messaging** | Messages across businesses, templates, compliance, retries | `businesses.view` |
 | Operations | **Platform operations** | Scheduler health, dispatcher, provider health, failed work | `businesses.view` |
 | Operations | **Automations** | Automations and runs across businesses, retry, pause | `businesses.view` |
-| Operations | **Integrations** | Provider connections and their state | `businesses.view` |
+| Operations | **Integrations** | What each business asked for in setup against what is connected (numbers, Vapi link, calendar, lead sources from §9.1; email reads Not tracked), plus store and other integration records | `businesses.view` |
 | Operations | **Support** | Support tickets | `support.manage` |
 | Operations | **Security & abuse** | Spam and abuse across the platform | `security.view` |
 | Administration | **Users & access** | Platform admins and their roles | `security.view` |

@@ -51,3 +51,6 @@ insert into public.integrations (business_id, provider, integration_type, status
   ('e1000000-0000-0000-0000-000000000007', 'telnyx', 'phone', 'active'),
   ('e1000000-0000-0000-0000-000000000007', 'vapi', 'voice', 'active'),
   ('e1000000-0000-0000-0000-000000000008', 'shopify', 'store', 'error');
+-- What each business asked for in setup (the Integrations page lists businesses that finished that step).
+update public.businesses set setup_data = '{"integrations": {"phone": {"mode": "new_number"}, "calendar": "google", "email": "gmail", "lead_sources": {"website": true, "meta": true}}}'::jsonb
+ where id::text like 'e1000000%';
