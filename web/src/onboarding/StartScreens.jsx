@@ -5,7 +5,7 @@ import { friendlyAuthError } from "../authErrors";
 import AuthenticatorSetup from "../AuthenticatorSetup";
 import { Icon } from "../BusinessUI";
 import { Actions, ErrorText, useAction } from "./kit";
-import { SCREENS, securityPart } from "./steps";
+import { SCREENS, errorWords, securityPart } from "./steps";
 
 // Screens 1 and 2: Welcome, then the password and the authenticator (contract step "security").
 
@@ -81,8 +81,10 @@ function PasswordPart({ api, email, onDone }) {
     if (missing.length) return setError(`Your password still needs: ${missing.join(", ")}.`);
     if (password !== confirm) return setError("The two passwords don't match.");
     setBusy(true);
-    try { await api.setPassword(password); await onDone(); }
-    catch (err) { setError(friendlyAuthError(err)); setBusy(false); }
+    try { await api.setPassword(password); }
+    catch (err) { setError(friendlyAuthError(err)); setBusy(false); return; }
+    try { await onDone(); }
+    catch (err) { setError(`Your password is saved. ${errorWords(err)}`); setBusy(false); }
   }
   return (
     <form className="ba-form zob-form" onSubmit={save} noValidate>
@@ -105,7 +107,8 @@ function AuthenticatorPart({ api, onDone }) {
   return (
     <>
       <p className="zob-lead">Each time you sign in, you'll enter your password and then a code from an app on your phone. It keeps your business and your customers' details safe, even if someone learns your password.</p>
-      <AuthenticatorSetup start={api.startMfa} finish={api.finishMfa} submitLabel="Turn on and continue" onDone={onDone} />
+      <AuthenticatorSetup start={api.startMfa} finish={api.finishMfa} submitLabel="Turn on and continue"
+        onDone={async () => { try { await onDone(); } catch (err) { throw new Error(`Two step sign in is on. ${errorWords(err)}`); } }} />
     </>
   );
 }

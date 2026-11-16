@@ -113,10 +113,9 @@ function Journey({ api, email }) {
     setState(next);
     if (advance) show(resumeStep(next));
   }, [show]);
-  const reload = useCallback(async () => {
-    if (!state) return;
-    try { setState(await api.getState(state.business_id)); } catch { /* the screen keeps what it has, and says why it failed */ }
-  }, [api, state]);
+  // Reads the state again. refresh lets a failure reach the screen (which says so); reload keeps what is shown.
+  const refresh = useCallback(async () => { if (state) setState(await api.getState(state.business_id)); }, [api, state]);
+  const reload = useCallback(() => refresh().catch(() => {}), [refresh]);
   // Finishes a step on the server, then shows the step it says comes next. Errors go back to the screen.
   const onComplete = useCallback(async (step, { stay = false } = {}) => {
     try {
@@ -153,7 +152,7 @@ function Journey({ api, email }) {
 
   const step = STEP_KEYS.includes(view) ? view : resumeStep(state);
   const back = CAN_GO_BACK.has(step) ? previousStep(step) : null;
-  const props = { api, state, email, onState, onComplete, onReload: reload, onRefresh: reload };
+  const props = { api, state, email, onState, onComplete, onReload: reload, onRefresh: refresh };
 
   if (left) {
     const at = SCREENS.find((s) => s.key === resumeStep(state))?.label ?? "the same step";
