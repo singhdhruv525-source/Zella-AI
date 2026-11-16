@@ -11,6 +11,7 @@ const LABEL = { urgent: "Urgent", warning: "Heads up", info: "Info" };
 const ICON = {
   provider_down: "cloud_off", provider_recovered: "cloud_done", queue_backlog: "hourglass_bottom", automation_heartbeat: "monitor_heart",
   automation_stalled: "sync_problem", scheduler_failed: "event_busy", engine_stuck_work: "build", repeated_transfer_failures: "phone_disabled",
+  weekly_report: "summarize",
 };
 const ago = (v) => {
   const m = Math.round((Date.now() - new Date(v).getTime()) / 60000);

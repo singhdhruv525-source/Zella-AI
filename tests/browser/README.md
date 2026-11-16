@@ -65,6 +65,7 @@ Never point any of this at production.
 | `ui-journeys.cjs` | Template and customer-search scoping across two businesses, appearance save failure and retry, a reload during a pending save, the icon font blocked, automations with live-shaped data. |
 | `admin-mfa-journey.cjs` | Two step sign in for every admin: an admin without an authenticator gets only their own role from the server and nothing from the database, is walked through setting one up (wrong code refused), lands on the dashboard; the only authenticator can't be removed; the next sign in asks for the code. Needs `sql/zella_admin_mfa.sql` in the test database. |
 | `brand-check.cjs` | Sidebar logo and default theme: expanded, collapsed, frames during the transition, tablet rail, phone drawer, reduced motion, accessible name, saved looks kept. |
+| `weekly-report.cjs` | Settings, Reporting configuration: the owner sees the weekly platform report's schedule, every figure with its definition and earlier weeks at 1440 x 900 and 390 px with no sideways scrolling; a read only admin without `reports.view` sees the refusal. Needs `sql/zella_weekly_platform_report.sql` and a few reports in the test database. Screenshots go to `SHOTS`. |
 | `probe.cjs <email> <route> "<js>"` | Opens one page and prints a browser expression (for debugging). |
 
 The stand-in covers the query shapes this app uses. It is not a full PostgREST or GoTrue: auth is simplified to test users with one password, storage is kept in memory, and embedded-resource filters are not supported.

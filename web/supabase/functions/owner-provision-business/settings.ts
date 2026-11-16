@@ -65,6 +65,7 @@ export const PERMISSION_CATALOG: [string, string][] = [
   ["security.manage", "Security settings"],
   ["audit.view", "Read the audit log"],
   ["analytics.view", "Analytics and usage"],
+  ["reports.view", "Weekly platform report"],
   ["legal.manage", "Draft, review and publish legal documents"],
   ["platform.configure", "Platform profile, branding, maintenance and preferences"],
 ];

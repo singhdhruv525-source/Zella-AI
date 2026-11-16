@@ -633,7 +633,7 @@ isolated database first.
 
 ### Settings
 - [ ] Editable alert rules (condition, severity, destination, frequency, quiet window) (Settings, Alert rules) · needs approval
-- [ ] Scheduled reports and report permissions (Settings, Reporting configuration) · needs approval
+- [ ] Scheduled reports and report permissions (Settings, Reporting configuration) · needs approval. Built on the branch `claude/weekly-admin-report` (owner's decision: one weekly platform summary, permission `reports.view`); not applied; runs once `zella_jobs_weekly` is switched on
 - [ ] Public API keys with scopes, hashing, last used and revocation (Settings, API management) · needs approval
 - [ ] OAuth application checks (Google client set or not) in the server configuration check (Settings, OAuth applications) · needs approval
 - [ ] A per business recording on or off policy (Settings, Policy configuration) · needs approval
