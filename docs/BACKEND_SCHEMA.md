@@ -18,7 +18,7 @@ It reads the catalog only, never rows.
 | Row security policies | 342 |
 | Columns | 2072 |
 | Views | 1 |
-| Functions | 914 (846 security definer, 26 callable by `anon`) |
+| Functions | 915 (847 security definer, 26 callable by `anon`) |
 
 Rules every table follows:
 
@@ -4337,7 +4337,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_add_lead_note(p_customer_id uuid, p_note text)` | boolean | yes | signed in |
 | `zella_add_record_note(p_id uuid, p_note text)` | boolean | yes | signed in |
 
-### `zella_admin_*` (46)
+### `zella_admin_*` (47)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -4355,6 +4355,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_admin_calls(p_from timestamp with time zone, p_to timestamp with time zone, p_business uuid, p_direction text, p_status text, p_outcome text, p_failed_only boolean, p_q text, p_limit integer, p_offset integer)` | jsonb | yes | signed in |
 | `zella_admin_can(p_permission text)` | boolean | yes | signed in |
 | `zella_admin_dispatch_responses()` | jsonb | yes | signed in |
+| `zella_admin_email_triggers()` | jsonb | yes | signed in |
 | `zella_admin_job_intent_save(p_job text, p_intended text, p_reason text)` | jsonb | yes | signed in |
 | `zella_admin_mask(p text)` | text |  | server only |
 | `zella_admin_message_detail(p_channel text, p_id uuid, p_with_content boolean)` | jsonb | yes | signed in |
