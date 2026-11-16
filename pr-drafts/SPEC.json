@@ -1,0 +1,282 @@
+{
+ "shared": [
+  {
+   "change": "P1. Disabled buttons stop looking broken. Today the shared rule is only `opacity: 0.5` (components.css line 403 to 407, plus a duplicate `opacity: 0.55` in OwnerDashboard.css 1158 to 1163 and `.zs-btn:disabled` in settings.css 90). On the Zella theme's near-black primary, that turns into a flat mid grey pill. Replace it with one rule in components.css: `.owner-primary-button:disabled, .owner-button-primary:disabled, .ba-btn.primary:disabled, .zs-btn.primary:disabled, .cp-button:disabled, .bp-primary:disabled { background: var(--zella-subtle); color: var(--zella-text-faint); border: 1px solid var(--zella-border); box-shadow: none; opacity: 1; cursor: not-allowed }`. Secondary buttons keep `opacity: .5`. Delete the duplicate disabled rules in OwnerDashboard.css, settings.css and billing.css (line 61). Rule of use: a disabled primary always has a short reason next to it, as onboarding already does.",
+   "files": [
+    "web/src/styles/components.css",
+    "web/src/OwnerDashboard.css",
+    "web/src/settings/settings.css",
+    "web/src/billing.css"
+   ]
+  },
+  {
+   "change": "P1. One button system, matched to the shipped default theme. zella-theme.css (the default look) makes every button a 999px pill, while DESIGN_SYSTEM.md still describes the Classic look (mocha, 8px). Keep the pill shape, since it is the signature of the shipped theme, and fix the doc instead of the CSS. In components.css, add a small size `.owner-secondary-button.sm, .zs-btn.sm, .ba-btn.sm { height: 32px; padding: 0 var(--zella-space-3); font-size: var(--zella-text-sm) }` and a quiet text action `.owner-link-button` (no border, color var(--zella-text), font-weight 600, underline only on hover and focus). Add the sm and link variants to the zella-theme.css pill selector list. Table rule, written into DESIGN_SYSTEM.md under Tables: the action cell holds at most one `.owner-secondary-button.sm`, plus an optional icon-only overflow button (`more_horiz`, with an aria-label). It has no underlined bare links, never stacks actions vertically, and uses `td.col-actions { width: 1%; white-space: nowrap; text-align: right }`.",
+   "files": [
+    "web/src/styles/components.css",
+    "web/src/styles/zella-theme.css",
+    "docs/DESIGN_SYSTEM.md"
+   ]
+  },
+  {
+   "change": "P1. Table rhythm and no broken words. Add these rules to components.css for `.owner-table`. `td { vertical-align: middle; padding: 10px var(--zella-space-4) }`. `.owner-table-secondary { display: block; max-width: 28ch; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--zella-text-secondary); font-size: var(--zella-text-xs) }`. A shared `.owner-cell-truncate { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }` for emails and long names, with the full value in a `title`. `.owner-table .op-pill, .owner-table .owner-badge { white-space: nowrap }`. `td.num { text-align: right; font-variant-numeric: tabular-nums }`. Never use `overflow-wrap: anywhere` or `break-all` on table text (OwnerPages.css 909, and `.bl-email` on the businesses branch).",
+   "files": [
+    "web/src/styles/components.css",
+    "web/src/OwnerPages.css"
+   ]
+  },
+  {
+   "change": "P1. Phone tables become cards. Add an opt-in `.owner-table--cards` to components.css, under `@media (max-width: 600px)`: `thead { display: none }`, `tr { display: grid; grid-template-columns: 1fr auto; gap: 4px var(--zella-space-3); padding: var(--zella-space-3) var(--zella-space-4) }`, `td { padding: 0; border: 0 }`, `td[data-label]::before { content: attr(data-label); display: block; color: var(--zella-text-secondary); font-size: var(--zella-text-xs) }`, and `td.col-actions { grid-column: 2; grid-row: 1 }`. Extend `DataTable` in adminOps.jsx to accept `cards` and a column `label`, and to emit `data-label`. Tables that stay as tables on a phone get a right-edge fade on `.owner-table-wrap` (`mask-image: linear-gradient(90deg, #000 90%, transparent)` while it can scroll).",
+   "files": [
+    "web/src/styles/components.css",
+    "web/src/admin/adminOps.jsx"
+   ]
+  },
+  {
+   "change": "P1. One empty value. Add `EmptyValue({ label = 'None' })` to adminOps.jsx, rendering `<span className=\"empty-value\">`, with `.empty-value { color: var(--zella-text-faint); font-weight: 400 }` in components.css. Use one word per kind of value: 'None' for lists and counts, 'Not set' for configuration, 'Never' for times. A cell is never blank. `Facts`, `when()` and `num()` in adminOps.jsx render EmptyValue instead of the bare strings ('Not available' becomes 'Not set'). Document this in DESIGN_SYSTEM.md Writing.",
+   "files": [
+    "web/src/admin/adminOps.jsx",
+    "web/src/styles/components.css",
+    "docs/DESIGN_SYSTEM.md"
+   ]
+  },
+  {
+   "change": "P1. One page header. Extend `PageHeader` in adminOps.jsx to `{ eyebrow, title, description, actions, updatedAt, onRefresh }`. The eyebrow equals the sidebar group (Businesses, Configuration, AI and communications, Operations). The H1 equals the sidebar label. 'Updated 2:44 PM' plus a Refresh secondary sm button always sits in the header actions, left of the single primary button. The card-level Refresh disappears. Rename the sidebar item 'AI agents' to 'AI receptionists' so the breadcrumb, nav and H1 match (navigation config).",
+   "files": [
+    "web/src/admin/adminOps.jsx",
+    "web/src/navigation",
+    "web/src/OwnerDashboard.css"
+   ]
+  },
+  {
+   "change": "P1. One badge, and filters that do not look like primary buttons. In components.css, give `.op-pill, .owner-badge` the same shape: `height: 22px; padding: 0 8px; font-size: var(--zella-text-xs); font-weight: 600; border-radius: var(--zella-radius-full); border: 0; white-space: nowrap`, with tones from `--zella-{success,info,warning,danger}-bg` and foreground. Neutral uses `--zella-subtle` with `--zella-text-secondary`. Tone map: Live, Active, Ready are success. Trial, In progress, Scheduled are info. Draft, Not yet, Pending are warning. Use the same map everywhere. In `Tabs` (`.op-tabs`) and the filter chip groups (`.ao-chip`), the selected state is `background: var(--zella-primary-soft); color: var(--zella-text); box-shadow: inset 0 0 0 1px var(--zella-primary-border)`, never a midnight fill. The tab row scrolls in one line (`flex-wrap: nowrap; overflow-x: auto`) with a right-edge fade.",
+   "files": [
+    "web/src/styles/components.css",
+    "web/src/OwnerPages.css",
+    "web/src/admin/adminOps.jsx"
+   ]
+  },
+  {
+   "change": "P1. Headings stay readable at small sizes. zella-theme.css applies Inter Tight with `-0.02em` to every h1 and h2, which closes the word spaces at 16 to 18px ('All businesses' reads as one word). Limit the display font and tracking to page headings (`h1, .owner-page-heading h1, .zs-head h1`). Card and section h2 and h3 use `var(--zella-font)`, weight 600, `letter-spacing: 0`. In OwnerDashboard.css (lines 80, 94, 163, 263 to 264, 366 to 367, 429) remove the fixed `font-weight: 750` and `letter-spacing: -0.8px`, and let components.css set the heading weight (600).",
+   "files": [
+    "web/src/styles/zella-theme.css",
+    "web/src/OwnerDashboard.css",
+    "web/src/CreateBusinessWizard.css"
+   ]
+  },
+  {
+   "change": "P1. Settings rows and one save bar (SettingsKit). Replace the per-setting card (heading, key, Value label, input, help, divider, Cancel and Save) with a compact `.zs-row`. Label and help sit on the left at 40%, the input on the right (max-width 240px for numbers), and the setting key goes in a 'Technical details' disclosure, not under every label. Use one sticky save bar per section ('2 unsaved changes', Discard, Save), like the Industry configuration footer, and no Save or Cancel row while nothing has changed. Settings whose database column is missing collapse into one info banner at the top ('Five settings are waiting for a database update', with a list), and their rows show a neutral 'Not available yet' badge instead of five amber banners. The field label never repeats the card title (use aria-label).",
+   "files": [
+    "web/src/settings/SettingsKit.jsx",
+    "web/src/settings/settings.css"
+   ]
+  },
+  {
+   "change": "P2. One KPI card. `Metric` in adminOps.jsx and `.owner-stat-card` show a label (13px, secondary), a value (32px, 600, tabular-nums), a note (12px, secondary, one line with ellipsis) and a fixed min-height, with no coloured icon tiles. A card that filters the list is a real button or link (hover border, focus ring, `chevron_right`), so a caption such as 'Show them' is never plain bold text. Use it on Businesses, Overview, AI receptionists and Operations.",
+   "files": [
+    "web/src/admin/adminOps.jsx",
+    "web/src/styles/components.css",
+    "web/src/OwnerDashboard.css"
+   ]
+  },
+  {
+   "change": "P2. One table footer and one selected row. `Pager` in adminOps.jsx always renders a `.owner-table-foot` inside the card padding (`display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: var(--zella-space-3) var(--zella-space-4)`). The left side says 'Showing 1 to 25 of 96' (or '3 shown'). The right side has Previous and Next as `.owner-secondary-button.sm`, which become chevron icon buttons under 600px. Selected row everywhere: `background: var(--zella-primary-soft); box-shadow: inset 3px 0 0 var(--zella-primary)` (no black bar, no peach fill on unselected rows). Clickable rows (`.ao-clickable`) get `cursor: pointer` and a hover `var(--zella-alt)`.",
+   "files": [
+    "web/src/admin/adminOps.jsx",
+    "web/src/styles/components.css",
+    "web/src/OwnerPages.css"
+   ]
+  },
+  {
+   "change": "P2. Drawers. `Drawer` in adminOps.jsx gets the header pattern: a 12px secondary eyebrow ('Plan'), the title (the business name) at 18px 600, and an optional status badge on the right. It gets an optional `footer` prop rendered as a sticky `.ao-drawer-foot` (`position: sticky; bottom: 0; border-top: 1px solid var(--zella-border); background: var(--zella-card); padding: 12px 20px; display: flex; justify-content: flex-end; gap: 8px`). `.ao-facts` becomes `grid-template-columns: minmax(140px, 40%) 1fr; column-gap: 16px`, with keys at 13px secondary and values at 14px 500. Add `.drawer-section h3 { font-size: 16px; font-weight: 600; margin-top: 16px }`.",
+   "files": [
+    "web/src/admin/adminOps.jsx",
+    "web/src/OwnerPages.css"
+   ]
+  },
+  {
+   "change": "P2. Shared filters row. `Filters` (`.op-filters`) becomes one grid row: `grid-template-columns: minmax(240px, 2fr) repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; align-items: end`, with every control (search, selects, dates, Clear) at 36px. Checkbox filters such as 'Has a problem' become a toggle chip (`aria-pressed`) in the same row. Clear filters is a text button at the end. Under 600px the filters fold behind a 'Filters (2)' secondary button.",
+   "files": [
+    "web/src/admin/adminOps.jsx",
+    "web/src/OwnerPages.css",
+    "web/src/styles/components.css"
+   ]
+  },
+  {
+   "change": "P2. Info banner readability. In `.owner-info-banner` and `.banner-info`, the body text uses `var(--zella-text-2)` at weight 400. Only the lead phrase uses `var(--zella-info)` at 600, with an `info` icon at 20px. Banners stay at two lines at most, with more detail behind a disclosure. Add a matching `.banner-warning` for inline table notices ('1 job is not in the state recorded for it').",
+   "files": [
+    "web/src/styles/components.css",
+    "web/src/OwnerDashboard.css"
+   ]
+  },
+  {
+   "change": "P2. One format module for numbers, times and phones (writing rule: phones use spaces). Add web/src/lib/format.js, or extend ownerFormat.js, with: formatCount (Intl.NumberFormat, '1,203'), formatRelative ('5 days ago', 'Yesterday', never '5 d ago', with the full timestamp in `title`), formatPhone ('(555) 123 0001', not E.164), formatTimeZone ('Eastern Time (New York)', not 'America/New_York') and formatDateTime ('Nov 16, 2026 at 2:49 PM'). Column heads read 'AI calls, last 30 days'. Route `when`, `num` and `duration` in adminOps.jsx through it.",
+   "files": [
+    "web/src/ownerFormat.js",
+    "web/src/admin/adminOps.jsx"
+   ]
+  },
+  {
+   "change": "P3. The sidebar column fills the page. `.owner-sidebar` is `position: sticky; height: 100vh` inside a flex row, so on long pages the column background ends after one screen, and a scrolled capture shows the nav floating mid page (Businesses, Alert rules, Support). Put the background and right border on a stretching column wrapper (`align-self: stretch; background: var(--zella-sidebar)`), and make only the inner nav sticky (`top: 0; height: 100vh; overflow: auto`). Make the settings sub nav `.zs-nav` `align-self: start; position: sticky; top: var(--zella-space-6)`. Check it in a real scrolled browser as well as in full page shots.",
+   "files": [
+    "web/src/OwnerDashboard.css",
+    "web/src/settings/settings.css"
+   ]
+  },
+  {
+   "change": "P3. Update DESIGN_SYSTEM.md to match what ships. Describe the Zella theme as the default (paper, midnight action colour, coral only for selected and live, pill buttons, Inter Tight for page headings only) alongside Classic and Glass. List the shared components every new admin page must use: PageHeader, Metric (KPI), DataTable with Pager footer and card mode, Drawer with footer, Badge tones, EmptyValue, banners, the Settings row and save bar, and the format helpers.",
+   "files": [
+    "docs/DESIGN_SYSTEM.md"
+   ]
+  }
+ ],
+ "per_page": [
+  {
+   "branch": "claude/admin-businesses-list",
+   "page": "Businesses list (BusinessesPage.jsx, OwnerPages.css .bl-*, OwnerDashboard.css sidebar)",
+   "changes": [
+    "P1. Plan column: merge Plan and Subscription into one cell. With no plan, show a neutral 'No plan' badge on one line. Otherwise show 'Pro, $249 a month', with the subscription badge only when one exists. Set th.col-plan to a width of 132px.",
+    "P1. Actions: one `.owner-secondary-button.sm` per row ('Continue setup' for drafts, 'View' for live) in td.col-actions, right aligned. 'Edit setup' moves to a `more_horiz` overflow menu, and the whole row opens the business. Remove the column flex stack in `.bl-actions`.",
+    "P1. Stage badge reads only 'Draft' or 'Live' on one line, with the next step ('Next: Hours and services') as `.owner-table-secondary` below it. Remove `.bl-table .op-pill { white-space: normal }`.",
+    "P1. Owner email and business name use `.owner-cell-truncate` with a `title`. Remove `.bl-email { overflow-wrap: anywhere }`. The subtitle shows only the industry. Created becomes a sortable column, or a 'Plumbing, Nov 16' short date.",
+    "P1. Under 600px use `.owner-table--cards`: name and stage badge on top, owner and last call below, and one action. Drop the `min-width: 900px` sideways table.",
+    "P2. Problems column: the shared EmptyValue 'None' when there are none. Real problems show as a danger badge. 'No calls yet' becomes EmptyValue 'Never'. Relative times use formatRelative ('10 days ago').",
+    "P2. Filters move onto the shared single row, with 'Has a problem' as a toggle chip at the end of the row.",
+    "P2. KPI cards use the shared Metric (no coral icon tiles). 'Need attention' is a clickable card that filters the list, not a bold 'Show them'. The eyebrow becomes 'Businesses' (it said 'Workspace management'). Updated and Refresh move into the page header.",
+    "P2. Footer uses the shared Pager ('Showing 1 to 25 of 96', Previous and Next sm). On phones the duplicate '96 businesses' total is hidden.",
+    "P3. Sidebar overflow: remove the 'More below' text label (OwnerDashboard.css around line 1537 to 1550) and use a bottom fade mask on the nav scroll area while it can scroll, so it never covers a nav item."
+   ]
+  },
+  {
+   "branch": "claude/lane-c-connection-ui",
+   "page": "Overview, AI receptionists (AIAgents.jsx), Integrations, Calls served drawer",
+   "changes": [
+    "P2. AI receptionists Setup column: replace the dashed and solid chips with '3 of 5 set' plus a 5 segment small meter, and the missing items in a tooltip or one muted line ('Missing: knowledge, hours'). It never wraps.",
+    "P2. Receptionist column: drop the repeated bold 'Receptionist' label and show '0 services, 0 FAQs' with nowrap. The Status cell shows one badge plus one secondary line with ellipsis.",
+    "P2. Remove 'No calls yet' beside '0'. Show the count only (formatCount, '1,000 served').",
+    "P2. Page header: eyebrow 'AI and communications', and the H1 and nav both read 'AI receptionists'. Overview KPIs use the shared Metric. Filter chips scroll in one line.",
+    "P2. Calls served drawer: each recent call is one row (badge and time on one line, then one muted line clamped to one line with the problem only). The call id goes in a `title`. Repeated problems are grouped ('Opening hours missing, 40 calls'). Relative times say '5 days ago'.",
+    "P2. On phones the AI receptionists table uses the card mode."
+   ]
+  },
+  {
+   "branch": "claude/lane-c-plans-page",
+   "page": "Plans and subscriptions (PlansPage.jsx) and Plan drawer",
+   "changes": [
+    "P2. Every row has the same shape. A row without a plan shows a neutral 'No plan' badge in Subscription, EmptyValue 'None' in Price and Allowances, and a 'Set up plan' sm button. Rows with a plan show a 'Details' sm button. Price is right aligned with tabular nums.",
+    "P2. Table plan label uses the short form 'Pro v3'. 'Version 3 of 3' stays in the drawer. On phones use the card mode ('Pro v3, $399 a year' as line two).",
+    "P2. Drawer: the title is the business name with the eyebrow 'Plan'. 'This period' and 'Saved versions' use `.drawer-section h3`. Saved versions become a small table (Version, Plan, Price, Saved) instead of the `.bp-versions` bullet list. The payment note is an info banner at 13px. 'Open business' sits in the sticky drawer footer.",
+    "P2. Refresh moves into the page header actions."
+   ]
+  },
+  {
+   "branch": "claude/lane-c-industry-modules",
+   "page": "Industry configuration (IndustryConfiguration.jsx)",
+   "changes": [
+    "P2. The detail header uses the PageHeader pattern: title, a meta line ('1,203 businesses' via formatCount), and actions on the right. Move 'Deactivate' out of the spot under the subtitle into a 'Danger zone' card at the bottom, as a secondary button with danger text.",
+    "P2. Shorten the blue 'How changes apply' banner to two sentences and put the rest in a disclosure.",
+    "P2. The 'Sensitive industry' row uses the shared `.zs-row` (label and help on the left, a toggle switch on the right) instead of an amber pill plus a 'Turn off' button."
+   ]
+  },
+  {
+   "branch": "claude/lane-c-ai-testing",
+   "page": "AI testing (AiTesting.jsx)",
+   "changes": [
+    "P2. The footer '3 shown' moves inside the card padding through the shared Pager (it is clipped past the card edge today).",
+    "P2. Tabs use the shared selected state (soft tint, no black fill), and the selected row uses the shared style instead of a black left bar.",
+    "P2. Page header gets the eyebrow 'AI and communications'."
+   ]
+  },
+  {
+   "branch": "claude/lane-d-alert-rules-email",
+   "page": "Settings, Alert rules editor",
+   "changes": [
+    "P1. Group the 60 plus rules under sticky subheads by area (AI receptionist, Billing, Calendar, Messaging, Offers, Platform). Add a search field and an 'Only changed rules' toggle.",
+    "P1. Replace the underlined 'Edit' link with a clickable row with a trailing chevron (or a sm secondary 'Edit'), matching Plans 'Details'.",
+    "P2. The Rule column shows a muted 'Default' unless the rule differs. 'Always urgent' moves out of the Alert name into the Rule column as a danger badge, so names stay left aligned. Zero counts use `--zella-text-secondary`.",
+    "P2. Selected row uses the shared selected style (no heavy black bar).",
+    "P3. Settings nav: replace the text carets (\u25b8 \u25be) with `<Icon name=\"chevron_right\" />` rotated when open, and keep labels on one line with ellipsis and a tooltip."
+   ]
+  },
+  {
+   "branch": "claude/lane-d-voice-ui",
+   "page": "Voice and numbers, Automations, Call routing, n8n status",
+   "changes": [
+    "P2. Calls table: when Number, Length and Outcome are all unrecorded, collapse them into one 'Details' cell with EmptyValue, not three columns of 'Not recorded'. Phone numbers use formatPhone ('(555) 123 0001'). Time zones use formatTimeZone.",
+    "P2. Voice tabs become the one page level tab pattern, scrolling with a right fade on phones (cut off as 'Pr' today).",
+    "P2. Overview on phones: flatten the cards nested in cards (inner items lose their border and use a top divider). The KPI grid stops leaving one orphan tile (horizontal scroll strip, or show the 4 key KPIs plus 'Show all').",
+    "P2. Automations: 'Pause all for this business' becomes the secondary style with danger text, the same 36px height as its neighbour, until the confirm step. Add `margin-bottom: var(--zella-space-4)` between the helper text and the table. A paused row is not tinted peach."
+   ]
+  },
+  {
+   "branch": "claude/lane-d-go-live",
+   "page": "Platform operations, Go live checklist, Scheduled jobs, Operational rules settings",
+   "changes": [
+    "P1. One source per item. The Go live checklist is the main card, in collapsible groups (`<details>`). Each header reads 'Server secrets, 8 of 14 ready' with a small meter. By default only 'Not yet' rows show, with a 'Show ready (12)' toggle. The Services card is deleted or reduced to a 4 tile summary. Scheduled jobs appear only in their table, not in the checklist too.",
+    "P1. Checklist rows become a compact table (Item, Where, Status) or are kept within a max-width of about 760px, so the status sits next to its label. Environment variable names move into a 'Technical details' disclosure.",
+    "P2. Scheduled jobs: 'Record intent' becomes a sm secondary button or an overflow menu item. Last run shows the badge on one line with the date below in 12px secondary, nowrap. The loose sentence above the table becomes a `.banner-warning`. The State pill is neutral or green, and only the Intended column carries the amber 'Not as intended'.",
+    "P2. Rewrite the helper copy in plain words, without developer notes ('Deliberately off until go live. Needs the owner's approval' becomes 'Off until you go live').",
+    "P2. Operational rules settings adopt the shared `.zs-row` and section save bar from SettingsKit."
+   ]
+  },
+  {
+   "branch": "claude/lane-a-support",
+   "page": "Support tickets (SupportTickets.jsx, TicketThread), Users and access",
+   "changes": [
+    "P1. Ticket titles are plain bold text in `.owner-table-primary`, not bordered pill buttons, and the whole row is clickable.",
+    "P1. When the detail panel is open, hide the Business and Assigned columns, or let the table scroll inside its card, so 'Unassigned' never breaks. Emails use `.owner-cell-truncate` with a `title`.",
+    "P1. Fix the copy: 'First reply after Under a business hour.' becomes 'First reply: within a business hour.' Categories are title case ('Technical').",
+    "P2. Users and access, authenticator code: a visible label 'Authenticator code', `inputmode=\"numeric\" autocomplete=\"one-time-code\" maxlength=6`, monospace at width 140px, and the token focus ring instead of the thick black double ring. The banner body text is weight 400 with a `shield` icon, so the step reads as a security step, not an error."
+   ]
+  },
+  {
+   "branch": "claude/lane-a-incidents",
+   "page": "Incidents (PlatformMonitoring.jsx, IncidentDialog.jsx)",
+   "changes": [
+    "P2. Adopt the shared PageHeader (eyebrow 'Operations', Updated and Refresh in the header), the badge tones, the Pager footer and EmptyValue for blank fields. No incident specific defects beyond the shared ones were found in the captures."
+   ]
+  },
+  {
+   "branch": "claude/lane-a-audit-export",
+   "page": "Audit logs (AuditLogs.jsx)",
+   "changes": [
+    "P1. Filters use the shared single row at 36px for every control (selects, dates, Clear), with Clear filters as a text button at the end. On phones they fold behind 'Filters (2)'.",
+    "P1. The When column is `white-space: nowrap` at a fixed width of 140px, with formatDateTime. The Action column no longer takes the spare width. On phones use the card mode (time and person on line one, the action in bold on line two, the business muted on line three), so the date stops wrapping onto four lines and the email is not clipped."
+   ]
+  },
+  {
+   "branch": "claude/lane-b-templates",
+   "page": "Messaging, email drawer (BusinessEmails.jsx, MessagingPage.jsx, TemplateVersions.jsx)",
+   "changes": [
+    "P2. The email preview renders the real businessEmails.js layout in a sandboxed iframe (width 100%, max-width 600px, bordered frame on `var(--zella-subtle)`), with template data filled so it is never only a bare heading.",
+    "P2. Actions go in the sticky drawer footer: Release primary on the right, Discard as a danger text button, Open business as a link in the drawer header. The title uses the eyebrow pattern (eyebrow 'Email', title 'Payment received')."
+   ]
+  },
+  {
+   "branch": "claude/owner-onboarding-screens",
+   "page": "Owner onboarding, all steps (onboarding/*.jsx, onboarding.css, ProgressSteps.jsx)",
+   "changes": [
+    "P1. Header uses the real Zella Voice logo component (the one in the admin sidebar, with the white variant on Glass) instead of the black 'Z' square plus plain text. 'Finish later' is a ghost button.",
+    "P1. One progress element. 'Step 3 of 7' plus a segmented bar (7 segments, 4px gap, done and current in `--zella-primary`). Remove `.zv-progress-dots` and the right side label that repeats the H1. The final step shows the bar full.",
+    "P1. Password step: validate on blur or submit, not on load. Show only the live checklist (`check_circle` when met, `radio_button_unchecked` when not). Delete the 'Still needed' line and the red summary banner, which appears only after a failed submit. Remove the leftover pressed overlay on the primary button.",
+    "P2. Details step: the part chips become one horizontal stepper that scrolls on phones without wrapping, and the 'PART 1 OF 4' eyebrow goes. Inside the part card, 'Looks right' is a primary at auto width and 'Change' a secondary at auto width, right aligned. The page level Continue is the single full width primary on phones.",
+    "P2. Identity step: 'Documents needed' uses the neutral or info tone, not danger ('Two documents to upload'). Red is kept for rejected documents.",
+    "P2. Plan step: drop the 'What's included' heading. Use a definition grid with 16px row gaps, values at 14px 500 with units in the same size in secondary colour, and nowrap so 'Languages' does not wrap. Remove the stray bottom rule. Add 'Billed monthly, first charge after you go live' under the price.",
+    "P2. Done step: the heading only says 'You're all set' when every check is done. Otherwise it says 'Setup complete. One last check before you go live.' A pending check uses the `schedule` icon. Icons are 20px in `--zella-primary` on 36px `--zella-primary-soft` tiles."
+   ]
+  }
+ ],
+ "dropped": [
+  "Add an OS dark mode block to tokens.css (designer 3). The 'dark' Businesses shot is byte for byte the light one because the app has no prefers-color-scheme mode. Its dark look is the Glass theme, which onboarding's dark shots use. This is a new feature, not a polish defect. Retake the dark captures with Glass instead.",
+  "Switch all buttons to 8px corners (designer 1, option A). The shipped default Zella theme deliberately uses pills, so the fix is to update DESIGN_SYSTEM.md, not the CSS. The onboarding dark 8px button is the Glass theme, which is a separate look.",
+  "Lint check that fails on letter-spacing and font-weight 750 outside the token files. This is tooling, not visual. The values are removed in the shared heading change.",
+  "Retone --zella-info-bg to #EEF1FB. That is taste, and token values may only change in tokens.css. Only the banner text weight and colour change is kept.",
+  "Onboarding welcome hero, per step icon tiles, 'About 10 minutes' estimate, and plan allowance icons. Taste or new content, not defects. Kept only the numbering and contrast fixes covered elsewhere.",
+  "Identity upload dropzone cards with drag and drop. A new interaction, not polish.",
+  "Drawer version history as a timeline with dots. Taste. A small table is specified instead for consistency with the other drawers.",
+  "Splitting Platform operations into five tabs (designer 3). Replaced by the collapsible single checklist from designers 1 and 2, which removes the duplication with less restructuring.",
+  "Hide the Problems column text entirely (designer 1 option). Superseded by the shared EmptyValue plus a danger badge for real problems.",
+  "20 rows per page on Businesses. Taste. Revisit after the row height fix.",
+  "Make Edit a hover only ghost icon on Alert rules. Hover only actions hurt touch and keyboard discovery. A clickable row with a chevron is specified instead.",
+  "Splitting the 'Suspended / canceling' KPI into two tiles. Taste. The shared Metric fix covers the uneven look."
+ ]
+}
