@@ -1976,7 +1976,7 @@ async function requireOwner(admin: SupabaseClient, userId: string) {
 }
 
 async function findUserByEmail(admin: SupabaseClient, email: string) {
-  for (let page = 1; page <= 20; page++) {
+  for (let page = 1; ; page++) {
     const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
     if (error) throw error;
     const users = data?.users ?? [];
@@ -1984,7 +1984,6 @@ async function findUserByEmail(admin: SupabaseClient, email: string) {
     if (match) return match;
     if (users.length < 1000) return null;
   }
-  return null;
 }
 
 async function adminsList(admin: SupabaseClient, userId: string) {
