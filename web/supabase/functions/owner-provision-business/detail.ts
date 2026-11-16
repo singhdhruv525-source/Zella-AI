@@ -18,6 +18,37 @@ export type DetailDeps = {
 
 type Row = Record<string, unknown>;
 
+// ---- What an audit row records about the state before a change (BIZ-17) ----
+// A handler hangs the "before" values on its result under this Symbol key. JSON leaves Symbol keys out, so before values
+// (an earlier owner name, setup slices) never reach the browser in the response; only the audit builders read them.
+export const AUDIT_BEFORE = Symbol("audit before");
+export function withBefore<T extends object>(result: T, before: Row | null): T {
+  Object.defineProperty(result, AUDIT_BEFORE, { value: before, enumerable: false });
+  return result;
+}
+export const beforeOf = (result: unknown): Row | null =>
+  ((result as Record<symbol, unknown> | null)?.[AUDIT_BEFORE] as Row | null | undefined) ?? null;
+
+// The lifecycle fields a suspend, reactivate, cancel or finish changes.
+export const LIFECYCLE_FIELDS = ["is_active", "onboarding_status", "suspended_at", "cancel_at", "cancelled_at"] as const;
+export const lifecycleOf = (b: Row | null) => b ? Object.fromEntries(LIFECYCLE_FIELDS.map((k) => [k, b[k] ?? null])) : null;
+
+// A business's own contact details: an audit row names them when they change, never their values (DB-13, PRV-2).
+export const CONTACT_FIELDS = ["email", "phone", "address_line_1", "address_line_2", "postal_code"];
+export function businessChange(before: Row | null, after: Row) {
+  const oldData: Row = {}, newData: Row = {}, contacts: string[] = [];
+  for (const [k, v] of Object.entries(after)) {
+    const was = before ? (before[k] ?? null) : null;
+    const now = v === "" ? null : v;
+    if (before && was === now) continue;
+    if (CONTACT_FIELDS.includes(k)) { if (now !== null || was !== null) contacts.push(k); continue; }
+    if (before) oldData[k] = was;
+    newData[k] = now;
+  }
+  if (contacts.length) newData.contact_fields_changed = contacts;
+  return { old_data: before ? oldData : null, new_data: newData };
+}
+
 // Permission each action of this module needs (index.ts: `?? DETAIL_PERMISSIONS[action]`).
 export const DETAIL_PERMISSIONS: Record<string, string> = {
   business_size_save: "businesses.manage",   // BIZ-08: was a browser RPC open to owner and super admin only
@@ -210,7 +241,7 @@ export async function businessDetail(admin: SupabaseClient, businessId: string, 
     admin.from("calls").select("id", { count: "exact", head: true }).eq("business_id", businessId),
     activityAllowed
       ? admin.from("audit_logs")
-        .select("id, action, user_id, entity_type, new_data, created_at")
+        .select("id, action, user_id, entity_type, old_data, new_data, created_at")
         .eq("business_id", businessId)
         .order("created_at", { ascending: false })
         .limit(30)

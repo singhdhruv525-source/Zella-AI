@@ -1748,6 +1748,15 @@ member's last sign in and two step status (with `businesses.manage`), the activi
 shared connection state (`zella_business_connections`, lane C's one definition of connected and live). Each
 part reports `available: false` on its own when its table or function is missing, so one card never fails the page.
 
+**REQ-ADM-02 audit rows (BIZ-17):** every setup and lifecycle action on a business records the state before
+(`old_data`) and after (`new_data`). A business's contact fields are recorded by name only (`contact_fields_changed`)
+and people's emails masked. Receptionist edits record `config_hash` before and after (what calls got; edits apply to
+the next call, COM-04 option B). The before values travel to the audit builder on a Symbol key, which JSON leaves out,
+so they never reach the browser. A failed audit write never undoes the action (it has already happened): it raises an
+urgent `audit_write_failed` platform alert (deduplicated per action) and the response carries `auditWarning`.
+Suspensions, reactivations and cancellations are also recorded by the database trigger `zella_audit_privileged` on the
+businesses row, so they are never unrecorded.
+
 **REQ-ADM-20 Access states:** loading, authorized, unauthorized (signed out, MFA needed, no permission) and failed
 (couldn't check; grants nothing). A refusal always applies; a failed background refresh keeps the current view.
 

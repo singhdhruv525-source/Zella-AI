@@ -187,6 +187,13 @@ most often needed:
   `sql/zella_admin_permissions.sql` is applied or dropped, whose version guard covers that function), an owner or
   super admin can still call the old RPC by hand from a browser, skipping the two step check.
 
+- **Admin audit rows record before and after (BIZ-17, lane E default, 16 Nov 2026):** a failed audit write alerts
+  (`audit_write_failed`, urgent) and warns the admin; it does not fail the action. Failing closed for suspend and
+  cancel would need the audit row written first inside the handler (the dispatcher writes it after the action has
+  committed); not built, the database trigger already records those changes. COM-04 confirmed from the function
+  definitions: a receptionist edit reaches the next call (`zella_assistant_for_call` reads the live configuration);
+  the audit row records `config_hash` before and after.
+
 Waiting on the owner:
 
 - whether suspended businesses keep read-only access (L-5);

@@ -234,6 +234,7 @@
     "agent_failures": "AI receptionist failures",
     "agent_sync_failed": "AI receptionist sync failed",
     "ai_call_failure": "AI call failure",
+    "audit_write_failed": "An admin action was not recorded in the audit log",
     "automation_heartbeat": "Automation heartbeat missing",
     "automation_stalled": "Automation stalled",
     "billing_currency": "Billing currency mismatch",

@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   sqlAuditActions, sqlAlertKinds, sqlPermissions, resolveSql, tsAuditActions, tsAuditReads, tsPermissions,
-  n8nAlertKinds, webPermissions, sqlExprNames,
+  n8nAlertKinds, webPermissions, sqlExprNames, tsAlertKinds,
 } from "./scan.mjs";
 import { check } from "./drift_test.mjs";
 
@@ -139,4 +139,9 @@ test("check: reads that match nothing, label rules, order and the role editor li
   assert.ok(p.some((x) => x.includes("keep audit_actions sorted")));
   assert.ok(p.some((x) => x.includes('"admins.manage" is not a catalog.json permission')));
   assert.ok(p.some((x) => x.includes('"gone.label" is not an audit action')));
+});
+
+test("edge function alert kinds: p_kind passed to zella_platform_alert", () => {
+  const src = `await admin.rpc("zella_platform_alert", {\n  p_kind: "audit_write_failed", p_title: "x" });\n// p_kind: "commented_out"\nconst other = { p_kind: "not_an_alert" };`;
+  assert.deepEqual(tsAlertKinds(src).map((x) => x.name), ["audit_write_failed"]);
 });

@@ -307,6 +307,16 @@ export function n8nAlertKinds(raw) {
   return out;
 }
 
+// Edge functions: p_kind given to zella_platform_alert through admin.rpc("zella_platform_alert", { p_kind: "x", ... }).
+export function tsAlertKinds(raw) {
+  const src = stripJsComments(raw);
+  const out = [];
+  for (const m of src.matchAll(/zella_platform_alert["']\s*,\s*\{[^}]*?\bp_kind\s*:\s*["']([a-z][a-z0-9_]*)["']/g)) {
+    out.push({ name: m[1], line: lineAt(src, m.index) });
+  }
+  return out;
+}
+
 // The web app: permission names it checks (can("x"), permission: "x", perm: "x", need: "x").
 export function webPermissions(raw) {
   const src = stripJsComments(raw);
@@ -345,6 +355,7 @@ export function inventory(root = ROOT) {
     add("audit", f, tsAuditActions(src));
     add("audit_read", f, tsAuditReads(src));
     add("permission", f, tsPermissions(src));
+    add("alert", f, tsAlertKinds(src));
   }
   for (const f of walk(join(root, "n8n/src"), (n) => n.endsWith(".js"))) add("alert", f, n8nAlertKinds(readFileSync(f, "utf8")));
   for (const f of walk(join(root, "web/src"), (n) => /\.(jsx?|tsx?)$/.test(n))) add("permission", f, webPermissions(readFileSync(f, "utf8")));

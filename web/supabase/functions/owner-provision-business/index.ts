@@ -8,8 +8,11 @@ import { PERMISSIONS, RESTRICTED_ROLES, settingsHandlers } from "./settings.ts";
 import { mfaGate, tokenAal } from "./mfa_gate.ts";
 import { ONBOARDING_PERMISSIONS, documentsReady, loadOnboarding, onboardingHandlers } from "./onboarding.ts";
 import { PLATFORM_PERMISSIONS, platformHandlers } from "./platform.ts";
-import { DETAIL_PERMISSIONS, adminPermissions, businessDetail, detailHandlers } from "./detail.ts";
+import {
+  DETAIL_PERMISSIONS, adminPermissions, beforeOf, businessChange, businessDetail, detailHandlers, lifecycleOf, withBefore,
+} from "./detail.ts";
 import { MODULE_DEPENDENCIES, businessModuleProblems } from "./module_deps.ts";
+import { mask, maskText } from "./mask.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -319,6 +322,13 @@ async function getReceptionist(admin: SupabaseClient, businessId: string) {
   return { agent, config };
 }
 
+// What a call gets now: md5 of the assistant configuration, worked out in SQL by zella_assistant_delivery_status (the
+// same hash assistant_deliveries record). Null when it can't be read (COM-04).
+async function configHash(admin: SupabaseClient, businessId: string): Promise<string | null> {
+  const { data, error } = await admin.rpc("zella_assistant_delivery_status", { p_business_id: businessId });
+  return error ? null : (obj(data).current_config_hash as string | null) ?? null;
+}
+
 async function advance(admin: SupabaseClient, businessId: string, status: string) {
   const { error } = await admin.rpc("zella_advance_onboarding", {
     p_business_id: businessId,
@@ -572,7 +582,7 @@ async function saveBusiness(admin: SupabaseClient, fields: Json) {
     .eq("id", businessId);
   if (error) throw error;
 
-  return { businessId, created: false, industryChanged, values };
+  return withBefore({ businessId, created: false, industryChanged, values }, Object.fromEntries(Object.keys(values).map((k) => [k, business[k] ?? null])));
 }
 
 async function saveOwner(admin: SupabaseClient, fields: Json, adminUserId: string) {
@@ -655,7 +665,7 @@ async function saveOwner(admin: SupabaseClient, fields: Json, adminUserId: strin
   await mergeSetupData(admin, businessId, "owner", { phone: ownerPhone });
   await advance(admin, businessId, "owner_setup");
   await syncSetupToLive(admin, businessId);   // its transfer number may be the one calls use (D4)
-  return { businessId };
+  return withBefore({ businessId }, { email: current?.email ?? null, status: current?.status ?? null });
 }
 
 async function saveTerminology(admin: SupabaseClient, fields: Json) {
@@ -668,7 +678,7 @@ async function saveTerminology(admin: SupabaseClient, fields: Json) {
     if (value) overrides[key] = value;
   }
 
-  await getBusiness(admin, businessId);
+  const prior = await getBusiness(admin, businessId);
 
   const { error } = await admin
     .from("businesses")
@@ -677,7 +687,7 @@ async function saveTerminology(admin: SupabaseClient, fields: Json) {
   if (error) throw error;
 
   await advance(admin, businessId, "industry_setup");
-  return { businessId };
+  return withBefore({ businessId }, { overrides: obj(prior.terminology_overrides) });
 }
 
 async function saveModules(admin: SupabaseClient, fields: Json) {
@@ -701,6 +711,8 @@ async function saveModules(admin: SupabaseClient, fields: Json) {
   const problems = businessModuleProblems(modules ?? [], enabled);
   if (problems.length) throw new InputError(`${problems.join("; ")}.`);
 
+  const { data: priorRows } = await admin.from("business_modules").select("module_id").eq("business_id", businessId).eq("enabled", true);
+  const priorIds = (priorRows ?? []).map((r: { module_id: string }) => r.module_id).sort();
   const { data: count, error } = await admin.rpc("zella_set_business_modules", {
     p_business_id: businessId,
     p_enabled: [...enabled],
@@ -715,7 +727,7 @@ async function saveModules(admin: SupabaseClient, fields: Json) {
 
   // Changing modules from a business's details page (advance: false) must not move its setup progress.
   if (fields.advance !== false) await advance(admin, businessId, "industry_setup");
-  return { businessId, enabledModules: count };
+  return withBefore({ businessId, enabledModules: count }, { enabled_module_ids: priorIds });
 }
 
 async function saveReceptionist(admin: SupabaseClient, fields: Json) {
@@ -723,6 +735,11 @@ async function saveReceptionist(admin: SupabaseClient, fields: Json) {
   const input = obj(fields.receptionist);
   const business = await getBusiness(admin, businessId);
   const { agent, config } = await getReceptionist(admin, businessId);
+  const kbBefore = obj(config?.knowledge_base);
+  const before = {
+    services: Array.isArray(kbBefore.services) ? kbBefore.services.length : 0, faqs: Array.isArray(kbBefore.faqs) ? kbBefore.faqs.length : 0,
+    personality: config?.personality ?? null, config_hash: await configHash(admin, businessId),
+  };
 
   const services = list(input.services, 100)
     .map((item) => {
@@ -846,7 +863,8 @@ async function saveReceptionist(admin: SupabaseClient, fields: Json) {
 
   await advance(admin, businessId, "ai_setup");
   const live = await syncSetupToLive(admin, businessId);
-  return { businessId, services: services.length, faqs: faqs.length, ...live };
+  // COM-04 option B: edits apply to the next call; the audit row shows which configuration calls got before and after
+  return withBefore({ businessId, services: services.length, faqs: faqs.length, ...live, configHash: await configHash(admin, businessId) }, before);
 }
 
 // Setup answers that the live receptionist reads from somewhere else (docs/SETUP_FIELD_TRACE_2026-11-05.md):
@@ -943,10 +961,14 @@ async function saveIntegrations(admin: SupabaseClient, fields: Json) {
     },
   };
 
+  const priorChoices = obj(obj((await getBusiness(admin, businessId)).setup_data).integrations);
   await mergeSetupData(admin, businessId, "integrations", choices);
   await advance(admin, businessId, "communications_setup");
   await syncSetupToLive(admin, businessId);   // its transfer number may be the one calls use (D4)
-  return { businessId };
+  return withBefore({ businessId }, {
+    phone_mode: obj(priorChoices.phone).mode ?? null, calendar: priorChoices.calendar ?? null, email: priorChoices.email ?? null,
+    lead_sources: priorChoices.lead_sources ?? null,
+  });
 }
 
 async function saveAutomations(
@@ -1012,7 +1034,9 @@ async function saveAutomations(
 
   // The early on/off step passes early: true, so it doesn't move setup progress forward.
   if (fields.early !== true) await advance(admin, businessId, "automation_setup");
-  return { businessId };
+  return withBefore({ businessId }, {
+    enabled: (existing ?? []).filter((r) => r.status !== "disabled").map((r) => r.trigger_type).sort(),
+  });
 }
 
 // The daily report: sent at the hour chosen here (business time), never at an assumed one. Nothing is saved when the
@@ -1109,7 +1133,7 @@ async function finishSetup(admin: SupabaseClient, fields: Json) {
       },
       now: () => new Date(),
     });
-    return { businessId, businessName: business.name, ...result };
+    return withBefore({ businessId, businessName: business.name, ...result, after: lifecycleOf(await getBusiness(admin, businessId)) }, lifecycleOf(business));
   } catch (e) {
     if (e instanceof FinishError) throw new InputError(e.message, e.status);
     throw e;
@@ -1131,15 +1155,26 @@ type AuditEntry = {
 
 type AuditContext = { userId: string; ip: string | null; userAgent: string | null };
 
-// Audit failures are logged but never block the admin's action.
-async function writeAudit(admin: SupabaseClient, ctx: AuditContext, entry: AuditEntry) {
+// Audit failures never block the admin's action (it has already happened when this runs): the failure raises an
+// audit_write_failed platform alert, and the response carries auditWarning so the admin knows (BIZ-17). Suspensions
+// and cancellations are also recorded by the database's own trigger (zella_audit_privileged) on the businesses row.
+export const AUDIT_WARNING = "Saved, but it could not be recorded in the activity log. The Zella Voice team has been alerted.";
+export async function writeAudit(admin: SupabaseClient, ctx: AuditContext, entry: AuditEntry): Promise<boolean> {
   const { error } = await admin.from("audit_logs").insert({
     ...entry,
     user_id: ctx.userId,
     ip_address: ctx.ip,
     user_agent: ctx.userAgent,
   });
-  if (error) console.error("Audit log write failed", error);
+  if (!error) return true;
+  console.error("Audit log write failed", error);
+  const { error: alertError } = await admin.rpc("zella_platform_alert", {
+    p_kind: "audit_write_failed", p_title: "An admin action was not recorded in the audit log",
+    p_detail: `${entry.action} by admin ${ctx.userId}`, p_severity: "urgent", p_business_id: entry.business_id ?? null,
+    p_dedupe_key: entry.action, p_meta: { action: entry.action, entity_type: entry.entity_type ?? null },
+  });
+  if (alertError) console.error("Audit failure alert failed", alertError);
+  return false;
 }
 
 function requestContext(req: Request, userId: string): AuditContext {
@@ -1151,13 +1186,15 @@ function requestContext(req: Request, userId: string): AuditContext {
 // What each setup action records. Large content (FAQs, policies) is
 // summarised as counts so the log stays readable.
 // deno-lint-ignore no-explicit-any
-const AUDITED: Record<string, (fields: Json, result: any) => AuditEntry> = {
+export const AUDITED: Record<string, (fields: Json, result: any) => AuditEntry> = {
   platform_setting_save: (_fields, r) => ({
     action: "platform.setting_updated",
     entity_type: "platform_setting",
     old_data: { key: r.key, value: r.previous },
     new_data: { key: r.key, value: r.value },
   }),
+  // BIZ-17: every setup and lifecycle row records the state before (old_data, from beforeOf) as well as after. A
+  // business's contact details and people's emails are recorded by name or masked, never in full (DB-13, PRV-2).
   setup_save_business: (_fields, r) => ({
     action: r.created
       ? "business.draft_created"
@@ -1167,15 +1204,18 @@ const AUDITED: Record<string, (fields: Json, result: any) => AuditEntry> = {
     business_id: r.businessId,
     entity_type: "business",
     entity_id: r.businessId,
-    new_data: r.values,
+    ...businessChange(r.created ? null : beforeOf(r), r.values),
   }),
   setup_save_owner: (fields, r) => {
     const owner = obj(fields.owner);
+    const email = text(owner.email, 254).toLowerCase();
+    const before = beforeOf(r);
     return {
       action: "owner.saved",
       business_id: r.businessId,
       entity_type: "business_invitation",
-      new_data: { name: text(owner.name, 200), email: text(owner.email, 254).toLowerCase() },
+      old_data: before ? { email: mask(before.email), invitation_status: before.status ?? null } : null,
+      new_data: { name: text(owner.name, 200), email: mask(email), email_changed: (before?.email ?? null) !== email },
     };
   },
   setup_save_terminology: (fields, r) => ({
@@ -1183,22 +1223,29 @@ const AUDITED: Record<string, (fields: Json, result: any) => AuditEntry> = {
     business_id: r.businessId,
     entity_type: "business",
     entity_id: r.businessId,
+    old_data: beforeOf(r),
     new_data: { overrides: obj(fields.overrides) },
   }),
-  setup_save_modules: (_fields, r) => ({
+  setup_save_modules: (fields, r) => ({
     action: "modules.updated",
     business_id: r.businessId,
     entity_type: "business_modules",
-    new_data: { enabled_modules: r.enabledModules },
+    old_data: beforeOf(r),
+    new_data: {
+      enabled_modules: r.enabledModules,
+      enabled_module_ids: list(fields.enabledModuleIds, 100).map((id) => text(id, 64)).filter((id) => UUID_RE.test(id)).sort(),
+    },
   }),
   setup_save_receptionist: (fields, r) => ({
     action: "ai_receptionist.updated",
     business_id: r.businessId,
     entity_type: "ai_agent",
+    old_data: beforeOf(r),
     new_data: {
       services: r.services,
       faqs: r.faqs,
       personality: text(obj(fields.receptionist).personality, 40),
+      config_hash: r.configHash ?? null,
     },
   }),
   setup_save_integrations: (fields, r) => {
@@ -1208,6 +1255,7 @@ const AUDITED: Record<string, (fields: Json, result: any) => AuditEntry> = {
       business_id: r.businessId,
       entity_type: "business",
       entity_id: r.businessId,
+      old_data: beforeOf(r),
       new_data: {
         phone_mode: text(obj(input.phone).mode, 40),
         calendar: text(input.calendar, 20),
@@ -1220,6 +1268,7 @@ const AUDITED: Record<string, (fields: Json, result: any) => AuditEntry> = {
     action: "automations.updated",
     business_id: r.businessId,
     entity_type: "automations",
+    old_data: beforeOf(r),
     new_data: {
       enabled: AUTOMATION_TYPES.filter((type) => bool(obj(obj(fields.automations)[type]).enabled)),
     },
@@ -1281,19 +1330,23 @@ const AUDITED: Record<string, (fields: Json, result: any) => AuditEntry> = {
     business_id: r.businessId,
     entity_type: "business",
     entity_id: r.businessId,
-    new_data: { reason: r.reason || null },
+    old_data: beforeOf(r),
+    new_data: { ...(r.after ?? {}), reason: r.reason || null },
   }),
   business_reactivate: (_fields, r) => ({
     action: "business.reactivated",
     business_id: r.businessId,
     entity_type: "business",
     entity_id: r.businessId,
+    old_data: beforeOf(r),
+    new_data: r.after ?? null,
   }),
   business_cancel: (_fields, r) => ({
     action: "business.cancellation_scheduled",
     business_id: r.businessId,
     entity_type: "business",
     entity_id: r.businessId,
+    old_data: beforeOf(r),
     new_data: {
       cancel_at: r.cancelAt,
       reason: r.reason || null,
@@ -1305,13 +1358,15 @@ const AUDITED: Record<string, (fields: Json, result: any) => AuditEntry> = {
     business_id: r.businessId,
     entity_type: "business",
     entity_id: r.businessId,
-    old_data: { cancel_at: r.previousCancelAt },
+    old_data: beforeOf(r) ?? { cancel_at: r.previousCancelAt },
+    new_data: { cancel_at: null, cancellation_reason: null },
   }),
   invitation_resend: (_fields, r) => ({
     action: r.invitationStatus === "sent" ? "invitation.resent" : "invitation.failed",
     business_id: r.businessId,
     entity_type: "business_invitation",
-    new_data: { email: r.email, status: r.invitationStatus, ...(r.invitationError ? { error: r.invitationError } : {}) },
+    old_data: beforeOf(r),
+    new_data: { email: mask(r.email), status: r.invitationStatus, ...(r.invitationError ? { error: maskText(r.invitationError) } : {}) },
   }),
   setup_finish: (_fields, r) => ({
     action: r.invitationStatus === "sent"
@@ -1322,9 +1377,11 @@ const AUDITED: Record<string, (fields: Json, result: any) => AuditEntry> = {
     business_id: r.businessId,
     entity_type: "business",
     entity_id: r.businessId,
+    old_data: beforeOf(r),
     new_data: {
+      ...(r.after ?? {}),
       invitation_status: r.invitationStatus,
-      ...(r.invitationError ? { error: r.invitationError } : {}),
+      ...(r.invitationError ? { error: maskText(r.invitationError) } : {}),
     },
   }),
 };
@@ -2594,16 +2651,18 @@ async function ownerContact(admin: SupabaseClient, businessId: string) {
 async function businessSuspend(admin: SupabaseClient, fields: Json) {
   const businessId = requireId(fields.businessId);
   const reason = text(fields.reason, 500);
+  const before = lifecycleOf(await getBusiness(admin, businessId));
   const { error } = await admin.rpc("zella_suspend_business", { p_business_id: businessId, p_reason: reason });
   if (error) throw lifecycleError(error);
-  return { businessId, reason };
+  return withBefore({ businessId, reason, after: lifecycleOf(await getBusiness(admin, businessId)) }, before);
 }
 
 async function businessReactivate(admin: SupabaseClient, fields: Json) {
   const businessId = requireId(fields.businessId);
+  const before = lifecycleOf(await getBusiness(admin, businessId));
   const { error } = await admin.rpc("zella_reactivate_business", { p_business_id: businessId });
   if (error) throw lifecycleError(error);
-  return { businessId };
+  return withBefore({ businessId, after: lifecycleOf(await getBusiness(admin, businessId)) }, before);
 }
 
 async function businessCancel(admin: SupabaseClient, fields: Json) {
@@ -2664,13 +2723,13 @@ async function businessCancel(admin: SupabaseClient, fields: Json) {
     });
   }
 
-  return {
+  return withBefore({
     businessId,
     cancelAt: cancelAt.toISOString(),
     reason,
     emailSent: email.sent,
     emailError: email.reason,
-  };
+  }, { cancel_at: business.cancel_at ?? null, cancellation_reason: business.cancellation_reason ?? null });
 }
 
 async function businessUndoCancel(admin: SupabaseClient, fields: Json) {
@@ -2699,7 +2758,7 @@ async function businessUndoCancel(admin: SupabaseClient, fields: Json) {
     previous_cancel_at: business.cancel_at,
   });
 
-  return { businessId, previousCancelAt: business.cancel_at };
+  return withBefore({ businessId, previousCancelAt: business.cancel_at }, { cancel_at: business.cancel_at, cancellation_reason: business.cancellation_reason ?? null });
 }
 
 async function invitationResend(admin: SupabaseClient, fields: Json) {
@@ -2726,7 +2785,7 @@ async function invitationResend(admin: SupabaseClient, fields: Json) {
   if ("error" in sent) {
     const reason = sent.error;
     await moveOwnerInvitation(admin, invitation.id, { status: "failed", last_error: reason, updated_at: now });
-    return { businessId, email: invitation.email, invitationStatus: "failed", invitationError: reason };
+    return withBefore({ businessId, email: invitation.email, invitationStatus: "failed", invitationError: reason }, { status: invitation.status });
   }
   const invited = { user: { id: sent.userId } };
 
@@ -2763,7 +2822,7 @@ async function invitationResend(admin: SupabaseClient, fields: Json) {
     if (memberError) console.error("Owner membership insert failed", memberError);
   }
 
-  return { businessId, email: invitation.email, invitationStatus: "sent", ...(sent.existingAccount ? { existingAccount: true } : {}) };
+  return withBefore({ businessId, email: invitation.email, invitationStatus: "sent", ...(sent.existingAccount ? { existingAccount: true } : {}) }, { status: invitation.status });
 }
 
 // ---------------------------------------------------------------------------
@@ -3169,8 +3228,8 @@ Deno.serve(withCors(async (req: Request) => {
       const entry = AUDITED[action] ? AUDITED[action](fields, result) : later ? (later(result as Json) as AuditEntry) : null;
       const unchanged = action === "ticket_update" &&
         Object.keys(obj((result as Json).changes)).length === 0;
-      if (entry && !unchanged) {
-        await writeAudit(adminClient, requestContext(req, user.id), entry);
+      if (entry && !unchanged && !(await writeAudit(adminClient, requestContext(req, user.id), entry)) && result && typeof result === "object") {
+        (result as Json).auditWarning = AUDIT_WARNING;
       }
 
       return respond(result);
