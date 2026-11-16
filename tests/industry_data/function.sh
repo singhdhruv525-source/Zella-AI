@@ -15,7 +15,7 @@ BPORT=${BPORT:-54333}; FPORT=${FPORT:-54432}; B=http://localhost:$BPORT
 P=(psql -h "$ZPG_HOST" -p "$ZPG_PORT" -U postgres -qtAX -v ON_ERROR_STOP=1)
 "${P[@]}" -d postgres -c "set client_min_messages = warning" -c "drop database if exists $DB" -c "create database $DB template $TEMPLATE" > /dev/null || exit 1
 for f in zella_writing_cleanup zella_admin_permissions zella_admin_mfa; do "${P[@]}" -d $DB -f "$REPO/sql/$f.sql" > /dev/null 2>&1 || { echo "FAIL $f"; exit 1; }; done
-"${P[@]}" -d $DB -f "$HERE/fixtures.sql" > /dev/null && "${P[@]}" -d $DB -f "$REPO/tests/industry_modules/seed.sql" > /dev/null || { echo "FAIL fixtures"; exit 1; }
+"${P[@]}" -d $DB -f "$HERE/production_zella_sensitive_industry.sql" > /dev/null && "${P[@]}" -d $DB -f "$HERE/fixtures.sql" > /dev/null && "${P[@]}" -d $DB -f "$REPO/tests/industry_modules/seed.sql" > /dev/null || { echo "FAIL fixtures"; exit 1; }
 "${P[@]}" -d $DB -c "insert into auth.users (id, email, email_confirmed_at) values ('a0000000-0000-0000-0000-0000000000c5', 'super@zella.test', now());
   insert into public.platform_admins (user_id, role) values ('a0000000-0000-0000-0000-0000000000c5', 'super_admin');
   insert into auth.mfa_factors (id, user_id, factor_type, status) values (gen_random_uuid(), 'a0000000-0000-0000-0000-0000000000c5', 'totp', 'verified');
