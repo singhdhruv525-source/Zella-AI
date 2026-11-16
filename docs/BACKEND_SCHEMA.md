@@ -18,7 +18,7 @@ It reads the catalog only, never rows.
 | Row security policies | 342 |
 | Columns | 2062 |
 | Views | 1 |
-| Functions | 912 (844 security definer, 26 callable by `anon`) |
+| Functions | 915 (847 security definer, 26 callable by `anon`) |
 
 Rules every table follows:
 
@@ -4497,11 +4497,12 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_brain_search(p_business_id uuid, p_query text, p_limit integer)` | jsonb | yes | server only |
 | `zella_brain_tool_defs()` | jsonb |  | anon, signed in |
 
-### `zella_business_*` (20)
+### `zella_business_*` (21)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
 | `zella_business_before_trigger()` | trigger |  | server only |
+| `zella_business_connections(p_business_ids uuid[])` | TABLE(business_id uuid, business_state text, receptionist text, phone boolean, phone_numbers integer, vapi_linked boolean, answering boolean, last_served_at timestamp with time zone, calendar boolean, leads boolean, lead_sources text[], email text, problems integer, live boolean) | yes | signed in |
 | `zella_business_currency(p_business_id uuid)` | text | yes | signed in |
 | `zella_business_entitlements(p_business_id uuid)` | jsonb | yes | signed in |
 | `zella_business_entitlements_internal(p_business_id uuid)` | jsonb | yes | server only |
@@ -5482,7 +5483,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_setting(p_key text, p_default jsonb)` | jsonb | yes | server only |
 | `zella_tables(p_business_id uuid)` | jsonb | yes | signed in |
 
-### Smaller groups and older helpers (189)
+### Smaller groups and older helpers (191)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -5514,6 +5515,8 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_clean_automation_config(p_type text, p_cfg jsonb)` | jsonb |  | server only |
 | `zella_clean_origins(p_origins text[])` | text[] |  | signed in |
 | `zella_clear_live_notice(p_business_id uuid, p_notice_id uuid)` | void | yes | signed in |
+| `zella_connection_counts()` | jsonb | yes | signed in |
+| `zella_connection_state(p_business_ids uuid[])` | TABLE(business_id uuid, business_state text, receptionist text, phone boolean, phone_numbers integer, vapi_linked boolean, answering boolean, last_served_at timestamp with time zone, calendar boolean, leads boolean, lead_sources text[], email text, problems integer, live boolean) | yes | server only |
 | `zella_connections_to_reconnect(p_business_id uuid)` | jsonb | yes | signed in |
 | `zella_consent_record(p_business_id uuid, p_customer_id uuid, p_record_id uuid, p_kind text, p_status text, p_given_by_customer_id uuid, p_scope text, p_expires_at date, p_evidence text)` | uuid | yes | signed in |
 | `zella_consent_revoke(p_id uuid, p_reason text)` | void | yes | signed in |
