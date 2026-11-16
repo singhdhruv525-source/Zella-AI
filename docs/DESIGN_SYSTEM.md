@@ -37,6 +37,12 @@ Shape: 8px buttons and inputs, 10px small cards and banners, 14px cards, panels 
 - **Usage meter** (`.zs-usage`, `.zs-meter` in `web/src/settings/settings.css`): a label, "used of included", a bar, and what is left. The bar is mocha below 80%, amber from 80% and red at 100%, and the words say the same (a "Over 80%" or "Used up" badge), so colour never carries the meaning alone. It has `role="meter"` and an accessible label.
 - **Billing layouts** (`web/src/billing.css`, `.bp-*`): the plan page puts the form (cards: Pricing, Monthly allowances, Account) beside a sticky summary card (price, estimated margin with a Healthy / Below target / Loses money label, cost lines, warnings, the review button); money inputs carry a `$` prefix and a unit suffix; Base/Pro, Monthly/Yearly and languages are segmented buttons (`aria-pressed`). The owner's plan page shows a plan header (name, status, price, next charge, what's included as chips) and one usage tile per resource. Below 1100px the summary moves under the form; below 760px everything is one column.
 
+## Components added with the owner onboarding journey
+
+- **Progress steps** (`web/src/onboarding/ProgressSteps.jsx`, `.zv-progress` in `onboarding/onboarding.css`): "Step 3 of 7" and the step's name, a mocha bar with `role="progressbar"` and an accessible value text, and one dot per step (done, here, to come). The words carry the meaning; the bar and dots back them up. Give it `screens` and the `current` index.
+- **Authenticator set up** (`web/src/AuthenticatorSetup.jsx`, `.zv-authsetup`): the three instructions, the QR code (kept black on white in every look), the key to type by hand, the six digit code and one main button. It uses the same calls as the admin sign in and Settings (`mfa.js`); `start` and `finish` can be passed in. It never decides who must use two step sign in.
+- **Journey page** (`.ba-root.zob`): a top bar (Zella Voice, the business, Finish later) and one card, 16px gutters on a phone, 680px wide from 760px. Main buttons are full width on a phone. Status panels (`.zob-status`, tones `good`, `info`, `heads`, `urgent`) always carry a word. Headings that take focus when a step opens show no focus ring (they aren't controls). The Glass look frosts the card and the top bar.
+
 ## Writing (owner's rule, 14 Nov 2026)
 
 - **No dashes or hyphens anywhere people read text**: screens, emails, texts, notifications and what the AI
