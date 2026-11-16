@@ -1,4 +1,4 @@
--- Undoes sql/zella_cancellations_scheduled.sql exactly: both functions come back from zella_function_archive.
+-- Undoes sql/zella_cancellations_scheduled.sql exactly: all three functions come back from zella_function_archive.
 -- Businesses already cancelled stay cancelled. Safe to run twice.
 begin;
 do $$

@@ -10,14 +10,16 @@
 -- coming" reminders as before), and it also runs every hour, so a business stops within the hour after its cancel_at,
 -- not up to a day later. Both scheduled jobs (zella_jobs_hourly, zella_jobs_daily) are off in production until the
 -- owner switches them on; until then the page-open path in owner-provision-business stays as the fallback.
--- Both functions are archived first and must match production exactly (16 Nov 2026), otherwise VERSION_MISMATCH.
+-- zella_process_cancellations() now locks each due business first (FOR UPDATE SKIP LOCKED) so overlapping runs
+-- never cancel or audit one twice. All three functions are archived first and must match production exactly (16 Nov 2026), otherwise VERSION_MISMATCH.
 -- Rollback: sql/rollback/zella_cancellations_scheduled_rollback.sql
 begin;
 
 do $$
-declare s1 constant text := 'public.zella_apply_scheduled_cancellations()'; s2 constant text := 'public.zella_run_schedule_group(text)'; d text;
+declare s1 constant text := 'public.zella_apply_scheduled_cancellations()'; s2 constant text := 'public.zella_run_schedule_group(text)';
+        s3 constant text := 'public.zella_process_cancellations()'; d text;
 begin
-  if to_regprocedure(s1) is null or to_regprocedure(s2) is null or to_regprocedure('public.zella_process_cancellations()') is null
+  if to_regprocedure(s1) is null or to_regprocedure(s2) is null or to_regprocedure(s3) is null
      or to_regclass('public.zella_function_archive') is null or to_regprocedure('public.zella_patch_function(text,text,text,text)') is null then
     raise exception 'VERSION_MISMATCH: something this file needs is missing';
   end if;
@@ -28,12 +30,58 @@ begin
   elsif md5(d) <> '3495c82ccb50f39eafa863d32014f485' then      -- nor exactly this file's version (already applied)
     raise exception 'VERSION_MISMATCH: % is not a version this file was written for', s1;
   end if;
+  d := pg_get_functiondef(s3::regprocedure);
+  if md5(d) = 'd6c8b27063c866ec67e13be67a616c71' then          -- production's version: archive it for the rollback
+    insert into public.zella_function_archive (migration, signature, definition, definition_md5)
+    values ('zella_cancellations_scheduled', s3, d, md5(d)) on conflict (migration, signature) do nothing;
+  elsif md5(d) <> 'b1a22069683d0d849428a79e6488fde1' then      -- nor exactly this file's version (already applied)
+    raise exception 'VERSION_MISMATCH: % is not a version this file was written for', s3;
+  end if;
   d := pg_get_functiondef(s2::regprocedure);
   if position($t$'zella_team_scorecard_nudge', 'zella_apply_scheduled_cancellations'$t$ in d) = 0 then
     insert into public.zella_function_archive (migration, signature, definition, definition_md5)
     values ('zella_cancellations_scheduled', s2, d, md5(d)) on conflict (migration, signature) do nothing;
   end if;
 end $$;
+
+-- each due business is locked before it is cancelled, and one already being cancelled by another run is skipped, so
+-- two runs at once (the hourly job and an admin opening Overview) never cancel or audit the same business twice
+create or replace function public.zella_process_cancellations() returns integer
+language plpgsql security definer set search_path to 'public' as $function$
+declare
+  v_ids uuid[];
+begin
+  select coalesce(array_agg(id), '{}') into v_ids
+  from (select id from businesses
+        where cancel_at is not null and cancel_at <= now() and cancelled_at is null
+        for update skip locked) due;
+
+  if cardinality(v_ids) = 0 then return 0; end if;
+
+  update ai_agents set status = 'disabled', updated_at = now()
+  where business_id = any(v_ids) and status <> 'disabled';
+
+  update automations set status = 'disabled', updated_at = now()
+  where business_id = any(v_ids) and status <> 'disabled';
+
+  update subscriptions set status = 'cancelled'
+  where business_id = any(v_ids)
+    and status in ('trial', 'active', 'renewal_due', 'past_due', 'grace_period');
+
+  update businesses
+  set cancelled_at = now(),
+      is_active = false,
+      updated_at = now()
+  where id = any(v_ids);
+
+  insert into audit_logs (action, business_id, entity_type, entity_id, new_data)
+  select 'business.cancelled', id, 'business', id,
+         jsonb_build_object('cancel_at', cancel_at, 'reason', cancellation_reason)
+  from businesses where id = any(v_ids);
+
+  return cardinality(v_ids);
+end;
+$function$;
 
 create or replace function public.zella_apply_scheduled_cancellations() returns integer
 language plpgsql security definer set search_path = public as $$

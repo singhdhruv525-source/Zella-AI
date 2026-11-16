@@ -3,7 +3,7 @@
 # Checks: before, the scheduled path cancels a business but leaves its receptionist on and its subscription active,
 # with no audit row; applies, and applies again; after, the scheduled path does the full cancellation, audited; the
 # "cancellation coming" reminder still goes to a business due in two days, once; it is in the hourly list as well as the
-# daily one; a business not yet due is untouched; the rollback (twice) restores both functions exactly; applies again.
+# daily one; two runs at once cancel and audit a business once; a business not yet due is untouched; the rollback (twice) restores all three functions exactly; applies again.
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"; REPO="$(cd "$HERE/../.." && pwd)"
 export ZPG_HOST=${ZPG_HOST:-/var/lib/postgresql/zella-sec} ZPG_PORT=${ZPG_PORT:-55433}; DB=zcancellations; TEMPLATE=${TEMPLATE:-zprod3}
@@ -12,7 +12,7 @@ P=(psql -h "$ZPG_HOST" -p "$ZPG_PORT" -U postgres -qtAX -v ON_ERROR_STOP=1)
 "${P[@]}" -d postgres -c "drop database if exists $DB" -c "create database $DB template $TEMPLATE" > /dev/null || exit 1
 fails=0; ok() { echo "PASS $*"; }; bad() { echo "FAIL $*"; fails=$((fails + 1)); }
 q() { "${P[@]}" -d $DB -c "$1"; }
-fp() { q "select md5(pg_get_functiondef('public.zella_apply_scheduled_cancellations()'::regprocedure)) || md5(pg_get_functiondef('public.zella_run_schedule_group(text)'::regprocedure))"; }
+fp() { q "select md5(pg_get_functiondef('public.zella_apply_scheduled_cancellations()'::regprocedure)) || md5(pg_get_functiondef('public.zella_run_schedule_group(text)'::regprocedure)) || md5(pg_get_functiondef('public.zella_process_cancellations()'::regprocedure))"; }
 before=$(fp)
 OWNER=f4000000-0000-0000-0000-000000000001
 q "insert into auth.users (id, email, email_confirmed_at) values ('$OWNER', 'owner@cancel.test', now())" > /dev/null || exit 1
@@ -54,8 +54,14 @@ h=$(q "select position(\$t\$'zella_team_scorecard_nudge', 'zella_apply_scheduled
        and (length(pg_get_functiondef('public.zella_run_schedule_group(text)'::regprocedure)) - length(replace(pg_get_functiondef('public.zella_run_schedule_group(text)'::regprocedure), 'zella_apply_scheduled_cancellations', ''))) / length('zella_apply_scheduled_cancellations') = 2")
 [ "$h" = "t" ] && ok "it runs hourly as well as daily" || bad "schedule: $h"
 
+# two runs at once: the second skips the business the first is still cancelling, so it is cancelled and audited once
+B4=$(mk "Overlap" "now() - interval '1 hour'")
+( "${P[@]}" -d $DB -c "begin; select public.zella_apply_scheduled_cancellations(); select pg_sleep(2); commit;" > /dev/null 2>&1 ) &
+sleep 0.7
+n2=$(q "select public.zella_process_cancellations()"); wait
+[ "$n2" = "0" ] && [ "$(state "$B4")" = "true,false,disabled,disabled,cancelled,1" ] && ok "two runs at once cancel and audit a business once" || bad "overlap: second run $n2, state $(state "$B4")"
 "${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_cancellations_scheduled_rollback.sql" > /dev/null 2>&1 && "${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_cancellations_scheduled_rollback.sql" > /dev/null 2>&1 && ok "rollback runs twice" || bad "rollback"
-[ "$(fp)" = "$before" ] && ok "rollback restores both functions exactly" || bad "fingerprints after rollback"
+[ "$(fp)" = "$before" ] && ok "rollback restores all three functions exactly" || bad "fingerprints after rollback"
 [ "$(state "$B1")" = "true,false,disabled,disabled,cancelled,1" ] && ok "businesses already cancelled stay cancelled" || bad "rollback changed a cancelled business"
 "${P[@]}" -d $DB -f "$REPO/sql/zella_cancellations_scheduled.sql" > /dev/null 2>&1 && ok "applies again after the rollback" || bad "reapply"
 q "create or replace function public.zella_apply_scheduled_cancellations() returns integer language plpgsql as \$f\$ begin return public.zella_process_cancellations(); end \$f\$" > /dev/null
