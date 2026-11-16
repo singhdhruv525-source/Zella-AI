@@ -16,9 +16,9 @@ It reads the catalog only, never rows.
 | Tables (schema `public`) | 185 |
 | Tables with row security on | 185 of 185 |
 | Row security policies | 349 |
-| Columns | 2191 |
+| Columns | 2194 |
 | Views | 1 |
-| Functions | 991 (918 security definer, 28 callable by `anon`) |
+| Functions | 1001 (928 security definer, 28 callable by `anon`) |
 
 Rules every table follows:
 
@@ -3876,6 +3876,9 @@ Packs added to a business (step 2: admin grants only, with a reason; purchases c
 | `idempotency_key` | text | yes |  |
 | `created_by` | uuid |  |  |
 | `purchased_at` | timestamp with time zone | yes | now() |
+| `stripe_payment_intent` | text |  |  |
+| `failure_reason` | text |  |  |
+| `settled_at` | timestamp with time zone |  |  |
 
 - Primary key: `id`.
 - Unique: `(business_id, idempotency_key)`.
@@ -3909,7 +3912,7 @@ Every subtraction from (or return to) a balance, once per idempotency key.
 - `business_id` → `public.businesses` (on delete cascade).
 - `period_id` → `public.billing_periods` (on delete no action).
 - Row security: on; no policies, so roles subject to row security (signed-in users and anon) get no rows directly. Superusers and `BYPASSRLS` roles (such as the server key) are not limited by it, nor is the table owner unless `FORCE ROW LEVEL SECURITY` is set; a security definer function runs with its function owner's rights.
-- Triggers: `zella_usage_charges_immutable`.
+- Triggers: `zella_billing_reload`, `zella_usage_charges_immutable`.
 
 ### `auto_reload_settings`
 
@@ -4719,7 +4722,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_b3_like(p_query text)` | text |  | anon, signed in |
 | `zella_b3_member(p_business_id uuid)` | void |  | signed in |
 
-### `zella_billing_*` (26)
+### `zella_billing_*` (30)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -4731,6 +4734,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_billing_checkout_next_command(p_checkout_id uuid)` | uuid | yes | server only |
 | `zella_billing_evaluate_alerts(p_business_id uuid, p_resource text)` | integer | yes | server only |
 | `zella_billing_immutable_trg()` | trigger |  | server only |
+| `zella_billing_maybe_reload(p_business_id uuid, p_resource text)` | uuid | yes | server only |
 | `zella_billing_message_kind(p_meta jsonb)` | text |  | signed in |
 | `zella_billing_message_trg()` | trigger | yes | server only |
 | `zella_billing_nonpayment_sweep()` | jsonb | yes | server only |
@@ -4740,9 +4744,12 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_billing_outbox_claim(p_limit integer, p_id uuid)` | SETOF billing_outbox | yes | server only |
 | `zella_billing_outbox_result(p_id uuid, p_ok boolean, p_stripe_id text, p_response jsonb, p_error text, p_retryable boolean, p_conflict boolean)` | text | yes | server only |
 | `zella_billing_overview(p_business_id uuid)` | jsonb | yes | signed in |
+| `zella_billing_pack_command(p pack_purchases)` | uuid | yes | server only |
+| `zella_billing_pack_next_command(p_purchase_id uuid)` | uuid | yes | server only |
 | `zella_billing_period_bounds(p_business_id uuid, p_at timestamp with time zone)` | jsonb | yes | server only |
 | `zella_billing_plan_at(p_business_id uuid, p_at timestamp with time zone)` | business_plans | yes | server only |
 | `zella_billing_plan_current(p_business_id uuid)` | business_plans | yes | server only |
+| `zella_billing_reload_trg()` | trigger | yes | server only |
 | `zella_billing_retry_charges(p_limit integer)` | integer | yes | server only |
 | `zella_billing_rollover_reconcile(p_period_id uuid)` | integer | yes | server only |
 | `zella_billing_settings()` | jsonb | yes | server only |
@@ -5278,7 +5285,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `update_customer(p_business_id uuid, p_customer_id uuid, p_first_name text, p_last_name text, p_email text, p_phone text, p_company_name text, p_status text, p_notes text, p_metadata jsonb)` | uuid | yes | signed in |
 | `update_updated_at()` | trigger |  | server only |
 
-### `zella_owner_*` (14)
+### `zella_owner_*` (15)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -5295,6 +5302,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_owner_onboarding_plan_accept(p_business_id uuid, p_plan_version integer)` | jsonb | yes | signed in |
 | `zella_owner_onboarding_resume(p_business_id uuid)` | jsonb | yes | signed in |
 | `zella_owner_onboarding_section(p_business_id uuid, p_section text, p_decision text, p_note text)` | jsonb | yes | signed in |
+| `zella_owner_pack_buy(p_business_id uuid, p_pack_code text, p_idempotency_key text)` | jsonb | yes | signed in |
 | `zella_owner_rules_prompt(p_business_id uuid, p_part text)` | text | yes | server only |
 
 ### `zella_people_*` (7)
@@ -5670,13 +5678,14 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_store_lookup_log(p_business_id uuid, p_provider_call_id text, p_integration_id uuid, p_result text, p_verified boolean)` | void | yes | server only |
 | `zella_store_lookup_log(p_business_id uuid, p_provider_call_id text, p_integration_id uuid, p_result text, p_verified boolean, p_order_ref text)` | void | yes | server only |
 
-### `zella_stripe_*` (31)
+### `zella_stripe_*` (36)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
 | `zella_stripe_after_checkout_session(r billing_outbox)` | void | yes | server only |
 | `zella_stripe_after_customer(r billing_outbox)` | void | yes | server only |
 | `zella_stripe_after_invoice_item(r billing_outbox)` | void | yes | server only |
+| `zella_stripe_after_payment_intent(r billing_outbox)` | void | yes | server only |
 | `zella_stripe_after_price(r billing_outbox)` | void | yes | server only |
 | `zella_stripe_after_product(r billing_outbox)` | void | yes | server only |
 | `zella_stripe_apply_event(p_event_id uuid, p_object jsonb, p_key_livemode boolean)` | text | yes | server only |
@@ -5688,6 +5697,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_stripe_event_store(p_event jsonb, p_key_livemode boolean)` | text | yes | server only |
 | `zella_stripe_event_types()` | text[] |  | anon, signed in |
 | `zella_stripe_failed_checkout_session(r billing_outbox)` | void | yes | server only |
+| `zella_stripe_failed_payment_intent(r billing_outbox)` | void | yes | server only |
 | `zella_stripe_grant_subscription_create(o jsonb, b jsonb)` | void | yes | server only |
 | `zella_stripe_grant_subscription_cycle(o jsonb, b jsonb)` | void | yes | server only |
 | `zella_stripe_invoice_upsert(p_business_id uuid, p_inv jsonb, p_kind text)` | billing_invoices | yes | server only |
@@ -5703,6 +5713,9 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_stripe_on_invoice_paid(e billing_events, o jsonb)` | text | yes | server only |
 | `zella_stripe_on_invoice_payment_action_required(e billing_events, o jsonb)` | text | yes | server only |
 | `zella_stripe_on_invoice_payment_failed(e billing_events, o jsonb)` | text | yes | server only |
+| `zella_stripe_on_payment_intent_payment_failed(e billing_events, o jsonb)` | text | yes | server only |
+| `zella_stripe_on_payment_intent_requires_action(e billing_events, o jsonb)` | text | yes | server only |
+| `zella_stripe_on_payment_intent_succeeded(e billing_events, o jsonb)` | text | yes | server only |
 | `zella_stripe_payment_problem(e billing_events, o jsonb, p_kind text)` | text | yes | server only |
 | `zella_stripe_quarantine(p_event_id uuid, p_business_id uuid, p_reason text, p_detail jsonb)` | uuid | yes | server only |
 
