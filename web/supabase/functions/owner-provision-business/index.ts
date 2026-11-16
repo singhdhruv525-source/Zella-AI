@@ -9,6 +9,7 @@ import { mfaGate, tokenAal } from "./mfa_gate.ts";
 import { ONBOARDING_PERMISSIONS, documentsReady, loadOnboarding, onboardingHandlers } from "./onboarding.ts";
 import { PLATFORM_PERMISSIONS, platformHandlers } from "./platform.ts";
 import { DETAIL_PERMISSIONS, adminPermissions, businessDetail } from "./detail.ts";
+import { MODULE_DEPENDENCIES, businessModuleProblems } from "./module_deps.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -119,13 +120,6 @@ const TRANSFER_TYPES = ["owner", "manager", "team_member", "phone_number"] as co
 const DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
-const MODULE_DEPENDENCIES: Record<string, string[]> = {
-  "ai-receptionist": ["calls"],
-  "ai-appointments": ["calendar"],
-  "ai-follow-up": ["automations"],
-  "ai-sales": ["calls"],
-  "ai-support": ["calls"],
-};
 
 // Automations managed by the setup wizard. n8n runs them once they are active.
 const AUTOMATIONS = {
@@ -480,6 +474,7 @@ async function loadSetup(admin: SupabaseClient, businessId: string) {
     modules: (modulesResult.data ?? []).map((module) => ({
       ...module,
       enabled: enabled.has(module.id),
+      requires: MODULE_DEPENDENCIES[module.slug] ?? [],   // slugs it needs (module_deps.ts); not offered when absent here
     })),
     receptionist: {
       agentId: agent?.id ?? null,
@@ -700,19 +695,11 @@ async function saveModules(admin: SupabaseClient, fields: Json) {
     .eq("is_active", true);
   if (modulesError) throw modulesError;
 
-  // Enforce dependencies on the server, not only in the UI.
+  // Enforce dependencies on the server, not only in the UI (module_deps.ts, CFG-02): a dependency the industry
+  // doesn't offer refuses too, instead of being skipped.
   const enabled = new Set(requested);
-  const bySlug = new Map((modules ?? []).map((m) => [m.slug, m]));
-
-  for (const module of modules ?? []) {
-    if (!enabled.has(module.id)) continue;
-    for (const dependency of MODULE_DEPENDENCIES[module.slug] ?? []) {
-      const required = bySlug.get(dependency);
-      if (required && !enabled.has(required.id)) {
-        throw new InputError(`${module.name} requires ${required.name}`);
-      }
-    }
-  }
+  const problems = businessModuleProblems(modules ?? [], enabled);
+  if (problems.length) throw new InputError(`${problems.join("; ")}.`);
 
   const { data: count, error } = await admin.rpc("zella_set_business_modules", {
     p_business_id: businessId,
@@ -1111,10 +1098,14 @@ async function finishSetup(admin: SupabaseClient, fields: Json) {
         return problem.message;
       },
       async activate() {
-        // the AI receptionist stays disabled until the phone number and voice agent are connected and tested
-        const { error } = await admin.from("businesses").update({ is_active: true, updated_at: iso() }).eq("id", businessId);
+        // the AI receptionist stays disabled until the phone number and voice agent are connected and tested.
+        // Never while suspended (BIZ-06): a suspension that lands during the finish wins, and the finish says so.
+        const { data: rows, error } = await admin.from("businesses").update({ is_active: true, updated_at: iso() })
+          .eq("id", businessId).is("suspended_at", null).is("cancelled_at", null).select("id");
         if (error) throw error;
+        if (!rows?.length) return false;
         await advance(admin, businessId, "testing");
+        return true;
       },
       now: () => new Date(),
     });

@@ -342,6 +342,12 @@ Opened from Businesses. What each tab shows and what an admin can do there:
 - **Contact details:** caller numbers on Calls and the account email and error text of Live connections are masked
   the way the Voice page masks them (`…0123`, `a…@example.com`; `mask.ts`, the `zella_admin_mask` rule). A member's
   own phone number is not read (BIZ-22).
+- **Setup while suspended:** finishing setup is refused for a suspended business before the owner's invitation is
+  claimed or sent ("Reactivate it on the business page before finishing setup"); a suspension that lands while the
+  invitation is going out wins, the workspace stays off and the finish says so (BIZ-06).
+- **Modules:** the server refuses a module whose dependency is switched off for the business or isn't offered by its
+  industry at all ("AI receptionist needs Calls, which this industry doesn't offer"); the list of dependencies lives
+  in `module_deps.ts` and is sent with each module as `requires` (CFG-02).
 - **Automations:** every standard automation and industry rule, with one status language shared with the Automations
   page: Active, Paused, Turned off (`AUTOMATION_STATUS` in `web/src/automationCatalog.js`, OPS-22). Names always start
   with a capital (UI-09).
