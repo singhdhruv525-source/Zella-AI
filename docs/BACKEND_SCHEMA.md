@@ -18,7 +18,7 @@ It reads the catalog only, never rows.
 | Row security policies | 342 |
 | Columns | 2063 |
 | Views | 1 |
-| Functions | 914 (846 security definer, 26 callable by `anon`) |
+| Functions | 915 (847 security definer, 26 callable by `anon`) |
 
 Rules every table follows:
 
@@ -383,7 +383,7 @@ Append-only record of every privileged action. Only the server can write it.
 | `created_at` | timestamp with time zone | yes | now() |
 
 - Primary key: `id`.
-- `business_id` → `public.businesses` (on delete cascade).
+- `business_id` → `public.businesses` (on delete set null).
 - `user_id` → `auth.users` (on delete set null).
 - Row security: on; policies: business members can view audit logs (select), zella_mfa_required (all).
 
@@ -5485,7 +5485,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_setting(p_key text, p_default jsonb)` | jsonb | yes | server only |
 | `zella_tables(p_business_id uuid)` | jsonb | yes | signed in |
 
-### Smaller groups and older helpers (189)
+### Smaller groups and older helpers (190)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -5529,6 +5529,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_customer_timeline(p_business_id uuid, p_customer_id uuid, p_limit integer)` | jsonb | yes | signed in |
 | `zella_decline_waitlist_offer(p_entry_id uuid)` | void | yes | server only |
 | `zella_delete_business_closure(p_closure_id uuid)` | boolean | yes | signed in |
+| `zella_delete_draft_business(p_business_id uuid, p_actor uuid, p_confirm_name text, p_reason text)` | jsonb | yes | server only |
 | `zella_dismiss_dead_letter(p_id uuid, p_note text)` | boolean | yes | signed in |
 | `zella_dismiss_knowledge_gap(p_gap_id uuid)` | boolean | yes | signed in |
 | `zella_dnc_stops_callbacks()` | trigger | yes | server only |
