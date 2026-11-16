@@ -100,6 +100,10 @@ decides the words, booking model, CRM modules, record types, automations, templa
 rules (`BIZ-4`, `BIZ-10`). A business customises within its industry's bounds, and its changes survive industry
 upgrades.
 
+Each industry's booking model, whether it is sensitive and its default automations are stored with the industry
+(`industries.booking_model`, `industries.sensitive`, `industry_configurations.automation_defaults`; CFG-05, built, not applied)
+and edited on Industry configuration.
+
 | Industry | Words (customer / booking / staff) | Booking model | Regulated |
 |---|---|---|---|
 | Beauty & Salon | client / appointment / stylist | staff appointment | no |
@@ -306,7 +310,7 @@ only the pages they can use. Every admin action is written to the audit log.
 | Businesses | **Businesses** | Every business; open one to see and support it; suspend, reactivate | `businesses.view` |
 | Businesses | **Verification** | Business and owner verification documents (private storage) | `businesses.manage` |
 | Businesses | **Create Business wizard** | Business → Owner & verification → Hours & services → Team → AI receptionist → Phone & integrations (spam protection) → Automations → CRM setup → Review. Adapts its fields to the industry, saves drafts, guards unsaved changes, and invites the owner only once setup finishes. | `businesses.manage` |
-| Configuration | **Industry configuration** | The 28 industries' configurations: words, receptionist wording, modules. Switching a module off removes it at once from every business in the industry that has it on; the page shows "N businesses lose X" and asks for a reason first (audited). An industry can be deactivated and reactivated (audited, marked Inactive): it is then not offered for new businesses, and the businesses already in it keep working | `businesses.view`; changes `platform.configure` |
+| Configuration | **Industry configuration** | The 28 industries' configurations: words, receptionist wording, modules. Switching a module off removes it at once from every business in the industry that has it on; the page shows "N businesses lose X" and asks for a reason first (audited). An industry can be deactivated and reactivated (audited, marked Inactive): it is then not offered for new businesses, and the businesses already in it keep working. Each industry also stores whether it is sensitive (staff never see call transcripts; a new industry starts sensitive; only a Zella Voice owner changes it, with a reason and a typed confirmation to turn it off, audited), its booking model, and the automations a new business starts with (CFG-05, `sql/zella_industry_data.sql`, built, not applied) | `businesses.view`; changes `platform.configure` |
 | Configuration | **Modules & features** | Modules per industry and business | `businesses.view` |
 | Configuration | **Plans & subscriptions** | Plans and subscriptions (policy decided in architecture §17; no plan created yet) | `billing.view` |
 | Configuration | **Offers & promotions** | Offers, rules, redemptions | `billing.view` |

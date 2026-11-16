@@ -21,7 +21,43 @@ export const CONFIG_PERMISSIONS: Record<string, string> = {
   industry_set_active: "platform.configure",
   agent_deliveries: "businesses.view",
   business_plans_list: "billing.view",
+  industry_set_sensitive: "platform.configure",
+  industry_automation_defaults: "businesses.view",
 };
+
+// CFG-05: industry data stored in the database (sql/zella_industry_data.sql).
+export const BOOKING_MODELS = ["staff_appointment", "class", "table", "stay", "consultation", "viewing", "field_job", "none", "general"] as const;
+// Only a Zella Voice owner may change whether an industry is sensitive (CFG-05 decision, owner can change).
+export const SENSITIVE_ROLE = "zella_owner";
+
+// The columns may not exist yet (migration not applied): callers then leave the industry data out.
+export const missingColumn = (error: { code?: string; message?: string } | null) =>
+  Boolean(error && (error.code === "42703" || error.code === "PGRST204" || /column .* does not exist|Could not find the .* column/i.test(error.message ?? "")));
+
+const AUTOMATION_KEY = /^[a-z][a-z0-9_]{0,39}$/;
+type Setting = string | number | boolean | number[];
+// A default automations object as industry_configurations.automation_defaults stores it:
+// { type: { enabled: boolean, settings: { key: number | string | boolean | number[] } } }. Anything else is refused.
+export function cleanAutomationDefaults(input: unknown, InputError: new (m: string, s?: number) => Error): Record<string, { enabled: boolean; settings: Record<string, Setting> }> | null {
+  if (input === null) return null;
+  if (!input || typeof input !== "object" || Array.isArray(input)) throw new InputError("Default automations must be a list of automations");
+  const out: Record<string, { enabled: boolean; settings: Record<string, Setting> }> = {};
+  const entries = Object.entries(input as Json);
+  if (entries.length > 40) throw new InputError("Too many default automations");
+  for (const [type, raw] of entries) {
+    const v = raw as Json;
+    if (!AUTOMATION_KEY.test(type) || !v || typeof v !== "object" || typeof v.enabled !== "boolean") throw new InputError(`Default automation ${type} isn't valid`);
+    const settings: Record<string, Setting> = {};
+    for (const [k, x] of Object.entries((v.settings && typeof v.settings === "object" && !Array.isArray(v.settings)) ? v.settings as Json : {})) {
+      const okValue = (typeof x === "number" && Number.isFinite(x)) || typeof x === "boolean" || (typeof x === "string" && x.length <= 40)
+        || (Array.isArray(x) && x.length <= 10 && x.every((n) => typeof n === "number" && Number.isFinite(n)));
+      if (!AUTOMATION_KEY.test(k) || !okValue) throw new InputError(`A setting of ${type} isn't valid`);
+      settings[k] = x as Setting;
+    }
+    out[type] = { enabled: v.enabled, settings };
+  }
+  return out;
+}
 
 // CFG-14: the Plans page lists businesses a page at a time (CFG-21), each with its own plan (business_plans).
 export const PLANS_PAGE_SIZE = 25;
@@ -180,7 +216,7 @@ export function switchOffMessage(unconfirmed: SwitchOff[]) {
   return `Switching this off removes it from businesses that use it now: ${parts.join("; ")}. Confirm to continue.`;
 }
 
-export function configHandlers(admin: SupabaseClient, fields: Json, kit: ConfigKit) {
+export function configHandlers(admin: SupabaseClient, fields: Json, kit: ConfigKit, role: string | null = null) {
   const { text, requireId, InputError } = kit;
 
   const industryOf = async (id: string) => {
@@ -282,7 +318,42 @@ export function configHandlers(admin: SupabaseClient, fields: Json, kit: ConfigK
     };
   };
 
+  // CFG-05: whether staff may read call transcripts in this industry (M-4). Zella Voice owner only, with a reason;
+  // turning it off also needs confirm: true, because staff may then read transcripts. Audited.
+  const industrySetSensitive = async () => {
+    if (role !== SENSITIVE_ROLE) throw new InputError("Only a Zella Voice owner can change whether an industry is sensitive.", 403);
+    const industryId = requireId(fields.industryId, "industry");
+    if (typeof fields.sensitive !== "boolean") throw new InputError("Say whether the industry is sensitive");
+    const reason = text(fields.reason, 300);
+    if (reason.length < 3) throw new InputError("Give a short reason (it goes in the audit log)");
+    const { data, error } = await admin.from("industries").select("id, name, sensitive").eq("id", industryId).maybeSingle();
+    if (missingColumn(error)) throw new InputError("Industry data isn't switched on yet", 409);
+    if (error) throw error;
+    if (!data) throw new InputError("Industry not found", 404);
+    const before = Boolean((data as Json).sensitive);
+    if (before && !fields.sensitive && fields.confirm !== true) {
+      throw new InputError("Turning this off lets staff read call transcripts in this industry. Confirm to continue.", 409);
+    }
+    if (before !== fields.sensitive) {
+      const { error: e } = await admin.from("industries").update({ sensitive: fields.sensitive }).eq("id", industryId);
+      if (e) throw e;
+    }
+    return { industryId, name: (data as Json).name, before, after: fields.sensitive, changed: before !== fields.sensitive, reason };
+  };
+
+  // CFG-05, UI-28: the automations a new business in this industry starts with, from the database. null means the
+  // base set (web/src/industryAutomations.js), also when the migration isn't applied yet.
+  const industryAutomationDefaults = async () => {
+    const industryId = requireId(fields.industryId, "industry");
+    const { data, error } = await admin.from("industry_configurations").select("automation_defaults").eq("industry_id", industryId).maybeSingle();
+    if (missingColumn(error)) return { industryId, available: false, defaults: null };
+    if (error) throw error;
+    return { industryId, available: true, defaults: (data as Json | null)?.automation_defaults ?? null };
+  };
+
   const handlers: Record<string, () => Promise<unknown>> = {
+    industry_set_sensitive: industrySetSensitive,
+    industry_automation_defaults: industryAutomationDefaults,
     business_plans_list: businessPlansList,
     agent_deliveries: agentDeliveries,
     industry_module_usage: industryModuleUsage,
@@ -291,6 +362,13 @@ export function configHandlers(admin: SupabaseClient, fields: Json, kit: ConfigK
 
   // Returning null skips the audit row (a repeat click that changed nothing).
   const audited: Record<string, (r: Json) => Json | null> = {
+    industry_set_sensitive: (r) => r.changed
+      ? {
+        action: r.after ? "industry.sensitive_on" : "industry.sensitive_off",
+        entity_type: "industry", entity_id: r.industryId,
+        old_data: { name: r.name, sensitive: r.before }, new_data: { name: r.name, sensitive: r.after, reason: r.reason },
+      }
+      : null,
     industry_set_active: (r) => r.changed
       ? {
         action: r.after ? "industry.reactivated" : "industry.deactivated",

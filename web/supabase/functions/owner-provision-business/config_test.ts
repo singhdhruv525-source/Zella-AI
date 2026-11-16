@@ -1,6 +1,6 @@
 import { assertEquals, assertRejects } from "jsr:@std/assert@1";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { allRows, CONFIG_PERMISSIONS, configHandlers, type ConfigKit, connectionCounts, connectionsFor, deliveriesFor, latestPlans, moduleUsage, switchOffCheck, switchOffMessage } from "./config.ts";
+import { allRows, cleanAutomationDefaults, CONFIG_PERMISSIONS, configHandlers, type ConfigKit, connectionCounts, connectionsFor, deliveriesFor, latestPlans, moduleUsage, switchOffCheck, switchOffMessage } from "./config.ts";
 import { PERMISSIONS } from "./settings.ts";
 import { ONBOARDING_PERMISSIONS } from "./onboarding.ts";
 import { PLATFORM_PERMISSIONS } from "./platform.ts";
@@ -15,7 +15,7 @@ const kit: ConfigKit = {
 };
 
 Deno.test("every new action has a permission, and no name clashes with another module", () => {
-  assertEquals(CONFIG_PERMISSIONS, { industry_module_usage: "businesses.view", industry_set_active: "platform.configure", agent_deliveries: "businesses.view", business_plans_list: "billing.view" });
+  assertEquals(CONFIG_PERMISSIONS, { industry_module_usage: "businesses.view", industry_set_active: "platform.configure", agent_deliveries: "businesses.view", business_plans_list: "billing.view", industry_set_sensitive: "platform.configure", industry_automation_defaults: "businesses.view" });
   for (const action of Object.keys(CONFIG_PERMISSIONS)) {
     assertEquals([PERMISSIONS[action], ONBOARDING_PERMISSIONS[action], PLATFORM_PERMISSIONS[action]], [undefined, undefined, undefined]);
   }
@@ -159,4 +159,39 @@ Deno.test("latestPlans keeps the highest version per business and counts the ver
   assertEquals([out.get("a")?.plan.version, out.get("a")?.versions, out.get("a")?.plan.tier], [3, 3, "pro"]);
   assertEquals([out.get("b")?.plan.version, out.get("b")?.versions], [1, 1]);
   assertEquals(out.has("c"), false);
+});
+
+Deno.test("default automations are checked before they are stored", () => {
+  const good = { appointment_reminder: { enabled: true, settings: { hours_before: [24, 2], channel: "sms", fallback_sms: true } } };
+  assertEquals(cleanAutomationDefaults(good, InputError), good);
+  assertEquals(cleanAutomationDefaults(null, InputError), null);
+  assertEquals(cleanAutomationDefaults({ a_b: { enabled: false } }, InputError), { a_b: { enabled: false, settings: {} } });
+  for (const bad of [[], "x", { "Bad Key": { enabled: true } }, { a: { enabled: "yes" } }, { a: { enabled: true, settings: { x: { deep: 1 } } } },
+    { a: { enabled: true, settings: { x: ["a"] } } }, { a: { enabled: true, settings: { x: "y".repeat(41) } } }]) {
+    let threw = false; try { cleanAutomationDefaults(bad, InputError); } catch (e) { threw = e instanceof InputError; }
+    assertEquals(threw, true);
+  }
+});
+
+Deno.test("only a Zella Voice owner may change sensitive, and turning it off needs a confirmation", async () => {
+  const writes: unknown[] = [];
+  const admin = { from: () => {
+    const q = { select: () => q, eq: () => q,
+      maybeSingle: () => Promise.resolve({ data: { id: "ind", name: "Dental", sensitive: true }, error: null }),
+      update: (v: unknown) => { writes.push(v); return { eq: () => Promise.resolve({ error: null }) }; } };
+    return q;
+  } } as unknown as SupabaseClient;
+  const run = (role: string | null, fields: Record<string, unknown>) => configHandlers(admin, { industryId: "ind", reason: "Reviewed", ...fields }, kit, role);
+  for (const role of [null, "super_admin", "read_only_admin"]) {
+    const err = await assertRejects(() => run(role, { sensitive: false, confirm: true }).handlers.industry_set_sensitive(), InputError);
+    assertEquals((err as InputError).status, 403);
+  }
+  const unconfirmed = await assertRejects(() => run("zella_owner", { sensitive: false }).handlers.industry_set_sensitive(), InputError);
+  assertEquals((unconfirmed as InputError).status, 409);
+  assertEquals(writes, []);
+  const h = run("zella_owner", { sensitive: false, confirm: true });
+  const r = await h.handlers.industry_set_sensitive() as Record<string, unknown>;
+  assertEquals(writes, [{ sensitive: false }]);
+  assertEquals((h.audited.industry_set_sensitive(r) as Record<string, unknown>).action, "industry.sensitive_off");
+  assertEquals(h.audited.industry_set_sensitive({ ...r, changed: false }), null);
 });

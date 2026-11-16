@@ -8,7 +8,7 @@ import { PERMISSIONS, RESTRICTED_ROLES, settingsHandlers } from "./settings.ts";
 import { mfaGate, tokenAal } from "./mfa_gate.ts";
 import { ONBOARDING_PERMISSIONS, documentsReady, loadOnboarding, onboardingHandlers } from "./onboarding.ts";
 import { PLATFORM_PERMISSIONS, platformHandlers } from "./platform.ts";
-import { CONFIG_PERMISSIONS, allRows, configHandlers, connectionCounts, connectionsFor, deliveriesFor, moduleUsage, switchOffCheck, switchOffMessage } from "./config.ts";
+import { BOOKING_MODELS, CONFIG_PERMISSIONS, allRows, cleanAutomationDefaults, missingColumn, configHandlers, connectionCounts, connectionsFor, deliveriesFor, moduleUsage, switchOffCheck, switchOffMessage } from "./config.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1244,6 +1244,8 @@ const AUDITED: Record<string, (fields: Json, result: any) => AuditEntry> = {
       modules_added: r.modulesCreated,
       modules_updated: r.modulesUpdated,
       modules_switched_off: r.modulesSwitchedOff,
+      booking_model: r.bookingModel,
+      automation_defaults_changed: r.automationDefaultsChanged || undefined,
       switched_off_without_confirmation: r.confirmedWithoutCount || undefined,
       reason: r.reason ?? undefined,
     },
@@ -1685,9 +1687,24 @@ async function industriesList(admin: SupabaseClient) {
   const configByIndustry = new Map((configsResult.data ?? []).map((c) => [c.industry_id, c]));
   const modules = modulesResult.data ?? [];
 
+  // CFG-05: industry data (sql/zella_industry_data.sql). Left out, with industryData false, until it is applied.
+  const [dataResult, defaultsResult] = await Promise.all([
+    admin.from("industries").select("id, sensitive, booking_model"),
+    admin.from("industry_configurations").select("industry_id, automation_defaults"),
+  ]);
+  const industryData = !missingColumn(dataResult.error) && !missingColumn(defaultsResult.error);
+  if (industryData && (dataResult.error ?? defaultsResult.error)) throw dataResult.error ?? defaultsResult.error;
+  const dataById = new Map(industryData ? (dataResult.data ?? []).map((d: Json) => [d.id, d]) : []);
+  const defaultsById = new Map(industryData ? (defaultsResult.data ?? []).map((d: Json) => [d.industry_id, d.automation_defaults]) : []);
+
   return {
+    industryData,
+    bookingModels: BOOKING_MODELS,
     industries: (industriesResult.data ?? []).map((industry) => ({
       ...industry,
+      sensitive: industryData ? Boolean(obj(dataById.get(industry.id)).sensitive) : null,
+      bookingModel: industryData ? (obj(dataById.get(industry.id)).booking_model ?? null) : null,
+      automationDefaults: industryData ? (defaultsById.get(industry.id) ?? null) : null,
       terminology: obj(configByIndustry.get(industry.id)?.terminology),
       configUpdatedAt: configByIndustry.get(industry.id)?.updated_at ?? null,
       modules: modules.filter((m) => m.industry_id === industry.id),
@@ -1746,18 +1763,30 @@ async function industrySave(admin: SupabaseClient, fields: Json) {
 
   const now = new Date().toISOString();
 
+  // CFG-05: the booking model and default automations, only when the page sends them (an older page doesn't).
+  const industryUpdate: Json = { description: text(fields.description, 500) || null };
+  if ("bookingModel" in fields) {
+    const model = fields.bookingModel === null || fields.bookingModel === "" ? null : text(fields.bookingModel, 40);
+    if (model !== null && !(BOOKING_MODELS as readonly string[]).includes(model)) throw new InputError("Choose a booking model from the list");
+    industryUpdate.booking_model = model;
+  }
+  const defaults = "automationDefaults" in fields ? cleanAutomationDefaults(fields.automationDefaults, InputError) : undefined;
   const { error: describeError } = await admin
     .from("industries")
-    .update({ description: text(fields.description, 500) || null })
+    .update(industryUpdate)
     .eq("id", industryId);
+  if (missingColumn(describeError)) throw new InputError("Industry data isn't switched on yet. Reload the page.", 409);
   if (describeError) throw describeError;
 
+  const configValues: Json = { terminology: next };
+  if (defaults !== undefined) configValues.automation_defaults = defaults;
   const { error: termsError } = config
     ? await admin.from("industry_configurations")
-      .update({ terminology: next, updated_at: now })
+      .update({ ...configValues, updated_at: now })
       .eq("id", config.id)
     : await admin.from("industry_configurations")
-      .insert({ industry_id: industryId, terminology: next });
+      .insert({ industry_id: industryId, ...configValues });
+  if (missingColumn(termsError)) throw new InputError("Industry data isn't switched on yet. Reload the page.", 409);
   if (termsError) throw termsError;
 
   // Modules are added, renamed or switched off. Never deleted: deleting would
@@ -1802,6 +1831,8 @@ async function industrySave(admin: SupabaseClient, fields: Json) {
     modulesUpdated: changed,
     previousTerminology: previous,
     terminology: next,
+    bookingModel: "booking_model" in industryUpdate ? industryUpdate.booking_model : undefined,
+    automationDefaultsChanged: defaults !== undefined,
     modulesSwitchedOff: offCheck.switchedOff,
     confirmedWithoutCount: offCheck.legacy && offCheck.switchedOff.some((m) => m.businesses > 0),
     reason: text(fields.reason, 300) || null,
@@ -1866,6 +1897,25 @@ async function industryCreate(admin: SupabaseClient, fields: Json) {
         })),
       );
       if (modulesError) throw modulesError;
+    }
+
+    // CFG-05: a copy also takes the booking model, default automations and safety lines. A new industry always starts
+    // sensitive (the column's default) until a Zella Voice owner turns that off. Skipped before the migration.
+    if (copyFromId) {
+      const [src, srcConfig] = await Promise.all([
+        admin.from("industries").select("booking_model").eq("id", copyFromId).maybeSingle(),
+        admin.from("industry_configurations").select("automation_defaults, safety_rules").eq("industry_id", copyFromId).maybeSingle(),
+      ]);
+      if (!missingColumn(src.error) && !missingColumn(srcConfig.error)) {
+        if (src.error ?? srcConfig.error) throw src.error ?? srcConfig.error;
+        const [a, b] = await Promise.all([
+          admin.from("industries").update({ booking_model: obj(src.data).booking_model ?? null }).eq("id", industry.id),
+          admin.from("industry_configurations").update({
+            automation_defaults: obj(srcConfig.data).automation_defaults ?? null, safety_rules: obj(srcConfig.data).safety_rules ?? null,
+          }).eq("industry_id", industry.id),
+        ]);
+        if (a.error ?? b.error) throw a.error ?? b.error;
+      }
     }
   } catch (error) {
     await admin.from("industry_modules").delete().eq("industry_id", industry.id);
@@ -3282,7 +3332,7 @@ Deno.serve(withCors(async (req: Request) => {
       text, bool, obj, requireId, optionalPhone, getBusiness, getReceptionist, advance, mergeSetupData, InputError, EMAIL_RE, UUID_RE,
     });
     const platform = platformHandlers(adminClient, fields, { text, bool, obj, requireId, InputError }, user.id, role);
-    const config = configHandlers(adminClient, fields, { text, bool, obj, requireId, InputError });
+    const config = configHandlers(adminClient, fields, { text, bool, obj, requireId, InputError }, role);
     const handler = handlers[action] ?? extra.handlers[action] ?? onboarding.handlers[action] ?? platform.handlers[action] ?? config.handlers[action];
     if (!handler) return respond({ error: "Unknown action" }, 400);
 

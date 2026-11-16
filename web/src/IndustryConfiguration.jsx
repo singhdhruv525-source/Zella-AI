@@ -6,6 +6,14 @@ import { formatDate } from "./ownerFormat";
 import IndustryRecords from "./IndustryRecords";
 import { ReasonDialog, friendlyError } from "./admin/adminOps";
 import { businessWord, modulesLosingUsers, switchesOff } from "./industryModules";
+import { CATALOG } from "./automationCatalog";
+import { emptyAutomations } from "./industryAutomations";
+
+// CFG-05: how each industry books (industries.booking_model), in words.
+const BOOKING_LABELS = {
+  staff_appointment: "Appointments with a team member", class: "Classes", table: "Table reservations", stay: "Stays",
+  consultation: "Consultations", viewing: "Viewings", field_job: "Jobs at the customer's place", none: "No bookings (orders only)", general: "General appointments",
+};
 
 const TERM_ROWS = [
   { singular: "customer", plural: "customers", label: "Customers", hint: "People the business serves" },
@@ -26,6 +34,8 @@ const VOICE_FIELDS = [
 function toDraft(industry) {
   return {
     description: industry.description || "",
+    bookingModel: industry.bookingModel ?? "",
+    automationDefaults: industry.automationDefaults ? structuredClone(industry.automationDefaults) : null,
     terminology: structuredClone(industry.terminology || {}),
     modules: (industry.modules || []).map((m) => ({
       id: m.id,
@@ -97,7 +107,14 @@ export default function IndustryConfiguration() {
   const [newIndustry, setNewIndustry] = useState({ name: "", description: "", copyFromId: "" });
   const [filter, setFilter] = useState("");
   const [usageRead, setUsageRead] = useState({ id: null, at: null, modules: null });   // module id -> businesses with it on
-  const [confirm, setConfirm] = useState(null);       // { kind: "modules", losing } or { kind: "active", active }
+  const [confirm, setConfirm] = useState(null);       // { kind: "modules" | "active" | "sensitive", ... }
+  const [me, setMe] = useState(null);
+  const [industryData, setIndustryData] = useState(false);   // the industry data migration is applied
+  useEffect(() => {
+    let live = true;
+    callOwnerFunction("me_admin").then((m) => live && setMe(m)).catch(() => live && setMe(null));
+    return () => { live = false; };
+  }, []);
 
   const selected = industries.find((i) => i.id === selectedId) || null;
 
@@ -107,6 +124,7 @@ export default function IndustryConfiguration() {
     try {
       const data = await callOwnerFunction("industries_list");
       setIndustries(data.industries ?? []);
+      setIndustryData(Boolean(data.industryData));
       setLoadFailed(false);
       const next = (data.industries ?? []).find((i) => i.id === keepId) || data.industries[0] || null;
       setSelectedId(next?.id ?? null);
@@ -196,12 +214,19 @@ export default function IndustryConfiguration() {
         modules: draft.modules,
         confirmOff,
         reason,
+        ...(industryData ? { bookingModel: draft.bookingModel || null, automationDefaults: draft.automationDefaults } : {}),
       });
       setNotice(`${selected.name} saved.`);
       await load(selectedId);
     } finally {
       setSaving(false);
     }
+  }
+
+  async function setSensitive(sensitive, reason) {
+    const data = await callOwnerFunction("industry_set_sensitive", { industryId: selectedId, sensitive, reason, confirm: true });
+    setNotice(`${data.name} is ${sensitive ? "sensitive: staff never see call transcripts" : "no longer sensitive: staff may see call transcripts where the owner allows"}.`);
+    await load(selectedId);
   }
 
   async function setActive(active, reason) {
@@ -399,6 +424,42 @@ export default function IndustryConfiguration() {
                 />
               </section>
 
+              {industryData && (
+                <section className="wiz-section">
+                  <div className="wiz-section-head">
+                    <div>
+                      <h3>Privacy and booking</h3>
+                      <p>Stored for this industry and read by the server, so a new industry gets them too.</p>
+                    </div>
+                  </div>
+                  <div className="ic-module">
+                    <div className="ic-module-fields">
+                      <strong>Sensitive industry</strong>
+                      <span className="op-muted">{selected.sensitive
+                        ? "Staff never see call transcripts in this industry. New industries start sensitive."
+                        : "Staff may see call transcripts where the business owner allows it."}</span>
+                    </div>
+                    <div className="ic-module-side">
+                      <Pill tone={selected.sensitive ? "warning" : "neutral"}>{selected.sensitive ? "Sensitive" : "Not sensitive"}</Pill>
+                      {me?.role === "zella_owner" ? (
+                        <button type="button" className="owner-secondary-button op-small" disabled={saving || dirty}
+                          title={dirty ? "Save or discard your changes first" : undefined}
+                          onClick={() => { setNotice(""); setError(""); setConfirm({ kind: "sensitive", sensitive: !selected.sensitive }); }}>
+                          {selected.sensitive ? "Turn off" : "Turn on"}
+                        </button>
+                      ) : <span className="op-muted">Only a Zella Voice owner can change this</span>}
+                    </div>
+                  </div>
+                  <label className="owner-field op-gap-top">
+                    <span>Booking model</span>
+                    <select value={draft.bookingModel} onChange={(e) => setDraft({ ...draft, bookingModel: e.target.value })}>
+                      <option value="">Not set</option>
+                      {Object.entries(BOOKING_LABELS).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+                    </select>
+                  </label>
+                </section>
+              )}
+
               <section className="wiz-section">
                 <div className="wiz-section-head">
                   <div>
@@ -481,6 +542,41 @@ export default function IndustryConfiguration() {
                 </button>
               </section>
 
+              {industryData && (
+                <section className="wiz-section">
+                  <div className="wiz-section-head">
+                    <div>
+                      <h3>Default automations</h3>
+                      <p>Which automations a new business in this industry starts with. Each business can still change its own.
+                        {draft.automationDefaults ? "" : " Not set for this industry, so it uses the standard set below."}</p>
+                    </div>
+                  </div>
+                  <div className="ic-modules">
+                    {CATALOG.map(([type, title]) => {
+                      const set = draft.automationDefaults ?? emptyAutomations();
+                      const on = Boolean(set[type]?.enabled);
+                      return (
+                        <div key={type} className={`ic-module ${on ? "" : "off"}`}>
+                          <div className="ic-module-fields"><strong>{(([c, ...rest]) => c.toUpperCase() + rest.join(""))(title("Appointment"))}</strong></div>
+                          <div className="ic-module-side">
+                            <span className="op-muted">{on ? "On" : "Off"}</span>
+                            <button type="button" role="switch" aria-checked={on} aria-label={`Start new businesses with ${title("appointment")}`}
+                              className={`wiz-toggle ${on ? "on" : ""}`}
+                              onClick={() => {
+                                const next = structuredClone(set);
+                                next[type] = { enabled: !on, settings: next[type]?.settings ?? {} };
+                                setDraft({ ...draft, automationDefaults: next });
+                              }}>
+                              <span />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
+
               <div className="wiz-footer">
                 <span className="op-muted">{dirty ? "Unsaved changes" : "All changes saved"}</span>
                 <div className="wiz-footer-right">
@@ -514,6 +610,21 @@ export default function IndustryConfiguration() {
                     {confirm.losing.map((m) => <li key={m.id}><strong>{businessWord(m.businesses)}</strong> lose {m.name}</li>)}
                   </ul>
                   <p>Their data stays. Switching a module back on gives it back to them.</p>
+                </ReasonDialog>
+              )}
+              {confirm?.kind === "sensitive" && (
+                <ReasonDialog
+                  title={confirm.sensitive ? `Make ${selected.name} sensitive?` : `Turn off sensitive for ${selected.name}?`}
+                  icon={confirm.sensitive ? "lock" : "lock_open"}
+                  danger={!confirm.sensitive}
+                  word={confirm.sensitive ? undefined : "TURN OFF"}
+                  confirmLabel={confirm.sensitive ? "Make sensitive" : "Turn off"}
+                  onClose={() => setConfirm(null)}
+                  onConfirm={(reason) => setSensitive(confirm.sensitive, reason)}
+                >
+                  {confirm.sensitive
+                    ? <p>Staff in the {businessWord(selected.businessCount)} in {selected.name} will no longer see call transcripts.</p>
+                    : <p>Staff in the {businessWord(selected.businessCount)} in {selected.name} may then read call transcripts, where each owner allows it. Only do this after checking the industry handles no private health, legal or financial details.</p>}
                 </ReasonDialog>
               )}
               {confirm?.kind === "active" && (

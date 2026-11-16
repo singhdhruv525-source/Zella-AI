@@ -164,6 +164,10 @@ most often needed:
   years, audit logs 7 years (D-13, D-27).
 - Lead and missed-call AI calls: 2 attempts, 2–3 hours apart, one message after each (D-01, D-02, D-12).
 - Call transcripts: managers and above; staff only if the owner allows; never in sensitive industries (M-4).
+- **Sensitive industries (CFG-05, recommended default taken 16 Nov 2026, owner can change):** stored as
+  `industries.sensitive`. Only a Zella Voice owner may change it (`SENSITIVE_ROLE` in config.ts), with a reason, audited;
+  turning it off needs a typed confirmation because staff may then read transcripts. A new industry starts sensitive.
+  The seed equals today's list (7 slugs); check it against the reference configuration once UI-35 is decided.
 - **Connected, answering and live (COM-01, defaults taken 16 Nov 2026, owner can change):** one definition in SQL
   (`sql/zella_connection_state.sql`, `docs/PRODUCT.md` §9.1). Answering is a served call in the last 7 days and is shown
   on its own, never folded into live; live needs an active business, the receptionist switched on and an active number
