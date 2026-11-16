@@ -337,7 +337,12 @@ Opened from Businesses. Each tab has its own address (`/businesses/<id>/people`,
 it. The tabs work with the keyboard (arrow keys, Home, End; one tab stop) and their edges fade on a phone when the row
 scrolls (BIZ-30, UI-34). What each tab shows and what an admin can do there:
 
-- **Activity:** admin and system changes to this business, each with a readable label from the shared catalog
+- **Header:** "Continue setup" is off while a suspended business's setup isn't finished; "Edit setup" on a live
+  business asks first, because what is saved applies from its next call (BIZ-06, COM-04). A change whose audit row
+  failed says so in the notice (BIZ-17).
+- **Activity:** each row shows what changed, before and after; the tab is hidden without `audit.view`; a separate
+  Support access list shows who opened the business or revealed contacts.
+- **Activity (labels):** admin and system changes to this business, each with a readable label from the shared catalog
   (`web/supabase/functions/_shared/catalog.json`, read by `web/src/copy/auditActions.js`, BIZ-25). Changes the
   database records on its own name the table, for example "Changed business (system record)".
   Only admins with `audit.view` get it: the server leaves the list and who did each action out for anyone else

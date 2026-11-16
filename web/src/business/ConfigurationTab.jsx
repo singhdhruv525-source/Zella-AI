@@ -21,7 +21,7 @@ export default function ConfigurationTab({ data, terms, term, enabledModules, ca
                       <strong className="op-strong">{term(singular)} / {term(plural)}</strong>
                       {custom && <Pill tone="info">Custom</Pill>}
                     </td>
-                    <td>{terms.industry?.[singular] || "None"} / {terms.industry?.[plural] || "None"}</td>
+                    <td>{terms.industry?.[singular] || "Not set"} / {terms.industry?.[plural] || "Not set"}</td>
                   </tr>
                 );
               })}

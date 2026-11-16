@@ -15,8 +15,8 @@ export default function CallsTab({ data }) {
                 <tr key={c.id}>
                   <td>{formatDateTime(c.started_at || c.created_at)}</td>
                   <td className="op-cap">{c.direction}</td>
-                  <td>{c.from_number || "None"}</td>
-                  <td>{c.to_number || "None"}</td>
+                  <td>{c.from_number || <span className="op-muted">Not recorded</span>}</td>
+                  <td>{c.to_number || <span className="op-muted">Not recorded</span>}</td>
                   <td>{formatDuration(c.duration_seconds)}</td>
                   <td>{c.ai_handled ? "AI" : "Team"}</td>
                   <td className="op-cap">{c.status}</td>

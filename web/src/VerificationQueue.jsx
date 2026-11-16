@@ -28,6 +28,8 @@ const when = (v) => (v ? new Date(v).toLocaleString(undefined, { dateStyle: "med
 
 export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
   const [status, setStatus] = useState("pending_review");
+  // BIZ-31: opened from a business's page with ?business=<id>: only that business, until "Show all"
+  const [business, setBusiness] = useState(() => new URLSearchParams(window.location.search).get("business"));
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -73,14 +75,14 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
     setLoading(true);
     setError("");
     try {
-      const result = await callOwnerFunction("documents_queue", { status });
+      const result = await callOwnerFunction("documents_queue", business ? { status, businessId: business } : { status });
       if (id === request.current) setData(result);
     } catch (err) {
       if (id === request.current) { setData(null); setError(friendlyError(err)); }
     } finally {
       if (id === request.current) setLoading(false);
     }
-  }, [status]);
+  }, [status, business]);
 
   useEffect(() => {
     setData(null);
@@ -122,7 +124,8 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
     }
   }
 
-  const docs = data?.documents ?? [];
+  // an older server ignores businessId, so the list is filtered here too
+  const docs = (data?.documents ?? []).filter((d) => !business || d.business_id === business);
   const totals = data?.totals ?? {};
 
   return (
@@ -158,6 +161,15 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
             ))}
           </div>
 
+          {business && (
+            <div className="ic-notice op-gap" role="status">
+              <span>Showing one business: {docs[0]?.business_name ?? "this business"}.</span>{" "}
+              <button type="button" className="owner-secondary-button op-small" onClick={() => {
+                setBusiness(null);
+                window.history.replaceState(null, "", window.location.pathname);
+              }}>Show all</button>
+            </div>
+          )}
           <div className="op-tabs" role="tablist">
             {TABS.map(([key, label]) => (
               <button key={key} type="button" role="tab" aria-selected={status === key} className={status === key ? "active" : ""} onClick={() => setStatus(key)}>{label}</button>

@@ -42,8 +42,7 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup, can =
   const tabRefs = useRef([]);
   // On a phone the tab row scrolls: keep the open tab in view (UI-34).
   useEffect(() => {
-    const i = DETAIL_TABS.findIndex((t) => t.slug === tab);
-    tabRefs.current[i]?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+    document.getElementById(`bd-tab-${tab}`)?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
   }, [tab, data]);
   const [pending, setPending] = useState(null);
   const [reason, setReason] = useState("");
@@ -82,7 +81,8 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup, can =
     setNotice("");
     try {
       const result = await callOwnerFunction(action, { businessId, reason });
-      setNotice(success(result));
+      // BIZ-17: the change happened, but its audit row didn't save; the team was alerted
+      setNotice(success(result) + (result?.auditWarning ? ` ${result.auditWarning}` : ""));
       setPending(null);
       setReason("");
       await load();
@@ -122,6 +122,7 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup, can =
   const state = businessState(b);
   const isCancelled = Boolean(b.cancelled_at);
   const isSuspended = Boolean(b.suspended_at);
+  const isLive = b.onboarding_status === "active" && !isSuspended && !isCancelled;
 
   const ACTIONS = {
     suspend: {
@@ -147,7 +148,7 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup, can =
       run: () => runAction("business_cancel", (r) =>
         `${b.name} will be canceled on ${formatDate(r.cancelAt)}. ` +
         (r.emailSent
-          ? `The "continue my plan" email was handed to n8n for ${invitation?.email ?? "the owner"}.`
+          ? `The "continue my plan" email is on its way to ${invitation?.email ?? "the owner"}.`
           : `The owner was not emailed: ${r.emailError}.`)
       ),
     },
@@ -156,6 +157,12 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup, can =
       body: "The scheduled cancellation is removed and nothing will stop.",
       button: "Undo cancellation",
       run: () => runAction("business_undo_cancel", () => `Cancellation removed. ${b.name} will keep running.`),
+    },
+    editLive: {
+      title: "Edit a live business?",
+      body: "This business is live. What you save in setup, including the AI receptionist, applies from its next call.",
+      button: "Open setup",
+      run: () => { setPending(null); onOpenSetup(b.id); },
     },
     resend: {
       title: "Resend the owner invitation?",
@@ -177,7 +184,10 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup, can =
     .filter(Boolean).join(", ");
 
   const term = (key) => terms.overrides?.[key] || terms.industry?.[key] || key;
-  const Panel = TAB_COMPONENTS[tab] ?? OverviewTab;
+  // BIZ-04: the server sends activity only to admins with audit.view; without it there is no Activity tab.
+  const tabs = DETAIL_TABS.filter((t) => t.slug !== "activity" || data.activityAllowed !== false);
+  const shown = tabs.some((t) => t.slug === tab) ? tab : DEFAULT_TAB;
+  const Panel = TAB_COMPONENTS[shown] ?? OverviewTab;
   const panelProps = {
     data, b, setupData, r, kb, esc, voice, terms, term, invitation, phone, enabledModules, enabledAutomations, isCancelled,
     isSuspended, canManage, canLifecycle, busy, setPending, onOpenSetup, businessId, load, telnyx, hoursSet, address, setupDone,
@@ -202,12 +212,19 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup, can =
             {loading ? "Loading..." : "↻ Refresh"}
           </button>
           {!isCancelled && canManage && (
-            <button type="button" className="owner-primary-button" onClick={() => onOpenSetup(b.id)}>
+            // BIZ-06: setup can't be finished while suspended (the server refuses too). COM-04 option B: on a live
+            // business, changes reach the next call, so the admin confirms first.
+            <button type="button" className="owner-primary-button" disabled={isSuspended && !setupDone}
+              title={isSuspended && !setupDone ? "Reactivate the business before finishing setup" : undefined}
+              onClick={() => (isLive ? setPending("editLive") : onOpenSetup(b.id))}>
               {setupDone ? "Edit setup" : "Continue setup"}
             </button>
           )}
         </div>
       </div>
+      {!isCancelled && canManage && isSuspended && !setupDone && (
+        <p className="op-muted bd-hint">Continue setup is off while this business is suspended. Reactivate it first.</p>
+      )}
 
       {notice && <div className="ic-notice" role="status">{notice}</div>}
       {error && <div className="owner-form-error op-gap">{error}</div>}
@@ -282,23 +299,23 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup, can =
       {/* Tabs (WAI-ARIA): arrow keys, Home and End move between them, one tab stop, each panel labelled by its tab. */}
       <div className="bd-tabs-wrap">
         <div className="op-tabs bd-tabs" role="tablist" aria-label="Business sections">
-          {DETAIL_TABS.map((t, i) => (
+          {tabs.map((t, i) => (
             <button
               key={t.slug}
               ref={(el) => { tabRefs.current[i] = el; }}
               id={`bd-tab-${t.slug}`}
               type="button"
               role="tab"
-              aria-selected={tab === t.slug}
+              aria-selected={shown === t.slug}
               aria-controls={`bd-panel-${t.slug}`}
-              tabIndex={tab === t.slug ? 0 : -1}
-              className={tab === t.slug ? "active" : ""}
+              tabIndex={shown === t.slug ? 0 : -1}
+              className={shown === t.slug ? "active" : ""}
               onClick={() => setTab(t.slug)}
               onKeyDown={(event) => {
-                const next = tabKeyTarget(event.key, i, DETAIL_TABS.length);
+                const next = tabKeyTarget(event.key, i, tabs.length);
                 if (next === null) return;
                 event.preventDefault();
-                setTab(DETAIL_TABS[next].slug);
+                setTab(tabs[next].slug);
                 tabRefs.current[next]?.focus();
               }}
             >
@@ -308,7 +325,7 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup, can =
         </div>
       </div>
 
-      <div role="tabpanel" id={`bd-panel-${tab}`} aria-labelledby={`bd-tab-${tab}`}>
+      <div role="tabpanel" id={`bd-panel-${shown}`} aria-labelledby={`bd-tab-${shown}`}>
         <Panel {...panelProps} />
       </div>
     </section>

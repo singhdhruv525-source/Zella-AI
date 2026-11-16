@@ -5,7 +5,7 @@ import { Card, describeSettings } from "./shared";
 
 export default function AutomationsTab({ data, term, enabledAutomations }) {
   return (
-    <Card title="Automations" description="Run by n8n. Paused automations start when the business goes live.">
+    <Card title="Automations" description="What this business sends automatically. Paused ones start when it goes live.">
       <AutomationOverview rows={data.automations} industryName={data.industryName} appointmentWord={String(term("appointment")).toLowerCase()} describeSettings={describeSettings} />
       {enabledAutomations.length > 0 && <p className="op-muted op-gap-top">{enabledAutomations.length} turned on.</p>}
     </Card>

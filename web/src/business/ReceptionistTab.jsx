@@ -38,7 +38,7 @@ export default function ReceptionistTab({ r, kb, esc, voice, term, businessId })
               <thead><tr><th>Name</th><th>Price</th><th>Duration</th><th>Description</th></tr></thead>
               <tbody>
                 {kb.services.map((s, i) => (
-                  <tr key={i}><td><strong className="op-strong">{s.name}</strong></td><td>{s.price || "None"}</td><td>{s.duration || "None"}</td><td>{s.description || "None"}</td></tr>
+                  <tr key={i}><td><strong className="op-strong">{s.name}</strong></td><td>{s.price || <span className="op-muted">Not set</span>}</td><td>{s.duration || <span className="op-muted">Not set</span>}</td><td>{s.description || <span className="op-muted">No description</span>}</td></tr>
                 ))}
               </tbody>
             </table>

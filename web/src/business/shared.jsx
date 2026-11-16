@@ -88,7 +88,8 @@ export function Empty({ children }) {
 export function Check({ ok, later, title, detail }) {
   return (
     <li className="op-check">
-      <span className={`op-check-dot ${ok ? "ok" : later ? "later" : "missing"}`}>{ok ? "✓" : later ? "None" : "!"}</span>
+      <span className={`op-check-dot ${ok ? "ok" : later ? "later" : "missing"}`} role="img"
+        aria-label={ok ? "Done" : later ? "Not yet, can wait" : "Needed"}>{ok ? "✓" : later ? "…" : "!"}</span>
       <div>
         <strong>{title}</strong>
         <span>{detail}</span>

@@ -1,41 +1,54 @@
 // One business's page, Overview tab. Moved from BusinessDetails.jsx unchanged (BIZ-30); the page shell passes
 // what it worked out from business_detail.
 import { useEffect, useState } from "react";
-import { supabase } from "../supabase";
+import { callOwnerFunction } from "../CreateBusinessWizard";
+import { friendlyError } from "../admin/adminOps";
+import { navigate } from "../router";
 import { formatDate } from "../ownerFormat";
 import { Card, Facts, Empty, Check, label } from "./shared";
 
 // Small, Medium or Large: set by a Zella Voice admin, never guessed from the industry. Offers can target it.
+// Saved through the admin function (business_size_save: businesses.manage, two step checked, audited; BIZ-08, UI-05).
 function BusinessSizeCard({ businessId, size, onSaved, canEdit }) {
   const [value, setValue] = useState(size ?? "");
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState("");
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
   useEffect(() => setValue(size ?? ""), [size]);
   async function save() {
     setBusy(true);
-    setMsg("");
-    const { error } = await supabase.rpc("zella_set_business_size", { p_business_id: businessId, p_size: value || null });
-    setBusy(false);
-    if (error) { setMsg("Couldn't save the size. Please try again."); return; }
-    setMsg("Saved.");
-    onSaved();
+    setNotice("");
+    setError("");
+    try {
+      const r = await callOwnerFunction("business_size_save", { businessId, size: value || null });
+      setNotice(r?.changed === false ? "Nothing changed." : "Business size saved.");
+      onSaved();
+    } catch (err) {
+      setError(/Unknown action/i.test(err?.message ?? "") ? "Not available yet. The Zella Voice update with this change isn't live." : friendlyError(err));
+    } finally {
+      setBusy(false);
+    }
   }
   return (
     <Card title="Business size" description="Used to decide which offers this business can get.">
-      <div className="bd-inline">
-        <select value={value} onChange={(e) => setValue(e.target.value)} aria-label="Business size" disabled={!canEdit}>
+      <label className="owner-field">
+        <span>Size</span>
+        <select value={value} onChange={(e) => setValue(e.target.value)} disabled={!canEdit || busy}>
           <option value="">Not set</option>
           <option value="small">Small</option>
           <option value="medium">Medium</option>
           <option value="large">Large</option>
         </select>
-        {canEdit && (
-          <button type="button" className="owner-secondary-button op-small" onClick={save} disabled={busy || value === (size ?? "")}>
-            {busy ? "Saving..." : "Save size"}
+      </label>
+      {canEdit && (
+        <div className="ic-actions">
+          <button type="button" className="owner-primary-button" onClick={save} disabled={busy || value === (size ?? "")}>
+            {busy ? "Saving…" : "Save size"}
           </button>
-        )}
-        {msg && <span className="op-muted">{msg}</span>}
-      </div>
+        </div>
+      )}
+      {notice && <div className="ic-notice op-gap-top" role="status">{notice}</div>}
+      {error && <div className="owner-form-error op-gap-top" role="alert">{error}</div>}
     </Card>
   );
 }
@@ -44,9 +57,12 @@ export default function OverviewTab({ data, b, r, kb, term, invitation, phone, e
   return (
     <div className="op-grid">
       <Card title="Verification" description="The business's registration and the owner's photo ID."
-        action={canManage && <button type="button" className="owner-secondary-button" onClick={() => onOpenSetup(businessId)}>{data.documents?.length ? "Review" : "Upload"}</button>}>
+        action={canManage && !isCancelled && (data.documents?.length
+          // BIZ-31: Review opens the verification queue for this business; Upload keeps the wizard's step
+          ? <button type="button" className="owner-secondary-button" onClick={() => navigate(`/verification?business=${businessId}`)}>Review</button>
+          : <button type="button" className="owner-secondary-button" onClick={() => onOpenSetup(businessId)}>Upload</button>)}>
         {data.documentsAvailable === false ? (
-          <Empty>Document storage isn't set up yet (apply sql/zella_onboarding.sql).</Empty>
+          <Empty>Document storage isn't set up yet. Ask the Zella Voice team to finish it.</Empty>
         ) : (
           <ul className="op-checks">
             {[["business_registration", "Business registration"], ["owner_identity", "Owner's photo ID"]].map(([kind, label]) => {

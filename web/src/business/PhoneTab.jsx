@@ -35,9 +35,9 @@ export default function PhoneTab({ data, setupData, phone }) {
                     <td className="op-cap">{i.provider}</td>
                     <td>{i.integration_type}</td>
                     <td><Pill tone={i.status === "active" ? "success" : i.status === "error" ? "danger" : "neutral"}>{i.status}</Pill></td>
-                    <td>{i.account_email || "None"}</td>
+                    <td>{i.account_email || <span className="op-muted">Not shown</span>}</td>
                     <td>{formatDateTime(i.last_synced_at)}</td>
-                    <td className="op-muted">{i.error_message || "None"}</td>
+                    <td className="op-muted">{i.error_message || "No problems"}</td>
                   </tr>
                 ))}
               </tbody>

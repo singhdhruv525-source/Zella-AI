@@ -26,5 +26,5 @@ test("the address keeps the tab: /businesses/<id>/<tab>, setup still opens the w
   assert.match(dash, /isDetailTab\(third\) \? third : DEFAULT_TAB/);
   assert.match(dash, /third === "setup"\) route\.wizard/);
   const page = readFileSync(new URL("../src/BusinessDetails.jsx", import.meta.url), "utf8");
-  for (const attr of ['role="tablist"', 'role="tabpanel"', "aria-controls", "aria-labelledby", "tabIndex={tab === t.slug ? 0 : -1}"]) assert.ok(page.includes(attr), attr);
+  for (const attr of ['role="tablist"', 'role="tabpanel"', "aria-controls", "aria-labelledby", "tabIndex={shown === t.slug ? 0 : -1}"]) assert.ok(page.includes(attr), attr);
 });

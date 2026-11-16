@@ -15,8 +15,8 @@ export default function PeopleTab({ data, invitation, isCancelled, canManage, bu
               <tbody>
                 {data.members.map((m) => (
                   <tr key={m.user_id}>
-                    <td>{m.name || "None"}</td>
-                    <td>{m.email || "None"}</td>
+                    <td>{m.name || <span className="op-muted">No name yet</span>}</td>
+                    <td>{m.email || <span className="op-muted">Not known</span>}</td>
                     <td className="op-cap">{m.role}</td>
                     <td><Pill tone={m.status === "active" ? "success" : "neutral"}>{m.status}</Pill></td>
                     <td>{formatDate(m.created_at)}</td>
@@ -57,7 +57,7 @@ export default function PeopleTab({ data, invitation, isCancelled, canManage, bu
                     </td>
                     <td>{formatDateTime(i.invited_at)}</td>
                     <td>{formatDate(i.expires_at)}</td>
-                    <td className="op-muted">{i.last_error || "None"}</td>
+                    <td className="op-muted">{i.last_error || "No problems"}</td>
                   </tr>
                 ))}
               </tbody>

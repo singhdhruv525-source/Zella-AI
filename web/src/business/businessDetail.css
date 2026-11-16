@@ -7,3 +7,7 @@
 .bd-tabs-wrap::after { right: 0; background: linear-gradient(to left, var(--zella-bg), transparent); }
 @media (min-width: 900px) { .bd-tabs-wrap::before, .bd-tabs-wrap::after { display: none; } }
 .bd-tabs { scroll-padding-inline: var(--zella-space-6); }
+/* Activity: what changed, under each row */
+.bd-changes { margin: var(--zella-space-1) 0 0; padding: 0; list-style: none; font-size: 13px; color: var(--text-muted); }
+.bd-changes li { overflow-wrap: anywhere; }
+.bd-hint { margin-top: var(--zella-space-2); font-size: 13px; }
