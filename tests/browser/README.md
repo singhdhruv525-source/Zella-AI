@@ -56,6 +56,25 @@ Never point any of this at production.
    npx vite preview --outDir /tmp/zella-local --port 5199
    ```
 
+5. Install axe-core for the accessibility scan (pinned in `tests/browser/package.json`, installed into
+   `tests/browser/node_modules`, never deployed):
+
+   ```bash
+   npm ci --prefix tests/browser
+   ```
+
+   `glitch-sweep.cjs` and `page-review.cjs` stop with "axe-core is not installed" when it is missing, instead of
+   reporting no accessibility problems. `glitch-sweep.cjs --no-axe` skips the scan on purpose (each page then says
+   `axe: "skipped"`); a page where the scan couldn't run shows `axe-failed`. `AXE=/path/to/axe.min.js` uses another copy.
+
+   Rerun the crawl after a UI change, on desktop, phone and dark:
+
+   ```bash
+   node tests/browser/glitch-sweep.cjs admin
+   node tests/browser/glitch-sweep.cjs admin --mobile
+   node tests/browser/glitch-sweep.cjs admin --dark
+   ```
+
 ## Run
 
 | Script | What it checks |

@@ -1,0 +1,8 @@
+{
+  "name": "zella-voice-browser-tests",
+  "private": true,
+  "description": "Tools for the local browser crawls in tests/browser. Never deployed.",
+  "devDependencies": {
+    "axe-core": "4.14.0"
+  }
+}
