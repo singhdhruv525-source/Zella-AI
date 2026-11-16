@@ -72,6 +72,10 @@ before=$(fp)
 [ "$(prev documents_replaced "-> 'sample' -> 0 ->> 'id'")" = "e4000000-0000-0000-0000-00000000d001" ] && ok "replaced documents: the copy replaced 40 days ago" || bad "replaced"
 [ "$(prev documents_owner_id_verified "->> 'count'")" = "1" ] && ok "owner identity files: verified more than 90 days ago only" || bad "owner id"
 [ "$(prev documents_cancelled_business "-> 'sample' -> 0 ->> 'id'")" = "e4000000-0000-0000-0000-00000000d004" ] && ok "a cancelled business's files, 30 days after cancellation" || bad "cancelled docs"
+q "insert into public.retention_removed_files (document_id, file_path) values ('e4000000-0000-0000-0000-00000000d004', '$C/reg.pdf')" > /dev/null
+[ "$(prev documents_cancelled_business "->> 'count'")" = "0" ] && ok "a file already removed under retention isn't listed again" || bad "removed file listed"
+out=$("${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_data_retention_rollback.sql" 2>&1); [[ "$out" == *"files were removed"* ]] && ok "the rollback refuses once files were removed (their record would be lost)" || bad "rollback with removed files: $out"
+q "delete from public.retention_removed_files" > /dev/null
 [ "$(prev cancelled_business "->> 'count'")" = "0" ] && ok "the cancelled business itself waits for its retention date too (retention_days, 90 days)" || bad "cancelled business: $(prev cancelled_business "->> 'count'")"
 v=$(prev call_transcripts "::text"); [[ "$v" != *"transcript text"* && "$v" != *"rec.test"* ]] && ok "the dry run never returns content" || bad "content leaked: $v"
 [[ "$(srv "select public.zella_retention_preview('$MEMBER', 'call_recordings', 5)")" == *NOT_ALLOWED* ]] && ok "someone who isn't an admin can't run the dry run" || bad "member preview"

@@ -11,7 +11,7 @@ declare
     mine constant jsonb := '{
     "public.zella_retention_setting_guard()": "79071c573d6ac9bfa6eef1876b530f24",
     "public.zella_retention_on_hold(uuid)": "aa38f978a7484df0cd06decf0e7b13d6",
-    "public.zella_retention_candidates(text,timestamp with time zone)": "45af9ba11f7c4b8437f810c1aac9afe1",
+    "public.zella_retention_candidates(text,timestamp with time zone)": "5278362c499d53a46c255ce178146f5d",
     "public.zella_retention_preview(uuid,text,integer)": "1fd49ad9a112ebd390d36d13b89b80ea",
     "public.zella_retention_overview(uuid)": "c7b1717cdeaf2e725a70ec15b23fc18b",
     "public.zella_retention_policy_set(uuid,text,integer,text,text)": "eead83dd9bc944af10bb208f550e39a5",
@@ -35,6 +35,9 @@ begin
   if to_regclass('public.legal_holds') is not null then
     execute 'select case when exists (select 1 from public.legal_holds where released_at is null) then ''a legal hold is active'' else '''' end' into busy;
   end if;
+  if busy = '' and to_regclass('public.retention_removed_files') is not null then
+    execute 'select case when exists (select 1 from public.retention_removed_files) then ''files were removed under retention'' else '''' end' into busy;
+  end if;
   if busy = '' and to_regclass('public.data_retention_policies') is not null then
     execute 'select case when exists (select 1 from public.data_retention_policies where days <> architecture_days or legal_status <> ''pending_legal_review'') then ''an owner changed a retention period or recorded legal approval'' else '''' end' into busy;
   end if;
@@ -51,6 +54,7 @@ drop function if exists public.zella_retention_preview(uuid, text, integer);
 drop function if exists public.zella_retention_candidates(text, timestamptz);
 drop function if exists public.zella_retention_on_hold(uuid);
 drop table if exists public.legal_holds;
+drop table if exists public.retention_removed_files;
 drop table if exists public.data_retention_policies;
 drop function if exists public.zella_retention_setting_guard();
 delete from public.platform_settings where key = 'retention_purge_enabled';

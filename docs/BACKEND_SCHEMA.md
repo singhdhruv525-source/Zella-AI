@@ -13,10 +13,10 @@ It reads the catalog only, never rows.
 
 | What | Count |
 |---|---|
-| Tables (schema `public`) | 178 |
-| Tables with row security on | 178 of 178 |
+| Tables (schema `public`) | 179 |
+| Tables with row security on | 179 of 179 |
 | Row security policies | 342 |
-| Columns | 2100 |
+| Columns | 2104 |
 | Views | 1 |
 | Functions | 936 (865 security definer, 26 callable by `anon`) |
 
@@ -72,7 +72,7 @@ Each is a database job; most stay off until the owner approves going live (see `
 - [Automations and background work](#automations-and-background-work): `automations`, `automation_runs`, `automation_events`, `automation_dead_letters`, `workflow_executions`, `n8n_dispatch_state`, `integrations`, `integration_secrets`, `provider_health`
 - [Offers, reviews and growth](#offers-reviews-and-growth): `offers`, `offer_rules`, `offer_redemptions`, `offer_events`, `offer_job_runs`, `cross_sell_rules`, `review_sources`, `reviews`
 - [Billing and usage](#billing-and-usage): `plans`, `business_plans`, `billing_pack_catalog`, `billing_periods`, `allowance_buckets`, `pack_purchases`, `usage_charges`, `auto_reload_settings`, `subscriptions`, `payments`, `billing_events`, `usage_records`, `usage_thresholds`, `usage_threshold_events`, `usage_processing_issues`, `voice_pricing`
-- [Notifications, reports and support](#notifications-reports-and-support): `notifications`, `notification_preferences`, `staff_notifications`, `admin_alert_prefs`, `platform_alerts`, `platform_incidents`, `business_report_schedules`, `business_report_runs`, `support_tickets`, `support_ticket_notes`, `business_recording_policies`, `data_retention_policies`, `legal_holds`, `number_orders`
+- [Notifications, reports and support](#notifications-reports-and-support): `notifications`, `notification_preferences`, `staff_notifications`, `admin_alert_prefs`, `platform_alerts`, `platform_incidents`, `business_report_schedules`, `business_report_runs`, `support_tickets`, `support_ticket_notes`, `business_recording_policies`, `data_retention_policies`, `retention_removed_files`, `legal_holds`, `number_orders`
 - [Functions](#functions)
 
 ## Tenancy, people and access
@@ -4324,6 +4324,20 @@ How long each kind of data is kept, the architecture's proposal and its legal re
 | `updated_at` | timestamp with time zone | yes | now() |
 
 - Primary key: `data_class`.
+- Row security: on; no policies, so roles subject to row security (signed-in users and anon) get no rows directly. Superusers and `BYPASSRLS` roles (such as the server key) are not limited by it, nor is the table owner unless `FORCE ROW LEVEL SECURITY` is set; a security definer function runs with its function owner's rights.
+
+### `retention_removed_files`
+
+Verification files removed under retention: the document row and its outcome stay (server only).
+
+| Column | Type | Required | Default |
+|---|---|---|---|
+| `document_id` | uuid | yes |  |
+| `file_path` | text | yes |  |
+| `run_id` | uuid |  |  |
+| `removed_at` | timestamp with time zone | yes | now() |
+
+- Primary key: `document_id`.
 - Row security: on; no policies, so roles subject to row security (signed-in users and anon) get no rows directly. Superusers and `BYPASSRLS` roles (such as the server key) are not limited by it, nor is the table owner unless `FORCE ROW LEVEL SECURITY` is set; a security definer function runs with its function owner's rights.
 
 ### `legal_holds`

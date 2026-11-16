@@ -14,7 +14,9 @@
 --      content) what is past its period, leaving out businesses on hold, and deletes nothing. security.view.
 --      zella_retention_candidates(kind, cutoff) is the one definition of "past its period" that the purge (a later
 --      migration) uses too.
---   4. retention_purge_enabled = false: the switch a real purge will need (sql/zella_retention_purge.sql). Only a
+--   4. A server only table, retention_removed_files: verification files a purge removed (the row and its outcome stay).
+--      Filled by sql/zella_retention_purge.sql; files listed there are not listed again.
+--   5. retention_purge_enabled = false: the switch a real purge will need (sql/zella_retention_purge.sql). Only a
 --      Zella Voice owner can change it (zella_retention_switch_set, a guard refuses any other change). No job is
 --      scheduled, here or anywhere.
 -- Nothing here deletes or changes any call, message, audit row or document.
@@ -28,7 +30,7 @@ declare
   mine constant jsonb := '{
     "public.zella_retention_setting_guard()": "79071c573d6ac9bfa6eef1876b530f24",
     "public.zella_retention_on_hold(uuid)": "aa38f978a7484df0cd06decf0e7b13d6",
-    "public.zella_retention_candidates(text,timestamp with time zone)": "45af9ba11f7c4b8437f810c1aac9afe1",
+    "public.zella_retention_candidates(text,timestamp with time zone)": "5278362c499d53a46c255ce178146f5d",
     "public.zella_retention_preview(uuid,text,integer)": "1fd49ad9a112ebd390d36d13b89b80ea",
     "public.zella_retention_overview(uuid)": "c7b1717cdeaf2e725a70ec15b23fc18b",
     "public.zella_retention_policy_set(uuid,text,integer,text,text)": "eead83dd9bc944af10bb208f550e39a5",
@@ -44,6 +46,8 @@ begin
   end if;
   if (to_regclass('public.data_retention_policies') is not null and not exists (select 1 from information_schema.columns
         where table_schema = 'public' and table_name = 'data_retention_policies' and column_name = 'architecture_days'))
+     or (to_regclass('public.retention_removed_files') is not null and not exists (select 1 from information_schema.columns
+        where table_schema = 'public' and table_name = 'retention_removed_files' and column_name = 'run_id'))
      or (to_regclass('public.legal_holds') is not null and not exists (select 1 from information_schema.columns
         where table_schema = 'public' and table_name = 'legal_holds' and column_name = 'released_at')) then
     raise exception 'VERSION_MISMATCH: a different data_retention_policies or legal_holds table already exists';
@@ -79,6 +83,18 @@ insert into public.data_retention_policies (data_class, days, architecture_days,
   ('documents_cancelled_business', 30, 30, 'Every verification file of a cancelled business, counted from cancellation.'),
   ('cancelled_business', 30, 30, 'The whole business, after a final export offer. Never earlier than its retention date (retention_days, 90 today).')
 on conflict (data_class) do nothing;
+
+-- Verification files removed under retention (by sql/zella_retention_purge.sql): the document row and its outcome stay,
+-- and the dry run doesn't list the file again.
+create table if not exists public.retention_removed_files (
+  document_id uuid primary key,
+  file_path text not null,
+  run_id uuid,
+  removed_at timestamptz not null default now()
+);
+alter table public.retention_removed_files enable row level security;
+revoke all on table public.retention_removed_files from public, anon, authenticated;
+grant all on table public.retention_removed_files to service_role;
 
 create table if not exists public.legal_holds (
   id uuid primary key default gen_random_uuid(),
@@ -145,15 +161,16 @@ language sql stable security definer set search_path = public as $$
   union all
   select 'business_verification_documents', d.id, d.business_id, d.updated_at from public.business_verification_documents d
    where p_class = 'documents_replaced' and d.status = 'replaced' and d.updated_at < p_cutoff and not public.zella_retention_on_hold(d.business_id)
+     and not exists (select 1 from public.retention_removed_files f where f.document_id = d.id)
   union all
   select 'business_verification_documents', d.id, d.business_id, d.reviewed_at from public.business_verification_documents d
    where p_class = 'documents_owner_id_verified' and d.kind = 'owner_identity' and d.status = 'verified' and d.reviewed_at < p_cutoff
-     and not public.zella_retention_on_hold(d.business_id)
+     and not public.zella_retention_on_hold(d.business_id) and not exists (select 1 from public.retention_removed_files f where f.document_id = d.id)
   union all
   select 'business_verification_documents', d.id, d.business_id, b.cancelled_at from public.business_verification_documents d
     join public.businesses b on b.id = d.business_id
    where p_class = 'documents_cancelled_business' and b.cancelled_at is not null and b.cancelled_at < p_cutoff
-     and not public.zella_retention_on_hold(d.business_id)
+     and not public.zella_retention_on_hold(d.business_id) and not exists (select 1 from public.retention_removed_files f where f.document_id = d.id)
   union all
   select 'businesses', b.id, b.id, b.cancelled_at from public.businesses b
    where p_class = 'cancelled_business' and b.cancelled_at is not null and b.cancelled_at < p_cutoff
