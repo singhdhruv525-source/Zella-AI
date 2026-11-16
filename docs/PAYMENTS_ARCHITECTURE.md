@@ -721,6 +721,8 @@ sequenceDiagram
   WH->>DB: cancelled · paid service ended at current_end · final pay-as-you-go invoices (§6.9)
 ```
 
+**Built (lane F, switched off, `sql/zella_stripe_cancel.sql`):** the source of the owner's choice stays `businesses.cancel_at` (the merged scheduled cancellations, Settings, the admin, the Continue my plan link and `zella_owner_continue_plan` all write it); a trigger on it raises the version and queues the command, cancelling older versions still waiting; the check after each send and on each subscription event resends the latest value with a new attempt key when Stripe disagrees. The daily cancellation job still does the full business cancellation at `cancel_at`.
+
 A trial is cancelled at once instead (`DELETE /v1/subscriptions/:id`, key `cancelnow:<subscription id>`), because nothing has
 been paid. A cancelled subscription is never restarted; a returning owner starts a new one through Checkout.
 
