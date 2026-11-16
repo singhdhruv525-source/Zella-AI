@@ -46,7 +46,7 @@ const POLICY = [
   ]],
 ];
 const TABS = [["overview", "Overview"], ["incidents", "Incidents"], ["coverage", "Protection by business"], ["policy", "Platform defaults"], ["rules", "Global block rules"], ["automation", "Automation"]];
-const when = (v) => (v ? new Date(v).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "None");
+const when = (v) => (v ? new Date(v).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "Not recorded");
 
 function NotSetUp() {
   return (
@@ -106,24 +106,28 @@ export default function SecurityAbuse({ permissions, onOpenBusiness }) {
 
       {data?.available && (
         <>
-          <div className="vq-stats sa-stats op-gap">
-            {[["Incidents", t.incidents, "gpp_maybe", "warning"], ["Waiting for review", t.open, "pending_actions", "warning"], ["High risk", t.high, "report", "danger"],
-              ["Blocked or screened", t.blocked, "block", "danger"], ["Confirmed spam", t.confirmed, "verified", "success"],
-              ["Marked not spam", t.false_positive, "undo", "neutral"]].map(([label, n, icon, tone]) => (
-              <div key={label} className="vq-stat sa-stat">
-                <span className={`vq-stat-icon ${tone}`}><Icon name={icon} /></span>
-                <span><strong>{n ?? 0}</strong><small>{label}</small></span>
-              </div>
-            ))}
-          </div>
-
           <div className="op-tabs" role="tablist">
             {TABS.map(([key, label]) => (
               <button key={key} type="button" role="tab" aria-selected={tab === key} className={tab === key ? "active" : ""} onClick={() => { setTab(key); setNotice(""); }}>{label}</button>
             ))}
           </div>
 
-          {tab === "overview" && <Overview data={data} onOpenBusiness={onOpenBusiness} />}
+          {tab === "overview" && (
+            <>
+              {/* Tabs first, then the period's totals, as on the other tabbed admin pages (UI-29). Six cards: three a row. */}
+              <div className="vq-stats sa-stats sa-stats-six">
+                {[["Incidents", t.incidents, "gpp_maybe", "warning"], ["Waiting for review", t.open, "pending_actions", "warning"], ["High risk", t.high, "report", "danger"],
+                  ["Blocked or screened", t.blocked, "block", "danger"], ["Confirmed spam", t.confirmed, "verified", "success"],
+                  ["Marked not spam", t.false_positive, "undo", "neutral"]].map(([label, n, icon, tone]) => (
+                  <div key={label} className="vq-stat sa-stat">
+                    <span className={`vq-stat-icon ${tone}`}><Icon name={icon} /></span>
+                    <span><strong>{n ?? 0}</strong><small>{label}</small></span>
+                  </div>
+                ))}
+              </div>
+              <Overview data={data} onOpenBusiness={onOpenBusiness} />
+            </>
+          )}
           {tab === "incidents" && <Incidents days={days} onOpenBusiness={onOpenBusiness} />}
           {tab === "coverage" && <Coverage rows={data.coverage} onOpenBusiness={onOpenBusiness} />}
           {tab === "policy" && <Policy policy={data.policy} canSave={can("platform.configure")} onSaved={(m) => { setNotice(m); load(); }} />}
@@ -147,7 +151,7 @@ function Overview({ data, onOpenBusiness }) {
             <p className="sa-big">{t.accuracy}%</p>
             <p className="op-muted">
               Of {reviewed} incident{reviewed === 1 ? "" : "s"} businesses reviewed, {t.confirmed} were spam and {t.false_positive} were
-              not (false-positive rate {100 - t.accuracy}%). A high false-positive rate means the defaults are too strict.
+              not (false positive rate {100 - t.accuracy}%). A high false positive rate means the defaults are too strict.
             </p>
           </>
         ) : (
@@ -564,9 +568,9 @@ function Automation({ info, canSave, onSaved }) {
   return (
     <section className="owner-panel sa-panel">
       <p className="op-muted">
-        The <strong>Zella Voice - Spam Response</strong> workflow in n8n handles follow-up for incidents the database has already detected, scored and
-        (for calls) screened: severity-based alerts, repeat-offender checks, an optional AI second opinion and weekly summaries. Blocking, screening
-        and rate limits never wait for it. If it doesn't run within 15 minutes, high-risk alerts are sent by the database instead.
+        The <strong>Zella Voice Spam Response</strong> workflow in n8n follows up on incidents the database has already detected, scored and
+        (for calls) screened: alerts by severity, checks for repeat offenders, an optional AI second opinion and weekly summaries. Blocking, screening
+        and rate limits never wait for it. If it doesn't run within 15 minutes, high risk alerts are sent by the database instead.
       </p>
       {error && <div className="owner-form-error" role="alert">{error}</div>}
       <ul className="sa-list">
@@ -576,7 +580,7 @@ function Automation({ info, canSave, onSaved }) {
           {canSave && <button type="button" className="owner-secondary-button" disabled={busy} onClick={() => (info.live ? save({ live: false }, "Spam Response switched off.") : setConfirmLive(true))}>{info.live ? "Switch off" : "Switch on"}</button>}
         </li>
         <li>
-          <span className="sa-stack"><strong>AI second opinion</strong><small className="op-muted">{info.ai_live ? `On (${info.ai_model ?? "default model"}), for businesses that opt in` : "Off"}. Only medium-risk texts and emails, details removed first; never blocks anyone.</small></span>
+          <span className="sa-stack"><strong>AI second opinion</strong><small className="op-muted">{info.ai_live ? `On (${info.ai_model ?? "default model"}), for businesses that opt in` : "Off"}. Only medium risk texts and emails, details removed first; never blocks anyone.</small></span>
           <Pill tone={info.ai_live ? "success" : "neutral"}>{info.ai_live ? "On" : "Off"}</Pill>
           {canSave && <button type="button" className="owner-secondary-button" disabled={busy} onClick={() => (info.ai_live ? save({ ai_live: false }, "AI second opinion switched off.") : setConfirmAi(true))}>{info.ai_live ? "Switch off" : "Switch on"}</button>}
         </li>
@@ -586,7 +590,7 @@ function Automation({ info, canSave, onSaved }) {
         </li>
       </ul>
       <h2 className="sa-h2">Queue for this period</h2>
-      <div className="vq-stats sa-stats">
+      <div className="vq-stats sa-stats sa-stats-six">
         {[["Waiting", q.pending, "schedule", "warning"], ["Running", q.processing, "sync", "neutral"], ["Done", q.done, "task_alt", "success"], ["Failed", q.failed, "error", "danger"],
           ["Sent by the database instead", q.fallback, "shield", "neutral"], ["AI reviewed", q.ai_reviewed, "psychology", "neutral"]].map(([label, n, icon, tone]) => (
           <div key={label} className="vq-stat sa-stat"><span className={`vq-stat-icon ${tone}`}><Icon name={icon} /></span><span><strong>{n ?? 0}</strong><small>{label}</small></span></div>
@@ -624,7 +628,7 @@ function Automation({ info, canSave, onSaved }) {
         <DialogFocus onClose={closeConfirm} busy={busy}><div className="owner-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && !busy && closeConfirm()}>
           <div className="bd-confirm owner-modal" role="dialog" aria-modal="true" aria-label="Switch on AI second opinion">
             <div className="zs-dialog-head"><span className="zs-dialog-icon"><Icon name="psychology" /></span><h3>Switch on AI second opinion?</h3></div>
-            <p>For businesses that opt in, medium-risk texts and emails are sent to the AI provider (Anthropic) with names, numbers and email addresses removed first.
+            <p>For businesses that opt in, medium risk texts and emails are sent to the AI provider (Anthropic) with names, numbers and email addresses removed first.
               The answer is shown to the team as a suggestion and never blocks anyone. Add the Anthropic key to the "Ask AI" box in n8n first.
               Only a Zella Voice owner or super admin can switch it on.</p>
             {error && <div className="owner-form-error" role="alert">{error}</div>}
