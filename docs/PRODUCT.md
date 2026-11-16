@@ -305,22 +305,25 @@ only the pages they can use. Every admin action is written to the audit log.
 | — | **Overview** | Platform health, businesses, calls, alerts at a glance | `businesses.view` |
 | Businesses | **Businesses** | Every business, paged on the server (25 a page) with exact totals: search by name, owner, email or phone; filter by industry, stage, saved plan and "has a problem"; sort by newest, oldest, name or most problems. Each row shows the owner and their invitation, the saved plan ("Pro, v2" or "No plan saved") with the subscription status beside it, the stage (a draft names the step setup reopens at), the last call and open problems (warning or urgent platform alerts, a failed or expired owner invitation, a broken integration, failed setup). "Need attention" lists the businesses with a problem in one click. View is the main action once setup is done; create and setup buttons show only with `businesses.manage`, and suspend, reactivate and cancel on the business only with `businesses.lifecycle` (the server checks both again). Reads `businesses_list`; against an older server it falls back to the old unpaged list and says so. | `businesses.view` |
 | Businesses | **Verification** | Business and owner verification documents (private storage) | `businesses.manage` |
-| Businesses | **Create Business wizard** | Business → Owner & verification → Hours & services → Team → AI receptionist → Phone & integrations (spam protection) → Automations → CRM setup → Plan & pricing → Review. Adapts its fields to the industry, saves drafts, guards unsaved changes, and invites the owner only once setup finishes. | `businesses.manage` |
+| Businesses | **Create Business wizard** | Business → Owner & verification → Hours & services → Team → AI receptionist → Phone & integrations (spam protection) → Automations → CRM setup → Plan & pricing → Review. The ten steps show in two rows of five (numbers that wrap on a phone), Back is hidden on the first step, and the time zone search suggests a US zone. Adapts its fields to the industry, saves drafts, guards unsaved changes, and invites the owner only once setup finishes. | `businesses.manage` |
 | Configuration | **Industry configuration** | The 28 industries' configurations | `businesses.view` |
 | Configuration | **Modules & features** | Modules per industry and business | `businesses.view` |
-| Configuration | **Plans & subscriptions** | Plans and subscriptions (policy decided in architecture §17; no plan created yet) | `billing.view` |
+| Configuration | **Plans & subscriptions** | Plans and subscriptions (policy decided in architecture §17; no plan created yet). Each plan card lists every allowance in words ("AI voice minutes per period: No limit", "Languages the receptionist speaks: 2"), from `web/src/copy/planAllowances.js` | `billing.view` |
 | Configuration | **Offers & promotions** | Offers, rules, redemptions | `billing.view` |
 | AI & communications | **AI agents** | Receptionist agents and configurations | `businesses.view` |
 | AI & communications | **Voice & numbers** | Assign and release phone numbers, voice usage, alerts | `businesses.view` |
 | AI & communications | **Messaging** | Messages across businesses, templates, compliance, retries | `businesses.view` |
-| Operations | **Platform operations** | Scheduler health, dispatcher, provider health, failed work | `businesses.view` |
+| Operations | **Platform operations** | Scheduler health, dispatcher, provider health, failed work. Sending a failed event back needs `integrations.manage` and a reason, and is refused (with the reason in words) when a run of it is running or succeeded, had a step succeed or reached a provider, so a retry never repeats a message (`sql/zella_retry_event_safe.sql`, built, not applied) | `businesses.view` |
 | Operations | **Automations** | Automations and runs across businesses, retry, pause | `businesses.view` |
 | Operations | **Integrations** | Provider connections and their state | `businesses.view` |
 | Operations | **Support** | Support tickets | `support.manage` |
-| Operations | **Security & abuse** | Spam and abuse across the platform | `security.view` |
+| Operations | **Security & abuse** | Spam and abuse across the platform: the tabs first, then (on Overview) the period's six totals, three a row | `security.view` |
 | Administration | **Users & access** | Platform admins and their roles | `security.view` |
 | Administration | **Audit logs** | Every privileged action; append-only | `audit.view` |
-| Administration | **Settings** | 17 categories: general, tenants, users, plans, offers, billing, AI providers, voice and usage, communications, integrations, security, alerts, support, analytics, legal, developer, administrator profile | per category |
+| Administration | **Settings** | 17 categories: general, tenants, users, plans, offers, billing, AI providers, voice and usage, communications, integrations, security, alerts, support, analytics, legal, developer, administrator profile. Platform settings are labelled in words, with the setting key as small help text; Communication templates previews the templates and links to Messaging, Templates, where they are edited | per category |
+
+When the window is too short for the whole menu, its bottom fades and says "More below" above the Platform status
+footer, until the list is scrolled to the end.
 
 Platform roles use named permissions (`businesses.view/manage`, `telephony.manage`, `comms.manage`, `ai.configure`,
 `integrations.manage`, `billing.view/manage`, `plans.manage`, `support.manage`, `security.view/manage`, `audit.view`,
@@ -397,7 +400,7 @@ live switch, then the provider. Off means dry run: the message is logged as "wou
 | Usage counting and alerts | Calls (whole minutes, under 15 seconds and spam not counted), texts (by part) and emails (one each) are subtracted once from the balances, with alerts at **80% and 100%** for minutes, texts and emails: built, not applied. A live call is never cut. **Not switched on** (live changes needing the owner's approval): calls going to the fallback number at 100%, stopping routine texts and emails at 100%, and the 20-minute call cap (the live setting is 10 minutes today) |
 | Voice cost estimates per business | Built |
 | Payment provider webhook: signed, applied once and in order, never moves a subscription backwards | Built, off until the webhook secret is set |
-| Scheduled cancellation and "Continue my plan" link | Built |
+| Scheduled cancellation and "Continue my plan" link | Built. When the date passes, the business is fully cancelled (AI receptionist and automations off, subscription cancelled, audited) by the hourly and daily jobs once `sql/zella_cancellations_scheduled.sql` is applied and the timed jobs are on (both pending the owner); until then it happens when an admin opens Overview or Businesses (BIZ-03) |
 | Offers and promotions | Built |
 | Card data | Never stored (`NN-9`) |
 

@@ -1087,6 +1087,8 @@
 .sa-input input { width: 96px; height: 36px; padding: 0 10px; border: 1px solid var(--border-subtle); border-radius: var(--radius-md, 8px); font: inherit; background: var(--bg-surface); color: var(--text-primary); }
 .sa-input small { width: 64px; color: var(--text-secondary); }
 .sa-rule-form { display: grid; grid-template-columns: 2fr 1fr 1fr 2fr auto; gap: 8px; margin: 14px 0; }
+/* Six totals: three a row on wide screens, two on narrow ones, so no card is left alone on a row (UI-29). */
+.sa-stats-six { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: var(--zella-space-4); }
 @media (max-width: 760px) {
   .sa-stats { grid-template-columns: 1fr 1fr; gap: 8px; }
   .sa-stats .vq-stat { padding: 10px 12px; gap: 8px; }

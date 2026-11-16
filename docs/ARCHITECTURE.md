@@ -2486,6 +2486,8 @@ Opt-outs are honoured at once and never need a reason. Consent is per business.
 
 ## 36. Public API and outgoing webhooks
 
+**Not planned (owner, 16 Nov 2026):** Zella Voice will not offer a public API, API keys or outgoing webhooks to businesses. Businesses use the Zella Voice CRM and the connections Zella Voice builds (calendar, store, Meta leads, texts, email). The requirements below are kept for reference only and are not to be built unless the owner reverses this.
+
 | ID | Requirement |
 |---|---|
 | REQ-API-01 | Per-business API keys (hashed at rest, shown once, revocable, scoped: leads write, appointments read, customers read). |
