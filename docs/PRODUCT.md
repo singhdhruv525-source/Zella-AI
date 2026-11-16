@@ -313,7 +313,7 @@ only the pages they can use. Every admin action is written to the audit log.
 | AI & communications | **AI agents** | Receptionist agents and configurations | `businesses.view` |
 | AI & communications | **Voice & numbers** | Assign and release phone numbers, voice usage, alerts | `businesses.view` |
 | AI & communications | **Messaging** | Messages across businesses, templates, compliance, retries | `businesses.view` |
-| Operations | **Platform operations** | Scheduler health, dispatcher, provider health, failed work | `businesses.view` |
+| Operations | **Platform operations** | Scheduler health, dispatcher, provider health, failed work. Sending a failed event back needs `integrations.manage` and a reason, and is refused (with the reason in words) when a run of it is running or succeeded, had a step succeed or reached a provider, so a retry never repeats a message (`sql/zella_retry_event_safe.sql`, built, not applied) | `businesses.view` |
 | Operations | **Automations** | Automations and runs across businesses, retry, pause | `businesses.view` |
 | Operations | **Integrations** | Provider connections and their state | `businesses.view` |
 | Operations | **Support** | Support tickets | `support.manage` |
