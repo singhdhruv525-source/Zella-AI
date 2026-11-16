@@ -16,9 +16,9 @@ It reads the catalog only, never rows.
 | Tables (schema `public`) | 174 |
 | Tables with row security on | 174 of 174 |
 | Row security policies | 342 |
-| Columns | 2062 |
+| Columns | 2063 |
 | Views | 1 |
-| Functions | 912 (844 security definer, 26 callable by `anon`) |
+| Functions | 914 (846 security definer, 26 callable by `anon`) |
 
 Rules every table follows:
 
@@ -116,6 +116,7 @@ One row per business (tenant): name, industry, status, time zone, plan link.
 | `business_size` | text |  |  |
 | `description` | text |  |  |
 | `alternate_phone` | text |  |  |
+| `creation_key` | uuid |  |  |
 
 - Primary key: `id`.
 - `industry_id` → `public.industries` (on delete no action).
@@ -4497,12 +4498,13 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_brain_search(p_business_id uuid, p_query text, p_limit integer)` | jsonb | yes | server only |
 | `zella_brain_tool_defs()` | jsonb |  | anon, signed in |
 
-### `zella_business_*` (20)
+### `zella_business_*` (21)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
 | `zella_business_before_trigger()` | trigger |  | server only |
 | `zella_business_currency(p_business_id uuid)` | text | yes | signed in |
+| `zella_business_duplicates(p_name text, p_phone text, p_website text, p_exclude uuid, p_creation_key uuid)` | jsonb | yes | server only |
 | `zella_business_entitlements(p_business_id uuid)` | jsonb | yes | signed in |
 | `zella_business_entitlements_internal(p_business_id uuid)` | jsonb | yes | server only |
 | `zella_business_for_number(p_called_number text, p_vapi_phone_number_id text, p_fallback uuid)` | uuid | yes | server only |
@@ -4698,11 +4700,12 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_confirm_hold(p_appointment_id uuid)` | uuid | yes | signed in |
 | `zella_confirm_requested_appointment(p_appointment_id uuid, p_start timestamp with time zone, p_duration_minutes integer, p_staff_id uuid)` | uuid | yes | signed in |
 
-### `zella_create_*` (6)
+### `zella_create_*` (7)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
 | `zella_create_business_draft(p_fields jsonb)` | jsonb | yes | server only |
+| `zella_create_business_draft(p_fields jsonb, p_creation_key uuid)` | jsonb | yes | server only |
 | `zella_create_callback(p_business_id uuid, p_contact_number text, p_reason text, p_priority text, p_summary text, p_preferred_at timestamp with time zone, p_customer_id uuid, p_call_id uuid, p_appointment_id uuid, p_created_by text, p_automation text)` | uuid | yes | server only |
 | `zella_create_charge(p_business_id uuid, p_kind text, p_amount_minor bigint, p_description text, p_customer_id uuid, p_record_id uuid, p_appointment_id uuid, p_due_on date, p_currency text, p_idempotency_key text)` | jsonb | yes | signed in |
 | `zella_create_handover(p_business_id uuid, p_to_user uuid, p_note text, p_from_user uuid)` | jsonb | yes | signed in |
