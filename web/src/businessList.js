@@ -135,7 +135,7 @@ export function lastCallLabel(at) {
 // "Just now", "5 minutes ago", "3 hours ago", "Yesterday", "10 days ago", then the date. Never "5 d ago".
 export function formatRelative(value, now = Date.now()) {
   const t = new Date(value).getTime();
-  if (!Number.isFinite(t)) return "None";
+  if (!Number.isFinite(t)) return "Not available";
   const minutes = Math.floor(Math.max(0, now - t) / 60000);
   if (minutes < 1) return "Just now";
   if (minutes < 60) return minutes === 1 ? "1 minute ago" : `${minutes} minutes ago`;

@@ -211,6 +211,7 @@ test("relative times and short dates read in words", () => {
   assert.equal(formatRelative(ago(30 * 3600 * 1000), now), "Yesterday");
   assert.equal(formatRelative(ago(10 * 86400 * 1000), now), "10 days ago");
   assert.doesNotMatch(formatRelative(ago(10 * 86400 * 1000), now), / d ago/);
+  assert.equal(formatRelative("not a date", now), "Not available");
   assert.equal(shortDate(null), "");
   assert.match(shortDate("2026-11-16T12:00:00Z", new Date("2026-11-20T00:00:00Z")), /Nov/);
   assert.doesNotMatch(shortDate("2026-11-16T12:00:00Z", new Date("2026-11-20T00:00:00Z")), /2026/);
