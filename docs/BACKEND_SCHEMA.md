@@ -16,7 +16,7 @@ It reads the catalog only, never rows.
 | Tables (schema `public`) | 178 |
 | Tables with row security on | 178 of 178 |
 | Row security policies | 349 |
-| Columns | 2099 |
+| Columns | 2100 |
 | Views | 1 |
 | Functions | 947 (876 security definer, 26 callable by `anon`) |
 
@@ -827,6 +827,7 @@ Identity provider results, each processed once per provider and event id; unknow
 | `scope` | text | yes |  |
 | `business_id` | uuid |  |  |
 | `outcome` | text | yes |  |
+| `subject` | text |  |  |
 | `occurred_at` | timestamp with time zone |  |  |
 | `result` | text | yes |  |
 | `received_at` | timestamp with time zone | yes | now() |
@@ -5685,7 +5686,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_handle_staff_unavailable(p_business_id uuid, p_staff_id uuid, p_from timestamp with time zone, p_to timestamp with time zone, p_reason text)` | integer | yes | server only |
 | `zella_has_role(p_business_id uuid, p_roles text[])` | boolean | yes | signed in |
 | `zella_hold_slot(p_business_id uuid, p_customer_id uuid, p_title text, p_start timestamp with time zone, p_duration_minutes integer, p_staff_id uuid, p_hold_minutes integer)` | uuid | yes | server only |
-| `zella_identity_provider_event(p_provider text, p_event_id text, p_reference text, p_outcome text, p_occurred_at timestamp with time zone)` | jsonb | yes | server only |
+| `zella_identity_provider_event(p_provider text, p_event_id text, p_reference text, p_outcome text, p_occurred_at timestamp with time zone, p_subject text)` | jsonb | yes | server only |
 | `zella_inbound_email_address(p_business_id uuid)` | text | yes | server only |
 | `zella_ingest_event(p_business_id uuid, p_event_type text, p_source text, p_idempotency_key text, p_payload jsonb, p_provider_event_id text, p_correlation_id uuid, p_causation_id uuid)` | jsonb | yes | server only |
 | `zella_inspection_clean(p_items jsonb)` | jsonb |  | server only |
