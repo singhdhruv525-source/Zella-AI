@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import {
   ERROR_WORDS, SCREENS, STEP_KEYS, allowance, canLeave, canOpen, detailsDone, errorCode, errorWords, identityPassed,
   identityState, isNotReady, languageWords, money, nextOpenSection, nextStep, paymentPassed, paymentState, phoneWords,
-  previousStep, progressFor, resumeStep, sectionRows, sectionState, securityPart, uploadKinds,
+  UNAVAILABLE, previousStep, progressFor, resumeStep, sectionRows, sectionState, securityPart, stateAfterResume, uploadKinds,
 } from "../src/onboarding/steps.js";
 import { createFakeApi } from "../src/onboarding/fakeApi.js";
 
@@ -86,14 +86,20 @@ test("check your details: the admin's entries in plain words, no dashes", () => 
   assert.deepEqual(hours["Opening hours"], ["Monday: 09:00 to 17:00"]);
   const week = Object.fromEntries(sectionRows("hours_services", { hours: [{ weekday: 0, opens: "10:00", closes: "12:00" }, { weekday: 1, opens: "09:00", closes: "17:00" }] }));
   assert.deepEqual(week["Opening hours"], ["Monday: 09:00 to 17:00", "Sunday: 10:00 to 12:00"], "0 is Sunday, listed after Saturday");
-  assert.equal(hours.Services, "None");
+  assert.equal(hours.Services, "No services yet");
   assert.equal(hours["Takes bookings"], "No");
   const rp = Object.fromEntries(sectionRows("receptionist_phone", { language: "en-US", transfer_to: { type: "owner" }, phone_setup: { mode: "call_forwarding", forward_from: "+15555550100" }, numbers: [{ e164: "+15555550102", status: "pending" }] }));
   assert.equal(rp.Language, "English");
   assert.equal(rp["Calls are transferred to"], "You, the owner");
   assert.equal(rp["Phone setup"], "Calls forwarded from (555) 555 0100");
   assert.deepEqual(rp["Zella Voice numbers"], ["(555) 555 0102 (not active yet)"]);
-  assert.equal(Object.fromEntries(sectionRows("team", { members: [] }))["Team members"], "None yet");
+  assert.equal(Object.fromEntries(sectionRows("team", { members: [] }))["Team members"], "No team members yet");
+  // a missing list is never shown as an empty one
+  assert.equal(Object.fromEntries(sectionRows("team", {}))["Team members"], UNAVAILABLE);
+  assert.equal(Object.fromEntries(sectionRows("team", null))["Team members"], UNAVAILABLE);
+  assert.equal(Object.fromEntries(sectionRows("hours_services", { hours: [] })).Services, UNAVAILABLE);
+  assert.equal(Object.fromEntries(sectionRows("receptionist_phone", {}))["Zella Voice numbers"], UNAVAILABLE);
+  assert.equal(Object.fromEntries(sectionRows("receptionist_phone", { numbers: [] }))["Zella Voice numbers"], "No numbers yet");
   assert.equal(sectionRows("unknown", {}).length, 0);
   for (const k of ["business", "hours_services", "team", "receptionist_phone"]) for (const [l, v] of sectionRows(k, null)) assert.doesNotMatch(`${l} ${v}`, DASH);
   assert.equal(phoneWords("+44-20-7946-0000"), "+44 20 7946 0000");
@@ -297,4 +303,26 @@ test("owner decision: until payments are live the payment isn't required; step 6
   const id = (await api.listBusinesses()).businesses[0].business_id;
   api.approveIdentity();
   assert.equal((await api.paymentStatus(id)).required, false);
+});
+
+// Finish later, then Carry on now, after the password saved but reading the next step failed: the screen must show the
+// server's state (password set), never the stale one, so the password form isn't shown and saved a second time.
+test("Carry on now shows the server's state, never the stale one", async () => {
+  const stale = { business_id: "b1", security: { password_set: false } };
+  const fresh = { business_id: "b1", security: { password_set: true } };
+  const calls = [];
+  const api = (resume, getState) => ({
+    resume: async (id) => { calls.push(`resume:${id}`); return resume(); },
+    getState: async (id) => { calls.push(`get:${id}`); return getState(); },
+  });
+  const ok = await stateAfterResume(api(() => ({ changed: true, state: fresh }), () => stale), "b1");
+  assert.equal(securityPart(ok.security), "authenticator");
+  assert.deepEqual(calls.splice(0), ["resume:b1"]);
+  const failedResume = await stateAfterResume(api(() => { throw new Error("down"); }, () => fresh), "b1");
+  assert.equal(failedResume, fresh);
+  assert.deepEqual(calls.splice(0), ["resume:b1", "get:b1"]);
+  // neither answers: null, so the paused screen stays (with a retry message) and the stale password form isn't shown
+  const bothFail = await stateAfterResume(api(() => { throw new Error("down"); }, () => { throw new Error("down"); }), "b1");
+  assert.equal(bothFail, null);
+  assert.equal(await stateAfterResume(api(() => ({ changed: false }), () => null), "b1"), null);
 });

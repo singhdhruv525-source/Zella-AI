@@ -320,7 +320,9 @@ side is described in `docs/OWNER_ONBOARDING_CONTRACT.md` (built on its own branc
 screens call only what it lists and the database decides every rule. Every screen has a progress bar (step n of 7),
 Finish later (the owner comes back to the same step, from the email link or from a "Finish setting up" banner in the
 CRM), loading, error, empty and "This step isn't ready yet" states, a phone first layout, the Classic and Glass looks,
-and focus moving to each new step's heading.
+and focus moving to each new step's heading. The CRM banner shows nothing if it fails to load. If the password saves but
+reading the next step fails, trying again (or Carry on now after Finish later) reads the step again without saving the
+password a second time.
 
 | # | Screen | What the owner does | Status |
 |---|---|---|---|

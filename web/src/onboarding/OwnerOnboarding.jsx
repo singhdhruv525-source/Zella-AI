@@ -3,10 +3,11 @@ import "../BusinessApp.css";
 import "./onboarding.css";
 import { BusinessSignIn, MfaCodeCard } from "../BusinessAuth";
 import { ErrorBoundary, Icon, loadBusinessFonts } from "../BusinessUI";
+import { SidebarBrand } from "../navigation/SidebarBrand";
 import { getApi } from "./api";
 import ProgressSteps from "./ProgressSteps";
-import { Failed, Loading, NotReady } from "./kit";
-import { SCREENS, STEP_KEYS, canOpen, errorCode, isNotReady, previousStep, resumeStep } from "./steps";
+import { ErrorText, Failed, Loading, NotReady } from "./kit";
+import { SCREENS, STEP_KEYS, canOpen, errorCode, isNotReady, previousStep, resumeStep, stateAfterResume } from "./steps";
 import { SecurityScreen, WelcomeScreen } from "./StartScreens";
 import { DetailsScreen } from "./DetailsScreen";
 import { IdentityScreen } from "./IdentityScreen";
@@ -26,8 +27,13 @@ const TITLES = {
   identity: () => "Verify your identity",
   plan: () => "Your plan",
   payment: () => "Pay for your plan",
-  done: () => "You're all set",
+  // "You're all set" only once every go live check has passed; until then, say what is still to come
+  done: (s) => (allChecksDone(s) ? "You're all set" : "Setup complete. One last check before you go live."),
 };
+function allChecksDone(s) {
+  const checks = Array.isArray(s.go_live?.checks) ? s.go_live.checks : [];
+  return s.go_live?.live === true || (checks.length > 0 && checks.every((c) => c.ok));
+}
 // Back only goes between these screens (never back into setting a password)
 const CAN_GO_BACK = new Set(["identity", "plan", "payment"]);
 
@@ -49,7 +55,8 @@ export default function OwnerOnboarding() {
 
   if (!api || session === undefined) return <Frame><Loading text="One moment…" /></Frame>;
   if (!session) return <BusinessSignIn />;
-  return <Gate api={api} session={session} />;
+  // keyed by the person, so a different account signing in starts again (its own sign in check and setup)
+  return <Gate key={session.user?.id ?? "signed-in"} api={api} session={session} />;
 }
 
 // A person who already has an authenticator enters its code first, as everywhere else in the CRM.
@@ -68,6 +75,12 @@ function Gate({ api, session }) {
 
 // Which business: the one named in the address (from the welcome link), if this owner has it waiting; else the
 // first one waiting; else the first one. The server decides what "yours" means; this only picks from its list.
+// A state answer must be there: a missing one is a failed load (the error view with Try again), never a blank screen.
+function needState(state) {
+  if (!state || typeof state !== "object") throw new Error("Your setup didn't load.");
+  return state;
+}
+
 function pickBusiness(list) {
   const wanted = new URLSearchParams(window.location.search).get("business");
   return list.find((b) => b.business_id === wanted) ?? list.find((b) => b.completed === false) ?? list[0] ?? null;
@@ -87,9 +100,11 @@ function Journey({ api, email }) {
       // the owner's membership becomes active before the first call (contract §1); its own problems never block here
       await api.acceptInvitations().catch(() => null);
       const list = await api.listBusinesses();
-      const chosen = pickBusiness(Array.isArray(list?.businesses) ? list.businesses : []);
+      // a missing list is a failed load (Try again), never "nothing to set up"
+      if (!Array.isArray(list?.businesses)) throw new Error("The list of your businesses didn't load.");
+      const chosen = pickBusiness(list.businesses);
       if (!chosen) { setLoad({ status: "none" }); return; }
-      let next = await api.getState(chosen.business_id);
+      let next = needState(await api.getState(chosen.business_id));
       // coming back after Finish later: tell the server (admins see "came back on ..."); never blocks the owner
       if (next?.paused_at) next = (await api.resume(chosen.business_id).catch(() => null))?.state ?? next;
       setState(next);
@@ -114,8 +129,17 @@ function Journey({ api, email }) {
     if (advance) show(resumeStep(next));
   }, [show]);
   // Reads the state again. refresh lets a failure reach the screen (which says so); reload keeps what is shown.
-  const refresh = useCallback(async () => { if (state) setState(await api.getState(state.business_id)); }, [api, state]);
+  const refresh = useCallback(async () => { if (state) setState(needState(await api.getState(state.business_id))); }, [api, state]);
   const reload = useCallback(() => refresh().catch(() => {}), [refresh]);
+  // Carry on now after Finish later: show the server's state, so a part saved just before leaving isn't asked for again.
+  // If neither answers, the paused screen stays and says so, so nothing finished is asked for again.
+  const carryOn = useCallback(async () => {
+    setLeaving(true);
+    const next = await stateAfterResume(api, state.business_id);
+    setLeaving(false);
+    if (!next) { setLeft((cur) => ({ ...cur, retry: true })); return; }
+    setState(next); setView(resumeStep(next)); setLeft(null);
+  }, [api, state]);
   // Finishes a step on the server, then shows the step it says comes next. Errors go back to the screen.
   const onComplete = useCallback(async (step, { stay = false } = {}) => {
     try {
@@ -162,8 +186,9 @@ function Journey({ api, email }) {
         <p className="zob-lead">{left.saved
           ? `Next time, you'll start right here, at ${at.toLowerCase()}. Sign in to Zella Voice at any time and choose Finish setting up.`
           : "We couldn't record that you're leaving, but everything you finished is saved. You'll pick up from the first step that isn't done."}</p>
+        <ErrorText>{left.retry ? "We couldn't reach Zella Voice just now. Check your connection, then choose Carry on now again." : ""}</ErrorText>
         <div className="zob-actions">
-          <button type="button" className="ba-btn primary" onClick={() => { setLeft(null); api.resume(state.business_id).catch(() => {}); }}>Carry on now</button>
+          <button type="button" className="ba-btn primary" disabled={leaving} onClick={carryOn}>{leaving ? "One moment…" : "Carry on now"}</button>
           <button type="button" className="ba-btn" onClick={() => api.signOut()}>Sign out</button>
         </div>
       </Frame>
@@ -208,13 +233,9 @@ function Frame({ state, title, onFinishLater, leaving, children }) {
     <div className="ba-root zob">
       <header className="zob-top">
         <div className="zob-brand">
-          <div className="ba-logo" aria-hidden="true">Z</div>
-          <div>
-            <div className="ba-brand-name">Zella Voice</div>
-            {state?.business_name && <div className="ba-brand-sub">{state.business_name}</div>}
-          </div>
+          <SidebarBrand caption={state?.business_name} />
         </div>
-        {onFinishLater && <button type="button" className="ba-btn sm" disabled={leaving} onClick={onFinishLater}>{leaving ? "Saving…" : "Finish later"}</button>}
+        {onFinishLater && <button type="button" className="ba-btn sm ghost zob-later" disabled={leaving} onClick={onFinishLater}>{leaving ? "Saving…" : "Finish later"}</button>}
       </header>
       <main className="zob-main">
         <div className="zob-card zob-page">

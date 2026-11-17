@@ -13,14 +13,15 @@ export function PlanScreen({ api, state, onState, onReload, onComplete }) {
   const action = useAction();
   if (!plan.available || !p) return <EmptyNote title="Your plan isn't ready yet">The Zella Voice team is still preparing your plan and will be in touch. Choose Finish later and we'll pick up here.</EmptyNote>;
   const rows = [
-    ["Call minutes", allowance(p.minutes, "minute"), "each month"],
-    ["Texts", allowance(p.texts, "text"), "each month"],
-    ["Emails", allowance(p.emails, "email"), "each month"],
-    ["Team members", allowance(p.team_seats, "person", "people"), "who can sign in"],
+    ["Call minutes", allowance(p.minutes, "minute"), "a month"],
+    ["Texts", allowance(p.texts, "text"), "a month"],
+    ["Emails", allowance(p.emails, "email"), "a month"],
+    ["Team members", allowance(p.team_seats, "person", "people"), "can sign in"],
     ["Phone numbers", allowance(p.phone_numbers, "number"), ""],
     ["Locations", allowance(p.locations, "location"), ""],
-    ["Languages", languageWords(p.languages), "your receptionist speaks"],
+    ["Languages", languageWords(p.languages), ""],
   ];
+  const yearly = billingPeriod(p.billing_interval) === "a year";
   async function accept() {
     const ok = await action.run(async () => {
       if (plan.accepted && plan.accepted_version === p.version) return onComplete("plan");
@@ -44,11 +45,11 @@ export function PlanScreen({ api, state, onState, onReload, onComplete }) {
             <span>{billingPeriod(p.billing_interval)}</span>
           </div>
         </div>
+        <p className="zob-billed">Billed {yearly ? "yearly" : "monthly"}. You pay on the next step; nothing is charged before then.</p>
         {Number(p.setup_fee_cents) > 0 && <p className="zob-muted">Plus a one time setup fee of {money(p.setup_fee_cents, p.currency)}.</p>}
         {p.trial_enabled === true && <p className="zob-muted">Your plan starts with a free trial.</p>}
-        <h3 className="zob-subhead">What's included</h3>
-        <dl className="zob-allowances">
-          {rows.map(([label, value, sub]) => <div key={label}><dt>{label}</dt><dd>{value}{sub && <small> {sub}</small>}</dd></div>)}
+        <dl className="zob-allowances" aria-label="What's included">
+          {rows.map(([label, value, sub]) => <div key={label}><dt>{label}</dt><dd><span>{value}</span>{sub && <> <small>{sub}</small></>}</dd></div>)}
         </dl>
         {Number(p.overage_cents_per_minute) > 0 && <p className="zob-muted">Extra minutes beyond your plan cost {money(p.overage_cents_per_minute, p.currency)} each.</p>}
       </section>
@@ -146,7 +147,7 @@ export function DoneScreen({ state, onComplete }) {
   return (
     <>
       <p className="zob-lead">Thank you. {state.business_name} is set up. Here's what happens next.</p>
-      <ol className="zob-ahead">
+      <ol className="zob-ahead zob-next">
         <li><span className="zob-ahead-n" aria-hidden="true"><Icon name="call" size="sm" /></span><div><strong>A test call</strong><span>We make a test call to your receptionist and check its answers before anything goes live.</span></div></li>
         <li><span className="zob-ahead-n" aria-hidden="true"><Icon name="rocket_launch" size="sm" /></span><div><strong>Going live</strong><span>{state.go_live?.live ? "Your receptionist is live and answering your calls." : "Once every check below passes, your receptionist starts answering your calls. You can follow it on the AI receptionist page in your CRM."}</span></div></li>
         <li><span className="zob-ahead-n" aria-hidden="true"><Icon name="dashboard" size="sm" /></span><div><strong>Your CRM</strong><span>Your customers, bookings, calls and messages will all land there.</span></div></li>
@@ -157,7 +158,7 @@ export function DoneScreen({ state, onComplete }) {
           <ul className="zob-checks">
             {checks.map((c) => (
               <li key={c.key} className={c.ok ? "ok" : ""}>
-                <Icon name={c.ok ? "check_circle" : "radio_button_unchecked"} size="sm" />
+                <Icon name={c.ok ? "check_circle" : "schedule"} size="sm" />
                 <span>{c.label}</span>
                 <span className={`zob-chip tone-${c.ok ? "good" : "heads"}`}>{c.ok ? "Done" : "Not yet"}</span>
               </li>

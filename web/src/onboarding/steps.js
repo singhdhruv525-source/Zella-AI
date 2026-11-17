@@ -51,6 +51,15 @@ export function previousStep(step) {
 }
 
 // Screen 2 has three parts, from state.security: a password, an authenticator, then a code verified session.
+// The state to show after "Carry on now" (after Finish later): the resume answer, else the state read again, else null
+// (the caller keeps the paused screen and says so). Never the stale screen state, so a step finished just before
+// leaving (a saved password whose refresh failed) isn't asked for again. The api is passed in; nothing here throws.
+export async function stateAfterResume(api, businessId) {
+  const resumed = await api.resume(businessId).catch(() => null);
+  if (resumed?.state) return resumed.state;
+  return (await api.getState(businessId).catch(() => null)) ?? null;
+}
+
 export function securityPart(security) {
   if (!security?.password_set) return "password";
   if (!security?.authenticator) return "authenticator";
@@ -185,6 +194,9 @@ export function phoneWords(v) {
 export const languageWords = (v) => (Array.isArray(v) ? v : set(v) ? [v] : []).map((l) => LANG[l] ?? l).filter((l, i, a) => a.indexOf(l) === i).join(" and ") || "Not set";
 const text = (v) => (set(v) ? String(v) : "Not set");
 const time = (t) => (set(t) ? String(t).slice(0, 5) : "");
+// A list from the server: its rows, the empty words only for an explicit empty list, and never "none" when it's missing.
+export const UNAVAILABLE = "Not available right now";
+const listRows = (v, empty, row) => (Array.isArray(v) ? (v.length ? v.map(row) : empty) : UNAVAILABLE);
 
 export function sectionRows(key, data) {
   const d = data ?? {};
@@ -202,27 +214,24 @@ export function sectionRows(key, data) {
   if (key === "hours_services") {
     // business_hours.weekday is 0 = Sunday to 6 = Saturday, as in the CRM (BusinessHours.jsx); shown Monday first
     const hours = (Array.isArray(d.hours) ? d.hours : []).slice().sort((x, y) => ((x.weekday + 6) % 7) - ((y.weekday + 6) % 7));
-    const services = Array.isArray(d.services) ? d.services : [];
     return [
       ["Opening hours", hours.length ? hours.map((h) => `${DAY[h.weekday] ?? "Day"}: ${time(h.opens)} to ${time(h.closes)}`) : "Not set"],
-      ["Services", services.length ? services.map((s) => [s.name, s.duration, s.price].filter(set).join(", ")) : "None"],
+      ["Services", listRows(d.services, "No services yet", (s) => [s.name, s.duration, s.price].filter(set).join(", "))],
       ["Takes bookings", d.takes_bookings === true ? "Yes" : d.takes_bookings === false ? "No" : "Not set"],
     ];
   }
   if (key === "team") {
-    const members = Array.isArray(d.members) ? d.members : [];
-    return [["Team members", members.length ? members.map((m) => [m.name, m.title, m.email, set(m.phone) ? phoneWords(m.phone) : null].filter(set).join(", ")) : "None yet"]];
+    return [["Team members", listRows(d.members, "No team members yet", (m) => [m.name, m.title, m.email, set(m.phone) ? phoneWords(m.phone) : null].filter(set).join(", "))]];
   }
   if (key === "receptionist_phone") {
     const t = d.transfer_to ?? {};
     const transfer = t.type === "owner" ? "You, the owner" : [t.name, set(t.phone) ? phoneWords(t.phone) : null].filter(set).join(", ") || "Not set";
     const setup = d.phone_setup ?? {};
     const mode = setup.mode === "call_forwarding" ? `Calls forwarded from ${phoneWords(setup.forward_from)}` : setup.mode === "new_number" ? "A new Zella Voice number" : text(setup.mode && String(setup.mode).replace(/_/g, " "));
-    const numbers = Array.isArray(d.numbers) ? d.numbers : [];
     return [
       ["Receptionist name", text(d.name)], ["Greeting", text(d.greeting)], ["Language", languageWords(d.language)],
       ["Calls are transferred to", transfer], ["Fallback number", phoneWords(d.fallback_number)],
-      ["Phone setup", mode], ["Zella Voice numbers", numbers.length ? numbers.map((n) => `${phoneWords(n.e164)}${n.status === "active" ? "" : " (not active yet)"}`) : "None yet"],
+      ["Phone setup", mode], ["Zella Voice numbers", listRows(d.numbers, "No numbers yet", (n) => `${phoneWords(n.e164)}${n.status === "active" ? "" : " (not active yet)"}`)],
     ];
   }
   return [];

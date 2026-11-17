@@ -15,7 +15,7 @@ const KIND_WORDS = {
 };
 const DOC_WORDS = { pending_review: "Waiting for review", verified: "Verified", rejected: "Not accepted" };
 const STATE_TEXT = {
-  needed: "Upload both documents below. We'll check them and tell you here.",
+  needed: "Upload the documents below. We'll check them and tell you here.",
   checking: "We have your documents and we're checking them now. You can choose Finish later; this page shows the answer when you come back.",
   verified: "You're verified. Thank you.",
   try_again: "One of your documents wasn't accepted. See why below, then upload a new copy.",
@@ -25,13 +25,19 @@ const ICON = { verified: "verified", try_again: "error", in_review: "person_sear
 
 export function IdentityScreen({ api, state, onState, onComplete }) {
   const identity = state.identity ?? {};
-  const st = identityState(identity);
+  const kinds = uploadKinds(identity);
+  const docs = Array.isArray(identity.documents) ? identity.documents : [];
+  // Documents needed is a to do, not a problem: an info tone, and how many are left in words. Red is kept for a
+  // document that wasn't accepted.
+  const toUpload = kinds.filter((k) => !docs.some((d) => d.kind === k)).length;
+  const base = identityState(identity);
+  const st = base.key === "needed"
+    ? { ...base, tone: "info", label: toUpload === 2 ? "Two documents to upload" : toUpload === 1 ? "One document to upload" : base.label }
+    : base;
   const [problem, setProblem] = useState("");
   const [busy, setBusy] = useState("");
   const [checking, setChecking] = useState(false);
   const finish = useAction();
-  const kinds = uploadKinds(identity);
-  const docs = Array.isArray(identity.documents) ? identity.documents : [];
   const passed = identityPassed(identity);
   const id = state.business_id;
 

@@ -16,8 +16,19 @@
   border-bottom: 1px solid var(--zella-border);
   background: var(--zella-card);
 }
-.zob-brand { display: flex; align-items: center; gap: var(--zella-space-3); min-width: 0; }
-.zob-brand .ba-brand-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--zella-text-xs); }
+.zob-brand { display: flex; align-items: center; min-width: 0; }
+/* the official logo (navigation/SidebarBrand.jsx, white on Glass), with the business name under it */
+.zob-brand .zv-brand { --zv-h: 26px; --zv-pt: 0px; --zv-px: 0px; --zv-pb: 0px; gap: 4px; }
+.zob-brand .zv-brand-logo { width: var(--zv-w); }
+.zob-brand .zv-brand-caption {
+  overflow: hidden;
+  color: var(--zella-text-secondary);
+  font-size: var(--zella-text-xs);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.zob-top .zob-later { flex-shrink: 0; color: var(--zella-text-2); font-weight: 600; }
 
 .zob-main { padding: var(--zella-space-4); }
 .zob-card {
@@ -67,18 +78,14 @@
 .zob-actions { display: flex; flex-direction: column; align-items: stretch; gap: var(--zella-space-2); margin-top: var(--zella-space-2); }
 .zob-actions .ba-btn { justify-content: center; height: auto; min-height: calc(var(--zella-space-8) + var(--zella-space-3)); white-space: normal; text-align: center; }
 
-/* ---------- Progress bar (ProgressSteps.jsx) ---------- */
+/* ---------- Progress (ProgressSteps.jsx): "Step 3 of 7" and one segment per screen ---------- */
 .zv-progress { display: flex; flex-direction: column; gap: var(--zella-space-2); }
-.zv-progress-text { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--zella-space-1) var(--zella-space-3); font-size: var(--zella-text-xs); }
-.zv-progress-count { color: var(--zella-primary); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
-.zv-progress-name { color: var(--zella-text-secondary); font-weight: 600; }
-.zv-progress-bar { height: var(--zella-space-2); overflow: hidden; border-radius: var(--zella-radius-full); background: var(--zella-subtle); }
-.zv-progress-bar > span { display: block; height: 100%; min-width: var(--zella-space-2); border-radius: inherit; background: var(--zella-primary); transition: width 0.4s ease; }
-.zv-progress-dots { display: flex; justify-content: space-between; margin: 0; padding: 0; list-style: none; }
-.zv-progress-dots li { width: var(--zella-space-2); height: var(--zella-space-2); border: 1px solid var(--zella-border-strong); border-radius: var(--zella-radius-full); background: var(--zella-card); }
-.zv-progress-dots li.done { border-color: var(--zella-primary); background: var(--zella-primary); }
-.zv-progress-dots li.here { border-color: var(--zella-primary); background: var(--zella-primary-soft); box-shadow: var(--zella-focus); }
-@media (prefers-reduced-motion: reduce) { .zv-progress-bar > span { transition: none; } }
+.zv-progress-count { color: var(--zella-text-secondary); font-size: var(--zella-text-sm); font-weight: 600; }
+.zv-progress-segments { display: flex; gap: 4px; }
+.zv-progress-segments > span { flex: 1; height: 4px; border-radius: var(--zella-radius-full); background: var(--zella-subtle); transition: background-color 0.3s ease; }
+.zv-progress-segments > span.done,
+.zv-progress-segments > span.here { background: var(--zella-primary); }
+@media (prefers-reduced-motion: reduce) { .zv-progress-segments > span { transition: none; } }
 
 /* ---------- Loading, not ready, error, empty ---------- */
 .zob-state { display: flex; align-items: center; gap: var(--zella-space-3); color: var(--zella-text-secondary); font-size: var(--zella-text-sm); }
@@ -175,7 +182,34 @@
 .zob-ahead span { color: var(--zella-text-secondary); font-size: var(--zella-text-sm); }
 
 /* ---------- Check your details ---------- */
-.zob-sections { position: relative; display: flex; gap: var(--zella-space-2); margin: 0; padding: 0 0 var(--zella-space-1); overflow-x: auto; list-style: none; }
+/* the parts as one stepper: a single row that scrolls sideways on a phone, never wrapping */
+.zob-sections {
+  position: relative;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: var(--zella-space-2);
+  margin: 0;
+  padding: 2px 2px var(--zella-space-1);
+  overflow-x: auto;
+  list-style: none;
+  scrollbar-width: none;
+}
+.zob-sections::-webkit-scrollbar { display: none; }
+.zob-sections > li { flex-shrink: 0; }
+.zob-step-n {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--zella-border-strong);
+  border-radius: var(--zella-radius-full);
+  color: var(--zella-text-secondary);
+  font-size: var(--zella-text-xs);
+  font-weight: 600;
+}
+.zob-step-n .ba-icon { font-size: 16px; }
+.zob-step-n.done { border-color: var(--zella-primary); background: var(--zella-primary); color: var(--zella-card); }
+.zob-section-tab.on .zob-step-n:not(.done) { border-color: var(--zella-primary); color: var(--zella-primary); }
 .zob-section-tab {
   position: relative;
   display: inline-flex;
@@ -192,19 +226,21 @@
   white-space: nowrap;
   cursor: pointer;
 }
-.zob-section-tab.on { border-color: var(--zella-primary); background: var(--zella-primary-soft); color: var(--zella-primary); font-weight: 600; }
+.zob-section-tab { gap: var(--zella-space-2); padding: 0 var(--zella-space-3) 0 var(--zella-space-2); }
+.zob-section-tab.on { border-color: var(--zella-primary-border); background: var(--zella-primary-soft); color: var(--zella-text); font-weight: 600; }
 .zob-section-tab:focus-visible { outline: none; box-shadow: var(--zella-focus); }
 .zob-section { display: flex; flex-direction: column; gap: var(--zella-space-3); padding: var(--zella-space-4); }
 .zob-section-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--zella-space-3); }
-.zob-section h2 { margin: var(--zella-space-1) 0 0; font-size: var(--zella-text-lg); font-weight: 650; }
+.zob-section h2 { margin: 0; font-family: var(--zella-font); font-size: var(--zella-text-lg); font-weight: 600; letter-spacing: 0; }
 .zob-facts, .zob-allowances { display: grid; gap: var(--zella-space-3); margin: 0; }
 .zob-facts > div, .zob-allowances > div { display: flex; flex-direction: column; gap: var(--zella-space-1); min-width: 0; }
 .zob-facts dt, .zob-allowances dt { color: var(--zella-text-secondary); font-size: var(--zella-text-xs); font-weight: 600; }
 .zob-facts dd, .zob-allowances dd { margin: 0; color: var(--zella-text); font-size: var(--zella-text-base); overflow-wrap: anywhere; }
 .zob-allowances small { color: var(--zella-text-secondary); font-size: var(--zella-text-xs); }
 .zob-quote { margin: 0; padding: var(--zella-space-2) var(--zella-space-3); border-left: var(--zella-space-1) solid var(--zella-info-border); color: var(--zella-text-2); font-size: var(--zella-text-sm); }
-.zob-section-actions { display: flex; flex-wrap: wrap; gap: var(--zella-space-2); }
-.zob-section-actions .ba-btn { flex: 1 1 140px; justify-content: center; height: auto; min-height: calc(var(--zella-space-8) + var(--zella-space-3)); white-space: normal; text-align: center; }
+/* inside a part: Change, then Looks right, each at its own width, on the right */
+.zob-section-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--zella-space-2); padding-top: var(--zella-space-1); }
+.zob-section-actions .ba-btn { flex: 0 0 auto; justify-content: center; }
 
 /* ---------- Verify your identity ---------- */
 .zob-docs { display: flex; flex-direction: column; gap: var(--zella-space-2); margin: 0; padding: 0; list-style: none; }
@@ -233,11 +269,16 @@
 /* ---------- Your plan ---------- */
 .zob-plan { display: flex; flex-direction: column; gap: var(--zella-space-3); padding: var(--zella-space-4); }
 .zob-plan-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--zella-space-3); }
-.zob-plan h2 { margin: var(--zella-space-1) 0 0; font-size: var(--zella-text-page); font-weight: 650; line-height: var(--zella-leading-tight); }
+.zob-plan h2 { margin: var(--zella-space-1) 0 0; font-size: var(--zella-text-page); font-weight: 600; line-height: var(--zella-leading-tight); }
+.zob-billed { margin: calc(var(--zella-space-2) * -1) 0 0; color: var(--zella-text-secondary); font-size: var(--zella-text-sm); text-align: right; }
 .zob-price { text-align: right; }
 .zob-price strong { display: block; color: var(--zella-text); font-size: var(--zella-text-kpi); line-height: var(--zella-leading-tight); }
 .zob-price span { color: var(--zella-text-secondary); font-size: var(--zella-text-sm); }
-.zob-allowances { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: var(--zella-space-3) 0; border-top: 1px solid var(--zella-border); border-bottom: 1px solid var(--zella-border); }
+/* what's included: a definition grid, values at 14px 500 with the unit in the same size in a quieter colour */
+.zob-plan .zob-allowances { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px var(--zella-space-4); padding: var(--zella-space-4) 0 0; border-top: 1px solid var(--zella-border); }
+.zob-plan .zob-allowances dd { display: flex; flex-wrap: wrap; column-gap: 4px; font-size: var(--zella-text-sm); font-weight: 500; overflow-wrap: normal; }
+.zob-plan .zob-allowances dd > span { white-space: nowrap; }
+.zob-plan .zob-allowances small { color: var(--zella-text-secondary); font-size: var(--zella-text-sm); font-weight: 400; white-space: nowrap; }
 .zob-included { display: flex; flex-direction: column; gap: var(--zella-space-2); margin: 0; padding: 0; list-style: none; }
 .zob-included li { display: flex; align-items: flex-start; gap: var(--zella-space-2); color: var(--zella-text-2); font-size: var(--zella-text-sm); }
 .zob-included .ba-icon { color: var(--zella-success); }
@@ -265,8 +306,37 @@
 .zob-checks { display: flex; flex-direction: column; gap: var(--zella-space-2); margin: 0; padding: 0; list-style: none; }
 .zob-checks li { display: flex; align-items: center; gap: var(--zella-space-2); color: var(--zella-text-2); font-size: var(--zella-text-sm); }
 .zob-checks li > span:nth-child(2) { flex: 1; min-width: 0; }
-.zob-checks li .ba-icon { color: var(--zella-text-faint); }
+.zob-checks li .ba-icon { color: var(--zella-warning); }
 .zob-checks li.ok .ba-icon { color: var(--zella-success); }
+
+/* What happens next: 20px icons in the primary colour on 36px soft tiles */
+.zob-next .zob-ahead-n { width: 36px; height: 36px; border-radius: var(--zella-radius-md); background: var(--zella-primary-soft); color: var(--zella-primary); }
+.zob-next .zob-ahead-n .ba-icon { color: var(--zella-primary); font-size: 20px; }
+
+/* card and section headings stay in the text font with normal spacing (the display font is for the page heading) */
+html:has(.ba-root) .ba-root.zob.zob :is(.zob-section, .zob-plan) h2 { font-family: var(--zella-font); letter-spacing: 0; }
+
+/* ---------- Password rules: a live checklist, never an error ---------- */
+.zob-rules { display: grid; gap: 6px; margin: var(--zella-space-2) 0 0; padding: 0; list-style: none; }
+.zob-rules li { display: flex; align-items: center; gap: var(--zella-space-2); color: var(--zella-text-secondary); font-size: var(--zella-text-sm); }
+.zob-rules li .ba-icon { color: var(--zella-text-faint); font-size: 18px; }
+.zob-rules li.met { color: var(--zella-text); }
+.zob-rules li.met .ba-icon { color: var(--zella-success); }
+
+/* ---------- Buttons on these screens ---------- */
+/* no hover sheen left sitting on a main button after a click */
+.zob .ba-btn.primary::after { content: none; }
+.zob .ba-btn.primary .ba-ripple { display: none; }
+/* a main button that can't be used yet looks resting, not broken; the reason sits next to it */
+.zob .ba-btn.primary:disabled {
+  border: 1px solid var(--zella-border);
+  background: var(--zella-subtle);
+  background-image: none;
+  box-shadow: none;
+  color: var(--zella-text-faint);
+  opacity: 1;
+  cursor: not-allowed;
+}
 
 /* ---------- Wider screens ---------- */
 @media (min-width: 520px) {
@@ -279,8 +349,7 @@
   .zob-page { gap: var(--zella-space-5); padding: var(--zella-space-8); box-shadow: var(--zella-shadow-md); }
   .zob-page h1 { font-size: var(--zella-text-page); }
   .zob-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .zob-sections { flex-wrap: wrap; overflow: visible; }
-  .zob-allowances { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .zob-plan .zob-allowances { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 /* ---------- Glass (the dark look): frosted, like the rest of the CRM ---------- */

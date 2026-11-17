@@ -140,6 +140,12 @@ async function journey(browser, variant) {
   await waitHeading(page, "Your place is saved");
   if (main) check("Finish later: says the place is saved, with focus on the heading", (await heading(page)) === "Your place is saved", await heading(page));
   await shot("finish-later");
+  // Carry on now reads the server's state and goes back to the same step, then leave again
+  await page.click("button:has-text('Carry on now')");
+  await waitHeading(page, "Check your details");
+  if (main) check("Finish later: Carry on now goes back to the same step", (await heading(page)) === "Check your details" && (await progress(page)) === "3");
+  await page.click("button:has-text('Finish later')");
+  await waitHeading(page, "Your place is saved");
   // the Zella Voice team makes the change; the owner comes back on a new page load
   await hook(page, "adminChangeDone", "hours_services", "Changed to 18:00 on Fridays.");
   await page.reload();
@@ -156,7 +162,7 @@ async function journey(browser, variant) {
   await waitHeading(page, "Verify your identity");
   if (main) {
     check("4 Identity: focus on the heading, step 4 of 7", (await heading(page)) === "Verify your identity" && (await progress(page)) === "4", await heading(page));
-    check("4 Identity: Documents needed, with both uploads offered", await page.isVisible(".zob-status >> text=Documents needed") && (await page.$$(".zob-upload input")).length === 2);
+    check("4 Identity: two documents to upload, with both uploads offered", await page.isVisible(".zob-status >> text=Two documents to upload") && (await page.$$(".zob-upload input")).length === 2);
     check("4 Identity: no provider widget while the rule is manual upload", !(await page.$(".zob-provider")));
   }
   await shot("identity-needed");
@@ -209,9 +215,10 @@ async function journey(browser, variant) {
   await page.click(".zob-actions button:has-text('Continue')");
 
   // 7 You're all set
-  await waitHeading(page, "You're all set");
+  // the test call check is still open in the stand in, so the heading says what is left instead of "You're all set"
+  await waitHeading(page, "Setup complete");
   if (main) {
-    check("7 Done: focus on the heading, step 7 of 7", (await heading(page)) === "You're all set" && (await progress(page)) === "7", await heading(page));
+    check("7 Done: focus on the heading, step 7 of 7, and it says a check is still to come", (await heading(page)) === "Setup complete. One last check before you go live." && (await progress(page)) === "7", await heading(page));
     check("7 Done: what happens next, and the go live checks", await page.isVisible("text=A test call") && await page.isVisible("text=Going live") && await page.isVisible(".zob-checks >> text=Test call answered"));
   }
   await shot("done");
@@ -270,7 +277,7 @@ async function scenario(browser, name, query, checks) {
     await waitHeading(page, "Verify your identity");
     await page.setInputFiles('input[aria-label="Upload your photo id"]', PDF);
     await page.waitForSelector("text=Uploading isn't ready yet", { timeout: 5000 }).catch(() => {});
-    check("upload not deployed: says it isn't ready yet, and nothing pretends it worked", await page.isVisible("text=Uploading isn't ready yet") && await page.isVisible(".zob-status >> text=Documents needed"));
+    check("upload not deployed: says it isn't ready yet, and nothing pretends it worked", await page.isVisible("text=Uploading isn't ready yet") && await page.isVisible(".zob-status >> text=Two documents to upload"));
   });
   await scenario(browser, "returning", "returning", async (page) => {
     await waitHeading(page, "Check your details");

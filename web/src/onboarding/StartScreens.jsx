@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ConfirmPasswordField, PasswordField } from "../formFields";
-import { passwordProblems } from "../formValidation";
+import { passwordProblems, passwordRules } from "../formValidation";
 import { friendlyAuthError } from "../authErrors";
 import AuthenticatorSetup from "../AuthenticatorSetup";
 import { Icon } from "../BusinessUI";
@@ -74,16 +74,22 @@ function PasswordPart({ api, email, onDone }) {
   const [tried, setTried] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [passwordSaved, setPasswordSaved] = useState(false);
   async function save(event) {
     event.preventDefault();
     setTried(true); setError("");
-    const missing = passwordProblems(password);
-    if (missing.length) return setError(`Your password still needs: ${missing.join(", ")}.`);
-    if (password !== confirm) return setError("The two passwords don't match.");
+    if (!passwordSaved) {
+      const missing = passwordProblems(password);
+      if (!password) return setError("Choose a password, then type it again to confirm it.");
+      if (missing.length) return setError("Your password doesn't meet every item in the list yet.");
+      if (password !== confirm) return setError("The two passwords don't match.");
+    }
     setBusy(true);
-    try { await api.setPassword(password); }
-    catch (err) { setError(friendlyAuthError(err)); setBusy(false); return; }
-    try { await onDone(); }
+    if (!passwordSaved) {
+      try { await api.setPassword(password); setPasswordSaved(true); }
+      catch (err) { setError(friendlyAuthError(err)); setBusy(false); return; }
+    }
+    try { await onDone(); setPasswordSaved(false); }
     catch (err) { setError(`Your password is saved. ${errorWords(err)}`); setBusy(false); }
   }
   return (
@@ -91,7 +97,8 @@ function PasswordPart({ api, email, onDone }) {
       <p className="zob-lead">{email ? <>You'll sign in with <strong>{email}</strong> and this password.</> : "Choose the password you'll sign in with."}</p>
       <div className="ba-field">
         <label htmlFor="zob-password">New password</label>
-        <PasswordField id="zob-password" label="New password" value={password} onChange={setPassword} showErrors={tried} />
+        <PasswordField id="zob-password" label="New password" value={password} onChange={setPassword} showErrors={tried} showRules={false} />
+        <PasswordRules password={password} />
       </div>
       <div className="ba-field">
         <label htmlFor="zob-password2">Confirm password</label>
@@ -100,6 +107,22 @@ function PasswordPart({ api, email, onDone }) {
       <ErrorText>{error}</ErrorText>
       <Actions><button type="submit" className="ba-btn primary" disabled={busy}>{busy ? "Saving…" : "Save password and continue"}</button></Actions>
     </form>
+  );
+}
+
+// The live checklist: each rule ticks as it is met. It never shows as an error; the field and the summary under the
+// form say what is wrong only after leaving the field or a failed save.
+function PasswordRules({ password }) {
+  return (
+    <ul className="zob-rules" aria-live="polite">
+      {passwordRules(password).map((r) => (
+        <li key={r.id} className={r.met ? "met" : ""}>
+          <Icon name={r.met ? "check_circle" : "radio_button_unchecked"} size="sm" />
+          <span>{r.label}</span>
+          <span className="zob-sr">{r.met ? ", done" : ", not yet"}</span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
