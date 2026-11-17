@@ -13,9 +13,9 @@
 --      retention, no hold) and at least 14 days have passed since the export offer; only with the business's name
 --      typed exactly. Refused while:
 --        * deleting would erase its audit history: audit_logs.business_id must not be ON DELETE CASCADE and
---          zella_audit_privileged must keep a deleted business's rows (lane B's sql/zella_draft_delete.sql). The foreign
---          key change is ACC-10, the owner's decision (lane B keeps it CASCADE until then), so this refuses until it is
---          made (AUDIT_HISTORY_AT_RISK);
+--          zella_audit_privileged must keep a deleted business's rows. Lane B's sql/zella_draft_delete.sql does both
+--          (ACC-10, the owner's decision of 16 Nov 2026: audit history kept, business_id set null), so this refuses
+--          until that file is applied (AUDIT_HISTORY_AT_RISK);
 --        * it has payment or billing records (BILLING_RECORDS_KEPT): how long those are kept after a business is
 --          deleted is a legal decision not taken yet;
 --        * it has offer history (OFFER_HISTORY_KEPT) or phone numbers still in Zella Voice (NUMBERS_STILL_ASSIGNED:

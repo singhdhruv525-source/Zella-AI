@@ -4,8 +4,8 @@
 # gap); applies, applies again, and rolls back twice before any run; a purge can't be asked for while the period is
 # pending legal review, without a recorded final export offer, or for a business not past its retention date or on a
 # legal hold; every guard refuses in turn (someone who didn't approve, the switch off, the wrong name, the audit history
-# at risk until lane B's sql/zella_draft_delete.sql is applied and audit_logs.business_id is no longer CASCADE (ACC-10,
-# the owner's decision, simulated in this test), an export offer under 14 days old, billing
+# at risk until lane B's sql/zella_draft_delete.sql is applied, which keeps a deleted business's audit rows and makes
+# audit_logs.business_id ON DELETE SET NULL (ACC-10, the owner's decision of 16 Nov 2026), an export offer under 14 days old, billing
 # records, phone numbers still assigned); the purge deletes the business and what belongs to it, keeps its audit rows
 # and a purge record, hands over its storage files and records them; every step is audited; nothing is scheduled;
 # signed in people and anonymous can't call it; the rollback refuses once a purge ran or a function changed.
@@ -88,9 +88,8 @@ srv "select public.zella_retention_switch_set('$OWNER', true, 'For the test')" >
 [[ "$(exe $OWNER $RUN "closed test salon")" == *CONFIRM_MISMATCH* ]] && ok "the business's name must be typed exactly" || bad "name"
 [[ "$(exe $OWNER $RUN "Closed Test Salon")" == *AUDIT_HISTORY_AT_RISK* ]] && ok "refused while deleting would erase its audit history (ACC-10 not applied)" || bad "audit fk"
 "${P[@]}" -d $DB -f "$DRAFT_DELETE" > /dev/null 2>&1 && ok "lane B's sql/zella_draft_delete.sql applies (the audit trigger keeps a deleted business's rows)" || { bad "draft delete"; "${P[@]}" -d $DB -f "$DRAFT_DELETE" 2>&1 | tail -2; }
-[[ "$(exe $OWNER $RUN "Closed Test Salon")" == *AUDIT_HISTORY_AT_RISK* ]] && ok "still refused while audit_logs.business_id is CASCADE (ACC-10, the owner's decision)" || bad "fk still cascade"
-# The owner's ACC-10 decision, simulated here only: the audit foreign key becomes ON DELETE SET NULL.
-q "alter table public.audit_logs drop constraint audit_logs_business_id_fkey; alter table public.audit_logs add constraint audit_logs_business_id_fkey foreign key (business_id) references public.businesses(id) on delete set null" > /dev/null
+[ "$(q "select confdeltype from pg_constraint where conrelid = 'public.audit_logs'::regclass and conname = 'audit_logs_business_id_fkey'")" = n ] \
+  && ok "after it, audit_logs.business_id is ON DELETE SET NULL (ACC-10, the owner's decision of 16 Nov 2026)" || bad "audit fk set null"
 [[ "$(exe $OWNER $RUNP "Paid Test Salon")" == *EXPORT_OFFER_TOO_RECENT* ]] && ok "refused until 14 days after the export offer" || bad "too recent"
 q "update public.retention_purge_runs set export_offered_at = now() - interval '20 days' where id = '$RUNP'" > /dev/null
 [[ "$(exe $OWNER $RUNP "Paid Test Salon")" == *BILLING_RECORDS_KEPT* ]] && ok "refused while it has payment records (their retention is a legal decision not taken)" || bad "billing"
