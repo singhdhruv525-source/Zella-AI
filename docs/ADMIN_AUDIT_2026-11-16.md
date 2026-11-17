@@ -526,18 +526,18 @@ each other.
 | UI-13 | Offers | CHANGE | P3 | Page eyebrow says "Growth" while the menu puts it under Configuration. | Screenshot: offers | Use one group name. | Same name in both places. Fixed in PR #89 (Plans said "Billing" for the same group and now says "Configuration" too). | no |
 | UI-14 | Voice, overview | ADD | P3 | Tiles such as "Missed 121" can't be clicked; "Needs attention" says nothing while 121 calls were missed and checks are off. | Screenshot: voice_overview | Make tiles open the filtered call list; raise a missed call rate alert (with COM-08). | Clicking Missed shows those calls. | yes if a new alert |
 | UI-15 | Voice, numbers and calls | VERIFY | P2 | Every number shows "Calls (30 days) 0" and "Last call None" while 477 inbound calls exist, and the Calls tab shows Number "None" on every call: calls may not record which number they came in on. | Screenshots: voice_numbers, voice_calls | With a real or staging call, check calls.to_number (or the number link) is filled by voice-rules and n8n. If not, fill it on arrival. | A test call shows on its number's row. | maybe (staging call) |
-| UI-16 | Voice, calls | CHANGE | P3 | The last column has pills ("Needs a person") but no header; Length mixes "Not available" and "1 min 0 s"; Outcome is "None". | Screenshot: voice_calls | Header the column; one length format; words instead of "None". | Copy review passes. | no |
+| UI-16 | Voice, calls | CHANGE | P3 | The last column has pills ("Needs a person") but no header; Length mixes "Not available" and "1 min 0 s"; Outcome is "None". | Screenshot: voice_calls | Header the column; one length format; words instead of "None". | Copy review passes. Fixed in PR #88. | no |
 | UI-17 | Voice, call routing | CHANGE | P2 | The business picker is a plain list of every business, and nothing shows which businesses have no transfer or fallback number. | Screenshot: voice_routing | Searchable picker (UI-26) and a "Missing routing" list. | Businesses without routing are listed. | no |
-| UI-18 | Voice, providers | CHANGE | P3 | AI voice usage lists every business unpaged; connection checks repeat the Overview tab; the period select stretches full width. | Screenshot: voice_providers | Page the table (top 20 plus "See all"), remove the repeated checks, normal width select. | Table paged; one copy of checks. | no |
+| UI-18 | Voice, providers | CHANGE | P3 | AI voice usage lists every business unpaged; connection checks repeat the Overview tab; the period select stretches full width. | Screenshot: voice_providers | Page the table (top 20 plus "See all"), remove the repeated checks, normal width select. | Table paged; one copy of checks. Fixed in PR #88. | no |
 | UI-19 | Messaging, overview | FIX | P2 | "1,028 follow ups due now" is shown in orange but Needs attention only raises the 2 late reminders; the follow up backlog has no alert here (Automations does show it). | Screenshot: messaging_overview vs automations_overview | Raise and show the follow up backlog the same way on both pages. | The backlog appears in Needs attention. | yes (migration) |
 | UI-20 | Messaging, templates | ADD | P3 | Templates can be edited but not created or retired from the admin. | Screenshot: messaging_templates; MessagingPage.jsx:210-255 | Add create and retire, each audited and versioned (with COM-27). | An admin can add a new platform template. | yes (migration) |
-| UI-21 | Voice, Messaging, Operations, Automations | CHANGE | P3 | Setting keys shown to admins as words: "sms_live is off", "The calls_live switch", "(sms live off)", "Off (calls_live)", "provider_checks_live". | Screenshots | Plain words ("Texts are in test mode") with the key in a tooltip if needed. | No setting keys in visible text. | no |
+| UI-21 | Voice, Messaging, Operations, Automations | CHANGE | P3 | Setting keys shown to admins as words: "sms_live is off", "The calls_live switch", "(sms live off)", "Off (calls_live)", "provider_checks_live". | Screenshots | Plain words ("Texts are in test mode") with the key in a tooltip if needed. | No setting keys in visible text. Fixed in PR #88 for Voice, Messaging and Automations; Platform operations (PlatformMonitoring.jsx) is left for its own change. | no |
 | UI-22 | Platform operations | FIX | P2 | Green "No issues found" banner and "Open problems 0" while 6 of 8 required server settings are Not set and provider checks are off. | Screenshot: operations | Count missing go live settings and off checks as problems, or show a neutral "Not ready for go live" banner. | The banner is never green while go live items are missing. | no |
 | UI-23 | Operations, Automations, Messaging | CHANGE | P2 | Three partial go live checklists: Operations "Services" (secrets), Automations "Go live checklist" (settings and switches), Messaging "Sending switches". Each misses items the others list (Resend key, platform_emails_url, email sender, n8n secret, jobs). | Screenshots: operations, automations_infrastructure, messaging_providers | One go live checklist (secrets, settings, scheduled jobs, live switches, owner approvals) shown in one place and linked from the others. | One list, every go live item on it. | no |
 | UI-24 | Operations and Automations | CHANGE | P2 | Two different "app address" settings: the ZELLA_APP_URL secret (invitation links, shown on Operations) and the app_base_url platform setting (customer links, shown on Automations). On 16 Nov 2026 the `app_base_url` setting was empty in production (read only database read), and the owner's `supabase secrets list` didn't include `ZELLA_APP_URL` (the secret's value can't be read from here); neither page mentions the other. | Screenshots; production database read and the owner's secrets list, 16 Nov 2026 | Explain both on the go live checklist, or derive one from the other. | An admin knows both must be set. | no |
 | UI-25 | Platform operations, incidents | CHANGE | P3 | The inline incident form clips its placeholders ("Text messages d", "(optior"). | Screenshot: operations | Use a dialog (with OPS-11). | Placeholders readable. | no |
 | UI-26 | Every list with a business filter | CHANGE | P2 | Filters are native dropdowns of every business (Automations, Messaging, Voice, Call routing, Audit logs); unusable past about 100 businesses. | Screenshots; automations_runs text | One searchable business picker component, server backed. | Picker finds a business by typing. | no |
-| UI-27 | Automations, scheduler | REMOVE | P3 | The same scheduled jobs appear in two tables ("Scheduled jobs" and "Scheduled database jobs"); file paths shown (n8n/GO-LIVE.md, n8n/README.md). | Screenshot: automations_infrastructure | Keep one table; replace paths with words. | One table; no paths. | no |
+| UI-27 | Automations, scheduler | REMOVE | P3 | The same scheduled jobs appear in two tables ("Scheduled jobs" and "Scheduled database jobs"); file paths shown (n8n/GO-LIVE.md, n8n/README.md). | Screenshot: automations_infrastructure | Keep one table; replace paths with words. | One table; no paths. Fixed in PR #88. | no |
 | UI-28 | Automations, templates | CHANGE | P2 | Lists only the 15 industry record templates; the automations every business gets (reminders, confirmations, no show follow up) aren't listed because they live in the browser code (CFG-05); industry names differ from the industry list ("Cleaning" vs "Cleaning Services"). | automations_templates text | List every default automation from data, with industry names from the industries table. | Every default automation is listed. | yes (migration) |
 | UI-29 | Security and abuse | CHANGE | P3 | Six stat cards in a five column grid leave one alone on a second row; the tabs sit under the stats, unlike every other tabbed page. | Screenshot: security_abuse | Tabs first, then a grid that fits the count. | Same layout as other tabbed pages. Fixed in PR #87. | no |
 | UI-30 | Create business wizard | CHANGE | P3 | The step bar overflows at 1440 px (step 10, Review, is cut off with no scroll cue); "Back" is enabled on step 1; the time zone hint says "like Kolkata" for a US launch. | Screenshot: wizard_new | Wrap or compress the steps; disable Back on step 1; US example. | All ten steps visible at 1440 px. Fixed in PR #89. | no |
@@ -594,12 +594,12 @@ isolated database first.
 - [ ] Invoices (Settings, Invoices: need the provider's invoice events and an invoices table) · after Stripe
 - [ ] Refund requests and approvals (Settings, Refunds) · after Stripe
 - [ ] Charging for extra usage (Settings, Usage limits) · after Stripe
-- [ ] Billing emails to businesses that don't need Stripe (owner, 16 Nov: build later)
-- [ ] Billing emails that need Stripe (owner, 16 Nov: build later) · after Stripe
+- [ ] Billing emails to businesses that don't need Stripe (owner, 16 Nov: build now, held until Stripe and email are live)
+- [ ] Billing emails that need Stripe (owner, 16 Nov: build now, held until Stripe and email are live)
 
 ### AI agents
 - [ ] Last delivery outcome, not ready count and served version per receptionist, with a deliveries drawer (COM-03) · needs approval
-- [ ] A global default prompt that rolls out to businesses without overwriting their own (Settings, AI agent configuration) · needs approval
+- [ ] A global default prompt that rolls out to businesses without overwriting their own (Settings, AI agent configuration) · later (owner, 16 Nov 2026)
 - [ ] AI testing and evaluation view with a pass rule (Settings, AI testing) · needs approval
 
 ### Voice and numbers
@@ -623,7 +623,7 @@ isolated database first.
 - [ ] Store and show n8n's response per workflow (OPS-17) · needs approval
 - [ ] "Resume all" for a business (OPS-20) · needs approval
 - [ ] Read n8n's own workflow activation and execution status with a server side key (Scheduler page says it isn't built) · needs approval
-- [ ] Webhook delivery logs, and outbound webhooks for businesses (Settings, Webhooks) · needs approval
+- [ ] Webhook delivery logs (Settings, Webhooks) · needs approval. Outbound webhooks for businesses are not planned (owner, 16 Nov 2026; architecture §36)
 
 ### Support
 - [ ] Reply to the business, alerts for urgent, cancellation and plan change tickets, age and first response with an overdue filter (OPS-25) · needs approval
@@ -634,17 +634,17 @@ isolated database first.
 ### Settings
 - [ ] Editable alert rules (condition, severity, destination, frequency, quiet window) (Settings, Alert rules) · needs approval
 - [ ] Scheduled reports and report permissions (Settings, Reporting configuration) · needs approval. Built on the branch `claude/weekly-admin-report` (owner's decision: one weekly platform summary, permission `reports.view`); not applied; runs once `zella_jobs_weekly` is switched on
-- [ ] Public API keys with scopes, hashing, last used and revocation (Settings, API management) · needs approval
+- Not planned (owner, 16 Nov 2026; architecture §36): public API keys (Settings, API management)
 - [ ] OAuth application checks (Google client set or not) in the server configuration check (Settings, OAuth applications) · needs approval
 - [ ] A per business recording on or off policy (Settings, Policy configuration) · needs approval
 - [ ] Separate retention for recordings, transcripts and audit logs (Settings, Data retention) · needs approval
 
 ### New pages
-- [ ] Growth page (prospects, demos, growth.manage), or mark REQ-ADM-18 as later (ACC-36)
+- [x] Growth page (prospects, demos, growth.manage), or mark REQ-ADM-18 as later (ACC-36): later (owner, 16 Nov 2026), marked in ARCHITECTURE and PRODUCT
 
 ### Tests and tooling
 - [ ] One shared list of alert kinds, audit actions and permissions, with a test that catches drift (PLT-08)
-- [ ] Reference configuration from production in the test fixtures, no customer data (UI-35)
+- [ ] Reference configuration from production in the test fixtures, no customer data (UI-35): allowed by the owner on 16 Nov 2026, read only, through an allowlist
 - [ ] axe-core in the crawl for an accessibility scan of every page (PLT-06)
 
 ## Add on task: owner onboarding journey (after the admin dashboard work)
@@ -675,7 +675,7 @@ S4 Documents needed, S5 Business verified, S6 Your AI receptionist is live) and 
 Open decisions for the owner:
 - [ ] Identity provider: Persona (owner ID and business registration), Stripe Identity (owner ID only, same vendor as payments), or manual upload for now. Recommended: Persona, keeping manual upload as the fallback.
 - [ ] Plan screen: accept the plan the admin set, or let the owner switch between Base and Pro. Recommended: accept only.
-- [ ] First payment: pay before going live, or a free trial with a saved card. Recommended: pay before going live.
+- [x] First payment: pay before going live, or a free trial with a saved card. Recommended: pay before going live. Owner, 16 Nov 2026: pay before going live, once Stripe is live; until then the go live gate doesn't wait for payment.
 - [ ] Failed check: retry then manual review, or stop and contact support. Recommended: retry then manual review.
 
 Build checklist (each needs the owner's approval before anything goes live; provider accounts and keys are the owner's):

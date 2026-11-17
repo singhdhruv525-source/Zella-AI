@@ -311,10 +311,10 @@ only the pages they can use. Every admin action is written to the audit log.
 | Configuration | **Plans & subscriptions** | Plans and subscriptions (policy decided in architecture §17; no plan created yet). Each plan card lists every allowance in words ("AI voice minutes per period: No limit", "Languages the receptionist speaks: 2"), from `web/src/copy/planAllowances.js` | `billing.view` |
 | Configuration | **Offers & promotions** | Offers, rules, redemptions | `billing.view` |
 | AI & communications | **AI agents** | Receptionist agents and configurations | `businesses.view` |
-| AI & communications | **Voice & numbers** | Assign and release phone numbers, voice usage, alerts | `businesses.view` |
-| AI & communications | **Messaging** | Messages across businesses, templates, compliance, retries | `businesses.view` |
+| AI & communications | **Voice & numbers** | Assign and release phone numbers, voice usage, alerts. Provider connection checks are on Overview only; Providers & costs shows keys, AI voice usage (the 20 businesses with most calls, then "See all") and pricing. Call lengths read "45 s", "1 min", "2 min 5 s" | `businesses.view` |
+| AI & communications | **Messaging** | Messages across businesses, templates, compliance, retries. Live switches read in words ("Texts and emails are in test mode"), with the setting key only in a tooltip | `businesses.view` |
 | Operations | **Platform operations** | Scheduler health, dispatcher, provider health, failed work. Sending a failed event back needs `integrations.manage` and a reason, and is refused (with the reason in words) when a run of it is running or succeeded, had a step succeed or reached a provider, so a retry never repeats a message (`sql/zella_retry_event_safe.sql`, built, not applied) | `businesses.view` |
-| Operations | **Automations** | Automations and runs across businesses, retry, pause | `businesses.view` |
+| Operations | **Automations** | Automations and runs across businesses, retry, pause. Scheduler & n8n lists the scheduled jobs once, then the go live checklist in words (setting keys in tooltips) | `businesses.view` |
 | Operations | **Integrations** | Provider connections and their state | `businesses.view` |
 | Operations | **Support** | Support tickets | `support.manage` |
 | Operations | **Security & abuse** | Spam and abuse across the platform: the tabs first, then (on Overview) the period's six totals, three a row | `security.view` |
@@ -327,8 +327,9 @@ footer, until the list is scrolled to the end.
 
 Platform roles use named permissions (`businesses.view/manage`, `telephony.manage`, `comms.manage`, `ai.configure`,
 `integrations.manage`, `billing.view/manage`, `plans.manage`, `support.manage`, `security.view/manage`, `audit.view`,
-`analytics.view`, `reports.view`, `growth.manage`). Only the Zella Voice owner manages platform admins. An admin alerts bell shows
-platform alerts live.
+`analytics.view`, `reports.view`). Only the Zella Voice owner manages platform admins. An admin alerts bell shows
+platform alerts live. The Growth page (prospects and demos, REQ-ADM-18) and its `growth.manage` permission come
+later, not before launch (owner, 16 Nov 2026).
 
 **Weekly platform report** (Settings, Analytics and reporting, Reporting configuration; `reports.view`, which the
 Zella Voice owner and super admins have; a restricted role only when the owner grants it): one summary of the whole
