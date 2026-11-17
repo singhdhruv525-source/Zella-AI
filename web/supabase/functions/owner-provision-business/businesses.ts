@@ -6,8 +6,9 @@
 // looked up for that page only (calls_business_created_idx).
 //
 // It runs after index.ts has checked the caller's sign in, two step sign in, platform role and permission. It
-// returns a plan's tier and version only (no prices), the same level of detail tenants_search already shows under
-// businesses.view.
+// returns each business's latest saved plan as tier, version and billing interval (no prices or allowances). This is
+// new for businesses.view: tenants_search only shows the subscription's plan name and status, and no other
+// businesses.view action reads business_plans. Every businesses.view role, read_only_admin included, sees it.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { allRows } from "./settings.ts";

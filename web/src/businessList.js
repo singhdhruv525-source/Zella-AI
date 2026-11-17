@@ -4,7 +4,8 @@
 // filters, sorts and pages, and its totals are exact. A server deployed before that action answers 400 "Unknown
 // action"; then, and only then, the page falls back to dashboard_data (one unpaged list, filtered here, with no plans,
 // problems or last calls). Any other error is shown as an error, never as a shorter list.
-import { businessState, setupDone, timeAgo, formatDateTime } from "./ownerFormat.js";
+import { businessState, setupDone, formatDate, formatDateTime, stageLabel } from "./ownerFormat.js";
+import { resumeStep } from "./wizardProgress.js";
 import { humanize } from "./copy/labels.js";
 
 export const STAGE_OPTIONS = [
@@ -21,6 +22,10 @@ export const PLAN_OPTIONS = [["pro", "Pro"], ["base", "Base"], ["none", "Without
 export const SORT_OPTIONS = [["newest", "Newest first"], ["oldest", "Oldest first"], ["name", "Name, A to Z"], ["problems", "Most problems"]];
 export const PAGE_SIZE = 25;
 export const EMPTY_FILTERS = { industryId: "", stage: "", plan: "", problem: false, sort: "newest" };
+
+// The older server's list can't filter by plan or problem or sort by problems, so those are dropped when it takes over.
+export const legacyFilters = (f) => ({ ...f, plan: "", problem: false, sort: f.sort === "problems" ? "newest" : f.sort });
+export const legacyIgnores = (f) => Boolean(f.plan || f.problem || f.sort === "problems");
 
 export const hasFilters = (search, f) => Boolean(String(search ?? "").trim() || f.industryId || f.stage || f.plan || f.problem);
 
@@ -107,22 +112,78 @@ export function planLabel(plan) {
 }
 
 export function subscriptionLabel(subscription) {
-  if (subscription === undefined) return "";
+  if (subscription === undefined) return "Subscription: Not available";
   if (!subscription?.status) return "No subscription";
   return `Subscription: ${humanize(subscription.status)}`;
+}
+
+// "Plans and subscriptions show as Not available." for the sources the server couldn't read.
+const SOURCE_NAMES = [["plans", "plans"], ["subscriptions", "subscriptions"], ["problems", "problems"], ["lastCalls", "last calls"]];
+export function unavailableNote(missing) {
+  const names = SOURCE_NAMES.filter(([key]) => missing.has(key)).map(([, name]) => name);
+  if (!names.length) return "";
+  const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  return `${list[0].toUpperCase()}${list.slice(1)} show as Not available. Refresh to try again.`;
 }
 
 export function lastCallLabel(at) {
   if (at === undefined) return "Not available";
   if (!at) return "No calls yet";
-  return timeAgo(at);
+  return formatRelative(at);
 }
+
+// "Just now", "5 minutes ago", "3 hours ago", "Yesterday", "10 days ago", then the date. Never "5 d ago".
+export function formatRelative(value, now = Date.now()) {
+  const t = new Date(value).getTime();
+  if (!Number.isFinite(t)) return "Not available";
+  const minutes = Math.floor(Math.max(0, now - t) / 60000);
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return minutes === 1 ? "1 minute ago" : `${minutes} minutes ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return hours === 1 ? "1 hour ago" : `${hours} hours ago`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return "Yesterday";
+  if (days < 30) return `${days} days ago`;
+  return formatDate(value);
+}
+
+// "Nov 16" this year, "Nov 16, 2025" before it.
+export function shortDate(value, now = new Date()) {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  const opts = d.getFullYear() === now.getFullYear() ? { month: "short", day: "numeric" } : { month: "short", day: "numeric", year: "numeric" };
+  return d.toLocaleDateString(undefined, opts);
+}
+
+// The Stage cell: a one word badge, with what comes next on a quiet line below ("Draft", "Next: Hours and services").
+export function stageCell(b) {
+  const state = businessState(b);
+  const words = (t) => String(t ?? "").replace(/ & /g, " and ");
+  if (state.key === "cancelled" || state.key === "suspended") return { label: state.label, tone: state.tone, note: "" };
+  const draft = state.key === "draft";
+  const label = draft ? "Draft" : stageLabel(b.onboarding_status);
+  const tone = draft ? "warning" : state.tone;
+  if (state.cancelling) return { label, tone: "warning", note: `Cancels ${formatDate(b.cancel_at)}` };
+  return { label, tone, note: draft ? `Next: ${words(resumeStep(b.onboarding_status)?.label)}` : "" };
+}
+
+// The Plan cell: "Pro, v2" with the billing interval, or a neutral "No plan" badge. The subscription badge shows only
+// when there is one.
+export function planCell(plan, subscription) {
+  const sub = subscription?.status ? humanize(subscription.status) : null;
+  if (plan === undefined) return { label: null, note: "", sub };
+  if (!plan) return { label: "No plan", none: true, note: "", sub };
+  const interval = { month: "Monthly", monthly: "Monthly", year: "Yearly", yearly: "Yearly", annual: "Yearly" }[plan.billing_interval] ?? "";
+  return { label: planLabel(plan), note: interval, sub };
+}
+
 export const lastCallTitle = (at) => (at ? formatDateTime(at) : undefined);
 
 // Problems: a count with the first one's title. null or undefined means they couldn't be looked up.
 export function problemSummary(problems) {
   if (!problems) return { label: "Not available", tone: "neutral", detail: "", count: null };
-  if (!problems.count) return { label: "None", tone: "success", detail: "", count: 0 };
+  if (!problems.count) return { label: "No problems", tone: "success", detail: "", count: 0 };
   const urgent = problems.items?.some((p) => p.severity === "urgent");
   return {
     label: problems.count === 1 ? "1 open" : `${problems.count} open`,

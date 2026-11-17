@@ -5,7 +5,7 @@ import "./OwnerPages.css";
 import { callOwnerFunction } from "./CreateBusinessWizard";
 import { Icon } from "./BusinessUI";
 import { Pill } from "./OwnerOverview";
-import { businessState, formatDate, formatDateTime } from "./ownerFormat";
+import { businessState, formatDate, formatDateTime, setupDone as isSetupDone } from "./ownerFormat";
 import { friendlyError } from "./admin/adminOps";
 import { DAYS, Empty } from "./business/shared";
 import { DEFAULT_TAB, DETAIL_TABS, tabKeyTarget } from "./business/tabs";
@@ -118,7 +118,7 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup, can =
   const phone = setupData.integrations?.phone;
   const enabledModules = data.modules.filter((m) => m.enabled);
   const enabledAutomations = data.automations.filter((a) => a.status !== "disabled");
-  const setupDone = ["testing", "ready", "active"].includes(b.onboarding_status);
+  const setupDone = isSetupDone(b.onboarding_status);   // the same rule as the Businesses list (BIZ-24)
   const state = businessState(b);
   const isCancelled = Boolean(b.cancelled_at);
   const isSuspended = Boolean(b.suspended_at);
