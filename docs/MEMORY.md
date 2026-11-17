@@ -193,7 +193,8 @@ most often needed:
   request that review on the final head before merging: no PR merges without a CodeRabbit success on its final changes.
   `docs/BACKEND_SCHEMA.md` is not reviewed, because it is generated; every schema change must still regenerate it with
   `docs/generators/backend_schema.py` from an isolated copy. Reason: the review allowance per hour is shared by every PR
-  from the one account.
+  from the one account. Draft PRs get no review when they open (`drafts: false`): when a draft is marked ready for review, comment
+  `@coderabbitai review` to start the first review.
 
 Waiting on the owner:
 
