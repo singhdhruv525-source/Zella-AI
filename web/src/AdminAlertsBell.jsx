@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "./BusinessUI";
 import { supabase } from "./supabase";
+import { formatRelative } from "./lib/format.js";
 import { chime, deviceAlerts, desktopAlert, tabCount, unlockAlerts } from "./liveAlerts";
 
 // The Zella Voice admin dashboard's bell: open platform alerts (provider down, queues stuck, failed jobs...), newest and most
@@ -12,10 +13,7 @@ const ICON = {
   provider_down: "cloud_off", provider_recovered: "cloud_done", queue_backlog: "hourglass_bottom", automation_heartbeat: "monitor_heart",
   automation_stalled: "sync_problem", scheduler_failed: "event_busy", engine_stuck_work: "build", repeated_transfer_failures: "phone_disabled",
 };
-const ago = (v) => {
-  const m = Math.round((Date.now() - new Date(v).getTime()) / 60000);
-  return m < 1 ? "just now" : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`;
-};
+const ago = (v) => formatRelative(v) || "Just now";
 
 export default function AdminAlertsBell({ onOpenMonitoring }) {
   const [open, setOpen] = useState(false);

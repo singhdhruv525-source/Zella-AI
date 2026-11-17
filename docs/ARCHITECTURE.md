@@ -1752,6 +1752,16 @@ Owner decisions of 16 Nov 2026 on platform admin pages (§23.1a):
 **REQ-ADM-20 Access states:** loading, authorized, unauthorized (signed out, MFA needed, no permission) and failed
 (couldn't check; grants nothing). A refusal always applies; a failed background refresh keeps the current view.
 
+**REQ-ADM-21 One shared admin presentation layer:** every admin page builds its tables, status badges, buttons, KPI
+cards (`Metric`), filters, drawers and settings rows from the shared components in `web/src/admin/adminOps.jsx` and
+`web/src/settings/SettingsKit.jsx`, styled in `web/src/styles/components.css` with design tokens only (REQ-WEB-06). One
+tone map gives every status word the same badge colour on every page. The shared helpers say an empty value in words
+("Never", "Not set", "Not available", or the page's own words such as "No calls yet"), never blank or "None"; times,
+counts, lengths and phone numbers go through `web/src/lib/format.js`. A page adds only its own layout on top. The
+components and their rules are listed in `docs/DESIGN_SYSTEM.md`. Not yet everywhere: the Settings panels in
+`web/src/settings/AdminPanels.jsx` and the `Facts`, `when` and `money` helpers in `SettingsKit.jsx` still print "None"
+for some empty cells; they move to the shared helpers in their own change.
+
 ### 18.6 Create Business (REQ-ADM-03)
 
 ```mermaid
