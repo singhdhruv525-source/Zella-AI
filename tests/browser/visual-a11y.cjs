@@ -20,6 +20,13 @@ const CALLS = [1, 2, 3, 4].map((n) => ({ id: "c" + n, business_id: B1, status: [
 const ME = { role: "zella_owner", roleLabel: "Zella owner", permissions: ["businesses.view", "businesses.manage", "billing.view", "security.view", "audit.view", "support.manage", "analytics.view"], mfa: true, aal: "aal2" };
 const DASH = { businesses: [1, 2, 3].map((n) => ({ id: `4000000${n}-0000-0000-0000-000000000000`, name: ["Bright Smile Family Dentistry and Orthodontics", "Glow Salon", "Fix-It Plumbing"][n - 1], industry: "Dental", onboarding_status: ["active", "owner_setup", "testing"][n - 1], is_active: n === 1, invitations: [{ status: "sent" }], created_at: ago(n * 1000), updated_at: ago(n * 100) })),
   industries: [{ id: "i1", name: "Dental", slug: "dental", is_active: true }], stats: { totalBusinesses: 3, activeWorkspaces: 1, pendingInvitations: 1, provisioningIssues: 0 } };
+// The Businesses list (businesses_list): the same three, with a plan, a last call and an open problem.
+const LIST = { total: 3, page: 0, size: 25, sort: "newest", unavailable: [], industries: [{ id: "i1", name: "Dental", is_active: true }],
+  stats: { totalBusinesses: 3, activeWorkspaces: 1, pendingInvitations: 1, withProblems: 1 },
+  rows: DASH.businesses.map((b, i) => ({ ...b, industry_id: "i1", industry_name: "Dental", stage: ["live", "draft", "complete"][i], setupDone: i !== 1, cancelling: false,
+    owner: { name: "Sam Rivera", email: "sam@example.test", status: "sent", expired: false }, plan: i === 1 ? null : { tier: "pro", version: 2, billing_interval: "monthly" },
+    subscription: i === 1 ? null : { status: "active" }, lastCallAt: i === 0 ? ago(3600) : null,
+    problems: i === 2 ? { count: 1, items: [{ kind: "invitation_expired", title: "The owner invitation expired", severity: "warning" }] } : { count: 0, items: [] } })) };
 
 const PAGES = [
   { app: "crm", url: "/app", name: "crm-today", ready: ".ba-content" },
@@ -62,6 +69,7 @@ async function page(b, { theme, width, blockFonts = false, reducedMotion = "no-p
     const body = JSON.parse(r.request().postData() || "{}");
     if (body.action === "me_admin") return r.fulfill({ json: ME });
     if (body.action === "dashboard_data") return r.fulfill({ json: DASH });
+    if (body.action === "businesses_list") return r.fulfill({ json: LIST });
     if (body.token) return r.fulfill({ json: { ok: false, reason: "invalid" } });
     return r.fulfill({ json: {} });
   });
