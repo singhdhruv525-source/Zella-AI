@@ -933,7 +933,7 @@ flowchart LR
 | **10.11 Knowledge** | REQ-LC-11: §16. Activation requires a minimum knowledge set [D-24]. |
 | **10.12 Services, hours, prices, booking rules** | REQ-LC-12: services (duration, price **entered by the business**, buffers, resources, staff), opening hours, holidays, closures, notice and horizon, approval-required bookings. |
 | **10.13 Provider connections** | REQ-LC-13: calendar (Google, Microsoft), lead sources, store (Shopify), reviews. OAuth with signed state; health checks; reconnect prompts. |
-| **10.14 Testing and activation** | REQ-LC-14: an activation checklist the server computes. Each item must pass before the business goes live: hours, at least one service or "no bookings", knowledge minimum, number routed, test inbound call answered and recorded, test message (dry run), transfer number verified, owner sign-off. Results are stored in `activation_tests`. **Pay before go live (owner, 16 Nov 2026):** once Stripe is live, the first payment must also be confirmed before the business goes live (REQ-BIL-29). Until Stripe is live the go live gate doesn't wait for payment. |
+| **10.14 Testing and activation** | REQ-LC-14: an activation checklist the server computes. Each item must pass before the business goes live: hours, at least one service or "no bookings", knowledge minimum, number routed, test inbound call answered and recorded, test message (dry run), transfer number verified, owner sign-off. Results are stored in `activation_tests`. **Pay before go live (owner, 16 Nov 2026):** once Stripe is live, the first payment must also be confirmed before the business goes live (REQ-BIL-29). Until Stripe is live the go live gate doesn't wait for payment. Whether a business on a trial goes live on its confirmed saved card trial setup (REQ-BIL-12) instead of a first payment is still waiting on the owner (`docs/MEMORY.md`). |
 | **10.15–10.18 CRM, admin, billing, reports** | §18, §17, REQ-RPT below |
 | **10.19 Support and incidents** | REQ-LC-19: in-app support requests, tickets linked to the business, audited support access, incident status page, notification of affected businesses. |
 | **10.20 Pause, cancel, export, retention, offboarding** | REQ-LC-20: there is **no pause** (D-25); the owner can schedule cancellation (signed "continue my plan" link), export everything (CSV/JSON + files), and data is deleted on the retention schedule after cancellation. All steps audited. |
@@ -1339,7 +1339,7 @@ Everything Zella Voice itself sends to a business (owner, billing contacts, team
 `docs/BILLING_EMAILS.md`), used by the admin preview and by the sender, so both show exactly the same email.
 
 **Billing emails (owner, 16 Nov 2026): build now, held.** The billing emails in `docs/BILLING_EMAILS.md` (invoices,
-receipts, renewal notices and the rest) are built now, with their tests, but stay held: nothing queues or sends them
+receipts, renewal notices and the rest) are to be built now, with their tests (not built yet), and stay held: nothing queues or sends them
 until Stripe is live (billing step 4) and `email_live` is on, each switched on with the owner's approval.
 
 Delivery (`sql/zella_email_delivery.sql`, the `platform-emails` edge function):

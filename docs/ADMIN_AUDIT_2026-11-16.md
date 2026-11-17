@@ -623,7 +623,7 @@ isolated database first.
 - [ ] Store and show n8n's response per workflow (OPS-17) · needs approval
 - [ ] "Resume all" for a business (OPS-20) · needs approval
 - [ ] Read n8n's own workflow activation and execution status with a server side key (Scheduler page says it isn't built) · needs approval
-- [ ] Webhook delivery logs, and outbound webhooks for businesses (Settings, Webhooks) · needs approval
+- [ ] Webhook delivery logs (Settings, Webhooks) · needs approval. Outbound webhooks for businesses are not planned (owner, 16 Nov 2026; architecture §36)
 
 ### Support
 - [ ] Reply to the business, alerts for urgent, cancellation and plan change tickets, age and first response with an overdue filter (OPS-25) · needs approval
@@ -634,7 +634,7 @@ isolated database first.
 ### Settings
 - [ ] Editable alert rules (condition, severity, destination, frequency, quiet window) (Settings, Alert rules) · needs approval
 - [ ] Scheduled reports and report permissions (Settings, Reporting configuration) · needs approval
-- [ ] Public API keys with scopes, hashing, last used and revocation (Settings, API management) · needs approval
+- Not planned (owner, 16 Nov 2026; architecture §36): public API keys (Settings, API management)
 - [ ] OAuth application checks (Google client set or not) in the server configuration check (Settings, OAuth applications) · needs approval
 - [ ] A per business recording on or off policy (Settings, Policy configuration) · needs approval
 - [ ] Separate retention for recordings, transcripts and audit logs (Settings, Data retention) · needs approval
