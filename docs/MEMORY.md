@@ -157,6 +157,11 @@ most often needed:
   yet: adding GitHub Actions is the owner's choice. The web labels still come from `web/src/ownerFormat.js` until the
   Businesses list job merges; then they are read from the list.
 
+- **Incident updates never notify businesses by default (OPS-12, 16 Nov 2026, recommended default taken):** an update
+  is internal unless the admin ticks Tell affected businesses (`p_notify`, false by default, in
+  `zella_incident_post_update`). Editing an open incident notifies nobody. Showing updates on the public status page
+  is not built yet (`zella_public_status` is unchanged).
+
 - **Fresh code for admin access changes (ACC-19, 16 Nov 2026, recommended default taken):** adding an admin and changing
   an admin's role or access need an authenticator code entered in the last 5 minutes (`FRESH_CODE_MAX_AGE_SECONDS` in
   `owner-provision-business/mfa_gate.ts`, read from the token's amr). No second owner approval while there are only
