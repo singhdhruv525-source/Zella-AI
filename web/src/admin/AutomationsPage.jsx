@@ -6,6 +6,7 @@ import {
   ReasonDialog, Search, Select, Tabs, can, duration, num, pct, rpc, since, useLoad, useOptions, useToast, when, words,
 } from "./adminOps";
 import ScheduledJobs from "./ScheduledJobs";
+import "./AutomationsPage.css";
 import { answersByWorkflow, dispatchAnswer } from "./dispatchAnswer";
 
 // Admin page: every business's automations, what they ran, what failed and the scheduler that drives them. Data
@@ -22,7 +23,7 @@ export default function AutomationsPage({ me, sub, onOpenBusiness }) {
   const [toast, say] = useToast();
   const options = useOptions();
   return (
-    <section className="owner-page ao-page">
+    <section className="owner-page ao-page ap-page">
       <PageHeader title="Automations" description="Reminders, follow ups and other automations for every business: their status, every run, failures and the scheduler." />
       <ErrorNote error={options.error} onRetry={options.reload} />
       <Tabs tabs={TABS} current={tab} onChange={setTab} />
@@ -106,10 +107,10 @@ function Directory({ me, options, say, onOpenBusiness }) {
         <Select label="Trigger" value={f.trigger} onChange={set("trigger")} options={(list.data?.triggers ?? []).map((t) => [t, words(t)])} />
         <Select label="Business" value={f.business} onChange={set("business")} options={(options?.businesses ?? []).map((b) => [b.id, b.name])} />
         <Select label="Industry" value={f.industry} onChange={set("industry")} options={(options?.industries ?? []).map((i) => [i.id, i.name])} />
-        {manage && f.business && <button type="button" className="bd-danger-button" onClick={() => setPauseAll(true)}>Pause all for this business</button>}
-        {manage && f.business && <button type="button" className="owner-secondary-button" onClick={() => setResumeAll(true)}>Resume all for this business</button>}
+        {manage && f.business && <button type="button" className="owner-secondary-button ap-danger-text ap-filter-action" onClick={() => setPauseAll(true)}>Pause all for this business</button>}
+        {manage && f.business && <button type="button" className="owner-secondary-button ap-filter-action" onClick={() => setResumeAll(true)}>Resume all for this business</button>}
       </Filters>
-      <p className="op-muted">Automations are created from templates when a business is set up, and changed by the business in their app. There is no "create automation" here.</p>
+      <p className="op-muted ap-helper">Automations are created from templates when a business is set up, and changed by the business in their app. There is no "create automation" here.</p>
       <ErrorNote error={list.error} onRetry={list.reload} />
       <DataTable error={list.error} loading={list.loading} rows={list.data?.rows} onRow={(r) => setOpen(r.id)} empty="No automations match these filters."
         columns={[
