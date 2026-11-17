@@ -555,7 +555,7 @@ async function recordView(admin: SupabaseClient, userId: string, businessId: str
     console.error("Support access record failed", insertError);
     await admin.rpc("zella_platform_alert", {
       p_kind: "audit_write_failed", p_title: "An admin action was not recorded in the audit log", p_detail: `business.viewed by admin ${userId}`,
-      p_severity: "urgent", p_business_id: businessId, p_dedupe_key: "business.viewed", p_meta: { action: "business.viewed" },
+      p_severity: "urgent", p_business_id: businessId, p_dedupe_key: "business.viewed", p_meta: { audit_action: "business.viewed" },
     });
   }
 }

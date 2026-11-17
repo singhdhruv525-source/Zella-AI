@@ -19,7 +19,9 @@ function Switch({ on, label, disabled, onChange }) {
   );
 }
 
-export function BusinessModulesCard({ businessId, modules, onSaved }) {
+// canEdit: the admin has businesses.manage. Without it the switches are read only and there is nothing to save (the
+// server refuses the save anyway).
+export function BusinessModulesCard({ businessId, modules, onSaved, canEdit = false }) {
   const [draft, setDraft] = useState(() => Object.fromEntries(modules.map((m) => [m.id, m.enabled])));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -65,14 +67,14 @@ export function BusinessModulesCard({ businessId, modules, onSaved }) {
                 <strong>{m.name}</strong>
                 <small>{needed.length && draft[m.id] ? `Needed by ${needed.map((n) => n.name).join(", ")}` : m.description || m.slug}</small>
               </div>
-              <Switch on={Boolean(draft[m.id])} label={m.name} disabled={saving || (draft[m.id] && needed.length > 0)} onChange={(on) => toggle(m, on)} />
+              <Switch on={Boolean(draft[m.id])} label={m.name} disabled={!canEdit || saving || (draft[m.id] && needed.length > 0)} onChange={(on) => toggle(m, on)} />
             </div>
           );
         })}
       </div>
       {error && <div className="owner-form-error op-gap-top" role="alert">{error}</div>}
       {notice && <div className="vq-notice op-gap-top" role="status">{notice}</div>}
-      {modules.length > 0 && (
+      {canEdit && modules.length > 0 && (
         <div className="bac-actions">
           <button type="button" className="owner-secondary-button" disabled={!dirty || saving} onClick={() => setDraft(Object.fromEntries(modules.map((m) => [m.id, m.enabled])))}>Discard</button>
           <button type="button" className="owner-primary-button" disabled={!dirty || saving} onClick={save}>{saving ? "Saving..." : "Save modules"}</button>
@@ -82,7 +84,7 @@ export function BusinessModulesCard({ businessId, modules, onSaved }) {
   );
 }
 
-export function BusinessRecordsCard({ businessId }) {
+export function BusinessRecordsCard({ businessId, canEdit = false }) {
   const [data, setData] = useState(null);
   const [draft, setDraft] = useState({});
   const [loading, setLoading] = useState(true);
@@ -145,8 +147,10 @@ export function BusinessRecordsCard({ businessId }) {
       {data && !data.types.length && (
         <div className="op-empty">
           {data.presetPending
-            ? <>Record types haven't been added yet. They're added when the business first opens its CRM, or now:{" "}
-              <button type="button" className="owner-secondary-button op-small" disabled={saving} onClick={applyPreset}>{saving ? "Adding..." : "Add the industry's record types"}</button></>
+            ? canEdit
+              ? <>Record types haven't been added yet. They're added when the business first opens its CRM, or now:{" "}
+                <button type="button" className="owner-secondary-button op-small" disabled={saving} onClick={applyPreset}>{saving ? "Adding..." : "Add the industry's record types"}</button></>
+              : "Record types haven't been added yet. They're added when the business first opens its CRM."
             : ["testing", "ready", "active", "paused"].includes(data.status)
               ? "This business's industry has no record types."
               : "Record types are added when setup is finished."}
@@ -161,12 +165,12 @@ export function BusinessRecordsCard({ businessId }) {
               <small>{t.records} record{t.records === 1 ? "" : "s"}{!draft[t.key] && t.records ? " · kept while hidden" : ""}</small>
             </div>
             {t.preset_key && <Pill>{humanize(t.preset_key)}</Pill>}
-            <Switch on={Boolean(draft[t.key])} label={t.plural} disabled={saving} onChange={(on) => setDraft({ ...draft, [t.key]: on })} />
+            <Switch on={Boolean(draft[t.key])} label={t.plural} disabled={!canEdit || saving} onChange={(on) => setDraft({ ...draft, [t.key]: on })} />
           </div>
         ))}
       </div>
       {notice && <div className="vq-notice op-gap-top" role="status">{notice}</div>}
-      {data?.types.length > 0 && (
+      {canEdit && data?.types.length > 0 && (
         <div className="bac-actions">
           <button type="button" className="owner-secondary-button" disabled={!dirty || saving} onClick={() => setDraft(Object.fromEntries(data.types.map((t) => [t.key, t.enabled])))}>Discard</button>
           <button type="button" className="owner-primary-button" disabled={!dirty || saving} onClick={save}>{saving ? "Saving..." : "Save record types"}</button>

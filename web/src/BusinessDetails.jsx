@@ -10,7 +10,7 @@ import { Pill } from "./OwnerOverview";
 import AutomationOverview from "./AutomationOverview";
 import { BusinessModulesCard, BusinessRecordsCard } from "./BusinessAdminControls";
 import {
-  businessState, formatDate, formatDateTime, timeAgo, formatDuration,
+  businessState, formatDate, formatDateTime, timeAgo, formatDuration, setupDone as isSetupDone,
 } from "./ownerFormat";
 import { actionLabel } from "./copy/auditActions";
 import { friendlyError } from "./admin/adminOps";
@@ -75,7 +75,7 @@ function describeSettings(settings = {}) {
 }
 
 // Small, Medium or Large: set by a Zella Voice admin, never guessed from the industry. Offers can target it.
-function BusinessSizeCard({ businessId, size, onSaved }) {
+function BusinessSizeCard({ businessId, size, onSaved, canEdit }) {
   const [value, setValue] = useState(size ?? "");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
@@ -92,15 +92,17 @@ function BusinessSizeCard({ businessId, size, onSaved }) {
   return (
     <Card title="Business size" description="Used to decide which offers this business can get.">
       <div className="bd-inline">
-        <select value={value} onChange={(e) => setValue(e.target.value)} aria-label="Business size">
+        <select value={value} onChange={(e) => setValue(e.target.value)} aria-label="Business size" disabled={!canEdit}>
           <option value="">Not set</option>
           <option value="small">Small</option>
           <option value="medium">Medium</option>
           <option value="large">Large</option>
         </select>
-        <button type="button" className="owner-secondary-button op-small" onClick={save} disabled={busy || value === (size ?? "")}>
-          {busy ? "Saving..." : "Save size"}
-        </button>
+        {canEdit && (
+          <button type="button" className="owner-secondary-button op-small" onClick={save} disabled={busy || value === (size ?? "")}>
+            {busy ? "Saving..." : "Save size"}
+          </button>
+        )}
         {msg && <span className="op-muted">{msg}</span>}
       </div>
     </Card>
@@ -151,7 +153,12 @@ function Check({ ok, later, title, detail }) {
   );
 }
 
-export default function BusinessDetails({ businessId, onBack, onOpenSetup }) {
+// can(permission): what the signed in admin may do (hasPermission in adminPermissions.js). Write buttons show only with
+// businesses.manage (setup, documents, invitations, size, modules, record types) or businesses.lifecycle (suspend,
+// reactivate, cancel); the server checks the same permission again. Without it, nothing is offered (fails closed).
+export default function BusinessDetails({ businessId, onBack, onOpenSetup, can = () => false }) {
+  const canManage = can("businesses.manage");
+  const canLifecycle = can("businesses.lifecycle");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -229,7 +236,7 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup }) {
   const phone = setupData.integrations?.phone;
   const enabledModules = data.modules.filter((m) => m.enabled);
   const enabledAutomations = data.automations.filter((a) => a.status !== "disabled");
-  const setupDone = ["testing", "ready", "active"].includes(b.onboarding_status);
+  const setupDone = isSetupDone(b.onboarding_status);   // the same rule as the Businesses list (BIZ-24)
   const state = businessState(b);
   const isCancelled = Boolean(b.cancelled_at);
   const isSuspended = Boolean(b.suspended_at);
@@ -307,7 +314,7 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup }) {
           <button type="button" className="owner-secondary-button" onClick={load} disabled={loading}>
             {loading ? "Loading..." : "↻ Refresh"}
           </button>
-          {!isCancelled && (
+          {!isCancelled && canManage && (
             <button type="button" className="owner-primary-button" onClick={() => onOpenSetup(b.id)}>
               {setupDone ? "Edit setup" : "Continue setup"}
             </button>
@@ -324,11 +331,13 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup }) {
             Suspended {formatDateTime(b.suspended_at)}{b.suspension_reason ? `: ${b.suspension_reason}` : ""}.
             The workspace, receptionist and automations are stopped.
           </span>
-          <div>
-            <button type="button" className="owner-primary-button op-small" onClick={() => setPending("reactivate")} disabled={busy}>
-              Reactivate
-            </button>
-          </div>
+          {canLifecycle && (
+            <div>
+              <button type="button" className="owner-primary-button op-small" onClick={() => setPending("reactivate")} disabled={busy}>
+                Reactivate
+              </button>
+            </div>
+          )}
         </div>
       )}
       {b.cancel_at && !isCancelled && (
@@ -337,11 +346,13 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup }) {
             Cancels on {formatDate(b.cancel_at)}{b.cancellation_reason ? `: ${b.cancellation_reason}` : ""}.
             Everything keeps working until then.
           </span>
-          <div>
-            <button type="button" className="owner-secondary-button op-small" onClick={() => setPending("undo")} disabled={busy}>
-              Undo cancellation
-            </button>
-          </div>
+          {canLifecycle && (
+            <div>
+              <button type="button" className="owner-secondary-button op-small" onClick={() => setPending("undo")} disabled={busy}>
+                Undo cancellation
+              </button>
+            </div>
+          )}
         </div>
       )}
       {isCancelled && (
@@ -399,7 +410,7 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup }) {
       {tab === "Overview" && (
         <div className="op-grid">
           <Card title="Verification" description="The business's registration and the owner's photo ID."
-            action={<button type="button" className="owner-secondary-button" onClick={() => onOpenSetup(businessId)}>{data.documents?.length ? "Review" : "Upload"}</button>}>
+            action={canManage && <button type="button" className="owner-secondary-button" onClick={() => onOpenSetup(businessId)}>{data.documents?.length ? "Review" : "Upload"}</button>}>
             {data.documentsAvailable === false ? (
               <Empty>Document storage isn't set up yet (apply sql/zella_onboarding.sql).</Empty>
             ) : (
@@ -455,9 +466,9 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup }) {
             ]} />
           </Card>
 
-          <BusinessSizeCard businessId={businessId} size={b.business_size} onSaved={load} />
+          <BusinessSizeCard businessId={businessId} size={b.business_size} onSaved={load} canEdit={canManage} />
 
-          {!isCancelled && (
+          {!isCancelled && canLifecycle && (
             <Card title="Manage business" description="Stop a business now, or end its membership when its month is over.">
               <div className="bd-manage">
                 {isSuspended ? (
@@ -518,11 +529,11 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup }) {
           </Card>
 
           <Card title="Modules" description={`${enabledModules.length} of ${data.modules.length} switched on. Only modules its industry offers are listed.`}>
-            <BusinessModulesCard key={data.modules.map((m) => `${m.id}${m.enabled}`).join()} businessId={businessId} modules={data.modules} onSaved={load} />
+            <BusinessModulesCard key={data.modules.map((m) => `${m.id}${m.enabled}`).join()} businessId={businessId} modules={data.modules} onSaved={load} canEdit={canManage} />
           </Card>
 
           <Card title="Industry records" description="Record types from its industry, such as tables, recalls or vehicles. Switching one off hides it; records are kept.">
-            <BusinessRecordsCard businessId={businessId} />
+            <BusinessRecordsCard businessId={businessId} canEdit={canManage} />
           </Card>
         </div>
       )}
@@ -555,7 +566,7 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup }) {
           <Card
             title="Invitations"
             action={
-              invitation && invitation.status !== "accepted" && !isCancelled && (
+              canManage && invitation && invitation.status !== "accepted" && !isCancelled && (
                 <button type="button" className="owner-secondary-button op-small" onClick={() => setPending("resend")} disabled={busy}>
                   Resend invitation
                 </button>
