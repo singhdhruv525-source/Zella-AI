@@ -109,6 +109,7 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile` (checked
 |---|---|---|
 | **Vapi call authentication.** Vapi sends some messages (call status, end-of-call reports) without the Authorization header, so `voice-rules` answers 401. The test assistant was reloaded with the token in every server's headers on 30 Oct. | Open | Owner test-calls the test assistant, then checks `voice-rules` logs. Real assistants need the headers sent from the server side, with approval. |
 | **Edge functions and n8n behind `main`** | Open | Deploy from `main` with approval. |
+| **Call recording is decided by Vapi's default** (16 Nov 2026): Zella Voice's assistant config never sets Vapi's recording option, so whether calls are recorded is left to Vapi's default, although recording must stay off until legal review (D-13, D-27, REQ-VOX-09). | Open, owner | Owner checks the Vapi dashboard now (recording setting on the account and each assistant). A fix on the live call path (setting recording off explicitly in the assistant config) needs its own approval. |
 | <!-- coderabbit-ai-generated:v1 --> <!-- coderabbit-ai-generated-section:v1:9123bd8d8797eb6c820594101faae82df3c1e7e1894bae6c11114bfbf409fc5f --> **Owner invitations without the app address** (`docs/ADMIN_AUDIT_2026-11-16.md` BIZ-01). Current invitationResend and the setup-finish send plan reject an unusable ZELLA_APP_URL with 503 before changing state or sending an invitation. <!-- /coderabbit-ai-generated:v1 --> | Open | <!-- coderabbit-ai-generated:v1 --> <!-- coderabbit-ai-generated-section:v1:7c407862abe286bb2872c7e7bf19ce759aff5483cd9bb2bd5a75d6dd5933192c --> Verify production deployment and live ZELLA_APP_URL configuration, then confirm the deployed revision refuses before changing state or sending. These remain unresolved. <!-- /coderabbit-ai-generated:v1 --> |
 | **Admin panel audit** (16 Nov 2026): 210 items across every admin page, 16 of them P1, with a page by page section and a build checklist, in `docs/ADMIN_AUDIT_2026-11-16.md`. Evidence: code review, a local browser crawl and visual pass on the isolated database, and read only production checks. | Open | Owner picks the order; the audit suggests one (permissions first, then sign in, invitations and lifecycle). |
 | **Scheduled cancellations** (BIZ-03, 16 Nov 2026): the daily job only marked a business cancelled and left its AI receptionist on and its subscription active; the full cancellation ran only when an admin opened Overview or Businesses. `sql/zella_cancellations_scheduled.sql` makes the scheduled path do the full cancellation, hourly. | Built, not applied | Apply with the owner's approval; it acts only once `zella_jobs_hourly` or `zella_jobs_daily` is switched on. Then remove the page open fallback from owner-provision-business. |
@@ -133,6 +134,7 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile` (checked
 | **Emails from Zella Voice to businesses:** catalogue and admin preview built; outbox `sql/zella_platform_emails.sql` applied 15 Nov 2026 (empty) | Open | Delivery applied and deployed 15 Nov 2026 (`sql/zella_email_delivery.sql`; `platform-emails` v1, which refuses a call without the Vault secret). Event based: a new email wakes the sender at once; the minute job is only a safety net. Still off, each with approval: set `platform_emails_url` and the sender address (`email_from_address`), add `RESEND_API_KEY` to the function, switch on the two event triggers and the safety net job, then turn on `email_live`. Billing emails per Stripe event in step 4. |
 | **Usage limits that act:** `sql/zella_usage_enforcement.sql` applied 15 Nov 2026 (fingerprints match the tested copy; switches off); voice-rules v8 deployed 15 Nov 2026 (files match `main`; unsigned requests refused) | Open, owner's approval | 1. Give one demo business a test fallback number the owner controls. 2. Staging call with the calls switch on for it, to prove Vapi transfers on the `destination` reply. 3. Turn on `usage_enforcement.calls`, then `.messages`, each with approval. The monthly spending limit for pay as you go needs payments (step 4). |
 | **Fallback number for every business** (owner, 15 Nov 2026: decided at Create Business, REQ-BIL-34). New businesses can't finish setup without one (owner-provision-business, merged; deployed 16 Nov 2026 as v18). | Open | The 4 businesses in production are demo businesses (owner, 15 Nov 2026), so none needs a real fallback number; one gets a test number for the staging call. |
+| **Businesses list (UI-03, UI-04, BIZ-15, BIZ-16, BIZ-23, BIZ-24, BIZ-27, BIZ-29):** the paged list action `businesses_list` and the slimmer `dashboard_data` (no members) in `owner-provision-business` are built on branch `claude/admin-businesses-list`, not deployed. The web app works against the deployed function: it gets 400 "Unknown action", falls back to `dashboard_data` and says so on the page | Open, owner's approval | Deploy in either order. `dashboard_data` keeps every field the Offers page, the setup wizard and an older web app read. Overview's totals (`overview_data`) still stop at 1,000 rows (BIZ-15, Overview part). Owner decision: `businesses_list` shows every `businesses.view` role (read only admins too) each business's saved plan tier, version and billing interval, no prices. That is new for `businesses.view` (`tenants_search` only shows the subscription's plan name); if plan detail should stay with billing roles, gate it on `billing.view`. |
 | **Safe retry on Platform operations (OPS-05):** `sql/zella_retry_event_safe.sql` (built, not applied). `zella_retry_event` gains a reason argument and refuses an event that already acted; `zella_start_execution` refuses a run of an event that isn't claimed (EVENT_NOT_CLAIMED) or that names another business (EVENT_BUSINESS_MISMATCH), and the Event Router stops for that event instead of running its handler | Open, owner's approval | Goes live as one step, in this order: the n8n Event Router (re-import `n8n/workflows/zella-event-router.json`, so a refused start runs nothing), then the SQL, then the web app (it sends the reason; the old app's retry would fail until it is published). Rollback in reverse. Not covered: two workers that both hold a claim (the 10 minute reclaim); claims carry no owner token yet |
 | **Status page honesty (OPS-01, OPS-02):** production's `/status` says "Everything is working" although every check and job is off (read 16 Nov 2026). `sql/zella_status_honest.sql` built, not applied | Open, owner's approval | Apply with the web app (either order). Once applied, `/status` will read "Not every part is checked right now" until the provider checks and the `zella_dispatch` job are switched on (PLT-07). |
 | **Business moments** (record day, call surge, weekend on call gaps): `sql/zella_business_moments.sql` applied 15 Nov 2026 and added to the hourly group; in app notifications only | Open, owner's approval | They run only once the timed job `zella_jobs_hourly` is switched on (it is off in production, like most timed jobs; only `zella_usage_thresholds` and `zella_billing_reconcile` are active). Later moments need data the app doesn't keep yet (recall due dates, seasonal demand such as tax season). |
@@ -171,6 +173,22 @@ most often needed:
   years, audit logs 7 years (D-13, D-27).
 - Lead and missed-call AI calls: 2 attempts, 2–3 hours apart, one message after each (D-01, D-02, D-12).
 - Call transcripts: managers and above; staff only if the owner allows; never in sensitive industries (M-4).
+
+- **Owner decisions of 16 Nov 2026** (architecture §23.1a, and where each requirement lives):
+  1. **Growth page (REQ-ADM-18, ACC-36): later**, not before launch. `growth.manage` doesn't exist yet and is not
+     listed as an existing permission (`docs/PRODUCT.md`).
+  2. **One platform wide default receptionist script (AI-GLOBAL-PROMPT): later.** Each business keeps its own script.
+  3. **Weekly platform summary report for admins: yes**, being built in `claude/weekly-admin-report`.
+  4. **Billing emails: build now**, held (nothing queued or sent) until Stripe and email are both live (architecture
+     §14.4, `docs/BILLING_EMAILS.md`).
+  5. **Audit history is never deleted with a business (ACC-10):** `audit_logs` keeps its rows with `business_id` set to
+     null, and the row recording the deletion keeps the business id and name (architecture §7, §20, §29). Needs a
+     migration (today the foreign key cascades); not built yet.
+  6. **Production configuration, never customer data, may be copied read only into test fixtures**, through an
+     allowlist of tables and columns (UI-35, architecture §21).
+  7. **Pay before go live applies only once Stripe is live**; until then the go live gate doesn't wait for payment
+     (REQ-LC-14, REQ-BIL-29).
+  8. **No public API, API keys or outgoing webhooks:** already recorded in PR #91 (the bullet below, architecture §36).
 
 - **No public API or outgoing webhooks (owner, 16 Nov 2026):** businesses get the Zella Voice CRM and the connections
   Zella Voice builds, nothing more. Don't build API keys, `/api/v1` endpoints or outgoing webhooks (architecture §36,
@@ -212,7 +230,9 @@ Waiting on the owner:
   businesses (BIZ-07);
 - whether to remove the never-used super-admin account that looks like a typo;
 - the trademark check for "Zella Voice";
-- an Anthropic key for knowledge drafting, when the budget allows.
+- an Anthropic key for knowledge drafting, when the budget allows;
+- for pay before go live, once Stripe is live: whether a business on a trial goes live on its confirmed saved card
+  trial setup (REQ-BIL-12) instead of a first payment.
 
 ## 6. Lessons learnt (don't repeat these)
 
