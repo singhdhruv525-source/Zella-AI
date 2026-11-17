@@ -303,18 +303,18 @@ only the pages they can use. Every admin action is written to the audit log.
 | Group | Page | What it does | Permission |
 |---|---|---|---|
 | — | **Overview** | Platform health, businesses, calls, alerts at a glance | `businesses.view` |
-| Businesses | **Businesses** | Every business; open one to see and support it; suspend, reactivate | `businesses.view` |
+| Businesses | **Businesses** | Every business, paged on the server (25 a page) with exact totals: search by name, owner, email or phone; filter by industry, stage, saved plan and "has a problem"; sort by newest, oldest, name or most problems. Each row shows the owner and their invitation, the saved plan ("Pro, v2" or "No plan saved") with the subscription status beside it, the stage (a draft names the step setup reopens at), the last call and open problems (warning or urgent platform alerts, a failed or expired owner invitation, a broken integration, failed setup). "Need attention" lists the businesses with a problem in one click. View is the main action once setup is done; create and setup buttons show only with `businesses.manage`, and suspend, reactivate and cancel on the business only with `businesses.lifecycle` (the server checks both again). Reads `businesses_list`; against an older server it falls back to the old unpaged list and says so. | `businesses.view` |
 | Businesses | **Verification** | Business and owner verification documents (private storage) | `businesses.manage` |
-| Businesses | **Create Business wizard** | Business → Owner & verification → Hours & services → Team → AI receptionist → Phone & integrations (spam protection) → Automations → CRM setup → Review. Adapts its fields to the industry, saves drafts, guards unsaved changes, and invites the owner only once setup finishes. | `businesses.manage` |
+| Businesses | **Create Business wizard** | Business → Owner & verification → Hours & services → Team → AI receptionist → Phone & integrations (spam protection) → Automations → CRM setup → Plan & pricing → Review. The ten steps show in two rows of five (numbers that wrap on a phone), Back is hidden on the first step, and the time zone search suggests a US zone. Adapts its fields to the industry, saves drafts, guards unsaved changes, and invites the owner only once setup finishes. | `businesses.manage` |
 | Configuration | **Industry configuration** | The 28 industries' configurations | `businesses.view` |
 | Configuration | **Modules & features** | Modules per industry and business | `businesses.view` |
-| Configuration | **Plans & subscriptions** | Plans and subscriptions (policy decided in architecture §17; no plan created yet) | `billing.view` |
+| Configuration | **Plans & subscriptions** | Plans and subscriptions (policy decided in architecture §17; no plan created yet). Each plan card lists every allowance in words ("AI voice minutes per period: No limit", "Languages the receptionist speaks: 2"), from `web/src/copy/planAllowances.js` | `billing.view` |
 | Configuration | **Offers & promotions** | Offers, rules, redemptions | `billing.view` |
 | AI & communications | **AI agents** | Receptionist agents and configurations | `businesses.view` |
-| AI & communications | **Voice & numbers** | Assign and release phone numbers, voice usage, alerts | `businesses.view` |
-| AI & communications | **Messaging** | Messages across businesses, templates, compliance, retries | `businesses.view` |
+| AI & communications | **Voice & numbers** | Assign and release phone numbers, voice usage, alerts. Provider connection checks are on Overview only; Providers & costs shows keys, AI voice usage (the 20 businesses with most calls, then "See all") and pricing. Call lengths read "45 s", "1 min", "2 min 5 s" | `businesses.view` |
+| AI & communications | **Messaging** | Messages across businesses, templates, compliance, retries. Live switches read in words ("Texts and emails are in test mode"), with the setting key only in a tooltip | `businesses.view` |
 | Operations | **Platform operations** | Scheduler health, dispatcher, provider health, failed work. Sending a failed event back needs `integrations.manage` and a reason, and is refused (with the reason in words) when a run of it is running or succeeded, had a step succeed or reached a provider, so a retry never repeats a message (`sql/zella_retry_event_safe.sql`, built, not applied) | `businesses.view` |
-| Operations | **Automations** | Automations and runs across businesses, retry, pause | `businesses.view` |
+| Operations | **Automations** | Automations and runs across businesses, retry, pause. Scheduler & n8n lists the scheduled jobs once, then the go live checklist in words (setting keys in tooltips) | `businesses.view` |
 | Operations | **Integrations** | Provider connections and their state | `businesses.view` |
 | Operations | **Support** | Support tickets | `support.manage` |
 | Operations | **Security & abuse** | Spam and abuse across the platform: the tabs first, then (on Overview) the period's six totals, three a row | `security.view` |
@@ -327,8 +327,9 @@ footer, until the list is scrolled to the end.
 
 Platform roles use named permissions (`businesses.view/manage`, `telephony.manage`, `comms.manage`, `ai.configure`,
 `integrations.manage`, `billing.view/manage`, `plans.manage`, `support.manage`, `security.view/manage`, `audit.view`,
-`analytics.view`, `growth.manage`). Only the Zella Voice owner manages platform admins. An admin alerts bell shows
-platform alerts live.
+`analytics.view`). Only the Zella Voice owner manages platform admins. An admin alerts bell shows
+platform alerts live. The Growth page (prospects and demos, REQ-ADM-18) and its `growth.manage` permission come
+later, not before launch (owner, 16 Nov 2026).
 
 ### 9.1 One business's page (`/businesses/<id>`)
 
