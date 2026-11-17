@@ -193,7 +193,8 @@ most often needed:
   ready, never the figures, because every admin sees the bell and gets the digest. Built, not applied
   (`sql/zella_weekly_platform_report.sql`); runs once `zella_jobs_weekly` is on. Found while building it:
   `zella_check_business_moments` is in the hourly list but not in `zella_run_scheduled_job`'s allowed list, so the
-  hourly job would return not_allowed for it (not fixed here).
+  hourly job would return not_allowed for it. Fixed by `sql/zella_business_moments_job.sql` (built, not applied;
+  apply it after the weekly report file).
 
 Waiting on the owner:
 
