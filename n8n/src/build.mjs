@@ -124,6 +124,9 @@ const router = wf('Zella Voice - Event Router', [
   rpcNode('Start execution', [720, 200], 'zella_start_execution',
     "={{ JSON.stringify({ p_workflow_key: 'event_router', p_business_id: $json.event.business_id, p_event_id: $json.event.id, p_workflow_version: '1', p_correlation_id: $json.event.correlation_id }) }}",
     { full: true }),
+  // the database refuses to start a run of an event this worker no longer holds (EVENT_NOT_CLAIMED, for example after
+  // an admin sent it back): then nothing runs and the event is left alone for the worker that holds it now
+  ifBool('Started', [840, 200], "={{ Number($json.statusCode) >= 200 && Number($json.statusCode) < 300 }}"),
   ifBool('Has handler', [960, 200], "={{ $('Route').item.json.plan !== null }}"),
   rpcNode('Run handler', [1200, 100], '',
     "={{ JSON.stringify($('Route').item.json.plan.body) }}",
@@ -138,7 +141,8 @@ const router = wf('Zella Voice - Event Router', [
   'Run now': { main: [[link('Claim events')]] },
   'Claim events': { main: [[link('Route')]] },
   'Route': { main: [[link('Start execution')]] },
-  'Start execution': { main: [[link('Has handler')]] },
+  'Start execution': { main: [[link('Started')]] },
+  'Started': { main: [[link('Has handler')], []] },
   'Has handler': { main: [[link('Run handler')], [link('Result')]] },
   'Run handler': { main: [[link('Result')]] },
   'Result': { main: [[link('Finish execution')]] },

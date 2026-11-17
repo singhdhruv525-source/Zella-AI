@@ -5184,7 +5184,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 |---|---|---|---|
 | `zella_retry_automation_run(p_run_id uuid)` | text | yes | signed in |
 | `zella_retry_dead_letter(p_id uuid)` | boolean | yes | signed in |
-| `zella_retry_event(p_event_id uuid)` | text | yes | signed in |
+| `zella_retry_event(p_event_id uuid, p_reason text)` | text | yes | signed in |
 | `zella_retry_failed(p_business_id uuid, p_kind text, p_id uuid)` | text | yes | signed in |
 
 ### `zella_review_*` (15)
