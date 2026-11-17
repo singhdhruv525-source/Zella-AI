@@ -105,7 +105,7 @@ Security boundary (**Verified**):
 | Route | Page | Component (file) | Server actions (owner function) | Database functions | Tables read |
 |---|---|---|---|---|---|
 | `/` | Overview | `OwnerOverview` (OwnerOverview.jsx) | `overview_data` | — | — |
-| `/businesses`, `/businesses/<id>`, `/businesses/new` | Businesses, business details, create-business wizard | inline list in `OwnerDashboard`, `BusinessDetails` (BusinessDetails.jsx), `CreateBusinessWizard` | `tenants_search`, `business_detail`, `dashboard_data`, `setup_load`, `setup_save_*` (11 steps), `setup_finish`, `setup_document_*` | — | — |
+| `/businesses`, `/businesses/<id>`, `/businesses/new` | Businesses, business details, create-business wizard | `BusinessesPage` (BusinessesPage.jsx, state kept in `OwnerDashboard`), `BusinessDetails` (BusinessDetails.jsx), `CreateBusinessWizard` | `businesses_list` (falls back to `dashboard_data` on an older server), `business_detail`, `dashboard_data` (the wizard's industry list), `setup_load`, `setup_save_*` (11 steps), `setup_finish`, `setup_document_*` | — | — |
 | `/verification` | Verification | `VerificationQueue` (VerificationQueue.jsx) | `document_review`, `document_view`, `documents_queue` | — | — |
 | `/security-abuse` | Security & Abuse | `SecurityAbuse` (SecurityAbuse.jsx) | `spam_admin_automation_save`, `spam_admin_incident`, `spam_admin_incidents`, `spam_admin_overview`, `spam_admin_policy_save`, `spam_admin_rule_add`, `spam_admin_rule_remove`, `spam_admin_rules` | — | — |
 | `/audit-logs` | Audit Logs | `AuditLogs` (AuditLogs.jsx) | `audit_logs` | — | — |

@@ -1,0 +1,165 @@
+/* Businesses list (BusinessesPage.jsx). Page scoped: shared rules live in styles/components.css. */
+
+/* Header: Updated, Refresh and the one primary action sit together on the right */
+.bl-heading-actions { align-items: center; gap: var(--zella-space-3); flex-wrap: wrap; justify-content: flex-end; }
+
+/* Small secondary buttons (the shared .owner-secondary-button.sm, scoped here until it ships in components.css) */
+.bl-page .owner-secondary-button.bl-btn-sm {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--zella-space-1);
+  min-height: 32px; height: 32px; padding: 0 var(--zella-space-3);
+  font-size: var(--zella-text-sm); white-space: nowrap;
+}
+
+/* KPI cards: label, value, note, no icon tiles, one height */
+.bl-stats .owner-stat-card { min-height: 116px; display: flex; flex-direction: column; justify-content: space-between; gap: var(--zella-space-2); }
+.bl-stats .owner-stat-note { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bl-stat-link { font: inherit; text-align: left; color: inherit; cursor: pointer; transition: border-color 0.12s ease, box-shadow 0.12s ease; }
+.bl-stat-link .owner-stat-top { display: flex; align-items: center; justify-content: space-between; }
+.bl-stat-link .ba-icon { color: var(--zella-text-secondary); }
+.bl-stat-link:hover { border-color: var(--zella-border-strong); box-shadow: var(--zella-shadow-md); }
+.bl-stat-link:focus-visible { outline: 2px solid var(--zella-focus); outline-offset: 2px; }
+.bl-stat-link[aria-pressed="true"] { border-color: var(--zella-primary-border); background: var(--zella-primary-soft); }
+
+/* Filters: one row. Search is wider, every control is 36px, the chip and Clear sit at the end. */
+.bl-filters { padding: var(--zella-space-4) var(--zella-space-5) 0; }
+.bl-filters .ao-unavailable { margin-bottom: var(--zella-space-3); }
+.bl-filter-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--zella-space-3); margin-bottom: var(--zella-space-4); }
+.bl-filter-row .ao-filter { flex: 1 1 120px; min-width: 0; }
+.bl-filter-row .bl-search { flex: 2 1 200px; }
+.bl-filter-row .ao-filter select,
+.bl-filter-row .ao-filter input[type="search"] { width: 100%; min-width: 0; height: 36px; }
+.bl-search-line { display: contents; }
+.bl-filters-toggle { display: none; }
+.bl-chip {
+  display: inline-flex; align-items: center; gap: var(--zella-space-1); flex: none;
+  height: 36px; padding: 0 var(--zella-space-3);
+  border: 1px solid var(--zella-border-strong); border-radius: var(--zella-radius-full);
+  background: var(--zella-card); color: var(--zella-text);
+  font: inherit; font-size: var(--zella-text-sm); font-weight: 500; white-space: nowrap; cursor: pointer;
+}
+.bl-chip:hover { background: var(--zella-alt); }
+.bl-chip[aria-pressed="true"] { background: var(--zella-primary-soft); color: var(--zella-text); border-color: var(--zella-primary-border); box-shadow: inset 0 0 0 1px var(--zella-primary-border); }
+.bl-text-button {
+  flex: none; height: 36px; padding: 0 var(--zella-space-2); border: 0; background: none;
+  color: var(--zella-text); font: inherit; font-size: var(--zella-text-sm); font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.bl-text-button:hover, .bl-text-button:focus-visible { text-decoration: underline; }
+
+/* Table: one rhythm, no broken words, every value on its own line */
+.owner-table.bl-table { table-layout: auto; width: 100%; }
+.owner-table.bl-table th,
+.owner-table.bl-table td { padding: 10px var(--zella-space-3); vertical-align: middle; }
+.owner-table.bl-table th:first-child,
+.owner-table.bl-table td:first-child { padding-left: var(--zella-space-5); }
+.owner-table.bl-table th:last-child,
+.owner-table.bl-table td:last-child { padding-right: var(--zella-space-5); }
+.owner-table.bl-table th.col-plan { width: 132px; }
+.owner-table.bl-table th.col-stage { width: 168px; }
+.owner-table.bl-table th.col-call { width: 120px; }
+.owner-table.bl-table .col-actions { width: 1%; white-space: nowrap; text-align: right; }
+.bl-table td > * + * { margin-top: 2px; }
+.bl-table td > span, .bl-table td > button { display: block; }
+.bl-table .op-pill, .bl-table .owner-badge { white-space: nowrap; }
+.bl-table td > .op-pill { display: inline-flex; }
+.bl-badge-line { margin-top: var(--zella-space-1) !important; }
+.bl-table .owner-table-secondary {
+  max-width: 28ch; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  color: var(--zella-text-secondary); font-size: var(--zella-text-xs);
+}
+.bl-table .owner-cell-truncate { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bl-table .col-business .owner-cell-truncate { max-width: 260px; }
+.bl-strong { color: var(--zella-text); font-weight: 600; }
+.bl-name {
+  padding: 0; border: 0; background: none; text-align: left; cursor: pointer;
+  color: var(--zella-text); font: inherit; font-size: var(--zella-text-base); font-weight: 600;
+}
+.bl-name:hover, .bl-name:focus-visible { text-decoration: underline; }
+.bl-nowrap { white-space: nowrap; }
+.bl-table .empty-value { color: var(--zella-text-faint); font-weight: 400; }
+.bl-table .bl-row { cursor: pointer; }
+.bl-table .bl-row:hover td { background: var(--zella-alt); }
+.bl-message td { cursor: default; }
+
+/* Actions: one small button, and the overflow menu (or the same space) on the right */
+.bl-actions { display: inline-flex; align-items: center; justify-content: flex-end; gap: var(--zella-space-1); }
+.bl-menu { position: relative; }
+.bl-menu-spacer { display: inline-block; width: 32px; }
+.bl-icon-button {
+  display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px;
+  border: 0; border-radius: var(--zella-radius-full); background: none; color: var(--zella-text-secondary); cursor: pointer;
+}
+.bl-icon-button:hover, .bl-icon-button[aria-expanded="true"] { background: var(--zella-subtle); color: var(--zella-text); }
+.bl-menu-list {
+  position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; min-width: 160px; padding: var(--zella-space-1);
+  border: 1px solid var(--zella-border); border-radius: var(--zella-radius-md); background: var(--zella-card); box-shadow: var(--zella-shadow-pop);
+  text-align: left;
+}
+.bl-menu-list button {
+  display: block; width: 100%; padding: var(--zella-space-2) var(--zella-space-3); border: 0; border-radius: var(--zella-radius-sm);
+  background: none; color: var(--zella-text); font: inherit; font-size: var(--zella-text-sm); text-align: left; cursor: pointer;
+}
+.bl-menu-list button:hover, .bl-menu-list button:focus-visible { background: var(--zella-alt); }
+
+/* Footer: "Showing 1 to 25 of 96" on the left, Previous and Next on the right, inside the card padding */
+.bl-footer.owner-table-foot { display: flex; justify-content: space-between; align-items: center; gap: var(--zella-space-2); padding: var(--zella-space-3) var(--zella-space-5); }
+.bl-foot-text { color: var(--zella-text-secondary); font-size: var(--zella-text-sm); font-variant-numeric: tabular-nums; }
+.bl-pager { display: inline-flex; gap: var(--zella-space-2); }
+.bl-pager .ba-icon { font-size: 18px; }
+
+.bl-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+@media (max-width: 1100px) {
+  .owner-table.bl-table .col-problems .owner-table-secondary { display: none; }
+}
+
+/* Phones: filters fold behind "Filters (2)", and each business becomes a card */
+@media (max-width: 600px) {
+  .bl-heading-actions { justify-content: flex-start; }
+  .bl-heading-actions .owner-primary-button { flex: 1 1 100%; justify-content: center; order: 3; }
+  .bl-stats .owner-stat-card { min-height: 104px; }
+
+  .bl-filters { padding: var(--zella-space-3) var(--zella-space-4) 0; }
+  .bl-filter-row { gap: var(--zella-space-2); }
+  .bl-search-line { display: flex; flex: 1 1 100%; align-items: flex-end; gap: var(--zella-space-2); }
+  .bl-filter-row .bl-search { flex: 1 1 0; }
+  .bl-filters-toggle { display: inline-flex; flex: none; height: 36px; align-items: center; }
+  .bl-filter-row .ao-filter:not(.bl-search) { flex: 1 1 calc(50% - var(--zella-space-2)); }
+  .bl-filters[data-open="false"] .bl-filter-row > .ao-filter:not(.bl-search),
+  .bl-filters[data-open="false"] .bl-filter-row > .bl-chip { display: none; }
+
+  .bl-table-wrap { overflow: visible; }
+  .owner-table--cards.bl-table, .owner-table--cards.bl-table tbody { display: block; width: 100%; }
+  .owner-table--cards.bl-table thead { display: none; }
+  .owner-table--cards.bl-table tr.bl-row {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px var(--zella-space-3);
+    grid-template-areas: "name stage" "owner call" "problems action";
+    padding: var(--zella-space-3) var(--zella-space-4); border-bottom: 1px solid var(--zella-border);
+  }
+  .owner-table--cards.bl-table tr.bl-row td { padding: 0; border: 0; width: auto; min-width: 0; }
+  .owner-table--cards.bl-table td[data-label]::before {
+    content: attr(data-label); display: block; color: var(--zella-text-secondary); font-size: var(--zella-text-xs);
+  }
+  .owner-table--cards.bl-table .col-business { grid-area: name; }
+  .owner-table--cards.bl-table .col-stage { grid-area: stage; text-align: right; }
+  .owner-table--cards.bl-table .col-stage .owner-table-secondary { display: none; }
+  .owner-table--cards.bl-table .col-owner { grid-area: owner; }
+  .owner-table--cards.bl-table .col-owner .bl-badge-line,
+  .owner-table--cards.bl-table .col-owner .owner-table-secondary { display: none; }
+  .owner-table--cards.bl-table .col-call { grid-area: call; text-align: right; }
+  .owner-table--cards.bl-table .col-plan { display: none; }
+  .owner-table--cards.bl-table .col-problems { grid-area: problems; align-self: center; }
+  .owner-table--cards.bl-table .col-problems[data-empty="true"] { visibility: hidden; }
+  .owner-table--cards.bl-table .col-problems .owner-table-secondary { display: none; }
+  .owner-table--cards.bl-table .col-actions { grid-area: action; }
+  .owner-table--cards.bl-table .owner-cell-truncate { max-width: 100%; }
+  .owner-table--cards.bl-table .owner-table-secondary { max-width: 100%; }
+  .owner-table--cards.bl-table tr.bl-message { display: block; }
+  .owner-table--cards.bl-table tr.bl-message td { display: block; }
+
+  .bl-footer.owner-table-foot { padding: var(--zella-space-3) var(--zella-space-4); }
+  .bl-pager-word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .bl-pager .owner-secondary-button.bl-btn-sm { width: 36px; height: 36px; padding: 0; }
+}
+
+/* Hover is a quiet tint only: no left bar (the bar marks a selected row) */
+.owner-table.bl-table tbody tr.bl-row:hover { box-shadow: none; }
