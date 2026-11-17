@@ -6,6 +6,7 @@ import { supabase } from "../supabase";
 import { Icon } from "../BusinessUI";
 import { Pill } from "../OwnerOverview";
 import { humanize } from "../copy/labels";
+import { formatCount, formatDateTime, formatDuration, formatRelative, formatTime } from "../lib/format.js";
 
 // Shared pieces for the admin Voice & numbers, Messaging and Automations pages. Everything is read and changed
 // through the zella_admin_* database functions (sql/zella_admin_ops.sql), which check the admin's permission,
@@ -68,39 +69,74 @@ export function useLoad(loader, deps) {
   return { ...state, reload: useCallback(() => setTick((t) => t + 1), []) };
 }
 
-// An empty time says what it means where the caller knows ("Never", "No calls yet"); "None" otherwise.
-export const when = (v, empty = "None") => (v ? new Date(v).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : empty);
+// A cell or fact with no value is never blank or "None". Short words per kind of value: "Not set" for
+// configuration, "Never" for times, "Not available" for counts and lengths the server didn't send (docs/DESIGN_SYSTEM.md,
+// Writing). A caller that knows better passes its own words ("No calls yet", "Not recorded").
+export function EmptyValue({ label = "Not set" }) {
+  return <span className="empty-value">{label}</span>;
+}
+
+// Times, counts and lengths go through lib/format.js. The plain functions return a node (EmptyValue when there is no
+// value); the *Text versions return a string for sentences, titles and labels.
+export const whenText = (v, empty = "Never") => formatDateTime(v) || empty;
+export const when = (v, empty = "Never") => (formatDateTime(v) ? <time className="owner-when" dateTime={new Date(v).toISOString()}>{formatDateTime(v)}</time> : <EmptyValue label={empty} />);
+// "5 days ago", with the exact time on hover.
+export const ago = (v, empty = "Never") => (formatRelative(v) ? <time dateTime={new Date(v).toISOString()} title={formatDateTime(v)}>{formatRelative(v)}</time> : <EmptyValue label={empty} />);
 export const words = humanize;
-export const num = (n) => (n === null || n === undefined ? "Not available" : Number(n).toLocaleString());
-export const pct = (n) => (n === null || n === undefined ? "Not available" : `${n}%`);
-// One length format everywhere: "45 s", "1 min", "2 min 5 s", "1 h 2 min". An unknown length says so in words.
-export function duration(s, empty = "Not available") {
-  if (s === null || s === undefined || s === "" || !Number.isFinite(Number(s))) return empty;
-  const v = Math.max(0, Math.round(Number(s)));
-  if (v < 60) return `${v} s`;
-  if (v < 3600) return v % 60 ? `${Math.floor(v / 60)} min ${v % 60} s` : `${v / 60} min`;
-  const m = Math.floor((v % 3600) / 60);
-  return m ? `${Math.floor(v / 3600)} h ${m} min` : `${Math.floor(v / 3600)} h`;
+export const numText = (n) => formatCount(n) || "Not available";
+export const num = (n) => (formatCount(n) || <EmptyValue label="Not available" />);
+export const pct = (n) => (n === null || n === undefined || n === "" ? "Not available" : `${n}%`);
+// One length format everywhere: "45 s", "1 min", "2 min 5 s", "1 h 2 min" (lib/format.js).
+export const durationText = (s, empty = "Not available") => formatDuration(s) || empty;
+export const duration = (s, empty = "Not available") => (formatDuration(s) || <EmptyValue label={empty} />);
+
+// One tone per status word, the same everywhere: Live, Active and Ready are success; Trial, In progress and Scheduled
+// are info; Draft, Not yet and Pending are warning. Anything else is neutral unless the page says otherwise.
+const TONES = {
+  success: ["live", "active", "ready", "healthy", "on", "succeeded", "completed", "done", "paid"],
+  info: ["trial", "trialing", "in progress", "scheduled", "running", "queued"],
+  warning: ["draft", "not yet", "pending", "waiting", "paused", "past due"],
+  danger: ["failed", "failing", "error", "urgent", "suspended", "rejected", "overdue"],
+};
+export function statusTone(word) {
+  const w = String(word ?? "").trim().toLowerCase().replace(/_/g, " ");
+  return Object.keys(TONES).find((tone) => TONES[tone].includes(w)) ?? "neutral";
 }
 
 export const PERIODS = [[1, "Last 24 hours"], [7, "Last 7 days"], [30, "Last 30 days"], [90, "Last 90 days"]];
 export const since = (days) => new Date(Date.now() - days * 86400000).toISOString();
 
-export function PageHeader({ title, description, actions }) {
+// The one page header. The eyebrow is the sidebar group (Businesses, Configuration, AI and communications,
+// Operations), the title is the sidebar label. "Updated 2:44 PM" and Refresh sit in the actions, left of the single
+// primary button, so no card carries its own Refresh.
+export function PageHeader({ eyebrow, title, description, actions, updatedAt, onRefresh, refreshing }) {
+  const updated = formatTime(updatedAt);
+  const hasActions = actions || onRefresh || updated;
   return (
     <div className="owner-page-heading">
-      <div>
+      <div className="owner-page-heading-copy">
+        {eyebrow && <div className="owner-eyebrow">{eyebrow}</div>}
         <h1>{title}</h1>
-        <p>{description}</p>
+        {description && <p>{description}</p>}
       </div>
-      {actions && <div className="op-heading-actions">{actions}</div>}
+      {hasActions && (
+        <div className="op-heading-actions">
+          {updated && <span className="op-updated op-muted" title={formatDateTime(updatedAt)}>Updated {updated}</span>}
+          {onRefresh && (
+            <button type="button" className="owner-secondary-button sm" onClick={onRefresh} disabled={refreshing}>
+              <Icon name="refresh" size="sm" />{refreshing ? "Refreshing…" : "Refresh"}
+            </button>
+          )}
+          {actions}
+        </div>
+      )}
     </div>
   );
 }
 
 export function Tabs({ tabs, current, onChange }) {
   return (
-    <div className="op-tabs" role="tablist">
+    <div className="op-tabs owner-scroll-fade" role="tablist">
       {tabs.map(([key, label, count]) => (
         <button key={key} type="button" role="tab" aria-selected={current === key} className={current === key ? "active" : ""} onClick={() => onChange(key)}>
           {label}{count ? <span className="ao-tab-count">{count}</span> : null}
@@ -110,14 +146,21 @@ export function Tabs({ tabs, current, onChange }) {
   );
 }
 
-export function Metric({ label, value, note, tone }) {
-  return (
-    <div className={`owner-stat-card${tone ? ` ao-stat-${tone}` : ""}`}>
-      <div className="owner-stat-top"><span>{label}</span></div>
+// One KPI card: label, value, one line of note. A card that filters the list is a real button (onClick), with a
+// chevron, a hover border and the focus ring; `pressed` marks the filter it applies as on.
+export function Metric({ label, value, note, tone, onClick, pressed }) {
+  const body = (
+    <>
+      <div className="owner-stat-top"><span>{label}</span>{onClick && <Icon name="chevron_right" size="sm" className="owner-stat-chev" />}</div>
       <div className="owner-stat-value">{value}</div>
-      {note && <div className="owner-stat-note">{note}</div>}
-    </div>
+      {note && <div className="owner-stat-note" title={typeof note === "string" ? note : undefined}>{note}</div>}
+    </>
   );
+  const cls = `owner-stat-card${tone ? ` ao-stat-${tone}` : ""}`;
+  if (onClick) {
+    return <button type="button" className={`${cls} owner-stat-card--action`} onClick={onClick} aria-pressed={pressed === undefined ? undefined : Boolean(pressed)}>{body}</button>;
+  }
+  return <div className={cls}>{body}</div>;
 }
 
 export function Panel({ title, description, action, children }) {
@@ -158,8 +201,21 @@ export function NotAvailable({ title, children, tip }) {
   );
 }
 
-export function Filters({ children }) {
-  return <div className="ao-filters">{children}</div>;
+// One row of filters: search first, then selects, dates and toggle chips, and Clear filters as a text button at the
+// end. On phones the row folds behind a "Filters (2)" button. `active` is how many filters are set.
+export function Filters({ children, active = 0, onClear }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className={`ao-filters-wrap${open ? " open" : ""}`}>
+      <button type="button" className="owner-secondary-button sm ao-filters-toggle" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        <Icon name="tune" size="sm" />Filters{active ? ` (${active})` : ""}
+      </button>
+      <div className="ao-filters op-filters">
+        {children}
+        {onClear && active > 0 && <button type="button" className="owner-link-button ao-clear" onClick={onClear}>Clear filters</button>}
+      </div>
+    </div>
+  );
 }
 
 export function Select({ label, value, onChange, options, any = "All" }) {
@@ -185,73 +241,98 @@ export function Search({ label = "Search", value, onChange, placeholder }) {
   );
 }
 
+// A yes or no filter, as a chip in the filter row.
 export function Toggle({ label, checked, onChange }) {
   return (
-    <label className="ao-filter ao-check">
-      <input type="checkbox" checked={Boolean(checked)} onChange={(e) => onChange(e.target.checked)} />
-      <span>{label}</span>
-    </label>
+    <button type="button" className={`ao-chip ao-toggle${checked ? " on" : ""}`} aria-pressed={Boolean(checked)} onClick={() => onChange(!checked)}>
+      {checked && <Icon name="check" size="sm" />}{label}
+    </button>
   );
 }
 
 export const PAGE = 25;
 
-export function Pager({ total, offset, onChange }) {
-  if (!total || total <= PAGE) return total ? <p className="op-muted ao-pager">{total} shown</p> : null;
-  const last = Math.min(offset + PAGE, total);
+// The one table footer, inside the card: what is shown on the left, Previous and Next on the right.
+export function Pager({ total, offset = 0, onChange, pageSize = PAGE }) {
+  if (!total) return null;
+  if (total <= pageSize && offset === 0) {
+    return <div className="owner-table-foot ao-pager"><span className="op-muted">{formatCount(total)} shown</span></div>;
+  }
+  // A list that shrank under a later page (a row paused or resolved) keeps Previous, so the earlier rows stay reachable.
+  const last = Math.min(offset + pageSize, total);
   return (
-    <div className="ao-pager">
-      <span className="op-muted">{offset + 1} to {last} of {num(total)}</span>
-      <button type="button" className="owner-secondary-button" disabled={offset === 0} onClick={() => onChange(Math.max(0, offset - PAGE))}>Previous</button>
-      <button type="button" className="owner-secondary-button" disabled={last >= total} onClick={() => onChange(offset + PAGE)}>Next</button>
+    <div className="owner-table-foot ao-pager">
+      <span className="op-muted">{offset >= total ? `Nothing on this page, ${formatCount(total)} in all` : `Showing ${formatCount(offset + 1)} to ${formatCount(last)} of ${formatCount(total)}`}</span>
+      <div className="owner-table-foot-nav">
+        <button type="button" className="owner-secondary-button sm" aria-label="Previous page" disabled={offset === 0} onClick={() => onChange(Math.max(0, offset - pageSize))}>
+          <Icon name="chevron_left" size="sm" /><span className="owner-pager-word">Previous</span>
+        </button>
+        <button type="button" className="owner-secondary-button sm" aria-label="Next page" disabled={last >= total} onClick={() => onChange(offset + pageSize)}>
+          <span className="owner-pager-word">Next</span><Icon name="chevron_right" size="sm" />
+        </button>
+      </div>
     </div>
   );
 }
 
-// columns: [header, (row) => cell, className?]
-export function DataTable({ columns, rows, empty, onRow, loading, error, rowKey = (r) => r.id }) {
+// columns: [header, (row) => cell, className?, label?]. `label` names the value on a phone card when the header is
+// not plain text. Use className "num" for numbers and "col-actions" for the action cell. With `cards`, the table
+// becomes one card per row under 600px. `selected(row)` marks the open row.
+export function DataTable({ columns, rows, empty, onRow, loading, error, rowKey = (r) => r.id, cards = false, selected }) {
   if (error) return <div className="op-empty" role="status">Results are unavailable. Try again.</div>;
   if (loading) return <p className="op-muted">Loading…</p>;
   if (!rows?.length) return <div className="op-empty">{empty}</div>;
+  const labelOf = ([h, , cls, label]) => (String(cls ?? "").includes("col-actions") ? undefined : label ?? (typeof h === "string" ? h : undefined));
   return (
-    <div className="owner-table-wrap" tabIndex={0}>
-      <table className="owner-table ao-table">
-        <thead><tr>{columns.map(([h], i) => <th key={i}>{h}</th>)}</tr></thead>
+    <div className={`owner-table-wrap${cards ? " owner-table-wrap--cards" : ""}`} tabIndex={0}>
+      <table className={`owner-table ao-table${cards ? " owner-table--cards" : ""}`}>
+        <thead><tr>{columns.map(([h, , cls], i) => <th key={i} className={cls}>{h}</th>)}</tr></thead>
         <tbody>
-          {rows.map((r) => (
-            <tr key={rowKey(r)} className={onRow ? "ao-clickable" : ""} onClick={onRow ? () => onRow(r) : undefined}
-              tabIndex={onRow ? 0 : undefined} onKeyDown={onRow ? (e) => { if (e.key === "Enter") onRow(r); } : undefined}>
-              {columns.map(([, cell, cls], i) => <td key={i} className={cls}>{cell(r)}</td>)}
-            </tr>
-          ))}
+          {rows.map((r) => {
+            const isSelected = selected ? Boolean(selected(r)) : false;
+            const cls = [onRow ? "ao-clickable" : "", isSelected ? "is-selected" : ""].filter(Boolean).join(" ");
+            return (
+              <tr key={rowKey(r)} className={cls || undefined} aria-selected={selected ? isSelected : undefined} onClick={onRow ? () => onRow(r) : undefined}
+                tabIndex={onRow ? 0 : undefined} onKeyDown={onRow ? (e) => { if (e.key === "Enter") onRow(r); } : undefined}>
+                {columns.map((col, i) => <td key={i} className={col[2]} data-label={labelOf(col)}>{col[1](r)}</td>)}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
   );
 }
 
-export function Drawer({ title, icon = "info", onClose, children }) {
+// A side panel: a small eyebrow ("Plan"), the title (the business name), an optional status badge, the content, and
+// an optional sticky footer for its actions.
+export function Drawer({ title, eyebrow, status, onClose, footer, children }) {
   const dialogRef = useDialogFocus(onClose);
+  const label = typeof title === "string" ? title : eyebrow;
   return createPortal(
     <div className="owner-modal-overlay ao-drawer-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <aside ref={dialogRef} tabIndex={-1} className="owner-modal sa-drawer ao-drawer" role="dialog" aria-modal="true" aria-label={title}>
-        <div className="ao-dialog-head ao-drawer-head">
-          <span className="ao-dialog-icon"><Icon name={icon} /></span>
-          <h3>{title}</h3>
+      <aside ref={dialogRef} tabIndex={-1} className={`owner-modal sa-drawer ao-drawer${footer ? " has-foot" : ""}`} role="dialog" aria-modal="true" aria-label={label}>
+        <div className="ao-drawer-head">
+          <div className="ao-drawer-title">
+            {eyebrow && <span className="ao-drawer-eyebrow">{eyebrow}</span>}
+            <h3>{title}</h3>
+          </div>
+          {status}
           <button type="button" className="owner-icon-button" aria-label="Close" onClick={onClose}><Icon name="close" size="sm" /></button>
         </div>
-        {children}
+        <div className="ao-drawer-body">{children}</div>
+        {footer && <div className="ao-drawer-foot">{footer}</div>}
       </aside>
     </div>,
     document.body
   );
 }
 
-export function Facts({ rows }) {
+export function Facts({ rows, empty = "Not set" }) {
   return (
     <dl className="ao-facts">
       {rows.filter(Boolean).map(([k, v]) => (
-        <div key={k}><dt>{k}</dt><dd>{v === null || v === undefined || v === "" ? <span className="op-muted">None</span> : v}</dd></div>
+        <div key={k}><dt>{k}</dt><dd>{v === null || v === undefined || v === "" ? <EmptyValue label={empty} /> : v}</dd></div>
       ))}
     </dl>
   );

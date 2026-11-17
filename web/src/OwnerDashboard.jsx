@@ -68,7 +68,7 @@ const NAVIGATION = [
   { label: "Modules & Features", title: "Modules & features", icon: "widgets", path: "/modules", group: "Configuration", perm: "businesses.view" },
   { label: "Plans & Subscriptions", title: "Plans & subscriptions", icon: "credit_card", path: "/plans", group: "Configuration", perm: "billing.view" },
   { label: "Offers & Promotions", title: "Offers & promotions", icon: "sell", path: "/offers", group: "Configuration", perm: "billing.view" },
-  { label: "AI Agents", title: "AI agents", icon: "smart_toy", path: "/agents", group: "AI & communications", perm: "businesses.view" },
+  { label: "AI Agents", title: "AI receptionists", icon: "smart_toy", path: "/agents", group: "AI & communications", perm: "businesses.view" },
   { label: "Voice & numbers", icon: "call", path: "/voice", tabs: true, group: "AI & communications", perm: "businesses.view" },
   { label: "Messaging", icon: "forum", path: "/messaging", tabs: true, group: "AI & communications", perm: "businesses.view" },
   { label: "Platform Operations", title: "Platform operations", icon: "monitor_heart", path: "/operations", group: "Operations", perm: "businesses.view" },
@@ -242,6 +242,8 @@ useEffect(() => {
   return (
     <div className="owner-app">
       {navOpen && <button type="button" className="zella-nav-backdrop" aria-label="Close menu" onClick={() => setNavOpenAt(null)} />}
+      {/* The column carries the sidebar's background and border down the whole page; only the nav inside is sticky. */}
+      <div className="owner-sidebar-col">
       <aside id="owner-sidebar" className={`owner-sidebar ${navOpen ? "open" : ""}`} aria-label="Main navigation">
         <SidebarBrand caption="Platform control" toggle={<DockToggle />} />
 
@@ -287,6 +289,7 @@ useEffect(() => {
           </div>
         </button>}
       </aside>
+      </div>
 
       <main className="owner-main">
         <header className="owner-topbar">
