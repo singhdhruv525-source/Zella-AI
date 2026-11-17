@@ -35,9 +35,10 @@ export function Facts({ rows }) {
   );
 }
 
-export function Field({ label, hint, error, children, full }) {
+// fit: the field is as wide as its control's content (a short select such as a period), not the whole row.
+export function Field({ label, hint, error, children, full, fit }) {
   return (
-    <label className={`zs-field ${full ? "full" : ""} ${error ? "has-error" : ""}`}>
+    <label className={`zs-field ${full ? "full" : ""} ${fit ? "fit" : ""} ${error ? "has-error" : ""}`}>
       <span>{label}</span>
       {children}
       {error ? <small className="zs-error-text" role="alert">{error}</small> : hint && <small>{hint}</small>}

@@ -40,5 +40,8 @@ test("time zones read as words", () => {
 test("durations", () => {
   assert.equal(formatDuration(45), "45 s");
   assert.equal(formatDuration(75), "1 min 15 s");
+  assert.equal(formatDuration(120), "2 min");
+  assert.equal(formatDuration(3720), "1 h 2 min");
+  assert.equal(formatDuration(3600), "1 h");
   assert.equal(formatDuration(undefined), "");
 });

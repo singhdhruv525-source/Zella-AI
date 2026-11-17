@@ -43,7 +43,7 @@ function Overview({ onTab }) {
   const alerts = h ? [
     ...h.alerts,
     ...(h.overdue.reminders ? [{ severity: "warning", title: "Reminders overdue", detail: `${h.overdue.reminders} reminders are more than 15 minutes late.`, link: "infrastructure" }] : []),
-    ...(h.overdue.followups ? [{ severity: "warning", title: "follow ups overdue", detail: `${h.overdue.followups} follow ups are more than 15 minutes late.`, link: "infrastructure" }] : []),
+    ...(h.overdue.followups ? [{ severity: "warning", title: "Follow ups overdue", detail: `${h.overdue.followups} follow ups are more than 15 minutes late.`, link: "infrastructure" }] : []),
     ...(h.overdue.events ? [{ severity: "warning", title: "Events not picked up", detail: `${h.overdue.events} events have waited more than 15 minutes.`, link: "infrastructure" }] : []),
     ...(h.failed_24h.workflows ? [{ severity: "warning", title: "Failed runs in 24 hours", detail: `${h.failed_24h.workflows} workflow runs failed.`, link: "failed" }] : []),
     ...h.dispatch.filter((d) => d.stuck).map((d) => ({ severity: "warning", title: `${words(d.workflow)} looks stuck`, detail: "The same work has been waiting for 12 dispatches in a row.", link: "infrastructure" })),
@@ -58,7 +58,7 @@ function Overview({ onTab }) {
       </Filters>
       <ErrorNote error={data.error} onRetry={data.reload} />
       {h && !h.jobs.some((j) => j.active && j.name === "zella_dispatch") && (
-        <NotAvailable title="The scheduler isn't running">The zella_dispatch job is off, so due reminders and follow ups wait in the queue and nothing is handed to n8n. That's expected before go live.</NotAvailable>
+        <NotAvailable title="The scheduler isn't running" tip="Scheduled job zella_dispatch">The dispatcher job is off, so due reminders and follow ups wait in the queue and nothing is handed to n8n. That's expected before go live.</NotAvailable>
       )}
       {o && (
         <div className="owner-stat-grid ao-stats">
@@ -68,7 +68,7 @@ function Overview({ onTab }) {
           <Metric label="Running now" value={num(o.workflows.running + o.runs.running)} />
           <Metric label="Average run time" value={duration(o.workflows.avg_seconds)} />
           <Metric label="Need a person" value={num(o.workflows.needs_manual)} tone={o.workflows.needs_manual ? "warning" : null} />
-          <Metric label="Waiting in queue" value={num(o.waiting.followups + o.waiting.reminders + o.waiting.events)} note={`${numText(o.waiting.reminders)} reminders · ${numText(o.waiting.followups)} follow-ups · ${numText(o.waiting.events)} events`} />
+          <Metric label="Waiting in queue" value={num(o.waiting.followups + o.waiting.reminders + o.waiting.events)} note={`${numText(o.waiting.reminders)} reminders · ${numText(o.waiting.followups)} follow ups · ${numText(o.waiting.events)} events`} />
           <Metric label="Unresolved dead letters" value={num(o.dead_letters_open)} tone={o.dead_letters_open ? "warning" : null} />
         </div>
       )}
@@ -109,11 +109,11 @@ function Directory({ me, options, say, onOpenBusiness }) {
       <ErrorNote error={list.error} onRetry={list.reload} />
       <DataTable error={list.error} loading={list.loading} rows={list.data?.rows} onRow={(r) => setOpen(r.id)} empty="No automations match these filters."
         columns={[
-          ["Automation", (r) => <strong>{r.name}</strong>], ["Business", (r) => r.business_name], ["Industry", (r) => r.industry_name ?? "None"],
+          ["Automation", (r) => <strong>{r.name}</strong>], ["Business", (r) => r.business_name], ["Industry", (r) => r.industry_name ?? "No industry"],
           ["Trigger", (r) => words(r.trigger_type)], ["Status", (r) => <span className="ao-flags"><Pill tone={tone(r.status)}>{STATUS_LABEL[r.status] ?? r.status}</Pill>
             {!r.business_live && <Pill tone="neutral">Business not live</Pill>}{r.paused_by_suspension && <Pill tone="warning">Suspended</Pill>}</span>],
           ["Runs", (r) => num(r.runs.total)], ["Failed", (r) => (r.runs.failed ? <Pill tone="danger">{r.runs.failed}</Pill> : 0)],
-          ["Last run", (r) => when(r.runs.last_at)], ["Updated", (r) => when(r.updated_at)],
+          ["Last run", (r) => when(r.runs.last_at, "Never")], ["Updated", (r) => when(r.updated_at, "Not recorded")],
         ]} />
       <Pager total={list.data?.total} offset={f.offset} onChange={(o) => setF((x) => ({ ...x, offset: o }))} />
       {open && <AutomationDrawer id={open} onClose={() => setOpen(null)} onOpenBusiness={onOpenBusiness} onChanged={(m) => { say(m); list.reload(); }} />}
@@ -131,7 +131,7 @@ function AutomationDrawer({ id, onClose, onOpenBusiness, onChanged }) {
   const d = useLoad(() => rpc("zella_admin_automation_detail", { p_id: id }), [id]);
   const [change, setChange] = useState(null);
   const a = d.data?.automation;
-  const queue = (q) => (q ? Object.entries(q).map(([k, v]) => `${words(k)}: ${v}`).join(", ") : "None");
+  const queue = (q) => (q && Object.keys(q).length ? Object.entries(q).map(([k, v]) => `${words(k)}: ${v}`).join(", ") : "Nothing waiting");
   const settings = a ? Object.entries(a.trigger_config ?? {}).filter(([, v]) => typeof v !== "object") : [];
   const VERB = { active: ["Resume", "Resumed"], paused: ["Pause", "Paused"], disabled: ["Archive", "Archived"] };
   return (
@@ -152,7 +152,7 @@ function AutomationDrawer({ id, onClose, onOpenBusiness, onChanged }) {
           ) : <p className="op-muted">No runs recorded. Reminders and follow ups are sent from the queue above rather than as runs.</p>}
           <h3 className="ao-h3">Changes</h3>
           {d.data.history.length ? (
-            <ol className="ao-timeline">{d.data.history.map((h, i) => <li key={i}><strong>{words(h.action.replace(/^automation\./, ""))}</strong><span>{when(h.at)}{h.new?.reason ? ` to ${h.new.reason}` : ""}</span></li>)}</ol>
+            <ol className="ao-timeline">{d.data.history.map((h, i) => <li key={i}><strong>{words(h.action.replace(/^automation\./, ""))}</strong><span>{when(h.at)}{h.new?.reason ? `. Reason: ${h.new.reason}` : ""}</span></li>)}</ol>
           ) : <p className="op-muted">No recorded changes.</p>}
           {d.data.can_manage ? (
             <div className="ao-drawer-actions">
@@ -194,10 +194,10 @@ function Runs({ failed, me, options, say, onOpenBusiness }) {
       <DataTable error={list.error} loading={list.loading} rows={list.data?.rows} rowKey={(r) => `${r.kind}-${r.id}`} onRow={setOpen}
         empty={failed ? "No failed runs in this period." : "No runs recorded in this period."}
         columns={[
-          ["Started", (r) => when(r.started_at)], ["Workflow", (r) => <strong>{r.name}</strong>], ["Business", (r) => r.business_name ?? "Platform"],
+          ["Started", (r) => when(r.started_at, "Not started")], ["Workflow", (r) => <strong>{r.name}</strong>], ["Business", (r) => r.business_name ?? "Platform"],
           ["Status", (r) => <span className="ao-flags"><Pill tone={tone(r.status)}>{words(r.status)}</Pill>{r.needs_manual && <Pill tone="warning">Needs a person</Pill>}</span>],
-          ["Time", (r) => duration(r.duration_seconds)], ["Tries", (r) => r.attempts ?? 0],
-          ["Error", (r) => (r.error ? `${r.failed_step ? `${r.failed_step}: ` : ""}${r.error}` : "None")],
+          ["Time", (r) => duration(r.duration_seconds, "Not recorded")], ["Tries", (r) => r.attempts ?? 0],
+          ["Error", (r) => (r.error ? `${r.failed_step ? `${r.failed_step}: ` : ""}${r.error}` : "No error")],
         ]} />
       <Pager total={list.data?.total} offset={f.offset} onChange={(o) => setF((x) => ({ ...x, offset: o }))} />
       {open && <RunDrawer row={open} me={me} onClose={() => setOpen(null)} onOpenBusiness={onOpenBusiness} onChanged={(m) => { say(m); list.reload(); }} />}
@@ -217,18 +217,18 @@ function RunDrawer({ row, me, onClose, onOpenBusiness, onChanged }) {
         <>
           <Facts rows={[["Business", r.business_id ? <button key="b" type="button" className="ao-link" onClick={() => onOpenBusiness(r.business_id)}>{r.business_name}</button> : "Platform"],
             ["Status", <Pill key="s" tone={tone(r.status)}>{words(r.status)}</Pill>], r.version ? ["Workflow version", r.version] : null,
-            ["Started", when(r.started_at)], ["Finished", when(r.finished_at)], ["Tries", r.attempts ?? 0],
+            ["Started", when(r.started_at, "Not started")], ["Finished", when(r.finished_at, "Not finished")], ["Tries", r.attempts ?? 0],
             r.current_step ? ["Step", String(r.current_step)] : null, r.error_category ? ["Error type", words(r.error_category)] : null, r.error ? ["Error", r.error] : null,
             r.next_run_at ? ["Next try", when(r.next_run_at)] : null, r.providers_called?.length ? ["Providers called", r.providers_called.join(", ")] : null,
             r.correlation_id ? ["Correlation id", <code key="c">{r.correlation_id}</code>] : null]} />
           <h3 className="ao-h3">Steps</h3>
           {d.data.steps.length ? (
-            <ol className="ao-timeline">{d.data.steps.map((s, i) => <li key={i}><strong><Pill tone={tone(s.status === "done" || s.status === "ok" ? "succeeded" : s.status)}>{s.status ?? "None"}</Pill> {s.name ?? `Step ${i + 1}`}</strong><span>{[s.at && when(s.at), s.error].filter(Boolean).join(". ")}</span></li>)}</ol>
+            <ol className="ao-timeline">{d.data.steps.map((s, i) => <li key={i}><strong><Pill tone={tone(s.status === "done" || s.status === "ok" ? "succeeded" : s.status)}>{s.status ? words(s.status) : "No status"}</Pill> {s.name ?? `Step ${i + 1}`}</strong><span>{[s.at && when(s.at), s.error].filter(Boolean).join(". ")}</span></li>)}</ol>
           ) : <p className="op-muted">No steps recorded.</p>}
           <p className="op-muted">Step inputs and outputs aren't shown: they can hold customer details.</p>
           {d.data.event && <><h3 className="ao-h3">Started by</h3><Facts rows={[["Event", words(d.data.event.type)], ["From", words(d.data.event.source)], ["Event status", words(d.data.event.status)],
             ["Received", when(d.data.event.received_at)], ["Event tries", d.data.event.attempts], d.data.event.error ? ["Event error", d.data.event.error] : null]} /></>}
-          {d.data.dead_letter && <Facts rows={[["Dead letter", `${words(d.data.dead_letter.status)}${d.data.dead_letter.reason ? ` to ${d.data.dead_letter.reason}` : ""}`],
+          {d.data.dead_letter && <Facts rows={[["Dead letter", `${words(d.data.dead_letter.status)}${d.data.dead_letter.reason ? `: ${d.data.dead_letter.reason}` : ""}`],
             d.data.dead_letter.resolved_at ? ["Reviewed", when(d.data.dead_letter.resolved_at)] : null]} />}
           <h3 className="ao-h3">Retry</h3>
           {d.data.retry.ok
@@ -282,7 +282,7 @@ function Templates() {
           <Facts rows={[["Industry", words(open.industry_key)], ["Trigger", words(open.trigger_type)], ["Description", open.description],
             ["Businesses using it", num(open.in_use)], ["Active copies", num(open.active)],
             ...Object.entries(open.settings ?? {}).filter(([, v]) => typeof v !== "object").map(([k, v]) => [words(k), String(v)])]} />
-          <NotAvailable title="Templates are edited in the repository">They're seeded from the industry configuration (industry_automation_presets). Changing one here wouldn't reach businesses that already have their copy, so editing isn't offered.</NotAvailable>
+          <NotAvailable title="Templates are edited in the repository">They're seeded from each industry's automation presets in the industry configuration. Changing one here wouldn't reach businesses that already have their copy, so editing isn't offered.</NotAvailable>
         </Drawer>
       )}
     </Panel>
@@ -299,25 +299,25 @@ function Infrastructure() {
         {s && <DataTable error={h.error} rows={s.jobs} rowKey={(j) => j.name} empty="No Zella Voice jobs found."
           columns={[["Job", (j) => <code>{j.name}</code>], ["Schedule", (j) => <code>{j.schedule}</code>], ["State", (j) => <Pill tone={j.active ? "success" : "neutral"}>{j.active ? "Running" : "Off"}</Pill>],
             ["Last run", (j) => (j.last_run ? <span><Pill tone={j.last_run.status === "succeeded" ? "success" : "danger"}>{words(j.last_run.status)}</Pill> {when(j.last_run.at)}</span> : "Never")],
-            ["Last success", (j) => when(j.last_success)], ["Failures (24 h)", (j) => (j.failures_24h ? <Pill tone="danger">{j.failures_24h}</Pill> : 0)]]} />}
-        <p className="op-muted">Jobs are switched on at go live (the go live guide, n8n/GO-LIVE.md), not from this page, so a click can't start sending to customers.</p>
+            ["Last success", (j) => when(j.last_success, "Never")], ["Failures (24 h)", (j) => (j.failures_24h ? <Pill tone="danger">{j.failures_24h}</Pill> : 0)]]} />}
+        <p className="op-muted">Jobs are switched on at go live, following the n8n go live guide, not from this page, so a click can't start sending to customers.</p>
       </Panel>
       {s && (
         <Panel title="Queue">
           <div className="owner-stat-grid ao-stats">
             <Metric label="Reminders overdue (15 min+)" value={num(s.overdue.reminders)} tone={s.overdue.reminders ? "warning" : null} />
-            <Metric label="follow ups overdue (15 min+)" value={num(s.overdue.followups)} tone={s.overdue.followups ? "warning" : null} />
+            <Metric label="Follow ups overdue (15 min+)" value={num(s.overdue.followups)} tone={s.overdue.followups ? "warning" : null} />
             <Metric label="Events waiting (15 min+)" value={num(s.overdue.events)} tone={s.overdue.events ? "warning" : null} />
             <Metric label="Failed runs (24 h)" value={num(s.failed_24h.workflows)} tone={s.failed_24h.workflows ? "danger" : null} />
             <Metric label="Failed events (24 h)" value={num(s.failed_24h.events)} tone={s.failed_24h.events ? "danger" : null} />
           </div>
           <DataTable error={h.error} rows={s.dispatch} rowKey={(d) => d.workflow} empty="Nothing has been handed to n8n yet."
-            columns={[["n8n workflow", (d) => words(d.workflow)], ["Last handed over", (d) => when(d.last_triggered_at)], ["Waiting then", (d) => num(d.waiting)],
-              ["Total", (d) => num(d.total)], ["", (d) => d.stuck && <Pill tone="warning">Looks stuck</Pill>]]} />
+            columns={[["n8n workflow", (d) => words(d.workflow)], ["Last handed over", (d) => when(d.last_triggered_at, "Never")], ["Waiting then", (d) => num(d.waiting)],
+              ["Total", (d) => num(d.total)], ["Attention", (d) => d.stuck && <Pill tone="warning">Looks stuck</Pill>]]} />
         </Panel>
       )}
       <div className="zs ao-embed">
-        <N8nConfig />
+        <N8nConfig showJobs={false} />
         <Webhooks />
       </div>
     </>

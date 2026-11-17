@@ -168,3 +168,7 @@ All in `web/src/admin/adminOps.jsx` unless noted; their look is in `web/src/styl
   never the whole page, and fade at the right edge while there is more.
 - The admin sidebar's background and border run the full height of the page (`.owner-sidebar-col`); only the nav inside
   it is sticky. The settings sub navigation (`.zs-nav`) is sticky at the top of its column.
+- A short choice such as a period is as wide as its options (`<Field fit>` in Settings), not the whole row. A long
+  table in a Settings card shows its first rows with a count and a "See all" button under it (`.zs-table-more`).
+- Setting keys (`sms_live`, `calls_live`, ...) are code: pages say what they mean in words ("Texts are in test mode",
+  `web/src/copy/liveSwitches.js`) and give the key only as a tooltip (`NotAvailable`'s `tip`, or a `title`).

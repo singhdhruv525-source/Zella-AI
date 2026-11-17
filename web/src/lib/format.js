@@ -93,7 +93,11 @@ export function formatTimeZone(zone) {
 // 75 -> "1 min 15 s"
 export function formatDuration(seconds) {
   if (empty(seconds)) return "";
-  const v = Math.round(Number(seconds));
-  if (!Number.isFinite(v)) return "";
-  return v < 60 ? `${v} s` : `${Math.floor(v / 60)} min ${v % 60} s`;
+  const n = Number(seconds);
+  if (!Number.isFinite(n)) return "";
+  const v = Math.max(0, Math.round(n));
+  if (v < 60) return `${v} s`;
+  if (v < 3600) return v % 60 ? `${Math.floor(v / 60)} min ${v % 60} s` : `${v / 60} min`;
+  const m = Math.floor((v % 3600) / 60);
+  return m ? `${Math.floor(v / 3600)} h ${m} min` : `${Math.floor(v / 3600)} h`;
 }

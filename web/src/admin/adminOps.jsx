@@ -70,23 +70,25 @@ export function useLoad(loader, deps) {
 }
 
 // A cell or fact with no value is never blank or "None". Short words per kind of value: "Not set" for
-// configuration, "Never" for times (docs/DESIGN_SYSTEM.md, Writing).
+// configuration, "Never" for times, "Not available" for counts and lengths the server didn't send (docs/DESIGN_SYSTEM.md,
+// Writing). A caller that knows better passes its own words ("No calls yet", "Not recorded").
 export function EmptyValue({ label = "Not set" }) {
   return <span className="empty-value">{label}</span>;
 }
 
 // Times, counts and lengths go through lib/format.js. The plain functions return a node (EmptyValue when there is no
 // value); the *Text versions return a string for sentences, titles and labels.
-export const whenText = (v) => formatDateTime(v) || "Never";
-export const when = (v) => (formatDateTime(v) ? <time className="owner-when" dateTime={new Date(v).toISOString()}>{formatDateTime(v)}</time> : <EmptyValue label="Never" />);
+export const whenText = (v, empty = "Never") => formatDateTime(v) || empty;
+export const when = (v, empty = "Never") => (formatDateTime(v) ? <time className="owner-when" dateTime={new Date(v).toISOString()}>{formatDateTime(v)}</time> : <EmptyValue label={empty} />);
 // "5 days ago", with the exact time on hover.
-export const ago = (v) => (formatRelative(v) ? <time dateTime={new Date(v).toISOString()} title={formatDateTime(v)}>{formatRelative(v)}</time> : <EmptyValue label="Never" />);
+export const ago = (v, empty = "Never") => (formatRelative(v) ? <time dateTime={new Date(v).toISOString()} title={formatDateTime(v)}>{formatRelative(v)}</time> : <EmptyValue label={empty} />);
 export const words = humanize;
-export const numText = (n) => formatCount(n) || "Not set";
-export const num = (n) => (formatCount(n) || <EmptyValue label="Not set" />);
-export const pct = (n) => (n === null || n === undefined || n === "" ? "Not set" : `${n}%`);
-export const durationText = (s) => formatDuration(s) || "Not set";
-export const duration = (s) => (formatDuration(s) || <EmptyValue label="Not set" />);
+export const numText = (n) => formatCount(n) || "Not available";
+export const num = (n) => (formatCount(n) || <EmptyValue label="Not available" />);
+export const pct = (n) => (n === null || n === undefined || n === "" ? "Not available" : `${n}%`);
+// One length format everywhere: "45 s", "1 min", "2 min 5 s", "1 h 2 min" (lib/format.js).
+export const durationText = (s, empty = "Not available") => formatDuration(s) || empty;
+export const duration = (s, empty = "Not available") => (formatDuration(s) || <EmptyValue label={empty} />);
 
 // One tone per status word, the same everywhere: Live, Active and Ready are success; Trial, In progress and Scheduled
 // are info; Draft, Not yet and Pending are warning. Anything else is neutral unless the page says otherwise.
@@ -189,9 +191,10 @@ export function ErrorNote({ error, onRetry }) {
 }
 
 // Something the platform can't do yet, said plainly instead of showing a control that does nothing.
-export function NotAvailable({ title, children }) {
+// `tip` (optional) is a tooltip for the setting behind it, such as "Setting calls_live"; the words never need it.
+export function NotAvailable({ title, children, tip }) {
   return (
-    <div className="ao-unavailable">
+    <div className="ao-unavailable" title={tip}>
       <Icon name="info" size="sm" />
       <div><strong>{title}</strong><p>{children}</p></div>
     </div>
@@ -423,7 +426,7 @@ export function ProviderHealth({ rows, checksLive, names }) {
           <div key={key} className="ao-provider">
             <div className="ao-provider-head"><strong>{label}</strong><Pill tone={state[0]}>{state[1]}</Pill></div>
             <small className="op-muted">{role}</small>
-            <Facts rows={[["Last check", when(h?.checked_at)], ["Last healthy", when(h?.last_ok_at)], h && !h.ok ? ["Last error", h.detail] : null,
+            <Facts rows={[["Last check", when(h?.checked_at, "Never")], ["Last healthy", when(h?.last_ok_at, "Never")], h && !h.ok ? ["Last error", h.detail] : null,
               h?.failures ? ["Failures in a row", h.failures] : null]} />
           </div>
         );
