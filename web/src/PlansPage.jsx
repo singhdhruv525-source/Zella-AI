@@ -5,6 +5,7 @@ import { Pill } from "./OwnerOverview";
 import { formatDate } from "./ownerFormat";
 import { humanize } from "./copy/labels";
 import { friendlyError } from "./admin/adminOps";
+import { planAllowances, planFeatures } from "./copy/planAllowances";
 
 const SUB_TONE = {
   trial: "info", active: "success", renewal_due: "warning", past_due: "danger",
@@ -12,14 +13,6 @@ const SUB_TONE = {
 };
 
 const EMPTY_PLAN = { planId: "", name: "", description: "", isActive: true };
-
-function describeJson(value) {
-  if (!value || typeof value !== "object") return [];
-  if (Array.isArray(value)) return value.map(String);
-  return Object.entries(value).map(([k, v]) =>
-    typeof v === "boolean" ? `${k.replace(/_/g, " ")}${v ? "" : " (off)"}` : `${k.replace(/_/g, " ")}: ${v}`
-  );
-}
 
 export default function PlansPage({ onOpenBusiness }) {
   const [data, setData] = useState(null);
@@ -66,7 +59,7 @@ export default function PlansPage({ onOpenBusiness }) {
     <section className="owner-page">
       <div className="owner-page-heading">
         <div>
-          <div className="owner-eyebrow">Billing</div>
+          <div className="owner-eyebrow">Configuration</div>
           <h1>Plans & subscriptions</h1>
           <p>The plans businesses can be on, and which business is on which plan.</p>
         </div>
@@ -114,8 +107,8 @@ export default function PlansPage({ onOpenBusiness }) {
 
       <div className="pl-grid op-gap">
         {(data?.plans ?? []).map((p) => {
-          const features = describeJson(p.features);
-          const limits = describeJson(p.limits);
+          const features = planFeatures(p.features);
+          const allowances = planAllowances(p.limits);
           return (
             <section key={p.id} className={`owner-panel pl-card ${p.is_active ? "" : "off"}`}>
               <div className="pl-head">
@@ -127,11 +120,9 @@ export default function PlansPage({ onOpenBusiness }) {
               </div>
               <div className="pl-price">Pricing not configured</div>
               {features.length > 0 && (
-                <div className="op-rule-block"><h4>Features</h4><ul className="op-bullets">{features.map((f) => <li key={f}>{f}</li>)}</ul></div>
+                <div className="op-rule-block"><h4>Features</h4><ul className="op-bullets">{features.map(([label, value]) => <li key={label}>{label}: <strong>{value}</strong></li>)}</ul></div>
               )}
-              {limits.length > 0 && (
-                <div className="op-rule-block"><h4>Limits</h4><ul className="op-bullets">{limits.map((f) => <li key={f}>{f}</li>)}</ul></div>
-              )}
+              <div className="op-rule-block"><h4>Allowances</h4><ul className="op-bullets">{allowances.map(([label, value]) => <li key={label}>{label}: <strong>{value}</strong></li>)}</ul></div>
               <div className="pl-foot">
                 <span className="op-muted">{p.subscriptions} {p.subscriptions === 1 ? "business" : "businesses"}</span>
                 <button
@@ -163,7 +154,7 @@ export default function PlansPage({ onOpenBusiness }) {
                   <td><button type="button" className="op-name" onClick={() => onOpenBusiness(s.business_id)}>{s.business_name}</button></td>
                   <td>{s.plan_name}</td>
                   <td><Pill tone={SUB_TONE[s.status] ?? "neutral"}>{humanize(s.status)}</Pill></td>
-                  <td className="op-cap">{s.billing_interval ?? "None"}</td>
+                  <td>{s.billing_interval ? humanize(s.billing_interval) : "Not set"}</td>
                   <td>{formatDate(s.created_at)}</td>
                 </tr>
               ))}
