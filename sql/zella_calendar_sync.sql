@@ -60,7 +60,10 @@ declare v_action text; v_state text := coalesce(to_jsonb(new) ->> 'booking_state
 begin
   if not exists (select 1 from public.calendar_connections c where c.business_id = new.business_id and c.status = 'active') then return new; end if;
   if new.status in ('cancelled', 'no_show') or v_state = 'requested' then
-    if new.external_event_id is null then return new; end if;
+    if new.external_event_id is null then
+      update public.calendar_sync_queue set status = 'skipped', completed_at = now(), error = 'cancelled_before_sync' where appointment_id = new.id and status = 'pending';
+      return new;
+    end if;
     v_action := 'delete';
   elsif v_state = 'tentative' or new.status not in ('scheduled', 'confirmed', 'completed') then
     return new;
@@ -75,25 +78,8 @@ drop trigger if exists zella_calendar_sync_trg on public.appointments;
 create trigger zella_calendar_sync_trg after insert or update of start_time, end_time, status, title, staff_id, booking_state, customer_id on public.appointments
   for each row execute function public.zella_queue_calendar_sync();
 
--- Used by the "Connect Google Calendar" step (a server function, later). The refresh token is stored in Vault; only its name is kept here.
-create or replace function public.zella_calendar_connect(p_business_id uuid, p_account_email text, p_refresh_token text, p_calendar_id text default 'primary')
-returns uuid language plpgsql security definer set search_path = public, vault as $$
-declare v_name text := 'zella_gcal_' || p_business_id::text; v_id uuid;
-begin
-  if not exists (select 1 from public.businesses where id = p_business_id and suspended_at is null and cancelled_at is null) then raise exception 'BUSINESS_NOT_AVAILABLE'; end if;
-  if nullif(trim(coalesce(p_refresh_token, '')), '') is null then raise exception 'NO_TOKEN'; end if;
-  if exists (select 1 from vault.secrets where name = v_name) then
-    perform vault.update_secret((select id from vault.secrets where name = v_name), p_refresh_token);
-  else
-    perform vault.create_secret(p_refresh_token, v_name);
-  end if;
-  insert into public.calendar_connections (business_id, provider, status, calendar_id, account_email, vault_secret_name, busy_refresh_due_at, last_error)
-  values (p_business_id, 'google', 'active', coalesce(nullif(trim(p_calendar_id), ''), 'primary'), left(p_account_email, 200), v_name, now(), null)
-  on conflict (business_id, provider) do update set status = 'active', calendar_id = excluded.calendar_id, account_email = excluded.account_email,
-    vault_secret_name = excluded.vault_secret_name, busy_refresh_due_at = now(), last_error = null
-  returning id into v_id;
-  return v_id;
-end $$;
+-- Replaced by the actor-checked zella_calendar_connect_provider.
+drop function if exists public.zella_calendar_connect(uuid,text,text,text);
 
 create or replace function public.zella_calendar_live() returns boolean language sql stable security definer set search_path = public as $$
   select coalesce(public.zella_setting('calendar_sync_live', 'false'::jsonb) = 'true'::jsonb, false);
@@ -185,14 +171,15 @@ declare c record; e jsonb; n integer := 0; v_s timestamptz; v_e timestamptz;
 begin
   select * into c from public.calendar_connections where id = p_connection_id and status = 'active';
   if c.id is null then return 0; end if;
-  if jsonb_typeof(p_events) <> 'array' then raise exception 'BAD_EVENTS'; end if;
-  delete from public.blocked_times where connection_id = c.id and source = 'google' and end_time >= now() - interval '1 day';
-  for e in select * from jsonb_array_elements(p_events) limit 500 loop
+  if jsonb_typeof(p_events) is distinct from 'array' then raise exception 'BAD_EVENTS'; end if;
+  if jsonb_array_length(p_events) > 500 then raise exception 'TOO_MANY_EVENTS' using errcode = '22023'; end if;
+  delete from public.blocked_times where connection_id = c.id and source = c.provider and end_time >= now() - interval '1 day';
+  for e in select * from jsonb_array_elements(p_events) loop
     begin v_s := (e ->> 'start')::timestamptz; v_e := (e ->> 'end')::timestamptz; exception when others then continue; end;
     if v_s is null or v_e is null or v_e <= v_s or (e ->> 'id') is null then continue; end if;
     if exists (select 1 from public.appointments a where a.business_id = c.business_id and a.external_event_id = e ->> 'id') then continue; end if;
     insert into public.blocked_times (business_id, title, reason, start_time, end_time, all_day, source, external_id, connection_id)
-    values (c.business_id, 'Busy (Google Calendar)', 'Busy in the business calendar', v_s, v_e, coalesce((e ->> 'all_day')::boolean, false), 'google', left(e ->> 'id', 200), c.id)
+    values (c.business_id, case c.provider when 'outlook' then 'Busy (Outlook Calendar)' else 'Busy (Google Calendar)' end, 'Busy in the business calendar', v_s, v_e, coalesce((e ->> 'all_day')::boolean, false), c.provider, left(e ->> 'id', 200), c.id)
     on conflict (connection_id, external_id) where external_id is not null do update set start_time = excluded.start_time, end_time = excluded.end_time, all_day = excluded.all_day;
     n := n + 1;
   end loop;
@@ -221,7 +208,7 @@ end $$;
 do $$
 declare f text;
 begin
-  foreach f in array array['zella_queue_calendar_sync()', 'zella_calendar_connect(uuid,text,text,text)', 'zella_calendar_live()', 'zella_claim_calendar_sync(integer)',
+  foreach f in array array['zella_queue_calendar_sync()', 'zella_calendar_live()', 'zella_claim_calendar_sync(integer)',
       'zella_finish_calendar_sync(uuid,boolean,text,text)', 'zella_claim_calendar_pulls(integer)', 'zella_replace_calendar_busy(uuid,jsonb)',
       'zella_schedule_calendar_pulls()', 'zella_calendar_changed(uuid)'] loop
     execute format('revoke execute on function public.%s from public, anon, authenticated', f);

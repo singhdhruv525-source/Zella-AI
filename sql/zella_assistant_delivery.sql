@@ -29,6 +29,10 @@ revoke all on public.assistant_deliveries from anon, authenticated;
 grant select, insert, delete on public.assistant_deliveries to service_role;
 
 -- Server only (voice-rules, after the request's signature check).
+do $install$ begin
+  if to_regprocedure('public.zella_assistant_for_call(text,text,text)') is null or
+     position('zella_delivery_evidence' in pg_get_functiondef(to_regprocedure('public.zella_assistant_for_call(text,text,text)'))) = 0 then
+    execute $definition$
 create or replace function public.zella_assistant_for_call(p_called_number text, p_vapi_phone_number_id text, p_provider_call_id text default null) returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare
@@ -46,7 +50,7 @@ begin
   if coalesce((v_cfg ->> 'ready_to_send')::boolean, false) then
     update agent_config_versions set sync_status = 'live', sync_error = null where id = v_version and (sync_status <> 'live' or sync_error is not null);
     insert into assistant_deliveries (business_id, version_id, provider_call_id, outcome) values (v_biz, v_version, left(p_provider_call_id, 120), 'served');
-    return jsonb_build_object('ok', true, 'outcome', 'served', 'version_id', v_version, 'assistant', v_cfg -> 'assistant');
+    return jsonb_build_object('ok', true, 'outcome', 'served', 'version_id', v_version, 'assistant', v_cfg - 'ready_to_send' - 'problems');
   end if;
   update agent_config_versions set sync_status = 'failed', sync_error = left(array_to_string(array(select jsonb_array_elements_text(v_cfg -> 'problems')), '; '), 500)
    where id = v_version and sync_status <> 'failed';
@@ -62,8 +66,14 @@ begin
   end if;
   return jsonb_build_object('ok', false, 'outcome', 'not_ready', 'problems', coalesce(v_cfg -> 'problems', '[]'), 'fallback_assistant_id', v_fallback);
 end $$;
+$definition$;
+  end if;
+end $install$;
 
 -- What the CRM shows: the published version, whether calls are using it, and the last problem.
+do $install$ begin
+  if to_regprocedure('public.zella_assistant_delivery_status(uuid)') is null then
+    execute $definition$
 create or replace function public.zella_assistant_delivery_status(p_business_id uuid) returns jsonb
 language plpgsql stable security definer set search_path = public as $$
 begin
@@ -75,6 +85,9 @@ begin
     'last_problem', (select jsonb_build_object('at', d.created_at, 'problems', d.problems) from assistant_deliveries d
                       where d.business_id = p_business_id and d.outcome = 'not_ready' order by d.created_at desc limit 1));
 end $$;
+$definition$;
+  end if;
+end $install$;
 
 revoke execute on function public.zella_assistant_for_call(text, text, text) from public, anon, authenticated;
 grant execute on function public.zella_assistant_for_call(text, text, text) to service_role;

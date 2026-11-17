@@ -351,11 +351,15 @@ end $$;
 revoke execute on function public.zella_brain_context(uuid) from public, anon, authenticated;
 grant execute on function public.zella_brain_context(uuid) to service_role;
 
-create or replace function public.zella_brain_prompt(p_business_id uuid) returns text
+create or replace function public.zella_brain_prompt_base(p_business_id uuid) returns text
 language plpgsql stable security definer set search_path = public as $$
 declare
-  c jsonb := public.zella_brain_context(p_business_id); v_key text; t text := ''; v_term jsonb; v_cust text; v_appt text; v_days text[] := array['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']; h record; v_lines text := '';
+  c jsonb := public.zella_brain_context(p_business_id); v_key text; t text := ''; v_term jsonb; v_cust text; v_appt text; v_days text[] := array['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']; h record; v_lines text := ''; v_owner_transfer text; v_owner_rules text := '';
 begin
+  if to_regprocedure('public.zella_owner_rules_prompt(uuid,text)') is not null then
+    v_owner_transfer := public.zella_owner_rules_prompt(p_business_id, 'transfer'); /* zella_escalation_rules */
+    v_owner_rules := public.zella_owner_rules_prompt(p_business_id, 'rules');
+  end if;
   v_key := c #>> '{business,industry_key}';
   v_term := coalesce(c -> 'terminology', '{}'::jsonb);
   v_cust := lower(coalesce(nullif(v_term ->> 'customer', ''), 'customer'));
@@ -376,7 +380,7 @@ begin
     || E'- Before booking, moving or cancelling: read the details back and ask the caller to confirm. Only then call the tool with confirmed=true.\n'
     || E'- Say an appointment is booked, moved or cancelled ONLY when the tool result says so. If the result says requested, unverified, error or unavailable, say exactly that: the team will confirm or call back. Never say it is done on your own.\n'
     || E'- You recognise the caller only through lookup_caller (their phone number). Never reveal anything about other callers, and tell a recognised caller nothing beyond their first name and their own appointments.\n'
-    || E'- If the caller asks for a person, is upset, or you cannot help, use transfer_to_human. If a tool fails, apologise briefly and offer a callback (request_follow_up or take_message).\n'
+    || case when v_owner_transfer is not null then v_owner_transfer else E'- If the caller asks for a person, is upset, or you cannot help, use transfer_to_human. If a tool fails, apologise briefly and offer a callback (request_follow_up or take_message).\n' end
     || E'- Do not send or promise promotional messages, discounts or offers.\n\n'
     || E'SAFETY\n'
     || E'- If anyone is in danger of harm, tell them to hang up and call 911 first, then use report_emergency.\n'
@@ -396,11 +400,22 @@ begin
          when v_key = 'childcare' then E'- Never share any detail about a child, including whether they attend, with anyone you cannot verify as their parent or guardian; take a message instead.\n'
          when v_key = 'pest_control' then E'- For stinging insects, infestations in food areas or any danger to people, say the team will call right away and use report_emergency; never advise on handling chemicals.\n'
          else '' end
+    || v_owner_rules
     || coalesce(E'\nBUSINESS-SPECIFIC INSTRUCTIONS FROM THE OWNER\n' || nullif(c #>> '{agent,instructions}', '') || E'\n', '')
     || case when jsonb_array_length(c -> 'closures') > 0 then E'\nUpcoming closures: ' || (select string_agg((x ->> 'label') || ' (' || (x ->> 'from') || ' to ' || (x ->> 'to') || ')', ', ') from jsonb_array_elements(c -> 'closures') x) || E'\n' else '' end
     || E'\nThe business can answer questions about: ' || coalesce((select string_agg(distinct x ->> 'title', '; ') from (select x from jsonb_array_elements(c -> 'knowledge_topics') x limit 40) y(x)), 'nothing has been added yet') || E'. Use search_knowledge for the details.\n';
   return t;
 end $$;
+-- Refresh the base on every apply; retain the live-notices wrapper if installed.
+do $install$ begin
+  if to_regprocedure('public.zella_brain_prompt(uuid)') is null or
+     position('zella_brain_prompt_base' in pg_get_functiondef(to_regprocedure('public.zella_brain_prompt(uuid)'))) = 0 then
+    execute $definition$create or replace function public.zella_brain_prompt(p_business_id uuid) returns text
+      language sql stable security definer set search_path = public as $$select public.zella_brain_prompt_base(p_business_id)$$;$definition$;
+  end if;
+end $install$;
+revoke execute on function public.zella_brain_prompt_base(uuid) from public, anon, authenticated;
+grant execute on function public.zella_brain_prompt_base(uuid) to service_role;
 revoke execute on function public.zella_brain_prompt(uuid) from public, anon, authenticated;
 grant execute on function public.zella_brain_prompt(uuid) to service_role;
 

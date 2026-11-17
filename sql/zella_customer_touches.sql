@@ -123,7 +123,9 @@ begin
   if new.status is distinct from old.status and new.customer_id is not null then
     for a in select * from public.automations x
               where x.business_id = new.business_id and x.trigger_type = 'record_status_update' and x.status = 'active'
-                and (x.trigger_config ->> 'type_key' is null or x.trigger_config ->> 'type_key' = new.type_key) loop
+                and (x.trigger_config ->> 'type_key' is null or x.trigger_config ->> 'type_key' = new.type_key)
+                and nullif(trim(x.trigger_config -> 'messages' ->> new.status), '') is not null
+              order by x.id limit 1 loop
       v_line := left(nullif(trim(a.trigger_config -> 'messages' ->> new.status), ''), 300);
       if v_line is not null then
         perform public.zella_queue_customer_message(new.business_id, new.customer_id, 'record_status_update',
@@ -147,7 +149,10 @@ returns integer language plpgsql security definer set search_path = public as $$
 declare a record; c record; n integer := 0; v_days integer;
 begin
   for a in select * from public.automations x where x.trigger_type = 'service_due' and x.status = 'active' loop
-    v_days := greatest(7, coalesce((a.trigger_config ->> 'days')::integer, 180));
+    v_days := 180;
+    if (case when trim(a.trigger_config ->> 'days') ~ '^[+-]?[0-9]{1,10}$' then (a.trigger_config ->> 'days')::numeric between -2147483648 and 2147483647 else false end) then
+      v_days := greatest(7, (a.trigger_config ->> 'days')::integer);
+    end if;
     for c in select x.id from public.customers x
               where x.business_id = a.business_id and not coalesce(x.do_not_contact, false)
                 and exists (select 1 from public.appointments p where p.customer_id = x.id and p.status = 'completed' and p.start_time < now() - make_interval(days => v_days))
@@ -189,8 +194,9 @@ do $$
 declare d text;
 begin
   d := pg_get_functiondef('public.zella_claim_followup_texts_base(integer,text[])'::regprocedure);
-  if d not like '%where false;%' then
-    d := replace(d, E'  loop\n', E'  loop\n    select e.id, e.title, e.status, e.offered_start, e.offered_end, e.offer_expires_at into v_offer from public.waitlist_entries e where false;\n');
+  if position('zella_customer_touches_offer_reset' in d) = 0 then
+    d := replace(d, E'  loop\n    v_reply := v_task.kind', E'  loop\n    /* zella_customer_touches_offer_reset */ select e.id, e.title, e.status, e.offered_start, e.offered_end, e.offer_expires_at into v_offer from public.waitlist_entries e where false;\n    v_reply := v_task.kind');
+    if position('zella_customer_touches_offer_reset' in d) = 0 then raise exception 'followup task loop anchor missing'; end if;
     execute d;
   end if;
 end $$;

@@ -116,11 +116,11 @@ begin
 
   -- 2. work with no owner (businesses with assignment on): give it an owner now
   for w in
-    select 'lead' kind, c.id, c.business_id from public.customers c join public.assignment_rules a on a.business_id = c.business_id and a.mode <> 'off'
-     where c.assigned_to is null and c.lead_stage in ('new', 'contacted', 'qualified', 'quote_sent')
+    select 'lead' kind, c.id, c.business_id from public.customers c left join public.assignment_rules a on a.business_id = c.business_id
+     where coalesce(a.mode, 'round_robin') <> 'off' and c.assigned_to is null and c.lead_stage in ('new', 'contacted', 'qualified', 'quote_sent')
     union all
-    select 'callback', b.id, b.business_id from public.callbacks b join public.assignment_rules a on a.business_id = b.business_id and a.mode <> 'off'
-     where b.assigned_to is null and b.status not in ('completed', 'cancelled')
+    select 'callback', b.id, b.business_id from public.callbacks b left join public.assignment_rules a on a.business_id = b.business_id
+     where coalesce(a.mode, 'round_robin') <> 'off' and b.assigned_to is null and b.status not in ('completed', 'cancelled')
     limit 200
   loop
     v_user := public.zella_pick_assignee(w.business_id);

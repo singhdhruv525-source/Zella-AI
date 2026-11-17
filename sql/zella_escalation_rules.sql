@@ -103,10 +103,13 @@ begin
     def := replace(def, $a$    v_why := nullif(trim(left(coalesce(v_args ->> 'reason', ''), 300)), '');$a$,
       $a$    v_why := nullif(trim(left(coalesce(v_args ->> 'reason', ''), 300)), '');
     /* zella_escalation_rules: only for a reason the business ticked (when it saved its triggers) */
+    if v_why is null or v_why = 'emergency' or not (v_why = any (public.zella_escalation_trigger_keys())) then
+      return jsonb_build_object('ok', false, 'status', 'need_reason');
+    end if;
     if public.zella_escalation_triggers(v_biz) is not null
-       and not ((case when v_why = any (public.zella_escalation_trigger_keys()) then v_why else 'customer_requests_human' end) = any (public.zella_escalation_triggers(v_biz))) then
+       and not (v_why = any (public.zella_escalation_triggers(v_biz))) then
       if v_call.id is not null then
-        update public.calls set transfer_status = 'not_needed', escalation_reason = coalesce(escalation_reason, left(coalesce(v_why, 'asked_for_person'), 60)), updated_at = now() where id = v_call.id;
+        update public.calls set transfer_status = 'not_needed', escalation_reason = coalesce(escalation_reason, left(v_why, 60)), updated_at = now() where id = v_call.id and transfer_approved_at is null;
       end if;
       return jsonb_build_object('ok', true, 'status', 'not_for_this',
         'say', 'This business does not pass calls to a person for this. Offer to take a message or arrange a callback instead.');

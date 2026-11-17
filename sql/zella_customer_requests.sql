@@ -43,7 +43,7 @@ begin
   if p_customer_id is not null and not exists (select 1 from public.customers where id = p_customer_id and business_id = p_business_id) then p_customer_id := null; end if;
   select id into v_id from public.customer_requests
    where business_id = p_business_id and kind = p_kind and status in ('open', 'in_progress', 'waiting_verification')
-     and customer_id is not distinct from p_customer_id and created_at > now() - interval '24 hours' limit 1;
+     and ((p_customer_id is not null and customer_id = p_customer_id) or (p_call_id is not null and call_id = p_call_id)) and created_at > now() - interval '24 hours' limit 1;
   if v_id is not null then return v_id; end if;
 
   v_due := now() + case p_kind when 'complaint' then case when p_priority = 'urgent' then interval '4 hours' else interval '24 hours' end
@@ -80,7 +80,7 @@ begin
   if not found or not public.zella_is_member(r.business_id) then raise exception 'NOT_ALLOWED'; end if;
   if p_status not in ('open', 'in_progress', 'waiting_verification', 'resolved', 'rejected') then raise exception 'INVALID_STATUS'; end if;
   if p_status in ('resolved', 'rejected') and nullif(trim(coalesce(p_note, '')), '') is null then raise exception 'NOTE_REQUIRED'; end if;
-  if r.kind in ('data_access', 'data_deletion') and p_status = 'resolved' and not exists (select 1 from public.business_members where business_id = r.business_id and user_id = auth.uid() and status = 'active' and role in ('owner', 'admin')) then raise exception 'NOT_ALLOWED'; end if;
+  if r.kind in ('data_access', 'data_deletion') and (p_status in ('resolved', 'rejected') or r.status in ('resolved', 'rejected')) and not exists (select 1 from public.business_members where business_id = r.business_id and user_id = auth.uid() and status = 'active' and role in ('owner', 'admin')) then raise exception 'NOT_ALLOWED'; end if;
   update public.customer_requests set status = p_status, resolution_note = case when p_status in ('resolved', 'rejected') then left(p_note, 1000) else resolution_note end,
          resolved_at = case when p_status in ('resolved', 'rejected') then now() else null end, updated_at = now() where id = p_id;
   return true;

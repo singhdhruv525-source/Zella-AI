@@ -28,7 +28,9 @@ language sql stable security definer set search_path = public as $$
           and coalesce((select (b.setup_data #>> '{privacy,staff_read_call_content}')::boolean from public.businesses b where b.id = p_business_id), false));
 $$;
 revoke execute on function public.zella_sensitive_industry(uuid), public.zella_can_read_call_content(uuid) from public, anon;
-grant execute on function public.zella_sensitive_industry(uuid), public.zella_can_read_call_content(uuid) to authenticated, service_role;
+revoke execute on function public.zella_sensitive_industry(uuid) from authenticated;
+grant execute on function public.zella_sensitive_industry(uuid) to service_role;
+grant execute on function public.zella_can_read_call_content(uuid) to authenticated, service_role;
 
 -- Owners and admins choose whether staff may read transcripts (never in sensitive industries).
 create or replace function public.zella_set_call_content_access(p_business_id uuid, p_staff boolean) returns boolean
@@ -46,13 +48,22 @@ end $$;
 revoke execute on function public.zella_set_call_content_access(uuid, boolean) from public, anon;
 grant execute on function public.zella_set_call_content_access(uuid, boolean) to authenticated, service_role;
 
+create or replace function public.zella_can_read_call_summary(p_business_id uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select public.zella_is_member(p_business_id) and
+    (not public.zella_sensitive_industry(p_business_id) or public.zella_can_read_call_content(p_business_id));
+$$;
+revoke execute on function public.zella_can_read_call_summary(uuid) from public, anon;
+grant execute on function public.zella_can_read_call_summary(uuid) to authenticated, service_role;
+
 -- The table: every column except the two sensitive ones.
 do $$
 declare cols text;
 begin
   select string_agg(quote_ident(column_name), ', ' order by ordinal_position) into cols
-    from information_schema.columns where table_schema = 'public' and table_name = 'calls' and column_name not in ('transcript', 'recording_url');
+    from information_schema.columns where table_schema = 'public' and table_name = 'calls' and column_name not in ('transcript', 'recording_url', 'summary', 'outcome_note');
   execute 'revoke select on public.calls from authenticated';
+  execute 'revoke select (transcript, recording_url, summary, outcome_note) on public.calls from authenticated';
   execute format('grant select (%s) on public.calls to authenticated', cols);
 end $$;
 
@@ -60,8 +71,8 @@ end $$;
 create or replace view public.calls_view with (security_invoker = false) as
 select c.id, c.business_id, c.customer_id, c.conversation_id, c.direction, c.status, c.from_number, c.to_number, c.started_at, c.answered_at,
        c.ended_at, c.duration_seconds, c.ai_handled, c.external_call_id, c.metadata, c.created_at, c.updated_at, c.needs_human,
-       c.escalation_reason, c.escalated_at, c.escalation_resolved_at, c.escalation_resolved_by, c.summary, c.transfer_status, c.failure_reason,
-       c.failure_context, c.assigned_to, c.outcome, c.outcome_note, c.outcome_at, c.escalation_acknowledged_at, c.escalation_acknowledged_by,
+       c.escalation_reason, c.escalated_at, c.escalation_resolved_at, c.escalation_resolved_by, case when public.zella_can_read_call_summary(c.business_id) then c.summary end as summary, c.transfer_status, c.failure_reason,
+       c.failure_context, c.assigned_to, c.outcome, case when public.zella_can_read_call_summary(c.business_id) then c.outcome_note end as outcome_note, c.outcome_at, c.escalation_acknowledged_at, c.escalation_acknowledged_by,
        c.escalation_reminded_at,
        case when public.zella_can_read_call_content(c.business_id) then c.recording_url end as recording_url,
        case when public.zella_can_read_call_content(c.business_id) then c.transcript end as transcript

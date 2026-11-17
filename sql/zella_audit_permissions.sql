@@ -12,8 +12,8 @@ begin
   v_biz := nullif(coalesce(n ->> 'business_id', o ->> 'business_id', case when TG_TABLE_NAME = 'businesses' then coalesce(n ->> 'id', o ->> 'id') end), '')::uuid;
   v_id := nullif(coalesce(n ->> 'id', o ->> 'id'), '')::uuid;
   if TG_TABLE_NAME in ('business_members', 'platform_admins') then
-    v_old := jsonb_build_object('role', o ->> 'role', 'status', o ->> 'status', 'user_id', o ->> 'user_id');
-    v_new := jsonb_build_object('role', n ->> 'role', 'status', n ->> 'status', 'user_id', n ->> 'user_id');
+    v_old := jsonb_build_object('role', o ->> 'role', 'status', o ->> 'status', 'user_id', o ->> 'user_id') || case when TG_TABLE_NAME = 'platform_admins' then jsonb_build_object('is_active', o -> 'is_active') else '{}'::jsonb end;
+    v_new := jsonb_build_object('role', n ->> 'role', 'status', n ->> 'status', 'user_id', n ->> 'user_id') || case when TG_TABLE_NAME = 'platform_admins' then jsonb_build_object('is_active', n -> 'is_active') else '{}'::jsonb end;
     if TG_OP = 'UPDATE' and v_old = v_new then return NEW; end if;
   elsif TG_TABLE_NAME = 'businesses' then
     foreach k in array array['suspended_at', 'cancelled_at', 'cancel_at', 'is_active', 'onboarding_status'] loop
@@ -36,7 +36,7 @@ revoke all on function public.zella_audit_privileged() from public, anon, authen
 do $$
 declare t text;
 begin
-  foreach t in array array['business_members', 'ai_agents', 'automations', 'platform_settings', 'businesses'] loop
+  foreach t in array array['platform_admins', 'business_members', 'ai_agents', 'automations', 'platform_settings', 'businesses'] loop
     execute format('drop trigger if exists zella_audit_privileged_trg on public.%I', t);
     execute format('create trigger zella_audit_privileged_trg after insert or update or delete on public.%I for each row execute function public.zella_audit_privileged()', t);
   end loop;
@@ -45,7 +45,7 @@ end $$;
 -- 314
 create or replace function public.zella_permission_check() returns jsonb
 language plpgsql security definer set search_path = public as $$
-declare v_fn text[]; v_pol text[]; v_allowed text[] := array['zella_unsubscribe_email', 'zella_unsubscribe_lookup', 'zella_digits', 'zella_valid_email'];
+declare v_fn text[]; v_pol text[]; v_no_rls text[]; v_allowed text[] := array['zella_unsubscribe_email', 'zella_unsubscribe_lookup', 'zella_digits', 'zella_valid_email'];
 begin
   select coalesce(array_agg(p.proname order by p.proname), '{}') into v_fn from pg_proc p
    where p.pronamespace = 'public'::regnamespace and p.prokind = 'f' and has_function_privilege('anon', p.oid, 'execute')
@@ -53,7 +53,13 @@ begin
   select coalesce(array_agg(tablename || '.' || policyname order by tablename), '{}') into v_pol from pg_policies
    where schemaname = 'public' and (qual = 'true' or with_check = 'true') and (roles && array['anon'::name, 'public'::name] or cmd <> 'SELECT')
      and tablename not in ('plans', 'industries');
-  return jsonb_build_object('anon_functions', to_jsonb(v_fn), 'open_policies', to_jsonb(v_pol), 'ok', cardinality(v_fn) = 0 and cardinality(v_pol) = 0);
+  select coalesce(array_agg(c.relname::text order by c.relname), '{}') into v_no_rls
+    from pg_class c where c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'p', 'f') and not c.relrowsecurity
+      and (has_table_privilege('anon', c.oid, 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
+        or has_table_privilege('authenticated', c.oid, 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
+        or has_any_column_privilege('anon', c.oid, 'SELECT,INSERT,UPDATE,REFERENCES')
+        or has_any_column_privilege('authenticated', c.oid, 'SELECT,INSERT,UPDATE,REFERENCES'));
+  return jsonb_build_object('unprotected_tables', to_jsonb(v_no_rls), 'anon_functions', to_jsonb(v_fn), 'open_policies', to_jsonb(v_pol), 'ok', cardinality(v_fn) = 0 and cardinality(v_pol) = 0 and cardinality(v_no_rls) = 0);
 end $$;
 revoke all on function public.zella_permission_check() from public, anon, authenticated;
 grant execute on function public.zella_permission_check() to service_role;

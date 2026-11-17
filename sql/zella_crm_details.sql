@@ -129,3 +129,18 @@ create policy blocked_times_member_delete on public.blocked_times
   for delete to authenticated using (exists (select 1 from public.business_members m where m.business_id = blocked_times.business_id and m.user_id = auth.uid() and m.status = 'active' and m.role <> 'viewer'));
 
 grant select, insert, update, delete on public.blocked_times to authenticated;
+
+create or replace function public.zella_staff_business_guard() returns trigger
+language plpgsql security invoker set search_path = public as $$
+begin
+  if new.staff_id is not null and not exists (
+    select 1 from public.staff_members s where s.id = new.staff_id and s.business_id = new.business_id
+  ) then raise exception 'BAD_STAFF'; end if;
+  return new;
+end $$;
+drop trigger if exists zella_staff_business_guard on public.appointments;
+create trigger zella_staff_business_guard before insert or update of staff_id, business_id on public.appointments
+  for each row execute function public.zella_staff_business_guard();
+drop trigger if exists zella_staff_business_guard on public.blocked_times;
+create trigger zella_staff_business_guard before insert or update of staff_id, business_id on public.blocked_times
+  for each row execute function public.zella_staff_business_guard();

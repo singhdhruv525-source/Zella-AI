@@ -103,7 +103,7 @@ update public.industry_automation_presets set trigger_config = replace(trigger_c
 do $do$
 declare d text; o text := E'         when v_key = ''pet_care'' then'; n text;
 begin
-  select pg_get_functiondef(p.oid) into d from pg_proc p where p.proname = 'zella_brain_prompt' and p.pronamespace = 'public'::regnamespace;
+  select pg_get_functiondef(p.oid) into d from pg_proc p where p.proname = case when to_regprocedure('public.zella_brain_prompt_base(uuid)') is not null then 'zella_brain_prompt_base' else 'zella_brain_prompt' end and p.pronamespace = 'public'::regnamespace;
   if d like '%allergen%' then return; end if;
   if position(o in d) = 0 then raise exception 'ANCHOR_NOT_FOUND'; end if;
   n := E'         when v_key in (''restaurant'', ''hospitality'') then E''- Never say a dish or drink is free of an allergen or safe for an allergy; say the team will confirm and offer a callback. Do not promise a table or room at a time unless a booking is confirmed.\\n''\n'

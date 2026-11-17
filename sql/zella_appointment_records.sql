@@ -93,13 +93,18 @@ create or replace function public.zella_appointment_record_match_trg() returns t
 language plpgsql security definer set search_path = public as $$
 begin
   if exists (select 1 from public.appointments a join public.crm_records x on x.id = a.record_id
-              where a.id = new.id and x.customer_id is not null and a.customer_id is distinct from x.customer_id) then
+              where ((tg_table_name = 'appointments' and a.id = new.id) or
+                     (tg_table_name = 'crm_records' and x.id = new.id)) and x.customer_id is not null and a.customer_id is distinct from x.customer_id) then
     raise exception 'RECORD_OTHER_CUSTOMER';
   end if;
   return null;
 end $$;
 drop trigger if exists zella_appointment_record_match on public.appointments;
 create constraint trigger zella_appointment_record_match after update of customer_id on public.appointments
+  deferrable initially deferred for each row execute function public.zella_appointment_record_match_trg();
+
+drop trigger if exists zella_record_appointment_match on public.crm_records;
+create constraint trigger zella_record_appointment_match after update of customer_id on public.crm_records
   deferrable initially deferred for each row execute function public.zella_appointment_record_match_trg();
 
 -- the record's history says when something was booked for it
@@ -175,6 +180,13 @@ begin
                         $a$fields = v_fields, columns = v_cols, title_label = coalesce(nullif(trim(p_patch ->> 'title_label'), ''), title_label),
       appointment_link = coalesce((p_patch ->> 'appointment_link')::boolean, appointment_link), updated_at = now()$a$);
     if position('appointment_link' in def) = 0 then raise exception 'zella_save_record_type has changed; review this patch'; end if;
+    execute def;
+  end if;
+  def := pg_get_functiondef('public.zella_save_record_type(uuid, text, jsonb)'::regprocedure);
+  if position('v_enabled, v_pos, coalesce' in def) = 0 then
+    def := replace(def, 'fields, columns, enabled, position)', 'fields, columns, enabled, position, appointment_link)');
+    def := replace(def, 'v_fields, v_cols, v_enabled, v_pos);', $a$v_fields, v_cols, v_enabled, v_pos, coalesce((p_patch ->> 'appointment_link')::boolean, false));$a$);
+    if position('v_enabled, v_pos, coalesce' in def) = 0 then raise exception 'record type insert anchor missing'; end if;
     execute def;
   end if;
 end $$;

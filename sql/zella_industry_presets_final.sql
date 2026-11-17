@@ -4,7 +4,7 @@
 
 ------------------------------------------------------------------ Restaurant: walk-in waitlist and tables
 update public.industry_crm_presets
-   set config = jsonb_set(config, '{types}', (config -> 'types') || jsonb_build_array(
+   set config = jsonb_set(config, '{types}', coalesce(nullif(config -> 'types', 'null'::jsonb), '[]'::jsonb) || jsonb_build_array(
      jsonb_build_object('key','waitlist','icon','hourglass_top','singular','Walk-in party','plural','Walk-in waitlist','title_label','Party name','link_person',true,
        'statuses', jsonb_build_array(
           jsonb_build_object('key','waiting','tone','warning','label','Waiting'),
@@ -32,7 +32,7 @@ update public.industry_crm_presets
           jsonb_build_object('key','notes','type','longtext','label','Notes')),
        'columns', jsonb_build_array('seats','area'))
    )), updated_at = now()
- where key = 'restaurant' and not exists (select 1 from jsonb_array_elements(config -> 'types') x where x ->> 'key' = 'waitlist');
+ where key = 'restaurant' and not exists (select 1 from jsonb_array_elements(coalesce(nullif(config -> 'types', 'null'::jsonb), '[]'::jsonb)) x where x ->> 'key' = 'waitlist');
 
 ------------------------------------------------------------------ Presets
 with p(industry_key, name, description, trigger_type, trigger_config) as (values

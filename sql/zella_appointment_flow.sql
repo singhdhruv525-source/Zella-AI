@@ -9,7 +9,7 @@ language plpgsql security definer set search_path = public as $$
 declare v_who text; v_tz text; v_when text; v_req boolean;
 begin
   if new.status not in ('scheduled', 'confirmed') or new.start_time <= now() - interval '1 hour' then return new; end if;
-  select coalesce(nullif(trim(coalesce(c.first_name,'') || ' ' || coalesce(c.last_name,'')), ''), new.title, 'A customer') into v_who from public.customers c where c.id = new.customer_id;
+  select coalesce(nullif(trim(coalesce(c.first_name,'') || ' ' || coalesce(c.last_name,'')), ''), new.title, 'A customer') into v_who from public.customers c where c.id = new.customer_id and c.business_id = new.business_id;
   v_who := coalesce(v_who, new.title, 'A customer');
   select coalesce(b.timezone, 'America/New_York') into v_tz from public.businesses b where b.id = new.business_id;
   v_when := to_char(new.start_time at time zone v_tz, 'Dy Mon FMDD "at" FMHH12:MI AM');
@@ -30,7 +30,7 @@ begin
   if new.assigned_to is null then return new; end if;
   -- owners and admins already get the general notices
   v_big := exists (select 1 from public.business_members m where m.business_id = new.business_id and m.user_id = new.assigned_to and m.status = 'active' and m.role in ('owner', 'admin'));
-  select coalesce(nullif(trim(coalesce(c.first_name,'') || ' ' || coalesce(c.last_name,'')), ''), new.title, 'A customer') into v_who from public.customers c where c.id = new.customer_id;
+  select coalesce(nullif(trim(coalesce(c.first_name,'') || ' ' || coalesce(c.last_name,'')), ''), new.title, 'A customer') into v_who from public.customers c where c.id = new.customer_id and c.business_id = new.business_id;
   v_who := coalesce(v_who, new.title, 'A customer');
   select coalesce(b.timezone, 'America/New_York') into v_tz from public.businesses b where b.id = new.business_id;
   v_when := to_char(new.start_time at time zone v_tz, 'Dy Mon FMDD "at" FMHH12:MI AM');
@@ -61,10 +61,13 @@ begin
               and ap.arrived_at is null and ap.checked_in_at is null and ap.in_service_at is null
               and not exists (select 1 from public.crm_tasks t where t.kind = 'record_attendance' and t.entity_id = ap.id)
             order by ap.end_time limit 100 loop
-    select coalesce(nullif(trim(coalesce(c.first_name,'') || ' ' || coalesce(c.last_name,'')), ''), a.title, 'a customer') into v_who from public.customers c where c.id = a.customer_id;
+    select coalesce(nullif(trim(coalesce(c.first_name,'') || ' ' || coalesce(c.last_name,'')), ''), a.title, 'a customer') into v_who from public.customers c where c.id = a.customer_id and c.business_id = a.business_id;
     v_who := coalesce(v_who, a.title, 'a customer');
+    begin
     perform public.zella_create_task(a.business_id, a.customer_id, 'record_attendance', 'Did ' || v_who || ' come in? Mark completed or no-show', 'The appointment ended and nothing was recorded.', 'normal', now() + interval '1 day', a.assigned_to, 'automation', a.id);
     n := n + 1;
+    exception when others then null;
+    end;
   end loop;
   return n;
 end $$;

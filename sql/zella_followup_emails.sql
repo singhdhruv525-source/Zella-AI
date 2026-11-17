@@ -28,6 +28,8 @@ declare
 begin
   select * into v_task from public.followup_tasks where id = p_task_id for update;
   if not found then raise exception 'TASK_NOT_FOUND'; end if;
+  if v_task.status = 'done' then return 'done'; end if;
+  if p_call_id is not null and not exists (select 1 from public.calls where id = p_call_id and business_id = v_task.business_id) then raise exception 'BAD_CALL'; end if;
   if p_outcome not in ('rescheduled', 'wants_callback', 'declined', 'no_answer', 'voicemail', 'sms_sent', 'email_sent', 'failed') then
     raise exception 'BAD_OUTCOME';
   end if;
@@ -57,7 +59,7 @@ begin
        set needs_human = true,
            escalation_reason = coalesce(nullif(p_notes, ''), 'Asked for a call back after a missed appointment'),
            escalated_at = now(), escalation_resolved_at = null, updated_at = now()
-     where id = coalesce(p_call_id, v_task.call_id);
+     where id = coalesce(p_call_id, v_task.call_id) and business_id = v_task.business_id;
   end if;
   return v_status;
 end $$;
@@ -216,6 +218,9 @@ begin
       update public.appointment_reminders set channel = 'email' where id = r.id; continue;      -- the email sender takes it from here
     elsif v_channel = 'email' and not v_email_ok and v_phone_ok then
       update public.appointment_reminders set channel = 'sms' where id = r.id; continue;        -- the text sender takes it from here
+    end if;
+    if (v_channel = 'sms' and not v_phone_ok) or (v_channel = 'email' and not v_email_ok) then
+      update public.appointment_reminders set status = 'skipped' where id = r.id; continue;
     end if;
     select s.name into v_staff from public.staff_members s where s.id = a.staff_id;
     update public.appointment_reminders set status = 'sending', attempts = attempts + 1 where id = r.id;

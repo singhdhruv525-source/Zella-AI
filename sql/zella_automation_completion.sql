@@ -134,7 +134,7 @@ begin
   if d.status <> 'pending' then raise exception 'ALREADY_DECIDED'; end if;
   if p_send then
     v_body := left(coalesce(nullif(trim(p_body), ''), d.body), 300);
-    if v_body ~ '[$€£]' or v_body ~* '\m(sale|discount|% off|offer ends|promo)\M' then raise exception 'NO_MARKETING_OR_PRICES'; end if;
+    if v_body ~ '[$€£]' or v_body ~* '\m(sale|discount|offer ends|promo)\M' or v_body ~* '%\s+off\M' then raise exception 'NO_MARKETING_OR_PRICES'; end if;
     v_id := public.zella_queue_customer_message(d.business_id, d.customer_id, 'record_status_update',
               jsonb_build_object('status_line', v_body, 'status', 'draft', 'record_title', ''), interval '0', null, interval '0');
     if v_id is null then raise exception 'CANNOT_REACH'; end if;
@@ -269,9 +269,13 @@ begin
 end $$;
 
 -- The AI receptionist reads the notice through its prompt. The original prompt builder is kept as zella_brain_prompt_base.
-do $$ begin
-  if not exists (select 1 from pg_proc where pronamespace = 'public'::regnamespace and proname = 'zella_brain_prompt_base') then
-    alter function public.zella_brain_prompt(uuid) rename to zella_brain_prompt_base;
+do $$ declare def text; begin
+  def := pg_get_functiondef('public.zella_brain_prompt(uuid)'::regprocedure);
+  -- Upgrade a legacy direct definition, or refresh it after an old brain migration was rerun.
+  if position('zella_brain_prompt_base' in def) = 0 then
+    execute replace(def, 'FUNCTION public.zella_brain_prompt(', 'FUNCTION public.zella_brain_prompt_base(');
+  elsif to_regprocedure('public.zella_brain_prompt_base(uuid)') is null then
+    raise exception 'BRAIN_BASE_MISSING';
   end if;
 end $$;
 create or replace function public.zella_brain_prompt(p_business_id uuid)

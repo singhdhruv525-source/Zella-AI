@@ -14,8 +14,11 @@ declare
   v_freed integer := 0; n integer; q record; v_backlog jsonb := '{}'::jsonb;
 begin
   -- 1. free stuck work
+  update public.followup_tasks set status = 'failed', outcome = 'failed', completed_at = now(), updated_at = now()
+   where status = 'in_progress' and channel in ('sms', 'email') and claimed_at < now() - interval '30 minutes'
+     and attempts >= max_attempts;
   update public.followup_tasks set status = 'pending', due_at = now(), updated_at = now()
-   where status = 'in_progress' and channel in ('sms', 'email') and claimed_at < now() - interval '30 minutes';
+   where status = 'in_progress' and channel in ('sms', 'email') and claimed_at < now() - interval '30 minutes' and attempts < max_attempts;
   get diagnostics n = row_count; v_freed := v_freed + n;
   update public.appointment_reminders set status = 'pending'
    where status = 'sending' and due_at < now() - interval '60 minutes';

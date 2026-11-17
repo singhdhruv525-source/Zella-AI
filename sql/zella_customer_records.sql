@@ -74,6 +74,10 @@ begin
   select * into k from public.customers where id = p_keep and business_id = p_business_id for update;
   select * into d from public.customers where id = p_drop and business_id = p_business_id for update;
   if k.id is null or d.id is null then raise exception 'NOT_FOUND'; end if;
+  if k.status = 'archived' then raise exception 'KEEP_ARCHIVED'; end if;
+  -- Move the append-only consent history without changing its timestamps or scope.
+  update public.contact_consents set customer_id = p_keep
+   where business_id = p_business_id and customer_id = p_drop;
   for t in select distinct c1.table_name from information_schema.columns c1 join information_schema.columns c2 on c2.table_schema = 'public' and c2.table_name = c1.table_name and c2.column_name = 'business_id'
             join information_schema.tables tb on tb.table_schema = 'public' and tb.table_name = c1.table_name and tb.table_type = 'BASE TABLE'
             where c1.table_schema = 'public' and c1.column_name = 'customer_id' and c1.table_name not in ('duplicate_reviews', 'email_unsubscribe_tokens', 'contact_consents', 'data_rights_requests') loop
@@ -130,13 +134,15 @@ language plpgsql security definer set search_path = public as $$
 declare p record; n integer := 0; b uuid; v_biz uuid[] := '{}';
 begin
   for p in
-    select a.business_id, a.id as keep_id, o.id as other_id, o.first_name, o.last_name, o.phone, o.email
-      from public.customers a join public.customers o on o.business_id = a.business_id and o.id > a.id and o.status = 'active'
-     where a.status = 'active'
-       and ((public.zella_digits(a.phone) is not null and length(public.zella_digits(a.phone)) >= 7 and public.zella_digits(a.phone) = public.zella_digits(o.phone))
-         or (nullif(a.email, '') is not null and lower(a.email) = lower(o.email)))
-       and not exists (select 1 from public.duplicate_reviews r where r.business_id = a.business_id and r.status in ('open', 'kept_separate', 'dismissed')
-                         and r.incoming ->> 'duplicate_customer_id' in (a.id::text, o.id::text) and r.customer_id in (a.id, o.id))
+    select pairs.* from (
+      select a.business_id, a.id as keep_id, o.id as other_id, o.first_name, o.last_name, o.phone, o.email from public.customers a join public.customers o on o.business_id = a.business_id and o.id > a.id and o.status = 'active' and public.zella_digits(a.phone) = public.zella_digits(o.phone)
+      where a.status = 'active' and length(public.zella_digits(a.phone)) >= 7
+      union
+      select a.business_id, a.id as keep_id, o.id as other_id, o.first_name, o.last_name, o.phone, o.email from public.customers a join public.customers o on o.business_id = a.business_id and o.id > a.id and o.status = 'active' and lower(a.email) = lower(o.email)
+      where a.status = 'active' and nullif(a.email, '') is not null
+    ) pairs
+    where not exists (select 1 from public.duplicate_reviews r where r.business_id = pairs.business_id and r.status in ('open', 'kept_separate', 'dismissed')
+      and r.incoming ->> 'duplicate_customer_id' in (pairs.keep_id::text, pairs.other_id::text) and r.customer_id in (pairs.keep_id, pairs.other_id))
      limit 200 loop
     insert into public.duplicate_reviews (business_id, customer_id, incoming)
     values (p.business_id, p.keep_id, jsonb_build_object('duplicate_customer_id', p.other_id, 'first_name', p.first_name, 'last_name', p.last_name, 'phone', p.phone, 'email', p.email, 'source', 'scan'));
@@ -188,4 +194,10 @@ grant execute on function public.zella_customer_timeline(uuid, uuid, integer) to
 -- this file must not drop it: authority would stay on the archived duplicate)
 do $$ begin
   if to_regprocedure('public.zella_people_merge_install()') is not null then perform public.zella_people_merge_install(); end if;
+end $$;
+
+do $$ begin
+  if exists (select 1 from pg_proc where oid = to_regprocedure('public.zella_digits(text)') and provolatile = 'i') then
+    create index if not exists customers_business_phone_digits_idx on public.customers (business_id, public.zella_digits(phone));
+  end if;
 end $$;

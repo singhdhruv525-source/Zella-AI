@@ -184,8 +184,9 @@ end $$;
 
 revoke execute on function public.zella_capabilities(uuid), public.zella_capability_on(uuid, text), public.zella_require_capability(uuid, text),
   public.zella_set_capability(uuid, text, boolean) from public, anon;
-grant execute on function public.zella_capabilities(uuid), public.zella_capability_on(uuid, text), public.zella_set_capability(uuid, text, boolean) to authenticated, service_role;
-grant execute on function public.zella_require_capability(uuid, text) to service_role;
+grant execute on function public.zella_capabilities(uuid), public.zella_set_capability(uuid, text, boolean) to authenticated, service_role;
+revoke execute on function public.zella_capability_on(uuid, text), public.zella_require_capability(uuid, text) from authenticated;
+grant execute on function public.zella_capability_on(uuid, text), public.zella_require_capability(uuid, text) to service_role;
 
 -- Server enforcement: new appointments need scheduling (staff, the AI receptionist and every other path insert here).
 create or replace function public.zella_capability_appointment_trg() returns trigger
@@ -241,7 +242,7 @@ begin
   select coalesce(nullif(timezone, ''), 'UTC') into v_tz from public.businesses where id = p_business_id;
   if not found then raise exception 'NOT_FOUND'; end if;
   v_start := (date_trunc('day', now() at time zone v_tz)) at time zone v_tz;
-  v_end := v_start + interval '1 day';
+  v_end := (date_trunc('day', now() at time zone v_tz) + interval '1 day') at time zone v_tz;
   return coalesce((
     select jsonb_agg(jsonb_build_object('key', t.key, 'plural', t.plural, 'icon', t.icon, 'open', coalesce(c.open, 0),
              'overdue', coalesce(c.overdue, 0), 'due_today', coalesce(c.due_today, 0), 'unassigned', coalesce(c.unassigned, 0)) order by t.position, t.key)

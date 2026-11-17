@@ -52,15 +52,15 @@ language sql stable security definer set search_path = public as $$
     from (select public.zella_booking_rules(p_business_id) r) x
 $$;
 
-revoke execute on function public.zella_booking_choices(uuid, timestamptz, timestamptz, integer, integer, integer), public.zella_arrival_window(uuid) from public, anon;
-grant execute on function public.zella_booking_choices(uuid, timestamptz, timestamptz, integer, integer, integer), public.zella_arrival_window(uuid) to authenticated, service_role;
+revoke execute on function public.zella_booking_choices(uuid, timestamptz, timestamptz, integer, integer, integer), public.zella_arrival_window(uuid) from public, anon, authenticated;
+grant execute on function public.zella_booking_choices(uuid, timestamptz, timestamptz, integer, integer, integer), public.zella_arrival_window(uuid) to service_role;
 
 do $$
 declare def text;
 begin
   def := pg_get_functiondef('public.zella_ai_booking(text, uuid, text, jsonb)'::regprocedure);
   if position('zella_arrival_windows' in def) = 0 then
-    def := replace(def, $a$v_book_rules jsonb; v_notice integer; v_ahead integer;$a$, $a$v_book_rules jsonb; v_notice integer; v_ahead integer; v_window integer;$a$);
+    def := replace(def, $a$v_lead jsonb; v_cust uuid; v_appt uuid; v_err text; v_when text;$a$, $a$v_lead jsonb; v_cust uuid; v_appt uuid; v_err text; v_when text; v_window integer;$a$);
     def := replace(def, $a$  if p_action in ('availability', 'book') then$a$, $a$  v_window := public.zella_arrival_window(v_biz);   /* zella_arrival_windows: a window is booked whole */
   if v_window is not null then v_dur := v_window; end if;
 
@@ -72,7 +72,7 @@ begin
     def := replace(def, $a$  v_when := to_char(v_start at time zone v_tz, 'FMDay, FMMonth FMDD "at" FMHH12:MI AM');$a$, $a$  v_when := public.zella_slot_say(v_start, v_tz, v_window);$a$);
     def := replace(def, $a$'Booked for ' || v_when || '. Tell the caller they are all set'$a$,
                         $a$'Booked for ' || v_when || '.' || case when v_window is not null then ' The team arrives within that window.' else '' end || ' Tell the caller they are all set'$a$);
-    if position('zella_arrival_windows' in def) = 0 or position('zella_booking_choices(v_biz, v_from' in def) = 0 or position('zella_slot_say(v_start' in def) = 0
+    if position('v_window integer;' in def) = 0 or position('zella_arrival_windows' in def) = 0 or position('zella_booking_choices(v_biz, v_from' in def) = 0 or position('zella_slot_say(v_start' in def) = 0
        or position('arrives within that window' in def) = 0 then
       raise exception 'zella_ai_booking has changed; review this patch';
     end if;
@@ -90,7 +90,7 @@ begin
     def := replace(def, $a$to_char(v_appt.start_time at time zone v_tz, 'FMDay, FMMonth FMDD "at" FMHH12:MI AM')$a$, $a$public.zella_slot_say(v_appt.start_time, v_tz, public.zella_arrival_window(v_biz))$a$);
     def := replace(def, $a$  v_when := to_char(v_start at time zone v_tz, 'FMDay, FMMonth FMDD "at" FMHH12:MI AM');$a$, $a$  v_when := public.zella_slot_say(v_start, v_tz, public.zella_arrival_window(v_biz));   /* zella_arrival_windows */$a$);
     def := replace(def, $a$to_char(s.slot_start at time zone v_tz, 'FMDay, FMMonth FMDD "at" FMHH12:MI AM')$a$, $a$public.zella_slot_say(s.slot_start, v_tz, public.zella_arrival_window(v_biz))$a$);
-    if position('zella_arrival_windows' in def) = 0 or position('FMDD "at"' in def) > 0 then raise exception 'zella_ai_manage_booking has changed; review this patch'; end if;
+    if position('v_window integer;' in def) = 0 or position('zella_arrival_windows' in def) = 0 or position('FMDD "at"' in def) > 0 then raise exception 'zella_ai_manage_booking has changed; review this patch'; end if;
     execute def;
   end if;
 end $$;

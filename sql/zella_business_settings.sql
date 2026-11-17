@@ -1,3 +1,31 @@
+-- Rollback baseline is captured on first apply of this version, never on reruns.
+-- An older deployment needs its original backup; this cannot reconstruct already-overwritten state.
+create table if not exists public.zella_business_settings_undo (seq bigint generated always as identity, command text not null);
+revoke all on public.zella_business_settings_undo from public, anon, authenticated, service_role;
+do $capture$
+declare f text; p oid; r record; g record; ddl text; cols text[];
+begin
+ if not exists (select 1 from public.zella_business_settings_undo) then
+  insert into public.zella_business_settings_undo(command) values ('select 1');
+  foreach f in array array['public.zella_business_settings(uuid)','public.zella_save_business_profile(uuid,jsonb)','public.zella_save_business_hours(uuid,jsonb)','public.zella_add_business_closure(uuid,date,date,text,time,time)','public.zella_delete_business_closure(uuid)','public.zella_save_my_profile(text,text,text)'] loop
+    p := to_regprocedure(f);
+    if p is null then
+      insert into public.zella_business_settings_undo(command) values ('drop function if exists ' || f);
+    else
+      insert into public.zella_business_settings_undo(command) values (pg_get_functiondef(p));
+      -- Only these roles' permissions are modified by the migrations.
+      insert into public.zella_business_settings_undo(command) values ('revoke all on function ' || f || ' from public, anon, authenticated, service_role');
+      for g in select a.* from pg_proc x, lateral aclexplode(coalesce(x.proacl, acldefault('f',x.proowner))) a
+        where x.oid=p and (a.grantee=0 or a.grantee in (select oid from pg_roles where rolname in ('anon','authenticated','service_role'))) loop
+        insert into public.zella_business_settings_undo(command) values ('grant execute on function ' || f || ' to ' ||
+          case when g.grantee=0 then 'public' else quote_ident(pg_get_userbyid(g.grantee)) end ||
+          case when g.is_grantable then ' with grant option' else '' end);
+      end loop;
+    end if;
+  end loop;
+ end if;
+end $capture$;
+
 -- Zella - business Settings in the business app (2026-10-26). Safe to re-run.
 --
 -- Purpose
@@ -26,7 +54,7 @@
 --   Every function checks the signed-in person's active membership and role in that business on the server. A
 --   business id from the browser is only used to look that membership up. Each change is written to audit_logs.
 --
--- Rollback: drop the six functions (signatures below). No table or column is changed.
+-- Rollback: sql/rollback/zella_business_settings_rollback.sql. description and alternate_phone remain.
 --
 -- Validation (rolled back), as an owner of <business id>:
 --   do $$ declare r jsonb; begin
@@ -138,7 +166,7 @@ begin
     if v_close <= v_open then raise exception 'CLOSES_BEFORE_OPENS'; end if;
   end loop;
   if exists (select 1 from jsonb_array_elements(p_hours) with ordinality a(v, i), jsonb_array_elements(p_hours) with ordinality b(v, i)
-              where a.i < b.i and (a.v ->> 'weekday') = (b.v ->> 'weekday')
+              where a.i < b.i and (a.v ->> 'weekday')::integer = (b.v ->> 'weekday')::integer
                 and (a.v ->> 'opens')::time < (b.v ->> 'closes')::time and (b.v ->> 'opens')::time < (a.v ->> 'closes')::time) then
     raise exception 'HOURS_OVERLAP';
   end if;
@@ -156,7 +184,7 @@ end $$;
 create or replace function public.zella_add_business_closure(p_business_id uuid, p_starts_on date, p_ends_on date, p_label text default 'Closed',
   p_opens time default null, p_closes time default null)
 returns uuid language plpgsql security definer set search_path = public as $$
-declare v_id uuid;
+declare v_id uuid; v_label text := coalesce(nullif(left(trim(coalesce(p_label, '')), 80), ''), 'Closed');
 begin
   if not public.zella_has_role(p_business_id, array['owner', 'admin', 'manager']) or auth.uid() is null then raise exception 'NOT_ALLOWED'; end if;
   if p_starts_on is null or p_ends_on is null or p_ends_on < p_starts_on then raise exception 'BAD_DATES'; end if;
@@ -164,11 +192,11 @@ begin
   if p_ends_on - p_starts_on > 366 then raise exception 'BAD_DATES'; end if;
   if (p_opens is null) <> (p_closes is null) or (p_opens is not null and p_closes <= p_opens) then raise exception 'BAD_HOURS'; end if;
   insert into public.business_closures (business_id, starts_on, ends_on, label, opens, closes)
-  values (p_business_id, p_starts_on, p_ends_on, coalesce(nullif(left(trim(coalesce(p_label, '')), 80), ''), 'Closed'), p_opens, p_closes)
+  values (p_business_id, p_starts_on, p_ends_on, v_label, p_opens, p_closes)
   returning id into v_id;
   insert into public.audit_logs (business_id, user_id, action, entity_type, entity_id, new_data)
   values (p_business_id, auth.uid(), 'business.closure_added', 'business_closure', v_id,
-          jsonb_build_object('starts_on', p_starts_on, 'ends_on', p_ends_on, 'label', p_label));
+          jsonb_build_object('starts_on', p_starts_on, 'ends_on', p_ends_on, 'label', v_label));
   return v_id;
 end $$;
 

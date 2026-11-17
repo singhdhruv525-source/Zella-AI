@@ -183,11 +183,20 @@ create or replace function public.zella_claim_events(p_limit int default 20)
 returns setof public.automation_events
 language plpgsql security definer set search_path = public as $$
 begin
+  with exhausted as (
+    update public.automation_events set status = 'failed', processed_at = now(), error_category = 'provider_timeout', error_message = 'Claim retry limit reached'
+     where id in (select id from public.automation_events where attempts >= 5 and
+       ((status = 'received' and coalesce(next_attempt_at, now()) <= now()) or
+        (status = 'processing' and claimed_at < now() - interval '10 minutes')) for update skip locked)
+    returning *
+  )
+  insert into public.automation_dead_letters (business_id, source_table, source_id, event_id, reason, error_category)
+  select business_id, 'automation_events', id, id, 'Claim retry limit reached', 'provider_timeout' from exhausted on conflict do nothing;
   return query
   with picked as (
     select id from public.automation_events
-     where (status = 'received' and coalesce(next_attempt_at, now()) <= now())
-        or (status = 'processing' and claimed_at < now() - interval '10 minutes')
+     where attempts < 5 and ((status = 'received' and coalesce(next_attempt_at, now()) <= now())
+        or (status = 'processing' and claimed_at < now() - interval '10 minutes'))
      order by received_at
      for update skip locked
      limit greatest(1, least(coalesce(p_limit, 20), 100))
@@ -200,14 +209,16 @@ end $$;
 
 -- Report the result. Temporary failures are retried with a growing delay (max 5 tries).
 -- Permanent failures, or too many tries, go to the dead-letter list for a person to review.
+drop function if exists public.zella_complete_event(uuid,boolean,text,text);
 create or replace function public.zella_complete_event(
-  p_event_id uuid, p_ok boolean, p_error_category text default null, p_error text default null
+  p_event_id uuid, p_ok boolean, p_claimed_at timestamptz, p_error_category text default null, p_error text default null
 ) returns text
 language plpgsql security definer set search_path = public as $$
 declare e public.automation_events; v_temp boolean;
 begin
   select * into e from public.automation_events where id = p_event_id for update;
   if not found then raise exception 'NOT_FOUND'; end if;
+  if e.status <> 'processing' or p_claimed_at is null or e.claimed_at is distinct from p_claimed_at then return 'ignored'; end if;
   if p_ok then
     update public.automation_events set status = 'processed', processed_at = now(), error_category = null, error_message = null where id = e.id;
     return 'processed';
@@ -311,8 +322,9 @@ create or replace function public.zella_record_consent(
 language plpgsql security definer set search_path = public as $$
 declare v_uid uuid := auth.uid(); v_id uuid; v_cust uuid := p_customer_id; v_digits text := public.zella_digits(p_phone);
 begin
-  if v_uid is not null and not public.zella_is_member(p_business_id) then raise exception 'NOT_ALLOWED'; end if;
-  if v_uid is not null and p_source = 'inbound_sms_keyword' then raise exception 'NOT_ALLOWED'; end if;
+  if auth.role() is distinct from 'service_role' and (v_uid is null or not public.zella_has_role(p_business_id, array['owner', 'admin', 'manager', 'staff'])) then raise exception 'NOT_ALLOWED'; end if;
+  if auth.role() is distinct from 'service_role' and (p_source is null or p_source not in ('staff', 'verbal_call', 'import')) then raise exception 'NOT_ALLOWED'; end if;
+  if auth.role() is distinct from 'service_role' and p_status = 'opted_in' and not public.zella_has_role(p_business_id, array['owner', 'admin', 'manager']) then raise exception 'NOT_ALLOWED'; end if;
   if not exists (select 1 from public.businesses where id = p_business_id) then raise exception 'INVALID_BUSINESS'; end if;
   if v_cust is not null and not exists (select 1 from public.customers where id = v_cust and business_id = p_business_id) then raise exception 'TENANT_MISMATCH'; end if;
   if v_cust is null and v_digits is not null then
@@ -331,7 +343,7 @@ begin
       do_not_email = do_not_email or p_channel = 'email',
       updated_at = now()
      where id = v_cust;
-  elsif v_cust is not null and p_status = 'opted_in' and p_source in ('inbound_sms_keyword','email_link') then
+  elsif auth.role() = 'service_role' and v_cust is not null and p_status = 'opted_in' and p_source in ('inbound_sms_keyword','email_link') then
     update public.customers set
       do_not_sms = do_not_sms and p_channel <> 'sms',
       do_not_email = do_not_email and p_channel <> 'email',
@@ -457,7 +469,7 @@ end $$;
 revoke all on function public.zella_redact(text) from public, anon;
 revoke all on function public.zella_ingest_event(uuid, text, text, text, jsonb, text, uuid, uuid) from public, anon, authenticated;
 revoke all on function public.zella_claim_events(int) from public, anon, authenticated;
-revoke all on function public.zella_complete_event(uuid, boolean, text, text) from public, anon, authenticated;
+revoke all on function public.zella_complete_event(uuid, boolean, timestamptz, text, text) from public, anon, authenticated;
 revoke all on function public.zella_start_execution(text, uuid, uuid, text, uuid) from public, anon, authenticated;
 revoke all on function public.zella_finish_execution(uuid, boolean, text, jsonb, jsonb, text, text, boolean) from public, anon, authenticated;
 revoke all on function public.zella_stuck_executions(int) from public, anon, authenticated;
@@ -473,7 +485,7 @@ revoke all on function public.zella_apply_industry_defaults(uuid) from public, a
 grant execute on function public.zella_redact(text) to authenticated, service_role;
 grant execute on function public.zella_ingest_event(uuid, text, text, text, jsonb, text, uuid, uuid) to service_role;
 grant execute on function public.zella_claim_events(int) to service_role;
-grant execute on function public.zella_complete_event(uuid, boolean, text, text) to service_role;
+grant execute on function public.zella_complete_event(uuid, boolean, timestamptz, text, text) to service_role;
 grant execute on function public.zella_start_execution(text, uuid, uuid, text, uuid) to service_role;
 grant execute on function public.zella_finish_execution(uuid, boolean, text, jsonb, jsonb, text, text, boolean) to service_role;
 grant execute on function public.zella_stuck_executions(int) to service_role;

@@ -59,6 +59,7 @@ language sql immutable set search_path = '' as $$
     "photography-events": [{"after_service": "session", "suggestion": "printed photos", "delay_days": 7}]
   }'::jsonb as v) ideas;
 $$;
+revoke execute on function public.zella_cross_sell_ideas(text) from public, anon;
 grant execute on function public.zella_cross_sell_ideas(text) to authenticated, service_role;
 
 -- An appointment was completed: queue at most one suggestion.

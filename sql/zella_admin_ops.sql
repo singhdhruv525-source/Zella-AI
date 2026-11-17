@@ -8,7 +8,7 @@
 -- Nothing here calls a provider, sends a message or places a call. Retries put the original reminder or task back in
 -- the queue: the normal sender re-checks consent, opt-outs, quiet hours and the business, and the per-message dedupe
 -- key stops anything already sent or delivered from going twice.
--- Rollback: drop the functions named zella_admin_* below.
+-- Rollback: sql/rollback/zella_admin_ops_rollback.sql.
 
 -- ---------------------------------------------------------------------------------------------------------------
 -- Shared helpers

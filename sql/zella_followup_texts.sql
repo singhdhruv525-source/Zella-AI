@@ -17,6 +17,9 @@ select null, null, v.key, 'sms', v.purpose, 'en-US', null, v.body, 1, 'active'
 
 -- 2. Claim only text tasks. Same rules as zella_claim_followup_tasks: business active, person can be
 --    contacted, inside the 9 am to 7 pm window, rows locked so two workers never take the same task.
+do $install$ begin
+  if to_regprocedure('public.zella_claim_followup_texts(integer,text[])') is null then
+    execute $definition$
 create or replace function public.zella_claim_followup_texts(p_limit integer default 10, p_kinds text[] default null)
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare
@@ -63,6 +66,9 @@ begin
   end loop;
   return v_result;
 end $$;
+$definition$;
+  end if;
+end $install$;
 
 -- 3. Skip a claimed task for a known reason (no consent, dry run...). Not retried.
 create or replace function public.zella_skip_followup_task(p_task_id uuid, p_reason text)

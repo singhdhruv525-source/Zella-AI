@@ -1,3 +1,49 @@
+-- Rollback baseline is captured on first apply of this version, never on reruns.
+-- An older deployment needs its original backup; this cannot reconstruct already-overwritten state.
+create table if not exists public.zella_attendance_undo (seq bigint generated always as identity, command text not null);
+revoke all on public.zella_attendance_undo from public, anon, authenticated, service_role;
+do $capture$
+declare f text; p oid; r record; g record; ddl text; cols text[];
+begin
+ if not exists (select 1 from public.zella_attendance_undo) then
+  insert into public.zella_attendance_undo(command) values ('select 1');
+  foreach f in array array['public.zella_set_attendance(uuid,text,text,uuid)'] loop
+    p := to_regprocedure(f);
+    if p is null then
+      insert into public.zella_attendance_undo(command) values ('drop function if exists ' || f);
+    else
+      insert into public.zella_attendance_undo(command) values (pg_get_functiondef(p));
+      -- Only these roles' permissions are modified by the migrations.
+      insert into public.zella_attendance_undo(command) values ('revoke all on function ' || f || ' from public, anon, authenticated, service_role');
+      for g in select a.* from pg_proc x, lateral aclexplode(coalesce(x.proacl, acldefault('f',x.proowner))) a
+        where x.oid=p and (a.grantee=0 or a.grantee in (select oid from pg_roles where rolname in ('anon','authenticated','service_role'))) loop
+        insert into public.zella_attendance_undo(command) values ('grant execute on function ' || f || ' to ' ||
+          case when g.grantee=0 then 'public' else quote_ident(pg_get_userbyid(g.grantee)) end ||
+          case when g.is_grantable then ' with grant option' else '' end);
+      end loop;
+    end if;
+  end loop;
+  if not exists (select 1 from pg_attribute where attrelid='public.appointments'::regclass and attname='arrived_at' and not attisdropped) then
+    insert into public.zella_attendance_undo(command) values ('alter table public.appointments drop column if exists arrived_at');
+  end if;
+  if not exists (select 1 from pg_attribute where attrelid='public.appointments'::regclass and attname='in_service_at' and not attisdropped) then
+    insert into public.zella_attendance_undo(command) values ('alter table public.appointments drop column if exists in_service_at');
+  end if;
+  if not exists (select 1 from pg_attribute where attrelid='public.appointments'::regclass and attname='attendance_source' and not attisdropped) then
+    insert into public.zella_attendance_undo(command) values ('alter table public.appointments drop column if exists attendance_source');
+  end if;
+  if not exists (select 1 from pg_attribute where attrelid='public.appointments'::regclass and attname='attendance_by' and not attisdropped) then
+    insert into public.zella_attendance_undo(command) values ('alter table public.appointments drop column if exists attendance_by');
+  end if;
+  if not exists (select 1 from pg_attribute where attrelid='public.appointments'::regclass and attname='attendance_note' and not attisdropped) then
+    insert into public.zella_attendance_undo(command) values ('alter table public.appointments drop column if exists attendance_note');
+  end if;
+  if not exists (select 1 from pg_constraint where conrelid='public.appointments'::regclass and conname='appointments_attendance_source_chk') then
+    insert into public.zella_attendance_undo(command) values ('alter table public.appointments drop constraint if exists appointments_attendance_source_chk');
+  end if;
+ end if;
+end $capture$;
+
 -- Attendance tracking: arrived, checked in, in service, completed, no-show,
 -- cancelled. Only staff (signed in) or a trusted integration (service role)
 -- can record attendance, and each change is logged. Nothing is assumed
@@ -20,9 +66,13 @@ declare a public.appointments; v_uid uuid := auth.uid(); v_src text; v_reason te
 begin
   select * into a from public.appointments where id = p_appointment_id for update;
   if not found then raise exception 'NOT_FOUND'; end if;
-  if v_uid is not null and not public.zella_is_member(a.business_id) then raise exception 'NOT_ALLOWED'; end if;
+  if v_uid is not null and not public.zella_has_role(a.business_id, array['owner', 'admin', 'manager', 'staff']) then raise exception 'NOT_ALLOWED'; end if;
   v_src := case when v_uid is null then 'integration' else 'staff' end;
   if p_action not in ('arrived', 'checked_in', 'in_service', 'completed', 'no_show', 'cancelled', 'undo', 'assign') then raise exception 'BAD_ACTION'; end if;
+  /* zella_capability_checkins */ if p_action in ('arrived', 'checked_in', 'in_service')
+    and to_regprocedure('public.zella_require_capability(uuid,text)') is not null then
+    perform public.zella_require_capability(a.business_id, 'checkins');
+  end if;
   if p_staff_id is not null and not exists (select 1 from public.staff_members where id = p_staff_id and business_id = a.business_id and is_active) then
     raise exception 'BAD_STAFF';
   end if;

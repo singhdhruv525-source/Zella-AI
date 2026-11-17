@@ -3,6 +3,8 @@
 -- This makes the text-only claim also report which callback it came from and why (missed call or new lead),
 -- so the Follow-up Texts workflow can pick the right message. Run after zella_followup_texts.sql.
 
+alter table public.followup_tasks add column if not exists entity_ref uuid;
+
 create or replace function public.zella_claim_followup_texts(p_limit integer default 10, p_kinds text[] default null)
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare

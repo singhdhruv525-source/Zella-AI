@@ -209,7 +209,7 @@ begin
                  select jsonb_build_object('id', b.id, 'kind', 'callback', 'reason', b.reason, 'due_at', b.due_at, 'done', b.status in ('completed', 'cancelled')) f
                    from public.callbacks b where b.call_id = s.id
                  union all
-                 select jsonb_build_object('id', t.id, 'kind', 'followup', 'due_at', t.due_at, 'done', t.status in ('completed', 'cancelled'))
+                 select jsonb_build_object('id', t.id, 'kind', 'followup', 'due_at', t.due_at, 'done', t.status in ('done', 'cancelled'))
                    from public.followup_tasks t where t.call_id = s.id) ff), '[]'))
              order by s.created_at desc, s.id desc), '[]') from shown s),
     'next', case when (select count(*) from page) > v_limit
@@ -282,7 +282,7 @@ returns table (conversation_id uuid, preview text)
 language plpgsql stable security invoker set search_path = public as $$
 begin
   perform public.zella_b3_member(p_business_id);
-  if coalesce(array_length(p_conversation_ids, 1), 0) > 100 then raise exception 'TOO_MANY' using errcode = '22023'; end if;
+  if coalesce(cardinality(p_conversation_ids), 0) > 100 then raise exception 'TOO_MANY' using errcode = '22023'; end if;
   return query
     select x.id, left(regexp_replace(m.content, '\s+', ' ', 'g'), 160)
       from public.conversations x

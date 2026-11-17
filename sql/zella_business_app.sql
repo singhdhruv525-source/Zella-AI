@@ -1,3 +1,31 @@
+-- Rollback baseline is captured on first apply of this version, never on reruns.
+-- An older deployment needs its original backup; this cannot reconstruct already-overwritten state.
+create table if not exists public.zella_business_app_undo (seq bigint generated always as identity, command text not null);
+revoke all on public.zella_business_app_undo from public, anon, authenticated, service_role;
+do $capture$
+declare f text; p oid; r record; g record; ddl text; cols text[];
+begin
+ if not exists (select 1 from public.zella_business_app_undo) then
+  insert into public.zella_business_app_undo(command) values ('select 1');
+  foreach f in array array['public.zella_accept_my_invitations()','public.zella_my_workspaces()','public.zella_owner_continue_plan(uuid)'] loop
+    p := to_regprocedure(f);
+    if p is null then
+      insert into public.zella_business_app_undo(command) values ('drop function if exists ' || f);
+    else
+      insert into public.zella_business_app_undo(command) values (pg_get_functiondef(p));
+      -- Only these roles' permissions are modified by the migrations.
+      insert into public.zella_business_app_undo(command) values ('revoke all on function ' || f || ' from public, anon, authenticated, service_role');
+      for g in select a.* from pg_proc x, lateral aclexplode(coalesce(x.proacl, acldefault('f',x.proowner))) a
+        where x.oid=p and (a.grantee=0 or a.grantee in (select oid from pg_roles where rolname in ('anon','authenticated','service_role'))) loop
+        insert into public.zella_business_app_undo(command) values ('grant execute on function ' || f || ' to ' ||
+          case when g.grantee=0 then 'public' else quote_ident(pg_get_userbyid(g.grantee)) end ||
+          case when g.is_grantable then ' with grant option' else '' end);
+      end loop;
+    end if;
+  end loop;
+ end if;
+end $capture$;
+
 -- =========================================================
 -- Zella: business owner app access
 -- Run once in Supabase → SQL Editor.

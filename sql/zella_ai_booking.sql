@@ -26,13 +26,19 @@ begin
    where b.id = v_biz and b.suspended_at is null and b.cancelled_at is null and coalesce(b.is_active, true);
   if v_biz is null then raise exception 'UNKNOWN_BUSINESS'; end if;
 
-  v_dur := least(480, greatest(5, coalesce(nullif(v_args ->> 'duration_minutes', '')::integer, 30)));
+  v_dur := 30;
+  if (case when trim(v_args ->> 'duration_minutes') ~ '^[+-]?[0-9]{1,10}$' then (v_args ->> 'duration_minutes')::numeric between -2147483648 and 2147483647 else false end) then
+    v_dur := least(480, greatest(5, (v_args ->> 'duration_minutes')::integer));
+  end if;
 
   if p_action in ('availability', 'book') then
     -- times offered: from the day asked for (business local time), or today
     begin v_day := nullif(v_args ->> 'date', '')::date; exception when others then v_day := null; end;
     v_day := greatest(coalesce(v_day, (now() at time zone v_tz)::date), (now() at time zone v_tz)::date);
-    v_days := least(14, greatest(1, coalesce(nullif(v_args ->> 'days', '')::integer, 3)));
+    v_days := 3;
+  if (case when trim(v_args ->> 'days') ~ '^[+-]?[0-9]{1,10}$' then (v_args ->> 'days')::numeric between -2147483648 and 2147483647 else false end) then
+    v_days := least(14, greatest(1, (v_args ->> 'days')::integer));
+  end if;
   end if;
 
   if p_action = 'availability' then
