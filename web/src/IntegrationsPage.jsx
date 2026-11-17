@@ -1,4 +1,5 @@
 import "./OwnerPages.css";
+import "./IntegrationsPage.css";
 import { callOwnerFunction } from "./CreateBusinessWizard";
 import { Pill } from "./OwnerOverview";
 import { formatDateTime } from "./ownerFormat";
@@ -6,6 +7,7 @@ import { LoadNotice, UpdatedAt, useRefreshable } from "./admin/loadState";
 import { countOf, emptyText, metric } from "./admin/loadStatus";
 import { humanize } from "./copy/labels";
 import { NOT_TRACKED } from "./connectionState.js";
+import { Metric } from "./admin/adminOps";
 
 const PHONE_LABELS = { new_number: "New number", call_forwarding: "Forwarding", existing_number: "Forwarding" };
 const LEAD_LABELS = { meta: "Meta", website: "Website", google: "Google" };
@@ -40,10 +42,10 @@ export default function IntegrationsPage({ onOpenBusiness }) {
   ) : null;
 
   return (
-    <section className="owner-page">
+    <section className="owner-page in-page">
       <div className="owner-page-heading">
         <div>
-          <div className="owner-eyebrow">Connections</div>
+          <div className="owner-eyebrow">Operations</div>
           <h1>Integrations</h1>
           <p>What each client asked for during setup, and which services are actually connected.</p>
         </div>
@@ -58,10 +60,10 @@ export default function IntegrationsPage({ onOpenBusiness }) {
       <LoadNotice r={state} what="integrations" />
 
       <div className="owner-stat-grid">
-        <div className="owner-stat-card"><div className="owner-stat-top"><span>Numbers linked</span></div><div className="owner-stat-value">{metric(counts?.vapi_linked, state)}</div><div className="owner-stat-note">{typeof counts?.phone === "number" ? `${counts.phone} with an active number` : "Not available"}</div></div>
-        <div className="owner-stat-card"><div className="owner-stat-top"><span>Live</span></div><div className="owner-stat-value">{metric(counts?.live, state)}</div><div className="owner-stat-note">{typeof counts?.answering === "number" ? `${counts.answering} answered a call in 7 days` : "Answering not available"}</div></div>
-        <div className="owner-stat-card"><div className="owner-stat-top"><span>Needs attention</span></div><div className="owner-stat-value">{metric(counts?.problems, state)}</div><div className="owner-stat-note">Connections in error or disconnected</div></div>
-        <div className="owner-stat-card"><div className="owner-stat-top"><span>Waiting to connect</span></div><div className="owner-stat-value">{metric(waiting, state)}</div><div className="owner-stat-note">Businesses with requests pending</div></div>
+        <Metric label="Numbers linked" value={metric(counts?.vapi_linked, state)} note={typeof counts?.phone === "number" ? `${counts.phone} with an active number` : "Not available"} />
+        <Metric label="Live" value={metric(counts?.live, state)} note={typeof counts?.answering === "number" ? `${counts.answering} answered a call in 7 days` : "Answering not available"} />
+        <Metric label="Needs attention" value={metric(counts?.problems, state)} note="Connections in error or disconnected" />
+        <Metric label="Waiting to connect" value={metric(waiting, state)} note="Businesses with requests pending" />
       </div>
 
       <section className="owner-panel op-card">
@@ -77,7 +79,7 @@ export default function IntegrationsPage({ onOpenBusiness }) {
             <tbody>
               {(requests ?? []).map((r) => (
                 <tr key={r.businessId}>
-                  <td><button type="button" className="op-name" onClick={() => onOpenBusiness(r.businessId)}>{r.businessName}</button></td>
+                  <td><button type="button" className="op-name" title={r.businessName} onClick={() => onOpenBusiness(r.businessId)}>{r.businessName}</button></td>
                   <td><Need available={available} wanted={r.phone.wanted} connected={r.phone.connected} label={PHONE_LABELS[r.phone.wanted] ?? r.phone.wanted} /></td>
                   <td>
                     <Need available={available} wanted={r.voice.wanted} connected={r.voice.connected} label="Linked to Vapi" />
