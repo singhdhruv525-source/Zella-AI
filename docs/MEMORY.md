@@ -133,6 +133,7 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile` (checked
 | **Emails from Zella Voice to businesses:** catalogue and admin preview built; outbox `sql/zella_platform_emails.sql` applied 15 Nov 2026 (empty) | Open | Delivery applied and deployed 15 Nov 2026 (`sql/zella_email_delivery.sql`; `platform-emails` v1, which refuses a call without the Vault secret). Event based: a new email wakes the sender at once; the minute job is only a safety net. Still off, each with approval: set `platform_emails_url` and the sender address (`email_from_address`), add `RESEND_API_KEY` to the function, switch on the two event triggers and the safety net job, then turn on `email_live`. Billing emails per Stripe event in step 4. |
 | **Usage limits that act:** `sql/zella_usage_enforcement.sql` applied 15 Nov 2026 (fingerprints match the tested copy; switches off); voice-rules v8 deployed 15 Nov 2026 (files match `main`; unsigned requests refused) | Open, owner's approval | 1. Give one demo business a test fallback number the owner controls. 2. Staging call with the calls switch on for it, to prove Vapi transfers on the `destination` reply. 3. Turn on `usage_enforcement.calls`, then `.messages`, each with approval. The monthly spending limit for pay as you go needs payments (step 4). |
 | **Fallback number for every business** (owner, 15 Nov 2026: decided at Create Business, REQ-BIL-34). New businesses can't finish setup without one (owner-provision-business, merged; deployed 16 Nov 2026 as v18). | Open | The 4 businesses in production are demo businesses (owner, 15 Nov 2026), so none needs a real fallback number; one gets a test number for the staging call. |
+| **Safe retry on Platform operations (OPS-05):** `sql/zella_retry_event_safe.sql` (built, not applied). `zella_retry_event` gains a reason argument and refuses an event that already acted; `zella_start_execution` refuses a run of an event that isn't claimed (EVENT_NOT_CLAIMED) or that names another business (EVENT_BUSINESS_MISMATCH), and the Event Router stops for that event instead of running its handler | Open, owner's approval | Goes live as one step, in this order: the n8n Event Router (re-import `n8n/workflows/zella-event-router.json`, so a refused start runs nothing), then the SQL, then the web app (it sends the reason; the old app's retry would fail until it is published). Rollback in reverse. Not covered: two workers that both hold a claim (the 10 minute reclaim); claims carry no owner token yet |
 | **Status page honesty (OPS-01, OPS-02):** production's `/status` says "Everything is working" although every check and job is off (read 16 Nov 2026). `sql/zella_status_honest.sql` built, not applied | Open, owner's approval | Apply with the web app (either order). Once applied, `/status` will read "Not every part is checked right now" until the provider checks and the `zella_dispatch` job are switched on (PLT-07). |
 | **Business moments** (record day, call surge, weekend on call gaps): `sql/zella_business_moments.sql` applied 15 Nov 2026 and added to the hourly group; in app notifications only | Open, owner's approval | They run only once the timed job `zella_jobs_hourly` is switched on (it is off in production, like most timed jobs; only `zella_usage_thresholds` and `zella_billing_reconcile` are active). Later moments need data the app doesn't keep yet (recall due dates, seasonal demand such as tax season). |
 
@@ -171,6 +172,10 @@ most often needed:
   `industries.sensitive`. Only a Zella Voice owner may change it (`SENSITIVE_ROLE` in config.ts), with a reason, audited;
   turning it off needs a typed confirmation because staff may then read transcripts. A new industry starts sensitive.
   The seed equals today's list (7 slugs); check it against the reference configuration once UI-35 is decided.
+- **Plans page permissions (CFG-19, default taken 16 Nov 2026, owner can change):** each kind of plan keeps the one
+  permission its server path already checks: the shared fallback plans need `plans.manage` (plan_save and
+  plan_entitlements_save), each business's own plan needs `billing.manage` (zella_admin_plan_save, REQ-BIL-10), and
+  reading needs `billing.view`. The page hides each editor without its permission.
 - **Connected, answering and live (COM-01, defaults taken 16 Nov 2026, owner can change):** one definition in SQL
   (`sql/zella_connection_state.sql`, `docs/PRODUCT.md` §9.1). Answering is a served call in the last 7 days and is shown
   on its own, never folded into live; live needs an active business, the receptionist switched on and an active number
@@ -181,6 +186,11 @@ most often needed:
   refuses an unconfirmed switch off (`industry_save` `confirmOff`). While `LEGACY_SWITCH_OFF_ALLOWED` (config.ts) is true
   an older web app that sends no confirmation still works and the audit row says so; set it false once the new web app
   is live. Deactivating an industry (CFG-08) only stops it being offered for new businesses.
+
+- **No public API or outgoing webhooks (owner, 16 Nov 2026):** businesses get the Zella Voice CRM and the connections
+  Zella Voice builds, nothing more. Don't build API keys, `/api/v1` endpoints or outgoing webhooks (architecture §36,
+  REQ-API-01 to 04, Settings API management and Webhooks). A read only log of incoming provider events for admins is
+  still fine.
 
 Waiting on the owner:
 

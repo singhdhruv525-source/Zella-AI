@@ -194,7 +194,7 @@ export default function OffersPage({ onOpenBusiness }) {
     <section className="owner-page">
       <div className="owner-page-heading">
         <div>
-          <div className="owner-eyebrow">Growth</div>
+          <div className="owner-eyebrow">Configuration</div>
           <h1>Offers & promotions</h1>
           <p>Create offers for Small, Medium and Large businesses, schedule them, and see who claimed what.</p>
         </div>
@@ -207,7 +207,7 @@ export default function OffersPage({ onOpenBusiness }) {
         <div className="wiz-note op-gap">
           <strong>No payment provider connected yet.</strong> Businesses can claim offers, and each claim waits as
           "Waiting for payment". It becomes "Paid" only when a real payment arrives from the payment provider, and
-          an unpaid claim is released after the hold period. Checkout, renewal pricing, referrals, win-back and
+          an unpaid claim is released after the hold period. Checkout, renewal pricing, referrals, win back and
           promotional emails show as unavailable until their connections exist.
         </div>
       )}
@@ -1122,13 +1122,13 @@ export function ReportsTab() {
         <>
           <div className="owner-stat-grid op-gap">
             <Stat label="Claims" value={t.claims} note={`${t.pending} waiting for payment`} />
-            <Stat label="Paid" value={t.paid} note={`Claim-to-paid: ${rate}`} />
+            <Stat label="Paid" value={t.paid} note={`Claim to paid: ${rate}`} />
             <Stat label="Gross paid" value={money(t.gross_paid_cents)} note={t.refunded_cents ? `${money(t.refunded_cents)} refunded` : "Payments that confirmed a claim"} />
             <Stat label="Discount given" value={money(t.discount_cents)} note={t.discount_unknown ? `${t.discount_unknown} paid claim(s) without a known plan price` : "On paid claims"} />
           </div>
           <p className="op-muted op-gap of-small">
             Claims are counted by the day they were made. "Paid" means a verified payment from the payment provider confirmed the claim.
-            Each payment counts once. Offer views aren't tracked, so there is no view-to-claim rate.
+            Each payment counts once. Offer views aren't tracked, so there is no view to claim rate.
           </p>
           <div className="of-report-grid op-gap">
             <ReportTable title="By offer" cols={["Offer", "Claims", "Paid", "Gross paid"]}
