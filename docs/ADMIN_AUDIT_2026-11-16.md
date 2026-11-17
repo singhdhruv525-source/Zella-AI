@@ -522,8 +522,8 @@ each other.
 | UI-09 | Business detail, Automations | CHANGE | P2 | Names start lowercase ("visit reminders", "no show follow up"); every row "Not set up" with "None" in two columns; no action to turn one on or pause it and no link to the Automations page. | Screenshot: detail_automations | Capitalise names, replace "None" with words, add a link to /automations filtered to the business and the turn on or pause action (with BIZ-07). | No raw "None"; one click to manage. | no |
 | UI-10 | Business detail, Calls | ADD | P2 | "To" is "None" on every row; rows can't be opened; only the latest 10. | Screenshot: detail_calls | Call drawer (summary, outcome, transfer, content rules apply) and "See all" to Voice, Calls filtered (with BIZ-30). | Any call opens; older calls reachable. | no |
 | UI-11 | Verification | ADD | P2 | Only lists documents that were uploaded. With 92 live businesses and nothing uploaded the page reads "0 waiting", so nobody knows whom to chase. | Screenshot: verification_all | Add a "Missing documents" view of businesses with no registration or owner ID, with a "Request documents" action (uses the S4 email when email is live). | Businesses missing documents are listed. | no |
-| UI-12 | Plans | CHANGE | P2 | Limits show raw keys ("languages: 2") and only languages; minutes, texts and other allowances aren't shown. | Screenshot: plans | Human labels and every allowance (with CFG-14). | Cards list every allowance in words. | no |
-| UI-13 | Offers | CHANGE | P3 | Page eyebrow says "Growth" while the menu puts it under Configuration. | Screenshot: offers | Use one group name. | Same name in both places. | no |
+| UI-12 | Plans | CHANGE | P2 | Limits show raw keys ("languages: 2") and only languages; minutes, texts and other allowances aren't shown. | Screenshot: plans | Human labels and every allowance (with CFG-14). | Cards list every allowance in words. Screen part fixed in PR #89: every allowance the page receives, in words; the per business plans (CFG-14) still need server work. | no |
+| UI-13 | Offers | CHANGE | P3 | Page eyebrow says "Growth" while the menu puts it under Configuration. | Screenshot: offers | Use one group name. | Same name in both places. Fixed in PR #89 (Plans said "Billing" for the same group and now says "Configuration" too). | no |
 | UI-14 | Voice, overview | ADD | P3 | Tiles such as "Missed 121" can't be clicked; "Needs attention" says nothing while 121 calls were missed and checks are off. | Screenshot: voice_overview | Make tiles open the filtered call list; raise a missed call rate alert (with COM-08). | Clicking Missed shows those calls. | yes if a new alert |
 | UI-15 | Voice, numbers and calls | VERIFY | P2 | Every number shows "Calls (30 days) 0" and "Last call None" while 477 inbound calls exist, and the Calls tab shows Number "None" on every call: calls may not record which number they came in on. | Screenshots: voice_numbers, voice_calls | With a real or staging call, check calls.to_number (or the number link) is filled by voice-rules and n8n. If not, fill it on arrival. | A test call shows on its number's row. | maybe (staging call) |
 | UI-16 | Voice, calls | CHANGE | P3 | The last column has pills ("Needs a person") but no header; Length mixes "Not available" and "1 min 0 s"; Outcome is "None". | Screenshot: voice_calls | Header the column; one length format; words instead of "None". | Copy review passes. Fixed in PR #88. | no |
@@ -540,7 +540,7 @@ each other.
 | UI-27 | Automations, scheduler | REMOVE | P3 | The same scheduled jobs appear in two tables ("Scheduled jobs" and "Scheduled database jobs"); file paths shown (n8n/GO-LIVE.md, n8n/README.md). | Screenshot: automations_infrastructure | Keep one table; replace paths with words. | One table; no paths. Fixed in PR #88. | no |
 | UI-28 | Automations, templates | CHANGE | P2 | Lists only the 15 industry record templates; the automations every business gets (reminders, confirmations, no show follow up) aren't listed because they live in the browser code (CFG-05); industry names differ from the industry list ("Cleaning" vs "Cleaning Services"). | automations_templates text | List every default automation from data, with industry names from the industries table. | Every default automation is listed. | yes (migration) |
 | UI-29 | Security and abuse | CHANGE | P3 | Six stat cards in a five column grid leave one alone on a second row; the tabs sit under the stats, unlike every other tabbed page. | Screenshot: security_abuse | Tabs first, then a grid that fits the count. | Same layout as other tabbed pages. Fixed in PR #87. | no |
-| UI-30 | Create business wizard | CHANGE | P3 | The step bar overflows at 1440 px (step 10, Review, is cut off with no scroll cue); "Back" is enabled on step 1; the time zone hint says "like Kolkata" for a US launch. | Screenshot: wizard_new | Wrap or compress the steps; disable Back on step 1; US example. | All ten steps visible at 1440 px. | no |
+| UI-30 | Create business wizard | CHANGE | P3 | The step bar overflows at 1440 px (step 10, Review, is cut off with no scroll cue); "Back" is enabled on step 1; the time zone hint says "like Kolkata" for a US launch. | Screenshot: wizard_new | Wrap or compress the steps; disable Back on step 1; US example. | All ten steps visible at 1440 px. Fixed in PR #89. | no |
 | UI-31 | Settings (whole) | REMOVE | P2 | About 25 of the 74 Settings pages repeat a main page: All businesses (Businesses), AI agent registry (AI agents), Phone number management (Voice numbers, 178 rows unpaged), Voice usage (Voice providers), Incidents and System logs (Platform operations), four Offers pages (Offers), Plans pages (Plans), n8n configuration and Webhooks (Automations scheduler), Integration registry (Integrations), Platform administrators (Users). Copies drift apart (COM-15, COM-24, OPS-16). | Settings text dump of all 74 pages | Settings keeps configuration only; each repeat becomes a short link to the real page. | No list or report exists twice. | no |
 | UI-32 | Settings, operational rules | CHANGE | P3 | Field labels are raw setting keys (call_intel_monthly_limit, response_sample_rate, missed_call_max_seconds, knowledge_repeat_threshold). | settings_general_operations text | Human labels with the key as help text. | No raw keys as labels. Fixed in PR #87. | no |
 | UI-33 | Settings, communication templates | CHANGE | P3 | Says "Editing platform templates here isn't built" while Messaging, Templates edits them. | settings_comms_templates text | Link to Messaging, Templates instead. | Copy is true. Fixed in PR #87. | no |
@@ -594,12 +594,12 @@ isolated database first.
 - [ ] Invoices (Settings, Invoices: need the provider's invoice events and an invoices table) · after Stripe
 - [ ] Refund requests and approvals (Settings, Refunds) · after Stripe
 - [ ] Charging for extra usage (Settings, Usage limits) · after Stripe
-- [ ] Billing emails to businesses that don't need Stripe (owner, 16 Nov: build later)
-- [ ] Billing emails that need Stripe (owner, 16 Nov: build later) · after Stripe
+- [ ] Billing emails to businesses that don't need Stripe (owner, 16 Nov: build now, held until Stripe and email are live)
+- [ ] Billing emails that need Stripe (owner, 16 Nov: build now, held until Stripe and email are live)
 
 ### AI agents
 - [ ] Last delivery outcome, not ready count and served version per receptionist, with a deliveries drawer (COM-03) · needs approval
-- [ ] A global default prompt that rolls out to businesses without overwriting their own (Settings, AI agent configuration) · needs approval
+- [ ] A global default prompt that rolls out to businesses without overwriting their own (Settings, AI agent configuration) · later (owner, 16 Nov 2026)
 - [ ] AI testing and evaluation view with a pass rule (Settings, AI testing) · needs approval
 
 ### Voice and numbers
@@ -623,7 +623,7 @@ isolated database first.
 - [ ] Store and show n8n's response per workflow (OPS-17) · needs approval
 - [ ] "Resume all" for a business (OPS-20) · needs approval
 - [ ] Read n8n's own workflow activation and execution status with a server side key (Scheduler page says it isn't built) · needs approval
-- [ ] Webhook delivery logs, and outbound webhooks for businesses (Settings, Webhooks) · needs approval
+- [ ] Webhook delivery logs (Settings, Webhooks) · needs approval. Outbound webhooks for businesses are not planned (owner, 16 Nov 2026; architecture §36)
 
 ### Support
 - [ ] Reply to the business, alerts for urgent, cancellation and plan change tickets, age and first response with an overdue filter (OPS-25) · needs approval
@@ -634,17 +634,17 @@ isolated database first.
 ### Settings
 - [ ] Editable alert rules (condition, severity, destination, frequency, quiet window) (Settings, Alert rules) · needs approval
 - [ ] Scheduled reports and report permissions (Settings, Reporting configuration) · needs approval
-- [ ] Public API keys with scopes, hashing, last used and revocation (Settings, API management) · needs approval
+- Not planned (owner, 16 Nov 2026; architecture §36): public API keys (Settings, API management)
 - [ ] OAuth application checks (Google client set or not) in the server configuration check (Settings, OAuth applications) · needs approval
 - [ ] A per business recording on or off policy (Settings, Policy configuration) · needs approval · built, off, in the lane G recording policy PR (branch `claude/lane-g-recording-policy`): waits for legal; the live call path is not connected
 - [ ] Separate retention for recordings, transcripts and audit logs (Settings, Data retention) · needs approval · periods, legal holds and the dry run built in the lane G retention dry run PR (branch `claude/lane-g-retention-dry-run`), pending legal review; the approved purge (two people, off) in the lane G retention purge PR (branch `claude/lane-g-retention-purge`)
 
 ### New pages
-- [ ] Growth page (prospects, demos, growth.manage), or mark REQ-ADM-18 as later (ACC-36)
+- [x] Growth page (prospects, demos, growth.manage), or mark REQ-ADM-18 as later (ACC-36): later (owner, 16 Nov 2026), marked in ARCHITECTURE and PRODUCT
 
 ### Tests and tooling
 - [ ] One shared list of alert kinds, audit actions and permissions, with a test that catches drift (PLT-08)
-- [ ] Reference configuration from production in the test fixtures, no customer data (UI-35)
+- [ ] Reference configuration from production in the test fixtures, no customer data (UI-35): allowed by the owner on 16 Nov 2026, read only, through an allowlist
 - [ ] axe-core in the crawl for an accessibility scan of every page (PLT-06)
 
 ## Add on task: owner onboarding journey (after the admin dashboard work)
@@ -675,7 +675,7 @@ S4 Documents needed, S5 Business verified, S6 Your AI receptionist is live) and 
 Open decisions for the owner:
 - [ ] Identity provider: Persona (owner ID and business registration), Stripe Identity (owner ID only, same vendor as payments), or manual upload for now. Recommended: Persona, keeping manual upload as the fallback.
 - [ ] Plan screen: accept the plan the admin set, or let the owner switch between Base and Pro. Recommended: accept only.
-- [ ] First payment: pay before going live, or a free trial with a saved card. Recommended: pay before going live.
+- [x] First payment: pay before going live, or a free trial with a saved card. Recommended: pay before going live. Owner, 16 Nov 2026: pay before going live, once Stripe is live; until then the go live gate doesn't wait for payment.
 - [ ] Failed check: retry then manual review, or stop and contact support. Recommended: retry then manual review.
 
 Build checklist (each needs the owner's approval before anything goes live; provider accounts and keys are the owner's):
