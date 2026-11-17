@@ -13,12 +13,12 @@ It reads the catalog only, never rows.
 
 | What | Count |
 |---|---|
-| Tables (schema `public`) | 174 |
-| Tables with row security on | 174 of 174 |
-| Row security policies | 342 |
-| Columns | 2062 |
+| Tables (schema `public`) | 178 |
+| Tables with row security on | 178 of 178 |
+| Row security policies | 349 |
+| Columns | 2099 |
 | Views | 1 |
-| Functions | 912 (844 security definer, 26 callable by `anon`) |
+| Functions | 947 (876 security definer, 26 callable by `anon`) |
 
 Rules every table follows:
 
@@ -61,7 +61,7 @@ Each is a database job; most stay off until the owner approves going live (see `
 ## Contents
 
 - [Tenancy, people and access](#tenancy-people-and-access): `businesses`, `business_members`, `business_invitations`, `profiles`, `staff_members`, `staff_handovers`, `time_off_requests`, `platform_admins`, `platform_role_permissions`, `sensitive_approvals`, `legal_documents`, `legal_acceptances`, `audit_logs`, `zella_function_archive`, `zella_text_archive`, `rate_limits`
-- [Business setup and industry configuration](#business-setup-and-industry-configuration): `industries`, `industry_configurations`, `industry_modules`, `business_modules`, `business_capabilities`, `industry_crm_presets`, `industry_automation_presets`, `industry_automation_defaults`, `industry_automation_runs`, `industry_message_policy`, `business_hours`, `business_closures`, `business_languages`, `business_voice`, `business_phone_numbers`, `business_verification_documents`, `provisioning_steps`, `activation_tests`, `config_migration_snapshots`, `zella_milestones`, `platform_settings`, `business_usage_preferences`
+- [Business setup and industry configuration](#business-setup-and-industry-configuration): `industries`, `industry_configurations`, `industry_modules`, `business_modules`, `business_capabilities`, `industry_crm_presets`, `industry_automation_presets`, `industry_automation_defaults`, `industry_automation_runs`, `industry_message_policy`, `business_hours`, `business_closures`, `business_languages`, `business_voice`, `business_phone_numbers`, `business_verification_documents`, `provisioning_steps`, `activation_tests`, `owner_onboarding`, `owner_onboarding_steps`, `owner_onboarding_sections`, `identity_verification_events`, `config_migration_snapshots`, `zella_milestones`, `platform_settings`, `business_usage_preferences`
 - [Customers and CRM](#customers-and-crm): `customers`, `customer_relationships`, `customer_requests`, `customer_consents`, `contact_consents`, `duplicate_reviews`, `crm_tasks`, `crm_record_types`, `crm_records`, `crm_record_events`, `crm_record_files`, `crm_record_secrets`, `record_workflow_presets`, `record_approvals`, `record_milestones`, `record_inspections`, `record_exceptions`, `record_credits`, `quotes`, `customer_charges`, `customer_charge_payments`, `data_rights_requests`
 - [Leads](#leads): `lead_rules`, `lead_questions`, `lead_submissions`, `website_forms`, `website_sources`, `website_pages`, `google_lead_keys`, `google_lead_events`, `assignment_rules`
 - [Calls and the AI receptionist](#calls-and-the-ai-receptionist): `calls`, `call_messages`, `call_insights`, `callbacks`, `callback_attempts`, `ai_agents`, `ai_agent_configs`, `agent_config_versions`, `assistant_deliveries`, `ai_tool_calls`, `ai_answer_reports`, `ai_response_samples`, `ai_eval_cases`, `vapi_request_receipts`, `on_call_settings`, `on_call_shifts`, `on_call_reminders_sent`, `store_lookup_guards`
@@ -715,6 +715,7 @@ Business and owner verification documents (files in private storage).
 - Unique: `(file_path)`.
 - `business_id` → `public.businesses` (on delete cascade).
 - Row security: on; policies: business_verification_documents_owner_read (select), zella_mfa_required (all).
+- Triggers: `zella_onboarding_document_rejected`.
 
 ### `provisioning_steps`
 
@@ -747,6 +748,93 @@ Results of the checks run before a business goes live.
 - Primary key: `id`.
 - `business_id` → `public.businesses` (on delete cascade).
 - Row security: on; policies: activation_tests_select (select), zella_mfa_required (all).
+
+### `owner_onboarding`
+
+The owner onboarding journey per business: current step, finish later and resume, identity attempts and provider result, accepted plan version (written only through the onboarding functions).
+
+| Column | Type | Required | Default |
+|---|---|---|---|
+| `business_id` | uuid | yes |  |
+| `current_step` | text | yes | 'welcome' |
+| `started_by` | uuid |  |  |
+| `started_at` | timestamp with time zone | yes | now() |
+| `paused_at` | timestamp with time zone |  |  |
+| `resumed_at` | timestamp with time zone |  |  |
+| `completed_at` | timestamp with time zone |  |  |
+| `identity_attempts` | integer | yes | 0 |
+| `identity_reference` | text | yes | replace((gen_random_uuid()), '-', '') |
+| `identity_provider_status` | text |  |  |
+| `identity_provider_at` | timestamp with time zone |  |  |
+| `plan_accepted_version` | integer |  |  |
+| `plan_accepted_at` | timestamp with time zone |  |  |
+| `updated_at` | timestamp with time zone | yes | now() |
+
+- Primary key: `business_id`.
+- Unique: `(identity_reference)`.
+- `business_id` → `public.businesses` (on delete cascade).
+- `business_id, plan_accepted_version` → `public.business_plans` (on delete no action).
+- `started_by` → `auth.users` (on delete set null).
+- Row security: on; policies: owner_onboarding_read (select), zella_mfa_required (all).
+
+### `owner_onboarding_steps`
+
+When each of the seven onboarding steps was reached and completed for a business, and by whom.
+
+| Column | Type | Required | Default |
+|---|---|---|---|
+| `business_id` | uuid | yes |  |
+| `step` | text | yes |  |
+| `reached_at` | timestamp with time zone | yes | now() |
+| `completed_at` | timestamp with time zone |  |  |
+| `completed_by` | uuid |  |  |
+
+- Primary key: `business_id, step`.
+- `business_id` → `public.owner_onboarding` (on delete cascade).
+- `completed_by` → `auth.users` (on delete set null).
+- Row security: on; policies: owner_onboarding_steps_read (select), zella_mfa_required (all).
+
+### `owner_onboarding_sections`
+
+The owner's answer per detail section (Looks right or a change with a note), with a fingerprint of the details they confirmed.
+
+| Column | Type | Required | Default |
+|---|---|---|---|
+| `business_id` | uuid | yes |  |
+| `section` | text | yes |  |
+| `status` | text | yes |  |
+| `note` | text |  |  |
+| `admin_note` | text |  |  |
+| `confirmed_hash` | text |  |  |
+| `answered_by` | uuid |  |  |
+| `answered_at` | timestamp with time zone | yes | now() |
+| `updated_at` | timestamp with time zone | yes | now() |
+
+- Primary key: `business_id, section`.
+- `answered_by` → `auth.users` (on delete set null).
+- `business_id` → `public.owner_onboarding` (on delete cascade).
+- Row security: on; policies: owner_onboarding_sections_read (select), zella_mfa_required (all).
+
+### `identity_verification_events`
+
+Identity provider results, each processed once per provider and event id; unknown references kept as unmapped (server only).
+
+| Column | Type | Required | Default |
+|---|---|---|---|
+| `id` | uuid | yes | gen_random_uuid() |
+| `provider` | text | yes |  |
+| `event_id` | text | yes |  |
+| `scope` | text | yes |  |
+| `business_id` | uuid |  |  |
+| `outcome` | text | yes |  |
+| `occurred_at` | timestamp with time zone |  |  |
+| `result` | text | yes |  |
+| `received_at` | timestamp with time zone | yes | now() |
+
+- Primary key: `id`.
+- Unique: `(provider, event_id)`.
+- `business_id` → `public.businesses` (on delete cascade).
+- Row security: on; policies: zella_mfa_required (all).
 
 ### `config_migration_snapshots`
 
@@ -4317,7 +4405,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_add_lead_note(p_customer_id uuid, p_note text)` | boolean | yes | signed in |
 | `zella_add_record_note(p_id uuid, p_note text)` | boolean | yes | signed in |
 
-### `zella_admin_*` (44)
+### `zella_admin_*` (47)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -4344,6 +4432,9 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_admin_messaging_overview(p_from timestamp with time zone, p_to timestamp with time zone)` | jsonb | yes | signed in |
 | `zella_admin_number_release(p_id uuid, p_reason text)` | jsonb | yes | signed in |
 | `zella_admin_numbers(p_q text, p_status text, p_business uuid, p_limit integer, p_offset integer)` | jsonb | yes | signed in |
+| `zella_admin_onboarding_change_done(p_business_id uuid, p_section text, p_note text)` | jsonb | yes | signed in |
+| `zella_admin_onboarding_overview()` | jsonb | yes | signed in |
+| `zella_admin_onboarding_progress(p_business_id uuid)` | jsonb | yes | signed in |
 | `zella_admin_pack_grant(p_business_id uuid, p_pack_code text, p_reason text, p_idempotency_key text)` | jsonb | yes | signed in |
 | `zella_admin_plan_get(p_business_id uuid)` | jsonb | yes | signed in |
 | `zella_admin_plan_save(p_business_id uuid, p_values jsonb, p_acknowledgements jsonb, p_idempotency_key text)` | jsonb | yes | signed in |
@@ -4962,6 +5053,30 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_on_call_settings_save(p_business_id uuid, p_enabled boolean, p_scope text)` | boolean | yes | signed in |
 | `zella_on_call_status()` | jsonb | yes | server only |
 
+### `zella_onboarding_*` (19)
+
+| Function | Returns | SD | Who may call |
+|---|---|---|---|
+| `zella_onboarding_admin_check(p_permission text)` | void | yes | server only |
+| `zella_onboarding_advance(p_business_id uuid, p_step text, p_user uuid)` | void | yes | server only |
+| `zella_onboarding_audit(p_business_id uuid, p_user uuid, p_action text, p_old jsonb, p_new jsonb)` | void | yes | server only |
+| `zella_onboarding_authorize(p_business_id uuid, p_write boolean, p_need_aal2 boolean)` | void | yes | server only |
+| `zella_onboarding_config(p_business_id uuid)` | TABLE(agent_name text, knowledge_base jsonb, escalation_rules jsonb, appointment_rules jsonb, voice_config jsonb) | yes | server only |
+| `zella_onboarding_document_rejected_trg()` | trigger | yes | server only |
+| `zella_onboarding_ensure(p_business_id uuid, p_user uuid)` | owner_onboarding | yes | server only |
+| `zella_onboarding_identity(p_business_id uuid)` | jsonb | yes | server only |
+| `zella_onboarding_identity_passed(p_business_id uuid)` | boolean | yes | server only |
+| `zella_onboarding_payment(p_business_id uuid)` | jsonb | yes | server only |
+| `zella_onboarding_payment_confirmed_at(p_business_id uuid)` | timestamp with time zone | yes | server only |
+| `zella_onboarding_plan(p_business_id uuid)` | jsonb | yes | server only |
+| `zella_onboarding_rules()` | jsonb |  | server only |
+| `zella_onboarding_section_data(p_business_id uuid, p_section text)` | jsonb | yes | server only |
+| `zella_onboarding_section_keys()` | text[] |  | server only |
+| `zella_onboarding_sections(p_business_id uuid)` | jsonb | yes | server only |
+| `zella_onboarding_state(p_business_id uuid, p_for_admin boolean)` | jsonb | yes | server only |
+| `zella_onboarding_step_done(p_business_id uuid, p_step text, p_current text)` | boolean | yes | server only |
+| `zella_onboarding_step_keys()` | text[] |  | server only |
+
 ### `zella_other_*` (13)
 
 | Function | Returns | SD | Who may call |
@@ -4979,6 +5094,24 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `rls_auto_enable()` | event_trigger | yes | server only |
 | `update_customer(p_business_id uuid, p_customer_id uuid, p_first_name text, p_last_name text, p_email text, p_phone text, p_company_name text, p_status text, p_notes text, p_metadata jsonb)` | uuid | yes | signed in |
 | `update_updated_at()` | trigger |  | server only |
+
+### `zella_owner_*` (13)
+
+| Function | Returns | SD | Who may call |
+|---|---|---|---|
+| `zella_owner_continue_plan(p_business_id uuid)` | boolean | yes | signed in |
+| `zella_owner_identity_document_add(p_business_id uuid, p_user uuid, p_kind text, p_path text, p_file_name text, p_mime text, p_size integer)` | jsonb | yes | server only |
+| `zella_owner_identity_upload_check(p_business_id uuid, p_kind text)` | jsonb | yes | signed in |
+| `zella_owner_onboarding_complete_step(p_business_id uuid, p_step text)` | jsonb | yes | signed in |
+| `zella_owner_onboarding_finish_later(p_business_id uuid)` | jsonb | yes | signed in |
+| `zella_owner_onboarding_get(p_business_id uuid)` | jsonb | yes | signed in |
+| `zella_owner_onboarding_identity_status(p_business_id uuid)` | jsonb | yes | signed in |
+| `zella_owner_onboarding_list()` | jsonb | yes | signed in |
+| `zella_owner_onboarding_payment_status(p_business_id uuid)` | jsonb | yes | signed in |
+| `zella_owner_onboarding_plan_accept(p_business_id uuid, p_plan_version integer)` | jsonb | yes | signed in |
+| `zella_owner_onboarding_resume(p_business_id uuid)` | jsonb | yes | signed in |
+| `zella_owner_onboarding_section(p_business_id uuid, p_section text, p_decision text, p_note text)` | jsonb | yes | signed in |
+| `zella_owner_rules_prompt(p_business_id uuid, p_part text)` | text | yes | server only |
 
 ### `zella_people_*` (7)
 
@@ -5487,6 +5620,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
 | `zella_acknowledge_escalation(p_call_id uuid)` | text | yes | signed in |
+| `zella_activation_checks(p_business_id uuid)` | jsonb | yes | server only |
 | `zella_activation_report(p_business_id uuid)` | jsonb | yes | signed in |
 | `zella_active_notices(p_business_id uuid)` | jsonb | yes | signed in |
 | `zella_advance_onboarding(p_business_id uuid, p_status text)` | void | yes | server only |
@@ -5551,6 +5685,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_handle_staff_unavailable(p_business_id uuid, p_staff_id uuid, p_from timestamp with time zone, p_to timestamp with time zone, p_reason text)` | integer | yes | server only |
 | `zella_has_role(p_business_id uuid, p_roles text[])` | boolean | yes | signed in |
 | `zella_hold_slot(p_business_id uuid, p_customer_id uuid, p_title text, p_start timestamp with time zone, p_duration_minutes integer, p_staff_id uuid, p_hold_minutes integer)` | uuid | yes | server only |
+| `zella_identity_provider_event(p_provider text, p_event_id text, p_reference text, p_outcome text, p_occurred_at timestamp with time zone)` | jsonb | yes | server only |
 | `zella_inbound_email_address(p_business_id uuid)` | text | yes | server only |
 | `zella_ingest_event(p_business_id uuid, p_event_type text, p_source text, p_idempotency_key text, p_payload jsonb, p_provider_event_id text, p_correlation_id uuid, p_causation_id uuid)` | jsonb | yes | server only |
 | `zella_inspection_clean(p_items jsonb)` | jsonb |  | server only |
@@ -5588,8 +5723,6 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_open_incident(p_title text, p_detail text)` | uuid | yes | signed in |
 | `zella_open_workload(p_business_id uuid, p_user_id uuid)` | integer | yes | server only |
 | `zella_order_lookup_report(p_business_id uuid, p_days integer)` | jsonb | yes | signed in |
-| `zella_owner_continue_plan(p_business_id uuid)` | boolean | yes | signed in |
-| `zella_owner_rules_prompt(p_business_id uuid, p_part text)` | text | yes | server only |
 | `zella_parent_business_id_trg()` | trigger | yes | server only |
 | `zella_patch_function(p_signature text, p_marker text, p_anchor text, p_replacement text)` | text |  | server only |
 | `zella_pending_approvals(p_business_id uuid)` | jsonb | yes | signed in |

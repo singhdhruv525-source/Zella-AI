@@ -78,6 +78,25 @@ The public link pages:
 
 A malformed private link shows a "this link isn't valid" page, never the admin sign-in.
 
+**Owner onboarding journey** (from the `/welcome` link; contract `docs/OWNER_ONBOARDING_CONTRACT.md`). The server side
+is **built, not applied** (`sql/zella_owner_onboarding.sql`, the `owner-onboarding` and `identity-webhook` edge
+functions; nothing deployed); the screens are being built separately. Progress is saved per business after every
+step, and "Finish later" brings the owner back to the same step.
+
+| # | Step | What the server does now | Status |
+|---|---|---|---|
+| 1 | Welcome | Shows the business name and the steps | Built, not applied |
+| 2 | Password and two step sign in | Done only when the account has a password and a verified authenticator and the session was verified with a code, read from the auth records | Built, not applied |
+| 3 | Check your details | Business, hours and services, team, AI receptionist and phone, each "Looks right" or "Change" with a note. A note reaches Zella Voice as an admin alert; once the change is made the owner checks that section again. A section that changed after "Looks right" asks again | Built, not applied |
+| 4 | Verify your identity | Manual upload: the owner uploads their ID and business registration; Zella Voice checks them in Verification. Shows Documents needed, Checking, Verified, Try again (a rejected document, upload a new copy) or In review (after 2 failed checks Zella Voice reviews it by hand). The owner can't pass until it is verified. A provider (Persona) can be connected later; its receiver is built and off | Partial: manual path built, not applied; provider not connected |
+| 5 | Your plan | Shows the plan Zella Voice saved for the business (price, minutes, texts, emails, seats, numbers); the owner accepts it. No switching | Built, not applied |
+| 6 | Pay or start a trial | Shows "waiting": payments aren't connected (Stripe Checkout isn't built). Opens only after identity is verified | Partial: waiting only |
+| 7 | You're all set | Records the end of the journey; the CRM's go live checks follow | Built, not applied |
+
+Going live now also needs the owner's identity verified and a confirmed first payment, in both the CRM's checklist and
+the server's own go live check (built, not applied). Admins see each business's step through
+`zella_admin_onboarding_overview()` and `zella_admin_onboarding_progress(id)`; the business page doesn't show it yet.
+
 ## 5. Status words used in this document
 
 | Status | Meaning |
@@ -492,6 +511,7 @@ secrets, never in tables, code, logs or chat (`NN-2`).
 | Item | Waiting on |
 |---|---|
 | Self-service sign-up | Later phase (D-06) |
+| Owner onboarding: Stripe Checkout and the payment webhook (step 6), the identity provider's live connection (step 4) | Build after the owner sets up the Stripe and Persona accounts; the gates and the receiver are built (`sql/zella_owner_onboarding.sql`) |
 | Billing build (plans in the database, usage rules, Billing & Subscription page, Stripe) | Build, in steps (architecture §17); open billing decisions D-45 to D-51 |
 | Two-way AI messaging | Build (architecture §14.3) |
 | Voicemails page, AI agents beyond the receptionist, marketing campaigns | Build; hidden from the sidebar until they exist |
