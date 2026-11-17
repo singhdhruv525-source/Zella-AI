@@ -5110,7 +5110,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_owner_onboarding_payment_status(p_business_id uuid)` | jsonb | yes | signed in |
 | `zella_owner_onboarding_plan_accept(p_business_id uuid, p_plan_version integer)` | jsonb | yes | signed in |
 | `zella_owner_onboarding_resume(p_business_id uuid)` | jsonb | yes | signed in |
-| `zella_owner_onboarding_section(p_business_id uuid, p_section text, p_decision text, p_note text)` | jsonb | yes | signed in |
+| `zella_owner_onboarding_section(p_business_id uuid, p_section text, p_decision text, p_note text, p_seen_hash text)` | jsonb | yes | signed in |
 | `zella_owner_rules_prompt(p_business_id uuid, p_part text)` | text | yes | server only |
 
 ### `zella_people_*` (7)
