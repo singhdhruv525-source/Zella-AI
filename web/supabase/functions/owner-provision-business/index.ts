@@ -5,7 +5,7 @@ import { withCors } from "../_shared/cors.ts";
 import { readJsonLimited } from "../_shared/body.ts";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { PERMISSIONS, RESTRICTED_ROLES, settingsHandlers } from "./settings.ts";
-import { mfaGate, tokenAal } from "./mfa_gate.ts";
+import { freshCodeGate, mfaGate, tokenAal } from "./mfa_gate.ts";
 import { ONBOARDING_PERMISSIONS, documentsReady, loadOnboarding, onboardingHandlers } from "./onboarding.ts";
 import { PLATFORM_PERMISSIONS, platformHandlers } from "./platform.ts";
 import {
@@ -16,6 +16,8 @@ import { MODULE_DEPENDENCIES, businessModuleProblems } from "./module_deps.ts";
 import { mask, maskText } from "./mask.ts";
 import { START_ON_SAVE_SWITCH, savedStatus, startOnSave, type LiveBusiness } from "./live.ts";
 import { businessesList } from "./businesses.ts";
+import { supportHours, ticketTiming } from "./access.ts";
+import { ACCESS_PERMISSIONS, AUDIT_COLUMNS, AUDIT_EXPORT_ROLES, AUDIT_PAGE, SELF_ACTIONS, accessHandlers, applyAuditFilters, auditCursor, auditFilters, endSessionsAfterChange, nextAuditCursor, recordRefusal } from "./access.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1307,7 +1309,7 @@ export const AUDITED: Record<string, (fields: Json, result: any) => AuditEntry> 
     entity_type: "platform_admin",
     entity_id: r.targetUserId,
     old_data: r.before,
-    new_data: r.after,
+    new_data: { ...r.after, sessions_ended: r.sessionsEnded },
   }),
   ticket_create: (_fields, r) => ({
     action: "ticket.created",
@@ -1562,49 +1564,50 @@ async function overviewData(admin: SupabaseClient) {
   };
 }
 
-async function auditLogList(admin: SupabaseClient, fields: Json) {
-  const limit = 50;
-  let query = admin
-    .from("audit_logs")
-    .select("id, action, business_id, user_id, entity_type, entity_id, old_data, new_data, ip_address, created_at")
-    .order("created_at", { ascending: false })
-    .limit(limit + 1);
-
-  const businessId = text(fields.businessId, 64);
-  if (businessId) query = query.eq("business_id", requireId(businessId));
-
-  const search = text(fields.search, 60).toLowerCase().replace(/[^a-z0-9_.]/g, "");
-  if (search) query = query.ilike("action", `%${search}%`);
-
-  const before = text(fields.before, 40);
-  if (before && !Number.isNaN(Date.parse(before))) query = query.lt("created_at", before);
-
-  const { data, error } = await query;
+async function auditLogList(admin: SupabaseClient, fields: Json, role: string | null = null) {
+  // ACC-12: person, dates, action and record filters; a (created_at, id) cursor, so entries with the same time are
+  // never skipped (access.ts).
+  const limit = AUDIT_PAGE;
+  const filters = auditFilters(fields, InputError);
+  const before = typeof fields.before === "string" ? fields.before : "";
+  const cursor = auditCursor(before);
+  if (before && !cursor) throw new InputError("The page marker is not valid");
+  const { data, error } = await applyAuditFilters(admin.from("audit_logs").select(AUDIT_COLUMNS), filters, cursor).limit(limit + 1);
   if (error) throw error;
 
-  const rows = data ?? [];
+  type AuditRow = { id: string; created_at: string; user_id: string | null; business_id: string | null } & Json;
+  const rows = (data ?? []) as AuditRow[];
   const page = rows.slice(0, limit);
   const [actors, names] = await Promise.all([
     resolveUsers(admin, page.map((r) => r.user_id)),
     businessNames(admin, page.map((r) => r.business_id)),
   ]);
 
+  // the first page also carries the lists the filters choose from
   let businesses: { id: string; name: string }[] | undefined;
-  if (!before) {
-    const { data: list, error: listError } = await admin
-      .from("businesses").select("id, name").order("name");
+  let people: { id: string; email: string | null }[] | undefined;
+  if (!cursor) {
+    const [{ data: list, error: listError }, { data: admins, error: adminsError }] = await Promise.all([
+      admin.from("businesses").select("id, name").order("name"),
+      admin.from("platform_admins").select("user_id"),
+    ]);
     if (listError) throw listError;
+    if (adminsError) throw adminsError;
     businesses = list ?? [];
+    const emails = await resolveUsers(admin, (admins ?? []).map((a) => a.user_id));
+    people = Object.entries(emails).map(([id, email]) => ({ id, email })).sort((a, b) => String(a.email).localeCompare(String(b.email)));
   }
 
   return {
     logs: page.map((r) => ({
       ...r,
-      actor: actors[r.user_id] ?? null,
+      actor: r.user_id ? actors[r.user_id] ?? null : null,
       business_name: r.business_id ? names[r.business_id] ?? null : null,
     })),
-    nextCursor: rows.length > limit ? page[page.length - 1].created_at : null,
+    nextCursor: rows.length > limit ? nextAuditCursor(page[page.length - 1]) : null,
     businesses,
+    people,
+    canExport: Boolean(role && AUDIT_EXPORT_ROLES.includes(role)),
   };
 }
 
@@ -2102,10 +2105,14 @@ async function adminUpdate(admin: SupabaseClient, fields: Json, userId: string) 
     .eq("user_id", targetId);
   if (error) throw error;
 
+  // ACC-18: a removed admin, or one given another role, is signed out on every device.
+  const sessions = await endSessionsAfterChange(admin, targetId, current, { role, is_active: isActive });
+
   return {
     targetUserId: targetId,
     before: { role: current.role, is_active: current.is_active },
     after: { role, is_active: isActive },
+    ...sessions,
   };
 }
 
@@ -2184,20 +2191,38 @@ async function integrationsOverview(admin: SupabaseClient) {
 const TICKET_STATUSES = ["open", "in_progress", "resolved", "closed"] as const;
 const TICKET_PRIORITIES = ["low", "normal", "high", "urgent"] as const;
 
-async function ticketsList(admin: SupabaseClient) {
-  const [ticketsResult, businessesResult, adminsResult] = await Promise.all([
-    admin.from("support_tickets")
-      .select("id, business_id, subject, description, category, priority, status, assigned_to, created_by, metadata, created_at, updated_at, resolved_at")
-      .order("created_at", { ascending: false })
-      .limit(500),
+async function ticketsList(admin: SupabaseClient, fields: Json = {}) {
+  // OPS-27: filtered on the server (status, business); OPS-25: first_response_at once sql/zella_support_replies.sql is
+  // applied (before that the column is missing and the list reads as before).
+  const cols = "id, business_id, subject, description, category, priority, status, assigned_to, created_by, metadata, created_at, updated_at, resolved_at";
+  const listQuery = (withFirst: boolean) => {
+    let q = admin.from("support_tickets").select(withFirst ? `${cols}, first_response_at` : cols).order("created_at", { ascending: false }).limit(500);
+    const status = text(fields.status, 20);
+    if (status) q = q.eq("status", oneOf(status, TICKET_STATUSES, "open"));
+    const businessId = text(fields.businessId, 64);
+    if (businessId) q = q.eq("business_id", requireId(businessId, "business"));
+    return q;
+  };
+  let ticketsResult = await listQuery(true);
+  if (ticketsResult.error && /first_response_at/.test(ticketsResult.error.message ?? "")) ticketsResult = await listQuery(false);
+  const [businessesResult, adminsResult, hoursResult, grantsResult] = await Promise.all([
     admin.from("businesses").select("id, name").order("name"),
-    admin.from("platform_admins").select("user_id").eq("is_active", true),
+    admin.from("platform_admins").select("user_id, role").eq("is_active", true),
+    admin.from("platform_settings").select("value").eq("key", "support_business_hours").maybeSingle(),
+    admin.from("platform_role_permissions").select("role").eq("permission", "support.manage"),
   ]);
   const queryError = ticketsResult.error ?? businessesResult.error ?? adminsResult.error;
   if (queryError) throw queryError;
 
-  const tickets = ticketsResult.data ?? [];
-  const adminIds = (adminsResult.data ?? []).map((a) => a.user_id);
+  const hours = supportHours(hoursResult.data?.value);
+  // deno-lint-ignore no-explicit-any
+  let tickets = (ticketsResult.data ?? []) as any[];
+  const timing = new Map(tickets.map((t) => [t.id, ticketTiming(t, hours)]));
+  if (fields.overdue === true) tickets = tickets.filter((t) => timing.get(t.id)?.overdue);
+  // only people who may work tickets can be assigned one (OPS-27)
+  const supportRoles = new Set(["zella_owner", "super_admin", ...(grantsResult.data ?? []).map((g) => g.role)]);
+  const adminIds = (adminsResult.data ?? []).filter((a) => supportRoles.has(a.role)).map((a) => a.user_id);
+  const messages = await ticketMessages(admin, tickets.map((t) => t.id));
   // Internal notes live in support_ticket_notes, which only the server can read (OPS-06). Before that table exists
   // (sql/zella_support_notes.sql not applied yet) they are still read from metadata, as before.
   const notesByTicket = await ticketNotes(admin, tickets);
@@ -2206,6 +2231,7 @@ async function ticketsList(admin: SupabaseClient) {
     ...adminIds,
     ...tickets.flatMap((t) => [t.assigned_to, t.created_by]),
     ...noteAuthors,
+    ...[...messages.values()].flat().map((m) => m.author_id ?? ""),
   ]);
   const nameById = new Map((businessesResult.data ?? []).map((b) => [b.id, b.name]));
 
@@ -2221,13 +2247,33 @@ async function ticketsList(admin: SupabaseClient) {
         created_at: n.created_at,
         author: n.author_id ? emails[n.author_id] ?? null : null,
       })),
+      // what the business sees (OPS-25), never the internal notes above
+      messages: (messages.get(t.id) ?? []).map((m) => ({
+        text: m.body, created_at: m.created_at, side: m.author_side,
+        author: m.author_side === "zella" ? (m.author_id ? emails[m.author_id] ?? "Zella Voice" : "Zella Voice") : null,
+      })),
+      ...timing.get(t.id),
     })),
+    supportHours: hours,
     businesses: businessesResult.data ?? [],
     assignees: adminIds.map((id) => ({ id, email: emails[id] ?? id })),
   };
 }
 
 type TicketNote = { body: string; author_id: string | null; created_at: string };
+type TicketMessage = { body: string; author_id: string | null; author_side: string; created_at: string };
+
+// Replies the business sees (support_ticket_messages, sql/zella_support_replies.sql); none before it is applied.
+async function ticketMessages(admin: SupabaseClient, ids: string[]) {
+  const out = new Map<string, TicketMessage[]>();
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data, error } = await admin.from("support_ticket_messages").select("ticket_id, body, author_id, author_side, created_at")
+      .in("ticket_id", ids.slice(i, i + 200)).order("created_at", { ascending: true }).limit(5000);
+    if (error) { if (missingTable(error)) return out; throw error; }
+    for (const m of data ?? []) out.set(m.ticket_id, [...(out.get(m.ticket_id) ?? []), m]);
+  }
+  return out;
+}
 const missingTable = (e: { code?: string } | null) => e?.code === "42P01" || e?.code === "PGRST205";
 
 async function ticketNotes(admin: SupabaseClient, tickets: { id: string; metadata: unknown }[]) {
@@ -2334,6 +2380,17 @@ async function ticketUpdate(admin: SupabaseClient, fields: Json, userId: string)
       update.assigned_to = assignee;
       changes.assigned_to = { from: ticket.assigned_to, to: assignee };
     }
+  }
+
+  // OPS-25: a reply the business sees; first_response_at and the opener's notice are set in the database
+  const reply = text(fields.reply, 4000);
+  if (reply) {
+    const { error: replyError } = await admin.rpc("zella_admin_ticket_reply", { p_ticket: ticketId, p_author: userId, p_body: reply });
+    if (replyError) {
+      if (/zella_admin_ticket_reply|does not exist|PGRST202/i.test(replyError.message ?? "")) throw new InputError("Replies to the business need the latest database update (sql/zella_support_replies.sql).", 503);
+      throw replyError;
+    }
+    changes.reply_added = true;
   }
 
   const note = text(fields.note, 4000);
@@ -3035,6 +3092,7 @@ Deno.serve(withCors(async (req: Request) => {
     try { role = await callerRole(adminClient, user.id); }
     catch (e) { console.error("Platform admin verification failed", e); return respond({ error: "Could not verify platform admin access" }, 500); }
     if (!role) {
+      await recordRefusal(adminClient, requestContext(req, user.id), { code: "NOT_ADMIN" });   // ACC-15
       return respond({ error: "Platform admin access required" }, 403);
     }
 
@@ -3069,21 +3127,29 @@ Deno.serve(withCors(async (req: Request) => {
       typeof fields.action === "string" ? fields.action : "";
 
     const gate = mfaGate({ hasVerifiedFactor: hasMfa, aal, action });
-    if (!gate.ok) return respond({ error: gate.error, code: gate.code }, gate.status);
+    if (!gate.ok) {
+      await recordRefusal(adminClient, requestContext(req, user.id), { code: gate.code, action });   // ACC-15
+      return respond({ error: gate.error, code: gate.code }, gate.status);
+    }
 
     // Every action needs a permission; restricted roles only have what the owner gave them.
-    const permission = PERMISSIONS[action] ?? ONBOARDING_PERMISSIONS[action] ?? PLATFORM_PERMISSIONS[action] ?? DETAIL_PERMISSIONS[action];
+    const permission = PERMISSIONS[action] ?? ONBOARDING_PERMISSIONS[action] ?? PLATFORM_PERMISSIONS[action] ?? DETAIL_PERMISSIONS[action] ?? ACCESS_PERMISSIONS[action];
     if (!permission) return respond({ error: "Unknown action" }, 400);
     // Every active admin may read their own role and permissions (me_admin): without it a restricted role that lacks
     // businesses.view couldn't learn what it is allowed to do. It returns nothing about other people or businesses.
-    let allowed = action === "me_admin" || role === "zella_owner" || (role === "super_admin" && !["admins.manage", "roles.manage"].includes(permission));
+    // ACC-30: an admin's own authenticator and password changes (access.ts SELF_ACTIONS) are allowed for every role too.
+    let allowed = action === "me_admin" || SELF_ACTIONS.includes(action) || role === "zella_owner" || (role === "super_admin" && !["admins.manage", "roles.manage"].includes(permission));
     if (!allowed && RESTRICTED_ROLES.includes(role)) {
       const { data: grant } = await adminClient.from("platform_role_permissions").select("permission").eq("role", role).eq("permission", permission).maybeSingle();
       allowed = Boolean(grant);
     }
     if (!allowed) {
+      await recordRefusal(adminClient, requestContext(req, user.id), { code: "NOT_PERMITTED", action, permission });   // ACC-15
       return respond({ error: "Your admin role doesn't allow this. Ask a Zella Voice owner to change your role or its permissions.", code: "NOT_PERMITTED", permission }, 403);
     }
+    // ACC-19: granting or changing admin access needs a code entered in the last 5 minutes (mfa_gate.ts).
+    const fresh = freshCodeGate(action, authorization);
+    if (!fresh.ok) return respond({ error: fresh.error, code: fresh.code }, fresh.status);
 
     // dashboard_data keeps its shape for the Offers page, the setup wizard's industry list and a web app older than
     // businesses_list (which falls back to it). The Businesses list reads businesses_list (businesses.ts).
@@ -3202,7 +3268,7 @@ Deno.serve(withCors(async (req: Request) => {
       },
       business_detail: async () =>
         businessDetail(adminClient, requireId(fields.businessId), await adminPermissions(adminClient, role), { loadSetup, viewerId: user.id }),
-      audit_logs: () => auditLogList(adminClient, fields),
+      audit_logs: () => auditLogList(adminClient, fields, role),
       industries_list: () => industriesList(adminClient),
       industry_save: () => industrySave(adminClient, fields),
       industry_create: () => industryCreate(adminClient, fields),
@@ -3211,7 +3277,7 @@ Deno.serve(withCors(async (req: Request) => {
       admin_invite: () => adminInvite(adminClient, fields, user.id),
       admin_update: () => adminUpdate(adminClient, fields, user.id),
       integrations_overview: () => integrationsOverview(adminClient),
-      tickets_list: () => ticketsList(adminClient),
+      tickets_list: () => ticketsList(adminClient, fields),
       ticket_create: () => ticketCreate(adminClient, fields, user.id),
       ticket_update: () => ticketUpdate(adminClient, fields, user.id),
       plans_list: () => plansList(adminClient),
@@ -3235,7 +3301,8 @@ Deno.serve(withCors(async (req: Request) => {
     });
     const platform = platformHandlers(adminClient, fields, { text, bool, obj, requireId, InputError }, user.id, role);
     const detail = detailHandlers(adminClient, fields, { text, requireId, InputError }, user.id, callerClient);
-    const handler = handlers[action] ?? extra.handlers[action] ?? onboarding.handlers[action] ?? platform.handlers[action] ?? detail.handlers[action];
+    const access = accessHandlers(adminClient, fields, user.id, { InputError, requireId }, role);
+    const handler = handlers[action] ?? extra.handlers[action] ?? onboarding.handlers[action] ?? platform.handlers[action] ?? detail.handlers[action] ?? access.handlers[action];
     if (!handler) return respond({ error: "Unknown action" }, 400);
 
     try {
@@ -3243,7 +3310,7 @@ Deno.serve(withCors(async (req: Request) => {
 
       // Setup actions describe themselves from the request and result; settings and onboarding actions from
       // their result only (passing the request there recorded empty before/after values).
-      const later = extra.audited[action] ?? onboarding.audited[action] ?? platform.audited[action] ?? detail.audited[action];
+      const later = extra.audited[action] ?? onboarding.audited[action] ?? platform.audited[action] ?? detail.audited[action] ?? access.audited[action];
       const entry = AUDITED[action] ? AUDITED[action](fields, result) : later ? (later(result as Json) as AuditEntry) : null;
       const unchanged = action === "ticket_update" &&
         Object.keys(obj((result as Json).changes)).length === 0;

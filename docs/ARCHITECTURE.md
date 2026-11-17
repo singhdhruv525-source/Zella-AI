@@ -923,7 +923,7 @@ flowchart LR
 | **10.1 Public website** | REQ-LC-01: marketing pages, pricing (owner-defined), demo request and signup entry. Forms post to an edge endpoint with rate limiting and bot protection, creating a **prospect** in the growth schema. |
 | **10.2 Zella Voice sales leads** | REQ-LC-02: prospects, demos, stages, owner and follow-up tasks in the growth schema; visible only with `growth.manage`; prospect emails follow the same consent rules. Never stored in a tenant. **Later (owner, 16 Nov 2026):** not before launch (REQ-ADM-18). |
 | **10.3 Business onboarding** | REQ-LC-03: **for now, every business is created by the Zella Voice team** in the platform admin (Create Business, §18.6). The owner is then invited, signs in and finishes setup. **Self-service signup is a later phase:** account → workspace → industry wizard → business details, time zone, hours → receptionist → phone and integrations, built on the same server functions. Every business gets an isolated workspace; **no demo data is ever loaded into production**. Duplicates are prevented by normalised name, phone and domain checks. |
-| **10.4 Authentication and recovery** | REQ-LC-04: email + password, email links that need a click on our page, recovery by email, MFA (TOTP) required for platform staff and owner-enforceable for members, session revocation on role change, leaked-password protection on. |
+| **10.4 Authentication and recovery** | REQ-LC-04: email + password, email links that need a click on our page, recovery by email, MFA (TOTP) required for platform staff and owner-enforceable for members, session revocation on role change (removal or role change ends every session of that admin: `zella_end_user_sessions`, from admin_update), leaked-password protection on. |
 | **10.5 Business creation** | REQ-LC-05: creates the tenant, owner membership (pending until accepted), industry defaults, capabilities, policies, templates, default automations (off until reviewed), and an audit record. Idempotent by a creation key. |
 | **10.6 Invitations** | REQ-LC-06: bound to email, role-limited (admins invite at most staff/manager; only owners invite admins), expiring, revocable, resendable; accepted only from a session proven to own the email. |
 | **10.7 Setup** | REQ-LC-07: wizard (§18.5) with save-and-resume, honest checklist, server-side readiness. |
@@ -1735,7 +1735,7 @@ Each item links to its source, and the timeline is filterable by type.
 | REQ-ADM-11 | Failed messages | cross-business failures | `comms.manage` |
 | REQ-ADM-12 | Spam & abuse | incidents, global rules | `security.*` |
 | REQ-ADM-13 | Support | tickets, audited access to a business | `support.manage` |
-| REQ-ADM-14 | Audit logs | every privileged action | `audit.view` |
+| REQ-ADM-14 | Audit logs | every privileged action; filters (business, action, person, dates, record) with a (created_at, id) cursor; CSV export of at most 10,000 entries, itself audited (`audit.exported`) | `audit.view`; export also needs the owner or super admin role |
 | REQ-ADM-15 | Monitoring & incidents | alerts, status page incidents | ops |
 | REQ-ADM-16 | Platform settings & kill switches | live switches per channel, per business override, maintenance mode | Zella Voice owner |
 | REQ-ADM-17 | Industry configuration | presets, policies, safety lines, defaults | `ai.configure` |

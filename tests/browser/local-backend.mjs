@@ -275,10 +275,13 @@ async function userRow(id) {
     last_sign_in_at: u.last_sign_in_at, created_at: u.created_at, updated_at: u.created_at, app_metadata: { provider: "email", ...(u.raw_app_meta_data ?? {}) },
     user_metadata: u.raw_user_meta_data ?? {}, identities: [], factors: u.factors };
 }
-function session(user, aal = "aal1") {
-  const exp = Math.floor(Date.now() / 1000) + 3600;
-  const claims = { sub: user.id, email: user.email, role: "authenticated", aud: "authenticated", aal, amr: [{ method: "password", timestamp: Math.floor(Date.now() / 1000) }], exp, session_id: crypto.randomUUID() };
-  return { access_token: sign(claims), refresh_token: `r.${user.id}.${aal}`, token_type: "bearer", expires_in: 3600, expires_at: exp, user };
+// amr as Supabase Auth sends it: the password time, plus the time an authenticator code was last entered for this
+// session (totpAt), which a refresh keeps (r.<user id>.<aal>.<totpAt>) and a new code moves on (ACC-19).
+function session(user, aal = "aal1", totpAt = null) {
+  const now = Math.floor(Date.now() / 1000), exp = now + 3600;
+  const amr = [...(totpAt ? [{ method: "totp", timestamp: totpAt }] : []), { method: "password", timestamp: now }];
+  const claims = { sub: user.id, email: user.email, role: "authenticated", aud: "authenticated", aal, amr, exp, session_id: crypto.randomUUID() };
+  return { access_token: sign(claims), refresh_token: `r.${user.id}.${aal}${totpAt ? `.${totpAt}` : ""}`, token_type: "bearer", expires_in: 3600, expires_at: exp, user };
 }
 
 async function auth(req, url, claims, body) {
@@ -293,19 +296,19 @@ async function auth(req, url, claims, body) {
     // a refresh keeps the session's level (r.<user id>.<aal>), as Supabase does. Test only: with ZTEST_PASSWORD_AAL2=1 a
     // password sign in by someone who has a verified authenticator counts as already verified, so page crawls don't
     // stop at the code screen (every admin needs two step sign in, ACC-01). admin-mfa-journey.cjs runs without it.
-    let aal = "aal1";
+    let aal = "aal1", totpAt = null;
     if (process.env.ZTEST_PASSWORD_AAL2 === "1" && id) {
       const f = await asCaller({ role: "service_role" }, `select count(*) from auth.mfa_factors where user_id = ${lit(id)} and status = 'verified'`, { preRequest: false, system: true });
       if (Number(f.text) > 0) aal = "aal2";
     }
     if (url.searchParams.get("grant_type") === "refresh_token") {
-      const [, rid, raal] = String(body?.refresh_token ?? "").split(".");
-      id = rid || null; aal = raal === "aal2" ? "aal2" : "aal1";
+      const [, rid, raal, rtotp] = String(body?.refresh_token ?? "").split(".");
+      id = rid || null; aal = raal === "aal2" ? "aal2" : "aal1"; totpAt = Number(rtotp) > 0 ? Number(rtotp) : null;
     }
     const user = id && (await userRow(id));
     if (!user) return { status: 400, json: { error: "invalid_grant", error_description: "Invalid login credentials", msg: "Invalid login credentials", code: "invalid_credentials" } };
     await asCaller({ role: "service_role" }, `update auth.users set last_sign_in_at = now() where id = ${lit(id)}`, { preRequest: false, system: true });
-    return { status: 200, json: session(user, aal) };
+    return { status: 200, json: session(user, aal, totpAt) };
   }
   if (path === "/user") {
     if (!claims?.sub) return { status: 401, json: { code: 401, msg: "Invalid token", error_code: "bad_jwt" } };
@@ -338,7 +341,7 @@ async function auth(req, url, claims, body) {
       const v = await asCaller({ role: "service_role" }, `update auth.mfa_factors set status = 'verified', updated_at = now() where id = ${lit(factorId)} and user_id = ${lit(claims.sub)} returning id`, sys);
       if (v.error || !v.text) return { status: 404, json: { code: 404, msg: "Factor not found", error_code: "mfa_factor_not_found" } };
       const user = await userRow(claims.sub);
-      return { status: 200, json: session(user, "aal2") };
+      return { status: 200, json: session(user, "aal2", Math.floor(Date.now() / 1000)) };
     }
     return { status: 200, json: { all: [], totp: [], phone: [] } };
   }
@@ -356,9 +359,23 @@ async function auth(req, url, claims, body) {
     if (user?.last_sign_in_at && path === "/invite") return { status: 422, json: { code: 422, msg: "A user with this email address has already been registered", error_code: "email_exists" } };
     return { status: 200, json: user };
   }
+  // the server's view of a person's authenticators (auth.admin.mfa.listFactors / deleteFactor), ACC-30
+  const adminFactors = /^\/admin\/users\/([0-9a-f-]{36})\/factors(?:\/([0-9a-f-]{36}))?$/.exec(path);
+  if (adminFactors) {
+    if (claims?.role !== "service_role") return { status: 403, json: { msg: "not allowed" } };
+    const sys = { preRequest: false, system: true };
+    if (req.method === "DELETE" && adminFactors[2]) {
+      const d = await asCaller({ role: "service_role" }, `delete from auth.mfa_factors where id = ${lit(adminFactors[2])} and user_id = ${lit(adminFactors[1])} returning id`, sys);
+      return d.text ? { status: 200, json: { id: d.text } } : { status: 404, json: { code: 404, msg: "Factor not found", error_code: "mfa_factor_not_found" } };
+    }
+    const r = await asCaller({ role: "service_role" }, `select coalesce(json_agg(json_build_object('id', id, 'status', status, 'factor_type', factor_type, 'friendly_name', friendly_name, 'created_at', created_at)), '[]') from auth.mfa_factors where user_id = ${lit(adminFactors[1])}`, sys);
+    return { status: 200, json: JSON.parse(r.text || "[]") };
+  }
   const adminUser = /^\/admin\/users\/([0-9a-f-]{36})$/.exec(path);
   if (adminUser) {
     if (claims?.role !== "service_role") return { status: 403, json: { msg: "not allowed" } };
+    // a password change is recorded as a time only (every test password stays Test-pass-1)
+    if (req.method === "PUT" && body?.password) await asCaller({ role: "service_role" }, `update auth.users set updated_at = now() where id = ${lit(adminUser[1])}`, { preRequest: false, system: true });
     if (req.method === "PUT" && body?.user_metadata) await asCaller({ role: "service_role" }, `update auth.users set raw_user_meta_data = coalesce(raw_user_meta_data,'{}') || ${lit(JSON.stringify(body.user_metadata))}::jsonb where id = ${lit(adminUser[1])}`, { preRequest: false, system: true });
     const user = await userRow(adminUser[1]);
     return user ? { status: 200, json: user } : { status: 404, json: { msg: "User not found" } };

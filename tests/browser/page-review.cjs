@@ -18,7 +18,8 @@ const path = require("path");
 const APP = process.env.APP_URL ?? "http://localhost:5199";
 const BACKEND = process.env.BACKEND_URL ?? "http://localhost:54321";
 const OUT = process.env.OUT ?? path.join(process.cwd(), "page-review-out");
-const AXE = fs.readFileSync(process.env.AXE ?? require.resolve("axe-core/axe.min.js"), "utf8");
+const { loadAxe, runAxe } = require("./axe.cjs");
+let AXE; try { AXE = loadAxe(); } catch (e) { console.error(e.message); process.exit(2); }
 const INV = JSON.parse(fs.readFileSync(process.env.INVENTORY ?? path.join(OUT, "..", "inventory.json"), "utf8"));
 const PASSWORD = "Test-pass-1";
 const B1 = "b0000000-0000-0000-0000-000000000001";
@@ -118,13 +119,7 @@ async function review(browser, name) {
         errorsShown: [...document.querySelectorAll('[role="alert"], .zs-banner.error, .owner-form-error, .ba-error')].map((e) => e.innerText.slice(0, 160)).filter(Boolean),
       };
     });
-    await page.addScriptTag({ content: AXE }).catch(() => {});
-    const axe = await page.evaluate(async () => {
-      if (!window.axe) return null;
-      const r = await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa"] }, resultTypes: ["violations"] });
-      return r.violations.map((v) => ({ id: v.id, impact: v.impact, n: v.nodes.length,
-        sample: v.nodes.slice(0, 3).map((n) => `${n.target.join(" ")} :: ${(n.failureSummary ?? "").split("\n").slice(-1)[0].slice(0, 140)}`) }));
-    }).catch((e) => [{ id: "axe-failed", n: 1, sample: [e.message] }]);
+    const axe = await runAxe(page, AXE);
     const shot = path.join(dir, route.replace(/[^a-z0-9]+/gi, "_").replace(/^_|_$/g, "") || "root") + ".png";
     await page.screenshot({ path: shot, fullPage: false }).catch(() => {});
     const row = { route, ...info, pageErrors: [...pageErrors], failed: [...failed], consoleErrors: [...new Set(consoleErrors)].slice(0, 5), axe, shot };
