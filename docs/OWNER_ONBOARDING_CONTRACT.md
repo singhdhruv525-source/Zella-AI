@@ -5,7 +5,7 @@ production or deployed. Changes to this contract are listed here, newest first, 
 
 | Version | Date | Change |
 |---|---|---|
-| 3 | 17 Nov 2026 | Additive. (a) Each section carries `data_hash`, the fingerprint of the `data` shown; 5.4 takes it as `p_seen_hash`, and Looks right on details that changed since is refused with `DETAILS_CHANGED`. (b) A plan version saved after the owner accepted can be accepted from the plan screen (5.5) while the journey isn't finished; until it is, steps 6 and 7 answer `PLAN_CHANGED`. (c) `zella_activation_report` leaves out the `identity` and `payment` checks for team members other than the owner. (d) Step 6 and the payment check of the go live gate: the owner's rule and how it changes once Stripe is live (sections 2 and 3). |
+| 3 | 17 Nov 2026 | Additive. (a) Each section carries `data_hash`, the fingerprint of the `data` shown; 5.4 takes it as `p_seen_hash`, and Looks right on details that changed since is refused with `DETAILS_CHANGED`. (b) A plan version saved after the owner accepted can be accepted from the plan screen (5.5) while the journey isn't finished; until it is, steps 6 and 7 answer `PLAN_CHANGED`. (c) `zella_activation_report`: for team members other than the owner, the `identity` and `payment` checks are replaced by one check, `owner_setup` ("The owner finished their setup"), so neither result can be told apart; Zella Voice admins with `businesses.view` can read the full report without being members. (e) The identity provider event carries the provider's id for the check (`p_subject`, a Persona inquiry): a declined check counts as one failed try however many declined events describe it. (d) Step 6 and the payment check of the go live gate: the owner's rule and how it changes once Stripe is live (sections 2 and 3). |
 | 2 | 16 Nov 2026 | Additive clarifications, no call or field removed or renamed. (a) `MFA_REQUIRED` can also come from the request check that runs before every database call: HTTP 403 with `code` `42501` and `message` `MFA_REQUIRED`. Always read the code from `message` (section 4). It applies to every owner call, reads included, whenever the owner has a verified authenticator and the session wasn't verified with a code. (b) Owner calls answer `NOT_ALLOWED` for a business that doesn't exist too, so nobody can probe for ids; `NOT_FOUND` comes only from the admin calls. (c) The state also carries `started` (false until the first write) and `resumed_at`. (d) Who can read the progress tables directly: the business's owner and Zella Voice admins with `businesses.view`; no other team member. (e) When the last allowed identity attempt fails, Zella Voice gets an admin alert to review it by hand. |
 | 1 | 16 Nov 2026 | First version. |
 
@@ -248,8 +248,9 @@ Always possible: `NOT_SIGNED_IN`, `NOT_ALLOWED`, `NOT_FOUND`, `BUSINESS_NOT_AVAI
 
 ### 5.4 `zella_owner_onboarding_section(p_business_id uuid, p_section text, p_decision text, p_note text default null, p_seen_hash text default null)`
 
-`p_seen_hash`: the section's `data_hash` from the state the owner was shown. With `looks_right`, if the details changed
-since, the answer is `DETAILS_CHANGED` and nothing is recorded: reload and show the new details.
+`p_seen_hash`: the section's `data_hash` from the state the owner was shown, required with `looks_right`
+(`INVALID_INPUT` without it). If the details changed since, the answer is `DETAILS_CHANGED` and nothing is recorded:
+reload and show the new details.
 
 `p_decision`: `looks_right` or `change`. A change needs a note (1 to 1000 characters); it reaches Zella Voice as an
 alert on the admin dashboard and in the business's onboarding progress. Saying `looks_right` after asking for a change

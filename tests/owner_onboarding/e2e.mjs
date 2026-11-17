@@ -129,7 +129,10 @@ const sec = await rpc("zella_owner_onboarding_complete_step", owner, { p_busines
 expect("2. done, checked from the auth records", [sec.json.state?.current_step, sec.json.state?.security?.ready], ["details", true]);
 
 // 3. check your details
-for (const s of ["business", "hours_services", "receptionist_phone"]) await rpc("zella_owner_onboarding_section", owner, { p_business_id: BIZ, p_section: s, p_decision: "looks_right" });
+// Looks right sends the fingerprint of the details shown (data_hash), as the screens do
+const seen = async (k) => (await state()).details.sections.find((x) => x.key === k).data_hash;
+expect("3. Looks right without what was shown is refused", code(await rpc("zella_owner_onboarding_section", owner, { p_business_id: BIZ, p_section: "business", p_decision: "looks_right" })), "INVALID_INPUT");
+for (const s of ["business", "hours_services", "receptionist_phone"]) await rpc("zella_owner_onboarding_section", owner, { p_business_id: BIZ, p_section: s, p_decision: "looks_right", p_seen_hash: await seen(s) });
 const change = await rpc("zella_owner_onboarding_section", owner, { p_business_id: BIZ, p_section: "team", p_decision: "change", p_note: "Add Maya, she started this week." });
 expect("3. Change with a note", change.json.state.details.sections.find((x) => x.key === "team").status, "change_requested");
 expect("3. staff can't answer for the owner", code(await rpc("zella_owner_onboarding_section", staff, { p_business_id: BIZ, p_section: "team", p_decision: "looks_right" })), "NOT_ALLOWED");
@@ -139,7 +142,7 @@ expect("3. the request is an admin alert", psql(DB, `select count(*) from public
 psql(DB, `insert into public.staff_members (business_id, name, title) values ('${BIZ}', 'Maya Test', 'Stylist')`);
 expect("3. the admin marks it done", (await rpc("zella_admin_onboarding_change_done", admin, { p_business_id: BIZ, p_section: "team", p_note: "Added Maya" })).json, { changed: true });
 expect("3. the owner checks it again", (await state()).details.sections.find((x) => x.key === "team").status, "updated");
-await rpc("zella_owner_onboarding_section", owner, { p_business_id: BIZ, p_section: "team", p_decision: "looks_right" });
+await rpc("zella_owner_onboarding_section", owner, { p_business_id: BIZ, p_section: "team", p_decision: "looks_right", p_seen_hash: await seen("team") });
 expect("3. done", (await rpc("zella_owner_onboarding_complete_step", owner, { p_business_id: BIZ, p_step: "details" })).json.state.current_step, "identity");
 
 // Finish later, sign in again, resume at the same step

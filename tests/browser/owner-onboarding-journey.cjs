@@ -271,7 +271,8 @@ async function scenario(browser, name, query, checks) {
     await page.evaluate(async () => {
       const f = window.__zellaOnboardingFake; const id = "00000000-0000-4000-8000-0000000000b1";
       await f.completeStep(id, "welcome"); await f.setPassword("Good pass 1234"); await f.finishMfa("x", "123456"); await f.completeStep(id, "security");
-      for (const k of ["business", "hours_services", "team", "receptionist_phone"]) await f.answerSection(id, k, "looks_right");
+      const st = await f.getState(id);
+      for (const k of ["business", "hours_services", "team", "receptionist_phone"]) await f.answerSection(id, k, "looks_right", null, st.details.sections.find((x) => x.key === k).data_hash);
       await f.completeStep(id, "details");
     });
     await page.reload();

@@ -166,6 +166,37 @@ export function errorCode(error) {
   const m = String(error.message ?? "").trim();
   return ERROR_WORDS[m] ? m : null;
 }
+// What the journey does after finishing a step failed: "plan" (a new plan version was saved while a later step was open:
+// read the state and show the plan), "reload" (the server is further along, or an earlier step reopened), or nothing.
+export function afterCompleteError(step, error) {
+  const code = errorCode(error);
+  if (code === "PLAN_CHANGED" && (step === "payment" || step === "done")) return "plan";
+  if (["STEP_LOCKED", "SECURITY_INCOMPLETE", "SECTIONS_NOT_CONFIRMED"].includes(code)) return "reload";
+  return null;
+}
+
+// Answers on the details step can overlap (the owner moves between parts). Only the latest call's state may be shown:
+// an answer whose reply comes back after a newer call is dropped and the state read again, and a read again is itself
+// dropped when a newer answer or read started meanwhile, so an older snapshot never hides a newer answer.
+//   answer(send): runs send() and returns its reply if it is still the latest call, else null (and reads again)
+//   reread(): reads the state and applies it if it is still the latest call; a failed read goes to onReadError
+export function createAnswerQueue({ read, apply, onReadError = () => {} }) {
+  let latest = 0;
+  async function reread() {
+    const ticket = ++latest;
+    try { const fresh = await read(); if (ticket === latest && fresh) apply(fresh); }
+    catch (err) { if (ticket === latest) onReadError(err); }
+  }
+  async function answer(send) {
+    const ticket = ++latest;
+    const res = await send();
+    if (ticket === latest) return res;
+    reread();
+    return null;
+  }
+  return { answer, reread };
+}
+
 // A database call's error as the screens get it (contract §4): the code from the message (P0001 or the request check),
 // an expired session as NOT_SIGNED_IN, and for anything else safe words only, never the database's own text (which can
 // name tables or functions). The original text is kept in rawMessage for logs. "Not deployed yet" (PGRST202) and

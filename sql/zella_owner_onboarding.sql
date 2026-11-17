@@ -37,7 +37,7 @@ do $$
 declare
   s text; d text;
   known constant jsonb := jsonb_build_object(
-    'public.zella_activation_report(uuid)',   jsonb_build_array('65d1ba6e6671bbfe2fc1b2ea304475d8', '116b8c18e69fb905354b7f18bef88e19'),
+    'public.zella_activation_report(uuid)',   jsonb_build_array('65d1ba6e6671bbfe2fc1b2ea304475d8', '5c21d8905ce14b1b7c9032194ac044f0'),
     'public.zella_request_activation(uuid)',  jsonb_build_array('0db1467ab6c0c6cba7bc300bbb5946f5', '41ab61c937ec1fd0b05b7fbd91b8353f'));
 begin
   if to_regclass('public.zella_function_archive') is null or to_regclass('public.business_plans') is null
@@ -122,6 +122,7 @@ create table if not exists public.identity_verification_events (
   scope text not null check (scope in ('business', 'unmapped')),
   business_id uuid references public.businesses (id) on delete cascade,
   outcome text not null check (outcome in ('approved', 'declined', 'needs_review', 'pending', 'other')),
+  subject text check (subject is null or length(subject) between 1 and 200),   -- the provider's check (a Persona inquiry)
   occurred_at timestamptz,
   result text not null check (result in ('applied', 'ignored', 'unmapped')),
   received_at timestamptz not null default now(),
@@ -544,8 +545,8 @@ begin
   return jsonb_build_object('changed', true, 'state', public.zella_onboarding_state(p_business_id));
 end $$;
 
--- p_seen_hash: the section's data_hash the owner was shown. Looks right is refused (DETAILS_CHANGED) when the details
--- changed since, so the owner never confirms details they didn't see.
+-- p_seen_hash: the section's data_hash the owner was shown, required with Looks right (INVALID_INPUT without it). Looks
+-- right is refused (DETAILS_CHANGED) when the details changed since, so the owner never confirms details they didn't see.
 drop function if exists public.zella_owner_onboarding_section(uuid, text, text, text);
 create or replace function public.zella_owner_onboarding_section(p_business_id uuid, p_section text, p_decision text, p_note text default null,
   p_seen_hash text default null)
@@ -570,7 +571,8 @@ begin
   v_hash := md5(public.zella_onboarding_section_data(p_business_id, p_section)::text);
 
   if p_decision = 'looks_right' then
-    if p_seen_hash is not null and p_seen_hash <> v_hash then raise exception 'DETAILS_CHANGED'; end if;
+    if p_seen_hash is null or p_seen_hash !~ '^[0-9a-f]{32}$' then raise exception 'INVALID_INPUT'; end if;
+    if p_seen_hash <> v_hash then raise exception 'DETAILS_CHANGED'; end if;
     if r.status = 'looks_right' and r.confirmed_hash = v_hash then
       return jsonb_build_object('changed', false, 'state', public.zella_onboarding_state(p_business_id));
     end if;
@@ -735,16 +737,21 @@ end $$;
 
 -- One identity provider event, processed once (unique provider + event id). Bound to a business only through the
 -- reference this business gave the provider; an unknown reference is kept as unmapped and alerted (TEN-12).
+-- p_subject: the provider's own id for one check (a Persona inquiry). A declined check counts as one failed try once,
+-- however many declined events the provider sends for it; delivery retries are already one row per event id.
+drop function if exists public.zella_identity_provider_event(text, text, text, text, timestamptz);
 create or replace function public.zella_identity_provider_event(p_provider text, p_event_id text, p_reference text,
-  p_outcome text, p_occurred_at timestamptz) returns jsonb
+  p_outcome text, p_occurred_at timestamptz, p_subject text default null) returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare v_rules jsonb := public.zella_onboarding_rules(); o public.owner_onboarding; v_id uuid; v_result text; v_old text; v_attempts integer;
+  v_counted boolean;
 begin
   if p_provider is null or p_provider = 'none' or p_provider is distinct from v_rules ->> 'identity_provider' then
     return jsonb_build_object('result', 'off');
   end if;
   if p_event_id is null or length(p_event_id) not between 1 and 200 or p_outcome is null
-     or p_outcome not in ('approved', 'declined', 'needs_review', 'pending', 'other') then
+     or p_outcome not in ('approved', 'declined', 'needs_review', 'pending', 'other')
+     or (p_subject is not null and length(p_subject) not between 1 and 200) then
     raise exception 'INVALID_INPUT';
   end if;
   select * into o from public.owner_onboarding where identity_reference = p_reference for update;
@@ -752,8 +759,11 @@ begin
                    when p_outcome in ('pending', 'other') then 'ignored'
                    when o.identity_provider_at is not null and p_occurred_at is not null and p_occurred_at < o.identity_provider_at then 'ignored'   -- older than what we have
                    else 'applied' end;
-  insert into public.identity_verification_events (provider, event_id, scope, business_id, outcome, occurred_at, result)
-  values (p_provider, p_event_id, case when o.business_id is null then 'unmapped' else 'business' end, o.business_id, p_outcome, p_occurred_at, v_result)
+  -- this check's decline was counted already (an earlier declined event for the same subject)
+  v_counted := p_subject is not null and exists (select 1 from public.identity_verification_events e
+    where e.provider = p_provider and e.subject = p_subject and e.business_id = o.business_id and e.outcome = 'declined' and e.result = 'applied');
+  insert into public.identity_verification_events (provider, event_id, scope, business_id, outcome, subject, occurred_at, result)
+  values (p_provider, p_event_id, case when o.business_id is null then 'unmapped' else 'business' end, o.business_id, p_outcome, p_subject, p_occurred_at, v_result)
   on conflict (provider, event_id) do nothing returning id into v_id;
   if v_id is null then return jsonb_build_object('result', 'duplicate'); end if;
   if v_result = 'unmapped' then
@@ -764,7 +774,7 @@ begin
   if v_result = 'applied' then
     v_old := o.identity_provider_status;
     update public.owner_onboarding set identity_provider_status = p_outcome, identity_provider_at = coalesce(p_occurred_at, now()),
-           identity_attempts = identity_attempts + case when p_outcome = 'declined' and current_step = 'identity' then 1 else 0 end,
+           identity_attempts = identity_attempts + case when p_outcome = 'declined' and current_step = 'identity' and not v_counted then 1 else 0 end,
            updated_at = now()
      where business_id = o.business_id
     returning identity_attempts into v_attempts;
@@ -899,14 +909,20 @@ CREATE OR REPLACE FUNCTION public.zella_activation_report(p_business_id uuid)
 AS $function$
 declare v_rep jsonb;
 begin
-  if auth.uid() is not null and not public.zella_is_member(p_business_id) then raise exception 'NOT_ALLOWED'; end if;
+  -- members of the business, and Zella Voice admins who may view businesses (as for onboarding progress)
+  if auth.uid() is not null and not public.zella_is_member(p_business_id) and not public.zella_admin_can('businesses.view') then
+    raise exception 'NOT_ALLOWED';
+  end if;
   -- the same checks as before, plus the owner onboarding gate (zella_activation_checks)
   v_rep := public.zella_activation_checks(p_business_id);
-  -- the owner's identity and payment results are for the owner and Zella Voice admins only (as onboarding progress is)
+  -- the owner's identity and payment results are for the owner and those admins only: other members see one check,
+  -- "The owner finished their setup", in their place, so neither result can be told apart (ready is unchanged)
   if auth.uid() is not null and not public.zella_admin_can('businesses.view') and not exists (
        select 1 from public.business_members m where m.business_id = p_business_id and m.user_id = auth.uid() and m.role = 'owner' and m.status = 'active') then
     v_rep := jsonb_set(v_rep, '{checks}', coalesce((select jsonb_agg(c order by i) from jsonb_array_elements(v_rep -> 'checks') with ordinality x(c, i)
-                                                     where c ->> 'key' not in ('identity', 'payment')), '[]'::jsonb));
+                                                     where c ->> 'key' not in ('identity', 'payment')), '[]'::jsonb)
+      || jsonb_build_array(jsonb_build_object('key', 'owner_setup', 'label', 'The owner finished their setup',
+           'ok', coalesce((select bool_and((c ->> 'ok')::boolean) from jsonb_array_elements(v_rep -> 'checks') c where c ->> 'key' in ('identity', 'payment')), true))));
   end if;
   return v_rep;
 end $function$;
@@ -949,7 +965,7 @@ begin
     'zella_onboarding_ensure(uuid,uuid)', 'zella_onboarding_advance(uuid,text,uuid)', 'zella_onboarding_step_done(uuid,text,text)',
     'zella_onboarding_document_rejected_trg()', 'zella_onboarding_admin_check(text)', 'zella_activation_checks(uuid)',
     'zella_owner_identity_document_add(uuid,uuid,text,text,text,text,integer)',
-    'zella_identity_provider_event(text,text,text,text,timestamptz)'] loop
+    'zella_identity_provider_event(text,text,text,text,timestamptz,text)'] loop
     execute format('revoke all on function public.%s from public, anon, authenticated', s);
   end loop;
   foreach s in array array[
@@ -963,7 +979,7 @@ begin
     execute format('grant execute on function public.%s to authenticated', s);
   end loop;
   grant execute on function public.zella_owner_identity_document_add(uuid,uuid,text,text,text,text,integer) to service_role;
-  grant execute on function public.zella_identity_provider_event(text,text,text,text,timestamptz) to service_role;
+  grant execute on function public.zella_identity_provider_event(text,text,text,text,timestamptz,text) to service_role;
 end $$;
 
 commit;

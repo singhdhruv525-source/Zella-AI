@@ -56,7 +56,7 @@ export async function handle(req: Request): Promise<Response> {
   const res = await fetch(`${base}/rest/v1/rpc/zella_identity_provider_event`, {
     method: "POST", signal: AbortSignal.timeout(TIMEOUT_MS),
     headers: { "Content-Type": "application/json", apikey: server, Authorization: `Bearer ${server}` },
-    body: JSON.stringify({ p_provider: PROVIDER.name, p_event_id: e.eventId, p_reference: e.reference, p_outcome: e.outcome, p_occurred_at: e.occurredAt }),
+    body: JSON.stringify({ p_provider: PROVIDER.name, p_event_id: e.eventId, p_reference: e.reference, p_outcome: e.outcome, p_occurred_at: e.occurredAt, p_subject: e.subject }),
   }).catch(() => null);
   if (!res?.ok) return text("error", 500);   // the provider retries
   let out: unknown;

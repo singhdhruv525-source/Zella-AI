@@ -38,7 +38,9 @@ export async function verifySignature(raw: Uint8Array, header: string | null, se
 }
 
 export type Outcome = "approved" | "declined" | "needs_review" | "pending" | "other";
-export type ProviderEvent = { eventId: string; reference: string | null; outcome: Outcome; occurredAt: string | null };
+// subject: the provider's id for the check itself (a Persona inquiry), so one check counts as one try however many
+// events describe it (the database counts a declined subject once).
+export type ProviderEvent = { eventId: string; reference: string | null; outcome: Outcome; occurredAt: string | null; subject: string | null };
 export type Parsed = { event: ProviderEvent } | { invalid: string };
 
 // What every identity provider supplies. Only reading events is built; starting a check (creating an inquiry with the
@@ -57,8 +59,9 @@ const iso = (v: unknown) => { const s = str(v, 40); if (!s) return null; const d
 // "inquiry", id, attributes: { status, "reference-id" } } } } } }. Shape from Persona's public documentation; check it
 // against a sandbox event before switching on.
 // Only the decision counts as a failed check: Persona can send inquiry.failed and then inquiry.declined for the same
-// inquiry, and counting both would use two of the owner's tries for one failed check. So "failed" waits (pending) and
-// "declined" is the one countable event. Check this against the provider's sandbox before switching the receiver on.
+// inquiry, and counting both would use two of the owner's tries for one failed check. So "failed" waits (pending),
+// "declined" is the countable outcome, and the database counts each inquiry (the event's subject) once. Check this
+// against the provider's sandbox before switching the receiver on.
 const PERSONA_STATUS: Record<string, Outcome> = {
   approved: "approved", declined: "declined", failed: "pending", needs_review: "needs_review", "needs-review": "needs_review",
   completed: "pending", pending: "pending", created: "pending", expired: "other",
@@ -70,11 +73,12 @@ export const persona: IdentityProvider = {
     const attrs = obj(data.attributes);
     const eventId = str(data.id);
     if (!eventId) return { invalid: "missing event id" };
-    const inquiry = obj(obj(obj(attrs.payload).data).attributes);
+    const inquiryData = obj(obj(attrs.payload).data);
+    const inquiry = obj(inquiryData.attributes);
     const name = str(attrs.name) ?? "";
     const status = str(inquiry.status, 40) ?? name.split(".").pop() ?? "";
     const reference = str(inquiry["reference-id"], 64);
-    return { event: { eventId, reference, outcome: PERSONA_STATUS[status] ?? "other", occurredAt: iso(attrs["created-at"]) } };
+    return { event: { eventId, reference, outcome: PERSONA_STATUS[status] ?? "other", occurredAt: iso(attrs["created-at"]), subject: str(inquiryData.id) } };
   },
 };
 

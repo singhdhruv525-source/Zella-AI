@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import {
   ERROR_WORDS, SCREENS, STEP_KEYS, allowance, canLeave, canOpen, detailsDone, errorCode, errorWords, identityPassed,
   identityState, isNotReady, languageWords, money, nextOpenSection, nextStep, paymentPassed, paymentState, phoneWords,
-  UNAVAILABLE, previousStep, progressFor, resumeStep, rpcError, sectionRows, sectionState, securityPart, stateAfterResume, uploadKinds,
+  UNAVAILABLE, afterCompleteError, createAnswerQueue, previousStep, progressFor, resumeStep, rpcError, sectionRows, sectionState, securityPart, stateAfterResume, uploadKinds,
 } from "../src/onboarding/steps.js";
 import { createFakeApi } from "../src/onboarding/fakeApi.js";
 
@@ -180,12 +180,15 @@ test("stand in: the whole journey, with the server's gates", async () => {
   await assert.rejects(api.answerSection(id, "team", "change", "  "), (e) => errorCode(e) === "NOTE_REQUIRED");
   s = (await api.answerSection(id, "team", "change", "Add Maya.")).state;
   assert.equal(sectionState(s.details.sections.find((x) => x.key === "team")).label, "Waiting for Zella Voice");
-  for (const k of ["business", "hours_services", "receptionist_phone"]) s = (await api.answerSection(id, k, "looks_right")).state;
+  const seen = (st, k) => st.details.sections.find((x) => x.key === k).data_hash;
+  await assert.rejects(api.answerSection(id, "business", "looks_right"), (e) => errorCode(e) === "INVALID_INPUT", "Looks right needs what was shown");
+  await assert.rejects(api.answerSection(id, "business", "looks_right", null, "h0"), (e) => errorCode(e) === "DETAILS_CHANGED");
+  for (const k of ["business", "hours_services", "receptionist_phone"]) s = (await api.answerSection(id, k, "looks_right", null, seen(s, k))).state;
   await assert.rejects(api.completeStep(id, "details"), (e) => errorCode(e) === "SECTIONS_NOT_CONFIRMED" && e.details === "team");
   api.adminChangeDone("team", "Added Maya.");
   s = await api.getState(id);
   assert.equal(nextOpenSection(s.details.sections), "team");
-  s = (await api.answerSection(id, "team", "looks_right")).state;
+  s = (await api.answerSection(id, "team", "looks_right", null, seen(s, "team"))).state;
   assert.equal(detailsDone(s.details), true);
   s = (await api.completeStep(id, "details")).state;
   assert.equal(resumeStep(s), "identity");
@@ -311,4 +314,32 @@ test("database errors: contract codes kept, raw text replaced, an ended session 
   assert.equal(isNotReady(rpcError({ code: "PGRST202", message: "Could not find the function public.x" })), true);
   assert.match(errorWords(rpcError({ message: "TypeError: Failed to fetch" })), /couldn't reach Zella Voice/);
   assert.equal(errorCode(rpcError({ code: "42501", message: "MFA_REQUIRED" })), "MFA_REQUIRED");
+});
+
+// Overlapping answers on the details step: an older reply, or an older read again, never hides a newer answer.
+test("details answers: a delayed reply and a delayed read again never apply an older snapshot", async () => {
+  const later = () => { let done; const p = new Promise((r) => { done = r; }); return { p, done }; };
+  const applied = []; const reads = []; const problems = [];
+  const q = createAnswerQueue({ read: () => { const d = later(); reads.push(d); return d.p; }, apply: (s) => applied.push(s), onReadError: (e) => problems.push(e.message) });
+  const a = later(), b = later();
+  const first = q.answer(() => a.p), second = q.answer(() => b.p);
+  b.done("state after B"); assert.equal(await second, "state after B", "the latest answer's reply is used");
+  a.done("state after A only"); assert.equal(await first, null, "the older reply is dropped");
+  assert.equal(reads.length, 1, "and the state is read again");
+  const third = later(); const answerC = q.answer(() => third.p);   // the owner answers again while that read is on its way
+  reads[0].done("old snapshot"); await Promise.resolve(); await Promise.resolve();
+  assert.deepEqual(applied, [], "the older read is not applied over the newer answer");
+  third.done("state after C"); assert.equal(await answerC, "state after C");
+  // a failed read is reported, never silent
+  const q2 = createAnswerQueue({ read: async () => { throw new Error("offline"); }, apply: () => {}, onReadError: (e) => problems.push(e.message) });
+  await q2.reread(); assert.deepEqual(problems, ["offline"]);
+});
+
+test("a new plan version while payment or the last step is open: the journey shows the plan", () => {
+  const changed = { code: "P0001", message: "PLAN_CHANGED" };
+  assert.equal(afterCompleteError("payment", changed), "plan");
+  assert.equal(afterCompleteError("done", changed), "plan");
+  assert.equal(afterCompleteError("plan", changed), null, "on the plan step the plan screen reloads itself");
+  assert.equal(afterCompleteError("payment", { message: "STEP_LOCKED" }), "reload");
+  assert.equal(afterCompleteError("payment", { message: "PAYMENT_NOT_CONFIRMED" }), null);
 });

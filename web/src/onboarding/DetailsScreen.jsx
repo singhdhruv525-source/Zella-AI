@@ -1,22 +1,25 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { Icon } from "../BusinessUI";
 import { Actions, EmptyNote, ErrorText, useAction } from "./kit";
-import { detailsDone, errorCode, nextOpenSection, sectionRows, sectionState, sectionTitle } from "./steps";
+import { createAnswerQueue, detailsDone, errorCode, errorWords, nextOpenSection, sectionRows, sectionState, sectionTitle } from "./steps";
 
 // Screen 3, Check your details: what the Zella Voice team filled in, one section at a time, each with Looks right or
 // Change. In this version of the contract (§5.4) Change sends a note to the Zella Voice team; they make the change, and
 // the section comes back as "Changed, check again". Only Looks right on every section finishes the step.
 
-export function DetailsScreen({ api, state, onState, onComplete, onReload }) {
+export function DetailsScreen({ api, state, onState, onComplete }) {
   const sections = Array.isArray(state.details?.sections) ? state.details.sections : [];
   const [openKey, setOpenKey] = useState(() => nextOpenSection(sections) ?? sections[0]?.key ?? null);
   const finish = useAction();
   const sectionHeading = useRef(null);
   const first = useRef(true);
-  // Answers can overlap when the owner moves between parts: only the latest answer's state is shown. An earlier one
-  // that comes back later is dropped, and the state is read again so no answer is lost from the screen.
-  const latest = useRef(0);
-  const startAnswer = () => ++latest.current;
+  // Answers can overlap when the owner moves between parts: only the latest call's state is shown (createAnswerQueue).
+  const [readProblem, setReadProblem] = useState("");
+  const [queue] = useState(() => createAnswerQueue({
+    read: () => api.getState(state.business_id),
+    apply: (fresh) => { setReadProblem(""); onState(fresh); },
+    onReadError: (err) => setReadProblem(`We couldn't show your latest answers. ${errorWords(err)}`),
+  }));
   // moving to another section moves focus to its name (not on the first render: the step heading has it then)
   useEffect(() => { if (first.current) { first.current = false; return; } sectionHeading.current?.focus(); }, [openKey]);
 
@@ -27,8 +30,8 @@ export function DetailsScreen({ api, state, onState, onComplete, onReload }) {
   const waiting = sections.filter((s) => sectionState(s).key === "change_requested").length;
   const left = sections.filter((s) => !sectionState(s).done).length;
 
-  function answered(next, key, ticket) {
-    if (ticket !== latest.current) { onReload?.(); return; }
+  function answered(next, key) {
+    setReadProblem("");
     onState(next);
     const list = next.details?.sections ?? [];
     const following = nextOpenSection(list, key);
@@ -55,11 +58,11 @@ export function DetailsScreen({ api, state, onState, onComplete, onReload }) {
         })}
       </ol>
       <SectionCard key={open.key} api={api} businessId={state.business_id} section={open}
-        headingRef={sectionHeading} onAnswered={answered} startAnswer={startAnswer} onReload={onReload} />
+        headingRef={sectionHeading} onAnswered={answered} queue={queue} />
       {done
         ? <div className="zob-done-note" role="status"><Icon name="task_alt" /><span>Every part looks right. Thank you.</span></div>
         : waiting > 0 && left === waiting && <p className="zob-muted" role="status">We're making the changes you asked for. When they're done, the part shows "Changed, check again". You can choose Finish later meanwhile; we'll keep your place.</p>}
-      <ErrorText>{finish.error}</ErrorText>
+      <ErrorText>{finish.error || readProblem}</ErrorText>
       <Actions>
         <button type="button" className="ba-btn primary" disabled={!done || finish.busy} onClick={() => finish.run(() => onComplete("details"))}
           aria-describedby={done ? undefined : "zob-details-left"}>{finish.busy ? "One moment…" : "Continue"}</button>
@@ -69,18 +72,17 @@ export function DetailsScreen({ api, state, onState, onComplete, onReload }) {
   );
 }
 
-function SectionCard({ api, businessId, section, headingRef, onAnswered, startAnswer, onReload }) {
+function SectionCard({ api, businessId, section, headingRef, onAnswered, queue }) {
   const st = sectionState(section);
   const [writing, setWriting] = useState(false);
   const action = useAction();
   const rows = sectionRows(section.key, section.data);
   const answer = (decision, note) => action.run(async () => {
-    const ticket = startAnswer();
     let res;
-    try { res = await api.answerSection(businessId, section.key, decision, note, section.data_hash ?? null); }
-    catch (err) { if (errorCode(err) === "DETAILS_CHANGED") onReload?.(); throw err; }   // show the new details
+    try { res = await queue.answer(() => api.answerSection(businessId, section.key, decision, note, section.data_hash ?? null)); }
+    catch (err) { if (errorCode(err) === "DETAILS_CHANGED") queue.reread(); throw err; }   // show the new details
     setWriting(false);
-    onAnswered(res.state, section.key, ticket);
+    if (res) onAnswered(res.state, section.key);   // null: a newer call's state is shown instead
   });
   return (
     <section className="zob-card zob-section" aria-labelledby={`zob-sec-${section.key}`}>
