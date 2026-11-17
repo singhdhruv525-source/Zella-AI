@@ -763,9 +763,19 @@ function SettingText({ me, row, hint = "Checked by the provider on first use." }
 function SettingGroup({ me, title, rows }) {
   const form = useForm(Object.fromEntries(rows.map(({ row }) => [row.key, settingText(row.value)])));
   const owner = me?.role === "zella_owner";
+  // Each setting saves on its own; if one fails, the ones already stored are reported back so they stop showing as
+  // unsaved and Discard only reverts the rest.
   const save = () => form.save(async (v) => {
+    const acknowledged = {};
     for (const { row } of rows) {
-      if (v[row.key] !== form.saved[row.key]) await call("platform_setting_save", { key: row.key, value: v[row.key] });
+      if (v[row.key] === form.saved[row.key]) continue;
+      try {
+        await call("platform_setting_save", { key: row.key, value: v[row.key] });
+      } catch (err) {
+        if (Object.keys(acknowledged).length) err.acknowledged = acknowledged;
+        throw err;
+      }
+      acknowledged[row.key] = v[row.key];
     }
   });
   return (

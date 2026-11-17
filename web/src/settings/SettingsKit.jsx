@@ -138,6 +138,8 @@ export function useForm(initial) {
       });
       setStatus({ text: message, error: "" });
     } catch (err) {
+      // A save made of several requests can fail partway: what the server already stored counts as saved.
+      if (err?.acknowledged && typeof err.acknowledged === "object") setSaved((s) => ({ ...s, ...err.acknowledged }));
       setStatus({ text: "", error: err?.message || String(err) });
     } finally {
       setBusy(false);

@@ -255,13 +255,14 @@ export const PAGE = 25;
 // The one table footer, inside the card: what is shown on the left, Previous and Next on the right.
 export function Pager({ total, offset = 0, onChange, pageSize = PAGE }) {
   if (!total) return null;
-  if (total <= pageSize) {
+  if (total <= pageSize && offset === 0) {
     return <div className="owner-table-foot ao-pager"><span className="op-muted">{formatCount(total)} shown</span></div>;
   }
+  // A list that shrank under a later page (a row paused or resolved) keeps Previous, so the earlier rows stay reachable.
   const last = Math.min(offset + pageSize, total);
   return (
     <div className="owner-table-foot ao-pager">
-      <span className="op-muted">Showing {formatCount(offset + 1)} to {formatCount(last)} of {formatCount(total)}</span>
+      <span className="op-muted">{offset >= total ? `Nothing on this page, ${formatCount(total)} in all` : `Showing ${formatCount(offset + 1)} to ${formatCount(last)} of ${formatCount(total)}`}</span>
       <div className="owner-table-foot-nav">
         <button type="button" className="owner-secondary-button sm" aria-label="Previous page" disabled={offset === 0} onClick={() => onChange(Math.max(0, offset - pageSize))}>
           <Icon name="chevron_left" size="sm" /><span className="owner-pager-word">Previous</span>

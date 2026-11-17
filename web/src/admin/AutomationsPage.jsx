@@ -223,7 +223,7 @@ function RunDrawer({ row, me, onClose, onOpenBusiness, onChanged }) {
             r.correlation_id ? ["Correlation id", <code key="c">{r.correlation_id}</code>] : null]} />
           <h3 className="ao-h3">Steps</h3>
           {d.data.steps.length ? (
-            <ol className="ao-timeline">{d.data.steps.map((s, i) => <li key={i}><strong><Pill tone={tone(s.status === "done" || s.status === "ok" ? "succeeded" : s.status)}>{s.status ? words(s.status) : "No status"}</Pill> {s.name ?? `Step ${i + 1}`}</strong><span>{[s.at && when(s.at), s.error].filter(Boolean).join(". ")}</span></li>)}</ol>
+            <ol className="ao-timeline">{d.data.steps.map((s, i) => <li key={i}><strong><Pill tone={tone(s.status === "done" || s.status === "ok" ? "succeeded" : s.status)}>{s.status ? words(s.status) : "No status"}</Pill> {s.name ?? `Step ${i + 1}`}</strong><span>{[s.at && whenText(s.at), s.error].filter(Boolean).join(". ")}</span></li>)}</ol>
           ) : <p className="op-muted">No steps recorded.</p>}
           <p className="op-muted">Step inputs and outputs aren't shown: they can hold customer details.</p>
           {d.data.event && <><h3 className="ao-h3">Started by</h3><Facts rows={[["Event", words(d.data.event.type)], ["From", words(d.data.event.source)], ["Event status", words(d.data.event.status)],

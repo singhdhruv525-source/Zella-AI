@@ -28,6 +28,10 @@ test("full date and time", () => {
 test("phones use spaces, never dashes", () => {
   assert.equal(formatPhone("+15551230001"), "(555) 123 0001");
   assert.equal(formatPhone("5551230001"), "(555) 123 0001");
+  assert.equal(formatPhone("+61293744000"), "+61 29 374 4000");
+  assert.equal(formatPhone("+442071838750"), "+44 207 183 8750");
+  assert.equal(formatPhone("+919876543210"), "+91 987 654 3210");
+  assert.equal(formatPhone("+35312345678"), "+353 1 234 5678");
   assert.equal(formatPhone("+442071234567"), "+44 207 123 4567");
   for (const v of ["+15551230001", "+442071234567"]) assert.doesNotMatch(formatPhone(v), /-/);
 });

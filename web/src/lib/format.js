@@ -25,7 +25,8 @@ export function formatDateTime(value) {
   const d = toDate(value);
   if (!d) return "";
   const date = d.toLocaleDateString(LOCALE, { month: "short", day: "numeric", year: "numeric" });
-  const time = d.toLocaleTimeString(LOCALE, { hour: "numeric", minute: "2-digit" });
+  // Some runtimes put a narrow no break space before AM or PM; one plain space everywhere.
+  const time = d.toLocaleTimeString(LOCALE, { hour: "numeric", minute: "2-digit" }).replace(/\s+/g, " ");
   return `${date} at ${time}`;
 }
 
@@ -70,10 +71,21 @@ export function formatPhone(value) {
   const nanp = digits.length === 11 && digits.startsWith("1") ? digits.slice(1) : digits.length === 10 && !raw.startsWith("+") ? digits : null;
   if (nanp) return `(${nanp.slice(0, 3)}) ${nanp.slice(3, 6)} ${nanp.slice(6)}`;
   if (digits.length < 8) return raw;
-  const national = digits.slice(-10);
-  const country = digits.length > 10 ? `+${digits.slice(0, digits.length - 10)} ` : raw.startsWith("+") ? "+" : "";
+  // An international number keeps its real country code (ITU E.164: 1, 7, a listed two digit code, else three digits),
+  // and the rest is grouped from the right.
+  const intl = raw.startsWith("+") || digits.length > 10;
+  const cc = intl ? callingCode(digits) : "";
+  const national = digits.slice(cc.length);
   const head = national.slice(0, -7);
-  return `${country}${head ? `${head} ` : ""}${national.slice(-7, -4)} ${national.slice(-4)}`;
+  return `${cc ? `+${cc} ` : ""}${head ? `${head} ` : ""}${national.slice(-7, -4)} ${national.slice(-4)}`;
+}
+
+const TWO_DIGIT_CODES = new Set(["20", "27", "30", "31", "32", "33", "34", "36", "39", "40", "41", "43", "44", "45", "46", "47",
+  "48", "49", "51", "52", "53", "54", "55", "56", "57", "58", "60", "61", "62", "63", "64", "65", "66", "81", "82", "84", "86",
+  "90", "91", "92", "93", "94", "95", "98"]);
+function callingCode(digits) {
+  if (digits.startsWith("1") || digits.startsWith("7")) return digits[0];
+  return TWO_DIGIT_CODES.has(digits.slice(0, 2)) ? digits.slice(0, 2) : digits.slice(0, 3);
 }
 
 // "America/New_York" -> "Eastern Time (New York)"

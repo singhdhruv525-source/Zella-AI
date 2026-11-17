@@ -1091,12 +1091,9 @@
 .owner-table tbody tr.selected td,
 .st-row.selected td { background: transparent; }
 
-/* Tables that stay tables on a phone fade at the right edge while they can scroll */
+/* Tables that stay tables on a phone fade at the right edge while they can scroll. The fade comes only from the scroll
+   timeline: a table that fits has no active timeline and no fade, and a browser without scroll timelines shows no fade. */
 @media (max-width: 600px) {
-  .owner-table-wrap:not(.owner-table-wrap--cards) {
-    -webkit-mask-image: linear-gradient(90deg, #000 90%, transparent);
-    mask-image: linear-gradient(90deg, #000 90%, transparent);
-  }
   @supports (animation-timeline: scroll(inline)) {
     .owner-table-wrap:not(.owner-table-wrap--cards) { animation: owner-edge-fade linear both; animation-timeline: scroll(self inline); }
   }
@@ -1108,10 +1105,6 @@
 
 /* Tab rows fade the same way on phones */
 @media (max-width: 600px) {
-  .owner-scroll-fade {
-    -webkit-mask-image: linear-gradient(90deg, #000 88%, transparent);
-    mask-image: linear-gradient(90deg, #000 88%, transparent);
-  }
   @supports (animation-timeline: scroll(inline)) {
     .owner-scroll-fade { animation: owner-edge-fade linear both; animation-timeline: scroll(self inline); }
   }
