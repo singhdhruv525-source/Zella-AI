@@ -567,13 +567,15 @@ export function settingsHandlers(admin: SupabaseClient, fields: Json, ctx: { use
         admin.rpc("zella_rls_coverage"),
         admin.rpc("zella_tenant_leak_check"),
         admin.from("integration_secrets").select("integration_id", { count: "exact", head: true }),
-        admin.from("audit_logs").select("action, user_id, business_id, created_at").or("action.like.platform.%,action.like.admin%,action.like.business.suspend%,action.like.session.%").order("created_at", { ascending: false }).limit(20),
+        admin.from("audit_logs").select("action, user_id, business_id, created_at").or("action.like.platform.%,action.like.admin%,action.like.business.suspend%,action.like.session.%,action.like.security.%").order("created_at", { ascending: false }).limit(20),
         admin.from("platform_admins").select("user_id").eq("is_active", true),
       ]);
+      // ACC-15: refused admin calls in the last 24 hours
+      const refusals = await admin.from("audit_logs").select("id", { count: "exact", head: true }).eq("action", "security.admin_refused").gte("created_at", new Date(Date.now() - 86400000).toISOString());
       const info = await emails(admin, ((admins.data ?? []) as { user_id: string }[]).map((a) => a.user_id));
       return {
         rls: rls.error ? null : rls.data, leak: leak.error ? null : leak.data,
-        integrationSecrets: secrets.count ?? 0, recent: recent.data ?? [],
+        integrationSecrets: secrets.count ?? 0, recent: recent.data ?? [], refusals24h: refusals.error ? null : refusals.count ?? 0,
         adminsWithoutMfa: Object.values(info).filter((a) => !a.mfa).length, adminCount: Object.keys(info).length,
       };
     },

@@ -1,0 +1,91 @@
+// ACC-12: audit log filters (person, dates, action, record), the (created_at, id) cursor and the audited CSV export,
+// against the local stand in over an ISOLATED test database, in a real browser at 1440x900 and 390 wide. Nothing is
+// sent. Test rows only (entity type lanea_test).
+// Usage: ZDB=<test db> APP_URL=... BACKEND_URL=... SHOTS=<folder> node tests/browser/admin-audit-log.cjs
+const fs = require("fs");
+const path = require("path");
+const k = require("./real-kit.cjs");
+const SHOTS = process.env.SHOTS ?? path.join(__dirname, "out", "admin-audit-log");
+const OWNER = "admin@zella.test", READONLY = "readonly@zella.test";
+const ENTITY = "e1a00000-0000-0000-0000-000000000001";
+
+(async () => {
+  k.guard();
+  fs.mkdirSync(SHOTS, { recursive: true });
+  const owner = k.sql(`select id from auth.users where email = '${OWNER}'`), ro = k.sql(`select id from auth.users where email = '${READONLY}'`);
+  k.sql(`delete from public.audit_logs where entity_type = 'lanea_test' or action = 'audit.exported'`);
+  // 60 entries at exactly the same time (the old cursor skipped ties), 5 by another person, 3 last month
+  k.sql(`insert into public.audit_logs (user_id, action, entity_type, entity_id, new_data, user_agent, created_at)
+    select '${owner}', 'admin.updated', 'lanea_test', '${ENTITY}', jsonb_build_object('n', g), '=HYPERLINK("x")', '2026-11-15 12:00:00.123456+00' from generate_series(1, 60) g`);
+  k.sql(`insert into public.audit_logs (user_id, action, entity_type, entity_id, created_at) select '${ro}', 'admin.updated', 'lanea_test', '${ENTITY}', '2026-11-15 12:00:00.123456+00' from generate_series(1, 5)`);
+  k.sql(`insert into public.audit_logs (user_id, action, entity_type, entity_id, created_at) select '${owner}', 'admin.updated', 'lanea_test', '${ENTITY}', '2026-10-10 09:00:00+00' from generate_series(1, 3)`);
+
+  const tok = await k.token(OWNER);
+  const pages = async (filters) => {
+    const seen = []; let before = null, n = 0;
+    do { const r = await k.fn(tok, { action: "audit_logs", ...filters, before }); if (r.status !== 200) return { error: r }; seen.push(...r.body.logs.map((l) => l.id)); before = r.body.nextCursor; n++; } while (before && n < 10);
+    return { seen, n };
+  };
+  let p1 = await pages({ entityType: "lanea_test", entityId: ENTITY });
+  k.check("paging through 68 entries, 65 of them at the same instant, shows each exactly once", p1.seen?.length === 68 && new Set(p1.seen).size === 68, `${p1.seen?.length} rows, ${new Set(p1.seen ?? []).size} unique, ${p1.n} pages`);
+  p1 = await pages({ entityType: "lanea_test", actorId: ro });
+  k.check("the person filter", p1.seen?.length === 5, String(p1.seen?.length));
+  p1 = await pages({ entityType: "lanea_test", from: "2026-11-01", to: "2026-11-15" });
+  k.check("the date filter (the end date counts the whole day)", p1.seen?.length === 65, String(p1.seen?.length));
+  p1 = await pages({ entityType: "lanea_test", to: "2026-10-31" });
+  k.check("and an earlier range", p1.seen?.length === 3, String(p1.seen?.length));
+  const bad = await k.fn(tok, { action: "audit_logs", from: "yesterday" });
+  k.check("a malformed filter is refused, never widened", bad.status === 400, `${bad.status} ${bad.body.error}`);
+  const badCursor = await k.fn(tok, { action: "audit_logs", before: "2026-11-15),id.gt.(" });
+  k.check("a malformed page marker is refused", badCursor.status === 400, String(badCursor.status));
+
+  // export
+  let r = await k.fn(await k.token(READONLY), { action: "audit_export", entityType: "lanea_test" });
+  k.check("a read only admin (audit.view, not owner or super admin) can't export", r.status === 403, `${r.status} ${r.body.error}`);
+  r = await k.fn(await k.token("staff-a@b3.test"), { action: "audit_export" });
+  k.check("a business member can't", r.status === 403, String(r.status));
+  r = await k.fn(null, { action: "audit_export" });
+  k.check("nor anonymous", r.status === 401, String(r.status));
+  r = await k.fn(tok, { action: "audit_export", entityType: "lanea_test", from: "2026-11-01" });
+  const lines = (r.body.csv ?? "").trimEnd().split("\r\n");
+  k.check("the owner exports the filtered entries as CSV", r.status === 200 && r.body.rows === 65 && lines.length === 66 && lines[0].startsWith("When (UTC),Action,"), `${r.status} ${r.body.rows} ${lines.length}`);
+  k.check("a cell that would run as a formula (a browser name starting with =) starts with an apostrophe", lines.slice(1).every((l) => !/,"?=HYPERLINK/.test(l)) && lines.filter((l) => l.includes(`"'=HYPERLINK(""x"")"`)).length === 60, lines[1]?.slice(0, 200));
+  const audit = k.sql(`select (new_data ->> 'rows') || '|' || (new_data -> 'filters' ->> 'entityType') || '|' || (new_data -> 'filters' ->> 'from') from public.audit_logs where action = 'audit.exported' order by created_at desc limit 1`);
+  k.check("the export is audited with its filters and row count", audit === "65|lanea_test|2026-11-01T00:00:00.000Z", audit);
+
+  const browser = await k.chromium.launch();
+  for (const [width, tag] of [[1440, "desktop"], [390, "phone"]]) {
+    const ctx = await k.context(browser, width);
+    const p = await k.page(ctx);
+    await k.signIn(p, OWNER);
+    await p.goto(k.APP + "/audit-logs");
+    await p.waitForSelector("text=Export CSV");
+    k.check(`${tag}: the Action filter lists every catalog action`, await p.locator('label:has-text("Action") select option').count() > 200);
+    await p.locator('label:has-text("Person") select').selectOption({ label: READONLY });
+    await p.fill('input[placeholder="for example platform_admin"]', "lanea_test");
+    await p.waitForSelector("text=5 entries shown");
+    k.check(`${tag}: person and record filters narrow the list`, true);
+    await p.locator("tbody tr").first().locator('button:has-text("Details")').click().catch(() => {});
+    await p.waitForTimeout(800); await p.screenshot({ path: path.join(SHOTS, `audit-filters-${tag}.png`), fullPage: true });
+    const [dl] = await Promise.all([p.waitForEvent("download"), p.click('button:has-text("Export CSV")')]);
+    const file = path.join(SHOTS, `export-${tag}.csv`);
+    await dl.saveAs(file);
+    k.check(`${tag}: Export CSV downloads the filtered entries`, fs.readFileSync(file, "utf8").trimEnd().split("\r\n").length === 6 && /zella-voice-audit-log-/.test(dl.suggestedFilename()), dl.suggestedFilename());
+    await p.waitForSelector("text=Exported 5 entries.");
+    k.check(`${tag}: no page errors`, p.errors.length === 0, p.errors.join(" | "));
+    await ctx.close();
+  }
+  // a read only admin sees the filters but no Export button
+  const ctx = await k.context(browser, 1440);
+  const p = await k.page(ctx);
+  await k.signIn(p, READONLY);
+  await p.goto(k.APP + "/audit-logs");
+  await p.waitForSelector('label:has-text("Person")');
+  await p.waitForTimeout(1500);
+  k.check("a read only admin sees no Export button", !(await p.isVisible("text=Export CSV")));
+  await ctx.close();
+  await browser.close();
+  k.sql(`delete from public.audit_logs where entity_type = 'lanea_test'`);
+  console.log(k.failures() ? `${k.failures()} FAILED` : "ALL PASSED");
+  process.exit(k.failures() ? 1 : 0);
+})().catch((e) => { console.error(e); process.exit(1); });

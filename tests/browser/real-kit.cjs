@@ -75,7 +75,7 @@ async function fn(tok, body, extra = {}) {
 async function freshCode(p, code = "123456") {
   const form = p.locator('form[aria-label="Confirm with your authenticator"]');
   if (!(await form.waitFor({ timeout: 4000 }).then(() => true).catch(() => false))) return false;
-  await form.locator('input[aria-label="Authenticator code"]').fill(code);
+  await form.getByLabel("Authenticator code", { exact: true }).fill(code);
   await form.locator('button[type="submit"]').click();
   return true;
 }
