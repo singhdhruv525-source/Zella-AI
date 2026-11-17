@@ -57,6 +57,8 @@ refuses({ ...base(), message_templates: [{ industry_slug: null, key: "k", channe
 for (const k of ["app_base_url", "email_from_address", "sms_from_number", "vapi_assistant_id", "voice_tts_model"])
   refuses({ ...base(), platform_settings: [{ key: k, value: "x" }] }, `the setting ${k}`);
 refuses({ ...base(), message_templates: [{ industry_slug: null, key: "k", channel: "sms", purpose: "transactional", locale: "en-US", subject: null, body: "Call 07700 900123", version: 1, status: "active" }] }, "a phone number in a template");
+refuses({ ...base(), platform_settings: [{ key: "stripe_secret_key", value: "x" }] }, "a setting that is not on the settings allowlist");
+check(personalDataIn("Order 1 2 3 4 5, call 5551234567") === "a phone number", "detector: a phone number after a shorter digit run is still found");
 refuses({ ...base(), industries: [{ id: "8d0c2872-54b3-4393-8642-1530c571fa94", name: "A", slug: "a", description: "mail owner@example.com", is_active: true }] }, "an email address in a description");
 const forced = buildSql({ ...base(), platform_settings: [{ key: "sms_live", value: true }, { key: "n8n_dispatch_enabled", value: true }] });
 check(/\('sms_live', 'false'::jsonb\)/.test(forced) && /\('n8n_dispatch_enabled', 'false'::jsonb\)/.test(forced), "exporter writes live switches as false even when the source has them on");

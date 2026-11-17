@@ -12,6 +12,8 @@ export ZPG_HOST=${ZPG_HOST:-/var/lib/postgresql/zella-sec} ZPG_PORT=${ZPG_PORT:-
 P=(psql -h "$ZPG_HOST" -p "$ZPG_PORT" -U postgres -qtAX -v ON_ERROR_STOP=1)
 T=${TEMPLATE:-zprod3}
 [[ "$T" =~ ^z[a-z0-9_]{1,40}$ ]] || { echo "crawl-db: '$T' is not a test template name" >&2; exit 1; }
+# never drop the template itself or a shared schema copy
+case "$DB" in "$T"|zprod|zprod2|zprod3|zfull|zbase) echo "crawl-db: '$DB' is a template database and will not be dropped" >&2; exit 1;; esac
 "${P[@]}" -d postgres -c "select pg_terminate_backend(pid) from pg_stat_activity where datname = '$DB' and pid <> pg_backend_pid()" > /dev/null
 "${P[@]}" -d postgres -c "drop database if exists $DB" -c "create database $DB template $T" > /dev/null || { echo "crawl-db: copy of $T failed" >&2; exit 1; }
 "$REPO/tests/fixtures/load_reference.sh" "$DB" || exit 1

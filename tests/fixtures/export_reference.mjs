@@ -20,9 +20,11 @@
 // - message_templates: platform templates only (business_id is null). business_id is never exported. created_by is
 //   LEFT OUT: it holds the user id of the person who wrote the template (a person, so personal data). id and
 //   created_at are local. Only active templates (production has no other kind).
-// - platform_settings: every key EXCEPT keys ending in _url, email_from_address, sms_from_number, keys starting with
-//   vapi_, and (by the rulebook: no model ids in code or fixtures) keys ending in _model or _model_multilingual.
-//   Every key ending in _live, and n8n_dispatch_enabled, is written as false whatever production holds.
+// - platform_settings: ONLY the keys in SETTING_KEYS (an explicit allowlist, so a new setting is never exported until
+//   someone adds it here after checking its value). As a second check, keys ending in _url, email_from_address,
+//   sms_from_number, keys starting with vapi_ and (by the rulebook: no model ids in code or fixtures) keys ending in
+//   _model or _model_multilingual are refused even if listed. Every key ending in _live, and n8n_dispatch_enabled, is
+//   written as false whatever production holds.
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -32,7 +34,20 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const SETTING_EXCLUDED = (k) => /_url$/.test(k) || /^vapi_/.test(k) || /_model$/.test(k) || /_model_multilingual$/.test(k)
   || k === "email_from_address" || k === "sms_from_number";
 const SETTING_FORCED_FALSE = (k) => /_live$/.test(k) || k === "n8n_dispatch_enabled";
-const SETTING_EXCLUDED_SQL = "key !~ '_url$' and key !~ '^vapi_' and key !~ '_model$' and key !~ '_model_multilingual$' and key not in ('email_from_address', 'sms_from_number')";
+// The platform settings the fixture may hold (explicit allowlist; checked against production's values on 16 Nov 2026).
+export const SETTING_KEYS = Object.freeze([
+  "ai_low_confidence_questions", "calendar_sync_live", "call_intel_live", "call_intel_monthly_limit",
+  "call_reconcile_live", "call_usage_missing_duration_hours", "call_usage_policy", "call_usage_rules", "calls_live",
+  "email_live", "invitation_reminder_hours", "knowledge_ai_live", "knowledge_repeat_threshold",
+  "missed_call_max_seconds", "n8n_dispatch_enabled", "payment_auto_suspend", "payment_grace_days",
+  "payment_suspend_after_days", "response_sample_rate", "response_time_minutes", "retention_days", "review_ai_live",
+  "reviews_live", "setup_incomplete_after_days", "sms_alerts_default_on", "sms_live", "sms_marketing_allowed",
+  "spam_ai_live", "spam_ai_monthly_limit", "spam_defaults", "spam_workflow_live", "task_escalate_hours",
+  "task_overdue_grace_minutes", "team_summary_hour", "transfer_failure_threshold", "trial_notice_days",
+  "usage_enforcement", "voice_llm_provider", "voice_max_call_seconds", "voice_stt_language", "voice_stt_provider",
+  "voice_tts_choices", "voice_tts_provider", "voice_tts_voice_id", "website_crawl_live",
+]);
+const SETTING_EXCLUDED_SQL = `key in (${SETTING_KEYS.map((k) => `'${k}'`).join(", ")}) and key !~ '_url$' and key !~ '^vapi_' and key !~ '_model$' and key !~ '_model_multilingual$' and key not in ('email_from_address', 'sms_from_number')`;
 
 // The allowlist. columns: exactly the keys each exported row has, no more, no fewer.
 export const ALLOW = {
@@ -65,7 +80,7 @@ export const ALLOW = {
 // Personal data and links: refused anywhere in an exported value.
 const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/;
 const URL_LIKE = /\b(?:https?|ftp|wss?):\/\/|\bwww\.|\b[a-z0-9-]+\.(?:com|net|org|io|co|app|dev|ai|uk|us|test|supabase|cloud)\b/i;
-const PHONE = /\+?\d[\d\s().-]{7,}\d/;
+const PHONE = /\+?\d[\d\s().-]{7,}\d/g;
 const UUID = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi;
 export function personalDataIn(text) {
   const s = String(text).replace(UUID, "");
@@ -99,7 +114,10 @@ export function validate(tables) {
     for (const r of tables[t]) if (r.industry_slug !== null && !slugs.has(r.industry_slug)) refuse(`${t}: unknown industry '${r.industry_slug}'`);
   for (const r of tables.industries) if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(r.id)) refuse(`industries: '${r.id}' is not an id`);
   for (const r of tables.message_templates) if (r.status !== "active") refuse(`message_templates: only active platform templates are exported (${r.key} is ${r.status})`);
-  for (const r of tables.platform_settings) if (SETTING_EXCLUDED(r.key)) refuse(`platform_settings: '${r.key}' is excluded by the allowlist`);
+  for (const r of tables.platform_settings) {
+    if (!SETTING_KEYS.includes(r.key)) refuse(`platform_settings: '${r.key}' is not on the settings allowlist`);
+    if (SETTING_EXCLUDED(r.key)) refuse(`platform_settings: '${r.key}' is an excluded setting (a link, sender, provider id or model)`);
+  }
 }
 
 // SQL literals
