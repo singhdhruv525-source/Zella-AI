@@ -19,7 +19,8 @@ const check = (name, ok, detail = "") => { console.log(`${ok ? "PASS" : "FAIL"} 
   const api = createFakeApi({ scenario: "pay", storage, delay: 0 });
   const id = (await api.listBusinesses()).businesses[0].business_id;
   await api.completeStep(id, "welcome"); await api.setPassword("A good pass 1!"); await api.finishMfa("x", "123456"); await api.completeStep(id, "security");
-  for (const k of ["business", "hours_services", "team", "receptionist_phone"]) await api.answerSection(id, k, "looks_right");
+  const shown = await api.getState(id);
+  for (const k of ["business", "hours_services", "team", "receptionist_phone"]) await api.answerSection(id, k, "looks_right", null, shown.details.sections.find((x) => x.key === k).data_hash);
   await api.completeStep(id, "details"); api.approveIdentity(); await api.completeStep(id, "identity");
   const s = await api.getState(id); await api.acceptPlan(id, s.plan.current.version);
   const seeded = [...mem.entries()];
