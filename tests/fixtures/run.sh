@@ -8,6 +8,8 @@ set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"; REPO="$(cd "$HERE/../.." && pwd)"
 export ZPG_HOST=${ZPG_HOST:-/var/lib/postgresql/zella-sec} ZPG_PORT=${ZPG_PORT:-55433}; DB=zfix_reference; TEMPLATE=${TEMPLATE:-zprod3}
 . "$REPO/tests/lib/isolated_guard.sh"; zella_require_isolated "$ZPG_HOST" "$ZPG_PORT" "$DB" || exit 1
+# TEMPLATE goes into "create database ... template $TEMPLATE": only a plain test database name, never SQL or an option
+[[ "$TEMPLATE" =~ ^z[a-z0-9_]{1,40}$ ]] || { echo "REFUSED: '$TEMPLATE' is not a test template name (z..., lower case)" >&2; exit 1; }
 P=(psql -h "$ZPG_HOST" -p "$ZPG_PORT" -U postgres -qtAX -v ON_ERROR_STOP=1)
 fails=0; ok() { echo "PASS $*"; }; bad() { echo "FAIL $*"; fails=$((fails + 1)); }
 
