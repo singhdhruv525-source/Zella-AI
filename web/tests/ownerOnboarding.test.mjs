@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import {
   ERROR_WORDS, SCREENS, STEP_KEYS, allowance, canLeave, canOpen, detailsDone, errorCode, errorWords, identityPassed,
   identityState, isNotReady, languageWords, money, nextOpenSection, nextStep, paymentPassed, paymentState, phoneWords,
-  previousStep, progressFor, resumeStep, sectionRows, sectionState, securityPart, stateAfterResume, uploadKinds,
+  UNAVAILABLE, previousStep, progressFor, resumeStep, sectionRows, sectionState, securityPart, stateAfterResume, uploadKinds,
 } from "../src/onboarding/steps.js";
 import { createFakeApi } from "../src/onboarding/fakeApi.js";
 
@@ -94,6 +94,12 @@ test("check your details: the admin's entries in plain words, no dashes", () => 
   assert.equal(rp["Phone setup"], "Calls forwarded from (555) 555 0100");
   assert.deepEqual(rp["Zella Voice numbers"], ["(555) 555 0102 (not active yet)"]);
   assert.equal(Object.fromEntries(sectionRows("team", { members: [] }))["Team members"], "No team members yet");
+  // a missing list is never shown as an empty one
+  assert.equal(Object.fromEntries(sectionRows("team", {}))["Team members"], UNAVAILABLE);
+  assert.equal(Object.fromEntries(sectionRows("team", null))["Team members"], UNAVAILABLE);
+  assert.equal(Object.fromEntries(sectionRows("hours_services", { hours: [] })).Services, UNAVAILABLE);
+  assert.equal(Object.fromEntries(sectionRows("receptionist_phone", {}))["Zella Voice numbers"], UNAVAILABLE);
+  assert.equal(Object.fromEntries(sectionRows("receptionist_phone", { numbers: [] }))["Zella Voice numbers"], "No numbers yet");
   assert.equal(sectionRows("unknown", {}).length, 0);
   for (const k of ["business", "hours_services", "team", "receptionist_phone"]) for (const [l, v] of sectionRows(k, null)) assert.doesNotMatch(`${l} ${v}`, DASH);
   assert.equal(phoneWords("+44-20-7946-0000"), "+44 20 7946 0000");
@@ -270,12 +276,14 @@ test("Carry on now shows the server's state, never the stale one", async () => {
     resume: async (id) => { calls.push(`resume:${id}`); return resume(); },
     getState: async (id) => { calls.push(`get:${id}`); return getState(); },
   });
-  const ok = await stateAfterResume(api(() => ({ changed: true, state: fresh }), () => stale), "b1", stale);
+  const ok = await stateAfterResume(api(() => ({ changed: true, state: fresh }), () => stale), "b1");
   assert.equal(securityPart(ok.security), "authenticator");
   assert.deepEqual(calls.splice(0), ["resume:b1"]);
-  const failedResume = await stateAfterResume(api(() => { throw new Error("down"); }, () => fresh), "b1", stale);
+  const failedResume = await stateAfterResume(api(() => { throw new Error("down"); }, () => fresh), "b1");
   assert.equal(failedResume, fresh);
   assert.deepEqual(calls.splice(0), ["resume:b1", "get:b1"]);
-  const bothFail = await stateAfterResume(api(() => { throw new Error("down"); }, () => { throw new Error("down"); }), "b1", stale);
-  assert.equal(bothFail, stale);
+  // neither answers: null, so the paused screen stays (with a retry message) and the stale password form isn't shown
+  const bothFail = await stateAfterResume(api(() => { throw new Error("down"); }, () => { throw new Error("down"); }), "b1");
+  assert.equal(bothFail, null);
+  assert.equal(await stateAfterResume(api(() => ({ changed: false }), () => null), "b1"), null);
 });
