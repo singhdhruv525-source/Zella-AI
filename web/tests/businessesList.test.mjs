@@ -8,8 +8,8 @@ import { stripTypeScriptTypes } from "node:module";
 import { STAGE_LABELS, businessState, stageLabel } from "../src/ownerFormat.js";
 import { RESUME_AT, WIZARD_STEPS, resumeStep } from "../src/wizardProgress.js";
 import {
-  EMPTY_FILTERS, hasFilters, isUnknownAction, lastCallLabel, legacyList, listRequest, ownerCell, planLabel, problemSummary,
-  readList, rowActions, subscriptionLabel,
+  EMPTY_FILTERS, hasFilters, isUnknownAction, formatRelative, lastCallLabel, legacyList, planCell, shortDate, stageCell, listRequest, ownerCell, planLabel, problemSummary,
+  legacyFilters, legacyIgnores, readList, rowActions, subscriptionLabel, unavailableNote,
 } from "../src/businessList.js";
 
 const fn = (name) => new URL(`../supabase/functions/owner-provision-business/${name}`, import.meta.url);
@@ -77,11 +77,11 @@ test("plan, subscription, last call and problems read plainly (BIZ-16, UI-03)", 
   assert.equal(planLabel(undefined), "Not available");
   assert.equal(subscriptionLabel({ status: "past_due" }), "Subscription: Past due");
   assert.equal(subscriptionLabel(null), "No subscription");
-  assert.equal(subscriptionLabel(undefined), "");
+  assert.equal(subscriptionLabel(undefined), "Subscription: Not available");
   assert.equal(lastCallLabel(null), "No calls yet");
   assert.equal(lastCallLabel(undefined), "Not available");
-  assert.equal(lastCallLabel(new Date().toISOString()), "just now");
-  assert.deepEqual(problemSummary({ count: 0, items: [] }).label, "None");
+  assert.equal(lastCallLabel(new Date().toISOString()), "Just now");
+  assert.deepEqual(problemSummary({ count: 0, items: [] }).label, "No problems");
   assert.deepEqual(problemSummary(null).label, "Not available");
   const two = problemSummary({ count: 2, items: [{ title: "A payment failed", severity: "urgent" }, { title: "x", severity: "warning" }] });
   assert.deepEqual([two.label, two.tone, two.detail], ["2 open", "danger", "A payment failed"]);
@@ -170,4 +170,67 @@ test("the Businesses page has no marketing banner and gates its write buttons (U
   assert.match(shell, /canManage=\{can\("businesses\.manage"\)\}/);
   assert.match(shell, /onCreateBusiness=\{can\("businesses\.manage"\) \?/);
   assert.match(shell, /can=\{can\}/);
+});
+
+test("B2-08: when the older list takes over, plan, problem and 'most problems' are dropped, not silently ignored", () => {
+  const set = { ...EMPTY_FILTERS, industryId: "i1", plan: "pro", problem: true, sort: "problems" };
+  assert.equal(legacyIgnores(set), true);
+  const dropped = legacyFilters(set);
+  assert.deepEqual(dropped, { ...EMPTY_FILTERS, industryId: "i1" });
+  assert.equal(legacyIgnores(dropped), false);
+  assert.equal(legacyFilters({ ...EMPTY_FILTERS, sort: "name" }).sort, "name");
+  const page = readFileSync(new URL("../src/BusinessesPage.jsx", import.meta.url), "utf8");
+  assert.match(page, /legacyIgnores\(f\)\) \{ f = legacyFilters\(f\); setFiltersState\(legacyFilters\)/);
+});
+
+test("the couldn't be loaded notice reads as a sentence and says only what the page shows", () => {
+  assert.equal(unavailableNote(new Set(["plans"])), "Plans show as Not available. Refresh to try again.");
+  assert.equal(unavailableNote(new Set(["plans", "subscriptions"])), "Plans and subscriptions show as Not available. Refresh to try again.");
+  assert.equal(unavailableNote(new Set(["subscriptions", "problems", "lastCalls"])), "Subscriptions, problems and last calls show as Not available. Refresh to try again.");
+  assert.equal(unavailableNote(new Set()), "");
+});
+
+test("the business detail page uses the list's setup done rule, so a paused business offers Edit setup (BIZ-24)", () => {
+  const detail = readFileSync(new URL("../src/BusinessDetails.jsx", import.meta.url), "utf8");
+  assert.match(detail, /isSetupDone\(b\.onboarding_status\)/);
+  assert.doesNotMatch(detail, /\["testing", "ready", "active"\]\.includes/);
+});
+
+test("stat cards format counts like the footer", () => {
+  const page = readFileSync(new URL("../src/BusinessesPage.jsx", import.meta.url), "utf8");
+  assert.match(page, /isCount\(v\) \? num\(v\)/);
+});
+
+test("relative times and short dates read in words", () => {
+  const now = Date.parse("2026-11-16T15:00:00Z");
+  const ago = (ms) => new Date(now - ms).toISOString();
+  assert.equal(formatRelative(ago(30 * 1000), now), "Just now");
+  assert.equal(formatRelative(ago(60 * 1000), now), "1 minute ago");
+  assert.equal(formatRelative(ago(5 * 60 * 1000), now), "5 minutes ago");
+  assert.equal(formatRelative(ago(3 * 3600 * 1000), now), "3 hours ago");
+  assert.equal(formatRelative(ago(30 * 3600 * 1000), now), "Yesterday");
+  assert.equal(formatRelative(ago(10 * 86400 * 1000), now), "10 days ago");
+  assert.doesNotMatch(formatRelative(ago(10 * 86400 * 1000), now), / d ago/);
+  assert.equal(formatRelative("not a date", now), "Not available");
+  assert.equal(shortDate(null), "");
+  assert.match(shortDate("2026-11-16T12:00:00Z", new Date("2026-11-20T00:00:00Z")), /Nov/);
+  assert.doesNotMatch(shortDate("2026-11-16T12:00:00Z", new Date("2026-11-20T00:00:00Z")), /2026/);
+  assert.match(shortDate("2025-11-16T12:00:00Z", new Date("2026-11-20T00:00:00Z")), /2025/);
+});
+
+test("the stage cell is one word with the next step below", () => {
+  assert.deepEqual(stageCell({ onboarding_status: "owner_setup" }).label, "Draft");
+  assert.match(stageCell({ onboarding_status: "owner_setup" }).note, /^Next: /);
+  assert.doesNotMatch(stageCell({ onboarding_status: "owner_setup" }).note, /&/);
+  assert.deepEqual(stageCell({ onboarding_status: "active" }), { label: "Live", tone: "success", note: "" });
+  assert.equal(stageCell({ onboarding_status: "active", suspended_at: "2026-11-01" }).label, "Suspended");
+  const cancelling = stageCell({ onboarding_status: "active", cancel_at: "2026-12-01T12:00:00Z" });
+  assert.deepEqual([cancelling.label, cancelling.tone], ["Live", "warning"]);
+  assert.match(cancelling.note, /^Cancels /);
+});
+
+test("the plan cell merges plan and subscription", () => {
+  assert.deepEqual(planCell(null, null), { label: "No plan", none: true, note: "", sub: null });
+  assert.deepEqual(planCell({ tier: "pro", version: 2, billing_interval: "monthly" }, { status: "past_due" }), { label: "Pro, v2", note: "Monthly", sub: "Past due" });
+  assert.equal(planCell(undefined, undefined).label, null);
 });

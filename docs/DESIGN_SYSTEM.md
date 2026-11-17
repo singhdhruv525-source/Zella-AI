@@ -98,3 +98,7 @@ Every notification (banner, pop up, bell item, email) follows one pattern, in th
 - On phones (CRM under 760px, admin under 600px) the sidebar opens as a drawer from the menu button in the top bar;
   it closes on Escape, on the backdrop, or when a page is chosen. Wide tables and tab rows scroll inside themselves,
   never the whole page.
+- A short choice such as a period is as wide as its options (`<Field fit>` in Settings), not the whole row. A long
+  table in a Settings card shows its first rows with a count and a "See all" button under it (`.zs-table-more`).
+- Setting keys (`sms_live`, `calls_live`, ...) are code: pages say what they mean in words ("Texts are in test mode",
+  `web/src/copy/liveSwitches.js`) and give the key only as a tooltip (`NotAvailable`'s `tip`, or a `title`).
