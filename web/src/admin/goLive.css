@@ -1,0 +1,93 @@
+/* Go live checklist and Scheduled jobs on Platform operations (page scoped: gl-*, sj-*, po-*). Tokens only. */
+
+/* Summary tiles: one per group, the scheduled jobs tile links to its table */
+.gl-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--zella-space-3); padding: var(--zella-space-4) 0; }
+.gl-tile { position: relative; display: flex; flex-direction: column; gap: 6px; min-height: 92px; padding: var(--zella-space-3) var(--zella-space-4); border: 1px solid var(--zella-border); border-radius: var(--zella-radius-md); background: var(--zella-card); color: var(--zella-text); text-decoration: none; }
+.gl-tile-label { color: var(--zella-text-secondary); font-size: var(--zella-text-sm); }
+.gl-tile-value { font-size: var(--zella-text-xl); font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.gl-tile-value small { color: var(--zella-text-secondary); font-size: var(--zella-text-sm); font-weight: 400; }
+.gl-tile-link { padding-right: 36px; }
+.gl-tile-link .ba-icon { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--zella-text-secondary); font-size: 20px; }
+.gl-tile-link:hover { border-color: var(--zella-border-strong); background: var(--zella-alt); }
+.gl-tile-link:focus-visible { outline: 2px solid var(--zella-focus); outline-offset: 2px; }
+
+/* A small meter: share of items ready. The words beside it always say the same. */
+.gl-meter { display: block; width: 100%; max-width: 160px; height: 4px; border-radius: var(--zella-radius-full); background: var(--zella-subtle); overflow: hidden; }
+.gl-meter > span { display: block; height: 100%; border-radius: inherit; background: var(--zella-warning); }
+.gl-meter.done > span { background: var(--zella-success); }
+
+/* Collapsible groups */
+.gl-groups { border-top: 1px solid var(--zella-border); }
+.gl-group { border-bottom: 1px solid var(--zella-border); }
+.gl-group:last-child { border-bottom: 0; }
+.gl-group > summary { display: flex; align-items: center; gap: var(--zella-space-4); max-width: 783px; padding: var(--zella-space-3) 0; cursor: pointer; list-style: none; }
+.gl-group > summary::-webkit-details-marker { display: none; }
+.gl-group > summary::before { content: ""; flex: none; width: 7px; height: 7px; border-right: 2px solid var(--zella-text-secondary); border-bottom: 2px solid var(--zella-text-secondary); transform: rotate(-45deg); transition: transform .15s; }
+.gl-group[open] > summary::before { transform: rotate(45deg); }
+.gl-group > summary:hover .gl-group-title strong { text-decoration: underline; }
+.gl-group > summary:focus-visible { outline: 2px solid var(--zella-focus); outline-offset: -2px; }
+.gl-group-title { flex: 1; min-width: 0; color: var(--zella-text-secondary); font-size: var(--zella-text-sm); }
+.gl-group-title strong { color: var(--zella-text); font-size: var(--zella-text-base); font-weight: 600; }
+.gl-group > summary .gl-meter { width: 120px; }
+.gl-group-body { max-width: 760px; padding: 0 0 var(--zella-space-4) 23px; }
+.gl-note { margin: 0 0 var(--zella-space-2); color: var(--zella-text-secondary); font-size: var(--zella-text-sm); }
+.gl-all-ready { margin: 0; color: var(--zella-text-secondary); font-size: var(--zella-text-sm); }
+
+/* Compact checklist table: the status sits next to its label */
+.gl-table { width: 100%; border-collapse: collapse; }
+.gl-table th { padding: 6px 0; border-bottom: 1px solid var(--zella-border); color: var(--zella-text-secondary); font-size: var(--zella-text-xs); font-weight: 600; text-align: left; }
+.gl-table td { padding: 10px 0; border-bottom: 1px solid var(--zella-border); vertical-align: middle; }
+.gl-table tr:last-child td { border-bottom: 0; }
+.gl-table .gl-col-status { width: 1%; padding-left: var(--zella-space-4); text-align: right; white-space: nowrap; }
+.gl-table .op-pill { white-space: nowrap; }
+.gl-item { display: block; color: var(--zella-text); font-size: var(--zella-text-sm); font-weight: 600; }
+.gl-item-detail { display: block; margin-top: 2px; color: var(--zella-text-secondary); font-size: var(--zella-text-xs); }
+
+.gl-group-foot { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--zella-space-2) var(--zella-space-5); margin-top: var(--zella-space-2); }
+.gl-text-button { padding: 4px 0; border: 0; background: none; color: var(--zella-text); font: inherit; font-size: var(--zella-text-sm); font-weight: 600; cursor: pointer; }
+.gl-text-button:hover, .gl-text-button:focus-visible { text-decoration: underline; }
+.gl-tech > summary { padding: 4px 0; color: var(--zella-text-secondary); font-size: var(--zella-text-sm); cursor: pointer; }
+.gl-tech dl { display: grid; gap: 4px; margin: var(--zella-space-2) 0 0; font-size: var(--zella-text-xs); }
+.gl-tech dl > div { display: grid; grid-template-columns: minmax(140px, 40%) 1fr; gap: var(--zella-space-3); }
+.gl-tech dt { color: var(--zella-text-secondary); }
+.gl-tech dd { margin: 0; overflow-wrap: break-word; }
+.gl-tech code { font-family: var(--zella-font-mono); font-size: var(--zella-text-xs); }
+
+/* Scheduled jobs table */
+.sj-banner-warning { display: flex; align-items: center; gap: var(--zella-space-2); margin-bottom: var(--zella-space-4); padding: 10px var(--zella-space-4); border: 1px solid var(--zella-warning-border); border-radius: var(--zella-radius-md); background: var(--zella-warning-bg); color: var(--zella-text-2); font-size: var(--zella-text-sm); }
+.sj-banner-warning .ba-icon { color: var(--zella-warning); font-size: 20px; }
+.sj-banner-warning strong { color: var(--zella-text); font-weight: 600; }
+.sj-wrap .ao-table td { vertical-align: middle; }
+.sj-wrap .ao-table .op-pill { white-space: nowrap; }
+.sj-job { display: block; font-weight: 600; white-space: nowrap; }
+.sj-sub { display: block; max-width: 36ch; margin-top: 2px; overflow: hidden; color: var(--zella-text-secondary); font-size: var(--zella-text-xs); font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
+.sj-intent { display: block; max-width: 28ch; }
+.sj-intent .op-pill { margin-top: 4px; }
+.sj-empty { color: var(--zella-text-faint); font-weight: 400; }
+.sj-wrap .ao-table td.sj-num { text-align: right; font-variant-numeric: tabular-nums; }
+.sj-wrap .ao-table th:has(> .sj-num) { text-align: right; }
+.sj-wrap .ao-table td.sj-actions { width: 1%; white-space: nowrap; text-align: right; }
+.owner-secondary-button.sj-btn-sm { height: 32px; min-height: 32px; padding: 0 var(--zella-space-3); font-size: var(--zella-text-sm); white-space: nowrap; }
+.sj-foot { margin-bottom: 0; color: var(--zella-text-secondary); font-size: var(--zella-text-xs); }
+
+/* Platform operations: problems in two columns, header refresh */
+.po-problems { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--zella-space-6); }
+.po-problems > li:nth-child(2) { border-top: 0; }
+.owner-secondary-button.po-refresh { height: 32px; min-height: 32px; padding: 0 var(--zella-space-3); font-size: var(--zella-text-sm); }
+
+@media (max-width: 900px) {
+  .gl-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 600px) {
+  .gl-tiles { gap: var(--zella-space-2); }
+  .gl-tile { min-height: 80px; padding: var(--zella-space-3); }
+  .gl-group > summary { gap: var(--zella-space-3); }
+  .gl-group > summary .gl-meter { width: 56px; }
+  .gl-group-body { padding: 0 0 var(--zella-space-4); }
+  .gl-tech dl > div { grid-template-columns: 1fr; gap: 0; }
+  .po-problems { grid-template-columns: 1fr; }
+  .po-problems > li:nth-child(2) { border-top: 1px solid var(--zella-border); }
+}
+.sj-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.sj-wrap, #go-live { min-width: 0; max-width: 100%; }
+.sj-wrap .ao-table th { position: relative; }

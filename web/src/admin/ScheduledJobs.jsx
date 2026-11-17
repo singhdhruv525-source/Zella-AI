@@ -1,38 +1,57 @@
 import { useState } from "react";
 import { DataTable, ErrorNote, Panel, Pill, ReasonDialog, rpc, when, words } from "./adminOps";
 import { allJobs, jobLabel, jobState } from "./jobState";
+import { Icon } from "../BusinessUI";
+import "./goLive.css";
 
 // The scheduled jobs panel: each job's real state beside its intended state (PLT-07). Recording an intent is a note
 // for the team, kept in the audit log; it never switches a job on or off (that is the owner's live switch at go live).
-export default function ScheduledJobs({ health }) {
+// showRefresh: false where the page header's Refresh already reloads the jobs (Platform operations).
+export default function ScheduledJobs({ health, showRefresh = true }) {
   const [editing, setEditing] = useState(null);
   const s = health.data;
   const rows = allJobs(s);
+  const mismatches = s?.intent_mismatches ?? 0;
   return (
-    <Panel title="Scheduled jobs" description="Timed jobs inside the database, whether each is on, and whether that is on purpose."
-      action={<button type="button" className="owner-secondary-button" onClick={health.reload}>Refresh</button>}>
-      <ErrorNote error={health.error} onRetry={health.reload} />
-      {s?.intent_mismatches > 0 && (
-        <p className="op-muted" role="status" data-intent-mismatches={s.intent_mismatches}>
-          {s.intent_mismatches} {s.intent_mismatches === 1 ? "job is" : "jobs are"} not in the state recorded for {s.intent_mismatches === 1 ? "it" : "them"}.
-        </p>
-      )}
-      <DataTable error={health.error} loading={health.loading} rows={rows} rowKey={(j) => j.name} empty="No Zella Voice jobs found."
-        columns={[
-          ["Job", (j) => <span data-job={j.name}><strong>{jobLabel(j.name)}</strong><br /><span className="op-muted">{j.drives ?? <code>{j.name}</code>}</span></span>],
-          ["State", (j) => { const st = jobState(s, j.name); return <Pill tone={st.tone}>{st.label}</Pill>; }],
-          ["Intended", (j) => {
-            const st = jobState(s, j.name);
-            return <span data-intent={j.intended ?? "none"}>{st.intent ?? <span className="op-muted">Not recorded</span>}{st.mismatch && <> <Pill tone="warning">Not as intended</Pill></>}</span>;
-          }],
-          ["Last run", (j) => (j.last_run ? <span><Pill tone={j.last_run.status === "succeeded" ? "success" : "danger"}>{words(j.last_run.status)}</Pill> {when(j.last_run.at)}</span> : "Never")],
-          ["Failures (24 h)", (j) => (j.failures_24h ? <Pill tone="danger">{j.failures_24h}</Pill> : j.exists ? 0 : "")],
-          ["", (j) => <button type="button" className="op-link" onClick={() => setEditing(j)} aria-label={`Record intent for ${jobLabel(j.name)}`}>Record intent</button>],
-        ]} />
-      <p className="op-muted">Jobs are switched on at go live by the owner, not from this page, so a click here can't start sending to customers.</p>
-      {editing && <IntentDialog job={editing} onClose={() => setEditing(null)} onSaved={health.reload} />}
-    </Panel>
+    <div id="scheduled-jobs" className="sj-wrap">
+      <Panel title="Scheduled jobs" description="Timed jobs inside the database, and whether each one is in the state it should be."
+        action={showRefresh ? <button type="button" className="owner-secondary-button sj-btn-sm" onClick={health.reload}>Refresh</button> : null}>
+        <ErrorNote error={health.error} onRetry={health.reload} />
+        {mismatches > 0 && (
+          <div className="sj-banner-warning banner-warning" role="status" data-intent-mismatches={mismatches}>
+            <Icon name="warning" />
+            <span><strong>{mismatches} {mismatches === 1 ? "job is" : "jobs are"} not as intended.</strong> {mismatches === 1 ? "Its state differs" : "Their state differs"} from the one recorded for {mismatches === 1 ? "it" : "them"}.</span>
+          </div>
+        )}
+        <DataTable error={health.error} loading={health.loading} rows={rows} rowKey={(j) => j.name} empty="No Zella Voice jobs found."
+          columns={[
+            ["Job", (j) => <span data-job={j.name}><span className="sj-job">{jobLabel(j.name)}</span><span className="sj-sub" title={j.drives ?? j.name}>{j.drives ?? j.name}</span></span>],
+            ["State", (j) => { const st = jobState(s, j.name); return <Pill tone={st.on ? "success" : "neutral"}>{st.label}</Pill>; }],
+            ["Intended", (j) => {
+              const st = jobState(s, j.name);
+              return (
+                <span className="sj-intent" data-intent={j.intended ?? "none"}>
+                  {st.intent ? plainIntent(st.intent) : <span className="sj-empty">Not recorded</span>}
+                  {st.mismatch && <><br /><Pill tone="warning">Not as intended</Pill></>}
+                </span>
+              );
+            }],
+            ["Last run", (j) => (j.last_run
+              ? <span><Pill tone={j.last_run.status === "succeeded" ? "success" : "danger"}>{words(j.last_run.status)}</Pill><span className="sj-sub">{when(j.last_run.at)}</span></span>
+              : <span className="sj-empty">Never</span>)],
+            [<span key="f" className="sj-num">Failures, 24 hours</span>, (j) => (j.failures_24h ? <Pill tone="danger">{j.failures_24h}</Pill> : j.exists ? 0 : <span className="sj-empty">None</span>), "sj-num"],
+            [<span key="a" className="sj-sr">Actions</span>, (j) => <button type="button" className="owner-secondary-button sj-btn-sm" onClick={() => setEditing(j)} aria-label={`Record intent for ${jobLabel(j.name)}`}>Record intent</button>, "sj-actions"],
+          ]} />
+        <p className="sj-foot">You switch jobs on when you go live. Nothing on this page starts sending to customers.</p>
+        {editing && <IntentDialog job={editing} onClose={() => setEditing(null)} onSaved={health.reload} />}
+      </Panel>
+    </div>
   );
+}
+
+// A recorded reason in plain words: the default go live note reads "Off until you go live".
+function plainIntent(text) {
+  return /^deliberately off until go live\.?$/i.test(String(text).trim()) ? "Off until you go live" : text;
 }
 
 function IntentDialog({ job, onClose, onSaved }) {
