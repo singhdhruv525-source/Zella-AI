@@ -328,15 +328,55 @@ export function jsValueBranches(expr) {
   return parts.filter((_, i) => seps[i] !== "?").map(unwrap);
 }
 
+// The source with every string literal's contents blanked (same length), so brackets inside strings don't count.
+function maskStrings(src) {
+  return src.replace(/`(?:\\.|[^`\\])*`|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/g, (q) => q[0] + " ".repeat(q.length - 2) + q[q.length - 1]);
+}
+
+// Whether `key:` at `at` is written where TypeScript expects a type: inside a parameter list, a type alias, an
+// interface, a generic, or a type literal used as an annotation (`p: { ... }`, `const x: { ... }`, `): { ... }`).
+// Inside an object literal (`= {`, `({`, `return {`, `key: {` in an object) it is a value.
+export function inTypePosition(masked, at) {
+  let depth = 0, open = -1;
+  for (let i = at - 1; i >= 0; i--) {
+    const c = masked[i];
+    if (")]}".includes(c)) depth++;
+    else if ("([{".includes(c)) { if (depth === 0) { open = i; break; } depth--; }
+  }
+  if (open < 0 || masked[open] === "[") return false;
+  const before = masked.slice(0, open).replace(/\s+$/, "");
+  if (masked[open] === "(") return !/\b(if|while|for|switch|catch)$/.test(before) && isParameterList(masked, open);
+  if (/(\btype\s+[\w$]+(<[^>]*>)?\s*=|\binterface\s+[\w$]+(<[^>]*>)?(\s+extends\s+[^{]+)?|[<|&])$/.test(before)) return true;
+  if (!before.endsWith(":")) return false;
+  const key = before.slice(0, -1).replace(/\s+$/, "");
+  if (key.endsWith(")")) return true; // a return type: "): {"
+  if (/\b(const|let|var)\s+[\w$]+\??$/.test(key)) return true; // "const x: {"
+  if (!/[\w$]\??$/.test(key)) return false;
+  return inTypePosition(masked, key.search(/[\w$]+\??$/));
+}
+
+// A "(" opens a parameter list when its matching ")" is followed by "=>" or "{" (a function), or by ":" (a return type).
+function isParameterList(masked, open) {
+  let depth = 0;
+  for (let i = open; i < masked.length; i++) {
+    if (masked[i] === "(") depth++;
+    else if (masked[i] === ")" && --depth === 0) return /^\s*(=>|\{|:)/.test(masked.slice(i + 1));
+  }
+  return false;
+}
+
 // Audit entries in the edge functions: every `action:` whose value is a dotted name (request actions such as
 // "lookup" or "start" are not audit names; every audit name the functions write has a dot).
 export function tsAuditActions(raw) {
   const src = stripJsComments(raw);
+  const masked = maskStrings(src);
   const out = [];
   for (const m of src.matchAll(/\baction\s*:\s*/g)) {
     const expr = exprAfter(src, m.index + m[0].length);
-    // a type, not a value: "action: string", "action: RequestAction" (a parameter or property type is PascalCase)
-    const isType = (b) => /^(string|null|undefined|number|boolean)\b/.test(b) || /^[A-Z][A-Za-z0-9_]*(<[^>]*>)?(\[\])?$/.test(b);
+    // a type, not a value: "action: string", or "action: RequestAction" where a type is written (a parameter, a type
+    // alias, an interface, an annotation). In an object literal a PascalCase name is a value and stays unresolved.
+    const typed = inTypePosition(masked, m.index);
+    const isType = (b) => /^(string|null|undefined|number|boolean)\b/.test(b) || (typed && /^[A-Z][A-Za-z0-9_]*(<[^>]*>)?(\[\])?$/.test(b));
     const loose = jsValueBranches(expr).find((b) => !/^S\b/.test(b) && !isType(b));
     if (loose !== undefined) out.push({ name: expr.trim().replace(/\s+/g, " ").slice(0, 60), unresolved: true, line: lineAt(src, m.index) });
     for (const n of jsExprNames(expr)) {
