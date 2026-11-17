@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import "./OwnerPages.css";
+import "./IndustryConfiguration.css";
+import { Icon } from "./BusinessUI";
 import { callOwnerFunction } from "./CreateBusinessWizard";
 import { Pill } from "./OwnerOverview";
 import { formatDate } from "./ownerFormat";
@@ -305,7 +307,7 @@ export default function IndustryConfiguration() {
                   >
                     <strong>{industry.name}{!industry.is_active && <> <Pill tone="warning">Inactive</Pill></>}</strong>
                     <span>
-                      {industry.businessCount} {industry.businessCount === 1 ? "business" : "businesses"} ·{" "}
+                      {businessWord(industry.businessCount)} ·{" "}
                       {industry.modules.filter((m) => m.is_active).length} modules
                     </span>
                   </button>
@@ -381,32 +383,50 @@ export default function IndustryConfiguration() {
             <div className="owner-panel"><div className="op-empty">{loading ? "Loading..." : loadFailed ? "Industries didn't load." : "Select an industry."}</div></div>
           ) : (
             <>
-              <div className="ic-head">
-                <div>
-                  <h2>{selected.name}</h2>
-                  <span className="op-muted">
-                    {selected.businessCount} {selected.businessCount === 1 ? "business uses" : "businesses use"} this industry
-                    {selected.configUpdatedAt ? ` · updated ${formatDate(selected.configUpdatedAt)}` : ""}
-                  </span>
-                  {!selected.is_active && <div><Pill tone="warning">Inactive</Pill> <span className="op-muted">Not offered when a business is created.</span></div>}
+              <header className="ic-detail-head">
+                <div className="ic-detail-title">
+                  <h2>
+                    {selected.name}
+                    {!selected.is_active && <Pill tone="warning">Inactive</Pill>}
+                  </h2>
+                  <p className="ic-detail-meta">
+                    {businessWord(selected.businessCount)}
+                    {selected.configUpdatedAt ? ` · Updated ${formatDate(selected.configUpdatedAt)}` : ""}
+                    {!selected.is_active && " · Not offered when a business is created"}
+                  </p>
                 </div>
-                <button
-                  type="button"
-                  className="owner-secondary-button op-small"
-                  onClick={() => { setNotice(""); setError(""); setConfirm({ kind: "active", active: !selected.is_active }); }}
-                  disabled={saving || dirty}
-                  title={dirty ? "Save or discard your changes first" : undefined}
-                >
-                  {selected.is_active ? "Deactivate" : "Reactivate"}
-                </button>
-              </div>
+                {!selected.is_active && (
+                  <div className="ic-detail-actions">
+                    {dirty && <span className="ic-disabled-reason">Save or discard your changes first</span>}
+                    <button
+                      type="button"
+                      className="owner-secondary-button"
+                      onClick={() => { setNotice(""); setError(""); setConfirm({ kind: "active", active: true }); }}
+                      disabled={saving || dirty}
+                    >
+                      Reactivate
+                    </button>
+                  </div>
+                )}
+              </header>
 
               {selected.businessCount > 0 && (
-                <div className="wiz-note">
-                  <strong>How changes apply:</strong> terminology changes show up straight away for businesses in this
-                  industry that haven't customized that word. Words a business has customized stay as they are.
-                  Switching a module off removes it at once from every business in this industry that has it on;
-                  switching it back on gives it back to them. You'll see how many businesses lose it before it's saved.
+                <div className="ic-apply" role="note">
+                  <Icon name="info" className="ic-apply-icon" />
+                  <div>
+                    <p>
+                      <strong>How changes apply.</strong> New words show up straight away for businesses in this
+                      industry, unless a business has customized that word.
+                      Switching a module off removes it from every business that has it on, and you see how many before it saves.
+                    </p>
+                    <details className="ic-apply-more">
+                      <summary>More about changes</summary>
+                      <p>
+                        Words a business has customized stay as they are. Switching a module off removes it at once from
+                        every business in this industry that has it on. Switching it back on gives it back to them.
+                      </p>
+                    </details>
+                  </div>
                 </div>
               )}
 
@@ -595,6 +615,32 @@ export default function IndustryConfiguration() {
               </div>
 
               <IndustryRecords key={selected.id} industryId={selected.id} industryName={selected.name} />
+
+              {selected.is_active && (
+                <section className="wiz-section ic-danger" aria-labelledby="ic-danger-title">
+                  <h3 id="ic-danger-title">Danger zone</h3>
+                  <div className="ic-danger-row">
+                    <div>
+                      <strong>Deactivate {selected.name}</strong>
+                      <small>
+                        It stops being offered when a business is created. The {businessWord(selected.businessCount)} already
+                        in it keep working as they are.
+                      </small>
+                    </div>
+                    <div className="ic-danger-action">
+                      {dirty && <span className="ic-disabled-reason">Save or discard your changes first</span>}
+                      <button
+                        type="button"
+                        className="owner-secondary-button ic-danger-button"
+                        onClick={() => { setNotice(""); setError(""); setConfirm({ kind: "active", active: false }); }}
+                        disabled={saving || dirty}
+                      >
+                        Deactivate
+                      </button>
+                    </div>
+                  </div>
+                </section>
+              )}
 
               {confirm?.kind === "modules" && (
                 <ReasonDialog
