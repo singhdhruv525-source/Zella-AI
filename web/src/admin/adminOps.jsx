@@ -68,14 +68,19 @@ export function useLoad(loader, deps) {
   return { ...state, reload: useCallback(() => setTick((t) => t + 1), []) };
 }
 
-export const when = (v) => (v ? new Date(v).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "None");
+// An empty time says what it means where the caller knows ("Never", "No calls yet"); "None" otherwise.
+export const when = (v, empty = "None") => (v ? new Date(v).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : empty);
 export const words = humanize;
 export const num = (n) => (n === null || n === undefined ? "Not available" : Number(n).toLocaleString());
 export const pct = (n) => (n === null || n === undefined ? "Not available" : `${n}%`);
-export function duration(s) {
-  if (s === null || s === undefined) return "Not available";
-  const v = Math.round(Number(s));
-  return v < 60 ? `${v} s` : `${Math.floor(v / 60)} min ${v % 60} s`;
+// One length format everywhere: "45 s", "1 min", "2 min 5 s", "1 h 2 min". An unknown length says so in words.
+export function duration(s, empty = "Not available") {
+  if (s === null || s === undefined || s === "" || !Number.isFinite(Number(s))) return empty;
+  const v = Math.max(0, Math.round(Number(s)));
+  if (v < 60) return `${v} s`;
+  if (v < 3600) return v % 60 ? `${Math.floor(v / 60)} min ${v % 60} s` : `${v / 60} min`;
+  const m = Math.floor((v % 3600) / 60);
+  return m ? `${Math.floor(v / 3600)} h ${m} min` : `${Math.floor(v / 3600)} h`;
 }
 
 export const PERIODS = [[1, "Last 24 hours"], [7, "Last 7 days"], [30, "Last 30 days"], [90, "Last 90 days"]];
@@ -143,9 +148,10 @@ export function ErrorNote({ error, onRetry }) {
 }
 
 // Something the platform can't do yet, said plainly instead of showing a control that does nothing.
-export function NotAvailable({ title, children }) {
+// `tip` (optional) is a tooltip for the setting behind it, such as "Setting calls_live"; the words never need it.
+export function NotAvailable({ title, children, tip }) {
   return (
-    <div className="ao-unavailable">
+    <div className="ao-unavailable" title={tip}>
       <Icon name="info" size="sm" />
       <div><strong>{title}</strong><p>{children}</p></div>
     </div>
@@ -340,7 +346,7 @@ export function ProviderHealth({ rows, checksLive, names }) {
           <div key={key} className="ao-provider">
             <div className="ao-provider-head"><strong>{label}</strong><Pill tone={state[0]}>{state[1]}</Pill></div>
             <small className="op-muted">{role}</small>
-            <Facts rows={[["Last check", when(h?.checked_at)], ["Last healthy", when(h?.last_ok_at)], h && !h.ok ? ["Last error", h.detail] : null,
+            <Facts rows={[["Last check", when(h?.checked_at, "Never")], ["Last healthy", when(h?.last_ok_at, "Never")], h && !h.ok ? ["Last error", h.detail] : null,
               h?.failures ? ["Failures in a row", h.failures] : null]} />
           </div>
         );
