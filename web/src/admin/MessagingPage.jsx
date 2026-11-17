@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import { navigate } from "../router";
 import { EmailConfig, SmsConfig } from "../settings/AdminPanels";
 import BusinessEmails from "./BusinessEmails";
+import { offSentence, switchHint, switchText } from "../copy/liveSwitches";
 import {
   AlertList, DataTable, Drawer, ErrorNote, Facts, Filters, Metric, NotAvailable, PAGE, PageHeader, Pager, Panel, PERIODS, Pill,
   ProviderHealth, ReasonDialog, Search, Select, Tabs, can, num, pct, rpc, since, useLoad, useOptions, useToast, when, words,
@@ -58,15 +59,22 @@ function Overview({ onTab, onFailed }) {
       <ErrorNote error={data.error} onRetry={data.reload} />
       {o && (
         <>
-          {(!o.live.sms || !o.live.email) && (
-            <NotAvailable title="Sending is in test mode">
-              {[!o.live.sms && "Texts (sms_live is off)", !o.live.email && "Emails (email_live is off)"].filter(Boolean).join(" and ")}: Zella Voice records each message as "Test mode (not sent)" and nothing reaches customers.
-            </NotAvailable>
-          )}
+          {(!o.live.sms || !o.live.email) && (() => {
+            // Only the channels that are off are described as not sent; the other one is said to be live (UI-21).
+            const off = [!o.live.sms && "sms_live", !o.live.email && "email_live"].filter(Boolean);
+            const both = off.length > 1, texts = off[0] === "sms_live";
+            return (
+              <NotAvailable title={both ? "Sending is in test mode" : switchText(off[0], false)} tip={off.map(switchHint).join(", ")}>
+                {both
+                  ? `${offSentence(off)} Zella Voice records every text and email as "Test mode (not sent)", and none of them reach customers.`
+                  : `Zella Voice records each ${texts ? "text" : "email"} as "Test mode (not sent)", and it doesn't reach customers. ${texts ? "Emails" : "Texts"} are live.`}
+              </NotAvailable>
+            );
+          })()}
           <h3 className="ao-h3">Texts</h3>
           <div className="owner-stat-grid ao-stats">
             <Metric label="Sent" value={num(o.sms.outbound)} note={`${num(o.sms.inbound)} received`} />
-            <Metric label="Delivered" value={num(o.sms.delivered)} note={`Delivery rate ${pct(o.sms_delivery_rate)}`} />
+            <Metric label="Delivered" value={num(o.sms.delivered)} note={o.sms_delivery_rate == null ? "No delivery rate yet" : `Delivery rate ${pct(o.sms_delivery_rate)}`} />
             <Metric label="Failed" value={num(o.sms.failed)} tone={o.sms.failed ? "danger" : null} />
             <Metric label="Waiting" value={num(o.sms.queued)} />
             <Metric label="Blocked (consent or spam)" value={num(o.sms.blocked)} />
@@ -84,9 +92,9 @@ function Overview({ onTab, onFailed }) {
           <h3 className="ao-h3">Waiting to send</h3>
           <div className="owner-stat-grid ao-stats">
             <Metric label="Reminders due now" value={num(o.waiting.reminders_due)} tone={o.waiting.reminders_due ? "warning" : null} />
-            <Metric label="follow ups due now" value={num(o.waiting.followups_due)} tone={o.waiting.followups_due ? "warning" : null} />
+            <Metric label="Follow ups due now" value={num(o.waiting.followups_due)} tone={o.waiting.followups_due ? "warning" : null} />
             <Metric label="Reminders failed (7 days)" value={num(o.waiting.reminders_failed_7d)} tone={o.waiting.reminders_failed_7d ? "danger" : null} />
-            <Metric label="follow ups failed (7 days)" value={num(o.waiting.followups_failed_7d)} tone={o.waiting.followups_failed_7d ? "danger" : null} />
+            <Metric label="Follow ups failed (7 days)" value={num(o.waiting.followups_failed_7d)} tone={o.waiting.followups_failed_7d ? "danger" : null} />
           </div>
           {(o.sms.failed > 0 || o.email.failed > 0) && (
             <div className="ao-drawer-actions">
@@ -131,10 +139,10 @@ function Messages({ channel, me, options, failedOnly, say, onOpenBusiness }) {
         empty={`No ${email ? "emails" : "texts"} in this period match these filters.`}
         columns={[
           ["When", (r) => when(r.created_at)], ["Business", (r) => r.business_name], ["Type", (r) => words(r.kind)],
-          [email ? "Address" : "Phone", (r) => (r.direction === "inbound" ? r.from : r.to) ?? "None"],
-          ...(email ? [["Subject", (r) => r.subject ?? "None"]] : []),
-          ["Status", (r) => statusPill(r.status)], ...(email ? [["Last event", (r) => (r.last_event ? words(r.last_event.replace("email.", "")) : "None")]] : []),
-          ["Error", (r) => r.error ?? "None"],
+          [email ? "Address" : "Phone", (r) => (r.direction === "inbound" ? r.from : r.to) ?? "Not recorded"],
+          ...(email ? [["Subject", (r) => r.subject ?? "No subject"]] : []),
+          ["Status", (r) => statusPill(r.status)], ...(email ? [["Last event", (r) => (r.last_event ? words(r.last_event.replace("email.", "")) : "No events yet")]] : []),
+          ["Error", (r) => r.error ?? "No error"],
         ]} />
       <Pager total={list.data?.total} offset={f.offset} onChange={(o) => setF((x) => ({ ...x, offset: o }))} />
       {open && <MessageDrawer channel={channel} id={open} me={me} onClose={() => setOpen(null)} onOpenBusiness={onOpenBusiness}
@@ -178,7 +186,7 @@ function MessageDrawer({ channel, id, me, onClose, onOpenBusiness, onRetried }) 
       {retry && (
         <ReasonDialog title="Retry this message?" icon="replay" confirmLabel="Put back in the queue" onClose={() => setRetry(false)}
           onConfirm={async (reason) => { await rpc("zella_admin_message_retry", { p_channel: channel, p_id: id, p_reason: reason }); d.reload(); onRetried(); }}>
-          <p>Its {d.data.retry.source === "reminder" ? "appointment reminder" : "follow-up"} goes back in the queue (tried {d.data.retry.attempts ?? 0} times so far). The sender checks consent, opt-outs and quiet hours again. The same message can't be sent twice.</p>
+          <p>Its {d.data.retry.source === "reminder" ? "appointment reminder" : "follow up"} goes back in the queue (tried {d.data.retry.attempts ?? 0} times so far). The sender checks consent, opt-outs and quiet hours again. The same message can't be sent twice.</p>
         </ReasonDialog>
       )}
     </Drawer>
@@ -207,7 +215,7 @@ function Templates({ options, say }) {
         columns={[
           ["Key", (t) => <code>{t.key}</code>], ["Channel", (t) => (t.channel === "sms" ? "Text" : "Email")], ["Purpose", (t) => words(t.purpose)],
           ["For", (t) => (t.scope === "business" ? t.business_name : t.scope === "industry" ? t.industry_name : "All businesses")],
-          ["Version", (t) => t.version], ["Business copies", (t) => (t.scope === "business" ? "None" : num(t.business_copies))], ["Updated", (t) => when(t.created_at)],
+          ["Version", (t) => t.version], ["Business copies", (t) => (t.scope === "business" ? "Not applicable" : num(t.business_copies))], ["Updated", (t) => when(t.created_at)],
         ]} />
       <Pager total={list.data?.total} offset={f.offset} onChange={(o) => setF((x) => ({ ...x, offset: o }))} />
       {open && <TemplateDrawer t={open} canEdit={list.data?.can_edit} options={options} onClose={() => setOpen(null)}
@@ -267,14 +275,14 @@ function Providers({ me }) {
     <>
       <Panel title="Sending switches">
         <ErrorNote error={data.error} onRetry={data.reload} />
-        {o && <Facts rows={[["Texts", o.live.sms ? <Pill key="s" tone="success">Live</Pill> : <Pill key="s" tone="warning">Test mode (sms_live off)</Pill>],
-          ["Text sender number", o.live.sms_sender_set ? "Set" : "Not set"], ["Emails", o.live.email ? <Pill key="e" tone="success">Live</Pill> : <Pill key="e" tone="warning">Test mode (email_live off)</Pill>],
+        {o && <Facts rows={[["Texts", <span key="s" title={switchHint("sms_live")}>{o.live.sms ? <Pill tone="success">Live</Pill> : <Pill tone="warning">Test mode, nothing is sent</Pill>}</span>],
+          ["Text sender number", o.live.sms_sender_set ? "Set" : "Not set"], ["Emails", <span key="e" title={switchHint("email_live")}>{o.live.email ? <Pill tone="success">Live</Pill> : <Pill tone="warning">Test mode, nothing is sent</Pill>}</span>],
           ["Email sender address", o.live.email_sender_set ? "Set" : "Not set"], ["Marketing texts", o.live.marketing_texts ? "Allowed" : "Off (transactional only)"]]} />}
-        <p className="op-muted">The live switches can't be changed from the app on purpose, so one click can't start messaging customers. They are set in the database (platform_settings) when the business is ready to go live.</p>
+        <p className="op-muted">The live switches can't be changed from the app on purpose, so one click can't start messaging customers. They are switched on in the database, on the server side, when Zella Voice is ready to go live.</p>
       </Panel>
       <Panel title="Connection checks">
         {o && <ProviderHealth rows={o.providers} checksLive={o.checks_live} names={[["telnyx", "Telnyx", "Texts"], ["resend", "Resend", "Emails"]]} />}
-        {o && !o.checks_live && <NotAvailable title="Provider checks are off">Status is unknown rather than healthy. A "test connection" button isn't offered: it would need the provider keys in the browser, or a real send.</NotAvailable>}
+        {o && !o.checks_live && <NotAvailable title="Provider checks are off" tip={switchHint("provider_checks_live")}>Status is unknown rather than healthy. A "test connection" button isn't offered: it would need the provider keys in the browser, or a real send.</NotAvailable>}
       </Panel>
       <div className="zs ao-embed">
         <SmsConfig me={me} />
