@@ -188,6 +188,13 @@ most often needed:
   REQ-API-01 to 04, Settings API management and Webhooks). A read only log of incoming provider events for admins is
   still fine.
 
+- **CodeRabbit review routine (owner, 17 Nov 2026):** CodeRabbit reviews a PR in full once, when it opens. Later
+  pushes (merges of main, fixes) are reviewed only when someone comments `@coderabbitai review`, and the author must
+  request that review on the final head before merging: no PR merges without a CodeRabbit success on its final changes.
+  `docs/BACKEND_SCHEMA.md` is not reviewed, because it is generated; every schema change must still regenerate it with
+  `docs/generators/backend_schema.py` from an isolated copy. Reason: the review allowance per hour is shared by every PR
+  from the one account.
+
 Waiting on the owner:
 
 - whether suspended businesses keep read-only access (L-5);
