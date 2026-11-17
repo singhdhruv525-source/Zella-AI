@@ -296,20 +296,15 @@ Multi-factor sign-in is enforced on the server for the roles that require it. Ev
 
 ### 8.8 Owner onboarding journey
 
-<!-- coderabbit-ai-generated:v1 -->
-
-<!-- coderabbit-ai-generated-section:v1:932b222ed80437ab42ff0dd2a7207cd3013eecc5f308d3983b11cc273d2499f3 -->
-
 What a business owner sees after opening their invitation, at `/welcome/setup` (`web/src/onboarding/`). The server
 side is described in `docs/OWNER_ONBOARDING_CONTRACT.md` (built on its own branch, not applied or deployed); the
 screens call only what it lists and the database decides every rule. Every screen has a progress bar (step n of 7),
 Finish later (the owner comes back to the same step, from the email link or from a "Finish setting up" banner in the
 CRM), loading, error, empty and "This step isn't ready yet" states, a phone first layout, the Classic and Glass looks,
-and focus moving to each new step's heading. The CRM banner renders nothing if it fails to load or render.
-If the password saves but refreshing the next step fails, retrying refreshes the step without saving the password again.
+and focus moving to each new step's heading. The CRM banner shows nothing if it fails to load. If the password saves but
+reading the next step fails, trying again (or Carry on now after Finish later) reads the step again without saving the
+password a second time.
 
-
-<!-- /coderabbit-ai-generated:v1 -->
 | # | Screen | What the owner does | Status |
 |---|---|---|---|
 | 1 | Welcome | Sees their business name and the steps ahead | Screens built (not deployed); need the onboarding database functions |

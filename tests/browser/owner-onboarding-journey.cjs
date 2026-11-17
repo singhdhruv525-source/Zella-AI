@@ -140,6 +140,12 @@ async function journey(browser, variant) {
   await waitHeading(page, "Your place is saved");
   if (main) check("Finish later: says the place is saved, with focus on the heading", (await heading(page)) === "Your place is saved", await heading(page));
   await shot("finish-later");
+  // Carry on now reads the server's state and goes back to the same step, then leave again
+  await page.click("button:has-text('Carry on now')");
+  await waitHeading(page, "Check your details");
+  if (main) check("Finish later: Carry on now goes back to the same step", (await heading(page)) === "Check your details" && (await progress(page)) === "3");
+  await page.click("button:has-text('Finish later')");
+  await waitHeading(page, "Your place is saved");
   // the Zella Voice team makes the change; the owner comes back on a new page load
   await hook(page, "adminChangeDone", "hours_services", "Changed to 18:00 on Fridays.");
   await page.reload();

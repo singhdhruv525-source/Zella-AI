@@ -7,7 +7,7 @@ import { SidebarBrand } from "../navigation/SidebarBrand";
 import { getApi } from "./api";
 import ProgressSteps from "./ProgressSteps";
 import { Failed, Loading, NotReady } from "./kit";
-import { SCREENS, STEP_KEYS, canOpen, errorCode, isNotReady, previousStep, resumeStep } from "./steps";
+import { SCREENS, STEP_KEYS, canOpen, errorCode, isNotReady, previousStep, resumeStep, stateAfterResume } from "./steps";
 import { SecurityScreen, WelcomeScreen } from "./StartScreens";
 import { DetailsScreen } from "./DetailsScreen";
 import { IdentityScreen } from "./IdentityScreen";
@@ -122,6 +122,12 @@ function Journey({ api, email }) {
   // Reads the state again. refresh lets a failure reach the screen (which says so); reload keeps what is shown.
   const refresh = useCallback(async () => { if (state) setState(await api.getState(state.business_id)); }, [api, state]);
   const reload = useCallback(() => refresh().catch(() => {}), [refresh]);
+  // Carry on now after Finish later: show the server's state, so a part saved just before leaving isn't asked for again.
+  const carryOn = useCallback(async () => {
+    setLeaving(true);
+    const next = await stateAfterResume(api, state.business_id, state);
+    setState(next); setView(resumeStep(next)); setLeft(null); setLeaving(false);
+  }, [api, state]);
   // Finishes a step on the server, then shows the step it says comes next. Errors go back to the screen.
   const onComplete = useCallback(async (step, { stay = false } = {}) => {
     try {
@@ -169,7 +175,7 @@ function Journey({ api, email }) {
           ? `Next time, you'll start right here, at ${at.toLowerCase()}. Sign in to Zella Voice at any time and choose Finish setting up.`
           : "We couldn't record that you're leaving, but everything you finished is saved. You'll pick up from the first step that isn't done."}</p>
         <div className="zob-actions">
-          <button type="button" className="ba-btn primary" onClick={() => { setLeft(null); api.resume(state.business_id).catch(() => {}); }}>Carry on now</button>
+          <button type="button" className="ba-btn primary" disabled={leaving} onClick={carryOn}>{leaving ? "One moment…" : "Carry on now"}</button>
           <button type="button" className="ba-btn" onClick={() => api.signOut()}>Sign out</button>
         </div>
       </Frame>

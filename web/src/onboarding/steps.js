@@ -51,6 +51,15 @@ export function previousStep(step) {
 }
 
 // Screen 2 has three parts, from state.security: a password, an authenticator, then a code verified session.
+// The state to show after "Carry on now" (after Finish later): the resume answer, else the state read again, else what
+// was shown. Never the stale screen state alone, so a step finished just before leaving (a saved password whose refresh
+// failed) isn't asked for again. The api is passed in; nothing here throws.
+export async function stateAfterResume(api, businessId, current) {
+  const resumed = await api.resume(businessId).catch(() => null);
+  if (resumed?.state) return resumed.state;
+  return (await api.getState(businessId).catch(() => null)) ?? current;
+}
+
 export function securityPart(security) {
   if (!security?.password_set) return "password";
   if (!security?.authenticator) return "authenticator";

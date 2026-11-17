@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import {
   ERROR_WORDS, SCREENS, STEP_KEYS, allowance, canLeave, canOpen, detailsDone, errorCode, errorWords, identityPassed,
   identityState, isNotReady, languageWords, money, nextOpenSection, nextStep, paymentPassed, paymentState, phoneWords,
-  previousStep, progressFor, resumeStep, sectionRows, sectionState, securityPart, uploadKinds,
+  previousStep, progressFor, resumeStep, sectionRows, sectionState, securityPart, stateAfterResume, uploadKinds,
 } from "../src/onboarding/steps.js";
 import { createFakeApi } from "../src/onboarding/fakeApi.js";
 
@@ -258,4 +258,24 @@ test("contract version 2: MFA_REQUIRED from the request check, and the upload fu
   assert.equal(errorWords({ code: "INVALID_INPUT", words: "A well-meant reply" }), "That didn't work. Reload the page and try again.", "words with a hyphen fall back to the table");
   assert.equal(errorWords({ code: "INVALID_INPUT" }), "That didn't work. Reload the page and try again.");
   assert.equal(isNotReady({ status: 404, notReady: true }), true);
+});
+
+// Finish later, then Carry on now, after the password saved but reading the next step failed: the screen must show the
+// server's state (password set), never the stale one, so the password form isn't shown and saved a second time.
+test("Carry on now shows the server's state, never the stale one", async () => {
+  const stale = { business_id: "b1", security: { password_set: false } };
+  const fresh = { business_id: "b1", security: { password_set: true } };
+  const calls = [];
+  const api = (resume, getState) => ({
+    resume: async (id) => { calls.push(`resume:${id}`); return resume(); },
+    getState: async (id) => { calls.push(`get:${id}`); return getState(); },
+  });
+  const ok = await stateAfterResume(api(() => ({ changed: true, state: fresh }), () => stale), "b1", stale);
+  assert.equal(securityPart(ok.security), "authenticator");
+  assert.deepEqual(calls.splice(0), ["resume:b1"]);
+  const failedResume = await stateAfterResume(api(() => { throw new Error("down"); }, () => fresh), "b1", stale);
+  assert.equal(failedResume, fresh);
+  assert.deepEqual(calls.splice(0), ["resume:b1", "get:b1"]);
+  const bothFail = await stateAfterResume(api(() => { throw new Error("down"); }, () => { throw new Error("down"); }), "b1", stale);
+  assert.equal(bothFail, stale);
 });
