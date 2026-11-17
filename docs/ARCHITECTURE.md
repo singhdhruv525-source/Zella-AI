@@ -118,7 +118,7 @@ flowchart LR
 - `security.view` / `security.manage`
 - `audit.view`
 - `analytics.view`
-- `growth.manage` (Zella Voice's own sales pipeline)
+- `growth.manage` (Zella Voice's own sales pipeline; **later**, with REQ-ADM-18: the permission doesn't exist yet)
 
 The Zella Voice owner has all permissions and is the only one who manages platform admins.
 
@@ -651,7 +651,7 @@ flowchart LR
 | `work_items` | queue, business_id, due_at, status, attempts, claim, last_error, idempotency_key | REQ-AUT-02 |
 | `usage_ledger` | business_id, source event, quantity, unit, kind (usage, adjustment), period | append-only |
 | `plans`, `subscriptions`, `entitlements` | limits per plan (owner-defined) | REQ-BIL-* |
-| `audit_logs` | actor, business, action, before/after (sensitive fields redacted), at | append-only |
+| `audit_logs` | actor, business, action, before/after (sensitive fields redacted), at | append-only; **never deleted with a business** (ACC-10, owner 16 Nov 2026): when a business is deleted its rows keep, with `business_id` set to null, and the deletion's own row keeps the business id and name |
 
 ---
 
@@ -921,7 +921,7 @@ flowchart LR
 | Area | Requirement |
 |---|---|
 | **10.1 Public website** | REQ-LC-01: marketing pages, pricing (owner-defined), demo request and signup entry. Forms post to an edge endpoint with rate limiting and bot protection, creating a **prospect** in the growth schema. |
-| **10.2 Zella Voice sales leads** | REQ-LC-02: prospects, demos, stages, owner and follow-up tasks in the growth schema; visible only with `growth.manage`; prospect emails follow the same consent rules. Never stored in a tenant. |
+| **10.2 Zella Voice sales leads** | REQ-LC-02: prospects, demos, stages, owner and follow-up tasks in the growth schema; visible only with `growth.manage`; prospect emails follow the same consent rules. Never stored in a tenant. **Later (owner, 16 Nov 2026):** not before launch (REQ-ADM-18). |
 | **10.3 Business onboarding** | REQ-LC-03: **for now, every business is created by the Zella Voice team** in the platform admin (Create Business, §18.6). The owner is then invited, signs in and finishes setup. **Self-service signup is a later phase:** account → workspace → industry wizard → business details, time zone, hours → receptionist → phone and integrations, built on the same server functions. Every business gets an isolated workspace; **no demo data is ever loaded into production**. Duplicates are prevented by normalised name, phone and domain checks. |
 | **10.4 Authentication and recovery** | REQ-LC-04: email + password, email links that need a click on our page, recovery by email, MFA (TOTP) required for platform staff and owner-enforceable for members, session revocation on role change, leaked-password protection on. |
 | **10.5 Business creation** | REQ-LC-05: creates the tenant, owner membership (pending until accepted), industry defaults, capabilities, policies, templates, default automations (off until reviewed), and an audit record. Idempotent by a creation key. |
@@ -933,7 +933,7 @@ flowchart LR
 | **10.11 Knowledge** | REQ-LC-11: §16. Activation requires a minimum knowledge set [D-24]. |
 | **10.12 Services, hours, prices, booking rules** | REQ-LC-12: services (duration, price **entered by the business**, buffers, resources, staff), opening hours, holidays, closures, notice and horizon, approval-required bookings. |
 | **10.13 Provider connections** | REQ-LC-13: calendar (Google, Microsoft), lead sources, store (Shopify), reviews. OAuth with signed state; health checks; reconnect prompts. |
-| **10.14 Testing and activation** | REQ-LC-14: an activation checklist the server computes. Each item must pass before the business goes live: hours, at least one service or "no bookings", knowledge minimum, number routed, test inbound call answered and recorded, test message (dry run), transfer number verified, owner sign-off. Results are stored in `activation_tests`. |
+| **10.14 Testing and activation** | REQ-LC-14: an activation checklist the server computes. Each item must pass before the business goes live: hours, at least one service or "no bookings", knowledge minimum, number routed, test inbound call answered and recorded, test message (dry run), transfer number verified, owner sign-off. Results are stored in `activation_tests`. **Pay before go live (owner, 16 Nov 2026):** once Stripe is live, the first payment must also be confirmed before the business goes live (REQ-BIL-29). Until Stripe is live the go live gate doesn't wait for payment. Whether a business on a trial goes live on its confirmed saved card trial setup (REQ-BIL-12) instead of a first payment is still waiting on the owner (`docs/MEMORY.md`). |
 | **10.15–10.18 CRM, admin, billing, reports** | §18, §17, REQ-RPT below |
 | **10.19 Support and incidents** | REQ-LC-19: in-app support requests, tickets linked to the business, audited support access, incident status page, notification of affected businesses. |
 | **10.20 Pause, cancel, export, retention, offboarding** | REQ-LC-20: there is **no pause** (D-25); the owner can schedule cancellation (signed "continue my plan" link), export everything (CSV/JSON + files), and data is deleted on the retention schedule after cancellation. All steps audited. |
@@ -1338,6 +1338,10 @@ Everything Zella Voice itself sends to a business (owner, billing contacts, team
 `web/supabase/functions/_shared/businessEmails.js` (listed in `docs/BUSINESS_EMAILS.md`; billing rules in
 `docs/BILLING_EMAILS.md`), used by the admin preview and by the sender, so both show exactly the same email.
 
+**Billing emails (owner, 16 Nov 2026): build now, held.** The billing emails in `docs/BILLING_EMAILS.md` (invoices,
+receipts, renewal notices and the rest) are to be built now, with their tests (not built yet), and stay held: nothing queues or sends them
+until Stripe is live (billing step 4) and `email_live` is on, each switched on with the owner's approval.
+
 Delivery (`sql/zella_email_delivery.sql`, the `platform-emails` edge function):
 1. Event based first, like the n8n dispatcher: a new notification or a new outbox email wakes `platform-emails` at
    once (`zella_kick_platform_emails`, once per insert statement, never able to fail the insert). A once a minute job
@@ -1580,7 +1584,7 @@ Pack prices are fixed for every business. Packs are charged when bought. Unused 
 | ID | Requirement |
 |---|---|
 | REQ-BIL-28 | Paid **in advance**, monthly or yearly, in USD, by card or any method the provider supports, on the billing date. |
-| REQ-BIL-29 | **Signup to payment:** the Zella Voice team creates the business (setup fee, plan, allowances and caps chosen in step 11) → invite link → the owner creates a password → sees what they are getting → pays (or starts the trial, REQ-BIL-12). |
+| REQ-BIL-29 | **Signup to payment:** the Zella Voice team creates the business (setup fee, plan, allowances and caps chosen in step 11) → invite link → the owner creates a password → sees what they are getting → pays (or starts the trial, REQ-BIL-12). **Pay before go live (owner, 16 Nov 2026)** applies only once Stripe is live; until then the go live gate (REQ-LC-14) doesn't wait for payment. |
 | REQ-BIL-30 | **Upgrades** take effect immediately: the owner pays the prorated difference and gets the extra allowance for the rest of the cycle; full new allowances start next cycle. *Until payments are built (step 4), every plan change, upgrade or downgrade, applies from the next billing date, so no extra allowance is given without the prorated charge.* **Downgrades** take effect on the next billing date; features and add-ons above the lower plan end then. |
 | REQ-BIL-31 | **No pause.** A business that stops using Zella Voice cancels and can return later (D-25). |
 | REQ-BIL-32 | **Packs** are charged at purchase. **At 100% of minutes the owner chooses one** (D-44): **stop** (new calls go to the fallback number), **auto-reload** a pack (REQ-BIL-23), or **pay as you go** (the AI keeps answering and each extra minute is billed at the business's own per-minute rate, set on the plan page in Create Business; offered only when that rate is set). One monthly spending limit applies to whichever is chosen. Pay-as-you-go minutes are billed at the end of the cycle. Minutes from a call already in progress when calls stop are not charged. |
@@ -1735,7 +1739,14 @@ Each item links to its source, and the timeline is filterable by type.
 | REQ-ADM-15 | Monitoring & incidents | alerts, status page incidents | ops |
 | REQ-ADM-16 | Platform settings & kill switches | live switches per channel, per business override, maintenance mode | Zella Voice owner |
 | REQ-ADM-17 | Industry configuration | presets, policies, safety lines, defaults | `ai.configure` |
-| REQ-ADM-18 | Growth (prospects, demos) | Zella Voice sales pipeline | `growth.manage` |
+| REQ-ADM-18 | Growth (prospects, demos) | Zella Voice sales pipeline. **Later (owner, 16 Nov 2026): not before launch**; no page, menu item or permission until then | `growth.manage` (later) |
+
+Owner decisions of 16 Nov 2026 on platform admin pages (§23.1a):
+- **Growth (REQ-ADM-18): later**, not before launch.
+- **One platform wide default receptionist script (AI-GLOBAL-PROMPT): later.** A default that rolls out to every
+  business without overwriting a business's own script is not built before launch; each business keeps its own script
+  (Create Business step 5, industry presets in REQ-ADM-17).
+- **Weekly platform summary report for Zella Voice admins: yes.** Being built in `claude/weekly-admin-report`.
 
 **REQ-ADM-21 One definition of connected, answering and live:** every admin page that says whether a business's
 phone, voice, calendar or leads are connected, whether its receptionist is answering, or whether it is live reads it
@@ -1832,7 +1843,7 @@ flowchart TD
 | AI | prompt-injection treated as hostile input; tools re-check permissions; no secrets or other customers' data in prompts; eval cases include injection attempts |
 | Sensitive industries | transcripts never to staff; private fields separate; previews never reveal the relationship; drafts for follow-ups |
 | Recordings and transcripts | **Call recording is off** until recording-consent rules, caller disclosures and business settings have been reviewed [D-27]. Access logged; tenant-isolated; deletion requests supported. |
-| Retention (REQ-PRV-01) | Defaults, configurable per platform and per industry; **legal review before launch** (some regulated industries may need longer periods for certain records): **call recordings 30 days**, **transcripts 90 days**, **message bodies 2 years**, **audit and security logs 7 years** (unless the applicable legal policy requires otherwise), **a cancelled business's data deleted 30 days after cancellation**, after a final export offer (only audit and security records, which hold no message bodies, transcripts or recordings, are kept to the end of their own retention; anything under an active **legal hold**, including message bodies, transcripts and recordings, is kept until counsel releases the hold; both are readable only through audited platform functions). Deletion is a scheduled job that reaches tables, files and provider copies where possible, with legal hold respected. |
+| Retention (REQ-PRV-01) | Defaults, configurable per platform and per industry; **legal review before launch** (some regulated industries may need longer periods for certain records): **call recordings 30 days**, **transcripts 90 days**, **message bodies 2 years**, **audit and security logs 7 years** (unless the applicable legal policy requires otherwise), **a cancelled business's data deleted 30 days after cancellation**, after a final export offer (only audit and security records, which hold no message bodies, transcripts or recordings, are kept to the end of their own retention: deleting a business never deletes its audit history, whose rows keep with `business_id` set to null, and the row recording the deletion keeps the business id and name (ACC-10, owner 16 Nov 2026); anything under an active **legal hold**, including message bodies, transcripts and recordings, is kept until counsel releases the hold; both are readable only through audited platform functions). Deletion is a scheduled job that reaches tables, files and provider copies where possible, with legal hold respected. |
 | Audit | append-only; privileged actions; support access |
 | Retention and deletion | scheduled deletion per data class; legal hold; deletion reaches files and provider copies where possible |
 | Backups | point-in-time recovery; quarterly restore drill; a restore never re-sends messages (dedupe keys and a "restored" flag on work items) |
@@ -1856,6 +1867,7 @@ flowchart TD
 | Metrics | answered rate, abandon rate, time to answer, AI resolution rate, tool latency/errors, booking success, speed-to-lead, attempts per lead, messages by status, queue depth and oldest due, dead letters, cost per call, per business and platform-wide |
 | Alerts | grouped, actionable, routed to an external pager for Sev1 (calls not answered, data exposure, wrong messages at scale) |
 | Environments | local isolated DB; hosted **staging** (Supabase + workers + test numbers); production. Each has its own credentials. |
+| Test fixtures from production (UI-35, owner 16 Nov 2026) | Production **configuration**, never customer data, may be copied into test fixtures, read only, through an allowlist of tables and columns (industries, modules, presets, platform templates, settings keys). Anything not on the allowlist is never copied; no secrets, no business rows. |
 | CI | every pull request runs lint, build, unit tests, function checks, worker tests, database security suite and the migration apply/rollback rehearsal |
 | Migrations | one file per change, idempotent, version-guarded, with rollback; a migration ledger table written by each migration |
 | Deploys | owner-approved, one at a time; verify the deployed version equals the reviewed source; smoke test after |
@@ -2075,12 +2087,25 @@ Knowledge, Automations, Reports, Team, Settings.
 | Two-way messaging | The AI replies by text and email, with staff takeover. | §14.3 |
 | Knowledge AI | Anthropic drafts; owner approves; per-business budget and alerts; never disables the receptionist. | §16 |
 
+### 23.1a Decided by the owner (16 Nov 2026)
+
+| Topic | Decision | Applied in |
+|---|---|---|
+| Growth page (REQ-ADM-18, ACC-36) | **Later**, not before launch; `growth.manage` is not created until then. | §2, §10.2, §18.5 |
+| Default receptionist script (AI-GLOBAL-PROMPT) | **Later**: no platform wide default script that rolls out to businesses before launch. | §18.5 |
+| Weekly platform summary report | **Yes**, for Zella Voice admins; being built in `claude/weekly-admin-report`. | §18.5 |
+| Billing emails | **Build now**, held until Stripe and email are live. | §14.4 |
+| Audit history (ACC-10) | **Never deleted with a business**: `audit_logs` keeps its rows with `business_id` set to null; the deletion's own row keeps the business id and name. | §7, §20, §29 |
+| Test fixtures (UI-35) | Production **configuration** (never customer data) may be copied read only into test fixtures, through an allowlist. | §21 |
+| Pay before go live | Applies only once Stripe is live; until then the go live gate doesn't wait for payment. | REQ-LC-14, REQ-BIL-29 |
+| Public API, API keys, outgoing webhooks | **Not planned** (recorded in PR #91). | §36 |
+
 ### 23.2 Still open
 
 | ID | Decision | Owner |
 |---|---|---|
 | D-04 | Consent evidence required per lead source for AI-voice calls and automated texts under US rules | owner + counsel |
-| D-05 | Public website hosting and Zella Voice sales pipeline scope | owner |
+| D-05 | Public website hosting and Zella Voice sales pipeline scope (the Growth page is later, §23.1a) | owner |
 | D-08 | Calendar providers at launch | owner |
 | D-16 | Review requests: service or marketing | counsel |
 | D-17 | Which conversation outcomes count as "contacted" | owner |
@@ -2336,7 +2361,7 @@ Conventions for every tenant table:
 | | `subscriptions` | plan_id, status, period | one active per business |
 | | `usage_ledger` | kind, quantity, unit, source_ref, entry_kind, period, estimated_cost_minor, idempotency_key | append-only; unique (business_id, idempotency_key) |
 | | `usage_budgets` | kind, monthly_limit, thresholds | — |
-| Platform | `platform_admins`, `platform_permissions`, `platform_settings`, `platform_alerts`, `platform_incidents`, `provider_health`, `support_tickets` (tenant-owned), `audit_logs` (business_id nullable only for platform actions, with scope) | — | audit append-only |
+| Platform | `platform_admins`, `platform_permissions`, `platform_settings`, `platform_alerts`, `platform_incidents`, `provider_health`, `support_tickets` (tenant-owned), `audit_logs` (business_id nullable for platform actions, with scope, and set to null when its business is deleted, ACC-10) | — | audit append-only |
 | | `notifications` | member_id, type, title, body, link, urgency, read_at, acknowledged_at | index (business_id, member_id, read_at) |
 | Growth (separate schema) | `prospects`, `prospect_activities`, `demos` | never joined to tenant tables | platform permission `growth.manage` |
 

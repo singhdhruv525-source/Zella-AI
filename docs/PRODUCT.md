@@ -316,10 +316,10 @@ only the pages they can use. Every admin action is written to the audit log.
 | Configuration | **Plans & subscriptions** | Every business with its own plan (business_plans), a page at a time: tier and version in short ("Pro v3"), price and interval, allowances, subscription status, and one action per row (Details, or Set up plan when the business has none); on phones each business is a card. A details drawer (eyebrow Plan, the business name as title) with every allowance ("Version 3 of 3"), this period's balances, the saved versions as a small table, and Open business in its footer. Payments aren't connected, so nothing is charged. The shared plans are shown as Fallback limits (used only for a business with no plan of its own); each card lists every allowance in words ("AI voice minutes per period: No limit", "Languages the receptionist speaks: 2"), from `web/src/copy/planAllowances.js`; their editors show only with `plans.manage` | `billing.view` |
 | Configuration | **Offers & promotions** | Offers, rules, redemptions | `billing.view` |
 | AI & communications | **AI agents** | Receptionist agents and configurations; Live and Answering per receptionist from the one definition (§9.1), with what is missing before it can be live; what calls actually got in the last 7 days (served, not ready, unknown number, over its limit), the version served and the published one, and a drawer of recent calls with their problems. An AI testing tab runs each business's test questions against its knowledge (knowledge retrieval only, not live calls; nothing sent or charged), stores every run, and shows Passes (at least 3 questions, all passing) or a Warning; a failing run never blocks going live (AI-TESTING, `sql/zella_ai_eval_admin.sql`, built, not applied; running needs `businesses.manage`) | `businesses.view` |
-| AI & communications | **Voice & numbers** | Assign and release phone numbers, voice usage, alerts | `businesses.view` |
-| AI & communications | **Messaging** | Messages across businesses, templates, compliance, retries | `businesses.view` |
+| AI & communications | **Voice & numbers** | Assign and release phone numbers, voice usage, alerts. Provider connection checks are on Overview only; Providers & costs shows keys, AI voice usage (the 20 businesses with most calls, then "See all") and pricing. Call lengths read "45 s", "1 min", "2 min 5 s" | `businesses.view` |
+| AI & communications | **Messaging** | Messages across businesses, templates, compliance, retries. Live switches read in words ("Texts and emails are in test mode"), with the setting key only in a tooltip | `businesses.view` |
 | Operations | **Platform operations** | Scheduler health, dispatcher, provider health, failed work. Sending a failed event back needs `integrations.manage` and a reason, and is refused (with the reason in words) when a run of it is running or succeeded, had a step succeed or reached a provider, so a retry never repeats a message (`sql/zella_retry_event_safe.sql`, built, not applied) | `businesses.view` |
-| Operations | **Automations** | Automations and runs across businesses, retry, pause | `businesses.view` |
+| Operations | **Automations** | Automations and runs across businesses, retry, pause. Scheduler & n8n lists the scheduled jobs once, then the go live checklist in words (setting keys in tooltips) | `businesses.view` |
 | Operations | **Integrations** | What each business asked for in setup against what is connected (numbers, Vapi link, calendar, lead sources from §9.1; email reads Not tracked), plus store and other integration records | `businesses.view` |
 | Operations | **Support** | Support tickets | `support.manage` |
 | Operations | **Security & abuse** | Spam and abuse across the platform: the tabs first, then (on Overview) the period's six totals, three a row | `security.view` |
@@ -332,8 +332,9 @@ footer, until the list is scrolled to the end.
 
 Platform roles use named permissions (`businesses.view/manage`, `telephony.manage`, `comms.manage`, `ai.configure`,
 `integrations.manage`, `billing.view/manage`, `plans.manage`, `support.manage`, `security.view/manage`, `audit.view`,
-`analytics.view`, `growth.manage`). Only the Zella Voice owner manages platform admins. An admin alerts bell shows
-platform alerts live.
+`analytics.view`). Only the Zella Voice owner manages platform admins. An admin alerts bell shows
+platform alerts live. The Growth page (prospects and demos, REQ-ADM-18) and its `growth.manage` permission come
+later, not before launch (owner, 16 Nov 2026).
 
 ---
 
