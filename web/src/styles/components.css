@@ -708,7 +708,7 @@
 /* Dates and times never break across lines */
 .owner-when { white-space: nowrap; }
 
-/* A value that is not there: one quiet word ("None", "Not set", "Never"), never a blank cell */
+/* A value that is not there: a few quiet words ("Not set", "Never", "Not available"), never a blank cell or "None" */
 .empty-value { color: var(--zella-text-faint); font-weight: 400; }
 
 /* Settings tables sit inside cards: a lighter header without the fill */
