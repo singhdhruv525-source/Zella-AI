@@ -345,7 +345,11 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
           )}
           {error && <div className="ba-banner error">{error}</div>}
           <InviteBanner status={invites} email={email} onRetry={onReload} />
-          {workspace.role === "owner" && <Suspense fallback={null}><OnboardingResumeBanner businessId={workspace.id} /></Suspense>}
+          {workspace.role === "owner" && (
+            <ErrorBoundary resetKey={workspace.id} fallback={() => null}>
+              <Suspense fallback={null}><OnboardingResumeBanner businessId={workspace.id} /></Suspense>
+            </ErrorBoundary>
+          )}
 
           {missing === "loading" && <p className="ba-muted">Loading…</p>}
           {missing === "config-error" && (

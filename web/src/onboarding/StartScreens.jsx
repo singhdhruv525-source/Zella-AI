@@ -74,17 +74,22 @@ function PasswordPart({ api, email, onDone }) {
   const [tried, setTried] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [passwordSaved, setPasswordSaved] = useState(false);
   async function save(event) {
     event.preventDefault();
     setTried(true); setError("");
-    const missing = passwordProblems(password);
-    if (!password) return setError("Choose a password, then type it again to confirm it.");
-    if (missing.length) return setError("Your password doesn't meet every item in the list yet.");
-    if (password !== confirm) return setError("The two passwords don't match.");
+    if (!passwordSaved) {
+      const missing = passwordProblems(password);
+      if (!password) return setError("Choose a password, then type it again to confirm it.");
+      if (missing.length) return setError("Your password doesn't meet every item in the list yet.");
+      if (password !== confirm) return setError("The two passwords don't match.");
+    }
     setBusy(true);
-    try { await api.setPassword(password); }
-    catch (err) { setError(friendlyAuthError(err)); setBusy(false); return; }
-    try { await onDone(); }
+    if (!passwordSaved) {
+      try { await api.setPassword(password); setPasswordSaved(true); }
+      catch (err) { setError(friendlyAuthError(err)); setBusy(false); return; }
+    }
+    try { await onDone(); setPasswordSaved(false); }
     catch (err) { setError(`Your password is saved. ${errorWords(err)}`); setBusy(false); }
   }
   return (
