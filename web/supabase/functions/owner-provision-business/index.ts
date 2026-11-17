@@ -1176,7 +1176,7 @@ export async function writeAudit(admin: SupabaseClient, ctx: AuditContext, entry
   const { error: alertError } = await admin.rpc("zella_platform_alert", {
     p_kind: "audit_write_failed", p_title: "An admin action was not recorded in the audit log",
     p_detail: `${entry.action} by admin ${ctx.userId}`, p_severity: "urgent", p_business_id: entry.business_id ?? null,
-    p_dedupe_key: entry.action, p_meta: { action: entry.action, entity_type: entry.entity_type ?? null },
+    p_dedupe_key: entry.action, p_meta: { audit_action: entry.action, entity_type: entry.entity_type ?? null },
   });
   if (alertError) console.error("Audit failure alert failed", alertError);
   return false;
