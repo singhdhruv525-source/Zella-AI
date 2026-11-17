@@ -11,7 +11,7 @@ import { humanize } from "./copy/labels";
 import { friendlyError } from "./admin/adminOps";
 import { addLeaveGuard } from "./router";
 import { hoursList } from "./automationOptions";
-import { hasUnsavedChanges, stepProgress } from "./wizardProgress";
+import { RESUME_AT, WIZARD_STEPS, hasUnsavedChanges, stepProgress } from "./wizardProgress";
 import { CapabilitiesPanel } from "./settings/CapabilitiesPanel";
 import "./settings/settings.css";
 import PlanStep, { loadPlanInfo } from "./PlanStep";
@@ -49,34 +49,10 @@ export async function callOwnerFunction(action, payload = {}) {
 // Static options
 // ---------------------------------------------------------------------------
 
-// Essentials first (business, owner, hours), then what the AI and the phone need, then optional fine-tuning.
-const STEPS = [
-  { key: "business", label: "Business" },
-  { key: "owner", label: "Owner & verification" },
-  { key: "operations", label: "Hours & services" },
-  { key: "team", label: "Team", optional: true },
-  { key: "receptionist", label: "AI receptionist" },
-  { key: "integrations", label: "Phone & integrations", optional: true },
-  { key: "automations", label: "Automations" },
-  { key: "crm", label: "CRM setup", optional: true },
-  { key: "plan", label: "Plan & pricing" },
-  { key: "review", label: "Review" },
-];
+// The steps and where a saved draft reopens live in wizardProgress.js, so the Businesses list can name the same step.
+const STEPS = WIZARD_STEPS;
 const STEP = Object.fromEntries(STEPS.map((s, i) => [s.key, i]));
-
-// Where a saved draft reopens: the step after the last one that moved setup forward.
-const RESUME_STEP = {
-  started: STEP.business,
-  business_info: STEP.owner,
-  owner_setup: STEP.operations,
-  industry_setup: STEP.team,
-  ai_setup: STEP.integrations,
-  communications_setup: STEP.automations,
-  automation_setup: STEP.crm,
-  testing: STEP.review,
-  ready: STEP.review,
-  active: STEP.review,
-};
+const RESUME_STEP = Object.fromEntries(Object.entries(RESUME_AT).map(([status, key]) => [status, STEP[key]]));
 
 const COUNTRIES = countryList().map((c) => [c.iso, c.name]);
 
@@ -2325,7 +2301,8 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
       )}
 
       <div className="wiz-footer">
-        <button type="button" className="owner-secondary-button" onClick={() => request(step - 1)} disabled={saving || step === 0}>
+        {/* Step 1 has nothing before it: Back stays disabled and is hidden there, keeping the footer's layout (UI-30). */}
+        <button type="button" className={`owner-secondary-button${step === 0 ? " wiz-back-first" : ""}`} onClick={() => request(step - 1)} disabled={saving || step === 0}>
           ← Back
         </button>
         <div className="wiz-footer-right">

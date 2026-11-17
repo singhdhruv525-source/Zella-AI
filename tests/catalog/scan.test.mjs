@@ -6,6 +6,7 @@ import {
   n8nAlertKinds, webPermissions, sqlExprNames,
 } from "./scan.mjs";
 import { check } from "./drift_test.mjs";
+import { jsValueBranches } from "./scan.mjs";
 
 const names = (list) => list.map((f) => (f.prefix ? f.name + "*" : f.unresolved ? "?" + f.name : f.name)).sort();
 
@@ -139,4 +140,51 @@ test("check: reads that match nothing, label rules, order and the role editor li
   assert.ok(p.some((x) => x.includes("keep audit_actions sorted")));
   assert.ok(p.some((x) => x.includes('"admins.manage" is not a catalog.json permission')));
   assert.ok(p.some((x) => x.includes('"gone.label" is not an audit action')));
+});
+
+test("review fixes: comments, case branches that aren't literals, every alert tuple, double quoted n8n kinds", () => {
+  assert.deepEqual(names(sqlAuditActions(`-- insert into public.audit_logs (action) values ('removed.action');
+    /* insert into audit_logs (action) values ('block.action'); */
+    insert into public.audit_logs (action, new_data) values ('kept.action', jsonb_build_object('note', '-- not a comment'));`)), ["kept.action"]);
+  assert.deepEqual(names(sqlAuditActions(`insert into audit_logs (action) values (case when f then 'a.one' else lower(x) end);`)), ["?lower(x)", "a.one"]);
+  const src = `create or replace function public.h(p_action text) returns void as $$
+    insert into audit_logs (action) values (case when f then 'a.one' else p_action end); $$;
+    select public.h('a.two');`;
+  assert.deepEqual(names(resolveSql(sqlAuditActions(src), src, [{ rel: "x.sql", src }])), ["a.one", "a.two"]);
+  assert.deepEqual(names(sqlAlertKinds(`insert into public.platform_alerts (kind, title) values ('queue_backlog', 't'), ('new_kind', 't');`)), ["new_kind", "queue_backlog"]);
+  assert.deepEqual(names(n8nAlertKinds(`return run("zella_platform_alert", { p_kind: "new_kind" });`)), ["new_kind"]);
+});
+
+test("review fixes: a variable set from a parameter is followed to the callers too", () => {
+  const src = `create or replace function public.h(p_action text) returns void as $$
+    declare v_action text; begin
+      if x then v_action := 'a.one'; else v_action := p_action; end if;
+      insert into audit_logs (action) values (v_action); end $$;
+    select public.h('a.two');`;
+  assert.deepEqual(names(resolveSql(sqlAuditActions(src), src, [{ rel: "x.sql", src }])), ["a.one", "a.two"]);
+  const loop = `create or replace function public.g() returns void as $$
+    declare v_a text; v_b text; begin v_a := v_b; v_b := v_a; insert into audit_logs (action) values (v_a); end $$;`;
+  assert.ok(resolveSql(sqlAuditActions(loop), loop, [{ rel: "y.sql", src: loop }]).some((n) => n.unresolved), "a cycle ends unresolved");
+});
+
+test("review fixes: a TypeScript audit action held in a variable is reported, types and literals are not", () => {
+  assert.deepEqual(jsValueBranches(`r.created ? "a.b" : next`), ["S", "next"]);
+  assert.deepEqual(jsValueBranches(`"a.b" + r.to`), ["S + r.to"]);
+  assert.deepEqual(names(tsAuditActions(`const nextAction = "plan.new"; const e = { action: nextAction, entity_type: "plan" };`)), ["?nextAction"]);
+  assert.deepEqual(names(tsAuditActions(`const e = { action: r.ok ? "plan.created" : other };`)), ["?r.ok ? \"plan.created\" : other", "plan.created"]);
+  assert.deepEqual(names(tsAuditActions(`type T = { action: string; }; const n = { action: null };`)), []);
+});
+
+test("review fixes 2: parenthesised branches are values, named types are not", () => {
+  assert.deepEqual(jsValueBranches(`(r.ok ? "a.b" : "c.d")`), ["S", "S"]);
+  assert.deepEqual(jsValueBranches(`r.ok ? ("a.b") : (other)`), ["S", "other"]);
+  assert.deepEqual(names(tsAuditActions(`const e = { action: (r.ok ? "plan.created" : "plan.updated") };`)), ["plan.created", "plan.updated"]);
+  assert.deepEqual(names(tsAuditActions(`type RequestAction = "lookup" | "start"; function handle(action: RequestAction) {} type T = { action: Action[] };`)), []);
+  assert.deepEqual(names(tsAuditActions(`const e = { action: (next) };`)), ["?(next)"]);});
+
+test("review fixes 3: a PascalCase value in an object literal is a value, not a type", () => {
+  assert.deepEqual(names(tsAuditActions(`const NextAction = "plan.new"; const e = { action: NextAction, entity_type: "plan" };`)), ["?NextAction"]);
+  assert.deepEqual(names(tsAuditActions(`await audit({ action: NextAction }); const z = { entry: { action: Other } };`)), ["?NextAction", "?Other"]);
+  assert.deepEqual(names(tsAuditActions(`interface I { action: Foo; } const f = (p: { action: Foo }) => p; const x: { action: Foo } = y;`)), []);
+  assert.deepEqual(names(tsAuditActions(`const g = async (n: number, action: Foo): Promise<void> => {}; function h(): { action: Foo } { return y; }`)), []);
 });
