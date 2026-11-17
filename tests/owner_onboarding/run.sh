@@ -149,8 +149,11 @@ expect "an unknown section is invalid" "$(as $OWNER aal2 "select public.zella_ow
 expect "Change without a note is refused" "$(as $OWNER aal2 "select public.zella_owner_onboarding_section('$BIZ', 'team', 'change', '   ')::text")" "ERR:NOTE_REQUIRED"
 LONG=$(printf 'a%.0s' $(seq 1 1001))
 expect "a note over 1000 characters is refused" "$(as $OWNER aal2 "select public.zella_owner_onboarding_section('$BIZ', 'team', 'change', '$LONG')::text")" "ERR:NOTE_REQUIRED|too_long"
-for s in business hours_services receptionist_phone; do as $OWNER aal2 "select public.zella_owner_onboarding_section('$BIZ', '$s', 'looks_right') ->> 'changed'" > /dev/null; done
-expect "Looks right again changes nothing" "$(as $OWNER aal2 "select public.zella_owner_onboarding_section('$BIZ', 'business', 'looks_right') ->> 'changed'")" "false"
+# the fingerprint of a section's details as the owner is shown them (data_hash), read here as the database owner
+seen() { q "select md5(public.zella_onboarding_section_data('$BIZ', '$1')::text)"; }
+expect "Looks right without the fingerprint of what was shown is refused" "$(as $OWNER aal2 "select public.zella_owner_onboarding_section('$BIZ', 'business', 'looks_right')::text")" "ERR:INVALID_INPUT"
+for s in business hours_services receptionist_phone; do as $OWNER aal2 "select public.zella_owner_onboarding_section('$BIZ', '$s', 'looks_right', null, '$(seen $s)') ->> 'changed'" > /dev/null; done
+expect "Looks right again changes nothing" "$(as $OWNER aal2 "select public.zella_owner_onboarding_section('$BIZ', 'business', 'looks_right', null, '$(seen business)') ->> 'changed'")" "false"
 expect "Change with a note" "$(as $OWNER aal2 "select concat_ws(',', r ->> 'changed', r #>> '{state,details,sections,2,status}', r #>> '{state,details,sections,2,note}') from public.zella_owner_onboarding_section('$BIZ', 'team', 'change', 'Add Maya, she started this week.') r")" "true,change_requested,Add Maya, she started this week."
 expect "the same note again changes nothing" "$(as $OWNER aal2 "select public.zella_owner_onboarding_section('$BIZ', 'team', 'change', 'Add Maya, she started this week.') ->> 'changed'")" "false"
 expect "the note reaches Zella Voice as one open alert" "$(q "select count(*) || ',' || max(detail) from public.platform_alerts where kind = 'onboarding_change_requested' and business_id = '$BIZ' and status <> 'resolved'")" "1,Team: Add Maya, she started this week."
@@ -165,7 +168,7 @@ q "insert into public.staff_members (business_id, name, title) values ('$BIZ', '
 expect "admin marks the change done" "$(as $ZADMIN aal2 "select public.zella_admin_onboarding_change_done('$BIZ', 'team', 'Added Maya')::text")" '{"changed": true}'
 expect "and again changes nothing" "$(as $ZADMIN aal2 "select public.zella_admin_onboarding_change_done('$BIZ', 'team', 'Added Maya')::text")" '{"changed": false}'
 expect "the owner sees it updated, with the admin's note, and the alert is resolved" "$(as $OWNER aal2 "select concat_ws(',', s #>> '{2,status}', s #>> '{2,admin_note}') from (select public.zella_owner_onboarding_get('$BIZ') #> '{details,sections}' s) x")$(q "select ',' || count(*) from public.platform_alerts where kind = 'onboarding_change_requested' and business_id = '$BIZ' and status <> 'resolved'")" "updated,Added Maya,0"
-as $OWNER aal2 "select public.zella_owner_onboarding_section('$BIZ', 'team', 'looks_right') ->> 'changed'" > /dev/null
+as $OWNER aal2 "select public.zella_owner_onboarding_section('$BIZ', 'team', 'looks_right', null, '$(seen team)') ->> 'changed'" > /dev/null
 q "update public.businesses set website = 'https://glow.test' where id = '$BIZ'" > /dev/null
 expect "details changed after Looks right: the section asks again" "$(as $OWNER aal2 "select concat_ws(',', g #>> '{details,sections,0,status}', g #>> '{details,all_looks_right}') from public.zella_owner_onboarding_get('$BIZ') g")" "updated,false"
 expect "and step 3 can't finish on stale answers" "$(as $OWNER aal2 "select public.zella_owner_onboarding_complete_step('$BIZ', 'details')::text")" "ERR:SECTIONS_NOT_CONFIRMED|business"
@@ -251,7 +254,9 @@ q "insert into public.payments (business_id, amount, currency, status, provider,
 expect "a confirmed payment: every check passes" "$(gate)" "true"
 expect "step 6 can't finish while a newer plan isn't accepted" "$(as $OWNER aal2 "select public.zella_owner_onboarding_complete_step('$BIZ', 'payment')::text")" "ERR:PLAN_CHANGED"
 as $OWNER aal2 "select public.zella_owner_onboarding_plan_accept('$BIZ', 4) ->> 'changed'" > /dev/null
-expect "staff see the go live checks without the owner's identity and payment results" "$(as $STAFF aal2 "select concat_ws(',', r ->> 'ready', (select count(*) from jsonb_array_elements(r -> 'checks') c where c ->> 'key' in ('identity', 'payment')))  from public.zella_activation_report('$BIZ') r")" "true,0"
+expect "staff see one combined check in place of the owner's identity and payment results" "$(as $STAFF aal2 "select concat_ws(',', r ->> 'ready', (select count(*) from jsonb_array_elements(r -> 'checks') c where c ->> 'key' in ('identity', 'payment')), (select string_agg(c ->> 'key' || ':' || (c ->> 'ok'), '+') from jsonb_array_elements(r -> 'checks') c where c ->> 'key' = 'owner_setup')) from public.zella_activation_report('$BIZ') r")" "true,0,owner_setup:true"
+expect "a Zella Voice admin with businesses.view who isn't a member gets the full report" "$(as $ZADMIN aal2 "select count(*) from jsonb_array_elements(public.zella_activation_report('$BIZ') -> 'checks') c where c ->> 'key' in ('identity', 'payment')")" "2"
+expect "an admin without businesses.view who isn't a member is refused" "$(as $SUPPORT aal2 "select public.zella_activation_report('$BIZ')::text")" "ERR:NOT_ALLOWED"
 expect "the owner sees them" "$(as $OWNER aal2 "select count(*) from jsonb_array_elements(public.zella_activation_report('$BIZ') -> 'checks') c where c ->> 'key' in ('identity', 'payment')")" "2"
 expect "step 6 completes, then step 7" "$(as $OWNER aal2 "select public.zella_owner_onboarding_complete_step('$BIZ', 'payment') #>> '{state,current_step}'"),$(as $OWNER aal2 "select concat_ws(',', r #>> '{state,current_step}', (r #>> '{state,completed_at}') is not null) from public.zella_owner_onboarding_complete_step('$BIZ', 'done') r")" "done,done,t"
 expect "every step is done" "$(as $OWNER aal2 "select string_agg(s ->> 'state', ',') from jsonb_array_elements(public.zella_owner_onboarding_get('$BIZ') -> 'steps') s")" "done,done,done,done,done,done,done"
@@ -277,6 +282,15 @@ expect "a pending event is recorded but ignored" "$(ev evt_3 "$REF" pending)" "i
 expect "a bad outcome is invalid" "$(q "set role service_role; select public.zella_identity_provider_event('persona', 'evt_4', '$REF', 'maybe', now())" | grep -o INVALID_INPUT)" "INVALID_INPUT"
 expect "each event stored once" "$(q "select string_agg(event_id || ':' || result, ',' order by event_id) from public.identity_verification_events")" "evt_1:applied,evt_2:unmapped,evt_3:ignored"
 expect "the result is audited" "$(q "select count(*) from public.audit_logs where business_id = '$BIZ' and action = 'onboarding.identity_provider_result'")" "1"
+# one failed check (one inquiry) counts once, however many declined events the provider sends for it
+q "update public.owner_onboarding set current_step = 'identity', identity_attempts = 0 where business_id = '$BIZ2'" > /dev/null
+REF2=$(q "select identity_reference from public.owner_onboarding where business_id = '$BIZ2'")
+evs() { q "set role service_role; select public.zella_identity_provider_event('persona', '$1', '$REF2', 'declined', now(), '$2') ->> 'result'" | tail -1; }
+attempts2() { q "select identity_attempts from public.owner_onboarding where business_id = '$BIZ2'"; }
+expect "a declined check counts one try" "$(evs evt_d1 inq_1),$(attempts2)" "applied,1"
+expect "another declined event for the same check counts nothing more" "$(evs evt_d2 inq_1),$(attempts2)" "applied,1"
+expect "a redelivery of it is a duplicate" "$(evs evt_d2 inq_1),$(attempts2)" "duplicate,1"
+expect "a second check declined: two tries, and Zella Voice reviews by hand" "$(evs evt_d3 inq_2),$(attempts2),$(q "select count(*) from public.platform_alerts where kind = 'onboarding_identity_review' and business_id = '$BIZ2'")" "applied,2,1"
 expect "signed in people can't read the provider events" "$(as $OWNER aal2 "select count(*)::text from public.identity_verification_events")" "ERR:permission denied for table identity_verification_events"
 "${P[@]}" -d $DB -f "$MIG" > /dev/null 2>&1 && ok "reapplying the file puts the rules back" || bad "reapply after rules change"
 expect "the provider is off again" "$(q "select public.zella_onboarding_rules() ->> 'identity_provider'")" "none"
@@ -289,7 +303,7 @@ expect "tables, functions and the trigger are gone" "$(q "select to_regclass('pu
                      or proname in ('zella_owner_identity_upload_check', 'zella_owner_identity_document_add', 'zella_identity_provider_event'))
    and to_regprocedure('public.zella_activation_checks(uuid)') is null
    and not exists (select 1 from pg_trigger where tgname = 'zella_onboarding_document_rejected')")" "t"
-expect "every onboarding row is kept in the archive" "$(q "select string_agg(table_name || ':' || n, ',' order by table_name) from (select table_name, count(*) n from public.zella_owner_onboarding_archive group by 1) x")" "identity_verification_events:3,owner_onboarding:2,owner_onboarding_sections:4,owner_onboarding_steps:9"
+expect "every onboarding row is kept in the archive" "$(q "select string_agg(table_name || ':' || n, ',' order by table_name) from (select table_name, count(*) n from public.zella_owner_onboarding_archive group by 1) x")" "identity_verification_events:6,owner_onboarding:2,owner_onboarding_sections:4,owner_onboarding_steps:9"
 expect "the archive is server only" "$(q "select has_table_privilege('authenticated', 'public.zella_owner_onboarding_archive', 'SELECT')")" "f"
 expect "documents and payments are untouched" "$(q "select (select count(*) from public.business_verification_documents where business_id = '$BIZ') || ',' || (select count(*) from public.payments where business_id = '$BIZ')")" "3,3"
 expect "grants on the restored functions are kept" "$(q "select has_function_privilege('authenticated', 'public.zella_request_activation(uuid)', 'EXECUTE')")" "t"

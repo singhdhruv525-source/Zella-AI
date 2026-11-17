@@ -64,6 +64,9 @@ function initialState(scenario) {
   };
 }
 
+// The stand in's fingerprint of a section's details (the database uses md5 of the same data): any stable text will do.
+const hashOf = (data) => { const t = JSON.stringify(data ?? null); let h = 0; for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) | 0; return `h${h >>> 0}`; };
+
 export function createFakeApi({ scenario = "", storage = null, delay = 120 } = {}) {
   let st;
   try { st = JSON.parse(storage?.getItem(KEY) ?? "null"); } catch { st = null; }
@@ -90,7 +93,7 @@ export function createFakeApi({ scenario = "", storage = null, delay = 120 } = {
   const security = () => ({ password_set: st.password, authenticator: st.factors.length > 0, session_verified: st.factors.length > 0, ready: st.password && st.factors.length > 0 });
   const stateOut = () => {
     const cur = currentStep();
-    const sections = Object.entries(st.sections).map(([key, s]) => ({ key, status: s.status, note: s.note, admin_note: s.admin_note, answered_at: s.status === "to_review" ? null : now(), data: s.data }));
+    const sections = Object.entries(st.sections).map(([key, s]) => ({ key, status: s.status, note: s.note, admin_note: s.admin_note, answered_at: s.status === "to_review" ? null : now(), data: s.data, data_hash: hashOf(s.data) }));
     return {
       business_id: BUSINESS, business_name: "Maple Street Salon",
       rules: { identity_provider: "none", plan_choice: "accept_only", first_payment: "pay_before_live", failed_check: "retry_then_review", identity_attempts: 2, payments_connected: false },
@@ -162,7 +165,7 @@ export function createFakeApi({ scenario = "", storage = null, delay = 120 } = {
       if (step === "done") st.completed_at = now();
       return { changed: true, state: stateOut() };
     }),
-    answerSection: (id, section, decision, note = null) => db(() => {
+    answerSection: (id, section, decision, note = null, seenHash = null) => db(() => {
       owner(id); needsCode();
       const s = st.sections[section];
       if (!s || !["looks_right", "change"].includes(decision)) throw dbError("INVALID_INPUT");
@@ -174,6 +177,8 @@ export function createFakeApi({ scenario = "", storage = null, delay = 120 } = {
         if (s.status === "change_requested" && s.note === n) return { changed: false, state: stateOut() };
         s.status = "change_requested"; s.note = n;
       } else {
+        if (!seenHash) throw dbError("INVALID_INPUT");
+        if (seenHash !== hashOf(s.data)) throw dbError("DETAILS_CHANGED");
         if (s.status === "looks_right") return { changed: false, state: stateOut() };
         s.status = "looks_right"; s.note = null;
       }

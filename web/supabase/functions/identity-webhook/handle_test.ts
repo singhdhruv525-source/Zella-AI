@@ -71,7 +71,7 @@ Deno.test("on: a signed event is handed to the database once per event id, with 
     r = await post(body, await signed(body), "persona-signature");
     assertEquals([r.status, await r.text()], [200, "duplicate"]);
     assertEquals(calls[0], { p_provider: "persona", p_event_id: "evt_7", p_reference: "ab".repeat(16), p_outcome: "declined",
-      p_occurred_at: "2026-11-16T15:00:00.000Z", _auth: "Bearer server-key" });
+      p_occurred_at: "2026-11-16T15:00:00.000Z", p_subject: "inq_1", _auth: "Bearer server-key" });
   } finally { globalThis.fetch = realFetch; env(false); }
 });
 

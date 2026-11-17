@@ -47,7 +47,7 @@ Deno.test("sameText", () => {
 Deno.test("Persona shaped events become a provider neutral event", () => {
   const ev = (status: string | undefined, name = "inquiry.completed") => ({ data: { type: "event", id: "evt_9", attributes: {
     name, "created-at": "2026-11-16T15:00:00.000Z", payload: { data: { type: "inquiry", id: "inq_1", attributes: { status, "reference-id": "a".repeat(32) } } } } } });
-  assertEquals(persona.parseEvent(ev("approved")), { event: { eventId: "evt_9", reference: "a".repeat(32), outcome: "approved", occurredAt: "2026-11-16T15:00:00.000Z" } });
+  assertEquals(persona.parseEvent(ev("approved")), { event: { eventId: "evt_9", reference: "a".repeat(32), outcome: "approved", occurredAt: "2026-11-16T15:00:00.000Z", subject: "inq_1" } });
   for (const [s, o] of [["declined", "declined"], ["failed", "pending"], ["needs_review", "needs_review"], ["completed", "pending"], ["expired", "other"], ["weird", "other"]]) {
     assertEquals((persona.parseEvent(ev(s)) as { event: { outcome: string } }).event.outcome, o, s);
   }

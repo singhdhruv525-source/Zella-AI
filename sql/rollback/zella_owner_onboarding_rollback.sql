@@ -8,7 +8,7 @@ begin;
 do $$
 declare a record; s text; n bigint := 0;
   mine constant jsonb := jsonb_build_object(
-    'public.zella_activation_report(uuid)', '116b8c18e69fb905354b7f18bef88e19',
+    'public.zella_activation_report(uuid)', '5c21d8905ce14b1b7c9032194ac044f0',
     'public.zella_request_activation(uuid)', '41ab61c937ec1fd0b05b7fbd91b8353f');
 begin
   if to_regclass('public.zella_function_archive') is null
@@ -31,7 +31,7 @@ begin
     public.zella_owner_onboarding_plan_accept(uuid, integer), public.zella_owner_onboarding_finish_later(uuid),
     public.zella_owner_onboarding_resume(uuid), public.zella_owner_identity_upload_check(uuid, text),
     public.zella_owner_identity_document_add(uuid, uuid, text, text, text, text, integer),
-    public.zella_identity_provider_event(text, text, text, text, timestamptz),
+    public.zella_identity_provider_event(text, text, text, text, timestamptz, text),
     public.zella_onboarding_document_rejected_trg(), public.zella_admin_onboarding_overview(),
     public.zella_admin_onboarding_progress(uuid), public.zella_admin_onboarding_change_done(uuid, text, text),
     public.zella_onboarding_admin_check(text), public.zella_activation_checks(uuid),
