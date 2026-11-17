@@ -8,7 +8,7 @@ begin;
 do $$
 declare a record; s text; n bigint := 0;
   mine constant jsonb := jsonb_build_object(
-    'public.zella_activation_report(uuid)', 'c66daff16bc3b13d5ff33542c1f43277',
+    'public.zella_activation_report(uuid)', '116b8c18e69fb905354b7f18bef88e19',
     'public.zella_request_activation(uuid)', '41ab61c937ec1fd0b05b7fbd91b8353f');
 begin
   if to_regclass('public.zella_function_archive') is null
@@ -27,7 +27,7 @@ begin
   drop trigger if exists zella_onboarding_document_rejected on public.business_verification_documents;
   drop function if exists public.zella_owner_onboarding_list(), public.zella_owner_onboarding_get(uuid),
     public.zella_owner_onboarding_identity_status(uuid), public.zella_owner_onboarding_payment_status(uuid),
-    public.zella_owner_onboarding_complete_step(uuid, text), public.zella_owner_onboarding_section(uuid, text, text, text),
+    public.zella_owner_onboarding_complete_step(uuid, text), public.zella_owner_onboarding_section(uuid, text, text, text, text),
     public.zella_owner_onboarding_plan_accept(uuid, integer), public.zella_owner_onboarding_finish_later(uuid),
     public.zella_owner_onboarding_resume(uuid), public.zella_owner_identity_upload_check(uuid, text),
     public.zella_owner_identity_document_add(uuid, uuid, text, text, text, text, integer),

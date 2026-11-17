@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { DOCUMENT_MAX_BYTES, DOCUMENT_TYPES } from "../onboardingConfig";
-import { Actions, ErrorText, useAction } from "./kit";
+import { Actions, ErrorText, useAction, useLatest } from "./kit";
 import { errorWords, identityPassed, identityState, isNotReady, uploadKinds } from "./steps";
 
 // Screen 4, Verify your identity. No identity provider is chosen yet (contract §3, identity_provider "none"), so the
@@ -41,11 +41,22 @@ export function IdentityScreen({ api, state, onState, onComplete }) {
   const passed = identityPassed(identity);
   const id = state.business_id;
 
+  const reads = useLatest();
   async function refresh() {
+    const ticket = reads.start();
     setChecking(true);
-    try { const fresh = await api.identityStatus(id); onState((s) => ({ ...s, identity: fresh })); setProblem(""); }
-    catch (err) { setProblem(errorWords(err)); }
-    finally { setChecking(false); }
+    try {
+      const fresh = await api.identityStatus(id);
+      if (reads.isLatest(ticket)) { onState((s) => ({ ...s, identity: fresh })); setProblem(""); }
+    } catch (err) { if (reads.isLatest(ticket)) setProblem(errorWords(err)); }
+    finally { if (reads.isLatest(ticket)) setChecking(false); }
+  }
+  // after a failed upload step, read the documents again quietly: the file may be stored even though the answer was lost
+  async function reloadQuietly() {
+    const ticket = reads.start();
+    try { const fresh = await api.identityStatus(id); if (reads.isLatest(ticket)) onState((s) => ({ ...s, identity: fresh })); }
+    catch { /* the problem shown already says what went wrong */ }
+    finally { if (reads.isLatest(ticket)) setChecking(false); }
   }
   // while documents are being checked, look again every 30 seconds while the page is in view (the contract allows 15)
   useEffect(() => {
@@ -65,9 +76,11 @@ export function IdentityScreen({ api, state, onState, onComplete }) {
       const { path, token } = await api.identityUploadUrl(meta);
       await api.uploadFile(path, token, file);
       const res = await api.identityUploadConfirm({ ...meta, path });
+      reads.start();   // this answer is newer than any read still on its way
       onState((s) => ({ ...s, identity: res.identity }));
     } catch (err) {
       setProblem(isNotReady(err) ? "Uploading isn't ready yet. Choose Finish later and come back soon." : errorWords(err));
+      if (!isNotReady(err)) reloadQuietly();
     } finally {
       setBusy("");
     }

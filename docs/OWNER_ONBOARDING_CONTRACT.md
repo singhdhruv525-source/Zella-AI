@@ -1,10 +1,11 @@
 # Owner onboarding: the contract between the screens and the server
 
-Status: **version 2, 16 Nov 2026.** Built on branch `claude/owner-onboarding-backend`; nothing is applied to
+Status: **version 3, 17 Nov 2026.** Built on branch `claude/owner-onboarding-backend`; nothing is applied to
 production or deployed. Changes to this contract are listed here, newest first, and are additive unless marked.
 
 | Version | Date | Change |
 |---|---|---|
+| 3 | 17 Nov 2026 | Additive. (a) Each section carries `data_hash`, the fingerprint of the `data` shown; 5.4 takes it as `p_seen_hash`, and Looks right on details that changed since is refused with `DETAILS_CHANGED`. (b) A plan version saved after the owner accepted can be accepted from the plan screen (5.5) while the journey isn't finished; until it is, steps 6 and 7 answer `PLAN_CHANGED`. (c) `zella_activation_report` leaves out the `identity` and `payment` checks for team members other than the owner. (d) Step 6 and the payment check of the go live gate: the owner's rule and how it changes once Stripe is live (sections 2 and 3). |
 | 2 | 16 Nov 2026 | Additive clarifications, no call or field removed or renamed. (a) `MFA_REQUIRED` can also come from the request check that runs before every database call: HTTP 403 with `code` `42501` and `message` `MFA_REQUIRED`. Always read the code from `message` (section 4). It applies to every owner call, reads included, whenever the owner has a verified authenticator and the session wasn't verified with a code. (b) Owner calls answer `NOT_ALLOWED` for a business that doesn't exist too, so nobody can probe for ids; `NOT_FOUND` comes only from the admin calls. (c) The state also carries `started` (false until the first write) and `resumed_at`. (d) Who can read the progress tables directly: the business's owner and Zella Voice admins with `businesses.view`; no other team member. (e) When the last allowed identity attempt fails, Zella Voice gets an admin alert to review it by hand. |
 | 1 | 16 Nov 2026 | First version. |
 
@@ -46,7 +47,7 @@ the screens may move the accept earlier, before the password, because the sessio
 | 3 | `details` | Check your details | all four sections are `looks_right` and nothing changed since |
 | 4 | `identity` | Verify your identity | identity `status` is `verified` (documents approved in Verification, or the provider approved) |
 | 5 | `plan` | Your plan | the owner accepted the current plan version |
-| 6 | `payment` | Pay or start a trial | a payment is confirmed (today always `waiting`: payments are not connected) |
+| 6 | `payment` | Pay or start a trial | a payment is confirmed (today always `waiting`: payments are not connected). The owner decided on 16 Nov 2026 that pay before going live applies only once Stripe is live (`docs/MEMORY.md`); the payments work (lane F, `sql/zella_stripe_payment_gate.sql`) makes this step and the go live payment check wait for a payment only while payments are live, and until then step 6 shows "Payment opens here soon" and can be passed. As built in this file alone, step 6 always waits, so no owner reaches step 7 before that change |
 | 7 | `done` | You're all set | the owner pressed Open my CRM (records that the journey is finished) |
 
 Steps are strictly in order. `current_step` is the first step that is not done. A step before it is `done`, the
@@ -74,7 +75,7 @@ The state carries them in `rules`, so the screens can show the right words. Each
 |---|---|---|
 | `identity_provider` | `"none"` | manual upload: the owner's documents are checked by Zella Voice in Verification. Later `"persona"`. |
 | `plan_choice` | `"accept_only"` | the owner sees the plan Zella Voice set and accepts it; no switching |
-| `first_payment` | `"pay_before_live"` | a confirmed payment is needed before the receptionist goes live. The other value, `"trial_with_card"`, is not built |
+| `first_payment` | `"pay_before_live"` | a confirmed payment is needed before the receptionist goes live. With the payment gate (lane F), it is `"not_until_payments_live"` while payments aren't live: no payment is needed then (the owner's decision of 16 Nov 2026). The other value, `"trial_with_card"`, is not built |
 | `failed_check` | `"retry_then_review"` | after a failed check the owner can try again; after `identity_attempts` failures it goes to manual review |
 | `identity_attempts` | `2` | failed checks allowed before manual review |
 | `payments_connected` | `false` | Stripe Checkout is not built; step 6 shows waiting |
@@ -102,6 +103,7 @@ words from this table; never show the raw code or anything after it.
 | `UPLOAD_NOT_ALLOWED` | an upload while identity is `checking`, `verified` or `in_review` | "We already have your documents." |
 | `PLAN_MISSING` | no plan saved for the business | "Your plan isn't ready yet. Zella Voice will be in touch." |
 | `PLAN_CHANGED` | the plan version accepted isn't the current one | "Your plan was just updated. Please review it again." |
+| `DETAILS_CHANGED` | Looks right on details that changed since the owner saw them | "These details were just updated. Please check them again." |
 | `PAYMENT_NOT_CONFIRMED` | step 6 before a payment is confirmed | "We haven't received a payment yet." |
 | `rate_limited` | reserved | "Too many attempts. Wait a minute and try again." |
 
@@ -153,7 +155,7 @@ Read only. The whole journey for one business, with what every screen needs. Err
   "details": {
     "sections": [
       { "key": "business", "status": "looks_right", "note": null, "admin_note": null,
-        "answered_at": "2026-11-16T15:03:00Z",
+        "answered_at": "2026-11-16T15:03:00Z", "data_hash": "5d41402abc4b2a76b9719d911017c592",
         "data": { "name": "Glow Studio", "legal_name": "Glow Studio LLC", "industry": "Salon and spa",
                   "phone": "+15555550100", "email": "owner@example.com", "website": "https://glow.example",
                   "address": { "line_1": "1 Main Street", "line_2": null, "city": "Austin", "state": "TX",
@@ -234,8 +236,8 @@ Finishes one step. Returns `{ "changed": true|false, "state": <the 5.2 object> }
 | `details` | every section `looks_right` and unchanged | `SECTIONS_NOT_CONFIRMED` (`details`: comma list of section keys) |
 | `identity` | identity `verified` | `IDENTITY_NOT_VERIFIED` |
 | `plan` | the current plan version accepted (normally done by 5.5 instead) | `PLAN_MISSING`, `PLAN_CHANGED` |
-| `payment` | a confirmed payment | `PAYMENT_NOT_CONFIRMED` |
-| `done` | none (records the end of the journey) | |
+| `payment` | a confirmed payment (see step 6 in section 2), and the current plan version accepted | `PAYMENT_NOT_CONFIRMED`, `PLAN_CHANGED` |
+| `done` | the current plan version accepted (records the end of the journey) | `PLAN_CHANGED` |
 
 Always possible: `NOT_SIGNED_IN`, `NOT_ALLOWED`, `NOT_FOUND`, `BUSINESS_NOT_AVAILABLE`, `INVALID_INPUT`,
 `STEP_LOCKED`, `MFA_REQUIRED` (from `details` on).
@@ -244,13 +246,16 @@ Always possible: `NOT_SIGNED_IN`, `NOT_ALLOWED`, `NOT_FOUND`, `BUSINESS_NOT_AVAI
 { "changed": true, "state": { "current_step": "security", "...": "as in 5.2" } }
 ```
 
-### 5.4 `zella_owner_onboarding_section(p_business_id uuid, p_section text, p_decision text, p_note text default null)`
+### 5.4 `zella_owner_onboarding_section(p_business_id uuid, p_section text, p_decision text, p_note text default null, p_seen_hash text default null)`
+
+`p_seen_hash`: the section's `data_hash` from the state the owner was shown. With `looks_right`, if the details changed
+since, the answer is `DETAILS_CHANGED` and nothing is recorded: reload and show the new details.
 
 `p_decision`: `looks_right` or `change`. A change needs a note (1 to 1000 characters); it reaches Zella Voice as an
 alert on the admin dashboard and in the business's onboarding progress. Saying `looks_right` after asking for a change
 withdraws the request. Sending the same answer again changes nothing (`changed: false`).
 
-Returns `{ "changed": true|false, "state": <5.2> }`. Errors: as 5.3, plus `NOTE_REQUIRED`, `STEP_CLOSED`.
+Returns `{ "changed": true|false, "state": <5.2> }`. Errors: as 5.3, plus `NOTE_REQUIRED`, `STEP_CLOSED`, `DETAILS_CHANGED`.
 
 ```json
 { "changed": true, "state": { "details": { "sections": [ { "key": "team", "status": "change_requested",
@@ -260,7 +265,10 @@ Returns `{ "changed": true|false, "state": <5.2> }`. Errors: as 5.3, plus `NOTE_
 ### 5.5 `zella_owner_onboarding_plan_accept(p_business_id uuid, p_plan_version integer)`
 
 Accepts the plan shown (pass `state.plan.current.version`) and completes step 5. Accepting the same version again
-changes nothing. Errors: as 5.3, plus `PLAN_MISSING`, `PLAN_CHANGED` (reload and show the new plan).
+changes nothing. If Zella Voice saves a new version after step 5 is done (`state.plan.accepted` is false again), the
+owner accepts the new version here; the journey stays on its current step, and steps 6 and 7 answer `PLAN_CHANGED`
+until then. Once the journey is finished the answer is `STEP_CLOSED`. Errors: as 5.3, plus `PLAN_MISSING`,
+`PLAN_CHANGED` (reload and show the new plan).
 
 ### 5.6 `zella_owner_onboarding_identity_status(p_business_id uuid)` and `zella_owner_onboarding_payment_status(p_business_id uuid)`
 

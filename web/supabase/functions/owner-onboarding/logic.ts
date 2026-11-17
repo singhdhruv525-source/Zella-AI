@@ -65,6 +65,22 @@ export function dbCode(status: number, body: unknown): string | null {
   return null;
 }
 
+// The first bytes of each allowed file type. The type comes from the screen and the stored metadata from the upload,
+// so the file's own bytes are checked before it is recorded: a file that says it is a photo must start like one.
+export const SIGNATURE_BYTES = 16;
+export function matchesType(head: Uint8Array, mime: string): boolean {
+  const at = (offset: number, ...bytes: number[]) => bytes.every((b, i) => head[offset + i] === b);
+  const text = (offset: number, s: string) => at(offset, ...[...s].map((c) => c.charCodeAt(0)));
+  switch (mime) {
+    case "application/pdf": return text(0, "%PDF-");
+    case "image/jpeg": return at(0, 0xff, 0xd8, 0xff);
+    case "image/png": return at(0, 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a);
+    case "image/webp": return text(0, "RIFF") && text(8, "WEBP");
+    case "image/heic": return text(4, "ftyp") && ["heic", "heix", "heim", "heis", "hevc", "hevx", "mif1", "msf1"].some((b) => text(8, b));
+    default: return false;
+  }
+}
+
 // The token in a signed upload link (Supabase Storage answers { url: "/object/upload/sign/<bucket>/<path>?token=..." }).
 export function tokenFrom(url: unknown): string | null {
   if (typeof url !== "string") return null;

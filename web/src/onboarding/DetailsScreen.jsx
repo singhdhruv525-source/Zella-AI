@@ -1,18 +1,22 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { Icon } from "../BusinessUI";
 import { Actions, EmptyNote, ErrorText, useAction } from "./kit";
-import { detailsDone, nextOpenSection, sectionRows, sectionState, sectionTitle } from "./steps";
+import { detailsDone, errorCode, nextOpenSection, sectionRows, sectionState, sectionTitle } from "./steps";
 
 // Screen 3, Check your details: what the Zella Voice team filled in, one section at a time, each with Looks right or
 // Change. In this version of the contract (§5.4) Change sends a note to the Zella Voice team; they make the change, and
 // the section comes back as "Changed, check again". Only Looks right on every section finishes the step.
 
-export function DetailsScreen({ api, state, onState, onComplete }) {
+export function DetailsScreen({ api, state, onState, onComplete, onReload }) {
   const sections = Array.isArray(state.details?.sections) ? state.details.sections : [];
   const [openKey, setOpenKey] = useState(() => nextOpenSection(sections) ?? sections[0]?.key ?? null);
   const finish = useAction();
   const sectionHeading = useRef(null);
   const first = useRef(true);
+  // Answers can overlap when the owner moves between parts: only the latest answer's state is shown. An earlier one
+  // that comes back later is dropped, and the state is read again so no answer is lost from the screen.
+  const latest = useRef(0);
+  const startAnswer = () => ++latest.current;
   // moving to another section moves focus to its name (not on the first render: the step heading has it then)
   useEffect(() => { if (first.current) { first.current = false; return; } sectionHeading.current?.focus(); }, [openKey]);
 
@@ -23,7 +27,8 @@ export function DetailsScreen({ api, state, onState, onComplete }) {
   const waiting = sections.filter((s) => sectionState(s).key === "change_requested").length;
   const left = sections.filter((s) => !sectionState(s).done).length;
 
-  function answered(next, key) {
+  function answered(next, key, ticket) {
+    if (ticket !== latest.current) { onReload?.(); return; }
     onState(next);
     const list = next.details?.sections ?? [];
     const following = nextOpenSection(list, key);
@@ -50,7 +55,7 @@ export function DetailsScreen({ api, state, onState, onComplete }) {
         })}
       </ol>
       <SectionCard key={open.key} api={api} businessId={state.business_id} section={open}
-        headingRef={sectionHeading} onAnswered={answered} />
+        headingRef={sectionHeading} onAnswered={answered} startAnswer={startAnswer} onReload={onReload} />
       {done
         ? <div className="zob-done-note" role="status"><Icon name="task_alt" /><span>Every part looks right. Thank you.</span></div>
         : waiting > 0 && left === waiting && <p className="zob-muted" role="status">We're making the changes you asked for. When they're done, the part shows "Changed, check again". You can choose Finish later meanwhile; we'll keep your place.</p>}
@@ -64,15 +69,18 @@ export function DetailsScreen({ api, state, onState, onComplete }) {
   );
 }
 
-function SectionCard({ api, businessId, section, headingRef, onAnswered }) {
+function SectionCard({ api, businessId, section, headingRef, onAnswered, startAnswer, onReload }) {
   const st = sectionState(section);
   const [writing, setWriting] = useState(false);
   const action = useAction();
   const rows = sectionRows(section.key, section.data);
   const answer = (decision, note) => action.run(async () => {
-    const res = await api.answerSection(businessId, section.key, decision, note);
+    const ticket = startAnswer();
+    let res;
+    try { res = await api.answerSection(businessId, section.key, decision, note, section.data_hash ?? null); }
+    catch (err) { if (errorCode(err) === "DETAILS_CHANGED") onReload?.(); throw err; }   // show the new details
     setWriting(false);
-    onAnswered(res.state, section.key);
+    onAnswered(res.state, section.key, ticket);
   });
   return (
     <section className="zob-card zob-section" aria-labelledby={`zob-sec-${section.key}`}>

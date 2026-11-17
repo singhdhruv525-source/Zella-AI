@@ -22,6 +22,8 @@ const people: Record<string, Response | (() => Response)> = {
   "Bearer expired-jwt": () => j({ code: "PGRST301", message: "JWT expired" }, 401),
 };
 let stored: { name: string; metadata: { size: number; mimetype: string } }[] = [];
+const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 16, 0x4a, 0x46, 0x49, 0x46, 0, 1, 1, 0, 0, 1]);
+let content: Uint8Array = JPEG;
 function backend(c: Call): Response {
   if (c.url.endsWith("/rpc/zella_owner_identity_upload_check")) {
     const who = people[c.headers.Authorization];
@@ -31,6 +33,7 @@ function backend(c: Call): Response {
     return j({ url: `/object/upload/sign/business-documents/x?token=signed-token` });
   }
   if (c.url === "http://db.test/storage/v1/object/list/business-documents") return j(stored);
+  if (c.url.startsWith(`http://db.test/storage/v1/object/business-documents/${BIZ}/`) && c.method === "GET") return new Response(new Blob([new Uint8Array(content)]));
   if (c.url.endsWith("/rpc/zella_owner_identity_document_add")) {
     return j({ document: { kind: "owner_identity", status: "pending_review", review_note: null, uploaded_at: "2026-11-16T15:10:00Z", reviewed_at: null },
                identity: { status: "checking" } });
@@ -44,7 +47,7 @@ function mock(fn: (calls: Call[]) => Promise<void>, routes = backend) {
       const c = { url, method: init.method ?? "GET", headers: (init.headers ?? {}) as Record<string, string>, body: typeof init.body === "string" ? init.body : "" };
       calls.push(c); return routes(c);
     }) as typeof fetch;
-    try { await fn(calls); } finally { globalThis.fetch = realFetch; stored = []; }
+    try { await fn(calls); } finally { globalThis.fetch = realFetch; stored = []; content = JPEG; }
   };
 }
 const send = (body: unknown, auth?: string, extra: Record<string, string> = {}) => handle(new Request("http://fn/owner-onboarding", {
@@ -141,6 +144,23 @@ Deno.test("confirm refuses another business's path, a missing file and a file th
   assertEquals([r.status, (await r.json()).error], [400, "The file didn't upload correctly. Try again."]);
   assertEquals(calls.some((c) => c.url.endsWith("zella_owner_identity_document_add")), false);
 }));
+
+Deno.test("confirm checks the file's own bytes, and a storage failure is never read as a missing file", mock(async (calls) => {
+  const path = `${BIZ}/owner_identity/11111111-2222-4333-8444-555555555555.jpg`;
+  stored = [{ name: "11111111-2222-4333-8444-555555555555.jpg", metadata: { size: 2048, mimetype: "image/jpeg" } }];
+  content = new TextEncoder().encode("MZ not a photo at all");
+  let r = await send({ ...upload, action: "identity_upload_confirm", path }, "Bearer owner-jwt");
+  assertEquals([r.status, (await r.json()).code], [400, "INVALID_INPUT"]);
+  const read = calls.find((c) => c.url.endsWith(path) && c.method === "GET")!;
+  assertEquals([read.headers.Authorization, read.headers.Range], ["Bearer server-key", "bytes=0-15"]);
+  assertEquals(calls.some((c) => c.url.endsWith("zella_owner_identity_document_add")), false);
+}));
+
+Deno.test("storage answering 503 to the file list is SERVER_ERROR, not \"didn't finish uploading\"", mock(async () => {
+  const path = `${BIZ}/owner_identity/11111111-2222-4333-8444-555555555555.jpg`;
+  const r = await send({ ...upload, action: "identity_upload_confirm", path }, "Bearer owner-jwt");
+  assertEquals([r.status, (await r.json()).code], [500, "SERVER_ERROR"]);
+}, (c) => c.url.endsWith("/object/list/business-documents") ? j({ message: "unavailable" }, 503) : backend(c)));
 
 Deno.test("a failure on the server side is SERVER_ERROR, never a raw database message", mock(async () => {
   const r = await send(upload, "Bearer owner-jwt");

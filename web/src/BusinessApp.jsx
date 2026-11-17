@@ -346,7 +346,13 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
           {error && <div className="ba-banner error">{error}</div>}
           <InviteBanner status={invites} email={email} onRetry={onReload} />
           {workspace.role === "owner" && (
-            <ErrorBoundary resetKey={workspace.id} fallback={() => null}>
+            // if the banner's code can't load, say so without blocking the CRM (a new page load fetches it again)
+            <ErrorBoundary resetKey={workspace.id} fallback={() => (
+              <div className="ba-banner" role="status">
+                <span>We couldn't check whether your setup is finished.</span>
+                <button type="button" className="ba-btn sm" onClick={() => window.location.reload()}>Try again</button>
+              </div>
+            )}>
               <Suspense fallback={null}><OnboardingResumeBanner businessId={workspace.id} /></Suspense>
             </ErrorBoundary>
           )}

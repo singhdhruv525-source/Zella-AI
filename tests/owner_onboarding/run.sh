@@ -169,7 +169,9 @@ as $OWNER aal2 "select public.zella_owner_onboarding_section('$BIZ', 'team', 'lo
 q "update public.businesses set website = 'https://glow.test' where id = '$BIZ'" > /dev/null
 expect "details changed after Looks right: the section asks again" "$(as $OWNER aal2 "select concat_ws(',', g #>> '{details,sections,0,status}', g #>> '{details,all_looks_right}') from public.zella_owner_onboarding_get('$BIZ') g")" "updated,false"
 expect "and step 3 can't finish on stale answers" "$(as $OWNER aal2 "select public.zella_owner_onboarding_complete_step('$BIZ', 'details')::text")" "ERR:SECTIONS_NOT_CONFIRMED|business"
-as $OWNER aal2 "select public.zella_owner_onboarding_section('$BIZ', 'business', 'looks_right') ->> 'changed'" > /dev/null
+SEEN=$(as $OWNER aal2 "select public.zella_owner_onboarding_get('$BIZ') #>> '{details,sections,0,data_hash}'")
+expect "Looks right on details the owner didn't see is refused" "$(as $OWNER aal2 "select public.zella_owner_onboarding_section('$BIZ', 'business', 'looks_right', null, md5('old details'))::text")" "ERR:DETAILS_CHANGED"
+expect "Looks right on the details shown (their fingerprint) is kept" "$(as $OWNER aal2 "select concat_ws(',', r ->> 'changed', r #>> '{state,details,sections,0,status}') from public.zella_owner_onboarding_section('$BIZ', 'business', 'looks_right', null, '$SEEN') r")" "true,looks_right"
 expect "step 3 completes once every section looks right" "$(as $OWNER aal2 "select concat_ws(',', r ->> 'changed', r #>> '{state,current_step}') from public.zella_owner_onboarding_complete_step('$BIZ', 'details') r")" "true,identity"
 expect "answers after step 3 are closed" "$(as $OWNER aal2 "select public.zella_owner_onboarding_section('$BIZ', 'team', 'change', 'late')::text")" "ERR:STEP_CLOSED"
 
@@ -229,6 +231,14 @@ expect "accepting the current version completes step 5" "$(as $OWNER aal2 "selec
 expect "accepting it again changes nothing" "$(as $OWNER aal2 "select public.zella_owner_onboarding_plan_accept('$BIZ', 2) ->> 'changed'")" "false"
 expect "the acceptance is audited with the price" "$(q "select concat_ws(',', coalesce(old_data ->> 'accepted_version', 'none'), new_data ->> 'accepted_version', new_data ->> 'price_cents') from public.audit_logs where business_id = '$BIZ' and action = 'onboarding.plan_accepted'")" "none,2,12900"
 
+# a new plan version saved after the owner accepted: the steps after the plan wait until the owner accepts it
+plan 3 13900
+expect "a new version after acceptance: not accepted" "$(as $OWNER aal2 "select public.zella_owner_onboarding_get('$BIZ') #>> '{plan,accepted}'")" "false"
+expect "the version accepted earlier can't be accepted again" "$(as $OWNER aal2 "select public.zella_owner_onboarding_plan_accept('$BIZ', 1)::text")" "ERR:PLAN_CHANGED"
+expect "the owner accepts the new version, staying on step 6" "$(as $OWNER aal2 "select concat_ws(',', r ->> 'changed', r #>> '{state,current_step}', r #>> '{state,plan,accepted_version}', r #>> '{state,plan,accepted}') from public.zella_owner_onboarding_plan_accept('$BIZ', 3) r")" "true,payment,3,true"
+expect "the new acceptance is audited" "$(q "select string_agg(new_data ->> 'accepted_version', ',' order by created_at) from public.audit_logs where business_id = '$BIZ' and action = 'onboarding.plan_accepted'")" "2,3"
+plan 4 14900
+
 # ---- step 6 and the go live gate ----
 expect "step 6 waits for a confirmed payment" "$(as $OWNER aal2 "select public.zella_owner_onboarding_complete_step('$BIZ', 'payment')::text")" "ERR:PAYMENT_NOT_CONFIRMED"
 gate() { as $OWNER aal2 "select concat_ws(',', r ->> 'ready', (select string_agg(c ->> 'key', '+') from jsonb_array_elements(r -> 'checks') c where not (c ->> 'ok')::boolean)) from public.zella_activation_report('$BIZ') r"; }
@@ -239,6 +249,10 @@ q "insert into public.payments (business_id, amount, currency, status, provider,
 expect "a pending payment, or one with no provider, doesn't count" "$(gate)" "false,payment"
 q "insert into public.payments (business_id, amount, currency, status, provider, paid_at) values ('$BIZ', 129, 'usd', 'succeeded', 'stripe', now())" > /dev/null
 expect "a confirmed payment: every check passes" "$(gate)" "true"
+expect "step 6 can't finish while a newer plan isn't accepted" "$(as $OWNER aal2 "select public.zella_owner_onboarding_complete_step('$BIZ', 'payment')::text")" "ERR:PLAN_CHANGED"
+as $OWNER aal2 "select public.zella_owner_onboarding_plan_accept('$BIZ', 4) ->> 'changed'" > /dev/null
+expect "staff see the go live checks without the owner's identity and payment results" "$(as $STAFF aal2 "select concat_ws(',', r ->> 'ready', (select count(*) from jsonb_array_elements(r -> 'checks') c where c ->> 'key' in ('identity', 'payment')))  from public.zella_activation_report('$BIZ') r")" "true,0"
+expect "the owner sees them" "$(as $OWNER aal2 "select count(*) from jsonb_array_elements(public.zella_activation_report('$BIZ') -> 'checks') c where c ->> 'key' in ('identity', 'payment')")" "2"
 expect "step 6 completes, then step 7" "$(as $OWNER aal2 "select public.zella_owner_onboarding_complete_step('$BIZ', 'payment') #>> '{state,current_step}'"),$(as $OWNER aal2 "select concat_ws(',', r #>> '{state,current_step}', (r #>> '{state,completed_at}') is not null) from public.zella_owner_onboarding_complete_step('$BIZ', 'done') r")" "done,done,t"
 expect "every step is done" "$(as $OWNER aal2 "select string_agg(s ->> 'state', ',') from jsonb_array_elements(public.zella_owner_onboarding_get('$BIZ') -> 'steps') s")" "done,done,done,done,done,done,done"
 expect "staff can't switch it live" "$(as $STAFF aal2 "select public.zella_request_activation('$BIZ')::text")" "ERR:NOT_ALLOWED"

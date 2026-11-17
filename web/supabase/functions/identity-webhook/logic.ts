@@ -56,8 +56,11 @@ const iso = (v: unknown) => { const s = str(v, 40); if (!s) return null; const d
 // Persona: { data: { type: "event", id, attributes: { name: "inquiry.approved", "created-at", payload: { data: { type:
 // "inquiry", id, attributes: { status, "reference-id" } } } } } }. Shape from Persona's public documentation; check it
 // against a sandbox event before switching on.
+// Only the decision counts as a failed check: Persona can send inquiry.failed and then inquiry.declined for the same
+// inquiry, and counting both would use two of the owner's tries for one failed check. So "failed" waits (pending) and
+// "declined" is the one countable event. Check this against the provider's sandbox before switching the receiver on.
 const PERSONA_STATUS: Record<string, Outcome> = {
-  approved: "approved", declined: "declined", failed: "declined", needs_review: "needs_review", "needs-review": "needs_review",
+  approved: "approved", declined: "declined", failed: "pending", needs_review: "needs_review", "needs-review": "needs_review",
   completed: "pending", pending: "pending", created: "pending", expired: "other",
 };
 export const persona: IdentityProvider = {

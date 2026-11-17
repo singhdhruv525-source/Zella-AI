@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Icon } from "../BusinessUI";
-import { Actions, EmptyNote, ErrorText, useAction } from "./kit";
+import { Actions, EmptyNote, ErrorText, useAction, useLatest } from "./kit";
 import { allowance, billingPeriod, errorCode, errorWords, languageWords, money, paymentState, tierName } from "./steps";
 
 // Screens 5 to 7: Your plan, Pay, and You're all set.
@@ -71,11 +71,15 @@ export function PaymentScreen({ api, state, onState, onComplete }) {
   const [checking, setChecking] = useState(false);
   const [problem, setProblem] = useState("");
   const action = useAction();
+  const reads = useLatest();
   async function refresh() {
+    const ticket = reads.start();
     setChecking(true);
-    try { const fresh = await api.paymentStatus(state.business_id); onState((s) => ({ ...s, payment: fresh })); setProblem(""); }
-    catch (err) { setProblem(errorWords(err)); }
-    finally { setChecking(false); }
+    try {
+      const fresh = await api.paymentStatus(state.business_id);
+      if (reads.isLatest(ticket)) { onState((s) => ({ ...s, payment: fresh })); setProblem(""); }
+    } catch (err) { if (reads.isLatest(ticket)) setProblem(errorWords(err)); }
+    finally { if (reads.isLatest(ticket)) setChecking(false); }
   }
   // while waiting, look again once a minute while the page is in view
   useEffect(() => {

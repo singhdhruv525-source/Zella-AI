@@ -15,7 +15,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { asObject, readJsonLimited } from "../_shared/body.ts";
 import { withCors } from "../_shared/cors.ts";
-import { DOCUMENT_BUCKET, dbCode, ERRORS, failure, pathBelongs, readUpload, tokenFrom, uploadPath } from "./logic.ts";
+import { DOCUMENT_BUCKET, dbCode, ERRORS, failure, matchesType, pathBelongs, readUpload, SIGNATURE_BYTES, tokenFrom, uploadPath } from "./logic.ts";
 
 const TIMEOUT_MS = 10_000;   // BE-3: every outbound call has a time limit
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -59,16 +59,23 @@ export async function route(req: Request): Promise<Response> {
     return json({ path, token });
   }
 
-  // 2. confirm: the path must be one this function hands out for this business, kind and type, and the stored file
-  // must match what the screen said (the bucket itself also limits size and type)
+  // 2. confirm: the path must be one this function hands out for this business, kind and type, the stored file must
+  // match what the screen said, and its first bytes must be those of that file type (the size and type the storage
+  // keeps come from the upload itself, so they alone prove nothing about the content)
   if (!pathBelongs(body.path, u)) return fail("INVALID_INPUT");
   const folder = `${u.businessId}/${u.kind}`, name = body.path.slice(folder.length + 1);
   const list = await call(`/storage/v1/object/list/${DOCUMENT_BUCKET}`, asServer, { prefix: folder, search: name, limit: 10, offset: 0 });
   const found = list.ok ? await answer(list) : null;
-  const stored = Array.isArray(found) ? found.find((o) => o?.name === name) : null;
+  if (!Array.isArray(found)) return fail("SERVER_ERROR");   // storage didn't answer: never "not uploaded"
+  const stored = found.find((o) => o?.name === name);
   if (!stored) return fail("INVALID_INPUT", "The file didn't finish uploading. Try again.");
   const size = stored.metadata?.size, mime = stored.metadata?.mimetype;
   if (size !== u.size || mime !== u.mimeType) return fail("INVALID_INPUT", "The file didn't upload correctly. Try again.");
+  const head = await fetch(`${base}/storage/v1/object/${DOCUMENT_BUCKET}/${body.path}`, {
+    headers: { ...asServer, Range: `bytes=0-${SIGNATURE_BYTES - 1}` }, signal: AbortSignal.timeout(TIMEOUT_MS) });
+  if (!head.ok) return fail("SERVER_ERROR");
+  const bytes = new Uint8Array(await head.arrayBuffer()).slice(0, SIGNATURE_BYTES);
+  if (!matchesType(bytes, u.mimeType)) return fail("INVALID_INPUT", "That file isn't a PDF or a photo. Upload your document as a PDF, JPG, PNG, WEBP or HEIC file.");
 
   const add = await call("/rest/v1/rpc/zella_owner_identity_document_add", asServer, {
     p_business_id: u.businessId, p_user: userId, p_kind: u.kind, p_path: body.path, p_file_name: u.fileName, p_mime: u.mimeType, p_size: u.size,
