@@ -13,12 +13,12 @@ It reads the catalog only, never rows.
 
 | What | Count |
 |---|---|
-| Tables (schema `public`) | 175 |
-| Tables with row security on | 175 of 175 |
-| Row security policies | 344 |
-| Columns | 2070 |
+| Tables (schema `public`) | 176 |
+| Tables with row security on | 176 of 176 |
+| Row security policies | 346 |
+| Columns | 2076 |
 | Views | 1 |
-| Functions | 917 (849 security definer, 26 callable by `anon`) |
+| Functions | 921 (852 security definer, 26 callable by `anon`) |
 
 Rules every table follows:
 
@@ -72,7 +72,7 @@ Each is a database job; most stay off until the owner approves going live (see `
 - [Automations and background work](#automations-and-background-work): `automations`, `automation_runs`, `automation_events`, `automation_dead_letters`, `workflow_executions`, `n8n_dispatch_state`, `integrations`, `integration_secrets`, `provider_health`
 - [Offers, reviews and growth](#offers-reviews-and-growth): `offers`, `offer_rules`, `offer_redemptions`, `offer_events`, `offer_job_runs`, `cross_sell_rules`, `review_sources`, `reviews`
 - [Billing and usage](#billing-and-usage): `plans`, `business_plans`, `billing_pack_catalog`, `billing_periods`, `allowance_buckets`, `pack_purchases`, `usage_charges`, `auto_reload_settings`, `subscriptions`, `payments`, `billing_events`, `usage_records`, `usage_thresholds`, `usage_threshold_events`, `usage_processing_issues`, `voice_pricing`
-- [Notifications, reports and support](#notifications-reports-and-support): `notifications`, `notification_preferences`, `staff_notifications`, `admin_alert_prefs`, `platform_alerts`, `platform_incidents`, `business_report_schedules`, `business_report_runs`, `support_tickets`, `support_ticket_notes`, `support_ticket_messages`
+- [Notifications, reports and support](#notifications-reports-and-support): `notifications`, `notification_preferences`, `staff_notifications`, `admin_alert_prefs`, `platform_alerts`, `platform_incidents`, `platform_incident_updates`, `business_report_schedules`, `business_report_runs`, `support_tickets`, `support_ticket_notes`, `support_ticket_messages`
 - [Functions](#functions)
 
 ## Tenancy, people and access
@@ -4206,6 +4206,23 @@ Incidents shown on the public status page.
 - Row security: on; policies: platform_incidents_admin (select), platform_incidents_admin_view (select), zella_mfa_required (all).
 - Triggers: `zella_audit_admin_incident`.
 
+### `platform_incident_updates`
+
+Progress notes on an incident (internal; owners are told only when the admin asks).
+
+| Column | Type | Required | Default |
+|---|---|---|---|
+| `id` | uuid | yes | gen_random_uuid() |
+| `incident_id` | uuid | yes |  |
+| `body` | text | yes |  |
+| `notified_businesses` | integer | yes | 0 |
+| `created_by` | uuid |  |  |
+| `created_at` | timestamp with time zone | yes | now() |
+
+- Primary key: `id`.
+- `incident_id` → `public.platform_incidents` (on delete cascade).
+- Row security: on; policies: platform_incident_updates_admin_view (select), zella_mfa_required (all).
+
 ### `business_report_schedules`
 
 Which reports a business gets and when.
@@ -4818,6 +4835,14 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_inbox_reply(p_conversation_id uuid, p_body text, p_subject text)` | text | yes | signed in |
 | `zella_inbox_update(p_conversation_id uuid, p_assign_to uuid, p_priority text, p_status text, p_unassign boolean)` | boolean | yes | signed in |
 
+### `zella_incident_*` (3)
+
+| Function | Returns | SD | Who may call |
+|---|---|---|---|
+| `zella_incident_edit(p_incident uuid, p_title text, p_detail text)` | boolean | yes | signed in |
+| `zella_incident_post_update(p_incident uuid, p_body text, p_notify boolean)` | jsonb | yes | signed in |
+| `zella_incident_title_key(p text)` | text |  | signed in |
+
 ### `zella_industry_*` (6)
 
 | Function | Returns | SD | Who may call |
@@ -4982,6 +5007,14 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_on_call_save(p_business_id uuid, p_shift jsonb)` | uuid | yes | signed in |
 | `zella_on_call_settings_save(p_business_id uuid, p_enabled boolean, p_scope text)` | boolean | yes | signed in |
 | `zella_on_call_status()` | jsonb | yes | server only |
+
+### `zella_open_*` (3)
+
+| Function | Returns | SD | Who may call |
+|---|---|---|---|
+| `zella_open_incident(p_title text, p_detail text)` | uuid | yes | signed in |
+| `zella_open_incident_checked(p_title text, p_detail text, p_force boolean)` | jsonb | yes | signed in |
+| `zella_open_workload(p_business_id uuid, p_user_id uuid)` | integer | yes | server only |
 
 ### `zella_other_*` (13)
 
@@ -5503,7 +5536,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_setting(p_key text, p_default jsonb)` | jsonb | yes | server only |
 | `zella_tables(p_business_id uuid)` | jsonb | yes | signed in |
 
-### Smaller groups and older helpers (192)
+### Smaller groups and older helpers (190)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -5607,8 +5640,6 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_notify_message_failures()` | integer | yes | server only |
 | `zella_notify_owners(p_business_id uuid, p_kind text, p_title text, p_body text, p_severity text, p_page_key text)` | void | yes | server only |
 | `zella_offboard_member(p_business_id uuid, p_user_id uuid, p_reassign_to uuid)` | jsonb | yes | signed in |
-| `zella_open_incident(p_title text, p_detail text)` | uuid | yes | signed in |
-| `zella_open_workload(p_business_id uuid, p_user_id uuid)` | integer | yes | server only |
 | `zella_order_lookup_report(p_business_id uuid, p_days integer)` | jsonb | yes | signed in |
 | `zella_owner_continue_plan(p_business_id uuid)` | boolean | yes | signed in |
 | `zella_owner_rules_prompt(p_business_id uuid, p_part text)` | text | yes | server only |
