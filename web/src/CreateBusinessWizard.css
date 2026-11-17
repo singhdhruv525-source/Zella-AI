@@ -16,8 +16,7 @@
 .wiz-header h1 {
   margin: 0;
   font-size: clamp(23px, 2vw, 29px);
-  font-weight: 750;
-  letter-spacing: -0.8px;
+  font-weight: 600;
 }
 
 .wiz-header p {
@@ -361,7 +360,7 @@
   background: var(--bg-surface-alt);
   color: var(--text-muted);
   font-size: 10px;
-  font-weight: 750;
+  font-weight: 600;
   letter-spacing: 0.65px;
   text-transform: uppercase;
 }
@@ -407,7 +406,7 @@
   margin-bottom: 12px;
   color: var(--text-muted);
   font-size: 10px;
-  font-weight: 750;
+  font-weight: 600;
   letter-spacing: 1px;
   text-transform: uppercase;
 }
@@ -712,7 +711,7 @@
   place-items: center;
   border-radius: var(--radius-full);
   font-size: 12px;
-  font-weight: 750;
+  font-weight: 600;
 }
 
 .wiz-review-dot.ok {
@@ -790,7 +789,7 @@
   background: var(--status-success-bg);
   color: var(--status-success);
   font-size: 20px;
-  font-weight: 750;
+  font-weight: 600;
 }
 
 .wiz-done-icon.warn {

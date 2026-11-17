@@ -37,7 +37,7 @@ do $$
 declare
   s text; d text;
   known constant jsonb := jsonb_build_object(
-    'public.zella_activation_report(uuid)',   jsonb_build_array('65d1ba6e6671bbfe2fc1b2ea304475d8', 'c66daff16bc3b13d5ff33542c1f43277'),
+    'public.zella_activation_report(uuid)',   jsonb_build_array('65d1ba6e6671bbfe2fc1b2ea304475d8', '116b8c18e69fb905354b7f18bef88e19'),
     'public.zella_request_activation(uuid)',  jsonb_build_array('0db1467ab6c0c6cba7bc300bbb5946f5', '41ab61c937ec1fd0b05b7fbd91b8353f'));
 begin
   if to_regclass('public.zella_function_archive') is null or to_regclass('public.business_plans') is null
@@ -369,7 +369,7 @@ begin
                      else r.status end;
     v_all := v_all and v_status = 'looks_right';
     v_out := v_out || jsonb_build_array(jsonb_build_object('key', k, 'status', v_status, 'note', r.note, 'admin_note', r.admin_note,
-                                                           'answered_at', r.answered_at, 'data', v_data));
+                                                           'answered_at', r.answered_at, 'data', v_data, 'data_hash', md5(v_data::text)));
   end loop;
   return jsonb_build_object('sections', v_out, 'all_looks_right', v_all);
 end $$;
@@ -438,6 +438,11 @@ create or replace function public.zella_onboarding_advance(p_business_id uuid, p
 returns void language plpgsql security definer set search_path = public as $$
 declare keys constant text[] := public.zella_onboarding_step_keys(); v_next text;
 begin
+  -- the steps after the plan need the plan's current version accepted (a new version saved later must be accepted first)
+  if array_position(keys, p_step) > array_position(keys, 'plan')
+     and not (public.zella_onboarding_plan(p_business_id) ->> 'accepted')::boolean then
+    raise exception 'PLAN_CHANGED';
+  end if;
   v_next := keys[array_position(keys, p_step) + 1];
   update public.owner_onboarding_steps set completed_at = now(), completed_by = p_user
    where business_id = p_business_id and step = p_step and completed_at is null;
@@ -539,7 +544,11 @@ begin
   return jsonb_build_object('changed', true, 'state', public.zella_onboarding_state(p_business_id));
 end $$;
 
-create or replace function public.zella_owner_onboarding_section(p_business_id uuid, p_section text, p_decision text, p_note text default null)
+-- p_seen_hash: the section's data_hash the owner was shown. Looks right is refused (DETAILS_CHANGED) when the details
+-- changed since, so the owner never confirms details they didn't see.
+drop function if exists public.zella_owner_onboarding_section(uuid, text, text, text);
+create or replace function public.zella_owner_onboarding_section(p_business_id uuid, p_section text, p_decision text, p_note text default null,
+  p_seen_hash text default null)
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare o public.owner_onboarding; r record; v_note text := nullif(btrim(coalesce(p_note, '')), ''); v_hash text; v_name text;
   labels constant jsonb := '{"business": "Business details", "hours_services": "Hours and services", "team": "Team", "receptionist_phone": "AI receptionist and phone"}';
@@ -561,6 +570,7 @@ begin
   v_hash := md5(public.zella_onboarding_section_data(p_business_id, p_section)::text);
 
   if p_decision = 'looks_right' then
+    if p_seen_hash is not null and p_seen_hash <> v_hash then raise exception 'DETAILS_CHANGED'; end if;
     if r.status = 'looks_right' and r.confirmed_hash = v_hash then
       return jsonb_build_object('changed', false, 'state', public.zella_onboarding_state(p_business_id));
     end if;
@@ -605,7 +615,16 @@ begin
     if o.plan_accepted_version = p_plan_version then
       return jsonb_build_object('changed', false, 'state', public.zella_onboarding_state(p_business_id));
     end if;
-    raise exception 'STEP_CLOSED';
+    -- Zella Voice saved a new version after the owner accepted: the owner accepts the current one (never an old one)
+    if o.completed_at is not null then raise exception 'STEP_CLOSED'; end if;
+    if p.id is null then raise exception 'PLAN_MISSING'; end if;
+    if p.version <> p_plan_version then raise exception 'PLAN_CHANGED'; end if;
+    update public.owner_onboarding set plan_accepted_version = p.version, plan_accepted_at = now(), updated_at = now() where business_id = p_business_id;
+    perform public.zella_onboarding_audit(p_business_id, auth.uid(), 'onboarding.plan_accepted',
+      jsonb_build_object('accepted_version', o.plan_accepted_version, 'current_step', o.current_step),
+      jsonb_build_object('accepted_version', p.version, 'tier', p.tier, 'billing_interval', p.billing_interval,
+                         'price_cents', p.price_cents, 'currency', p.currency, 'current_step', o.current_step));
+    return jsonb_build_object('changed', true, 'state', public.zella_onboarding_state(p_business_id));
   end if;
   if p.id is null then raise exception 'PLAN_MISSING'; end if;
   if p.version <> p_plan_version then raise exception 'PLAN_CHANGED'; end if;
@@ -878,10 +897,18 @@ CREATE OR REPLACE FUNCTION public.zella_activation_report(p_business_id uuid)
  SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
+declare v_rep jsonb;
 begin
   if auth.uid() is not null and not public.zella_is_member(p_business_id) then raise exception 'NOT_ALLOWED'; end if;
   -- the same checks as before, plus the owner onboarding gate (zella_activation_checks)
-  return public.zella_activation_checks(p_business_id);
+  v_rep := public.zella_activation_checks(p_business_id);
+  -- the owner's identity and payment results are for the owner and Zella Voice admins only (as onboarding progress is)
+  if auth.uid() is not null and not public.zella_admin_can('businesses.view') and not exists (
+       select 1 from public.business_members m where m.business_id = p_business_id and m.user_id = auth.uid() and m.role = 'owner' and m.status = 'active') then
+    v_rep := jsonb_set(v_rep, '{checks}', coalesce((select jsonb_agg(c order by i) from jsonb_array_elements(v_rep -> 'checks') with ordinality x(c, i)
+                                                     where c ->> 'key' not in ('identity', 'payment')), '[]'::jsonb));
+  end if;
+  return v_rep;
 end $function$;
 
 CREATE OR REPLACE FUNCTION public.zella_request_activation(p_business_id uuid)
@@ -928,7 +955,7 @@ begin
   foreach s in array array[
     'zella_owner_onboarding_list()', 'zella_owner_onboarding_get(uuid)', 'zella_owner_onboarding_identity_status(uuid)',
     'zella_owner_onboarding_payment_status(uuid)', 'zella_owner_onboarding_complete_step(uuid,text)',
-    'zella_owner_onboarding_section(uuid,text,text,text)', 'zella_owner_onboarding_plan_accept(uuid,integer)',
+    'zella_owner_onboarding_section(uuid,text,text,text,text)', 'zella_owner_onboarding_plan_accept(uuid,integer)',
     'zella_owner_onboarding_finish_later(uuid)', 'zella_owner_onboarding_resume(uuid)',
     'zella_owner_identity_upload_check(uuid,text)', 'zella_admin_onboarding_overview()',
     'zella_admin_onboarding_progress(uuid)', 'zella_admin_onboarding_change_done(uuid,text,text)'] loop

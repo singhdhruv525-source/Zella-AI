@@ -1,9 +1,10 @@
 import { supabase } from "../supabase";
 import { acceptInvitations as acceptAllInvitations } from "../BusinessAuth";
 import { finishMfaEnrollment, mfaStatus, startMfaEnrollment, verifyMfaCode } from "../mfa";
+import { rpcError } from "./steps";
 
 // The owner onboarding journey's server calls, one function per call, exactly as docs/OWNER_ONBOARDING_CONTRACT.md
-// (version 2) names them. The screens only ever talk to this module.
+// (version 3) names them. The screens only ever talk to this module.
 //
 // A call that isn't deployed yet comes back as PostgREST's "function not found" (PGRST202) or the edge function's 404;
 // the screens show "This step isn't ready yet" for those (steps.js isNotReady), never a crash.
@@ -15,10 +16,7 @@ import { finishMfaEnrollment, mfaStatus, startMfaEnrollment, verifyMfaCode } fro
 // from the request check that runs first, { code: "42501", message: "MFA_REQUIRED" } (contract §4, version 2).
 async function rpc(name, args) {
   const { data, error } = await supabase.rpc(name, args);
-  if (error) {
-    const fromMessage = /^[A-Z_]{3,40}$/.test(String(error.message ?? "")) ? error.message : null;
-    throw Object.assign(new Error(error.message || "Something went wrong."), { code: fromMessage ?? error.code, details: error.details ?? null, status: error.status });
-  }
+  if (error) throw rpcError(error);
   return data;
 }
 
@@ -62,7 +60,8 @@ export const realApi = {
   listBusinesses: () => rpc("zella_owner_onboarding_list"),
   getState: (businessId) => rpc("zella_owner_onboarding_get", { p_business_id: businessId }),
   completeStep: (businessId, step) => rpc("zella_owner_onboarding_complete_step", { p_business_id: businessId, p_step: step }),
-  answerSection: (businessId, section, decision, note = null) => rpc("zella_owner_onboarding_section", { p_business_id: businessId, p_section: section, p_decision: decision, p_note: note }),
+  // seenHash: the section's data_hash as shown, so Looks right never confirms details the owner didn't see (version 3)
+  answerSection: (businessId, section, decision, note = null, seenHash = null) => rpc("zella_owner_onboarding_section", { p_business_id: businessId, p_section: section, p_decision: decision, p_note: note, p_seen_hash: seenHash }),
   acceptPlan: (businessId, version) => rpc("zella_owner_onboarding_plan_accept", { p_business_id: businessId, p_plan_version: version }),
   identityStatus: (businessId) => rpc("zella_owner_onboarding_identity_status", { p_business_id: businessId }),
   paymentStatus: (businessId) => rpc("zella_owner_onboarding_payment_status", { p_business_id: businessId }),

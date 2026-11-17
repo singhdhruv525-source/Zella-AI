@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import {
   ERROR_WORDS, SCREENS, STEP_KEYS, allowance, canLeave, canOpen, detailsDone, errorCode, errorWords, identityPassed,
   identityState, isNotReady, languageWords, money, nextOpenSection, nextStep, paymentPassed, paymentState, phoneWords,
-  UNAVAILABLE, previousStep, progressFor, resumeStep, sectionRows, sectionState, securityPart, stateAfterResume, uploadKinds,
+  UNAVAILABLE, previousStep, progressFor, resumeStep, rpcError, sectionRows, sectionState, securityPart, stateAfterResume, uploadKinds,
 } from "../src/onboarding/steps.js";
 import { createFakeApi } from "../src/onboarding/fakeApi.js";
 
@@ -325,4 +325,29 @@ test("Carry on now shows the server's state, never the stale one", async () => {
   const bothFail = await stateAfterResume(api(() => { throw new Error("down"); }, () => { throw new Error("down"); }), "b1");
   assert.equal(bothFail, null);
   assert.equal(await stateAfterResume(api(() => ({ changed: false }), () => null), "b1"), null);
+});
+
+// Contract version 3: a plan version saved after acceptance sends the owner back to the plan; database errors that
+// aren't the contract's never reach the screen as raw text, and an ended session asks to sign in again.
+test("a newer plan after acceptance: the journey shows the plan again", () => {
+  const st = { current_step: "payment", plan: { available: true, accepted: false } };
+  assert.equal(resumeStep(st), "plan");
+  assert.equal(resumeStep({ ...st, plan: { available: true, accepted: true } }), "payment");
+  assert.equal(resumeStep({ ...st, completed_at: "2026-11-17T00:00:00Z" }), "done");
+  assert.equal(resumeStep({ current_step: "identity", plan: { available: true, accepted: false } }), "identity");
+});
+
+test("database errors: contract codes kept, raw text replaced, an ended session asks to sign in", () => {
+  const known = rpcError({ code: "P0001", message: "DETAILS_CHANGED", details: null });
+  assert.equal(errorCode(known), "DETAILS_CHANGED");
+  assert.equal(errorWords(known), "These details were just updated. Please check them again.");
+  const raw = rpcError({ code: "42501", message: "permission denied for function zella_owner_onboarding_get" });
+  assert.equal(raw.message, "Something went wrong. Please try again.");
+  assert.equal(raw.rawMessage, "permission denied for function zella_owner_onboarding_get");
+  assert.doesNotMatch(errorWords(raw), /zella|permission/);
+  const ended = rpcError({ code: "PGRST301", message: "JWT expired" });
+  assert.equal(errorWords(ended), "Please sign in again.");
+  assert.equal(isNotReady(rpcError({ code: "PGRST202", message: "Could not find the function public.x" })), true);
+  assert.match(errorWords(rpcError({ message: "TypeError: Failed to fetch" })), /couldn't reach Zella Voice/);
+  assert.equal(errorCode(rpcError({ code: "42501", message: "MFA_REQUIRED" })), "MFA_REQUIRED");
 });

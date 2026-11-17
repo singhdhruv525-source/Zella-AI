@@ -164,6 +164,15 @@ expect("4. the other owner can't get an upload link", (await fn(other, { action:
 expect("4. staff can't either", (await fn(staff, { action: "identity_upload_url", businessId: BIZ, kind: "owner_identity", fileName: "x.jpg", mimeType: "image/jpeg", size: 10 })).json.code, "NOT_ALLOWED");
 expect("4. nor anonymous", (await call("POST", "/functions/v1/owner-onboarding", null, { action: "identity_upload_url", businessId: BIZ })).status, 401);
 expect("4. a link isn't a key to the bucket", (await call("POST", "/storage/v1/object/upload/sign/business-documents/" + BIZ + "/owner_identity/x.jpg", owner, {})).status, 403);
+expect("4. the private bucket refuses an unsigned upload", (await call("PUT", `/storage/v1/object/business-documents/${BIZ}/owner_identity/x.jpg`, owner, jpg, { "Content-Type": "image/jpeg" })).status, 403);
+expect("4. and an unsigned read", (await call("GET", `/storage/v1/object/business-documents/${BIZ}/owner_identity/x.jpg`, owner)).status, 400);
+{
+  const fake = new TextEncoder().encode("MZ this is not a photo");
+  const meta = { businessId: BIZ, kind: "owner_identity", fileName: "fake.jpg", mimeType: "image/jpeg", size: fake.length };
+  const link = await fn(owner, { action: "identity_upload_url", ...meta });
+  await call("PUT", `/storage/v1/object/upload/sign/business-documents/${link.json.path}?token=${link.json.token}`, null, fake, { "Content-Type": "image/jpeg" });
+  expect("4. a file that only says it is a photo is refused", (await fn(owner, { action: "identity_upload_confirm", ...meta, path: link.json.path })).json.code, "INVALID_INPUT");
+}
 expect("4. first document: still needed", (await uploadDoc(owner, "owner_identity")).json.identity?.status, "needed");
 expect("4. both documents: checking", (await uploadDoc(owner, "business_registration")).json.identity?.status, "checking");
 expect("4. a third upload while checking is refused", (await uploadDoc(owner, "owner_identity")).json.code, "UPLOAD_NOT_ALLOWED");

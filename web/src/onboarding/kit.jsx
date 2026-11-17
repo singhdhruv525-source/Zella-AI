@@ -59,6 +59,13 @@ export function useAction() {
   return { busy, error, setError, run, get lastError() { return last.current; } };
 }
 
+// Several reads of the same status can overlap (a timer and Check again): start() numbers each one, and only the
+// latest one's answer may be shown, so an older answer that arrives last never overwrites a newer one.
+export function useLatest() {
+  const n = useRef(0);
+  return { start: () => ++n.current, isLatest: (ticket) => ticket === n.current };
+}
+
 export function ErrorText({ children }) {
   return children ? <p className="ba-error" role="alert">{children}</p> : null;
 }

@@ -20,7 +20,10 @@ const isStep = (k) => STEP_KEYS.includes(k);
 // so this is also where Finish later comes back to.
 export function resumeStep(state) {
   if (state?.completed_at) return "done";
-  return isStep(state?.current_step) ? state.current_step : "welcome";
+  const step = isStep(state?.current_step) ? state.current_step : "welcome";
+  // a new plan version saved after the owner accepted (contract version 3): back to the plan, which must be accepted again
+  if (["payment", "done"].includes(step) && state?.plan?.available === true && state.plan.accepted === false) return "plan";
+  return step;
 }
 
 // Which steps the owner may open: those the server marks done, and the current one. Later ones are locked.
@@ -155,6 +158,7 @@ export const ERROR_WORDS = {
   UPLOAD_NOT_ALLOWED: "We already have your documents.",
   PLAN_MISSING: "Your plan isn't ready yet. Zella Voice will be in touch.",
   PLAN_CHANGED: "Your plan was just updated. Please review it again.",
+  DETAILS_CHANGED: "These details were just updated. Please check them again.",
   PAYMENT_NOT_CONFIRMED: "We haven't received a payment yet.",
   PAYMENTS_NOT_LIVE: "Payments aren't switched on yet. Nothing has been charged.",
   ALREADY_PAID: "Your payment is already confirmed.",
@@ -169,6 +173,20 @@ export function errorCode(error) {
   const m = String(error.message ?? "").trim();
   return ERROR_WORDS[m] ? m : null;
 }
+// A database call's error as the screens get it (contract §4): the code from the message (P0001 or the request check),
+// an expired session as NOT_SIGNED_IN, and for anything else safe words only, never the database's own text (which can
+// name tables or functions). The original text is kept in rawMessage for logs. "Not deployed yet" (PGRST202) and
+// network failures keep their text, so isNotReady and errorWords can still tell them apart.
+const SESSION_ENDED = new Set(["PGRST301", "PGRST303"]);
+export function rpcError(error) {
+  const raw = String(error?.message ?? "");
+  const fromMessage = /^[A-Z_]{3,40}$/.test(raw) ? raw : null;
+  const code = fromMessage ?? (SESSION_ENDED.has(error?.code) ? "NOT_SIGNED_IN" : error?.code);
+  const keep = fromMessage || code === "PGRST202" || /fetch|network|failed to load|load failed/i.test(raw);
+  const message = code === "NOT_SIGNED_IN" && !fromMessage ? "NOT_SIGNED_IN" : keep ? raw : "Something went wrong. Please try again.";
+  return Object.assign(new Error(message), { code, details: error?.details ?? null, status: error?.status, rawMessage: raw });
+}
+
 export function errorWords(error) {
   const code = errorCode(error);
   if (code === "NOTE_REQUIRED" && /too_long/.test(String(error?.details ?? ""))) return "Keep the note under 1000 characters.";
