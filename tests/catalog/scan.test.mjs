@@ -180,5 +180,11 @@ test("review fixes 2: parenthesised branches are values, named types are not", (
   assert.deepEqual(jsValueBranches(`r.ok ? ("a.b") : (other)`), ["S", "other"]);
   assert.deepEqual(names(tsAuditActions(`const e = { action: (r.ok ? "plan.created" : "plan.updated") };`)), ["plan.created", "plan.updated"]);
   assert.deepEqual(names(tsAuditActions(`type RequestAction = "lookup" | "start"; function handle(action: RequestAction) {} type T = { action: Action[] };`)), []);
-  assert.deepEqual(names(tsAuditActions(`const e = { action: (next) };`)), ["?(next)"]);
+  assert.deepEqual(names(tsAuditActions(`const e = { action: (next) };`)), ["?(next)"]);});
+
+test("review fixes 3: a PascalCase value in an object literal is a value, not a type", () => {
+  assert.deepEqual(names(tsAuditActions(`const NextAction = "plan.new"; const e = { action: NextAction, entity_type: "plan" };`)), ["?NextAction"]);
+  assert.deepEqual(names(tsAuditActions(`await audit({ action: NextAction }); const z = { entry: { action: Other } };`)), ["?NextAction", "?Other"]);
+  assert.deepEqual(names(tsAuditActions(`interface I { action: Foo; } const f = (p: { action: Foo }) => p; const x: { action: Foo } = y;`)), []);
+  assert.deepEqual(names(tsAuditActions(`const g = async (n: number, action: Foo): Promise<void> => {}; function h(): { action: Foo } { return y; }`)), []);
 });
