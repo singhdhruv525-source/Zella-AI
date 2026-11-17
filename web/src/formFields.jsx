@@ -161,7 +161,7 @@ export function TimeZoneSelect({ value, onChange, disabled = false, id, label = 
       <input
         type="search"
         className="ff-tz-search"
-        placeholder={`Search ${count} time zones, like Kolkata or +05:30`}
+        placeholder={`Search ${count} time zones, like Chicago`}
         value={query}
         disabled={disabled}
         aria-label="Search time zones"
