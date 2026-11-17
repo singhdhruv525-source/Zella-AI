@@ -3,6 +3,7 @@ import { supabase } from "../supabase";
 import { navigate } from "../router";
 import { callOwnerFunction } from "../CreateBusinessWizard";
 import { TimeZoneSelect } from "../formFields";
+import { switchHint } from "../copy/liveSwitches";
 import { uploadImage } from "./PersonalPanels";
 import { Banner, Card, Confirm, Empty, Facts, Field, LinkRows, LoadState, Needs, Pill, SaveBar, Table, Toggle, money, useAsync, useForm, when, words } from "./SettingsKit";
 import { settingLabel } from "../copy/settingLabels";
@@ -757,9 +758,9 @@ export function TelephonyProviders() {
         <>
           <Card title="Providers">
             <Facts rows={[["Telnyx (numbers, texts)", n.telnyx ? "Key configured" : "Key not set"], ["Vapi (AI voice)", n.vapi ? "Key configured" : "Key not set"],
-              ["Numbers in Zella Voice", n.rows.length], ["Outbound calls", val("calls_live") === true ? "On" : "Off (calls_live)"], ["Inbound routing", "Vapi answers each assigned number with that business's receptionist"]]} />
+              ["Numbers in Zella Voice", n.rows.length], ["Outbound calls", <span key="c" title={switchHint("calls_live")}>{val("calls_live") === true ? "On" : "Off until go live"}</span>], ["Inbound routing", "Vapi answers each assigned number with that business's receptionist"]]} />
           </Card>
-          <Needs title="Buying numbers and provider error logs aren't built" have="Numbers bought in Telnyx/Vapi are assigned to businesses under Phone numbers.">
+          <Needs title="Buying numbers and provider error logs aren't built" have="Numbers bought in Telnyx or Vapi are assigned to businesses under Numbers.">
             Ordering numbers and reading provider errors need the Telnyx and Vapi APIs from a server action.
           </Needs>
         </>
@@ -804,19 +805,36 @@ export function PhoneNumbers({ me }) {
   );
 }
 
+// The businesses with the most AI calls come first; the rest are one click away (UI-18).
+const USAGE_TOP = 20;
 export function VoiceUsage() {
   const [range, setRange] = useState(30);
+  const [all, setAll] = useState(false);
   const state = useAsync(() => call("usage_summary", { from: new Date(Date.now() - range * 86400000).toISOString() }), [range]);
   return (
     <Card title="AI voice usage" sub="From recorded calls answered by the AI. Costs are estimates from the pricing inputs (Voice cost configuration), not provider charges.">
-      <Field label="Period"><select value={range} onChange={(e) => setRange(Number(e.target.value))}>{[7, 30, 90].map((d) => <option key={d} value={d}>Last {d} days</option>)}</select></Field>
+      <Field label="Period" fit><select value={range} onChange={(e) => { setAll(false); setRange(Number(e.target.value)); }}>{[7, 30, 90].map((d) => <option key={d} value={d}>Last {d} days</option>)}</select></Field>
       <LoadState state={state}>{(u) => (
         <>
           <Facts rows={[["Calls", u.voice.calls], ["Minutes", u.voice.minutes], ["Estimated cost", u.voice.priced ? moneyMap(u.voice.estimated_cost) : "No pricing inputs yet"],
             ["Provider reported usage", u.providerReportedAvailable ? Object.entries(u.providerReported).map(([k, v]) => `${words(k)}: ${v}`).join(", ") : "Not available yet"],
             ["Reconciliation", u.providerReportedAvailable ? "Compare the two figures above" : "Needs provider reported usage"]]} />
           <h3 style={{ fontSize: 14, margin: "14px 0 6px" }}>By business</h3>
-          <Table rowKey={(b) => b.business_id} rows={u.voice.by_business} empty="No AI calls in this period." columns={[["Business", (b) => b.name], ["Calls", (b) => b.calls], ["Minutes", (b) => b.minutes]]} />
+          {(() => {
+            const rows = [...(u.voice.by_business ?? [])].sort((a, b) => (Number(b.calls) || 0) - (Number(a.calls) || 0) || (Number(b.minutes) || 0) - (Number(a.minutes) || 0));
+            const more = rows.length > USAGE_TOP;
+            return (
+              <>
+                <Table rowKey={(b) => b.business_id} rows={all ? rows : rows.slice(0, USAGE_TOP)} empty="No AI calls in this period." columns={[["Business", (b) => b.name], ["Calls", (b) => b.calls], ["Minutes", (b) => b.minutes]]} />
+                {more && (
+                  <div className="zs-table-more">
+                    <span className="zs-muted">{all ? `All ${rows.length} businesses` : `Top ${USAGE_TOP} of ${rows.length} businesses, by calls`}</span>
+                    <button type="button" className="zs-btn sm" aria-expanded={all} onClick={() => setAll(!all)}>{all ? `Show top ${USAGE_TOP}` : `See all ${rows.length}`}</button>
+                  </div>
+                )}
+              </>
+            );
+          })()}
           <h3 style={{ fontSize: 14, margin: "14px 0 6px" }}>Estimated by provider</h3>
           <Table rowKey={(p) => p.provider + p.currency} rows={u.voice.by_provider} empty="No priced usage." columns={[["Provider", (p) => words(p.provider)], ["Estimated", (p) => money(p.estimated_cost, p.currency)]]} />
         </>
@@ -878,7 +896,7 @@ export function SmsConfig({ me }) {
     <LoadState state={state}>{(c) => (
       <>
         <Card title="Text messages">
-          <Facts rows={[["Provider", `${c.sms.provider}${c.sms.configured ? " (key configured)" : " (key not set)"}`], ["Sending", c.sms.live ? "On" : "Off (sms_live)"], ["Sender number", c.sms.from || "Not set"],
+          <Facts rows={[["Provider", `${c.sms.provider}${c.sms.configured ? " (key configured)" : " (key not set)"}`], ["Sending", <span key="l" title={switchHint("sms_live")}>{c.sms.live ? "On" : "Off: test mode, nothing is sent"}</span>], ["Sender number", c.sms.from || "Not set"],
             ["Sent, last 7 days", c.sms.sent7d], ["Failed, last 7 days", c.sms.failed7d], ["People who opted out", c.optOuts],
             ["Message types", "Transactional only (marketing texts are off)"], ["Opt out", "STOP, START and HELP handled automatically"]]} />
         </Card>
@@ -899,7 +917,7 @@ export function EmailConfig({ me }) {
     <LoadState state={state}>{(c) => (
       <>
         <Card title="Email">
-          <Facts rows={[["Provider", c.email.provider], ["Sending", c.email.live ? "On" : "Off (email_live)"], ["Sender", c.email.from || "Not set"],
+          <Facts rows={[["Provider", c.email.provider], ["Sending", <span key="l" title={switchHint("email_live")}>{c.email.live ? "On" : "Off: test mode, nothing is sent"}</span>], ["Sender", c.email.from || "Not set"],
             ...Object.entries(c.email.events30d).map(([k, v]) => [`${words(k)} (30 days)`, v]), ["Reply to", "Replies go to the inbound address of each business"]]} />
         </Card>
         <SettingTextKey me={me} keyName="email_from_address" label="Sender address" />
@@ -964,20 +982,21 @@ export function OauthApps() {
 
 // The go-live checklist: each step that must be true before Zella Voice's automations really reach customers. Read from
 // the database (zella_automation_readiness, platform admins only); on/off facts only, never a key or number.
+// [check, label, what it means, the setting, secret or job behind it (shown only as a tooltip, UI-21)]
 const READINESS = [
-  ["dispatch_switch", "Dispatcher switch on", "Platform setting n8n_dispatch_enabled"],
-  ["secret_stored", "n8n secret stored in the database", "vault secret zella_n8n_secret (see n8n/README.md)"],
-  ["dispatch_job", "Dispatcher job running", "Scheduled job zella_dispatch (every minute)"],
-  ["n8n_address_set", "n8n address set", "Platform setting n8n_base_url"],
-  ["app_address_set", "App address set (customer links)", "Platform setting app_base_url, https"],
-  ["text_sender_set", "Text sender number set", "Platform setting sms_from_number"],
-  ["texts_live", "Texts live", "sms_live: off means test mode, nothing is sent"],
-  ["email_sender_set", "Email sender address set", "Platform setting email_from_address"],
-  ["emails_live", "Emails live", "email_live: off means test mode, nothing is sent"],
-  ["calls_live", "AI calls live", "calls_live"],
+  ["dispatch_switch", "Dispatcher switch on", "A platform setting that lets the database hand work to n8n", "Setting n8n_dispatch_enabled"],
+  ["secret_stored", "n8n secret stored in the database", "The shared secret n8n checks, kept in the database vault (see the n8n setup guide)", "Vault secret zella_n8n_secret"],
+  ["dispatch_job", "Dispatcher job running", "The scheduled job that hands due work to n8n every minute", "Scheduled job zella_dispatch"],
+  ["n8n_address_set", "n8n address set", "Where the database sends work for n8n", "Setting n8n_base_url"],
+  ["app_address_set", "App address set (customer links)", "The https address used in links sent to customers", "Setting app_base_url"],
+  ["text_sender_set", "Text sender number set", "The number texts are sent from", "Setting sms_from_number"],
+  ["texts_live", "Texts live", "Off means test mode: nothing is sent", "Setting sms_live"],
+  ["email_sender_set", "Email sender address set", "The address emails are sent from", "Setting email_from_address"],
+  ["emails_live", "Emails live", "Off means test mode: nothing is sent", "Setting email_live"],
+  ["calls_live", "AI calls live", "Off means the AI places no outbound calls", "Setting calls_live"],
 ];
 
-function Readiness() {
+function Readiness({ showJobs = true }) {
   const state = useAsync(async () => {
     const { data, error } = await supabase.rpc("zella_automation_readiness");
     if (error && (error.code === "PGRST202" || /could not find the function/i.test(error.message))) return { missing: true };
@@ -986,42 +1005,45 @@ function Readiness() {
   }, []);
   return (
     <LoadState state={state}>{(r) => r.missing ? (
-      <Needs title="The go live checklist needs a database update" have="The settings below still show what the server knows.">Apply sql/zella_messaging_status.sql, then this shows each step that must be on before messages and calls really go out.</Needs>
+      <Needs title="The go live checklist needs a database update" have="The settings below still show what the server knows.">Once the messaging status update is applied to the database, this shows each step that must be on before messages and calls really go out.</Needs>
     ) : (
       <>
         <Card title="Go live checklist" sub={`${READINESS.filter(([k]) => r[k]).length} of ${READINESS.length} ready. Until every step is ready, Zella Voice records messages as not sent and nothing reaches customers.`}>
           <ul className="zs-checklist">
-            {READINESS.map(([key, label, hint]) => (
+            {READINESS.map(([key, label, hint, setting]) => (
               <li key={key} className={r[key] ? "ok" : ""}>
                 <span className="zs-check-marker" aria-hidden="true">{r[key] ? "✓" : ""}</span>
-                <span><strong>{label}</strong><small>{hint}</small></span>
+                <span title={setting}><strong>{label}</strong><small>{hint}</small></span>
                 <Pill tone={r[key] ? "success" : "warning"}>{r[key] ? "Ready" : "Not yet"}</Pill>
               </li>
             ))}
           </ul>
         </Card>
-        <Card title="Scheduled database jobs" sub="They run inside Supabase and hand due work to n8n.">
-          <Table rowKey={(j) => j.name} rows={r.jobs ?? []} empty="No Zella Voice jobs found. Run sql/zella_dispatcher.sql last." columns={[["Job", (j) => j.name], ["Schedule", (j) => j.schedule], ["State", (j) => <Pill tone={j.active ? "success" : "warning"}>{j.active ? "Running" : "Off"}</Pill>]]} />
-        </Card>
+        {showJobs && (
+          <Card title="Scheduled database jobs" sub="They run inside Supabase and hand due work to n8n.">
+            <Table rowKey={(j) => j.name} rows={r.jobs ?? []} empty="No Zella Voice jobs found. The dispatcher database update adds them, and is applied last." columns={[["Job", (j) => j.name], ["Schedule", (j) => j.schedule], ["State", (j) => <Pill tone={j.active ? "success" : "warning"}>{j.active ? "Running" : "Off"}</Pill>]]} />
+          </Card>
+        )}
       </>
     )}</LoadState>
   );
 }
 
-export function N8nConfig() {
+// showJobs: false where the page already lists the scheduled jobs (Automations, Scheduler & n8n; UI-27).
+export function N8nConfig({ showJobs = true } = {}) {
   const state = useAsync(() => call("automation_overview"), []);
   return (
     <LoadState state={state}>{(a) => (
       <>
-        <Readiness />
+        <Readiness showJobs={showJobs} />
         <Card title="n8n">
           <Facts rows={[["Webhook address", a.n8n.url ? "Set" : "Not set"], ["Dispatcher switch", a.n8n.dispatchEnabled ? "On (the job and secret are in the checklist above)" : "Off"], ["n8n address in database", a.n8n.baseUrlSet ? "Set" : "Not set"],
             ["Dead letters", a.deadLetters]]} />
         </Card>
         <Card title="Dispatcher state" sub="What the database sent to each n8n workflow most recently.">
-          <Table rowKey={(r) => r.workflow ?? r.key ?? JSON.stringify(r)} rows={a.dispatch} empty="Nothing dispatched yet." columns={Object.keys(a.dispatch[0] ?? { workflow: 1 }).slice(0, 6).map((k) => [words(k), (r) => (typeof r[k] === "string" && /T\d\d:/.test(r[k]) ? when(r[k]) : String(r[k] ?? "None"))])} />
+          <Table rowKey={(r) => r.workflow ?? r.key ?? JSON.stringify(r)} rows={a.dispatch} empty="Nothing dispatched yet." columns={Object.keys(a.dispatch[0] ?? { workflow: 1 }).slice(0, 6).map((k) => [words(k), (r) => (typeof r[k] === "string" && /T\d\d:/.test(r[k]) ? when(r[k]) : String(r[k] ?? "Not recorded"))])} />
         </Card>
-        <Needs title="n8n workflow activation and execution logs aren't read from n8n" have="Workflow runs are recorded in Zella Voice (workflow_executions) and shown under Automation monitoring.">Reading n8n's own status needs the n8n API with a server side key.</Needs>
+        <Needs title="n8n workflow activation and execution logs aren't read from n8n" have="Workflow runs are recorded in Zella Voice and shown under Runs and Automation monitoring.">Reading n8n's own status needs the n8n API with a server side key.</Needs>
       </>
     )}</LoadState>
   );
@@ -1051,7 +1073,7 @@ const WEBHOOKS = [
   ["/webhook/zella/vapi-tools", "Vapi assistant tools", "Shared secret header"], ["/webhook/zella/vapi-booking", "Vapi booking", "Shared secret header"],
   ["/webhook/zella/vapi-voice", "Vapi call rules", "Shared secret header"], ["/webhook/zella/vapi-brain", "Vapi knowledge tools", "Shared secret header"],
   ["/webhook/zella/resend", "Resend email events", "Svix signature"], ["/webhook/zella/inbound-email", "Resend inbound email", "Svix signature + key"],
-  ["/webhook/zella/meta", "Meta (Facebook, Instagram, WhatsApp)", "Verify token + X-Hub-Signature-256"], ["functions/v1/billing-webhook", "Payment provider", "Stripe signature, 5-minute window, one event once"],
+  ["/webhook/zella/meta", "Meta (Facebook, Instagram, WhatsApp)", "Verify token + X-Hub-Signature-256"], ["functions/v1/billing-webhook", "Payment provider", "Stripe signature, 5 minute window, one event once"],
   ["functions/v1/website-lead", "Website forms", "Per business form key, allowed websites, rate limits"],
 ];
 
@@ -1061,7 +1083,7 @@ export function Webhooks() {
       <Card title="Inbound webhooks" sub="From the n8n workflow files and edge functions in the repository. Each business's events are tied to that business on arrival.">
         <Table rowKey={(w) => w[0]} rows={WEBHOOKS} columns={[["Endpoint", (w) => <code>{w[0]}</code>], ["Used by", (w) => w[1]], ["How it's verified", (w) => w[2]]]} />
       </Card>
-      <Needs title="Webhook delivery logs and outbound webhooks for businesses aren't built" have="Incoming events are stored once each (automation_events), with failures and retries under Platform operations.">Outbound webhooks need endpoint registration, signing keys per business and a delivery log.</Needs>
+      <Needs title="Webhook delivery logs and outbound webhooks for businesses aren't built" have="Incoming events are stored once each, with failures and retries under Platform operations.">Outbound webhooks need endpoint registration, signing keys per business and a delivery log.</Needs>
     </>
   );
 }

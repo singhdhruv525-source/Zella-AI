@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { callOwnerFunction } from "../CreateBusinessWizard";
 import { navigate } from "../router";
 import { TelephonyProviders, VoiceCosts, VoiceUsage } from "../settings/AdminPanels";
+import { switchHint } from "../copy/liveSwitches";
 import {
   AlertList, DataTable, Drawer, ErrorNote, Facts, Filters, Metric, NotAvailable, PAGE, PageHeader, Pager, Panel, PERIODS, Pill,
   ProviderHealth, ReasonDialog, Search, Select, Tabs, Toggle, can, duration, num, pct, rpc, since, useLoad, useOptions, useToast, when, words,
@@ -58,10 +59,10 @@ function Overview({ onTab, onOpenCalls }) {
       <ErrorNote error={data.error} onRetry={data.reload} />
       {o && (
         <>
-          {!o.calls_live && <NotAvailable title="Outbound AI calls are off">The calls_live switch is off, so Zella Voice places no outbound calls. Inbound calls are answered by each business's receptionist once its number is linked in Vapi.</NotAvailable>}
+          {!o.calls_live && <NotAvailable title="Outbound AI calls are off" tip={switchHint("calls_live")}>Zella Voice places no outbound calls until they are switched on at go live. Inbound calls are answered by each business's receptionist once its number is linked in Vapi.</NotAvailable>}
           <div className="owner-stat-grid ao-stats">
             <Metric label="Active numbers" value={num(o.numbers_active)} note={o.numbers_paused ? `${o.numbers_paused} paused` : "None paused"} />
-            <Metric label="Inbound calls" value={num(o.inbound)} note={`Answer rate ${pct(o.answer_rate)}`} />
+            <Metric label="Inbound calls" value={num(o.inbound)} note={o.answer_rate == null ? "No answer rate yet" : `Answer rate ${pct(o.answer_rate)}`} />
             <Metric label="Outbound calls" value={num(o.outbound)} />
             <Metric label="In progress now" value={num(o.in_progress)} />
             <Metric label="Completed" value={num(o.completed)} note={`Average ${duration(o.avg_seconds)}`} />
@@ -82,8 +83,9 @@ function Overview({ onTab, onOpenCalls }) {
           <ErrorNote error={alerts.error} onRetry={alerts.reload} />
           <AlertList error={alerts.error} alerts={alerts.data} onOpen={(a) => (a.link === "calls" ? onOpenCalls({ business: a.business_id ?? null, failedOnly: a.kind !== "call_volume_spike" }) : onTab(a.link))} />
         </Panel>
-        <Panel title="Providers" action={<button type="button" className="owner-secondary-button" onClick={() => onTab("providers")}>Details</button>}>
+        <Panel title="Providers" description="Zella Voice's own checks of each provider, run by the provider health job." action={<button type="button" className="owner-secondary-button" onClick={() => onTab("providers")}>Keys and costs</button>}>
           {o && <ProviderHealth rows={o.providers} checksLive={o.checks_live} names={[["vapi", "Vapi", "AI voice and phone numbers"], ["telnyx", "Telnyx", "Numbers and carrier"]]} />}
+          {o && !o.checks_live && <NotAvailable title="Provider checks are off" tip={switchHint("provider_checks_live")}>The provider health job isn't switched on, so connection status is unknown rather than healthy. A "test connection" button isn't offered because it would need the provider keys in the browser.</NotAvailable>}
         </Panel>
       </div>
     </>
@@ -111,10 +113,10 @@ function Numbers({ me, options, onAssign, onOpenCalls, say, onOpenBusiness }) {
       <DataTable error={list.error} loading={list.loading} rows={list.data?.rows} onRow={setOpen}
         empty={f.q || f.status || f.business ? "No numbers match these filters." : "No phone numbers are assigned to any business yet."}
         columns={[
-          ["Number", (r) => <strong>{r.e164}</strong>], ["Business", (r) => r.business_name], ["Label", (r) => r.label ?? "None"],
-          ["Receptionist", (r) => r.agent?.name ?? <Pill tone="warning">None</Pill>],
+          ["Number", (r) => <strong>{r.e164}</strong>], ["Business", (r) => r.business_name], ["Label", (r) => r.label ?? "No label"],
+          ["Receptionist", (r) => r.agent?.name ?? <Pill tone="warning">No receptionist</Pill>],
           ["Vapi", (r) => (r.vapi_linked ? <Pill tone="success">Linked</Pill> : <Pill tone="warning">Not linked</Pill>)],
-          ["Status", (r) => <Pill tone={statusTone(r.status)}>{words(r.status)}</Pill>], ["Calls (30 days)", (r) => num(r.calls_30d)], ["Last call", (r) => when(r.last_call_at)],
+          ["Status", (r) => <Pill tone={statusTone(r.status)}>{words(r.status)}</Pill>], ["Calls (30 days)", (r) => num(r.calls_30d)], ["Last call", (r) => when(r.last_call_at, "No calls yet")],
         ]} />
       <Pager total={list.data?.total} offset={f.offset} onChange={(o) => setF((x) => ({ ...x, offset: o }))} />
 
@@ -124,7 +126,7 @@ function Numbers({ me, options, onAssign, onOpenCalls, say, onOpenBusiness }) {
             ["Business state", words(open.business_state)], ["Label", open.label], ["Country code", open.country_code], ["Status", <Pill key="s" tone={statusTone(open.status)}>{words(open.status)}</Pill>],
             ["Receptionist", open.agent ? `${open.agent.name} (${words(open.agent.status)})` : "None. Calls can't be answered"],
             ["Vapi phone number id", open.vapi_phone_number_id ? <code key="v">{open.vapi_phone_number_id}</code> : "Not linked"],
-            ["Calls, last 30 days", num(open.calls_30d)], ["Last call", when(open.last_call_at)], ["Added", when(open.created_at)]]} />
+            ["Calls, last 30 days", num(open.calls_30d)], ["Last call", when(open.last_call_at, "No calls yet")], ["Added", when(open.created_at, "Not recorded")]]} />
           <NotAvailable title="Carrier details aren't read from Telnyx">Number type, capabilities and carrier status need the Telnyx API from a server action, which isn't built. Buying and releasing numbers at the carrier is done in the Telnyx or Vapi dashboard.</NotAvailable>
           <div className="ao-drawer-actions">
             <button type="button" className="owner-secondary-button" onClick={() => onOpenCalls({ business: open.business_id, q: open.e164.replace(/\D/g, "").slice(-7) })}>View calls</button>
@@ -210,9 +212,9 @@ function Calls({ me, options, initial, onOpenBusiness }) {
       <DataTable error={list.error} loading={list.loading} rows={list.data?.rows} onRow={(r) => setOpen(r.id)} empty="No calls in this period match these filters."
         columns={[
           ["When", (r) => when(r.created_at)], ["Business", (r) => r.business_name], ["Direction", (r) => words(r.direction)], ["Caller", (r) => r.caller ?? "Unknown"],
-          ["Number", (r) => r.number ?? "None"], ["Status", (r) => <Pill tone={statusTone(r.status)}>{words(r.status)}</Pill>], ["Length", (r) => duration(r.duration_seconds)],
-          ["Outcome", (r) => (r.outcome ? words(r.outcome) : "None")],
-          ["", (r) => <span className="ao-flags">{r.needs_human && <Pill tone="warning">Needs a person</Pill>}{r.failure_reason && <Pill tone="danger">Error</Pill>}
+          ["Number", (r) => r.number ?? "Not recorded"], ["Status", (r) => <Pill tone={statusTone(r.status)}>{words(r.status)}</Pill>], ["Length", (r) => duration(r.duration_seconds, "Not recorded")],
+          ["Outcome", (r) => (r.outcome ? words(r.outcome) : "Not recorded")],
+          ["Attention", (r) => <span className="ao-flags">{r.needs_human && <Pill tone="warning">Needs a person</Pill>}{r.failure_reason && <Pill tone="danger">Error</Pill>}
             {["failed", "no_one_available"].includes(r.transfer_status) && <Pill tone="warning">Transfer failed</Pill>}</span>],
         ]} />
       <Pager total={list.data?.total} offset={f.offset} onChange={(o) => setF((x) => ({ ...x, offset: o }))} />
@@ -232,15 +234,15 @@ function CallDrawer({ id, onClose, onOpenBusiness }) {
         <>
           <Facts rows={[["Business", <button key="b" type="button" className="ao-link" onClick={() => onOpenBusiness(c.business_id)}>{c.business_name}</button>],
             ["Direction", words(c.direction)], ["From", c.from], ["To", c.to], ["Status", <Pill key="s" tone={statusTone(c.status)}>{words(c.status)}</Pill>],
-            ["Answered by AI", c.ai_handled ? "Yes" : "No"], ["Outcome", c.outcome ? words(c.outcome) : null], ["Outcome note", c.outcome_note],
-            ["Transfer", c.transfer_status ? words(c.transfer_status) : null], ["Length", duration(c.duration_seconds)],
+            ["Answered by AI", c.ai_handled ? "Yes" : "No"], ["Outcome", c.outcome ? words(c.outcome) : "Not recorded"], ["Outcome note", c.outcome_note],
+            ["Transfer", c.transfer_status ? words(c.transfer_status) : null], ["Length", duration(c.duration_seconds, "Not recorded")],
             c.needs_human ? ["Needs a person", c.escalation_reason ?? "Yes"] : null, c.escalation_resolved_at ? ["Resolved", when(c.escalation_resolved_at)] : null,
             c.failure_reason ? ["Error", c.failure_reason] : null, ["Provider call id", c.provider_call_id ? <code key="p">{c.provider_call_id}</code> : null]]} />
           <h3 className="ao-h3">Timeline</h3>
           <ol className="ao-timeline">
             {[["Created", c.created_at], ["Started", c.started_at], ["Answered", c.answered_at], ["Escalated", c.escalated_at], ["Ended", c.ended_at]]
               .filter(([, t]) => t).map(([l, t]) => <li key={l}><strong>{l}</strong><span>{when(t)}</span></li>)}
-            {d.data.tools.map((t, i) => <li key={`t${i}`}><strong>Tool: {words(t.tool)}</strong><span>{words(t.status)}{t.error ? ` to ${t.error}` : ""} · {when(t.at)}</span></li>)}
+            {d.data.tools.map((t, i) => <li key={`t${i}`}><strong>Tool: {words(t.tool)}</strong><span>{words(t.status)}{t.error ? `: ${t.error}` : ""} · {when(t.at)}</span></li>)}
             {d.data.messages.map((m, i) => <li key={`m${i}`}><strong>Message taken ({words(m.kind)})</strong><span>{words(m.status)} · {when(m.at)}</span></li>)}
             {d.data.callbacks.map((k, i) => <li key={`k${i}`}><strong>Callback</strong><span>{words(k.status)}{k.due_at ? ` · due ${when(k.due_at)}` : ""}</span></li>)}
           </ol>
@@ -290,7 +292,7 @@ function RoutingForm({ businessId, manage, say }) {
   const set = (k, val) => setForm({ ...v, [k]: val });
   const changes = Object.keys(base).filter((k) => String(base[k]) !== String(v[k]));
   const label = { transfer_enabled: "Put callers through to a person", transfer_number: "Transfer number", fallback_number: "Fallback number", transfer_route: "Route to", transfer_open_hours_only: "Only during opening hours" };
-  const show = (k, val) => (typeof val === "boolean" ? (val ? "Yes" : "No") : k === "transfer_route" ? (val === "fallback" ? "Fallback number" : "Transfer number") : val || "None");
+  const show = (k, val) => (typeof val === "boolean" ? (val ? "Yes" : "No") : k === "transfer_route" ? (val === "fallback" ? "Fallback number" : "Transfer number") : val || "Not set");
   return (
     <>
       <div className="ao-form">
@@ -303,7 +305,7 @@ function RoutingForm({ businessId, manage, say }) {
         <label className="ao-filter ao-check"><input type="checkbox" checked={v.transfer_open_hours_only} disabled={!manage} onChange={(e) => set("transfer_open_hours_only", e.target.checked)} /><span>{label.transfer_open_hours_only}</span></label>
       </div>
       <Facts rows={[["Time zone", r.timezone], ["Opening hours set", r.has_hours ? "Yes" : "No. Outside hours rules can't apply"],
-        ["on call rota", r.on_call?.enabled ? `On (${words(r.on_call.scope)})` : "Off"]]} />
+        ["On call rota", r.on_call?.enabled ? `On (${words(r.on_call.scope)})` : "Off"]]} />
       {manage ? (
         <div className="ao-drawer-actions">
           <button type="button" className="owner-secondary-button" disabled={!changes.length} onClick={() => setForm(null)}>Undo changes</button>
@@ -324,15 +326,10 @@ function RoutingForm({ businessId, manage, say }) {
   );
 }
 
+// Keys, costs and usage. The connection checks are on the Overview tab only (UI-18), so they aren't repeated here.
 function Providers({ me }) {
-  const data = useLoad(() => rpc("zella_admin_voice_overview", { p_from: since(1), p_to: null }), []);
   return (
     <>
-      <Panel title="Connection checks" description="Zella Voice's own checks of each provider, run by the provider health job.">
-        <ErrorNote error={data.error} onRetry={data.reload} />
-        {data.data && <ProviderHealth rows={data.data.providers} checksLive={data.data.checks_live} names={[["vapi", "Vapi", "AI voice and phone numbers"], ["telnyx", "Telnyx", "Numbers and carrier"]]} />}
-        {data.data && !data.data.checks_live && <NotAvailable title="Provider checks are off">The provider health job isn't switched on, so connection status is unknown rather than healthy. A "test connection" button isn't offered because it would need the provider keys in the browser.</NotAvailable>}
-      </Panel>
       <div className="zs ao-embed">
         <TelephonyProviders />
         <VoiceUsage />

@@ -2357,7 +2357,8 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
       )}
 
       <div className="wiz-footer">
-        <button type="button" className="owner-secondary-button" onClick={() => request(step - 1)} disabled={saving || step === 0}>
+        {/* Step 1 has nothing before it: Back stays disabled and is hidden there, keeping the footer's layout (UI-30). */}
+        <button type="button" className={`owner-secondary-button${step === 0 ? " wiz-back-first" : ""}`} onClick={() => request(step - 1)} disabled={saving || step === 0}>
           ← Back
         </button>
         <div className="wiz-footer-right">
