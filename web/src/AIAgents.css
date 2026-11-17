@@ -46,6 +46,7 @@
 .ag-page .ag-table .num { text-align: right; font-variant-numeric: tabular-nums; }
 .ag-page .ag-table td.num { color: var(--zella-text); font-weight: 600; }
 .ag-page .ag-table .col-actions { width: 1%; white-space: nowrap; text-align: right; }
+.ag-page .ag-table .col-actions .ag-action + .ag-action { margin-left: var(--zella-space-2); }
 .ag-page .ag-table .op-pill { white-space: nowrap; }
 
 .ag-page .ag-cell { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
@@ -110,6 +111,9 @@
   .ag-page .ag-table td[data-label="Status"] { grid-row: 3; }
   .ag-page .ag-table td[data-label="Receptionist"] { grid-column: 1; grid-row: 4; }
   .ag-page .ag-table td.num { grid-column: 2; grid-row: 4; }
+  .ag-page .ag-table td[data-label="Calls served, last 7 days"] { grid-row: 5; }
+  .ag-page .ag-table td.col-actions { display: flex; flex-direction: column; align-items: flex-end; gap: var(--zella-space-2); }
+  .ag-page .ag-table .col-actions .ag-action + .ag-action { margin-left: 0; }
   .ag-page .ag-table td[data-label]::before {
     content: attr(data-label);
     display: block;
