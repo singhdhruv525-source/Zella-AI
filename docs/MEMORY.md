@@ -151,6 +151,13 @@ most often needed:
   workflow and node names and internal reason codes (only admins see them in n8n; renaming means a re-import).
   The industry "E-commerce" is shown as "Ecommerce".
 
+- **Reference fixture (UI-35, owner, 16 Nov 2026):** local test databases may hold production CONFIGURATION, never
+  customer data: `tests/fixtures/reference_config.sql` (industries, modules, configurations, automation defaults,
+  platform templates, platform settings), copied read only by `tests/fixtures/export_reference.mjs`, which refuses
+  anything off its allowlist. Left out: business rows, template authors (`created_by`), settings ending in `_url`,
+  sender address and number, `vapi_` settings and model settings. Every `_live` switch and `n8n_dispatch_enabled` is
+  off in it. Loaded only by `tests/fixtures/load_reference.sh` (isolated server only); checked by `tests/fixtures/run.sh`.
+
 - **Unsubscribe link limits (G-7, 14 Nov 2026):** limits are per link only, never platform-wide or per address (a burst
   of genuine opt-outs after a big email must never be refused), and the limit never stops an opt-out.
 
@@ -187,6 +194,14 @@ most often needed:
   Zella Voice builds, nothing more. Don't build API keys, `/api/v1` endpoints or outgoing webhooks (architecture §36,
   REQ-API-01 to 04, Settings API management and Webhooks). A read only log of incoming provider events for admins is
   still fine.
+
+- **CodeRabbit review routine (owner, 17 Nov 2026):** CodeRabbit reviews a PR in full once, when it opens. Later
+  pushes (merges of main, fixes) are reviewed only when someone comments `@coderabbitai review`, and the author must
+  request that review on the final head before merging: no PR merges without a CodeRabbit success on its final changes.
+  `docs/BACKEND_SCHEMA.md` is not reviewed, because it is generated; every schema change must still regenerate it with
+  `docs/generators/backend_schema.py` from an isolated copy. Reason: the review allowance per hour is shared by every PR
+  from the one account. Draft PRs get no review when they open (`drafts: false`): when a draft is marked ready for review, comment
+  `@coderabbitai review` to start the first review.
 
 Waiting on the owner:
 
