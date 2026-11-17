@@ -346,8 +346,9 @@ footer, until the list is scrolled to the end.
 
 Platform roles use named permissions (`businesses.view/manage`, `telephony.manage`, `comms.manage`, `ai.configure`,
 `integrations.manage`, `billing.view/manage`, `plans.manage`, `support.manage`, `security.view/manage`, `audit.view`,
-`analytics.view`, `growth.manage`). Only the Zella Voice owner manages platform admins. An admin alerts bell shows
-platform alerts live.
+`analytics.view`). Only the Zella Voice owner manages platform admins. An admin alerts bell shows
+platform alerts live. The Growth page (prospects and demos, REQ-ADM-18) and its `growth.manage` permission come
+later, not before launch (owner, 16 Nov 2026).
 
 ---
 
