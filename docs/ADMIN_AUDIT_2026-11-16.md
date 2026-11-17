@@ -501,7 +501,7 @@ Cross cutting: the role model splits in two (permission matrix in the function a
 | PLT-05 | Settings, tenants | CHANGE | P3 | The all businesses table scrolls sideways by 39 px on a desktop width. | Browser crawl: /settings/tenants/all, both personas | Let the widest column wrap or hide a low value column at that width. | No sideways scroll at 1280 px. | no |
 | PLT-06 | All admin pages | VERIFY | P2 | No automated accessibility scan ran: axe-core is not installed in this checkout, so the crawl's axe column is empty. The reviewers found tab and keyboard problems by reading code (COM-07, COM-31, BIZ-30, OPS-32, ACC-14). | Crawl results `axe: null` | Add axe-core as a dev dependency and rerun the crawl (desktop, phone, dark). | The crawl reports serious and critical issues per page. | no |
 | PLT-07 | Scheduled jobs | VERIFY | P1 | In production only zella_usage_thresholds and zella_billing_reconcile are on; zella_dispatch, the every 5, 15 minute, hourly, daily and weekly jobs, the spam hourly job, cron cleanup and platform emails are off. Several admin pages present numbers that depend on these jobs (status page, stalled alerts, uptime, provider checks, cancellations; see OPS-01, OPS-02, BIZ-03). | cron.job read 16 Nov 2026 | Before launch, decide each job's switch with the owner and make the admin pages show each job's on or off state (OPS-09, COM-13). | Every job's state is visible in Operations and each one is on or deliberately off. | yes (live switches) |
-| PLT-08 | Tests | ADD | P2 | Producers and consumers of alert kinds, audit action names and permission names drift apart (COM-08, COM-17, ACC-08, ACC-23, BIZ-25). | Reviewer cross cutting notes | One shared list for each (alert kinds, audit actions with labels, permissions) and a test that fails when SQL or the function writes a name that isn't in it. | The test runs in CI and catches a new unlabelled action. | no |
+| PLT-08 | Tests | ADD | P2 | Producers and consumers of alert kinds, audit action names and permission names drift apart (COM-08, COM-17, ACC-08, ACC-23, BIZ-25). | Reviewer cross cutting notes | One shared list for each (alert kinds, audit actions with labels, permissions) and a test that fails when SQL or the function writes a name that isn't in it. | The test runs in CI and catches a new unlabelled action. **Part 1 fixed in PR #93:** the list (`web/supabase/functions/_shared/catalog.json`) and the drift test run in `npm run lint` (no CI yet, owner's choice); the UI labels swap follows after the Businesses list job. | no |
 
 ## What the pages look like (visual pass)
 
@@ -594,12 +594,12 @@ isolated database first.
 - [ ] Invoices (Settings, Invoices: need the provider's invoice events and an invoices table) · after Stripe
 - [ ] Refund requests and approvals (Settings, Refunds) · after Stripe
 - [ ] Charging for extra usage (Settings, Usage limits) · after Stripe
-- [ ] Billing emails to businesses that don't need Stripe (owner, 16 Nov: build later)
-- [ ] Billing emails that need Stripe (owner, 16 Nov: build later) · after Stripe
+- [ ] Billing emails to businesses that don't need Stripe (owner, 16 Nov: build now, held until Stripe and email are live)
+- [ ] Billing emails that need Stripe (owner, 16 Nov: build now, held until Stripe and email are live)
 
 ### AI agents
 - [ ] Last delivery outcome, not ready count and served version per receptionist, with a deliveries drawer (COM-03) · needs approval
-- [ ] A global default prompt that rolls out to businesses without overwriting their own (Settings, AI agent configuration) · needs approval
+- [ ] A global default prompt that rolls out to businesses without overwriting their own (Settings, AI agent configuration) · later (owner, 16 Nov 2026)
 - [ ] AI testing and evaluation view with a pass rule (Settings, AI testing) · needs approval
 
 ### Voice and numbers
@@ -623,7 +623,7 @@ isolated database first.
 - [ ] Store and show n8n's response per workflow (OPS-17) · needs approval
 - [ ] "Resume all" for a business (OPS-20) · needs approval
 - [ ] Read n8n's own workflow activation and execution status with a server side key (Scheduler page says it isn't built) · needs approval
-- [ ] Webhook delivery logs, and outbound webhooks for businesses (Settings, Webhooks) · needs approval
+- [ ] Webhook delivery logs (Settings, Webhooks) · needs approval. Outbound webhooks for businesses are not planned (owner, 16 Nov 2026; architecture §36)
 
 ### Support
 - [ ] Reply to the business, alerts for urgent, cancellation and plan change tickets, age and first response with an overdue filter (OPS-25) · needs approval
@@ -634,17 +634,17 @@ isolated database first.
 ### Settings
 - [ ] Editable alert rules (condition, severity, destination, frequency, quiet window) (Settings, Alert rules) · needs approval
 - [ ] Scheduled reports and report permissions (Settings, Reporting configuration) · needs approval
-- [ ] Public API keys with scopes, hashing, last used and revocation (Settings, API management) · needs approval
+- Not planned (owner, 16 Nov 2026; architecture §36): public API keys (Settings, API management)
 - [ ] OAuth application checks (Google client set or not) in the server configuration check (Settings, OAuth applications) · needs approval
 - [ ] A per business recording on or off policy (Settings, Policy configuration) · needs approval
 - [ ] Separate retention for recordings, transcripts and audit logs (Settings, Data retention) · needs approval
 
 ### New pages
-- [ ] Growth page (prospects, demos, growth.manage), or mark REQ-ADM-18 as later (ACC-36)
+- [x] Growth page (prospects, demos, growth.manage), or mark REQ-ADM-18 as later (ACC-36): later (owner, 16 Nov 2026), marked in ARCHITECTURE and PRODUCT
 
 ### Tests and tooling
-- [ ] One shared list of alert kinds, audit actions and permissions, with a test that catches drift (PLT-08)
-- [ ] Reference configuration from production in the test fixtures, no customer data (UI-35)
+- [ ] One shared list of alert kinds, audit actions and permissions, with a test that catches drift (PLT-08) (list and test in PR #93; UI labels next)
+- [ ] Reference configuration from production in the test fixtures, no customer data (UI-35): allowed by the owner on 16 Nov 2026, read only, through an allowlist
 - [ ] axe-core in the crawl for an accessibility scan of every page (PLT-06)
 
 ## Add on task: owner onboarding journey (after the admin dashboard work)
@@ -675,7 +675,7 @@ S4 Documents needed, S5 Business verified, S6 Your AI receptionist is live) and 
 Open decisions for the owner:
 - [ ] Identity provider: Persona (owner ID and business registration), Stripe Identity (owner ID only, same vendor as payments), or manual upload for now. Recommended: Persona, keeping manual upload as the fallback.
 - [ ] Plan screen: accept the plan the admin set, or let the owner switch between Base and Pro. Recommended: accept only.
-- [ ] First payment: pay before going live, or a free trial with a saved card. Recommended: pay before going live.
+- [x] First payment: pay before going live, or a free trial with a saved card. Recommended: pay before going live. Owner, 16 Nov 2026: pay before going live, once Stripe is live; until then the go live gate doesn't wait for payment.
 - [ ] Failed check: retry then manual review, or stop and contact support. Recommended: retry then manual review.
 
 Build checklist (each needs the owner's approval before anything goes live; provider accounts and keys are the owner's):

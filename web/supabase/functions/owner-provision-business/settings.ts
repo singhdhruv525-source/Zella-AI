@@ -567,7 +567,7 @@ export function settingsHandlers(admin: SupabaseClient, fields: Json, ctx: { use
         admin.rpc("zella_rls_coverage"),
         admin.rpc("zella_tenant_leak_check"),
         admin.from("integration_secrets").select("integration_id", { count: "exact", head: true }),
-        admin.from("audit_logs").select("action, user_id, business_id, created_at").or("action.like.platform.%,action.like.admin%,action.like.business.suspend%,action.like.session.%,action.like.roles%").order("created_at", { ascending: false }).limit(20),
+        admin.from("audit_logs").select("action, user_id, business_id, created_at").or("action.like.platform.%,action.like.admin%,action.like.business.suspend%,action.like.session.%").order("created_at", { ascending: false }).limit(20),
         admin.from("platform_admins").select("user_id").eq("is_active", true),
       ]);
       const info = await emails(admin, ((admins.data ?? []) as { user_id: string }[]).map((a) => a.user_id));
