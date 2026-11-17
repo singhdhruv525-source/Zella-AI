@@ -200,6 +200,17 @@ most often needed:
 - **Export worker limit (Lane B, 16 Nov 2026):** each worker run has about 2 minutes; a run that runs out hands the job
   back and the next resumes, but each run counts as one of the 3 tries. A very large business may need the limit raised.
 
+- **Held emails to businesses (Lane B, 16 Nov 2026):** an email held after 5 tries is released (back to queued, tries
+  reset) or discarded by an admin with comms.manage and a reason. A discard ends as `failed`, which only a discard
+  writes, shown as Discarded; the sender never marks an email failed (it holds it). Default, owner can change.
+
+- **Template versions (Lane B, UI-20, 16 Nov 2026):** Create only makes an industry or Spanish version of a key that
+  already has a platform version (no sender uses a brand new key); Retire only archives such overrides. Default,
+  owner can change.
+
+- **Contact lookup privacy (Lane B, COM-29, 16 Nov 2026):** comms.manage only, one business, at least 4 digits or a
+  full email, a reason, masked results (last 4 digits), every lookup audited. Default, owner can change.
+
 Waiting on the owner:
 
 - whether suspended businesses keep read-only access (L-5);
