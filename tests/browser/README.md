@@ -63,8 +63,9 @@ Never point any of this at production.
    npx vite preview --outDir /tmp/zella-local --port 5199
    ```
 
-5. Install axe-core for the accessibility scan (pinned in `tests/browser/package.json`, installed into
-   `tests/browser/node_modules`, never deployed):
+5. Leave the preview running and open a second terminal at the repository root (not `web`). Install axe-core for
+   the accessibility scan there (pinned in `tests/browser/package.json`, installed into `tests/browser/node_modules`,
+   never deployed); the crawl commands below also run from the repository root:
 
    ```bash
    npm ci --prefix tests/browser

@@ -16,7 +16,7 @@
 --      (the owner can change it); owner-provision-business reads it for the ticket age and the overdue filter.
 -- Every function is new; each must be absent or exactly this file's version, otherwise the file stops with
 -- VERSION_MISMATCH. Running it twice changes nothing.
--- Rollback: sql/rollback/zella_support_replies_rollback.sql (refuses on drift; keeps the messages only if asked).
+-- Rollback: sql/rollback/zella_support_replies_rollback.sql (refuses on drift and while replies exist; never deletes replies).
 begin;
 
 do $$

@@ -155,8 +155,9 @@ most often needed:
 - **One list of audit actions, alert kinds and permissions (PLT-08, 16 Nov 2026):** they live in
   `web/supabase/functions/_shared/catalog.json`. `tests/catalog/drift_test.mjs` runs in `npm run lint` and fails when SQL,
   an edge function module, n8n or the web app uses a name that isn't listed, or a listed name is no longer used. No CI
-  yet: adding GitHub Actions is the owner's choice. The web labels still come from `web/src/ownerFormat.js` until the
-  Businesses list job merges; then they are read from the list.
+  yet: adding GitHub Actions is the owner's choice. The Audit logs page already reads its labels from the list first
+  (`catalog.audit_actions`, falling back to `actionLabel`); pages that still call `web/src/ownerFormat.js`'s
+  `ACTION_LABELS` directly move to the list next (PLT-08 part 2).
 
 - **Incident updates never notify businesses by default (OPS-12, 16 Nov 2026, recommended default taken):** an update
   is internal unless the admin ticks Tell all active businesses (`p_notify`, false by default, in

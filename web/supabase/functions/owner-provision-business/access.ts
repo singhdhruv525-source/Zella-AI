@@ -270,15 +270,21 @@ export function accessHandlers(admin: SupabaseClient, fields: Json, userId: stri
     // Removing one needs another left: every admin keeps two step sign in (ACC-01).
     me_mfa_remove: async () => {
       const factorId = requireId(fields.factorId, "authenticator");
-      // Supabase Auth doesn't keep the last factor itself, so removals for one person run one at a time: the count and
-      // the delete can't interleave with a second removal (the database's zella_rate_limit is atomic).
+      const check = async () => {
+        const factors = await verifiedFactors();
+        const factor = factors.find((f) => f.id === factorId);
+        if (!factor) throw new InputError("That authenticator isn't set up on your account", 404);
+        if (factors.length < 2) throw new InputError("Every Zella Voice admin needs two step sign in. Add another authenticator first, then remove this one.", 409);
+        return { factors, factor };
+      };
+      await check();
+      // Supabase Auth doesn't keep the last factor itself, so a removal takes a per person turn first (the database's
+      // zella_rate_limit is atomic: one removal per person at a time), then counts again; a second removal at the
+      // same moment is refused, so the two can't both pass the "another one left" check.
       const { data: turn, error: turnError } = await admin.rpc("zella_rate_limit", { p_key: `mfa_remove:${userId}`, p_max: 1, p_window_seconds: 15 });
       if (turnError) throw turnError;
       if (turn !== true) throw new InputError("Another change to your authenticators is in progress. Try again in a moment.", 409);
-      const factors = await verifiedFactors();
-      const factor = factors.find((f) => f.id === factorId);
-      if (!factor) throw new InputError("That authenticator isn't set up on your account", 404);
-      if (factors.length < 2) throw new InputError("Every Zella Voice admin needs two step sign in. Add another authenticator first, then remove this one.", 409);
+      const { factors, factor } = await check();
       const { error } = await admin.auth.admin.mfa.deleteFactor({ userId, id: factorId });
       if (error) throw error;
       return { factorId, friendlyName: factor.friendly_name ?? null, left: factors.length - 1 };

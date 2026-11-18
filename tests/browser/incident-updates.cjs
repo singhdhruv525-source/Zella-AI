@@ -44,11 +44,13 @@ const notices = (kind) => Number(k.sql(`select count(*) from public.staff_notifi
     await li.locator(`input[aria-label="Update for ${title}"]`).fill("Carrier confirmed the delay");
     await li.locator('button:has-text("Post update")').click();
     await p.waitForSelector("text=Update posted. No owner was told.");
-    k.check(`${tag}: an update is internal by default`, notices("incident_update") === before);
+    await li.locator("text=Carrier confirmed the delay").waitFor();
+    const saved = k.sql(`select count(*) from public.platform_incident_updates where incident_id = '${inc}' and body = 'Carrier confirmed the delay' and notified_businesses = 0`);
+    k.check(`${tag}: an update is internal by default, and is saved and shown on the timeline`, notices("incident_update") === before && saved === "1", `saved ${saved}`);
     await li.locator(`input[aria-label="Update for ${title}"]`).fill("Messages are flowing again");
     await li.locator("text=Tell all active businesses").click();
     await li.locator('button:has-text("Post update")').click();
-    await p.waitForSelector("text=Update posted and owners told.");
+    await p.waitForSelector("text=/Update posted\\. The owners of [0-9,]+ business(es)? were told in the app\\./");
     k.check(`${tag}: with Tell all active businesses ticked, owners are told`, notices("incident_update") > before, `${before} to ${notices("incident_update")}`);
     await p.waitForSelector("text=Messages are flowing again");
     // edit
@@ -71,11 +73,16 @@ const notices = (kind) => Number(k.sql(`select count(*) from public.staff_notifi
     await p.click('[role="dialog"] button:has-text("Resolve")');
     await p.waitForSelector("text=Incident resolved and owners told.");
     // paging
-    k.check(`${tag}: 20 incidents first, then Load more`, (await p.locator(".op-card li").filter({ hasText: "Opened" }).count()) === 20 && await p.isVisible('button:has-text("Load more")'));
+    await p.waitForSelector('button:has-text("Load more")');
+    const firstPage = await p.locator(".op-card li").filter({ hasText: "Opened" }).count();
+    k.check(`${tag}: 20 incidents first, then Load more`, firstPage === 20, String(firstPage));
     await p.click('button:has-text("Load more")');
     await p.waitForSelector("text=Old incident 25");
     k.check(`${tag}: Load more shows the older ones`, (await p.locator(".op-card li").filter({ hasText: "Opened" }).count()) === 26);
-    await li2.locator('button:has-text("Updates")').click().catch(() => {});
+    // open the timeline only if it is closed (the button toggles), then wait for a known update before the screenshot
+    const toggle = li2.locator('button[aria-expanded]').first();
+    if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
+    await li2.locator("text=Messages are flowing again").waitFor();
     await p.waitForTimeout(600); await p.screenshot({ path: path.join(SHOTS, `incidents-${tag}.png`), fullPage: true });
     k.check(`${tag}: no browser prompts or confirms were used`, prompts === 0, String(prompts));
     k.check(`${tag}: no page errors`, p.errors.length === 0, p.errors.join(" | "));

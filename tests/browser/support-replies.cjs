@@ -34,7 +34,14 @@ const BIZ = "b3000000-0000-0000-0000-0000000000a1";
     ctx = await k.context(browser, width); p = await k.page(ctx);
     await k.signIn(p, ADMIN);
     await p.goto(k.APP + "/support");
+    // a ticket that has waited three days without a reply is overdue; the request just opened isn't yet
+    const overdue = `Overdue fixture ${tag} ${Date.now().toString(36)}`;
+    k.sql(`insert into public.support_tickets (business_id, subject, status, priority, category, created_at) values ('${BIZ}', '${overdue}', 'open', 'normal', 'issue', now() - interval '3 days')`);
+    await p.reload(); await p.waitForSelector(`text=${subject}`);
     await p.click('button[role="tab"]:has-text("Waiting too long")');
+    await p.waitForSelector(`text=${overdue}`);
+    k.check(`${tag}: Waiting too long shows the overdue ticket and not the new one`, await p.isVisible(`text=${overdue}`) && !(await p.isVisible(`text=${subject}`)));
+    k.sql(`delete from public.support_tickets where subject = '${overdue}'`);
     await p.click('button[role="tab"]:has-text("Open & in progress")');
     await p.click(`button:has-text("${subject}")`);
     await p.waitForSelector("text=No reply yet");

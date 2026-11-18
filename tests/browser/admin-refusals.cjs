@@ -1,6 +1,8 @@
 // ACC-15: refused calls to the admin function are recorded as security.admin_refused (ip and user agent), at most 5
 // per person and reason in 10 minutes, and listed on Users & access; in a real browser against the local stand in
 // over an ISOLATED test database. Desktop (1440x900) and phone (390 wide). Nothing is sent.
+// Needs: the stand in process (local-backend.mjs) started with ZTEST_PASSWORD_AAL2=1, so admins with an authenticator
+// reach the permission check; nofactor@lanea.test is created without an authenticator on purpose (MFA_SETUP_REQUIRED).
 // Usage: ZDB=<test db> APP_URL=... BACKEND_URL=... SHOTS=<folder> node tests/browser/admin-refusals.cjs
 const path = require("path");
 const k = require("./real-kit.cjs");
@@ -30,8 +32,10 @@ const rows = (email, code) => Number(k.sql(`select count(*) from public.audit_lo
   r = await k.fn(ro, { action: "admin_invite", email: "x@lanea.test" }, H);
   const perm = k.sql(`select new_data ->> 'action' || '|' || (new_data ->> 'permission') from public.audit_logs where action = 'security.admin_refused' and new_data ->> 'code' = 'NOT_PERMITTED' limit 1`);
   k.check("a role without the permission is recorded (NOT_PERMITTED) with the action and permission", r.status === 403 && perm === "admin_invite|admins.manage", `${r.status} ${perm}`);
-  for (let i = 0; i < 8; i++) r = await k.fn(ro, { action: "admin_invite", email: "x@lanea.test" }, H);
-  k.check("a flood is capped at 5 rows per person and reason in 10 minutes, and every answer is still the refusal", rows(READONLY, "NOT_PERMITTED") === 5 && r.status === 403 && r.body.code === "NOT_PERMITTED", `${rows(READONLY, "NOT_PERMITTED")} rows, last ${r.status}`);
+  const answers = [];
+  for (let i = 0; i < 8; i++) answers.push(await k.fn(ro, { action: "admin_invite", email: "x@lanea.test" }, H));
+  const allRefused = answers.every((a) => a.status === 403 && a.body.code === "NOT_PERMITTED");
+  k.check("a flood is capped at 5 rows per person and reason in 10 minutes, and every answer is still the refusal", rows(READONLY, "NOT_PERMITTED") === 5 && allRefused, `${rows(READONLY, "NOT_PERMITTED")} rows, ${answers.map((a) => `${a.status}:${a.body.code}`).join(" ")}`);
   const fine = await k.fn(await k.token(OWNER), { action: "admins_list" }, H);
   k.check("an allowed call records nothing", fine.status === 200 && total() === 7, `${fine.status} ${total()}`);
 

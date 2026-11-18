@@ -276,13 +276,24 @@ async function userRow(id) {
     user_metadata: u.raw_user_meta_data ?? {}, identities: [], factors: u.factors };
 }
 // amr as Supabase Auth sends it: the password time, plus the time an authenticator code was last entered for this
-// session (totpAt), which a refresh keeps (r.<user id>.<aal>.<totpAt>) and a new code moves on (ACC-19).
-function session(user, aal = "aal1", totpAt = null) {
+// session (totpAt), which a refresh keeps and only a verified code moves on (ACC-19). Like Supabase Auth, every
+// session is a row in auth.sessions (session_id in the token), and a refresh token is opaque: what it stands for is
+// kept here, never read from the token, so editing a token can't change its level or code time. A refresh needs the
+// session row to still exist, so ending a session (zella_end_user_sessions, zella_revoke_my_other_sessions) stops
+// its refresh; an access token already issued keeps working until it expires, as with Supabase.
+const REFRESH = new Map();   // refresh token -> { id, aal, totpAt, sid }
+async function session(user, aal = "aal1", totpAt = null, sid = null) {
   const now = Math.floor(Date.now() / 1000), exp = now + 3600;
+  const sessionId = sid ?? crypto.randomUUID();
+  await asCaller({ role: "service_role" }, `insert into auth.sessions (id, user_id, aal, created_at, updated_at) values (${lit(sessionId)}, ${lit(user.id)}, ${lit(aal)}, now(), now())
+    on conflict (id) do update set aal = excluded.aal, refreshed_at = now(), updated_at = now()`, { preRequest: false, system: true });
   const amr = [...(totpAt ? [{ method: "totp", timestamp: totpAt }] : []), { method: "password", timestamp: now }];
-  const claims = { sub: user.id, email: user.email, role: "authenticated", aud: "authenticated", aal, amr, exp, session_id: crypto.randomUUID() };
-  return { access_token: sign(claims), refresh_token: `r.${user.id}.${aal}${totpAt ? `.${totpAt}` : ""}`, token_type: "bearer", expires_in: 3600, expires_at: exp, user };
+  const claims = { sub: user.id, email: user.email, role: "authenticated", aud: "authenticated", aal, amr, exp, session_id: sessionId };
+  const refresh = `rt_${crypto.randomUUID().replace(/-/g, "")}`;
+  REFRESH.set(refresh, { id: user.id, aal, totpAt, sid: sessionId });
+  return { access_token: sign(claims), refresh_token: refresh, token_type: "bearer", expires_in: 3600, expires_at: exp, user };
 }
+const INVALID_GRANT = { status: 400, json: { error: "invalid_grant", error_description: "Invalid login credentials", msg: "Invalid login credentials", code: "invalid_credentials" } };
 
 async function auth(req, url, claims, body) {
   const path = url.pathname.replace(/^\/auth\/v1/, "");
@@ -296,19 +307,24 @@ async function auth(req, url, claims, body) {
     // a refresh keeps the session's level (r.<user id>.<aal>), as Supabase does. Test only: with ZTEST_PASSWORD_AAL2=1 a
     // password sign in by someone who has a verified authenticator counts as already verified, so page crawls don't
     // stop at the code screen (every admin needs two step sign in, ACC-01). admin-mfa-journey.cjs runs without it.
-    let aal = "aal1", totpAt = null;
+    let aal = "aal1", totpAt = null, sid = null;
     if (process.env.ZTEST_PASSWORD_AAL2 === "1" && id) {
       const f = await asCaller({ role: "service_role" }, `select count(*) from auth.mfa_factors where user_id = ${lit(id)} and status = 'verified'`, { preRequest: false, system: true });
       if (Number(f.text) > 0) aal = "aal2";
     }
     if (url.searchParams.get("grant_type") === "refresh_token") {
-      const [, rid, raal, rtotp] = String(body?.refresh_token ?? "").split(".");
-      id = rid || null; aal = raal === "aal2" ? "aal2" : "aal1"; totpAt = Number(rtotp) > 0 ? Number(rtotp) : null;
+      // only a token this stand in issued, used once, for a session that still exists
+      const held = REFRESH.get(String(body?.refresh_token ?? ""));
+      if (!held) return INVALID_GRANT;
+      REFRESH.delete(String(body.refresh_token));
+      const live = await asCaller({ role: "service_role" }, `select count(*) from auth.sessions where id = ${lit(held.sid)} and user_id = ${lit(held.id)}`, { preRequest: false, system: true });
+      if (live.error || Number(live.text) !== 1) return { status: 400, json: { error: "invalid_grant", error_description: "Session not found", msg: "Session not found", code: "session_not_found" } };
+      ({ id, aal, totpAt, sid } = held);
     }
     const user = id && (await userRow(id));
-    if (!user) return { status: 400, json: { error: "invalid_grant", error_description: "Invalid login credentials", msg: "Invalid login credentials", code: "invalid_credentials" } };
+    if (!user) return INVALID_GRANT;
     await asCaller({ role: "service_role" }, `update auth.users set last_sign_in_at = now() where id = ${lit(id)}`, { preRequest: false, system: true });
-    return { status: 200, json: session(user, aal, totpAt) };
+    return { status: 200, json: await session(user, aal, totpAt, sid) };
   }
   if (path === "/user") {
     if (!claims?.sub) return { status: 401, json: { code: 401, msg: "Invalid token", error_code: "bad_jwt" } };
@@ -341,7 +357,8 @@ async function auth(req, url, claims, body) {
       const v = await asCaller({ role: "service_role" }, `update auth.mfa_factors set status = 'verified', updated_at = now() where id = ${lit(factorId)} and user_id = ${lit(claims.sub)} returning id`, sys);
       if (v.error || !v.text) return { status: 404, json: { code: 404, msg: "Factor not found", error_code: "mfa_factor_not_found" } };
       const user = await userRow(claims.sub);
-      return { status: 200, json: session(user, "aal2", Math.floor(Date.now() / 1000)) };
+      // the same session, now verified with a code at this moment
+      return { status: 200, json: await session(user, "aal2", Math.floor(Date.now() / 1000), claims.session_id ?? null) };
     }
     return { status: 200, json: { all: [], totp: [], phone: [] } };
   }
@@ -366,16 +383,21 @@ async function auth(req, url, claims, body) {
     const sys = { preRequest: false, system: true };
     if (req.method === "DELETE" && adminFactors[2]) {
       const d = await asCaller({ role: "service_role" }, `delete from auth.mfa_factors where id = ${lit(adminFactors[2])} and user_id = ${lit(adminFactors[1])} returning id`, sys);
+      if (d.error) return { status: 500, json: { code: 500, msg: "The factor could not be deleted", error_code: "unexpected_failure" } };
       return d.text ? { status: 200, json: { id: d.text } } : { status: 404, json: { code: 404, msg: "Factor not found", error_code: "mfa_factor_not_found" } };
     }
     const r = await asCaller({ role: "service_role" }, `select coalesce(json_agg(json_build_object('id', id, 'status', status, 'factor_type', factor_type, 'friendly_name', friendly_name, 'created_at', created_at)), '[]') from auth.mfa_factors where user_id = ${lit(adminFactors[1])}`, sys);
+    if (r.error) return { status: 500, json: { code: 500, msg: "The factors could not be read", error_code: "unexpected_failure" } };
     return { status: 200, json: JSON.parse(r.text || "[]") };
   }
   const adminUser = /^\/admin\/users\/([0-9a-f-]{36})$/.exec(path);
   if (adminUser) {
     if (claims?.role !== "service_role") return { status: 403, json: { msg: "not allowed" } };
     // a password change is recorded as a time only (every test password stays Test-pass-1)
-    if (req.method === "PUT" && body?.password) await asCaller({ role: "service_role" }, `update auth.users set updated_at = now() where id = ${lit(adminUser[1])}`, { preRequest: false, system: true });
+    if (req.method === "PUT" && body?.password) {
+      const w = await asCaller({ role: "service_role" }, `update auth.users set updated_at = now() where id = ${lit(adminUser[1])}`, { preRequest: false, system: true });
+      if (w.error) return { status: 500, json: { code: 500, msg: "The password could not be updated", error_code: "unexpected_failure" } };
+    }
     if (req.method === "PUT" && body?.user_metadata) await asCaller({ role: "service_role" }, `update auth.users set raw_user_meta_data = coalesce(raw_user_meta_data,'{}') || ${lit(JSON.stringify(body.user_metadata))}::jsonb where id = ${lit(adminUser[1])}`, { preRequest: false, system: true });
     const user = await userRow(adminUser[1]);
     return user ? { status: 200, json: user } : { status: 404, json: { msg: "User not found" } };

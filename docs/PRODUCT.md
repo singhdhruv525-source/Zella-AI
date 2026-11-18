@@ -377,7 +377,9 @@ platform alerts live. The Growth page (prospects and demos, REQ-ADM-18) and its 
 later, not before launch (owner, 16 Nov 2026).
 
 When an owner removes an admin or changes their role, that person is signed out on every device, and Users & access
-says how many devices were signed out (needs `sql/zella_admin_sessions.sql`, built, not applied). Anyone can sign out
+says how many devices were signed out (needs `sql/zella_admin_sessions.sql`, built, not applied). The change is saved
+even if signing the devices out fails: the page then shows a warning that their devices could not be signed out, no
+device count, and a Sign out everywhere button that tries again. Anyone can sign out
 their other devices, and that is recorded in the audit log as "Signed out other devices". Adding an admin and changing an admin's
 role or access need an authenticator code entered in the last 5 minutes: Users & access asks for a new code and then
 makes the change (only a fresh code, no second owner's approval). Changing what a restricted role may do (Platform

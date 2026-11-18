@@ -1,6 +1,10 @@
 // ACC-30: an admin's own authenticator and password changes go through owner-provision-business, are audited, and
 // keep at least one authenticator; in a real browser against the local stand in over an ISOLATED test database.
 // Desktop (1440x900) and phone (390 wide). Nothing is sent.
+// Needs: the stand in process (local-backend.mjs) started with ZTEST_PASSWORD_AAL2=1, and the test admin with a verified
+// authenticator, so a password sign in passes two step sign in but carries no recent code time (the stale code check
+// then reaches FRESH_CODE_REQUIRED). The stand in records a password change as a time only (every test password stays
+// Test-pass-1), so the password part checks that the change is submitted, accepted and audited, not a later sign in.
 // Usage: ZDB=<test db> APP_URL=... BACKEND_URL=... SHOTS=<folder> node tests/browser/admin-self-service.cjs
 const path = require("path");
 const k = require("./real-kit.cjs");
@@ -50,15 +54,17 @@ const secondFactor = () => k.sql(`insert into auth.mfa_factors (id, user_id, fac
     await p.click('.zs-dialog button:has-text("Remove")');
     await p.waitForSelector(".zs-dialog", { state: "detached" });
     k.check(`${tag}: removing one of two authenticators works and is audited`, factors() === 1 && audits("admin.mfa_removed") === removed + 1, `${factors()} left, audit ${audits("admin.mfa_removed")}`);
-    await p.waitForSelector("text=Required for admins");
-    k.check(`${tag}: the last one shows Required for admins instead of Remove`, true);
+    const last = p.locator(".zs-savebar", { hasText: "Required for admins" });
+    await last.waitFor();
+    k.check(`${tag}: the last one shows Required for admins and has no Remove button`, (await last.locator('button:has-text("Remove")').count()) === 0
+      && (await p.locator(".zs-savebar .zs-btn.danger-outline").count()) === 0);
     // add another one
     const added = audits("admin.mfa_added");
     await p.click('button:has-text("Add another authenticator app")');
     await p.getByLabel("Code from the app").fill("123456");
     await p.click('button:has-text("Turn on")');
-    await p.waitForFunction(() => document.querySelectorAll(".zs-savebar .zs-btn.danger-outline").length === 2, null, { timeout: 15000 }).catch(() => {});
-    await p.waitForTimeout(1000);
+    // the list refreshes to two authenticators, each with Remove; a timeout here fails the journey
+    await p.waitForFunction(() => document.querySelectorAll(".zs-savebar .zs-btn.danger-outline").length === 2, null, { timeout: 15000 });
     k.check(`${tag}: a new authenticator is recorded in the audit log`, factors() === 2 && audits("admin.mfa_added") === added + 1, `${factors()} factors, audit ${audits("admin.mfa_added")}`);
     // password, with a new code
     const changed = audits("admin.password_changed");
@@ -68,7 +74,7 @@ const secondFactor = () => k.sql(`insert into auth.mfa_factors (id, user_id, fac
     await p.waitForTimeout(400); await p.screenshot({ path: path.join(SHOTS, `password-${tag}.png`) });
     await p.click('button:has-text("Change password")');
     await p.waitForSelector("text=Password changed.");
-    k.check(`${tag}: an admin's password change goes through the server and is audited`, audits("admin.password_changed") === changed + 1);
+    k.check(`${tag}: an admin's password change is submitted through the server, accepted and audited`, audits("admin.password_changed") === changed + 1);
     const leak = k.sql(`select count(*) from public.audit_logs where (coalesce(new_data::text, '') || coalesce(old_data::text, '')) like '%Newpass123%'`);
     k.check(`${tag}: the password never reaches the audit log`, leak === "0");
     await p.waitForTimeout(600); await p.screenshot({ path: path.join(SHOTS, `security-done-${tag}.png`), fullPage: true });
