@@ -16,7 +16,7 @@ It reads the catalog only, never rows.
 | Tables (schema `public`) | 181 |
 | Tables with row security on | 181 of 181 |
 | Row security policies | 353 |
-| Columns | 2128 |
+| Columns | 2129 |
 | Views | 1 |
 | Functions | 967 (895 security definer, 26 callable by `anon`) |
 
@@ -446,6 +446,7 @@ The 28 industries Zella Voice serves.
 | `created_at` | timestamp with time zone | yes | now() |
 | `sensitive` | boolean | yes | true |
 | `booking_model` | text |  |  |
+| `sensitive_changed_at` | timestamp with time zone |  |  |
 
 - Primary key: `id`.
 - Unique: `(name)`.
