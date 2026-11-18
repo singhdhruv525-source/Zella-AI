@@ -476,7 +476,13 @@ export function tsAuditReads(raw) {
         else if (c === "(" || c === "[" || c === "{") { if (d === 0) { open = i; break; } d--; }
       }
       if (open < 0 || masked[open] === "{") break;
-      if (masked[open] === "(") callee = /\.(or|filter)\s*$/.exec(masked.slice(Math.max(0, open - 12), open));
+      if (masked[open] === "(") {
+        // the method name before the bracket, past any spaces (comments are spaces here)
+        let e = open - 1;
+        while (e >= 0 && /\s/.test(masked[e])) e--;
+        const hit = /\.(or|filter)$/.exec(masked.slice(Math.max(0, e - 7), e + 1));
+        if (hit) callee = [masked.slice(e - hit[0].length + 1, open)];
+      }
       from = open - 1;
     }
     if (!callee) continue;
@@ -516,7 +522,8 @@ export function queryTable(src, masked, at, depth = 0) {
     if (!/^[A-Za-z_$][\w$]*$/.test(head)) return null;
     // the head is a name: its latest assignment before here decides
     // (not the assignment this chain is the right hand side of)
-    const all = [...masked.slice(0, j + 1).matchAll(new RegExp(`(?:\\b(?:let|const|var)\\s+)?\\b${head}\\s*=(?!=)\\s*`, "g"))]
+    // q = ... only: not state.q = ... or obj?.q = ... (a property, not this binding)
+    const all = [...masked.slice(0, j + 1).matchAll(new RegExp(`(?:\\b(?:let|const|var)\\s+)?(?<![.\\w$])${head}\\s*=(?!=)\\s*`, "g"))]
       .filter((x) => x.index + x[0].length < j + 1);
     if (!all.length) return null;
     // The assignments that can reach this call: from the last one that always runs before it (in a block that also
@@ -529,8 +536,10 @@ export function queryTable(src, masked, at, depth = 0) {
     const tables = assigns.flatMap((a) => {
       const rhsStart = a.index + a[0].length;
       const rhs = src.slice(rhsStart, rhsStart + exprAfter(src, rhsStart).length);
+      const mrhs = maskStrings(rhs);
+      if (/[?]|&&|\|\|/.test(mrhs)) return armTables(rhs, mrhs, head, (at) => queryTable(src, masked, rhsStart + at, depth + 1));
       const froms = [...rhs.matchAll(/\.from\(\s*["']([a-z_]+)["']\s*\)/g)].map((f) => f[1]);
-      if (froms.length) return /[?]|&&|\|\|/.test(maskStrings(rhs)) || froms.length === 1 ? froms : [null];
+      if (froms.length) return froms.length === 1 ? froms : [null];
       // q = q.order(...): follow that q back in turn
       if (new RegExp(`^\\s*${head}\\s*\\.`).test(rhs)) return [queryTable(src, masked, rhsStart + rhs.indexOf("."), depth + 1)];
       return [null];
@@ -541,6 +550,31 @@ export function queryTable(src, masked, at, depth = 0) {
   }
 }
 
+// The tables a conditional right hand side can give: each arm of a ? b : c, or of a && b / a || b, read on its own;
+// an arm with no .from(...) that isn't the name itself followed back is unknown (null).
+function armTables(rhs, mrhs, head, follow) {
+  const arms = [];
+  let d = 0, q = -1, colon = -1, start = 0;
+  for (let i = 0; i < mrhs.length; i++) {
+    const c = mrhs[i];
+    if ("([{".includes(c)) d++;
+    else if (")]}".includes(c)) d--;
+    else if (d === 0 && c === "?" && mrhs[i + 1] !== "." && q < 0) q = i;
+    else if (d === 0 && c === ":" && q >= 0 && colon < 0) colon = i;
+    else if (d === 0 && q < 0 && (mrhs.startsWith("&&", i) || mrhs.startsWith("||", i))) { arms.push([start, i]); start = i + 2; i++; }
+  }
+  if (q >= 0 && colon > q) arms.push([q + 1, colon], [colon + 1, mrhs.length]);
+  else arms.push([start, mrhs.length]);
+  return arms.flatMap(([a, b]) => {
+    const arm = rhs.slice(a, b);
+    const froms = [...arm.matchAll(/\.from\(\s*["']([a-z_]+)["']\s*\)/g)].map((f) => f[1]);
+    if (froms.length === 1) return froms;
+    const lead = /^\s*/.exec(arm)[0].length;
+    if (!froms.length && new RegExp(`^\\s*${head}\\s*\\.`).test(arm)) return [follow(a + arm.indexOf(".", lead))];
+    return [null];
+  });
+}
+
 // Whether an assignment at `at` may not run before a call at `call`: it sits in a block that closes before the call,
 // or right after if (...) / else / ? / && / || without a block.
 function conditionalAt(masked, at, call) {
@@ -548,6 +582,8 @@ function conditionalAt(masked, at, call) {
   for (let i = at; i < call; i++) { if (masked[i] === "{") d++; else if (masked[i] === "}") { if (d === 0) return true; d--; } }
   let k = at - 1;
   while (k >= 0 && /\s/.test(masked[k])) k--;
+  // if (x) (q = ...): past the brackets that open in front of the assignment
+  while (k >= 0 && masked[k] === "(") { k--; while (k >= 0 && /\s/.test(masked[k])) k--; }
   const before = masked.slice(Math.max(0, k - 5), k + 1);
   if (/(?:else|[?:]|&&|\|\|)$/.test(before)) return true;
   if (masked[k] === ")") {   // if (...) / while (...) / for (...) q = ...
@@ -604,7 +640,13 @@ export function n8nAlertKinds(raw) {
     if (sep === "," && /^["']zella_platform_alert["']$/.test(word)) {
       let s = src.lastIndexOf(word[0], k - 1) - 1;
       while (s >= 0 && /\s/.test(src[s])) s--;
-      if (src[s] === "(") { s--; while (s >= 0 && /\s/.test(src[s])) s--; callArg = /[\w$]/.test(src[s] ?? ""); }
+      if (src[s] === "(") {
+        s--; while (s >= 0 && /\s/.test(src[s])) s--;
+        let w = s; while (w >= 0 && /[\w$]/.test(src[w])) w--;
+        const callee = src.slice(w + 1, s + 1);
+        // a name or a call result before the bracket is a call; return ( ... ), typeof ( ... ) and the like are not
+        callArg = (/^[A-Za-z_$][\w$]*$/.test(callee) && !/^(?:return|typeof|void|await|yield|case|in|of|new|delete|throw|else|do)$/.test(callee)) || src[s] === ")";
+      }
     }
     if ((sep === ":" && /^(?:alert|"alert"|'alert')$/.test(word)) || callArg) out.push({ name: m[2], line: lineAt(src, m.index) });
   }

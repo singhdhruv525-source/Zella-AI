@@ -405,6 +405,9 @@ async function auth(req, url, claims, body) {
       // and only while that session still exists (an ended one changes nothing). In the session's turn; the session's
       // older refresh tokens end here, so none of them can bring back the level from before the code.
       return inTurn(sid, async () => {
+        // read in the session's turn, so an earlier verification on this session is already in it
+        const current = await userRow(claims.sub);
+        if (!current) return { status: 401, json: { code: 401, msg: "User not found", error_code: "user_not_found" } };
         // the session row is locked first, so it can't end between the two changes
         const v = await asCaller({ role: "service_role" }, `with live as (select id from auth.sessions where id = ${lit(sid)} and user_id = ${lit(claims.sub)} for update),
           f as (update auth.mfa_factors set status = 'verified', updated_at = now() where id = ${lit(factorId)} and user_id = ${lit(claims.sub)} and exists (select 1 from live) returning id),
@@ -415,7 +418,7 @@ async function auth(req, url, claims, body) {
         if (v.text !== "1:11") return { status: 404, json: { code: 404, msg: "Factor not found", error_code: "mfa_factor_not_found" } };
         for (const [token, held] of REFRESH) if (held.sid === sid) REFRESH.delete(token);
         // the user in the answer as it is now: this factor verified (it was read before the change)
-        const now = { ...user, factors: (user.factors ?? []).map((f) => (f.id === factorId ? { ...f, status: "verified" } : f)) };
+        const now = { ...current, factors: (current.factors ?? []).map((f) => (f.id === factorId ? { ...f, status: "verified" } : f)) };
         return { status: 200, json: issue(now, "aal2", Math.floor(Date.now() / 1000), sid) };
       });
     }

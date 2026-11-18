@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "../supabase";
 import { passwordProblems } from "../formValidation";
 import { changeAdminPassword, finishMfaEnrollment, mfaStatus, removeMfaFactor, startMfaEnrollment } from "../mfa";
@@ -165,7 +165,9 @@ function MfaCard({ required: requiredByPage = false }) {
   const roleKnown = role === "admin" || role === "member";
   // the role is read again just before the dialog opens (access may have changed while the page was open), so the
   // dialog asks for a code exactly when the removal will need one; Remove stays off while it is read
-  const openRemove = async (f, count) => {
+  const removeOpener = useRef(null);   // the Remove button that opened the dialog, to take focus back when it closes
+  const openRemove = async (f, count, button) => {
+    removeOpener.current = button;
     if (requiredByPage) { setRemoving(f); return; }
     setRole("checking");
     const { data, error } = await supabase.rpc("zella_admin_role").then((r) => r, () => ({ error: true }));
@@ -196,7 +198,7 @@ function MfaCard({ required: requiredByPage = false }) {
               {/* every Zella Voice admin needs two step sign in (ACC-01): the last authenticator can't be removed here */}
               {required && s.factors.length < 2
                 ? <span className="zs-muted">Required for admins</span>
-                : <button type="button" className="zs-btn danger-outline sm" disabled={!roleKnown} title={roleKnown ? undefined : "Checking your account first"} onClick={() => openRemove(f, s.factors.length)}>Remove</button>}
+                : <button type="button" className="zs-btn danger-outline sm" disabled={!roleKnown} title={roleKnown ? undefined : "Checking your account first"} onClick={(e) => openRemove(f, s.factors.length, e.currentTarget)}>Remove</button>}
             </div>
           ))}
           {role === "error" && (
@@ -227,7 +229,7 @@ function MfaCard({ required: requiredByPage = false }) {
         </>
       )}</LoadState>
       {removing && <Confirm title={required ? "Remove this authenticator?" : "Remove two step sign in?"} danger confirmLabel="Remove"
-        onClose={() => { setRemoving(null); setRemoveCode(""); }}
+        onClose={() => { setRemoving(null); setRemoveCode(""); setTimeout(() => { if (removeOpener.current?.isConnected) removeOpener.current.focus(); }, 0); }}
         onConfirm={async () => { await removeMfaFactor(removing.id, { admin: required, code: removeCode }); setRemoveCode(""); state.reload(); }}>
         {required ? (
           <>

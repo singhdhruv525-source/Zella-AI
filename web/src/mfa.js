@@ -74,8 +74,10 @@ export async function finishMfaEnrollment(factorId, code) {
   if (admin !== false) keepPending(owner, factorId, admin);
   const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId, code: clean });
   if (error) {
-    // a refused code turned nothing on: nothing to record. Any other failure may have turned it on, so it stays listed.
-    if (/invalid|expired/i.test(error.message)) dropPending(owner, factorId);
+    // A refused code turned nothing on, but an earlier attempt that ended without a clear answer may have: the id is
+    // dropped only when no attempt for it may have turned it on. Any other failure is remembered as such an attempt.
+    if (!/invalid|expired/i.test(error.message)) markMaybeOn(owner, factorId);
+    else if (!pending().some((p) => p.factorId === factorId && p.userId === owner && p.maybeOn)) dropPending(owner, factorId);
     throw new Error(/invalid|expired/i.test(error.message) ? "That code didn't work. Try the newest one." : error.message);
   }
   if (admin !== false) await recordAdminMfaAdded(factorId, owner);
@@ -110,6 +112,7 @@ const pending = () => {
 const savePending = (list) => { try { if (list.length) localStorage.setItem(PENDING_KEY, JSON.stringify(list)); else localStorage.removeItem(PENDING_KEY); } catch { /* storage off */ } };
 // admin: true when the account was an admin when it set the authenticator up, null when that couldn't be read
 const keepPending = (userId, factorId, admin = true) => { if (!pending().some((p) => p.factorId === factorId && p.userId === userId)) savePending([...pending(), { userId, factorId, admin }]); };
+const markMaybeOn = (userId, factorId) => savePending(pending().map((p) => (p.factorId === factorId && p.userId === userId ? { ...p, maybeOn: true } : p)));
 const dropPending = (userId, factorId) => savePending(pending().filter((p) => !(p.factorId === factorId && p.userId === userId)));
 const currentUserId = async () => (await supabase.auth.getUser())?.data?.user?.id ?? null;
 // The id leaves the list only when the server's answer names it (a failed audit write answers 503), read while the

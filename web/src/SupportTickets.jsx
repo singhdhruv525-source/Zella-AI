@@ -34,7 +34,9 @@ export default function SupportTickets({ onOpenBusiness }) {
   const [note, setNote] = useState("");
   const [reply, setReply] = useState("");
   // drafts belong to one ticket: switching tickets (or closing) starts fresh ones
-  const selectTicket = (id) => { setSelectedId(id); setNote(""); setReply(""); };
+  // a ticket just created, opened as soon as a regular list holding it arrives (the overdue tab never holds it)
+  const [openWhenListed, setOpenWhenListed] = useState(null);
+  const selectTicket = (id) => { setSelectedId(id); setNote(""); setReply(""); setOpenWhenListed(null); };
 
   // only the latest load may show its result, so an older refresh can't replace the list read after a reply
   const request = useRef(0);
@@ -62,6 +64,14 @@ export default function SupportTickets({ onOpenBusiness }) {
   const loadRef = useRef(load);
   const overdueRef = useRef(overdueTab);
   useEffect(() => { loadRef.current = load; overdueRef.current = overdueTab; }, [load, overdueTab]);
+  useEffect(() => {
+    if (!openWhenListed) return;
+    if (overdueTab) { setStatusFilter("active"); return; }   // switched to Waiting too long meanwhile: back to the regular list
+    if (!loading && data && data.overdueOnly === false && (data.tickets ?? []).some((t) => t.id === openWhenListed)) {
+      setSelectedId(openWhenListed);
+      setOpenWhenListed(null);
+    }
+  }, [openWhenListed, overdueTab, loading, data]);
   // reply times are known only once the server says conversations are available (sql/zella_support_replies.sql)
   const timesKnown = data?.conversations === true;
 
@@ -107,9 +117,9 @@ export default function SupportTickets({ onOpenBusiness }) {
       setDraft(EMPTY_TICKET);
       // a new ticket isn't overdue: decided by the tab shown now (it may have changed while saving). From Waiting too
       // long, show the regular list, which reads it; otherwise read the regular list again. Then open it there.
+      setOpenWhenListed(result.ticketId);
       if (overdueRef.current) setStatusFilter("active");
       else await loadRef.current();
-      setSelectedId(result.ticketId);
     } catch (err) {
       setError(friendlyError(err));
     } finally {

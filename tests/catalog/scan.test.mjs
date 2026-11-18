@@ -262,3 +262,14 @@ test("review fixes 7: regex values, any dollar tag, nested filter arguments, con
   assert.deepEqual(names(n8nAlertKinds(`const x = ["zella_platform_alert", /* note */ { p_kind: "sample_kind" }];`)), []);
   assert.deepEqual(names(n8nAlertKinds(`await rpc("zella_platform_alert", /* note */ { p_kind: "real_kind" });`)), ["real_kind"]);
 });
+
+test("review fixes 8: division after an object, comments before a filter call, property writes, unknown arms, bracketed bodies, keywords", async () => {
+  const { labelKeys } = await import("./drift_test.mjs");
+  assert.deepEqual(labelKeys(`\n  "a.one": { valueOf() { return 6; } } / 2, "gone.label": "Gone",\n  "b.re": /[(]/.source, "c.three": "C",\n`), ["a.one", "gone.label", "b.re", "c.three"]);
+  assert.deepEqual(names(tsAuditReads(`admin.from("audit_logs").or ${" ".repeat(40)} ("action.like.a.missing.%")`)), ["a.missing.*"]);
+  assert.deepEqual(names(tsAuditReads(`let q = admin.from("audit_logs"); state.q = admin.from("jobs"); q.eq("action", "a.prop");`)), ["a.prop"]);
+  assert.deepEqual(names(tsAuditReads(`const q = useJobs ? admin.from("jobs") : fallback; q.eq("action", "a.arm");`)).map((n) => n.startsWith("?")), [true]);
+  assert.deepEqual(names(tsAuditReads(`let q = admin.from("audit_logs"); if (useJobs) (q = admin.from("jobs")); q.eq("action", "a.paren");`)), ["a.paren"]);
+  assert.deepEqual(names(n8nAlertKinds(`function f() { return ("zella_platform_alert", { p_kind: "sample_kind" }); }`)), []);
+  assert.deepEqual(names(n8nAlertKinds(`await rpc("zella_platform_alert", { p_kind: "real_kind" });`)), ["real_kind"]);
+});

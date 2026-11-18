@@ -2296,6 +2296,8 @@ async function ticketsList(admin: SupabaseClient, fields: Json = {}) {
   if (queryError) throw queryError;
 
   const hours = supportHours(hoursResult.data?.value);
+  // one moment for every ticket's age: the overdue scan and the ages returned agree, however long the reads take
+  const nowIso = new Date().toISOString();
   // deno-lint-ignore no-explicit-any
   let tickets = (ticketsResult.data ?? []) as any[];
   let overdueMessages: (Map<string, TicketMessage[]> & { available: boolean }) | null = null;
@@ -2309,7 +2311,7 @@ async function ticketsList(admin: SupabaseClient, fields: Json = {}) {
     const found = Object.assign(new Map<string, TicketMessage[]>(), { available: true });
     let cursor: { created_at: string; id: string } | null = null;
     do {
-      const batch = await waitingTickets(admin, fields, `${cols}, first_response_at`, (t) => ticketTiming(t, hours).overdue === true, 500 - picked.length, cursor);
+      const batch = await waitingTickets(admin, fields, `${cols}, first_response_at`, (t) => ticketTiming(t, hours, nowIso).overdue === true, 500 - picked.length, cursor);
       const replies = await ticketMessages(admin, batch.rows.map((t) => t.id));
       if (!replies.available) found.available = false;
       for (const t of batch.rows) {
@@ -2333,7 +2335,7 @@ async function ticketsList(admin: SupabaseClient, fields: Json = {}) {
   }
   // without first_response_at (sql/zella_support_replies.sql not applied) a ticket's first reply and lateness are
   // unknown: null, never "no reply" or "overdue"
-  const timing = new Map(tickets.map((t) => [t.id, withFirstResponse ? ticketTiming(t, hours) : { ...ticketTiming(t, hours), firstResponseHours: null, overdue: null }]));
+  const timing = new Map(tickets.map((t) => [t.id, withFirstResponse ? ticketTiming(t, hours, nowIso) : { ...ticketTiming(t, hours, nowIso), firstResponseHours: null, overdue: null }]));
   if (fields.overdue === true) tickets = tickets.filter((t) => timing.get(t.id)?.overdue === true);
   // only people who may work tickets can be assigned one (OPS-27)
   const supportRoles = new Set(["zella_owner", "super_admin", ...(grantsResult.data ?? []).map((g) => g.role)]);

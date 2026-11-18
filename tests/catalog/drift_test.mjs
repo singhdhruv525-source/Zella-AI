@@ -93,7 +93,9 @@ export function labelKeys(body) {
       const c = src[i];
       if (quote) { if (c === "\\") { i++; continue; } if (c === quote) quote = null; continue; }
       if (c === "'" || c === '"' || c === "`") { quote = c; prev = c; continue; }
-      if (c === "/" && "(,=:[!&|?{};".includes(prev)) {   // a regular expression literal, through its closing slash
+      // a regular expression literal, through its closing slash: only where a value starts (after ( , = : [ ! & | ? {);
+      // after a value (a name, a number, ) ] or }) a slash divides
+      if (c === "/" && "(,=:[!&|?{".includes(prev)) {
         let cls = false;
         for (i++; i < src.length && src[i] !== "\n"; i++) {
           if (src[i] === "\\") { i++; continue; }

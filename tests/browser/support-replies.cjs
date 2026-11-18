@@ -40,7 +40,7 @@ const BIZ = "b3000000-0000-0000-0000-0000000000a1";
     // 500 newer resolved tickets put it outside the regular list (the newest 500), so only the server's overdue read
     // can find it
     const filler = `Filler ${tag} ${Date.now().toString(36)}`;
-    k.sql(`insert into public.support_tickets (business_id, subject, status, priority, category, created_at, resolved_at) select '${BIZ}', '${filler} ' || g, 'resolved', 'normal', 'issue', now() - interval '1 hour', now() from generate_series(1, 500) g`);
+    const fillerIds = k.sql(`insert into public.support_tickets (business_id, subject, status, priority, category, created_at, resolved_at) select '${BIZ}', '${filler} ' || g, 'resolved', 'normal', 'issue', now() - interval '1 hour', now() from generate_series(1, 500) g returning id`).split("\n").filter(Boolean);
     try {   // the fixtures go by their id and subject, even when a wait below fails
       await p.reload(); await p.waitForSelector(`text=${subject}`);
       await p.click('button[role="tab"]:has-text("All")');
@@ -50,7 +50,8 @@ const BIZ = "b3000000-0000-0000-0000-0000000000a1";
       await p.waitForSelector(`text=${overdue}`);
       k.check(`${tag}: Waiting too long shows the overdue ticket from the server and not the new one`, await p.isVisible(`text=${overdue}`) && !(await p.isVisible(`text=${subject}`)));
     } finally {
-      k.sql(`delete from public.support_tickets where id = '${overdueId}' or subject like '${filler} %'`);
+      // only the rows this run inserted, by id
+      k.sql(`delete from public.support_tickets where id = any ('{${[overdueId, ...fillerIds].join(",")}}'::uuid[])`);
     }
     await p.click('button[role="tab"]:has-text("Open & in progress")');
     await p.click(`button:has-text("${subject}")`);

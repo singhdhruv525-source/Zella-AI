@@ -23,10 +23,12 @@ export default function TicketThread({ ticket, businessName, canReply, onClose, 
     if (ref.current.text !== sent) ref.current = { text: sent, id: crypto.randomUUID() };
     setBusy(true);
     setError("");
-    const { error: e } = await supabase.rpc("zella_business_ticket_reply", { p_ticket: ticket.id, p_body: sent, p_ref: ref.current.id });
+    const sentRef = ref.current.id;
+    const { error: e } = await supabase.rpc("zella_business_ticket_reply", { p_ticket: ticket.id, p_body: sent, p_ref: sentRef });
     setBusy(false);
     if (e) { setError(/NOT_ALLOWED/.test(e.message) ? "Only owners, admins and managers can answer support requests." : friendly(e)); return; }
-    ref.current = { text: null, id: null };
+    // only the reference this answer was sent with: a newer answer's (after a reopen) stays for its own retry
+    if (UNCONFIRMED.get(ticket.id)?.id === sentRef) UNCONFIRMED.delete(ticket.id);
     setText((current) => (current === sent ? "" : current));   // clear only what was sent
     state.reload();
     onAnswered?.();
