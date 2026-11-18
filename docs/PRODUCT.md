@@ -472,7 +472,7 @@ live switch, then the provider. Off means dry run: the message is logged as "wou
 
 | Integration | What it does | Status |
 |---|---|---|
-| Google Calendar, Outlook | Two-way: busy times block booking; Zella Voice bookings appear in the calendar | Built, off (`calendar_sync_live`) |
+| Google Calendar, Outlook | Two-way: busy times block booking; Zella Voice bookings appear in the calendar. The sign in is single use, valid 5 minutes, and finished in the app by the person who started it (`sql/zella_oauth_states.sql`, not applied) | Built, off (`calendar_sync_live`) |
 | Shopify | Order status for the receptionist, read-only scopes | Built |
 | Google Ads lead forms | Leads into the CRM | Built |
 | Meta (Facebook, Instagram, WhatsApp) | Leads and messages | Built, off |

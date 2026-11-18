@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { templatesForBusiness } from "./templatePrecedence.js";
 import { supabase } from "./supabase";
 import { Icon } from "./BusinessUI";
@@ -606,10 +606,29 @@ function CalendarConnections({ w }) {
   const canManage = roleIn(w, ["owner", "admin"]);
   // back from the provider's sign-in (calendar-connect sends the person here)
   const back = new URLSearchParams(typeof window === "undefined" ? "" : window.location.search);
-  const outcome = back.get("calendar"), reason = back.get("reason");
+  // the sign in is finished here, with this person's own sign in: calendar-connect checks they started it
+  const [finished, setFinished] = useState(null);
+  useEffect(() => {
+    const frag = new URLSearchParams(typeof window === "undefined" ? "" : window.location.hash.slice(1));
+    const code = frag.get("calendar_code"), signed = frag.get("calendar_state");
+    if (!code || !signed) return;
+    window.history.replaceState(null, "", window.location.pathname + window.location.search);   // the code is used once; keep it out of history
+    let live = true;
+    (async () => {
+      const { data, error } = await supabase.functions.invoke("calendar-connect", { body: { action: "finish", code, state: signed } });
+      let answer = data;
+      if (error) { try { answer = await error.context?.json?.(); } catch { answer = null; } }
+      if (!live) return;
+      setFinished(answer?.ok ? { outcome: "connected" } : { outcome: "error", reason: answer?.error ?? "try_again" });
+      if (answer?.ok) setVersion((v) => v + 1);
+    })();
+    return () => { live = false; };
+  }, []);
+  const outcome = finished?.outcome ?? back.get("calendar"), reason = finished?.reason ?? back.get("reason");
   const OUTCOME = { connected: ["success", "Calendar connected. Bookings will be copied to it and its busy times kept free once calendar sync is switched on."],
     cancelled: ["warning", "The calendar wasn't connected: the sign in was canceled."],
-    error: ["error", `The calendar couldn't be connected (${(reason ?? "error").replace(/_/g, " ")}). Try again, or contact Zella Voice support.`] };
+    error: ["error", reason === "not_your_sign_in" ? "The calendar wasn't connected: the sign in was started by someone else. Start it again from this page."
+      : `The calendar couldn't be connected (${(reason ?? "error").replace(/_/g, " ")}). Try again, or contact Zella Voice support.`] };
   async function connect(provider) {
     setProblem(""); setBusy(provider);
     const { data, error } = await supabase.functions.invoke("calendar-connect", { body: { action: "start", business_id: w.id, provider } });

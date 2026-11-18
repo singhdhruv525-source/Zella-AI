@@ -1,5 +1,5 @@
 import { assert, assertEquals } from "jsr:@std/assert@1";
-import { accountEmail, authorizeUrl, problem, signState, tokenForm, verifyState } from "./logic.ts";
+import { accountEmail, authorizeUrl, newNonce, nonceHash, problem, signState, STATE_SECONDS, tokenForm, verifyState } from "./logic.ts";
 const S = "a-test-secret-that-is-long-enough-0123456789";
 const B = "c0000000-0000-0000-0000-000000000004", U = "a0000000-0000-0000-0000-000000000002";
 
@@ -43,4 +43,12 @@ Deno.test("problem names are short and plain", () => {
   assertEquals(problem("access_denied"), "access_denied");
   assertEquals(problem("<script>"), "script");
   assertEquals(problem(42), "failed");
+});
+Deno.test("state: short lived (5 minutes) and carries a random value whose hash is stored", async () => {
+  assertEquals(STATE_SECONDS, 300);
+  assertEquals(await verifyState(S, await signState(S, { b: B, p: "google", u: U }, Date.now() / 1000 - 301)), null);
+  const n = newNonce();
+  assert(n !== newNonce() && /^[A-Za-z0-9_-]{32}$/.test(n));
+  assertEquals((await verifyState(S, await signState(S, { b: B, p: "google", u: U, n })))?.n, n);
+  assert(/^[0-9a-f]{64}$/.test(await nonceHash(n)) && (await nonceHash(n)) !== (await nonceHash(newNonce())));
 });
