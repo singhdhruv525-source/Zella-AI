@@ -165,16 +165,23 @@ function IncidentTimeline({ incident, busy, post, onDraft, onPost }) {
   const [more, setMore] = useState(false);
   const [readError, setReadError] = useState("");
   const [newestPending, setNewestPending] = useState(true);
-  const request = useRef(0);   // only the latest read may show its result, so an older one can't hide a new update
+  // The newest page and older pages are counted apart. An older page starts only while no newest page is on its way
+  // (read at click time, from the ref) and is dropped if a newest page started after it; the newest page clears the
+  // pending flag whenever it is the latest newest read, whatever older reads did meanwhile.
+  const newest = useRef({ n: 0, pending: false });
+  const older = useRef(0);
   const read = useCallback(async (before = null) => {
-    const mine = ++request.current;
-    if (!before) setNewestPending(true);
+    if (before && newest.current.pending) return;
+    const mineNewest = before ? newest.current.n : ++newest.current.n;
+    const mineOlder = before ? ++older.current : older.current;
+    if (!before) { newest.current.pending = true; setNewestPending(true); }
     let q = supabase.from("platform_incident_updates").select("id, body, notified_businesses, created_at").eq("incident_id", incident.id)
       .order("created_at", { ascending: false }).order("id", { ascending: false }).limit(UPDATES_PAGE);
     if (before) q = q.or(`created_at.lt."${before.created_at}",and(created_at.eq."${before.created_at}",id.lt.${before.id})`);
     const { data, error: e } = await q;
-    if (mine !== request.current) return;
-    if (!before) setNewestPending(false);
+    if (mineNewest !== newest.current.n) return;          // a newer newest page is on its way: it decides
+    if (before && mineOlder !== older.current) return;     // a later older page replaced this one
+    if (!before) { newest.current.pending = false; setNewestPending(false); }
     if (e) { setReadError(missingFn(e) || /platform_incident_updates/.test(e.message) ? "Incident updates need the latest database update (sql/zella_incident_updates.sql)." : say(e)); if (!before) setRows([]); return; }
     setReadError("");   // a read clears only its own error, never a failed post's
     const page = [...(data ?? [])].reverse();
@@ -208,7 +215,7 @@ function IncidentTimeline({ incident, busy, post, onDraft, onPost }) {
     </div>
   );
 }
-const NO_POST = { text: "", notify: false, posting: false, error: "", version: 0 };
+const NO_POST = { text: "", notify: false, posting: false, error: "", version: 0, ref: null, refText: null, refNotify: null };
 
 export function IncidentsPanel() {
   const [list, setList] = useState({ data: null, error: "", loading: true, more: false, at: null });
@@ -226,8 +233,12 @@ export function IncidentsPanel() {
     const draft = { ...NO_POST, ...posts[incident.id] };
     if (inFlight.current.has(incident.id)) return;
     inFlight.current.add(incident.id);
-    setPost(incident.id, { posting: true, error: "" });
-    const { data: r, error: e } = await supabase.rpc("zella_incident_post_update", { p_incident: incident.id, p_body: draft.text, p_notify: draft.notify });
+    // one id per update: sending the same update again (after a lost answer) returns the saved one and tells nobody
+    // twice; a changed text or choice is a new update with a new id
+    const same = draft.ref && draft.refText === draft.text && draft.refNotify === draft.notify;
+    const ref = same ? draft.ref : crypto.randomUUID();
+    setPost(incident.id, { posting: true, error: "", ref, refText: draft.text, refNotify: draft.notify });
+    const { data: r, error: e } = await supabase.rpc("zella_incident_post_update", { p_incident: incident.id, p_body: draft.text, p_notify: draft.notify, p_ref: ref });
     inFlight.current.delete(incident.id);
     // the text stays, to try again
     if (e) return setPost(incident.id, { posting: false, error: /NOT_OPEN/.test(e.message ?? "") ? "This incident is resolved, so it takes no more updates." : say(e) });

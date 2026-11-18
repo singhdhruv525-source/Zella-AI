@@ -91,6 +91,8 @@ export function sqlExprNames(text) {
 
 // The result expressions of a case ... end, each read up to the next when / else / end at the same depth (nested
 // brackets, nested cases and quoted text are skipped over).
+// a dollar quote's tag as PostgreSQL allows it ($$, $tag$, letters of any language, any length), at a given offset
+const DOLLAR_TAG = /\$(?:[\p{L}_][\p{L}\p{N}_]*)?\$/uy;
 export function caseResults(t) {
   const out = [];
   const word = /\b(case|when|then|else|end)\b/gi;
@@ -102,8 +104,9 @@ export function caseResults(t) {
     if (quote) { if (c === "'") quote = false; continue; }
     if (ident) { if (c === '"') { if (t[i + 1] === '"') i++; else ident = false; } continue; }   // "end" as a name, "" inside
     // a dollar quoted string ($$...$$, $tag$...$tag$) is text up to its own closing tag, double quotes included
-    if (c === "$" && !(i > 0 && /[A-Za-z0-9_]/.test(t[i - 1]))) {
-      const tag = /^\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/.exec(t.slice(i, i + 64));
+    if (c === "$" && !(i > 0 && /[\p{L}\p{N}_]/u.test(t[i - 1]))) {
+      DOLLAR_TAG.lastIndex = i;
+      const tag = DOLLAR_TAG.exec(t);
       if (tag) { const close = t.indexOf(tag[0], i + tag[0].length); i = close < 0 ? t.length : close + tag[0].length - 1; continue; }
     }
     if (c === "'") { quote = true; continue; }
@@ -462,13 +465,20 @@ export function tsAuditReads(raw) {
   for (const m of src.matchAll(/action\.like\.([a-z_.]*)%/g)) {
     // only a pattern inside the arguments of an .or(...) / .filter(...) call is a filter (a string anywhere else is not
     // a query); the query is that call's receiver
-    let d = 0, open = -1;
-    for (let i = m.index - 1; i >= 0; i--) {
-      const c = masked[i];
-      if (c === ")" || c === "]" || c === "}") d++;
-      else if (c === "(" || c === "[" || c === "{") { if (d === 0) { if (c === "(") open = i; break; } d--; }
+    // out through the enclosing brackets (an array, a .join(...) call) to the first call that is .or( or .filter(
+    let callee = null, open = -1, from = m.index - 1;
+    for (let level = 0; level < 8 && !callee; level++) {
+      let d = 0; open = -1;
+      for (let i = from; i >= 0; i--) {
+        const c = masked[i];
+        if (c === ";") break;
+        if (c === ")" || c === "]" || c === "}") d++;
+        else if (c === "(" || c === "[" || c === "{") { if (d === 0) { open = i; break; } d--; }
+      }
+      if (open < 0 || masked[open] === "{") break;
+      if (masked[open] === "(") callee = /\.(or|filter)\s*$/.exec(masked.slice(Math.max(0, open - 12), open));
+      from = open - 1;
     }
-    const callee = open >= 0 ? /\.(or|filter)\s*$/.exec(masked.slice(Math.max(0, open - 12), open)) : null;
     if (!callee) continue;
     const call = open - callee[0].length;
     const table = queryTable(src, masked, call);
@@ -506,24 +516,46 @@ export function queryTable(src, masked, at, depth = 0) {
     if (!/^[A-Za-z_$][\w$]*$/.test(head)) return null;
     // the head is a name: its latest assignment before here decides
     // (not the assignment this chain is the right hand side of)
-    const assigns = [...masked.slice(0, j + 1).matchAll(new RegExp(`(?:\\b(?:let|const|var)\\s+)?\\b${head}\\s*=(?!=)\\s*`, "g"))]
+    const all = [...masked.slice(0, j + 1).matchAll(new RegExp(`(?:\\b(?:let|const|var)\\s+)?\\b${head}\\s*=(?!=)\\s*`, "g"))]
       .filter((x) => x.index + x[0].length < j + 1);
-    if (!assigns.length) return null;
-    // every assignment before here can reach this call (one may sit in a branch): audit_logs if any of them is,
-    // unknown if any can't be told, otherwise the table they name
-    const tables = assigns.map((a) => {
+    if (!all.length) return null;
+    // The assignments that can reach this call: from the last one that always runs before it (in a block that also
+    // holds the call, not after if / else / ? / && / ||), plus every conditional one after that.
+    let lastSure = -1;
+    all.forEach((a, n) => { if (!conditionalAt(masked, a.index, j)) lastSure = n; });
+    const assigns = all.slice(Math.max(lastSure, 0));
+    // audit_logs if any of them is, unknown if any can't be told, otherwise the table they name (every .from in the
+    // right hand side counts: cond ? admin.from("a") : admin.from("b") can be either)
+    const tables = assigns.flatMap((a) => {
       const rhsStart = a.index + a[0].length;
       const rhs = src.slice(rhsStart, rhsStart + exprAfter(src, rhsStart).length);
-      const f = rhs.match(/\.from\(\s*["']([a-z_]+)["']\s*\)/);
-      if (f) return f[1];
+      const froms = [...rhs.matchAll(/\.from\(\s*["']([a-z_]+)["']\s*\)/g)].map((f) => f[1]);
+      if (froms.length) return /[?]|&&|\|\|/.test(maskStrings(rhs)) || froms.length === 1 ? froms : [null];
       // q = q.order(...): follow that q back in turn
-      if (new RegExp(`^\\s*${head}\\s*\\.`).test(rhs)) return queryTable(src, masked, rhsStart + rhs.indexOf("."), depth + 1);
-      return null;
+      if (new RegExp(`^\\s*${head}\\s*\\.`).test(rhs)) return [queryTable(src, masked, rhsStart + rhs.indexOf("."), depth + 1)];
+      return [null];
     });
     if (tables.includes("audit_logs")) return "audit_logs";
     if (tables.includes(null)) return null;
     return tables[tables.length - 1];
   }
+}
+
+// Whether an assignment at `at` may not run before a call at `call`: it sits in a block that closes before the call,
+// or right after if (...) / else / ? / && / || without a block.
+function conditionalAt(masked, at, call) {
+  let d = 0;
+  for (let i = at; i < call; i++) { if (masked[i] === "{") d++; else if (masked[i] === "}") { if (d === 0) return true; d--; } }
+  let k = at - 1;
+  while (k >= 0 && /\s/.test(masked[k])) k--;
+  const before = masked.slice(Math.max(0, k - 5), k + 1);
+  if (/(?:else|[?:]|&&|\|\|)$/.test(before)) return true;
+  if (masked[k] === ")") {   // if (...) / while (...) / for (...) q = ...
+    let p = 0, s = k;
+    for (; s >= 0; s--) { if (masked[s] === ")") p++; else if (masked[s] === "(") { p--; if (p === 0) break; } }
+    if (/\b(?:if|while|for)\s*$/.test(masked.slice(Math.max(0, s - 8), s))) return true;
+  }
+  return false;
 }
 
 // Permission names: values of the PERMISSIONS maps, PERMISSION_CATALOG rows and the two owner only permissions.
@@ -567,7 +599,14 @@ export function n8nAlertKinds(raw) {
     let word = "";
     if (src[k] === '"' || src[k] === "'") { const q = src[k]; const s = src.lastIndexOf(q, k - 1); word = s >= 0 ? q + src.slice(s + 1, k) + q : ""; }
     else { let s = k; while (s >= 0 && /[\w$]/.test(src[s])) s--; word = src.slice(s + 1, k + 1); }
-    if ((sep === ":" && /^(?:alert|"alert"|'alert')$/.test(word)) || (sep === "," && /^["']zella_platform_alert["']$/.test(word))) out.push({ name: m[2], line: lineAt(src, m.index) });
+    // the RPC name must be the first argument of a call: name( "zella_platform_alert", { ... } ), not an array item
+    let callArg = false;
+    if (sep === "," && /^["']zella_platform_alert["']$/.test(word)) {
+      let s = src.lastIndexOf(word[0], k - 1) - 1;
+      while (s >= 0 && /\s/.test(src[s])) s--;
+      if (src[s] === "(") { s--; while (s >= 0 && /\s/.test(src[s])) s--; callArg = /[\w$]/.test(src[s] ?? ""); }
+    }
+    if ((sep === ":" && /^(?:alert|"alert"|'alert')$/.test(word)) || callArg) out.push({ name: m[2], line: lineAt(src, m.index) });
   }
   return out;
 }

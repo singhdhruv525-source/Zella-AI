@@ -1637,10 +1637,11 @@ async function auditLogList(admin: SupabaseClient, fields: Json, role: string | 
   let people: { id: string; email: string | null }[] | undefined;
   if (!cursor) {
     // every business and every admin, read 1000 at a time by id, so the pickers are never cut off; sorted by name after
-    const businessRows = admin.from("businesses").select("id, name"), adminRows = admin.from("platform_admins").select("user_id");
+    // (a fresh query for each page: a builder keeps every filter added to it)
+    const businessRows = () => admin.from("businesses").select("id, name"), adminRows = () => admin.from("platform_admins").select("user_id");
     const [list, admins] = await Promise.all([
-      everyRow("id", (after) => (after ? businessRows.gt("id", after) : businessRows).order("id").limit(1000)),
-      everyRow("user_id", (after) => (after ? adminRows.gt("user_id", after) : adminRows).order("user_id").limit(1000)),
+      everyRow("id", (after) => (after ? businessRows().gt("id", after) : businessRows()).order("id").limit(1000)),
+      everyRow("user_id", (after) => (after ? adminRows().gt("user_id", after) : adminRows()).order("user_id").limit(1000)),
     ]);
     businesses = (list as { id: string; name: string }[])
       .sort((a, b) => String(a.name ?? "").localeCompare(String(b.name ?? "")) || a.id.localeCompare(b.id));
@@ -2297,13 +2298,32 @@ async function ticketsList(admin: SupabaseClient, fields: Json = {}) {
   const hours = supportHours(hoursResult.data?.value);
   // deno-lint-ignore no-explicit-any
   let tickets = (ticketsResult.data ?? []) as any[];
+  let overdueMessages: (Map<string, TicketMessage[]> & { available: boolean }) | null = null;
   // Overdue: the tickets still waiting for a first reply are read 1000 at a time, newest first, and judged from their
   // times alone as each page arrives; only overdue ones are kept, and reading stops at the newest 500 of them (a ticket
   // that isn't overdue never hides an older one that is). Only those 500 have their conversations read.
   if (fields.overdue === true && withFirstResponse) {
-    tickets = await waitingTickets(admin, fields, `${cols}, first_response_at`, (t) => ticketTiming(t, hours).overdue === true, 500);
+    // A ticket answered between the ticket read and the replies read is no longer waiting: it is dropped and the scan
+    // goes on from the last ticket read, until 500 still qualify or there are no more.
+    const picked: typeof tickets = [];
+    const found = Object.assign(new Map<string, TicketMessage[]>(), { available: true });
+    let cursor: { created_at: string; id: string } | null = null;
+    do {
+      const batch = await waitingTickets(admin, fields, `${cols}, first_response_at`, (t) => ticketTiming(t, hours).overdue === true, 500 - picked.length, cursor);
+      const replies = await ticketMessages(admin, batch.rows.map((t) => t.id));
+      if (!replies.available) found.available = false;
+      for (const t of batch.rows) {
+        const list = replies.get(t.id) ?? [];
+        if (list.some((m) => m.author_side === "zella")) continue;
+        picked.push(t);
+        if (list.length) found.set(t.id, list);
+      }
+      cursor = batch.next;
+    } while (picked.length < 500 && cursor);
+    tickets = picked;
+    overdueMessages = found;
   }
-  const messages = await ticketMessages(admin, tickets.map((t) => t.id));
+  const messages = overdueMessages ?? await ticketMessages(admin, tickets.map((t) => t.id));
   // The time of the first reply comes from the replies read above when the ticket row was read just before one was
   // added, so a ticket never shows a reply next to "No reply yet".
   for (const t of tickets) {
@@ -2358,12 +2378,14 @@ async function ticketsList(admin: SupabaseClient, fields: Json = {}) {
 }
 
 // The tickets still waiting for their first reply (not resolved or closed) that `keep` accepts, with the list's status
-// and business filters, newest first, read 1000 at a time after a (created_at, id) cursor, up to `max` of them.
+// and business filters, newest first, read 1000 at a time after a (created_at, id) cursor (from `start`), up to `max`
+// of them. `next` is the cursor after the last ticket read, or null when there are no more.
 // deno-lint-ignore no-explicit-any
-async function waitingTickets(admin: SupabaseClient, fields: Json, columns: string, keep: (t: any) => boolean, max: number) {
+async function waitingTickets(admin: SupabaseClient, fields: Json, columns: string, keep: (t: any) => boolean, max: number,
+  start: { created_at: string; id: string } | null = null) {
   // deno-lint-ignore no-explicit-any
-  const out: any[] = [];
-  let after: { created_at: string; id: string } | null = null;
+  const rows: any[] = [];
+  let after = start;
   for (;;) {
     let q = admin.from("support_tickets").select(columns).is("first_response_at", null).not("status", "in", "(resolved,closed)")
       .order("created_at", { ascending: false }).order("id", { ascending: false }).limit(1000);
@@ -2376,8 +2398,11 @@ async function waitingTickets(admin: SupabaseClient, fields: Json, columns: stri
     if (error) throw error;
     // deno-lint-ignore no-explicit-any
     const page = (data ?? []) as any[];
-    for (const t of page) { if (keep(t)) out.push(t); if (out.length >= max) return out; }
-    if (page.length < 1000) return out;
+    for (const [n, t] of page.entries()) {
+      if (keep(t)) rows.push(t);
+      if (rows.length >= max) return { rows, next: n < page.length - 1 || page.length === 1000 ? { created_at: t.created_at, id: t.id } : null };
+    }
+    if (page.length < 1000) return { rows, next: null };
     after = { created_at: page[page.length - 1].created_at, id: page[page.length - 1].id };
   }
 }
@@ -2415,27 +2440,33 @@ async function ticketNotes(admin: SupabaseClient, tickets: { id: string; metadat
   const ids = tickets.map((t) => t.id);
   if (!ids.length) return out;
   // read in pages of 1000 after a (created_at, id) cursor, so the API's row cap can't cut notes off and a note saved
-  // while reading can't make a page repeat or skip one
+  // while reading can't make a page repeat or skip one; 200 tickets at a time, so the request address stays short
   const pageSize = 1000;
-  let after: { created_at: string; id: string } | null = null;
-  for (;;) {
-    let query = admin.from("support_ticket_notes").select("id, ticket_id, body, author_id, created_at").in("ticket_id", ids);
-    if (after) query = query.or(`created_at.gt.${after.created_at},and(created_at.eq.${after.created_at},id.gt.${after.id})`);
-    const { data, error } = await query.order("created_at", { ascending: true }).order("id", { ascending: true }).limit(pageSize);
-    if (error) {
-      if (!missingTable(error)) throw error;
-      out.clear();
-      break;
+  for (let i = 0; i < ids.length; i += 200) {
+    const chunk = ids.slice(i, i + 200);
+    let after: { created_at: string; id: string } | null = null;
+    for (;;) {
+      let query = admin.from("support_ticket_notes").select("id, ticket_id, body, author_id, created_at").in("ticket_id", chunk);
+      if (after) query = query.or(`created_at.gt.${after.created_at},and(created_at.eq.${after.created_at},id.gt.${after.id})`);
+      const { data, error } = await query.order("created_at", { ascending: true }).order("id", { ascending: true }).limit(pageSize);
+      if (error) {
+        if (!missingTable(error)) throw error;
+        return notesFromMetadata(tickets);   // before sql/zella_support_notes.sql: still read from metadata
+      }
+      for (const n of data ?? []) {
+        const notes = out.get(n.ticket_id) ?? [];
+        notes.push({ body: n.body, author_id: n.author_id, created_at: n.created_at });
+        out.set(n.ticket_id, notes);
+      }
+      if ((data ?? []).length < pageSize) break;
+      const last = data![data!.length - 1];
+      after = { created_at: last.created_at, id: last.id };
     }
-    for (const n of data ?? []) {
-      const notes = out.get(n.ticket_id) ?? [];
-      notes.push({ body: n.body, author_id: n.author_id, created_at: n.created_at });
-      out.set(n.ticket_id, notes);
-    }
-    if ((data ?? []).length < pageSize) return out;
-    const last = data![data!.length - 1];
-    after = { created_at: last.created_at, id: last.id };
   }
+  return out;
+}
+function notesFromMetadata(tickets: { id: string; metadata: unknown }[]) {
+  const out = new Map<string, TicketNote[]>();
   for (const t of tickets) {
     out.set(t.id, (Array.isArray(obj(t.metadata).notes) ? (obj(t.metadata).notes as unknown[]) : []).map((x) => {
       const n = obj(x);

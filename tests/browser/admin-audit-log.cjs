@@ -12,6 +12,7 @@ const ENTITY = require("crypto").randomUUID();   // this run's record id: every 
 const catalog = JSON.parse(fs.readFileSync(path.join(__dirname, "../../web/supabase/functions/_shared/catalog.json"), "utf8"));
 const OTHER = require("crypto").randomUUID();    // a second record of this run, which the record filter must leave out
 const STARTED = new Date().toISOString();
+const DECOY_ACTION = "admin.sessions_ended";   // the other record's rows; this run's own record's rows are admin.updated
 const MEMBER = "staff-a@b3.test";
 // the business member's refused call sends this run's own browser name, which the refusal records (user_agent)
 const RUN_AGENT = `lanea-audit-journey ${ENTITY}`;
@@ -70,7 +71,8 @@ const cleanUp = () => k.sql(`delete from public.audit_logs where (entity_type = 
   const audit = k.sql(`select (new_data ->> 'rows') || '|' || (new_data -> 'filters' ->> 'entityType') || '|' || (new_data -> 'filters' ->> 'from') from public.audit_logs where ${where} limit 1`);
   k.check("the export is audited once, with its filters and row count", exportsBefore === 0 && exportsAfter === 1 && audit === "65|lanea_test|2026-11-01T00:00:00.000Z", `${exportsBefore} before, ${exportsAfter} after, ${audit}`);
   // a second record for the same person and record type, which the browser's record filter must leave out
-  k.sql(`insert into public.audit_logs (user_id, action, entity_type, entity_id, created_at) select '${ro}', 'admin.updated', 'lanea_test', '${OTHER}', '2026-11-15 12:00:00.123456+00' from generate_series(1, 2)`);
+  // (another action, so its rows can be told apart on screen too)
+  k.sql(`insert into public.audit_logs (user_id, action, entity_type, entity_id, created_at) select '${ro}', '${DECOY_ACTION}', 'lanea_test', '${OTHER}', '2026-11-15 12:00:00.123456+00' from generate_series(1, 2)`);
 
   const browser = await k.chromium.launch();
   for (const [width, tag] of [[1440, "desktop"], [390, "phone"]]) {
@@ -95,7 +97,10 @@ const cleanUp = () => k.sql(`delete from public.audit_logs where (entity_type = 
     await p.fill('input[placeholder="The record\'s id"]', ENTITY);
     const after = (await filtered).logs ?? [];
     await p.waitForSelector("text=5 entries shown");
-    k.check(`${tag}: person and record filters narrow the list to this run's 5 (the other record is left out)`, after.length === 5 && after.every((l) => l.entity_id === ENTITY) && !(await p.isVisible('[data-load="stale"]')), `${after.length} rows`);
+    // and on screen: five rows of this run's record, none of the other record's
+    const shown = await p.locator("tbody tr.al-row .al-action").allTextContents();
+    k.check(`${tag}: person and record filters narrow the list to this run's 5 (the other record is left out)`, after.length === 5 && after.every((l) => l.entity_id === ENTITY) && !(await p.isVisible('[data-load="stale"]'))
+      && shown.length === 5 && shown.every((s) => s === catalog.audit_actions["admin.updated"]) && !shown.includes(catalog.audit_actions[DECOY_ACTION]), `${after.length} rows; on screen ${shown.join(" / ")}`);
     await p.locator("tbody tr").first().locator('button:has-text("Details")').click().catch(() => {});
     await p.waitForTimeout(800); await p.screenshot({ path: path.join(SHOTS, `audit-filters-${tag}.png`), fullPage: true });
     const [dl] = await Promise.all([p.waitForEvent("download"), p.click('button:has-text("Export CSV")')]);

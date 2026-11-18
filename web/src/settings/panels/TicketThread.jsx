@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { supabase } from "../../supabase";
 import { friendly, orThrow } from "../../BusinessShared";
 import { Banner, Card, Empty, Field, LoadState, useAsync, when } from "../SettingsKit";
@@ -6,14 +6,18 @@ import { Banner, Card, Empty, Field, LoadState, useAsync, when } from "../Settin
 // OPS-25: a support request's conversation with Zella Voice, as the business sees it (support_ticket_messages; the
 // team's internal notes are never here). Owners, admins and managers can answer; the database checks that too.
 // onAnswered: called after an answer is saved, so the request list shows a reopened request as open again.
+// request id -> { text, id } of an answer sent but not yet confirmed by the server
+const UNCONFIRMED = new Map();
+
 export default function TicketThread({ ticket, businessName, canReply, onClose, onAnswered }) {
   const state = useAsync(() => supabase.from("support_ticket_messages").select("id, body, author_side, created_at").eq("ticket_id", ticket.id)
     .order("created_at", { ascending: true }).then(orThrow), [ticket.id]);
-  const [text, setText] = useState("");
+  const [text, setText] = useState(() => UNCONFIRMED.get(ticket.id)?.text ?? "");   // an unconfirmed answer comes back to send again
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  // one id per answer: sending the same answer again (after a lost response) saves it once; a new answer gets a new id
-  const ref = useRef({ text: null, id: null });
+  // one id per answer: sending the same answer again (after a lost response) saves it once; a new answer gets a new id.
+  // Kept per request outside the thread (UNCONFIRMED), so closing and reopening it keeps an unconfirmed answer's id.
+  const ref = { get current() { return UNCONFIRMED.get(ticket.id) ?? { text: null, id: null }; }, set current(v) { if (v.id) UNCONFIRMED.set(ticket.id, v); else UNCONFIRMED.delete(ticket.id); } };
   async function send() {
     const sent = text;
     if (ref.current.text !== sent) ref.current = { text: sent, id: crypto.randomUUID() };

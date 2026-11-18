@@ -37,13 +37,20 @@ const BIZ = "b3000000-0000-0000-0000-0000000000a1";
     // a ticket that has waited three days without a reply is overdue; the request just opened isn't yet
     const overdue = `Overdue fixture ${tag} ${Date.now().toString(36)}`;
     const overdueId = k.sql(`insert into public.support_tickets (business_id, subject, status, priority, category, created_at) values ('${BIZ}', '${overdue}', 'open', 'normal', 'issue', now() - interval '3 days') returning id`);
-    try {   // the fixture goes by its id, even when a wait below fails
+    // 500 newer resolved tickets put it outside the regular list (the newest 500), so only the server's overdue read
+    // can find it
+    const filler = `Filler ${tag} ${Date.now().toString(36)}`;
+    k.sql(`insert into public.support_tickets (business_id, subject, status, priority, category, created_at, resolved_at) select '${BIZ}', '${filler} ' || g, 'resolved', 'normal', 'issue', now() - interval '1 hour', now() from generate_series(1, 500) g`);
+    try {   // the fixtures go by their id and subject, even when a wait below fails
       await p.reload(); await p.waitForSelector(`text=${subject}`);
+      await p.click('button[role="tab"]:has-text("All")');
+      await p.waitForSelector(`text=${filler} 1`);
+      k.check(`${tag}: the overdue ticket is not in the regular list`, !(await p.isVisible(`text=${overdue}`)));
       await p.click('button[role="tab"]:has-text("Waiting too long")');
       await p.waitForSelector(`text=${overdue}`);
-      k.check(`${tag}: Waiting too long shows the overdue ticket and not the new one`, await p.isVisible(`text=${overdue}`) && !(await p.isVisible(`text=${subject}`)));
+      k.check(`${tag}: Waiting too long shows the overdue ticket from the server and not the new one`, await p.isVisible(`text=${overdue}`) && !(await p.isVisible(`text=${subject}`)));
     } finally {
-      k.sql(`delete from public.support_tickets where id = '${overdueId}'`);
+      k.sql(`delete from public.support_tickets where id = '${overdueId}' or subject like '${filler} %'`);
     }
     await p.click('button[role="tab"]:has-text("Open & in progress")');
     await p.click(`button:has-text("${subject}")`);

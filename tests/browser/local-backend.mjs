@@ -398,7 +398,7 @@ async function auth(req, url, claims, body) {
       if (!sid) {   // a token without a session: a new session, as before
         const v = await asCaller({ role: "service_role" }, `update auth.mfa_factors set status = 'verified', updated_at = now() where id = ${lit(factorId)} and user_id = ${lit(claims.sub)} returning id`, sys);
         if (v.error || !v.text) return { status: 404, json: { code: 404, msg: "Factor not found", error_code: "mfa_factor_not_found" } };
-        const s = await session(user, "aal2", Math.floor(Date.now() / 1000)).catch(() => "error");
+        const s = await session({ ...user, factors: (user.factors ?? []).map((f) => (f.id === factorId ? { ...f, status: "verified" } : f)) }, "aal2", Math.floor(Date.now() / 1000)).catch(() => "error");
         return s === "error" ? { status: 500, json: { code: 500, msg: "The session could not be saved", error_code: "unexpected_failure" } } : { status: 200, json: s };
       }
       // the same session, now verified with a code: the factor and the session change together in one statement,
@@ -414,7 +414,9 @@ async function auth(req, url, claims, body) {
         if (v.text.startsWith("0:")) return { status: 401, json: { code: 401, msg: "Session not found", error_code: "session_not_found" } };
         if (v.text !== "1:11") return { status: 404, json: { code: 404, msg: "Factor not found", error_code: "mfa_factor_not_found" } };
         for (const [token, held] of REFRESH) if (held.sid === sid) REFRESH.delete(token);
-        return { status: 200, json: issue(user, "aal2", Math.floor(Date.now() / 1000), sid) };
+        // the user in the answer as it is now: this factor verified (it was read before the change)
+        const now = { ...user, factors: (user.factors ?? []).map((f) => (f.id === factorId ? { ...f, status: "verified" } : f)) };
+        return { status: 200, json: issue(now, "aal2", Math.floor(Date.now() / 1000), sid) };
       });
     }
     return { status: 200, json: { all: [], totp: [], phone: [] } };

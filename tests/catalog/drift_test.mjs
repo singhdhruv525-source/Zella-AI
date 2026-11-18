@@ -86,12 +86,23 @@ export function labelKeys(body) {
     KEY.lastIndex = i;
     const m = KEY.exec(src);
     if (m) out.push(m[2] ?? m[4]);
-    // on to the next property: past this one's value, to the next comma at this level
-    let depth = 0, quote = null;
+    // on to the next property: past this one's value, to the next comma at this level (strings and regular
+    // expression literals are skipped whole, so brackets or commas inside them count for nothing)
+    let depth = 0, quote = null, prev = ":";
     for (; i < src.length; i++) {
       const c = src[i];
       if (quote) { if (c === "\\") { i++; continue; } if (c === quote) quote = null; continue; }
-      if (c === "'" || c === '"' || c === "`") { quote = c; continue; }
+      if (c === "'" || c === '"' || c === "`") { quote = c; prev = c; continue; }
+      if (c === "/" && "(,=:[!&|?{};".includes(prev)) {   // a regular expression literal, through its closing slash
+        let cls = false;
+        for (i++; i < src.length && src[i] !== "\n"; i++) {
+          if (src[i] === "\\") { i++; continue; }
+          if (src[i] === "[") cls = true; else if (src[i] === "]") cls = false; else if (src[i] === "/" && !cls) break;
+        }
+        prev = "/";
+        continue;
+      }
+      if (!/\s/.test(c)) prev = c;
       if ("([{".includes(c)) depth++;
       else if (")]}".includes(c)) depth--;
       else if (c === "," && depth <= 0) { i++; break; }

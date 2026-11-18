@@ -244,3 +244,21 @@ test("review fixes 6: dollar quotes, filter calls only, branch assignments, aler
   const { labelKeys } = await import("./drift_test.mjs");
   assert.deepEqual(labelKeys(`\n  ["a.one"]: "One", ["gone.label"]: "Gone",\n  /*\n  ["c.comment"]: "C",\n  */\n  "b.x": f("a, b", { "in.side": 1 }),\n`), ["a.one", "gone.label", "b.x"]);
 });
+
+test("review fixes 7: regex values, any dollar tag, nested filter arguments, conditional and overwritten queries, RPC calls only", async () => {
+  const { labelKeys } = await import("./drift_test.mjs");
+  assert.deepEqual(labelKeys(`\n  "a.one": /[(]/.source, "gone.label": "Gone",\n  "b.two": x / 2, "c.three": "C",\n`), ["a.one", "gone.label", "b.two", "c.three"]);
+  // dollar quote tags in any language, of any length
+  assert.deepEqual(names(sqlExprNames(`case when note = $réponse$"$réponse$ then 'a.new' else 'a.old' end`)), ["a.new", "a.old"]);
+  const tag = "$" + "t".repeat(80) + "$";
+  assert.deepEqual(names(sqlExprNames("case when note = " + tag + '"' + tag + " then 'a.new' else 'a.old' end")), ["a.new", "a.old"]);
+  // a pattern inside an argument expression of .or(...)
+  assert.deepEqual(names(tsAuditReads(`admin.from("audit_logs").or(["action.like.a.new.%"].join(","))`)), ["a.new.*"]);
+  // both arms of a conditional assignment; an overwritten binding doesn't reach the call
+  assert.deepEqual(names(tsAuditReads(`const q = useJobs ? admin.from("jobs") : admin.from("audit_logs"); q.eq("action", "a.cond");`)), ["a.cond"]);
+  assert.deepEqual(names(tsAuditReads(`let q = admin.from("audit_logs"); q = admin.from("jobs"); q.eq("action", "not.audit");`)), []);
+  assert.deepEqual(names(tsAuditReads(`let q = admin.from("audit_logs"); if (x) { q = admin.from("jobs"); } q.eq("action", "a.maybe");`)), ["a.maybe"]);
+  // an RPC name in an array is not a call
+  assert.deepEqual(names(n8nAlertKinds(`const x = ["zella_platform_alert", /* note */ { p_kind: "sample_kind" }];`)), []);
+  assert.deepEqual(names(n8nAlertKinds(`await rpc("zella_platform_alert", /* note */ { p_kind: "real_kind" });`)), ["real_kind"]);
+});

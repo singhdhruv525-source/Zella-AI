@@ -163,6 +163,16 @@ function MfaCard({ required: requiredByPage = false }) {
   }, [requiredByPage, roleTry]);
   const required = role === "admin";
   const roleKnown = role === "admin" || role === "member";
+  // the role is read again just before the dialog opens (access may have changed while the page was open), so the
+  // dialog asks for a code exactly when the removal will need one; Remove stays off while it is read
+  const openRemove = async (f, count) => {
+    if (requiredByPage) { setRemoving(f); return; }
+    setRole("checking");
+    const { data, error } = await supabase.rpc("zella_admin_role").then((r) => r, () => ({ error: true }));
+    setRole(error ? "error" : data ? "admin" : "member");
+    // an admin's last authenticator stays (the row then says Required for admins)
+    if (!error && !(data && count < 2)) setRemoving(f);
+  };
   const state = useAsync(mfaStatus, []);
   const [setup, setSetup] = useState(null);
   const [code, setCode] = useState("");
@@ -186,7 +196,7 @@ function MfaCard({ required: requiredByPage = false }) {
               {/* every Zella Voice admin needs two step sign in (ACC-01): the last authenticator can't be removed here */}
               {required && s.factors.length < 2
                 ? <span className="zs-muted">Required for admins</span>
-                : <button type="button" className="zs-btn danger-outline sm" disabled={!roleKnown} title={roleKnown ? undefined : "Checking your account first"} onClick={() => setRemoving(f)}>Remove</button>}
+                : <button type="button" className="zs-btn danger-outline sm" disabled={!roleKnown} title={roleKnown ? undefined : "Checking your account first"} onClick={() => openRemove(f, s.factors.length)}>Remove</button>}
             </div>
           ))}
           {role === "error" && (
