@@ -44,13 +44,16 @@ export const isUnknownAction = (error) => error?.status === 400 && error?.messag
 
 // A businesses_list answer this page can read: anything else (an empty or odd answer) is an error, not "no businesses".
 export function readList(data) {
-  if (!data || !Array.isArray(data.rows) || typeof data.total !== "number") throw new Error("The server's answer couldn't be read. Try again.");
+  // industries is always sent (an empty list is a real answer); a missing one is unreadable, never "no industries".
+  if (!data || !Array.isArray(data.rows) || typeof data.total !== "number" || !Array.isArray(data.industries)) {
+    throw new Error("The server's answer couldn't be read. Try again.");
+  }
   return {
     mode: "server",
     rows: data.rows,
     total: data.total,
     page: Number(data.page) || 0,
-    industries: Array.isArray(data.industries) ? data.industries : [],
+    industries: data.industries,
     stats: data.stats && typeof data.stats === "object" ? data.stats : null,
     unavailable: Array.isArray(data.unavailable) ? data.unavailable : [],
   };

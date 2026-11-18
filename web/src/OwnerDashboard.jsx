@@ -316,6 +316,20 @@ export default function OwnerDashboard({ onSignOut }) {
               <strong>This page isn't available</strong>
               <p>Your admin role ({me?.roleLabel ?? "restricted"}) doesn't include it. Ask a Zella Voice owner if you need access.</p>
             </div>
+          ) : wizard && !industriesLoaded ? (
+            // The wizard fills industry defaults (automations, booking length) from this list when it loads a saved
+            // business, so it opens only once the list is here; a failed load says so instead of guessing.
+            industryError ? (
+              <div className="owner-empty-state" role="alert" data-wizard="industries-failed">
+                <strong>The industry list couldn't be loaded</strong>
+                <p>{industryError}</p>
+                <div><button type="button" className="owner-secondary-button op-small" onClick={loadIndustries} disabled={loadingIndustries}>{loadingIndustries ? "Retrying..." : "Retry"}</button></div>
+              </div>
+            ) : (
+              <div className="owner-empty-state" role="status" aria-busy="true" data-wizard="industries-loading">
+                <strong>Loading setup</strong>
+              </div>
+            )
           ) : wizard ? (
             <CreateBusinessWizard
               key={wizard.businessId || "new"}
