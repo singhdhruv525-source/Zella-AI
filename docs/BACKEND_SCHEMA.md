@@ -16,9 +16,9 @@ It reads the catalog only, never rows.
 | Tables (schema `public`) | 180 |
 | Tables with row security on | 180 of 180 |
 | Row security policies | 353 |
-| Columns | 2115 |
+| Columns | 2116 |
 | Views | 1 |
-| Functions | 959 (887 security definer, 26 callable by `anon`) |
+| Functions | 960 (888 security definer, 26 callable by `anon`) |
 
 Rules every table follows:
 
@@ -4306,6 +4306,7 @@ Progress notes on an incident (internal; owners are told only when the admin ask
 | `body` | text | yes |  |
 | `notified_businesses` | integer | yes | 0 |
 | `created_by` | uuid |  |  |
+| `client_ref` | uuid |  |  |
 | `created_at` | timestamp with time zone | yes | now() |
 
 - Primary key: `id`.
@@ -4443,7 +4444,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_add_lead_note(p_customer_id uuid, p_note text)` | boolean | yes | signed in |
 | `zella_add_record_note(p_id uuid, p_note text)` | boolean | yes | signed in |
 
-### `zella_admin_*` (48)
+### `zella_admin_*` (49)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -4468,6 +4469,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_admin_messaging_alerts()` | jsonb | yes | signed in |
 | `zella_admin_messaging_compliance()` | jsonb | yes | signed in |
 | `zella_admin_messaging_overview(p_from timestamp with time zone, p_to timestamp with time zone)` | jsonb | yes | signed in |
+| `zella_admin_mfa_added_trg()` | trigger | yes | server only |
 | `zella_admin_number_release(p_id uuid, p_reason text)` | jsonb | yes | signed in |
 | `zella_admin_numbers(p_q text, p_status text, p_business uuid, p_limit integer, p_offset integer)` | jsonb | yes | signed in |
 | `zella_admin_onboarding_change_done(p_business_id uuid, p_section text, p_note text)` | jsonb | yes | signed in |
@@ -4933,7 +4935,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
 | `zella_incident_edit(p_incident uuid, p_title text, p_detail text)` | boolean | yes | signed in |
-| `zella_incident_post_update(p_incident uuid, p_body text, p_notify boolean)` | jsonb | yes | signed in |
+| `zella_incident_post_update(p_incident uuid, p_body text, p_notify boolean, p_ref uuid)` | jsonb | yes | signed in |
 | `zella_incident_title_key(p text)` | text |  | signed in |
 
 ### `zella_industry_*` (6)
