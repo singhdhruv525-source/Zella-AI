@@ -2325,6 +2325,8 @@ async function ticketsList(admin: SupabaseClient, fields: Json = {}) {
       ...timing.get(t.id),
     })),
     supportHours: hours,
+    // false before sql/zella_support_replies.sql: the page says conversations aren't available instead of "No replies yet"
+    conversations: messages.available,
     businesses: businessesResult.data ?? [],
     assignees: adminIds.map((id) => ({ id, email: emails[id] ?? id })),
   };
@@ -2360,7 +2362,7 @@ type TicketMessage = { body: string; author_id: string | null; author_side: stri
 // Replies the business sees (support_ticket_messages, sql/zella_support_replies.sql); none before it is applied.
 // Every message, read 1000 at a time after a (created_at, id) cursor, so no conversation is cut off.
 async function ticketMessages(admin: SupabaseClient, ids: string[]) {
-  const out = new Map<string, TicketMessage[]>();
+  const out = Object.assign(new Map<string, TicketMessage[]>(), { available: true });
   for (let i = 0; i < ids.length; i += 200) {
     let after: { created_at: string; id: string } | null = null;
     for (;;) {
@@ -2368,7 +2370,7 @@ async function ticketMessages(admin: SupabaseClient, ids: string[]) {
         .in("ticket_id", ids.slice(i, i + 200)).order("created_at", { ascending: true }).order("id", { ascending: true }).limit(1000);
       if (after) q = q.or(`created_at.gt."${after.created_at}",and(created_at.eq."${after.created_at}",id.gt.${after.id})`);
       const { data, error } = await q;
-      if (error) { if (missingTable(error)) return out; throw error; }
+      if (error) { if (missingTable(error)) { out.available = false; return out; } throw error; }
       const page = data ?? [];
       for (const m of page) {
         const list = out.get(m.ticket_id);
@@ -2495,6 +2497,8 @@ async function ticketUpdate(admin: SupabaseClient, fields: Json, userId: string)
     }
   }
 
+  // a reply over the limit is refused, never cut short: the page would clear a draft that wasn't sent in full
+  if (typeof fields.reply === "string" && fields.reply.trim().length > 4000) throw new InputError("A reply can be at most 4,000 characters.");
   const reply = text(fields.reply, 4000);
 
   const note = text(fields.note, 4000);

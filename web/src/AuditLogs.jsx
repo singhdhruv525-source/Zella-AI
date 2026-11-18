@@ -34,6 +34,10 @@ function relative(value) {
 }
 
 const EMPTY = { businessId: "", auditAction: "", actorId: "", from: "", to: "", entityType: "", entityId: "" };
+// The From and To days are days in this browser's time zone, the zone the times on the page are shown in; the server
+// filters and exports with the same day bounds.
+const TIME_ZONE = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"; } catch { return "UTC"; } })();
+const withZone = (q) => (q.from || q.to ? { ...q, timeZone: TIME_ZONE } : q);
 
 export default function AuditLogs({ onOpenBusiness }) {
   const [logs, setLogs] = useState([]);
@@ -43,23 +47,30 @@ export default function AuditLogs({ onOpenBusiness }) {
   const [canExport, setCanExport] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [notice, setNotice] = useState("");
+  const [exportError, setExportError] = useState("");
   const set = (key) => (e) => setFilters((f) => ({ ...f, [key]: e.target.value }));
+  // the cursor and the rows on screen belong to the filters that produced them (listKey)
   const [cursor, setCursor] = useState(null);
+  const [listKey, setListKey] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [expanded, setExpanded] = useState(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
+  const key = JSON.stringify(auditQuery(filters));
   const request = useRef(0);
   const load = useCallback(async (before) => {
     const id = ++request.current;
+    const forKey = JSON.stringify(auditQuery(filters));
     setLoading(true);
     setError("");
     try {
-      const data = await callOwnerFunction("audit_logs", { ...auditQuery(filters), before });
+      const data = await callOwnerFunction("audit_logs", { ...withZone(auditQuery(filters)), before });
       if (id !== request.current) return;
+      if (!data || !Array.isArray(data.logs)) throw new Error("The audit log couldn't be read. Try again.");
       setLogs((current) => (before ? [...current, ...data.logs] : data.logs));
-      setCursor(data.nextCursor);
+      setCursor(data.nextCursor ?? null);
+      setListKey(forKey);
       if (data.businesses) setBusinesses(data.businesses);
       if (data.people) setPeople(data.people);
       if (!before) setCanExport(Boolean(data.canExport));
@@ -78,10 +89,10 @@ export default function AuditLogs({ onOpenBusiness }) {
   // ACC-12: the filtered log as a CSV file, at most 10,000 entries; the export itself is audited.
   async function exportCsv() {
     setExporting(true);
-    setError("");
+    setExportError("");
     setNotice("");
     try {
-      const r = await callOwnerFunction("audit_export", auditQuery(filters));
+      const r = await callOwnerFunction("audit_export", withZone(auditQuery(filters)));
       const url = URL.createObjectURL(new Blob([r.csv], { type: "text/csv;charset=utf-8" }));
       const a = Object.assign(document.createElement("a"), { href: url, download: r.filename });
       document.body.appendChild(a);
@@ -90,11 +101,13 @@ export default function AuditLogs({ onOpenBusiness }) {
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       setNotice(r.truncated ? `Exported the newest ${r.rows.toLocaleString()} entries. Narrow the filters to export the rest.` : `Exported ${r.rows.toLocaleString()} entries.`);
     } catch (err) {
-      setError(friendlyError(err));
+      setExportError(friendlyError(err));
     } finally {
       setExporting(false);
     }
   }
+  // the rows on screen were read with other filters (a new list is loading or failed): no paging from them
+  const stale = listKey !== null && listKey !== key;
   const filtered = Object.values(auditQuery(filters)).length > 0;
   const chosen = Object.values(filters).filter(Boolean).length;
 
@@ -146,11 +159,11 @@ export default function AuditLogs({ onOpenBusiness }) {
             </select>
           </label>
           <label className="owner-field al-f-date">
-            <span>From</span>
+            <span>From <em className="al-tz">({TIME_ZONE})</em></span>
             <input type="date" value={filters.from} onChange={set("from")} max={filters.to || undefined} />
           </label>
           <label className="owner-field al-f-date">
-            <span>To</span>
+            <span>To <em className="al-tz">({TIME_ZONE})</em></span>
             <input type="date" value={filters.to} onChange={set("to")} min={filters.from || undefined} />
           </label>
           <label className="owner-field al-f-text">
@@ -168,7 +181,9 @@ export default function AuditLogs({ onOpenBusiness }) {
       </div>
 
       {notice && <div className="ic-notice op-gap" role="status">{notice}</div>}
+      {exportError && <div className="owner-form-error op-gap" role="alert">The export didn't work: {exportError}</div>}
       {error && <div className="owner-form-error op-gap" role="alert">Could not load audit logs: {error}</div>}
+      {stale && logs.length > 0 && <div className="op-muted op-gap" data-load="stale">These entries are for the earlier filters{loading ? "; the new list is loading" : ""}.</div>}
 
       <section className="owner-panel">
         <div className="owner-table-wrap" tabIndex={0}>
@@ -247,7 +262,7 @@ export default function AuditLogs({ onOpenBusiness }) {
         </div>
         <div className="owner-panel-footer">
           <span>{logs.length} entries shown</span>
-          {cursor && (
+          {cursor && !stale && (
             <button type="button" className="owner-secondary-button op-small" onClick={() => load(cursor)} disabled={loading}>
               {loading ? "Loading..." : "Load older"}
             </button>

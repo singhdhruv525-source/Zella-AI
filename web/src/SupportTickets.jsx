@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import "./OwnerPages.css";
 import "./SupportTickets.css";
 import { callOwnerFunction } from "./CreateBusinessWizard";
@@ -36,15 +36,19 @@ export default function SupportTickets({ onOpenBusiness }) {
   // drafts belong to one ticket: switching tickets (or closing) starts fresh ones
   const selectTicket = (id) => { setSelectedId(id); setNote(""); setReply(""); };
 
+  // only the latest load may show its result, so an older refresh can't replace the list read after a reply
+  const request = useRef(0);
   const load = useCallback(async () => {
+    const mine = ++request.current;
     setLoading(true);
     setError("");
     try {
-      setData(await callOwnerFunction("tickets_list"));
+      const next = await callOwnerFunction("tickets_list");
+      if (mine === request.current) setData(next);
     } catch (err) {
-      setError(friendlyError(err));
+      if (mine === request.current) setError(friendlyError(err));
     } finally {
-      setLoading(false);
+      if (mine === request.current) setLoading(false);
     }
   }, []);
 
@@ -64,8 +68,9 @@ export default function SupportTickets({ onOpenBusiness }) {
     setError("");
     try {
       await callOwnerFunction("ticket_update", { ticketId: selectedId, ...payload });
-      if (payload.note) setNote("");
-      if (payload.reply) setReply("");
+      // clear only the text that was sent; anything typed since stays
+      if (payload.note) setNote((current) => (current === payload.note ? "" : current));
+      if (payload.reply) setReply((current) => (current === payload.reply ? "" : current));
       await load();
     } catch (err) {
       setError(friendlyError(err));
@@ -131,7 +136,7 @@ export default function SupportTickets({ onOpenBusiness }) {
                     <tr key={t.id} className={`st-row ${t.id === selectedId ? "selected" : ""}`} onClick={open}>
                       <td>
                         <div className="st-ticket-cell">
-                          <button type="button" className="st-title owner-table-primary" aria-pressed={t.id === selectedId} onClick={(e) => { e.stopPropagation(); open(); }}>{t.subject}</button>
+                          <button type="button" className="st-title owner-table-primary" title={t.subject} aria-pressed={t.id === selectedId} onClick={(e) => { e.stopPropagation(); open(); }}>{t.subject}</button>
                           <span className="owner-table-secondary st-sub">
                             <span className="st-sub-business">{t.business_name} · </span>
                             {t.category ? `${categoryText(t.category)} · ` : ""}{timeAgo(t.created_at)}
@@ -246,7 +251,9 @@ export default function SupportTickets({ onOpenBusiness }) {
 
             <div className="st-notes">
               <h4>Conversation with the business</h4>
-              {selected.messages?.length ? (
+              {data?.conversations === false ? (
+                <p className="op-muted">Conversations with businesses aren't available yet: they need the latest database update (sql/zella_support_replies.sql).</p>
+              ) : selected.messages?.length ? (
                 <ul>
                   {selected.messages.map((m, i) => (
                     <li key={i}>
@@ -256,10 +263,14 @@ export default function SupportTickets({ onOpenBusiness }) {
                   ))}
                 </ul>
               ) : <p className="op-muted">No replies yet. The business sees everything in this conversation.</p>}
-              <textarea className="wiz-textarea" aria-label="Reply to the business" value={reply} placeholder="Write a reply the business will see" onChange={(e) => setReply(e.target.value)} />
-              <button type="button" className="owner-primary-button op-gap-top" disabled={busy || !reply.trim()} onClick={() => update({ reply })}>
-                {busy ? "Sending..." : "Send reply"}
-              </button>
+              {data?.conversations !== false && (
+                <>
+                  <textarea className="wiz-textarea" aria-label="Reply to the business" value={reply} maxLength={4000} placeholder="Write a reply the business will see" onChange={(e) => setReply(e.target.value)} />
+                  <button type="button" className="owner-primary-button op-gap-top" disabled={busy || !reply.trim() || reply.length > 4000} onClick={() => update({ reply })}>
+                    {busy ? "Sending..." : "Send reply"}
+                  </button>
+                </>
+              )}
             </div>
 
             <div className="st-notes">

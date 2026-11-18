@@ -5,20 +5,23 @@ import { Banner, Card, Empty, Field, LoadState, useAsync, when } from "../Settin
 
 // OPS-25: a support request's conversation with Zella Voice, as the business sees it (support_ticket_messages; the
 // team's internal notes are never here). Owners, admins and managers can answer; the database checks that too.
-export default function TicketThread({ ticket, businessName, canReply, onClose }) {
+// onAnswered: called after an answer is saved, so the request list shows a reopened request as open again.
+export default function TicketThread({ ticket, businessName, canReply, onClose, onAnswered }) {
   const state = useAsync(() => supabase.from("support_ticket_messages").select("id, body, author_side, created_at").eq("ticket_id", ticket.id)
     .order("created_at", { ascending: true }).then(orThrow), [ticket.id]);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   async function send() {
+    const sent = text;
     setBusy(true);
     setError("");
-    const { error: e } = await supabase.rpc("zella_business_ticket_reply", { p_ticket: ticket.id, p_body: text });
+    const { error: e } = await supabase.rpc("zella_business_ticket_reply", { p_ticket: ticket.id, p_body: sent });
     setBusy(false);
     if (e) { setError(/NOT_ALLOWED/.test(e.message) ? "Only owners, admins and managers can answer support requests." : friendly(e)); return; }
-    setText("");
+    setText((current) => (current === sent ? "" : current));   // clear only what was sent
     state.reload();
+    onAnswered?.();
   }
   return (
     <Card title={ticket.subject} sub={`Opened ${when(ticket.created_at)}`}
@@ -35,7 +38,7 @@ export default function TicketThread({ ticket, businessName, canReply, onClose }
       ) : <Empty>No replies yet. Zella Voice support replies here.</Empty>}</LoadState>
       {canReply ? (
         <>
-          <Field label="Your answer" full><textarea rows={3} value={text} maxLength={4000} onChange={(e) => setText(e.target.value)} /></Field>
+          <Field label="Your answer" full><textarea rows={3} value={text} maxLength={4000} readOnly={busy} onChange={(e) => setText(e.target.value)} /></Field>
           <Banner tone="error">{error}</Banner>
           <div className="zs-savebar">
             <span className="zs-savebar-state" />

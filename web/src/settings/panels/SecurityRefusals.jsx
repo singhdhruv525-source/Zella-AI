@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { callOwnerFunction } from "../../CreateBusinessWizard";
 import { friendlyError } from "../../admin/adminOps";
 import { timeAgo } from "../../ownerFormat";
@@ -9,10 +9,18 @@ import { refusalReason } from "../../adminAccess";
 export default function SecurityRefusals() {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
+  const request = useRef(0);   // only the latest load may show its answer or error
   const load = useCallback(async () => {
+    const mine = ++request.current;
     setError("");
-    try { setData(await callOwnerFunction("security_refusals")); }
-    catch (err) { setError(err?.code === "NOT_PERMITTED" ? "" : friendlyError(err)); setData(err?.code === "NOT_PERMITTED" ? { hidden: true } : null); }
+    try {
+      const next = await callOwnerFunction("security_refusals");
+      if (mine === request.current) setData(next);
+    } catch (err) {
+      if (mine !== request.current) return;
+      setError(err?.code === "NOT_PERMITTED" ? "" : friendlyError(err));
+      setData(err?.code === "NOT_PERMITTED" ? { hidden: true } : null);
+    }
   }, []);
   useEffect(() => { load(); }, [load]);
   if (data?.hidden) return null;

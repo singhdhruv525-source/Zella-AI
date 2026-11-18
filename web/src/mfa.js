@@ -23,18 +23,27 @@ export function useMfaGate(session) {
   return { state, recheck: check };
 }
 
-export async function verifyMfaCode(code) {
+// Checks a code against the given authenticator, or, when none is given, against each of the person's verified
+// authenticators in turn, so a code from any of their apps works (not only the first one set up).
+export async function verifyMfaCode(code, factorId = null) {
   const clean = String(code ?? "").replace(/\s/g, "");
   if (!/^\d{6}$/.test(clean)) throw new Error("Enter the 6-digit code from your authenticator app.");
   const { data, error } = await supabase.auth.mfa.listFactors();
   if (error) throw error;
-  const factor = (data?.totp ?? []).find((f) => f.status === "verified");
-  if (!factor) throw new Error("No authenticator app is set up for this account.");
-  const { error: verifyError } = await supabase.auth.mfa.challengeAndVerify({ factorId: factor.id, code: clean });
-  if (verifyError) throw new Error(/invalid|expired/i.test(verifyError.message) ? "That code didn't work. Codes change every 30 seconds; try the newest one." : verifyError.message);
+  const verified = (data?.totp ?? []).filter((f) => f.status === "verified" && (!factorId || f.id === factorId));
+  if (!verified.length) throw new Error(factorId ? "That authenticator app isn't set up for this account." : "No authenticator app is set up for this account.");
+  let lastError = null;
+  for (const factor of verified) {
+    const { error: verifyError } = await supabase.auth.mfa.challengeAndVerify({ factorId: factor.id, code: clean });
+    if (!verifyError) return;
+    lastError = verifyError;
+    if (!/invalid|expired/i.test(verifyError.message)) break;   // only a wrong code tries the next app
+  }
+  throw new Error(/invalid|expired/i.test(lastError.message) ? "That code didn't work. Codes change every 30 seconds; try the newest one." : lastError.message);
 }
 
 export async function mfaStatus() {
+  await recordPendingMfaAdded();
   const { data, error } = await supabase.auth.mfa.listFactors();
   if (error) throw error;
   const verified = (data?.totp ?? []).filter((f) => f.status === "verified");
@@ -73,20 +82,41 @@ async function adminAction(action, payload = {}) {
 }
 
 // After an authenticator is verified: an admin's new authenticator is recorded in the audit log (admin.mfa_added).
-// Best effort, the authenticator is already on; business members are not admins, so nothing is sent for them.
+// The authenticator is already on, so a failure never asks for a new set up: the factor id is kept in this browser
+// and recorded again the next time the security settings load (mfaStatus), until it is on record. Business members
+// are not admins, so nothing is sent for them.
+const PENDING_KEY = "zella-admin-mfa-added-pending";
+const pending = () => { try { return JSON.parse(localStorage.getItem(PENDING_KEY) ?? "[]").filter((x) => typeof x === "string"); } catch { return []; } };
+const savePending = (ids) => { try { if (ids.length) localStorage.setItem(PENDING_KEY, JSON.stringify(ids)); else localStorage.removeItem(PENDING_KEY); } catch { /* storage off */ } };
 async function recordAdminMfaAdded(factorId) {
   try {
-    const { data: role } = await supabase.rpc("zella_admin_role");
+    const { data: role, error } = await supabase.rpc("zella_admin_role");
+    if (error) throw error;
     if (role) await adminAction("me_mfa_added", { factorId });
+    savePending(pending().filter((id) => id !== factorId));
+    return true;
   } catch (err) {
-    console.warn("Recording the new authenticator failed", err?.message);
+    console.warn("Recording the new authenticator failed; it is tried again later", err?.message);
+    savePending([...new Set([...pending(), factorId])]);
+    return false;
   }
+}
+async function recordPendingMfaAdded() {
+  for (const id of pending()) if (!(await recordAdminMfaAdded(id))) break;
 }
 
 // Business members remove an authenticator straight with Supabase Auth. Admins go through the server, with a new
-// code: it refuses their last authenticator (ACC-01) and audits the removal (admin.mfa_removed).
+// code: it refuses their last authenticator (ACC-01) and audits the removal (admin.mfa_removed). Whether this is an
+// admin is checked here too, so an admin is never sent down the direct path; if that can't be checked, nothing is
+// removed.
 export async function removeMfaFactor(factorId, { admin = false, code } = {}) {
-  if (admin) {
+  let isAdmin = admin;
+  if (!isAdmin) {
+    const { data: role, error } = await supabase.rpc("zella_admin_role");
+    if (error) throw new Error("Your account couldn't be checked, so nothing was removed. Try again.");
+    isAdmin = Boolean(role);
+  }
+  if (isAdmin) {
     await verifyMfaCode(code);
     await adminAction("me_mfa_remove", { factorId });
     return;

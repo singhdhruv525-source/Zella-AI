@@ -25,6 +25,12 @@ begin
      or to_regprocedure('public.zella_notify_owners(uuid,text,text,text,text,text)') is null then
     raise exception 'VERSION_MISMATCH: something this file needs is missing (apply sql/zella_admin_permissions.sql first)';
   end if;
+  -- editing an incident's title must never change what /status shows: the public page shows only the approved public
+  -- message (production's zella_public_status, and sql/zella_status_honest.sql), never the internal title
+  if to_regprocedure('public.zella_public_status()') is not null
+     and position('i.title' in pg_get_functiondef('public.zella_public_status()'::regprocedure)) > 0 then
+    raise exception 'VERSION_MISMATCH: zella_public_status shows incident titles; it must show only the public message';
+  end if;
   -- a table already there must be exactly this file's (same columns and types), or nothing is installed against it
   if to_regclass('public.platform_incident_updates') is not null and (
        select string_agg(column_name || ' ' || data_type, ', ' order by column_name) from information_schema.columns

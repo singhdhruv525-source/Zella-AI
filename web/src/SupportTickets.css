@@ -88,4 +88,6 @@
   .st-page .owner-table tbody tr.st-row.selected { background: var(--zella-primary-soft); box-shadow: inset 3px 0 0 var(--zella-primary); }
   .st-page .owner-table tbody tr.st-row td.st-col-business,
   .st-page .owner-table tbody tr.st-row td.st-col-assigned { display: none; }
+  /* a long subject stays on one line inside the card, with an ellipsis; the full subject is in the title */
+  .st-page .st-title { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 }

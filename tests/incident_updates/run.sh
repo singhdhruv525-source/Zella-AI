@@ -112,6 +112,9 @@ out=$("${P[@]}" -d $DB -f "$MIG" 2>&1)
 [[ "$out" == *"VERSION_MISMATCH"* ]] && ok "a changed function stops the file (VERSION_MISMATCH)" || bad "drift: $out"
 out=$("${P[@]}" -d $DB -f "$RB" 2>&1)
 [[ "$out" == *"DRIFT"* ]] && ok "and the rollback (DRIFT)" || bad "rollback drift: $out"
+q "create or replace function public.zella_public_status() returns jsonb language sql stable as \$f\$ select coalesce(jsonb_agg(i.title), '[]'::jsonb) from public.platform_incidents i \$f\$" > /dev/null
+out=$("${P[@]}" -d $DB -f "$MIG" 2>&1)
+[[ "$out" == *"shows incident titles"* ]] && ok "a status page that shows incident titles stops the file (an edit must never publish a title)" || bad "title guard: $out"
 
 echo
 [ $fails -eq 0 ] && echo "ALL PASSED" || { echo "$fails FAILED"; exit 1; }

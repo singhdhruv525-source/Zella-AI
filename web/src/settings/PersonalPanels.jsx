@@ -246,7 +246,10 @@ function SessionsCard() {
           // signs the other devices out as before, without the audit entry.
           const { data: ended, error: rpcError } = await supabase.rpc("zella_revoke_my_other_sessions");
           if (rpcError) {
-            if (!/does not exist|schema cache|Could not find the function/i.test(rpcError.message ?? "")) throw new Error(say(rpcError));
+            // only a missing function (PostgREST PGRST202) falls back; any error raised while it ran is shown, so a
+            // sign out is never reported without its audit entry
+            const missing = rpcError.code === "PGRST202" || /Could not find the function/i.test(rpcError.message ?? "");
+            if (!missing) throw new Error(/NO_SESSION/.test(rpcError.message ?? "") ? "This device's session couldn't be found. Sign in again, then try once more." : say(rpcError));
             const { error } = await supabase.auth.signOut({ scope: "others" });
             if (error) throw error;
           }

@@ -163,8 +163,12 @@ Deno.test("audit filters: checked, a malformed one refused, the end date covers 
   assertEquals(auditFilters({ action: "audit_export" }, InputError), {});   // the function's own action is never a filter
   assertEquals(auditFilters({}, InputError), {});
   assertEquals(auditFilters({ search: "Admin. Up-dated!" }, InputError), { search: "admin.updated" });
+  // days in the admin's time zone: 1 Nov starts at midnight New York (still summer time), 16 Nov ends at the next midnight
+  assertEquals(auditFilters({ from: "2026-11-01", to: "2026-11-16", timeZone: "America/New_York" }, InputError),
+    { from: "2026-11-01T04:00:00.000Z", to: "2026-11-17T05:00:00.000Z", timeZone: "America/New_York" });
+  assertEquals(auditFilters({ timeZone: "America/New_York" }, InputError), {});
   for (const bad of [{ businessId: "x" }, { actorId: "1; drop" }, { auditAction: "a,b" }, { entityType: "x y" }, { entityId: "nope" }, { from: "2026-13-01" }, { to: "16/11/2026" },
-    { from: "2026-11-10", to: "2026-11-01" }, { from: "2026-02-30" }]) {
+    { from: "2026-11-10", to: "2026-11-01" }, { from: "2026-02-30" }, { from: "2026-11-01", timeZone: "Mars/Base" }, { businessId: 7 }, { auditAction: ["a"] }]) {
     let threw = false;
     try { auditFilters(bad, InputError); } catch (e) { threw = e instanceof InputError; }
     assertEquals(threw, true, JSON.stringify(bad));

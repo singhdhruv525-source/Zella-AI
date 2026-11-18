@@ -94,7 +94,7 @@ export const AUDIT_COLUMNS = "id, action, business_id, user_id, entity_type, ent
 
 export type AuditFilters = {
   businessId?: string; auditAction?: string; search?: string; actorId?: string; from?: string; to?: string;
-  entityType?: string; entityId?: string;
+  entityType?: string; entityId?: string; timeZone?: string;
 };
 
 const day = (v: unknown) => {
@@ -124,14 +124,24 @@ export function auditFilters(fields: Json, InputError: new (m: string, s?: numbe
   const entityType = str("entityType");
   if (entityType) { if (!ENTITY_TYPE.test(entityType)) throw new InputError("The record type is not valid"); f.entityType = entityType; }
   f.entityId = id("entityId", "The record id");
+  // The dates are days in the admin's own time zone (the page shows times in it), so a day covers the same hours on
+  // the page, in the filter and in the export. Without a valid zone, UTC.
+  const tzIn = str("timeZone");
+  let tz = "UTC";
+  if (tzIn) {
+    try { new Intl.DateTimeFormat("en-US", { timeZone: tzIn }); tz = tzIn; } catch { throw new InputError("The time zone is not valid"); }
+  }
   for (const k of ["from", "to"] as const) {
     const v = str(k);
     if (!v) continue;
     const d = day(v);
     if (!d) throw new InputError(`The ${k === "from" ? "start" : "end"} date is not valid`);
-    // "to" is the whole of that day
-    f[k] = k === "from" ? d.toISOString() : new Date(d.getTime() + 86_400_000).toISOString();
+    // the start of that day in the zone; "to" is the whole of that day (up to the start of the next one)
+    const y = d.getUTCFullYear(), m = d.getUTCMonth() + 1, dd = d.getUTCDate();
+    const next = new Date(Date.UTC(y, m - 1, dd + 1));
+    f[k] = new Date(k === "from" ? instant(y, m, dd, "00:00", tz) : instant(next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate(), "00:00", tz)).toISOString();
   }
+  if (tzIn && (f.from || f.to)) f.timeZone = tz;
   if (f.from && f.to && f.from >= f.to) throw new InputError("The start date is after the end date");
   for (const k of Object.keys(f) as (keyof AuditFilters)[]) if (f[k] === undefined) delete f[k];
   return f;
