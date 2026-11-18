@@ -3,7 +3,7 @@ import { navigate } from "../router";
 import { N8nConfig, Webhooks } from "../settings/AdminPanels";
 import {
   AlertList, DataTable, Drawer, ErrorNote, Facts, Filters, Metric, NotAvailable, PAGE, PageHeader, Pager, Panel, PERIODS, Pill,
-  ReasonDialog, Search, Select, Tabs, can, duration, num, pct, rpc, since, useLoad, useOptions, useToast, when, words,
+  ReasonDialog, Search, Select, Tabs, can, duration, num, pct, rpc, since, useLoad, useOptions, useToast, when, words, numText, whenText
 } from "./adminOps";
 
 // Admin page: every business's automations, what they ran, what failed and the scheduler that drives them. Data
@@ -21,7 +21,7 @@ export default function AutomationsPage({ me, sub, onOpenBusiness }) {
   const options = useOptions();
   return (
     <section className="owner-page ao-page">
-      <PageHeader title="Automations" description="Reminders, follow ups and other automations for every business: their status, every run, failures and the scheduler." />
+      <PageHeader eyebrow="Operations" title="Automations" description="Reminders, follow ups and other automations for every business: their status, every run, failures and the scheduler." />
       <ErrorNote error={options.error} onRetry={options.reload} />
       <Tabs tabs={TABS} current={tab} onChange={setTab} />
       {tab === "overview" && <Overview onTab={setTab} />}
@@ -62,18 +62,18 @@ function Overview({ onTab }) {
       )}
       {o && (
         <div className="owner-stat-grid ao-stats">
-          <Metric label="Automations" value={num(o.automations.total)} note={`${num(o.automations.active)} active · ${num(o.automations.paused)} paused · ${num(o.automations.disabled)} archived`} />
+          <Metric label="Automations" value={num(o.automations.total)} note={`${numText(o.automations.active)} active · ${numText(o.automations.paused)} paused · ${numText(o.automations.disabled)} archived`} />
           <Metric label="Workflow runs succeeded" value={num(o.workflows.succeeded)} note={`Success rate ${pct(o.success_rate)}`} />
           <Metric label="Workflow runs failed" value={num(o.workflows.failed)} tone={o.workflows.failed ? "danger" : null} />
           <Metric label="Running now" value={num(o.workflows.running + o.runs.running)} />
           <Metric label="Average run time" value={duration(o.workflows.avg_seconds)} />
           <Metric label="Need a person" value={num(o.workflows.needs_manual)} tone={o.workflows.needs_manual ? "warning" : null} />
-          <Metric label="Waiting in queue" value={num(o.waiting.followups + o.waiting.reminders + o.waiting.events)} note={`${num(o.waiting.reminders)} reminders · ${num(o.waiting.followups)} follow ups · ${num(o.waiting.events)} events`} />
+          <Metric label="Waiting in queue" value={num(o.waiting.followups + o.waiting.reminders + o.waiting.events)} note={`${numText(o.waiting.reminders)} reminders · ${numText(o.waiting.followups)} follow ups · ${numText(o.waiting.events)} events`} />
           <Metric label="Unresolved dead letters" value={num(o.dead_letters_open)} tone={o.dead_letters_open ? "warning" : null} />
         </div>
       )}
       {o?.latest_failure && (
-        <NotAvailable title={`Latest failure: ${o.latest_failure.workflow} at ${when(o.latest_failure.at)}`}>{o.latest_failure.error ?? "No error message recorded."}</NotAvailable>
+        <NotAvailable title={`Latest failure: ${o.latest_failure.workflow} at ${whenText(o.latest_failure.at)}`}>{o.latest_failure.error ?? "No error message recorded."}</NotAvailable>
       )}
       <div className="ao-two">
         <Panel title="Needs attention"><ErrorNote error={health.error} onRetry={health.reload} /><AlertList error={health.error} alerts={alerts} onOpen={(a) => onTab(a.link)} /></Panel>
@@ -148,7 +148,7 @@ function AutomationDrawer({ id, onClose, onOpenBusiness, onChanged }) {
           <Facts rows={[["Follow ups", queue(d.data.queue.followups)], d.data.queue.reminders !== null ? ["Reminders", queue(d.data.queue.reminders)] : null]} />
           <h3 className="ao-h3">Recent runs</h3>
           {d.data.runs.length ? (
-            <ol className="ao-timeline">{d.data.runs.map((r) => <li key={r.id}><strong><Pill tone={tone(r.status)}>{words(r.status)}</Pill> {when(r.created_at)}</strong><span>{r.error ?? (r.completed_at ? `Finished ${when(r.completed_at)}` : "")}</span></li>)}</ol>
+            <ol className="ao-timeline">{d.data.runs.map((r) => <li key={r.id}><strong><Pill tone={tone(r.status)}>{words(r.status)}</Pill> {when(r.created_at)}</strong><span>{r.error ?? (r.completed_at ? `Finished ${whenText(r.completed_at)}` : "")}</span></li>)}</ol>
           ) : <p className="op-muted">No runs recorded. Reminders and follow ups are sent from the queue above rather than as runs.</p>}
           <h3 className="ao-h3">Changes</h3>
           {d.data.history.length ? (
@@ -223,7 +223,7 @@ function RunDrawer({ row, me, onClose, onOpenBusiness, onChanged }) {
             r.correlation_id ? ["Correlation id", <code key="c">{r.correlation_id}</code>] : null]} />
           <h3 className="ao-h3">Steps</h3>
           {d.data.steps.length ? (
-            <ol className="ao-timeline">{d.data.steps.map((s, i) => <li key={i}><strong><Pill tone={tone(s.status === "done" || s.status === "ok" ? "succeeded" : s.status)}>{s.status ? words(s.status) : "No status"}</Pill> {s.name ?? `Step ${i + 1}`}</strong><span>{[s.at && when(s.at), s.error].filter(Boolean).join(". ")}</span></li>)}</ol>
+            <ol className="ao-timeline">{d.data.steps.map((s, i) => <li key={i}><strong><Pill tone={tone(s.status === "done" || s.status === "ok" ? "succeeded" : s.status)}>{s.status ? words(s.status) : "No status"}</Pill> {s.name ?? `Step ${i + 1}`}</strong><span>{[s.at && whenText(s.at), s.error].filter(Boolean).join(". ")}</span></li>)}</ol>
           ) : <p className="op-muted">No steps recorded.</p>}
           <p className="op-muted">Step inputs and outputs aren't shown: they can hold customer details.</p>
           {d.data.event && <><h3 className="ao-h3">Started by</h3><Facts rows={[["Event", words(d.data.event.type)], ["From", words(d.data.event.source)], ["Event status", words(d.data.event.status)],

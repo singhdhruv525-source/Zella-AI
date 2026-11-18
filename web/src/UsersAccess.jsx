@@ -1,11 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
 import "./OwnerPages.css";
+import "./UsersAccess.css";
+import { Icon } from "./BusinessUI";
 import { callOwnerFunction } from "./CreateBusinessWizard";
 import { EmailField } from "./formFields";
 import { checkEmail } from "./formValidation";
 import { Pill } from "./OwnerOverview";
 import { formatDate, timeAgo } from "./ownerFormat";
 import { friendlyError } from "./admin/adminOps";
+import { SIGNED_OUT_EVERYWHERE, needsFreshCode, signedOutText } from "./adminAccess";
+import { verifyMfaCode } from "./mfa";
+import SecurityRefusals from "./settings/panels/SecurityRefusals";
 
 const ROLE_LABELS = {
   zella_owner: "Zella Voice owner", super_admin: "Super admin", platform_operations: "Platform operations",
@@ -37,6 +42,11 @@ export default function UsersAccess() {
   const [inviting, setInviting] = useState(false);
   const [invite, setInvite] = useState({ email: "", role: "super_admin" });
   const [confirm, setConfirm] = useState(null);
+  // { retry, code, error }: the server asked for a new authenticator code before this change (ACC-19)
+  const [fresh, setFresh] = useState(null);
+  // user id -> true for each admin whose change saved but whose devices weren't signed out; one retry each
+  const [sessionRetry, setSessionRetry] = useState({});
+  const clearRetry = (userId) => setSessionRetry((all) => { const next = { ...all }; delete next[userId]; return next; });
   const [roles, setRoles] = useState(null);
   useEffect(() => { let live = true; loadRoles().then((r) => live && setRoles(r)).catch(() => {}); return () => { live = false; }; }, []);
 
@@ -58,17 +68,29 @@ export default function UsersAccess() {
 
   const isOwner = data?.me?.role === "zella_owner";
 
-  async function run(action, payload, success) {
+  // onDone runs once after a success, whether it came on the first try or after a new code (the retry below)
+  async function run(action, payload, success, onDone) {
     setBusy(true);
     setError("");
     setNotice("");
     try {
       const result = await callOwnerFunction(action, payload);
       setNotice(success(result));
+      // ACC-18: the change is saved but their devices weren't signed out: offer to try that again on its own
+      // it stays until their devices are signed out or the owner dismisses it, whatever else is done meanwhile
+      if (result?.sessionsWarning && payload?.userId) setSessionRetry((all) => ({ ...all, [payload.userId]: true }));
+      if (action === "admin_sessions_end" && typeof result?.sessionsEnded === "number" && payload?.userId) clearRetry(payload.userId);
       setConfirm(null);
+      setFresh(null);
+      onDone?.();
       await load();
       return true;
     } catch (err) {
+      if (needsFreshCode(err)) {
+        // keep the confirmation: the same change runs again once a new code is entered
+        setFresh({ retry: () => run(action, payload, success, onDone), code: "", error: "" });
+        return false;
+      }
       setError(friendlyError(err));
       return false;
     } finally {
@@ -80,17 +102,16 @@ export default function UsersAccess() {
     event.preventDefault();
     if (busy || checkEmail(invite.email, { required: true })) return;
     const label = ROLE_LABELS[invite.role] ?? invite.role;
-    const ok = await run("admin_invite", { ...invite, email: invite.email.trim() }, (r) =>
+    await run("admin_invite", { ...invite, email: invite.email.trim() }, (r) =>
       r.resent
         ? `Invitation reemailed to ${r.email}. Their existing role was not changed.`
         : r.invited
         ? `Invitation emailed to ${r.email} as ${label}.`
-        : `${r.email} already had a Zella Voice login and can now use the admin dashboard as ${label}.`
-    );
-    if (ok) {
+        : `${r.email} already had a Zella Voice login and can now use the admin dashboard as ${label}.`,
+    () => {
       setInviting(false);
       setInvite({ email: "", role: "super_admin" });
-    }
+    });
   }
 
   return (
@@ -109,6 +130,19 @@ export default function UsersAccess() {
       </div>
 
       {notice && <div className="ic-notice" role="status">{notice}</div>}
+      {isOwner && Object.keys(sessionRetry).map((userId) => {
+        const who = (data?.admins ?? []).find((a) => a.user_id === userId)?.email ?? "This admin";
+        return (
+          <div key={userId} className="op-gap">
+            <span className="op-muted">{who} wasn&apos;t signed out on every device. </span>
+            <button type="button" className="owner-secondary-button op-small" disabled={busy} aria-label={`Sign ${who} out everywhere`}
+              onClick={() => run("admin_sessions_end", { userId }, (r) => signedOutText(r) || `${who} was signed out on every device.`)}>
+              Sign out everywhere
+            </button>
+            <button type="button" className="owner-secondary-button op-small" disabled={busy} aria-label={`Dismiss for ${who}`} onClick={() => clearRetry(userId)}>Dismiss</button>
+          </div>
+        );
+      })}
       {error && <div className="owner-form-error op-gap" role="alert">{error}</div>}
 
       {data && !isOwner && (
@@ -144,6 +178,37 @@ export default function UsersAccess() {
             <button type="button" className="owner-secondary-button" onClick={() => setInviting(false)} disabled={busy}>Cancel</button>
             <button type="submit" className="owner-primary-button" disabled={busy || !invite.email.trim()}>
               {busy ? "Adding..." : "Add admin"}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {fresh && (
+        <form className="us-fresh op-gap" aria-label="Confirm with your authenticator"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            setBusy(true);
+            try { await verifyMfaCode(fresh.code); }
+            catch (err) { setFresh({ ...fresh, error: err.message }); setBusy(false); return; }
+            setBusy(false);
+            await fresh.retry();
+          }}>
+          <div className="us-fresh-text">
+            <Icon name="shield" className="us-fresh-icon" />
+            <p>
+              <strong>Confirm it's you.</strong> Changing admin access needs a new code. Enter the 6 digit code from your authenticator app.
+              {fresh.error && <span className="us-fresh-error" role="alert">{fresh.error}</span>}
+            </p>
+          </div>
+          <div className="us-fresh-actions">
+            <label className="us-fresh-field" htmlFor="us-fresh-code">
+              <span>Authenticator code</span>
+              <input id="us-fresh-code" className="us-fresh-code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} autoFocus
+                value={fresh.code} onChange={(e) => setFresh({ ...fresh, code: e.target.value.replace(/\D/g, ""), error: "" })} disabled={busy} />
+            </label>
+            <button type="button" className="owner-secondary-button op-small" onClick={() => setFresh(null)} disabled={busy}>Cancel</button>
+            <button type="submit" className="owner-primary-button op-small" disabled={busy || fresh.code.length !== 6}>
+              {busy ? "Checking..." : "Confirm"}
             </button>
           </div>
         </form>
@@ -186,10 +251,10 @@ export default function UsersAccess() {
                         onChange={(e) => {
                           const role = e.target.value;
                           setConfirm({
-                            message: `Change ${a.email} to ${ROLE_LABELS[role]}?`,
+                            message: `Change ${a.email} to ${ROLE_LABELS[role]}? ${SIGNED_OUT_EVERYWHERE}`,
                             role,
                             label: "Change role",
-                            run: () => run("admin_update", { userId: a.user_id, role }, () => `${a.email} is now a ${ROLE_LABELS[role]}.`),
+                            run: () => run("admin_update", { userId: a.user_id, role }, (r) => `${a.email} is now a ${ROLE_LABELS[role]}. ${signedOutText(r)}`.trim()),
                           });
                         }}
                       >
@@ -214,9 +279,9 @@ export default function UsersAccess() {
                           setConfirm(
                             a.is_active
                               ? {
-                                  message: `Remove ${a.email}'s access to the Zella Voice admin dashboard?`,
+                                  message: `Remove ${a.email}'s access to the Zella Voice admin dashboard? ${SIGNED_OUT_EVERYWHERE}`,
                                   label: "Remove access",
-                                  run: () => run("admin_update", { userId: a.user_id, isActive: false }, () => `${a.email} no longer has admin access.`),
+                                  run: () => run("admin_update", { userId: a.user_id, isActive: false }, (r) => `${a.email} no longer has admin access. ${signedOutText(r)}`.trim()),
                                 }
                               : {
                                   message: `Give ${a.email} admin access again?`,
@@ -243,6 +308,8 @@ export default function UsersAccess() {
           <span>Zella Voice always keeps at least one active owner, and nobody can change their own access.</span>
         </div>
       </section>
+
+      <SecurityRefusals />
     </section>
   );
 }

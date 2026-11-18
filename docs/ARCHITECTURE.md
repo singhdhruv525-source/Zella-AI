@@ -923,7 +923,8 @@ flowchart LR
 | **10.1 Public website** | REQ-LC-01: marketing pages, pricing (owner-defined), demo request and signup entry. Forms post to an edge endpoint with rate limiting and bot protection, creating a **prospect** in the growth schema. |
 | **10.2 Zella Voice sales leads** | REQ-LC-02: prospects, demos, stages, owner and follow-up tasks in the growth schema; visible only with `growth.manage`; prospect emails follow the same consent rules. Never stored in a tenant. **Later (owner, 16 Nov 2026):** not before launch (REQ-ADM-18). |
 | **10.3 Business onboarding** | REQ-LC-03: **for now, every business is created by the Zella Voice team** in the platform admin (Create Business, §18.6). The owner is then invited, signs in and finishes setup. **Self-service signup is a later phase:** account → workspace → industry wizard → business details, time zone, hours → receptionist → phone and integrations, built on the same server functions. Every business gets an isolated workspace; **no demo data is ever loaded into production**. Duplicates are prevented by normalised name, phone and domain checks. |
-| **10.4 Authentication and recovery** | REQ-LC-04: email + password, email links that need a click on our page, recovery by email, MFA (TOTP) required for platform staff and owner-enforceable for members, session revocation on role change, leaked-password protection on. |
+| **10.3a Owner onboarding journey** | REQ-LC-21: after the owner is invited, the owner goes through seven steps in order: welcome; password and two step sign in (checked on the server from the auth records and an `aal2` session, never from the screen); check your details (business, hours and services, team, AI receptionist and phone, each "Looks right" or "Change" with a note that reaches Zella Voice); verify your identity; your plan (from `business_plans`); pay or start a trial; you're all set. Progress is stored per business, so "Finish later" resumes at the same step. Every rule is a database function the owner calls with their own session (`zella_owner_onboarding_*`), never behind admin permissions: active owner of **that** business only, idempotent, audited with before and after (DB-13). The owner can't pass identity until it succeeds or an admin approves it in Verification; after the allowed failed checks it goes to manual review. Checkout opens only after identity. Identity is provider neutral: manual upload (the `owner-onboarding` edge function, into the private documents bucket) works now; a provider's results arrive at `identity-webhook` (signed, each event once, off by default). The owner's four open decisions are one server constant, `zella_onboarding_rules()`. Contract for the screens: `docs/OWNER_ONBOARDING_CONTRACT.md`. Built, not applied (`sql/zella_owner_onboarding.sql`). |
+| **10.4 Authentication and recovery** | REQ-LC-04: email + password, email links that need a click on our page, recovery by email, MFA (TOTP) required for platform staff and owner-enforceable for members, session revocation on role change (removal or role change ends every session of that admin: `zella_end_user_sessions`, from admin_update), leaked-password protection on. |
 | **10.5 Business creation** | REQ-LC-05: creates the tenant, owner membership (pending until accepted), industry defaults, capabilities, policies, templates, default automations (off until reviewed), and an audit record. Idempotent by a creation key. |
 | **10.6 Invitations** | REQ-LC-06: bound to email, role-limited (admins invite at most staff/manager; only owners invite admins), expiring, revocable, resendable; accepted only from a session proven to own the email. |
 | **10.7 Setup** | REQ-LC-07: wizard (§18.5) with save-and-resume, honest checklist, server-side readiness. |
@@ -933,7 +934,7 @@ flowchart LR
 | **10.11 Knowledge** | REQ-LC-11: §16. Activation requires a minimum knowledge set [D-24]. |
 | **10.12 Services, hours, prices, booking rules** | REQ-LC-12: services (duration, price **entered by the business**, buffers, resources, staff), opening hours, holidays, closures, notice and horizon, approval-required bookings. |
 | **10.13 Provider connections** | REQ-LC-13: calendar (Google, Microsoft), lead sources, store (Shopify), reviews. OAuth with signed state; health checks; reconnect prompts. |
-| **10.14 Testing and activation** | REQ-LC-14: an activation checklist the server computes. Each item must pass before the business goes live: hours, at least one service or "no bookings", knowledge minimum, number routed, test inbound call answered and recorded, test message (dry run), transfer number verified, owner sign-off. Results are stored in `activation_tests`. **Pay before go live (owner, 16 Nov 2026):** once Stripe is live, the first payment must also be confirmed before the business goes live (REQ-BIL-29). Until Stripe is live the go live gate doesn't wait for payment. Whether a business on a trial goes live on its confirmed saved card trial setup (REQ-BIL-12) instead of a first payment is still waiting on the owner (`docs/MEMORY.md`). |
+| **10.14 Testing and activation** | REQ-LC-14: an activation checklist the server computes. Each item must pass before the business goes live: hours, at least one service or "no bookings", knowledge minimum, number routed, test inbound call answered and recorded, test message (dry run), transfer number verified, owner sign-off. Results are stored in `activation_tests`. Owner onboarding (REQ-LC-21) adds two checks that `zella_activation_report` shows and `zella_request_activation` checks again itself: **owner identity verified** and **first payment confirmed** (a provider confirmed payment record, under the default "pay before going live"). Built, not applied. (As built here the payment check always waits for a confirmed payment; making it wait only once Stripe is live is the lane F payment gate change.) **Pay before go live (owner, 16 Nov 2026):** once Stripe is live, the first payment must also be confirmed before the business goes live (REQ-BIL-29). Until Stripe is live the go live gate doesn't wait for payment. Whether a business on a trial goes live on its confirmed saved card trial setup (REQ-BIL-12) instead of a first payment is still waiting on the owner (`docs/MEMORY.md`). |
 | **10.15–10.18 CRM, admin, billing, reports** | §18, §17, REQ-RPT below |
 | **10.19 Support and incidents** | REQ-LC-19: in-app support requests, tickets linked to the business, audited support access, incident status page, notification of affected businesses. |
 | **10.20 Pause, cancel, export, retention, offboarding** | REQ-LC-20: there is **no pause** (D-25); the owner can schedule cancellation (signed "continue my plan" link), export everything (CSV/JSON + files), and data is deleted on the retention schedule after cancellation. All steps audited. |
@@ -1723,7 +1724,7 @@ Each item links to its source, and the timeline is filterable by type.
 | ID | Page | Job | Permission |
 |---|---|---|---|
 | REQ-ADM-01 | Overview | platform health and growth KPIs | any |
-| REQ-ADM-02 | Businesses (search, filters by status, detail) | find and support a business; pause/suspend; view readiness, numbers, usage, alerts | `businesses.view/manage` |
+| REQ-ADM-02 | Businesses (search, filters by status, detail) | find and support a business; pause/suspend; view readiness, numbers, usage, alerts. The list is paged, filtered and sorted on the server (`businesses_list`) with exact totals; write buttons show only to roles with the permission the server checks | `businesses.view/manage` |
 | REQ-ADM-03 | **Create Business** | §18.6 | `businesses.manage` |
 | REQ-ADM-04 | Users & platform roles | manage platform staff | Zella Voice owner |
 | REQ-ADM-05 | Plans & offers | define plans and promotions | `plans.manage` |
@@ -1735,7 +1736,7 @@ Each item links to its source, and the timeline is filterable by type.
 | REQ-ADM-11 | Failed messages | cross-business failures | `comms.manage` |
 | REQ-ADM-12 | Spam & abuse | incidents, global rules | `security.*` |
 | REQ-ADM-13 | Support | tickets, audited access to a business | `support.manage` |
-| REQ-ADM-14 | Audit logs | every privileged action | `audit.view` |
+| REQ-ADM-14 | Audit logs | every privileged action; filters (business, action, person, dates, record) with a (created_at, id) cursor; CSV export of at most 10,000 entries, itself audited (`audit.exported`) | `audit.view`; export also needs the owner or super admin role |
 | REQ-ADM-15 | Monitoring & incidents | alerts, status page incidents | ops |
 | REQ-ADM-16 | Platform settings & kill switches | live switches per channel, per business override, maintenance mode | Zella Voice owner |
 | REQ-ADM-17 | Industry configuration | presets, policies, safety lines, defaults | `ai.configure` |
@@ -1748,8 +1749,27 @@ Owner decisions of 16 Nov 2026 on platform admin pages (§23.1a):
   (Create Business step 5, industry presets in REQ-ADM-17).
 - **Weekly platform summary report for Zella Voice admins: yes.** Being built in `claude/weekly-admin-report`.
 
+**REQ-ADM-21 One definition of connected, answering and live:** every admin page that says whether a business's
+phone, voice, calendar or leads are connected, whether its receptionist is answering, or whether it is live reads it
+from the database (`zella_business_connections(p_business_ids uuid[])` per business, at most 1000 ids per call, and
+`zella_connection_counts()` for totals; `businesses.view` or server code). No page works it out from its own tables.
+Answering (a served call in the last 7 days) is never folded into live. Email is "not tracked" until there is a mailbox
+connection. The states are defined in `docs/PRODUCT.md` §9.1.
+What calls actually got (`assistant_deliveries`) is read by admins through `zella_admin_agent_deliveries_summary(uuid[])`
+and `zella_admin_agent_deliveries(uuid, integer)` (`businesses.view`), aggregated in SQL.
+
 **REQ-ADM-20 Access states:** loading, authorized, unauthorized (signed out, MFA needed, no permission) and failed
 (couldn't check; grants nothing). A refusal always applies; a failed background refresh keeps the current view.
+
+**REQ-ADM-21 One shared admin presentation layer:** every admin page builds its tables, status badges, buttons, KPI
+cards (`Metric`), filters, drawers and settings rows from the shared components in `web/src/admin/adminOps.jsx` and
+`web/src/settings/SettingsKit.jsx`, styled in `web/src/styles/components.css` with design tokens only (REQ-WEB-06). One
+tone map gives every status word the same badge colour on every page. The shared helpers say an empty value in words
+("Never", "Not set", "Not available", or the page's own words such as "No calls yet"), never blank or "None"; times,
+counts, lengths and phone numbers go through `web/src/lib/format.js`. A page adds only its own layout on top. The
+components and their rules are listed in `docs/DESIGN_SYSTEM.md`. Not yet everywhere: the Settings panels in
+`web/src/settings/AdminPanels.jsx` and the `Facts`, `when` and `money` helpers in `SettingsKit.jsx` still print "None"
+for some empty cells; they move to the shared helpers in their own change.
 
 ### 18.6 Create Business (REQ-ADM-03)
 
@@ -2381,6 +2401,7 @@ stable error codes (§38).
 | Voice (*server*) | `voice_authenticate`, `assistant_for_call`, `ai_tool` (dispatches the tools), `transfer_destination_for_call`, `call_status_record`, `call_finalise`, `voicemail_record` |
 | Engine (*server*) | `event_ingest`, `work_claim(queue, limit)`, `work_prepare`, `work_complete`, `work_fail`, `work_unknown`, `work_reconcile`, `contact_policy_check`, `dispatch_due` |
 | Messaging (*server*) | `message_inbound`, `message_status`, `ai_reply_prepare`, `ai_reply_commit` |
+| Owner onboarding | `zella_owner_onboarding_list`, `_get`, `_complete_step`, `_section`, `_plan_accept`, `_identity_status`, `_payment_status`, `_finish_later`, `_resume` (active owner of that business; `aal2` from step 3); *platform admin*: `zella_admin_onboarding_overview`, `_progress`, `_change_done`; *server*: `zella_owner_identity_document_add`, `zella_identity_provider_event` |
 | Platform admin | `admin_me`, `admin_business_list`, `admin_business_get`, `admin_business_create_*` (one per wizard step), `admin_business_set_status`, `admin_number_assign`, `admin_number_release`, `admin_queue_overview`, `admin_dead_letter_retry`, `admin_setting_set`, `admin_audit_list` |
 
 <!-- coderabbit-ai-generated:v1 -->
@@ -2419,6 +2440,8 @@ no database rate limit yet, which SEC-6 asks for. Adding one is a production mig
 | `POST /links/{kind}` | customer pages (reschedule, waitlist, unsubscribe) | signed token |
 | `GET /oauth/{provider}/callback` | Google, Microsoft, Shopify | signed state |
 | `POST /billing/webhook` | payment provider | signature |
+| `POST /owner-onboarding` | the owner's onboarding screens (identity document upload) | the owner's session, checked by the database (`zella_owner_identity_upload_check`); the server key only signs the upload and records the file |
+| `POST /identity-webhook` | identity provider (Persona later) | HMAC signature over the raw body + timestamp + one event once; off by default (`IDENTITY_WEBHOOK_ENABLED`, and the database rule) |
 | `POST /invites`, `POST /provision` | web app | session + role / platform permission |
 | `POST /workers/{queue}` | scheduler wake-up to workers | shared secret + signed envelope |
 

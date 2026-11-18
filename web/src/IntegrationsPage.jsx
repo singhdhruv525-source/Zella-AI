@@ -1,16 +1,20 @@
 import "./OwnerPages.css";
+import "./IntegrationsPage.css";
 import { callOwnerFunction } from "./CreateBusinessWizard";
 import { Pill } from "./OwnerOverview";
 import { formatDateTime } from "./ownerFormat";
 import { LoadNotice, UpdatedAt, useRefreshable } from "./admin/loadState";
 import { countOf, emptyText, metric } from "./admin/loadStatus";
 import { humanize } from "./copy/labels";
+import { NOT_TRACKED } from "./connectionState.js";
+import { Metric } from "./admin/adminOps";
 
 const PHONE_LABELS = { new_number: "New number", call_forwarding: "Forwarding", existing_number: "Forwarding" };
 const LEAD_LABELS = { meta: "Meta", website: "Website", google: "Google" };
 
-function Need({ wanted, connected, label }) {
+function Need({ wanted, connected, label, available = true }) {
   if (!wanted) return <span className="op-muted">None</span>;
+  if (!available) return <span className="in-need">{label}<em> · not available</em></span>;
   return (
     <span className={`in-need ${connected ? "ok" : ""}`}>
       {connected ? "✓ " : ""}{label}
@@ -29,16 +33,19 @@ export default function IntegrationsPage({ onOpenBusiness }) {
 
   const connections = Array.isArray(data?.connections) ? data.connections : null;
   const requests = Array.isArray(data?.requests) ? data.requests.filter((r) => r.setupDone) : null;
-  const waiting = countOf(requests,
-    (r) => !r.phone.connected || !r.voice.connected || (r.calendar.wanted && !r.calendar.connected) || (r.email?.wanted && !r.email?.connected) ||
+  // Connected comes from the server's one definition (docs/PRODUCT.md §9.1). Email isn't tracked, so it never counts.
+  const available = data?.connectionsAvailable !== false;
+  const counts = data?.counts ?? null;
+  const waiting = available ? countOf(requests,
+    (r) => !r.phone.connected || !r.voice.connected || (r.calendar.wanted && !r.calendar.connected) ||
       r.leads.wanted.some((l) => !r.leads.connected.includes(l))
-  );
+  ) : null;
 
   return (
-    <section className="owner-page">
+    <section className="owner-page in-page">
       <div className="owner-page-heading">
         <div>
-          <div className="owner-eyebrow">Connections</div>
+          <div className="owner-eyebrow">Operations</div>
           <h1>Integrations</h1>
           <p>What each client asked for during setup, and which services are actually connected.</p>
         </div>
@@ -53,10 +60,10 @@ export default function IntegrationsPage({ onOpenBusiness }) {
       <LoadNotice r={state} what="integrations" />
 
       <div className="owner-stat-grid">
-        <div className="owner-stat-card"><div className="owner-stat-top"><span>Connections</span></div><div className="owner-stat-value">{metric(countOf(connections), state)}</div><div className="owner-stat-note">Across all businesses</div></div>
-        <div className="owner-stat-card"><div className="owner-stat-top"><span>Active</span></div><div className="owner-stat-value">{metric(countOf(connections, (c) => c.status === "active"), state)}</div><div className="owner-stat-note">Working</div></div>
-        <div className="owner-stat-card"><div className="owner-stat-top"><span>Problems</span></div><div className="owner-stat-value">{metric(countOf(connections, (c) => ["error", "disconnected"].includes(c.status)), state)}</div><div className="owner-stat-note">Error or disconnected</div></div>
-        <div className="owner-stat-card"><div className="owner-stat-top"><span>Waiting to connect</span></div><div className="owner-stat-value">{metric(waiting, state)}</div><div className="owner-stat-note">Businesses with requests pending</div></div>
+        <Metric label="Numbers linked" value={metric(counts?.vapi_linked, state)} note={typeof counts?.phone === "number" ? `${counts.phone} with an active number` : "Not available"} />
+        <Metric label="Live" value={metric(counts?.live, state)} note={typeof counts?.answering === "number" ? `${counts.answering} answered a call in 7 days` : "Answering not available"} />
+        <Metric label="Needs attention" value={metric(counts?.problems, state)} note="Connections in error or disconnected" />
+        <Metric label="Waiting to connect" value={metric(waiting, state)} note="Businesses with requests pending" />
       </div>
 
       <section className="owner-panel op-card">
@@ -68,20 +75,23 @@ export default function IntegrationsPage({ onOpenBusiness }) {
         </div>
         <div className="owner-table-wrap" tabIndex={0}>
           <table className="owner-table">
-            <thead><tr><th>Business</th><th>Phone (Telnyx)</th><th>Voice (Vapi)</th><th>Calendar</th><th>Email</th><th>Lead sources</th></tr></thead>
+            <thead><tr><th>Business</th><th>Phone number</th><th>Voice (Vapi)</th><th>Calendar</th><th>Email</th><th>Lead sources</th></tr></thead>
             <tbody>
               {(requests ?? []).map((r) => (
                 <tr key={r.businessId}>
-                  <td><button type="button" className="op-name" onClick={() => onOpenBusiness(r.businessId)}>{r.businessName}</button></td>
-                  <td><Need wanted={r.phone.wanted} connected={r.phone.connected} label={PHONE_LABELS[r.phone.wanted] ?? r.phone.wanted} /></td>
-                  <td><Need wanted={r.voice.wanted} connected={r.voice.connected} label="Voice agent" /></td>
-                  <td><Need wanted={r.calendar.wanted} connected={r.calendar.connected} label={r.calendar.wanted === "google" ? "Google Calendar" : "Outlook / Microsoft Calendar"} /></td>
-                  <td><Need wanted={r.email?.wanted} connected={r.email?.connected} label={r.email?.wanted === "gmail" ? "Gmail" : "Outlook email"} /></td>
+                  <td><button type="button" className="op-name" title={r.businessName} onClick={() => onOpenBusiness(r.businessId)}>{r.businessName}</button></td>
+                  <td><Need available={available} wanted={r.phone.wanted} connected={r.phone.connected} label={PHONE_LABELS[r.phone.wanted] ?? r.phone.wanted} /></td>
+                  <td>
+                    <Need available={available} wanted={r.voice.wanted} connected={r.voice.connected} label="Linked to Vapi" />
+                    {available && r.voice.connected && <div className="op-muted">{r.voice.answering ? "Answering" : "No call answered in 7 days"}</div>}
+                  </td>
+                  <td><Need available={available} wanted={r.calendar.wanted} connected={r.calendar.connected} label={r.calendar.wanted === "google" ? "Google Calendar" : "Outlook / Microsoft Calendar"} /></td>
+                  <td>{r.email?.wanted ? <span className="in-need">{r.email.wanted === "gmail" ? "Gmail" : "Outlook email"}<em> · {NOT_TRACKED.toLowerCase()}</em></span> : <span className="op-muted">None</span>}</td>
                   <td>
                     {r.leads.wanted.length ? (
                       <div className="in-needs">
                         {r.leads.wanted.map((l) => (
-                          <Need key={l} wanted connected={r.leads.connected.includes(l)} label={LEAD_LABELS[l] ?? l} />
+                          <Need key={l} available={available} wanted connected={r.leads.connected.includes(l)} label={LEAD_LABELS[l] ?? l} />
                         ))}
                       </div>
                     ) : <span className="op-muted">None</span>}
@@ -99,8 +109,8 @@ export default function IntegrationsPage({ onOpenBusiness }) {
       <section className="owner-panel op-card">
         <div className="owner-panel-heading">
           <div>
-            <h2>Live connections</h2>
-            <p>Services connected and verified for client businesses.</p>
+            <h2>Integration records</h2>
+            <p>Store and other provider connections. Numbers, calendars and lead sources are counted above.</p>
           </div>
         </div>
         <div className="owner-table-wrap" tabIndex={0}>

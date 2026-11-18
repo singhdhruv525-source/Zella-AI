@@ -35,13 +35,13 @@ export const PERMISSIONS: Record<string, string> = {
   business_suspend: "businesses.lifecycle", business_reactivate: "businesses.lifecycle", business_cancel: "businesses.lifecycle",
   business_undo_cancel: "businesses.lifecycle",
   audit_logs: "audit.view", industry_save: "platform.configure", industry_create: "platform.configure",
-  admins_list: "security.view", admin_invite: "admins.manage", admin_update: "admins.manage",
+  admins_list: "security.view", admin_invite: "admins.manage", admin_update: "admins.manage", admin_sessions_end: "admins.manage",
   tickets_list: "support.manage", ticket_create: "support.manage", ticket_update: "support.manage",
   plans_list: "billing.view", plan_save: "plans.manage", platform_setting_save: "platform.configure",
   // settings actions (this file)
   me_admin: "businesses.view", roles_get: "security.view", roles_save: "roles.manage", admins_security: "security.view",
   platform_profile_get: "businesses.view", platform_profile_save: "platform.configure", maintenance_save: "platform.configure",
-  tenants_search: "businesses.view", tenant_summary: "businesses.view", onboarding_overview: "businesses.view",
+  tenants_search: "businesses.view", businesses_list: "businesses.view", tenant_summary: "businesses.view", onboarding_overview: "businesses.view",
   billing_overview: "billing.view", payments_list: "billing.view", subscriptions_list: "billing.view",
   plan_entitlements_save: "plans.manage", voice_pricing_list: "billing.view", voice_pricing_add: "billing.manage",
   usage_summary: "analytics.view", numbers_list: "businesses.view", number_assign: "telephony.manage", number_set_status: "telephony.manage",
@@ -103,7 +103,7 @@ function httpsUrl(v: unknown, label: string, k: Kit): string | null {
 // Every row of a query, a page of 1,000 at a time (the API returns at most 1,000 per request, so a single
 // .limit() above that silently undercounts). Totals built from it are never understated: past the cap it refuses.
 // deno-lint-ignore no-explicit-any
-async function allRows(page: (from: number, to: number) => PromiseLike<{ data: any[] | null; error: unknown }>, cap = 100000) {
+export async function allRows(page: (from: number, to: number) => PromiseLike<{ data: any[] | null; error: unknown }>, cap = 100000) {
   // deno-lint-ignore no-explicit-any
   const out: any[] = [];
   for (let from = 0; from < cap; from += 1000) {
@@ -575,13 +575,15 @@ export function settingsHandlers(admin: SupabaseClient, fields: Json, ctx: { use
         admin.rpc("zella_rls_coverage"),
         admin.rpc("zella_tenant_leak_check"),
         admin.from("integration_secrets").select("integration_id", { count: "exact", head: true }),
-        admin.from("audit_logs").select("action, user_id, business_id, created_at").or("action.like.platform.%,action.like.admin%,action.like.business.suspend%,action.like.session.%,action.like.roles%").order("created_at", { ascending: false }).limit(20),
+        admin.from("audit_logs").select("action, user_id, business_id, created_at").or("action.like.platform.%,action.like.admin%,action.like.business.suspend%,action.like.session.%,action.like.security.%").order("created_at", { ascending: false }).limit(20),
         admin.from("platform_admins").select("user_id").eq("is_active", true),
       ]);
+      // ACC-15: refused admin calls in the last 24 hours
+      const refusals = await admin.from("audit_logs").select("id", { count: "exact", head: true }).eq("action", "security.admin_refused").gte("created_at", new Date(Date.now() - 86400000).toISOString());
       const info = await emails(admin, ((admins.data ?? []) as { user_id: string }[]).map((a) => a.user_id));
       return {
         rls: rls.error ? null : rls.data, leak: leak.error ? null : leak.data,
-        integrationSecrets: secrets.count ?? 0, recent: recent.data ?? [],
+        integrationSecrets: secrets.count ?? 0, recent: recent.data ?? [], refusals24h: refusals.error ? null : refusals.count ?? 0,
         adminsWithoutMfa: Object.values(info).filter((a) => !a.mfa).length, adminCount: Object.keys(info).length,
       };
     },

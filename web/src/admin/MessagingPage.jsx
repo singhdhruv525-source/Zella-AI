@@ -7,7 +7,7 @@ import ContactLookup from "./ContactLookup";
 import { offSentence, switchHint, switchText } from "../copy/liveSwitches";
 import {
   AlertList, DataTable, Drawer, ErrorNote, Facts, Filters, Metric, NotAvailable, PAGE, PageHeader, Pager, Panel, PERIODS, Pill,
-  ProviderHealth, ReasonDialog, Search, Select, Tabs, can, num, pct, rpc, since, useLoad, useOptions, useToast, when, words,
+  ProviderHealth, ReasonDialog, Search, Select, Tabs, can, num, pct, rpc, since, useLoad, useOptions, useToast, when, words, numText
 } from "./adminOps";
 
 // Admin page: every text and email Zella Voice recorded, the platform templates and the senders. Data comes from the
@@ -32,7 +32,7 @@ export default function MessagingPage({ me, sub, onOpenBusiness }) {
   const openFailed = (channel) => { setFailedFilter(true); setTab(channel); };
   return (
     <section className="owner-page ao-page">
-      <PageHeader title="Messaging" description="Texts and emails across every business: what was sent, what failed, the templates they use and the senders." />
+      <PageHeader eyebrow="AI and communications" title="Messaging" description="Texts and emails across every business: what was sent, what failed, the templates they use and the senders." />
       <ErrorNote error={options.error} onRetry={options.reload} />
       <Tabs tabs={TABS} current={tab} onChange={(k) => { setFailedFilter(false); setTab(k); }} />
       {tab === "overview" && <Overview onTab={setTab} onFailed={openFailed} />}
@@ -75,7 +75,7 @@ function Overview({ onTab, onFailed }) {
           })()}
           <h3 className="ao-h3">Texts</h3>
           <div className="owner-stat-grid ao-stats">
-            <Metric label="Sent" value={num(o.sms.outbound)} note={`${num(o.sms.inbound)} received`} />
+            <Metric label="Sent" value={num(o.sms.outbound)} note={`${numText(o.sms.inbound)} received`} />
             <Metric label="Delivered" value={num(o.sms.delivered)} note={o.sms_delivery_rate == null ? "No delivery rate yet" : `Delivery rate ${pct(o.sms_delivery_rate)}`} />
             <Metric label="Failed" value={num(o.sms.failed)} tone={o.sms.failed ? "danger" : null} />
             <Metric label="Waiting" value={num(o.sms.queued)} />
@@ -84,7 +84,7 @@ function Overview({ onTab, onFailed }) {
           </div>
           <h3 className="ao-h3">Emails</h3>
           <div className="owner-stat-grid ao-stats">
-            <Metric label="Sent" value={num(o.email.outbound)} note={`${num(o.email.inbound)} received`} />
+            <Metric label="Sent" value={num(o.email.outbound)} note={`${numText(o.email.inbound)} received`} />
             <Metric label="Accepted by provider" value={num(o.email.accepted)} />
             <Metric label="Delivered" value={num(o.email.delivered)} />
             <Metric label="Failed" value={num(o.email.failed)} tone={o.email.failed ? "danger" : null} />
