@@ -61,6 +61,13 @@ begin
         (pg_get_userbyid(p.proowner), 'service_role', 'postgres', 'supabase_admin', v.extra))) then
     raise exception 'VERSION_MISMATCH: a function of this file can be run by a role this file does not give it to';
   end if;
+  -- and the grants this file makes are still there (a later revoke is a change too)
+  if exists (select 1 from (values
+      ('public.zella_end_user_sessions(uuid)', 'service_role'), ('public.zella_revoke_my_other_sessions()', 'authenticated'),
+      ('public.zella_remove_mfa_factor(uuid,uuid)', 'service_role')) v(sig, grantee)
+      where to_regprocedure(v.sig) is not null and not has_function_privilege(v.grantee, to_regprocedure(v.sig), 'EXECUTE')) then
+    raise exception 'VERSION_MISMATCH: a function of this file lost a grant this file gives it';
+  end if;
   if exists (select 1 from pg_trigger g where g.tgrelid in (to_regclass('public.platform_admins'), to_regclass('auth.mfa_factors'))
        and g.tgname in ('zella_keep_an_owner', 'zella_keep_an_owner_turn', 'zella_admin_mfa_added') and not coalesce(
          g.tgenabled = 'O' and g.tgconstraint = 0 and g.tgqual is null and g.tgnargs = 0 and cardinality(g.tgattr::int2[]) = 0 and (

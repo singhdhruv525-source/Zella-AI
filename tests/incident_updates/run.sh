@@ -132,7 +132,7 @@ q "drop table public.platform_incident_updates" > /dev/null
 q "drop index public.platform_incident_updates_client_ref_idx; create index platform_incident_updates_client_ref_idx on public.platform_incident_updates (incident_id, client_ref) where client_ref is not null" > /dev/null
 out=$("${P[@]}" -d $DB -f "$MIG" 2>&1); rc=$?
 [ $rc -ne 0 ] && [[ "$out" == *"platform_incident_updates_client_ref_idx is not the unique index"* ]] && ok "a replay index that isn't unique stops the file" || bad "non unique index: $out"
-q "drop index public.platform_incident_updates_client_ref_idx; create unique index platform_incident_updates_client_ref_idx on public.platform_incident_updates (incident_id) include (client_ref) where client_ref is not null" > /dev/null
+q "drop index public.platform_incident_updates_client_ref_idx; create unique index platform_incident_updates_client_ref_idx on public.platform_incident_updates (incident_id) include (client_ref) where client_ref is not null" > /dev/null || { bad "include index fixture"; exit 1; }
 out=$("${P[@]}" -d $DB -f "$MIG" 2>&1); rc=$?
 [ $rc -ne 0 ] && [[ "$out" == *"platform_incident_updates_client_ref_idx is not the unique index"* ]] && ok "nor one unique on the incident alone, with the ref only included" || bad "include index: $out"
 q "drop index public.platform_incident_updates_client_ref_idx" > /dev/null

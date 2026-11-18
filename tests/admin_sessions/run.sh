@@ -140,6 +140,13 @@ out=$("${P[@]}" -d $DB -f "$MIG" 2>&1); rc=$?
 out=$("${P[@]}" -d $DB -f "$RB" 2>&1); rc=$?
 [ $rc -ne 0 ] && [[ "$out" == *"was given to another role"* ]] && [ "$(q "select to_regprocedure('public.zella_end_user_sessions(uuid)') is not null")" = "t" ] && ok "and its rollback (DRIFT), dropping nothing" || bad "grant drift not caught by the rollback: $out"
 q "revoke execute on function public.zella_end_user_sessions(uuid) from authenticated" > /dev/null || bad "grant restore"
+# a grant the file makes, revoked after it, stops the file and its rollback
+q "revoke execute on function public.zella_end_user_sessions(uuid) from service_role" > /dev/null || { bad "revoke fixture"; exit 1; }
+out=$("${P[@]}" -d $DB -f "$MIG" 2>&1); rc=$?
+[ $rc -ne 0 ] && [[ "$out" == *"lost a grant this file gives it"* ]] && ok "a grant revoked after the file stops the file (VERSION_MISMATCH)" || bad "revoke drift not caught by the file: $out"
+out=$("${P[@]}" -d $DB -f "$RB" 2>&1); rc=$?
+[ $rc -ne 0 ] && [[ "$out" == *"lost a grant since"* ]] && [ "$(q "select to_regprocedure('public.zella_end_user_sessions(uuid)') is not null")" = "t" ] && ok "and its rollback (DRIFT), dropping nothing" || bad "revoke drift not caught by the rollback: $out"
+q "grant execute on function public.zella_end_user_sessions(uuid) to service_role" > /dev/null || bad "grant restore"
 # a function given another owner after the file (its definition text unchanged) stops the file and its rollback
 q "alter function public.zella_admin_mfa_added_trg() owner to service_role" > /dev/null || bad "owner fixture"
 out=$("${P[@]}" -d $DB -f "$MIG" 2>&1); rc=$?

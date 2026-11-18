@@ -161,7 +161,7 @@ run "$MIG"; [ $rc -eq 0 ] && ok "applies again after the rollback" || bad "reapp
 q "drop index public.support_ticket_messages_client_ref_idx; create index support_ticket_messages_client_ref_idx on public.support_ticket_messages (ticket_id, client_ref) where client_ref is not null" > /dev/null
 run "$MIG"
 refused "support_ticket_messages_client_ref_idx is not the unique index" && ok "a replay index that isn't unique stops the file" || bad "non unique index: $out"
-q "drop index public.support_ticket_messages_client_ref_idx; create unique index support_ticket_messages_client_ref_idx on public.support_ticket_messages (ticket_id) include (client_ref) where client_ref is not null" > /dev/null
+q "drop index public.support_ticket_messages_client_ref_idx; create unique index support_ticket_messages_client_ref_idx on public.support_ticket_messages (ticket_id) include (client_ref) where client_ref is not null" > /dev/null || { bad "include index fixture"; exit 1; }
 run "$MIG"
 refused "support_ticket_messages_client_ref_idx is not the unique index" && ok "nor one unique on the ticket alone, with the ref only included" || bad "include index: $out"
 q "drop index public.support_ticket_messages_client_ref_idx" > /dev/null
