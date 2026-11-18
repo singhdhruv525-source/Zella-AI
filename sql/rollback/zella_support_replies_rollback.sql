@@ -1,8 +1,8 @@
 -- Undoes sql/zella_support_replies.sql, for a database with NO support replies yet: drops the alert trigger, the three
 -- functions and support_ticket_messages, the first_response_at column and the support_business_hours setting (each
 -- only when this file's mark shows it added them, and the setting only while unchanged). It refuses (DRIFT) when a
--- function is no longer this migration's version, when the table or column isn't this file's, and whenever replies
--- or first response times exist: it never deletes them. If there are any, stop here; undoing then needs its own plan
+-- function or the alert trigger is no longer this migration's version, when the table or column isn't this file's,
+-- and whenever replies or first response times exist: it never deletes them. If there are any, stop here; undoing then needs its own plan
 -- that keeps the replies, approved by the owner. support_tickets, then the messages, are locked before the checks (the
 -- order a reply writes in), so nothing can be written between the checks and the drop. Safe to run twice.
 begin;
@@ -18,14 +18,20 @@ begin
       raise exception 'DRIFT: % changed after sql/zella_support_replies.sql; roll back by hand', f.sig;
     end if;
   end loop;
+  execute 'lock table public.support_tickets in share row exclusive mode';
   if to_regclass('public.support_ticket_messages') is not null then
-    execute 'lock table public.support_tickets in share row exclusive mode';
     execute 'lock table public.support_ticket_messages in access exclusive mode';
   end if;
 end $$;
 do $$
 declare n boolean;
 begin
+  -- the alert trigger, under the tickets lock: absent, or exactly as the file creates it
+  if exists (select 1 from pg_trigger g where g.tgrelid = 'public.support_tickets'::regclass and g.tgname = 'zella_support_ticket_alert'
+       and not coalesce(g.tgtype = 5 and g.tgenabled = 'O' and g.tgqual is null and g.tgnargs = 0 and cardinality(g.tgattr::int2[]) = 0
+         and g.tgfoid = to_regprocedure('public.zella_support_ticket_alert_trg()'), false)) then
+    raise exception 'DRIFT: the zella_support_ticket_alert trigger changed after sql/zella_support_replies.sql; roll back by hand';
+  end if;
   if to_regclass('public.support_ticket_messages') is not null then
     if obj_description(to_regclass('public.support_ticket_messages'), 'pg_class') is distinct from 'zella_support_replies.sql' then
       raise exception 'DRIFT: support_ticket_messages was not created by sql/zella_support_replies.sql; roll back by hand';
@@ -59,5 +65,5 @@ end $$;
 delete from public.platform_settings where key = 'support_business_hours'
   and exists (select 1 from public.platform_settings where key = 'support_business_hours_origin' and value = '"zella_support_replies.sql"'::jsonb)
   and value = '{"days": [1, 2, 3, 4, 5], "start": "09:00", "end": "17:00", "timezone": "America/New_York", "first_response_hours": 4}'::jsonb;
-delete from public.platform_settings where key = 'support_business_hours_origin';
+delete from public.platform_settings where key = 'support_business_hours_origin' and value = '"zella_support_replies.sql"'::jsonb;
 commit;

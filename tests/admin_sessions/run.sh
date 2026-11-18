@@ -83,9 +83,11 @@ left=$(q "select count(*) from auth.mfa_factors where user_id = '$A' and status 
 
 # the database keeps an active Zella Voice owner, also when two owners remove each other at the same moment
 O1=f3300000-0000-0000-0000-000000000001; O2=f3300000-0000-0000-0000-000000000002
+# the test owners first, so retiring the template's owners never removes the last active one
 q "insert into auth.users (id, email, email_confirmed_at) values ('$O1', 'own1@sessions.test', now()), ('$O2', 'own2@sessions.test', now());
-   update public.platform_admins set is_active = false where role = 'zella_owner';
-   insert into public.platform_admins (user_id, role, is_active) values ('$O1', 'zella_owner', true), ('$O2', 'zella_owner', true)" > /dev/null
+   insert into public.platform_admins (user_id, role, is_active) values ('$O1', 'zella_owner', true), ('$O2', 'zella_owner', true);
+   update public.platform_admins set is_active = false where role = 'zella_owner' and user_id not in ('$O1', '$O2')" > /dev/null || { bad "owner setup failed"; exit 1; }
+[ "$(q "select string_agg(user_id::text, ',' order by user_id) from public.platform_admins where role = 'zella_owner' and is_active")" = "$O1,$O2" ] || { bad "owner setup: the test owners aren't the only active ones"; exit 1; }
 ( "${P[@]}" -d $DB -c "begin; update public.platform_admins set role = 'super_admin' where user_id = '$O1'; select pg_sleep(2); commit;" > /dev/null 2>&1 ) &
 sleep 0.7
 second=$( "${P[@]}" -d $DB -c "update public.platform_admins set is_active = false where user_id = '$O2'" 2>&1 )
@@ -96,9 +98,30 @@ r=$( "${P[@]}" -d $DB -c "delete from public.platform_admins where user_id = '$O
 [[ "$r" == *"LAST_OWNER"* ]] && ok "deleting the last active owner is refused too" || bad "delete last owner: $r"
 q "update public.platform_admins set role = 'zella_owner' where user_id = '$O1'" > /dev/null
 r=$( "${P[@]}" -d $DB -c "update public.platform_admins set is_active = false where user_id = '$O2'" 2>&1 ) && ok "with another active owner, an owner can be removed" || bad "removal with two owners: $r"
+# both changes lock their own row before the owner check runs (a test only trigger holds each there for a second):
+# the turn taken before any row is locked makes one wait, so one is refused (LAST_OWNER) and neither deadlocks
+q "update public.platform_admins set is_active = true, role = 'zella_owner' where user_id in ('$O1', '$O2');
+   create function public.zq_slow_trg() returns trigger language plpgsql as \$f\$ begin perform pg_sleep(1); return new; end \$f\$;
+   create trigger aaa_zq_slow before update on public.platform_admins for each row execute function public.zq_slow_trg()" > /dev/null
+( "${P[@]}" -d $DB -c "update public.platform_admins set is_active = false where user_id = '$O1'" > "$HERE/.o1.out" 2>&1 ) &
+( "${P[@]}" -d $DB -c "update public.platform_admins set is_active = false where user_id = '$O2'" > "$HERE/.o2.out" 2>&1 ) &
+wait
+both="$(cat "$HERE/.o1.out" "$HERE/.o2.out")"; rm -f "$HERE/.o1.out" "$HERE/.o2.out"
+q "drop trigger aaa_zq_slow on public.platform_admins; drop function public.zq_slow_trg()" > /dev/null
+owners=$(q "select count(*) from public.platform_admins where role = 'zella_owner' and is_active")
+[[ "$both" == *"LAST_OWNER"* ]] && [[ "$both" != *"deadlock"* ]] && [ "$owners" = "1" ] && ok "two owners removing each other with both rows already locked: one is refused (LAST_OWNER), no deadlock, one owner stays" || bad "simultaneous owner removal: $both, owners $owners"
+# a trigger changed after the file (here: given a condition) stops the file and its rollback, and stays as it was
+q "drop trigger zella_keep_an_owner on public.platform_admins;
+   create trigger zella_keep_an_owner before update or delete on public.platform_admins for each row when (old.role = 'zella_owner') execute function public.zella_keep_an_owner_trg()" > /dev/null
+out=$("${P[@]}" -d $DB -f "$MIG" 2>&1)
+[[ "$out" == *"VERSION_MISMATCH"* ]] && ok "a changed owner trigger stops the file (VERSION_MISMATCH)" || bad "trigger drift not caught by the file: $out"
+out=$("${P[@]}" -d $DB -f "$RB" 2>&1)
+[[ "$out" == *"DRIFT"* ]] && [ "$(q "select count(*) from pg_trigger where tgname = 'zella_keep_an_owner' and tgqual is not null")" = "1" ] && ok "and its rollback (DRIFT), leaving the trigger as it was" || bad "trigger drift not caught by the rollback: $out"
+q "drop trigger zella_keep_an_owner on public.platform_admins;
+   create trigger zella_keep_an_owner before update or delete on public.platform_admins for each row execute function public.zella_keep_an_owner_trg()" > /dev/null
 
-"${P[@]}" -d $DB -f "$RB" > /dev/null 2>&1 && "${P[@]}" -d $DB -f "$RB" > /dev/null 2>&1 && ok "rollback runs twice" || bad "rollback"
-[ "$(q "select count(*) from pg_trigger where tgname = 'zella_keep_an_owner'")" = "0" ] && ok "rollback drops the owner trigger" || bad "owner trigger left"
+o1=$("${P[@]}" -d $DB -f "$RB" 2>&1) && o2=$("${P[@]}" -d $DB -f "$RB" 2>&1) && ok "rollback runs twice" || bad "rollback: $o1 $o2"
+[ "$(q "select count(*) from pg_trigger where tgname in ('zella_keep_an_owner', 'zella_keep_an_owner_turn')")" = "0" ] && [ -z "$(q "select to_regprocedure('public.zella_keep_an_owner_turn_trg()')")" ] && ok "rollback drops both owner triggers and their functions" || bad "owner trigger left"
 v=$(q "select coalesce(to_regprocedure('public.zella_end_user_sessions(uuid)')::text, '') || coalesce(to_regprocedure('public.zella_revoke_my_other_sessions()')::text, '') || coalesce(to_regprocedure('public.zella_remove_mfa_factor(uuid,uuid)')::text, '')") && [ -z "$v" ] && ok "rollback drops all three functions" || bad "functions left"
 "${P[@]}" -d $DB -f "$MIG" > /dev/null 2>&1 && ok "applies again after the rollback" || bad "reapply"
 q "create or replace function public.zella_end_user_sessions(p_user_id uuid) returns integer language sql security definer set search_path = '' as \$f\$ select 0 \$f\$" > /dev/null

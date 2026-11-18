@@ -14,8 +14,9 @@
 --      issue from Settings (zella_business_request creates those tickets; it is not replaced here).
 --   6. platform_settings.support_business_hours: Monday to Friday 9:00 to 17:00 America/New_York unless already set
 --      (the owner can change it); owner-provision-business reads it for the ticket age and the overdue filter.
--- Every function is new; each must be absent or exactly this file's version, otherwise the file stops with
--- VERSION_MISMATCH. Running it twice changes nothing.
+-- Every function is new; each, and the alert trigger, must be absent or exactly this file's version, otherwise the
+-- file stops with VERSION_MISMATCH (so does a first_response_at of another type, or an origin row it didn't write).
+-- Running it twice changes nothing.
 -- Rollback: sql/rollback/zella_support_replies_rollback.sql (refuses on drift and while replies exist; never deletes replies).
 begin;
 
@@ -46,6 +47,21 @@ begin
       raise exception 'VERSION_MISMATCH: % already exists in a version this file was not written for', f.sig;
     end if;
   end loop;
+  -- the alert trigger: absent, or exactly as this file creates it (its function, after insert, for each row)
+  if exists (select 1 from pg_trigger g where g.tgrelid = 'public.support_tickets'::regclass and g.tgname = 'zella_support_ticket_alert'
+       and not coalesce(g.tgtype = 5 and g.tgenabled = 'O' and g.tgqual is null and g.tgnargs = 0 and cardinality(g.tgattr::int2[]) = 0
+         and g.tgfoid = to_regprocedure('public.zella_support_ticket_alert_trg()'), false)) then
+    raise exception 'VERSION_MISMATCH: a zella_support_ticket_alert trigger already exists in a version this file was not written for';
+  end if;
+  -- an existing first_response_at must be the time this file reads and writes
+  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'support_tickets'
+       and column_name = 'first_response_at' and data_type <> 'timestamp with time zone') then
+    raise exception 'VERSION_MISMATCH: support_tickets.first_response_at already exists with another type';
+  end if;
+  -- the business hours origin row is this file's alone: one with another value was not written by it
+  if exists (select 1 from public.platform_settings where key = 'support_business_hours_origin' and value is distinct from '"zella_support_replies.sql"'::jsonb) then
+    raise exception 'VERSION_MISMATCH: a support_business_hours_origin setting this file did not write already exists';
+  end if;
 end $$;
 
 create table if not exists public.support_ticket_messages (

@@ -14,11 +14,13 @@
 --      owner-provision-business me_mfa_remove uses it; Supabase Auth's own delete has no such rule.
 --   4. A trigger on platform_admins (zella_keep_an_owner_trg): a change or removal that would leave no active Zella Voice
 --      owner is refused (LAST_OWNER). It locks the other active owners' rows first, so two owners removing each other
---      at the same moment can't both pass (the second waits, then sees the first change). admin_update keeps its own
---      check for a clear message; this makes it hold in the database too.
--- All four are new. Each is checked first: it must be absent or exactly this file's version, otherwise the file stops
--- with VERSION_MISMATCH. Running the file twice changes nothing.
--- Rollback: sql/rollback/zella_admin_sessions_rollback.sql (drops both, refusing if either was changed since).
+--      at the same moment can't both pass (the second waits, then sees the first change). A statement trigger
+--      (zella_keep_an_owner_turn_trg) takes one turn for every change to platform_admins before any row is locked, so
+--      two such changes can't deadlock either. admin_update keeps its own check for a clear message; this makes it
+--      hold in the database too.
+-- All five functions and both triggers are new. Each is checked first: it must be absent or exactly this file's
+-- version, otherwise the file stops with VERSION_MISMATCH. Running the file twice changes nothing.
+-- Rollback: sql/rollback/zella_admin_sessions_rollback.sql (drops them all, refusing if any was changed since).
 begin;
 
 do $$
@@ -31,11 +33,20 @@ begin
       ('public.zella_end_user_sessions(uuid)', '6f2b8fb98e67992744046a81ff295d9f'),
       ('public.zella_revoke_my_other_sessions()', 'eaaba33d1c889966f9bc2c3e223f44e9'),
       ('public.zella_remove_mfa_factor(uuid,uuid)', '7a8c3d352a3c9dbecea8e94c726fede1'),
-      ('public.zella_keep_an_owner_trg()', '70c818f1d3c5a06094800c067807d32b')) v(sig, want) loop
+      ('public.zella_keep_an_owner_trg()', '70c818f1d3c5a06094800c067807d32b'),
+      ('public.zella_keep_an_owner_turn_trg()', 'ccab7c7710e26e9dd409befbb5f25177')) v(sig, want) loop
     if to_regprocedure(f.sig) is not null and md5(pg_get_functiondef(f.sig::regprocedure)) <> f.want then
       raise exception 'VERSION_MISMATCH: % already exists in a version this file was not written for', f.sig;
     end if;
   end loop;
+  -- the two triggers too: each absent, or exactly as this file creates it (its function, timing, events, no condition)
+  if exists (select 1 from pg_trigger g where g.tgrelid = to_regclass('public.platform_admins')
+       and g.tgname in ('zella_keep_an_owner', 'zella_keep_an_owner_turn') and not coalesce(
+         g.tgenabled = 'O' and g.tgqual is null and g.tgnargs = 0 and cardinality(g.tgattr::int2[]) = 0 and (
+           (g.tgname = 'zella_keep_an_owner' and g.tgtype = 27 and g.tgfoid = to_regprocedure('public.zella_keep_an_owner_trg()'))
+           or (g.tgname = 'zella_keep_an_owner_turn' and g.tgtype = 26 and g.tgfoid = to_regprocedure('public.zella_keep_an_owner_turn_trg()'))), false)) then
+    raise exception 'VERSION_MISMATCH: a zella_keep_an_owner trigger already exists in a version this file was not written for';
+  end if;
 end $$;
 
 create or replace function public.zella_end_user_sessions(p_user_id uuid) returns integer
@@ -105,5 +116,18 @@ revoke all on function public.zella_keep_an_owner_trg() from public, anon, authe
 drop trigger if exists zella_keep_an_owner on public.platform_admins;
 create trigger zella_keep_an_owner before update or delete on public.platform_admins
   for each row execute function public.zella_keep_an_owner_trg();
+
+-- one change to platform_admins at a time, taken before the statement locks any row: otherwise two owners removing
+-- each other could each hold their own row and wait for the other's (a deadlock) instead of one being refused
+create or replace function public.zella_keep_an_owner_turn_trg() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  perform pg_advisory_xact_lock(hashtext('zella_keep_an_owner'));
+  return null;
+end $$;
+revoke all on function public.zella_keep_an_owner_turn_trg() from public, anon, authenticated;
+drop trigger if exists zella_keep_an_owner_turn on public.platform_admins;
+create trigger zella_keep_an_owner_turn before update or delete on public.platform_admins
+  for each statement execute function public.zella_keep_an_owner_turn_trg();
 
 commit;
