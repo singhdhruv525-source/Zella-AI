@@ -296,3 +296,8 @@ test("review fixes 11: a conditional nested in a conditional's first arm, nullis
   assert.deepEqual(names(tsAuditReads(`const q = gate ? a ? admin.from("jobs") : admin.from("tasks") : admin.from("jobs"); q.eq("action", "not.audit");`)), []);
   assert.deepEqual(names(tsAuditReads(`const q = cached ?? admin.from("jobs"); q.eq("action", "a.nullish");`)).map((n) => n.startsWith("?")), [true]);
 });
+
+test("review fixes 12: ?? inside a conditional arm", async () => {
+  assert.deepEqual(names(tsAuditReads(`const audit = admin.from("audit_logs"); const q = gate ? cached ?? admin.from("jobs") : audit; q.eq("action", "a.coalesced");`)).map((n) => n.startsWith("?")), [true]);
+  assert.deepEqual(names(tsAuditReads(`const q = gate ? admin.from("audit_logs") : admin.from("jobs"); q.eq("action", "a.gate");`)), ["a.gate"]);
+});

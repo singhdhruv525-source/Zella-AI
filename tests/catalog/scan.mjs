@@ -575,6 +575,7 @@ function armTables(rhs, mrhs, head, follow) {
     // ?? and || and && join arms; a ? opens a conditional (not ?. ), and its : is the one at the same nesting of
     // conditionals (a ? b ? x : y : z pairs the inner ? with the first :)
     else if (d === 0 && q < 0 && (mrhs.startsWith("&&", i) || mrhs.startsWith("||", i) || mrhs.startsWith("??", i))) { arms.push([start, i]); start = i + 2; i++; }
+    else if (d === 0 && mrhs.startsWith("??", i)) i++;   // inside an arm: both characters of ?? are one operator
     else if (d === 0 && c === "?" && mrhs[i + 1] !== "." && mrhs[i + 1] !== "?") { if (q < 0) q = i; else if (colon < 0) tern++; }
     else if (d === 0 && c === ":" && q >= 0 && colon < 0) { if (tern > 0) tern--; else colon = i; }
   }
