@@ -315,6 +315,7 @@
     "support_urgent_ticket": "Urgent support request",
     "tenant_leak": "Data boundary check failed",
     "trial_ended": "Trial ended",
+    "usage_allowance_unknown": "Calls stopped: minutes allowance unknown",
     "usage_missing_duration": "Usage missing duration",
     "usage_processing_failed": "Usage processing failed",
     "website_page_broken": "Website page broken",
