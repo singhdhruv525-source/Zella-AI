@@ -1,4 +1,4 @@
-import { assistantReply, authHeaders, CANT_TAKE, FORWARD_MESSAGE, brainInvalidReply, brainToolReply, FAILED, plan, toolResult, transferReply, UNSUPPORTED, unsupported } from "./logic.ts";
+import { assistantReply, authHeaders, CANT_TAKE, CLOSED_MESSAGE, FORWARD_MESSAGE, brainInvalidReply, brainToolReply, FAILED, plan, toolResult, transferReply, UNSUPPORTED, unsupported } from "./logic.ts";
 import { eventTime, planCallEvent } from "../_shared/vapi-call-events.js";
 
 function eq(a: unknown, b: unknown, m: string) { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(m + ": " + JSON.stringify(a) + " !== " + JSON.stringify(b)); }
@@ -178,4 +178,10 @@ Deno.test("cancel and move pass the spoken confirmation code to the database; a 
   const find = planBrainTool({ id: "t3", name: "find_my_appointments", arguments: { name: "Dana Reyes", date: "2026-12-01" } }, ctx);
   const fa = find.record.p_args as Record<string, unknown>;
   eq([find.invalid, fa.name, fa.date], [null, "Dana Reyes", "2026-12-01"], "find keeps name and date");
+});
+
+Deno.test("minutes used up with no number, or too many calls at once: the closed message, then the call ends", () => {
+  eq(assistantReply(true, { ok: false, outcome: "closed", reason: "allowance_used" }), { error: CLOSED_MESSAGE }, "closed");
+  eq(assistantReply(true, { ok: false, outcome: "closed", reason: "over_call_limit", fallback_assistant_id: "3f1c2b4e-5a6d-4e7f-8a9b-0c1d2e3f4a5b" }), { error: CLOSED_MESSAGE }, "never the standby assistant");
+  eq(CLOSED_MESSAGE, "Sorry, we can't take your call right now. Please try again later.", "owner's wording");
 });
