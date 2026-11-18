@@ -44,6 +44,15 @@ begin
      is distinct from 'body text, client_ref uuid, created_at timestamp with time zone, created_by uuid, id uuid, incident_id uuid, notified_businesses integer' then
     raise exception 'VERSION_MISMATCH: a different platform_incident_updates table already exists';
   end if;
+  -- the replay index, when already there, must enforce one update per incident and page id
+  if to_regclass('public.platform_incident_updates_client_ref_idx') is not null and not coalesce((
+       select i.indisunique and i.indisvalid and i.indrelid = to_regclass('public.platform_incident_updates')
+          and (select string_agg(a.attname, ',' order by k.n) from unnest(i.indkey) with ordinality k(attnum, n)
+                join pg_attribute a on a.attrelid = i.indrelid and a.attnum = k.attnum) = 'incident_id,client_ref'
+          and pg_get_expr(i.indpred, i.indrelid) = '(client_ref IS NOT NULL)'
+         from pg_index i where i.indexrelid = to_regclass('public.platform_incident_updates_client_ref_idx')), false) then
+    raise exception 'VERSION_MISMATCH: platform_incident_updates_client_ref_idx is not the unique index this file creates';
+  end if;
   for f in select * from (values
       ('public.zella_incident_post_update(uuid,text,boolean,uuid)', 'e7e5bb22ad48b14d09b41536783ff248'),
       ('public.zella_incident_edit(uuid,text,text)', 'e0215d925eed949c81af4ee8d21ac576'),

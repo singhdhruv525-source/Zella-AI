@@ -41,6 +41,10 @@ begin
     if to_regprocedure(f.sig) is not null and md5(pg_get_functiondef(f.sig::regprocedure)) <> f.want then
       raise exception 'VERSION_MISMATCH: % already exists in a version this file was not written for', f.sig;
     end if;
+    -- and its owner: a security definer function runs as its owner, which the definition text doesn't show
+    if to_regprocedure(f.sig) is not null and (select pg_get_userbyid(proowner) from pg_proc where oid = to_regprocedure(f.sig)) <> current_user then
+      raise exception 'VERSION_MISMATCH: % already exists with another owner', f.sig;
+    end if;
   end loop;
   -- the two triggers too: each absent, or exactly as this file creates it (its function, timing, events, no condition)
   if exists (select 1 from pg_trigger g where g.tgrelid in (to_regclass('public.platform_admins'), to_regclass('auth.mfa_factors'))

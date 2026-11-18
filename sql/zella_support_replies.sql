@@ -47,6 +47,15 @@ begin
       raise exception 'VERSION_MISMATCH: % already exists in a version this file was not written for', f.sig;
     end if;
   end loop;
+  -- the replay index, when already there, must enforce one answer per ticket and page id
+  if to_regclass('public.support_ticket_messages_client_ref_idx') is not null and not coalesce((
+       select i.indisunique and i.indisvalid and i.indrelid = to_regclass('public.support_ticket_messages')
+          and (select string_agg(a.attname, ',' order by k.n) from unnest(i.indkey) with ordinality k(attnum, n)
+                join pg_attribute a on a.attrelid = i.indrelid and a.attnum = k.attnum) = 'ticket_id,client_ref'
+          and pg_get_expr(i.indpred, i.indrelid) = '(client_ref IS NOT NULL)'
+         from pg_index i where i.indexrelid = to_regclass('public.support_ticket_messages_client_ref_idx')), false) then
+    raise exception 'VERSION_MISMATCH: support_ticket_messages_client_ref_idx is not the unique index this file creates';
+  end if;
   -- the alert trigger: absent, or exactly as this file creates it (its function, after insert, for each row)
   if exists (select 1 from pg_trigger g where g.tgrelid = 'public.support_tickets'::regclass and g.tgname = 'zella_support_ticket_alert'
        and not coalesce(g.tgtype = 5 and g.tgenabled = 'O' and g.tgconstraint = 0 and g.tgqual is null and g.tgnargs = 0 and cardinality(g.tgattr::int2[]) = 0
@@ -55,8 +64,10 @@ begin
   end if;
   -- an existing first_response_at must be the time this file reads and writes
   if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'support_tickets'
-       and column_name = 'first_response_at' and (data_type <> 'timestamp with time zone' or is_generated <> 'NEVER')) then
-    raise exception 'VERSION_MISMATCH: support_tickets.first_response_at already exists with another type, or computed';
+       and column_name = 'first_response_at' and (data_type <> 'timestamp with time zone' or is_generated <> 'NEVER'
+         or is_nullable <> 'YES' or column_default is not null)) then
+    -- a default (now()) would mark every new ticket answered; not null would refuse new tickets
+    raise exception 'VERSION_MISMATCH: support_tickets.first_response_at already exists with another type, or computed, or a default';
   end if;
   -- the business hours origin row is this file's alone: one with another value was not written by it
   if exists (select 1 from public.platform_settings where key = 'support_business_hours_origin' and value is distinct from '"zella_support_replies.sql"'::jsonb) then

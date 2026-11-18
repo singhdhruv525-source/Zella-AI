@@ -113,6 +113,7 @@ left=$(q "select coalesce(to_regclass('public.support_ticket_messages')::text, '
 run() { out=$("${P[@]}" -d $DB -f "$1" 2>&1); rc=$?; }
 refused() { [ $rc -ne 0 ] && [[ "$out" == *"$1"* ]]; }
 gone() { local v; v=$(q "select ($1) is null") && [ "$v" = "t" ]; }
+present() { local v; v=$(q "select ($1) is not null") && [ "$v" = "t" ]; }
 # a setting that was there before the file stays after its rollback, exactly as it was (non default hours)
 HOURS='{"days": [2, 4], "start": "08:30", "end": "16:00", "timezone": "America/Chicago", "first_response_hours": 6}'
 q "insert into public.platform_settings (key, value) values ('support_business_hours', '$HOURS'::jsonb)" > /dev/null
@@ -137,7 +138,7 @@ q "create table public.support_ticket_messages (id uuid primary key, ticket_id u
 run "$MIG"
 refused "did not create" && ok "a look alike messages table the file didn't create stops the file" || bad "look alike: $out"
 run "$RB"
-refused "was not created by" && ! gone "to_regclass('public.support_ticket_messages')" && ok "and the rollback refuses to drop it" || bad "rollback dropped a look alike: $out"
+refused "was not created by" && present "to_regclass('public.support_ticket_messages')" && ok "and the rollback refuses to drop it" || bad "rollback dropped a look alike: $out"
 q "drop table public.support_ticket_messages" > /dev/null
 # a first_response_at of another type, or computed, or an origin row the file didn't write, stops it before anything
 q "alter table public.support_tickets add column first_response_at text" > /dev/null
@@ -146,6 +147,9 @@ refused "first_response_at already exists with another type" && gone "to_regproc
 q "alter table public.support_tickets drop column first_response_at; alter table public.support_tickets add column first_response_at timestamptz generated always as (created_at) stored" > /dev/null
 run "$MIG"
 refused "first_response_at already exists with another type, or computed" && gone "to_regprocedure('public.zella_admin_ticket_reply(uuid,uuid,text)')" && ok "a computed first_response_at stops the file too" || bad "generated column: $out"
+q "alter table public.support_tickets drop column first_response_at; alter table public.support_tickets add column first_response_at timestamptz default now()" > /dev/null
+run "$MIG"
+refused "or a default" && gone "to_regprocedure('public.zella_admin_ticket_reply(uuid,uuid,text)')" && ok "a first_response_at with a default (every new ticket answered) stops the file too" || bad "default column: $out"
 q "alter table public.support_tickets drop column first_response_at; insert into public.platform_settings (key, value) values ('support_business_hours_origin', '\"someone else\"'::jsonb)" > /dev/null
 run "$MIG"
 refused "support_business_hours_origin setting this file did not write" && [ "$(q "select count(*) from public.platform_settings where key = 'support_business_hours'")" = "0" ] && ok "an origin row the file didn't write stops it, before the default hours are added" || bad "foreign origin: $out"
@@ -153,6 +157,12 @@ run "$RB"
 [ $rc -eq 0 ] && [ "$(q "select value #>> '{}' from public.platform_settings where key = 'support_business_hours_origin'")" = "someone else" ] && ok "and the rollback runs and leaves that row alone" || bad "foreign origin: rollback $rc: $out"
 q "delete from public.platform_settings where key = 'support_business_hours_origin'" > /dev/null
 run "$MIG"; [ $rc -eq 0 ] && ok "applies again after the rollback" || bad "reapply: $out"
+# a replay index that doesn't enforce one answer per ticket and page id stops the file
+q "drop index public.support_ticket_messages_client_ref_idx; create index support_ticket_messages_client_ref_idx on public.support_ticket_messages (ticket_id, client_ref)" > /dev/null
+run "$MIG"
+refused "support_ticket_messages_client_ref_idx is not the unique index" && ok "a replay index that isn't unique stops the file" || bad "non unique index: $out"
+q "drop index public.support_ticket_messages_client_ref_idx" > /dev/null
+run "$MIG"; [ $rc -eq 0 ] && [ "$(q "select indisunique from pg_index where indexrelid = 'public.support_ticket_messages_client_ref_idx'::regclass")" = "t" ] && ok "and with it gone the file creates the unique one" || bad "index recreate: $out"
 # an alert trigger changed after the file stops the file and its rollback, and stays exactly as it was: given a
 # condition, and made a deferred constraint trigger with the same function and events
 tdef() { q "select coalesce((select pg_get_triggerdef(oid) from pg_trigger where tgrelid = 'public.support_tickets'::regclass and tgname = 'zella_support_ticket_alert'), '-')"; }
@@ -164,7 +174,7 @@ for variant in "create trigger zella_support_ticket_alert after insert on public
   run "$MIG"
   refused "zella_support_ticket_alert trigger already exists" && ok "an alert trigger changed to $kind stops the file (VERSION_MISMATCH)" || bad "trigger drift ($kind) not caught by the file: $out"
   run "$RB"
-  refused "zella_support_ticket_alert trigger changed" && [ "$(tdef)" = "$before" ] && ! gone "to_regclass('public.support_ticket_messages')" && ok "and its rollback (DRIFT), leaving the trigger exactly as it was" || bad "trigger drift ($kind) not caught by the rollback: $out"
+  refused "zella_support_ticket_alert trigger changed" && [ "$(tdef)" = "$before" ] && present "to_regclass('public.support_ticket_messages')" && ok "and its rollback (DRIFT), leaving the trigger exactly as it was" || bad "trigger drift ($kind) not caught by the rollback: $out"
 done
 q "drop trigger zella_support_ticket_alert on public.support_tickets;
    create trigger zella_support_ticket_alert after insert on public.support_tickets for each row execute function public.zella_support_ticket_alert_trg()" > /dev/null

@@ -128,11 +128,18 @@ q "insert into auth.users (id, email, email_confirmed_at) values ('$M1', 'mfa-ad
    insert into auth.mfa_factors (id, user_id, factor_type, status, friendly_name, created_at, updated_at) values ('$FM', '$M1', 'totp', 'unverified', 'New phone', now(), now()), ('$FN', '$B', 'totp', 'unverified', 'Member phone', now(), now())" > /dev/null || bad "mfa fixture"
 mfa_added() { q "select count(*) from public.audit_logs where action = 'admin.mfa_added' and entity_id = '$1'"; }
 [ "$(mfa_added $FM)" = "0" ] && ok "setting an authenticator up writes nothing until it is verified" || bad "unverified recorded"
-q "update auth.mfa_factors set status = 'verified' where id in ('$FM', '$FN')" > /dev/null
+n=$(q "with u as (update auth.mfa_factors set status = 'verified' where id in ('$FM', '$FN') returning 1) select count(*) from u") && [ "$n" = "2" ] || { bad "verifying the two fixture authenticators: $n"; exit 1; }
 [ "$(mfa_added $FM)" = "1" ] && [ "$(q "select new_data ->> 'friendly_name' from public.audit_logs where action = 'admin.mfa_added' and entity_id = '$FM'")" = "New phone" ] && ok "an admin's verified authenticator is recorded (admin.mfa_added) in the same transaction" || bad "admin verify not recorded: $(mfa_added $FM)"
 [ "$(mfa_added $FN)" = "0" ] && ok "a business member's isn't (not an admin)" || bad "member recorded"
-q "update auth.mfa_factors set status = 'verified', friendly_name = 'Renamed' where id = '$FM'" > /dev/null
+n=$(q "with u as (update auth.mfa_factors set status = 'verified', friendly_name = 'Renamed' where id = '$FM' returning 1) select count(*) from u") && [ "$n" = "1" ] || { bad "renaming the fixture authenticator: $n"; exit 1; }
 [ "$(mfa_added $FM)" = "1" ] && ok "and only once: a later change to it writes nothing more" || bad "recorded twice: $(mfa_added $FM)"
+# a function given another owner after the file (its definition text unchanged) stops the file and its rollback
+q "alter function public.zella_admin_mfa_added_trg() owner to service_role" > /dev/null || bad "owner fixture"
+out=$("${P[@]}" -d $DB -f "$MIG" 2>&1); rc=$?
+[ $rc -ne 0 ] && [[ "$out" == *"already exists with another owner"* ]] && ok "a function with another owner stops the file (VERSION_MISMATCH)" || bad "owner drift not caught by the file: $out"
+out=$("${P[@]}" -d $DB -f "$RB" 2>&1); rc=$?
+[ $rc -ne 0 ] && [[ "$out" == *"changed owner"* ]] && [ "$(q "select to_regprocedure('public.zella_admin_mfa_added_trg()') is not null")" = "t" ] && ok "and its rollback (DRIFT), dropping nothing" || bad "owner drift not caught by the rollback: $out"
+q "alter function public.zella_admin_mfa_added_trg() owner to postgres" > /dev/null || bad "owner restore"
 o1=$("${P[@]}" -d $DB -f "$RB" 2>&1) && o2=$("${P[@]}" -d $DB -f "$RB" 2>&1) && ok "rollback runs twice" || bad "rollback: $o1 $o2"
 left=$(q "select (select count(*) from pg_trigger where tgname in ('zella_keep_an_owner', 'zella_keep_an_owner_turn', 'zella_admin_mfa_added'))::text || ':' ||
   (to_regprocedure('public.zella_keep_an_owner_trg()') is null and to_regprocedure('public.zella_keep_an_owner_turn_trg()') is null and to_regprocedure('public.zella_admin_mfa_added_trg()') is null)::text") \

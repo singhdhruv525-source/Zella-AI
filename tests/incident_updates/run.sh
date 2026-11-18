@@ -76,8 +76,10 @@ r=$(as "$SA" "select public.zella_incident_post_update(''$INC'', ''Messages are 
 [ "$(q "select count(*) from public.audit_logs where action = 'platform.incident_updated' and entity_id = '$INC'")" = "2" ] && ok "each update is audited" || bad "update audit"
 # the same update sent again with the page's ref (a lost response): the saved one comes back, nobody is told twice
 REF=f4400000-0000-0000-0000-0000000000aa
+n0=$(notes)
 first=$(as "$SA" "select public.zella_incident_post_update(''$INC'', ''Retry safe update'', true, ''$REF'') ->> ''id''")
 n3=$(notes)
+[ "$n3" -gt "$n0" ] && ok "the first post with a ref tells the owners" || bad "first post with a ref told nobody: $n0 -> $n3"
 again=$(as "$SA" "select public.zella_incident_post_update(''$INC'', ''Retry safe update'', true, ''$REF'')::text")
 [[ "$first" =~ ^[0-9a-f-]{36}$ ]] && [[ "$again" == *"\"id\": \"$first\""* ]] && [[ "$again" == *'"already_saved": true'* ]] && [ "$(notes)" = "$n3" ] && [ "$(q "select count(*) from public.platform_incident_updates where client_ref = '$REF'")" = "1" ] && ok "a repeat with the same ref returns the saved update and tells nobody again" || bad "retry: $first / $again, notes $(notes) vs $n3"
 r=$(as "$RO" "select public.zella_incident_post_update(''$INC'', ''hello there'', false)::text")
@@ -111,9 +113,11 @@ q "delete from public.platform_incident_updates" > /dev/null   # test updates on
 o1=$("${P[@]}" -d $DB -f "$RB" 2>&1); e1=$?; o2=$("${P[@]}" -d $DB -f "$RB" 2>&1); e2=$?
 [ $e1 -eq 0 ] && [ $e2 -eq 0 ] && ok "once there are no updates, the rollback runs, and again once nothing is left" || bad "rollback: $o1 $o2"
 v=$(q "select coalesce(to_regclass('public.platform_incident_updates')::text, '') || coalesce(to_regprocedure('public.zella_open_incident_checked(text,text,boolean)')::text, '')") && [ -z "$v" ] && ok "rollback removes the table and functions" || bad "left over"
-q "create table public.platform_incident_updates (id uuid primary key, incident_id uuid, notified_businesses integer, created_at timestamptz)" > /dev/null
-out=$("${P[@]}" -d $DB -f "$MIG" 2>&1)
-[[ "$out" == *"VERSION_MISMATCH"* ]] && [ -z "$(q "select to_regprocedure('public.zella_incident_post_update(uuid,text,boolean,uuid)')")" ] && ok "a timeline table of another shape stops the file before anything is installed" || bad "other table: $out"
+# marked as the file's own, so it gets past the mark check and is stopped by the shape check
+q "create table public.platform_incident_updates (id uuid primary key, incident_id uuid, notified_businesses integer, created_at timestamptz);
+   comment on table public.platform_incident_updates is 'zella_incident_updates.sql'" > /dev/null
+out=$("${P[@]}" -d $DB -f "$MIG" 2>&1); rc=$?
+[ $rc -ne 0 ] && [[ "$out" == *"a different platform_incident_updates table"* ]] && [ "$(q "select to_regprocedure('public.zella_incident_post_update(uuid,text,boolean,uuid)') is null")" = "t" ] && ok "a timeline table of another shape stops the file before anything is installed" || bad "other table: $out"
 q "drop table public.platform_incident_updates" > /dev/null
 # the same columns and types, but not created by the file (no mark): the file stops, and the rollback never drops it
 q "create table public.platform_incident_updates (id uuid primary key, incident_id uuid, body text, notified_businesses integer, created_by uuid, client_ref uuid, created_at timestamptz)" > /dev/null
@@ -124,6 +128,12 @@ out=$("${P[@]}" -d $DB -f "$RB" 2>&1)
 q "drop table public.platform_incident_updates" > /dev/null
 [ -n "$(q "select to_regprocedure('public.zella_open_incident(text,text)')")" ] && ok "zella_open_incident itself is untouched" || bad "open_incident gone"
 "${P[@]}" -d $DB -f "$MIG" > /dev/null 2>&1 && ok "applies again after the rollback" || bad "reapply"
+# a replay index that doesn't enforce one update per incident and page id stops the file
+q "drop index public.platform_incident_updates_client_ref_idx; create index platform_incident_updates_client_ref_idx on public.platform_incident_updates (incident_id, client_ref)" > /dev/null
+out=$("${P[@]}" -d $DB -f "$MIG" 2>&1); rc=$?
+[ $rc -ne 0 ] && [[ "$out" == *"platform_incident_updates_client_ref_idx is not the unique index"* ]] && ok "a replay index that isn't unique stops the file" || bad "non unique index: $out"
+q "drop index public.platform_incident_updates_client_ref_idx" > /dev/null
+"${P[@]}" -d $DB -f "$MIG" > /dev/null 2>&1 && [ "$(q "select indisunique from pg_index where indexrelid = 'public.platform_incident_updates_client_ref_idx'::regclass")" = "t" ] && ok "and with it gone the file creates the unique one" || bad "index recreate"
 q "create or replace function public.zella_incident_edit(p_incident uuid, p_title text, p_detail text default null) returns boolean language sql security definer set search_path = '' as \$f\$ select true \$f\$" > /dev/null
 out=$("${P[@]}" -d $DB -f "$MIG" 2>&1)
 [[ "$out" == *"VERSION_MISMATCH"* ]] && ok "a changed function stops the file (VERSION_MISMATCH)" || bad "drift: $out"

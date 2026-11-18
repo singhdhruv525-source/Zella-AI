@@ -17,6 +17,10 @@ begin
     if to_regprocedure(f.sig) is not null and md5(pg_get_functiondef(f.sig::regprocedure)) <> f.want then
       raise exception 'DRIFT: % changed after sql/zella_admin_sessions.sql; roll back by hand', f.sig;
     end if;
+    -- and its owner: a security definer function runs as its owner, which the definition text doesn't show
+    if to_regprocedure(f.sig) is not null and (select pg_get_userbyid(proowner) from pg_proc where oid = to_regprocedure(f.sig)) <> current_user then
+      raise exception 'DRIFT: % changed owner after sql/zella_admin_sessions.sql; roll back by hand', f.sig;
+    end if;
   end loop;
   if exists (select 1 from pg_trigger g where g.tgrelid in (to_regclass('public.platform_admins'), to_regclass('auth.mfa_factors'))
        and g.tgname in ('zella_keep_an_owner', 'zella_keep_an_owner_turn', 'zella_admin_mfa_added') and not coalesce(
