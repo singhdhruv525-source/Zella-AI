@@ -17,6 +17,7 @@ function fake(over: Partial<Deps> = {}, inv: Partial<Invitation> = {}) {
     sendSignInLink: async (email) => { calls.push(`link:${email}`); },
     finalize: async (_i, actor, user, existing) => { calls.push(`finalize:${actor}:${user}:${existing}`); return "sent"; },
     fail: async (_i, e) => { calls.push(`fail:${e}`); return "failed"; },
+    rateLimit: async () => true,
     now: () => new Date("2026-11-04T12:00:00Z"),
     ...over,
   };
@@ -127,4 +128,17 @@ Deno.test("an error checking two-step sign-in refuses (fails closed)", async () 
   const r = await sendInvitation(deps, OWNER, "i1");
   assertEquals(r.status, 403);
   assertEquals(calls, []);
+});
+
+Deno.test("invitation emails are capped: a minute between sends, and a counter that can't be checked refuses", async () => {
+  const seen: string[] = [];
+  const { deps, calls } = fake({ rateLimit: async (key) => { seen.push(key); return !key.includes(":invitation:i1:60"); } });
+  const r = await sendInvitation(deps, OWNER, "i1");
+  assertEquals([r.status, r.body.code, calls.length], [429, "TOO_MANY_INVITES", 0]);
+  assertEquals(seen, ["invite-email:invitation:i1:60"]);
+  const busy = fake({ rateLimit: async (key) => !key.includes(":business:") });
+  assertEquals((await sendInvitation(busy.deps, OWNER, "i1")).status, 429);
+  const down = fake({ rateLimit: async () => { throw new Error("db down"); } });
+  const d = await sendInvitation(down.deps, OWNER, "i1");
+  assertEquals([d.status, down.calls.length], [429, 0]);
 });

@@ -105,6 +105,11 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile` (checked
 
 ## 4. Open problems
 
+- **Client IP behind Supabase's gateway (security audit M10, Suspected):** `_shared/client_ip.ts` now uses
+  `cf-connecting-ip`, else the last `x-forwarded-for` value, never the caller-written first one (website-lead,
+  reschedule-appointment, owner-provision-business audit rows). Not confirmed on the live gateway: deploy a test function
+  that echoes these headers once, and drop `cf-connecting-ip` if Cloudflare is not in front.
+
 | Problem | State | Next step |
 |---|---|---|
 | **Vapi call authentication.** Vapi sends some messages (call status, end-of-call reports) without the Authorization header, so `voice-rules` answers 401. The test assistant was reloaded with the token in every server's headers on 30 Oct. | Open | Owner test-calls the test assistant, then checks `voice-rules` logs. Real assistants need the headers sent from the server side, with approval. |

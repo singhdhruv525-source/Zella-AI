@@ -3,6 +3,7 @@
 // (allowed websites, spam, rate limits, duplicates, consent). verify_jwt is off because visitors have no login.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { readBodyLimited } from "../_shared/body.ts";
+import { clientIp } from "../_shared/client_ip.ts";
 
 const cors = (origin: string | null) => ({
   "Access-Control-Allow-Origin": origin ?? "*",
@@ -30,7 +31,7 @@ export async function handle(req: Request): Promise<Response> {
   if (typeof b !== "object" || b === null || Array.isArray(b)) return json({ ok: false, error: "bad_json" }, 400, origin);
 
   const str = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : null);
-  const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || null;
+  const ip = clientIp(req.headers);   // never the caller-written first X-Forwarded-For value (M10)
   const source = typeof b.source === "object" && b.source !== null ? b.source : {};
 
   try {

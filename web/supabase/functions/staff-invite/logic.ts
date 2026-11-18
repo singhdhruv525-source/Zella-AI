@@ -22,10 +22,14 @@ export interface Deps {
   sendSignInLink(email: string): Promise<void>;                               // email link for an existing account
   finalize(invitationId: string, actorId: string, userId: string, existing: boolean): Promise<string>;
   fail(invitationId: string, error: string): Promise<string>;
+  rateLimit(key: string, max: number, windowSeconds: number): Promise<boolean>;  // the shared database counter (zella_rate_limit)
   now(): Date;
 }
 
 export type Result = { status: number; body: Record<string, unknown> };
+// Invitation emails come from the Zella Voice sender, so they are capped here too (security audit 18 Nov 2026, M10):
+// one email per invitation a minute and 5 an hour, and 30 an hour per business. A counter that can't be checked refuses.
+export const SEND_LIMITS = [["invitation", 1, 60], ["invitation", 5, 3600], ["business", 30, 3600]] as const;
 const err = (status: number, error: string, code?: string): Result => ({ status, body: code ? { error, code } : { error } });
 
 const FINALIZE_MESSAGES: Record<string, [number, string]> = {
@@ -56,6 +60,12 @@ export async function sendInvitation(deps: Deps, callerId: string, invitationId:
   if (!["pending", "sent", "failed"].includes(invitation.status)) return err(409, "This invitation is already closed.");
   if (invitation.expires_at && new Date(invitation.expires_at) <= deps.now()) return err(409, "This invitation has expired. Choose Send again.");
   if (!(await deps.businessOpen(invitation.business_id))) return err(409, "This workspace is closed.");
+  for (const [scope, max, seconds] of SEND_LIMITS) {
+    const key = `invite-email:${scope}:${scope === "invitation" ? invitation.id : invitation.business_id}:${seconds}`;
+    let allowed = false;
+    try { allowed = await deps.rateLimit(key, max, seconds); } catch { allowed = false; }
+    if (!allowed) return err(429, scope === "invitation" && seconds === 60 ? "This invitation was just sent. Wait a minute before sending it again." : "Too many invitation emails were sent from this workspace. Try again later.", "TOO_MANY_INVITES");
+  }
 
   const email = String(invitation.email).trim().toLowerCase();
   let target: AuthUser | null;
