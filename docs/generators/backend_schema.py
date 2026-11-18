@@ -111,6 +111,7 @@ GROUPS = [
         "ai_answer_reports": "Staff reports of a wrong receptionist answer, with the right one.",
         "ai_response_samples": "Calls sampled for quality review and the reviewer's verdict.",
         "ai_eval_cases": "Test cases the receptionist must pass per industry.",
+        "ai_eval_runs": "Each admin AI testing run of a business's test questions: who, when, passed, failed questions.",
         "vapi_request_receipts": "Vapi requests already accepted, so a replay is refused.",
         "on_call_settings": "After-hours and emergency transfer settings per business.",
         "on_call_shifts": "The on-call rota: who takes transfers, when.",

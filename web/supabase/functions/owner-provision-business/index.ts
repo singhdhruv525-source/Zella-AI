@@ -8,6 +8,7 @@ import { PERMISSIONS, RESTRICTED_ROLES, settingsHandlers } from "./settings.ts";
 import { freshCodeGate, mfaGate, tokenAal } from "./mfa_gate.ts";
 import { ONBOARDING_PERMISSIONS, documentsReady, loadOnboarding, onboardingHandlers } from "./onboarding.ts";
 import { PLATFORM_PERMISSIONS, platformHandlers } from "./platform.ts";
+import { BOOKING_MODELS, CONFIG_PERMISSIONS, allRows, cleanAutomationDefaults, missingColumn, configHandlers, connectionCounts, connectionsFor, deliveriesFor, moduleUsage, switchOffCheck, switchOffMessage } from "./config.ts";
 import { supportHours, ticketTiming } from "./access.ts";
 import { ACCESS_PERMISSIONS, AUDIT_COLUMNS, AUDIT_EXPORT_ROLES, AUDIT_PAGE, SELF_ACTIONS, accessHandlers, applyAuditFilters, auditCursor, auditFilters, endSessionsAfterChange, nextAuditCursor, recordRefusal } from "./access.ts";
 import { businessesList } from "./businesses.ts";
@@ -1247,6 +1248,11 @@ const AUDITED: Record<string, (fields: Json, result: any) => AuditEntry> = {
       terminology: r.terminology,
       modules_added: r.modulesCreated,
       modules_updated: r.modulesUpdated,
+      modules_switched_off: r.modulesSwitchedOff,
+      booking_model: r.bookingModel,
+      automation_defaults_changed: r.automationDefaultsChanged || undefined,
+      switched_off_without_confirmation: r.confirmedWithoutCount || undefined,
+      reason: r.reason ?? undefined,
     },
   }),
   industry_create: (_fields, r) => ({
@@ -1477,7 +1483,7 @@ async function overviewData(admin: SupabaseClient) {
   ];
 
   const logs = logsResult.data ?? [];
-  const actors = await resolveUsers(admin, logs.map((l) => l.user_id));
+  const [actors, connectionTotals] = await Promise.all([resolveUsers(admin, logs.map((l) => l.user_id)), connectionCounts(admin)]);
 
   return {
     stats: {
@@ -1487,7 +1493,10 @@ async function overviewData(admin: SupabaseClient) {
       live: count(["active"]),
       pendingInvitations: invitations.filter((i) => ["pending", "sent"].includes(i.status)).length - expired.filter((i) => i.status === "sent").length,
       acceptedInvitations: invitations.filter((i) => i.status === "accepted").length,
-      receptionistsLive: (agentsResult.data ?? []).filter((a) => a.status === "active").length,
+      // Live and answering from the shared definition (zella_connection_counts); null when it isn't applied yet.
+      receptionistsLive: connectionTotals?.live ?? null,
+      receptionistsAnswering: connectionTotals?.answering ?? null,
+      receptionistsSwitchedOn: (agentsResult.data ?? []).filter((a) => a.status === "active").length,
       callsLast30Days: callsResult.count ?? 0,
       aiCallsLast30Days: aiCallsResult.count ?? 0,
       openTickets: ticketsResult.count ?? 0,
@@ -1691,30 +1700,45 @@ function uniqueSlug(base: string, used: Set<string>) {
 }
 
 async function industriesList(admin: SupabaseClient) {
-  const [industriesResult, configsResult, modulesResult, businessesResult] = await Promise.all([
+  // Businesses are read in pages: a single read stops at PostgREST's max_rows (1000) and undercounts.
+  const [industriesResult, configsResult, modulesResult, businessRows] = await Promise.all([
     admin.from("industries").select("id, name, slug, description, is_active, created_at").order("name"),
     admin.from("industry_configurations").select("industry_id, terminology, updated_at"),
     admin.from("industry_modules")
       .select("id, industry_id, name, slug, description, is_active")
       .order("name"),
-    admin.from("businesses").select("industry_id"),
+    allRows<{ industry_id: string | null }>((from, to) => admin.from("businesses").select("industry_id").order("id").range(from, to)),
   ]);
 
-  const queryError = industriesResult.error ?? configsResult.error ??
-    modulesResult.error ?? businessesResult.error;
+  const queryError = industriesResult.error ?? configsResult.error ?? modulesResult.error;
   if (queryError) throw queryError;
 
   const counts = new Map<string, number>();
-  for (const b of businessesResult.data ?? []) {
+  for (const b of businessRows) {
     if (b.industry_id) counts.set(b.industry_id, (counts.get(b.industry_id) ?? 0) + 1);
   }
 
   const configByIndustry = new Map((configsResult.data ?? []).map((c) => [c.industry_id, c]));
   const modules = modulesResult.data ?? [];
 
+  // CFG-05: industry data (sql/zella_industry_data.sql). Left out, with industryData false, until it is applied.
+  const [dataResult, defaultsResult] = await Promise.all([
+    admin.from("industries").select("id, sensitive, booking_model"),
+    admin.from("industry_configurations").select("industry_id, automation_defaults"),
+  ]);
+  const industryData = !missingColumn(dataResult.error) && !missingColumn(defaultsResult.error);
+  if (industryData && (dataResult.error ?? defaultsResult.error)) throw dataResult.error ?? defaultsResult.error;
+  const dataById = new Map(industryData ? (dataResult.data ?? []).map((d: Json) => [d.id, d]) : []);
+  const defaultsById = new Map(industryData ? (defaultsResult.data ?? []).map((d: Json) => [d.industry_id, d.automation_defaults]) : []);
+
   return {
+    industryData,
+    bookingModels: BOOKING_MODELS,
     industries: (industriesResult.data ?? []).map((industry) => ({
       ...industry,
+      sensitive: industryData ? Boolean(obj(dataById.get(industry.id)).sensitive) : null,
+      bookingModel: industryData ? (obj(dataById.get(industry.id)).booking_model ?? null) : null,
+      automationDefaults: industryData ? (defaultsById.get(industry.id) ?? null) : null,
       terminology: obj(configByIndustry.get(industry.id)?.terminology),
       configUpdatedAt: configByIndustry.get(industry.id)?.updated_at ?? null,
       modules: modules.filter((m) => m.industry_id === industry.id),
@@ -1730,6 +1754,24 @@ async function industrySave(admin: SupabaseClient, fields: Json) {
     .from("industries").select("id, name").eq("id", industryId).maybeSingle();
   if (industryError) throw industryError;
   if (!industry) throw new InputError("Industry not found", 404);
+
+  // CFG-01: switching a module off removes it at once from every business in the industry (zella_module_on needs
+  // industry_modules.is_active), so a module that businesses use now is only switched off when the admin confirmed it
+  // after seeing "N businesses lose X". Checked before anything is written.
+  const { data: current, error: currentError } = await admin
+    .from("industry_modules").select("id, slug, name, is_active").eq("industry_id", industryId);
+  if (currentError) throw currentError;
+  const requested = list(fields.modules, 60).map(obj)
+    .map((m) => ({ id: text(m.id, 64), isActive: bool(m.isActive, true) })).filter((m) => m.id);
+  const turningOff = requested.filter((r) => (current ?? []).some((m) => m.id === r.id && m.is_active && !r.isActive));
+  const usage = await moduleUsage(admin, industryId, turningOff.map((m) => m.id));
+  const offCheck = switchOffCheck(current ?? [], requested, usage, fields.confirmOff);
+  if (offCheck.unconfirmed.length) throw new InputError(switchOffMessage(offCheck.unconfirmed), 409);
+  // a confirmed switch off of a module businesses use needs a reason for the audit log (only an older app that sends
+  // no confirmation at all is let through without one, LEGACY_SWITCH_OFF_ALLOWED)
+  if (!offCheck.legacy && offCheck.switchedOff.some((m) => m.businesses > 0) && text(fields.reason, 300).length < 3) {
+    throw new InputError("Give a short reason for switching these modules off (it goes in the audit log)");
+  }
 
   const { data: config, error: configError } = await admin
     .from("industry_configurations")
@@ -1760,26 +1802,34 @@ async function industrySave(admin: SupabaseClient, fields: Json) {
 
   const now = new Date().toISOString();
 
+  // CFG-05: the booking model and default automations, only when the page sends them (an older page doesn't).
+  const industryUpdate: Json = { description: text(fields.description, 500) || null };
+  if ("bookingModel" in fields) {
+    const model = fields.bookingModel === null || fields.bookingModel === "" ? null : text(fields.bookingModel, 40);
+    if (model !== null && !(BOOKING_MODELS as readonly string[]).includes(model)) throw new InputError("Choose a booking model from the list");
+    industryUpdate.booking_model = model;
+  }
+  const defaults = "automationDefaults" in fields ? cleanAutomationDefaults(fields.automationDefaults, InputError) : undefined;
   const { error: describeError } = await admin
     .from("industries")
-    .update({ description: text(fields.description, 500) || null })
+    .update(industryUpdate)
     .eq("id", industryId);
+  if (missingColumn(describeError)) throw new InputError("Industry data isn't switched on yet. Reload the page.", 409);
   if (describeError) throw describeError;
 
+  const configValues: Json = { terminology: next };
+  if (defaults !== undefined) configValues.automation_defaults = defaults;
   const { error: termsError } = config
     ? await admin.from("industry_configurations")
-      .update({ terminology: next, updated_at: now })
+      .update({ ...configValues, updated_at: now })
       .eq("id", config.id)
     : await admin.from("industry_configurations")
-      .insert({ industry_id: industryId, terminology: next });
+      .insert({ industry_id: industryId, ...configValues });
+  if (missingColumn(termsError)) throw new InputError("Industry data isn't switched on yet. Reload the page.", 409);
   if (termsError) throw termsError;
 
   // Modules are added, renamed or switched off. Never deleted: deleting would
   // silently remove the module from every business that already uses it.
-  const { data: current, error: currentError } = await admin
-    .from("industry_modules").select("id, slug").eq("industry_id", industryId);
-  if (currentError) throw currentError;
-
   const known = new Set<string>((current ?? []).map((m: { id: string }) => m.id));
   const usedSlugs = new Set<string>((current ?? []).map((m: { slug: string }) => m.slug));
   let created = 0;
@@ -1820,6 +1870,11 @@ async function industrySave(admin: SupabaseClient, fields: Json) {
     modulesUpdated: changed,
     previousTerminology: previous,
     terminology: next,
+    bookingModel: "booking_model" in industryUpdate ? industryUpdate.booking_model : undefined,
+    automationDefaultsChanged: defaults !== undefined,
+    modulesSwitchedOff: offCheck.switchedOff,
+    confirmedWithoutCount: offCheck.legacy && offCheck.switchedOff.some((m) => m.businesses > 0),
+    reason: text(fields.reason, 300) || null,
   };
 }
 
@@ -1882,6 +1937,25 @@ async function industryCreate(admin: SupabaseClient, fields: Json) {
       );
       if (modulesError) throw modulesError;
     }
+
+    // CFG-05: a copy also takes the booking model, default automations and safety lines. A new industry always starts
+    // sensitive (the column's default) until a Zella Voice owner turns that off. Skipped before the migration.
+    if (copyFromId) {
+      const [src, srcConfig] = await Promise.all([
+        admin.from("industries").select("booking_model").eq("id", copyFromId).maybeSingle(),
+        admin.from("industry_configurations").select("automation_defaults, safety_rules").eq("industry_id", copyFromId).maybeSingle(),
+      ]);
+      if (!missingColumn(src.error) && !missingColumn(srcConfig.error)) {
+        if (src.error ?? srcConfig.error) throw src.error ?? srcConfig.error;
+        const [a, b] = await Promise.all([
+          admin.from("industries").update({ booking_model: obj(src.data).booking_model ?? null }).eq("id", industry.id),
+          admin.from("industry_configurations").update({
+            automation_defaults: obj(srcConfig.data).automation_defaults ?? null, safety_rules: obj(srcConfig.data).safety_rules ?? null,
+          }).eq("industry_id", industry.id),
+        ]);
+        if (a.error ?? b.error) throw a.error ?? b.error;
+      }
+    }
   } catch (error) {
     await admin.from("industry_modules").delete().eq("industry_id", industry.id);
     await admin.from("industry_configurations").delete().eq("industry_id", industry.id);
@@ -1899,7 +1973,7 @@ async function industryCreate(admin: SupabaseClient, fields: Json) {
 async function agentsList(admin: SupabaseClient) {
   const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
-  const [agentsResult, configsResult, businessesResult, industriesResult, integrationsResult, callsResult] =
+  const [agentsResult, configsResult, businessesResult, industriesResult, callsResult] =
     await Promise.all([
       admin.from("ai_agents")
         .select("id, business_id, name, status, updated_at")
@@ -1907,7 +1981,6 @@ async function agentsList(admin: SupabaseClient) {
       admin.from("ai_agent_configs").select("agent_id, personality, knowledge_base, voice_config, updated_at"),
       admin.from("businesses").select("id, name, industry_id, onboarding_status, is_active"),
       admin.from("industries").select("id, name"),
-      admin.from("integrations").select("business_id, provider, status"),
       admin.from("calls")
         .select("business_id, created_at, ai_handled")
         .gte("created_at", since)
@@ -1916,17 +1989,16 @@ async function agentsList(admin: SupabaseClient) {
     ]);
 
   const queryError = agentsResult.error ?? configsResult.error ?? businessesResult.error ??
-    industriesResult.error ?? integrationsResult.error ?? callsResult.error;
+    industriesResult.error ?? callsResult.error;
   if (queryError) throw queryError;
+
+  // Phone, Vapi link, answering and live come from the one shared definition (zella_business_connections).
+  const agentBusinesses = (agentsResult.data ?? []).map((a) => a.business_id);
+  const [connections, deliveries] = await Promise.all([connectionsFor(admin, agentBusinesses), deliveriesFor(admin, agentBusinesses)]);
 
   const configByAgent = new Map((configsResult.data ?? []).map((c) => [c.agent_id, c]));
   const businessById = new Map((businessesResult.data ?? []).map((b) => [b.id, b]));
   const industryName = new Map((industriesResult.data ?? []).map((i) => [i.id, i.name]));
-
-  const connected = (businessId: string, provider: string) =>
-    (integrationsResult.data ?? []).some(
-      (i) => i.business_id === businessId && i.provider?.toLowerCase() === provider && i.status === "active",
-    );
 
   const callStats = new Map<string, { aiCalls: number; lastCallAt: string | null }>();
   for (const call of callsResult.data ?? []) {
@@ -1947,13 +2019,15 @@ async function agentsList(admin: SupabaseClient) {
       const faqs = Array.isArray(kb.faqs) ? kb.faqs.length : 0;
       const greeting = text(obj(config?.voice_config).greeting, 500);
       const stat = callStats.get(agent.business_id);
+      const link = connections?.get(agent.business_id) ?? null;
+      const served = deliveries?.get(agent.business_id) ?? null;
 
       const checks = {
         knowledge: services + faqs > 0,
         hours: Object.values(hours).some((h) => obj(h).closed === true || Boolean(obj(h).open)),
         greeting: Boolean(greeting),
-        phone: connected(agent.business_id, "telnyx"),
-        voice: connected(agent.business_id, "vapi"),
+        phone: link?.phone ?? false,
+        voice: link?.vapi_linked ?? false,
       };
 
       return {
@@ -1969,6 +2043,17 @@ async function agentsList(admin: SupabaseClient) {
         faqs,
         checks,
         ready: Object.values(checks).filter(Boolean).length,
+        live: link?.live ?? false,
+        answering: link?.answering ?? false,
+        lastServedAt: link?.last_served_at ?? null,
+        businessState: link?.business_state ?? null,
+        // COM-03: what calls actually got (null when sql/zella_agent_delivery_admin.sql isn't applied)
+        delivery: served && {
+          lastOutcome: served.last_outcome, lastAt: served.last_at, served7d: served.served_7d, notReady7d: served.not_ready_7d,
+          unknownNumber7d: served.unknown_number_7d, forwardedUsage7d: served.forwarded_usage_7d,
+          lastProblems: served.last_problems, lastProblemAt: served.last_problem_at, servedVersion: served.served_version,
+          publishedVersion: served.published_version, syncStatus: served.published_sync_status, syncError: served.published_sync_error,
+        },
         aiCallsLast30Days: stat?.aiCalls ?? 0,
         lastCallAt: stat?.lastCallAt ?? null,
         updatedAt: config?.updated_at ?? agent.updated_at,
@@ -1978,10 +2063,14 @@ async function agentsList(admin: SupabaseClient) {
 
   return {
     agents,
+    connectionsAvailable: connections !== null,
+    deliveriesAvailable: deliveries !== null,
     stats: {
       total: agents.length,
-      live: agents.filter((a) => a.status === "active").length,
-      readyToConnect: agents.filter((a) => a.checks.knowledge && a.checks.hours && a.checks.greeting && !a.checks.phone).length,
+      live: agents.filter((a) => a.live).length,
+      answering: agents.filter((a) => a.answering).length,
+      notReady7d: deliveries ? agents.filter((a) => (a.delivery?.notReady7d ?? 0) > 0).length : null,
+      readyToConnect: agents.filter((a) => a.checks.knowledge && a.checks.hours && a.checks.greeting && !a.checks.voice).length,
       missingKnowledge: agents.filter((a) => !a.checks.knowledge).length,
     },
   };
@@ -2212,38 +2301,38 @@ async function integrationsOverview(admin: SupabaseClient) {
   const integrations = integrationsResult.data ?? [];
   const businesses = businessesResult.data ?? [];
   const nameById = new Map(businesses.map((b) => [b.id, b.name]));
-
-  const hasActive = (businessId: string, provider: string) =>
-    integrations.some((i) =>
-      i.business_id === businessId && i.provider?.toLowerCase() === provider && i.status === "active"
-    );
+  // Connected means the shared definition (zella_business_connections): numbers, Vapi link, calendars, lead sources.
+  const [connections, counts] = await Promise.all([connectionsFor(admin, businesses.map((b) => b.id)), connectionCounts(admin)]);
 
   // Compare what each client asked for in setup with what's actually connected.
   const requests = businesses.map((b) => {
     const choices = obj(obj(b.setup_data).integrations);
     const phone = obj(choices.phone);
     const leads = obj(choices.lead_sources);
+    const link = connections?.get(b.id) ?? null;
     return {
       businessId: b.id,
       businessName: b.name,
       stage: b.onboarding_status,
       setupDone: Boolean(choices.phone),
-      phone: { wanted: phone.mode ? String(phone.mode) : null, connected: hasActive(b.id, "telnyx") },
-      voice: { wanted: Boolean(choices.phone), connected: hasActive(b.id, "vapi") },
+      phone: { wanted: phone.mode ? String(phone.mode) : null, connected: link?.phone ?? false },
+      voice: { wanted: Boolean(choices.phone), connected: link?.vapi_linked ?? false, answering: link?.answering ?? false },
       calendar: {
         wanted: choices.calendar && choices.calendar !== "none" ? String(choices.calendar) : null,
-        connected: hasActive(b.id, String(choices.calendar ?? "")) ||
-          hasActive(b.id, choices.calendar === "google" ? "google_calendar" : "outlook_calendar"),
+        connected: link?.calendar ?? false,
       },
+      // There is no mailbox connection table, so email is never called connected or not connected.
       email: {
         wanted: choices.email && choices.email !== "none" ? String(choices.email) : null,
-        connected: hasActive(b.id, String(choices.email ?? "")) ||
-          hasActive(b.id, choices.email === "gmail" ? "gmail_mail" : "outlook_mail"),
+        connected: null,
+        tracked: false,
       },
       leads: {
         wanted: Object.entries(leads).filter(([, on]) => on === true).map(([k]) => k),
-        connected: ["meta", "website", "google"].filter((k) => hasActive(b.id, k)),
+        connected: link?.lead_sources ?? [],
       },
+      live: link?.live ?? false,
+      problems: link?.problems ?? 0,
     };
   });
 
@@ -2260,6 +2349,8 @@ async function integrationsOverview(admin: SupabaseClient) {
     connections: integrations.map((i) => ({ ...i, business_name: nameById.get(i.business_id) ?? "Unknown business" })),
     providers: [...byProvider.values()],
     requests,
+    connectionsAvailable: connections !== null,
+    counts,
   };
 }
 
@@ -2700,7 +2791,13 @@ async function platformStatus(admin: SupabaseClient, userId: string) {
     admin.from("businesses").select("id", head),
     admin.from("businesses").select("id", head).eq("onboarding_status", "failed"),
     admin.from("business_invitations").select("id", head).eq("status", "failed"),
-    admin.from("integrations").select("id", head).in("status", ["error", "disconnected"]),
+    // Connections that need attention, from the shared definition; the integrations table alone until it is applied.
+    (async () => {
+      const c = await connectionCounts(admin);
+      if (c) return { count: c.problems, error: null };
+      const r = await admin.from("integrations").select("id", head).in("status", ["error", "disconnected"]);
+      return { count: r.count, error: r.error };
+    })(),
     admin.from("support_tickets").select("id", head).eq("priority", "urgent").in("status", ["open", "in_progress"]),
     admin.from("audit_logs").select("id", head).gte("created_at", dayAgo),
     admin.from("calls").select("id", head).gte("created_at", dayAgo),
@@ -3302,7 +3399,7 @@ Deno.serve(withCors(async (req: Request) => {
     }
 
     // Every action needs a permission; restricted roles only have what the owner gave them.
-    const permission = PERMISSIONS[action] ?? ONBOARDING_PERMISSIONS[action] ?? PLATFORM_PERMISSIONS[action] ?? ACCESS_PERMISSIONS[action];
+    const permission = PERMISSIONS[action] ?? ONBOARDING_PERMISSIONS[action] ?? PLATFORM_PERMISSIONS[action] ?? CONFIG_PERMISSIONS[action] ?? ACCESS_PERMISSIONS[action];
     if (!permission) return respond({ error: "Unknown action" }, 400);
     // Every active admin may read their own role and permissions (me_admin): without it a restricted role that lacks
     // businesses.view couldn't learn what it is allowed to do. It returns nothing about other people or businesses.
@@ -3469,8 +3566,9 @@ Deno.serve(withCors(async (req: Request) => {
       text, bool, obj, requireId, optionalPhone, getBusiness, getReceptionist, advance, mergeSetupData, InputError, EMAIL_RE, UUID_RE,
     });
     const platform = platformHandlers(adminClient, fields, { text, bool, obj, requireId, InputError }, user.id, role);
+    const config = configHandlers(adminClient, fields, { text, bool, obj, requireId, InputError }, role);
     const access = accessHandlers(adminClient, fields, user.id, { InputError, requireId }, role);
-    const handler = handlers[action] ?? extra.handlers[action] ?? onboarding.handlers[action] ?? platform.handlers[action] ?? access.handlers[action];
+    const handler = handlers[action] ?? extra.handlers[action] ?? onboarding.handlers[action] ?? platform.handlers[action] ?? config.handlers[action] ?? access.handlers[action];
     if (!handler) return respond({ error: "Unknown action" }, 400);
 
     try {
@@ -3478,7 +3576,7 @@ Deno.serve(withCors(async (req: Request) => {
 
       // Setup actions describe themselves from the request and result; settings and onboarding actions from
       // their result only (passing the request there recorded empty before/after values).
-      const later = extra.audited[action] ?? onboarding.audited[action] ?? platform.audited[action] ?? access.audited[action];
+      const later = extra.audited[action] ?? onboarding.audited[action] ?? platform.audited[action] ?? config.audited[action] ?? access.audited[action];
       const entry = AUDITED[action] ? AUDITED[action](fields, result) : later ? (later(result as Json) as AuditEntry) : null;
       const unchanged = action === "ticket_update" &&
         Object.keys(obj((result as Json).changes)).length === 0;
@@ -3491,6 +3589,12 @@ Deno.serve(withCors(async (req: Request) => {
         // ACC-30: a new authenticator counts as recorded only once its entry is written, so the browser keeps it to retry
         if (!recorded && action === "me_mfa_added") {
           return respond({ error: "The new authenticator could not be recorded in the audit log yet. It is tried again later." }, 503);
+        }
+        // CFG-05: a sensitivity change that couldn't be audited is undone, so it never stays in effect unrecorded
+        const undo = config.undoUnaudited[action];
+        if (!recorded && undo) {
+          await undo(result as Json);
+          return respond({ error: "The change could not be recorded in the audit log, so it was undone. Nothing changed. Try again." }, 503);
         }
       }
 

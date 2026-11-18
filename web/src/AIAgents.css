@@ -1,0 +1,129 @@
+/* AI receptionists page (AIAgents.jsx). Page scoped under .ag-page so it never changes another page.
+   Colours, sizes and spacing come only from the tokens (web/src/styles/tokens.css). */
+
+.ag-page .ag-refresh { display: inline-flex; align-items: center; gap: var(--zella-space-1); }
+
+/* Filter chips: one line that scrolls sideways, with the shared soft selected state (never a dark fill). */
+.ag-page .ag-toolbar { flex-wrap: nowrap; gap: var(--zella-space-3); align-items: center; }
+.ag-page .ag-filters {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: nowrap;
+  gap: var(--zella-space-1);
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.ag-page .ag-filters::-webkit-scrollbar { display: none; }
+.ag-page .ag-filters button {
+  flex: 0 0 auto;
+  height: 32px;
+  padding: 0 var(--zella-space-3);
+  border: 0;
+  border-radius: var(--zella-radius-full);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--zella-border);
+  color: var(--zella-text-secondary);
+  font: inherit;
+  font-size: var(--zella-text-sm);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.ag-page .ag-filters button:hover { background: var(--zella-alt); color: var(--zella-text); }
+.ag-page .ag-filters button:focus-visible { outline: none; box-shadow: inset 0 0 0 1px var(--zella-primary-border), var(--zella-focus); }
+.ag-page .ag-filters button.active {
+  background: var(--zella-primary-soft);
+  color: var(--zella-text);
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px var(--zella-primary-border);
+}
+.ag-page .ag-search { flex: 0 0 240px; max-width: 240px; height: 36px; }
+
+/* Table rhythm: every cell is one or two lines, never wrapped into a tower. */
+.ag-page .ag-table td { vertical-align: middle; padding-top: 10px; padding-bottom: 10px; }
+.ag-page .ag-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.ag-page .ag-table td.num { color: var(--zella-text); font-weight: 600; }
+.ag-page .ag-table .col-actions { width: 1%; white-space: nowrap; text-align: right; }
+.ag-page .ag-table .col-actions .ag-action + .ag-action { margin-left: var(--zella-space-2); }
+.ag-page .ag-table .op-pill { white-space: nowrap; }
+
+.ag-page .ag-cell { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ag-page .ag-name {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+.ag-page .ag-nowrap { white-space: nowrap; color: var(--zella-text); }
+.ag-page .ag-line {
+  display: block;
+  max-width: 28ch;
+  overflow: hidden;
+  color: var(--zella-text-secondary);
+  font-size: var(--zella-text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Setup: "3 of 5 set" and a five segment meter, then what is missing on one muted line. */
+.ag-page .ag-setup { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ag-page .ag-setup-top { display: flex; align-items: center; gap: var(--zella-space-2); white-space: nowrap; }
+.ag-page .ag-setup-count { color: var(--zella-text); font-weight: 500; font-variant-numeric: tabular-nums; }
+.ag-page .ag-meter { display: inline-flex; gap: 2px; }
+.ag-page .ag-meter span {
+  width: 10px;
+  height: 6px;
+  border-radius: var(--zella-radius-full);
+  background: var(--zella-border-strong);
+}
+.ag-page .ag-meter span.on { background: var(--zella-success); }
+
+.ag-page .ag-foot { font-size: var(--zella-text-xs); color: var(--zella-text-secondary); }
+
+@media (max-width: 760px) {
+  .ag-page .ag-toolbar { flex-wrap: wrap; }
+  .ag-page .ag-filters { flex-basis: 100%; }
+  .ag-page .ag-search { flex: 1 1 100%; max-width: none; }
+}
+
+/* Phones: each receptionist is a card (business and Edit setup on top, then the details with their labels). */
+@media (max-width: 600px) {
+  .ag-page .ag-table thead { display: none; }
+  .ag-page .ag-table,
+  .ag-page .ag-table tbody { display: block; width: 100%; }
+  .ag-page .ag-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--zella-space-2) var(--zella-space-3);
+    padding: var(--zella-space-3) var(--zella-space-4);
+    border-bottom: 1px solid var(--zella-border);
+  }
+  .ag-page .ag-table tbody tr:last-child { border-bottom: 0; }
+  .ag-page .ag-table td { grid-column: 1 / -1; padding: 0; border: 0; min-width: 0; text-align: left; }
+  .ag-page .ag-table td:first-child { grid-column: 1; grid-row: 1; }
+  .ag-page .ag-table td.col-actions { grid-column: 2; grid-row: 1; width: auto; align-self: start; }
+  .ag-page .ag-table td.num { text-align: left; }
+  /* Setup and Status get the full width; Receptionist and AI calls share the last line. */
+  .ag-page .ag-table td[data-label="Setup"] { grid-row: 2; }
+  .ag-page .ag-table td[data-label="Status"] { grid-row: 3; }
+  .ag-page .ag-table td[data-label="Receptionist"] { grid-column: 1; grid-row: 4; }
+  .ag-page .ag-table td.num { grid-column: 2; grid-row: 4; }
+  .ag-page .ag-table td[data-label="Calls served, last 7 days"] { grid-row: 5; }
+  .ag-page .ag-table td.col-actions { display: flex; flex-direction: column; align-items: flex-end; gap: var(--zella-space-2); }
+  .ag-page .ag-table .col-actions .ag-action + .ag-action { margin-left: 0; }
+  .ag-page .ag-table td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 2px;
+    color: var(--zella-text-secondary);
+    font-size: var(--zella-text-xs);
+    font-weight: 500;
+  }
+  .ag-page .ag-table .ag-empty-row { display: block; }
+  .ag-page .ag-name, .ag-page .ag-line { max-width: 100%; }
+  .ag-page .owner-table-wrap { overflow-x: visible; }
+  .ag-page .ag-foot { flex-direction: column; }
+}

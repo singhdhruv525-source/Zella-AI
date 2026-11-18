@@ -21,6 +21,15 @@ export const SERVER_KEY = "sb_secret_local_test_only";
 export const ANON_KEY = "sb_publishable_local_test_only";
 export const TEST_PASSWORD = "Test-pass-1";
 const FUNCTIONS = JSON.parse(process.env.ZFUNCTIONS ?? "{}"); // { name: port }
+// ZMAX_ROWS caps every table read like PostgREST's max_rows (1000 on Supabase), so paging code can be tested. Unset: no cap.
+const MAX_ROWS = Number(process.env.ZMAX_ROWS ?? 0) || 0;
+// The LIMIT for a table read: the request's own finite limit (0 included) and the cap, whichever is smaller; only a
+// positive ZMAX_ROWS is a cap.
+function limitClause(requested) {
+  const asked = requested === undefined || requested === "" ? null : Number(requested);
+  const bounds = [Number.isFinite(asked) && asked >= 0 ? Math.floor(asked) : null, MAX_ROWS > 0 ? MAX_ROWS : null].filter((n) => n !== null);
+  return bounds.length ? `limit ${Math.min(...bounds)}` : "";
+}
 
 // ---------- tokens ----------
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
@@ -203,7 +212,7 @@ async function rest(req, url, claims, body) {
     const cols = await selectList(table, "t", q.select);
     const base = `from ${t} t ${where("t", params)}`;
     const count = prefer.includes("count=") ? `(select count(*) ${base})` : "null";
-    stmt = `select json_build_object('rows', coalesce((select json_agg(r) from (select ${cols} ${base} ${orderBy("t", q.order)} ${q.limit ? `limit ${Number(q.limit)}` : ""} ${q.offset ? `offset ${Number(q.offset)}` : ""}) r), '[]'::json), 'count', ${count})`;
+    stmt = `select json_build_object('rows', coalesce((select json_agg(r) from (select ${cols} ${base} ${orderBy("t", q.order)} ${limitClause(q.limit)} ${q.offset ? `offset ${Number(q.offset)}` : ""}) r), '[]'::json), 'count', ${count})`;
   } else if (req.method === "POST") {
     const rows = Array.isArray(body) ? body : [body];
     const keys = q.columns ? q.columns.replace(/"/g, "").split(",") : [...new Set(rows.flatMap((r) => Object.keys(r ?? {})))];

@@ -120,6 +120,11 @@ decides the words, booking model, CRM modules, record types, automations, templa
 rules (`BIZ-4`, `BIZ-10`). A business customises within its industry's bounds, and its changes survive industry
 upgrades.
 
+Each industry's booking model, whether it is sensitive and its default automations are stored with the industry
+(`industries.booking_model`, `industries.sensitive`, `industry_configurations.automation_defaults`; CFG-05, built, not applied)
+and edited on Industry configuration. The receptionist's industry safety lines are stored there too
+(`industry_configurations.safety_rules`), read by the receptionist once `sql/zella_brain_safety_rules.sql` is applied.
+
 | Industry | Words (customer / booking / staff) | Booking model | Regulated |
 |---|---|---|---|
 | Beauty & Salon | client / appointment / stylist | staff appointment | no |
@@ -351,16 +356,16 @@ only the pages they can use. Every admin action is written to the audit log.
 | Businesses | **Businesses** | Every business, paged on the server (25 a page) with exact totals: search by name, owner, email or phone; filter by industry, stage, saved plan and "has a problem"; sort by newest, oldest, name or most problems. Each row shows the owner and their invitation, the saved plan ("Pro, v2" or "No plan saved") with the subscription status beside it, the stage (a draft names the step setup reopens at), the last call and open problems (warning or urgent platform alerts, a failed or expired owner invitation, a broken integration, failed setup). "Need attention" lists the businesses with a problem in one click. View is the main action once setup is done; create and setup buttons show only with `businesses.manage`, and suspend, reactivate and cancel on the business only with `businesses.lifecycle` (the server checks both again). Reads `businesses_list`; against an older server it falls back to the old unpaged list and says so. | `businesses.view` |
 | Businesses | **Verification** | Business and owner verification documents (private storage) | `businesses.manage` |
 | Businesses | **Create Business wizard** | Business → Owner & verification → Hours & services → Team → AI receptionist → Phone & integrations (spam protection) → Automations → CRM setup → Plan & pricing → Review. The ten steps show in two rows of five (numbers that wrap on a phone), Back is hidden on the first step, and the time zone search suggests a US zone. Adapts its fields to the industry, saves drafts, guards unsaved changes, and invites the owner only once setup finishes. | `businesses.manage` |
-| Configuration | **Industry configuration** | The 28 industries' configurations | `businesses.view` |
+| Configuration | **Industry configuration** | The 28 industries' configurations: words, receptionist wording, modules. Switching a module off removes it at once from every business in the industry that has it on; the page shows "N businesses lose X" and asks for a reason first (audited). An industry can be deactivated and reactivated (audited, marked Inactive): it is then not offered for new businesses, and the businesses already in it keep working. Each industry also stores whether it is sensitive (staff never see call transcripts; a new industry starts sensitive; only a Zella Voice owner changes it, with a reason and a typed confirmation to turn it off, audited), its booking model, and the automations a new business starts with (CFG-05, `sql/zella_industry_data.sql`, built, not applied) | `businesses.view`; changes `platform.configure` |
 | Configuration | **Modules & features** | Modules per industry and business | `businesses.view` |
-| Configuration | **Plans & subscriptions** | Plans and subscriptions (policy decided in architecture §17; no plan created yet). Each plan card lists every allowance in words ("AI voice minutes per period: No limit", "Languages the receptionist speaks: 2"), from `web/src/copy/planAllowances.js` | `billing.view` |
+| Configuration | **Plans & subscriptions** | Every business with its own plan (business_plans), a page at a time: tier and version in short ("Pro v3"), price and interval, allowances, subscription status, and one action per row (Details, or Set up plan when the business has none); on phones each business is a card. A details drawer (eyebrow Plan, the business name as title) with every allowance ("Version 3 of 3"), this period's balances, the saved versions as a small table, and Open business in its footer. Payments aren't connected, so nothing is charged. The shared plans are shown as Fallback limits (used only for a business with no plan of its own); each card lists every allowance in words ("AI voice minutes per period: No limit", "Languages the receptionist speaks: 2"), from `web/src/copy/planAllowances.js`; their editors show only with `plans.manage` | `billing.view` |
 | Configuration | **Offers & promotions** | Offers, rules, redemptions | `billing.view` |
-| AI & communications | **AI agents** | Receptionist agents and configurations | `businesses.view` |
+| AI & communications | **AI agents** | Receptionist agents and configurations; Live and Answering per receptionist from the one definition (§9.1), with what is missing before it can be live; what calls actually got in the last 7 days (served, not ready, unknown number, over its limit), the version served and the published one, and a drawer of recent calls with their problems. An AI testing tab runs each business's test questions against its knowledge (knowledge retrieval only, not live calls; nothing sent or charged), stores every run, and shows Passes (at least 3 questions, all passing) or a Warning; a failing run never blocks going live (AI-TESTING, `sql/zella_ai_eval_admin.sql`, built, not applied; running needs `businesses.manage`) | `businesses.view` |
 | AI & communications | **Voice & numbers** | Assign and release phone numbers, voice usage, alerts. Provider connection checks are on Overview only; Providers & costs shows keys, AI voice usage (the 20 businesses with most calls, then "See all") and pricing. Call lengths read "45 s", "1 min", "2 min 5 s" | `businesses.view` |
 | AI & communications | **Messaging** | Messages across businesses, templates, compliance, retries. Live switches read in words ("Texts and emails are in test mode"), with the setting key only in a tooltip | `businesses.view` |
 | Operations | **Platform operations** | Scheduler health, dispatcher, provider health, failed work. Sending a failed event back needs `integrations.manage` and a reason, and is refused (with the reason in words) when a run of it is running or succeeded, had a step succeed or reached a provider, so a retry never repeats a message (`sql/zella_retry_event_safe.sql`, built, not applied). Incidents: opening, publishing and resolving ask in a dialog (the public status text starts empty, never copied from internal details); a second incident for a problem already open shows the open one first (Open anyway is still possible); open incidents can be edited (nobody is notified) and have a timeline of updates, internal unless Tell all active businesses is ticked (incidents don't record which businesses they affect, so the notice goes to every active business); older incidents load 20 at a time. Updates and edits need `sql/zella_incident_updates.sql` (built, not applied; the public status page doesn't show updates yet) | `businesses.view` (changes: `support.manage`) |
 | Operations | **Automations** | Automations and runs across businesses, retry, pause. Scheduler & n8n lists the scheduled jobs once, then the go live checklist in words (setting keys in tooltips) | `businesses.view` |
-| Operations | **Integrations** | Provider connections and their state | `businesses.view` |
+| Operations | **Integrations** | What each business asked for in setup against what is connected (numbers, Vapi link, calendar, lead sources from §9.1; email reads Not tracked), plus store and other integration records | `businesses.view` |
 | Operations | **Support** | Support tickets: a conversation with the business (replies it sees in Settings > Help and support > Support requests, where owners, admins and managers answer) kept apart from internal notes; age and first reply in business hours (Monday to Friday 9 to 5 New York by default, `support_business_hours`); Waiting too long filter (no reply after 4 business hours); alerts for cancellation, plan change and urgent requests; assignees limited to people who may work tickets. Replies need `sql/zella_support_replies.sql` (built, not applied); the business is told in the app only | `support.manage` |
 | Operations | **Security & abuse** | Spam and abuse across the platform: the tabs first, then (on Overview) the period's six totals, three a row | `security.view` |
 | Administration | **Users & access** | Platform admins and their roles | `security.view` |
@@ -392,6 +397,28 @@ missing, or a role without that permission) are recorded as "Refused admin reque
 most 5 times per person and reason in 10 minutes, and listed on Users & access for the last 24 hours.
 
 ---
+
+### 9.1 Connected, answering and live (one definition)
+
+Overview, AI agents, Integrations and the operations health count all read the same definition, from the database
+(`zella_business_connections` and `zella_connection_counts`, `sql/zella_connection_state.sql`, built, not applied). Before it,
+each page worked it out from the integrations table, which only the store connection writes, so the four pages gave
+four answers about the same business (COM-01, OPS-07, UI-02).
+
+| State | Means |
+|---|---|
+| Phone | The business has an active phone number (`business_phone_numbers`) |
+| Voice linked | An active number has its Vapi number id |
+| Answering | Zella Voice served the receptionist for a call to this business in the last 7 days (`assistant_deliveries`, outcome served). Shown on its own, never folded into Live: it can honestly be 0 until the numbers send their calls through voice-rules (a provider change that needs the owner's approval) |
+| Calendar | An active Google or Outlook calendar connection |
+| Leads | An enabled website form, a connected Meta account or an enabled Google lead key |
+| Email | Not tracked: there is no mailbox connection to check, so no page says connected or not connected |
+| Needs attention | Integrations in error or disconnected, calendars in error or disconnected, Meta accounts that need reconnecting |
+| Live | The business is active (setup finished, switched on, not suspended or cancelled), its receptionist is switched on, and it has an active number linked to Vapi |
+
+**Defaults taken (owner can change):** the 7 day answering window (`ANSWERING_DAYS` in the SQL); Live needs the
+receptionist switched on and a number linked to Vapi, but not a recent answered call; a suspended or cancelled business
+is never live. The real values in production still need an owner approved read only count.
 
 ## 10. Messaging and follow-ups
 

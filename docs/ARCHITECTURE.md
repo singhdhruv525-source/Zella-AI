@@ -1749,6 +1749,15 @@ Owner decisions of 16 Nov 2026 on platform admin pages (§23.1a):
   (Create Business step 5, industry presets in REQ-ADM-17).
 - **Weekly platform summary report for Zella Voice admins: yes.** Being built in `claude/weekly-admin-report`.
 
+**REQ-ADM-21 One definition of connected, answering and live:** every admin page that says whether a business's
+phone, voice, calendar or leads are connected, whether its receptionist is answering, or whether it is live reads it
+from the database (`zella_business_connections(p_business_ids uuid[])` per business, at most 1000 ids per call, and
+`zella_connection_counts()` for totals; `businesses.view` or server code). No page works it out from its own tables.
+Answering (a served call in the last 7 days) is never folded into live. Email is "not tracked" until there is a mailbox
+connection. The states are defined in `docs/PRODUCT.md` §9.1.
+What calls actually got (`assistant_deliveries`) is read by admins through `zella_admin_agent_deliveries_summary(uuid[])`
+and `zella_admin_agent_deliveries(uuid, integer)` (`businesses.view`), aggregated in SQL.
+
 **REQ-ADM-20 Access states:** loading, authorized, unauthorized (signed out, MFA needed, no permission) and failed
 (couldn't check; grants nothing). A refusal always applies; a failed background refresh keeps the current view.
 

@@ -1,0 +1,48 @@
+/* AI testing (AiTesting.jsx) and the view tabs above it on AI receptionists (AIAgents.jsx).
+   Page scoped until the shared Tabs, Pager footer and selected row styles land in components.css. */
+
+/* View tabs: the shared selected state, a soft tint, never a midnight fill. One line that scrolls. */
+.ag-filters.ait-tabs {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.ag-filters.ait-tabs::-webkit-scrollbar { display: none; }
+.ag-filters.ait-tabs button { flex: 0 0 auto; white-space: nowrap; }
+.ag-filters.ait-tabs button.active,
+.ag-filters.ait-tabs button[aria-selected="true"] {
+  border-color: transparent;
+  background: var(--zella-primary-soft);
+  color: var(--zella-text);
+  box-shadow: inset 0 0 0 1px var(--zella-primary-border);
+  font-weight: 600;
+}
+
+/* Rows are not clickable here, so hover adds no accent bar. */
+.owner-table.ait-table tbody tr:hover { box-shadow: none; }
+
+/* The row whose failed questions are open: the shared selected row. */
+.owner-table.ait-table tbody tr.ait-selected,
+.owner-table.ait-table tbody tr.ait-selected:hover {
+  background: var(--zella-primary-soft);
+  box-shadow: inset 3px 0 0 var(--zella-primary);
+}
+.owner-table.ait-table tbody tr.ait-selected td { background: transparent; }
+
+/* Table footer inside the card padding ('3 shown', or the range with Previous and Next). */
+.ait-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--zella-space-2);
+  padding: var(--zella-space-3) var(--zella-space-4);
+  border-top: 1px solid var(--zella-border);
+  font-size: var(--zella-text-sm);
+}
+.ait-foot .ao-pager {
+  flex: 1;
+  justify-content: flex-start;
+  margin: 0;
+  color: var(--zella-text-secondary);
+}
+.ait-foot .ao-pager > span { margin-right: auto; }

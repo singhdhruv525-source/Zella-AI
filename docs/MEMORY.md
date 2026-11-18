@@ -226,6 +226,27 @@ most often needed:
   years, audit logs 7 years (D-13, D-27).
 - Lead and missed-call AI calls: 2 attempts, 2–3 hours apart, one message after each (D-01, D-02, D-12).
 - Call transcripts: managers and above; staff only if the owner allows; never in sensitive industries (M-4).
+- **AI testing (AI-TESTING, recommended default taken 16 Nov 2026, owner can change):** a failing evaluation is a warning
+  only and never blocks going live. A business passes with at least 3 test questions (`ZELLA_EVAL_MIN_CASES`), all
+  passing. Showing the warning on the go live checklist belongs to the Business detail job (BIZ-12).
+- **Sensitive industries (CFG-05, recommended default taken 16 Nov 2026, owner can change):** stored as
+  `industries.sensitive`. Only a Zella Voice owner may change it (`SENSITIVE_ROLE` in config.ts), with a reason, audited;
+  turning it off needs a typed confirmation because staff may then read transcripts. A new industry starts sensitive.
+  The seed equals today's list (7 slugs); check it against the reference configuration once UI-35 is decided.
+- **Plans page permissions (CFG-19, default taken 16 Nov 2026, owner can change):** each kind of plan keeps the one
+  permission its server path already checks: the shared fallback plans need `plans.manage` (plan_save and
+  plan_entitlements_save), each business's own plan needs `billing.manage` (zella_admin_plan_save, REQ-BIL-10), and
+  reading needs `billing.view`. The page hides each editor without its permission.
+- **Connected, answering and live (COM-01, defaults taken 16 Nov 2026, owner can change):** one definition in SQL
+  (`sql/zella_connection_state.sql`, `docs/PRODUCT.md` §9.1). Answering is a served call in the last 7 days and is shown
+  on its own, never folded into live; live needs an active business, the receptionist switched on and an active number
+  linked to Vapi. Email is "not tracked". Real values still need an owner approved read only count in production.
+- **Industry modules (CFG-01, recommended default taken 16 Nov 2026, owner can change):** switching an industry's module
+  off stays a kill switch: it removes the module at once from every business in that industry that has it on
+  (`zella_module_on` needs the module offered). The admin sees "N businesses lose X" and gives a reason first; the server
+  refuses an unconfirmed switch off (`industry_save` `confirmOff`). While `LEGACY_SWITCH_OFF_ALLOWED` (config.ts) is true
+  an older web app that sends no confirmation still works and the audit row says so; set it false once the new web app
+  is live. Deactivating an industry (CFG-08) only stops it being offered for new businesses.
 
 - **Owner decisions of 16 Nov 2026** (architecture §23.1a, and where each requirement lives):
   1. **Growth page (REQ-ADM-18, ACC-36): later**, not before launch. `growth.manage` doesn't exist yet and is not
