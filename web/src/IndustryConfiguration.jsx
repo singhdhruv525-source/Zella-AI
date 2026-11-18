@@ -109,6 +109,7 @@ export default function IndustryConfiguration() {
   const [newIndustry, setNewIndustry] = useState({ name: "", description: "", copyFromId: "" });
   const [filter, setFilter] = useState("");
   const [usageRead, setUsageRead] = useState({ id: null, at: null, modules: null });   // module id -> businesses with it on
+  const [usageTick, setUsageTick] = useState(0);   // a refused switch off counts again, keeping the draft
   const [confirm, setConfirm] = useState(null);       // { kind: "modules" | "active" | "sensitive", ... }
   const [me, setMe] = useState(null);
   const [industryData, setIndustryData] = useState(false);   // the industry data migration is applied
@@ -148,12 +149,14 @@ export default function IndustryConfiguration() {
     if (!selectedId) return undefined;
     let live = true;
     callOwnerFunction("industry_module_usage", { industryId: selectedId })
-      .then((data) => live && setUsageRead({ id: selectedId, at: industries, modules: data.modules ?? {} }))
-      .catch(() => live && setUsageRead({ id: selectedId, at: industries, modules: undefined }));
+      // a missing or malformed answer is "couldn't count", never "no business uses it"
+      .then((data) => live && setUsageRead({ id: selectedId, at: industries, tick: usageTick,
+        modules: data?.modules && typeof data.modules === "object" && !Array.isArray(data.modules) ? data.modules : undefined }))
+      .catch(() => live && setUsageRead({ id: selectedId, at: industries, tick: usageTick, modules: undefined }));
     return () => { live = false; };
-  }, [selectedId, industries]);
+  }, [selectedId, industries, usageTick]);
   // null while counting, undefined when the count failed
-  const usage = usageRead.id === selectedId && usageRead.at === industries ? usageRead.modules : null;
+  const usage = usageRead.id === selectedId && usageRead.at === industries && usageRead.tick === usageTick ? usageRead.modules : null;
 
   const dirty = useMemo(() => {
     if (!selected || !draft) return false;
@@ -202,7 +205,15 @@ export default function IndustryConfiguration() {
     if (switchingOff && usage === null) return setError("Still counting the businesses using these modules. Try again in a moment.");
     const losing = modulesLosingUsers(selected.modules, draft.modules, usage);
     if (losing.length) return setConfirm({ kind: "modules", losing });
-    return send([], "").catch((err) => setError(friendlyError(err)));
+    return send([], "").catch((err) => {
+      // 409: businesses started using a module since it was counted. Count again (the draft stays), so the next Save
+      // shows who loses it and asks for confirmation.
+      if (err?.status === 409) {
+        setUsageTick((t) => t + 1);
+        return setError("Some businesses have started using a module you are switching off. Save again to see who loses it.");
+      }
+      return setError(friendlyError(err));
+    });
   }
 
   // Errors go back to the caller: the confirm dialog shows them in place, a plain save shows them on the page.

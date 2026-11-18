@@ -9,7 +9,7 @@ begin
      or not exists (select 1 from public.zella_function_archive where migration = 'zella_brain_safety_rules') then
     return;   -- not applied, or already rolled back
   end if;
-  if md5(pg_get_functiondef(s::regprocedure)) <> 'f58ea9e2e291a25576eb68de5ad8086f' then
+  if md5(pg_get_functiondef(s::regprocedure)) <> '3bfb9c06c935ade77a6e2d8102f1511e' then
     raise exception 'ROLLBACK_DRIFT: % has changed since this migration', s;
   end if;
   for a in select definition from public.zella_function_archive where migration = 'zella_brain_safety_rules' loop

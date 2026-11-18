@@ -42,7 +42,7 @@ v=$(js "sum(1 for b in d['businesses'] if b['businessName'].startswith('Test Pla
 s=$(call "$ADMIN" '{"action":"business_plans_list","offset":25}')
 [ "$(js "(len(d['businesses']), d['offset'])")" = "(9, 25)" ] && ok "page 2 has the other 9" || bad "page 2 $(js "len(d['businesses'])")"
 v=$(js "sum(1 for b in d['businesses'] if b['plan'] is None and b['subscription'] is None)"); [ "$v" -ge 9 ] 2>/dev/null && ok "businesses without a plan say no plan and no subscription" || bad "no plan $v"
-s=$(call "$ADMIN" '{"action":"business_plans_list","search":"Plans 0"}'); [ "$(js "d['total']")" = 9 ] && ok "search narrows the list (9 match)" || bad "search $(js "d['total']")"
+s=$(call "$ADMIN" '{"action":"business_plans_list","search":"Plans 0"}'); [ "$(js "d['total'], d['withPlan']")" = "9 None" ] && ok "search narrows the list (9 match), and the count of plans saved, which is for every business, is left out" || bad "search $(js "d['total']")"
 s=$(call "$ADMIN" '{"action":"business_plans_list","search":"%"}'); [ "$s" = 200 ] && [ "$(js "d['search']")" = None ] && ok "wildcards in the search are taken as text" || bad "wildcard $s $(js "d.get('search')")"
 s=$(call "$ADMIN" '{"action":"business_plans_list","limit":500}'); [ "$(js "d['limit']")" = 100 ] && ok "at most 100 a page" || bad "limit $(js "d['limit']")"
 s=$(call "$ADMIN" '{"action":"business_plans_list","limit":0}'); [ "$(js "d['limit']")" = 1 ] && ok "at least 1 a page" || bad "min $(js "d['limit']")"

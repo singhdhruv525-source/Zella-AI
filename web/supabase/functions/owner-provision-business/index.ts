@@ -1767,6 +1767,11 @@ async function industrySave(admin: SupabaseClient, fields: Json) {
   const usage = await moduleUsage(admin, industryId, turningOff.map((m) => m.id));
   const offCheck = switchOffCheck(current ?? [], requested, usage, fields.confirmOff);
   if (offCheck.unconfirmed.length) throw new InputError(switchOffMessage(offCheck.unconfirmed), 409);
+  // a confirmed switch off of a module businesses use needs a reason for the audit log (only an older app that sends
+  // no confirmation at all is let through without one, LEGACY_SWITCH_OFF_ALLOWED)
+  if (!offCheck.legacy && offCheck.switchedOff.some((m) => m.businesses > 0) && text(fields.reason, 300).length < 3) {
+    throw new InputError("Give a short reason for switching these modules off (it goes in the audit log)");
+  }
 
   const { data: config, error: configError } = await admin
     .from("industry_configurations")
@@ -3584,6 +3589,12 @@ Deno.serve(withCors(async (req: Request) => {
         // ACC-30: a new authenticator counts as recorded only once its entry is written, so the browser keeps it to retry
         if (!recorded && action === "me_mfa_added") {
           return respond({ error: "The new authenticator could not be recorded in the audit log yet. It is tried again later." }, 503);
+        }
+        // CFG-05: a sensitivity change that couldn't be audited is undone, so it never stays in effect unrecorded
+        const undo = config.undoUnaudited[action];
+        if (!recorded && undo) {
+          await undo(result as Json);
+          return respond({ error: "The change could not be recorded in the audit log, so it was undone. Nothing changed. Try again." }, 503);
         }
       }
 

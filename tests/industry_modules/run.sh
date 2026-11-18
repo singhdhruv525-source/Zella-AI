@@ -67,6 +67,7 @@ s=$(save "$ADMIN" "$(mods "$CAL")" ',"confirmOff":[]')
 [ "$(on_count calendar)" = "1101" ] && [ "$(q "select is_active from public.industry_modules where id = '$CAL'")" = t ] && ok "the refused save changed nothing" || bad "refused save wrote"
 s=$(save "$ADMIN" "$(mods "$CAL")" ",\"confirmOff\":[\"$FUP\"]"); [ "$s" = 409 ] && ok "confirming a different module doesn't count" || bad "wrong confirm $s"
 s=$(save "$RO" "$(mods "$CAL")" ",\"confirmOff\":[\"$CAL\"],\"reason\":\"test\""); [ "$s" = 403 ] && ok "a role without platform.configure can't save" || bad "read only save $s"
+s=$(save "$ADMIN" "$(mods "$CAL")" ",\"confirmOff\":[\"$CAL\"]"); [ "$s" = 400 ] && [ "$(q "select is_active from public.industry_modules where id = '$CAL'")" = t ] && ok "a confirmed switch off without a reason is refused and changes nothing" || bad "no reason $s"
 s=$(save "$ADMIN" "$(mods "$CAL")" ",\"confirmOff\":[\"$CAL\"],\"reason\":\"Calendar retired for Dental\"")
 [ "$s" = 200 ] && [ "$(on_count calendar)" = 0 ] && ok "confirmed: Calendar is off for all 1,101 businesses at once (what the page now says)" || bad "confirmed $s $(body) $(on_count calendar)"
 a=$(q "select new_data -> 'modules_switched_off' -> 0 ->> 'businesses' || '|' || (new_data ->> 'reason') from public.audit_logs where entity_id = '$IND' and action = 'industry.updated' order by created_at desc limit 1")

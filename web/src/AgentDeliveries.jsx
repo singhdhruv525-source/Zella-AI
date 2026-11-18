@@ -6,7 +6,9 @@ import { Drawer, Facts, Pill, friendlyError } from "./admin/adminOps";
 import { timeAgo } from "./ownerFormat";
 import { outcomePill, problemText, versionText } from "./connectionState.js";
 
-export default function AgentDeliveries({ agent, onClose }) {
+// asOf: when the AI receptionists list (and so agent.delivery) was loaded; the summary says so, because the recent
+// calls below are read fresh when the drawer opens and may be newer.
+export default function AgentDeliveries({ agent, onClose, asOf }) {
   const [state, setState] = useState({ loading: true, data: null, error: "" });
   useEffect(() => {
     let live = true;
@@ -19,6 +21,7 @@ export default function AgentDeliveries({ agent, onClose }) {
   const list = state.data?.deliveries ?? [];
   return (
     <Drawer title={`Calls served: ${agent.businessName}`} icon="call_log" onClose={onClose}>
+      <p className="op-muted">{asOf ? `Summary as of ${timeAgo(asOf)}, when the list was loaded. Recent calls below are read now.` : "Summary from when the list was loaded. Recent calls below are read now."}</p>
       <Facts rows={[
         ["Last 7 days", d ? `${d.served7d} served · ${d.notReady7d} not ready · ${d.unknownNumber7d} unknown number · ${d.forwardedUsage7d} over its limit` : "Not available"],
         ["Version", versionText(d)],

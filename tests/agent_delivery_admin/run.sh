@@ -70,8 +70,10 @@ v=$(as service "select count(*) from public.zella_admin_agent_deliveries_summary
 [ -z "$(fp)" ] && ok "rollback removes exactly the two functions" || bad "after rollback: $(fp)"
 "${P[@]}" -d $DB -f "$REPO/sql/zella_agent_delivery_admin.sql" > /dev/null 2>&1 && ok "applies again after the rollback" || bad "reapply"
 q "create or replace function public.zella_admin_agent_deliveries(p_business_id uuid, p_limit integer default 25) returns jsonb language sql stable as \$f\$ select '{}'::jsonb \$f\$" > /dev/null
+defs() { q "select string_agg(md5(pg_get_functiondef(p.oid)), ',' order by p.oid::regprocedure::text) from pg_proc p where p.proname in ('zella_admin_agent_deliveries_summary', 'zella_admin_agent_deliveries')"; }
+before=$(defs)
 out=$("${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_agent_delivery_admin_rollback.sql" 2>&1)
-[[ "$out" == *"ROLLBACK_DRIFT"* ]] && [ -n "$(fp)" ] && ok "the rollback refuses a changed function and changes nothing" || bad "rollback drift: $out"
+[[ "$out" == *"ROLLBACK_DRIFT"* ]] && [ "$(defs | tr ',' '\n' | wc -l)" = 2 ] && [ "$(defs)" = "$before" ] && ok "the rollback refuses a changed function and changes nothing" || bad "rollback drift: $out"
 out=$("${P[@]}" -d $DB -f "$REPO/sql/zella_agent_delivery_admin.sql" 2>&1)
 [[ "$out" == *"VERSION_MISMATCH"* ]] && ok "a changed function stops the file" || bad "drift: $out"
 

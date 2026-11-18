@@ -1,6 +1,7 @@
 -- Undoes sql/zella_industry_data.sql exactly: zella_sensitive_industry comes back from zella_function_archive and the
 -- four columns it added are dropped (with their constraints). The function must be exactly that file's version first,
--- otherwise ROLLBACK_DRIFT and nothing changes. Safe to run twice.
+-- otherwise ROLLBACK_DRIFT and nothing changes. Safe to run twice. An industry that had no configuration row got an
+-- empty one (all defaults) from the migration; it is kept. Production's 28 industries all had one, so none was added.
 -- Run sql/rollback/zella_brain_safety_rules_rollback.sql first if that migration is applied (it reads safety_rules),
 -- and deploy the earlier owner-provision-business first (it reads the columns when they exist).
 begin;

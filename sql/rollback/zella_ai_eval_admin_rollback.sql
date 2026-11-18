@@ -1,6 +1,7 @@
--- Undoes sql/zella_ai_eval_admin.sql exactly: drops the two admin functions and the ai_eval_runs table it added (the
--- stored runs go with it; nothing else was changed). Each function must be exactly that file's version first,
--- otherwise ROLLBACK_DRIFT and nothing changes. Safe to run twice. Deploy the earlier web app first.
+-- Undoes sql/zella_ai_eval_admin.sql: drops the two admin functions it added. The ai_eval_runs table and the runs
+-- stored in it are kept (a rollback never deletes data; the table stays server only, with row security on and no
+-- grants to signed in users), and applying the file again uses them. Each function must be exactly that file's
+-- version first, otherwise ROLLBACK_DRIFT and nothing changes. Safe to run twice. Deploy the earlier web app first.
 begin;
 do $$
 declare f record;
@@ -14,6 +15,5 @@ begin
   end loop;
   drop function if exists public.zella_admin_eval_run(uuid);
   drop function if exists public.zella_admin_eval_overview(integer, integer);
-  drop table if exists public.ai_eval_runs;
 end $$;
 commit;

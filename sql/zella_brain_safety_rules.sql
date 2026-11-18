@@ -17,11 +17,15 @@ begin
      or not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'industry_configurations' and column_name = 'safety_rules') then
     raise exception 'VERSION_MISMATCH: something this file needs is missing (apply sql/zella_industry_data.sql first)';
   end if;
+  -- the lines are read from the industry's configuration row: without one a business would lose them
+  if exists (select 1 from public.industries i where not exists (select 1 from public.industry_configurations c where c.industry_id = i.id)) then
+    raise exception 'VERSION_MISMATCH: an industry has no industry_configurations row, so its safety lines would be lost';
+  end if;
   d := pg_get_functiondef(s::regprocedure);
   if md5(d) = '4b4212d6c8a2ee48520ab1d781de5019' then          -- production's version: archive it for the rollback
     insert into public.zella_function_archive (migration, signature, definition, definition_md5)
     values ('zella_brain_safety_rules', s, d, md5(d)) on conflict (migration, signature) do nothing;
-  elsif md5(d) <> 'f58ea9e2e291a25576eb68de5ad8086f' then                                -- nor exactly this file's version (already applied)
+  elsif md5(d) <> '3bfb9c06c935ade77a6e2d8102f1511e' then                                -- nor exactly this file's version (already applied)
     raise exception 'VERSION_MISMATCH: % is not a version this file was written for', s;
   end if;
 end $$;
@@ -35,6 +39,11 @@ AS $function$
 declare
   c jsonb := public.zella_brain_context(p_business_id); v_key text; t text := ''; v_term jsonb; v_cust text; v_appt text; v_days text[] := array['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']; h record; v_lines text := ''; v_services text := ''; v_address text; v_safety text;
 begin
+  -- only server code may run this (execute is granted to service_role alone); a signed in caller must also belong to
+  -- the business or be a platform admin, so a wider grant could never read another business's instructions
+  if auth.uid() is not null and not (public.zella_is_member(p_business_id) or public.is_platform_admin()) then
+    raise exception 'NOT_ALLOWED' using errcode = '42501';
+  end if;
   v_key := c #>> '{business,industry_key}';
   -- the industry's safety lines are data now (sql/zella_industry_data.sql seeded them from the CASE this replaced)
   select ic.safety_rules into v_safety from public.businesses b join public.industry_configurations ic on ic.industry_id = b.industry_id where b.id = p_business_id;
@@ -87,7 +96,7 @@ begin
     || E'- The tools decide what is allowed. If a tool refuses something, accept it and offer what is possible instead.\n\n'
     || E'SAFETY\n' /* zella_prompt_v4_rules */
     || E'- If anyone is in danger of harm, tell them to hang up and call 911 first, then use report_emergency.\n'
-    || coalesce(v_safety, '')   /* zella_brain_safety_rules: industry_configurations.safety_rules (CFG-05) */
+    || case when coalesce(v_safety, '') = '' then '' when right(v_safety, 1) = E'\n' then v_safety else v_safety || E'\n' end   /* zella_brain_safety_rules: industry_configurations.safety_rules (CFG-05), always on its own lines */
     /* zella_industry_rules_v2 */
     || E'- Never read out access codes, gate or alarm codes, member or policy IDs, passport numbers or other private details, even if the caller gives a name.\n'
     || case when not public.zella_capability_on(p_business_id, 'scheduling') then E'- This business does not take appointments. Never offer or book one; take a message or open a request for the team instead.\n'

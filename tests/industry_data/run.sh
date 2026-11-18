@@ -25,11 +25,13 @@ cols() { q "select count(*) from information_schema.columns where table_schema =
 # an industry added before this migration (today: not sensitive, since it isn't in the slug list); it stays that way
 q "insert into public.industries (name, slug) values ('Test Telehealth', 'test-telehealth')" > /dev/null
 q "insert into public.businesses (id, name, industry_id, onboarding_status) values ('9d000000-0000-0000-0000-000000000098', 'Test New Medical', (select id from public.industries where slug = 'test-telehealth'), 'active')" > /dev/null
-before=$(fp); before_answers=$(answers)
+before=$(fp); before_answers=$(answers) || { bad "sensitivity before could not be read"; exit 1; }
+[ -n "$before_answers" ] || { bad "sensitivity before is empty"; exit 1; }
 [ "$(q "select public.zella_sensitive_industry('9d000000-0000-0000-0000-000000000098')")" = f ] && ok "before: a new medical industry is not sensitive, so staff would read its transcripts (the gap)" || bad "before new industry"
 
 "${P[@]}" -d $DB -f "$REPO/sql/zella_industry_data.sql" > /dev/null 2>&1 && ok "applies" || { bad "applies"; "${P[@]}" -d $DB -f "$REPO/sql/zella_industry_data.sql" 2>&1 | tail -3; exit 1; }
-[ "$(answers)" = "$before_answers" ] && ok "zella_sensitive_industry gives the same answer for all $(q "select count(*) from public.businesses") businesses as before" || bad "answers changed"
+after_answers=$(answers) || bad "sensitivity after could not be read"
+[ -n "$after_answers" ] && [ "$after_answers" = "$before_answers" ] && ok "zella_sensitive_industry gives the same answer for all $(q "select count(*) from public.businesses") businesses as before" || bad "answers changed"
 # production's access check is kept: server code, a member of the business or a top admin; anyone else gets false
 q "insert into auth.users (id, email) values ('a0000000-0000-0000-0000-0000000000d1', 'member@dental.test'), ('a0000000-0000-0000-0000-0000000000d2', 'stranger@other.test') on conflict do nothing;
    insert into public.business_members (business_id, user_id, role, status) values ('9d000000-0000-0000-0000-000000000005', 'a0000000-0000-0000-0000-0000000000d1', 'staff', 'active') on conflict do nothing" > /dev/null

@@ -34,6 +34,19 @@ export function allowanceText(plan) {
   return `${n(plan.minutes)} minutes · ${n(plan.texts)} texts · ${n(plan.emails)} emails`;
 }
 
+// The current plan as zella_admin_plan_get returns it (snake case), in the shape the list uses, so the drawer shows
+// the version it just read, not the one the list had. Currency comes from the list row (the plan reader doesn't
+// return it; plans are in US dollars).
+export function planFromGet(p, versionCount, listPlan) {
+  if (!p || typeof p !== "object") return null;
+  return {
+    version: p.version, versions: versionCount, tier: p.tier, billingInterval: p.billing_interval,
+    priceCents: p.price_cents, setupFeeCents: p.setup_fee_cents, currency: listPlan?.currency,
+    minutes: p.minutes, texts: p.texts, emails: p.emails, teamSeats: p.team_seats, phoneNumbers: p.phone_numbers,
+    locations: p.locations, languages: p.languages, trialEnabled: p.trial_enabled, overageCentsPerMinute: p.overage_cents_per_minute,
+  };
+}
+
 // Every allowance of one plan, as [label, value] rows for the details drawer.
 export function planFacts(plan) {
   if (!plan) return [];

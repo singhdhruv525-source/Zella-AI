@@ -18,7 +18,7 @@ do $$
 declare f record;
 begin
   for f in select * from (values
-      ('public.zella_admin_agent_deliveries_summary(uuid[])', '6d674b015fc4b3fc645754f46531dfa7'),
+      ('public.zella_admin_agent_deliveries_summary(uuid[])', '39670a0a9cf1cc2c70d8002f30bd5e98'),
       ('public.zella_admin_agent_deliveries(uuid,integer)', '48bd7fce72f915cc351b705ed218a0bf')) v(sig, want) loop
     if to_regprocedure(f.sig) is not null and md5(pg_get_functiondef(f.sig::regprocedure)) <> f.want then
       raise exception 'VERSION_MISMATCH: % already exists and is not this file''s version', f.sig;
@@ -50,7 +50,7 @@ begin
          coalesce(w.served, 0)::int, coalesce(w.not_ready, 0)::int, coalesce(w.unknown_number, 0)::int, coalesce(w.forwarded_usage, 0)::int,
          prob.problems, prob.created_at,
          (select v.version from public.assistant_deliveries d join public.agent_config_versions v on v.id = d.version_id
-           where d.business_id = b.id and d.outcome = 'served' order by d.id desc limit 1),
+           where d.business_id = b.id and d.outcome = 'served' order by d.created_at desc, d.id desc limit 1),
          pub.version, pub.sync_status, pub.sync_error
     from public.businesses b
     left join lateral (select d.outcome, d.created_at from public.assistant_deliveries d

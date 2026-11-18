@@ -45,11 +45,11 @@ alter table public.industry_configurations add column if not exists automation_d
 alter table public.industry_configurations add column if not exists safety_rules text;
 do $$
 begin
-  if not exists (select 1 from pg_constraint where conname = 'industries_booking_model_check') then
+  if not exists (select 1 from pg_constraint where conrelid = 'public.industries'::regclass and conname = 'industries_booking_model_check') then
     alter table public.industries add constraint industries_booking_model_check check (booking_model is null or booking_model in
       ('staff_appointment', 'class', 'table', 'stay', 'consultation', 'viewing', 'field_job', 'none', 'general'));
   end if;
-  if not exists (select 1 from pg_constraint where conname = 'industry_configurations_automation_defaults_check') then
+  if not exists (select 1 from pg_constraint where conrelid = 'public.industry_configurations'::regclass and conname = 'industry_configurations_automation_defaults_check') then
     alter table public.industry_configurations add constraint industry_configurations_automation_defaults_check
       check (automation_defaults is null or jsonb_typeof(automation_defaults) = 'object');
   end if;
@@ -63,6 +63,10 @@ comment on column public.industry_configurations.safety_rules is 'The receptioni
 do $$
 begin
   if current_setting('zella.industry_data_seed', true) is distinct from 'yes' then return; end if;
+  -- the safety lines are stored per configuration row: an industry without one gets an empty one first (all columns
+  -- have defaults; production's 28 industries all have one), so no industry loses its lines
+  insert into public.industry_configurations (industry_id)
+  select i.id from public.industries i where not exists (select 1 from public.industry_configurations c where c.industry_id = i.id);
   update public.industries set sensitive = slug in ('dental', 'healthcare', 'pet-care-veterinary', 'legal', 'financial-services', 'insurance', 'childcare');
   update public.industries i set booking_model = v.m from (values
     ('beauty-salon', 'staff_appointment'),

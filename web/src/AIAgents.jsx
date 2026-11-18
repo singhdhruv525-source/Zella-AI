@@ -23,11 +23,16 @@ const CHECKS = [
 
 const plural = (n, word) => `${countText(n) || 0} ${word}${Number(n) === 1 ? "" : "s"}`;
 
+// The phone and voice checks come from the connection state: when it isn't available they are unknown, not missing.
+const CONNECTION_CHECKS = new Set(["phone", "voice"]);
+
 // "3 of 5 set" with a five segment meter, and what is missing on one muted line (the full list is in the title).
-function SetupCell({ checks }) {
-  const done = CHECKS.filter(([key]) => checks?.[key]);
-  const missing = CHECKS.filter(([key]) => !checks?.[key]);
-  const detail = CHECKS.map(([key, , title]) => `${title}: ${checks?.[key] ? "yes" : "no"}`).join("\n");
+function SetupCell({ checks, available = true }) {
+  const known = CHECKS.filter(([key]) => available || !CONNECTION_CHECKS.has(key));
+  const done = known.filter(([key]) => checks?.[key]);
+  const missing = known.filter(([key]) => !checks?.[key]);
+  const unknown = CHECKS.length - known.length;
+  const detail = CHECKS.map(([key, , title]) => `${title}: ${!known.some(([k]) => k === key) ? "not available" : checks?.[key] ? "yes" : "no"}`).join("\n");
   return (
     <div className="ag-setup" title={detail}>
       <div className="ag-setup-top">
@@ -37,7 +42,10 @@ function SetupCell({ checks }) {
           {CHECKS.map(([key], i) => <span key={key} className={i < done.length ? "on" : ""} />)}
         </span>
       </div>
-      <span className="ag-line">{missing.length ? `Missing: ${missing.map(([, word]) => word).join(", ")}` : "Everything set"}</span>
+      <span className="ag-line">
+        {missing.length ? `Missing: ${missing.map(([, word]) => word).join(", ")}` : unknown ? "Everything else set" : "Everything set"}
+        {unknown ? `${missing.length ? "; " : ". "}phone and voice not available` : ""}
+      </span>
     </div>
   );
 }
@@ -51,8 +59,12 @@ const FILTERS = [
   ["ready", "Ready to connect"],
 ];
 
+// Filters that need the connection state; while it isn't available they are switched off rather than guessing.
+const CONNECTION_FILTERS = new Set(["live", "answering", "off", "ready"]);
+
 // Live and answering come from the server's one definition (docs/PRODUCT.md §9.1): the page never works them out.
-function matches(agent, filter) {
+function matches(agent, filter, available = true) {
+  if (!available && CONNECTION_FILTERS.has(filter)) return false;
   if (filter === "live") return agent.live === true;
   if (filter === "answering") return agent.answering === true;
   if (filter === "off") return agent.live !== true;
@@ -72,6 +84,7 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
   const [search, setSearch] = useState("");
   const [drawer, setDrawer] = useState(null);
   const [tab, setTab] = useState("receptionists");
+  const [testingRefresh, setTestingRefresh] = useState(0);
   const [me, setMe] = useState(null);
   useEffect(() => {
     let live = true;
@@ -79,13 +92,13 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
     return () => { live = false; };
   }, []);
 
+  const available = data?.connectionsAvailable !== false;
   const query = search.trim().toLowerCase();
   const agents = (data?.agents ?? []).filter(
-    (a) => matches(a, filter) && (!query || `${a.businessName} ${a.industry} ${a.name}`.toLowerCase().includes(query))
+    (a) => matches(a, filter, available) && (!query || `${a.businessName} ${a.industry} ${a.name}`.toLowerCase().includes(query))
   );
   const s = data?.stats;
   const show = (v) => metric(v, state);   // missing or not loaded: "—", never 0
-  const available = data?.connectionsAvailable !== false;
   const showLink = (v) => (available ? show(v) : "Not available");
 
   return (
@@ -98,7 +111,7 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
         </div>
         <div className="op-heading-actions">
           <UpdatedAt r={state} />
-          <button type="button" className="owner-secondary-button ag-refresh" onClick={load} disabled={loading}>
+          <button type="button" className="owner-secondary-button ag-refresh" onClick={() => { load(); setTestingRefresh((n) => n + 1); }} disabled={loading}>
             <Icon name="refresh" size="sm" />{loading ? "Loading..." : "Refresh"}
           </button>
         </div>
@@ -112,7 +125,7 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
         ))}
       </div>
 
-      {tab === "testing" ? <AiTesting me={me} onOpenBusiness={onOpenBusiness} /> : <>
+      {tab === "testing" ? <AiTesting me={me} onOpenBusiness={onOpenBusiness} refresh={testingRefresh} /> : <>
 
       <div className="owner-stat-grid">
         <Metric label="Receptionists" value={show(s?.total)} note={typeof s?.missingKnowledge === "number" ? `One per business, ${countText(s.missingKnowledge)} missing knowledge` : "One per business"} />
@@ -131,6 +144,8 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
                 role="tab"
                 aria-selected={filter === key}
                 className={filter === key ? "active" : ""}
+                disabled={!available && CONNECTION_FILTERS.has(key)}
+                title={!available && CONNECTION_FILTERS.has(key) ? "Not available until the connection state can be read" : undefined}
                 onClick={() => setFilter(key)}
               >
                 {label}
@@ -184,7 +199,7 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
                         {custom && <span className="ag-line">{custom}</span>}
                       </div>
                     </td>
-                    <td data-label="Setup"><SetupCell checks={a.checks} /></td>
+                    <td data-label="Setup"><SetupCell checks={a.checks} available={available} /></td>
                     <td data-label="Status">
                       {/* an unrecognised or missing status is shown as unknown, never as live or off */}
                       <div className="ag-cell" title={needs.length ? `${answering}. ${statusLine}.` : statusLine}>
@@ -241,7 +256,7 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
         </div>
       </section>
       </>}
-      {drawer && <AgentDeliveries agent={drawer} onClose={() => setDrawer(null)} />}
+      {drawer && <AgentDeliveries agent={drawer} asOf={state.lastOk} onClose={() => setDrawer(null)} />}
     </section>
   );
 }

@@ -25,6 +25,7 @@ q() { "${P[@]}" -d $DB -c "$1"; }
 for port in $BPORT $FPORT; do curl -s -o /dev/null --max-time 2 "http://localhost:$port/" && { echo "FAIL port $port is already in use"; exit 1; }; done
 LOG=$(mktemp -d)
 backend() {   # the stand in reads the table list once, so it is restarted after the migration
+  : > "$LOG/backend.log"   # empty it first, so a restart can't read the previous stand in's ready line
   ZDB=$DB PORT=$BPORT ZMAX_ROWS=1000 ZTEST_PASSWORD_AAL2=1 ZFUNCTIONS="{\"owner-provision-business\":$FPORT}" node "$REPO/tests/browser/local-backend.mjs" > "$LOG/backend.log" 2>&1 &
   BPID=$!
   for _ in $(seq 40); do grep -q "stand-in" "$LOG/backend.log" 2>/dev/null && break; sleep 0.25; done

@@ -4,6 +4,7 @@ import { allRows, cleanAutomationDefaults, CONFIG_PERMISSIONS, configHandlers, t
 import { PERMISSIONS } from "./settings.ts";
 import { ONBOARDING_PERMISSIONS } from "./onboarding.ts";
 import { PLATFORM_PERMISSIONS } from "./platform.ts";
+import { ACCESS_PERMISSIONS } from "./access.ts";
 
 class InputError extends Error { constructor(message: string, public status = 400) { super(message); } }
 const kit: ConfigKit = {
@@ -17,7 +18,7 @@ const kit: ConfigKit = {
 Deno.test("every new action has a permission, and no name clashes with another module", () => {
   assertEquals(CONFIG_PERMISSIONS, { industry_module_usage: "businesses.view", industry_set_active: "platform.configure", agent_deliveries: "businesses.view", business_plans_list: "billing.view", industry_set_sensitive: "platform.configure", industry_automation_defaults: "businesses.view" });
   for (const action of Object.keys(CONFIG_PERMISSIONS)) {
-    assertEquals([PERMISSIONS[action], ONBOARDING_PERMISSIONS[action], PLATFORM_PERMISSIONS[action]], [undefined, undefined, undefined]);
+    assertEquals([PERMISSIONS[action], ONBOARDING_PERMISSIONS[action], PLATFORM_PERMISSIONS[action], ACCESS_PERMISSIONS[action]], [undefined, undefined, undefined, undefined]);
   }
 });
 
@@ -194,4 +195,17 @@ Deno.test("only a Zella Voice owner may change sensitive, and turning it off nee
   assertEquals(writes, [{ sensitive: false }]);
   assertEquals((h.audited.industry_set_sensitive(r) as Record<string, unknown>).action, "industry.sensitive_off");
   assertEquals(h.audited.industry_set_sensitive({ ...r, changed: false }), null);
+});
+
+Deno.test("a sensitivity change whose audit row can't be written is undone, and only if it is still the new value", async () => {
+  const writes: unknown[] = [];
+  const admin = { from: () => {
+    const q = { update: (v: unknown) => { const filters: unknown[] = []; const e = { eq: (k: string, x: unknown) => { filters.push([k, x]); if (filters.length === 2) { writes.push([v, filters]); return Promise.resolve({ error: null }); } return e; } }; return e; } };
+    return q;
+  } } as unknown as SupabaseClient;
+  const h = configHandlers(admin, {}, kit, "zella_owner");
+  await h.undoUnaudited.industry_set_sensitive({ industryId: "ind", before: true, after: false, changed: true });
+  assertEquals(writes, [[{ sensitive: true }, [["id", "ind"], ["sensitive", false]]]]);
+  await h.undoUnaudited.industry_set_sensitive({ industryId: "ind", before: true, after: true, changed: false });
+  assertEquals(writes.length, 1);
 });

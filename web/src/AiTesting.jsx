@@ -7,14 +7,15 @@ import { timeAgo } from "./ownerFormat";
 import { evalPill, evalSummary } from "./aiTestingWords.js";
 import "./AiTesting.css";
 
-export default function AiTesting({ me, onOpenBusiness }) {
+// refresh: a number the page's Refresh button raises, so it reloads this view too.
+export default function AiTesting({ me, onOpenBusiness, refresh = 0 }) {
   const [offset, setOffset] = useState(0);
   const [reloads, setReloads] = useState(0);
   const [state, setState] = useState({ key: null, data: null, error: "" });
   const [running, setRunning] = useState(null);
   const [runError, setRunError] = useState("");
   const [open, setOpen] = useState(null);
-  const key = `${offset}|${reloads}`;
+  const key = `${offset}|${reloads}|${refresh}`;
   useEffect(() => {
     let live = true;
     rpc("zella_admin_eval_overview", { p_limit: PAGE, p_offset: offset })
@@ -32,7 +33,14 @@ export default function AiTesting({ me, onOpenBusiness }) {
     finally { setRunning(null); }
   }
 
-  const rows = state.data?.businesses ?? [];
+  // a valid answer has a total and a list; anything else is "couldn't load", never "no business"
+  const valid = !loading && state.data && Number.isFinite(Number(state.data.total)) && Array.isArray(state.data.businesses);
+  // rows of the page asked for only: while the next page loads the previous one is not shown under its range
+  const rows = valid ? state.data.businesses : [];
+  const emptyText = loading ? "Loading..."
+    : !valid ? "Couldn't load AI testing."
+      : Number(state.data.total) === 0 ? "No business has test questions yet. A business adds them in its settings, under AI receptionist."
+        : "Nothing on this page. Go back a page to see the businesses.";
   return (
     <section className="owner-panel">
       <div className="owner-panel-heading">
@@ -41,9 +49,14 @@ export default function AiTesting({ me, onOpenBusiness }) {
           <p>Each business's test questions, checked against its knowledge. This checks what the receptionist can look up, not live calls: nothing is sent and nothing is charged.
             A business passes when it has at least {state.data?.min_cases ?? 3} questions and every one passes. A failing run is a warning only; it never stops a business going live.</p>
         </div>
-        {state.data && <Pill tone="neutral">{`${state.data.passing} of ${state.data.total} passing`}</Pill>}
+        {valid && <Pill tone="neutral">{`${state.data.passing} of ${state.data.total} passing`}</Pill>}
       </div>
-      {(state.error || runError) && <div className="owner-form-error" role="alert">{state.error || runError}</div>}
+      {(state.error || runError) && (
+        <div className="owner-form-error" role="alert">
+          {state.error || runError}{" "}
+          {state.error && <button type="button" className="owner-link-button" onClick={() => setReloads((n) => n + 1)}>Try again</button>}
+        </div>
+      )}
       <div className="owner-table-wrap" tabIndex={0}>
         <table className="owner-table ait-table">
           <thead><tr><th>Business</th><th>Test questions</th><th>Last run</th><th>Result</th><th /></tr></thead>
@@ -81,12 +94,12 @@ export default function AiTesting({ me, onOpenBusiness }) {
               </tr>
             ))}
             {!rows.length && (
-              <tr><td colSpan={5}><div className="op-empty">{loading ? "Loading..." : state.error ? "Couldn't load AI testing." : "No business has test questions yet. A business adds them in its settings, under AI receptionist."}</div></td></tr>
+              <tr><td colSpan={5}><div className="op-empty">{emptyText}</div></td></tr>
             )}
           </tbody>
         </table>
       </div>
-      {state.data && state.data.total > 0 && (
+      {valid && state.data.total > 0 && (
         <div className="ait-foot">
           <Pager total={state.data.total} offset={offset} onChange={setOffset} />
         </div>

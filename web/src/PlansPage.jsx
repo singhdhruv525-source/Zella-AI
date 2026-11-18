@@ -10,7 +10,7 @@ import { formatDate } from "./ownerFormat";
 import { humanize } from "./copy/labels";
 import { Facts, Pager, PAGE, can, friendlyError, rpc } from "./admin/adminOps";
 import { planAllowances, planFeatures } from "./copy/planAllowances";
-import { allowanceText, balanceText, planFacts, priceText, tierName, tierShort } from "./businessPlans.js";
+import { allowanceText, balanceText, planFacts, planFromGet, priceText, tierName, tierShort } from "./businessPlans.js";
 
 const SUB_TONE = {
   trial: "info", active: "success", renewal_due: "warning", past_due: "danger",
@@ -58,13 +58,21 @@ function PlanDrawer({ row, onClose, onOpenBusiness }) {
   useEffect(() => {
     let live = true;
     Promise.all([rpc("zella_admin_plan_get", { p_business_id: row.businessId }), rpc("zella_billing_overview", { p_business_id: row.businessId })])
-      .then(([plan, overview]) => live && setState({ plan, overview }))
+      // a missing or malformed answer is an error, never "no plan" or "no allowances"
+      .then(([plan, overview]) => {
+        if (!live) return;
+        const ok = plan && typeof plan === "object" && Array.isArray(plan.versions) && overview && typeof overview === "object"
+          && (overview.balances === undefined || Array.isArray(overview.balances));
+        setState(ok ? { plan, overview } : { error: "Couldn't load this plan's details. Close and open it again." });
+      })
       .catch((e) => live && setState({ error: friendlyError(e) }));
     return () => { live = false; };
   }, [row.businessId]);
   const versions = state.plan?.versions ?? [];
   const balances = state.overview?.balances ?? [];
   const period = state.overview?.period;
+  // once loaded, the facts come from the plan just read (another admin may have saved a newer version)
+  const current = state.plan ? planFromGet(state.plan.plan, versions.length, row.plan) : row.plan;
   return (
     <PlanDrawerFrame
       eyebrow="Plan"
@@ -73,7 +81,7 @@ function PlanDrawer({ row, onClose, onOpenBusiness }) {
       onClose={onClose}
       footer={<button type="button" className="owner-secondary-button" onClick={() => { onClose(); onOpenBusiness(row.businessId); }}>Open business</button>}
     >
-      <Facts rows={[...planFacts(row.plan), ["Subscription", row.subscription ? humanize(row.subscription.status) : <EmptyValue key="none" label="No subscription" />]]} />
+      <Facts rows={[...(current ? planFacts(current) : [["Plan", <EmptyValue key="noplan" label="No plan saved" />]]), ["Subscription", row.subscription ? humanize(row.subscription.status) : <EmptyValue key="none" label="No subscription" />]]} />
       {state.loading ? <p className="op-muted pp-drawer-note">Loading balances…</p>
         : state.error ? <div className="owner-form-error" role="alert">{state.error}</div>
         : (
@@ -148,6 +156,8 @@ export default function PlansPage({ onOpenBusiness }) {
     return () => { live = false; };
   }, [offset, query, listKey]);
   const listLoading = list.key !== listKey;
+  // only the rows of the page and search asked for: while the next one loads the previous rows are not shown under it
+  const listRows = listLoading ? [] : list.data?.businesses ?? [];
 
   const loadId = useRef(0);
   const load = useCallback(async () => {
@@ -208,7 +218,9 @@ export default function PlansPage({ onOpenBusiness }) {
         <div className="owner-panel-heading ag-toolbar">
           <div>
             <h2>Business plans</h2>
-            <p>{list.data ? `${list.data.withPlan} of ${list.data.total} businesses have a plan saved.` : "Every business and the plan saved for it."}</p>
+            <p>{!list.data ? "Every business and the plan saved for it."
+              : list.data.withPlan == null ? `${list.data.total} ${list.data.total === 1 ? "business matches" : "businesses match"} this search.`
+                : `${list.data.withPlan} of ${list.data.total} businesses have a plan saved.`}</p>
           </div>
           <form onSubmit={(e) => { e.preventDefault(); setOffset(0); setQuery(search.trim()); }}>
             <input className="ag-search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search business" aria-label="Search business" />
@@ -219,7 +231,7 @@ export default function PlansPage({ onOpenBusiness }) {
           <table className="owner-table pp-table">
             <thead><tr><th>Business</th><th>Plan</th><th className="num">Price</th><th>Allowances</th><th>Subscription</th><th className="col-actions"><span className="pp-sr-only">Actions</span></th></tr></thead>
             <tbody>
-              {(list.data?.businesses ?? []).map((b) => (
+              {listRows.map((b) => (
                 <tr key={b.businessId}>
                   <td className="pp-business">
                     <button type="button" className="op-name pp-name" title={b.businessName} onClick={() => onOpenBusiness(b.businessId)}>{b.businessName}</button>
@@ -236,13 +248,13 @@ export default function PlansPage({ onOpenBusiness }) {
                   </td>
                 </tr>
               ))}
-              {!list.data?.businesses?.length && (
+              {!listRows.length && (
                 <tr className="pp-empty-row"><td colSpan={6}><div className="op-empty">{listLoading ? "Loading..." : list.error ? "Couldn't load this list. Try again with Refresh." : query ? "No business matches this search." : "No businesses yet."}</div></td></tr>
               )}
             </tbody>
           </table>
         </div>
-        {list.data && <Pager total={list.data.total} offset={offset} onChange={setOffset} />}
+        {list.data && !listLoading && <Pager total={list.data.total} offset={offset} onChange={setOffset} />}
       </section>
       {open && <PlanDrawer row={open} onClose={() => setOpen(null)} onOpenBusiness={onOpenBusiness} />}
 

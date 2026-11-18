@@ -6,7 +6,7 @@
 # nothing, at least 3 cases, all passing) gives the same case results as zella_brain_run_evals; each run is stored with
 # who ran it and the failed questions; the overview pages the tested businesses with their latest run; who may run
 # (businesses.manage) and read (businesses.view); a business owner and anonymous are refused; rollback (twice) removes
-# exactly what was added and refuses a changed function; applies again; a changed function stops the file.
+# exactly the two functions, keeps the stored runs (server only) for the next apply, and refuses a changed function; applies again; a changed function stops the file.
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"; REPO="$(cd "$HERE/../.." && pwd)"
 export ZPG_HOST=${ZPG_HOST:-/var/lib/postgresql/zella-sec} ZPG_PORT=${ZPG_PORT:-55433}; DB=${DB:-zlc_ai_eval_admin}; TEMPLATE=${TEMPLATE:-zprod3}
@@ -60,8 +60,13 @@ v=$(as "$MEMBER" "select count(*) from public.ai_eval_runs"); [[ "$v" == *"permi
 v=$(run "$OWNER" "00000000-0000-0000-0000-000000000000"); [[ "$v" == *BUSINESS_NOT_FOUND* ]] && ok "an unknown business is not found" || bad "unknown $v"
 
 "${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_ai_eval_admin_rollback.sql" > /dev/null 2>&1 && "${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_ai_eval_admin_rollback.sql" > /dev/null 2>&1 && ok "rollback runs twice" || bad "rollback"
-[ "$(fp)" = "" ] && ok "rollback removes exactly the two functions and the runs table" || bad "after rollback $(fp)"
+RUNS=$(q "select count(*) from public.ai_eval_runs")
+[ "$(fp)" = "ai_eval_runs" ] && ok "rollback removes exactly the two functions" || bad "after rollback $(fp)"
+[ "$(q "select count(*) from public.ai_eval_runs")" = "$RUNS" ] && [ "$RUNS" -gt 0 ] && [ "$(q "select relrowsecurity from pg_class where oid = 'public.ai_eval_runs'::regclass")" = t ] \
+  && [[ "$(as "$MEMBER" "select count(*) from public.ai_eval_runs")" == *"permission denied"* ]] \
+  && ok "the stored runs are kept, still server only ($RUNS runs)" || bad "runs after rollback"
 "${P[@]}" -d $DB -f "$REPO/sql/zella_ai_eval_admin.sql" > /dev/null 2>&1 && ok "applies again after the rollback" || bad "reapply"
+v=$(as "$OWNER" "select public.zella_admin_eval_overview(500, 0) ->> 'total'"); [ "$v" = 4 ] && ok "applying again reuses the kept runs" || bad "reuse $v"
 q "create or replace function public.zella_admin_eval_run(p_business_id uuid) returns jsonb language sql as \$f\$ select '{}'::jsonb \$f\$" > /dev/null
 out=$("${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_ai_eval_admin_rollback.sql" 2>&1)
 [[ "$out" == *"ROLLBACK_DRIFT"* ]] && [ -n "$(fp)" ] && ok "the rollback refuses a changed function and changes nothing" || bad "rollback drift: $out"

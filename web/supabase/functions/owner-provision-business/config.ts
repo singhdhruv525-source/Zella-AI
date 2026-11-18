@@ -299,7 +299,8 @@ export function configHandlers(admin: SupabaseClient, fields: Json, kit: ConfigK
     const subscription = new Map<string, (typeof subs)[number]>();
     for (const s of subs) if (!subscription.has(s.business_id)) subscription.set(s.business_id, s);   // newest first
     return {
-      total: count ?? 0, withPlan: withPlan ?? 0, offset, limit, search: search || null,
+      // withPlan counts every business, so it is left out of a search (null) rather than set beside a filtered total
+      total: count ?? 0, withPlan: search ? null : withPlan ?? 0, offset, limit, search: search || null,
       businesses: (businesses ?? []).map((b: Json) => {
         const l = latest.get(String(b.id)); const sub = subscription.get(String(b.id));
         return {
@@ -380,5 +381,15 @@ export function configHandlers(admin: SupabaseClient, fields: Json, kit: ConfigK
       : null,
   };
 
-  return { handlers, audited };
+  // A change that must not stay in effect without its audit row: undone when the row can't be written (CFG-05, the
+  // owner's rule that every sensitivity change is audited with its reason).
+  const undoUnaudited: Record<string, (r: Json) => Promise<void>> = {
+    industry_set_sensitive: async (r) => {
+      if (!r.changed) return;
+      const { error } = await admin.from("industries").update({ sensitive: r.before }).eq("id", r.industryId).eq("sensitive", r.after);
+      if (error) throw error;
+    },
+  };
+
+  return { handlers, audited, undoUnaudited };
 }
