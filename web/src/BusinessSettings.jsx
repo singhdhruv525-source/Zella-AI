@@ -10,6 +10,7 @@ import { DATA_RIGHTS_ROLES, DataRightsList } from "./BusinessDataRights";
 import { HoursSection } from "./BusinessHours";
 import { AccessPage, ApprovalsPage, FailedWorkPage, SecurityLogPage } from "./BusinessAccess";
 import { TeamPage } from "./BusinessTeam";
+import DeleteAccount from "./settings/DeleteAccount";
 import { KnowledgePage } from "./BusinessKnowledge";
 import { RecordSettingsPage } from "./BusinessRecords";
 import { IntegrationsPage, LeadSourcesPage, ReportsPage } from "./BusinessMore";
@@ -883,6 +884,7 @@ function Privacy({ w, onOpenPerson, onNotice }) {
       </Card>
       {roleIn(w, DATA_RIGHTS_ROLES) ? <DataRightsList workspace={w} onOpenPerson={onOpenPerson} onNotice={onNotice} /> : <p className="zs-muted">Managers and above handle customer data requests.</p>}
       <LegalDocs w={w} />
+      <DeleteAccount w={w} />
     </>
   );
 }

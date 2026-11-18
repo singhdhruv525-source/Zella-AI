@@ -4,6 +4,7 @@ import { Banner, Card, Confirm, Facts, Field, LoadState, Pill, Table, useAsync, 
 import { CLASS_LABELS, SOURCE_LABELS, classLabel, periodWords } from "./retentionLabels";
 import PurgeRuns from "./PurgeRuns";
 import BusinessPurge from "./BusinessPurge";
+import AccountDeletions from "./AccountDeletions";
 
 // Settings > Security and privacy > Data retention: a period per kind of data, legal holds, and a dry run of what a
 // purge would remove (owner-provision-business retention.ts, sql/zella_data_retention.sql). Every period is the
@@ -58,6 +59,7 @@ export default function DataRetention({ me }) {
           <Facts rows={[["Purges", o.purge_enabled ? "On" : "Off"], ["Schedule", "None. A purge runs only when people approve it."], ["Setting", "retention_purge_enabled"]]} />
         </Card>
         <BusinessPurge me={me} legalApproved={o.policies.some((p) => p.data_class === "cancelled_business" && p.legal_status === "approved")} onAsked={() => setRunsKey((k) => k + 1)} />
+        <AccountDeletions me={me} />
         <PurgeRuns key={runsKey} me={me} policies={o.policies} purgeEnabled={o.purge_enabled} you={o.you} />
         <Card title="Legal holds" sub="Nothing of a business on hold is ever listed for removal, and the business can't be deleted."
           actions={manage && <button type="button" className="zs-btn sm" onClick={() => setDialog({ hold: "" })}>Place a hold</button>}>

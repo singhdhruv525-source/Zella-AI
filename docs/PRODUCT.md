@@ -274,6 +274,7 @@ the same rules; hiding an item is never the protection.
 
 | Page | What it does | Status |
 |---|---|---|
+| **Delete this account** (owner, Settings > Privacy) | The owner asks with the business name typed; a Zella Voice admin confirms under Data retention; the account is frozen at once (calls not answered, automations paused) and deleted 30 days later unless the owner cancels; the copies at Vapi are queued for deletion; audit history is kept without the business | Built, not applied (`sql/zella_account_deletion.sql`); the purge waits for the purge switch and lane B's audit SET NULL |
 | **Privacy policy and terms** | Public pages /privacy and /terms, linked from both sign in pages; drafts for owner and legal review until published; the owner accepts both during onboarding (recorded on the server) | Drafts built, not applied (`sql/zella_privacy_retention.sql`); legal review pending |
 | **AI Receptionist > Voice and setup** | Voice, languages, greeting, rules, readiness. Callers always hear that they are speaking with an AI receptionist (added in their language if a custom greeting leaves it out) and, only while recording is on for the business, that the call is recorded; Vapi recording follows the same setting (off) | Built; the disclosure is built, not applied (`sql/zella_call_disclosure.sql`) |
 | **AI Receptionist > Transcripts** | Call transcripts for the roles allowed to see them. | Built |
