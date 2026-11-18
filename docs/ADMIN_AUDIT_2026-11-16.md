@@ -680,8 +680,8 @@ Open decisions for the owner:
 
 Build checklist (each needs the owner's approval before anything goes live; provider accounts and keys are the owner's):
 - [ ] <!-- coderabbit-ai-generated:v1 --> <!-- coderabbit-ai-generated-section:v1:45f9e623d129dbb0dc5ee8d415c4fef76dbccad3d0bd9b2c4c81b6ece0e0575e --> Prerequisites: BIZ-01 production deployment and live public `ZELLA_APP_URL` verified; BIZ-02 post-sign-in acceptance verified on the deployed revision and Resend wording corrected if still inaccurate; two step sign in in onboarding <!-- /coderabbit-ai-generated:v1 -->
-- [ ] Onboarding progress stored per business (which step, when), shown to admins
+- [x] Onboarding progress stored per business (which step, when), shown to admins: `sql/zella_owner_onboarding.sql` (built, not applied) with `zella_admin_onboarding_overview()` and `_progress(id)`; showing it on the business page is BIZ-12's job (fields in `docs/OWNER_ONBOARDING_CONTRACT.md` section 6)
 - [ ] Screens 1, 2, 3, 5 and 7, with progress bar and Finish later, tested on the isolated database
-- [ ] Screen 4 with the identity provider's sandbox, plus a server function that receives the result (signed, one event once) and the manual fallback in Verification
+- [ ] Screen 4 with the identity provider's sandbox, plus a server function that receives the result (signed, one event once) and the manual fallback in Verification. Server side built, not applied: the receiver `identity-webhook` (signed, one event once, off), the manual upload `owner-onboarding` and the Verification fallback; the provider's sandbox isn't connected
 - [ ] Screen 6 once the owner decides the first payment rule and Stripe Checkout and the payment webhook are built
-- [ ] Go live only after verification and the activation checklist pass, plus confirmed payment or saved-card trial setup according to the owner's decision
+- [x] Go live only after verification and the activation checklist pass, plus confirmed payment or saved-card trial setup according to the owner's decision: built, not applied, for the default "pay before going live" (`zella_activation_report` and `zella_request_activation` in `sql/zella_owner_onboarding.sql`); the saved card trial setup isn't built and counts as not confirmed
