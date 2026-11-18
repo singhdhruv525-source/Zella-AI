@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import {
   ERROR_WORDS, SCREENS, STEP_KEYS, allowance, canLeave, canOpen, detailsDone, errorCode, errorWords, identityPassed,
   identityState, isNotReady, languageWords, money, nextOpenSection, nextStep, paymentPassed, paymentState, phoneWords,
-  UNAVAILABLE, afterCompleteError, createAnswerQueue, previousStep, progressFor, resumeStep, rpcError, sectionRows, sectionState, securityPart, stateAfterResume, uploadKinds,
+  UNAVAILABLE, afterCompleteError, createAnswerQueue, previousStep, progressFor, resumeStep, rpcError, sectionRows, stepAfterError, sectionState, securityPart, stateAfterResume, uploadKinds,
 } from "../src/onboarding/steps.js";
 import { createFakeApi } from "../src/onboarding/fakeApi.js";
 
@@ -345,4 +345,11 @@ test("a new plan version while payment or the last step is open: the journey sho
   assert.equal(afterCompleteError("plan", changed), null, "on the plan step the plan screen reloads itself");
   assert.equal(afterCompleteError("payment", { message: "STEP_LOCKED" }), "reload");
   assert.equal(afterCompleteError("payment", { message: "PAYMENT_NOT_CONFIRMED" }), null);
+});
+
+test("after a locked step, the journey shows the server's current step", () => {
+  const fresh = { current_step: "details", plan: { available: true, accepted: true } };
+  assert.equal(stepAfterError(afterCompleteError("identity", { message: "STEP_LOCKED" }), fresh), "details");
+  assert.equal(stepAfterError(afterCompleteError("details", { message: "SECTIONS_NOT_CONFIRMED" }), fresh), "details");
+  assert.equal(stepAfterError(afterCompleteError("done", { message: "PLAN_CHANGED" }), { current_step: "done", plan: { available: true, accepted: false } }), "plan");
 });

@@ -7,7 +7,7 @@ import { SidebarBrand } from "../navigation/SidebarBrand";
 import { getApi } from "./api";
 import ProgressSteps from "./ProgressSteps";
 import { ErrorText, Failed, Loading, NotReady } from "./kit";
-import { SCREENS, STEP_KEYS, afterCompleteError, canOpen, errorCode, isNotReady, previousStep, resumeStep, stateAfterResume } from "./steps";
+import { SCREENS, STEP_KEYS, afterCompleteError, canOpen, errorCode, isNotReady, previousStep, resumeStep, stateAfterResume, stepAfterError } from "./steps";
 import { SecurityScreen, WelcomeScreen } from "./StartScreens";
 import { DetailsScreen } from "./DetailsScreen";
 import { IdentityScreen } from "./IdentityScreen";
@@ -146,18 +146,17 @@ function Journey({ api, email }) {
       const res = await api.completeStep(state.business_id, step);
       onState(res?.state, { advance: !stay });
     } catch (error) {
+      // A new plan version was saved while this step was open (show the plan, which says so), or the server is on another
+      // step (show that one). The state is read again first; the error still goes back to the screen, so it never treats
+      // the step as finished (the last step would open the CRM). If reading fails, the screen stays as it is.
       const next = afterCompleteError(step, error);
-      // a new plan version was saved while this step was open: read the state and show the plan, which says so. The
-      // error still goes back to the screen, so it never treats the step as finished (the last step would open the CRM).
-      if (next === "plan") {
+      if (next) {
         const fresh = await api.getState(state.business_id).catch(() => null);
-        if (fresh) { setState(fresh); show("plan"); }
+        if (fresh) { setState(fresh); show(stepAfterError(next, fresh)); }
       }
-      // a step that is already further along, or an earlier one reopened: show where the server says we are
-      if (next === "reload") reload();
       throw error;
     }
-  }, [api, state, onState, reload, show]);
+  }, [api, state, onState, show]);
 
   async function finishLater() {
     setLeaving(true);

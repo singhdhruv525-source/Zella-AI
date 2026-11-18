@@ -175,6 +175,11 @@ export function afterCompleteError(step, error) {
   return null;
 }
 
+// The screen to show once the state is read again after such an error: the plan, or where the server says the owner is.
+export function stepAfterError(next, fresh) {
+  return next === "plan" ? "plan" : resumeStep(fresh);
+}
+
 // Answers on the details step can overlap (the owner moves between parts). Only the latest call's state may be shown:
 // an answer whose reply comes back after a newer call is dropped and the state read again, and a read again is itself
 // dropped when a newer answer or read started meanwhile, so an older snapshot never hides a newer answer.
