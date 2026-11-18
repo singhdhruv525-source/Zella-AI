@@ -10,6 +10,7 @@ import { ONBOARDING_PERMISSIONS, documentsReady, loadOnboarding, onboardingHandl
 import { PLATFORM_PERMISSIONS, platformHandlers } from "./platform.ts";
 import { supportHours, ticketTiming } from "./access.ts";
 import { ACCESS_PERMISSIONS, AUDIT_COLUMNS, AUDIT_EXPORT_ROLES, AUDIT_PAGE, SELF_ACTIONS, accessHandlers, applyAuditFilters, auditCursor, auditFilters, endSessionsAfterChange, nextAuditCursor, recordRefusal } from "./access.ts";
+import { businessesList } from "./businesses.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -3153,6 +3154,8 @@ Deno.serve(withCors(async (req: Request) => {
     const fresh = freshCodeGate(action, authorization);
     if (!fresh.ok) return respond({ error: fresh.error, code: fresh.code }, fresh.status);
 
+    // dashboard_data keeps its shape for the Offers page, the setup wizard's industry list and a web app older than
+    // businesses_list (which falls back to it). The Businesses list reads businesses_list (businesses.ts).
     if (action === "dashboard_data") {
       await processCancellations(adminClient);
 
@@ -3161,7 +3164,6 @@ Deno.serve(withCors(async (req: Request) => {
         industriesResult,
         invitationsResult,
         subscriptionsResult,
-        membersResult,
       ] = await Promise.all([
         adminClient
           .from("businesses")
@@ -3187,18 +3189,13 @@ Deno.serve(withCors(async (req: Request) => {
         adminClient
           .from("subscriptions")
           .select("id, business_id, status"),
-
-        adminClient
-          .from("business_members")
-          .select("business_id, user_id, role, status"),
       ]);
 
       const queryError =
         businessesResult.error ??
         industriesResult.error ??
         invitationsResult.error ??
-        subscriptionsResult.error ??
-        membersResult.error;
+        subscriptionsResult.error;
 
       if (queryError) {
         console.error("Dashboard data query failed", queryError);
@@ -3212,7 +3209,6 @@ Deno.serve(withCors(async (req: Request) => {
       const industries = industriesResult.data ?? [];
       const invitations = invitationsResult.data ?? [];
       const subscriptions = subscriptionsResult.data ?? [];
-      const members = membersResult.data ?? [];
 
       const industryById = new Map(
         industries.map((industry) => [industry.id, industry.name]),
@@ -3230,7 +3226,6 @@ Deno.serve(withCors(async (req: Request) => {
 
       const invitationsByBusiness = groupBy(invitations);
       const subscriptionsByBusiness = groupBy(subscriptions);
-      const membersByBusiness = groupBy(members);
 
       const businessRecords = businesses.map((business) => ({
         ...business,
@@ -3239,7 +3234,6 @@ Deno.serve(withCors(async (req: Request) => {
         invitations: invitationsByBusiness.get(business.id) ?? [],
         subscriptions:
           subscriptionsByBusiness.get(business.id) ?? [],
-        members: membersByBusiness.get(business.id) ?? [],
       }));
 
       return respond({
@@ -3256,8 +3250,6 @@ Deno.serve(withCors(async (req: Request) => {
           provisioningIssues: invitations.filter(
             (item) => item.status === "failed",
           ).length,
-          totalMembers: members.length,
-          totalSubscriptions: subscriptions.length,
         },
       });
     }
@@ -3273,6 +3265,10 @@ Deno.serve(withCors(async (req: Request) => {
       setup_save_automations: () => saveAutomations(adminClient, fields, user.id),
       setup_finish: () => finishSetup(adminClient, fields),
       overview_data: () => overviewData(adminClient),
+      businesses_list: async () => {
+        await processCancellations(adminClient);   // as dashboard_data did when Businesses opened (BIZ-03)
+        return businessesList(adminClient, fields, { text, InputError, UUID_RE });
+      },
       business_detail: () => businessDetail(adminClient, requireId(fields.businessId)),
       audit_logs: () => auditLogList(adminClient, fields, role),
       industries_list: () => industriesList(adminClient),

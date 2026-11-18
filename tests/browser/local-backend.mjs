@@ -462,8 +462,76 @@ async function policyStorage(req, url, claims, raw) {
   }
   return { status: 404, json: { message: "storage path not in the local stand-in" } };
 }
+// Private buckets with no storage policies (business-documents): only the server key may create a signed upload
+// link or list; the link's token alone allows that one upload, as on Supabase. Bucket size and type limits apply.
+const SERVER_BUCKETS = { "business-documents": { max: 10485760, types: ["application/pdf", "image/jpeg", "image/png", "image/webp", "image/heic"] } };
+const uploads = new Map(); // token -> { bucket, name, exp }
+const reads = new Map();   // signed read token -> { key, exp }
+function serverBucketStorage(req, url, claims, raw) {
+  const path = url.pathname.replace(/^\/storage\/v1/, "");
+  const deny = (msg, status = 403) => ({ status, json: { statusCode: String(status), error: "Unauthorized", message: msg } });
+  let m;
+  if ((m = /^\/object\/upload\/sign\/([^/]+)\/(.+)$/.exec(path))) {
+    const bucket = m[1], name = decodeURIComponent(m[2]);
+    if (req.method === "POST") {
+      if (claims?.role !== "service_role") return deny("new row violates row-level security policy");
+      const t = crypto.randomUUID(); uploads.set(t, { bucket, name, exp: Date.now() + 2 * 3600 * 1000 });
+      return { status: 200, json: { url: `/object/upload/sign/${bucket}/${name}?token=${t}` } };
+    }
+    if (req.method === "PUT") {
+      const u = uploads.get(url.searchParams.get("token"));
+      if (!u || u.bucket !== bucket || u.name !== name || Date.now() > u.exp) return deny("Invalid signature", 400);
+      if (files.has(`${bucket}/${name}`)) return deny("The resource already exists", 409);
+      const rule = SERVER_BUCKETS[bucket], file = multipartFile(raw, req.headers["content-type"]);
+      if (!file.bytes?.length) return deny("Empty file", 400);
+      if (file.bytes.length > rule.max) return deny("The object exceeded the maximum allowed size", 413);
+      if (!rule.types.includes(file.type)) return deny(`mime type ${file.type} is not supported`, 415);
+      uploads.delete(url.searchParams.get("token"));
+      files.set(`${bucket}/${name}`, { body: file.bytes, type: file.type });
+      return { status: 200, json: { Key: `${bucket}/${name}` } };
+    }
+  }
+  if (req.method === "POST" && (m = /^\/object\/list\/([^/]+)$/.exec(path))) {
+    if (claims?.role !== "service_role") return { status: 200, json: [] };
+    const { prefix = "", search = "" } = JSON.parse(raw?.toString() || "{}");
+    const out = [];
+    for (const [key, f] of files) {
+      if (!key.startsWith(`${m[1]}/${prefix}/`)) continue;
+      const name = key.slice(`${m[1]}/${prefix}/`.length);
+      if (!name.includes("/") && name.includes(search)) out.push({ name, metadata: { size: f.body.length, mimetype: f.type } });
+    }
+    return { status: 200, json: out };
+  }
+  // a signed read link (createSignedUrl): made with the server key only; the link's token allows reading that file
+  if ((m = /^\/object\/sign\/([^/]+)\/(.+)$/.exec(path))) {
+    const key = `${m[1]}/${decodeURIComponent(m[2])}`;
+    if (req.method === "POST") {
+      if (claims?.role !== "service_role") return deny("new row violates row-level security policy");
+      if (!files.has(key)) return { status: 400, json: { statusCode: "404", error: "not_found", message: "Object not found" } };
+      const t = crypto.randomUUID(); reads.set(t, { key, exp: Date.now() + 3600 * 1000 });
+      return { status: 200, json: { signedURL: `/object/sign/${m[1]}/${m[2]}?token=${t}` } };
+    }
+    if (req.method === "GET") {
+      const r = reads.get(url.searchParams.get("token")), f = files.get(key);
+      if (!r || r.key !== key || Date.now() > r.exp || !f) return deny("Invalid signature", 400);
+      return { status: 200, raw: f.body, type: f.type };
+    }
+  }
+  // reading a stored file: the server key only (a Range header reads just the first bytes, as the upload check does)
+  if (req.method === "GET" && (m = /^\/object\/(?:authenticated\/)?([^/]+)\/(.+)$/.exec(path))) {
+    if (claims?.role !== "service_role") return deny("Object not found", 400);
+    const f = files.get(`${m[1]}/${decodeURIComponent(m[2])}`);
+    if (!f) return { status: 404, json: { statusCode: "404", error: "not_found", message: "Object not found" } };
+    const range = /^bytes=(\d+)-(\d+)$/.exec(req.headers.range ?? "");
+    return { status: range ? 206 : 200, raw: range ? f.body.subarray(Number(range[1]), Number(range[2]) + 1) : f.body, type: f.type };
+  }
+  // anything else on a private bucket (an unsigned upload, a public or signed read, a delete) is refused, never stored
+  return deny("This bucket is private");
+}
 async function storage(req, url, body, claims, raw) {
   const path = url.pathname.replace(/^\/storage\/v1/, "");
+  const target = /^\/object\/(?:upload\/sign\/|list\/|sign\/|public\/|authenticated\/)?([^/?]+)/.exec(path)?.[1];
+  if (target && SERVER_BUCKETS[target]) return serverBucketStorage(req, url, claims, raw);
   const bucket = /^\/object\/(?:sign\/|public\/|authenticated\/)?([^/?]+)/.exec(path)?.[1];
   if (bucket && POLICY_BUCKETS[bucket]) return policyStorage(req, url, claims, raw);
   const obj = /^\/object\/(?:public\/|sign\/|authenticated\/)?([^/]+)\/(.+)$/.exec(path);
