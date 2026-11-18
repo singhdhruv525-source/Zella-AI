@@ -270,24 +270,20 @@ export function accessHandlers(admin: SupabaseClient, fields: Json, userId: stri
     // Removing one needs another left: every admin keeps two step sign in (ACC-01).
     me_mfa_remove: async () => {
       const factorId = requireId(fields.factorId, "authenticator");
-      const check = async () => {
-        const factors = await verifiedFactors();
-        const factor = factors.find((f) => f.id === factorId);
-        if (!factor) throw new InputError("That authenticator isn't set up on your account", 404);
-        if (factors.length < 2) throw new InputError("Every Zella Voice admin needs two step sign in. Add another authenticator first, then remove this one.", 409);
-        return { factors, factor };
-      };
-      await check();
-      // Supabase Auth doesn't keep the last factor itself, so a removal takes a per person turn first (the database's
-      // zella_rate_limit is atomic: one removal per person at a time), then counts again; a second removal at the
-      // same moment is refused, so the two can't both pass the "another one left" check.
-      const { data: turn, error: turnError } = await admin.rpc("zella_rate_limit", { p_key: `mfa_remove:${userId}`, p_max: 1, p_window_seconds: 15 });
-      if (turnError) throw turnError;
-      if (turn !== true) throw new InputError("Another change to your authenticators is in progress. Try again in a moment.", 409);
-      const { factors, factor } = await check();
-      const { error } = await admin.auth.admin.mfa.deleteFactor({ userId, id: factorId });
-      if (error) throw error;
-      return { factorId, friendlyName: factor.friendly_name ?? null, left: factors.length - 1 };
+      const factor = (await verifiedFactors()).find((f) => f.id === factorId);
+      if (!factor) throw new InputError("That authenticator isn't set up on your account", 404);
+      // Supabase Auth's own delete doesn't keep the last factor, so the removal runs in the database while holding a
+      // lock on the person (zella_remove_mfa_factor): the "another verified one is left" check and the delete can't
+      // interleave with a second removal (sql/zella_admin_sessions.sql).
+      const { data: left, error } = await admin.rpc("zella_remove_mfa_factor", { p_user_id: userId, p_factor_id: factorId });
+      if (error) {
+        const m = error.message ?? "";
+        if (/LAST_FACTOR/.test(m)) throw new InputError("Every Zella Voice admin needs two step sign in. Add another authenticator first, then remove this one.", 409);
+        if (/NOT_FOUND/.test(m)) throw new InputError("That authenticator isn't set up on your account", 404);
+        if (/zella_remove_mfa_factor|PGRST202|does not exist/i.test(m)) throw new InputError("Removing an authenticator needs the latest database update (sql/zella_admin_sessions.sql).", 503);
+        throw error;
+      }
+      return { factorId, friendlyName: factor.friendly_name ?? null, left: typeof left === "number" ? left : null };
     },
     // Through the server key, which skips Supabase's own reauthentication: the fresh code (entered within 5 minutes)
     // is the reauthentication instead.

@@ -8,7 +8,11 @@
 --      function reads the admin's role again on every call, so a removed admin is refused there at once.
 --   2. zella_revoke_my_other_sessions(): for the signed in person. Deletes their sessions except the one making the
 --      call (the session_id claim) and writes audit 'session.revoked_others' with the count.
--- Both are new. Each is checked first: it must be absent or exactly this file's version, otherwise the file stops
+--   3. zella_remove_mfa_factor(p_user_id, p_factor_id): server only. Removes one of a person's authenticators while
+--      holding a lock on that person, so the "another verified one is left" check and the delete can't interleave with
+--      a second removal (ACC-01, ACC-30): LAST_FACTOR when it is the only verified one, NOT_FOUND when it isn't theirs.
+--      owner-provision-business me_mfa_remove uses it; Supabase Auth's own delete has no such rule.
+-- All three are new. Each is checked first: it must be absent or exactly this file's version, otherwise the file stops
 -- with VERSION_MISMATCH. Running the file twice changes nothing.
 -- Rollback: sql/rollback/zella_admin_sessions_rollback.sql (drops both, refusing if either was changed since).
 begin;
@@ -21,7 +25,8 @@ begin
   end if;
   for f in select * from (values
       ('public.zella_end_user_sessions(uuid)', '6f2b8fb98e67992744046a81ff295d9f'),
-      ('public.zella_revoke_my_other_sessions()', 'e3773f5cab852656cc8d834f5a660302')) v(sig, want) loop
+      ('public.zella_revoke_my_other_sessions()', 'eaaba33d1c889966f9bc2c3e223f44e9'),
+      ('public.zella_remove_mfa_factor(uuid,uuid)', '7a8c3d352a3c9dbecea8e94c726fede1')) v(sig, want) loop
     if to_regprocedure(f.sig) is not null and md5(pg_get_functiondef(f.sig::regprocedure)) <> f.want then
       raise exception 'VERSION_MISMATCH: % already exists in a version this file was not written for', f.sig;
     end if;
@@ -46,6 +51,8 @@ declare v_uid uuid := auth.uid(); v_sid text := auth.jwt() ->> 'session_id'; n i
 begin
   if v_uid is null then raise exception 'NOT_SIGNED_IN'; end if;
   if v_sid is null or v_sid !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then raise exception 'NO_SESSION'; end if;
+  -- one sign out at a time per person: a second request waits, then finds its own session gone (NO_SESSION)
+  perform pg_advisory_xact_lock(hashtext('zella_revoke_my_other_sessions:' || v_uid::text));
   -- the calling session must be one of this person's live sessions, or nothing is ended
   if not exists (select 1 from auth.sessions where id = v_sid::uuid and user_id = v_uid) then raise exception 'NO_SESSION'; end if;
   delete from auth.sessions where user_id = v_uid and id <> v_sid::uuid;
@@ -56,5 +63,22 @@ begin
 end $$;
 revoke all on function public.zella_revoke_my_other_sessions() from public, anon;
 grant execute on function public.zella_revoke_my_other_sessions() to authenticated;
+
+create or replace function public.zella_remove_mfa_factor(p_user_id uuid, p_factor_id uuid) returns integer
+language plpgsql security definer set search_path = '' as $$
+declare n integer;
+begin
+  if p_user_id is null or p_factor_id is null then raise exception 'BAD_INPUT'; end if;
+  -- one removal at a time per person: the person's row is held until this transaction ends
+  perform 1 from auth.users where id = p_user_id for update;
+  if not found then raise exception 'NOT_FOUND'; end if;
+  if not exists (select 1 from auth.mfa_factors where id = p_factor_id and user_id = p_user_id and status = 'verified') then raise exception 'NOT_FOUND'; end if;
+  select count(*) into n from auth.mfa_factors where user_id = p_user_id and status = 'verified';
+  if n < 2 then raise exception 'LAST_FACTOR'; end if;
+  delete from auth.mfa_factors where id = p_factor_id and user_id = p_user_id;
+  return n - 1;
+end $$;
+revoke all on function public.zella_remove_mfa_factor(uuid, uuid) from public, anon, authenticated;
+grant execute on function public.zella_remove_mfa_factor(uuid, uuid) to service_role;
 
 commit;

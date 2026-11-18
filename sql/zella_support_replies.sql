@@ -27,7 +27,11 @@ begin
      or to_regprocedure('public.zella_platform_alert(text,text,text,text,uuid,text,jsonb)') is null then
     raise exception 'VERSION_MISMATCH: something this file needs is missing';
   end if;
-  -- a table already there must be exactly this file's (same columns and types), or nothing is installed against it
+  -- a table already there must be this file's own (its mark, below) and exactly its shape, or nothing is installed
+  if to_regclass('public.support_ticket_messages') is not null
+     and obj_description(to_regclass('public.support_ticket_messages'), 'pg_class') is distinct from 'zella_support_replies.sql' then
+    raise exception 'VERSION_MISMATCH: a support_ticket_messages table this file did not create already exists';
+  end if;
   if to_regclass('public.support_ticket_messages') is not null and (
        select string_agg(column_name || ' ' || data_type, ', ' order by column_name) from information_schema.columns
         where table_schema = 'public' and table_name = 'support_ticket_messages')
@@ -53,6 +57,8 @@ create table if not exists public.support_ticket_messages (
   body text not null check (length(btrim(body)) between 1 and 4000),
   created_at timestamptz not null default now()
 );
+-- the mark the rollback relies on: this table is this file's (it never drops a table it can't prove it created)
+comment on table public.support_ticket_messages is 'zella_support_replies.sql';
 create index if not exists support_ticket_messages_ticket_idx on public.support_ticket_messages (ticket_id, created_at);
 create index if not exists support_ticket_messages_business_idx on public.support_ticket_messages (business_id);
 alter table public.support_ticket_messages enable row level security;
@@ -67,7 +73,14 @@ drop policy if exists zella_mfa_required on public.support_ticket_messages;
 create policy zella_mfa_required on public.support_ticket_messages as restrictive for all to authenticated
   using ((select public.zella_mfa_satisfied())) with check ((select public.zella_mfa_satisfied()));
 
-alter table public.support_tickets add column if not exists first_response_at timestamptz;
+-- the column is marked only when this file adds it, so the rollback never removes one that was there before
+do $$
+begin
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'support_tickets' and column_name = 'first_response_at') then
+    alter table public.support_tickets add column first_response_at timestamptz;
+    comment on column public.support_tickets.first_response_at is 'zella_support_replies.sql';
+  end if;
+end $$;
 
 create or replace function public.zella_admin_ticket_reply(p_ticket uuid, p_author uuid, p_body text) returns jsonb
 language plpgsql security definer set search_path = '' as $$
@@ -130,8 +143,13 @@ drop trigger if exists zella_support_ticket_alert on public.support_tickets;
 create trigger zella_support_ticket_alert after insert on public.support_tickets
   for each row execute function public.zella_support_ticket_alert_trg();
 
-insert into public.platform_settings (key, value)
-values ('support_business_hours', '{"days": [1, 2, 3, 4, 5], "start": "09:00", "end": "17:00", "timezone": "America/New_York", "first_response_hours": 4}'::jsonb)
+-- added only when missing; when this file adds it, support_business_hours_origin records that (the rollback removes the
+-- setting only then, and only while it still has this value)
+with added as (
+  insert into public.platform_settings (key, value)
+  values ('support_business_hours', '{"days": [1, 2, 3, 4, 5], "start": "09:00", "end": "17:00", "timezone": "America/New_York", "first_response_hours": 4}'::jsonb)
+  on conflict (key) do nothing returning key)
+insert into public.platform_settings (key, value) select 'support_business_hours_origin', '"zella_support_replies.sql"'::jsonb from added
 on conflict (key) do nothing;
 
 commit;

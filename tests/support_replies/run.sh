@@ -95,15 +95,34 @@ TI=$(as authenticated "$O1" "select public.zella_business_request(''$B1'', ''iss
 
 out=$("${P[@]}" -d $DB -f "$RB" 2>&1)
 [[ "$out" == *"DRIFT"* ]] && [ -n "$(q "select to_regclass('public.support_ticket_messages')")" ] && ok "the rollback refuses while replies exist" || bad "rollback with replies: $out"
-q "delete from public.support_ticket_messages" > /dev/null   # test replies only; the rollback never deletes replies itself
+out=$("${P[@]}" -d $DB -c "delete from public.support_ticket_messages" -f "$RB" 2>&1)
+[[ "$out" == *"first response times"* ]] && ok "with first response times left, the rollback refuses too (it never deletes them)" || bad "rollback with first response times: $out"
+# test data only: the rollback itself never deletes replies or response times
+q "delete from public.support_ticket_messages; update public.support_tickets set first_response_at = null" > /dev/null
 o1=$("${P[@]}" -d $DB -f "$RB" 2>&1); e1=$?; o2=$("${P[@]}" -d $DB -f "$RB" 2>&1); e2=$?
 [ $e1 -eq 0 ] && [ $e2 -eq 0 ] && ok "once there are no replies, the rollback runs, and again once nothing is left" || bad "rollback: $o1 $o2"
 left=$(q "select coalesce(to_regclass('public.support_ticket_messages')::text, '') || coalesce(to_regprocedure('public.zella_business_ticket_reply(uuid,text)')::text, '') || (select count(*) from information_schema.columns where table_name = 'support_tickets' and column_name = 'first_response_at')::text || (select count(*) from pg_trigger where tgname = 'zella_support_ticket_alert')::text")
 [ "$left" = "00" ] && ok "rollback removes the table, functions, column and trigger" || bad "left: $left"
-[ "$(q "select count(*) from public.platform_settings where key = 'support_business_hours'")" = "1" ] && ok "and keeps the business hours setting (it may have been set by someone)" || bad "setting removed"
+[ "$(q "select count(*) from public.platform_settings where key in ('support_business_hours', 'support_business_hours_origin')")" = "0" ] && ok "and the business hours setting this file added, still unchanged" || bad "setting left"
+# a setting that was there before the file stays after its rollback
+q "insert into public.platform_settings (key, value) values ('support_business_hours', '{\"days\": [1, 2, 3, 4, 5], \"start\": \"09:00\", \"end\": \"17:00\", \"timezone\": \"America/New_York\", \"first_response_hours\": 4}'::jsonb)" > /dev/null
+"${P[@]}" -d $DB -f "$MIG" > /dev/null 2>&1 && "${P[@]}" -d $DB -f "$RB" > /dev/null 2>&1
+[ "$(q "select count(*) from public.platform_settings where key = 'support_business_hours'")" = "1" ] && [ "$(q "select count(*) from public.platform_settings where key = 'support_business_hours_origin'")" = "0" ] && ok "a business hours setting that was there before is kept by the rollback" || bad "pre-existing setting removed"
+# a column that was there before the file stays after its rollback
+q "alter table public.support_tickets add column first_response_at timestamptz" > /dev/null
+"${P[@]}" -d $DB -f "$MIG" > /dev/null 2>&1 && "${P[@]}" -d $DB -f "$RB" > /dev/null 2>&1
+[ "$(q "select count(*) from information_schema.columns where table_name = 'support_tickets' and column_name = 'first_response_at'")" = "1" ] && ok "a first_response_at column that was there before is kept by the rollback" || bad "pre-existing column dropped"
+q "alter table public.support_tickets drop column first_response_at; delete from public.platform_settings where key = 'support_business_hours'" > /dev/null
 q "create table public.support_ticket_messages (id uuid primary key, ticket_id uuid, author_side text, created_at timestamptz)" > /dev/null
 out=$("${P[@]}" -d $DB -f "$MIG" 2>&1)
 [[ "$out" == *"VERSION_MISMATCH"* ]] && [ -z "$(q "select to_regprocedure('public.zella_business_ticket_reply(uuid,text)')")" ] && ok "a messages table of another shape stops the file before anything is installed" || bad "other table: $out"
+q "drop table public.support_ticket_messages" > /dev/null
+# the same columns and types, but not created by the file (no mark): the file stops, and the rollback never drops it
+q "create table public.support_ticket_messages (id uuid primary key, ticket_id uuid, business_id uuid, author_id uuid, author_side text, body text, created_at timestamptz)" > /dev/null
+out=$("${P[@]}" -d $DB -f "$MIG" 2>&1)
+[[ "$out" == *"did not create"* ]] && ok "a look alike messages table the file didn't create stops the file" || bad "look alike: $out"
+out=$("${P[@]}" -d $DB -f "$RB" 2>&1)
+[[ "$out" == *"was not created by"* ]] && [ -n "$(q "select to_regclass('public.support_ticket_messages')")" ] && ok "and the rollback refuses to drop it" || bad "rollback dropped a look alike: $out"
 q "drop table public.support_ticket_messages" > /dev/null
 "${P[@]}" -d $DB -f "$MIG" > /dev/null 2>&1 && ok "applies again after the rollback" || bad "reapply"
 q "create or replace function public.zella_business_ticket_reply(p_ticket uuid, p_body text) returns jsonb language sql security definer set search_path = '' as \$f\$ select '{}'::jsonb \$f\$" > /dev/null

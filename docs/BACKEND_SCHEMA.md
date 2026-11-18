@@ -18,7 +18,7 @@ It reads the catalog only, never rows.
 | Row security policies | 353 |
 | Columns | 2114 |
 | Views | 1 |
-| Functions | 956 (884 security definer, 26 callable by `anon`) |
+| Functions | 957 (885 security definer, 26 callable by `anon`) |
 
 Rules every table follows:
 
@@ -5292,6 +5292,14 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_remind_reconnects()` | integer | yes | server only |
 | `zella_remind_upcoming_callbacks()` | integer | yes | server only |
 
+### `zella_remove_*` (3)
+
+| Function | Returns | SD | Who may call |
+|---|---|---|---|
+| `zella_remove_mfa_factor(p_user_id uuid, p_factor_id uuid)` | integer | yes | server only |
+| `zella_remove_record_file(p_file_id uuid)` | jsonb | yes | signed in |
+| `zella_remove_waitlist_entry(p_id uuid)` | boolean | yes | signed in |
+
 ### `zella_replace_*` (3)
 
 | Function | Returns | SD | Who may call |
@@ -5670,7 +5678,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_setting(p_key text, p_default jsonb)` | jsonb | yes | server only |
 | `zella_tables(p_business_id uuid)` | jsonb | yes | signed in |
 
-### Smaller groups and older helpers (190)
+### Smaller groups and older helpers (188)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -5812,8 +5820,6 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_release_call(p_source text, p_id uuid, p_reason text, p_defer_minutes integer)` | text | yes | server only |
 | `zella_reminder_response(p_appointment_id uuid, p_response text, p_note text)` | text | yes | server only |
 | `zella_reminder_settings_trg()` | trigger | yes | server only |
-| `zella_remove_record_file(p_file_id uuid)` | jsonb | yes | signed in |
-| `zella_remove_waitlist_entry(p_id uuid)` | boolean | yes | signed in |
 | `zella_require_capability(p_business_id uuid, p_key text)` | void | yes | server only |
 | `zella_resend_invitation(p_invitation_id uuid)` | void | yes | signed in |
 | `zella_resend_signature_ok(p_id text, p_timestamp text, p_signature text, p_raw text)` | text | yes | server only |

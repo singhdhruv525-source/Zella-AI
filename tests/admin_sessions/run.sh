@@ -66,8 +66,23 @@ r=$(as authenticated "$A" "f3100000-0000-0000-0000-0000000000ff" "select public.
 r=$(as anon "" "" "select public.zella_revoke_my_other_sessions()::text")
 [[ "$r" == *"permission denied"* ]] && ok "anonymous is refused" || bad "anon others: $r"
 
+# zella_remove_mfa_factor: server only; never the last verified authenticator, never someone else's; one at a time
+FA=f3200000-0000-0000-0000-000000000001; FB=f3200000-0000-0000-0000-000000000002; FC=f3200000-0000-0000-0000-000000000003
+q "insert into auth.mfa_factors (id, user_id, factor_type, status, friendly_name, created_at, updated_at) values ('$FA', '$A', 'totp', 'verified', 'one', now(), now()), ('$FB', '$A', 'totp', 'verified', 'two', now(), now()), ('$FC', '$B', 'totp', 'verified', 'theirs', now(), now())" > /dev/null
+r=$(as authenticated "$A" "$S1" "select public.zella_remove_mfa_factor(''$A'', ''$FA'')::text")
+[[ "$r" == *"permission denied"* ]] && ok "a signed in person can't call the factor removal directly" || bad "authenticated remove: $r"
+r=$(as service_role "" "" "select public.zella_remove_mfa_factor(''$A'', ''$FC'')::text")
+[[ "$r" == *"NOT_FOUND"* ]] && ok "someone else's authenticator is NOT_FOUND" || bad "other's: $r"
+# two removals at the same moment: the first holds the person's row; the second waits, then finds only one left
+( "${P[@]}" -d $DB -c "begin; set local role service_role; select public.zella_remove_mfa_factor('$A', '$FA'); select pg_sleep(2); commit;" > /dev/null 2>&1 ) &
+sleep 0.7
+second=$( "${P[@]}" -d $DB -c "set role service_role; select public.zella_remove_mfa_factor('$A', '$FB')" 2>&1 )
+wait
+left=$(q "select count(*) from auth.mfa_factors where user_id = '$A' and status = 'verified'")
+[[ "$second" == *"LAST_FACTOR"* ]] && [ "$left" = "1" ] && ok "two removals at once: one goes through, the other waits and is refused (LAST_FACTOR), one authenticator stays" || bad "concurrent removal: $second, left $left"
+
 "${P[@]}" -d $DB -f "$RB" > /dev/null 2>&1 && "${P[@]}" -d $DB -f "$RB" > /dev/null 2>&1 && ok "rollback runs twice" || bad "rollback"
-v=$(q "select coalesce(to_regprocedure('public.zella_end_user_sessions(uuid)')::text, '') || coalesce(to_regprocedure('public.zella_revoke_my_other_sessions()')::text, '')") && [ -z "$v" ] && ok "rollback drops both functions" || bad "functions left"
+v=$(q "select coalesce(to_regprocedure('public.zella_end_user_sessions(uuid)')::text, '') || coalesce(to_regprocedure('public.zella_revoke_my_other_sessions()')::text, '') || coalesce(to_regprocedure('public.zella_remove_mfa_factor(uuid,uuid)')::text, '')") && [ -z "$v" ] && ok "rollback drops all three functions" || bad "functions left"
 "${P[@]}" -d $DB -f "$MIG" > /dev/null 2>&1 && ok "applies again after the rollback" || bad "reapply"
 q "create or replace function public.zella_end_user_sessions(p_user_id uuid) returns integer language sql security definer set search_path = '' as \$f\$ select 0 \$f\$" > /dev/null
 out=$("${P[@]}" -d $DB -f "$MIG" 2>&1)

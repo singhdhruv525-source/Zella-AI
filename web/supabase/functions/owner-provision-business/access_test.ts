@@ -44,11 +44,15 @@ const F1 = "11111111-1111-1111-1111-111111111111", F2 = "22222222-2222-2222-2222
 // a fake server client: the factors of each user, and every admin call made
 function authFake(factors: Record<string, { id: string; status: string; friendly_name?: string }[]>, opts: { updateError?: string } = {}) {
   const calls: unknown[] = [];
-  const turns = new Map<string, number>();   // zella_rate_limit: at most p_max calls per key in the window
-  const admin = { rpc: async (fn: string, a: { p_key: string; p_max: number }) => {
-    if (fn !== "zella_rate_limit") return { data: null, error: { message: "unexpected rpc" } };
-    const n = (turns.get(a.p_key) ?? 0) + 1; turns.set(a.p_key, n);
-    return { data: n <= a.p_max, error: null };
+  // zella_remove_mfa_factor as the database does it: refuses the last verified factor and anyone else's
+  const admin = { rpc: async (fn: string, a: { p_user_id: string; p_factor_id: string }) => {
+    if (fn !== "zella_remove_mfa_factor") return { data: null, error: { message: "unexpected rpc" } };
+    calls.push(["remove", a.p_user_id, a.p_factor_id]);
+    const mine = (factors[a.p_user_id] ?? []).filter((f) => f.status === "verified");
+    if (!mine.some((f) => f.id === a.p_factor_id)) return { data: null, error: { message: "NOT_FOUND" } };
+    if (mine.length < 2) return { data: null, error: { message: "LAST_FACTOR" } };
+    factors[a.p_user_id] = (factors[a.p_user_id] ?? []).filter((f) => f.id !== a.p_factor_id);
+    return { data: mine.length - 1, error: null };
   }, auth: { admin: {
     mfa: {
       listFactors: async ({ userId }: { userId: string }) => { calls.push(["list", userId]); return { data: { factors: factors[userId] ?? [] }, error: null }; },
@@ -78,21 +82,21 @@ Deno.test("me_mfa_added records only a verified authenticator that is really the
   assertEquals(h({}).audited.me_mfa_added({ factorId: F1, friendlyName: "Phone" }), { action: "admin.mfa_added", entity_type: "mfa_factor", entity_id: F1, new_data: { friendly_name: "Phone" } });
 });
 
-Deno.test("me_mfa_remove refuses the last authenticator and someone else's, on the server", async () => {
+Deno.test("me_mfa_remove removes through the locked database function, never the last authenticator or someone else's", async () => {
   const one = authFake({ me: [{ id: F1, status: "verified" }, { id: F2, status: "unverified" }] });
   const e = await accessHandlers(one.admin, { factorId: F1 }, "me", kit).handlers.me_mfa_remove().catch((x) => x);
   assertEquals((e as InputError).status, 409);
-  assertEquals(one.calls.some((c) => (c as unknown[])[0] === "delete"), false);
   const factors = () => ({ me: [{ id: F1, status: "verified" }, { id: F2, status: "verified", friendly_name: "Old phone" }], other: [{ id: F3, status: "verified" }] });
   const other = await accessHandlers(authFake(factors()).admin, { factorId: F3 }, "me", kit).handlers.me_mfa_remove().catch((x) => x);
   assertEquals((other as InputError).status, 404);
   const two = authFake(factors());
   assertEquals(await accessHandlers(two.admin, { factorId: F2 }, "me", kit).handlers.me_mfa_remove(), { factorId: F2, friendlyName: "Old phone", left: 1 });
-  assertEquals(two.calls.filter((c) => (c as unknown[])[0] === "delete"), [["delete", "me", F2]]);
-  // a second removal at the same moment waits its turn: refused, nothing deleted, so the last one can't go too
-  const again = await accessHandlers(two.admin, { factorId: F1 }, "me", kit).handlers.me_mfa_remove().catch((x) => x);
-  assertEquals((again as InputError).status, 409);
-  assertEquals(two.calls.filter((c) => (c as unknown[])[0] === "delete").length, 1);
+  assertEquals(two.calls.filter((c) => (c as unknown[])[0] === "remove"), [["remove", "me", F2]]);
+  assertEquals(two.calls.some((c) => (c as unknown[])[0] === "delete"), false);   // never Supabase Auth's unguarded delete
+  // two removals at once: the database answers one at a time, so the second finds only one left (LAST_FACTOR)
+  const race = authFake(factors());
+  const [a, b] = await Promise.all([F1, F2].map((id) => accessHandlers(race.admin, { factorId: id }, "me", kit).handlers.me_mfa_remove().catch((x) => x)));
+  assertEquals([a, b].filter((r) => r instanceof InputError && (r as InputError).status === 409).length, 1);
   assertEquals(accessHandlers(two.admin, {}, "me", kit).audited.me_mfa_remove({ factorId: F2, friendlyName: "Old phone", left: 1 }),
     { action: "admin.mfa_removed", entity_type: "mfa_factor", entity_id: F2, old_data: { friendly_name: "Old phone" }, new_data: { left: 1 } });
 });

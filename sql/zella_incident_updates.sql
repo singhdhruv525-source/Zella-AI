@@ -2,8 +2,9 @@
 -- problem (docs/ADMIN_AUDIT_2026-11-16.md OPS-12, OPS-11).
 --   1. platform_incident_updates: a timeline of progress notes on an incident. Internal: read by admins who can see
 --      incidents (businesses.view), written only through zella_incident_post_update.
---   2. zella_incident_post_update(incident, body, notify): support.manage. The owners of every active business are told
---      ONLY when notify is true ("Tell all active businesses", off by default: routine notes never message owners).
+--   2. zella_incident_post_update(incident, body, notify): support.manage, open incidents only. The owners of every
+--      active business are told in the app (never by email or text) ONLY when notify is true ("Tell all active
+--      businesses", off by default: routine notes never message owners).
 --      Incidents don't record which businesses they affect, so the notice goes to all active businesses. Audited as
 --      platform.incident_updated.
 --   3. zella_incident_edit(incident, title, detail): support.manage, open incidents only; audited as
@@ -31,7 +32,11 @@ begin
      and position('i.title' in pg_get_functiondef('public.zella_public_status()'::regprocedure)) > 0 then
     raise exception 'VERSION_MISMATCH: zella_public_status shows incident titles; it must show only the public message';
   end if;
-  -- a table already there must be exactly this file's (same columns and types), or nothing is installed against it
+  -- a table already there must be this file's own (its mark, below) and exactly its shape, or nothing is installed
+  if to_regclass('public.platform_incident_updates') is not null
+     and obj_description(to_regclass('public.platform_incident_updates'), 'pg_class') is distinct from 'zella_incident_updates.sql' then
+    raise exception 'VERSION_MISMATCH: a platform_incident_updates table this file did not create already exists';
+  end if;
   if to_regclass('public.platform_incident_updates') is not null and (
        select string_agg(column_name || ' ' || data_type, ', ' order by column_name) from information_schema.columns
         where table_schema = 'public' and table_name = 'platform_incident_updates')
@@ -39,7 +44,7 @@ begin
     raise exception 'VERSION_MISMATCH: a different platform_incident_updates table already exists';
   end if;
   for f in select * from (values
-      ('public.zella_incident_post_update(uuid,text,boolean)', '1ecc82de3e0ecb6f1538033985357075'),
+      ('public.zella_incident_post_update(uuid,text,boolean)', 'f5a3726b3ffdc5ae3578e28fb9547098'),
       ('public.zella_incident_edit(uuid,text,text)', 'e0215d925eed949c81af4ee8d21ac576'),
       ('public.zella_incident_title_key(text)', '4980429f996f03a32006003ada23cad3'),
       ('public.zella_open_incident_checked(text,text,boolean)', '60baa4d2414a8001635ead319ee6b4e2')) v(sig, want) loop
@@ -57,6 +62,8 @@ create table if not exists public.platform_incident_updates (
   created_by uuid,
   created_at timestamptz not null default now()
 );
+-- the mark the rollback relies on: this table is this file's (it never drops a table it can't prove it created)
+comment on table public.platform_incident_updates is 'zella_incident_updates.sql';
 create index if not exists platform_incident_updates_incident_idx on public.platform_incident_updates (incident_id, created_at);
 alter table public.platform_incident_updates enable row level security;
 revoke all on table public.platform_incident_updates from public, anon, authenticated;
@@ -108,12 +115,16 @@ begin
   if length(v_body) not between 3 and 1000 then raise exception 'BAD_INPUT'; end if;
   select id, title, status into i from public.platform_incidents where id = p_incident for update;
   if not found then raise exception 'NOT_FOUND'; end if;
+  if i.status <> 'open' then raise exception 'NOT_OPEN'; end if;
   insert into public.platform_incident_updates (incident_id, body, created_by) values (i.id, v_body, auth.uid()) returning id into v_id;
   if coalesce(p_notify, false) then
     for b in select id from public.businesses where suspended_at is null and cancelled_at is null and coalesce(is_active, true) loop
       perform public.zella_notify_owners(b.id, 'incident_update', left(i.title, 120), left(v_body, 300), 'info', 'home');
       n := n + 1;
     end loop;
+    -- in the app only: these notices are marked so the email and text delivery never claims them
+    update public.staff_notifications set delivery_status = 'skipped', sms_status = 'skipped'
+     where kind = 'incident_update' and created_at = now() and delivery_status = 'pending';
     update public.platform_incident_updates set notified_businesses = n where id = v_id;
   end if;
   insert into public.audit_logs (user_id, action, entity_type, entity_id, new_data)

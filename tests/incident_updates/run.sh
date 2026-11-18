@@ -55,7 +55,8 @@ r=$(as "$SA" "select public.zella_open_incident_checked(''TEXT MESSAGES delayed!
 [[ "$r" == *"SIMILAR_OPEN"* && "$r" == *"$INC"* ]] && [ "$(q "select count(*) from public.platform_incidents")" = "1" ] && [ "$(notes)" = "$n0" ] && ok "a second one for the same problem returns SIMILAR_OPEN with the open incident, opens nothing and tells no one" || bad "similar: $r ($(notes) vs $n0 notices)"
 r=$(as "$SA" "select public.zella_open_incident_checked(''Text messages delayed in Texas'', null, false) ->> ''code''")
 [ "$r" = "SIMILAR_OPEN" ] && [ "$(notes)" = "$n0" ] && ok "a longer title for the same problem is caught too, and tells no one" || bad "contains: $r ($(notes) vs $n0 notices)"
-as "$SA" "select public.zella_open_incident_checked(''!!!'', null, true)::text" > /dev/null
+r=$(as "$SA" "select public.zella_open_incident_checked(''!!!'', null, true) ->> ''opened''")
+[ "$r" = "true" ] && [ "$(q "select count(*) from public.platform_incidents where title = '!!!' and status = 'open'")" = "1" ] && ok "an incident whose title has no words is open (the case below needs it)" || bad "punctuation incident not opened: $r"
 r=$(as "$SA" "select public.zella_open_incident_checked(''Power outage'', null, false)::text")
 [[ "$r" == *'"opened": true'* ]] && ok "an open incident whose title has no words isn't matched against every new title" || bad "empty key: $r"
 q "delete from public.platform_incidents where title in ('!!!', 'Power outage')" > /dev/null
@@ -71,6 +72,7 @@ r=$(as "$SA" "select public.zella_incident_post_update(''$INC'', ''Carrier confi
 [ "$r" = "0" ] && [ "$(notes)" = "$n1" ] && ok "an update is internal by default: no owner is told" || bad "quiet update: $r $(notes) $n1"
 r=$(as "$SA" "select public.zella_incident_post_update(''$INC'', ''Messages are flowing again slowly'', true) ->> ''notified_businesses''")
 [ "${r:-0}" -gt 0 ] && [ "$(notes)" -gt "$n1" ] && ok "with Tell all active businesses, owners are told ($r businesses)" || bad "notify: $r"
+[ "$(q "select count(*) from public.staff_notifications where kind = 'incident_update' and (delivery_status is distinct from 'skipped' or sms_status is distinct from 'skipped')")" = "0" ] && ok "in the app only: no notice is left for email or text delivery" || bad "incident notices queued for delivery"
 [ "$(q "select count(*) from public.audit_logs where action = 'platform.incident_updated' and entity_id = '$INC'")" = "2" ] && ok "each update is audited" || bad "update audit"
 r=$(as "$RO" "select public.zella_incident_post_update(''$INC'', ''hello there'', false)::text")
 [[ "$r" == *"NOT_ALLOWED"* ]] && ok "a read only admin can't post updates" || bad "ro post: $r"
@@ -94,6 +96,8 @@ r=$(as "$RO" "select public.zella_incident_edit(''$INC'', ''Changed by read only
 q "update public.platform_incidents set status = 'resolved', resolved_at = now() where id = '$INC'" > /dev/null
 r=$(as "$SA" "select public.zella_incident_edit(''$INC'', ''Too late'', null)::text")
 [[ "$r" == *"NOT_OPEN"* ]] && ok "a resolved incident can't be edited" || bad "resolved edit: $r"
+r=$(as "$SA" "select public.zella_incident_post_update(''$INC'', ''Posted too late'')::text")
+[[ "$r" == *"NOT_OPEN"* ]] && ok "nor given new updates" || bad "resolved post: $r"
 
 out=$("${P[@]}" -d $DB -f "$RB" 2>&1)
 [[ "$out" == *"DRIFT"* ]] && ok "the rollback refuses while updates exist" || bad "rollback with updates: $out"
@@ -104,6 +108,13 @@ v=$(q "select coalesce(to_regclass('public.platform_incident_updates')::text, ''
 q "create table public.platform_incident_updates (id uuid primary key, incident_id uuid, notified_businesses integer, created_at timestamptz)" > /dev/null
 out=$("${P[@]}" -d $DB -f "$MIG" 2>&1)
 [[ "$out" == *"VERSION_MISMATCH"* ]] && [ -z "$(q "select to_regprocedure('public.zella_incident_post_update(uuid,text,boolean)')")" ] && ok "a timeline table of another shape stops the file before anything is installed" || bad "other table: $out"
+q "drop table public.platform_incident_updates" > /dev/null
+# the same columns and types, but not created by the file (no mark): the file stops, and the rollback never drops it
+q "create table public.platform_incident_updates (id uuid primary key, incident_id uuid, body text, notified_businesses integer, created_by uuid, created_at timestamptz)" > /dev/null
+out=$("${P[@]}" -d $DB -f "$MIG" 2>&1)
+[[ "$out" == *"did not create"* ]] && ok "a look alike timeline table the file didn't create stops the file" || bad "look alike: $out"
+out=$("${P[@]}" -d $DB -f "$RB" 2>&1)
+[[ "$out" == *"was not created by"* ]] && [ -n "$(q "select to_regclass('public.platform_incident_updates')")" ] && ok "and the rollback refuses to drop it" || bad "rollback dropped a look alike: $out"
 q "drop table public.platform_incident_updates" > /dev/null
 [ -n "$(q "select to_regprocedure('public.zella_open_incident(text,text)')")" ] && ok "zella_open_incident itself is untouched" || bad "open_incident gone"
 "${P[@]}" -d $DB -f "$MIG" > /dev/null 2>&1 && ok "applies again after the rollback" || bad "reapply"
