@@ -61,14 +61,20 @@ html[data-zella-theme="zella"]:has(.ba-root, .owner-app) {
   --zella-display: "Inter Tight", Inter, system-ui, sans-serif;
 }
 
-/* Headlines in Inter Tight, tracked in slightly, like the wordmark */
-html[data-zella-theme="zella"]:has(.ba-root, .owner-app) :is(.ba-root, .owner-app) :is(h1, h2, .ba-page-head h1, .owner-page-heading h1, .zs-head h1) {
+/* Page headings in Inter Tight, tracked in slightly, like the wordmark. Only page headings: at card and section sizes
+   (16 to 18px) the tight tracking closes the word spaces, so those keep Inter at normal tracking. */
+html[data-zella-theme="zella"]:has(.ba-root, .owner-app) :is(.ba-root, .owner-app) :is(h1, .ba-page-head h1, .owner-page-heading h1, .zs-head h1) {
   font-family: var(--zella-display);
   letter-spacing: -0.02em;
 }
+html[data-zella-theme="zella"]:has(.ba-root, .owner-app) :is(.ba-root, .owner-app) :is(h2, h3) {
+  font-family: var(--zella-font);
+  font-weight: 600;
+  letter-spacing: 0;
+}
 
 /* The pill is the signature shape: buttons echo the logo's bars */
-html[data-zella-theme="zella"]:has(.ba-root, .owner-app) :is(.ba-btn, .owner-primary-button, .owner-secondary-button, .zs-btn, .bd-danger-button, .zella-dock-toggle) {
+html[data-zella-theme="zella"]:has(.ba-root, .owner-app) :is(.ba-btn, .ba-btn.sm, .owner-primary-button, .owner-secondary-button, .owner-secondary-button.sm, .owner-link-button, .zs-btn, .zs-btn.sm, .bd-danger-button, .zella-dock-toggle) {
   border-radius: 999px;
 }
 

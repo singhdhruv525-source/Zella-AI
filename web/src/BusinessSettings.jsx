@@ -26,6 +26,7 @@ import { AppearancePanel } from "./settings/AppearancePanel";
 import { Banner, Card, Confirm, Empty, Facts, Field, LinkRows, LoadState, Needs, Pill, SaveBar, Table, useAsync, useForm, when, words } from "./settings/SettingsKit";
 import { usePlatformInfo } from "./platformInfo";
 import { BusinessModulesPanel } from "./settings/BusinessModulesPanel";
+import TicketThread from "./settings/panels/TicketThread";
 import { CallContentAccess, CapabilitiesPanel } from "./settings/CapabilitiesPanel";
 import { BusinessCallingUsage } from "./settings/CallingUsagePanels";
 import { AutoReloadPanel, BillingBalancesPanel, BillingPlanPanel } from "./settings/BillingPanels";
@@ -820,6 +821,7 @@ function SupportTickets({ w, kind = "support" }) {
   const state = useAsync(() => supabase.from("support_tickets").select("id, subject, status, priority, category, created_at, resolved_at").eq("business_id", w.id).order("created_at", { ascending: false }).limit(50).then(orThrow), [w.id]);
   const form = useForm({ kind, subject: "", description: "", urgent: false });
   const v = form.values;
+  const [open, setOpen] = useState(null);   // the request whose conversation is shown (OPS-25)
   return (
     <>
       <Card title={kind === "feedback" ? "Send feedback" : "New support request"}>
@@ -835,16 +837,19 @@ function SupportTickets({ w, kind = "support" }) {
             await rpc("zella_business_request", { p_business_id: w.id, p_kind: x.kind, p_subject: x.subject, p_description: x.description, p_details: { urgent: x.urgent } });
             state.reload();
             return { subject: "", description: "", urgent: false };
-          }, "Sent. The Zella Voice team will reply by email.")} />
+          }, "Sent. Zella Voice support replies here, under Your requests.")} />
         </>}
       </Card>
       <LoadState state={state}>{(rows) => (
         <Card title="Your requests">
           <Table rows={rows} empty="No requests yet." columns={[["Subject", (t) => t.subject], ["Type", (t) => words(t.category)], ["Priority", (t) => words(t.priority)],
-            ["Status", (t) => <Pill tone={["resolved", "closed"].includes(t.status) ? "success" : "warning"}>{words(t.status)}</Pill>], ["Opened", (t) => when(t.created_at)]]} />
+            ["Status", (t) => <Pill tone={["resolved", "closed"].includes(t.status) ? "success" : "warning"}>{words(t.status)}</Pill>], ["Opened", (t) => when(t.created_at)],
+            ["", (t) => <button type="button" className="zs-btn sm" onClick={() => setOpen(t)}>Conversation</button>]]} />
         </Card>
       )}</LoadState>
-      <Needs title="Replies and attachments inside Zella Voice aren't available" have="The Zella Voice team replies by email.">A conversation thread needs ticket messages and file storage for attachments.</Needs>
+      {/* one thread per request (keyed by its id), so a draft written for one request is never sent with another */}
+      {open && <TicketThread key={open.id} ticket={open} businessName={w.name} canReply={roleIn(w, ["owner", "admin", "manager"])} onClose={() => setOpen(null)} onAnswered={() => state.reload()} />}
+      <Needs title="Attachments inside Zella Voice aren't available" have="Describe the problem in words, or ask support for an email address to send files to.">Attachments need file storage for support requests.</Needs>
     </>
   );
 }

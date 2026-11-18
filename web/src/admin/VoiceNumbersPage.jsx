@@ -6,7 +6,7 @@ import ProviderOrders from "./ProviderOrders";
 import { switchHint } from "../copy/liveSwitches";
 import {
   AlertList, DataTable, Drawer, ErrorNote, Facts, Filters, Metric, NotAvailable, PAGE, PageHeader, Pager, Panel, PERIODS, Pill,
-  ProviderHealth, ReasonDialog, Search, Select, Tabs, Toggle, can, duration, num, pct, rpc, since, useLoad, useOptions, useToast, when, words,
+  ProviderHealth, ReasonDialog, Search, Select, Tabs, Toggle, can, duration, num, pct, rpc, since, useLoad, useOptions, useToast, when, words, whenText, durationText
 } from "./adminOps";
 
 // Admin page: every business's phone numbers, its calls and its call routing, from the database (zella_admin_*
@@ -31,7 +31,7 @@ export default function VoiceNumbersPage({ me, sub, onOpenBusiness }) {
   const openCalls = (filter) => { setCallFilter(filter); setTab("calls"); };
   return (
     <section className="owner-page ao-page">
-      <PageHeader title="Voice & numbers" description="Every business's phone numbers, the calls the AI receptionist handled and who callers are put through to."
+      <PageHeader eyebrow="AI and communications" title="Voice & numbers" description="Every business's phone numbers, the calls the AI receptionist handled and who callers are put through to."
         actions={manage && <button type="button" className="owner-primary-button" onClick={() => setAssign({ e164: "", businessId: "", vapiPhoneNumberId: "", label: "" })}>Assign a number</button>} />
       <ErrorNote error={options.error} onRetry={options.reload} />
       <Tabs tabs={TABS} current={tab} onChange={setTab} />
@@ -66,7 +66,7 @@ function Overview({ onTab, onOpenCalls }) {
             <Metric label="Inbound calls" value={num(o.inbound)} note={o.answer_rate == null ? "No answer rate yet" : `Answer rate ${pct(o.answer_rate)}`} />
             <Metric label="Outbound calls" value={num(o.outbound)} />
             <Metric label="In progress now" value={num(o.in_progress)} />
-            <Metric label="Completed" value={num(o.completed)} note={`Average ${duration(o.avg_seconds)}`} />
+            <Metric label="Completed" value={num(o.completed)} note={`Average ${durationText(o.avg_seconds)}`} />
             <Metric label="Missed" value={num(o.missed)} tone={o.missed ? "warning" : null} />
             <Metric label="Failed" value={num(o.failed)} tone={o.failed ? "danger" : null} />
             <Metric label="Transfers that didn't connect" value={num(o.transfers_failed)} tone={o.transfers_failed ? "warning" : null} />
@@ -245,7 +245,7 @@ function CallDrawer({ id, onClose, onOpenBusiness }) {
               .filter(([, t]) => t).map(([l, t]) => <li key={l}><strong>{l}</strong><span>{when(t)}</span></li>)}
             {d.data.tools.map((t, i) => <li key={`t${i}`}><strong>Tool: {words(t.tool)}</strong><span>{words(t.status)}{t.error ? `: ${t.error}` : ""} · {when(t.at)}</span></li>)}
             {d.data.messages.map((m, i) => <li key={`m${i}`}><strong>Message taken ({words(m.kind)})</strong><span>{words(m.status)} · {when(m.at)}</span></li>)}
-            {d.data.callbacks.map((k, i) => <li key={`k${i}`}><strong>Callback</strong><span>{words(k.status)}{k.due_at ? ` · due ${when(k.due_at)}` : ""}</span></li>)}
+            {d.data.callbacks.map((k, i) => <li key={`k${i}`}><strong>Callback</strong><span>{words(k.status)}{k.due_at ? ` · due ${whenText(k.due_at)}` : ""}</span></li>)}
           </ol>
           {d.data.usage.length > 0 && <Facts rows={d.data.usage.map((u, i) => [`Usage ${i + 1}`, `${words(u.kind)}: ${u.billable_seconds ?? 0} s (${words(u.status)})`])} />}
           <h3 className="ao-h3">Summary, transcript and recording</h3>

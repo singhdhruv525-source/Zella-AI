@@ -15,10 +15,10 @@ It reads the catalog only, never rows.
 |---|---|
 | Tables (schema `public`) | 180 |
 | Tables with row security on | 180 of 180 |
-| Row security policies | 342 |
-| Columns | 2127 |
+| Row security policies | 353 |
+| Columns | 2116 |
 | Views | 1 |
-| Functions | 945 (874 security definer, 26 callable by `anon`) |
+| Functions | 960 (888 security definer, 26 callable by `anon`) |
 
 Rules every table follows:
 
@@ -61,7 +61,7 @@ Each is a database job; most stay off until the owner approves going live (see `
 ## Contents
 
 - [Tenancy, people and access](#tenancy-people-and-access): `businesses`, `business_members`, `business_invitations`, `profiles`, `staff_members`, `staff_handovers`, `time_off_requests`, `platform_admins`, `platform_role_permissions`, `sensitive_approvals`, `legal_documents`, `legal_acceptances`, `audit_logs`, `zella_function_archive`, `zella_text_archive`, `rate_limits`
-- [Business setup and industry configuration](#business-setup-and-industry-configuration): `industries`, `industry_configurations`, `industry_modules`, `business_modules`, `business_capabilities`, `industry_crm_presets`, `industry_automation_presets`, `industry_automation_defaults`, `industry_automation_runs`, `industry_message_policy`, `business_hours`, `business_closures`, `business_languages`, `business_voice`, `business_phone_numbers`, `business_verification_documents`, `provisioning_steps`, `activation_tests`, `config_migration_snapshots`, `zella_milestones`, `platform_settings`, `business_usage_preferences`
+- [Business setup and industry configuration](#business-setup-and-industry-configuration): `industries`, `industry_configurations`, `industry_modules`, `business_modules`, `business_capabilities`, `industry_crm_presets`, `industry_automation_presets`, `industry_automation_defaults`, `industry_automation_runs`, `industry_message_policy`, `business_hours`, `business_closures`, `business_languages`, `business_voice`, `business_phone_numbers`, `business_verification_documents`, `provisioning_steps`, `activation_tests`, `owner_onboarding`, `owner_onboarding_steps`, `owner_onboarding_sections`, `identity_verification_events`, `config_migration_snapshots`, `zella_milestones`, `platform_settings`, `business_usage_preferences`
 - [Customers and CRM](#customers-and-crm): `customers`, `customer_relationships`, `customer_requests`, `customer_consents`, `contact_consents`, `duplicate_reviews`, `crm_tasks`, `crm_record_types`, `crm_records`, `crm_record_events`, `crm_record_files`, `crm_record_secrets`, `record_workflow_presets`, `record_approvals`, `record_milestones`, `record_inspections`, `record_exceptions`, `record_credits`, `quotes`, `customer_charges`, `customer_charge_payments`, `data_rights_requests`
 - [Leads](#leads): `lead_rules`, `lead_questions`, `lead_submissions`, `website_forms`, `website_sources`, `website_pages`, `google_lead_keys`, `google_lead_events`, `assignment_rules`
 - [Calls and the AI receptionist](#calls-and-the-ai-receptionist): `calls`, `call_messages`, `call_insights`, `callbacks`, `callback_attempts`, `ai_agents`, `ai_agent_configs`, `agent_config_versions`, `assistant_deliveries`, `ai_tool_calls`, `ai_answer_reports`, `ai_response_samples`, `ai_eval_cases`, `vapi_request_receipts`, `on_call_settings`, `on_call_shifts`, `on_call_reminders_sent`, `store_lookup_guards`
@@ -72,7 +72,7 @@ Each is a database job; most stay off until the owner approves going live (see `
 - [Automations and background work](#automations-and-background-work): `automations`, `automation_runs`, `automation_events`, `automation_dead_letters`, `workflow_executions`, `n8n_dispatch_state`, `integrations`, `integration_secrets`, `provider_health`
 - [Offers, reviews and growth](#offers-reviews-and-growth): `offers`, `offer_rules`, `offer_redemptions`, `offer_events`, `offer_job_runs`, `cross_sell_rules`, `review_sources`, `reviews`
 - [Billing and usage](#billing-and-usage): `plans`, `business_plans`, `billing_pack_catalog`, `billing_periods`, `allowance_buckets`, `pack_purchases`, `usage_charges`, `auto_reload_settings`, `subscriptions`, `payments`, `billing_events`, `usage_records`, `usage_thresholds`, `usage_threshold_events`, `usage_processing_issues`, `voice_pricing`
-- [Notifications, reports and support](#notifications-reports-and-support): `notifications`, `notification_preferences`, `staff_notifications`, `admin_alert_prefs`, `platform_alerts`, `platform_incidents`, `business_report_schedules`, `business_report_runs`, `support_tickets`, `support_ticket_notes`, `business_recording_policies`, `data_retention_policies`, `retention_removed_files`, `retention_purge_runs`, `legal_holds`, `number_orders`
+- [Notifications, reports and support](#notifications-reports-and-support): `notifications`, `notification_preferences`, `staff_notifications`, `admin_alert_prefs`, `platform_alerts`, `platform_incidents`, `platform_incident_updates`, `business_report_schedules`, `business_report_runs`, `support_tickets`, `support_ticket_notes`, `support_ticket_messages`
 - [Functions](#functions)
 
 ## Tenancy, people and access
@@ -280,7 +280,7 @@ Zella Voice staff who can use the platform admin, and their platform role.
 - `created_by` → `auth.users` (on delete set null).
 - `user_id` → `auth.users` (on delete cascade).
 - Row security: on; policies: zella_mfa_required (all).
-- Triggers: `zella_audit_privileged_trg`, `zella_platform_admin_after_trg`, `zella_platform_admin_before_trg`, `zella_platform_admin_email_check`.
+- Triggers: `zella_audit_privileged_trg`, `zella_keep_an_owner`, `zella_keep_an_owner_turn`, `zella_platform_admin_after_trg`, `zella_platform_admin_before_trg`, `zella_platform_admin_email_check`.
 
 ### `platform_role_permissions`
 
@@ -715,6 +715,7 @@ Business and owner verification documents (files in private storage).
 - Unique: `(file_path)`.
 - `business_id` → `public.businesses` (on delete cascade).
 - Row security: on; policies: business_verification_documents_owner_read (select), zella_mfa_required (all).
+- Triggers: `zella_onboarding_document_rejected`.
 
 ### `provisioning_steps`
 
@@ -747,6 +748,94 @@ Results of the checks run before a business goes live.
 - Primary key: `id`.
 - `business_id` → `public.businesses` (on delete cascade).
 - Row security: on; policies: activation_tests_select (select), zella_mfa_required (all).
+
+### `owner_onboarding`
+
+The owner onboarding journey per business: current step, finish later and resume, identity attempts and provider result, accepted plan version (written only through the onboarding functions).
+
+| Column | Type | Required | Default |
+|---|---|---|---|
+| `business_id` | uuid | yes |  |
+| `current_step` | text | yes | 'welcome' |
+| `started_by` | uuid |  |  |
+| `started_at` | timestamp with time zone | yes | now() |
+| `paused_at` | timestamp with time zone |  |  |
+| `resumed_at` | timestamp with time zone |  |  |
+| `completed_at` | timestamp with time zone |  |  |
+| `identity_attempts` | integer | yes | 0 |
+| `identity_reference` | text | yes | replace((gen_random_uuid()), '-', '') |
+| `identity_provider_status` | text |  |  |
+| `identity_provider_at` | timestamp with time zone |  |  |
+| `plan_accepted_version` | integer |  |  |
+| `plan_accepted_at` | timestamp with time zone |  |  |
+| `updated_at` | timestamp with time zone | yes | now() |
+
+- Primary key: `business_id`.
+- Unique: `(identity_reference)`.
+- `business_id` → `public.businesses` (on delete cascade).
+- `business_id, plan_accepted_version` → `public.business_plans` (on delete no action).
+- `started_by` → `auth.users` (on delete set null).
+- Row security: on; policies: owner_onboarding_read (select), zella_mfa_required (all).
+
+### `owner_onboarding_steps`
+
+When each of the seven onboarding steps was reached and completed for a business, and by whom.
+
+| Column | Type | Required | Default |
+|---|---|---|---|
+| `business_id` | uuid | yes |  |
+| `step` | text | yes |  |
+| `reached_at` | timestamp with time zone | yes | now() |
+| `completed_at` | timestamp with time zone |  |  |
+| `completed_by` | uuid |  |  |
+
+- Primary key: `business_id, step`.
+- `business_id` → `public.owner_onboarding` (on delete cascade).
+- `completed_by` → `auth.users` (on delete set null).
+- Row security: on; policies: owner_onboarding_steps_read (select), zella_mfa_required (all).
+
+### `owner_onboarding_sections`
+
+The owner's answer per detail section (Looks right or a change with a note), with a fingerprint of the details they confirmed.
+
+| Column | Type | Required | Default |
+|---|---|---|---|
+| `business_id` | uuid | yes |  |
+| `section` | text | yes |  |
+| `status` | text | yes |  |
+| `note` | text |  |  |
+| `admin_note` | text |  |  |
+| `confirmed_hash` | text |  |  |
+| `answered_by` | uuid |  |  |
+| `answered_at` | timestamp with time zone | yes | now() |
+| `updated_at` | timestamp with time zone | yes | now() |
+
+- Primary key: `business_id, section`.
+- `answered_by` → `auth.users` (on delete set null).
+- `business_id` → `public.owner_onboarding` (on delete cascade).
+- Row security: on; policies: owner_onboarding_sections_read (select), zella_mfa_required (all).
+
+### `identity_verification_events`
+
+Identity provider results, each processed once per provider and event id; unknown references kept as unmapped (server only).
+
+| Column | Type | Required | Default |
+|---|---|---|---|
+| `id` | uuid | yes | gen_random_uuid() |
+| `provider` | text | yes |  |
+| `event_id` | text | yes |  |
+| `scope` | text | yes |  |
+| `business_id` | uuid |  |  |
+| `outcome` | text | yes |  |
+| `subject` | text |  |  |
+| `occurred_at` | timestamp with time zone |  |  |
+| `result` | text | yes |  |
+| `received_at` | timestamp with time zone | yes | now() |
+
+- Primary key: `id`.
+- Unique: `(provider, event_id)`.
+- `business_id` → `public.businesses` (on delete cascade).
+- Row security: on; policies: zella_mfa_required (all).
 
 ### `config_migration_snapshots`
 
@@ -794,7 +883,7 @@ Platform-wide switches and settings (live switches, provider choices). No secret
 
 - Primary key: `key`.
 - Row security: on; policies: zella_mfa_required (all).
-- Triggers: `zella_audit_privileged_trg`, `zella_recording_setting_guard`, `zella_retention_setting_guard`.
+- Triggers: `zella_audit_privileged_trg`.
 
 ### `business_usage_preferences`
 
@@ -4206,6 +4295,24 @@ Incidents shown on the public status page.
 - Row security: on; policies: platform_incidents_admin (select), platform_incidents_admin_view (select), zella_mfa_required (all).
 - Triggers: `zella_audit_admin_incident`.
 
+### `platform_incident_updates`
+
+Progress notes on an incident (internal; owners are told only when the admin asks).
+
+| Column | Type | Required | Default |
+|---|---|---|---|
+| `id` | uuid | yes | gen_random_uuid() |
+| `incident_id` | uuid | yes |  |
+| `body` | text | yes |  |
+| `notified_businesses` | integer | yes | 0 |
+| `created_by` | uuid |  |  |
+| `client_ref` | uuid |  |  |
+| `created_at` | timestamp with time zone | yes | now() |
+
+- Primary key: `id`.
+- `incident_id` → `public.platform_incidents` (on delete cascade).
+- Row security: on; policies: platform_incident_updates_admin_view (select), zella_mfa_required (all).
+
 ### `business_report_schedules`
 
 Which reports a business gets and when.
@@ -4267,13 +4374,14 @@ Support requests from businesses.
 | `metadata` | jsonb | yes | '{}' |
 | `created_at` | timestamp with time zone | yes | now() |
 | `updated_at` | timestamp with time zone | yes | now() |
+| `first_response_at` | timestamp with time zone |  |  |
 
 - Primary key: `id`.
 - `assigned_to` → `public.profiles` (on delete set null).
 - `business_id` → `public.businesses` (on delete cascade).
 - `created_by` → `public.profiles` (on delete set null).
 - Row security: on; policies: authorized managers can update support tickets (update), business members can create support tickets (insert), business members can view support tickets (select), zella_mfa_required (all), zella_viewer_no_delete (delete), zella_viewer_no_insert (insert), zella_viewer_no_update (update).
-- Triggers: `zella_support_notes_guard`, `zella_support_notes_guard_new`.
+- Triggers: `zella_support_notes_guard`, `zella_support_notes_guard_new`, `zella_support_ticket_alert`.
 
 ### `support_ticket_notes`
 
@@ -4292,136 +4400,24 @@ Zella Voice admins' internal notes on support tickets (server only: the business
 - `ticket_id` → `public.support_tickets` (on delete cascade).
 - Row security: on; no policies, so roles subject to row security (signed-in users and anon) get no rows directly. Superusers and `BYPASSRLS` roles (such as the server key) are not limited by it, nor is the table owner unless `FORCE ROW LEVEL SECURITY` is set; a security definer function runs with its function owner's rights.
 
-### `business_recording_policies`
+### `support_ticket_messages`
 
-Recording on or off per business (no row means off); can't be on until a Zella Voice owner records legal approval (server only).
+The conversation on a support ticket that the business sees: Zella Voice replies and the business's answers (never the internal notes).
 
 | Column | Type | Required | Default |
 |---|---|---|---|
+| `id` | uuid | yes | gen_random_uuid() |
+| `ticket_id` | uuid | yes |  |
 | `business_id` | uuid | yes |  |
-| `recording_on` | boolean | yes | false |
-| `reason` | text | yes |  |
-| `updated_by` | uuid |  |  |
-| `updated_at` | timestamp with time zone | yes | now() |
-
-- Primary key: `business_id`.
-- `business_id` → `public.businesses` (on delete cascade).
-- Row security: on; no policies, so roles subject to row security (signed-in users and anon) get no rows directly. Superusers and `BYPASSRLS` roles (such as the server key) are not limited by it, nor is the table owner unless `FORCE ROW LEVEL SECURITY` is set; a security definer function runs with its function owner's rights.
-- Triggers: `zella_recording_policy_guard`.
-
-### `data_retention_policies`
-
-How long each kind of data is kept, the architecture's proposal and its legal review status (server only).
-
-| Column | Type | Required | Default |
-|---|---|---|---|
-| `data_class` | text | yes |  |
-| `days` | integer | yes |  |
-| `architecture_days` | integer | yes |  |
-| `legal_status` | text | yes | 'pending_legal_review' |
-| `note` | text |  |  |
-| `updated_by` | uuid |  |  |
-| `updated_at` | timestamp with time zone | yes | now() |
-
-- Primary key: `data_class`.
-- Row security: on; no policies, so roles subject to row security (signed-in users and anon) get no rows directly. Superusers and `BYPASSRLS` roles (such as the server key) are not limited by it, nor is the table owner unless `FORCE ROW LEVEL SECURITY` is set; a security definer function runs with its function owner's rights.
-
-### `retention_removed_files`
-
-Verification files removed under retention: the document row and its outcome stay (server only).
-
-| Column | Type | Required | Default |
-|---|---|---|---|
-| `document_id` | uuid | yes |  |
-| `file_path` | text | yes |  |
-| `run_id` | uuid |  |  |
-| `removed_at` | timestamp with time zone | yes | now() |
-
-- Primary key: `document_id`.
-- Row security: on; no policies, so roles subject to row security (signed-in users and anon) get no rows directly. Superusers and `BYPASSRLS` roles (such as the server key) are not limited by it, nor is the table owner unless `FORCE ROW LEVEL SECURITY` is set; a security definer function runs with its function owner's rights.
-
-### `retention_purge_runs`
-
-Purge runs of data past its retention period: the exact rows, two approvals (one a Zella Voice owner), who ran it and what was removed (server only).
-
-| Column | Type | Required | Default |
-|---|---|---|---|
-| `id` | uuid | yes | gen_random_uuid() |
-| `data_class` | text | yes |  |
-| `business_id` | uuid |  |  |
-| `status` | text | yes | 'requested' |
-| `requested_by` | uuid | yes |  |
-| `request_reason` | text | yes |  |
-| `cutoff` | timestamp with time zone | yes |  |
-| `items` | jsonb | yes | '[]' |
-| `item_count` | integer | yes |  |
-| `export_offered_at` | timestamp with time zone |  |  |
-| `export_offer_note` | text |  |  |
-| `owner_approved_by` | uuid |  |  |
-| `owner_approved_at` | timestamp with time zone |  |  |
-| `second_approved_by` | uuid |  |  |
-| `second_approved_at` | timestamp with time zone |  |  |
-| `executed_by` | uuid |  |  |
-| `executed_at` | timestamp with time zone |  |  |
-| `removed_count` | integer |  |  |
-| `file_paths` | text[] | yes | '{}'[] |
-| `files_removed` | integer |  |  |
-| `error` | text |  |  |
+| `author_id` | uuid |  |  |
+| `author_side` | text | yes |  |
+| `body` | text | yes |  |
+| `client_ref` | uuid |  |  |
 | `created_at` | timestamp with time zone | yes | now() |
-| `updated_at` | timestamp with time zone | yes | now() |
 
 - Primary key: `id`.
-- `data_class` → `public.data_retention_policies` (on delete no action).
-- Row security: on; no policies, so roles subject to row security (signed-in users and anon) get no rows directly. Superusers and `BYPASSRLS` roles (such as the server key) are not limited by it, nor is the table owner unless `FORCE ROW LEVEL SECURITY` is set; a security definer function runs with its function owner's rights.
-
-### `legal_holds`
-
-Businesses whose data must be kept whatever the retention periods say, until a Zella Voice owner releases the hold (server only).
-
-| Column | Type | Required | Default |
-|---|---|---|---|
-| `id` | uuid | yes | gen_random_uuid() |
-| `business_id` | uuid | yes |  |
-| `reason` | text | yes |  |
-| `placed_by` | uuid | yes |  |
-| `placed_at` | timestamp with time zone | yes | now() |
-| `released_by` | uuid |  |  |
-| `released_at` | timestamp with time zone |  |  |
-| `release_reason` | text |  |  |
-
-- Primary key: `id`.
-- `business_id` → `public.businesses` (on delete restrict).
-- Row security: on; no policies, so roles subject to row security (signed-in users and anon) get no rows directly. Superusers and `BYPASSRLS` roles (such as the server key) are not limited by it, nor is the table owner unless `FORCE ROW LEVEL SECURITY` is set; a security definer function runs with its function owner's rights.
-
-### `number_orders`
-
-Phone number purchases and releases through Telnyx and Vapi: who asked, which owner approved, the provider's answer (server only).
-
-| Column | Type | Required | Default |
-|---|---|---|---|
-| `id` | uuid | yes | gen_random_uuid() |
-| `kind` | text | yes |  |
-| `provider` | text | yes | 'telnyx' |
-| `e164` | text | yes |  |
-| `business_id` | uuid |  |  |
-| `vapi_phone_number_id` | text |  |  |
-| `status` | text | yes | 'requested' |
-| `idempotency_key` | uuid | yes |  |
-| `requested_by` | uuid | yes |  |
-| `request_reason` | text | yes |  |
-| `decided_by` | uuid |  |  |
-| `decided_at` | timestamp with time zone |  |  |
-| `decision_reason` | text |  |  |
-| `provider_order_id` | text |  |  |
-| `provider_number_id` | text |  |  |
-| `error` | text |  |  |
-| `created_at` | timestamp with time zone | yes | now() |
-| `updated_at` | timestamp with time zone | yes | now() |
-
-- Primary key: `id`.
-- Unique: `(idempotency_key)`.
-- `business_id` → `public.businesses` (on delete set null).
-- Row security: on; no policies, so roles subject to row security (signed-in users and anon) get no rows directly. Superusers and `BYPASSRLS` roles (such as the server key) are not limited by it, nor is the table owner unless `FORCE ROW LEVEL SECURITY` is set; a security definer function runs with its function owner's rights.
+- `ticket_id` → `public.support_tickets` (on delete cascade).
+- Row security: on; policies: business members read their ticket messages (select), zella_mfa_required (all).
 
 ## Functions
 
@@ -4440,14 +4436,6 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_accept_staff_invitations_v2()` | jsonb | yes | signed in |
 | `zella_accept_waitlist_offer(p_entry_id uuid)` | uuid | yes | server only |
 
-### `zella_actor_*` (3)
-
-| Function | Returns | SD | Who may call |
-|---|---|---|---|
-| `zella_actor_audit(p_actor uuid, p_action text, p_entity_type text, p_entity_id uuid, p_business uuid, p_old jsonb, p_new jsonb)` | void | yes | server only |
-| `zella_actor_can(p_actor uuid, p_permission text)` | boolean | yes | server only |
-| `zella_actor_role(p_actor uuid)` | text | yes | server only |
-
 ### `zella_add_*` (3)
 
 | Function | Returns | SD | Who may call |
@@ -4456,7 +4444,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_add_lead_note(p_customer_id uuid, p_note text)` | boolean | yes | signed in |
 | `zella_add_record_note(p_id uuid, p_note text)` | boolean | yes | signed in |
 
-### `zella_admin_*` (44)
+### `zella_admin_*` (49)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -4481,8 +4469,12 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_admin_messaging_alerts()` | jsonb | yes | signed in |
 | `zella_admin_messaging_compliance()` | jsonb | yes | signed in |
 | `zella_admin_messaging_overview(p_from timestamp with time zone, p_to timestamp with time zone)` | jsonb | yes | signed in |
+| `zella_admin_mfa_added_trg()` | trigger | yes | server only |
 | `zella_admin_number_release(p_id uuid, p_reason text)` | jsonb | yes | signed in |
 | `zella_admin_numbers(p_q text, p_status text, p_business uuid, p_limit integer, p_offset integer)` | jsonb | yes | signed in |
+| `zella_admin_onboarding_change_done(p_business_id uuid, p_section text, p_note text)` | jsonb | yes | signed in |
+| `zella_admin_onboarding_overview()` | jsonb | yes | signed in |
+| `zella_admin_onboarding_progress(p_business_id uuid)` | jsonb | yes | signed in |
 | `zella_admin_pack_grant(p_business_id uuid, p_pack_code text, p_reason text, p_idempotency_key text)` | jsonb | yes | signed in |
 | `zella_admin_plan_get(p_business_id uuid)` | jsonb | yes | signed in |
 | `zella_admin_plan_save(p_business_id uuid, p_values jsonb, p_acknowledgements jsonb, p_idempotency_key text)` | jsonb | yes | signed in |
@@ -4502,6 +4494,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_admin_template_save(p_id uuid, p_subject text, p_body text, p_reason text)` | jsonb | yes | signed in |
 | `zella_admin_template_variables(p_key text, p_channel text)` | text[] | yes | server only |
 | `zella_admin_templates(p_q text, p_channel text, p_scope text, p_limit integer, p_offset integer)` | jsonb | yes | signed in |
+| `zella_admin_ticket_reply(p_ticket uuid, p_author uuid, p_body text)` | jsonb | yes | server only |
 | `zella_admin_voice_alerts()` | jsonb | yes | signed in |
 | `zella_admin_voice_overview(p_from timestamp with time zone, p_to timestamp with time zone)` | jsonb | yes | signed in |
 
@@ -4636,7 +4629,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_brain_search(p_business_id uuid, p_query text, p_limit integer)` | jsonb | yes | server only |
 | `zella_brain_tool_defs()` | jsonb |  | anon, signed in |
 
-### `zella_business_*` (23)
+### `zella_business_*` (21)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -4651,15 +4644,13 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_business_lifecycle_trigger()` | trigger | yes | server only |
 | `zella_business_metrics(p_business_id uuid, p_from timestamp with time zone, p_to timestamp with time zone, p_assigned_to uuid)` | jsonb | yes | signed in |
 | `zella_business_open(p_business_id uuid, p_at timestamp with time zone)` | jsonb | yes | server only |
-| `zella_business_purge_execute(p_actor uuid, p_run uuid, p_confirm_name text)` | jsonb | yes | server only |
-| `zella_business_purge_files_done(p_actor uuid, p_run uuid, p_removed text[], p_error text)` | jsonb | yes | server only |
-| `zella_business_purge_request(p_actor uuid, p_business uuid, p_offered_at timestamp with time zone, p_offer_note text, p_reason text)` | jsonb | yes | server only |
 | `zella_business_readiness(p_business_id uuid)` | jsonb | yes | signed in |
 | `zella_business_request(p_business_id uuid, p_kind text, p_subject text, p_description text, p_details jsonb)` | uuid | yes | signed in |
 | `zella_business_services_get(p_business_id uuid)` | jsonb | yes | signed in |
 | `zella_business_services_save(p_business_id uuid, p_services jsonb)` | jsonb | yes | signed in |
 | `zella_business_settings(p_business_id uuid)` | jsonb | yes | signed in |
 | `zella_business_status_trigger()` | trigger | yes | server only |
+| `zella_business_ticket_reply(p_ticket uuid, p_body text, p_ref uuid)` | jsonb | yes | signed in |
 | `zella_business_voice_get(p_business_id uuid)` | jsonb | yes | signed in |
 | `zella_business_voice_save(p_business_id uuid, p_voice_id text)` | jsonb | yes | signed in |
 | `zella_business_welcome()` | trigger | yes | server only |
@@ -4939,6 +4930,14 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_inbox_reply(p_conversation_id uuid, p_body text, p_subject text)` | text | yes | signed in |
 | `zella_inbox_update(p_conversation_id uuid, p_assign_to uuid, p_priority text, p_status text, p_unassign boolean)` | boolean | yes | signed in |
 
+### `zella_incident_*` (3)
+
+| Function | Returns | SD | Who may call |
+|---|---|---|---|
+| `zella_incident_edit(p_incident uuid, p_title text, p_detail text)` | boolean | yes | signed in |
+| `zella_incident_post_update(p_incident uuid, p_body text, p_notify boolean, p_ref uuid)` | jsonb | yes | signed in |
+| `zella_incident_title_key(p text)` | text |  | signed in |
+
 ### `zella_industry_*` (6)
 
 | Function | Returns | SD | Who may call |
@@ -5042,17 +5041,6 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_my_sessions()` | jsonb | yes | signed in |
 | `zella_my_workspaces()` | jsonb | yes | signed in |
 
-### `zella_number_*` (6)
-
-| Function | Returns | SD | Who may call |
-|---|---|---|---|
-| `zella_number_order_cancel(p_actor uuid, p_id uuid, p_reason text)` | jsonb | yes | server only |
-| `zella_number_order_claim(p_actor uuid, p_id uuid)` | jsonb | yes | server only |
-| `zella_number_order_decide(p_actor uuid, p_id uuid, p_approve boolean, p_reason text)` | jsonb | yes | server only |
-| `zella_number_order_finish(p_actor uuid, p_id uuid, p_outcome text, p_order_id text, p_number_id text, p_vapi_id text, p_error text)` | jsonb | yes | server only |
-| `zella_number_order_request(p_actor uuid, p_kind text, p_e164 text, p_business uuid, p_vapi_id text, p_reason text, p_key uuid)` | jsonb | yes | server only |
-| `zella_number_orders_list(p_actor uuid, p_limit integer)` | jsonb | yes | server only |
-
 ### `zella_offer_*` (37)
 
 | Function | Returns | SD | Who may call |
@@ -5115,6 +5103,38 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_on_call_settings_save(p_business_id uuid, p_enabled boolean, p_scope text)` | boolean | yes | signed in |
 | `zella_on_call_status()` | jsonb | yes | server only |
 
+### `zella_onboarding_*` (19)
+
+| Function | Returns | SD | Who may call |
+|---|---|---|---|
+| `zella_onboarding_admin_check(p_permission text)` | void | yes | server only |
+| `zella_onboarding_advance(p_business_id uuid, p_step text, p_user uuid)` | void | yes | server only |
+| `zella_onboarding_audit(p_business_id uuid, p_user uuid, p_action text, p_old jsonb, p_new jsonb)` | void | yes | server only |
+| `zella_onboarding_authorize(p_business_id uuid, p_write boolean, p_need_aal2 boolean)` | void | yes | server only |
+| `zella_onboarding_config(p_business_id uuid)` | TABLE(agent_name text, knowledge_base jsonb, escalation_rules jsonb, appointment_rules jsonb, voice_config jsonb) | yes | server only |
+| `zella_onboarding_document_rejected_trg()` | trigger | yes | server only |
+| `zella_onboarding_ensure(p_business_id uuid, p_user uuid)` | owner_onboarding | yes | server only |
+| `zella_onboarding_identity(p_business_id uuid)` | jsonb | yes | server only |
+| `zella_onboarding_identity_passed(p_business_id uuid)` | boolean | yes | server only |
+| `zella_onboarding_payment(p_business_id uuid)` | jsonb | yes | server only |
+| `zella_onboarding_payment_confirmed_at(p_business_id uuid)` | timestamp with time zone | yes | server only |
+| `zella_onboarding_plan(p_business_id uuid)` | jsonb | yes | server only |
+| `zella_onboarding_rules()` | jsonb |  | server only |
+| `zella_onboarding_section_data(p_business_id uuid, p_section text)` | jsonb | yes | server only |
+| `zella_onboarding_section_keys()` | text[] |  | server only |
+| `zella_onboarding_sections(p_business_id uuid)` | jsonb | yes | server only |
+| `zella_onboarding_state(p_business_id uuid, p_for_admin boolean)` | jsonb | yes | server only |
+| `zella_onboarding_step_done(p_business_id uuid, p_step text, p_current text)` | boolean | yes | server only |
+| `zella_onboarding_step_keys()` | text[] |  | server only |
+
+### `zella_open_*` (3)
+
+| Function | Returns | SD | Who may call |
+|---|---|---|---|
+| `zella_open_incident(p_title text, p_detail text)` | uuid | yes | signed in |
+| `zella_open_incident_checked(p_title text, p_detail text, p_force boolean)` | jsonb | yes | signed in |
+| `zella_open_workload(p_business_id uuid, p_user_id uuid)` | integer | yes | server only |
+
 ### `zella_other_*` (13)
 
 | Function | Returns | SD | Who may call |
@@ -5132,6 +5152,24 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `rls_auto_enable()` | event_trigger | yes | server only |
 | `update_customer(p_business_id uuid, p_customer_id uuid, p_first_name text, p_last_name text, p_email text, p_phone text, p_company_name text, p_status text, p_notes text, p_metadata jsonb)` | uuid | yes | signed in |
 | `update_updated_at()` | trigger |  | server only |
+
+### `zella_owner_*` (13)
+
+| Function | Returns | SD | Who may call |
+|---|---|---|---|
+| `zella_owner_continue_plan(p_business_id uuid)` | boolean | yes | signed in |
+| `zella_owner_identity_document_add(p_business_id uuid, p_user uuid, p_kind text, p_path text, p_file_name text, p_mime text, p_size integer)` | jsonb | yes | server only |
+| `zella_owner_identity_upload_check(p_business_id uuid, p_kind text)` | jsonb | yes | signed in |
+| `zella_owner_onboarding_complete_step(p_business_id uuid, p_step text)` | jsonb | yes | signed in |
+| `zella_owner_onboarding_finish_later(p_business_id uuid)` | jsonb | yes | signed in |
+| `zella_owner_onboarding_get(p_business_id uuid)` | jsonb | yes | signed in |
+| `zella_owner_onboarding_identity_status(p_business_id uuid)` | jsonb | yes | signed in |
+| `zella_owner_onboarding_list()` | jsonb | yes | signed in |
+| `zella_owner_onboarding_payment_status(p_business_id uuid)` | jsonb | yes | signed in |
+| `zella_owner_onboarding_plan_accept(p_business_id uuid, p_plan_version integer)` | jsonb | yes | signed in |
+| `zella_owner_onboarding_resume(p_business_id uuid)` | jsonb | yes | signed in |
+| `zella_owner_onboarding_section(p_business_id uuid, p_section text, p_decision text, p_note text, p_seen_hash text)` | jsonb | yes | signed in |
+| `zella_owner_rules_prompt(p_business_id uuid, p_part text)` | text | yes | server only |
 
 ### `zella_people_*` (7)
 
@@ -5223,17 +5261,6 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_record_workflow_defaults_trg()` | trigger | yes | server only |
 | `zella_record_workflow_save(p_business_id uuid, p_type_key text, p_workflow jsonb)` | jsonb | yes | signed in |
 
-### `zella_recording_*` (6)
-
-| Function | Returns | SD | Who may call |
-|---|---|---|---|
-| `zella_recording_effective(p_business uuid)` | boolean | yes | server only |
-| `zella_recording_legal_set(p_actor uuid, p_approved boolean, p_disclosure text, p_reason text)` | jsonb | yes | server only |
-| `zella_recording_policies(p_actor uuid)` | jsonb | yes | server only |
-| `zella_recording_policy_guard()` | trigger |  | server only |
-| `zella_recording_policy_set(p_actor uuid, p_business uuid, p_on boolean, p_reason text)` | jsonb | yes | server only |
-| `zella_recording_setting_guard()` | trigger |  | server only |
-
 ### `zella_recover_*` (4)
 
 | Function | Returns | SD | Who may call |
@@ -5267,6 +5294,14 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_remind_integrations()` | integer | yes | server only |
 | `zella_remind_reconnects()` | integer | yes | server only |
 | `zella_remind_upcoming_callbacks()` | integer | yes | server only |
+
+### `zella_remove_*` (3)
+
+| Function | Returns | SD | Who may call |
+|---|---|---|---|
+| `zella_remove_mfa_factor(p_user_id uuid, p_factor_id uuid)` | integer | yes | server only |
+| `zella_remove_record_file(p_file_id uuid)` | jsonb | yes | signed in |
+| `zella_remove_waitlist_entry(p_id uuid)` | boolean | yes | signed in |
 
 ### `zella_replace_*` (3)
 
@@ -5334,26 +5369,13 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_resource_usage(p_capacity integer, p_party integer)` | integer |  | signed in |
 | `zella_resource_used(p_resource uuid, p_start timestamp with time zone, p_end timestamp with time zone, p_ignore uuid)` | integer | yes | server only |
 
-### `zella_retention_*` (16)
+### `zella_retention_*` (3)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
-| `zella_retention_candidates(p_class text, p_cutoff timestamp with time zone)` | TABLE(source text, row_id uuid, business_id uuid, dated timestamp with time zone) | yes | server only |
 | `zella_retention_due()` | jsonb | yes | server only |
-| `zella_retention_on_hold(p_business uuid)` | boolean | yes | server only |
-| `zella_retention_overview(p_actor uuid)` | jsonb | yes | server only |
-| `zella_retention_policy_set(p_actor uuid, p_class text, p_days integer, p_status text, p_reason text)` | jsonb | yes | server only |
-| `zella_retention_preview(p_actor uuid, p_class text, p_limit integer)` | jsonb | yes | server only |
-| `zella_retention_run_approve(p_actor uuid, p_run uuid, p_reason text)` | jsonb | yes | server only |
-| `zella_retention_run_cancel(p_actor uuid, p_run uuid, p_reason text)` | jsonb | yes | server only |
-| `zella_retention_run_execute(p_actor uuid, p_run uuid, p_confirm text)` | jsonb | yes | server only |
-| `zella_retention_run_files_done(p_actor uuid, p_run uuid, p_removed text[], p_error text)` | jsonb | yes | server only |
-| `zella_retention_run_request(p_actor uuid, p_class text, p_reason text)` | jsonb | yes | server only |
-| `zella_retention_runs(p_actor uuid, p_limit integer)` | jsonb | yes | server only |
 | `zella_retention_scan(p_limit integer)` | integer | yes | server only |
-| `zella_retention_setting_guard()` | trigger |  | server only |
 | `zella_retention_summary(p_business_id uuid)` | jsonb | yes | signed in |
-| `zella_retention_switch_set(p_actor uuid, p_on boolean, p_reason text)` | jsonb | yes | server only |
 
 ### `zella_retry_*` (4)
 
@@ -5659,11 +5681,12 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_setting(p_key text, p_default jsonb)` | jsonb | yes | server only |
 | `zella_tables(p_business_id uuid)` | jsonb | yes | signed in |
 
-### Smaller groups and older helpers (191)
+### Smaller groups and older helpers (190)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
 | `zella_acknowledge_escalation(p_call_id uuid)` | text | yes | signed in |
+| `zella_activation_checks(p_business_id uuid)` | jsonb | yes | server only |
 | `zella_activation_report(p_business_id uuid)` | jsonb | yes | signed in |
 | `zella_active_notices(p_business_id uuid)` | jsonb | yes | signed in |
 | `zella_advance_onboarding(p_business_id uuid, p_status text)` | void | yes | server only |
@@ -5706,6 +5729,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_dismiss_dead_letter(p_id uuid, p_note text)` | boolean | yes | signed in |
 | `zella_dismiss_knowledge_gap(p_gap_id uuid)` | boolean | yes | signed in |
 | `zella_dnc_stops_callbacks()` | trigger | yes | server only |
+| `zella_end_user_sessions(p_user_id uuid)` | integer | yes | server only |
 | `zella_ensure_crm_types(p_business_id uuid)` | integer | yes | signed in |
 | `zella_entitlement_allows(p_business_id uuid, p_key text, p_add numeric)` | boolean | yes | server only |
 | `zella_erase_customer(p_business_id uuid, p_customer_id uuid)` | text | yes | signed in |
@@ -5728,6 +5752,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_handle_staff_unavailable(p_business_id uuid, p_staff_id uuid, p_from timestamp with time zone, p_to timestamp with time zone, p_reason text)` | integer | yes | server only |
 | `zella_has_role(p_business_id uuid, p_roles text[])` | boolean | yes | signed in |
 | `zella_hold_slot(p_business_id uuid, p_customer_id uuid, p_title text, p_start timestamp with time zone, p_duration_minutes integer, p_staff_id uuid, p_hold_minutes integer)` | uuid | yes | server only |
+| `zella_identity_provider_event(p_provider text, p_event_id text, p_reference text, p_outcome text, p_occurred_at timestamp with time zone, p_subject text)` | jsonb | yes | server only |
 | `zella_inbound_email_address(p_business_id uuid)` | text | yes | server only |
 | `zella_ingest_event(p_business_id uuid, p_event_type text, p_source text, p_idempotency_key text, p_payload jsonb, p_provider_event_id text, p_correlation_id uuid, p_causation_id uuid)` | jsonb | yes | server only |
 | `zella_inspection_clean(p_items jsonb)` | jsonb |  | server only |
@@ -5736,6 +5761,8 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_invite_staff(p_business_id uuid, p_email text, p_name text, p_role text)` | uuid | yes | signed in |
 | `zella_issue_quote(p_customer_id uuid, p_title text, p_expires_in_days integer)` | uuid | yes | signed in |
 | `zella_join_waitlist(p_business_id uuid, p_customer_id uuid, p_title text, p_duration_minutes integer, p_earliest timestamp with time zone, p_latest timestamp with time zone, p_staff_id uuid, p_notes text)` | uuid | yes | signed in |
+| `zella_keep_an_owner_trg()` | trigger | yes | server only |
+| `zella_keep_an_owner_turn_trg()` | trigger | yes | server only |
 | `zella_kick_platform_emails()` | trigger | yes | server only |
 | `zella_language_allowance(p_business_id uuid)` | integer | yes | signed in |
 | `zella_language_catalog()` | jsonb |  | anon, signed in |
@@ -5743,8 +5770,6 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_lead_rule_check()` | trigger | yes | server only |
 | `zella_lead_source_report(p_business_id uuid, p_from timestamp with time zone, p_to timestamp with time zone)` | jsonb | yes | signed in |
 | `zella_leads_page(p_business_id uuid, p_filter text, p_source text, p_assignee text, p_query text, p_view text, p_limit integer, p_after jsonb)` | jsonb |  | signed in |
-| `zella_legal_hold_place(p_actor uuid, p_business uuid, p_reason text)` | jsonb | yes | server only |
-| `zella_legal_hold_release(p_actor uuid, p_hold uuid, p_reason text)` | jsonb | yes | server only |
 | `zella_list_drafts(p_business_id uuid)` | jsonb | yes | signed in |
 | `zella_list_invitations(p_business_id uuid)` | jsonb | yes | signed in |
 | `zella_lock_call_columns()` | text | yes | server only |
@@ -5764,11 +5789,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_notify_message_failures()` | integer | yes | server only |
 | `zella_notify_owners(p_business_id uuid, p_kind text, p_title text, p_body text, p_severity text, p_page_key text)` | void | yes | server only |
 | `zella_offboard_member(p_business_id uuid, p_user_id uuid, p_reassign_to uuid)` | jsonb | yes | signed in |
-| `zella_open_incident(p_title text, p_detail text)` | uuid | yes | signed in |
-| `zella_open_workload(p_business_id uuid, p_user_id uuid)` | integer | yes | server only |
 | `zella_order_lookup_report(p_business_id uuid, p_days integer)` | jsonb | yes | signed in |
-| `zella_owner_continue_plan(p_business_id uuid)` | boolean | yes | signed in |
-| `zella_owner_rules_prompt(p_business_id uuid, p_part text)` | text | yes | server only |
 | `zella_parent_business_id_trg()` | trigger | yes | server only |
 | `zella_patch_function(p_signature text, p_marker text, p_anchor text, p_replacement text)` | text |  | server only |
 | `zella_pending_approvals(p_business_id uuid)` | jsonb | yes | signed in |
@@ -5804,8 +5825,6 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_release_call(p_source text, p_id uuid, p_reason text, p_defer_minutes integer)` | text | yes | server only |
 | `zella_reminder_response(p_appointment_id uuid, p_response text, p_note text)` | text | yes | server only |
 | `zella_reminder_settings_trg()` | trigger | yes | server only |
-| `zella_remove_record_file(p_file_id uuid)` | jsonb | yes | signed in |
-| `zella_remove_waitlist_entry(p_id uuid)` | boolean | yes | signed in |
 | `zella_require_capability(p_business_id uuid, p_key text)` | void | yes | server only |
 | `zella_resend_invitation(p_invitation_id uuid)` | void | yes | signed in |
 | `zella_resend_signature_ok(p_id text, p_timestamp text, p_signature text, p_raw text)` | text | yes | server only |
@@ -5813,6 +5832,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_resync_reminders(p_business_id uuid)` | integer | yes | server only |
 | `zella_reviews_list(p_business_id uuid, p_status text)` | jsonb | yes | signed in |
 | `zella_reviews_status()` | jsonb | yes | server only |
+| `zella_revoke_my_other_sessions()` | integer | yes | signed in |
 | `zella_revoke_my_session(p_session_id uuid)` | boolean | yes | signed in |
 | `zella_rls_coverage()` | jsonb | yes | server only |
 | `zella_rollback_agent_config(p_version_id uuid)` | integer | yes | signed in |
@@ -5836,6 +5856,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_subscription_after()` | trigger | yes | server only |
 | `zella_subscription_trigger()` | trigger | yes | server only |
 | `zella_support_notes_guard_trg()` | trigger | yes | server only |
+| `zella_support_ticket_alert_trg()` | trigger | yes | server only |
 | `zella_suspend_business(p_business_id uuid, p_reason text)` | void | yes | server only |
 | `zella_take_ticket_notes(p_ticket uuid, p_metadata jsonb)` | jsonb | yes | server only |
 | `zella_tenant_leak_check()` | jsonb | yes | server only |

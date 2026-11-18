@@ -113,7 +113,7 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile` (checked
 | <!-- coderabbit-ai-generated:v1 --> <!-- coderabbit-ai-generated-section:v1:9123bd8d8797eb6c820594101faae82df3c1e7e1894bae6c11114bfbf409fc5f --> **Owner invitations without the app address** (`docs/ADMIN_AUDIT_2026-11-16.md` BIZ-01). Current invitationResend and the setup-finish send plan reject an unusable ZELLA_APP_URL with 503 before changing state or sending an invitation. <!-- /coderabbit-ai-generated:v1 --> | Open | <!-- coderabbit-ai-generated:v1 --> <!-- coderabbit-ai-generated-section:v1:7c407862abe286bb2872c7e7bf19ce759aff5483cd9bb2bd5a75d6dd5933192c --> Verify production deployment and live ZELLA_APP_URL configuration, then confirm the deployed revision refuses before changing state or sending. These remain unresolved. <!-- /coderabbit-ai-generated:v1 --> |
 | **Admin panel audit** (16 Nov 2026): 210 items across every admin page, 16 of them P1, with a page by page section and a build checklist, in `docs/ADMIN_AUDIT_2026-11-16.md`. Evidence: code review, a local browser crawl and visual pass on the isolated database, and read only production checks. | Open | Owner picks the order; the audit suggests one (permissions first, then sign in, invitations and lifecycle). |
 | **Scheduled cancellations** (BIZ-03, 16 Nov 2026): the daily job only marked a business cancelled and left its AI receptionist on and its subscription active; the full cancellation ran only when an admin opened Overview or Businesses. `sql/zella_cancellations_scheduled.sql` makes the scheduled path do the full cancellation, hourly. | Built, not applied | Apply with the owner's approval; it acts only once `zella_jobs_hourly` or `zella_jobs_daily` is switched on. Then remove the page open fallback from owner-provision-business. |
-| **Owner onboarding journey** (owner, 16 Nov 2026): after the admin dashboard work, an owner opens the invitation link, sets a password and two step sign in, checks the details the admin entered step by step, verifies their identity (provider to decide; Persona recommended), sees their plan, pays (Stripe), then goes live. Screens and checklist in `docs/ADMIN_AUDIT_2026-11-16.md`, add on task. | Planned | Owner decides the identity provider, plan choice, first payment and failed check rules; then build after the admin dashboard items. |
+| **Owner onboarding journey** (owner, 16 Nov 2026): after the admin dashboard work, an owner opens the invitation link, sets a password and two step sign in, checks the details the admin entered step by step, verifies their identity (provider to decide; Persona recommended), sees their plan, pays (Stripe), then goes live. Screens and checklist in `docs/ADMIN_AUDIT_2026-11-16.md`, add on task. | Server side built, not applied (16 Nov 2026): `sql/zella_owner_onboarding.sql`, the `owner-onboarding` and `identity-webhook` edge functions, contract `docs/OWNER_ONBOARDING_CONTRACT.md`; tested on the isolated database and the local stand in only. Screens built separately (`claude/owner-onboarding-screens`). | Owner approves the four defaults below (or changes one, a one line change in `zella_onboarding_rules()`), then applies the migration and deploys both functions with the screens. Stripe Checkout and the payment webhook, and the Persona connection, are still to build. Note: once applied, a business that isn't live can't go live until identity is verified and a provider confirmed payment exists. |
 | **Repo build vs production drift.** The isolated build from the repo differs from production in a few places: production is stricter on execute grants for `zella_arrival_window`, `zella_booking_choices` and `zella_capability_on` (server only) and `zella_cross_sell_ideas` (signed in, not anon); `zella_session_proved_email` is security definer in production; production has `zella_audit_privileged_trg` on `platform_admins`; and the repo build keeps an old `zella_calendar_connect(uuid,text,text,text)` that production dropped. | Open | Bring the repo build in line with production (a test-only change to the builder, or a new migration if the repo is right). |
 | Database test scripts outside the isolated test server: most are guarded through `build_full.sh` or `sql/baseline/restore.sh` (checked 13 Nov 2026); `tests/features/run.sh` and the three in `tests/voice-reliability/` now use `tests/lib/zpsql.sh` and the guard (G-10) | Fixed in PR #60 | — |
 | `tests/voice-reliability/run_all.sh` (and `tests/features/run.sh`, which needs its database) is out of date: it checks its build against production's function bodies of 28 Oct, and five have changed since, so it fails on `main` before any test runs | Open | Refresh the snapshot from production (read-only) and the build scripts, or retire the suite in favour of `tests/deploy/run_all.sh` and `tests/calls/run.sh`. |
@@ -134,6 +134,7 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile` (checked
 | **Emails from Zella Voice to businesses:** catalogue and admin preview built; outbox `sql/zella_platform_emails.sql` applied 15 Nov 2026 (empty) | Open | Delivery applied and deployed 15 Nov 2026 (`sql/zella_email_delivery.sql`; `platform-emails` v1, which refuses a call without the Vault secret). Event based: a new email wakes the sender at once; the minute job is only a safety net. Still off, each with approval: set `platform_emails_url` and the sender address (`email_from_address`), add `RESEND_API_KEY` to the function, switch on the two event triggers and the safety net job, then turn on `email_live`. Billing emails per Stripe event in step 4. |
 | **Usage limits that act:** `sql/zella_usage_enforcement.sql` applied 15 Nov 2026 (fingerprints match the tested copy; switches off); voice-rules v8 deployed 15 Nov 2026 (files match `main`; unsigned requests refused) | Open, owner's approval | 1. Give one demo business a test fallback number the owner controls. 2. Staging call with the calls switch on for it, to prove Vapi transfers on the `destination` reply. 3. Turn on `usage_enforcement.calls`, then `.messages`, each with approval. The monthly spending limit for pay as you go needs payments (step 4). |
 | **Fallback number for every business** (owner, 15 Nov 2026: decided at Create Business, REQ-BIL-34). New businesses can't finish setup without one (owner-provision-business, merged; deployed 16 Nov 2026 as v18). | Open | The 4 businesses in production are demo businesses (owner, 15 Nov 2026), so none needs a real fallback number; one gets a test number for the staging call. |
+| **Businesses list (UI-03, UI-04, BIZ-15, BIZ-16, BIZ-23, BIZ-24, BIZ-27, BIZ-29):** the paged list action `businesses_list` and the slimmer `dashboard_data` (no members) in `owner-provision-business` are built on branch `claude/admin-businesses-list`, not deployed. The web app works against the deployed function: it gets 400 "Unknown action", falls back to `dashboard_data` and says so on the page | Open, owner's approval | Deploy in either order. `dashboard_data` keeps every field the Offers page, the setup wizard and an older web app read. Overview's totals (`overview_data`) still stop at 1,000 rows (BIZ-15, Overview part). Owner decision: `businesses_list` shows every `businesses.view` role (read only admins too) each business's saved plan tier, version and billing interval, no prices. That is new for `businesses.view` (`tenants_search` only shows the subscription's plan name); if plan detail should stay with billing roles, gate it on `billing.view`. |
 | **Safe retry on Platform operations (OPS-05):** `sql/zella_retry_event_safe.sql` (built, not applied). `zella_retry_event` gains a reason argument and refuses an event that already acted; `zella_start_execution` refuses a run of an event that isn't claimed (EVENT_NOT_CLAIMED) or that names another business (EVENT_BUSINESS_MISMATCH), and the Event Router stops for that event instead of running its handler | Open, owner's approval | Goes live as one step, in this order: the n8n Event Router (re-import `n8n/workflows/zella-event-router.json`, so a refused start runs nothing), then the SQL, then the web app (it sends the reason; the old app's retry would fail until it is published). Rollback in reverse. Not covered: two workers that both hold a claim (the 10 minute reclaim); claims carry no owner token yet |
 | **Status page honesty (OPS-01, OPS-02):** production's `/status` says "Everything is working" although every check and job is off (read 16 Nov 2026). `sql/zella_status_honest.sql` built, not applied | Open, owner's approval | Apply with the web app (either order). Once applied, `/status` will read "Not every part is checked right now" until the provider checks and the `zella_dispatch` job are switched on (PLT-07). |
 | **Business moments** (record day, call surge, weekend on call gaps): `sql/zella_business_moments.sql` applied 15 Nov 2026 and added to the hourly group; in app notifications only | Open, owner's approval | They run only once the timed job `zella_jobs_hourly` is switched on (it is off in production, like most timed jobs; only `zella_usage_thresholds` and `zella_billing_reconcile` are active). Later moments need data the app doesn't keep yet (recall due dates, seasonal demand such as tax season). |
@@ -150,6 +151,65 @@ most often needed:
   labels (`staff-invite` deployed 15 Nov 2026; `owner-provision-business` deployed 16 Nov 2026). Left on purpose: n8n
   workflow and node names and internal reason codes (only admins see them in n8n; renaming means a re-import).
   The industry "E-commerce" is shown as "Ecommerce".
+
+- **One list of audit actions, alert kinds and permissions (PLT-08, 16 Nov 2026):** they live in
+  `web/supabase/functions/_shared/catalog.json`. `tests/catalog/drift_test.mjs` runs in `npm run lint` and fails when SQL,
+  an edge function module, n8n or the web app uses a name that isn't listed, or a listed name is no longer used. No CI
+  yet: adding GitHub Actions is the owner's choice. The Audit logs page already reads its labels from the list first
+  (`catalog.audit_actions`, falling back to `actionLabel`); pages that still call `web/src/ownerFormat.js`'s
+  `ACTION_LABELS` directly move to the list next (PLT-08 part 2).
+
+- **Incident updates never notify businesses by default (OPS-12, 16 Nov 2026, recommended default taken):** an update
+  is internal unless the admin ticks Tell all active businesses (`p_notify`, false by default, in
+  `zella_incident_post_update`). Incidents don't record which businesses they affect, so a notice goes to every active
+  business. Editing an open incident notifies nobody. Showing updates on the public status page is not built yet
+  (`zella_public_status` is unchanged).
+
+- **Fresh code for admin access changes (ACC-19, 16 Nov 2026, recommended default taken):** adding an admin and changing
+  an admin's role or access need an authenticator code entered in the last 5 minutes (`FRESH_CODE_MAX_AGE_SECONDS` in
+  `owner-provision-business/mfa_gate.ts`, read from the token's amr). No second owner approval while there are only
+  two owners. `roles_save` gets the check after the open admin polish changes to Settings > Platform roles merge.
+  It only means something once two step sign in for admins (ACC-01) is live.
+
+- **Admins' own security changes go through the server (ACC-30, 16 Nov 2026):** `me_mfa_added`, `me_mfa_remove` and
+  `me_password_change` in `owner-provision-business/access.ts`, audited. The password change uses the server key, which
+  skips Supabase Auth's "reauthenticate first" step; a code entered in the last 5 minutes (ACC-19) is the
+  reauthentication instead. Removing the last authenticator is refused on the server too (ACC-01). The first
+  authenticator set up at sign in is recorded from `web/src/mfa.js`, best effort (the factor is already on).
+
+- **Refused admin calls are security events (ACC-15, 16 Nov 2026, defaults taken):** `security.admin_refused` with ip
+  and user agent at the three refusal points (not an admin, two step sign in, permission), capped by
+  `REFUSAL_LIMIT` (5 per person and reason in 10 minutes, `owner-provision-business/access.ts`). Not recorded: calls with
+  no signed in person (401; Supabase Auth logs those) and FRESH_CODE_REQUIRED (an ordinary step, not a refusal).
+  Shown on Users & access; the Settings Security overview card gets the count after the open admin polish merges
+  (`security_overview` already returns `refusals24h`).
+
+- **Audit log export (ACC-12, 16 Nov 2026, recommended default taken):** `audit.view` and the Zella Voice owner or super
+  admin role (`AUDIT_EXPORT_ROLES` in `owner-provision-business/access.ts`), because the file holds addresses and browsers;
+  at most 10,000 entries per file (`AUDIT_EXPORT_MAX_ROWS`); every export is audited as `audit.exported` with its filters
+  and row count. The audit page's filter uses the key `auditAction`, since `action` names the function's own action.
+
+- **Support business hours (OPS-25, 16 Nov 2026, recommended default taken):** Monday to Friday 9:00 to 17:00
+  America/New_York, first reply goal 4 business hours, stored as `platform_settings.support_business_hours`
+  (`SUPPORT_HOURS_DEFAULT` in `owner-provision-business/access.ts` until it is set). It has no editor yet: the
+  platform settings allowlist belongs to another lane. Replies notify the business in the app only (never email or
+  text, `delivery_status` skipped).
+
+- **Owner onboarding defaults (16 Nov 2026, taken at the recommended answers until the owner decides; one server
+  constant, `zella_onboarding_rules()` in `sql/zella_owner_onboarding.sql`):** identity by manual upload, checked by
+  Zella Voice in Verification, with a provider neutral receiver ready for Persona and off (`identity_provider` = `none`);
+  the owner accepts the plan Zella Voice set, no switching (`accept_only`); a confirmed payment before going live
+  (`pay_before_live`); after a failed check the owner tries again, and after 2 failed checks Zella Voice reviews it by
+  hand (`retry_then_review`, `identity_attempts` = 2). Only Zella Voice admins with `businesses.view` and the
+  business's owner can read the progress; other team members can't. The owner's calls are database functions (the
+  rules live in the database, NN-6); only the document upload is an edge function, because it needs the server key.
+
+- **Reference fixture (UI-35, owner, 16 Nov 2026):** local test databases may hold production CONFIGURATION, never
+  customer data: `tests/fixtures/reference_config.sql` (industries, modules, configurations, automation defaults,
+  platform templates, platform settings), copied read only by `tests/fixtures/export_reference.mjs`, which refuses
+  anything off its allowlist. Left out: business rows, template authors (`created_by`), settings ending in `_url`,
+  sender address and number, `vapi_` settings and model settings. Every `_live` switch and `n8n_dispatch_enabled` is
+  off in it. Loaded only by `tests/fixtures/load_reference.sh` (isolated server only); checked by `tests/fixtures/run.sh`.
 
 - **Unsubscribe link limits (G-7, 14 Nov 2026):** limits are per link only, never platform-wide or per address (a burst
   of genuine opt-outs after a big email must never be refused), and the limit never stops an opt-out.
@@ -226,6 +286,13 @@ most often needed:
   for the offer. Refused while it has payment or billing records: how long those are kept after deletion is an owner
   and legal decision not taken. Provider copies: numbers must be released first; deleting Vapi assistants or call
   recordings at Vapi isn't built.
+- **CodeRabbit review routine (owner, 17 Nov 2026):** CodeRabbit reviews a PR in full once, when it opens. Later
+  pushes (merges of main, fixes) are reviewed only when someone comments `@coderabbitai review`, and the author must
+  request that review on the final head before merging: no PR merges without a CodeRabbit success on its final changes.
+  `docs/BACKEND_SCHEMA.md` is not reviewed, because it is generated; every schema change must still regenerate it with
+  `docs/generators/backend_schema.py` from an isolated copy. Reason: the review allowance per hour is shared by every PR
+  from the one account. Draft PRs get no review when they open (`drafts: false`): when a draft is marked ready for review, comment
+  `@coderabbitai review` to start the first review.
 
 Waiting on the owner:
 
@@ -305,3 +372,4 @@ Waiting on the owner:
 | Going live | `docs/GO_LIVE.md`, `n8n/GO-LIVE.md` |
 | Undoing a migration | `sql/rollback/README.md` |
 | Running tests | each `tests/*/README.md` |
+| Audit action, alert kind and permission names | `web/supabase/functions/_shared/catalog.json`, `tests/catalog/README.md` |
